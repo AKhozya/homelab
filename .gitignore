@@ -1,0 +1,20 @@
+# Generic operating system and IDE files
+.DS_Store
+.vscode/
+.idea/
+
+# Common package manager directories
+node_modules/
+vendor/
+
+# Environment files
+.env
+.env.local
+
+# Build artifacts
+*.log
+*.swp
+build/
+dist/
+target/
+
