@@ -11,4 +11,4 @@ spec:
     kind: GitRepository
     name: flux-system
   path: ./apps/staging
-  prune: prune
+  prune: true
