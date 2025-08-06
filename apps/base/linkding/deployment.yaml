@@ -12,13 +12,26 @@ spec:
       labels:
         app: linkding
     spec:
+      # Use an initContainer to set the correct permissions on the volume
+      # before the main application starts. This is a robust way to
+      # handle a permissions mismatch between the container's user and the volume.
+      initContainers:
+        - name: fix-permissions
+          image: busybox:1.36.1
+          command: ["chown", "-R", "33:33", "/etc/linkding/data"]
+          securityContext:
+            runAsUser: 0 # Run as root to have permission to chown
+          volumeMounts:
+            - name: linkding-data
+              mountPath: /etc/linkding/data
       securityContext:
         fsGroup: 33 # www-data group ID
         runAsUser: 33 # www-data user ID
         runAsGroup: 33 # www-data group ID
+
       containers:
         - name: linkding
-          image: sissbruecker/linkding:1.41.0
+          image: sissbruecker/linkding:1.31.0
           ports:
             - containerPort: 9090
           securityContext:
@@ -28,7 +41,5 @@ spec:
               mountPath: /etc/linkding/data
       volumes:
         - name: linkding-data
-          hostPath:
-            # symlink to home/user/apps/
-            path: /apps/linkding/data
-            type: DirectoryOrCreate
+          persistentVolumeClaim:
+            claimName: linkding-data-pvc
