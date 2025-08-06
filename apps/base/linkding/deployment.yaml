@@ -16,10 +16,9 @@ spec:
         fsGroup: 33 # www-data group ID
         runAsUser: 33 # www-data user ID
         runAsGroup: 33 # www-data group ID
-
       containers:
         - name: linkding
-          image: sissbruecker/linkding:1.31.0
+          image: sissbruecker/linkding:1.41.0
           ports:
             - containerPort: 9090
           securityContext:
@@ -29,5 +28,7 @@ spec:
               mountPath: /etc/linkding/data
       volumes:
         - name: linkding-data
-          persistentVolumeClaim:
-            claimName: linkding-data-pvc
+          hostPath:
+            # symlink to home/user/apps/
+            path: /apps/linkding/data
+            type: DirectoryOrCreate
