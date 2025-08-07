@@ -12,28 +12,10 @@ spec:
       labels:
         app: linkding
     spec:
-      # The securityContext.fsGroup ensures that the owner of the mounted volume
-      # is set to group ID 33 before the initContainer and main container start.
-      # This is the most reliable way to set initial permissions on a volume.
       securityContext:
-        fsGroup: 33
-
-      # This initContainer will now simply change the ownership, as the fsGroup
-      # should have already set the volume's group ownership. The '&& chown'
-      # part is what was causing the previous error, as it might have failed.
-      # This simplified version just performs the chown command directly.
-      initContainers:
-        - name: fix-permissions
-          image: busybox:1.36.1
-          command: ["sh", "-c", "chown -R 33:33 /etc/linkding/data"]
-          securityContext:
-            runAsUser: 0 # Run as root to ensure we have permission to change ownership
-          volumeMounts:
-            - name: linkding-data
-              mountPath: /etc/linkding/data
-
-      # The main application container runs as user and group 33.
-      # It now has the correct permissions to access the volume.
+        fsGroup: 33 # www-data group ID
+        runAsUser: 33 # www-data user ID
+        runAsGroup: 33 # www-data group ID
       containers:
         - name: linkding
           image: sissbruecker/linkding:1.31.0
@@ -41,8 +23,13 @@ spec:
             - containerPort: 9090
           securityContext:
             allowPrivilegeEscalation: false
-            runAsUser: 33
-            runAsGroup: 33
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
           volumeMounts:
             - name: linkding-data
               mountPath: /etc/linkding/data
