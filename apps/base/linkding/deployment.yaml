@@ -18,7 +18,7 @@ spec:
         runAsGroup: 33 # www-data group ID
       containers:
         - name: linkding
-          image: sissbruecker/linkding:1.31.0
+          image: sissbruecker/linkding:1.41.0
           ports:
             - containerPort: 9090
           securityContext:
@@ -28,7 +28,7 @@ spec:
               cpu: "100m"
               memory: "128Mi"
             limits:
-              cpu: "500m"
+              cpu: "750m"
               memory: "512Mi"
           volumeMounts:
             - name: linkding-data
