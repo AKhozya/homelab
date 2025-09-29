@@ -1,0 +1,4 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+resources:
+  - kube-prometheus-stack
