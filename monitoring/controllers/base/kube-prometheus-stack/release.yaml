@@ -28,3 +28,11 @@ spec:
   values:
     grafana:
       adminPassword: passw0rd
+      ingress:
+        enabled: true
+        ingressClassName: traefik
+
+        hosts:
+          - grs.h0malab.work
+
+        tls: []
