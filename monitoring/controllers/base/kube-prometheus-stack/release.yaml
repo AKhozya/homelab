@@ -33,6 +33,6 @@ spec:
         ingressClassName: traefik
 
         hosts:
-          - grs.h0malab.work
+          - grs.h0melab.work
 
         tls: []
