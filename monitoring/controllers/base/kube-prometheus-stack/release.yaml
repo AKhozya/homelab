@@ -31,8 +31,9 @@ spec:
       ingress:
         enabled: true
         ingressClassName: traefik
-
         hosts:
           - grs.h0melab.work
-
-        tls: []
+        tls:
+          - secretName: grafana-tls-secret
+            hosts:
+            - grs.h0melab.work
