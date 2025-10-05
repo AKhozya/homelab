@@ -12,7 +12,7 @@ spec:
         spec:
           containers:
             - name: renovate
-              image: renovate/renovate:41.135.4
+              image: renovate/renovate:41.135.5
               args:
                 - AKhozya/homelab
 
