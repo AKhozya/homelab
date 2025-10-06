@@ -1,0 +1,51 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: alertmanager-kube-prometheus-stack-alertmanager
+  namespace: monitoring
+type: Opaque
+stringData:
+  alertmanager.yaml: |
+    global:
+      resolve_timeout: 5m
+    
+    route:
+      group_by: ['alertname', 'cluster', 'service']
+      group_wait: 10s
+      group_interval: 10s
+      repeat_interval: 12h
+      receiver: 'telegram'
+      routes:
+      - match:
+          alertname: Watchdog
+        receiver: 'null'
+      - match:
+          severity: critical
+        receiver: 'telegram'
+        continue: true
+      - match:
+          severity: warning
+        receiver: 'telegram'
+        continue: true
+    
+    receivers:
+    - name: 'null'
+    
+    - name: 'telegram'
+      telegram_configs:
+      - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot_token
+        chat_id: 113452686
+        parse_mode: 'HTML'
+        message: |
+          <b>{{ .Status | toUpper }}</b>
+          {{ range .Alerts }}
+          <b>Alert:</b> {{ .Labels.alertname }}
+          <b>Severity:</b> {{ .Labels.severity }}
+          <b>Summary:</b> {{ .Annotations.summary }}
+          <b>Description:</b> {{ .Annotations.description }}
+          {{ if .Labels.namespace }}<b>Namespace:</b> {{ .Labels.namespace }}{{ end }}
+          {{ if .Labels.pod }}<b>Pod:</b> {{ .Labels.pod }}{{ end }}
+          {{ if .Labels.container }}<b>Container:</b> {{ .Labels.container }}{{ end }}
+          {{ end }}
+    
+    templates: []

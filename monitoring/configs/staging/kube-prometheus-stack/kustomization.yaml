@@ -4,3 +4,5 @@ resources:
   - grafana-certificate.yaml  # Auto-renewing cert from Let's Encrypt
   - grafana-admin-secret.yaml
   - https-redirect-middleware.yaml
+  - alertmanager-telegram-secret.yaml
+  - prometheus-rules.yaml
