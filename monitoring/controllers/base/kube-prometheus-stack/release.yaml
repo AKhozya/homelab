@@ -34,6 +34,8 @@ spec:
       ingress:
         enabled: true
         ingressClassName: traefik
+        annotations:
+          traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
         hosts:
           - grs.h0melab.work
         tls:
