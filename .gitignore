@@ -11,6 +11,16 @@ vendor/
 .env
 .env.local
 
+# Secrets and keys
+*.agekey
+age.agekey*
+*.key
+*.crt
+*.pem
+*.p12
+*.pfx
+*.csr
+
 # Build artifacts
 *.log
 *.swp
