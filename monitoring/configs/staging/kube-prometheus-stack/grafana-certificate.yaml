@@ -9,7 +9,7 @@ spec:
     name: letsencrypt-staging
     kind: ClusterIssuer
   dnsNames:
-    - grs.h0melab.work
+    - grafana.h0melab.work
   # Auto-renew 30 days before expiration
   renewBefore: 720h  # 30 days
   # Certificate valid for 90 days (Let's Encrypt default)

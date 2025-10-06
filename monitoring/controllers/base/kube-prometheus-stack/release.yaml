@@ -70,11 +70,11 @@ spec:
         annotations:
           traefik.ingress.kubernetes.io/router.middlewares: monitoring-redirect-https@kubernetescrd
         hosts:
-          - grs.h0melab.work
+          - grafana.h0melab.work
         tls:
           - secretName: grafana-tls-secret
             hosts:
-            - grs.h0melab.work
+            - grafana.h0melab.work
     
     prometheus:
       prometheusSpec:
