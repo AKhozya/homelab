@@ -48,11 +48,27 @@ spec:
     webhook:
       resources:
         requests:
-          cpu: 20m
-          memory: 64Mi
-        limits:
-          cpu: 100m
+          cpu: 50m
           memory: 128Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+      # Increase webhook timeout for slow clusters
+      timeoutSeconds: 30
+      # Liveness probe settings
+      livenessProbe:
+        failureThreshold: 3
+        initialDelaySeconds: 60
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 1
+      # Readiness probe settings  
+      readinessProbe:
+        failureThreshold: 3
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        successThreshold: 1
+        timeoutSeconds: 1
 
     # CA Injector settings
     cainjector:
