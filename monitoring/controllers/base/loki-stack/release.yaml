@@ -116,6 +116,12 @@ spec:
         grafanaAgent:
           installOperator: false
     
+    # Disable caching for single binary mode
+    chunksCache:
+      enabled: false
+    resultsCache:
+      enabled: false
+    
     # Test configuration
     test:
       enabled: false
