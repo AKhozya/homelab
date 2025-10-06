@@ -61,9 +61,12 @@ spec:
       
       # Compactor for log retention
       compactor:
+        working_directory: /var/loki/compactor
+        compaction_interval: 10m
         retention_enabled: true
         retention_delete_delay: 2h
         retention_delete_worker_count: 150
+        delete_request_store: filesystem
     
     # Single binary mode for simplicity (v6.x chart format)
     deploymentMode: SingleBinary
