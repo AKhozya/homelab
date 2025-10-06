@@ -65,8 +65,16 @@ spec:
         retention_delete_delay: 2h
         retention_delete_worker_count: 150
     
-    # Single binary mode for simplicity
+    # Single binary mode for simplicity (v6.x chart format)
     deploymentMode: SingleBinary
+    
+    # Disable simple scalable mode components
+    backend:
+      replicas: 0
+    read:
+      replicas: 0
+    write:
+      replicas: 0
     
     singleBinary:
       replicas: 1
