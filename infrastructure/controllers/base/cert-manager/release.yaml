@@ -55,6 +55,12 @@ spec:
           memory: 256Mi
       # Increase webhook timeout for slow clusters
       timeoutSeconds: 30
+      # Configure ValidatingWebhookConfiguration with higher timeout
+      config:
+        apiVersion: webhook.config.cert-manager.io/v1alpha1
+        kind: WebhookConfiguration
+        # Increase webhook timeout to 60 seconds for slow API server
+        timeoutSeconds: 60
       # Liveness probe settings
       livenessProbe:
         failureThreshold: 3
