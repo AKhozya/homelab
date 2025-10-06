@@ -149,6 +149,17 @@ spec:
               {{ if .Labels.namespace }}<b>Namespace:</b> {{ .Labels.namespace }}{{ end }}
               {{ if .Labels.pod }}<b>Pod:</b> {{ .Labels.pod }}{{ end }}
               {{ end }}
+      ingress:
+        enabled: true
+        ingressClassName: traefik
+        annotations:
+          traefik.ingress.kubernetes.io/router.middlewares: monitoring-redirect-https@kubernetescrd
+        hosts:
+          - am.h0melab.work
+        tls:
+          - secretName: alertmanager-tls-secret
+            hosts:
+            - am.h0melab.work
       alertmanagerSpec:
         secrets:
           - alertmanager-telegram
