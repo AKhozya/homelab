@@ -6,3 +6,4 @@ resources:
 - ../../apps.yaml
 - ../../monitoring.yaml
 - ../../infrastructure.yaml
+- ../../infrastructure-configs.yaml
