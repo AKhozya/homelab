@@ -122,6 +122,16 @@ spec:
           - match:
               alertname: Watchdog
             receiver: 'null'
+          # Silence K3s-specific false positives
+          - match:
+              alertname: KubeProxyDown
+            receiver: 'null'
+          - match:
+              alertname: KubeSchedulerDown
+            receiver: 'null'
+          - match:
+              alertname: KubeControllerManagerDown
+            receiver: 'null'
         receivers:
         - name: 'null'
         - name: 'telegram'
