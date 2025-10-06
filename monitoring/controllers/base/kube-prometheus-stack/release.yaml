@@ -27,6 +27,7 @@ spec:
           kind: PrometheusRule
   values:
     grafana:
+      replicas: 1
       admin:
         existingSecret: grafana-admin-secret
         userKey: admin-user
