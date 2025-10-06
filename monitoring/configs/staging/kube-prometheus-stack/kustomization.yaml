@@ -5,4 +5,5 @@ resources:
   - grafana-admin-secret.yaml
   - https-redirect-middleware.yaml
   - alertmanager-telegram-secret.yaml
+  - alertmanager-certificate.yaml
   - prometheus-rules.yaml
