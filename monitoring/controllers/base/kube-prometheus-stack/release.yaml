@@ -109,7 +109,39 @@ spec:
                   storage: 50Gi
     
     alertmanager:
+      config:
+        global:
+          resolve_timeout: 5m
+        route:
+          group_by: ['alertname', 'cluster', 'service']
+          group_wait: 10s
+          group_interval: 10s
+          repeat_interval: 12h
+          receiver: 'telegram'
+          routes:
+          - match:
+              alertname: Watchdog
+            receiver: 'null'
+        receivers:
+        - name: 'null'
+        - name: 'telegram'
+          telegram_configs:
+          - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot_token
+            chat_id: 113452686
+            parse_mode: 'HTML'
+            message: |
+              <b>{{ .Status | toUpper }}</b>
+              {{ range .Alerts }}
+              <b>Alert:</b> {{ .Labels.alertname }}
+              <b>Severity:</b> {{ .Labels.severity }}
+              <b>Summary:</b> {{ .Annotations.summary }}
+              <b>Description:</b> {{ .Annotations.description }}
+              {{ if .Labels.namespace }}<b>Namespace:</b> {{ .Labels.namespace }}{{ end }}
+              {{ if .Labels.pod }}<b>Pod:</b> {{ .Labels.pod }}{{ end }}
+              {{ end }}
       alertmanagerSpec:
+        secrets:
+          - alertmanager-telegram
         resources:
           requests:
             cpu: 50m
