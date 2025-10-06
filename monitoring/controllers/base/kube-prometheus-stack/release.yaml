@@ -60,6 +60,21 @@ spec:
             limits:
               cpu: 100m
               memory: 128Mi
+      # Additional datasources
+      additionalDataSources:
+        - name: Loki
+          type: loki
+          access: proxy
+          url: http://loki-gateway.loki.svc.cluster.local
+          jsonData:
+            maxLines: 1000
+            derivedFields:
+              - datasourceUid: prometheus
+                matcherRegex: "traceID=(\\w+)"
+                name: TraceID
+                url: "$${__value.raw}"
+          isDefault: false
+          editable: false
       admin:
         existingSecret: grafana-admin-secret
         userKey: admin-user
