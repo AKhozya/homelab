@@ -45,6 +45,10 @@ spec:
         memory: 256Mi
 
     # Webhook settings
+    # Note: Webhook deployment may be scaled to 0 replicas and webhook configurations
+    # may be deleted if experiencing Kubernetes API server timeout issues (30s default).
+    # The webhook provides admission validation but is not strictly required for cert-manager
+    # operation, as the controllers also perform validation.
     webhook:
       resources:
         requests:
