@@ -28,3 +28,10 @@ build/
 dist/
 target/
 
+
+# Backup directory with secrets
+.backup/secrets/
+.backup/secrets/*.json
+.backup/secrets/*.txt
+.backup/secrets/*.agekey
+.backup/ENV_VARS.md
