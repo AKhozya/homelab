@@ -193,68 +193,6 @@ spec:
 
   - name: certificate-alerts
 
-  - name: certificate-alerts
-
-  - name: storage-alerts
-    interval: 30s
-    rules:
-    - alert: PersistentVolumeFillingUp
-      expr: (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes) < 0.15
-      for: 5m
-      labels:
-        severity: warning
-      annotations:
-        summary: "PersistentVolume {{ $labels.persistentvolumeclaim }} is filling up"
-        description: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has less than 15% free space"
-    
-    - alert: PersistentVolumeFullCritical
-      expr: (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes) < 0.05
-      for: 1m
-      labels:
-        severity: critical
-      annotations:
-        summary: "PersistentVolume {{ $labels.persistentvolumeclaim }} is almost full"
-        description: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has less than 5% free space. Immediate action required!"
-    
-    - alert: PersistentVolumeInodesFull
-      expr: (kubelet_volume_stats_inodes_free / kubelet_volume_stats_inodes) < 0.05
-      for: 5m
-      labels:
-        severity: warning
-      annotations:
-        summary: "PersistentVolume {{ $labels.persistentvolumeclaim }} running out of inodes"
-        description: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has less than 5% inodes available"
-
-  - name: certificate-alerts
-    interval: 30s
-    rules:
-    - alert: CertificateExpiringSoon
-      expr: (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 14
-      for: 1h
-      labels:
-        severity: warning
-      annotations:
-        summary: "Certificate {{ $labels.name }} expiring soon"
-        description: "Certificate {{ $labels.namespace }}/{{ $labels.name }} will expire in {{ $value }} days"
-    
-    - alert: CertificateNotReady
-      expr: certmanager_certificate_ready_status{condition="False"} == 1
-      for: 10m
-      labels:
-        severity: critical
-      annotations:
-        summary: "Certificate {{ $labels.name }} is not ready"
-        description: "Certificate {{ $labels.namespace }}/{{ $labels.name }} has not been issued. HTTPS may be broken!"
-    
-    - alert: CertificateRenewalFailed
-      expr: increase(certmanager_certificate_renewal_timestamp_seconds[1h]) == 0 and (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 7
-      for: 1h
-      labels:
-        severity: critical
-      annotations:
-        summary: "Certificate {{ $labels.name }} renewal failed"
-        description: "Certificate {{ $labels.namespace }}/{{ $labels.name }} is expiring in less than 7 days and renewal has failed"
-
   - name: kubernetes-alerts
     interval: 30s
     rules:
@@ -312,29 +250,8 @@ spec:
       labels:
         severity: warning
       annotations:
-        summary: "Flux {{ $labels.kind }} {{ $labels.namespace }}/{{ $labels.name }} reconciliation failed"
-        description: "GitOps reconciliation has been failing for more than 10 minutes. Changes may not be applied!"
-    
-    - alert: FluxSuspended
-      expr: gotk_suspend_status == 1
-      for: 5m
-      labels:
-        severity: info
-      annotations:
-        summary: "Flux {{ $labels.kind }} {{ $labels.namespace }}/{{ $labels.name }} is suspended"
-        description: "Resource is suspended and will not reconcile automatically"
-
-  - name: flux-gitops-alerts
-    interval: 30s
-    rules:
-    - alert: FluxReconciliationFailure
-      expr: max(gotk_reconcile_condition{type="Ready",status="False"}) by (namespace,name,kind) > 0
-      for: 15m
-      labels:
-        severity: warning
-      annotations:
-        summary: "Flux {{ $labels.kind }} {{ $labels.name }} failing"
-        description: "GitOps reconciliation failing for 15+ minutes. Your Git changes won't auto-deploy!"
+        summary: "Flux {{ $labels.kind }} {{ $labels.name }} reconciliation failed"
+        description: "GitOps reconciliation has been failing for more than 10 minutes in {{ $labels.namespace }}. Your Git changes may not be applied! Check: kubectl describe {{ $labels.kind }} {{ $labels.name }} -n {{ $labels.namespace }}"
     
     - alert: FluxSourceNotReady
       expr: gotk_reconcile_condition{type="Ready",status="False",kind=~"GitRepository|HelmRepository"} > 0
@@ -343,7 +260,16 @@ spec:
         severity: critical
       annotations:
         summary: "Flux source {{ $labels.name }} not ready"
-        description: "Flux can't access the Git/Helm repository. Check credentials and connectivity."
+        description: "Flux can't access the {{ $labels.kind }} {{ $labels.name }} in {{ $labels.namespace }}. Check credentials and connectivity."
+    
+    - alert: FluxSuspended
+      expr: gotk_suspend_status == 1
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        summary: "Flux {{ $labels.kind }} {{ $labels.name }} is suspended"
+        description: "Resource {{ $labels.namespace }}/{{ $labels.name }} is suspended and will not reconcile automatically. Resume with: flux resume {{ $labels.kind }} {{ $labels.name }} -n {{ $labels.namespace }}"
 
   - name: service-alerts
     interval: 30s
