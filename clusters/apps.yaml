@@ -5,6 +5,9 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1m0s
+  retryInterval: 2m
+  wait: true
+  force: true
   timeout: 5m
   sourceRef:
     kind: GitRepository
