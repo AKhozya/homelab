@@ -92,6 +92,36 @@ spec:
         summary: "Critical disk space on {{ $labels.instance }}"
         description: "Disk {{ $labels.mountpoint }} has less than 5% free space (current: {{ $value }}%)"
 
+  - name: storage-alerts
+    interval: 30s
+    rules:
+    - alert: PVCUsageHigh
+      expr: (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) * 100 > 80
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "PVC {{ $labels.persistentvolumeclaim }} in namespace {{ $labels.namespace }} is almost full"
+        description: "PVC {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full. Consider expanding the volume or cleaning up data."
+    
+    - alert: PVCUsageCritical
+      expr: (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) * 100 > 90
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "PVC {{ $labels.persistentvolumeclaim }} in namespace {{ $labels.namespace }} is critically full"
+        description: "PVC {{ $labels.persistentvolumeclaim }} is {{ $value | humanizePercentage }} full. Immediate action required - expand volume or free up space."
+    
+    - alert: PVCInodeLow
+      expr: (kubelet_volume_stats_inodes_used / kubelet_volume_stats_inodes) * 100 > 85
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "PVC {{ $labels.persistentvolumeclaim }} has low inodes available"
+        description: "PVC {{ $labels.persistentvolumeclaim }} has used {{ $value | humanizePercentage }} of available inodes. This may cause issues creating new files."
+
   - name: pod-alerts
     interval: 30s
     rules:
