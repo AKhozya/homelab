@@ -193,6 +193,8 @@ spec:
 
   - name: certificate-alerts
 
+  - name: certificate-alerts
+
   - name: storage-alerts
     interval: 30s
     rules:
