@@ -191,6 +191,8 @@ spec:
         summary: "High latency on Cloudflare tunnel {{ $labels.namespace }}"
         description: "P99 latency is {{ $value }}s on Cloudflare tunnel in {{ $labels.namespace }}. Users may experience slow response times."
 
+  - name: certificate-alerts
+
   - name: storage-alerts
     interval: 30s
     rules:
