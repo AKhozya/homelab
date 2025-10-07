@@ -161,6 +161,228 @@ spec:
         summary: "High latency on Cloudflare tunnel {{ $labels.namespace }}"
         description: "P99 latency is {{ $value }}s on Cloudflare tunnel in {{ $labels.namespace }}. Users may experience slow response times."
 
+  - name: storage-alerts
+    interval: 30s
+    rules:
+    - alert: PersistentVolumeFillingUp
+      expr: (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes) < 0.15
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "PersistentVolume {{ $labels.persistentvolumeclaim }} is filling up"
+        description: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has less than 15% free space"
+    
+    - alert: PersistentVolumeFullCritical
+      expr: (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes) < 0.05
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "PersistentVolume {{ $labels.persistentvolumeclaim }} is almost full"
+        description: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has less than 5% free space. Immediate action required!"
+    
+    - alert: PersistentVolumeInodesFull
+      expr: (kubelet_volume_stats_inodes_free / kubelet_volume_stats_inodes) < 0.05
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "PersistentVolume {{ $labels.persistentvolumeclaim }} running out of inodes"
+        description: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has less than 5% inodes available"
+
+  - name: certificate-alerts
+    interval: 30s
+    rules:
+    - alert: CertificateExpiringSoon
+      expr: (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 14
+      for: 1h
+      labels:
+        severity: warning
+      annotations:
+        summary: "Certificate {{ $labels.name }} expiring soon"
+        description: "Certificate {{ $labels.namespace }}/{{ $labels.name }} will expire in {{ $value }} days"
+    
+    - alert: CertificateNotReady
+      expr: certmanager_certificate_ready_status{condition="False"} == 1
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Certificate {{ $labels.name }} is not ready"
+        description: "Certificate {{ $labels.namespace }}/{{ $labels.name }} has not been issued. HTTPS may be broken!"
+    
+    - alert: CertificateRenewalFailed
+      expr: increase(certmanager_certificate_renewal_timestamp_seconds[1h]) == 0 and (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 7
+      for: 1h
+      labels:
+        severity: critical
+      annotations:
+        summary: "Certificate {{ $labels.name }} renewal failed"
+        description: "Certificate {{ $labels.namespace }}/{{ $labels.name }} is expiring in less than 7 days and renewal has failed"
+
+  - name: kubernetes-alerts
+    interval: 30s
+    rules:
+    - alert: DeploymentReplicasMismatch
+      expr: kube_deployment_spec_replicas != kube_deployment_status_replicas_available
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has mismatched replicas"
+        description: "Deployment has {{ $labels.spec_replicas }} desired but only {{ $labels.available_replicas }} available for more than 10 minutes"
+    
+    - alert: StatefulSetReplicasMismatch
+      expr: kube_statefulset_status_replicas_ready != kube_statefulset_status_replicas
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} has mismatched replicas"
+        description: "StatefulSet has {{ $labels.replicas }} desired but only {{ $labels.ready_replicas }} ready"
+    
+    - alert: DaemonSetNotScheduled
+      expr: kube_daemonset_status_desired_number_scheduled - kube_daemonset_status_current_number_scheduled > 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "DaemonSet {{ $labels.namespace }}/{{ $labels.daemonset }} not fully scheduled"
+        description: "DaemonSet has {{ $labels.desired }} desired but only {{ $labels.current }} scheduled"
+    
+    - alert: PodsPending
+      expr: kube_pod_status_phase{phase="Pending"} > 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} stuck in Pending"
+        description: "Pod has been in Pending state for more than 10 minutes. Check for resource constraints or scheduling issues."
+    
+    - alert: KubernetesAPIServerDown
+      expr: up{job="apiserver"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Kubernetes API server is down"
+        description: "The Kubernetes API server is unreachable. Cluster management is unavailable!"
+
+  - name: flux-alerts
+    interval: 30s
+    rules:
+    - alert: FluxReconciliationFailure
+      expr: max(gotk_reconcile_condition{type="Ready",status="False"}) by (namespace,name,kind) > 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Flux {{ $labels.kind }} {{ $labels.namespace }}/{{ $labels.name }} reconciliation failed"
+        description: "GitOps reconciliation has been failing for more than 10 minutes. Changes may not be applied!"
+    
+    - alert: FluxSuspended
+      expr: gotk_suspend_status == 1
+      for: 5m
+      labels:
+        severity: info
+      annotations:
+        summary: "Flux {{ $labels.kind }} {{ $labels.namespace }}/{{ $labels.name }} is suspended"
+        description: "Resource is suspended and will not reconcile automatically"
+
+  - name: storage-alerts
+    interval: 30s
+    rules:
+    - alert: PersistentVolumeFillingUp
+      expr: (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes) < 0.15
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "PersistentVolume {{ $labels.persistentvolumeclaim }} is filling up"
+        description: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has less than 15% free space ({{ $value | humanizePercentage }})"
+    
+    - alert: PersistentVolumeFullCritical
+      expr: (kubelet_volume_stats_available_bytes / kubelet_volume_stats_capacity_bytes) < 0.05
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "PersistentVolume {{ $labels.persistentvolumeclaim }} is almost full"
+        description: "PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} has less than 5% free space. Immediate action required!"
+
+  - name: certificate-alerts
+    interval: 30s
+    rules:
+    - alert: CertificateExpiringSoon
+      expr: (certmanager_certificate_expiration_timestamp_seconds - time()) / 86400 < 14
+      for: 1h
+      labels:
+        severity: warning
+      annotations:
+        summary: "Certificate {{ $labels.name }} expiring soon"
+        description: "Certificate {{ $labels.namespace }}/{{ $labels.name }} will expire in {{ $value | humanize1024 }} days"
+    
+    - alert: CertificateNotReady
+      expr: certmanager_certificate_ready_status{condition="False"} == 1
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Certificate {{ $labels.name }} is not ready"
+        description: "Certificate {{ $labels.namespace }}/{{ $labels.name }} has not been issued. HTTPS may be broken!"
+
+  - name: deployment-alerts
+    interval: 30s
+    rules:
+    - alert: DeploymentReplicasMismatch
+      expr: kube_deployment_spec_replicas != kube_deployment_status_replicas_available
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Deployment {{ $labels.namespace }}/{{ $labels.deployment }} has mismatched replicas"
+        description: "Deployment wants {{ $value }} replicas but they're not available. Check pod status and logs."
+    
+    - alert: StatefulSetNotReady
+      expr: kube_statefulset_status_replicas_ready != kube_statefulset_status_replicas
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "StatefulSet {{ $labels.namespace }}/{{ $labels.statefulset }} not ready"
+        description: "StatefulSet has pods that are not ready. Check pod status."
+    
+    - alert: PodsPendingTooLong
+      expr: kube_pod_status_phase{phase="Pending"} > 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} stuck in Pending"
+        description: "Pod stuck in Pending for 10+ minutes. Check for resource constraints or PVC issues."
+
+  - name: flux-gitops-alerts
+    interval: 30s
+    rules:
+    - alert: FluxReconciliationFailure
+      expr: max(gotk_reconcile_condition{type="Ready",status="False"}) by (namespace,name,kind) > 0
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Flux {{ $labels.kind }} {{ $labels.name }} failing"
+        description: "GitOps reconciliation failing for 15+ minutes. Your Git changes won't auto-deploy!"
+    
+    - alert: FluxSourceNotReady
+      expr: gotk_reconcile_condition{type="Ready",status="False",kind=~"GitRepository|HelmRepository"} > 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Flux source {{ $labels.name }} not ready"
+        description: "Flux can't access the Git/Helm repository. Check credentials and connectivity."
+
   - name: service-alerts
     interval: 30s
     rules:
