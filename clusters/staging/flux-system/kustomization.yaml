@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
 - gotk-components.yaml
 - gotk-sync.yaml
+- flux-system-kustomization.yaml
 - ../../apps.yaml
 - ../../monitoring.yaml
 - ../../infrastructure.yaml
