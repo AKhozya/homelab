@@ -1,0 +1,41 @@
+---
+# Flux Notification Provider for Telegram
+# Reuses the existing alertmanager-telegram secret (bot_token key)
+# Note: channel (chat_id) cannot be stored in secret - Flux Provider limitation
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Provider
+metadata:
+  name: telegram
+  namespace: monitoring
+spec:
+  type: telegram
+  channel: "113452686"  # Telegram chat ID - cannot be in secret (Flux limitation)
+  secretRef:
+    name: alertmanager-telegram
+---
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata:
+  name: flux-gitops
+  namespace: monitoring
+spec:
+  summary: "🔄 Flux GitOps Events"
+  providerRef:
+    name: telegram
+  eventSeverity: error
+  eventSources:
+    - kind: GitRepository
+      name: '*'
+      namespace: flux-system
+    - kind: Kustomization
+      name: '*'
+      namespace: flux-system
+    - kind: HelmRelease
+      name: '*'
+      namespace: '*'
+    - kind: HelmRepository
+      name: '*'
+      namespace: '*'
+    - kind: HelmChart
+      name: '*'
+      namespace: '*'
