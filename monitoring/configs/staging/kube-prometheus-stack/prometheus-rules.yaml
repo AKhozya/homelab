@@ -91,6 +91,24 @@ spec:
       annotations:
         summary: "Critical disk space on {{ $labels.instance }}"
         description: "Disk {{ $labels.mountpoint }} has less than 5% free space (current: {{ $value }}%)"
+    
+    - alert: NodeHighIOWait
+      expr: rate(node_cpu_seconds_total{mode="iowait"}[5m]) * 100 > 20
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High I/O wait on {{ $labels.instance }}"
+        description: "CPU is waiting for I/O {{ printf \"%.1f\" $value }}% of the time. Disk may be bottleneck. Check disk performance."
+    
+    - alert: NodeNetworkErrors
+      expr: rate(node_network_receive_errs_total[5m]) + rate(node_network_transmit_errs_total[5m]) > 10
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Network errors on {{ $labels.instance }}"
+        description: "Network interface {{ $labels.device }} is experiencing errors ({{ printf \"%.0f\" $value }}/s). Check network hardware and cables."
 
   - name: storage-alerts
     interval: 30s
@@ -121,6 +139,24 @@ spec:
       annotations:
         summary: "PVC {{ $labels.persistentvolumeclaim }} has low inodes available"
         description: "PVC {{ $labels.persistentvolumeclaim }} has used {{ printf \"%.1f\" $value }}% of available inodes. This may cause issues creating new files."
+    
+    - alert: PVCLowAbsoluteSpace
+      expr: kubelet_volume_stats_available_bytes < 1073741824
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "PVC {{ $labels.persistentvolumeclaim }} has less than 1GB free"
+        description: "PVC {{ $labels.persistentvolumeclaim }} in {{ $labels.namespace }} has only {{ $value | humanize1024 }}B available. Writes may fail soon!"
+    
+    - alert: PersistentVolumeError
+      expr: kube_persistentvolume_status_phase{phase=~"Failed|Pending"} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "PersistentVolume {{ $labels.persistentvolume }} is in {{ $labels.phase }} state"
+        description: "PV has been in error state for more than 5 minutes. Check PV and PVC bindings."
 
   - name: pod-alerts
     interval: 30s
@@ -151,6 +187,33 @@ spec:
       annotations:
         summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} was OOM killed"
         description: "Container ran out of memory and was killed. Consider increasing memory limits."
+    
+    - alert: ContainerMemoryNearLimit
+      expr: (container_memory_working_set_bytes / container_spec_memory_limit_bytes) * 100 > 80 and container_spec_memory_limit_bytes > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} near memory limit"
+        description: "Container is using {{ printf \"%.1f\" $value }}% of its memory limit. May be OOM killed soon."
+    
+    - alert: ContainerCPUThrottling
+      expr: rate(container_cpu_cfs_throttled_seconds_total[5m]) > 0.25
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} is being CPU throttled"
+        description: "Container is being CPU throttled {{ printf \"%.1f\" $value }}% of the time. Performance may be degraded. Consider increasing CPU limits."
+    
+    - alert: PodImagePullError
+      expr: kube_pod_container_status_waiting_reason{reason=~"ImagePullBackOff|ErrImagePull"} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} cannot pull image"
+        description: "Container {{ $labels.container }} has been failing to pull image for more than 5 minutes. Check image name, registry access, and credentials."
 
   - name: cloudflare-tunnel-alerts
     interval: 30s
@@ -277,6 +340,24 @@ spec:
       annotations:
         summary: "Kubernetes API server is down"
         description: "The Kubernetes API server is unreachable. Cluster management is unavailable!"
+    
+    - alert: JobFailed
+      expr: kube_job_status_failed > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Job {{ $labels.namespace }}/{{ $labels.job_name }} failed"
+        description: "Job has failed. Check logs: kubectl logs -n {{ $labels.namespace }} job/{{ $labels.job_name }}"
+    
+    - alert: CronJobNotScheduled
+      expr: time() - kube_cronjob_next_schedule_time > 600
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} missed schedule"
+        description: "CronJob hasn't been scheduled for more than 10 minutes past its schedule time. Check if suspended or configuration issues."
 
   - name: flux-alerts
     interval: 30s
@@ -328,3 +409,51 @@ spec:
       annotations:
         summary: "High error rate detected"
         description: "HTTP 5xx error rate is above 5% for {{ $labels.job }}"
+
+  - name: monitoring-health-alerts
+    interval: 30s
+    rules:
+    - alert: PrometheusTargetDown
+      expr: up == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Prometheus target {{ $labels.job }} ({{ $labels.instance }}) is down"
+        description: "Prometheus cannot scrape {{ $labels.job }} on {{ $labels.instance }}. Monitoring data may be incomplete."
+    
+    - alert: PrometheusTargetScrapeTooSlow
+      expr: prometheus_target_interval_length_seconds{quantile="0.9"} > 60
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Prometheus scraping {{ $labels.job }} is slow"
+        description: "Prometheus target {{ $labels.job }} takes more than 60s to scrape. May cause monitoring gaps."
+    
+    - alert: PrometheusTooManyRestarts
+      expr: changes(process_start_time_seconds{job=~".*prometheus.*"}[15m]) > 2
+      for: 1m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Prometheus has restarted multiple times"
+        description: "Prometheus has restarted {{ $value }} times in the last 15 minutes. Check for crashes or OOM issues."
+    
+    - alert: AlertmanagerConfigInvalid
+      expr: alertmanager_config_last_reload_successful == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Alertmanager configuration is invalid"
+        description: "Alertmanager failed to reload its configuration. Alerts may not be sent! Check configuration syntax."
+    
+    - alert: AlertmanagerNotificationsFailing
+      expr: rate(alertmanager_notifications_failed_total[5m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Alertmanager notifications failing to {{ $labels.integration }}"
+        description: "Alertmanager cannot send notifications to {{ $labels.integration }}. Check Telegram bot token and network connectivity."
