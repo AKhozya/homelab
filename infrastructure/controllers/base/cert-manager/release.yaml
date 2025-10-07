@@ -57,12 +57,6 @@ spec:
         limits:
           cpu: 200m
           memory: 256Mi
-      # Configure ValidatingWebhookConfiguration with higher timeout
-      config:
-        apiVersion: webhook.config.cert-manager.io/v1alpha1
-        kind: WebhookConfiguration
-        # Increase webhook timeout to 60 seconds for slow API server
-        timeoutSeconds: 60
       # Liveness probe settings
       livenessProbe:
         failureThreshold: 3
