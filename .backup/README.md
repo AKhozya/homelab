@@ -1,3 +1,7 @@
+sudo rsync -av /var/lib/rancher/k3s/storage/ /backup/k3s-storage/
+sudo cat /var/lib/rancher/k3s/server/node-token
+curl -sfL https://get.k3s.io | sh -
+
 # Homelab Disaster Recovery Guide
 
 This directory contains scripts and documentation for complete cluster recovery.
@@ -5,6 +9,7 @@ This directory contains scripts and documentation for complete cluster recovery.
 ## ⚠️ IMPORTANT
 
 **Files in `.backup/secrets/` contain UNENCRYPTED credentials!**
+
 - DO NOT commit these files to git
 - The `.backup/` directory is already in `.gitignore`
 - Store backups securely (password manager, encrypted drive, etc.)
@@ -20,6 +25,7 @@ chmod +x secrets-backup.sh
 ```
 
 This will extract and save:
+
 - Cloudflare tunnel credentials
 - Cloudflare API token (for cert-manager)
 - Grafana admin credentials
@@ -44,6 +50,7 @@ Or use your preferred backup solution (Velero, Restic, etc.)
 ### Quick Recovery (2 commands)
 
 If you have:
+
 1. Fresh K3s cluster
 2. Flux already bootstrapped
 3. Backup files in `.backup/secrets/`
@@ -59,12 +66,14 @@ chmod +x disaster-recovery.sh
 #### Step 1: Create Fresh K3s Cluster
 
 **On control-plane node (192.168.1.127):**
+
 ```bash
 curl -sfL https://get.k3s.io | sh -
 sudo cat /var/lib/rancher/k3s/server/node-token
 ```
 
 **On worker node (192.168.1.129):**
+
 ```bash
 export K3S_URL=https://192.168.1.127:6443
 export K3S_TOKEN=<token-from-control-plane>
@@ -72,6 +81,7 @@ curl -sfL https://get.k3s.io | sh -
 ```
 
 **Get kubeconfig:**
+
 ```bash
 # On control-plane
 sudo cat /etc/rancher/k3s/k3s.yaml
@@ -82,6 +92,7 @@ sudo cat /etc/rancher/k3s/k3s.yaml
 #### Step 2: Configure Firewall
 
 **On both nodes:**
+
 ```bash
 sudo ufw allow from 192.168.1.0/24
 ```

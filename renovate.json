@@ -24,21 +24,15 @@
   "prConcurrentLimit": 10,
   "prHourlyLimit": 10,
   "packageRules": [
-    {
-      "description": "Auto-merge minor and patch updates",
-      "matchUpdateTypes": ["minor", "patch"],
-      "automerge": true,
-      "automergeType": "branch"
-    },
-    {
-      "description": "Group Flux updates",
-      "matchPackagePatterns": ["fluxcd"],
-      "groupName": "Flux"
-    },
-    {
-      "description": "Group Helm chart updates",
-      "matchDatasources": ["helm"],
-      "groupName": "Helm charts"
+      {
+        "description": "Group Flux updates",
+        "matchPackagePatterns": ["fluxcd"],
+        "groupName": "Flux"
+      },
+      {
+        "description": "Group Helm chart updates",
+        "matchDatasources": ["helm"],
+        "groupName": "Helm charts"
       },
       {
         "description": "Group Prometheus stack updates",
@@ -51,6 +45,12 @@
         "groupName": "Traefik"
       },
       {
+        "description": "Auto-merge minor and patch updates",
+        "matchUpdateTypes": ["minor", "patch"],
+        "automerge": true,
+        "automergeType": "branch"
+      },
+      {
         "description": "Pin digests for Helm charts and images",
         "matchDatasources": ["helm", "docker"],
         "pinDigests": true
@@ -61,7 +61,7 @@
         "reviewers": ["AKhozya"],
         "assignees": ["AKhozya"],
         "stabilityDays": 3
-    }
+      }
   ],
   "timezone": "Europe/London",
   "schedule": [
