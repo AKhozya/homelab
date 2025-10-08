@@ -34,8 +34,8 @@ spec:
 
     # Admin credentials (chart will create secret)
     adminUsername: admin
-    adminHash: "-pbkdf2-b1eb7a68b0778a529c68d30749954e9cffa7788f,b4c49f1aa5f10afc7c64959e1a05c5b7,10"
-    adminPassword: gOozAaCDkKRA3j//ZsJjLyRtUbT5O1DFSjM+mBgf+5Y=
+    # adminHash removed so chart will generate a fresh hash from the plaintext password
+    adminPassword: "Jz8r$kQ7vF2pN9yLw4sTqZ6uM1hVbX0cR5eG3nYpC0mBvL2x"
     createAdminSecret: true
 
     # Persistent storage
