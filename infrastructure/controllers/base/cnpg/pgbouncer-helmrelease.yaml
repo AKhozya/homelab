@@ -15,4 +15,19 @@ spec:
         namespace: databases
   interval: 10m
   values:
-    # Add custom pgbouncer values here
+    databases:
+        - name: main
+          host: main-postgres.databases.svc.cluster.local
+          port: 5432
+          user: {{ .Values.adminUser }}
+          password: {{ .Values.adminPassword }}
+          pool_mode: transaction
+          max_db_connections: 50
+          max_user_connections: 20
+    resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "250m"
+          memory: "256Mi"
