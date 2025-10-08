@@ -1,0 +1,22 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: main-postgres
+  namespace: databases
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+  storage:
+    size: 10Gi
+    storageClass: "local-path"
+  superuserSecret:
+    name: main-postgres-superuser
+  monitoring:
+    enablePodMonitor: true
