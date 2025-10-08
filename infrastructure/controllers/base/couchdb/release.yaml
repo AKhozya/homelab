@@ -32,14 +32,11 @@ spec:
       couchdb:
         uuid: beb932d28abcf87163a94cf52f1a795e
 
-    # Admin credentials from secret
+    # Admin credentials (chart will create secret)
     adminUsername: admin
     adminHash: "-pbkdf2-b1eb7a68b0778a529c68d30749954e9cffa7788f,b4c49f1aa5f10afc7c64959e1a05c5b7,10"
     adminPassword: gOozAaCDkKRA3j//ZsJjLyRtUbT5O1DFSjM+mBgf+5Y=
-    createAdminSecret: false  # We manage it manually with SOPS
-
-    # Use existing secret for admin credentials
-    existingSecret: couchdb-admin
+    createAdminSecret: true
 
     # Persistent storage
     persistentVolume:
