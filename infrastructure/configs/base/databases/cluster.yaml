@@ -20,3 +20,11 @@ spec:
     name: main-postgres-superuser
   monitoring:
     enablePodMonitor: true
+  managed:
+    roles:
+      - name: linkding
+        ensure: present
+        comment: Linkding application user
+        login: true
+        passwordSecret:
+          name: linkding-db-app-user
