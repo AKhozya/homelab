@@ -1,2 +1,2 @@
 resources:
-  - couchdb-secret.sops.yaml
+  - secret.yaml
