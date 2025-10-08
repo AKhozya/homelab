@@ -32,10 +32,10 @@ spec:
       couchdb:
         uuid: beb932d28abcf87163a94cf52f1a795e
 
-  # Admin credentials (chart will read an existing secret instead of creating one)
-  adminUsername: admin
-  # adminPassword removed from Git — create a SOPS-encrypted secret in the staging overlay
-  createAdminSecret: false
+    # Admin credentials (chart will read an existing secret instead of creating one)
+    adminUsername: admin
+    # adminPassword removed from Git — create a SOPS-encrypted secret in the staging overlay
+    createAdminSecret: false
 
     # Persistent storage
     persistentVolume:
