@@ -5,9 +5,14 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1m0s
-  timeout: 5m
+  timeout: 10m
   dependsOn:
     - name: infrastructure-controllers
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: cnpg-operator-cloudnative-pg
+      namespace: databases
   sourceRef:
     kind: GitRepository
     name: flux-system
