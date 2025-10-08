@@ -5,4 +5,3 @@ resources:
   - ../../base/audiobookshelf/
   - cloudflare-secret.yaml
   - cloudflare.yaml
-  - audiobookshelf-db-env-secret.yaml
