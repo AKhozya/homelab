@@ -4,4 +4,5 @@ resources:
   - namespace.yaml
   - helmrepository.yaml
   - cnpg-operator-helmrelease.yaml
-  - pgbouncer-helmrelease.yaml
+  # TODO: Fix pgbouncer values - template syntax not valid in HelmRelease
+  # - pgbouncer-helmrelease.yaml

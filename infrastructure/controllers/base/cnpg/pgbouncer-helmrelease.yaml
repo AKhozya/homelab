@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: pgbouncer
-  version: "3.1.2"
+      version: "3.1.2"
       sourceRef:
         kind: HelmRepository
         name: pgbouncer
