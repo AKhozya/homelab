@@ -4,3 +4,5 @@ resources:
   - cluster.yaml
   - superuser-secret.yaml
   - pooler.yaml
+  - linkding-database.yaml
+  - linkding-app-user-secret.yaml
