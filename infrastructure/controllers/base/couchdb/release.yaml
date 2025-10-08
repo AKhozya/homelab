@@ -32,11 +32,10 @@ spec:
       couchdb:
         uuid: beb932d28abcf87163a94cf52f1a795e
 
-    # Admin credentials (chart will create secret)
+    # Admin credentials (chart will read an existing secret instead of creating one)
     adminUsername: admin
-    # adminHash removed so chart will generate a fresh hash from the plaintext password
-    adminPassword: "Jz8r$kQ7vF2pN9yLw4sTqZ6uM1hVbX0cR5eG3nYpC0mBvL2x"
-    createAdminSecret: true
+    # adminPassword removed from Git — create a SOPS-encrypted secret in the staging overlay
+    createAdminSecret: false
 
     # Persistent storage
     persistentVolume:
