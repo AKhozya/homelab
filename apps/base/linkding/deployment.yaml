@@ -23,7 +23,7 @@ spec:
             - containerPort: 9090
           envFrom:
             - secretRef:
-                name: linkding-db-env
+                name: linkding-container-env
           securityContext:
             allowPrivilegeEscalation: false
           livenessProbe:
