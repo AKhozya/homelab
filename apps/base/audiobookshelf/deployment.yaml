@@ -20,8 +20,8 @@ spec:
         - name: audiobookshelf
           image: ghcr.io/advplyr/audiobookshelf:2.29.0@sha256:dd4a3079d26bfe9f0ea63de3e3eff483dfa25fef05ef850a5a9d121dca3794b2
           envFrom:
-            - configMapRef:
-                name: audiobookshelf-configmap
+            - secretRef:
+                name: audiobookshelf-db-env
           ports:
             - containerPort: 3005
               protocol: TCP
