@@ -41,7 +41,7 @@ spec:
     # Persistent storage
     persistentVolume:
       enabled: true
-      size: 10Gi
+      size: 100Gi
       storageClass: local-path
       accessModes:
         - ReadWriteOnce
@@ -53,7 +53,7 @@ spec:
         memory: 256Mi
       limits:
         cpu: 1000m
-        memory: 1Gi
+        memory: 2Gi
 
     # Service configuration
     service:
