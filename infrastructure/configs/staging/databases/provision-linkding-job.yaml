@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: provision-linkding-db
+  namespace: databases
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: provision
+        image: postgres:18
+        env:
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: main-postgres-superuser
+              key: password
+        - name: APP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: linkding-db
+              key: password
+        command:
+        - sh
+        - -c
+        - |
+          set -euo pipefail
+          psql -h main-postgres-rw -U postgres -d postgres -c "DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname='linkding') THEN CREATE ROLE linkding LOGIN PASSWORD '""${APP_PASSWORD}""'; ELSE ALTER ROLE linkding WITH PASSWORD '""${APP_PASSWORD}""'; END IF; END $$;"
+          psql -h main-postgres-rw -U postgres -d postgres -c "SELECT 'CREATE DATABASE linkding OWNER linkding' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname='linkding')\gexec"
+      # no special volumes or service account required
