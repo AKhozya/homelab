@@ -19,7 +19,7 @@ spec:
         runAsGroup: 1000
       containers:
         - name: n8n
-          image: n8nio/n8n:1.100.0
+          image: n8nio/n8n:1.100.0@sha256:c6eb44cb25f116661b275739e7ec3e8b830aa6df522b084bd28479d64be475c8
           ports:
             - containerPort: 5678
               name: http
