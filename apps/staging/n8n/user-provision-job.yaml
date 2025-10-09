@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: n8n-user-provision
+  namespace: n8n
+spec:
+  ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: user-provision
+          image: curlimages/curl:8.11.1
+          command: ["/bin/sh", "/scripts/provision-user.sh"]
+          env:
+            - name: N8N_USER_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-user-credentials
+                  key: email
+            - name: N8N_USER_FIRSTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-user-credentials
+                  key: firstname
+            - name: N8N_USER_LASTNAME
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-user-credentials
+                  key: lastname
+            - name: N8N_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-user-credentials
+                  key: password
+          volumeMounts:
+            - name: provision-script
+              mountPath: /scripts
+      volumes:
+        - name: provision-script
+          configMap:
+            name: n8n-user-provision-script
+            defaultMode: 0755
