@@ -15,7 +15,7 @@ data:
     MAX_RETRIES=60
     RETRY_COUNT=0
     while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-      if curl -sf http://n8n-service:5678/healthz > /dev/null 2>&1; then
+      if curl -sf http://n8n:5678/healthz > /dev/null 2>&1; then
         echo "n8n is ready!"
         break
       fi
@@ -31,7 +31,7 @@ data:
 
     # Check if owner already exists (n8n will return 400 if owner exists)
     echo "Checking if n8n owner already exists..."
-    OWNER_EXISTS=$(curl -sf http://n8n-service:5678/api/v1/owner 2>/dev/null || echo "not_found")
+    OWNER_EXISTS=$(curl -sf http://n8n:5678/api/v1/owner 2>/dev/null || echo "not_found")
 
     if echo "$OWNER_EXISTS" | grep -q "id"; then
       echo "Owner already exists, skipping provisioning"
@@ -40,7 +40,7 @@ data:
 
     # Create owner user via API
     echo "Creating n8n owner user: $N8N_USER_EMAIL"
-    RESPONSE=$(curl -sf -X POST http://n8n-service:5678/api/v1/owner/setup \
+    RESPONSE=$(curl -sf -X POST http://n8n:5678/api/v1/owner/setup \
       -H "Content-Type: application/json" \
       -d "{
         \"email\": \"$N8N_USER_EMAIL\",
