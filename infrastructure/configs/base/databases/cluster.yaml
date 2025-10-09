@@ -28,3 +28,9 @@ spec:
         login: true
         passwordSecret:
           name: linkding-db-app-user
+      - name: n8n
+        ensure: present
+        comment: n8n application user
+        login: true
+        passwordSecret:
+          name: n8n-db-user

@@ -6,5 +6,4 @@ resources:
   - service.yaml
   - storage.yaml
   - deployment.yaml
-  - postgres-init-script.yaml
   - user-provision-script.yaml

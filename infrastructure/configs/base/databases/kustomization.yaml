@@ -6,3 +6,5 @@ resources:
   - pooler.yaml
   - linkding-database.yaml
   - linkding-app-user-secret.yaml
+  - n8n-database.yaml
+  - n8n-db-user.yaml
