@@ -3,8 +3,6 @@ kind: Kustomization
 resources:
   - ../../base/n8n
   - n8n-env-secret.yaml
-  - postgres-admin-credentials.yaml
-  - postgres-init-job.yaml
   - n8n-user-credentials.yaml
   - user-provision-job.yaml
   - cloudflare.yaml
