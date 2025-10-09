@@ -31,6 +31,17 @@ spec:
     couchdbConfig:
       couchdb:
         uuid: beb932d28abcf87163a94cf52f1a795e
+        max_document_size: 50000000
+      chttpd:
+        require_valid_user: true
+        max_http_request_size: 4294967296
+      httpd:
+        enable_cors: true
+      cors:
+        origins: app://obsidian.md, capacitor://localhost, http://localhost, https://couchdb.h0melab.work
+        credentials: true
+        headers: accept, authorization, content-type, origin, referer
+        methods: GET, PUT, POST, HEAD, DELETE
 
     # Admin credentials (chart will read an existing secret instead of creating one)
     adminUsername: admin
