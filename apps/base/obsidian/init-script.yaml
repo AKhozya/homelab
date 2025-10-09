@@ -18,6 +18,16 @@ data:
     done
     echo "CouchDB is ready!"
 
+    # Ensure _users database exists (required for authentication)
+    echo "Checking if _users database exists..."
+    if curl -sf -u "$ADMIN_USER:$ADMIN_PASSWORD" "$COUCHDB_URL/_users" > /dev/null 2>&1; then
+      echo "_users database already exists"
+    else
+      echo "Creating _users database..."
+      curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" "$COUCHDB_URL/_users"
+      echo "_users database created successfully"
+    fi
+
     # Check if database exists
     echo "Checking if database '$DB_NAME' exists..."
     if curl -sf -u "$ADMIN_USER:$ADMIN_PASSWORD" "$COUCHDB_URL/$DB_NAME" > /dev/null 2>&1; then
