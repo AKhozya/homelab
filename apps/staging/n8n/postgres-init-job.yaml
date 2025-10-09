@@ -10,7 +10,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: init
-          image: postgres:18-minimal-trixie
+          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
           command: ["/bin/sh", "/scripts/init.sh"]
           env:
             # PostgreSQL admin credentials
