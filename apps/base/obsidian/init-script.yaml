@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: couchdb-init-script
+  namespace: obsidian
+data:
+  init.sh: |
+    #!/bin/sh
+    set -e
+
+    echo "Starting CouchDB database initialization..."
+
+    # Wait for CouchDB to be ready
+    echo "Waiting for CouchDB to be available..."
+    until curl -sf -u "$ADMIN_USER:$ADMIN_PASSWORD" "$COUCHDB_URL/_up" > /dev/null 2>&1; do
+      echo "CouchDB not ready yet, waiting..."
+      sleep 2
+    done
+    echo "CouchDB is ready!"
+
+    # Check if database exists
+    echo "Checking if database '$DB_NAME' exists..."
+    if curl -sf -u "$ADMIN_USER:$ADMIN_PASSWORD" "$COUCHDB_URL/$DB_NAME" > /dev/null 2>&1; then
+      echo "Database '$DB_NAME' already exists, skipping creation"
+    else
+      echo "Creating database '$DB_NAME'..."
+      curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" "$COUCHDB_URL/$DB_NAME"
+      echo "Database '$DB_NAME' created successfully"
+    fi
+
+    # Check if user exists
+    echo "Checking if user '$DB_USER' exists..."
+    if curl -sf -u "$ADMIN_USER:$ADMIN_PASSWORD" "$COUCHDB_URL/_users/org.couchdb.user:$DB_USER" > /dev/null 2>&1; then
+      echo "User '$DB_USER' already exists, skipping creation"
+    else
+      echo "Creating user '$DB_USER'..."
+      curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+        "$COUCHDB_URL/_users/org.couchdb.user:$DB_USER" \
+        -H "Content-Type: application/json" \
+        -d "{\"name\":\"$DB_USER\",\"password\":\"$DB_PASSWORD\",\"type\":\"user\",\"roles\":[]}"
+      echo "User '$DB_USER' created successfully"
+    fi
+
+    # Set database permissions (user as member)
+    echo "Setting permissions for user '$DB_USER' on database '$DB_NAME'..."
+    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+      "$COUCHDB_URL/$DB_NAME/_security" \
+      -H "Content-Type: application/json" \
+      -d "{\"admins\":{\"names\":[],\"roles\":[]},\"members\":{\"names\":[\"$DB_USER\"],\"roles\":[]}}"
+    echo "Permissions set successfully"
+
+    echo "Database initialization complete!"
