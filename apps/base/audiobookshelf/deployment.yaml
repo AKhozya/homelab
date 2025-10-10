@@ -16,6 +16,9 @@ spec:
         fsGroup: 1000
         runAsUser: 1000
         runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: audiobookshelf
           image: ghcr.io/advplyr/audiobookshelf:2.29.0@sha256:dd4a3079d26bfe9f0ea63de3e3eff483dfa25fef05ef850a5a9d121dca3794b2
@@ -25,6 +28,12 @@ spec:
           ports:
             - containerPort: 3005
               protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
           livenessProbe:
             httpGet:
               path: /healthcheck
@@ -57,6 +66,10 @@ spec:
               name: audiobookshelf-audiobooks
             - mountPath: /podcasts
               name: audiobookshelf-podcasts
+            - mountPath: /tmp
+              name: tmp
+            - mountPath: /.npm
+              name: npm-cache
       restartPolicy: Always
       volumes:
         - name: audiobookshelf-config
@@ -71,3 +84,7 @@ spec:
         - name: audiobookshelf-podcasts
           persistentVolumeClaim:
             claimName: audiobookshelf-podcasts
+        - name: tmp
+          emptyDir: {}
+        - name: npm-cache
+          emptyDir: {}

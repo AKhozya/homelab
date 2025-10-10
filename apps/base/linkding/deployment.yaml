@@ -16,6 +16,9 @@ spec:
         fsGroup: 33 # www-data group ID
         runAsUser: 33 # www-data user ID
         runAsGroup: 33 # www-data group ID
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: linkding
           image: sissbruecker/linkding:1.44.0@sha256:8240a94df32d68a620b781a34691b889c2f55ae19505c07ed50aeaff6ddf52ee
@@ -26,6 +29,10 @@ spec:
                 name: linkding-container-env
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
           livenessProbe:
             httpGet:
               path: /health
@@ -52,7 +59,15 @@ spec:
           volumeMounts:
             - name: linkding-data
               mountPath: /etc/linkding/data
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache
       volumes:
         - name: linkding-data
           persistentVolumeClaim:
             claimName: linkding-data-pvc
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}
