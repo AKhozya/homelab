@@ -1,0 +1,60 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: couchdb-network-policy
+  namespace: couchdb
+spec:
+  podSelector:
+    matchLabels:
+      app: couchdb
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from Cloudflare tunnel only
+    - from:
+        - podSelector:
+            matchLabels:
+              app: cloudflared
+      ports:
+        - protocol: TCP
+          port: 5984
+    # Allow ingress from within the same namespace (for init jobs, backups)
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 5984
+    # Allow CouchDB cluster inter-node communication
+    - from:
+        - podSelector:
+            matchLabels:
+              app: couchdb
+      ports:
+        - protocol: TCP
+          port: 5984
+        - protocol: TCP
+          port: 4369  # Erlang port mapper daemon
+        - protocol: TCP
+          port: 9100  # Erlang distribution
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow CouchDB cluster inter-node communication
+    - to:
+        - podSelector:
+            matchLabels:
+              app: couchdb
+      ports:
+        - protocol: TCP
+          port: 5984
+        - protocol: TCP
+          port: 4369  # Erlang port mapper daemon
+        - protocol: TCP
+          port: 9100  # Erlang distribution
