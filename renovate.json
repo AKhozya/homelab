@@ -53,7 +53,7 @@
       {
         "description": "Pin digests for Helm charts and images",
         "matchDatasources": ["helm", "docker"],
-        "pinDigests": true
+        "pinDigests": false
       },
       {
         "description": "Require review for major updates",
