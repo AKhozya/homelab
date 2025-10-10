@@ -1,0 +1,48 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: alertmanager-network-policy
+  namespace: monitoring
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: alertmanager
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from Prometheus
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: prometheus
+      ports:
+        - protocol: TCP
+          port: 9093
+    # Allow ingress from within the cluster (internal access only)
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 9093
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS for webhook notifications (if needed)
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTP for webhook notifications
+    - ports:
+        - protocol: TCP
+          port: 80
+    # Allow Telegram API (api.telegram.org)
+    - ports:
+        - protocol: TCP
+          port: 443

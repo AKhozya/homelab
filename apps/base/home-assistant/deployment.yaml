@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: home-assistant
+  namespace: home-assistant
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: home-assistant
+  template:
+    metadata:
+      labels:
+        app: home-assistant
+    spec:
+      securityContext:
+        # Home Assistant runs as root but we add security constraints
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: home-assistant
+          image: ghcr.io/home-assistant/home-assistant:2024.10.1
+          ports:
+            - containerPort: 8123
+              name: http
+              protocol: TCP
+          env:
+            - name: TZ
+              value: "Europe/London"
+          securityContext:
+            # Allow specific capabilities needed for Home Assistant
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE  # Bind to ports < 1024
+                - NET_RAW          # Raw socket access for network discovery
+                - NET_ADMIN        # Network administration for mDNS/discovery
+                - CHOWN            # Change file ownership
+                - SETGID           # Set group ID
+                - SETUID           # Set user ID
+                - DAC_OVERRIDE     # Bypass file permission checks
+          livenessProbe:
+            httpGet:
+              path: /manifest.json
+              port: 8123
+              scheme: HTTP
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /manifest.json
+              port: 8123
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          volumeMounts:
+            - name: home-assistant-data
+              mountPath: /config
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: home-assistant-data
+          persistentVolumeClaim:
+            claimName: home-assistant-data-pvc
+        - name: tmp
+          emptyDir: {}
