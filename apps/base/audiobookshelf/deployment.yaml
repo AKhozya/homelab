@@ -68,8 +68,10 @@ spec:
               name: audiobookshelf-podcasts
             - mountPath: /tmp
               name: tmp
-            - mountPath: /.npm
+            - mountPath: /home/node/.npm
               name: npm-cache
+            - mountPath: /home/node/.cache
+              name: node-cache
       restartPolicy: Always
       volumes:
         - name: audiobookshelf-config
@@ -87,4 +89,6 @@ spec:
         - name: tmp
           emptyDir: {}
         - name: npm-cache
+          emptyDir: {}
+        - name: node-cache
           emptyDir: {}
