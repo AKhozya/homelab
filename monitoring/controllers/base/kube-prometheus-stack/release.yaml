@@ -79,6 +79,9 @@ spec:
         existingSecret: grafana-admin-secret
         userKey: admin-user
         passwordKey: admin-password
+      # Ingress enabled for internal network access via grafana.h0melab.work
+      # DNS points to internal IPs only (192.168.1.127, 192.168.1.129)
+      # NOT exposed to the internet - NetworkPolicy restricts external access
       ingress:
         enabled: true
         ingressClassName: traefik
@@ -149,17 +152,10 @@ spec:
               {{ if .Labels.namespace }}<b>Namespace:</b> {{ .Labels.namespace }}{{ end }}
               {{ if .Labels.pod }}<b>Pod:</b> {{ .Labels.pod }}{{ end }}
               {{ end }}
+      # Ingress disabled for security - use kubectl port-forward instead
+      # To access: kubectl port-forward -n monitoring svc/kube-prometheus-stack-alertmanager 9093:9093
       ingress:
-        enabled: true
-        ingressClassName: traefik
-        annotations:
-          traefik.ingress.kubernetes.io/router.middlewares: monitoring-redirect-https@kubernetescrd
-        hosts:
-          - am.h0melab.work
-        tls:
-          - secretName: alertmanager-tls-secret
-            hosts:
-            - am.h0melab.work
+        enabled: false
       alertmanagerSpec:
         secrets:
           - alertmanager-telegram
