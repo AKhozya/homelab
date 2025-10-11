@@ -41,6 +41,7 @@ spec:
               add:
                 # NOTE: Running as root is required by Home Assistant (official limitation)
                 # See SECURITY.md for full security assessment and rationale
+                - NET_BIND_SERVICE  # Bind to ports < 1024
                 - NET_RAW          # Raw socket access for Ping integration, Bluetooth
                 - NET_ADMIN        # Network administration for Bluetooth, device discovery
                 - CHOWN            # Change file ownership in /config
