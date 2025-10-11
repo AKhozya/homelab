@@ -19,38 +19,38 @@ spec:
           hostPID: true
           hostIPC: true
           tolerations:
-          - operator: Exists
+            - operator: Exists
           nodeSelector:
             node-role.kubernetes.io/control-plane: "true"
           containers:
-          - name: cleanup
-            image: alpine:latest
-            command:
-            - /bin/sh
-            - -c
-            - |
-              set -e
-              echo "=== Node Cleanup Starting ==="
-              
-              # Clean pacman cache
-              echo "Cleaning pacman cache..."
-              chroot /host pacman -Sc --noconfirm
-              
-              # Clean journal logs (keep last 7 days or 500MB)
-              echo "Cleaning journal logs..."
-              chroot /host journalctl --vacuum-time=7d --vacuum-size=500M
-              
-              # Show disk usage
-              echo "Current disk usage:"
-              chroot /host df -h /
-              
-              echo "=== Cleanup Complete ==="
-            securityContext:
-              privileged: true
-            volumeMounts:
-            - name: host
-              mountPath: /host
+            - name: cleanup
+              image: alpine:3.22.2
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  echo "=== Node Cleanup Starting ==="
+
+                  # Clean pacman cache
+                  echo "Cleaning pacman cache..."
+                  chroot /host pacman -Sc --noconfirm
+
+                  # Clean journal logs (keep last 7 days or 500MB)
+                  echo "Cleaning journal logs..."
+                  chroot /host journalctl --vacuum-time=7d --vacuum-size=500M
+
+                  # Show disk usage
+                  echo "Current disk usage:"
+                  chroot /host df -h /
+
+                  echo "=== Cleanup Complete ==="
+              securityContext:
+                privileged: true
+              volumeMounts:
+                - name: host
+                  mountPath: /host
           volumes:
-          - name: host
-            hostPath:
-              path: /
+            - name: host
+              hostPath:
+                path: /
