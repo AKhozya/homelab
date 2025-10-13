@@ -1,0 +1,85 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: audiobookshelf-network-policy
+  namespace: audiobookshelf
+spec:
+  podSelector:
+    matchLabels:
+      app: audiobookshelf
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from Cloudflare tunnel
+    - from:
+        - podSelector:
+            matchLabels:
+              app: cloudflared
+      ports:
+        - protocol: TCP
+          port: 3005
+    # Allow ingress from within the same namespace
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 3005
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS for internet access (updates, metadata fetching)
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow access to PostgreSQL database
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudflared-network-policy
+  namespace: audiobookshelf
+spec:
+  podSelector:
+    matchLabels:
+      app: cloudflared
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Cloudflare tunnel doesn't need ingress
+    []
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS for Cloudflare tunnel connection
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow access to Audiobookshelf service
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audiobookshelf
+      ports:
+        - protocol: TCP
+          port: 3005

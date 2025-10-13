@@ -5,3 +5,4 @@ resources:
   - repository.yaml
   - release.yaml
   - promtail-release.yaml
+  - networkpolicy.yaml

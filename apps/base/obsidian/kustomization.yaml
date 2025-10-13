@@ -4,3 +4,4 @@ namespace: obsidian
 resources:
   - namespace.yaml
   - init-script.yaml
+  - networkpolicy.yaml

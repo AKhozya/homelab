@@ -1,0 +1,89 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: linkding-network-policy
+  namespace: linkding
+spec:
+  podSelector:
+    matchLabels:
+      app: linkding
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from Cloudflare tunnel
+    - from:
+        - podSelector:
+            matchLabels:
+              app: cloudflared
+      ports:
+        - protocol: TCP
+          port: 9090
+    # Allow ingress from within the same namespace
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 9090
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS for internet access (bookmark fetching, updates)
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTP for internet access
+    - ports:
+        - protocol: TCP
+          port: 80
+    # Allow access to PostgreSQL database
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudflared-network-policy
+  namespace: linkding
+spec:
+  podSelector:
+    matchLabels:
+      app: cloudflared
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Cloudflare tunnel doesn't need ingress
+    []
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS for Cloudflare tunnel connection
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow access to Linkding service
+    - to:
+        - podSelector:
+            matchLabels:
+              app: linkding
+      ports:
+        - protocol: TCP
+          port: 9090

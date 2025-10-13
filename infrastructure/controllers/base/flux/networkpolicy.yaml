@@ -1,0 +1,56 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: flux-controllers-network-policy
+  namespace: flux-system
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: flux
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow webhook receivers
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: flux-system
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    # Allow API server access (for admission controllers)
+    - ports:
+        - protocol: TCP
+          port: 9443
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS for Git operations and Helm downloads
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTP for Git operations
+    - ports:
+        - protocol: TCP
+          port: 80
+    # Allow Git SSH
+    - ports:
+        - protocol: TCP
+          port: 22
+    # Allow access to all namespaces for reconciliation
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443  # API server
+        - protocol: TCP
+          port: 6443 # API server alternative

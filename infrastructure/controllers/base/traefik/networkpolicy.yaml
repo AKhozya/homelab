@@ -1,0 +1,65 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: traefik-network-policy
+  namespace: traefik
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow LoadBalancer traffic from external IPs
+    - from: []
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+    # Allow health checks from kube-system
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS for certificate validation and backend services
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTP for backend services
+    - ports:
+        - protocol: TCP
+          port: 80
+    # Allow access to all namespaces for routing
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 3000  # Grafana
+        - protocol: TCP
+          port: 3005  # Audiobookshelf
+        - protocol: TCP
+          port: 5678  # N8N
+        - protocol: TCP
+          port: 8123  # Home Assistant
+        - protocol: TCP
+          port: 9090  # Linkding

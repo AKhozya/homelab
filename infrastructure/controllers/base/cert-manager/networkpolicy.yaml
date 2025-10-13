@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cert-manager-network-policy
+  namespace: cert-manager
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: cert-manager
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow webhook access from API server
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow access from within the same namespace
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS for ACME challenges and certificate validation
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTP for ACME challenges
+    - ports:
+        - protocol: TCP
+          port: 80
