@@ -25,7 +25,7 @@ spec:
     cleanupOnFail: true
   values:
     # CouchDB cluster configuration
-    clusterSize: 3
+    clusterSize: 1
 
     # Cluster UUID (required for multi-node setup)
     couchdbConfig:
@@ -51,7 +51,7 @@ spec:
     # Persistent storage
     persistentVolume:
       enabled: true
-      size: 100Gi
+      size: 30Gi
       storageClass: local-path
       accessModes:
         - ReadWriteOnce
