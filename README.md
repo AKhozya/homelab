@@ -44,10 +44,23 @@ flux reconcile kustomization infrastructure-configs --namespace flux-system
 - Never store unencrypted secrets in git or cloud storage
 - Rotate credentials after restore
 
-## Storage & Backup
+## Obsidian Sync Setup
 
-- Persistent Volumes (PVs) are backed up using scripts and best practices
-- See [.backup/STORAGE_BEST_PRACTICES.md](.backup/STORAGE_BEST_PRACTICES.md) for details
+CouchDB is configured for secure Obsidian note synchronization across devices.
+
+**Get Credentials:**
+```bash
+./get-obsidian-credentials.sh
+```
+
+**Setup Guide:**
+- [CouchDB Cloudflare Access Setup](infrastructure/configs/staging/couchdb/CLOUDFLARE_ACCESS_SETUP.md)
+- [Service Tokens Template](infrastructure/configs/staging/couchdb/SERVICE_TOKENS_TEMPLATE.md)
+
+**Current Status:**
+- ✅ CouchDB running with 1 replica, 30GB storage
+- ✅ Database initialized with user permissions
+- ✅ Cloudflare tunnel configured for secure access
 
 ## Renovate
 
