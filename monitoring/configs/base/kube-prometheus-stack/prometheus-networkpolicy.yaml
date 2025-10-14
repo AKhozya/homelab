@@ -42,14 +42,5 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow scraping metrics from all namespaces
-    - to:
-        - namespaceSelector: {}
-    # Allow access to Kubernetes API for service discovery
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: default
-      ports:
-        - protocol: TCP
-          port: 443
+    # Allow all egress for troubleshooting
+    - {}
