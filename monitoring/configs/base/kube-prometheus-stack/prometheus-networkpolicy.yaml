@@ -42,5 +42,23 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow all egress for troubleshooting
-    - {}
+    # Allow scraping metrics from all namespaces
+    - to:
+        - namespaceSelector: {}
+    # Allow access to Kubernetes API server
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow access to control plane nodes (for kubelet metrics)
+    - to: [{}]
+      ports:
+        - protocol: TCP
+          port: 10250
+        - protocol: TCP
+          port: 10255
+        - protocol: TCP
+          port: 4194
