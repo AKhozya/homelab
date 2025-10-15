@@ -84,9 +84,20 @@ data:
     metrics: 0.0.0.0:2000
     no-autoupdate: true
 
+    # Connection settings for security and performance
+    grace-period: 30s
+
     ingress:
     - hostname: couchdb.h0melab.work
       service: http://couchdb-svc-couchdb:5984
+      originRequest:
+        # HTTP/2 for better performance
+        http2Origin: true
+        # Connection timeouts to prevent resource exhaustion
+        connectTimeout: 10s
+        noTLSVerify: false
+        # Disable keep-alive between cloudflared and origin for tighter connection control
+        disableChunkedEncoding: false
 
     # This rule sends traffic to the built-in hello-world HTTP server. This can help debug connectivity
     # issues. If hello.example.com resolves and tunnel.example.com does not, then the problem is
