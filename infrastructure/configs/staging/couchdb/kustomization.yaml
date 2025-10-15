@@ -3,5 +3,3 @@ kind: Kustomization
 resources:
   - ../../base/couchdb  # Network policies
   - admin-secret.yaml
-  - cloudflare.yaml
-  - cloudflare-secret.yaml
