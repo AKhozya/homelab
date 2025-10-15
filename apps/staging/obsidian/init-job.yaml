@@ -4,53 +4,53 @@ metadata:
   name: couchdb-init
   namespace: obsidian
 spec:
-  ttlSecondsAfterFinished: 86400  # Keep job for 24h for debugging
+  ttlSecondsAfterFinished: 28800 # Keep job for 8h for debugging
   template:
     spec:
       restartPolicy: OnFailure
       containers:
-      - name: init
-        image: curlimages/curl:8.11.1
-        command: ["/bin/sh", "/scripts/init.sh"]
-        env:
-        # CouchDB admin credentials
-        - name: ADMIN_USER
-          valueFrom:
-            secretKeyRef:
-              name: couchdb-admin-credentials
-              key: username
-        - name: ADMIN_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: couchdb-admin-credentials
-              key: password
+        - name: init
+          image: curlimages/curl:8.11.1
+          command: ["/bin/sh", "/scripts/init.sh"]
+          env:
+            # CouchDB admin credentials
+            - name: ADMIN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: couchdb-admin-credentials
+                  key: username
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: couchdb-admin-credentials
+                  key: password
 
-        # Target database configuration
-        - name: COUCHDB_URL
-          valueFrom:
-            secretKeyRef:
-              name: couchdb-credentials
-              key: database_url
-        - name: DB_NAME
-          valueFrom:
-            secretKeyRef:
-              name: couchdb-credentials
-              key: database_name
-        - name: DB_USER
-          valueFrom:
-            secretKeyRef:
-              name: couchdb-credentials
-              key: username
-        - name: DB_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: couchdb-credentials
-              key: password
-        volumeMounts:
-        - name: scripts
-          mountPath: /scripts
+            # Target database configuration
+            - name: COUCHDB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: couchdb-credentials
+                  key: database_url
+            - name: DB_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: couchdb-credentials
+                  key: database_name
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: couchdb-credentials
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: couchdb-credentials
+                  key: password
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
       volumes:
-      - name: scripts
-        configMap:
-          name: couchdb-init-script
-          defaultMode: 0755
+        - name: scripts
+          configMap:
+            name: couchdb-init-script
+            defaultMode: 0755
