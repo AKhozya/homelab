@@ -1,0 +1,49 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mealie-network-policy
+  namespace: mealie
+spec:
+  podSelector:
+    matchLabels:
+      app: mealie
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from cloudflare-tunnel namespace for external access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflare-tunnel
+      ports:
+        - protocol: TCP
+          port: 9000
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow PostgreSQL database access
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: main-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow HTTPS for recipe scraping and external integrations
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTP for recipe scraping
+    - ports:
+        - protocol: TCP
+          port: 80

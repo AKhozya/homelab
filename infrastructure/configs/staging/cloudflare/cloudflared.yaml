@@ -106,6 +106,15 @@ data:
         noTLSVerify: false
         disableChunkedEncoding: false
 
+    # Mealie
+    - hostname: mealie.h0melab.work
+      service: http://mealie.mealie.svc.cluster.local:9000
+      originRequest:
+        http2Origin: true
+        connectTimeout: 10s
+        noTLSVerify: false
+        disableChunkedEncoding: false
+
     # Catch-all
     - service: http_status:404
 ---
