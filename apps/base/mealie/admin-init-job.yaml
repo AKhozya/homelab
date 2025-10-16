@@ -23,8 +23,12 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              pip install --no-cache-dir psycopg2-binary bcrypt && \
+              export HOME=/tmp/home && \
+              pip install --user --no-cache-dir psycopg2-binary bcrypt && \
               python3 /scripts/init-admin.py
+          env:
+            - name: HOME
+              value: "/tmp/home"
           envFrom:
             - secretRef:
                 name: mealie-admin-init-secret
@@ -54,10 +58,14 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
+            - name: home
+              mountPath: /tmp/home
       volumes:
         - name: script
           configMap:
             name: mealie-admin-init
             defaultMode: 0555
         - name: tmp
+          emptyDir: {}
+        - name: home
           emptyDir: {}
