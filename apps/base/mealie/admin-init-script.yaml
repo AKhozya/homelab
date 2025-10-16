@@ -28,25 +28,6 @@ data:
     PASSWORD_HASH=$(echo "$ADMIN_PASSWORD" | htpasswd -niBC 12 dummy | cut -d: -f2)
 
     # Create admin user
-    PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_SERVER" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<-SQL
-      INSERT INTO users (
-          id, full_name, username, email, password,
-          admin, advanced, group_id, cache_key,
-          can_manage, can_invite, can_organize,
-          login_attemps, auth_method, household_id,
-          can_manage_household, created_at, update_at
-      )
-      VALUES (
-          gen_random_uuid(),
-          '$ADMIN_FULLNAME',
-          '$ADMIN_USERNAME',
-          '$ADMIN_EMAIL',
-          '$PASSWORD_HASH',
-          true, true, '$GROUP_ID', '1234',
-          true, true, true,
-          0, 'MEALIE', '$HOUSEHOLD_ID',
-          true, NOW(), NOW()
-      );
-SQL
+    PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_SERVER" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "INSERT INTO users (id, full_name, username, email, password, admin, advanced, group_id, cache_key, can_manage, can_invite, can_organize, login_attemps, auth_method, household_id, can_manage_household, created_at, update_at) VALUES (gen_random_uuid(), '$ADMIN_FULLNAME', '$ADMIN_USERNAME', '$ADMIN_EMAIL', '$PASSWORD_HASH', true, true, '$GROUP_ID', '1234', true, true, true, 0, 'MEALIE', '$HOUSEHOLD_ID', true, NOW(), NOW());"
 
     echo "✓ Admin user '$ADMIN_USERNAME' created successfully"
