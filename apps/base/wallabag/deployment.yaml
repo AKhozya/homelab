@@ -30,7 +30,6 @@ spec:
                 name: wallabag-env
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
