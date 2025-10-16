@@ -57,10 +57,6 @@ spec:
               mountPath: /var/www/wallabag/data
             - name: wallabag-images
               mountPath: /var/www/wallabag/web/assets/images
-            - name: wallabag-config
-              mountPath: /var/www/wallabag/app/config
-            - name: wallabag-var
-              mountPath: /var/www/wallabag/var
       volumes:
         - name: wallabag-data
           persistentVolumeClaim:
@@ -68,7 +64,3 @@ spec:
         - name: wallabag-images
           persistentVolumeClaim:
             claimName: wallabag-images-pvc
-        - name: wallabag-config
-          emptyDir: {}
-        - name: wallabag-var
-          emptyDir: {}
