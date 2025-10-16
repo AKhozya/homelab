@@ -3,5 +3,5 @@ kind: Kustomization
 resources:
   - cert-manager
   - traefik
-  - cnpg
-  - couchdb
+  - databases/postgres
+  - databases/couchdb
