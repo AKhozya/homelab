@@ -4,146 +4,71 @@ metadata:
   name: mealie-admin-init
   namespace: mealie
 data:
-  init-admin.py: |
-    #!/usr/bin/env python3
-    import psycopg2
-    import bcrypt
-    import uuid
-    import os
-    import sys
-    import time
+  init-admin.sh: |
+    #!/bin/sh
+    set -e
 
-    # Configuration from environment
-    DB_HOST = os.getenv('POSTGRES_SERVER')
-    DB_PORT = os.getenv('POSTGRES_PORT', '5432')
-    DB_NAME = os.getenv('POSTGRES_DB')
-    DB_USER = os.getenv('POSTGRES_USER')
-    DB_PASSWORD = os.getenv('POSTGRES_PASSWORD')
+    echo "⏳ Waiting for database to be ready..."
+    until PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_SERVER" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\q' 2>/dev/null; do
+      sleep 2
+    done
+    echo "✓ Database is ready"
 
-    ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')
-    ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD')
-    ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
-    ADMIN_FULLNAME = os.getenv('ADMIN_FULLNAME', 'Administrator')
+    # Check if user exists
+    USER_EXISTS=$(PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_SERVER" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT COUNT(*) FROM users WHERE username = '$ADMIN_USERNAME';")
 
-    GROUP_ID = os.getenv('GROUP_ID')
-    HOUSEHOLD_ID = os.getenv('HOUSEHOLD_ID')
+    if [ "$USER_EXISTS" -gt 0 ]; then
+      echo "✓ Admin user '$ADMIN_USERNAME' already exists, skipping creation"
+      exit 0
+    fi
 
-    def wait_for_db(max_retries=30, retry_interval=2):
-        """Wait for database to be ready."""
-        for i in range(max_retries):
-            try:
-                conn = psycopg2.connect(
-                    host=DB_HOST,
-                    port=DB_PORT,
-                    database=DB_NAME,
-                    user=DB_USER,
-                    password=DB_PASSWORD
-                )
-                conn.close()
-                print(f"✓ Database is ready")
-                return True
-            except psycopg2.OperationalError as e:
-                print(f"⏳ Waiting for database... ({i+1}/{max_retries})")
-                time.sleep(retry_interval)
+    echo "Creating admin user '$ADMIN_USERNAME'..."
 
-        print("✗ Database connection timeout")
-        return False
+    # Generate bcrypt hash using htpasswd
+    PASSWORD_HASH=$(echo "$ADMIN_PASSWORD" | htpasswd -niBC 12 dummy | cut -d: -f2)
 
-    def user_exists(cursor, username):
-        """Check if user already exists."""
-        cursor.execute("SELECT COUNT(*) FROM users WHERE username = %s", (username,))
-        return cursor.fetchone()[0] > 0
+    # Create admin user
+    PGPASSWORD="$POSTGRES_PASSWORD" psql -h "$POSTGRES_SERVER" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<EOF
+    INSERT INTO users (
+        id,
+        full_name,
+        username,
+        email,
+        password,
+        admin,
+        advanced,
+        group_id,
+        cache_key,
+        can_manage,
+        can_invite,
+        can_organize,
+        login_attemps,
+        auth_method,
+        household_id,
+        can_manage_household,
+        created_at,
+        update_at
+    )
+    VALUES (
+        gen_random_uuid(),
+        '$ADMIN_FULLNAME',
+        '$ADMIN_USERNAME',
+        '$ADMIN_EMAIL',
+        '$PASSWORD_HASH',
+        true,
+        true,
+        '$GROUP_ID',
+        '1234',
+        true,
+        true,
+        true,
+        0,
+        'MEALIE',
+        '$HOUSEHOLD_ID',
+        true,
+        NOW(),
+        NOW()
+    );
+EOF
 
-    def create_admin_user():
-        """Create admin user if it doesn't exist."""
-        if not wait_for_db():
-            sys.exit(1)
-
-        try:
-            conn = psycopg2.connect(
-                host=DB_HOST,
-                port=DB_PORT,
-                database=DB_NAME,
-                user=DB_USER,
-                password=DB_PASSWORD
-            )
-            cursor = conn.cursor()
-
-            # Check if user already exists
-            if user_exists(cursor, ADMIN_USERNAME):
-                print(f"✓ Admin user '{ADMIN_USERNAME}' already exists, skipping creation")
-                cursor.close()
-                conn.close()
-                return
-
-            # Generate bcrypt hash for password
-            password_hash = bcrypt.hashpw(ADMIN_PASSWORD.encode('utf-8'), bcrypt.gensalt(rounds=12)).decode('utf-8')
-
-            # Insert admin user
-            user_id = str(uuid.uuid4())
-
-            cursor.execute("""
-                INSERT INTO users (
-                    id,
-                    full_name,
-                    username,
-                    email,
-                    password,
-                    admin,
-                    advanced,
-                    group_id,
-                    cache_key,
-                    can_manage,
-                    can_invite,
-                    can_organize,
-                    login_attemps,
-                    auth_method,
-                    household_id,
-                    can_manage_household,
-                    created_at,
-                    update_at
-                )
-                VALUES (
-                    %s, %s, %s, %s, %s,
-                    true, true, %s, '1234', true,
-                    true, true, 0, 'MEALIE', %s,
-                    true, NOW(), NOW()
-                )
-            """, (
-                user_id,
-                ADMIN_FULLNAME,
-                ADMIN_USERNAME,
-                ADMIN_EMAIL,
-                password_hash,
-                GROUP_ID,
-                HOUSEHOLD_ID
-            ))
-
-            conn.commit()
-            print(f"✓ Admin user '{ADMIN_USERNAME}' created successfully")
-            print(f"  - Email: {ADMIN_EMAIL}")
-            print(f"  - Group ID: {GROUP_ID}")
-            print(f"  - Household ID: {HOUSEHOLD_ID}")
-
-            cursor.close()
-            conn.close()
-
-        except Exception as e:
-            print(f"✗ Error creating admin user: {e}")
-            sys.exit(1)
-
-    if __name__ == '__main__':
-        if not ADMIN_PASSWORD:
-            print("✗ ADMIN_PASSWORD environment variable is required")
-            sys.exit(1)
-        if not ADMIN_EMAIL:
-            print("✗ ADMIN_EMAIL environment variable is required")
-            sys.exit(1)
-        if not GROUP_ID:
-            print("✗ GROUP_ID environment variable is required")
-            sys.exit(1)
-        if not HOUSEHOLD_ID:
-            print("✗ HOUSEHOLD_ID environment variable is required")
-            sys.exit(1)
-
-        create_admin_user()
+    echo "✓ Admin user '$ADMIN_USERNAME' created successfully"

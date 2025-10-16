@@ -13,25 +13,18 @@ spec:
       restartPolicy: OnFailure
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1000
-        fsGroup: 1000
+        runAsUser: 70
+        fsGroup: 70
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: init-admin
-          image: python:3.12-slim
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              export HOME=/tmp/home && \
-              pip install --user --no-cache-dir psycopg2-binary bcrypt && \
-              python3 /scripts/init-admin.py
+          image: postgres:16-alpine
+          command: ["/bin/sh", "/scripts/init-admin.sh"]
           envFrom:
             - secretRef:
                 name: mealie-admin-init-secret
           env:
-            - name: HOME
-              value: "/tmp/home"
             - name: POSTGRES_SERVER
               value: "main-postgres-pooler.databases.svc.cluster.local"
             - name: POSTGRES_PORT
@@ -57,14 +50,10 @@ spec:
               readOnly: true
             - name: tmp
               mountPath: /tmp
-            - name: home
-              mountPath: /tmp/home
       volumes:
         - name: script
           configMap:
             name: mealie-admin-init
             defaultMode: 0555
         - name: tmp
-          emptyDir: {}
-        - name: home
           emptyDir: {}
