@@ -58,6 +58,38 @@ spec:
             runAsUser: 65534
             capabilities:
               drop: ["ALL"]
+        - name: run-migrations
+          image: sissbruecker/linkding:1.44.0
+          envFrom:
+            - secretRef:
+                name: linkding-container-env
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running Django migrations..."
+              python manage.py migrate --noinput
+              echo "Migrations completed successfully!"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: linkding-data
+              mountPath: /etc/linkding/data
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /var/cache
       containers:
         - name: linkding
           image: sissbruecker/linkding:1.44.0
