@@ -21,7 +21,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: wait-for-db
-          image: postgres:16-alpine
+          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
           envFrom:
             - secretRef:
                 name: mealie-env

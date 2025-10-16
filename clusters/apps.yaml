@@ -9,6 +9,13 @@ spec:
   wait: true
   force: true
   timeout: 5m
+  dependsOn:
+    - name: infrastructure-configs
+  healthChecks:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Database
+      name: mealie-db
+      namespace: databases
   sourceRef:
     kind: GitRepository
     name: flux-system
