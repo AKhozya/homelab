@@ -3,6 +3,10 @@ kind: Secret
 metadata:
     name: mealie-db-user
     namespace: databases
+    labels:
+        cnpg.io/reload: "true"
+    annotations:
+        cnpg.io/cluster: main-postgres
 type: kubernetes.io/basic-auth
 stringData:
     username: ENC[AES256_GCM,data:+2DGWw5M,iv:5nOVqmwhpJIi/Rv4x4eclsF4q2dOsf90gblV1Ar1YSM=,tag:w7UsXhMTw/0spvGfk51q+Q==,type:str]
