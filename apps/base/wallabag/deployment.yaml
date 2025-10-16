@@ -27,6 +27,7 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
+              add: ["SETUID", "SETGID", "CHOWN", "DAC_OVERRIDE"]
               drop: ["ALL"]
           livenessProbe:
             httpGet:
