@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: mealie-db-user
+    namespace: databases
+type: kubernetes.io/basic-auth
+stringData:
+    username: ENC[AES256_GCM,data:p+xiSyTz,iv:tng5Ym/6H5DA3sxtmVoIeLqfZArn8uWJ9BO5ao+E7m4=,tag:WvBhFUsmJXw+9zMThVE7Yw==,type:str]
+    password: ENC[AES256_GCM,data:nzDbd4Drb7SqdlmWlhEx8wpATJJ0Oanae7w/vTrzSQsHGyGtlmH7kw+HeEkRwOUsbrt/XqQug91GmUEL+sYRBw==,iv:3CPSuzTkSL/fpFqxBF6WF9vR4Kthj6JNJabdzD9priw=,tag:Ga2hz4JhT0Wvf0Hx0HZ1Tg==,type:str]
+sops:
+    age:
+        - recipient: age1jwjtfrp625gh24xd8rds9zcz7arsgmqf8y3nn4j9redfcvfvcuhs4fv3sc
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBLL3N0ZHhtd2NkTHBKK2lL
+            dHZaZmVwa3N2b0huYk04SXc0MDlDZDllYjNZCjN4Qk4wWkZXeUM0d0NwcTUwOXFP
+            Y3VWekhUNHlxMlg2cmR4MjJLY0JGQVkKLS0tIC9IVjJUamU5UXh0cWd0UEFXdDRY
+            M0tCWFFqSlFqTS85b1RjRGluUGhWTUEK/MVSPLl6PROT9zmWVYIeMn5LcDrXkpGS
+            3FBJlJIk0gEUPIfDWLPz+WLlrtj0x5hO7M6SYjZKKA3h+zuM5xLR9g==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-10-16T17:52:17Z"
+    mac: ENC[AES256_GCM,data:3Dn3Oe5fOukgd5FZzG/7QTIAMorXMo70vri4lrAZWD3rmGCy2FfowSRw/x2D/v1ODIENXES6cOBoB7m8FGQmBrWAVZu//V+cQ8bX7aYzlJVwndE8vM8hjJBQRmQjShdY9j2Jb0dEf2xlT9D6U0yyaKxSTzJ4E7n5g+A9Cim6YYo=,iv:/agkvwWneRkoYJ9cOUimbb88fk36MtIChHYNsZuAFlg=,tag:E6YaJ8coQfuHBRY9en28dg==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0

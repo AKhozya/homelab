@@ -34,3 +34,9 @@ spec:
         login: true
         passwordSecret:
           name: n8n-db-user
+      - name: mealie
+        ensure: present
+        comment: Mealie application user
+        login: true
+        passwordSecret:
+          name: mealie-db-user
