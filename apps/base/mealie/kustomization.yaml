@@ -7,3 +7,5 @@ resources:
   - service.yaml
   - storage.yaml
   - networkpolicy.yaml
+  - admin-init-script.yaml
+  - admin-init-job.yaml
