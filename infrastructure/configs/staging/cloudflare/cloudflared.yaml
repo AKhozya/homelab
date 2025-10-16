@@ -115,6 +115,15 @@ data:
         noTLSVerify: false
         disableChunkedEncoding: false
 
+    # Wallabag
+    - hostname: wallabag.h0melab.work
+      service: http://wallabag.wallabag.svc.cluster.local:80
+      originRequest:
+        http2Origin: true
+        connectTimeout: 10s
+        noTLSVerify: false
+        disableChunkedEncoding: false
+
     # Catch-all
     - service: http_status:404
 ---
