@@ -19,6 +19,45 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: wait-for-db
+          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
+          envFrom:
+            - secretRef:
+                name: linkding-container-env
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for database ${LD_DB_DATABASE} to be ready on ${LD_DB_HOST}:${LD_DB_PORT}..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
+
+              until pg_isready -h "$LD_DB_HOST" -p "$LD_DB_PORT" -U "$LD_DB_USER" -d "$LD_DB_DATABASE" > /dev/null 2>&1; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Database not ready after ${MAX_RETRIES} attempts ($(($MAX_RETRIES * 2))s)"
+                  exit 1
+                fi
+                echo "Database not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting 2s..."
+                sleep 2
+              done
+
+              echo "Database is ready! Starting application..."
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: linkding
           image: sissbruecker/linkding:1.44.0

@@ -14,7 +14,15 @@ spec:
   healthChecks:
     - apiVersion: postgresql.cnpg.io/v1
       kind: Database
+      name: linkding-db
+      namespace: databases
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Database
       name: mealie-db
+      namespace: databases
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Database
+      name: n8n
       namespace: databases
   sourceRef:
     kind: GitRepository
