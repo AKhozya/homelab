@@ -26,13 +26,12 @@ spec:
               export HOME=/tmp/home && \
               pip install --user --no-cache-dir psycopg2-binary bcrypt && \
               python3 /scripts/init-admin.py
-          env:
-            - name: HOME
-              value: "/tmp/home"
           envFrom:
             - secretRef:
                 name: mealie-admin-init-secret
           env:
+            - name: HOME
+              value: "/tmp/home"
             - name: POSTGRES_SERVER
               value: "main-postgres-pooler.databases.svc.cluster.local"
             - name: POSTGRES_PORT
