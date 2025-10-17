@@ -96,8 +96,8 @@ data:
     HOUSEHOLD_SLUG=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"householdSlug":"[^"]*"' | cut -d'"' -f4)
     CACHE_KEY=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"cacheKey":"[^"]*"' | cut -d'"' -f4)
 
-    # Update via admin endpoint with all required fields
-    echo "Updating user via admin endpoint..."
+    # Update profile via admin endpoint (without password first)
+    echo "Updating user profile via admin endpoint..."
     UPDATE_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X PUT "http://mealie:9000/api/admin/users/$USER_ID" \
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer $ACCESS_TOKEN" \
@@ -106,7 +106,6 @@ data:
         \"email\": \"$MEALIE_USER_EMAIL\",
         \"username\": \"$MEALIE_USER_USERNAME\",
         \"fullName\": \"$MEALIE_USER_FULLNAME\",
-        \"password\": \"$MEALIE_USER_PASSWORD\",
         \"authMethod\": \"$AUTH_METHOD\",
         \"admin\": true,
         \"canManage\": true,
@@ -129,11 +128,34 @@ data:
     echo "HTTP Status: $HTTP_CODE"
     echo "Response: $BODY"
 
-    if [ "$HTTP_CODE" = "200" ]; then
-      echo "User credentials updated successfully!"
-    else
-      echo "Error: Failed to update user credentials"
+    if [ "$HTTP_CODE" != "200" ]; then
+      echo "Error: Failed to update user profile"
       exit 1
+    fi
+
+    echo "User profile updated successfully!"
+
+    # Now update the password using password change endpoint
+    echo "Updating password..."
+    PASSWORD_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X PUT "http://mealie:9000/api/users/$USER_ID/password" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
+      -d "{
+        \"currentPassword\": \"MyPassword\",
+        \"newPassword\": \"$MEALIE_USER_PASSWORD\"
+      }" 2>&1)
+
+    PASS_HTTP_CODE=$(echo "$PASSWORD_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2)
+    PASS_BODY=$(echo "$PASSWORD_RESPONSE" | sed 's/HTTP_CODE:.*//')
+
+    echo "Password update HTTP Status: $PASS_HTTP_CODE"
+    echo "Password update Response: $PASS_BODY"
+
+    if [ "$PASS_HTTP_CODE" = "200" ]; then
+      echo "Password updated successfully!"
+    else
+      echo "Warning: Failed to update password via API (HTTP $PASS_HTTP_CODE)"
+      echo "You may need to change it manually"
     fi
 
     echo "User provisioning complete!"
