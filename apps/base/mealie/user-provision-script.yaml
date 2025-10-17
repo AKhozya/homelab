@@ -94,4 +94,32 @@ data:
       exit 1
     fi
 
+    # Delete the default insecure user
+    echo "Fetching list of users to find default user..."
+    USERS_RESPONSE=$(curl -s -X GET http://mealie:9000/api/admin/users \
+      -H "Authorization: Bearer $ACCESS_TOKEN" 2>&1)
+
+    # Extract the ID of the default user (changeme@example.com)
+    # Looking for pattern: "id":"<uuid>","username":"changeme" or "email":"changeme@example.com"
+    DEFAULT_USER_ID=$(echo "$USERS_RESPONSE" | grep -o '"email":"changeme@example.com"[^}]*"id":"[^"]*"' | grep -o '"id":"[^"]*"' | cut -d'"' -f4 | head -1)
+
+    if [ -n "$DEFAULT_USER_ID" ]; then
+      echo "Found default user with ID: $DEFAULT_USER_ID"
+      echo "Deleting default insecure user..."
+
+      DELETE_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X DELETE "http://mealie:9000/api/admin/users/$DEFAULT_USER_ID" \
+        -H "Authorization: Bearer $ACCESS_TOKEN" 2>&1)
+
+      DELETE_HTTP_CODE=$(echo "$DELETE_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2)
+
+      if [ "$DELETE_HTTP_CODE" = "200" ] || [ "$DELETE_HTTP_CODE" = "204" ]; then
+        echo "Default user deleted successfully!"
+      else
+        echo "Warning: Failed to delete default user (HTTP $DELETE_HTTP_CODE)"
+        echo "You may need to delete it manually"
+      fi
+    else
+      echo "Default user not found - may have been deleted already"
+    fi
+
     echo "User provisioning complete!"
