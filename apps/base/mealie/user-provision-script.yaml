@@ -11,9 +11,10 @@ data:
     echo "Starting mealie user provisioning..."
 
     # Install required packages
-    echo "Installing curl..."
+    echo "Installing dependencies (curl, postgresql-client, bcrypt)..."
     apt-get update -qq > /dev/null 2>&1
-    apt-get install -y curl > /dev/null 2>&1
+    apt-get install -y curl postgresql-client > /dev/null 2>&1
+    pip install bcrypt > /dev/null 2>&1
 
     # Wait for mealie to be ready
     echo "Waiting for mealie to be available..."
@@ -64,10 +65,6 @@ data:
     fi
 
     echo "Default user verified, proceeding with credential update..."
-
-    # Install bcrypt for password hashing
-    echo "Installing bcrypt..."
-    pip install bcrypt > /dev/null 2>&1
 
     # Generate bcrypt hash for the new password
     echo "Generating bcrypt hash for new password..."

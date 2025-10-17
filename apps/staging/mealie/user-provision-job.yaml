@@ -11,7 +11,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: user-provision
-          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
+          image: python:3.11-slim
           command: ["/bin/bash", "/scripts/provision-user.sh"]
           env:
             # User credentials to provision
