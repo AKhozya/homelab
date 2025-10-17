@@ -87,6 +87,7 @@ data:
       -H "Authorization: Bearer $ACCESS_TOKEN" 2>&1)
 
     # Extract all required fields
+    AUTH_METHOD=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"authMethod":"[^"]*"' | cut -d'"' -f4)
     GROUP=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"group":"[^"]*"' | cut -d'"' -f4)
     HOUSEHOLD=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"household":"[^"]*"' | cut -d'"' -f4)
     GROUP_ID=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"groupId":"[^"]*"' | cut -d'"' -f4)
@@ -106,6 +107,7 @@ data:
         \"username\": \"$MEALIE_USER_USERNAME\",
         \"fullName\": \"$MEALIE_USER_FULLNAME\",
         \"password\": \"$MEALIE_USER_PASSWORD\",
+        \"authMethod\": \"$AUTH_METHOD\",
         \"admin\": true,
         \"canManage\": true,
         \"canInvite\": true,
