@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: wallabag-db-user
+    namespace: databases
+    labels:
+        cnpg.io/reload: "true"
+    annotations:
+        cnpg.io/cluster: main-postgres
+type: kubernetes.io/basic-auth
+stringData:
+    username: ENC[AES256_GCM,data:tZ0tdkpck8k=,iv:qmSzRt7XS4qFuT0ovDV1m/aR+ntRFxSuCRPX4drssOs=,tag:1gaBIjQEdqsjiE4hdNYimw==,type:str]
+    password: ENC[AES256_GCM,data:wvigPLUkkEApvCVa9vYnh6beuxMdBLBupnIZ3vmA+TW3Upm6ziqboBowpHCaY26T,iv:bkRGeKnm07d6vLzdbKCgcYAKuEnn9hRDrHlpwDiSMeY=,tag:Y27l2KxTQFvkLZDbSvfmSg==,type:str]
+sops:
+    age:
+        - recipient: age1jwjtfrp625gh24xd8rds9zcz7arsgmqf8y3nn4j9redfcvfvcuhs4fv3sc
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBlU2VUT1pWRFJLUFlPODhm
+            WWhVNDN2K0RlUWt0b2prMU1KVldkWjd6bkM0CmpGUERsNXVYRUJlVVpXOFQ5WTZL
+            TW9pUWR1c2JYQm5abXAxVDVRdGcwSDgKLS0tIDFGN3RwTzA5ZUlQbWZFWE9wT29P
+            YlRhdjB5R1NVT21lTDI3b3kzREx5V3MKr5RTE/x5SOHIRvEz8VPDkcLp0/FVTvq2
+            zwWKhULOI72gckdWO1e5xbtPWpsm42Nd0Whqi7hk6/EvVJkAM3C+ug==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-10-17T13:27:43Z"
+    mac: ENC[AES256_GCM,data:LK7eV12KfdJ2x8q3tH8jobmq9Z5riCPb8j6rx+kwybq4BbwSfeKMj22qoh4UxDwTmK1ihlQHFZu0Rq++fzPFYgez95pJQxPhNJm6DdG9v29DB2Ex0FmfRZnm0QLtjCTubh05daQjOP3zLop4gxAjn6DFFC7p0MLmnFJbb5N7B5I=,iv:lotSd7Bjz8EBdE2EdYXLVVvkEGMeyzCk2lwcapQDX5I=,tag:7hsHwQwczV5yV4KCgWreJQ==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0

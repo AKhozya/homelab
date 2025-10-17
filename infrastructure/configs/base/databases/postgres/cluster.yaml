@@ -40,3 +40,9 @@ spec:
         login: true
         passwordSecret:
           name: mealie-db-user
+      - name: wallabag
+        ensure: present
+        comment: Wallabag application user
+        login: true
+        passwordSecret:
+          name: wallabag-db-user

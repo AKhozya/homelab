@@ -10,3 +10,5 @@ resources:
   - n8n-db-user.yaml
   - mealie-database.yaml
   - mealie-db-user.yaml
+  - wallabag-database.yaml
+  - wallabag-db-user.yaml
