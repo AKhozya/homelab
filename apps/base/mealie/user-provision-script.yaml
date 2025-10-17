@@ -29,21 +29,8 @@ data:
       exit 1
     fi
 
-    # Check if user already exists by trying to login with target credentials
-    echo "Checking if user credentials already updated..."
-    LOGIN_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
-      -H "Content-Type: application/x-www-form-urlencoded" \
-      -d "username=${MEALIE_USER_EMAIL}&password=${MEALIE_USER_PASSWORD}" 2>&1 || true)
-
-    HTTP_CODE=$(echo "$LOGIN_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2 || echo "0")
-
-    if [ "$HTTP_CODE" = "200" ]; then
-      echo "User credentials already updated successfully"
-      exit 0
-    fi
-
-    # Try to authenticate with default credentials to get admin token
-    echo "Authenticating with default credentials..."
+    # Try to authenticate with default credentials to update them
+    echo "Authenticating with default credentials to update them..."
     DEFAULT_AUTH=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
       -H "Content-Type: application/x-www-form-urlencoded" \
       -d "username=changeme@example.com&password=MyPassword" 2>&1 || true)
@@ -51,9 +38,22 @@ data:
     DEFAULT_HTTP_CODE=$(echo "$DEFAULT_AUTH" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2 || echo "0")
 
     if [ "$DEFAULT_HTTP_CODE" != "200" ]; then
-      echo "Error: Cannot authenticate with default credentials. Default user may not exist or credentials already changed."
-      echo "Response: $DEFAULT_AUTH"
-      exit 1
+      echo "Default credentials don't work - checking if they were already updated..."
+
+      # Try logging in with target credentials
+      LOGIN_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
+        -H "Content-Type: application/x-www-form-urlencoded" \
+        -d "username=${MEALIE_USER_EMAIL}&password=${MEALIE_USER_PASSWORD}" 2>&1 || true)
+
+      HTTP_CODE=$(echo "$LOGIN_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2 || echo "0")
+
+      if [ "$HTTP_CODE" = "200" ]; then
+        echo "User credentials already updated successfully"
+        exit 0
+      else
+        echo "Error: Cannot authenticate with either default or target credentials."
+        exit 1
+      fi
     fi
 
     # Extract access token and user ID from response
