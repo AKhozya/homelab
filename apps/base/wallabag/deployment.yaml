@@ -81,7 +81,7 @@ spec:
                 sleep 2
               done
 
-              echo "Database is ready! Starting migrations..."
+              echo "Database is ready! Starting application..."
           resources:
             requests:
               cpu: "10m"
@@ -96,35 +96,6 @@ spec:
             runAsUser: 65534
             capabilities:
               drop: ["ALL"]
-        - name: run-migrations
-          image: wallabag/wallabag:2.6.14
-          envFrom:
-            - secretRef:
-                name: wallabag-env
-          command:
-            - sh
-            - -c
-            - |
-              echo "Running Wallabag database migrations..."
-              php bin/console doctrine:migrations:migrate --env=prod --no-interaction
-              echo "Migrations completed successfully!"
-          resources:
-            requests:
-              cpu: "50m"
-              memory: "128Mi"
-            limits:
-              cpu: "300m"
-              memory: "256Mi"
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              add: ["SETUID", "SETGID", "CHOWN", "DAC_OVERRIDE"]
-              drop: ["ALL"]
-          volumeMounts:
-            - name: wallabag-data
-              mountPath: /var/www/wallabag/data
-            - name: wallabag-images
-              mountPath: /var/www/wallabag/web/assets/images
       containers:
         - name: wallabag
           image: wallabag/wallabag:2.6.14
@@ -141,25 +112,18 @@ spec:
                   - sh
                   - -c
                   - |
-                    # Wait for wallabag to be ready (check database connectivity)
-                    MAX_RETRIES=30
-                    RETRY_COUNT=0
-                    echo "Waiting for wallabag to be ready..."
+                    set -e
 
-                    until psql "postgresql://${SYMFONY__ENV__DATABASE_USER}:${SYMFONY__ENV__DATABASE_PASSWORD}@${SYMFONY__ENV__DATABASE_HOST}:${SYMFONY__ENV__DATABASE_PORT}/${SYMFONY__ENV__DATABASE_NAME}" \
-                        -c "SELECT 1 FROM wallabag_user LIMIT 1" >/dev/null 2>&1; do
-                      RETRY_COUNT=$((RETRY_COUNT + 1))
-                      if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-                        echo "ERROR: Wallabag not ready after ${MAX_RETRIES} attempts (60s)"
-                        exit 1
-                      fi
-                      echo "Wallabag not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting 2s..."
-                      sleep 2
-                    done
-
-                    echo "Wallabag is ready, checking admin user..."
+                    # Run database migrations
+                    echo "Running Wallabag database migrations..."
+                    if ! php bin/console doctrine:migrations:migrate --env=prod --no-interaction; then
+                      echo "ERROR: Database migrations failed"
+                      exit 1
+                    fi
+                    echo "Migrations completed successfully"
 
                     # Check if admin user exists using direct DB query (fast)
+                    echo "Checking admin user..."
                     if psql "postgresql://${SYMFONY__ENV__DATABASE_USER}:${SYMFONY__ENV__DATABASE_PASSWORD}@${SYMFONY__ENV__DATABASE_HOST}:${SYMFONY__ENV__DATABASE_PORT}/${SYMFONY__ENV__DATABASE_NAME}" \
                         -tAc "SELECT 1 FROM wallabag_user WHERE username='${WALLABAG_ADMIN_USER}' LIMIT 1" 2>/dev/null | grep -q 1; then
                       echo "Admin user ${WALLABAG_ADMIN_USER} already exists"
@@ -168,8 +132,14 @@ spec:
 
                     # Create admin user if it doesn't exist
                     echo "Creating admin user ${WALLABAG_ADMIN_USER}..."
-                    php bin/console fos:user:create "${WALLABAG_ADMIN_USER}" "${WALLABAG_ADMIN_EMAIL}" "${WALLABAG_ADMIN_PASSWORD}" --env=prod 2>&1 || true
-                    php bin/console fos:user:promote "${WALLABAG_ADMIN_USER}" ROLE_SUPER_ADMIN --env=prod 2>&1 || true
+                    if ! php bin/console fos:user:create "${WALLABAG_ADMIN_USER}" "${WALLABAG_ADMIN_EMAIL}" "${WALLABAG_ADMIN_PASSWORD}" --env=prod 2>&1; then
+                      echo "ERROR: Failed to create admin user"
+                      exit 1
+                    fi
+                    if ! php bin/console fos:user:promote "${WALLABAG_ADMIN_USER}" ROLE_SUPER_ADMIN --env=prod 2>&1; then
+                      echo "ERROR: Failed to promote admin user"
+                      exit 1
+                    fi
                     echo "Admin user setup complete"
           securityContext:
             allowPrivilegeEscalation: false
