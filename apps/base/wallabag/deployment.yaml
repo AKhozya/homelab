@@ -174,6 +174,10 @@ spec:
               mountPath: /var/www/wallabag/data
             - name: wallabag-images
               mountPath: /var/www/wallabag/web/assets/images
+            - name: cache
+              mountPath: /var/www/wallabag/var/cache
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: wallabag-data
           persistentVolumeClaim:
@@ -181,3 +185,7 @@ spec:
         - name: wallabag-images
           persistentVolumeClaim:
             claimName: wallabag-images-pvc
+        - name: cache
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
