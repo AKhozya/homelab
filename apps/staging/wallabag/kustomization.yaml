@@ -4,3 +4,4 @@ namespace: wallabag
 resources:
   - ../../base/wallabag
   - wallabag-env-secret.yaml
+  - user-provision-job.yaml

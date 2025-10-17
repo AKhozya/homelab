@@ -34,6 +34,25 @@ spec:
                 sleep 2
               done
 
+              # Wait for user role to be created by CloudNativePG (retry authentication)
+              echo "Waiting for user role $SYMFONY__ENV__DATABASE_USER to be available..."
+              MAX_RETRIES=30
+              RETRY_COUNT=0
+              while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+                if psql -h "$SYMFONY__ENV__DATABASE_HOST" -p "$SYMFONY__ENV__DATABASE_PORT" -U "$SYMFONY__ENV__DATABASE_USER" -d postgres -c "SELECT 1" > /dev/null 2>&1; then
+                  echo "User role is available!"
+                  break
+                fi
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                echo "Waiting for role (attempt $RETRY_COUNT/$MAX_RETRIES)..."
+                sleep 2
+              done
+
+              if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                echo "ERROR: User role $SYMFONY__ENV__DATABASE_USER not available after ${MAX_RETRIES} attempts"
+                exit 1
+              fi
+
               # Check if database exists
               DB_EXISTS=$(psql -h "$SYMFONY__ENV__DATABASE_HOST" -p "$SYMFONY__ENV__DATABASE_PORT" -U "$SYMFONY__ENV__DATABASE_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$SYMFONY__ENV__DATABASE_NAME'")
 

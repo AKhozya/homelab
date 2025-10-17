@@ -1,0 +1,26 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wallabag-user-provision
+  namespace: wallabag
+spec:
+  ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: user-provision
+          image: wallabag/wallabag:2.6.14
+          command: ["/bin/bash", "/scripts/provision-user.sh"]
+          envFrom:
+            - secretRef:
+                name: wallabag-env
+          volumeMounts:
+            - name: provision-script
+              mountPath: /scripts
+      volumes:
+        - name: provision-script
+          configMap:
+            name: wallabag-user-provision-script
+            defaultMode: 0755
