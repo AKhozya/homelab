@@ -65,8 +65,12 @@ spec:
                 echo "Database ${DB_POSTGRESDB_DATABASE} already exists"
               else
                 echo "Creating database ${DB_POSTGRESDB_DATABASE}..."
-                psql -h "$DB_POSTGRESDB_HOST" -p "$DB_POSTGRESDB_PORT" -U "$DB_POSTGRESDB_USER" -d postgres -c "CREATE DATABASE \"$DB_POSTGRESDB_DATABASE\" OWNER \"$DB_POSTGRESDB_USER\""
-                echo "Database ${DB_POSTGRESDB_DATABASE} created successfully"
+                if psql -h "$DB_POSTGRESDB_HOST" -p "$DB_POSTGRESDB_PORT" -U "$DB_POSTGRESDB_USER" -d postgres -c "CREATE DATABASE \"$DB_POSTGRESDB_DATABASE\" OWNER \"$DB_POSTGRESDB_USER\""; then
+                  echo "Database ${DB_POSTGRESDB_DATABASE} created successfully"
+                else
+                  echo "ERROR: Failed to create database ${DB_POSTGRESDB_DATABASE}"
+                  exit 1
+                fi
               fi
           resources:
             requests:
