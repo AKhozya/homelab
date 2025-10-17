@@ -6,4 +6,3 @@ resources:
   - storage.yaml
   - deployment.yaml
   - service.yaml
-  - user-provision-script.yaml
