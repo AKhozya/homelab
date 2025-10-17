@@ -29,8 +29,8 @@ data:
       exit 1
     fi
 
-    # Check if user already exists by trying to login
-    echo "Checking if user already exists..."
+    # Check if user already exists by trying to login with target credentials
+    echo "Checking if user credentials already updated..."
     LOGIN_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
       -H "Content-Type: application/x-www-form-urlencoded" \
       -d "username=${MEALIE_USER_EMAIL}&password=${MEALIE_USER_PASSWORD}" 2>&1 || true)
@@ -38,7 +38,7 @@ data:
     HTTP_CODE=$(echo "$LOGIN_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2 || echo "0")
 
     if [ "$HTTP_CODE" = "200" ]; then
-      echo "User already exists and can login successfully"
+      echo "User credentials already updated successfully"
       exit 0
     fi
 
@@ -51,12 +51,12 @@ data:
     DEFAULT_HTTP_CODE=$(echo "$DEFAULT_AUTH" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2 || echo "0")
 
     if [ "$DEFAULT_HTTP_CODE" != "200" ]; then
-      echo "Error: Cannot authenticate with default credentials. Default user may not exist or credentials changed."
-      echo "Please create the first user manually or check default credentials."
+      echo "Error: Cannot authenticate with default credentials. Default user may not exist or credentials already changed."
+      echo "Response: $DEFAULT_AUTH"
       exit 1
     fi
 
-    # Extract access token from response
+    # Extract access token and user ID from response
     ACCESS_TOKEN=$(echo "$DEFAULT_AUTH" | sed 's/HTTP_CODE:.*//' | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
 
     if [ -z "$ACCESS_TOKEN" ]; then
@@ -64,11 +64,25 @@ data:
       exit 1
     fi
 
-    echo "Successfully authenticated, creating new user..."
+    echo "Successfully authenticated, fetching default user details..."
 
-    # Create user via API using admin endpoint (v3.0.0+)
-    echo "Creating mealie user: $MEALIE_USER_EMAIL"
-    RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/admin/users \
+    # Get the current user's details to find their ID
+    USER_RESPONSE=$(curl -s -X GET http://mealie:9000/api/users/self \
+      -H "Authorization: Bearer $ACCESS_TOKEN" 2>&1)
+
+    USER_ID=$(echo "$USER_RESPONSE" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+    if [ -z "$USER_ID" ]; then
+      echo "Error: Failed to extract user ID"
+      echo "Response: $USER_RESPONSE"
+      exit 1
+    fi
+
+    echo "Found default user ID: $USER_ID"
+    echo "Updating user credentials to: $MEALIE_USER_EMAIL"
+
+    # Update the user's credentials
+    UPDATE_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X PUT "http://mealie:9000/api/users/$USER_ID" \
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer $ACCESS_TOKEN" \
       -d "{
@@ -81,45 +95,17 @@ data:
         \"advanced\": true
       }" 2>&1)
 
-    HTTP_CODE=$(echo "$RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2)
-    BODY=$(echo "$RESPONSE" | sed 's/HTTP_CODE:.*//')
+    HTTP_CODE=$(echo "$UPDATE_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2)
+    BODY=$(echo "$UPDATE_RESPONSE" | sed 's/HTTP_CODE:.*//')
 
     echo "HTTP Status: $HTTP_CODE"
     echo "Response: $BODY"
 
-    if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
-      echo "mealie user created successfully!"
+    if [ "$HTTP_CODE" = "200" ]; then
+      echo "User credentials updated successfully!"
     else
-      echo "Error: Failed to create user"
+      echo "Error: Failed to update user credentials"
       exit 1
-    fi
-
-    # Delete the default insecure user
-    echo "Fetching list of users to find default user..."
-    USERS_RESPONSE=$(curl -s -X GET http://mealie:9000/api/admin/users \
-      -H "Authorization: Bearer $ACCESS_TOKEN" 2>&1)
-
-    # Extract the ID of the default user (changeme@example.com)
-    # Looking for pattern: "id":"<uuid>","username":"changeme" or "email":"changeme@example.com"
-    DEFAULT_USER_ID=$(echo "$USERS_RESPONSE" | grep -o '"email":"changeme@example.com"[^}]*"id":"[^"]*"' | grep -o '"id":"[^"]*"' | cut -d'"' -f4 | head -1)
-
-    if [ -n "$DEFAULT_USER_ID" ]; then
-      echo "Found default user with ID: $DEFAULT_USER_ID"
-      echo "Deleting default insecure user..."
-
-      DELETE_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X DELETE "http://mealie:9000/api/admin/users/$DEFAULT_USER_ID" \
-        -H "Authorization: Bearer $ACCESS_TOKEN" 2>&1)
-
-      DELETE_HTTP_CODE=$(echo "$DELETE_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2)
-
-      if [ "$DELETE_HTTP_CODE" = "200" ] || [ "$DELETE_HTTP_CODE" = "204" ]; then
-        echo "Default user deleted successfully!"
-      else
-        echo "Warning: Failed to delete default user (HTTP $DELETE_HTTP_CODE)"
-        echo "You may need to delete it manually"
-      fi
-    else
-      echo "Default user not found - may have been deleted already"
     fi
 
     echo "User provisioning complete!"
