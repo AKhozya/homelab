@@ -105,42 +105,6 @@ spec:
           envFrom:
             - secretRef:
                 name: wallabag-env
-          lifecycle:
-            postStart:
-              exec:
-                command:
-                  - sh
-                  - -c
-                  - |
-                    set -e
-
-                    # Run database migrations
-                    echo "Running Wallabag database migrations..."
-                    if ! php bin/console doctrine:migrations:migrate --env=prod --no-interaction; then
-                      echo "ERROR: Database migrations failed"
-                      exit 1
-                    fi
-                    echo "Migrations completed successfully"
-
-                    # Check if admin user exists using direct DB query (fast)
-                    echo "Checking admin user..."
-                    if psql "postgresql://${SYMFONY__ENV__DATABASE_USER}:${SYMFONY__ENV__DATABASE_PASSWORD}@${SYMFONY__ENV__DATABASE_HOST}:${SYMFONY__ENV__DATABASE_PORT}/${SYMFONY__ENV__DATABASE_NAME}" \
-                        -tAc "SELECT 1 FROM wallabag_user WHERE username='${WALLABAG_ADMIN_USER}' LIMIT 1" 2>/dev/null | grep -q 1; then
-                      echo "Admin user ${WALLABAG_ADMIN_USER} already exists"
-                      exit 0
-                    fi
-
-                    # Create admin user if it doesn't exist
-                    echo "Creating admin user ${WALLABAG_ADMIN_USER}..."
-                    if ! php bin/console fos:user:create "${WALLABAG_ADMIN_USER}" "${WALLABAG_ADMIN_EMAIL}" "${WALLABAG_ADMIN_PASSWORD}" --env=prod 2>&1; then
-                      echo "ERROR: Failed to create admin user"
-                      exit 1
-                    fi
-                    if ! php bin/console fos:user:promote "${WALLABAG_ADMIN_USER}" ROLE_SUPER_ADMIN --env=prod 2>&1; then
-                      echo "ERROR: Failed to promote admin user"
-                      exit 1
-                    fi
-                    echo "Admin user setup complete"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
