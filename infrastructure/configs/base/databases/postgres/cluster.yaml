@@ -16,8 +16,6 @@ spec:
   storage:
     size: 10Gi
     storageClass: "local-path"
-  superuserSecret:
-    name: main-postgres-superuser
   monitoring:
     enablePodMonitor: true
   managed:
