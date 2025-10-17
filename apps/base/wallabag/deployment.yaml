@@ -119,47 +119,6 @@ spec:
             runAsUser: 65534
             capabilities:
               drop: ["ALL"]
-        - name: install-database
-          image: wallabag/wallabag:2.6.14
-          envFrom:
-            - secretRef:
-                name: wallabag-env
-          command:
-            - sh
-            - -c
-            - |
-              echo "Checking if wallabag database needs initialization..."
-              export PGPASSWORD="${SYMFONY__ENV__DATABASE_PASSWORD}"
-
-              # Check if wallabag_user table exists
-              TABLE_EXISTS=$(psql -h "$SYMFONY__ENV__DATABASE_HOST" -p "$SYMFONY__ENV__DATABASE_PORT" -U "$SYMFONY__ENV__DATABASE_USER" -d "$SYMFONY__ENV__DATABASE_NAME" -tAc "SELECT 1 FROM information_schema.tables WHERE table_name='wallabag_user'" 2>/dev/null || echo "")
-
-              if [ "$TABLE_EXISTS" = "1" ]; then
-                echo "Database already initialized, skipping installation"
-                exit 0
-              fi
-
-              echo "Database is empty, running wallabag installation..."
-              cd /var/www/wallabag
-              php bin/console wallabag:install --env=prod --no-interaction
-              echo "Wallabag installation completed successfully"
-          resources:
-            requests:
-              cpu: "50m"
-              memory: "128Mi"
-            limits:
-              cpu: "300m"
-              memory: "256Mi"
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              add: ["SETUID", "SETGID", "CHOWN", "DAC_OVERRIDE"]
-              drop: ["ALL"]
-          volumeMounts:
-            - name: wallabag-data
-              mountPath: /var/www/wallabag/data
-            - name: wallabag-images
-              mountPath: /var/www/wallabag/web/assets/images
       containers:
         - name: wallabag
           image: wallabag/wallabag:2.6.14
