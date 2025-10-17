@@ -13,85 +13,8 @@ spec:
         app: wallabag
     spec:
       securityContext:
-        fsGroup: 33 # www-data group ID
-        runAsUser: 33 # www-data user ID
-        runAsGroup: 33 # www-data group ID
-        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
-      initContainers:
-        - name: wait-for-db
-          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
-          envFrom:
-            - secretRef:
-                name: wallabag-env
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for database ${POSTGRES_DB} to be ready on ${POSTGRES_HOST}:${POSTGRES_PORT}..."
-              MAX_RETRIES=60
-              RETRY_COUNT=0
-
-              until pg_isready -h "$POSTGRES_HOST" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" > /dev/null 2>&1; do
-                RETRY_COUNT=$((RETRY_COUNT + 1))
-                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-                  echo "ERROR: Database not ready after ${MAX_RETRIES} attempts ($(($MAX_RETRIES * 2))s)"
-                  exit 1
-                fi
-                echo "Database not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting 2s..."
-                sleep 2
-              done
-
-              echo "Database is ready! Starting application..."
-          resources:
-            requests:
-              cpu: "10m"
-              memory: "32Mi"
-            limits:
-              cpu: "100m"
-              memory: "64Mi"
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 65534
-            capabilities:
-              drop: ["ALL"]
-        - name: run-migrations
-          image: wallabag/wallabag:2.6.14
-          envFrom:
-            - secretRef:
-                name: wallabag-env
-          command:
-            - sh
-            - -c
-            - |
-              echo "Running database migrations..."
-              /var/www/wallabag/bin/console doctrine:migrations:migrate --env=prod --no-interaction
-              echo "Migrations completed successfully!"
-          resources:
-            requests:
-              cpu: "50m"
-              memory: "128Mi"
-            limits:
-              cpu: "300m"
-              memory: "256Mi"
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
-            runAsNonRoot: true
-            capabilities:
-              drop: ["ALL"]
-          volumeMounts:
-            - name: wallabag-data
-              mountPath: /var/www/wallabag/data
-            - name: wallabag-images
-              mountPath: /var/www/wallabag/web/assets/images
-            - name: tmp
-              mountPath: /tmp
-            - name: cache
-              mountPath: /var/cache
       containers:
         - name: wallabag
           image: wallabag/wallabag:2.6.14
@@ -103,15 +26,14 @@ spec:
                 name: wallabag-env
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
-            runAsNonRoot: true
             capabilities:
+              add: ["SETUID", "SETGID", "CHOWN", "DAC_OVERRIDE"]
               drop: ["ALL"]
           livenessProbe:
             httpGet:
               path: /
               port: 80
-            initialDelaySeconds: 60
+            initialDelaySeconds: 120
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
@@ -119,7 +41,7 @@ spec:
             httpGet:
               path: /
               port: 80
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
@@ -135,18 +57,10 @@ spec:
               mountPath: /var/www/wallabag/data
             - name: wallabag-images
               mountPath: /var/www/wallabag/web/assets/images
-            - name: tmp
-              mountPath: /tmp
-            - name: cache
-              mountPath: /var/cache
       volumes:
         - name: wallabag-data
           persistentVolumeClaim:
             claimName: wallabag-data-pvc
         - name: wallabag-images
           persistentVolumeClaim:
-            claimName: wallabag-data-pvc
-        - name: tmp
-          emptyDir: {}
-        - name: cache
-          emptyDir: {}
+            claimName: wallabag-images-pvc
