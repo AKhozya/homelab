@@ -24,23 +24,27 @@ spec:
         ensure: present
         comment: Linkding application user
         login: true
+        createdb: true
         passwordSecret:
           name: linkding-db-app-user
       - name: n8n
         ensure: present
         comment: n8n application user
         login: true
+        createdb: true
         passwordSecret:
           name: n8n-db-user
       - name: mealie
         ensure: present
         comment: Mealie application user
         login: true
+        createdb: true
         passwordSecret:
           name: mealie-db-user
       - name: wallabag
         ensure: present
         comment: Wallabag application user
         login: true
+        createdb: true
         passwordSecret:
           name: wallabag-db-user
