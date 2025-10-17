@@ -4,3 +4,5 @@ namespace: mealie
 resources:
   - ../../base/mealie/
   - mealie-env-secret.yaml
+  - mealie-user-credentials-secret.yaml
+  - user-provision-job.yaml

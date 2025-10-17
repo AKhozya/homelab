@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mealie-user-provision
+  namespace: mealie
+spec:
+  ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: user-provision
+          image: curlimages/curl:8.11.1
+          command: ["/bin/sh", "/scripts/provision-user.sh"]
+          env:
+            - name: MEALIE_USER_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-user-credentials
+                  key: email
+            - name: MEALIE_USER_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-user-credentials
+                  key: username
+            - name: MEALIE_USER_FULLNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-user-credentials
+                  key: fullname
+            - name: MEALIE_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mealie-user-credentials
+                  key: password
+          volumeMounts:
+            - name: provision-script
+              mountPath: /scripts
+      volumes:
+        - name: provision-script
+          configMap:
+            name: mealie-user-provision-script
+            defaultMode: 0755
