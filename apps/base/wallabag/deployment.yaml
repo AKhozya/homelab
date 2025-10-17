@@ -96,6 +96,35 @@ spec:
             runAsUser: 65534
             capabilities:
               drop: ["ALL"]
+        - name: run-migrations
+          image: wallabag/wallabag:2.6.14
+          envFrom:
+            - secretRef:
+                name: wallabag-env
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running Wallabag database migrations..."
+              php bin/console doctrine:migrations:migrate --env=prod --no-interaction
+              echo "Migrations completed successfully!"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add: ["SETUID", "SETGID", "CHOWN", "DAC_OVERRIDE"]
+              drop: ["ALL"]
+          volumeMounts:
+            - name: wallabag-data
+              mountPath: /var/www/wallabag/data
+            - name: wallabag-images
+              mountPath: /var/www/wallabag/web/assets/images
       containers:
         - name: wallabag
           image: wallabag/wallabag:2.6.14
