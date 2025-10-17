@@ -81,16 +81,43 @@ data:
     echo "Found default user ID: $USER_ID"
     echo "Updating user credentials to: $MEALIE_USER_EMAIL"
 
-    # Update the user's credentials (excluding admin field to avoid permission error)
-    UPDATE_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X PUT "http://mealie:9000/api/users/$USER_ID" \
+    # Try password change endpoint first
+    echo "Updating password..."
+    PASSWORD_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X PUT "http://mealie:9000/api/users/$USER_ID/password" \
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer $ACCESS_TOKEN" \
       -d "{
-        \"email\": \"$MEALIE_USER_EMAIL\",
-        \"username\": \"$MEALIE_USER_USERNAME\",
-        \"fullName\": \"$MEALIE_USER_FULLNAME\",
-        \"password\": \"$MEALIE_USER_PASSWORD\"
+        \"currentPassword\": \"MyPassword\",
+        \"newPassword\": \"$MEALIE_USER_PASSWORD\"
       }" 2>&1)
+
+    PASS_HTTP_CODE=$(echo "$PASSWORD_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2)
+
+    if [ "$PASS_HTTP_CODE" = "200" ]; then
+      echo "Password updated successfully!"
+
+      # Now update the profile (email, username, fullName)
+      echo "Updating profile information..."
+      UPDATE_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X PATCH "http://mealie:9000/api/users/$USER_ID" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $ACCESS_TOKEN" \
+        -d "{
+          \"email\": \"$MEALIE_USER_EMAIL\",
+          \"username\": \"$MEALIE_USER_USERNAME\",
+          \"fullName\": \"$MEALIE_USER_FULLNAME\"
+        }" 2>&1)
+    else
+      echo "Password endpoint not found, trying full update with PATCH..."
+      UPDATE_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X PATCH "http://mealie:9000/api/users/$USER_ID" \
+        -H "Content-Type: application/json" \
+        -H "Authorization: Bearer $ACCESS_TOKEN" \
+        -d "{
+          \"email\": \"$MEALIE_USER_EMAIL\",
+          \"username\": \"$MEALIE_USER_USERNAME\",
+          \"fullName\": \"$MEALIE_USER_FULLNAME\",
+          \"password\": \"$MEALIE_USER_PASSWORD\"
+        }" 2>&1)
+    fi
 
     HTTP_CODE=$(echo "$UPDATE_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2)
     BODY=$(echo "$UPDATE_RESPONSE" | sed 's/HTTP_CODE:.*//')
