@@ -20,7 +20,7 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        - name: create-database
+        - name: wait-for-database-crd
           image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
           envFrom:
             - secretRef:
@@ -29,86 +29,22 @@ spec:
             - sh
             - -c
             - |
-              echo "Creating database ${LD_DB_DATABASE} if it doesn't exist..."
-              export PGPASSWORD="$LD_DB_PASSWORD"
-
-              # Wait for PostgreSQL to be ready
-              until pg_isready -h "$LD_DB_HOST" -p "$LD_DB_PORT" -U "$LD_DB_USER" -d postgres > /dev/null 2>&1; do
-                echo "Waiting for PostgreSQL to be ready..."
-                sleep 2
-              done
-
-              # Wait for user role to be created by CloudNativePG (retry authentication)
-              echo "Waiting for user role $LD_DB_USER to be available..."
-              MAX_RETRIES=30
-              RETRY_COUNT=0
-              while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-                if psql -h "$LD_DB_HOST" -p "$LD_DB_PORT" -U "$LD_DB_USER" -d postgres -c "SELECT 1" > /dev/null 2>&1; then
-                  echo "User role is available!"
-                  break
-                fi
-                RETRY_COUNT=$((RETRY_COUNT + 1))
-                echo "Waiting for role (attempt $RETRY_COUNT/$MAX_RETRIES)..."
-                sleep 2
-              done
-
-              if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-                echo "ERROR: User role $LD_DB_USER not available after ${MAX_RETRIES} attempts"
-                exit 1
-              fi
-
-              # Check if database exists
-              DB_EXISTS=$(psql -h "$LD_DB_HOST" -p "$LD_DB_PORT" -U "$LD_DB_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$LD_DB_DATABASE'")
-
-              if [ "$DB_EXISTS" = "1" ]; then
-                echo "Database ${LD_DB_DATABASE} already exists"
-              else
-                echo "Creating database ${LD_DB_DATABASE}..."
-                if psql -h "$LD_DB_HOST" -p "$LD_DB_PORT" -U "$LD_DB_USER" -d postgres -c "CREATE DATABASE \"$LD_DB_DATABASE\" OWNER \"$LD_DB_USER\""; then
-                  echo "Database ${LD_DB_DATABASE} created successfully"
-                else
-                  echo "ERROR: Failed to create database ${LD_DB_DATABASE}"
-                  exit 1
-                fi
-              fi
-          resources:
-            requests:
-              cpu: "10m"
-              memory: "32Mi"
-            limits:
-              cpu: "100m"
-              memory: "64Mi"
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 65534
-            capabilities:
-              drop: ["ALL"]
-        - name: wait-for-db
-          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
-          envFrom:
-            - secretRef:
-                name: linkding-container-env
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for database ${LD_DB_DATABASE} to be ready on ${LD_DB_HOST}:${LD_DB_PORT}..."
+              echo "Waiting for Database CRD to create ${LD_DB_DATABASE}..."
               MAX_RETRIES=60
               RETRY_COUNT=0
 
+              # Wait for database to be accessible (created by Database CRD)
               until pg_isready -h "$LD_DB_HOST" -p "$LD_DB_PORT" -U "$LD_DB_USER" -d "$LD_DB_DATABASE" > /dev/null 2>&1; do
                 RETRY_COUNT=$((RETRY_COUNT + 1))
                 if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-                  echo "ERROR: Database not ready after ${MAX_RETRIES} attempts ($(($MAX_RETRIES * 2))s)"
+                  echo "ERROR: Database not created by CRD after ${MAX_RETRIES} attempts"
                   exit 1
                 fi
-                echo "Database not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting 2s..."
+                echo "Waiting for Database CRD (attempt $RETRY_COUNT/$MAX_RETRIES)..."
                 sleep 2
               done
 
-              echo "Database is ready! Starting application..."
+              echo "Database ${LD_DB_DATABASE} is ready!"
           resources:
             requests:
               cpu: "10m"
