@@ -70,14 +70,31 @@ spec:
                   - sh
                   - -c
                   - |
-                    # Wait for wallabag to be ready
-                    sleep 5
+                    # Wait for wallabag to be ready (check database connectivity)
+                    MAX_RETRIES=30
+                    RETRY_COUNT=0
+                    echo "Waiting for wallabag to be ready..."
+
+                    until psql "postgresql://${SYMFONY__ENV__DATABASE_USER}:${SYMFONY__ENV__DATABASE_PASSWORD}@${SYMFONY__ENV__DATABASE_HOST}:${SYMFONY__ENV__DATABASE_PORT}/${SYMFONY__ENV__DATABASE_NAME}" \
+                        -c "SELECT 1 FROM wallabag_user LIMIT 1" >/dev/null 2>&1; do
+                      RETRY_COUNT=$((RETRY_COUNT + 1))
+                      if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                        echo "ERROR: Wallabag not ready after ${MAX_RETRIES} attempts (60s)"
+                        exit 1
+                      fi
+                      echo "Wallabag not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting 2s..."
+                      sleep 2
+                    done
+
+                    echo "Wallabag is ready, checking admin user..."
+
                     # Check if admin user exists using direct DB query (fast)
                     if psql "postgresql://${SYMFONY__ENV__DATABASE_USER}:${SYMFONY__ENV__DATABASE_PASSWORD}@${SYMFONY__ENV__DATABASE_HOST}:${SYMFONY__ENV__DATABASE_PORT}/${SYMFONY__ENV__DATABASE_NAME}" \
                         -tAc "SELECT 1 FROM wallabag_user WHERE username='${WALLABAG_ADMIN_USER}' LIMIT 1" 2>/dev/null | grep -q 1; then
                       echo "Admin user ${WALLABAG_ADMIN_USER} already exists"
                       exit 0
                     fi
+
                     # Create admin user if it doesn't exist
                     echo "Creating admin user ${WALLABAG_ADMIN_USER}..."
                     php bin/console fos:user:create "${WALLABAG_ADMIN_USER}" "${WALLABAG_ADMIN_EMAIL}" "${WALLABAG_ADMIN_PASSWORD}" --env=prod 2>&1 || true
