@@ -5,10 +5,15 @@ metadata:
   namespace: mealie
 data:
   provision-user.sh: |
-    #!/bin/sh
+    #!/bin/bash
     set -e
 
     echo "Starting mealie user provisioning..."
+
+    # Install required packages
+    echo "Installing curl..."
+    apt-get update -qq > /dev/null 2>&1
+    apt-get install -y curl > /dev/null 2>&1
 
     # Wait for mealie to be ready
     echo "Waiting for mealie to be available..."
@@ -29,8 +34,23 @@ data:
       exit 1
     fi
 
-    # Try to authenticate with default credentials to update them
-    echo "Authenticating with default credentials to update them..."
+    # Check if credentials are already updated (idempotency check)
+    echo "Checking if credentials are already updated..."
+    LOGIN_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "username=${MEALIE_USER_EMAIL}&password=${MEALIE_USER_PASSWORD}" 2>&1 || true)
+
+    HTTP_CODE=$(echo "$LOGIN_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2 || echo "0")
+
+    if [ "$HTTP_CODE" = "200" ]; then
+      echo "User credentials already updated successfully - nothing to do"
+      exit 0
+    fi
+
+    echo "Credentials not yet updated, proceeding with database update..."
+
+    # Verify default credentials still exist
+    echo "Verifying default user exists..."
     DEFAULT_AUTH=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
       -H "Content-Type: application/x-www-form-urlencoded" \
       -d "username=changeme@example.com&password=MyPassword" 2>&1 || true)
@@ -38,124 +58,61 @@ data:
     DEFAULT_HTTP_CODE=$(echo "$DEFAULT_AUTH" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2 || echo "0")
 
     if [ "$DEFAULT_HTTP_CODE" != "200" ]; then
-      echo "Default credentials don't work - checking if they were already updated..."
-
-      # Try logging in with target credentials
-      LOGIN_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
-        -H "Content-Type: application/x-www-form-urlencoded" \
-        -d "username=${MEALIE_USER_EMAIL}&password=${MEALIE_USER_PASSWORD}" 2>&1 || true)
-
-      HTTP_CODE=$(echo "$LOGIN_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2 || echo "0")
-
-      if [ "$HTTP_CODE" = "200" ]; then
-        echo "User credentials already updated successfully"
-        exit 0
-      else
-        echo "Error: Cannot authenticate with either default or target credentials."
-        exit 1
-      fi
-    fi
-
-    # Extract access token and user ID from response
-    ACCESS_TOKEN=$(echo "$DEFAULT_AUTH" | sed 's/HTTP_CODE:.*//' | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
-
-    if [ -z "$ACCESS_TOKEN" ]; then
-      echo "Error: Failed to extract access token"
+      echo "Error: Default credentials don't work and target credentials don't work either."
+      echo "Manual intervention required."
       exit 1
     fi
 
-    echo "Successfully authenticated, fetching default user details..."
+    echo "Default user verified, proceeding with credential update..."
 
-    # Get the current user's details to find their ID
-    USER_RESPONSE=$(curl -s -X GET http://mealie:9000/api/users/self \
-      -H "Authorization: Bearer $ACCESS_TOKEN" 2>&1)
+    # Install bcrypt for password hashing
+    echo "Installing bcrypt..."
+    pip install bcrypt > /dev/null 2>&1
 
-    USER_ID=$(echo "$USER_RESPONSE" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    # Generate bcrypt hash for the new password
+    echo "Generating bcrypt hash for new password..."
+    BCRYPT_HASH=$(python3 -c "import bcrypt; print(bcrypt.hashpw(b'${MEALIE_USER_PASSWORD}', bcrypt.gensalt()).decode())")
 
-    if [ -z "$USER_ID" ]; then
-      echo "Error: Failed to extract user ID"
-      echo "Response: $USER_RESPONSE"
+    if [ -z "$BCRYPT_HASH" ]; then
+      echo "Error: Failed to generate bcrypt hash"
       exit 1
     fi
 
-    echo "Found default user ID: $USER_ID"
-    echo "Updating user credentials to: $MEALIE_USER_EMAIL"
+    echo "Bcrypt hash generated successfully"
 
-    # First, get the full user object to preserve all required fields
-    echo "Fetching full user details..."
-    USER_DETAIL_RESPONSE=$(curl -s -X GET "http://mealie:9000/api/admin/users/$USER_ID" \
-      -H "Authorization: Bearer $ACCESS_TOKEN" 2>&1)
+    # Update database directly
+    echo "Updating user credentials in database..."
+    export PGPASSWORD="${POSTGRES_PASSWORD}"
 
-    # Extract all required fields
-    AUTH_METHOD=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"authMethod":"[^"]*"' | cut -d'"' -f4)
-    GROUP=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"group":"[^"]*"' | cut -d'"' -f4)
-    HOUSEHOLD=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"household":"[^"]*"' | cut -d'"' -f4)
-    GROUP_ID=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"groupId":"[^"]*"' | cut -d'"' -f4)
-    GROUP_SLUG=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"groupSlug":"[^"]*"' | cut -d'"' -f4)
-    HOUSEHOLD_ID=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"householdId":"[^"]*"' | cut -d'"' -f4)
-    HOUSEHOLD_SLUG=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"householdSlug":"[^"]*"' | cut -d'"' -f4)
-    CACHE_KEY=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"cacheKey":"[^"]*"' | cut -d'"' -f4)
+    UPDATE_RESULT=$(psql -h "${POSTGRES_SERVER}" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -t -c \
+      "UPDATE users
+       SET username = '${MEALIE_USER_USERNAME}',
+           email = '${MEALIE_USER_EMAIL}',
+           full_name = '${MEALIE_USER_FULLNAME}',
+           password = '${BCRYPT_HASH}'
+       WHERE email = 'changeme@example.com';" 2>&1)
 
-    # Update profile via admin endpoint (without password first)
-    echo "Updating user profile via admin endpoint..."
-    UPDATE_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X PUT "http://mealie:9000/api/admin/users/$USER_ID" \
-      -H "Content-Type: application/json" \
-      -H "Authorization: Bearer $ACCESS_TOKEN" \
-      -d "{
-        \"id\": \"$USER_ID\",
-        \"email\": \"$MEALIE_USER_EMAIL\",
-        \"username\": \"$MEALIE_USER_USERNAME\",
-        \"fullName\": \"$MEALIE_USER_FULLNAME\",
-        \"authMethod\": \"$AUTH_METHOD\",
-        \"admin\": true,
-        \"canManage\": true,
-        \"canInvite\": true,
-        \"canOrganize\": true,
-        \"canManageHousehold\": true,
-        \"advanced\": true,
-        \"group\": \"$GROUP\",
-        \"household\": \"$HOUSEHOLD\",
-        \"groupId\": \"$GROUP_ID\",
-        \"groupSlug\": \"$GROUP_SLUG\",
-        \"householdId\": \"$HOUSEHOLD_ID\",
-        \"householdSlug\": \"$HOUSEHOLD_SLUG\",
-        \"cacheKey\": \"$CACHE_KEY\"
-      }" 2>&1)
-
-    HTTP_CODE=$(echo "$UPDATE_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2)
-    BODY=$(echo "$UPDATE_RESPONSE" | sed 's/HTTP_CODE:.*//')
-
-    echo "HTTP Status: $HTTP_CODE"
-    echo "Response: $BODY"
-
-    if [ "$HTTP_CODE" != "200" ]; then
-      echo "Error: Failed to update user profile"
-      exit 1
-    fi
-
-    echo "User profile updated successfully!"
-
-    # Now update the password using password change endpoint
-    echo "Updating password..."
-    PASSWORD_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X PUT "http://mealie:9000/api/users/$USER_ID/password" \
-      -H "Content-Type: application/json" \
-      -H "Authorization: Bearer $ACCESS_TOKEN" \
-      -d "{
-        \"currentPassword\": \"MyPassword\",
-        \"newPassword\": \"$MEALIE_USER_PASSWORD\"
-      }" 2>&1)
-
-    PASS_HTTP_CODE=$(echo "$PASSWORD_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2)
-    PASS_BODY=$(echo "$PASSWORD_RESPONSE" | sed 's/HTTP_CODE:.*//')
-
-    echo "Password update HTTP Status: $PASS_HTTP_CODE"
-    echo "Password update Response: $PASS_BODY"
-
-    if [ "$PASS_HTTP_CODE" = "200" ]; then
-      echo "Password updated successfully!"
+    if echo "$UPDATE_RESULT" | grep -q "UPDATE 1"; then
+      echo "Database update successful!"
     else
-      echo "Warning: Failed to update password via API (HTTP $PASS_HTTP_CODE)"
-      echo "You may need to change it manually"
+      echo "Error: Database update failed"
+      echo "Result: $UPDATE_RESULT"
+      exit 1
+    fi
+
+    # Verify the update worked by trying to login
+    echo "Verifying new credentials work..."
+    VERIFY_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "username=${MEALIE_USER_EMAIL}&password=${MEALIE_USER_PASSWORD}" 2>&1 || true)
+
+    VERIFY_HTTP_CODE=$(echo "$VERIFY_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2 || echo "0")
+
+    if [ "$VERIFY_HTTP_CODE" = "200" ]; then
+      echo "SUCCESS! User credentials updated and verified!"
+    else
+      echo "Warning: Database updated but login verification failed (HTTP $VERIFY_HTTP_CODE)"
+      echo "You may need to restart mealie pod for changes to take effect"
     fi
 
     echo "User provisioning complete!"
