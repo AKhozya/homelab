@@ -81,19 +81,27 @@ data:
     echo "Found default user ID: $USER_ID"
     echo "Updating user credentials to: $MEALIE_USER_EMAIL"
 
-    # First, get the full user object to preserve all fields
+    # First, get the full user object to preserve all required fields
     echo "Fetching full user details..."
     USER_DETAIL_RESPONSE=$(curl -s -X GET "http://mealie:9000/api/admin/users/$USER_ID" \
       -H "Authorization: Bearer $ACCESS_TOKEN" 2>&1)
 
-    echo "User details: $USER_DETAIL_RESPONSE"
+    # Extract all required fields
+    GROUP=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"group":"[^"]*"' | cut -d'"' -f4)
+    HOUSEHOLD=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"household":"[^"]*"' | cut -d'"' -f4)
+    GROUP_ID=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"groupId":"[^"]*"' | cut -d'"' -f4)
+    GROUP_SLUG=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"groupSlug":"[^"]*"' | cut -d'"' -f4)
+    HOUSEHOLD_ID=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"householdId":"[^"]*"' | cut -d'"' -f4)
+    HOUSEHOLD_SLUG=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"householdSlug":"[^"]*"' | cut -d'"' -f4)
+    CACHE_KEY=$(echo "$USER_DETAIL_RESPONSE" | grep -o '"cacheKey":"[^"]*"' | cut -d'"' -f4)
 
-    # Update via admin endpoint (which allows modifying users)
+    # Update via admin endpoint with all required fields
     echo "Updating user via admin endpoint..."
     UPDATE_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X PUT "http://mealie:9000/api/admin/users/$USER_ID" \
       -H "Content-Type: application/json" \
       -H "Authorization: Bearer $ACCESS_TOKEN" \
       -d "{
+        \"id\": \"$USER_ID\",
         \"email\": \"$MEALIE_USER_EMAIL\",
         \"username\": \"$MEALIE_USER_USERNAME\",
         \"fullName\": \"$MEALIE_USER_FULLNAME\",
@@ -102,7 +110,15 @@ data:
         \"canManage\": true,
         \"canInvite\": true,
         \"canOrganize\": true,
-        \"advanced\": true
+        \"canManageHousehold\": true,
+        \"advanced\": true,
+        \"group\": \"$GROUP\",
+        \"household\": \"$HOUSEHOLD\",
+        \"groupId\": \"$GROUP_ID\",
+        \"groupSlug\": \"$GROUP_SLUG\",
+        \"householdId\": \"$HOUSEHOLD_ID\",
+        \"householdSlug\": \"$HOUSEHOLD_SLUG\",
+        \"cacheKey\": \"$CACHE_KEY\"
       }" 2>&1)
 
     HTTP_CODE=$(echo "$UPDATE_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2)
