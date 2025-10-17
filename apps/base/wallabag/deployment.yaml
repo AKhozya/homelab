@@ -59,13 +59,15 @@ spec:
           envFrom:
             - secretRef:
                 name: wallabag-env
+          env:
+            - name: POPULATE_DATABASE
+              value: "false"
           command:
-            - sh
-            - -c
-            - |
-              echo "Running database migrations..."
-              /var/www/wallabag/bin/console doctrine:migrations:migrate --env=prod --no-interaction
-              echo "Migrations completed successfully!"
+            - /entrypoint.sh
+            - /var/www/wallabag/bin/console
+            - doctrine:migrations:migrate
+            - --env=prod
+            - --no-interaction
           resources:
             requests:
               cpu: "50m"
