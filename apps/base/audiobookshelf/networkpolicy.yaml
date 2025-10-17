@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: audiobookshelf-network-policy
+  namespace: audiobookshelf
+spec:
+  podSelector:
+    matchLabels:
+      app: audiobookshelf
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from cloudflare-tunnel namespace for external access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflare-tunnel
+      ports:
+        - protocol: TCP
+          port: 3005
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS for metadata fetching and external integrations
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTP for metadata fetching
+    - ports:
+        - protocol: TCP
+          port: 80

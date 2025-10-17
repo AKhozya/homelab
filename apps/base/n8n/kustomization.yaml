@@ -7,3 +7,4 @@ resources:
   - storage.yaml
   - deployment.yaml
   - user-provision-script.yaml
+  - networkpolicy.yaml
