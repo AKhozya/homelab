@@ -42,10 +42,35 @@ data:
       exit 0
     fi
 
-    # Create user via API
+    # Try to authenticate with default credentials to get admin token
+    echo "Authenticating with default credentials..."
+    DEFAULT_AUTH=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
+      -H "Content-Type: application/x-www-form-urlencoded" \
+      -d "username=changeme@example.com&password=MyPassword" 2>&1 || true)
+
+    DEFAULT_HTTP_CODE=$(echo "$DEFAULT_AUTH" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2 || echo "0")
+
+    if [ "$DEFAULT_HTTP_CODE" != "200" ]; then
+      echo "Error: Cannot authenticate with default credentials. Default user may not exist or credentials changed."
+      echo "Please create the first user manually or check default credentials."
+      exit 1
+    fi
+
+    # Extract access token from response
+    ACCESS_TOKEN=$(echo "$DEFAULT_AUTH" | sed 's/HTTP_CODE:.*//' | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+
+    if [ -z "$ACCESS_TOKEN" ]; then
+      echo "Error: Failed to extract access token"
+      exit 1
+    fi
+
+    echo "Successfully authenticated, creating new user..."
+
+    # Create user via API using admin endpoint (v3.0.0+)
     echo "Creating mealie user: $MEALIE_USER_EMAIL"
-    RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/users \
+    RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/admin/users \
       -H "Content-Type: application/json" \
+      -H "Authorization: Bearer $ACCESS_TOKEN" \
       -d "{
         \"email\": \"$MEALIE_USER_EMAIL\",
         \"username\": \"$MEALIE_USER_USERNAME\",
@@ -65,9 +90,8 @@ data:
     if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
       echo "mealie user created successfully!"
     else
-      echo "Warning: API returned unexpected status"
-      # Don't fail completely - user might exist
-      exit 0
+      echo "Error: Failed to create user"
+      exit 1
     fi
 
     echo "User provisioning complete!"
