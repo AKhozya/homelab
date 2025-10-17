@@ -54,6 +54,42 @@ spec:
             runAsUser: 65534
             capabilities:
               drop: ["ALL"]
+        - name: create-admin-user
+          image: wallabag/wallabag:2.6.14
+          envFrom:
+            - secretRef:
+                name: wallabag-env
+          command:
+            - sh
+            - -c
+            - |
+              echo "Checking if admin user exists..."
+              if php bin/console wallabag:user:show "$WALLABAG_ADMIN_USER" --env=prod >/dev/null 2>&1; then
+                echo "Admin user $WALLABAG_ADMIN_USER already exists, skipping creation"
+              else
+                echo "Creating admin user $WALLABAG_ADMIN_USER..."
+                php bin/console fos:user:create "$WALLABAG_ADMIN_USER" "$WALLABAG_ADMIN_EMAIL" "$WALLABAG_ADMIN_PASSWORD" --env=prod
+                echo "Promoting $WALLABAG_ADMIN_USER to super admin..."
+                php bin/console fos:user:promote "$WALLABAG_ADMIN_USER" ROLE_SUPER_ADMIN --env=prod
+                echo "Admin user created successfully!"
+              fi
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add: ["SETUID", "SETGID", "CHOWN", "DAC_OVERRIDE"]
+              drop: ["ALL"]
+          volumeMounts:
+            - name: wallabag-data
+              mountPath: /var/www/wallabag/data
+            - name: wallabag-images
+              mountPath: /var/www/wallabag/web/assets/images
       containers:
         - name: wallabag
           image: wallabag/wallabag:2.6.14
