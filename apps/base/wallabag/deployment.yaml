@@ -15,6 +15,74 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: wait-for-db
+          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
+          envFrom:
+            - secretRef:
+                name: wallabag-env
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for database ${SYMFONY__ENV__DATABASE_NAME} to be ready on ${SYMFONY__ENV__DATABASE_HOST}:${SYMFONY__ENV__DATABASE_PORT}..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
+
+              until pg_isready -h "$SYMFONY__ENV__DATABASE_HOST" -p "$SYMFONY__ENV__DATABASE_PORT" -U "$SYMFONY__ENV__DATABASE_USER" -d "$SYMFONY__ENV__DATABASE_NAME" > /dev/null 2>&1; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Database not ready after ${MAX_RETRIES} attempts ($(($MAX_RETRIES * 2))s)"
+                  exit 1
+                fi
+                echo "Database not ready (attempt $RETRY_COUNT/$MAX_RETRIES), waiting 2s..."
+                sleep 2
+              done
+
+              echo "Database is ready! Starting migrations..."
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+        - name: run-migrations
+          image: wallabag/wallabag:2.6.14
+          envFrom:
+            - secretRef:
+                name: wallabag-env
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running database migrations..."
+              /var/www/wallabag/bin/console doctrine:migrations:migrate --env=prod --no-interaction
+              echo "Migrations completed successfully!"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add: ["SETUID", "SETGID", "CHOWN", "DAC_OVERRIDE"]
+              drop: ["ALL"]
+          volumeMounts:
+            - name: wallabag-data
+              mountPath: /var/www/wallabag/data
+            - name: wallabag-images
+              mountPath: /var/www/wallabag/web/assets/images
       containers:
         - name: wallabag
           image: wallabag/wallabag:2.6.14
@@ -33,7 +101,7 @@ spec:
             httpGet:
               path: /
               port: 80
-            initialDelaySeconds: 120
+            initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
@@ -41,7 +109,7 @@ spec:
             httpGet:
               path: /
               port: 80
-            initialDelaySeconds: 60
+            initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
