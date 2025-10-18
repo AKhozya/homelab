@@ -7,4 +7,4 @@ data:
   users.acl: |
     user default off nopass ~* &* +@all
     user admin on >${REDIS_ADMIN_PASSWORD} ~* &* +@all
-    user authentik on >${REDIS_AUTHENTIK_PASSWORD} ~* &* +@all -@dangerous
+    user authentik on >${REDIS_AUTHENTIK_PASSWORD} ~* &* +@all -@dangerous +keys +flushdb
