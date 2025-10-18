@@ -1,0 +1,212 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: uptime-kuma-monitors-setup
+  namespace: uptime-kuma
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: uptime-kuma-monitors-setup
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: setup
+          image: python:3.11-slim
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              export HOME=/tmp
+
+              echo "Installing uptime-kuma-api..."
+              pip install --quiet --user uptime-kuma-api
+
+              echo "Waiting 10 seconds for Uptime Kuma to be ready..."
+              sleep 10
+
+              echo "Setting up monitors..."
+
+              python3 << 'PYEOF'
+              from uptime_kuma_api import UptimeKumaApi, MonitorType
+              import os
+              import time
+
+              # Connect to Uptime Kuma
+              api = UptimeKumaApi('http://uptime-kuma.uptime-kuma.svc.cluster.local:3001')
+
+              # Login with admin credentials
+              api.login(
+                  username=os.environ['UPTIME_KUMA_USERNAME'],
+                  password=os.environ['UPTIME_KUMA_PASSWORD']
+              )
+
+              print('Logged in successfully!')
+
+              # Define all monitors
+              monitors = [
+                  {
+                      'name': 'Homepage Dashboard',
+                      'url': 'https://home.h0melab.work',
+                      'type': MonitorType.HTTP,
+                      'interval': 60,
+                      'description': 'Main homelab dashboard'
+                  },
+                  {
+                      'name': 'Home Assistant',
+                      'url': 'https://ha.h0melab.work',
+                      'type': MonitorType.HTTP,
+                      'interval': 60,
+                      'description': 'Home automation platform'
+                  },
+                  {
+                      'name': 'Grafana',
+                      'url': 'https://grafana.h0melab.work',
+                      'type': MonitorType.HTTP,
+                      'interval': 60,
+                      'description': 'Monitoring dashboard'
+                  },
+                  {
+                      'name': 'Authentik SSO',
+                      'url': 'https://auth.h0melab.work',
+                      'type': MonitorType.HTTP,
+                      'interval': 60,
+                      'description': 'Single Sign-On platform'
+                  },
+                  {
+                      'name': 'Uptime Kuma (self)',
+                      'url': 'http://uptime-kuma.uptime-kuma.svc.cluster.local:3001',
+                      'type': MonitorType.HTTP,
+                      'interval': 60,
+                      'description': 'Uptime monitoring service (internal)'
+                  },
+                  {
+                      'name': 'Wallabag',
+                      'url': 'http://wallabag.wallabag.svc.cluster.local:80',
+                      'type': MonitorType.HTTP,
+                      'interval': 120,
+                      'description': 'Read-it-later service (internal)'
+                  },
+                  {
+                      'name': 'Mealie',
+                      'url': 'http://mealie.mealie.svc.cluster.local:9000',
+                      'type': MonitorType.HTTP,
+                      'interval': 120,
+                      'description': 'Recipe manager (internal)'
+                  },
+                  {
+                      'name': 'N8N',
+                      'url': 'http://n8n.n8n.svc.cluster.local:5678',
+                      'type': MonitorType.HTTP,
+                      'interval': 120,
+                      'description': 'Workflow automation (internal)'
+                  },
+                  {
+                      'name': 'Linkding',
+                      'url': 'http://linkding.linkding.svc.cluster.local:9090',
+                      'type': MonitorType.HTTP,
+                      'interval': 120,
+                      'description': 'Bookmark manager (internal)'
+                  },
+                  {
+                      'name': 'Audiobookshelf',
+                      'url': 'http://audiobookshelf.audiobookshelf.svc.cluster.local:80',
+                      'type': MonitorType.HTTP,
+                      'interval': 120,
+                      'description': 'Audiobook server (internal)'
+                  },
+                  {
+                      'name': 'Obsidian (CouchDB)',
+                      'url': 'http://couchdb.obsidian.svc.cluster.local:5984',
+                      'type': MonitorType.HTTP,
+                      'interval': 120,
+                      'description': 'Obsidian sync database (internal)'
+                  },
+                  {
+                      'name': 'Prometheus',
+                      'url': 'http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/-/healthy',
+                      'type': MonitorType.HTTP,
+                      'interval': 60,
+                      'description': 'Metrics collection (internal)'
+                  },
+                  {
+                      'name': 'Alertmanager',
+                      'url': 'http://kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093/-/healthy',
+                      'type': MonitorType.HTTP,
+                      'interval': 60,
+                      'description': 'Alert routing (internal)'
+                  },
+                  {
+                      'name': 'PostgreSQL (main)',
+                      'hostname': 'main-postgres-rw.databases.svc.cluster.local',
+                      'port': 5432,
+                      'type': MonitorType.PORT,
+                      'interval': 60,
+                      'description': 'Main PostgreSQL cluster (TCP check)'
+                  },
+                  {
+                      'name': 'Redis (Authentik)',
+                      'hostname': 'redis.authentik.svc.cluster.local',
+                      'port': 6379,
+                      'type': MonitorType.PORT,
+                      'interval': 60,
+                      'description': 'Redis cache for Authentik (TCP check)'
+                  }
+              ]
+
+              # Get existing monitors
+              existing_monitors = api.get_monitors()
+              existing_names = {m['name'] for m in existing_monitors}
+
+              # Create monitors
+              created_count = 0
+              skipped_count = 0
+
+              for monitor_config in monitors:
+                  if monitor_config['name'] in existing_names:
+                      print(f"  ⏭️  Skipping '{monitor_config['name']}' - already exists")
+                      skipped_count += 1
+                      continue
+
+                  try:
+                      result = api.add_monitor(**monitor_config)
+                      print(f"  ✅ Created monitor: {monitor_config['name']}")
+                      created_count += 1
+                      time.sleep(0.5)  # Rate limiting
+                  except Exception as e:
+                      print(f"  ❌ Failed to create {monitor_config['name']}: {e}")
+
+              print(f"\n📊 Summary: Created {created_count} monitors, skipped {skipped_count} existing")
+
+              # Disconnect
+              api.disconnect()
+              print("✅ Monitor setup complete!")
+              PYEOF
+
+              echo "All monitors configured!"
+          env:
+            - name: UPTIME_KUMA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: uptime-kuma-admin
+                  key: username
+            - name: UPTIME_KUMA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: uptime-kuma-admin
+                  key: password
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: tmp
+          emptyDir: {}

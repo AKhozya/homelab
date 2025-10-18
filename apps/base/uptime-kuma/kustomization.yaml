@@ -9,3 +9,4 @@ resources:
   - https-redirect-middleware.yaml
   - networkpolicy.yaml
   - setup-job.yaml
+  - monitors-setup-job.yaml
