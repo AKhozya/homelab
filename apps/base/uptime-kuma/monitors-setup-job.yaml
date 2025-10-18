@@ -124,7 +124,8 @@ spec:
                       'url': 'https://couchdb.h0melab.work',
                       'type': MonitorType.HTTP,
                       'interval': 120,
-                      'description': 'Obsidian sync database'
+                      'description': 'Obsidian sync database',
+                      'accepted_statuscodes': ['200-299', '401']
                   },
                   # Cloudflare Tunnel health
                   {
