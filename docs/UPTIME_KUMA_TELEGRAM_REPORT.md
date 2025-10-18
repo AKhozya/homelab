@@ -30,33 +30,35 @@ Successfully configured Telegram notifications for all 15 Uptime Kuma monitors v
 
 ---
 
-## Monitored Services (15 Total)
+## Monitored Services (16 Total)
 
-### External Services (HTTPS - 4 monitors)
+### External Services via Traefik Ingress (5 monitors)
 | Monitor Name | URL | Check Interval |
 |--------------|-----|----------------|
 | Homepage Dashboard | https://home.h0melab.work | 60s |
 | Home Assistant | https://ha.h0melab.work | 60s |
 | Grafana | https://grafana.h0melab.work | 60s |
 | Authentik SSO | https://auth.h0melab.work | 60s |
+| Uptime Kuma | https://uptime.h0melab.work | 60s |
 
-### Internal Applications (HTTP - 7 monitors)
-| Monitor Name | Internal URL | Check Interval |
+### External Services via Cloudflare Tunnel (6 monitors)
+| Monitor Name | External URL | Check Interval |
 |--------------|--------------|----------------|
-| Uptime Kuma (self) | http://uptime-kuma.uptime-kuma.svc.cluster.local:3001 | 60s |
-| Wallabag | http://wallabag.wallabag.svc.cluster.local:80 | 120s |
-| Mealie | http://mealie.mealie.svc.cluster.local:9000 | 120s |
-| N8N | http://n8n.n8n.svc.cluster.local:5678 | 120s |
-| Linkding | http://linkding.linkding.svc.cluster.local:9090 | 120s |
-| Audiobookshelf | http://audiobookshelf.audiobookshelf.svc.cluster.local:3005 | 120s |
-| Prometheus | http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/-/healthy | 60s |
-| Alertmanager | http://kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093/-/healthy | 60s |
+| Wallabag | https://wallabag.h0melab.work | 120s |
+| Mealie | https://mealie.h0melab.work | 120s |
+| N8N | https://n8n.h0melab.work | 120s |
+| Linkding | https://linkding.h0melab.work | 120s |
+| Audiobookshelf | https://audiobooks.h0melab.work | 120s |
+| Obsidian (CouchDB) | https://couchdb.h0melab.work | 120s |
 
-### Infrastructure (TCP Port Checks - 2 monitors)
-| Monitor Name | Target | Port | Check Interval |
+### Infrastructure Monitoring (5 monitors)
+| Monitor Name | Target | Type | Check Interval |
 |--------------|--------|------|----------------|
-| PostgreSQL (main) | main-postgres-rw.databases.svc.cluster.local | 5432 | 60s |
-| Redis (Authentik) | redis.authentik.svc.cluster.local | 6379 | 60s |
+| Cloudflare Tunnel | http://cloudflared-metrics.cloudflare-tunnel.svc.cluster.local:2000/ready | HTTP | 60s |
+| Prometheus | http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/-/healthy | HTTP | 60s |
+| Alertmanager | http://kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093/-/healthy | HTTP | 60s |
+| PostgreSQL (main) | main-postgres-rw.databases.svc.cluster.local:5432 | TCP | 60s |
+| Redis (Authentik) | redis.authentik.svc.cluster.local:6379 | TCP | 60s |
 
 ---
 
