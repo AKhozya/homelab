@@ -9,10 +9,10 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - auth.h0melab.work
+        - authentik.h0melab.work
       secretName: authentik-tls-secret
   rules:
-    - host: auth.h0melab.work
+    - host: authentik.h0melab.work
       http:
         paths:
           - path: /

@@ -71,7 +71,7 @@ spec:
                   },
                   {
                       'name': 'Authentik SSO',
-                      'url': 'https://auth.h0melab.work',
+                      'url': 'https://authentik.h0melab.work',
                       'type': MonitorType.HTTP,
                       'interval': 60,
                       'description': 'Single Sign-On platform'
@@ -160,7 +160,7 @@ spec:
                   },
                   {
                       'name': 'Redis (Authentik)',
-                      'hostname': 'redis.authentik.svc.cluster.local',
+                      'hostname': 'redis.databases.svc.cluster.local',
                       'port': 6379,
                       'type': MonitorType.PORT,
                       'interval': 60,
