@@ -23,7 +23,7 @@ data:
           columns: 2
       - Infrastructure:
           style: row
-          columns: 2
+          columns: 3
     quicklaunch:
       searchDescriptions: true
       hideInternetSearch: true
@@ -31,12 +31,20 @@ data:
 
   bookmarks.yaml: |
     - Developer:
-        - GitHub:
+        - Homelab Repo:
             - icon: github-light
-              href: https://github.com
+              href: https://github.com/AKhozya/homelab
+        - Awesome Self-hosted:
+            - icon: si-awesome-#FC60A8
+              href: https://github.com/awesome-selfhosted/awesome-selfhosted
         - Kubernetes Docs:
             - icon: kubernetes
               href: https://kubernetes.io/docs
+
+    - Media:
+        - Spotify:
+            - icon: spotify
+              href: https://open.spotify.com
 
   services.yaml: |
     - Productivity:
@@ -80,12 +88,30 @@ data:
             description: Home automation
             namespace: home-assistant
             app: home-assistant
+        - Authentik:
+            icon: authentik.png
+            href: https://auth.h0melab.work
+            description: Identity provider & SSO
+            namespace: authentik
+            app: authentik
+        - Uptime Kuma:
+            icon: uptime-kuma.png
+            href: https://uptime.h0melab.work
+            description: Uptime monitoring
+            namespace: uptime-kuma
+            app: uptime-kuma
         - Grafana:
             icon: grafana.png
             href: https://grafana.h0melab.work
             description: Monitoring & dashboards
             namespace: monitoring
             app: grafana
+        - Alert Manager:
+            icon: alertmanager.png
+            href: https://alertmanager.h0melab.work
+            description: Alert management
+            namespace: monitoring
+            app: alertmanager
         - Obsidian:
             icon: obsidian.png
             href: https://obsidian.h0melab.work
