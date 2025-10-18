@@ -11,11 +11,11 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from cloudflare-tunnel namespace for external access
+    # Allow ingress from traefik namespace for external access
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: cloudflare-tunnel
+              kubernetes.io/metadata.name: traefik
       ports:
         - protocol: TCP
           port: 3000
