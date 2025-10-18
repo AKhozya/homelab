@@ -5,4 +5,4 @@ metadata:
   namespace: couchdb
 spec:
   url: https://apache.github.io/couchdb-helm
-  interval: 1h
+  interval: 6h

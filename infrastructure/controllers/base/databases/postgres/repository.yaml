@@ -5,4 +5,4 @@ metadata:
   namespace: databases
 spec:
   url: https://cloudnative-pg.github.io/charts
-  interval: 1h
+  interval: 6h
