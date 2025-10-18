@@ -48,3 +48,10 @@ spec:
         createdb: true
         passwordSecret:
           name: wallabag-db-user
+      - name: authentik
+        ensure: present
+        comment: Authentik application user
+        login: true
+        createdb: true
+        passwordSecret:
+          name: authentik-db-user
