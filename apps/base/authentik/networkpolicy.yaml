@@ -76,11 +76,19 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow access from authentik pods only
+    # Allow access from authentik pods
     - from:
         - podSelector:
             matchLabels:
               app: authentik
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow access from uptime-kuma for monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
       ports:
         - protocol: TCP
           port: 6379
