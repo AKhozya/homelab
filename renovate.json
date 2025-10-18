@@ -6,6 +6,7 @@
   "commitMessagePrefix": "chore(deps): ",
   "commitMessageAction": "update",
   "dependencyDashboard": true,
+  "dependencyDashboardApproval": false,
   "kubernetes": {
     "managerFilePatterns": [
       "/\\.yaml$/"
