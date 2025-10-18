@@ -60,5 +60,9 @@ spec:
             limits:
               cpu: "200m"
               memory: "256Mi"
-      # No volume mounts needed - homepage can write to /app/config directly
-      # since readOnlyRootFilesystem: false
+          volumeMounts:
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: config
+          emptyDir: {}
