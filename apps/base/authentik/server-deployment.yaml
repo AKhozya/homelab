@@ -15,6 +15,17 @@ spec:
         app: authentik
         component: server
     spec:
+      # NOTE: No init containers for database wait or migrations!
+      #
+      # WHY: Authentik has a migration race condition where both server and worker
+      # pods try to run Django migrations on startup, causing "table already exists"
+      # errors. To fix this, migrations are run by a separate Job managed by the
+      # authentik-migrations Flux Kustomization, which completes BEFORE this
+      # deployment is created.
+      #
+      # See: apps/base/authentik-migrations/migration-job.yaml
+      #      clusters/staging/authentik-migrations-kustomization.yaml
+      #      clusters/staging/authentik-apps-kustomization.yaml
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
@@ -22,69 +33,6 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
-      initContainers:
-        - name: wait-for-database
-          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
-          envFrom:
-            - secretRef:
-                name: authentik
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for Database CRD to create ${AUTHENTIK_POSTGRESQL__NAME}..."
-              MAX_RETRIES=60
-              RETRY_COUNT=0
-
-              until pg_isready -h "$AUTHENTIK_POSTGRESQL__HOST" -p "$AUTHENTIK_POSTGRESQL__PORT" -U "$AUTHENTIK_POSTGRESQL__USER" -d "$AUTHENTIK_POSTGRESQL__NAME" > /dev/null 2>&1; do
-                RETRY_COUNT=$((RETRY_COUNT + 1))
-                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-                  echo "ERROR: Database not created by CRD after ${MAX_RETRIES} attempts"
-                  exit 1
-                fi
-                echo "Waiting for Database CRD (attempt $RETRY_COUNT/$MAX_RETRIES)..."
-                sleep 2
-              done
-
-              echo "Database ${AUTHENTIK_POSTGRESQL__NAME} is ready!"
-          resources:
-            requests:
-              cpu: "10m"
-              memory: "32Mi"
-            limits:
-              cpu: "100m"
-              memory: "64Mi"
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            runAsNonRoot: true
-            runAsUser: 65534
-            capabilities:
-              drop: ["ALL"]
-        - name: run-migrations
-          image: ghcr.io/goauthentik/server:2025.8.4
-          command:
-            - ak
-            - migrate
-          envFrom:
-            - secretRef:
-                name: authentik
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
-            runAsNonRoot: true
-            capabilities:
-              drop: ["ALL"]
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "500m"
-              memory: "512Mi"
-          volumeMounts:
-            - name: tmp
-              mountPath: /tmp
       containers:
         - name: server
           image: ghcr.io/goauthentik/server:2025.8.4

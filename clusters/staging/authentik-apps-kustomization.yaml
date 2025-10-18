@@ -1,0 +1,36 @@
+# Authentik Apps Kustomization
+#
+# WHY THIS EXISTS:
+# This Kustomization deploys Authentik server and worker pods AFTER migrations
+# have completed successfully. This prevents the race condition where both pods
+# try to run migrations simultaneously.
+#
+# DEPLOYMENT ORDER:
+# 1. infrastructure-configs (databases, redis)
+# 2. authentik-migrations - runs migration Job
+# 3. authentik-apps (this) - deploys server/worker pods
+#
+# By depending on authentik-migrations, we ensure migrations are complete before
+# any application pods start, eliminating "table already exists" errors.
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: authentik-apps
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  retryInterval: 2m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./apps/staging/authentik
+  prune: true
+  wait: false
+  dependsOn:
+    - name: authentik-migrations  # CRITICAL: Wait for migrations to complete
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age

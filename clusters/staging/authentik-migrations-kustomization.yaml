@@ -1,0 +1,42 @@
+# Authentik Migrations Kustomization
+#
+# WHY THIS EXISTS:
+# Authentik has a migration race condition where both server and worker pods
+# try to run Django migrations simultaneously on startup, causing "table already
+# exists" errors. This Kustomization runs migrations ONCE via a Job before any
+# pods start.
+#
+# DEPLOYMENT ORDER:
+# 1. infrastructure-configs (databases, redis)
+# 2. authentik-migrations (this) - runs migration Job
+# 3. authentik-apps - deploys server/worker pods
+#
+# This ensures safe, idempotent deployments from scratch.
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: authentik-migrations
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  retryInterval: 2m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./apps/staging/authentik-migrations
+  prune: true
+  wait: true  # IMPORTANT: Wait for migration Job to complete before proceeding
+  dependsOn:
+    - name: infrastructure-configs  # Needs databases and Redis
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+  healthChecks:
+    # Ensure database cluster is healthy before running migrations
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      name: main-postgres
+      namespace: databases
