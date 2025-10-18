@@ -3,73 +3,95 @@
   "extends": [
     "config:recommended"
   ],
-    "commitMessagePrefix": "chore(deps): ",
-    "commitMessageAction": "update",
+  "commitMessagePrefix": "chore(deps): ",
+  "commitMessageAction": "update",
   "dependencyDashboard": true,
   "kubernetes": {
-    "fileMatch": [
-      "\\.yaml$"
+    "managerFilePatterns": [
+      "/\\.yaml$/"
     ]
   },
   "helm-values": {
-    "fileMatch": [
-      "\\.yaml$"
+    "managerFilePatterns": [
+      "/\\.yaml$/"
     ]
   },
   "flux": {
-    "fileMatch": [
-      "\\.yaml$"
+    "managerFilePatterns": [
+      "/\\.yaml$/"
     ]
   },
   "prConcurrentLimit": 10,
   "prHourlyLimit": 10,
   "packageRules": [
-      {
-        "description": "Group Flux updates",
-        "matchPackagePatterns": ["fluxcd"],
-        "groupName": "Flux"
-      },
-      {
-        "description": "Group Helm chart updates",
-        "matchDatasources": ["helm"],
-        "groupName": "Helm charts"
-      },
-      {
-        "description": "Group Prometheus stack updates",
-        "matchPackagePatterns": ["prometheus", "grafana", "alertmanager", "loki"],
-        "groupName": "Monitoring stack"
-      },
-      {
-        "description": "Group Traefik updates",
-        "matchPackagePatterns": ["traefik"],
-        "groupName": "Traefik"
-      },
-      {
-        "description": "Auto-merge minor and patch updates",
-        "matchUpdateTypes": ["minor", "patch"],
-        "automerge": true,
-        "automergeType": "branch"
-      },
-      {
-        "description": "Pin digests for Helm charts and images",
-        "matchDatasources": ["helm", "docker"],
-        "pinDigests": false
-      },
-      {
-        "description": "Require review for major updates",
-        "matchUpdateTypes": ["major"],
-        "reviewers": ["AKhozya"],
-        "assignees": ["AKhozya"],
-        "stabilityDays": 3
-      }
+    {
+      "description": "Group Flux updates",
+      "groupName": "Flux",
+      "matchPackageNames": [
+        "/fluxcd/"
+      ]
+    },
+    {
+      "description": "Group Helm chart updates",
+      "matchDatasources": [
+        "helm"
+      ],
+      "groupName": "Helm charts"
+    },
+    {
+      "description": "Group Prometheus stack updates",
+      "groupName": "Monitoring stack",
+      "matchPackageNames": [
+        "/prometheus/",
+        "/grafana/",
+        "/alertmanager/",
+        "/loki/"
+      ]
+    },
+    {
+      "description": "Group Traefik updates",
+      "groupName": "Traefik",
+      "matchPackageNames": [
+        "/traefik/"
+      ]
+    },
+    {
+      "description": "Auto-merge minor and patch updates",
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "automerge": true,
+      "automergeType": "branch"
+    },
+    {
+      "description": "Pin digests for Helm charts and images",
+      "matchDatasources": [
+        "helm",
+        "docker"
+      ],
+      "pinDigests": false
+    },
+    {
+      "description": "Require review for major updates",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "reviewers": [
+        "AKhozya"
+      ],
+      "assignees": [
+        "AKhozya"
+      ],
+      "minimumReleaseAge": "3 days"
+    }
   ],
   "timezone": "Europe/London",
   "schedule": [
     "at any time"
+  ],
+  "ignorePaths": [
+    "docs/**",
+    "README.md"
   ]
-    ,
-    "ignorePaths": [
-      "docs/**",
-      "README.md"
-      ]
 }
