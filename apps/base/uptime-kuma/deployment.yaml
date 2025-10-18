@@ -15,9 +15,6 @@ spec:
     spec:
       securityContext:
         fsGroup: 1000
-        runAsUser: 1000
-        runAsGroup: 1000
-        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -29,7 +26,6 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
-            runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
           livenessProbe:
