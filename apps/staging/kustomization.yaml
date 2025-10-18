@@ -10,3 +10,4 @@ resources:
   - wallabag
   - homepage
   - uptime-kuma
+  - authentik

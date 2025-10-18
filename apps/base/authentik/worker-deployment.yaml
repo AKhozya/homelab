@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: authentik-worker
+  namespace: authentik
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: authentik
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: authentik
+        component: worker
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: ghcr.io/goauthentik/server:2025.8.1
+          args:
+            - worker
+          envFrom:
+            - secretRef:
+                name: authentik
+            - secretRef:
+                name: authentik-db-user
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          volumeMounts:
+            - name: media
+              mountPath: /media
+            - name: tmp
+              mountPath: /tmp
+            - name: certs
+              mountPath: /certs
+      volumes:
+        - name: media
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: certs
+          emptyDir: {}
