@@ -42,34 +42,34 @@ data:
     - Productivity:
         - Wallabag:
             icon: wallabag.png
-            href: http://wallabag.wallabag.svc.cluster.local
-            description: Read-it-later service (no ingress yet)
+            href: https://wallabag.h0melab.work
+            description: Read-it-later service
             namespace: wallabag
             app: wallabag
         - Mealie:
             icon: mealie.png
-            href: http://mealie.mealie.svc.cluster.local:9000
-            description: Recipe manager (no ingress yet)
+            href: https://mealie.h0melab.work
+            description: Recipe manager
             namespace: mealie
             app: mealie
         - Linkding:
             icon: linkding.png
-            href: http://linkding.linkding.svc.cluster.local
-            description: Bookmark manager (no ingress yet)
+            href: https://linkding.h0melab.work
+            description: Bookmark manager
             namespace: linkding
             app: linkding
 
     - Media & Automation:
         - Audiobookshelf:
             icon: audiobookshelf.png
-            href: http://audiobookshelf.audiobookshelf.svc.cluster.local
-            description: Audiobook & podcast server (no ingress yet)
+            href: https://audiobookshelf.h0melab.work
+            description: Audiobook & podcast server
             namespace: audiobookshelf
             app: audiobookshelf
         - N8N:
             icon: n8n.png
-            href: http://n8n.n8n.svc.cluster.local
-            description: Workflow automation (no ingress yet)
+            href: https://n8n.h0melab.work
+            description: Workflow automation
             namespace: n8n
             app: n8n
 
@@ -88,8 +88,8 @@ data:
             app: grafana
         - Obsidian:
             icon: obsidian.png
-            href: http://obsidian.obsidian.svc.cluster.local
-            description: Note taking with CouchDB sync (no ingress yet)
+            href: https://obsidian.h0melab.work
+            description: Note taking with CouchDB sync
             namespace: obsidian
             app: obsidian
 
