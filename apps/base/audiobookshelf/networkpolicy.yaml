@@ -11,6 +11,12 @@ spec:
     - Ingress
     - Egress
   ingress:
+    # Allow ingress from same namespace (init job, etc.)
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 3005
     # Allow ingress from cloudflare-tunnel namespace for external access
     - from:
         - namespaceSelector:
