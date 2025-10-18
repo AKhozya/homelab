@@ -161,5 +161,5 @@ Consider regular etcd snapshots for disaster recovery.
 ## Related Documentation
 
 - [K3s Official Docs](https://docs.k3s.io/)
-- [Homelab Analysis](../../docs/HOMELAB_ANALYSIS.md)
-- [Storage Infrastructure](../../docs/HOMELAB_ANALYSIS.md#-storage-infrastructure)
+- [Homelab Analysis](../HOMELAB_ANALYSIS.md)
+- [Storage Infrastructure](../HOMELAB_ANALYSIS.md#-storage-infrastructure)
