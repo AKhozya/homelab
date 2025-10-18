@@ -27,6 +27,7 @@ spec:
             readOnlyRootFilesystem: false
             capabilities:
               drop: ["ALL"]
+              add: ["SETUID", "SETGID"]
           livenessProbe:
             httpGet:
               path: /
