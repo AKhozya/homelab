@@ -8,6 +8,11 @@ metadata:
 data:
   kubernetes.yaml: |
     mode: cluster
+    # Disable automatic service discovery to prevent API errors
+    # We manually configure services in services.yaml instead
+    ingress: false
+    traefik: false
+    gateway: false
 
   settings.yaml: |
     title: Homelab Dashboard
