@@ -47,6 +47,7 @@ spec:
 
               # Define all monitors
               monitors = [
+                  # External services (Traefik ingress)
                   {
                       'name': 'Homepage Dashboard',
                       'url': 'https://home.h0melab.work',
@@ -76,54 +77,64 @@ spec:
                       'description': 'Single Sign-On platform'
                   },
                   {
-                      'name': 'Uptime Kuma (self)',
-                      'url': 'http://uptime-kuma.uptime-kuma.svc.cluster.local:3001',
+                      'name': 'Uptime Kuma',
+                      'url': 'https://uptime.h0melab.work',
                       'type': MonitorType.HTTP,
                       'interval': 60,
-                      'description': 'Uptime monitoring service (internal)'
+                      'description': 'Uptime monitoring service'
                   },
+                  # External services (Cloudflare Tunnel)
                   {
                       'name': 'Wallabag',
-                      'url': 'http://wallabag.wallabag.svc.cluster.local:80',
+                      'url': 'https://wallabag.h0melab.work',
                       'type': MonitorType.HTTP,
                       'interval': 120,
-                      'description': 'Read-it-later service (internal)'
+                      'description': 'Read-it-later service'
                   },
                   {
                       'name': 'Mealie',
-                      'url': 'http://mealie.mealie.svc.cluster.local:9000',
+                      'url': 'https://mealie.h0melab.work',
                       'type': MonitorType.HTTP,
                       'interval': 120,
-                      'description': 'Recipe manager (internal)'
+                      'description': 'Recipe manager'
                   },
                   {
                       'name': 'N8N',
-                      'url': 'http://n8n.n8n.svc.cluster.local:5678',
+                      'url': 'https://n8n.h0melab.work',
                       'type': MonitorType.HTTP,
                       'interval': 120,
-                      'description': 'Workflow automation (internal)'
+                      'description': 'Workflow automation'
                   },
                   {
                       'name': 'Linkding',
-                      'url': 'http://linkding.linkding.svc.cluster.local:9090',
+                      'url': 'https://linkding.h0melab.work',
                       'type': MonitorType.HTTP,
                       'interval': 120,
-                      'description': 'Bookmark manager (internal)'
+                      'description': 'Bookmark manager'
                   },
                   {
                       'name': 'Audiobookshelf',
-                      'url': 'http://audiobookshelf.audiobookshelf.svc.cluster.local:3005',
+                      'url': 'https://audiobooks.h0melab.work',
                       'type': MonitorType.HTTP,
                       'interval': 120,
-                      'description': 'Audiobook server (internal)'
+                      'description': 'Audiobook server'
                   },
                   {
                       'name': 'Obsidian (CouchDB)',
-                      'url': 'http://couchdb.obsidian.svc.cluster.local:5984',
+                      'url': 'https://couchdb.h0melab.work',
                       'type': MonitorType.HTTP,
                       'interval': 120,
-                      'description': 'Obsidian sync database (internal)'
+                      'description': 'Obsidian sync database'
                   },
+                  # Cloudflare Tunnel health
+                  {
+                      'name': 'Cloudflare Tunnel',
+                      'url': 'http://cloudflared-metrics.cloudflare-tunnel.svc.cluster.local:2000/ready',
+                      'type': MonitorType.HTTP,
+                      'interval': 60,
+                      'description': 'Cloudflare Tunnel health check'
+                  },
+                  # Internal monitoring (infrastructure)
                   {
                       'name': 'Prometheus',
                       'url': 'http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/-/healthy',
