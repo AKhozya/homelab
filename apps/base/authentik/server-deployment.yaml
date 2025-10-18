@@ -65,7 +65,7 @@ spec:
               drop: ["ALL"]
       containers:
         - name: server
-          image: ghcr.io/goauthentik/server:2025.8.1
+          image: ghcr.io/goauthentik/server:2025.8.4
           args:
             - server
           ports:
