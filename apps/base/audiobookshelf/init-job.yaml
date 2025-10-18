@@ -1,0 +1,66 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: audiobookshelf-init
+  namespace: audiobookshelf
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: audiobookshelf-init
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init
+          image: curlimages/curl:8.12.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              echo "Waiting 15 seconds for Audiobookshelf to be ready..."
+              sleep 15
+
+              echo "Attempting to initialize Audiobookshelf with root user..."
+
+              RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+                http://audiobookshelf.audiobookshelf.svc.cluster.local:3005/init \
+                -H "Content-Type: application/json" \
+                -d "{\"newRoot\":{\"username\":\"$AUDIOBOOKSHELF_USERNAME\",\"password\":\"$AUDIOBOOKSHELF_PASSWORD\"}}")
+
+              HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+              BODY=$(echo "$RESPONSE" | head -n-1)
+
+              echo "Response: $BODY"
+              echo "HTTP Code: $HTTP_CODE"
+
+              if [ "$HTTP_CODE" = "200" ]; then
+                echo "✅ Audiobookshelf initialized successfully with root user!"
+                exit 0
+              elif [ "$HTTP_CODE" = "500" ]; then
+                echo "⏭️  Server already initialized (this is expected after first run)"
+                exit 0
+              else
+                echo "❌ Initialization failed with HTTP $HTTP_CODE"
+                exit 1
+              fi
+          env:
+            - name: AUDIOBOOKSHELF_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: audiobookshelf-admin
+                  key: username
+            - name: AUDIOBOOKSHELF_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: audiobookshelf-admin
+                  key: password
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
