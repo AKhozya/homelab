@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: paperless-db-user
+    namespace: databases
+    labels:
+        cnpg.io/reload: "true"
+    annotations:
+        cnpg.io/cluster: main-postgres
+type: kubernetes.io/basic-auth
+stringData:
+    username: ENC[AES256_GCM,data:0SkfZm/KgC7o,iv:EuRTp3l3YyrQf+WMjgRaKmV/ECGut/WlLkNmqijx9oI=,tag:ouEYDjneELaNfNIoz9fA3Q==,type:str]
+    password: ENC[AES256_GCM,data:H1G+UHx2I2tP3vtDMx2Kqsn2AIp+Xk5huziTwjg=,iv:rGImeME6pInlFT7hrZti+aY1I4GP9gNKG8jrjpdcFUc=,tag:upXYGg5bQHGcp/515aDiSA==,type:str]
+sops:
+    age:
+        - recipient: age1jwjtfrp625gh24xd8rds9zcz7arsgmqf8y3nn4j9redfcvfvcuhs4fv3sc
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA4UmtKQkZ5bWlXaTlKVjl5
+            QmJ3d202c2l5RXE2S0xaYXQwSDB3U1RMYVJjCndKYmlzZjZRMFMyUHFmVzNnck5x
+            bU5pSmh2U1dySkRDK2FTS1NHM3g5NVUKLS0tIHBoTlljeHJCeUVGVktRanNEM3Fn
+            WmpMNENWRkpJL3NXUUt4TTdrcGpUZkkKCODENae+XU9xSo+Hwci/EIEzPPbDFG+o
+            UZAOpSZjdhIV8Snvaofp07iW0U/b9gaHA6sD/5ZPEPyL8dnsRJYhCg==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-10-18T23:41:47Z"
+    mac: ENC[AES256_GCM,data:f8ZFuw1KDfP12WPf6T4uO3ODIxEhoIQpQByq85DMFS/nuPrhki80rji15YNCSdz67uq6CkgxWGX2ihSymzLfd5zNBSgJoRwLZVLcMWjjrVZVct0zAj4rT9vwp+gLiNrNCnoPST4wPd7SHEL4+AFf/IsPw5d4ZPYWWH8czY/oeU4=,iv:bzjDe755NAKjlfbAtjpuDaQezHWYtTv7rzJ4xTpCzzk=,tag:DsKMeU74XuMit2soW8o9/g==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0

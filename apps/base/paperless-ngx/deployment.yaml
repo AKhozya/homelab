@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paperless-ngx
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: paperless-ngx
+  template:
+    metadata:
+      labels:
+        app: paperless-ngx
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-database-crd
+          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
+          envFrom:
+            - secretRef:
+                name: paperless-env
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Database CRD to create ${PAPERLESS_DBNAME}..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
+
+              # Wait for database to be accessible (created by Database CRD)
+              until pg_isready -h "$PAPERLESS_DBHOST" -p "$PAPERLESS_DBPORT" -U "$PAPERLESS_DBUSER" -d "$PAPERLESS_DBNAME" > /dev/null 2>&1; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Database not created by CRD after ${MAX_RETRIES} attempts"
+                  exit 1
+                fi
+                echo "Waiting for Database CRD (attempt $RETRY_COUNT/$MAX_RETRIES)..."
+                sleep 2
+              done
+
+              echo "Database ${PAPERLESS_DBNAME} is ready!"
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: paperless-ngx
+          image: ghcr.io/paperless-ngx/paperless-ngx:2.13.5
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - secretRef:
+                name: paperless-env
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          volumeMounts:
+            - name: paperless-data
+              mountPath: /usr/src/paperless/data
+            - name: paperless-media
+              mountPath: /usr/src/paperless/media
+            - name: paperless-export
+              mountPath: /usr/src/paperless/export
+            - name: paperless-consume
+              mountPath: /usr/src/paperless/consume
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: paperless-data
+          persistentVolumeClaim:
+            claimName: paperless-data-pvc
+        - name: paperless-media
+          persistentVolumeClaim:
+            claimName: paperless-data-pvc
+        - name: paperless-export
+          persistentVolumeClaim:
+            claimName: paperless-data-pvc
+        - name: paperless-consume
+          persistentVolumeClaim:
+            claimName: paperless-data-pvc
+        - name: tmp
+          emptyDir: {}

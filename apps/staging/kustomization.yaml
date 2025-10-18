@@ -11,3 +11,4 @@ resources:
   - homepage
   - uptime-kuma
   - authentik
+  - paperless-ngx

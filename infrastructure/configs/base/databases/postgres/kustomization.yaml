@@ -7,8 +7,12 @@ resources:
   - n8n-db-user.yaml
   - mealie-db-user.yaml
   - wallabag-db-user.yaml
+  - paperless-db-user.yaml
+  - immich-db-user.yaml
   - authentik-database.yaml
   - n8n-database.yaml
   - mealie-database.yaml
   - linkding-database.yaml
   - wallabag-database.yaml
+  - paperless-database.yaml
+  - immich-database.yaml

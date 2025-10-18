@@ -8,3 +8,5 @@ data:
     user default off nopass ~* &* +@all
     user admin on >${REDIS_ADMIN_PASSWORD} ~* &* +@all
     user authentik on >${REDIS_AUTHENTIK_PASSWORD} ~* &* +@all -@dangerous +keys +flushdb
+    user paperless on >${REDIS_PAPERLESS_PASSWORD} ~* &* +@all -@dangerous +keys +flushdb
+    user immich on >${REDIS_IMMICH_PASSWORD} ~* &* +@all -@dangerous +keys +flushdb

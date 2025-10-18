@@ -1,0 +1,106 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich
+  namespace: immich
+spec:
+  interval: 6h
+  chart:
+    spec:
+      chart: immich
+      version: 0.10.x
+      sourceRef:
+        kind: HelmRepository
+        name: immich
+        namespace: immich
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  rollback:
+    recreate: true
+    cleanupOnFail: true
+  values:
+    # Immich environment configuration
+    env:
+      DB_HOSTNAME: main-postgres-rw.databases.svc.cluster.local
+      DB_PORT: "5432"
+      DB_DATABASE_NAME: immich
+      DB_USERNAME: immich
+      DB_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: immich-db-password
+            key: password
+      REDIS_HOSTNAME: redis.databases.svc.cluster.local
+      REDIS_PORT: "6379"
+      REDIS_USERNAME: immich
+      REDIS_PASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: immich-redis-password
+            key: password
+      # Immich configuration
+      IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
+      PUBLIC_IMMICH_SERVER_URL: https://photos.h0melab.work
+      IMMICH_METRICS: "true"
+
+    # Immich Server
+    server:
+      enabled: true
+      image:
+        repository: ghcr.io/immich-app/immich-server
+        pullPolicy: IfNotPresent
+      resources:
+        requests:
+          cpu: 200m
+          memory: 512Mi
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+      persistence:
+        library:
+          enabled: true
+          size: 300Gi
+          storageClass: local-path
+          accessMode: ReadWriteOnce
+
+    # Immich Machine Learning
+    machine-learning:
+      enabled: true
+      image:
+        repository: ghcr.io/immich-app/immich-machine-learning
+        pullPolicy: IfNotPresent
+      resources:
+        requests:
+          cpu: 200m
+          memory: 1Gi
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+      persistence:
+        cache:
+          enabled: true
+          size: 10Gi
+          storageClass: local-path
+          accessMode: ReadWriteOnce
+
+    # Disable built-in PostgreSQL (using external CloudNativePG)
+    postgresql:
+      enabled: false
+
+    # Disable built-in Redis/Valkey (using existing Redis)
+    redis:
+      enabled: false
+
+    # Service configuration
+    service:
+      server:
+        type: ClusterIP
+        port: 3001
+      machine-learning:
+        type: ClusterIP
+        port: 3003

@@ -1,0 +1,84 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: paperless-ngx-network-policy
+  namespace: paperless-ngx
+spec:
+  podSelector:
+    matchLabels:
+      app: paperless-ngx
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from cloudflare-tunnel namespace for external access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflare-tunnel
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Allow ingress from uptime-kuma namespace for monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Allow ingress from homepage namespace for dashboard
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: homepage
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow PostgreSQL database access
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: main-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow Redis access
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+        - podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow HTTPS for external integrations and email
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTP for external integrations
+    - ports:
+        - protocol: TCP
+          port: 80
+    # Allow SMTP for email notifications
+    - ports:
+        - protocol: TCP
+          port: 587
+    # Allow SMTPS
+    - ports:
+        - protocol: TCP
+          port: 465
