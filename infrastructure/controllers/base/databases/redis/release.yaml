@@ -44,6 +44,12 @@ spec:
       type: ClusterIP
       port: 6379
 
-    # Storage - using emptyDir (no persistence for now)
-    persistence:
-      enabled: false
+    # Storage - use local-path storage class
+    volumeClaimTemplate:
+      spec:
+        storageClassName: local-path
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
