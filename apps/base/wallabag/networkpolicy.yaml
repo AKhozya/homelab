@@ -19,6 +19,14 @@ spec:
       ports:
         - protocol: TCP
           port: 80
+    # Allow ingress from uptime-kuma namespace for monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
+      ports:
+        - protocol: TCP
+          port: 80
   egress:
     # Allow DNS resolution
     - to:
