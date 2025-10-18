@@ -108,7 +108,7 @@ data:
             app: grafana
         - Alert Manager:
             icon: alertmanager.png
-            href: https://alertmanager.h0melab.work
+            href: https://am.h0melab.work
             description: Alert management
             namespace: monitoring
             app: alertmanager
