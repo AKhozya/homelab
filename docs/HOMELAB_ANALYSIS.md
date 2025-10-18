@@ -111,23 +111,38 @@
 
 ### Worker Node Storage Configuration
 
-**4TB NVMe SSD (nvme0n1) - LVM Setup:**
-- 📦 Physical Volume: 3.64TB
-- 📊 Volume Group: `k8s-storage`
-- 💾 Logical Volume: `k8s-data` (3.60TB)
+**Multi-SSD LVM Setup - k8s-storage (4.09TB Total):**
+
+**Physical Volumes:**
+1. **4TB NVMe SSD** (`/dev/nvme1n1`): 3.64 TiB
+   - Model: WD_BLACK SN7100 4TB
+   - 100% dedicated to LVM
+2. **1TB NVMe SSD** (`/dev/nvme0n1p6`): 466 GB
+   - Model: WD_BLACK SN7100 1TB
+   - Partition 6 added to LVM pool
+
+**Logical Configuration:**
+- 📊 Volume Group: `k8s-storage` (4.09 TiB total)
+- 💾 Logical Volume: `k8s-data` (4.09 TiB)
 - 📍 Mount Point: `/mnt/k8s-storage`
-- 📈 Current Usage: **43GB / 3.6TB (1%)**
+- 📈 Current Usage: **43GB / 4.1TB (1%)**
+- 📦 Available: **3.8 TiB for growth**
 - ✅ **Configured**: K3s local-path-provisioner uses this for all new PVs
 
-**System Disk (nvme1n1) - Legacy Storage:**
-- `/var` (196GB): Contains existing 18 PVs (~44GB used, 22%)
-- `/kuberstorage` (589GB): Reserved for future use
-- 📝 **Note**: Existing PVs remain on `/var`, new PVs use LVM storage
+**1TB System Disk (nvme0n1) - Remaining Partitions:**
+- `p1`: 1GB - `/boot` (EFI)
+- `p2`: 50GB - `/` (root) - 2.2GB used
+- `p3`: 32GB - swap
+- `p4`: 50GB - `/home` - 306MB used
+- `p5`: 200GB - `/var` - Contains existing 18 PVs (~44GB used)
+- `p6`: 466GB - **LVM** (added to k8s-storage VG)
+- Remaining: ~142GB unallocated
 
 **Storage Strategy:**
-- ✅ All new PVs created on 3.6TB LVM volume
-- ✅ Existing PVs stable on system disk (no migration needed)
-- 🎯 **Capacity**: 3.6TB available for growth (current apps use ~173GB total)
+- ✅ All new PVs created on 4.1TB multi-PV LVM storage
+- ✅ Existing 18 PVs stable on `/var` (no migration needed)
+- 🎯 **Capacity**: 3.8TB available for massive growth
+- 💪 **Performance**: Spans 2 NVMe SSDs for better IOPS distribution
 - 🔮 **Future**: 24TB NAS planned for backups
 
 ---
@@ -151,16 +166,27 @@
 
 ---
 
-**Last Updated**: 2025-10-18 22:35 UTC
+**Last Updated**: 2025-10-18 23:00 UTC
 **Next Review**: 2025-11-18
 
 ---
 
 ## 📝 CHANGELOG
 
+### 2025-10-18 23:00 UTC
+- ✅ **Storage Expansion**: Extended LVM storage from 3.6TB to 4.09TB (+506GB)
+- 🎯 **Impact**: Multi-PV LVM setup with 3.8TB available for growth
+- 🔧 **Technical Details**:
+  - Phase 1: Extended k8s-data LV with 40GB VG free space
+  - Phase 2: Reclaimed `/kuberstorage` partition (598GB) → Created 466GB LVM partition
+  - Added `/dev/nvme0n1p6` as 2nd physical volume to `k8s-storage` VG
+  - Total capacity: 4.09 TiB across 2 NVMe SSDs
+  - Online resize, zero downtime
+- 💪 **Benefit**: Better IOPS distribution across 2 SSDs, massive growth headroom
+
 ### 2025-10-18 22:35 UTC
 - ✅ **Storage Infrastructure**: Configured 3.6TB LVM storage on worker node
-- 🎯 **Impact**: K3s local-path-provisioner now uses `/mnt/k8s-storage` (3.6TB) for all new PVs
+- 🎯 **Impact**: K3s local-path-provisioner now uses `/mnt/k8s-storage` for all new PVs
 - 🔧 **Technical Details**:
   - Worker node: 4TB NVMe SSD configured with LVM (VG: k8s-storage, LV: k8s-data)
   - Updated K3s addon manifest: `/var/lib/rancher/k3s/server/manifests/local-storage.yaml`
