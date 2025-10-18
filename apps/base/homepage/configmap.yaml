@@ -112,12 +112,6 @@ data:
             description: Alert management
             namespace: monitoring
             app: alertmanager
-        - Obsidian:
-            icon: obsidian.png
-            href: https://obsidian.h0melab.work
-            description: Note taking with CouchDB sync
-            namespace: obsidian
-            app: obsidian
 
   widgets.yaml: |
     - kubernetes:
