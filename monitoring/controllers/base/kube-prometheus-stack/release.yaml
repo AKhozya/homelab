@@ -167,6 +167,9 @@ spec:
             hosts:
             - am.h0melab.work
       alertmanagerSpec:
+        # Configure external URL so Alert Manager generates HTTPS links
+        # This prevents mixed content warnings in browsers
+        externalUrl: https://am.h0melab.work
         secrets:
           - alertmanager-telegram
         resources:
