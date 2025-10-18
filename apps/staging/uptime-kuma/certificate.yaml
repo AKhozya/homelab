@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: uptime-kuma-tls
+  namespace: uptime-kuma
+spec:
+  secretName: uptime-kuma-tls-secret
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+  dnsNames:
+    - uptime.h0melab.work
+  renewBefore: 720h  # 30 days
+  duration: 2160h  # 90 days
