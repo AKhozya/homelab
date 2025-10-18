@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Secret
+metadata:
+    name: authentik-db-user
+    namespace: databases
+    labels:
+        cnpg.io/reload: "true"
+    annotations:
+        cnpg.io/cluster: main-postgres
+type: kubernetes.io/basic-auth
+stringData:
+    username: ENC[AES256_GCM,data:5ES8ifjshtPD,iv:nGqjcCG4JpUd7q/m67ZOuQAItr2VYe2E9vCeGRwzYCY=,tag:TVmBsdgxWFY4mc730+z6Kg==,type:str]
+    password: ENC[AES256_GCM,data:eipxZP1kRaWrbp8zSW9akqlTOe5dvphZHsjGdqpCveMwZHmLBB82cX8pPZvL7dEI2kVa/ZICtatpCI8Mk6h+Lw==,iv:hMAm3aQSRTr66WjixGirkqOp3x9aoZYUdxYhy7PVPQg=,tag:Qgy+w4Z/CbxohJzf852nVg==,type:str]
+sops:
+    age:
+        - recipient: age1jwjtfrp625gh24xd8rds9zcz7arsgmqf8y3nn4j9redfcvfvcuhs4fv3sc
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSAzS0I3d1ZtRUx3dzB6b2Nh
+            SkF0ZXZHUFlxTC9DbXJmTk9EWDJzUjhtdEdRCk03c2xZaW5DQTFWVnRMN011ZWE4
+            UUhZb09NN3l5dEt5ZHg5R1IxQXpHVTgKLS0tIG5oOHJtNFdHN2RPZ1doQWlqU2g5
+            WDU3RUdyVUh3L3ozT0ZBVXJNUjVOcTAKCIHEkyy6Y/mG1Xvbm/e6rAUgBbK3q/35
+            o5SZ2kzXLiU4JTKEn7mzLg7Qpk2kP29zWyQA/E3Ove/GaFv2CF5NZw==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2025-10-18T17:19:39Z"
+    mac: ENC[AES256_GCM,data:jfAOEm8aFt9jw/5RJBUBKeOX5lqdxxcP84MEaKpNfCkX+HyBK6XRyqq0F72VSu+mTxHhgtJBTCIAwM29sjKPlZfB/zaqg7bhdktvvT7tsSqIlaXOpv/GeUl5HW6tnVBkI73Gm+m+Udu2Scf/AvORUnSwRC8KcNkEe/7IpZ/bPV8=,iv:k4VgGkAIDZe0SEPP6EjvsNlrANgxrlHrAaBg2d0LDAo=,tag:RQ6L5qy27ckHG3/XRoXpkA==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.11.0
