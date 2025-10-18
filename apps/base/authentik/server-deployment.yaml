@@ -61,6 +61,30 @@ spec:
             runAsUser: 65534
             capabilities:
               drop: ["ALL"]
+        - name: run-migrations
+          image: ghcr.io/goauthentik/server:2025.8.4
+          command:
+            - ak
+            - migrate
+          envFrom:
+            - secretRef:
+                name: authentik
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
       containers:
         - name: server
           image: ghcr.io/goauthentik/server:2025.8.4
