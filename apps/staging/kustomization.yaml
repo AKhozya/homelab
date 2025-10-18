@@ -10,6 +10,4 @@ resources:
   - wallabag
   - homepage
   - uptime-kuma
-  # NOTE: authentik is managed by separate Flux Kustomizations
-  # (authentik-migrations and authentik-apps) to handle migration race condition.
-  # See clusters/staging/authentik-*-kustomization.yaml for details.
+  - authentik

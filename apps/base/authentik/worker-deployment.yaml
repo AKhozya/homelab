@@ -15,6 +15,33 @@ spec:
         app: authentik
         component: worker
     spec:
+      # NOTE: Worker waits for server to be ready before starting
+      #
+      # WHY: Both server and worker run Django migrations on startup. To avoid
+      # race conditions ("table already exists" errors), the worker waits for
+      # the server's readiness probe to succeed, ensuring migrations are complete
+      # before the worker starts. This simple approach eliminates the need for a
+      # separate migration Job or complex Flux Kustomization dependencies.
+      initContainers:
+        - name: wait-for-server
+          image: curlimages/curl:8.12.0
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Authentik server to be ready..."
+              until curl -sf http://authentik-server:9000/-/health/ready/ > /dev/null; do
+                echo "Server not ready yet, retrying in 5 seconds..."
+                sleep 5
+              done
+              echo "Server is ready! Worker can start."
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
       securityContext:
         fsGroup: 1000
         runAsUser: 1000

@@ -15,17 +15,14 @@ spec:
         app: authentik
         component: server
     spec:
-      # NOTE: No init containers for database wait or migrations!
+      # NOTE: Server pod runs migrations on startup
       #
-      # WHY: Authentik has a migration race condition where both server and worker
-      # pods try to run Django migrations on startup, causing "table already exists"
-      # errors. To fix this, migrations are run by a separate Job managed by the
-      # authentik-migrations Flux Kustomization, which completes BEFORE this
-      # deployment is created.
+      # WHY: Both server and worker run Django migrations automatically. To prevent
+      # race conditions, the worker has an init container that waits for this server
+      # to be ready before starting. This ensures migrations complete before the
+      # worker attempts to run them (idempotent, no conflict).
       #
-      # See: apps/base/authentik-migrations/migration-job.yaml
-      #      clusters/staging/authentik-migrations-kustomization.yaml
-      #      clusters/staging/authentik-apps-kustomization.yaml
+      # See: apps/base/authentik/worker-deployment.yaml (wait-for-server init container)
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
