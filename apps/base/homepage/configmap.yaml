@@ -42,48 +42,54 @@ data:
     - Productivity:
         - Wallabag:
             icon: wallabag.png
-            href: https://wallabag.yourdomain.com
-            description: Read-it-later service
+            href: http://wallabag.wallabag.svc.cluster.local
+            description: Read-it-later service (no ingress yet)
             namespace: wallabag
             app: wallabag
         - Mealie:
             icon: mealie.png
-            href: https://mealie.yourdomain.com
-            description: Recipe manager
+            href: http://mealie.mealie.svc.cluster.local:9000
+            description: Recipe manager (no ingress yet)
             namespace: mealie
             app: mealie
         - Linkding:
             icon: linkding.png
-            href: https://linkding.yourdomain.com
-            description: Bookmark manager
+            href: http://linkding.linkding.svc.cluster.local
+            description: Bookmark manager (no ingress yet)
             namespace: linkding
             app: linkding
 
     - Media & Automation:
         - Audiobookshelf:
             icon: audiobookshelf.png
-            href: https://audiobookshelf.yourdomain.com
-            description: Audiobook & podcast server
+            href: http://audiobookshelf.audiobookshelf.svc.cluster.local
+            description: Audiobook & podcast server (no ingress yet)
             namespace: audiobookshelf
             app: audiobookshelf
         - N8N:
             icon: n8n.png
-            href: https://n8n.yourdomain.com
-            description: Workflow automation
+            href: http://n8n.n8n.svc.cluster.local
+            description: Workflow automation (no ingress yet)
             namespace: n8n
             app: n8n
 
     - Infrastructure:
         - Home Assistant:
             icon: home-assistant.png
-            href: https://ha.yourdomain.com
+            href: https://ha.h0melab.work
             description: Home automation
             namespace: home-assistant
             app: home-assistant
+        - Grafana:
+            icon: grafana.png
+            href: https://grafana.h0melab.work
+            description: Monitoring & dashboards
+            namespace: monitoring
+            app: grafana
         - Obsidian:
             icon: obsidian.png
-            href: https://obsidian.yourdomain.com
-            description: Note taking with CouchDB sync
+            href: http://obsidian.obsidian.svc.cluster.local
+            description: Note taking with CouchDB sync (no ingress yet)
             namespace: obsidian
             app: obsidian
 
