@@ -389,18 +389,11 @@ spec:
         summary: "Flux {{ $labels.kind }} {{ $labels.name }} is suspended"
         description: "Resource {{ $labels.namespace }}/{{ $labels.name }} is suspended and will not reconcile automatically. Resume with: flux resume {{ $labels.kind }} {{ $labels.name }} -n {{ $labels.namespace }}"
 
+  # service-alerts group - ServiceDown alert removed, replaced by Uptime Kuma
+  # See docs/UPTIME_KUMA_TELEGRAM_REPORT.md for details
   - name: service-alerts
     interval: 30s
     rules:
-    - alert: ServiceDown
-      expr: up{job!~".*node-exporter.*"} == 0
-      for: 5m
-      labels:
-        severity: critical
-      annotations:
-        summary: "Service {{ $labels.job }} is down"
-        description: "{{ $labels.job }} has been down for more than 5 minutes"
-    
     - alert: HighErrorRate
       expr: rate(prometheus_http_requests_total{code=~"5.."}[5m]) > 0.05
       for: 5m
