@@ -10,7 +10,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: init
-          image: curlimages/curl:8.11.1
+          image: curlimages/curl:8.16.0
           command: ["/bin/sh", "/scripts/init.sh"]
           env:
             # CouchDB admin credentials
