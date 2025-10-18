@@ -4,5 +4,3 @@ resources:
   - ../../base/authentik
   - certificate.yaml
   - secret.yaml
-patches:
-  - path: worker-scaling.yaml
