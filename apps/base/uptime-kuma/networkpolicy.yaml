@@ -19,6 +19,12 @@ spec:
       ports:
         - protocol: TCP
           port: 3001
+    # Allow ingress from same namespace (for setup job)
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 3001
   egress:
     # Allow DNS resolution
     - to:
