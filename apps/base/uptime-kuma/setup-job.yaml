@@ -1,0 +1,86 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: uptime-kuma-setup
+  namespace: uptime-kuma
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: uptime-kuma-setup
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: setup
+          image: python:3.11-slim
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Installing uptime-kuma-api..."
+              pip install --quiet uptime-kuma-api
+
+              echo "Waiting for Uptime Kuma to be ready..."
+              MAX_RETRIES=30
+              RETRY_COUNT=0
+
+              until curl -sf http://uptime-kuma.uptime-kuma.svc.cluster.local:3001/ > /dev/null 2>&1; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Uptime Kuma not ready after ${MAX_RETRIES} attempts"
+                  exit 1
+                fi
+                echo "Waiting for Uptime Kuma (attempt $RETRY_COUNT/$MAX_RETRIES)..."
+                sleep 5
+              done
+
+              echo "Uptime Kuma is ready. Setting up admin user..."
+
+              python3 << 'PYEOF'
+              from uptime_kuma_api import UptimeKumaApi
+              import os
+
+              api = UptimeKumaApi('http://uptime-kuma.uptime-kuma.svc.cluster.local:3001')
+
+              # Check if setup is needed
+              if api.need_setup():
+                  print("Setting up admin user...")
+                  api.setup(
+                      username=os.environ['UPTIME_KUMA_USERNAME'],
+                      password=os.environ['UPTIME_KUMA_PASSWORD']
+                  )
+                  print("Admin user created successfully!")
+              else:
+                  print("Uptime Kuma is already set up. Skipping setup.")
+
+              api.disconnect()
+              PYEOF
+
+              echo "Setup complete!"
+          env:
+            - name: UPTIME_KUMA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: uptime-kuma-admin
+                  key: username
+            - name: UPTIME_KUMA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: uptime-kuma-admin
+                  key: password
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]

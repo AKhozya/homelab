@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - ../../base/uptime-kuma
   - certificate.yaml
+  - secret.yaml

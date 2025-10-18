@@ -8,3 +8,4 @@ resources:
   - ingress.yaml
   - https-redirect-middleware.yaml
   - networkpolicy.yaml
+  - setup-job.yaml
