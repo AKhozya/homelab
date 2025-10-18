@@ -25,7 +25,8 @@ spec:
       containers:
         - name: worker
           image: ghcr.io/goauthentik/server:2025.8.4
-          args:
+          command:
+            - ak
             - worker
           envFrom:
             - secretRef:

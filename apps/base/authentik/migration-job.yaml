@@ -1,20 +1,20 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: batch/v1
+kind: Job
 metadata:
-  name: authentik-server
+  name: authentik-migration
   namespace: authentik
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: authentik
-      component: server
+  ttlSecondsAfterFinished: 300
   template:
     metadata:
       labels:
         app: authentik
-        component: server
+        component: migration
     spec:
+      restartPolicy: OnFailure
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
@@ -46,32 +46,19 @@ spec:
                 sleep 2
               done
 
-              echo "Database ${AUTHENTIK_POSTGRESQL__NAME} is ready!"
-          resources:
-            requests:
-              cpu: "10m"
-              memory: "32Mi"
-            limits:
-              cpu: "100m"
-              memory: "64Mi"
+              echo "Database is ready!"
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             runAsNonRoot: true
-            runAsUser: 65534
             capabilities:
               drop: ["ALL"]
       containers:
-        - name: server
+        - name: migration
           image: ghcr.io/goauthentik/server:2025.8.4
           command:
             - ak
-            - server
-          ports:
-            - containerPort: 9000
-              name: http
-            - containerPort: 9443
-              name: https
+            - migrate
           envFrom:
             - secretRef:
                 name: authentik
@@ -81,36 +68,9 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
-          livenessProbe:
-            httpGet:
-              path: /-/health/live/
-              port: 9000
-            initialDelaySeconds: 60
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 3
-          readinessProbe:
-            httpGet:
-              path: /-/health/ready/
-              port: 9000
-            initialDelaySeconds: 30
-            periodSeconds: 5
-            timeoutSeconds: 3
-            failureThreshold: 3
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "512Mi"
-            limits:
-              cpu: "1000m"
-              memory: "1Gi"
           volumeMounts:
-            - name: media
-              mountPath: /media
             - name: tmp
               mountPath: /tmp
       volumes:
-        - name: media
-          emptyDir: {}
         - name: tmp
           emptyDir: {}
