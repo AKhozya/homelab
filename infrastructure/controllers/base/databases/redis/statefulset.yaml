@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  namespace: databases
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+        runAsGroup: 999
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Init container to process ACL template with actual passwords
+        - name: init-acl
+          image: redis:7-alpine
+          command:
+            - sh
+            - -c
+            - |
+              # Replace password placeholders in ACL file
+              sed "s/\${REDIS_ADMIN_PASSWORD}/$REDIS_ADMIN_PASSWORD/g; s/\${REDIS_AUTHENTIK_PASSWORD}/$REDIS_AUTHENTIK_PASSWORD/g" \
+                /tmp/acl-template/users.acl > /data/users.acl
+              chmod 600 /data/users.acl
+              echo "ACL file configured successfully"
+          env:
+            - name: REDIS_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-passwords
+                  key: admin-password
+            - name: REDIS_AUTHENTIK_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-passwords
+                  key: authentik-password
+          volumeMounts:
+            - name: acl-template
+              mountPath: /tmp/acl-template
+            - name: data
+              mountPath: /data
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          args:
+            - redis-server
+            - --aclfile
+            - /data/users.acl
+            - --save
+            - "60"
+            - "1"
+            - --loglevel
+            - warning
+          ports:
+            - containerPort: 6379
+              name: redis
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: acl-template
+          configMap:
+            name: redis-acl
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 5Gi

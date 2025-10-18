@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-acl
+  namespace: databases
+data:
+  users.acl: |
+    # Redis ACL Configuration
+    # Default user - disabled for security
+    user default off nopass ~* &* +@all
+
+    # Admin user - full access
+    user admin on >${REDIS_ADMIN_PASSWORD} ~* &* +@all
+
+    # Authentik user - limited to necessary commands
+    user authentik on >${REDIS_AUTHENTIK_PASSWORD} ~* &* +@all -@dangerous

@@ -3,3 +3,5 @@ kind: Kustomization
 namespace: databases
 resources:
   - networkpolicy.yaml
+  - secret.yaml
+  - acl-configmap.yaml
