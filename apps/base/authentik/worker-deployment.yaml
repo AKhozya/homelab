@@ -30,8 +30,6 @@ spec:
           envFrom:
             - secretRef:
                 name: authentik
-            - secretRef:
-                name: authentik-db-user
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
