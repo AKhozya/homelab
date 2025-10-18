@@ -159,12 +159,12 @@ spec:
                       'description': 'Main PostgreSQL cluster (TCP check)'
                   },
                   {
-                      'name': 'Redis (Authentik)',
+                      'name': 'Redis',
                       'hostname': 'redis.databases.svc.cluster.local',
                       'port': 6379,
                       'type': MonitorType.PORT,
                       'interval': 60,
-                      'description': 'Redis cache for Authentik (TCP check)'
+                      'description': 'Redis cache (TCP check)'
                   }
               ]
 
