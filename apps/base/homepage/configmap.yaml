@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homepage-config
+  namespace: homepage
+  labels:
+    app.kubernetes.io/name: homepage
+data:
+  kubernetes.yaml: |
+    mode: cluster
+
+  settings.yaml: |
+    title: Homelab Dashboard
+    theme: dark
+    color: slate
+    headerStyle: boxed
+    layout:
+      - Productivity:
+          style: row
+          columns: 3
+      - Media & Automation:
+          style: row
+          columns: 2
+      - Infrastructure:
+          style: row
+          columns: 2
+    quicklaunch:
+      searchDescriptions: true
+      hideInternetSearch: true
+      hideVisitURL: true
+
+  bookmarks.yaml: |
+    - Developer:
+        - GitHub:
+            - icon: github-light
+              href: https://github.com
+        - Kubernetes Docs:
+            - icon: kubernetes
+              href: https://kubernetes.io/docs
+
+  services.yaml: |
+    - Productivity:
+        - Wallabag:
+            icon: wallabag.png
+            href: https://wallabag.yourdomain.com
+            description: Read-it-later service
+            namespace: wallabag
+            app: wallabag
+        - Mealie:
+            icon: mealie.png
+            href: https://mealie.yourdomain.com
+            description: Recipe manager
+            namespace: mealie
+            app: mealie
+        - Linkding:
+            icon: linkding.png
+            href: https://linkding.yourdomain.com
+            description: Bookmark manager
+            namespace: linkding
+            app: linkding
+
+    - Media & Automation:
+        - Audiobookshelf:
+            icon: audiobookshelf.png
+            href: https://audiobookshelf.yourdomain.com
+            description: Audiobook & podcast server
+            namespace: audiobookshelf
+            app: audiobookshelf
+        - N8N:
+            icon: n8n.png
+            href: https://n8n.yourdomain.com
+            description: Workflow automation
+            namespace: n8n
+            app: n8n
+
+    - Infrastructure:
+        - Home Assistant:
+            icon: home-assistant.png
+            href: https://ha.yourdomain.com
+            description: Home automation
+            namespace: home-assistant
+            app: home-assistant
+        - Obsidian:
+            icon: obsidian.png
+            href: https://obsidian.yourdomain.com
+            description: Note taking with CouchDB sync
+            namespace: obsidian
+            app: obsidian
+
+  widgets.yaml: |
+    - kubernetes:
+        cluster:
+          show: true
+          cpu: true
+          memory: true
+          showLabel: true
+          label: "cluster"
+        nodes:
+          show: false
+
+    - resources:
+        cpu: true
+        memory: true
+        disk: /
+
+    - search:
+        provider: google
+        target: _blank
