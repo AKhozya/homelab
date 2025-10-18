@@ -6,11 +6,7 @@ metadata:
 spec:
   interval: 1m0s
   retryInterval: 2m
-  wait: true
-  waitFor:
-    - kind: Deployment
-    - kind: StatefulSet
-    - kind: DaemonSet
+  wait: false
   force: true
   timeout: 5m
   dependsOn:
