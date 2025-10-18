@@ -119,22 +119,24 @@ data:
             app: alertmanager
 
   widgets.yaml: |
-    # Try showing only individual nodes instead of cluster metrics
-    # to work around the v1.5.0 Kubernetes widget bug
-    - kubernetes:
-        cluster:
-          show: false
-        nodes:
-          show: true
-          cpu: true
-          memory: true
-          showLabel: true
+    # NOTE: Kubernetes widget disabled due to "NaN undefined undefined" errors in v1.5.0
+    # See: https://github.com/gethomepage/homepage/discussions/3935
+    # The widget fails to parse metrics API responses, causing constant errors.
+    # Re-enable when fixed in a future version or when using a working workaround.
+    # - kubernetes:
+    #     cluster:
+    #       show: true
+    #       cpu: true
+    #       memory: true
+    #       showLabel: true
+    #       label: "cluster"
+    #     nodes:
+    #       show: false
 
     - resources:
         cpu: true
         memory: true
         disk: /
-        label: system
 
     - search:
         provider: google
