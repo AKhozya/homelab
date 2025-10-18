@@ -51,6 +51,8 @@ spec:
         - protocol: TCP
           port: 3001        # Uptime Kuma
         - protocol: TCP
+          port: 3005        # Audiobookshelf
+        - protocol: TCP
           port: 5432        # PostgreSQL
         - protocol: TCP
           port: 5678        # N8N

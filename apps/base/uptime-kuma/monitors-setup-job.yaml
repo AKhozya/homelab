@@ -112,7 +112,7 @@ spec:
                   },
                   {
                       'name': 'Audiobookshelf',
-                      'url': 'http://audiobookshelf.audiobookshelf.svc.cluster.local:80',
+                      'url': 'http://audiobookshelf.audiobookshelf.svc.cluster.local:3005',
                       'type': MonitorType.HTTP,
                       'interval': 120,
                       'description': 'Audiobook server (internal)'
