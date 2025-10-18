@@ -55,3 +55,17 @@ spec:
         createdb: true
         passwordSecret:
           name: authentik-db-user
+      - name: paperless
+        ensure: present
+        comment: Paperless-NGX application user
+        login: true
+        createdb: true
+        passwordSecret:
+          name: paperless-db-user
+      - name: immich
+        ensure: present
+        comment: Immich application user
+        login: true
+        createdb: true
+        passwordSecret:
+          name: immich-db-user
