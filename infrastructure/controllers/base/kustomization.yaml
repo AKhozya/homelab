@@ -5,3 +5,4 @@ resources:
   - traefik
   - databases/postgres
   - databases/couchdb
+  - databases/redis
