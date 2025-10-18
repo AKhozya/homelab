@@ -23,21 +23,10 @@ spec:
               echo "Installing uptime-kuma-api..."
               pip install --quiet --user uptime-kuma-api
 
-              echo "Waiting for Uptime Kuma to be ready..."
-              MAX_RETRIES=30
-              RETRY_COUNT=0
+              echo "Waiting 10 seconds for Uptime Kuma to be ready..."
+              sleep 10
 
-              until curl -sf http://uptime-kuma.uptime-kuma.svc.cluster.local:3001/ > /dev/null 2>&1; do
-                RETRY_COUNT=$((RETRY_COUNT + 1))
-                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-                  echo "ERROR: Uptime Kuma not ready after ${MAX_RETRIES} attempts"
-                  exit 1
-                fi
-                echo "Waiting for Uptime Kuma (attempt $RETRY_COUNT/$MAX_RETRIES)..."
-                sleep 5
-              done
-
-              echo "Uptime Kuma is ready. Setting up admin user..."
+              echo "Setting up admin user..."
 
               python3 << 'PYEOF'
               from uptime_kuma_api import UptimeKumaApi
