@@ -33,15 +33,15 @@ spec:
               - op: add
                 path: /spec/template/spec/volumes/-
                 value:
-                  name: render-device
+                  name: dri-devices
                   hostPath:
-                    path: /dev/dri/renderD128
-                    type: CharDevice
+                    path: /dev/dri
+                    type: Directory
               - op: add
                 path: /spec/template/spec/containers/0/volumeMounts/-
                 value:
-                  name: render-device
-                  mountPath: /dev/dri/renderD128
+                  name: dri-devices
+                  mountPath: /dev/dri
   values:
     # Global image configuration for Renovate/Dependabot tracking
     # See: https://github.com/immich-app/immich-charts/issues/68
