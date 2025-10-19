@@ -54,7 +54,6 @@ spec:
               memory: "64Mi"
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 65534
             capabilities:
