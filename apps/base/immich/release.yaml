@@ -179,7 +179,8 @@ spec:
                   cpu: 2000m
                   memory: 4Gi
               securityContext:
-                privileged: false
+                # TEMPORARY: Testing VAAPI hardware acceleration access
+                privileged: true
             # Socat sidecar to forward traffic from 0.0.0.0:8080 to [::1]:2283
             # Workaround for Immich localhost-only binding issue
             proxy:
