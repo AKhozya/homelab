@@ -126,7 +126,7 @@ data:
 
     # Immich
     - hostname: immich.h0melab.work
-      service: http://immich-server.immich.svc.cluster.local:2283
+      service: http://immich-server.immich.svc.cluster.local:8080
       originRequest:
         http2Origin: true
         connectTimeout: 10s
