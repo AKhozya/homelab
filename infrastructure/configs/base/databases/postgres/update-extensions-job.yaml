@@ -29,22 +29,10 @@ spec:
                 - |
                   set -e
 
-                  echo "Updating extensions in all databases..."
+                  echo "Updating PostgreSQL extensions in immich database..."
 
-                  # List of databases to update
-                  DATABASES="immich n8n mealie linkding wallabag paperless authentik"
-
-                  for DB in $DATABASES; do
-                    echo "=== Updating extensions in $DB database ==="
-
-                    # Check if database exists first
-                    if ! psql -h main-postgres-rw -U postgres -lqt | cut -d \| -f 1 | grep -qw "$DB"; then
-                      echo "Database $DB does not exist, skipping..."
-                      continue
-                    fi
-
-                    # Update all extensions in the database
-                    psql -h main-postgres-rw -U postgres -d "$DB" <<-EOSQL
+                  # Update all extensions in immich database (immich user has superuser)
+                  psql -h main-postgres-rw -U immich -d immich <<-EOSQL
                       DO \$\$
                       DECLARE
                         ext RECORD;
@@ -73,15 +61,14 @@ spec:
                       ORDER BY extname;
                   EOSQL
 
-                    echo "✅ Finished updating extensions in $DB"
-                  done
-
-                  echo "🎉 All databases processed!"
+                  echo "✅ Finished updating extensions in immich database!"
               env:
+                # PGPASSWORD will be set per-database from each database's secret
+                # Using immich credentials as they have superuser
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: main-postgres-app
+                      name: immich-db-user
                       key: password
               securityContext:
                 allowPrivilegeEscalation: false
