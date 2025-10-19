@@ -27,7 +27,7 @@ spec:
 
               # Try to sign up admin user
               response=$(curl -s -w "\n%{http_code}" -X POST \
-                "http://immich-server.immich.svc.cluster.local:2283/api/auth/admin-sign-up" \
+                "http://immich-server.immich.svc.cluster.local:8080/api/auth/admin-sign-up" \
                 -H "Content-Type: application/json" \
                 -H "Accept: application/json" \
                 -d "{
