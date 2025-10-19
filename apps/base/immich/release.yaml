@@ -66,6 +66,13 @@ spec:
       persistence:
         library:
           existingClaim: immich-library
+        # Hardware acceleration device
+        render-device:
+          enabled: true
+          type: hostPath
+          hostPath: /dev/dri/renderD128
+          globalMounts:
+            - path: /dev/dri/renderD128
 
     # Disable built-in Valkey (using external Redis)
     valkey:
@@ -129,6 +136,22 @@ spec:
                 repository: ghcr.io/immich-app/immich-server
                 tag: v2.1.0
                 pullPolicy: IfNotPresent
+              env:
+                # Hardware transcoding - AMD VAAPI
+                # Using HEVC for better compression and quality
+                IMMICH_MEDIA_FFMPEG_ACCEL: vaapi
+                IMMICH_MEDIA_FFMPEG_ACCEL_DECODE: vaapi
+                # CRF 20 = High quality (18-22 recommended for archival/high quality)
+                # Lower CRF = higher quality, larger files
+                IMMICH_MEDIA_FFMPEG_CRF: "20"
+                # Preset: slow = better quality/compression (slower encoding)
+                # Options: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
+                IMMICH_MEDIA_FFMPEG_PRESET: "slow"
+                # HEVC/H.265 with Main10 profile for 10-bit support
+                IMMICH_MEDIA_FFMPEG_TARGET_VIDEO_CODEC: hevc
+                IMMICH_MEDIA_FFMPEG_TARGET_AUDIO_CODEC: aac
+                # Optional: Force 10-bit encoding for even better quality
+                # IMMICH_MEDIA_FFMPEG_MAX_BITRATE: "0"  # 0 = unlimited
               resources:
                 requests:
                   cpu: 200m
@@ -136,6 +159,10 @@ spec:
                 limits:
                   cpu: 2000m
                   memory: 4Gi
+              securityContext:
+                privileged: false
+                # Video group GID for DRI access
+                supplementalGroups: [44, 104]
             # Socat sidecar to forward traffic from 0.0.0.0:8080 to [::1]:2283
             # Workaround for Immich localhost-only binding issue
             proxy:
