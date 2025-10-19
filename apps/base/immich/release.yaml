@@ -66,13 +66,6 @@ spec:
       persistence:
         library:
           existingClaim: immich-library
-        # Hardware acceleration device
-        render-device:
-          enabled: true
-          type: hostPath
-          hostPath: /dev/dri/renderD128
-          globalMounts:
-            - path: /dev/dri/renderD128
 
     # Disable built-in Valkey (using external Redis)
     valkey:
@@ -187,6 +180,14 @@ spec:
             http:
               port: 8080
               targetPort: 8080
+      # Hardware acceleration device mount
+      persistence:
+        render-device:
+          enabled: true
+          type: hostPath
+          hostPath: /dev/dri/renderD128
+          globalMounts:
+            - path: /dev/dri/renderD128
 
     # Immich Machine Learning component
     machine-learning:
