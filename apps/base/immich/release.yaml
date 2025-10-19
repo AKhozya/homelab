@@ -24,6 +24,10 @@ spec:
     recreate: true
     cleanupOnFail: true
   values:
+    # Global image configuration - upgrade to v2.1.0 for localhost binding fix
+    image:
+      tag: v2.1.0
+
     # Shared configuration for all Immich components
     controllers:
       main:
