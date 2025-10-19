@@ -76,6 +76,53 @@ spec:
       enabled: true
       controllers:
         main:
+          initContainers:
+            wait-for-database:
+              image:
+                repository: ghcr.io/cloudnative-pg/postgresql
+                tag: 18-minimal-trixie
+                pullPolicy: IfNotPresent
+              command:
+                - sh
+                - -c
+                - |
+                  echo "Waiting for Database CRD to create ${DB_DATABASE_NAME}..."
+                  MAX_RETRIES=60
+                  RETRY_COUNT=0
+
+                  # Wait for database to be accessible with correct password
+                  until pg_isready -h "$DB_HOSTNAME" -p "$DB_PORT" -U "$DB_USERNAME" -d "$DB_DATABASE_NAME" > /dev/null 2>&1; do
+                    RETRY_COUNT=$((RETRY_COUNT + 1))
+                    if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                      echo "ERROR: Database not ready after ${MAX_RETRIES} attempts"
+                      exit 1
+                    fi
+                    echo "Waiting for Database CRD (attempt $RETRY_COUNT/$MAX_RETRIES)..."
+                    sleep 2
+                  done
+
+                  echo "Database ${DB_DATABASE_NAME} is ready!"
+              env:
+                - name: DB_HOSTNAME
+                  value: main-postgres-rw.databases.svc.cluster.local
+                - name: DB_PORT
+                  value: "5432"
+                - name: DB_DATABASE_NAME
+                  value: immich
+                - name: DB_USERNAME
+                  value: immich
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: immich-db-password
+                      key: password
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
           containers:
             main:
               image:
