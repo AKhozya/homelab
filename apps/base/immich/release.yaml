@@ -30,6 +30,8 @@ spec:
         containers:
           main:
             env:
+              # Server binding configuration (fix for localhost-only binding issue)
+              HOST: "::"
               # Database configuration
               DB_HOSTNAME: main-postgres-rw.databases.svc.cluster.local
               DB_PORT: "5432"
@@ -51,7 +53,7 @@ spec:
                     key: password
               # Immich-specific settings
               IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
-              PUBLIC_IMMICH_SERVER_URL: https://photos.h0melab.work
+              PUBLIC_IMMICH_SERVER_URL: https://immich.h0melab.work
               IMMICH_METRICS: "true"
 
     # Immich shared configuration
