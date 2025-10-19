@@ -33,10 +33,12 @@ spec:
       ports:
         - protocol: TCP
           port: 2283
-    # Allow ingress within namespace (server -> ml, ml -> server)
+    # Allow ingress within namespace (server -> ml, ml -> server, admin setup -> server)
     - from:
         - podSelector: {}
       ports:
+        - protocol: TCP
+          port: 2283
         - protocol: TCP
           port: 3001
         - protocol: TCP
