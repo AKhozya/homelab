@@ -95,6 +95,10 @@ spec:
       enabled: true
       controllers:
         main:
+          pod:
+            securityContext:
+              # Video (44), render (104), and renderD128 owner (989) group GIDs for DRI access
+              supplementalGroups: [44, 104, 989]
           initContainers:
             wait-for-database:
               image:
@@ -176,8 +180,6 @@ spec:
                   memory: 4Gi
               securityContext:
                 privileged: false
-                # Video (44), render (104), and renderD128 owner (989) group GIDs for DRI access
-                supplementalGroups: [44, 104, 989]
             # Socat sidecar to forward traffic from 0.0.0.0:8080 to [::1]:2283
             # Workaround for Immich localhost-only binding issue
             proxy:
