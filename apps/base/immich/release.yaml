@@ -180,14 +180,8 @@ spec:
             http:
               port: 8080
               targetPort: 8080
-      # Hardware acceleration device mount
-      persistence:
-        render-device:
-          enabled: true
-          type: hostPath
-          hostPath: /dev/dri/renderD128
-          globalMounts:
-            - path: /dev/dri/renderD128
+      # Hardware acceleration device mount via Kustomize patch
+      # See: apps/staging/immich/hardware-acceleration-patch.yaml
 
     # Immich Machine Learning component
     machine-learning:

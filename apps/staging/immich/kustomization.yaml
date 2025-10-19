@@ -6,3 +6,5 @@ resources:
   - immich-db-password-secret.yaml
   - immich-redis-password-secret.yaml
   - admin-secret.yaml
+patchesStrategicMerge:
+  - hardware-acceleration-patch.yaml
