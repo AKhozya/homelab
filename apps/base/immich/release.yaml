@@ -24,24 +24,12 @@ spec:
     recreate: true
     cleanupOnFail: true
   values:
-    # Global image configuration - upgrade to v2.1.0 for localhost binding fix
-    image:
-      tag: v2.1.0
-
     # Shared configuration for all Immich components
     controllers:
       main:
         containers:
           main:
             env:
-              # Known issue: Immich v2.0.0 binds to localhost only despite HOST env var
-              # See: https://github.com/immich-app/immich/issues/13501
-              # Attempted fix with pod IP via downward API - HOST var sets correctly but
-              # Immich still binds to [::1]:2283. Likely requires upgrade to v2.1.0+
-              HOST:
-                valueFrom:
-                  fieldRef:
-                    fieldPath: status.podIP
               # Database configuration
               DB_HOSTNAME: main-postgres-rw.databases.svc.cluster.local
               DB_PORT: "5432"
@@ -87,15 +75,7 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-server
-                tag: v2.1.0
                 pullPolicy: IfNotPresent
-              env:
-                # Server binding fix for localhost-only binding issue
-                # See: https://github.com/immich-app/immich/issues/13501
-                HOST:
-                  valueFrom:
-                    fieldRef:
-                      fieldPath: status.podIP
               resources:
                 requests:
                   cpu: 200m
@@ -137,7 +117,6 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-machine-learning
-                tag: v2.1.0
                 pullPolicy: IfNotPresent
               env:
                 TRANSFORMERS_CACHE: /cache

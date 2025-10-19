@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: immich-init-extensions
+  namespace: databases
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: immich-init-extensions
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init-extensions
+          image: ghcr.io/cloudnative-pg/postgresql:18-standard-trixie
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              echo "Waiting for immich database to be ready..."
+              until psql -h main-postgres-rw -U postgres -d immich -c '\q' 2>/dev/null; do
+                echo "Waiting for database connection..."
+                sleep 2
+              done
+
+              echo "Creating required PostgreSQL extensions for Immich..."
+
+              psql -h main-postgres-rw -U postgres -d immich <<-EOSQL
+                -- Create extensions if they don't exist
+                CREATE EXTENSION IF NOT EXISTS vector CASCADE;
+                CREATE EXTENSION IF NOT EXISTS cube CASCADE;
+                CREATE EXTENSION IF NOT EXISTS earthdistance CASCADE;
+
+                -- Verify extensions were created
+                \dx
+              EOSQL
+
+              echo "Extensions created successfully!"
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: main-postgres-superuser
+                  key: password
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 26
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

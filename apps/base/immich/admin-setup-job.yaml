@@ -5,12 +5,50 @@ metadata:
   namespace: immich
 spec:
   ttlSecondsAfterFinished: 300
+  backoffLimit: 5
   template:
     metadata:
       labels:
         app: immich-admin-setup
     spec:
       restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-server
+          image: curlimages/curl:8.16.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "Waiting for Immich server to be ready..."
+
+              max_attempts=60
+              attempt=0
+
+              while [ $attempt -lt $max_attempts ]; do
+                attempt=$((attempt + 1))
+                echo "Attempt $attempt/$max_attempts: Checking server health..."
+
+                # Try to connect to the server (any endpoint)
+                if curl -sf -m 5 http://immich-server.immich.svc.cluster.local:8080/ > /dev/null 2>&1; then
+                  echo "✅ Immich server is responding!"
+                  sleep 5  # Give it a few more seconds to fully initialize
+                  exit 0
+                fi
+
+                echo "Server not ready yet, waiting..."
+                sleep 5
+              done
+
+              echo "❌ Timeout waiting for Immich server to be ready"
+              exit 1
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: setup
           image: curlimages/curl:8.16.0
@@ -19,9 +57,6 @@ spec:
             - -c
             - |
               set -e
-
-              echo "Waiting for Immich server to be ready..."
-              sleep 15
 
               echo "Attempting to create admin user..."
 

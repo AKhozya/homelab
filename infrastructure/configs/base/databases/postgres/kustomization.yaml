@@ -16,3 +16,4 @@ resources:
   - wallabag-database.yaml
   - paperless-database.yaml
   - immich-database.yaml
+  - immich-init-extensions-job.yaml
