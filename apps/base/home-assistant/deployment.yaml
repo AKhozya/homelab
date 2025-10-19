@@ -22,6 +22,33 @@ spec:
         fsGroup: 0
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: config-setup
+          image: busybox:1.37.0
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # Copy configuration.yaml from ConfigMap to PVC if it doesn't exist or is different
+              if [ ! -f /config/configuration.yaml ] || ! cmp -s /config-template/configuration.yaml /config/configuration.yaml; then
+                echo "Updating configuration.yaml from ConfigMap..."
+                cp /config-template/configuration.yaml /config/configuration.yaml
+                echo "Configuration updated successfully"
+              else
+                echo "Configuration.yaml is up to date"
+              fi
+          volumeMounts:
+            - name: home-assistant-data
+              mountPath: /config
+            - name: config-template
+              mountPath: /config-template
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
       containers:
         - name: home-assistant
           image: ghcr.io/home-assistant/home-assistant:2025.10.3
@@ -84,3 +111,6 @@ spec:
             claimName: home-assistant-data-pvc
         - name: tmp
           emptyDir: {}
+        - name: config-template
+          configMap:
+            name: home-assistant-config

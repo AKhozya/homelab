@@ -4,6 +4,7 @@ namespace: home-assistant
 resources:
   - namespace.yaml
   - storage.yaml
+  - configmap.yaml
   - deployment.yaml
   - service.yaml
   - networkpolicy.yaml
