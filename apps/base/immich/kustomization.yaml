@@ -5,6 +5,5 @@ resources:
   - namespace.yaml
   - repository.yaml
   - library-pvc.yaml
-  - immich-config.yaml
   - release.yaml
   - admin-setup-job.yaml

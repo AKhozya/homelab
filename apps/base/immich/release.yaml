@@ -42,18 +42,6 @@ spec:
                 value:
                   name: dri-devices
                   mountPath: /dev/dri
-              - op: add
-                path: /spec/template/spec/volumes/-
-                value:
-                  name: config
-                  configMap:
-                    name: immich-config
-              - op: add
-                path: /spec/template/spec/containers/0/volumeMounts/-
-                value:
-                  name: config
-                  mountPath: /config
-                  readOnly: true
   values:
     # Global image configuration for Renovate/Dependabot tracking
     # See: https://github.com/immich-app/immich-charts/issues/68
@@ -161,26 +149,12 @@ spec:
                 tag: v2.1.0
                 pullPolicy: IfNotPresent
               env:
-                # Config file for GitOps-managed settings (enables hardware decode, etc.)
-                IMMICH_CONFIG_FILE: /config/immich.json
-                # Hardware transcoding - AMD VAAPI
-                # Using HEVC for better compression and quality
+                # Hardware acceleration - AMD VAAPI
+                # Settings like CRF, preset, codec are configured via UI
                 IMMICH_MEDIA_FFMPEG_ACCEL: vaapi
-                IMMICH_MEDIA_FFMPEG_ACCEL_DECODE: vaapi
-                # CRF 20 = High quality (18-22 recommended for archival/high quality)
-                # Lower CRF = higher quality, larger files
-                IMMICH_MEDIA_FFMPEG_CRF: "20"
-                # Preset: slow = better quality/compression (slower encoding)
-                # Options: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
-                IMMICH_MEDIA_FFMPEG_PRESET: "slow"
-                # HEVC/H.265 with Main10 profile for 10-bit support
-                IMMICH_MEDIA_FFMPEG_TARGET_VIDEO_CODEC: hevc
-                IMMICH_MEDIA_FFMPEG_TARGET_AUDIO_CODEC: aac
                 # LIBVA driver configuration for AMD Radeon Graphics
                 LIBVA_DRIVER_NAME: radeonsi
                 LIBVA_DRIVERS_PATH: /usr/lib/x86_64-linux-gnu/dri
-                # Optional: Force 10-bit encoding for even better quality
-                # IMMICH_MEDIA_FFMPEG_MAX_BITRATE: "0"  # 0 = unlimited
               resources:
                 requests:
                   cpu: 200m
