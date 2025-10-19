@@ -108,7 +108,7 @@ spec:
             proxy:
               image:
                 repository: alpine/socat
-                tag: 1.8.0.0
+                tag: 1.8.0.3
                 pullPolicy: IfNotPresent
               args:
                 - "TCP4-LISTEN:8080,fork,reuseaddr,bind=0.0.0.0"
