@@ -162,6 +162,9 @@ spec:
                 # HEVC/H.265 with Main10 profile for 10-bit support
                 IMMICH_MEDIA_FFMPEG_TARGET_VIDEO_CODEC: hevc
                 IMMICH_MEDIA_FFMPEG_TARGET_AUDIO_CODEC: aac
+                # LIBVA driver configuration for AMD Radeon Graphics
+                LIBVA_DRIVER_NAME: radeonsi
+                LIBVA_DRIVERS_PATH: /usr/lib/x86_64-linux-gnu/dri
                 # Optional: Force 10-bit encoding for even better quality
                 # IMMICH_MEDIA_FFMPEG_MAX_BITRATE: "0"  # 0 = unlimited
               resources:
