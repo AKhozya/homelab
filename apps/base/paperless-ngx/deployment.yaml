@@ -19,6 +19,19 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: fix-permissions
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - chown -R 1000:1000 /run && chmod 755 /run
+          volumeMounts:
+            - name: run
+              mountPath: /run
+          securityContext:
+            runAsUser: 0
+            runAsNonRoot: false
       containers:
         - name: paperless-ngx
           image: ghcr.io/paperless-ngx/paperless-ngx:2.18.4
