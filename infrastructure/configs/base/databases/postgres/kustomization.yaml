@@ -2,6 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - cluster.yaml
+  - postgres-admin-user.yaml
   - authentik-db-user.yaml
   - linkding-app-user-secret.yaml
   - n8n-db-user.yaml

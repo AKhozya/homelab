@@ -31,8 +31,8 @@ spec:
 
                   echo "Updating PostgreSQL extensions in immich database..."
 
-                  # Update all extensions in immich database (immich user has superuser)
-                  psql -h main-postgres-rw -U immich -d immich <<-EOSQL
+                  # Update all extensions in immich database using postgres-admin
+                  psql -h main-postgres-rw -U postgres-admin -d immich <<-EOSQL
                       DO \$\$
                       DECLARE
                         ext RECORD;
@@ -63,12 +63,11 @@ spec:
 
                   echo "✅ Finished updating extensions in immich database!"
               env:
-                # PGPASSWORD will be set per-database from each database's secret
-                # Using immich credentials as they have superuser
+                # PGPASSWORD for postgres-admin superuser
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: immich-db-user
+                      name: postgres-admin-user
                       key: password
               securityContext:
                 allowPrivilegeEscalation: false

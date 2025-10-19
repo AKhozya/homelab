@@ -33,6 +33,13 @@ spec:
           CREATE EXTENSION IF NOT EXISTS uuid-ossp CASCADE;
   managed:
     roles:
+      - name: postgres-admin
+        ensure: present
+        comment: PostgreSQL admin user for maintenance tasks (extensions, backups)
+        login: true
+        superuser: true
+        passwordSecret:
+          name: postgres-admin-user
       - name: linkding
         ensure: present
         comment: Linkding application user
@@ -80,6 +87,5 @@ spec:
         comment: Immich application user
         login: true
         createdb: true
-        superuser: true  # Required for creating PostgreSQL extensions
         passwordSecret:
           name: immich-db-user
