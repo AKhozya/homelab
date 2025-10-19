@@ -19,11 +19,7 @@ metadata:
   name: flux-system
   namespace: flux-system
 spec:
-  interval: 1m0s
-  retryInterval: 2m
-  timeout: 5m
-  wait: true
-  force: true
+  interval: 10m0s
   path: ./clusters/staging
   prune: true
   sourceRef:
