@@ -84,6 +84,24 @@ All Kubernetes PersistentVolumes are created on this storage via the local-path-
 
 - **Helm Controller**: Disabled (using Flux for GitOps)
 
+### Node Scheduling
+
+- **Control Plane Taint**: `node-role.kubernetes.io/control-plane:NoSchedule`
+  - Prevents application workloads from scheduling on the control plane
+  - System pods (kube-system, flux-system, cert-manager, etc.) can still run via tolerations
+  - All application workloads run on the worker node with the 4TB storage
+
+To verify the taint is applied:
+```bash
+kubectl describe node gmk-k3s-control-plane | grep Taints
+# Should show: Taints: node-role.kubernetes.io/control-plane:NoSchedule
+```
+
+To manually apply the taint if needed:
+```bash
+kubectl taint nodes gmk-k3s-control-plane node-role.kubernetes.io/control-plane:NoSchedule
+```
+
 ## Verification
 
 After setup, verify:

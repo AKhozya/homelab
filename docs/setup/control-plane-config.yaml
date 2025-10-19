@@ -15,3 +15,8 @@ disable-helm-controller: true
 # Node Configuration
 # Set explicit node name for the control plane
 node-name: gmk-k3s-control-plane
+
+# Prevent workload scheduling on control plane
+# Only allow system pods (kube-system, flux-system, cert-manager, etc.)
+node-taint:
+  - "node-role.kubernetes.io/control-plane:NoSchedule"
