@@ -12,13 +12,13 @@ spec:
       labels:
         app: paperless-ngx
     spec:
-      securityContext:
-        fsGroup: 1000
-        runAsUser: 1000
-        runAsGroup: 1000
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
+      # securityContext temporarily removed for testing
+      # fsGroup: 1000
+      # runAsUser: 1000
+      # runAsGroup: 1000
+      # runAsNonRoot: true
+      # seccompProfile:
+      #   type: RuntimeDefault
       # initContainers temporarily removed for testing
       # - name: wait-for-database-crd
       #   image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
