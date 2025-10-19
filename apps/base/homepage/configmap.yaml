@@ -71,6 +71,18 @@ data:
             description: Bookmark manager
             namespace: linkding
             app: linkding
+        - Paperless-NGX:
+            icon: paperless.png
+            href: https://paperless.h0melab.work
+            description: Document management
+            namespace: paperless-ngx
+            app: paperless-ngx
+        - Immich:
+            icon: immich.png
+            href: https://immich.h0melab.work
+            description: Photo management
+            namespace: immich
+            app: immich-server
 
     - Media & Automation:
         - Audiobookshelf:
@@ -95,7 +107,7 @@ data:
             app: home-assistant
         - Authentik:
             icon: authentik.png
-            href: https://auth.h0melab.work
+            href: https://authentik.h0melab.work
             description: Identity provider & SSO
             namespace: authentik
             app: authentik
