@@ -127,6 +127,20 @@ spec:
                       'description': 'Obsidian sync database',
                       'accepted_statuscodes': ['200-299', '401']
                   },
+                  {
+                      'name': 'Immich',
+                      'url': 'https://immich.h0melab.work',
+                      'type': MonitorType.HTTP,
+                      'interval': 120,
+                      'description': 'Photo management and backup'
+                  },
+                  {
+                      'name': 'Paperless-NGX',
+                      'url': 'https://paperless.h0melab.work',
+                      'type': MonitorType.HTTP,
+                      'interval': 120,
+                      'description': 'Document management system'
+                  },
                   # Cloudflare Tunnel health
                   {
                       'name': 'Cloudflare Tunnel',
