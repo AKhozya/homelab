@@ -24,6 +24,11 @@ spec:
     recreate: true
     cleanupOnFail: true
   values:
+    # Global image configuration for Renovate/Dependabot tracking
+    # See: https://github.com/immich-app/immich-charts/issues/68
+    image:
+      tag: v2.1.0
+
     # Shared configuration for all Immich components
     controllers:
       main:
