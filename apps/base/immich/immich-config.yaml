@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: immich-config
+  namespace: immich
+data:
+  immich.json: |
+    {
+      "ffmpeg": {
+        "crf": 20,
+        "threads": 0,
+        "preset": "slow",
+        "targetVideoCodec": "hevc",
+        "acceptedVideoCodecs": ["h264"],
+        "targetAudioCodec": "aac",
+        "acceptedAudioCodecs": ["aac", "mp3", "libopus"],
+        "targetResolution": "original",
+        "maxBitrate": "0",
+        "bframes": -1,
+        "refs": 0,
+        "gopSize": 0,
+        "npl": 0,
+        "temporalAQ": false,
+        "cqMode": "auto",
+        "twoPass": false,
+        "preferredHwDevice": "auto",
+        "transcode": "required",
+        "tonemap": "hable",
+        "accel": "vaapi",
+        "accelDecode": true
+      }
+    }
