@@ -19,45 +19,9 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
-      initContainers:
-        - name: wait-for-database-crd
-          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
-          envFrom:
-            - secretRef:
-                name: paperless-env
-          command:
-            - sh
-            - -c
-            - |
-              echo "Waiting for Database CRD to create ${PAPERLESS_DBNAME}..."
-              MAX_RETRIES=60
-              RETRY_COUNT=0
-
-              # Wait for database to be accessible (created by Database CRD)
-              until pg_isready -h "$PAPERLESS_DBHOST" -p "$PAPERLESS_DBPORT" -U "$PAPERLESS_DBUSER" -d "$PAPERLESS_DBNAME" > /dev/null 2>&1; do
-                RETRY_COUNT=$((RETRY_COUNT + 1))
-                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-                  echo "ERROR: Database not created by CRD after ${MAX_RETRIES} attempts"
-                  exit 1
-                fi
-                echo "Waiting for Database CRD (attempt $RETRY_COUNT/$MAX_RETRIES)..."
-                sleep 2
-              done
-
-              echo "Database ${PAPERLESS_DBNAME} is ready!"
-          resources:
-            requests:
-              cpu: "10m"
-              memory: "32Mi"
-            limits:
-              cpu: "100m"
-              memory: "64Mi"
-          securityContext:
-            allowPrivilegeEscalation: false
-            runAsNonRoot: true
-            runAsUser: 65534
-            capabilities:
-              drop: ["ALL"]
+      # initContainers temporarily removed for testing
+      # - name: wait-for-database-crd
+      #   image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
       containers:
         - name: paperless-ngx
           image: ghcr.io/paperless-ngx/paperless-ngx:2.18.4
