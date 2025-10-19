@@ -13,7 +13,7 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: setup
-          image: curlimages/curl:8.11.1
+          image: curlimages/curl:8.16.0
           command:
             - /bin/sh
             - -c
