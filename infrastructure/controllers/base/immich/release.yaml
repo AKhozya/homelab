@@ -7,10 +7,9 @@ spec:
   interval: 6h
   chart:
     spec:
-      chart: immich
-      version: 0.10.x
+      chart: ./charts/immich
       sourceRef:
-        kind: HelmRepository
+        kind: GitRepository
         name: immich
         namespace: immich
   install:
