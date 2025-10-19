@@ -9,20 +9,20 @@ metadata:
         cnpg.io/cluster: main-postgres
 type: kubernetes.io/basic-auth
 stringData:
-    username: ENC[AES256_GCM,data:wJa0CsTj,iv:Q3rofw0VxEeTebZthcOmV+MESlzTcl1OTbIlNfkYMOA=,tag:W7gAqUW7wbHSem8GUiHscQ==,type:str]
-    password: ENC[AES256_GCM,data:+c2LgBT7,iv:o/RronUe9qi7C2VVONs/eLeE+AtwrqFMGHTy8IV1THA=,tag:G7P9aigzcv9qub6SjpL0HQ==,type:str]
+    username: ENC[AES256_GCM,data:6GF3fSUT,iv:XzRsW/dHxBuhyWfQ41d39af0/0oQLhIl4otip22/1J8=,tag:z0fR5qy0bm4NEjIH989seg==,type:str]
+    password: ENC[AES256_GCM,data:9rD16sYlCcVr/K7660RdT3HCcPHCiTM1WXMx4P/5JnTAd+RGGKbLgijrMgDsh32+HWzqH0m98GR3qd/VuBKnMg==,iv:U6AvVnx7zrwBSX3/KBkZWrtcFTGPZdYkZVJ0b+7dBt8=,tag:B46Ic+AfHcZ3QiekKPOILA==,type:str]
 sops:
     age:
         - recipient: age1jwjtfrp625gh24xd8rds9zcz7arsgmqf8y3nn4j9redfcvfvcuhs4fv3sc
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSB0YXFURHhwN3NOR01QcUt6
-            eC9pdVlCb2c0enZoalJQY0pmSjlvSldFL2xjCkNEWnFYdWYzOWI5WGI2Q0FYWFVl
-            ZGMvZUMzdzhUaSt1SzZDaHdiZnU3MEEKLS0tIEd0WTc1Rm1pVit3SUxhTUp4dzJL
-            M2pCTnNNOCsvL0RSNFN3eU81TDN4QlkKpkMwKtEq449NiTRsNgZOQvzJr1S4/UKN
-            7Zb6w8j0Zn5tlI3aLXPa8X9hsfG705wWS3dCvn19upI9U3VFIi4iUw==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSA5WFcrTUdQL1RQeEJZR3hT
+            WXIzd3gza2lLdWdkZzBSeVhhV2w5WHFCWlVzCkVFQ09xRUlxNlVwMUJxbk9NNWhh
+            UEtkL1FyYkFhUXhaalpjRFFxNSsveVEKLS0tIHZKa3c5cVdGSkVRckdtSk5Ec0tQ
+            bFhwQjdNWlp4TVQzdzlhWHk2UEFZMGsKGuwJnPRFb9YlKX30pHEPM6Lfwb4HBGCr
+            H4u4pOc8UO6S4jCmx+JXEPGDrko9WX95tRRfpjotm2krG010iqufwg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-10-19T00:36:30Z"
-    mac: ENC[AES256_GCM,data:naqbstWYIbilJ0Q57dp/ZZ0hnuvkCtQIX60eowrZuP5BojYHq+VynQJAO6/8A5wulWHRi9+1i6yG7SUqN4aXdir574Tee0pm7SUzqp98NzlT46pjzUzeDk1nDqL56PCuKLDTX8BO+qU87gVP+ALno7/+OL1JCNo4JFzJg5sKlvE=,iv:XPUbtbqHqc0tWYidVLm8Q91hbb3hgarQSBkorhoB0Eg=,tag:7kfyjupEAKYFwekylZ3UXA==,type:str]
+    lastmodified: "2025-10-19T00:38:13Z"
+    mac: ENC[AES256_GCM,data:JDj/+FlzakycfrqZYkCw33+SLV+kwUWjh9jFwpkxOmC0xJQzejruVu10XlXvkjBZbHC0DqZO11jcwTvWoczzMtNO6V+JxR/v9ryZ11SqHDN+lsSv9Tc0pEGApQbduGdViVQhCZ8uJYTEP/U+VZahKYwpKsJDJu9aRtwj+yXjmKw=,iv:UhxU2J6OodYXuARCb7AOOIuYZ0YAjbR2CFiKvSBgfdM=,tag:bkPK+mR5stQ8w6Us9Ew3fQ==,type:str]
     encrypted_regex: ^(data|stringData)$
     version: 3.11.0
