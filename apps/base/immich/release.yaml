@@ -111,7 +111,7 @@ spec:
                 tag: 1.8.0.0
                 pullPolicy: IfNotPresent
               args:
-                - "TCP-LISTEN:8080,fork,reuseaddr"
+                - "TCP4-LISTEN:8080,fork,reuseaddr,bind=0.0.0.0"
                 - "TCP:[::1]:2283"
               resources:
                 requests:
