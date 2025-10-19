@@ -67,5 +67,6 @@ spec:
         comment: Immich application user
         login: true
         createdb: true
+        superuser: true  # Required for creating PostgreSQL extensions
         passwordSecret:
           name: immich-db-user

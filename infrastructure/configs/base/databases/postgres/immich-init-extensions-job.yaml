@@ -28,7 +28,7 @@ spec:
               RETRY_COUNT=0
 
               # First wait for PostgreSQL cluster to be accessible
-              until psql -h main-postgres-rw -U akhozya -d postgres -c '\q' 2>/dev/null; do
+              until psql -h main-postgres-rw -U immich -d postgres -c '\q' 2>/dev/null; do
                 RETRY_COUNT=$((RETRY_COUNT + 1))
                 if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
                   echo "ERROR: PostgreSQL cluster not accessible after ${MAX_RETRIES} attempts"
@@ -42,7 +42,7 @@ spec:
               RETRY_COUNT=0
 
               # Wait for immich database to exist (created by Database CRD)
-              until psql -h main-postgres-rw -U akhozya -d postgres -c "SELECT 1 FROM pg_database WHERE datname='immich'" | grep -q 1 2>/dev/null; do
+              until psql -h main-postgres-rw -U immich -d postgres -c "SELECT 1 FROM pg_database WHERE datname='immich'" | grep -q 1 2>/dev/null; do
                 RETRY_COUNT=$((RETRY_COUNT + 1))
                 if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
                   echo "ERROR: Database 'immich' not created after ${MAX_RETRIES} attempts"
@@ -54,7 +54,7 @@ spec:
 
               echo "Database 'immich' exists. Creating extensions..."
 
-              psql -h main-postgres-rw -U akhozya -d immich <<-EOSQL
+              psql -h main-postgres-rw -U immich -d immich <<-EOSQL
                 -- Create extensions if they don't exist
                 CREATE EXTENSION IF NOT EXISTS vector CASCADE;
                 CREATE EXTENSION IF NOT EXISTS cube CASCADE;
@@ -71,7 +71,7 @@ spec:
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: main-postgres-superuser
+                  name: immich-db-user
                   key: password
           securityContext:
             allowPrivilegeEscalation: false
