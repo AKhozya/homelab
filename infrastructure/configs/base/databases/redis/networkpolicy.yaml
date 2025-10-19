@@ -27,6 +27,22 @@ spec:
       ports:
         - protocol: TCP
           port: 6379
+    # Allow ingress from paperless-ngx namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: paperless-ngx
+      ports:
+        - protocol: TCP
+          port: 6379
+    # Allow ingress from immich namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: immich
+      ports:
+        - protocol: TCP
+          port: 6379
     # Allow ingress from within the same namespace
     - from:
         - podSelector: {}
