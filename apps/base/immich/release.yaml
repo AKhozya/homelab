@@ -83,6 +83,13 @@ spec:
               image:
                 repository: ghcr.io/immich-app/immich-server
                 pullPolicy: IfNotPresent
+              env:
+                # Server binding fix for localhost-only binding issue
+                # See: https://github.com/immich-app/immich/issues/13501
+                HOST:
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: status.podIP
               resources:
                 requests:
                   cpu: 200m
