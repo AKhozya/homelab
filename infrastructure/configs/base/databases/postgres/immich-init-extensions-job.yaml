@@ -23,13 +23,36 @@ spec:
             - |
               set -e
 
-              echo "Waiting for immich database to be ready..."
-              until psql -h main-postgres-rw -U postgres -d immich -c '\q' 2>/dev/null; do
-                echo "Waiting for database connection..."
+              echo "Waiting for PostgreSQL cluster to be ready..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
+
+              # First wait for PostgreSQL cluster to be accessible
+              until psql -h main-postgres-rw -U postgres -d postgres -c '\q' 2>/dev/null; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: PostgreSQL cluster not accessible after ${MAX_RETRIES} attempts"
+                  exit 1
+                fi
+                echo "Waiting for PostgreSQL cluster (attempt $RETRY_COUNT/$MAX_RETRIES)..."
                 sleep 2
               done
 
-              echo "Creating required PostgreSQL extensions for Immich..."
+              echo "PostgreSQL cluster is accessible. Waiting for immich database..."
+              RETRY_COUNT=0
+
+              # Wait for immich database to exist (created by Database CRD)
+              until psql -h main-postgres-rw -U postgres -d postgres -c "SELECT 1 FROM pg_database WHERE datname='immich'" | grep -q 1 2>/dev/null; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Database 'immich' not created after ${MAX_RETRIES} attempts"
+                  exit 1
+                fi
+                echo "Waiting for immich database (attempt $RETRY_COUNT/$MAX_RETRIES)..."
+                sleep 2
+              done
+
+              echo "Database 'immich' exists. Creating extensions..."
 
               psql -h main-postgres-rw -U postgres -d immich <<-EOSQL
                 -- Create extensions if they don't exist
@@ -38,10 +61,12 @@ spec:
                 CREATE EXTENSION IF NOT EXISTS earthdistance CASCADE;
 
                 -- Verify extensions were created
-                \dx
+                SELECT extname, extversion FROM pg_extension
+                WHERE extname IN ('vector', 'cube', 'earthdistance')
+                ORDER BY extname;
               EOSQL
 
-              echo "Extensions created successfully!"
+              echo "✅ Extensions created successfully!"
           env:
             - name: PGPASSWORD
               valueFrom:
