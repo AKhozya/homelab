@@ -68,12 +68,3 @@ spec:
             runAsUser: 65534
             capabilities:
               drop: ["ALL"]
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: immich-admin-credentials
-  namespace: immich
-type: Opaque
-stringData:
-  password: PLACEHOLDER_WILL_BE_ENCRYPTED
