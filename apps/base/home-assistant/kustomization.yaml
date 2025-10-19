@@ -10,3 +10,5 @@ resources:
   - networkpolicy.yaml
   - ingress.yaml
   - https-redirect-middleware.yaml
+  - admin-credentials-secret.yaml
+  - admin-setup-job.yaml

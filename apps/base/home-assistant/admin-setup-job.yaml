@@ -1,0 +1,76 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: home-assistant-admin-setup
+  namespace: home-assistant
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: home-assistant-admin-setup
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: setup
+          image: curlimages/curl:8.11.1
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              echo "Waiting for Home Assistant to be ready..."
+              sleep 15
+
+              echo "Attempting to create admin user..."
+
+              # Try to create admin user via onboarding API
+              response=$(curl -s -w "\n%{http_code}" -X POST \
+                "http://home-assistant.home-assistant.svc.cluster.local:8123/api/onboarding/users" \
+                -H "Content-Type: application/json" \
+                -H "Accept: application/json" \
+                -d "{
+                  \"client_id\": \"http://home-assistant.home-assistant.svc.cluster.local:8123/\",
+                  \"name\": \"${HA_ADMIN_NAME}\",
+                  \"username\": \"${HA_ADMIN_USERNAME}\",
+                  \"password\": \"${HA_ADMIN_PASSWORD}\",
+                  \"language\": \"en\"
+                }")
+
+              http_code=$(echo "$response" | tail -n1)
+              body=$(echo "$response" | sed '$d')
+
+              if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
+                echo "Admin user created successfully!"
+                echo "$body"
+              elif echo "$body" | grep -qi "onboarding.*complete"; then
+                echo "Onboarding already completed, admin user exists"
+              else
+                echo "Failed to create admin user. HTTP $http_code"
+                echo "$body"
+                # Don't fail the job if onboarding is already done
+                if echo "$body" | grep -qi "onboarding"; then
+                  exit 0
+                fi
+                exit 1
+              fi
+
+              echo "Admin user setup complete!"
+          env:
+            - name: HA_ADMIN_NAME
+              value: "Alexander Khozya"
+            - name: HA_ADMIN_USERNAME
+              value: "akhozya"
+            - name: HA_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: home-assistant-admin-credentials
+                  key: password
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
