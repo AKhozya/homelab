@@ -6,5 +6,4 @@ resources:
   - repository.yaml
   - library-pvc.yaml
   - release.yaml
-  - networkpolicy.yaml
   - admin-setup-job.yaml
