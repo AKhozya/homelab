@@ -13,35 +13,58 @@ spec:
     spec:
       restartPolicy: OnFailure
       initContainers:
-        - name: wait-for-server
-          image: curlimages/curl:8.16.0
+        - name: wait-for-migrations
+          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
           command:
             - /bin/sh
             - -c
             - |
               set -e
-              echo "Waiting for Immich server to be ready..."
+              echo "Waiting for Immich database migrations to complete..."
 
               max_attempts=60
               attempt=0
 
               while [ $attempt -lt $max_attempts ]; do
                 attempt=$((attempt + 1))
-                echo "Attempt $attempt/$max_attempts: Checking server health..."
+                echo "Attempt $attempt/$max_attempts: Checking if migrations completed..."
 
-                # Try to connect to the server (any endpoint)
-                if curl -sf -m 5 http://immich-server.immich.svc.cluster.local:8080/ > /dev/null 2>&1; then
-                  echo "✅ Immich server is responding!"
-                  sleep 5  # Give it a few more seconds to fully initialize
+                # Check if the 'users' table exists (created by initial migration)
+                # This confirms migrations have run successfully
+                if psql -h "$DB_HOSTNAME" -U "$DB_USERNAME" -d "$DB_DATABASE_NAME" \
+                  -tAc "SELECT 1 FROM information_schema.tables WHERE table_name='users'" 2>/dev/null | grep -q 1; then
+                  echo "✅ Database migrations completed! 'users' table exists."
+
+                  # Double-check server is responding
+                  if command -v curl >/dev/null 2>&1; then
+                    if curl -sf -m 5 http://immich-server.immich.svc.cluster.local:8080/ > /dev/null 2>&1; then
+                      echo "✅ Immich server is also responding!"
+                    fi
+                  fi
+
                   exit 0
                 fi
 
-                echo "Server not ready yet, waiting..."
+                echo "Migrations not complete yet (users table doesn't exist), waiting..."
                 sleep 5
               done
 
-              echo "❌ Timeout waiting for Immich server to be ready"
+              echo "❌ Timeout waiting for database migrations to complete"
               exit 1
+          env:
+            - name: DB_HOSTNAME
+              value: main-postgres-rw.databases.svc.cluster.local
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_DATABASE_NAME
+              value: immich
+            - name: DB_USERNAME
+              value: immich
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: immich-db-password
+                  key: password
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
