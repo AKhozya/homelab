@@ -33,7 +33,7 @@ spec:
               # Server binding configuration (workaround for localhost-only binding issue)
               # See: https://github.com/immich-app/immich/issues/13501
               # TODO: Remove when fixed upstream
-              HOST: "::"
+              HOST: "0.0.0.0"
               # Database configuration
               DB_HOSTNAME: main-postgres-rw.databases.svc.cluster.local
               DB_PORT: "5432"
