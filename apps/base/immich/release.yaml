@@ -103,6 +103,30 @@ spec:
                 limits:
                   cpu: 2000m
                   memory: 4Gi
+            # Socat sidecar to forward traffic from 0.0.0.0:8080 to [::1]:2283
+            # Workaround for Immich localhost-only binding issue
+            proxy:
+              image:
+                repository: alpine/socat
+                tag: 1.8.0.0
+                pullPolicy: IfNotPresent
+              args:
+                - "TCP-LISTEN:8080,fork,reuseaddr"
+                - "TCP:[::1]:2283"
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+      # Service configuration - point to socat proxy port
+      service:
+        main:
+          ports:
+            http:
+              port: 8080
+              targetPort: 8080
 
     # Immich Machine Learning component
     machine-learning:
