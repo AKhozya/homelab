@@ -12,3 +12,4 @@ resources:
   - uptime-kuma
   - authentik
   - paperless-ngx
+  - immich
