@@ -26,9 +26,27 @@ spec:
   postRenderers:
     - kustomize:
         patches:
+          # Server: AMD VAAPI hardware acceleration for video transcoding
           - target:
               kind: Deployment
               name: immich-server
+            patch: |
+              - op: add
+                path: /spec/template/spec/volumes/-
+                value:
+                  name: dri-devices
+                  hostPath:
+                    path: /dev/dri
+                    type: Directory
+              - op: add
+                path: /spec/template/spec/containers/0/volumeMounts/-
+                value:
+                  name: dri-devices
+                  mountPath: /dev/dri
+          # Machine Learning: AMD ROCm hardware acceleration
+          - target:
+              kind: Deployment
+              name: immich-machine-learning
             patch: |
               - op: add
                 path: /spec/template/spec/volumes/-
@@ -201,17 +219,22 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-machine-learning
-                tag: v2.1.0
+                tag: v2.1.0-rocm  # ROCm for AMD GPU acceleration
                 pullPolicy: IfNotPresent
               env:
                 TRANSFORMERS_CACHE: /cache
+                # ROCm environment variables for AMD GPU
+                # See: https://immich.app/docs/features/ml-hardware-acceleration/
               resources:
                 requests:
                   cpu: 200m
-                  memory: 1Gi
+                  memory: 2Gi  # Increased for ROCm
                 limits:
                   cpu: 2000m
-                  memory: 4Gi
+                  memory: 6Gi  # Increased to recommended amount
+              securityContext:
+                # Required for GPU access
+                privileged: true
       persistence:
         cache:
           enabled: true
