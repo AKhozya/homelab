@@ -71,9 +71,13 @@ spec:
               subPath: consume
             - name: tmp
               mountPath: /tmp
+            - name: run
+              mountPath: /run
       volumes:
         - name: paperless-storage
           persistentVolumeClaim:
             claimName: paperless-data-pvc
         - name: tmp
+          emptyDir: {}
+        - name: run
           emptyDir: {}
