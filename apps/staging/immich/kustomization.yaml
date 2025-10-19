@@ -5,3 +5,4 @@ resources:
   - ../../base/immich
   - immich-db-password-secret.yaml
   - immich-redis-password-secret.yaml
+apps/staging/immich/admin-secret.yaml

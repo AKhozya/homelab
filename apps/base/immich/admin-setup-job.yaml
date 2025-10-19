@@ -1,0 +1,79 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: immich-admin-setup
+  namespace: immich
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: immich-admin-setup
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: setup
+          image: curlimages/curl:8.11.1
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              echo "Waiting for Immich server to be ready..."
+              sleep 15
+
+              echo "Attempting to create admin user..."
+
+              # Try to sign up admin user
+              response=$(curl -s -w "\n%{http_code}" -X POST \
+                "http://immich-server.immich.svc.cluster.local:2283/api/auth/admin-sign-up" \
+                -H "Content-Type: application/json" \
+                -H "Accept: application/json" \
+                -d "{
+                  \"email\": \"${IMMICH_ADMIN_EMAIL}\",
+                  \"password\": \"${IMMICH_ADMIN_PASSWORD}\",
+                  \"name\": \"${IMMICH_ADMIN_NAME}\"
+                }")
+
+              http_code=$(echo "$response" | tail -n1)
+              body=$(echo "$response" | sed '$d')
+
+              if [ "$http_code" = "201" ]; then
+                echo "✅ Admin user created successfully!"
+                echo "$body"
+              elif echo "$body" | grep -q "Admin user exists"; then
+                echo "⏭️  Admin user already exists, skipping creation"
+              else
+                echo "❌ Failed to create admin user. HTTP $http_code"
+                echo "$body"
+                exit 1
+              fi
+
+              echo "Admin user setup complete!"
+          env:
+            - name: IMMICH_ADMIN_EMAIL
+              value: "alexander.khozya@gmail.com"
+            - name: IMMICH_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: immich-admin-credentials
+                  key: password
+            - name: IMMICH_ADMIN_NAME
+              value: "akhozya"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: immich-admin-credentials
+  namespace: immich
+type: Opaque
+stringData:
+  password: PLACEHOLDER_WILL_BE_ENCRYPTED
