@@ -61,7 +61,7 @@ spec:
               drop: ["ALL"]
       containers:
         - name: paperless-ngx
-          image: ghcr.io/paperless-ngx/paperless-ngx:2.13.5
+          image: ghcr.io/paperless-ngx/paperless-ngx:2.18.4
           ports:
             - containerPort: 8000
               name: http
