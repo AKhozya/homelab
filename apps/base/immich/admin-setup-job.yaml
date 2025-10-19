@@ -42,7 +42,7 @@ spec:
               if [ "$http_code" = "201" ]; then
                 echo "✅ Admin user created successfully!"
                 echo "$body"
-              elif echo "$body" | grep -q "Admin user exists"; then
+              elif echo "$body" | grep -q "already has an admin"; then
                 echo "⏭️  Admin user already exists, skipping creation"
               else
                 echo "❌ Failed to create admin user. HTTP $http_code"
