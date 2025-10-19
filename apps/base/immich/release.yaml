@@ -30,7 +30,9 @@ spec:
         containers:
           main:
             env:
-              # Server binding configuration (fix for localhost-only binding issue)
+              # Server binding configuration (workaround for localhost-only binding issue)
+              # See: https://github.com/immich-app/immich/issues/13501
+              # TODO: Remove when fixed upstream
               HOST: "::"
               # Database configuration
               DB_HOSTNAME: main-postgres-rw.databases.svc.cluster.local
