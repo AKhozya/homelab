@@ -127,6 +127,7 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-server
+                tag: v2.1.0
                 pullPolicy: IfNotPresent
               resources:
                 requests:
@@ -169,6 +170,7 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-machine-learning
+                tag: v2.1.0
                 pullPolicy: IfNotPresent
               env:
                 TRANSFORMERS_CACHE: /cache
