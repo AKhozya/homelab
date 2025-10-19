@@ -9,36 +9,36 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from cloudflare-tunnel namespace for external access
+    # Allow ingress from cloudflare-tunnel namespace for external access (via socat proxy)
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: cloudflare-tunnel
       ports:
         - protocol: TCP
-          port: 2283
-    # Allow ingress from uptime-kuma namespace for monitoring
+          port: 8080
+    # Allow ingress from uptime-kuma namespace for monitoring (via socat proxy)
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: uptime-kuma
       ports:
         - protocol: TCP
-          port: 2283
-    # Allow ingress from homepage namespace for dashboard
+          port: 8080
+    # Allow ingress from homepage namespace for dashboard (via socat proxy)
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: homepage
       ports:
         - protocol: TCP
-          port: 2283
+          port: 8080
     # Allow ingress within namespace (server -> ml, ml -> server, admin setup -> server)
     - from:
         - podSelector: {}
       ports:
         - protocol: TCP
-          port: 2283
+          port: 8080
         - protocol: TCP
           port: 3001
         - protocol: TCP
@@ -57,7 +57,7 @@ spec:
         - podSelector: {}
       ports:
         - protocol: TCP
-          port: 2283
+          port: 8080
         - protocol: TCP
           port: 3001
         - protocol: TCP
