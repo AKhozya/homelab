@@ -44,13 +44,15 @@ spec:
               if [ "$http_code" = "200" ] || [ "$http_code" = "201" ]; then
                 echo "Admin user created successfully!"
                 echo "$body"
-              elif echo "$body" | grep -qi "onboarding.*complete"; then
+              elif echo "$body" | grep -qi "onboarding.*complete\|already done\|user step already done"; then
                 echo "Onboarding already completed, admin user exists"
+              elif [ "$http_code" = "403" ] && echo "$body" | grep -qi "user step"; then
+                echo "User setup already completed (HTTP 403)"
               else
                 echo "Failed to create admin user. HTTP $http_code"
                 echo "$body"
                 # Don't fail the job if onboarding is already done
-                if echo "$body" | grep -qi "onboarding"; then
+                if echo "$body" | grep -qi "onboarding\|already done\|user step"; then
                   exit 0
                 fi
                 exit 1
