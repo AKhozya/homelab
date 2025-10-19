@@ -18,6 +18,19 @@ spec:
     storageClass: "local-path"
   monitoring:
     enablePodMonitor: true
+  bootstrap:
+    initdb:
+      database: postgres
+      owner: postgres
+      postInitTemplateSQL:
+        - |
+          -- Create common extensions in template1 so all new databases inherit them
+          CREATE EXTENSION IF NOT EXISTS vector CASCADE;
+          CREATE EXTENSION IF NOT EXISTS cube CASCADE;
+          CREATE EXTENSION IF NOT EXISTS earthdistance CASCADE;
+          CREATE EXTENSION IF NOT EXISTS pg_trgm CASCADE;
+          CREATE EXTENSION IF NOT EXISTS unaccent CASCADE;
+          CREATE EXTENSION IF NOT EXISTS uuid-ossp CASCADE;
   managed:
     roles:
       - name: linkding
