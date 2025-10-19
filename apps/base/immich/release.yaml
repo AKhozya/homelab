@@ -30,9 +30,9 @@ spec:
         containers:
           main:
             env:
-              # Server binding configuration (workaround for localhost-only binding issue)
+              # Known issue: Immich v2.0.0 binds to localhost only (ignores HOST variable)
               # See: https://github.com/immich-app/immich/issues/13501
-              # TODO: Remove when fixed upstream
+              # Workaround doesn't work - waiting for upstream fix
               HOST: "0.0.0.0"
               # Database configuration
               DB_HOSTNAME: main-postgres-rw.databases.svc.cluster.local
