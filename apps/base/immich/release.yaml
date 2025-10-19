@@ -30,10 +30,13 @@ spec:
         containers:
           main:
             env:
-              # Known issue: Immich v2.0.0 binds to localhost only (ignores HOST variable)
+              # Known issue: Immich v2.0.0 binds to localhost only
               # See: https://github.com/immich-app/immich/issues/13501
-              # Workaround doesn't work - waiting for upstream fix
-              HOST: "0.0.0.0"
+              # Workaround: Use pod IP via downward API
+              HOST:
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.podIP
               # Database configuration
               DB_HOSTNAME: main-postgres-rw.databases.svc.cluster.local
               DB_PORT: "5432"
