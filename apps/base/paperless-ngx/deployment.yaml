@@ -60,27 +60,22 @@ spec:
               cpu: "1000m"
               memory: "2Gi"
           volumeMounts:
-            - name: paperless-data
+            - name: paperless-storage
               mountPath: /usr/src/paperless/data
-            - name: paperless-media
+              subPath: data
+            - name: paperless-storage
               mountPath: /usr/src/paperless/media
-            - name: paperless-export
+              subPath: media
+            - name: paperless-storage
               mountPath: /usr/src/paperless/export
-            - name: paperless-consume
+              subPath: export
+            - name: paperless-storage
               mountPath: /usr/src/paperless/consume
+              subPath: consume
             - name: tmp
               mountPath: /tmp
       volumes:
-        - name: paperless-data
-          persistentVolumeClaim:
-            claimName: paperless-data-pvc
-        - name: paperless-media
-          persistentVolumeClaim:
-            claimName: paperless-data-pvc
-        - name: paperless-export
-          persistentVolumeClaim:
-            claimName: paperless-data-pvc
-        - name: paperless-consume
+        - name: paperless-storage
           persistentVolumeClaim:
             claimName: paperless-data-pvc
         - name: tmp
