@@ -178,8 +178,8 @@ spec:
                   cpu: 200m
                   memory: 512Mi
                 limits:
-                  cpu: 2000m
-                  memory: 4Gi
+                  cpu: 3000m  # Temporarily increased for bulk photo import
+                  memory: 6Gi  # Temporarily increased for bulk photo import
               securityContext:
                 # Required for VAAPI hardware acceleration with AMD GPU (/dev/dri access)
                 privileged: true
@@ -230,8 +230,8 @@ spec:
                   cpu: 200m
                   memory: 2Gi  # Increased for ROCm
                 limits:
-                  cpu: 2000m
-                  memory: 6Gi  # Increased to recommended amount
+                  cpu: 4000m  # Temporarily increased for bulk photo import
+                  memory: 8Gi  # Temporarily increased for bulk photo import
               securityContext:
                 # Required for GPU access
                 privileged: true
