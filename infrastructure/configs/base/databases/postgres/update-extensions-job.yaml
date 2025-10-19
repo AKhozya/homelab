@@ -1,0 +1,98 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-update-extensions
+  namespace: databases
+  labels:
+    app: postgres-update-extensions
+spec:
+  # Run every Sunday at 6 AM
+  schedule: "0 6 * * 0"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app: postgres-update-extensions
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: update-extensions
+              image: ghcr.io/cloudnative-pg/postgresql:18-standard-trixie
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+
+                  echo "Updating extensions in all databases..."
+
+                  # List of databases to update
+                  DATABASES="immich n8n mealie linkding wallabag paperless authentik"
+
+                  for DB in $DATABASES; do
+                    echo "=== Updating extensions in $DB database ==="
+
+                    # Check if database exists first
+                    if ! psql -h main-postgres-rw -U postgres -lqt | cut -d \| -f 1 | grep -qw "$DB"; then
+                      echo "Database $DB does not exist, skipping..."
+                      continue
+                    fi
+
+                    # Update all extensions in the database
+                    psql -h main-postgres-rw -U postgres -d "$DB" <<-EOSQL
+                      DO \$\$
+                      DECLARE
+                        ext RECORD;
+                      BEGIN
+                        FOR ext IN
+                          SELECT extname, extversion
+                          FROM pg_extension
+                          WHERE extname != 'plpgsql'
+                          ORDER BY extname
+                        LOOP
+                          BEGIN
+                            EXECUTE format('ALTER EXTENSION %I UPDATE', ext.extname);
+                            RAISE NOTICE 'Updated extension: % (was version: %)', ext.extname, ext.extversion;
+                          EXCEPTION
+                            WHEN OTHERS THEN
+                              RAISE NOTICE 'Extension % already at latest version', ext.extname;
+                          END;
+                        END LOOP;
+                      END
+                      \$\$;
+
+                      -- Show updated versions
+                      SELECT extname, extversion
+                      FROM pg_extension
+                      WHERE extname != 'plpgsql'
+                      ORDER BY extname;
+                  EOSQL
+
+                    echo "✅ Finished updating extensions in $DB"
+                  done
+
+                  echo "🎉 All databases processed!"
+              env:
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: main-postgres-app
+                      key: password
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                runAsNonRoot: true
+                runAsUser: 26
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}

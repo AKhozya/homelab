@@ -17,3 +17,4 @@ resources:
   - paperless-database.yaml
   - immich-database.yaml
   - immich-init-extensions-job.yaml
+  - update-extensions-job.yaml
