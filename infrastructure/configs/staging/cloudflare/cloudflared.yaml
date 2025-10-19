@@ -124,6 +124,24 @@ data:
         noTLSVerify: false
         disableChunkedEncoding: false
 
+    # Immich
+    - hostname: immich.h0melab.work
+      service: http://immich-server.immich.svc.cluster.local:2283
+      originRequest:
+        http2Origin: true
+        connectTimeout: 10s
+        noTLSVerify: false
+        disableChunkedEncoding: false
+
+    # Paperless-NGX
+    - hostname: paperless.h0melab.work
+      service: http://paperless-ngx.paperless-ngx.svc.cluster.local:8000
+      originRequest:
+        http2Origin: true
+        connectTimeout: 10s
+        noTLSVerify: false
+        disableChunkedEncoding: false
+
     # Catch-all
     - service: http_status:404
 ---

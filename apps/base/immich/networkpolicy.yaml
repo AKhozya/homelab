@@ -16,7 +16,7 @@ spec:
               kubernetes.io/metadata.name: cloudflare-tunnel
       ports:
         - protocol: TCP
-          port: 3001
+          port: 2283
     # Allow ingress from uptime-kuma namespace for monitoring
     - from:
         - namespaceSelector:
@@ -24,7 +24,7 @@ spec:
               kubernetes.io/metadata.name: uptime-kuma
       ports:
         - protocol: TCP
-          port: 3001
+          port: 2283
     # Allow ingress from homepage namespace for dashboard
     - from:
         - namespaceSelector:
@@ -32,7 +32,7 @@ spec:
               kubernetes.io/metadata.name: homepage
       ports:
         - protocol: TCP
-          port: 3001
+          port: 2283
     # Allow ingress within namespace (server -> ml, ml -> server)
     - from:
         - podSelector: {}
