@@ -52,35 +52,35 @@ spec:
                       'name': 'Homepage Dashboard',
                       'url': 'https://home.h0melab.work',
                       'type': MonitorType.HTTP,
-                      'interval': 60,
+                      'interval': 120,
                       'description': 'Main homelab dashboard'
                   },
                   {
                       'name': 'Home Assistant',
                       'url': 'https://ha.h0melab.work',
                       'type': MonitorType.HTTP,
-                      'interval': 60,
+                      'interval': 120,
                       'description': 'Home automation platform'
                   },
                   {
                       'name': 'Grafana',
                       'url': 'https://grafana.h0melab.work',
                       'type': MonitorType.HTTP,
-                      'interval': 60,
+                      'interval': 120,
                       'description': 'Monitoring dashboard'
                   },
                   {
                       'name': 'Authentik SSO',
                       'url': 'https://authentik.h0melab.work',
                       'type': MonitorType.HTTP,
-                      'interval': 60,
+                      'interval': 120,
                       'description': 'Single Sign-On platform'
                   },
                   {
                       'name': 'Uptime Kuma',
                       'url': 'https://uptime.h0melab.work',
                       'type': MonitorType.HTTP,
-                      'interval': 60,
+                      'interval': 120,
                       'description': 'Uptime monitoring service'
                   },
                   # External services (Cloudflare Tunnel)
@@ -146,7 +146,7 @@ spec:
                       'name': 'Cloudflare Tunnel',
                       'url': 'http://cloudflared-metrics.cloudflare-tunnel.svc.cluster.local:2000/ready',
                       'type': MonitorType.HTTP,
-                      'interval': 60,
+                      'interval': 120,
                       'description': 'Cloudflare Tunnel health check'
                   },
                   # Internal monitoring (infrastructure)
@@ -154,14 +154,14 @@ spec:
                       'name': 'Prometheus',
                       'url': 'http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/-/healthy',
                       'type': MonitorType.HTTP,
-                      'interval': 60,
+                      'interval': 120,
                       'description': 'Metrics collection (internal)'
                   },
                   {
                       'name': 'Alertmanager',
                       'url': 'http://kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093/-/healthy',
                       'type': MonitorType.HTTP,
-                      'interval': 60,
+                      'interval': 120,
                       'description': 'Alert routing (internal)'
                   },
                   {
@@ -169,7 +169,7 @@ spec:
                       'hostname': 'main-postgres-rw.databases.svc.cluster.local',
                       'port': 5432,
                       'type': MonitorType.PORT,
-                      'interval': 60,
+                      'interval': 120,
                       'description': 'Main PostgreSQL cluster (TCP check)'
                   },
                   {
@@ -177,7 +177,7 @@ spec:
                       'hostname': 'redis.databases.svc.cluster.local',
                       'port': 6379,
                       'type': MonitorType.PORT,
-                      'interval': 60,
+                      'interval': 120,
                       'description': 'Redis cache (TCP check)'
                   }
               ]
