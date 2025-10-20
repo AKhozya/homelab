@@ -211,7 +211,7 @@ spec:
                   cpu: 200m
                   memory: 2Gi
                 limits:
-                  cpu: 6000m  # Temporarily increased for bulk photo import
+                  cpu: 4000m  # Temporarily increased for bulk photo import
                   memory: 8Gi  # Temporarily increased for bulk photo import
       persistence:
         cache:
