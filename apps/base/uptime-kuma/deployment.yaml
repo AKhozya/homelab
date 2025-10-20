@@ -14,20 +14,23 @@ spec:
         app: uptime-kuma
     spec:
       securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
         - name: uptime-kuma
-          image: louislam/uptime-kuma:2.0.1
+          image: louislam/uptime-kuma:2.0.1-slim-rootless
           ports:
             - containerPort: 3001
               name: http
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
+            runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
-              add: ["SETUID", "SETGID"]
           livenessProbe:
             httpGet:
               path: /

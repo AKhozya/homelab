@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: uptime-kuma-fix-permissions
+  namespace: uptime-kuma
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: fix-permissions
+        image: busybox:latest
+        command: ['sh', '-c', 'chown -R 1000:1000 /app/data && echo "Ownership fixed to 1000:1000"']
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: uptime-kuma-data-pvc
