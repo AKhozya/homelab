@@ -4,6 +4,7 @@ resources:
   - ../../base/kube-prometheus-stack  # Network policies
   - grafana-certificate.yaml  # Auto-renewing cert from Let's Encrypt
   - grafana-admin-secret.yaml
+  - grafana-oidc-secret.yaml  # Authentik OIDC integration
   - https-redirect-middleware.yaml
   - alertmanager-telegram-secret.yaml
   - alertmanager-certificate.yaml

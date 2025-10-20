@@ -6,3 +6,4 @@ resources:
   - immich-db-password-secret.yaml
   - immich-redis-password-secret.yaml
   - admin-secret.yaml
+  - immich-oidc-secret.yaml  # Authentik OIDC integration

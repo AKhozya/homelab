@@ -5,4 +5,5 @@ resources:
   - ../../base/mealie/
   - mealie-env-secret.yaml
   - mealie-user-credentials-secret.yaml
+  - mealie-oidc-secret.yaml  # Authentik OIDC integration
   - user-provision-job.yaml

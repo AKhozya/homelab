@@ -4,3 +4,4 @@ namespace: paperless-ngx
 resources:
   - ../../base/paperless-ngx
   - paperless-env-secret.yaml
+  - paperless-oidc-secret.yaml  # Authentik OIDC integration
