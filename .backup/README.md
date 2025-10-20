@@ -16,7 +16,7 @@ This directory contains scripts and documentation for complete cluster recovery.
 
 ## 📦 Backup Process
 
-### 1. Create Backup (run regularly)
+### 1. Create Backup (run regularly - monthly recommended)
 
 ```bash
 cd .backup
@@ -24,15 +24,36 @@ chmod +x secrets-backup.sh
 ./secrets-backup.sh
 ```
 
-This will extract and save:
+This will extract and save **ALL** secrets needed for complete cluster rebuild:
 
-- Cloudflare tunnel credentials
-- Cloudflare API token (for cert-manager)
-- Grafana admin credentials
-- Telegram bot token
-- SOPS age encryption key
+**Critical Infrastructure:**
+- 🔑 SOPS age encryption key (MOST IMPORTANT - needed to decrypt everything)
+- 🌐 Cloudflare API token (for cert-manager DNS-01 challenges)
+- 🌐 Cloudflare tunnel credentials
 
-Files are saved to `.backup/secrets/`
+**Monitoring:**
+- 📊 Grafana admin credentials
+- 📱 Telegram bot token (Alertmanager notifications)
+
+**Databases:**
+- 🗄️ Redis passwords (for all apps)
+- 🗄️ PostgreSQL admin credentials
+- 🗄️ All application database user credentials
+
+**Applications:**
+- Authentik (SSO & identity provider)
+- Immich (photo management)
+- Home Assistant
+- N8N (workflow automation)
+- Linkding (bookmark manager)
+- Mealie (recipe manager)
+- Wallabag (read-it-later)
+- Paperless-NGX (document management)
+- Audiobookshelf
+- Uptime Kuma (uptime monitoring)
+- CouchDB (Obsidian sync)
+
+Files are saved to `.backup/secrets/` (gitignored)
 
 ### 2. Backup Persistent Data
 
@@ -103,13 +124,17 @@ sudo ufw allow from 192.168.1.0/24
 brew install fluxcd/tap/flux  # macOS
 ```
 
-#### Step 4: Restore Secrets
+#### Step 4: Restore ALL Secrets
+
+**IMPORTANT: Run this BEFORE bootstrapping Flux!**
 
 ```bash
 cd .backup
 chmod +x secrets-restore.sh
 ./secrets-restore.sh
 ```
+
+This will restore ALL secrets needed for cluster operation to their respective namespaces.
 
 #### Step 5: Bootstrap Flux
 
@@ -170,25 +195,30 @@ kubectl get ingress -A
 
 ## 📋 What Gets Restored
 
-### Automatically (via GitOps)
-- ✅ All Kubernetes manifests
-- ✅ Helm releases
-- ✅ Deployments, Services, Ingresses
-- ✅ Prometheus alerts and rules
-- ✅ Grafana dashboards
-- ✅ Loki and Promtail
+### Automatically (via GitOps after Flux bootstrap)
+- ✅ All Kubernetes manifests (deployments, services, ingresses)
+- ✅ All Helm releases (monitoring, databases, applications)
+- ✅ NetworkPolicies, RBAC, ConfigMaps
+- ✅ Prometheus alerts and recording rules
+- ✅ Grafana dashboards (via ConfigMaps)
+- ✅ Loki and Promtail log aggregation
 
-### Via Backup Scripts
-- ✅ Cloudflare credentials
-- ✅ TLS certificates (auto-renewed)
-- ✅ Grafana admin password
-- ✅ Telegram bot token
-- ✅ SOPS encryption key
+### Via Backup Scripts (run BEFORE Flux bootstrap)
+- ✅ **SOPS age encryption key** (CRITICAL - enables Flux to decrypt secrets)
+- ✅ **All application secrets** (user credentials, API keys, env vars)
+- ✅ **Database credentials** (Redis, PostgreSQL users)
+- ✅ **Infrastructure secrets** (Cloudflare tokens, tunnel credentials)
+- ✅ **Monitoring credentials** (Grafana admin, Telegram bot)
 
 ### Manual Steps Required
-- ⚠️ Persistent volume data (if not using external backup)
-- ⚠️ DNS A records (if changed)
-- ⚠️ Cloudflare tunnel configuration (if creating new tunnels)
+- ⚠️ **Persistent volume data** - PVCs store application data:
+  - Immich photos: restore from `/var/lib/rancher/k3s/storage/` on nodes
+  - Database data: CloudNativePG handles this if PVs are restored
+  - Other app data: varies by application
+- ⚠️ **DNS A records** - only if IPs changed:
+  - `*.h0melab.work` records pointing to node IPs
+- ⚠️ **Firewall rules** on both nodes:
+  - `sudo ufw allow from 192.168.1.0/24`
 
 ## 🔐 Security Best Practices
 

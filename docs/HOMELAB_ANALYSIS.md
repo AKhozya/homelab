@@ -69,7 +69,16 @@
 
 ### Medium Term (3 Months) 📋
 
-10. **Integrate Apps with Authentik SSO** - P2
+10. **🆕 Integrate Apps with Authentik SSO** - P2 ⭐ **PLANNED**
+    - **Documentation**: `docs/AUTHENTIK_SSO_INTEGRATION.md`
+    - **Automation Scripts**: `~/.local/bin/authentik-*`
+    - **Estimated Time**: 4-7 hours
+    - **Automation Level**: 60-70%
+    - **Apps with Native OIDC** (7): Grafana, Immich, Paperless-NGX, N8N, Linkding, Mealie, Audiobookshelf
+    - **Apps Requiring Proxy** (3): Wallabag, Uptime Kuma, Home Assistant
+    - **Phase 1**: Native OIDC integration (2-3 hours)
+    - **Phase 2**: Authentik Proxy setup (1-2 hours)
+    - **Phase 3**: Testing & validation (1-2 hours)
 11. **Implement Backup Validation** - P2
 12. **Add Velero for Cluster Backups** - P2
 

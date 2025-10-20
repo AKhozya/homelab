@@ -20,9 +20,8 @@ fi
 
 required_files=(
     "secrets/sops-age.json"
+    "secrets/age.agekey"
     "secrets/cloudflare-api-token.json"
-    "secrets/linkding-tunnel-credentials.json"
-    "secrets/audiobookshelf-tunnel-credentials.json"
     "secrets/grafana-admin-secret.json"
     "secrets/alertmanager-telegram.json"
 )
@@ -84,6 +83,11 @@ echo ""
 echo "🌐 Access points (after DNS/firewall setup):"
 echo "   - Grafana: https://grafana.h0melab.work"
 echo "   - Alertmanager: https://am.h0melab.work"
+echo "   - Immich: https://immich.h0melab.work"
+echo "   - N8N: https://n8n.h0melab.work"
 echo "   - Linkding: https://linkding.h0melab.work"
+echo "   - Home Assistant: https://ha.h0melab.work"
+echo "   - Authentik: https://authentik.h0melab.work"
 echo "   - Audiobookshelf: https://audiobookshelf.h0melab.work"
+echo "   - Paperless-NGX: https://paperless.h0melab.work"
 echo ""
