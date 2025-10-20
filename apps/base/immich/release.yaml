@@ -26,7 +26,7 @@ spec:
   postRenderers:
     - kustomize:
         patches:
-          # Server: AMD VAAPI hardware acceleration for video transcoding
+          # Server: /dev/dri device mount (kept for future VAAPI re-enabling, currently disabled)
           - target:
               kind: Deployment
               name: immich-server
@@ -150,12 +150,10 @@ spec:
                 tag: v2.1.0
                 pullPolicy: IfNotPresent
               env:
-                # Hardware acceleration - AMD VAAPI
+                # Hardware acceleration disabled due to buggy Mesa VAAPI encoding on Radeon 610M
+                # CPU-only encoding is faster than VAAPI (which fails and retries before CPU fallback)
                 # Settings like CRF, preset, codec are configured via UI
-                IMMICH_MEDIA_FFMPEG_ACCEL: vaapi
-                # LIBVA driver configuration for AMD Radeon Graphics
-                LIBVA_DRIVER_NAME: radeonsi
-                LIBVA_DRIVERS_PATH: /usr/lib/x86_64-linux-gnu/dri
+                IMMICH_MEDIA_FFMPEG_ACCEL: disabled
               resources:
                 requests:
                   cpu: 200m
@@ -164,8 +162,10 @@ spec:
                   cpu: 8000m  # Temporarily increased for bulk photo import
                   memory: 8Gi  # Temporarily increased for bulk photo import
               securityContext:
-                # Required for VAAPI hardware acceleration with AMD GPU (/dev/dri access)
-                privileged: true
+                # No privileged access needed for CPU-only encoding
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                runAsNonRoot: false
             # Socat sidecar to forward traffic from 0.0.0.0:8080 to [::1]:2283
             # Workaround for Immich localhost-only binding issue
             proxy:
@@ -190,8 +190,8 @@ spec:
             http:
               port: 8080
               targetPort: 8080
-      # Hardware acceleration device mount via Kustomize patch
-      # See: apps/staging/immich/hardware-acceleration-patch.yaml
+      # /dev/dri device mount via Kustomize patch (kept for future use, currently disabled)
+      # Hardware acceleration disabled - buggy Mesa VAAPI encoding on Radeon 610M
 
     # Immich Machine Learning component
     machine-learning:
