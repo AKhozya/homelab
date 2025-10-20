@@ -52,9 +52,11 @@ spec:
               kubernetes.io/metadata.name: default
       ports:
         - protocol: TCP
-          port: 443
-    # Allow access to control plane nodes (for kubelet metrics)
+          port: 6443
+    # Allow access to control plane nodes (for kubelet and node-exporter metrics)
     - ports:
+        - protocol: TCP
+          port: 9100
         - protocol: TCP
           port: 10250
         - protocol: TCP
