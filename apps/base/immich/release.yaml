@@ -43,6 +43,14 @@ spec:
                 value:
                   name: dri-devices
                   mountPath: /dev/dri
+          # Server: Fix proxy to use IPv4 instead of IPv6 localhost
+          - target:
+              kind: Deployment
+              name: immich-server
+            patch: |
+              - op: replace
+                path: /spec/template/spec/containers/1/args/1
+                value: "TCP:127.0.0.1:2283"
   values:
     # Global image configuration for Renovate/Dependabot tracking
     # See: https://github.com/immich-app/immich-charts/issues/68
@@ -166,8 +174,9 @@ spec:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: false
                 runAsNonRoot: false
-            # Socat sidecar to forward traffic from 0.0.0.0:8080 to 127.0.0.1:2283
+            # Socat sidecar to forward traffic from 0.0.0.0:8080 to [::1]:2283
             # Workaround for Immich localhost-only binding issue
+            # NOTE: The IPv6 address is overridden to IPv4 via Kustomize patch above
             proxy:
               image:
                 repository: alpine/socat
@@ -175,7 +184,7 @@ spec:
                 pullPolicy: IfNotPresent
               args:
                 - "TCP4-LISTEN:8080,fork,reuseaddr,bind=0.0.0.0"
-                - "TCP:127.0.0.1:2283"
+                - "TCP:[::1]:2283"
               resources:
                 requests:
                   cpu: 10m
