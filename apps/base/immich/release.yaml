@@ -43,14 +43,6 @@ spec:
                 value:
                   name: dri-devices
                   mountPath: /dev/dri
-          # Server: Fix proxy to use IPv4 instead of IPv6 localhost
-          - target:
-              kind: Deployment
-              name: immich-server
-            patch: |
-              - op: replace
-                path: /spec/template/spec/containers/1/args/1
-                value: "TCP:127.0.0.1:2283"
   values:
     # Global image configuration for Renovate/Dependabot tracking
     # See: https://github.com/immich-app/immich-charts/issues/68
@@ -174,25 +166,75 @@ spec:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: false
                 runAsNonRoot: false
-            # Socat sidecar to forward traffic from 0.0.0.0:8080 to [::1]:2283
+            # Nginx sidecar to forward traffic from 0.0.0.0:8080 to 127.0.0.1:2283
             # Workaround for Immich localhost-only binding issue
-            # NOTE: The IPv6 address is overridden to IPv4 via Kustomize patch above
+            # Nginx handles video streaming better than socat (buffering, keep-alive)
             proxy:
               image:
-                repository: alpine/socat
-                tag: 1.8.0.3
+                repository: nginx
+                tag: 1.27-alpine
                 pullPolicy: IfNotPresent
-              args:
-                - "TCP4-LISTEN:8080,fork,reuseaddr,bind=0.0.0.0"
-                - "TCP:[::1]:2283"
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  cat > /etc/nginx/nginx.conf <<'EOF'
+                  events {
+                    worker_connections 1024;
+                  }
+                  http {
+                    # Optimize for video streaming
+                    sendfile on;
+                    tcp_nopush on;
+                    tcp_nodelay on;
+                    keepalive_timeout 65;
+                    keepalive_requests 100;
+
+                    # Increase buffer sizes for large video files
+                    proxy_buffering on;
+                    proxy_buffer_size 128k;
+                    proxy_buffers 8 128k;
+                    proxy_busy_buffers_size 256k;
+                    proxy_max_temp_file_size 2048m;
+
+                    # Increase timeouts for video streaming
+                    proxy_connect_timeout 300s;
+                    proxy_send_timeout 300s;
+                    proxy_read_timeout 300s;
+                    send_timeout 300s;
+
+                    # Disable request size limits
+                    client_max_body_size 0;
+
+                    upstream immich {
+                      server 127.0.0.1:2283;
+                      keepalive 32;
+                    }
+
+                    server {
+                      listen 8080;
+
+                      location / {
+                        proxy_pass http://immich;
+                        proxy_http_version 1.1;
+                        proxy_set_header Host $host;
+                        proxy_set_header X-Real-IP $remote_addr;
+                        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                        proxy_set_header X-Forwarded-Proto $scheme;
+                        proxy_set_header Connection "";
+                      }
+                    }
+                  }
+                  EOF
+                  nginx -g 'daemon off;'
               resources:
                 requests:
-                  cpu: 10m
-                  memory: 16Mi
-                limits:
-                  cpu: 100m
+                  cpu: 50m
                   memory: 64Mi
-      # Service configuration - point to socat proxy port
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+      # Service configuration - point to nginx proxy port
       service:
         main:
           ports:
