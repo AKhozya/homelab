@@ -157,10 +157,10 @@ spec:
               resources:
                 requests:
                   cpu: 200m
-                  memory: 1Gi
+                  memory: 512Mi
                 limits:
-                  cpu: 16000m  # Temporarily increased for bulk photo import (CPU transcoding)
-                  memory: 8Gi  # Temporarily increased for bulk photo import
+                  cpu: 2000m
+                  memory: 4Gi
               securityContext:
                 # No privileged access needed for CPU-only encoding
                 allowPrivilegeEscalation: false
@@ -211,8 +211,8 @@ spec:
                   cpu: 200m
                   memory: 2Gi
                 limits:
-                  cpu: 4000m  # Temporarily increased for bulk photo import
-                  memory: 8Gi  # Temporarily increased for bulk photo import
+                  cpu: 2000m
+                  memory: 6Gi
       persistence:
         cache:
           enabled: true
