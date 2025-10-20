@@ -159,10 +159,10 @@ spec:
               resources:
                 requests:
                   cpu: 200m
-                  memory: 512Mi
+                  memory: 1Gi
                 limits:
-                  cpu: 3000m  # Temporarily increased for bulk photo import
-                  memory: 6Gi  # Temporarily increased for bulk photo import
+                  cpu: 4000m  # Temporarily increased for bulk photo import
+                  memory: 8Gi  # Temporarily increased for bulk photo import
               securityContext:
                 # Required for VAAPI hardware acceleration with AMD GPU (/dev/dri access)
                 privileged: true
