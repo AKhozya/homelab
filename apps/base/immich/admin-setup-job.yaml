@@ -29,11 +29,11 @@ spec:
                 attempt=$((attempt + 1))
                 echo "Attempt $attempt/$max_attempts: Checking if migrations completed..."
 
-                # Check if the 'users' table exists (created by initial migration)
+                # Check if the 'user' table exists (created by initial migration)
                 # This confirms migrations have run successfully
                 if psql -h "$DB_HOSTNAME" -U "$DB_USERNAME" -d "$DB_DATABASE_NAME" \
-                  -tAc "SELECT 1 FROM information_schema.tables WHERE table_name='users'" 2>/dev/null | grep -q 1; then
-                  echo "✅ Database migrations completed! 'users' table exists."
+                  -tAc "SELECT 1 FROM information_schema.tables WHERE table_name='user'" 2>/dev/null | grep -q 1; then
+                  echo "✅ Database migrations completed! 'user' table exists."
 
                   # Double-check server is responding
                   if command -v curl >/dev/null 2>&1; then
@@ -45,7 +45,7 @@ spec:
                   exit 0
                 fi
 
-                echo "Migrations not complete yet (users table doesn't exist), waiting..."
+                echo "Migrations not complete yet (user table doesn't exist), waiting..."
                 sleep 5
               done
 
