@@ -45,12 +45,14 @@ spec:
     # Allow scraping metrics from all namespaces
     - to:
         - namespaceSelector: {}
-    # Allow access to Kubernetes API server
+    # Allow access to Kubernetes API server (both service port 443 and direct port 6443)
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: default
       ports:
+        - protocol: TCP
+          port: 443
         - protocol: TCP
           port: 6443
     # Allow access to control plane nodes (for kubelet and node-exporter metrics)
