@@ -12,7 +12,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: fix-permissions
-        image: busybox:latest
+        image: busybox:1.37.0
         command: ['sh', '-c', 'chown -R 1000:1000 /app/data && echo "Ownership fixed to 1000:1000"']
         volumeMounts:
         - name: data
