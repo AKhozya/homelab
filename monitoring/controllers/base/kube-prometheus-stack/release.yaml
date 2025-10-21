@@ -79,6 +79,27 @@ spec:
         existingSecret: grafana-admin-secret
         userKey: admin-user
         passwordKey: admin-password
+      # Authentik SSO configuration
+      extraSecretMounts:
+        - name: grafana-oidc
+          secretName: grafana-oidc
+          defaultMode: 0440
+          mountPath: /etc/secrets/grafana-oidc
+          readOnly: true
+      grafana.ini:
+        server:
+          root_url: https://grafana.h0melab.work
+        auth.generic_oauth:
+          enabled: true
+          name: Authentik
+          client_id: $__file{/etc/secrets/grafana-oidc/client-id}
+          client_secret: $__file{/etc/secrets/grafana-oidc/client-secret}
+          scopes: openid profile email
+          auth_url: $__file{/etc/secrets/grafana-oidc/authorization-url}
+          token_url: $__file{/etc/secrets/grafana-oidc/token-url}
+          api_url: $__file{/etc/secrets/grafana-oidc/userinfo-url}
+          role_attribute_path: contains(groups, 'Grafana Admins') && 'Admin' || contains(groups, 'Grafana Editors') && 'Editor' || 'Viewer'
+          allow_sign_up: true
       # Ingress enabled for internal network access via grafana.h0melab.work
       # DNS points to internal IPs only (192.168.1.127, 192.168.1.129)
       # NOT exposed to the internet - NetworkPolicy restricts external access
