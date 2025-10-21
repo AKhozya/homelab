@@ -135,6 +135,10 @@ spec:
           - match:
               alertname: KubeControllerManagerDown
             receiver: 'null'
+          # Silence CPU overcommit alert (homelab - not a concern)
+          - match:
+              alertname: KubeCPUOvercommit
+            receiver: 'null'
         receivers:
         - name: 'null'
         - name: 'telegram'
