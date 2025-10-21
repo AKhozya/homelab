@@ -32,6 +32,9 @@ spec:
       couchdb:
         uuid: beb932d28abcf87163a94cf52f1a795e
         max_document_size: 50000000
+        # Delayed commits disabled for data safety - every write is immediately flushed
+        # This is slower but ensures zero data loss on crashes
+        delayed_commits: "false"
       chttpd:
         require_valid_user: true
         max_http_request_size: 4294967296
@@ -45,6 +48,9 @@ spec:
         credentials: true
         headers: accept, authorization, content-type, origin, referer
         methods: GET, PUT, POST, HEAD, DELETE
+      # Automatic compaction: prevent database bloat from sync operations
+      compactions:
+        _default: "[{db_fragmentation, \"70%\"}, {view_fragmentation, \"60%\"}]"
 
     # Admin credentials (chart will read an existing secret instead of creating one)
     adminUsername: admin
@@ -62,8 +68,8 @@ spec:
     # Resource limits
     resources:
       requests:
-        cpu: 100m
-        memory: 256Mi
+        cpu: 200m
+        memory: 512Mi
       limits:
         cpu: 1000m
         memory: 2Gi
@@ -79,3 +85,19 @@ spec:
     # Monitoring
     prometheus:
       enabled: false
+
+    # Health checks for auto-recovery and resilience
+    livenessProbe:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 5
+    readinessProbe:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 5
