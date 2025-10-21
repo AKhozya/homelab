@@ -12,12 +12,6 @@ on:
 
 jobs:
   claude-review:
-    # Optional: Filter by PR author
-    # if: |
-    #   github.event.pull_request.user.login == 'external-contributor' ||
-    #   github.event.pull_request.user.login == 'new-developer' ||
-    #   github.event.pull_request.author_association == 'FIRST_TIME_CONTRIBUTOR'
-
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,12 +20,24 @@ jobs:
       id-token: write
 
     steps:
+      - name: Check if PR should be reviewed
+        id: should_review
+        run: |
+          if [[ "${{ github.event.pull_request.title }}" == chore:* ]] || [[ "${{ github.event.pull_request.title }}" == "chore(deps):"* ]]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "Skipping review for chore PR: ${{ github.event.pull_request.title }}"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Checkout repository
+        if: steps.should_review.outputs.skip != 'true'
         uses: actions/checkout@v5
         with:
           fetch-depth: 1
 
       - name: Run Claude Code Review
+        if: steps.should_review.outputs.skip != 'true'
         id: claude-review
         uses: anthropics/claude-code-action@v1
         with:
