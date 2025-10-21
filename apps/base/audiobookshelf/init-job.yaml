@@ -26,7 +26,7 @@ spec:
               echo "Attempting to initialize Audiobookshelf with root user..."
 
               RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-                http://audiobookshelf.audiobookshelf.svc.cluster.local:3005/init \
+                http://audiobookshelf.audiobookshelf.svc.cluster.local:3005/audiobookshelf/init \
                 -H "Content-Type: application/json" \
                 -d "{\"newRoot\":{\"username\":\"$AUDIOBOOKSHELF_USERNAME\",\"password\":\"$AUDIOBOOKSHELF_PASSWORD\"}}")
 
