@@ -24,13 +24,9 @@ data:
         - 10.43.0.0/16  # Kubernetes service CIDR
 
     # OIDC Authentication with Authentik
-    # Requires hass-oidc-auth custom component (install via HACS)
+    # Automatically installed via init containers
     # https://github.com/christiaangoossens/hass-oidc-auth
     auth_oidc:
-      issuer: https://authentik.h0melab.work/application/o/home-assistant/
       client_id: home-assistant
       client_secret: !secret oidc_client_secret
-      # Auto-create users on first OIDC login
-      auto_create_users: true
-      # Use email from OIDC as username in Home Assistant
-      username_claim: email
+      discovery_url: https://authentik.h0melab.work/application/o/home-assistant/.well-known/openid-configuration

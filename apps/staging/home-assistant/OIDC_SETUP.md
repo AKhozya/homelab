@@ -4,30 +4,28 @@ This document describes the manual steps required to complete the Home Assistant
 
 ## Prerequisites
 
-The following has been configured via GitOps:
+The following has been configured via GitOps (automatic):
 - ✅ Home Assistant configuration.yaml with `auth_oidc` section
 - ✅ Secrets for OIDC client credentials
 - ✅ Configuration mounted to `/config/secrets.yaml`
+- ✅ HACS automatically installed via init container
+- ✅ hass-oidc-auth integration automatically installed via init container
 
 ## Manual Setup Steps
 
-### 1. Install hass-oidc-auth via HACS
+### 1. ~~Install hass-oidc-auth via HACS~~ (✅ Auto-installed)
 
-The `hass-oidc-auth` custom component is required and must be installed manually via HACS:
+**This step is now automated!** HACS and the hass-oidc-auth integration are automatically installed on pod startup via init containers.
 
-1. **Access Home Assistant**: Navigate to https://homeassistant.h0melab.work
-2. **Open HACS**: Settings → Devices & Services → HACS
-3. **Add Custom Repository**:
-   - Click the three dots menu (⋮) → Custom repositories
-   - Repository: `https://github.com/christiaangoossens/hass-oidc-auth`
-   - Category: `Integration`
-   - Click ADD
-4. **Install the Integration**:
-   - Search for "OpenID Connect Auth"
-   - Click DOWNLOAD
-   - Restart Home Assistant
+### 2. (Optional) Configure HACS
 
-### 2. Configure Authentik Provider
+If you want to use HACS for other integrations:
+1. Go to Settings → Devices & Services
+2. Click "+ ADD INTEGRATION"
+3. Search for "HACS"
+4. Complete the GitHub authentication flow
+
+### 3. Configure Authentik Provider
 
 Create an OAuth2/OIDC Provider in Authentik:
 
@@ -52,14 +50,6 @@ Create an OAuth2/OIDC Provider in Authentik:
    - **Provider**: Select the provider created above
    - **Launch URL**: `https://homeassistant.h0melab.work`
    - Click CREATE
-
-### 3. Restart Home Assistant
-
-After installing the HACS integration and configuring Authentik:
-
-```bash
-kubectl rollout restart deployment -n home-assistant home-assistant
-```
 
 ### 4. Test OIDC Login
 
