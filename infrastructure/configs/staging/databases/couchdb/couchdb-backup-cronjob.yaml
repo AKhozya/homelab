@@ -54,9 +54,10 @@ spec:
                   echo "=== CouchDB Backup Started ==="
                   echo "Timestamp: $(date)"
 
-                  # Install couchbackup
+                  # Install couchbackup locally
                   echo "Installing couchbackup..."
-                  npm install -g @cloudant/couchbackup
+                  npm install --prefix /tmp @cloudant/couchbackup
+                  export PATH="/tmp/node_modules/.bin:$PATH"
 
                   TIMESTAMP=$(date +%Y%m%d_%H%M%S)
                   BACKUP_DIR="/backup/$TIMESTAMP"
@@ -80,7 +81,7 @@ spec:
                     echo "Backing up database: $DB"
 
                     START_TIME=$(date +%s)
-                    couchbackup \
+                    /tmp/node_modules/.bin/couchbackup \
                       --url "$COUCHDB_URL" \
                       --db "$DB" \
                       > "$BACKUP_DIR/${DB}.couchbackup" \
