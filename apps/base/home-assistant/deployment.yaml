@@ -77,9 +77,9 @@ spec:
               echo "Downloading HACS..."
               wget -q https://github.com/hacs/integration/releases/latest/download/hacs.zip -O /tmp/hacs.zip
 
-              # Extract to custom_components
+              # Extract to custom_components (force overwrite without prompting)
               echo "Extracting HACS..."
-              unzip -q /tmp/hacs.zip -d /config/custom_components/
+              unzip -o -q /tmp/hacs.zip -d /config/custom_components/
 
               # Cleanup
               rm /tmp/hacs.zip
