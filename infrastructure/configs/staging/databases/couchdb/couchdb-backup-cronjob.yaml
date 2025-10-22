@@ -63,8 +63,11 @@ spec:
                   BACKUP_DIR="/backup/$TIMESTAMP"
                   mkdir -p "$BACKUP_DIR"
 
+                  # URL-encode the password (replace special chars)
+                  ENCODED_PASSWORD=$(echo -n "$COUCHDB_PASSWORD" | sed 's|/|%2F|g; s|=|%3D|g; s|+|%2B|g')
+
                   # CouchDB connection details
-                  COUCHDB_URL="http://$COUCHDB_USER:$COUCHDB_PASSWORD@couchdb-couchdb.couchdb.svc.cluster.local:5984"
+                  COUCHDB_URL="http://$COUCHDB_USER:$ENCODED_PASSWORD@couchdb-couchdb.couchdb.svc.cluster.local:5984"
 
                   # Auto-discover databases (exclude system databases)
                   echo "Discovering databases..."
