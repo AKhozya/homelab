@@ -105,6 +105,10 @@ spec:
               mountPath: /config
             - name: tmp
               mountPath: /tmp
+            - name: secrets
+              mountPath: /config/secrets.yaml
+              subPath: secrets.yaml
+              readOnly: true
       volumes:
         - name: home-assistant-data
           persistentVolumeClaim:
@@ -114,3 +118,6 @@ spec:
         - name: config-template
           configMap:
             name: home-assistant-config
+        - name: secrets
+          secret:
+            secretName: home-assistant-secrets

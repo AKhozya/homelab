@@ -3,3 +3,5 @@ kind: Kustomization
 resources:
   - ../../base/home-assistant
   - certificate.yaml
+  - secrets.yaml
+  - home-assistant-oidc-secret.yaml
