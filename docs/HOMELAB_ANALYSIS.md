@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-10-18 02:10 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-10-22 19:30 UTC)
 **Cluster**: K3s (staging)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik)
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -69,17 +69,19 @@
 ### Medium Term (3 Months) 📋
 
 10. ✅ **COMPLETED: Integrate Apps with Authentik SSO** - P2 ⭐
-    - **Completed**: 2025-10-21
+    - **Completed**: 2025-10-22
     - **Apps Configured via Environment Variables** (3): Paperless-NGX, Linkding, Mealie
     - **Apps Configured via Web UI** (3): Grafana, Immich, Audiobookshelf
+    - **Apps with Custom Integration** (1): Home Assistant (hass-oidc-auth, GitOps)
     - **Not Supported** (1): N8N (requires Enterprise plan for SSO/LDAP)
-    - **Total OIDC Apps**: 6/10 applications
+    - **Total OIDC Apps**: 7/10 applications
     - **Configuration Methods**:
       - Declarative (env vars): Paperless-NGX, Linkding, Mealie
       - Database-stored (web UI): Immich, Audiobookshelf
       - Pre-configured: Grafana
+      - Custom integration (GitOps): Home Assistant (hass-oidc-auth via HACS)
     - **Note**: N8N Community Edition does not support SSO/LDAP - Enterprise plan required
-    - Commit: ce4aff1
+    - Commit: 5e85276
 11. **Implement Backup Validation** - P2
 12. **Add Velero for Cluster Backups** - P2
 
@@ -110,7 +112,7 @@
 | **Grafana** | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Monitoring dashboard, Authentik SSO ⭐ |
 | **Immich** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Photo management, Web UI config ⭐ |
 | **Paperless-NGX** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Document management, env var config ⭐ |
-| Home Assistant | ✅ Running | ✅ NetworkPolicy | - | Ingress configured |
+| **Home Assistant** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Smart home, hass-oidc-auth, GitOps install ⭐ |
 | Wallabag | ✅ Running | ✅ NetworkPolicy | - | Custom user setup ✅ |
 | Mealie | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | User provision + OIDC (env var) ⭐ |
 | N8N | ✅ Running | ✅ NetworkPolicy | ❌ Enterprise | User provision ✅, SSO requires Enterprise |
@@ -119,7 +121,7 @@
 | Obsidian | ✅ Running | ✅ NetworkPolicy | - | CouchDB sync |
 
 **Security Coverage: 13/13 apps (100%)** ✅
-**SSO Coverage: 6/13 apps (46%)** ⭐ (1 app requires Enterprise plan)
+**SSO Coverage: 7/13 apps (54%)** ⭐ (1 app requires Enterprise plan)
 
 ---
 
@@ -186,14 +188,32 @@
 
 ---
 
-**Last Updated**: 2025-10-19 01:00 UTC
+**Last Updated**: 2025-10-22 19:30 UTC
 **Next Review**: 2025-11-18
 
 ---
 
 ## 📝 CHANGELOG
 
-### 2025-10-21 (Current)
+### 2025-10-22 (Current)
+- ✅ **Home Assistant OIDC Integration**: Integrated Home Assistant with Authentik via hass-oidc-auth
+- 🎯 **Impact**: 7th app integrated with SSO (54% coverage), smart home centrally authenticated
+- 🔧 **Technical Details**:
+  - **HACS Auto-Installation**: GitOps-deployed via init container (wget + unzip)
+  - **hass-oidc-auth Auto-Installation**: GitOps-deployed via init container (git clone)
+  - **Configuration**: auth_oidc in configuration.yaml with discovery_url
+  - **Fresh Deployment Testing**: Confirmed OIDC users are NOT admins by default
+  - **Admin Provisioning**: Required for fresh deployments (emergency access)
+  - **Bug Fix**: Auto-create automations.yaml, scripts.yaml, scenes.yaml on fresh deploy
+- 🔒 **Security Model**:
+  - OIDC user for daily access (promoted to admin)
+  - Local admin user as emergency backup
+  - Physical device control requires strong authentication
+- 💪 **GitOps Achievement**: Fully declarative Home Assistant OIDC deployment with zero manual steps
+- 📋 **SSO Coverage Update**: 7/13 apps (54%), up from 6/13 (46%)
+- Commit: 5e85276
+
+### 2025-10-21
 - ✅ **SSO Integration Complete**: Integrated 6 apps with Authentik OIDC
 - 🎯 **Impact**: Centralized authentication for 46% of apps (6/13)
 - 🔧 **Technical Details**:
