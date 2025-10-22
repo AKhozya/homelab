@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - ../../../base/databases/couchdb
   - admin-secret.yaml
+  - couchdb-backup-cronjob.yaml

@@ -63,22 +63,25 @@ spec:
                   echo "Backup location: $BACKUP_ROOT"
                   echo ""
 
-                  # Define critical PVCs to backup
+                  # Define critical PVCs to backup (one per line)
                   # Format: namespace/pvc-name/source-pattern
-                  CRITICAL_PVCS=(
-                    "home-assistant/home-assistant-data-pvc/*home-assistant-data-pvc*"
-                    "immich/immich-library/*immich-library*"
-                    "paperless-ngx/paperless-data-pvc/*paperless-data-pvc*"
-                    "couchdb/database-storage-couchdb-couchdb-0/*couchdb*"
-                    "audiobookshelf/audiobookshelf-audiobooks/*audiobookshelf-audiobooks*"
-                    "audiobookshelf/audiobookshelf-podcasts/*audiobookshelf-podcasts*"
-                  )
+                  CRITICAL_PVCS="
+                  home-assistant/home-assistant-data-pvc/*home-assistant-data-pvc*
+                  immich/immich-library/*immich-library*
+                  paperless-ngx/paperless-data-pvc/*paperless-data-pvc*
+                  couchdb/database-storage-couchdb-couchdb-0/*couchdb*
+                  audiobookshelf/audiobookshelf-audiobooks/*audiobookshelf-audiobooks*
+                  audiobookshelf/audiobookshelf-podcasts/*audiobookshelf-podcasts*
+                  "
 
                   total_size=0
                   success_count=0
                   failed_count=0
 
-                  for PVC_ENTRY in "${CRITICAL_PVCS[@]}"; do
+                  # Use process substitution to avoid subshell (works in ash)
+                  while IFS= read -r PVC_ENTRY; do
+                    # Skip empty lines
+                    [ -z "$PVC_ENTRY" ] && continue
                     NAMESPACE=$(echo "$PVC_ENTRY" | cut -d/ -f1)
                     PVC_NAME=$(echo "$PVC_ENTRY" | cut -d/ -f2)
                     PATTERN=$(echo "$PVC_ENTRY" | cut -d/ -f3)
@@ -94,7 +97,7 @@ spec:
                       echo "⚠️  WARNING: PVC not found matching pattern: $PATTERN"
                       echo "   Skipping..."
                       echo ""
-                      ((failed_count++))
+                      failed_count=$((failed_count + 1))
                       continue
                     fi
 
@@ -134,16 +137,18 @@ spec:
                       echo "   Duration:   ${DURATION}s"
                       echo ""
 
-                      ((success_count++))
+                      success_count=$((success_count + 1))
                       COMPRESSED_BYTES=$(du -sb "$DEST_DIR/${PVC_NAME}.tar.zst" | cut -f1)
                       total_size=$((total_size + COMPRESSED_BYTES))
                     else
                       echo ""
                       echo "❌ Backup failed for $PVC_NAME"
                       echo ""
-                      ((failed_count++))
+                      failed_count=$((failed_count + 1))
                     fi
-                  done
+                  done <<EOF
+$CRITICAL_PVCS
+EOF
 
                   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                   echo "📊 Backup Summary"

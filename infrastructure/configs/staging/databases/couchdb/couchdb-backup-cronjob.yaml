@@ -1,0 +1,174 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: couchdb-backup
+  namespace: databases
+spec:
+  schedule: "30 2 * * *"  # 2:30 AM daily (after PostgreSQL backups)
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid  # Don't run concurrent backups
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 86400  # Keep job for 24h for debugging
+      template:
+        metadata:
+          labels:
+            app: couchdb-backup
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsUser: 1000  # non-root user
+            runAsGroup: 1000
+            fsGroup: 1000
+          initContainers:
+            - name: setup-permissions
+              image: alpine:3.22
+              command:
+                - sh
+                - -c
+                - |
+                  # Ensure backup directory exists and has correct permissions
+                  mkdir -p /backup
+                  chown -R 1000:1000 /backup
+                  chmod 755 /backup
+                  echo "Backup directory ready"
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+              securityContext:
+                runAsUser: 0  # Need root to chown
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                  add: ["CHOWN", "DAC_OVERRIDE"]
+          containers:
+            - name: backup
+              image: node:20-alpine
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+
+                  echo "=== CouchDB Backup Started ==="
+                  echo "Timestamp: $(date)"
+
+                  # Install couchbackup
+                  echo "Installing couchbackup..."
+                  npm install -g @cloudant/couchbackup
+
+                  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  BACKUP_DIR="/backup/$TIMESTAMP"
+                  mkdir -p "$BACKUP_DIR"
+
+                  # CouchDB connection details
+                  COUCHDB_URL="http://$COUCHDB_USER:$COUCHDB_PASSWORD@couchdb-couchdb.couchdb.svc.cluster.local:5984"
+
+                  # Auto-discover databases (exclude system databases)
+                  echo "Discovering databases..."
+                  DATABASES=$(wget -q -O- "$COUCHDB_URL/_all_dbs" | \
+                    sed 's/\[//g;s/\]//g;s/"//g;s/,/ /g' | \
+                    tr ' ' '\n' | \
+                    grep -v '^_' | \
+                    grep -v '^$')
+
+                  echo "Found databases: $DATABASES"
+
+                  # Backup each database
+                  for DB in $DATABASES; do
+                    echo "Backing up database: $DB"
+
+                    START_TIME=$(date +%s)
+                    couchbackup \
+                      --url "$COUCHDB_URL" \
+                      --db "$DB" \
+                      > "$BACKUP_DIR/${DB}.couchbackup" \
+                      2>&1 | tee "$BACKUP_DIR/${DB}.log"
+
+                    if [ $? -eq 0 ]; then
+                      # Compress the backup
+                      gzip "$BACKUP_DIR/${DB}.couchbackup"
+
+                      END_TIME=$(date +%s)
+                      DURATION=$((END_TIME - START_TIME))
+                      SIZE=$(du -h "$BACKUP_DIR/${DB}.couchbackup.gz" | cut -f1)
+
+                      echo "✅ $DB backup completed ($SIZE, ${DURATION}s)"
+                    else
+                      echo "❌ $DB backup failed!"
+                    fi
+                  done
+
+                  # Create manifest
+                  cat > "$BACKUP_DIR/MANIFEST.txt" <<EOF
+                  CouchDB Backup Manifest
+                  Timestamp: $(date)
+                  Backup ID: $TIMESTAMP
+                  Databases: $DATABASES
+                  Host: couchdb-couchdb.couchdb.svc.cluster.local:5984
+
+                  Backup Files:
+                  $(ls -lh $BACKUP_DIR/*.couchbackup.gz 2>/dev/null || echo "No backups created")
+
+                  Total Size:
+                  $(du -sh $BACKUP_DIR)
+                  EOF
+
+                  # Compress backup directory
+                  echo "Compressing backup archive..."
+                  cd /backup
+                  tar -czf "couchdb_${TIMESTAMP}.tar.gz" "$TIMESTAMP"
+                  COMPRESSED_SIZE=$(du -h "couchdb_${TIMESTAMP}.tar.gz" | cut -f1)
+                  echo "✅ Compressed backup: couchdb_${TIMESTAMP}.tar.gz ($COMPRESSED_SIZE)"
+
+                  # Remove uncompressed directory
+                  rm -rf "$TIMESTAMP"
+
+                  # Keep only last 30 days of backups
+                  echo "Cleaning old backups (keeping last 30 days)..."
+                  find /backup -name "couchdb_*.tar.gz" -mtime +30 -delete
+
+                  # List current backups
+                  echo ""
+                  echo "=== Current Backups ==="
+                  ls -lh /backup/couchdb_*.tar.gz 2>/dev/null || echo "No backups found"
+
+                  echo ""
+                  echo "=== Backup Complete ==="
+                  echo "Backup ID: $TIMESTAMP"
+                  echo "Location: /backup/couchdb_${TIMESTAMP}.tar.gz"
+                  echo "Size: $COMPRESSED_SIZE"
+              env:
+                - name: COUCHDB_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: couchdb-couchdb
+                      key: adminUsername
+                - name: COUCHDB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: couchdb-couchdb
+                      key: adminPassword
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: false  # Need to write to /tmp for npm
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "1000m"
+                  memory: "1Gi"
+          volumes:
+            - name: backup-storage
+              hostPath:
+                path: /mnt/k8s-backup/couchdb
+                type: DirectoryOrCreate
+          nodeSelector:
+            kubernetes.io/hostname: worker-node  # Run on worker node with storage
