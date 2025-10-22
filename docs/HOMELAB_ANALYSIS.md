@@ -28,7 +28,11 @@
 - Default credential elimination on all apps
 
 **Remaining Gaps** ⚠️
-- **Backup**: Strategy exists but no automated validation/testing
+- 🚨 **Backup**: NOT IMPLEMENTED - Zero backups, complete data loss risk (P0)
+  - Documentation complete: `docs/BACKUP_STRATEGY.md`
+  - PostgreSQL backup needed (Authentik + all OIDC configs)
+  - PVC backup needed (photos, documents, configs)
+  - 4.2TB storage available for backups
 - **Apps**: Some productivity tools still being added
 
 ---
@@ -47,7 +51,24 @@
    - ✅ All 7 apps now have NetworkPolicies
    - Commit: a235309
 
-3. **Document User Provision Pattern** - P1
+3. 🚨 **IMPLEMENT BACKUP STRATEGY** - P0 **CRITICAL**
+   - ❌ **Status:** NOT IMPLEMENTED - Zero backups currently
+   - 🔴 **Risk:** Complete data loss if cluster fails
+   - 📋 **Impact:** 8-16 hours manual reconfiguration (all OIDC configs)
+   - 📄 **Documentation:** See `docs/BACKUP_STRATEGY.md`
+   - **Phase 1 (Critical):** PostgreSQL backups (Authentik + apps)
+     - Deploy pg_dump CronJob to `/mnt/k8s-backup/postgres`
+     - Daily backups at 2 AM, 30-day retention
+     - Protects all OIDC configurations
+   - **Phase 2 (High):** PVC backups (photos, documents, configs)
+     - Deploy rsync CronJob to `/mnt/k8s-backup/pvc`
+     - Daily backups at 3 AM, 7-day retention
+   - **Phase 3 (Medium):** Authentik config export to git
+   - **Storage Available:** 4.2TB (sufficient for all backups)
+   - **Next Action:** Return to this when ready to implement
+   - Commit: 8baa8b3 (documentation)
+
+4. **Document User Provision Pattern** - P1
    - Create SECURITY.md template
 
 ### Short Term (This Month) ⚠️
