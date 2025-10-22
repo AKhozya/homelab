@@ -84,6 +84,15 @@ spec:
               # Cleanup
               rm /tmp/hacs.zip
 
+              # Ensure filesystem sync
+              sync
+
+              # Verify installation
+              if [ ! -d "$HACS_DIR" ]; then
+                echo "❌ ERROR: HACS installation verification failed"
+                exit 1
+              fi
+
               echo "✓ HACS installed successfully at $HACS_DIR"
               echo "  You can now configure HACS via Settings → Devices & Services"
           volumeMounts:
@@ -115,9 +124,14 @@ spec:
 
               # Verify HACS is installed first (dependency check)
               echo "Checking for HACS installation..."
+
+              # Wait a moment for filesystem sync
+              sleep 2
+
               if [ ! -d "$HACS_DIR" ]; then
                 echo "❌ ERROR: HACS must be installed before hass-oidc-auth"
                 echo "   HACS directory not found at $HACS_DIR"
+                ls -la /config/custom_components/ || true
                 exit 1
               fi
               echo "✓ HACS found at $HACS_DIR"
