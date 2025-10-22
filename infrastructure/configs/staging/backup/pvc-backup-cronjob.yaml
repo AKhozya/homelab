@@ -53,8 +53,7 @@ spec:
                   echo "=== PVC Backup Started ==="
                   echo "Timestamp: $(date)"
 
-                  # Install required tools (removed zstd)
-                  apk add --no-cache rsync pv
+                  # No additional tools needed (tar and gzip built-in)
 
                   TIMESTAMP=$(date +%Y%m%d_%H%M%S)
                   BACKUP_ROOT="/backup/$TIMESTAMP"
@@ -78,10 +77,11 @@ spec:
                   success_count=0
                   failed_count=0
 
-                  # Process each PVC entry
-                  echo "$CRITICAL_PVCS" | while IFS= read -r PVC_ENTRY; do
+                  # Process each PVC entry (using for loop to avoid subshell)
+                  for PVC_ENTRY in $CRITICAL_PVCS; do
                     # Skip empty lines
                     [ -z "$PVC_ENTRY" ] && continue
+
                     NAMESPACE=$(echo "$PVC_ENTRY" | cut -d/ -f1)
                     PVC_NAME=$(echo "$PVC_ENTRY" | cut -d/ -f2)
                     PATTERN=$(echo "$PVC_ENTRY" | cut -d/ -f3)
@@ -116,13 +116,10 @@ spec:
                     echo "Compressing with gzip..."
                     echo ""
 
-                    # Create compressed tar with progress
+                    # Create compressed tar (removed pv to simplify pipeline)
                     START_TIME=$(date +%s)
 
-                    tar -czf - -C "$SOURCE_DIR" . 2>/dev/null | \
-                      pv -s "$DATA_SIZE" -N "Creating archive" > "$DEST_DIR/${PVC_NAME}.tar.gz"
-
-                    if [ $? -eq 0 ]; then
+                    if tar -czf "$DEST_DIR/${PVC_NAME}.tar.gz" -C "$SOURCE_DIR" . 2>/dev/null; then
                       END_TIME=$(date +%s)
                       DURATION=$((END_TIME - START_TIME))
                       COMPRESSED_SIZE=$(du -h "$DEST_DIR/${PVC_NAME}.tar.gz" | cut -f1)
@@ -134,16 +131,16 @@ spec:
                       echo "   Compressed: $COMPRESSED_SIZE"
                       echo "   Duration:   ${DURATION}s"
                       echo ""
+
+                      success_count=$((success_count + 1))
                     else
                       echo ""
                       echo "❌ Backup failed for $PVC_NAME"
                       echo ""
+
+                      failed_count=$((failed_count + 1))
                     fi
                   done
-
-                  # Count successful/failed backups from manifest
-                  success_count=$(ls -1 "$BACKUP_ROOT"/*/*.tar.gz 2>/dev/null | wc -l)
-                  failed_count=0  # Will be evident from missing files
 
                   # Calculate total size
                   total_size=$(du -sb "$BACKUP_ROOT" 2>/dev/null | cut -f1 || echo "0")
