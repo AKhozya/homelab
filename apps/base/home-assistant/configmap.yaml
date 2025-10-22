@@ -5,12 +5,6 @@ metadata:
   namespace: home-assistant
 data:
   configuration.yaml: |
-    # Authentication providers - OIDC only
-    homeassistant:
-      auth_providers:
-        - type: auth_oidc
-          id: oidc_provider
-
     # Loads default set of integrations. Do not remove.
     default_config:
 
