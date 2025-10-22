@@ -37,6 +37,14 @@ spec:
               else
                 echo "Configuration.yaml is up to date"
               fi
+
+              # Create empty YAML files if they don't exist (required by configuration.yaml)
+              for file in automations.yaml scripts.yaml scenes.yaml; do
+                if [ ! -f /config/$file ]; then
+                  echo "Creating empty $file..."
+                  echo "[]" > /config/$file
+                fi
+              done
           volumeMounts:
             - name: home-assistant-data
               mountPath: /config
