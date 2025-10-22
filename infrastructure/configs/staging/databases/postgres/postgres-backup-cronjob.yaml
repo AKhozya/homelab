@@ -23,7 +23,7 @@ spec:
             fsGroup: 999
           initContainers:
             - name: setup-permissions
-              image: alpine:3.21
+              image: alpine:3.22
               command:
                 - sh
                 - -c
