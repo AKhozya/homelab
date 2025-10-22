@@ -54,8 +54,9 @@ spec:
                   echo "=== CouchDB Backup Started ==="
                   echo "Timestamp: $(date)"
 
-                  # Install couchbackup locally
-                  echo "Installing couchbackup..."
+                  # Install required tools
+                  echo "Installing couchbackup and zstd..."
+                  apk add --no-cache zstd
                   npm install --prefix /tmp @cloudant/couchbackup
                   export PATH="/tmp/node_modules/.bin:$PATH"
 
@@ -88,12 +89,13 @@ spec:
                       2>&1 | tee "$BACKUP_DIR/${DB}.log"
 
                     if [ $? -eq 0 ]; then
-                      # Compress the backup
-                      gzip "$BACKUP_DIR/${DB}.couchbackup"
+                      # Compress the backup with zstd ultra
+                      zstd --ultra -22 -q "$BACKUP_DIR/${DB}.couchbackup"
+                      rm "$BACKUP_DIR/${DB}.couchbackup"
 
                       END_TIME=$(date +%s)
                       DURATION=$((END_TIME - START_TIME))
-                      SIZE=$(du -h "$BACKUP_DIR/${DB}.couchbackup.gz" | cut -f1)
+                      SIZE=$(du -h "$BACKUP_DIR/${DB}.couchbackup.zst" | cut -f1)
 
                       echo "✅ $DB backup completed ($SIZE, ${DURATION}s)"
                     else
@@ -110,35 +112,35 @@ spec:
                   Host: couchdb-couchdb.couchdb.svc.cluster.local:5984
 
                   Backup Files:
-                  $(ls -lh $BACKUP_DIR/*.couchbackup.gz 2>/dev/null || echo "No backups created")
+                  $(ls -lh $BACKUP_DIR/*.couchbackup.zst 2>/dev/null || echo "No backups created")
 
                   Total Size:
                   $(du -sh $BACKUP_DIR)
                   EOF
 
-                  # Compress backup directory
-                  echo "Compressing backup archive..."
+                  # Compress backup directory with zstd ultra
+                  echo "Compressing backup archive with zstd ultra..."
                   cd /backup
-                  tar -czf "couchdb_${TIMESTAMP}.tar.gz" "$TIMESTAMP"
-                  COMPRESSED_SIZE=$(du -h "couchdb_${TIMESTAMP}.tar.gz" | cut -f1)
-                  echo "✅ Compressed backup: couchdb_${TIMESTAMP}.tar.gz ($COMPRESSED_SIZE)"
+                  tar -cf - "$TIMESTAMP" | zstd --ultra -22 -T0 -q > "couchdb_${TIMESTAMP}.tar.zst"
+                  COMPRESSED_SIZE=$(du -h "couchdb_${TIMESTAMP}.tar.zst" | cut -f1)
+                  echo "✅ Compressed backup: couchdb_${TIMESTAMP}.tar.zst ($COMPRESSED_SIZE)"
 
                   # Remove uncompressed directory
                   rm -rf "$TIMESTAMP"
 
                   # Keep only last 30 days of backups
                   echo "Cleaning old backups (keeping last 30 days)..."
-                  find /backup -name "couchdb_*.tar.gz" -mtime +30 -delete
+                  find /backup -name "couchdb_*.tar.zst" -mtime +30 -delete
 
                   # List current backups
                   echo ""
                   echo "=== Current Backups ==="
-                  ls -lh /backup/couchdb_*.tar.gz 2>/dev/null || echo "No backups found"
+                  ls -lh /backup/couchdb_*.tar.zst 2>/dev/null || echo "No backups found"
 
                   echo ""
                   echo "=== Backup Complete ==="
                   echo "Backup ID: $TIMESTAMP"
-                  echo "Location: /backup/couchdb_${TIMESTAMP}.tar.gz"
+                  echo "Location: /backup/couchdb_${TIMESTAMP}.tar.zst"
                   echo "Size: $COMPRESSED_SIZE"
               env:
                 - name: COUCHDB_USER
