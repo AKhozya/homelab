@@ -81,6 +81,10 @@ spec:
               echo "Extracting HACS..."
               unzip -o -q /tmp/hacs.zip -d /config/custom_components/
 
+              # Debug: Show what was extracted
+              echo "Contents of /config/custom_components after extraction:"
+              ls -la /config/custom_components/
+
               # Cleanup
               rm /tmp/hacs.zip
 
@@ -90,6 +94,7 @@ spec:
               # Verify installation
               if [ ! -d "$HACS_DIR" ]; then
                 echo "❌ ERROR: HACS installation verification failed"
+                echo "   Expected directory at: $HACS_DIR"
                 exit 1
               fi
 
