@@ -119,7 +119,7 @@ spec:
                     # Create compressed tar (removed pv to simplify pipeline)
                     START_TIME=$(date +%s)
 
-                    if tar -czf "$DEST_DIR/${PVC_NAME}.tar.gz" -C "$SOURCE_DIR" . 2>/dev/null; then
+                    if tar -czf "$DEST_DIR/${PVC_NAME}.tar.gz" -C "$SOURCE_DIR" . ; then
                       END_TIME=$(date +%s)
                       DURATION=$((END_TIME - START_TIME))
                       COMPRESSED_SIZE=$(du -h "$DEST_DIR/${PVC_NAME}.tar.gz" | cut -f1)
