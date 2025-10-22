@@ -44,7 +44,7 @@ spec:
                   add: ["CHOWN", "DAC_OVERRIDE"]
           containers:
             - name: backup
-              image: postgres:16.8-alpine
+              image: postgres:18-alpine
               command:
                 - /bin/bash
                 - -c
@@ -58,10 +58,17 @@ spec:
                   BACKUP_DIR="/backup/$TIMESTAMP"
                   mkdir -p "$BACKUP_DIR"
 
-                  # List of databases to backup
-                  DATABASES="authentik immich paperless grafana linkding mealie"
+                  # Auto-discover databases (exclude system databases)
+                  echo "Discovering databases..."
+                  DATABASES=$(PGPASSWORD="$POSTGRES_PASSWORD" psql \
+                    -h main-postgres-rw.databases.svc.cluster.local \
+                    -U postgres-admin \
+                    -d postgres \
+                    -t -A \
+                    -c "SELECT datname FROM pg_database WHERE datistemplate = false AND datname NOT IN ('postgres');" \
+                    | grep -v '^$')
 
-                  echo "Backing up databases: $DATABASES"
+                  echo "Found databases: $DATABASES"
 
                   # Backup each database
                   for DB in $DATABASES; do
