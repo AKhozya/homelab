@@ -48,25 +48,30 @@ spec:
                 - sh
                 - -c
                 - |
-                  # Install zstd to shared volume
-                  echo "Installing zstd to /tools..."
-                  apk add --no-cache --root /tools zstd
-                  # Copy zstd binary to /tools/bin
-                  mkdir -p /tools/bin
-                  cp /tools/usr/bin/zstd /tools/bin/
-                  # Copy required libraries
-                  mkdir -p /tools/lib
-                  cp /tools/usr/lib/libzstd.so.* /tools/lib/ 2>/dev/null || true
+                  # Install zstd and copy to shared volume
+                  echo "Installing zstd..."
+                  apk add --no-cache zstd
+
+                  # Copy zstd binary and libraries to shared volume
+                  mkdir -p /tools/bin /tools/lib
+                  cp /usr/bin/zstd /tools/bin/
+
+                  # Copy zstd library dependencies
+                  cp /usr/lib/libzstd.so.1 /tools/lib/ 2>/dev/null || true
+                  cp /lib/ld-musl-*.so.1 /tools/lib/ 2>/dev/null || true
+
                   chmod -R 755 /tools
-                  echo "Tools installed successfully"
+                  chown -R 1000:1000 /tools
+                  echo "✅ zstd installed to /tools"
               volumeMounts:
                 - name: tools
                   mountPath: /tools
               securityContext:
-                runAsUser: 0  # Need root for apk
+                runAsUser: 0  # Need root for apk and chown
                 allowPrivilegeEscalation: false
                 capabilities:
                   drop: ["ALL"]
+                  add: ["CHOWN"]
           containers:
             - name: backup
               image: node:22-alpine
