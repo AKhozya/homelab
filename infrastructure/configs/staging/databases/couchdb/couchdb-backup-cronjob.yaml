@@ -18,9 +18,9 @@ spec:
         spec:
           restartPolicy: OnFailure
           securityContext:
-            runAsUser: 0  # root (needed for apk install)
-            runAsGroup: 0
-            fsGroup: 0
+            runAsUser: 1000  # non-root user
+            runAsGroup: 1000
+            fsGroup: 1000
           initContainers:
             - name: setup-permissions
               image: alpine:3.22
@@ -30,7 +30,7 @@ spec:
                 - |
                   # Ensure backup directory exists and has correct permissions
                   mkdir -p /backup
-                  chown -R 0:0 /backup
+                  chown -R 1000:1000 /backup
                   chmod 755 /backup
                   echo "Backup directory ready"
               volumeMounts:
@@ -42,6 +42,31 @@ spec:
                 capabilities:
                   drop: ["ALL"]
                   add: ["CHOWN", "DAC_OVERRIDE"]
+            - name: install-tools
+              image: alpine:3.22
+              command:
+                - sh
+                - -c
+                - |
+                  # Install zstd to shared volume
+                  echo "Installing zstd to /tools..."
+                  apk add --no-cache --root /tools zstd
+                  # Copy zstd binary to /tools/bin
+                  mkdir -p /tools/bin
+                  cp /tools/usr/bin/zstd /tools/bin/
+                  # Copy required libraries
+                  mkdir -p /tools/lib
+                  cp /tools/usr/lib/libzstd.so.* /tools/lib/ 2>/dev/null || true
+                  chmod -R 755 /tools
+                  echo "Tools installed successfully"
+              volumeMounts:
+                - name: tools
+                  mountPath: /tools
+              securityContext:
+                runAsUser: 0  # Need root for apk
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
           containers:
             - name: backup
               image: node:22-alpine
@@ -54,9 +79,12 @@ spec:
                   echo "=== CouchDB Backup Started ==="
                   echo "Timestamp: $(date)"
 
-                  # Install required tools
-                  echo "Installing couchbackup and zstd..."
-                  apk add --no-cache zstd
+                  # Add tools to PATH
+                  export PATH="/tools/bin:$PATH"
+                  export LD_LIBRARY_PATH="/tools/lib:$LD_LIBRARY_PATH"
+
+                  # Install couchbackup
+                  echo "Installing couchbackup..."
                   npm install --prefix /tmp @cloudant/couchbackup
                   export PATH="/tmp/node_modules/.bin:$PATH"
 
@@ -156,6 +184,9 @@ spec:
               volumeMounts:
                 - name: backup-storage
                   mountPath: /backup
+                - name: tools
+                  mountPath: /tools
+                  readOnly: true
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:
@@ -169,6 +200,8 @@ spec:
                   cpu: "1000m"
                   memory: "1Gi"
           volumes:
+            - name: tools
+              emptyDir: {}
             - name: backup-storage
               hostPath:
                 path: /mnt/k8s-backup/couchdb
