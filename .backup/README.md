@@ -1,7 +1,3 @@
-sudo rsync -av /var/lib/rancher/k3s/storage/ /backup/k3s-storage/
-sudo cat /var/lib/rancher/k3s/server/node-token
-curl -sfL https://get.k3s.io | sh -
-
 # Homelab Disaster Recovery Guide
 
 This directory contains scripts and documentation for complete cluster recovery.
@@ -55,16 +51,17 @@ This will extract and save **ALL** secrets needed for complete cluster rebuild:
 
 Files are saved to `.backup/secrets/` (gitignored)
 
-### 2. Backup Persistent Data
+### 2. Automated Backups (Already Configured ✅)
 
-Your application data is stored on cluster nodes. Back it up with:
+**Your cluster has automated daily backups configured:**
 
-```bash
-# On each node (control-plane and worker)
-sudo rsync -av /var/lib/rancher/k3s/storage/ /backup/k3s-storage/
-```
+- **PostgreSQL databases:** Daily at 2:00 AM → `/mnt/k8s-backup/postgres/` (30 days retention)
+- **CouchDB databases:** Daily at 2:30 AM → `/mnt/k8s-backup/couchdb/` (30 days retention)
+- **Critical PVCs:** Daily at 3:00 AM → `/mnt/k8s-backup/pvc/` (3 days retention)
 
-Or use your preferred backup solution (Velero, Restic, etc.)
+**Backup details in:** `docs/BACKUP_STRATEGY.md` and `docs/BACKUP_IMPLEMENTATION.md`
+
+**No manual action required** - backups run automatically via Kubernetes CronJobs
 
 ## 🔄 Recovery Process
 
@@ -157,15 +154,50 @@ flux get kustomizations -A
 kubectl get helmrelease -A
 ```
 
-#### Step 7: Restore Persistent Data
+#### Step 7: Restore Databases and PVCs from Automated Backups
 
+**See detailed procedures in:** `docs/BACKUP_STRATEGY.md`
+
+**PostgreSQL restore:**
 ```bash
-# On each node, restore backed up data
-sudo rsync -av /backup/k3s-storage/ /var/lib/rancher/k3s/storage/
+# Find latest backup
+LATEST_BACKUP=$(ls -t /mnt/k8s-backup/postgres/postgres_*.tar.gz | head -1)
 
-# Restart affected pods to pick up data
-kubectl rollout restart deployment -n linkding linkding
-kubectl rollout restart deployment -n audiobookshelf audiobookshelf
+# Extract
+tar -xzf $LATEST_BACKUP -C /tmp
+
+# Restore each database
+for DB in authentik immich paperless grafana linkding mealie wallabag audiobookshelf n8n app; do
+  kubectl exec -n databases main-postgres-1 -- \
+    pg_restore -U postgres -d $DB -c --if-exists \
+    /tmp/$(basename $LATEST_BACKUP .tar.gz)/${DB}.dump
+done
+```
+
+**PVC restore:**
+```bash
+# Find latest PVC backup
+LATEST_PVC=$(ls -td /mnt/k8s-backup/pvc/* | head -1)
+
+# For each critical application (stop, restore, start)
+kubectl scale deployment/home-assistant -n home-assistant --replicas=0
+tar -xzf $LATEST_PVC/home-assistant/home-assistant-data-pvc.tar.gz \
+  -C /mnt/k8s-storage/pvc-XXXXX/
+kubectl scale deployment/home-assistant -n home-assistant --replicas=1
+
+# Repeat for: immich, paperless-ngx, couchdb, audiobookshelf
+```
+
+**CouchDB restore:**
+```bash
+# Find latest backup
+LATEST_COUCHDB=$(ls -t /mnt/k8s-backup/couchdb/couchdb_*.tar.gz | head -1)
+
+# Extract and restore
+tar -xzf $LATEST_COUCHDB -C /tmp
+cat /tmp/*/obsidian-personal.couchbackup | \
+  kubectl exec -i -n couchdb couchdb-couchdb-0 -- \
+  couchrestore --url http://admin:PASSWORD@localhost:5984 --db obsidian-personal
 ```
 
 ## 🔍 Verification
@@ -206,16 +238,19 @@ kubectl get ingress -A
 ### Via Backup Scripts (run BEFORE Flux bootstrap)
 - ✅ **SOPS age encryption key** (CRITICAL - enables Flux to decrypt secrets)
 - ✅ **All application secrets** (user credentials, API keys, env vars)
+- ✅ **All OIDC integration secrets** (Authentik SSO for 8 applications)
 - ✅ **Database credentials** (Redis, PostgreSQL users)
 - ✅ **Infrastructure secrets** (Cloudflare tokens, tunnel credentials)
 - ✅ **Monitoring credentials** (Grafana admin, Telegram bot)
 
-### Manual Steps Required
-- ⚠️ **Persistent volume data** - PVCs store application data:
-  - Immich photos: restore from `/var/lib/rancher/k3s/storage/` on nodes
-  - Database data: CloudNativePG handles this if PVs are restored
-  - Other app data: varies by application
-- ⚠️ **DNS A records** - only if IPs changed:
+### Via Automated Backups (restore from `/mnt/k8s-backup/`)
+- ✅ **PostgreSQL databases** - all 10 databases backed up daily (authentik, immich, paperless, etc.)
+- ✅ **CouchDB databases** - obsidian-personal backed up daily
+- ✅ **Critical PVCs** - Home Assistant, Immich library, Paperless, CouchDB storage, Audiobookshelf
+- ⚠️ Use restore procedures in `docs/BACKUP_STRATEGY.md`
+
+### Manual Steps Required (one-time setup)
+- ⚠️ **DNS A records** - only if node IPs changed:
   - `*.h0melab.work` records pointing to node IPs
 - ⚠️ **Firewall rules** on both nodes:
   - `sudo ufw allow from 192.168.1.0/24`

@@ -155,6 +155,38 @@ if [ -f "${BACKUP_DIR}/secrets/promtail.json" ]; then
 fi
 
 # =============================================================================
+# OIDC Integration Secrets
+# =============================================================================
+echo "📦 Restoring OIDC integration secrets..."
+
+# Restore OIDC secrets for each application
+if [ -f "${BACKUP_DIR}/secrets/audiobookshelf-oidc.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/audiobookshelf-oidc.json"
+fi
+if [ -f "${BACKUP_DIR}/secrets/grafana-oidc.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/grafana-oidc.json"
+fi
+if [ -f "${BACKUP_DIR}/secrets/home-assistant-oidc.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/home-assistant-oidc.json"
+fi
+if [ -f "${BACKUP_DIR}/secrets/immich-oidc.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/immich-oidc.json"
+fi
+if [ -f "${BACKUP_DIR}/secrets/linkding-oidc.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/linkding-oidc.json"
+fi
+if [ -f "${BACKUP_DIR}/secrets/mealie-oidc.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/mealie-oidc.json"
+fi
+if [ -f "${BACKUP_DIR}/secrets/n8n-oidc.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/n8n-oidc.json"
+fi
+if [ -f "${BACKUP_DIR}/secrets/paperless-oidc.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/paperless-oidc.json"
+fi
+echo "   ✅ OIDC integration secrets restored"
+
+# =============================================================================
 # Summary
 # =============================================================================
 echo ""

@@ -106,6 +106,21 @@ kubectl get secret couchdb-couchdb -n couchdb -o json > "${BACKUP_DIR}/secrets/c
 kubectl get secret promtail -n loki -o json > "${BACKUP_DIR}/secrets/promtail.json" 2>/dev/null || echo "   ⚠️  No loki/promtail secret"
 
 # =============================================================================
+# OIDC Integration Secrets (for Authentik SSO)
+# =============================================================================
+echo "📦 Backing up OIDC integration secrets..."
+
+# Application OIDC configurations
+kubectl get secret audiobookshelf-oidc -n audiobookshelf -o json > "${BACKUP_DIR}/secrets/audiobookshelf-oidc.json" 2>/dev/null || echo "   ⚠️  No audiobookshelf/audiobookshelf-oidc"
+kubectl get secret grafana-oidc -n monitoring -o json > "${BACKUP_DIR}/secrets/grafana-oidc.json" 2>/dev/null || echo "   ⚠️  No monitoring/grafana-oidc"
+kubectl get secret home-assistant-oidc -n home-assistant -o json > "${BACKUP_DIR}/secrets/home-assistant-oidc.json" 2>/dev/null || echo "   ⚠️  No home-assistant/home-assistant-oidc"
+kubectl get secret immich-oidc -n immich -o json > "${BACKUP_DIR}/secrets/immich-oidc.json" 2>/dev/null || echo "   ⚠️  No immich/immich-oidc"
+kubectl get secret linkding-oidc -n linkding -o json > "${BACKUP_DIR}/secrets/linkding-oidc.json" 2>/dev/null || echo "   ⚠️  No linkding/linkding-oidc"
+kubectl get secret mealie-oidc -n mealie -o json > "${BACKUP_DIR}/secrets/mealie-oidc.json" 2>/dev/null || echo "   ⚠️  No mealie/mealie-oidc"
+kubectl get secret n8n-oidc -n n8n -o json > "${BACKUP_DIR}/secrets/n8n-oidc.json" 2>/dev/null || echo "   ⚠️  No n8n/n8n-oidc"
+kubectl get secret paperless-oidc -n paperless-ngx -o json > "${BACKUP_DIR}/secrets/paperless-oidc.json" 2>/dev/null || echo "   ⚠️  No paperless-ngx/paperless-oidc"
+
+# =============================================================================
 # Extract important plaintext values for easy reference
 # =============================================================================
 echo "📝 Extracting plaintext values for reference..."
@@ -143,5 +158,8 @@ echo "      - Authentik, Immich, Home Assistant"
 echo "      - N8N, Linkding, Mealie, Wallabag"
 echo "      - Paperless-NGX, Audiobookshelf, Uptime Kuma"
 echo "      - CouchDB (Obsidian)"
+echo "   🔐 OIDC integration secrets:"
+echo "      - Grafana, Immich, Home Assistant, Linkding"
+echo "      - Mealie, N8N, Paperless-NGX, Audiobookshelf"
 echo ""
 echo "📂 Total files backed up: $(ls -1 "${BACKUP_DIR}/secrets/" | wc -l)"
