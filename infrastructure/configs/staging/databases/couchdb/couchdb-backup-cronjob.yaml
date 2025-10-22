@@ -18,9 +18,9 @@ spec:
         spec:
           restartPolicy: OnFailure
           securityContext:
-            runAsUser: 1000  # non-root user
-            runAsGroup: 1000
-            fsGroup: 1000
+            runAsUser: 0  # root (needed for apk install)
+            runAsGroup: 0
+            fsGroup: 0
           initContainers:
             - name: setup-permissions
               image: alpine:3.22
