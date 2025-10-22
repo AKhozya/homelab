@@ -51,12 +51,12 @@ data:
       echo "User '$DB_USER' created successfully"
     fi
 
-    # Set database permissions (user as admin for full control)
-    echo "Setting admin permissions for user '$DB_USER' on database '$DB_NAME'..."
+    # Set database permissions (user as member for normal sync operations)
+    echo "Setting member permissions for user '$DB_USER' on database '$DB_NAME'..."
     curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
       "$COUCHDB_URL/$DB_NAME/_security" \
       -H "Content-Type: application/json" \
-      -d "{\"admins\":{\"names\":[\"$DB_USER\"],\"roles\":[]},\"members\":{\"names\":[],\"roles\":[]}}"
-    echo "Admin permissions set successfully"
+      -d "{\"admins\":{\"names\":[],\"roles\":[]},\"members\":{\"names\":[\"$DB_USER\"],\"roles\":[]}}"
+    echo "Member permissions set successfully"
 
     echo "Database initialization complete!"
