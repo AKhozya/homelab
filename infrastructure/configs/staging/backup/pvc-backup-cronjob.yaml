@@ -64,11 +64,11 @@ spec:
 
                   # Define critical PVCs to backup (one per line)
                   # Format: namespace/pvc-name/source-pattern
+                  # Note: CouchDB is backed up via database backup (not PVC)
                   CRITICAL_PVCS="
                   home-assistant/home-assistant-data-pvc/*home-assistant-data-pvc*
                   immich/immich-library/*immich-library*
                   paperless-ngx/paperless-data-pvc/*paperless-data-pvc*
-                  couchdb/database-storage-couchdb-couchdb-0/*couchdb*
                   audiobookshelf/audiobookshelf-audiobooks/*audiobookshelf-audiobooks*
                   audiobookshelf/audiobookshelf-podcasts/*audiobookshelf-podcasts*
                   "
@@ -219,7 +219,7 @@ spec:
                 type: Directory
             - name: backup-storage
               hostPath:
-                path: /mnt/k8s-backup/pvc
+                path: /mnt/k8s-storage/backups/pvc
                 type: DirectoryOrCreate
           nodeSelector:
             kubernetes.io/hostname: worker-node  # Run on worker node with storage

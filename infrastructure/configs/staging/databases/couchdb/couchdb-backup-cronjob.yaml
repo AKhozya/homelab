@@ -166,7 +166,7 @@ spec:
           volumes:
             - name: backup-storage
               hostPath:
-                path: /mnt/k8s-backup/couchdb
+                path: /mnt/k8s-storage/backups/couchdb
                 type: DirectoryOrCreate
           nodeSelector:
             kubernetes.io/hostname: worker-node  # Run on worker node with storage

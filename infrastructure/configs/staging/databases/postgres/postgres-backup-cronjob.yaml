@@ -145,7 +145,7 @@ spec:
           volumes:
             - name: backup-storage
               hostPath:
-                path: /mnt/k8s-backup/postgres
-                type: Directory
+                path: /mnt/k8s-storage/backups/postgres
+                type: DirectoryOrCreate
           nodeSelector:
             kubernetes.io/hostname: worker-node  # Run on worker node with storage
