@@ -21,6 +21,27 @@ spec:
             runAsUser: 999  # postgres user
             runAsGroup: 999
             fsGroup: 999
+          initContainers:
+            - name: setup-permissions
+              image: alpine:3.21
+              command:
+                - sh
+                - -c
+                - |
+                  # Ensure backup directory exists and has correct permissions
+                  mkdir -p /backup
+                  chown -R 999:999 /backup
+                  chmod 755 /backup
+                  echo "Backup directory ready"
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+              securityContext:
+                runAsUser: 0  # Need root to chown
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                  add: ["CHOWN", "DAC_OVERRIDE"]
           containers:
             - name: backup
               image: postgres:16.8-alpine
