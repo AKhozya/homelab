@@ -10,5 +10,6 @@ resources:
   - networkpolicy.yaml
   - ingress.yaml
   - https-redirect-middleware.yaml
-  - admin-credentials-secret.yaml
-  - admin-setup-job.yaml
+  # Commented out for testing fresh deployment without admin provisioning
+  # - admin-credentials-secret.yaml
+  # - admin-setup-job.yaml
