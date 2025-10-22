@@ -208,10 +208,10 @@ spec:
               resources:
                 requests:
                   cpu: "500m"
-                  memory: "1Gi"
+                  memory: "128Mi"
                 limits:
                   cpu: "2000m"
-                  memory: "4Gi"
+                  memory: "512Mi"
           volumes:
             - name: k8s-storage
               hostPath:
