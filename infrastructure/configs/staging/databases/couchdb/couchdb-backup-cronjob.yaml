@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: couchdb-backup
-  namespace: databases
+  namespace: couchdb
 spec:
   schedule: "30 2 * * *"  # 2:30 AM daily (after PostgreSQL backups)
   successfulJobsHistoryLimit: 7
