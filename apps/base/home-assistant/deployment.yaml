@@ -58,7 +58,7 @@ spec:
               drop:
                 - ALL
         - name: hacs-install
-          image: alpine:3.21.2
+          image: alpine:3.22.2
           command:
             - /bin/sh
             - -c
@@ -115,7 +115,7 @@ spec:
               drop:
                 - ALL
         - name: oidc-auth-install
-          image: alpine:3.21.2
+          image: alpine:3.22.2
           command:
             - /bin/sh
             - -c
