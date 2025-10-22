@@ -44,7 +44,7 @@ spec:
                   add: ["CHOWN", "DAC_OVERRIDE"]
           containers:
             - name: backup
-              image: node:20-alpine
+              image: node:22-alpine
               command:
                 - /bin/sh
                 - -c
