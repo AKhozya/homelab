@@ -30,7 +30,7 @@ spec:
                 - |
                   # Ensure backup directory exists and has correct permissions
                   mkdir -p /backup
-                  chown -R 1000:1000 /backup
+                  chown -R 0:0 /backup
                   chmod 755 /backup
                   echo "Backup directory ready"
               volumeMounts:
