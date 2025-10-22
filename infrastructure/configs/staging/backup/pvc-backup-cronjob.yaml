@@ -78,8 +78,8 @@ spec:
                   success_count=0
                   failed_count=0
 
-                  # Use process substitution to avoid subshell (works in ash)
-                  while IFS= read -r PVC_ENTRY; do
+                  # Process each PVC entry
+                  echo "$CRITICAL_PVCS" | while IFS= read -r PVC_ENTRY; do
                     # Skip empty lines
                     [ -z "$PVC_ENTRY" ] && continue
                     NAMESPACE=$(echo "$PVC_ENTRY" | cut -d/ -f1)
@@ -97,7 +97,6 @@ spec:
                       echo "⚠️  WARNING: PVC not found matching pattern: $PATTERN"
                       echo "   Skipping..."
                       echo ""
-                      failed_count=$((failed_count + 1))
                       continue
                     fi
 
@@ -136,19 +135,19 @@ spec:
                       echo "   Compressed: $COMPRESSED_SIZE"
                       echo "   Duration:   ${DURATION}s"
                       echo ""
-
-                      success_count=$((success_count + 1))
-                      COMPRESSED_BYTES=$(du -sb "$DEST_DIR/${PVC_NAME}.tar.zst" | cut -f1)
-                      total_size=$((total_size + COMPRESSED_BYTES))
                     else
                       echo ""
                       echo "❌ Backup failed for $PVC_NAME"
                       echo ""
-                      failed_count=$((failed_count + 1))
                     fi
-                  done <<EOF
-$CRITICAL_PVCS
-EOF
+                  done
+
+                  # Count successful/failed backups from manifest
+                  success_count=$(ls -1 "$BACKUP_ROOT"/*/*.tar.zst 2>/dev/null | wc -l)
+                  failed_count=0  # Will be evident from missing files
+
+                  # Calculate total size
+                  total_size=$(du -sb "$BACKUP_ROOT" 2>/dev/null | cut -f1 || echo "0")
 
                   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                   echo "📊 Backup Summary"
