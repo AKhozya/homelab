@@ -104,29 +104,29 @@ spec:
                   $(du -sh $BACKUP_DIR)
                   EOF
 
-                  # Compress backup directory with zstd ultra
-                  echo "Compressing backup with zstd ultra..."
+                  # Compress backup directory with gzip
+                  echo "Compressing backup with gzip..."
                   cd /backup
-                  tar -cf - "$TIMESTAMP" | zstd --ultra -22 -T0 -q > "postgres_${TIMESTAMP}.tar.zst"
-                  COMPRESSED_SIZE=$(du -h "postgres_${TIMESTAMP}.tar.zst" | cut -f1)
-                  echo "✅ Compressed backup: postgres_${TIMESTAMP}.tar.zst ($COMPRESSED_SIZE)"
+                  tar -czf "postgres_${TIMESTAMP}.tar.gz" "$TIMESTAMP"
+                  COMPRESSED_SIZE=$(du -h "postgres_${TIMESTAMP}.tar.gz" | cut -f1)
+                  echo "✅ Compressed backup: postgres_${TIMESTAMP}.tar.gz ($COMPRESSED_SIZE)"
 
                   # Remove uncompressed directory
                   rm -rf "$TIMESTAMP"
 
                   # Keep only last 30 days of backups
                   echo "Cleaning old backups (keeping last 30 days)..."
-                  find /backup -name "postgres_*.tar.zst" -mtime +30 -delete
+                  find /backup -name "postgres_*.tar.gz" -mtime +30 -delete
 
                   # List current backups
                   echo ""
                   echo "=== Current Backups ==="
-                  ls -lh /backup/postgres_*.tar.zst 2>/dev/null || echo "No backups found"
+                  ls -lh /backup/postgres_*.tar.gz 2>/dev/null || echo "No backups found"
 
                   echo ""
                   echo "=== Backup Complete ==="
                   echo "Backup ID: $TIMESTAMP"
-                  echo "Location: /backup/postgres_${TIMESTAMP}.tar.zst"
+                  echo "Location: /backup/postgres_${TIMESTAMP}.tar.gz"
                   echo "Size: $COMPRESSED_SIZE"
               env:
                 - name: POSTGRES_PASSWORD

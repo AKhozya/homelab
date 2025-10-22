@@ -53,8 +53,8 @@ spec:
                   echo "=== PVC Backup Started ==="
                   echo "Timestamp: $(date)"
 
-                  # Install required tools
-                  apk add --no-cache rsync zstd pv
+                  # Install required tools (removed zstd)
+                  apk add --no-cache rsync pv
 
                   TIMESTAMP=$(date +%Y%m%d_%H%M%S)
                   BACKUP_ROOT="/backup/$TIMESTAMP"
@@ -113,20 +113,19 @@ spec:
 
                     echo "Source: $SOURCE_DIR"
                     echo "Size: $(du -sh "$SOURCE_DIR" | cut -f1)"
-                    echo "Compressing with zstd (ultra mode)..."
+                    echo "Compressing with gzip..."
                     echo ""
 
                     # Create compressed tar with progress
                     START_TIME=$(date +%s)
 
-                    tar -cf - -C "$SOURCE_DIR" . 2>/dev/null | \
-                      pv -s "$DATA_SIZE" -N "Creating archive" | \
-                      zstd --ultra -22 -T0 -q > "$DEST_DIR/${PVC_NAME}.tar.zst"
+                    tar -czf - -C "$SOURCE_DIR" . 2>/dev/null | \
+                      pv -s "$DATA_SIZE" -N "Creating archive" > "$DEST_DIR/${PVC_NAME}.tar.gz"
 
                     if [ $? -eq 0 ]; then
                       END_TIME=$(date +%s)
                       DURATION=$((END_TIME - START_TIME))
-                      COMPRESSED_SIZE=$(du -h "$DEST_DIR/${PVC_NAME}.tar.zst" | cut -f1)
+                      COMPRESSED_SIZE=$(du -h "$DEST_DIR/${PVC_NAME}.tar.gz" | cut -f1)
                       ORIGINAL_SIZE=$(du -sh "$SOURCE_DIR" | cut -f1)
 
                       echo ""
@@ -143,7 +142,7 @@ spec:
                   done
 
                   # Count successful/failed backups from manifest
-                  success_count=$(ls -1 "$BACKUP_ROOT"/*/*.tar.zst 2>/dev/null | wc -l)
+                  success_count=$(ls -1 "$BACKUP_ROOT"/*/*.tar.gz 2>/dev/null | wc -l)
                   failed_count=0  # Will be evident from missing files
 
                   # Calculate total size
@@ -162,10 +161,10 @@ spec:
                   PVC Backup Manifest
                   Timestamp: $(date)
                   Backup ID: $TIMESTAMP
-                  Compression: zstd --ultra -22
+                  Compression: gzip
 
                   Backed up PVCs:
-                  $(ls -lh $BACKUP_ROOT/*/*.tar.zst 2>/dev/null || echo "No backups created")
+                  $(ls -lh $BACKUP_ROOT/*/*.tar.gz 2>/dev/null || echo "No backups created")
 
                   Total compressed size:
                   $(du -sh $BACKUP_ROOT)
@@ -211,11 +210,11 @@ spec:
                   add: ["DAC_READ_SEARCH", "DAC_OVERRIDE"]
               resources:
                 requests:
-                  cpu: "2000m"
-                  memory: "8Gi"
+                  cpu: "500m"
+                  memory: "1Gi"
                 limits:
-                  cpu: "8000m"
-                  memory: "24Gi"
+                  cpu: "2000m"
+                  memory: "4Gi"
           volumes:
             - name: k8s-storage
               hostPath:

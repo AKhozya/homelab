@@ -42,36 +42,6 @@ spec:
                 capabilities:
                   drop: ["ALL"]
                   add: ["CHOWN", "DAC_OVERRIDE"]
-            - name: install-tools
-              image: alpine:3.22
-              command:
-                - sh
-                - -c
-                - |
-                  # Install zstd and copy to shared volume
-                  echo "Installing zstd..."
-                  apk add --no-cache zstd
-
-                  # Copy zstd binary and libraries to shared volume
-                  mkdir -p /tools/bin /tools/lib
-                  cp /usr/bin/zstd /tools/bin/
-
-                  # Copy zstd library dependencies
-                  cp /usr/lib/libzstd.so.1 /tools/lib/ 2>/dev/null || true
-                  cp /lib/ld-musl-*.so.1 /tools/lib/ 2>/dev/null || true
-
-                  chmod -R 755 /tools
-                  chown -R 1000:1000 /tools
-                  echo "✅ zstd installed to /tools"
-              volumeMounts:
-                - name: tools
-                  mountPath: /tools
-              securityContext:
-                runAsUser: 0  # Need root for apk and chown
-                allowPrivilegeEscalation: false
-                capabilities:
-                  drop: ["ALL"]
-                  add: ["CHOWN"]
           containers:
             - name: backup
               image: node:22-alpine
@@ -83,10 +53,6 @@ spec:
 
                   echo "=== CouchDB Backup Started ==="
                   echo "Timestamp: $(date)"
-
-                  # Add tools to PATH
-                  export PATH="/tools/bin:$PATH"
-                  export LD_LIBRARY_PATH="/tools/lib:$LD_LIBRARY_PATH"
 
                   # Install couchbackup
                   echo "Installing couchbackup..."
@@ -122,13 +88,9 @@ spec:
                       2>&1 | tee "$BACKUP_DIR/${DB}.log"
 
                     if [ $? -eq 0 ]; then
-                      # Compress the backup with zstd ultra
-                      zstd --ultra -22 -q "$BACKUP_DIR/${DB}.couchbackup"
-                      rm "$BACKUP_DIR/${DB}.couchbackup"
-
                       END_TIME=$(date +%s)
                       DURATION=$((END_TIME - START_TIME))
-                      SIZE=$(du -h "$BACKUP_DIR/${DB}.couchbackup.zst" | cut -f1)
+                      SIZE=$(du -h "$BACKUP_DIR/${DB}.couchbackup" | cut -f1)
 
                       echo "✅ $DB backup completed ($SIZE, ${DURATION}s)"
                     else
@@ -145,35 +107,35 @@ spec:
                   Host: couchdb-couchdb.couchdb.svc.cluster.local:5984
 
                   Backup Files:
-                  $(ls -lh $BACKUP_DIR/*.couchbackup.zst 2>/dev/null || echo "No backups created")
+                  $(ls -lh $BACKUP_DIR/*.couchbackup 2>/dev/null || echo "No backups created")
 
                   Total Size:
                   $(du -sh $BACKUP_DIR)
                   EOF
 
-                  # Compress backup directory with zstd ultra
-                  echo "Compressing backup archive with zstd ultra..."
+                  # Compress backup directory with gzip
+                  echo "Compressing backup archive with gzip..."
                   cd /backup
-                  tar -cf - "$TIMESTAMP" | zstd --ultra -22 -T0 -q > "couchdb_${TIMESTAMP}.tar.zst"
-                  COMPRESSED_SIZE=$(du -h "couchdb_${TIMESTAMP}.tar.zst" | cut -f1)
-                  echo "✅ Compressed backup: couchdb_${TIMESTAMP}.tar.zst ($COMPRESSED_SIZE)"
+                  tar -czf "couchdb_${TIMESTAMP}.tar.gz" "$TIMESTAMP"
+                  COMPRESSED_SIZE=$(du -h "couchdb_${TIMESTAMP}.tar.gz" | cut -f1)
+                  echo "✅ Compressed backup: couchdb_${TIMESTAMP}.tar.gz ($COMPRESSED_SIZE)"
 
                   # Remove uncompressed directory
                   rm -rf "$TIMESTAMP"
 
                   # Keep only last 30 days of backups
                   echo "Cleaning old backups (keeping last 30 days)..."
-                  find /backup -name "couchdb_*.tar.zst" -mtime +30 -delete
+                  find /backup -name "couchdb_*.tar.gz" -mtime +30 -delete
 
                   # List current backups
                   echo ""
                   echo "=== Current Backups ==="
-                  ls -lh /backup/couchdb_*.tar.zst 2>/dev/null || echo "No backups found"
+                  ls -lh /backup/couchdb_*.tar.gz 2>/dev/null || echo "No backups found"
 
                   echo ""
                   echo "=== Backup Complete ==="
                   echo "Backup ID: $TIMESTAMP"
-                  echo "Location: /backup/couchdb_${TIMESTAMP}.tar.zst"
+                  echo "Location: /backup/couchdb_${TIMESTAMP}.tar.gz"
                   echo "Size: $COMPRESSED_SIZE"
               env:
                 - name: COUCHDB_USER
@@ -189,9 +151,6 @@ spec:
               volumeMounts:
                 - name: backup-storage
                   mountPath: /backup
-                - name: tools
-                  mountPath: /tools
-                  readOnly: true
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:
@@ -205,8 +164,6 @@ spec:
                   cpu: "1000m"
                   memory: "1Gi"
           volumes:
-            - name: tools
-              emptyDir: {}
             - name: backup-storage
               hostPath:
                 path: /mnt/k8s-backup/couchdb
