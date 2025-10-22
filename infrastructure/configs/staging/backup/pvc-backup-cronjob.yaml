@@ -1,0 +1,225 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pvc-backup
+  namespace: kube-system
+spec:
+  schedule: "0 3 * * *"  # 3 AM daily (after PostgreSQL backups)
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid  # Don't run concurrent backups
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 86400  # Keep job for 24h for debugging
+      template:
+        metadata:
+          labels:
+            app: pvc-backup
+        spec:
+          restartPolicy: OnFailure
+          hostNetwork: true
+          securityContext:
+            runAsUser: 0  # Need root to access all PVC files
+            runAsGroup: 0
+            fsGroup: 0
+          initContainers:
+            - name: setup-permissions
+              image: alpine:3.22
+              command:
+                - sh
+                - -c
+                - |
+                  # Ensure backup directory exists with correct permissions
+                  mkdir -p /backup
+                  chmod 755 /backup
+                  echo "Backup directory ready"
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                  add: ["CHOWN", "DAC_OVERRIDE"]
+          containers:
+            - name: backup
+              image: alpine:3.22
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+
+                  echo "=== PVC Backup Started ==="
+                  echo "Timestamp: $(date)"
+
+                  # Install required tools
+                  apk add --no-cache rsync zstd pv
+
+                  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  BACKUP_ROOT="/backup/$TIMESTAMP"
+                  mkdir -p "$BACKUP_ROOT"
+
+                  echo "Backup location: $BACKUP_ROOT"
+                  echo ""
+
+                  # Define critical PVCs to backup
+                  # Format: namespace/pvc-name/source-pattern
+                  CRITICAL_PVCS=(
+                    "home-assistant/home-assistant-data-pvc/*home-assistant-data-pvc*"
+                    "immich/immich-library/*immich-library*"
+                    "paperless-ngx/paperless-data-pvc/*paperless-data-pvc*"
+                    "couchdb/database-storage-couchdb-couchdb-0/*couchdb*"
+                    "audiobookshelf/audiobookshelf-audiobooks/*audiobookshelf-audiobooks*"
+                    "audiobookshelf/audiobookshelf-podcasts/*audiobookshelf-podcasts*"
+                  )
+
+                  total_size=0
+                  success_count=0
+                  failed_count=0
+
+                  for PVC_ENTRY in "${CRITICAL_PVCS[@]}"; do
+                    NAMESPACE=$(echo "$PVC_ENTRY" | cut -d/ -f1)
+                    PVC_NAME=$(echo "$PVC_ENTRY" | cut -d/ -f2)
+                    PATTERN=$(echo "$PVC_ENTRY" | cut -d/ -f3)
+
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    echo "📦 Backing up: $NAMESPACE/$PVC_NAME"
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+                    # Find matching PVC directory
+                    SOURCE_DIR=$(find /mnt/k8s-storage -maxdepth 1 -type d -name "$PATTERN" | head -1)
+
+                    if [ -z "$SOURCE_DIR" ]; then
+                      echo "⚠️  WARNING: PVC not found matching pattern: $PATTERN"
+                      echo "   Skipping..."
+                      echo ""
+                      ((failed_count++))
+                      continue
+                    fi
+
+                    # Check if source has data
+                    DATA_SIZE=$(du -sb "$SOURCE_DIR" 2>/dev/null | cut -f1 || echo "0")
+                    if [ "$DATA_SIZE" -eq 0 ]; then
+                      echo "ℹ️  INFO: PVC is empty, skipping"
+                      echo ""
+                      continue
+                    fi
+
+                    DEST_DIR="$BACKUP_ROOT/$NAMESPACE"
+                    mkdir -p "$DEST_DIR"
+
+                    echo "Source: $SOURCE_DIR"
+                    echo "Size: $(du -sh "$SOURCE_DIR" | cut -f1)"
+                    echo "Compressing with zstd (ultra mode)..."
+                    echo ""
+
+                    # Create compressed tar with progress
+                    START_TIME=$(date +%s)
+
+                    tar -cf - -C "$SOURCE_DIR" . 2>/dev/null | \
+                      pv -s "$DATA_SIZE" -N "Creating archive" | \
+                      zstd --ultra -22 -T0 -q > "$DEST_DIR/${PVC_NAME}.tar.zst"
+
+                    if [ $? -eq 0 ]; then
+                      END_TIME=$(date +%s)
+                      DURATION=$((END_TIME - START_TIME))
+                      COMPRESSED_SIZE=$(du -h "$DEST_DIR/${PVC_NAME}.tar.zst" | cut -f1)
+                      ORIGINAL_SIZE=$(du -sh "$SOURCE_DIR" | cut -f1)
+
+                      echo ""
+                      echo "✅ Backup completed successfully"
+                      echo "   Original:   $ORIGINAL_SIZE"
+                      echo "   Compressed: $COMPRESSED_SIZE"
+                      echo "   Duration:   ${DURATION}s"
+                      echo ""
+
+                      ((success_count++))
+                      COMPRESSED_BYTES=$(du -sb "$DEST_DIR/${PVC_NAME}.tar.zst" | cut -f1)
+                      total_size=$((total_size + COMPRESSED_BYTES))
+                    else
+                      echo ""
+                      echo "❌ Backup failed for $PVC_NAME"
+                      echo ""
+                      ((failed_count++))
+                    fi
+                  done
+
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                  echo "📊 Backup Summary"
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                  echo "✅ Successful: $success_count"
+                  echo "❌ Failed:     $failed_count"
+                  echo "📦 Total size: $(echo $total_size | awk '{print $1/1024/1024/1024 " GB"}')"
+                  echo ""
+
+                  # Create manifest
+                  cat > "$BACKUP_ROOT/MANIFEST.txt" <<EOF
+                  PVC Backup Manifest
+                  Timestamp: $(date)
+                  Backup ID: $TIMESTAMP
+                  Compression: zstd --ultra -22
+
+                  Backed up PVCs:
+                  $(ls -lh $BACKUP_ROOT/*/*.tar.zst 2>/dev/null || echo "No backups created")
+
+                  Total compressed size:
+                  $(du -sh $BACKUP_ROOT)
+
+                  Summary:
+                  - Successful: $success_count
+                  - Failed:     $failed_count
+                  EOF
+
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                  echo "🧹 Cleanup: Removing backups older than 3 days"
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+                  # Keep only last 3 days
+                  find /backup -maxdepth 1 -type d -name "20*" -mtime +3 -exec echo "Deleting: {}" \; -exec rm -rf {} \;
+
+                  echo ""
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                  echo "📁 Current Backups"
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                  ls -lh /backup/ | grep "^d" || echo "No backups found"
+                  echo ""
+                  du -sh /backup/* 2>/dev/null | tail -5 || echo "No backup sizes to show"
+
+                  echo ""
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                  echo "✅ PVC Backup Complete"
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                  echo "Backup ID: $TIMESTAMP"
+                  echo "Location: /backup/$TIMESTAMP"
+                  echo "Next backup: Tomorrow at 3 AM"
+                  echo ""
+              volumeMounts:
+                - name: k8s-storage
+                  mountPath: /mnt/k8s-storage
+                  readOnly: true
+                - name: backup-storage
+                  mountPath: /backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                  add: ["DAC_READ_SEARCH", "DAC_OVERRIDE"]
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "2000m"
+                  memory: "2Gi"
+          volumes:
+            - name: k8s-storage
+              hostPath:
+                path: /mnt/k8s-storage
+                type: Directory
+            - name: backup-storage
+              hostPath:
+                path: /mnt/k8s-backup/pvc
+                type: DirectoryOrCreate
+          nodeSelector:
+            kubernetes.io/hostname: worker-node  # Run on worker node with storage
