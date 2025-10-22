@@ -211,11 +211,11 @@ spec:
                   add: ["DAC_READ_SEARCH", "DAC_OVERRIDE"]
               resources:
                 requests:
-                  cpu: "500m"
-                  memory: "4Gi"
-                limits:
                   cpu: "2000m"
-                  memory: "16Gi"
+                  memory: "8Gi"
+                limits:
+                  cpu: "8000m"
+                  memory: "24Gi"
           volumes:
             - name: k8s-storage
               hostPath:
