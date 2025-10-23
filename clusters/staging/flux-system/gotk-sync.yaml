@@ -21,7 +21,7 @@ metadata:
 spec:
   interval: 5m0s
   retryInterval: 1m0s
-  timeout: 2m0s
+  timeout: 5m0s
   path: ./clusters/staging
   prune: true
   wait: true
