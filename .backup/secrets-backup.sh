@@ -71,6 +71,7 @@ kubectl get secret immich-redis-password -n immich -o json > "${BACKUP_DIR}/secr
 
 # Home Assistant
 kubectl get secret home-assistant-admin-credentials -n home-assistant -o json > "${BACKUP_DIR}/secrets/home-assistant-admin-credentials.json"
+kubectl get secret home-assistant-secrets -n home-assistant -o json > "${BACKUP_DIR}/secrets/home-assistant-secrets.json"
 
 # N8N
 kubectl get secret n8n-env -n n8n -o json > "${BACKUP_DIR}/secrets/n8n-env.json"
@@ -135,7 +136,7 @@ kubectl get secret grafana-admin-secret -n monitoring -o jsonpath='{.data.admin-
 kubectl get secret alertmanager-telegram -n monitoring -o jsonpath='{.data.bot_token}' | base64 -d > "${BACKUP_DIR}/secrets/telegram-bot-token.txt" 2>/dev/null
 
 # Redis password
-kubectl get secret redis-passwords -n databases -o jsonpath='{.data.immich}' | base64 -d > "${BACKUP_DIR}/secrets/redis-password-immich.txt" 2>/dev/null
+kubectl get secret redis-passwords -n databases -o jsonpath='{.data.immich-password}' | base64 -d > "${BACKUP_DIR}/secrets/redis-password-immich.txt" 2>/dev/null
 
 # =============================================================================
 # Summary
