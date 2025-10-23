@@ -73,6 +73,14 @@ spec:
                   audiobookshelf/audiobookshelf-podcasts/*audiobookshelf-podcasts*
                   "
 
+                  # PVCs containing already-compressed media files (photos/videos/audio)
+                  # Skip compression for these - saves 25+ minutes with 0.5% space benefit
+                  NO_COMPRESS_PVCS="
+                  immich-library
+                  audiobookshelf-audiobooks
+                  audiobookshelf-podcasts
+                  "
+
                   total_size=0
                   success_count=0
                   failed_count=0
@@ -113,32 +121,68 @@ spec:
 
                     echo "Source: $SOURCE_DIR"
                     echo "Size: $(du -sh "$SOURCE_DIR" | cut -f1)"
-                    echo "Compressing with gzip..."
-                    echo ""
 
-                    # Create compressed tar (removed pv to simplify pipeline)
+                    # Check if this PVC should skip compression
+                    SKIP_COMPRESSION=false
+                    for NO_COMPRESS_PVC in $NO_COMPRESS_PVCS; do
+                      if echo "$PVC_NAME" | grep -q "$NO_COMPRESS_PVC"; then
+                        SKIP_COMPRESSION=true
+                        break
+                      fi
+                    done
+
                     START_TIME=$(date +%s)
 
-                    if tar -czf "$DEST_DIR/${PVC_NAME}.tar.gz" -C "$SOURCE_DIR" . ; then
-                      END_TIME=$(date +%s)
-                      DURATION=$((END_TIME - START_TIME))
-                      COMPRESSED_SIZE=$(du -h "$DEST_DIR/${PVC_NAME}.tar.gz" | cut -f1)
-                      ORIGINAL_SIZE=$(du -sh "$SOURCE_DIR" | cut -f1)
-
+                    if [ "$SKIP_COMPRESSION" = "true" ]; then
+                      echo "Creating uncompressed archive (media files)..."
                       echo ""
-                      echo "✅ Backup completed successfully"
-                      echo "   Original:   $ORIGINAL_SIZE"
-                      echo "   Compressed: $COMPRESSED_SIZE"
-                      echo "   Duration:   ${DURATION}s"
-                      echo ""
+                      BACKUP_FILE="$DEST_DIR/${PVC_NAME}.tar"
 
-                      success_count=$((success_count + 1))
+                      if tar -cf "$BACKUP_FILE" -C "$SOURCE_DIR" . ; then
+                        END_TIME=$(date +%s)
+                        DURATION=$((END_TIME - START_TIME))
+                        BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+                        ORIGINAL_SIZE=$(du -sh "$SOURCE_DIR" | cut -f1)
+
+                        echo ""
+                        echo "✅ Backup completed successfully"
+                        echo "   Size:     $BACKUP_SIZE"
+                        echo "   Duration: ${DURATION}s"
+                        echo "   Note:     No compression (media files)"
+                        echo ""
+
+                        success_count=$((success_count + 1))
+                      else
+                        echo ""
+                        echo "❌ Backup failed for $PVC_NAME"
+                        echo ""
+                        failed_count=$((failed_count + 1))
+                      fi
                     else
+                      echo "Compressing with gzip..."
                       echo ""
-                      echo "❌ Backup failed for $PVC_NAME"
-                      echo ""
+                      BACKUP_FILE="$DEST_DIR/${PVC_NAME}.tar.gz"
 
-                      failed_count=$((failed_count + 1))
+                      if tar -czf "$BACKUP_FILE" -C "$SOURCE_DIR" . ; then
+                        END_TIME=$(date +%s)
+                        DURATION=$((END_TIME - START_TIME))
+                        COMPRESSED_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+                        ORIGINAL_SIZE=$(du -sh "$SOURCE_DIR" | cut -f1)
+
+                        echo ""
+                        echo "✅ Backup completed successfully"
+                        echo "   Original:   $ORIGINAL_SIZE"
+                        echo "   Compressed: $COMPRESSED_SIZE"
+                        echo "   Duration:   ${DURATION}s"
+                        echo ""
+
+                        success_count=$((success_count + 1))
+                      else
+                        echo ""
+                        echo "❌ Backup failed for $PVC_NAME"
+                        echo ""
+                        failed_count=$((failed_count + 1))
+                      fi
                     fi
                   done
 
@@ -158,12 +202,12 @@ spec:
                   PVC Backup Manifest
                   Timestamp: $(date)
                   Backup ID: $TIMESTAMP
-                  Compression: gzip
+                  Compression: Mixed (gzip for text, none for media)
 
                   Backed up PVCs:
-                  $(ls -lh $BACKUP_ROOT/*/*.tar.gz 2>/dev/null || echo "No backups created")
+                  $(ls -lh $BACKUP_ROOT/*/*.tar* 2>/dev/null || echo "No backups created")
 
-                  Total compressed size:
+                  Total size:
                   $(du -sh $BACKUP_ROOT)
 
                   Summary:
