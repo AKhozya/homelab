@@ -55,9 +55,9 @@ Files are saved to `.backup/secrets/` (gitignored)
 
 **Your cluster has automated daily backups configured:**
 
-- **PostgreSQL databases:** Daily at 2:00 AM → `/mnt/k8s-backup/postgres/` (30 days retention)
-- **CouchDB databases:** Daily at 2:30 AM → `/mnt/k8s-backup/couchdb/` (30 days retention)
-- **Critical PVCs:** Daily at 3:00 AM → `/mnt/k8s-backup/pvc/` (3 days retention)
+- **PostgreSQL databases:** Daily at 2:00 AM → `/mnt/k8s-storage/backups/postgres/` (30 days retention)
+- **CouchDB databases:** Daily at 2:30 AM → `/mnt/k8s-storage/backups/couchdb/` (30 days retention)
+- **Critical PVCs:** Daily at 3:00 AM → `/mnt/k8s-storage/backups/pvc/` (3 days retention)
 
 **Backup details in:** `docs/BACKUP_STRATEGY.md` and `docs/BACKUP_IMPLEMENTATION.md`
 
@@ -161,7 +161,7 @@ kubectl get helmrelease -A
 **PostgreSQL restore:**
 ```bash
 # Find latest backup
-LATEST_BACKUP=$(ls -t /mnt/k8s-backup/postgres/postgres_*.tar.gz | head -1)
+LATEST_BACKUP=$(ls -t /mnt/k8s-storage/backups/postgres/postgres_*.tar.gz | head -1)
 
 # Extract
 tar -xzf $LATEST_BACKUP -C /tmp
@@ -177,7 +177,7 @@ done
 **PVC restore:**
 ```bash
 # Find latest PVC backup
-LATEST_PVC=$(ls -td /mnt/k8s-backup/pvc/* | head -1)
+LATEST_PVC=$(ls -td /mnt/k8s-storage/backups/pvc/* | head -1)
 
 # For each critical application (stop, restore, start)
 kubectl scale deployment/home-assistant -n home-assistant --replicas=0
@@ -191,7 +191,7 @@ kubectl scale deployment/home-assistant -n home-assistant --replicas=1
 **CouchDB restore:**
 ```bash
 # Find latest backup
-LATEST_COUCHDB=$(ls -t /mnt/k8s-backup/couchdb/couchdb_*.tar.gz | head -1)
+LATEST_COUCHDB=$(ls -t /mnt/k8s-storage/backups/couchdb/couchdb_*.tar.gz | head -1)
 
 # Extract and restore
 tar -xzf $LATEST_COUCHDB -C /tmp
@@ -243,7 +243,7 @@ kubectl get ingress -A
 - ✅ **Infrastructure secrets** (Cloudflare tokens, tunnel credentials)
 - ✅ **Monitoring credentials** (Grafana admin, Telegram bot)
 
-### Via Automated Backups (restore from `/mnt/k8s-backup/`)
+### Via Automated Backups (restore from `/mnt/k8s-storage/backups/`)
 - ✅ **PostgreSQL databases** - all 10 databases backed up daily (authentik, immich, paperless, etc.)
 - ✅ **CouchDB databases** - obsidian-personal backed up daily
 - ✅ **Critical PVCs** - Home Assistant, Immich library, Paperless, CouchDB storage, Audiobookshelf

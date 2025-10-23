@@ -42,15 +42,15 @@ echo "1.5️⃣  Checking automated backup availability..."
 if command -v kubectl &>/dev/null && kubectl cluster-info &>/dev/null 2>&1; then
     # Check for PostgreSQL backups
     POSTGRES_BACKUPS=$(kubectl debug node/worker-node --quiet --image=alpine:3.22 -- \
-        sh -c "ls -1 /host/mnt/k8s-backup/postgres/postgres_*.tar.gz 2>/dev/null | wc -l" 2>/dev/null || echo "0")
+        sh -c "ls -1 /host/mnt/k8s-storage/backups/postgres/postgres_*.tar.gz 2>/dev/null | wc -l" 2>/dev/null || echo "0")
 
     # Check for CouchDB backups
     COUCHDB_BACKUPS=$(kubectl debug node/worker-node --quiet --image=alpine:3.22 -- \
-        sh -c "ls -1 /host/mnt/k8s-backup/couchdb/couchdb_*.tar.gz 2>/dev/null | wc -l" 2>/dev/null || echo "0")
+        sh -c "ls -1 /host/mnt/k8s-storage/backups/couchdb/couchdb_*.tar.gz 2>/dev/null | wc -l" 2>/dev/null || echo "0")
 
     # Check for PVC backups
     PVC_BACKUPS=$(kubectl debug node/worker-node --quiet --image=alpine:3.22 -- \
-        sh -c "ls -1d /host/mnt/k8s-backup/pvc/20* 2>/dev/null | wc -l" 2>/dev/null || echo "0")
+        sh -c "ls -1d /host/mnt/k8s-storage/backups/pvc/20* 2>/dev/null | wc -l" 2>/dev/null || echo "0")
 
     echo "   PostgreSQL backups found: $POSTGRES_BACKUPS"
     echo "   CouchDB backups found: $COUCHDB_BACKUPS"
