@@ -62,8 +62,12 @@ spec:
               mountPath: /tmp
             - name: config-dir
               mountPath: /configs
+            - name: logs-dir
+              mountPath: /logs
       volumes:
         - name: temp-dir
           emptyDir: {}
         - name: config-dir
+          emptyDir: {}
+        - name: logs-dir
           emptyDir: {}
