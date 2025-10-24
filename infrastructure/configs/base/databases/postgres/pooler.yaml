@@ -1,0 +1,38 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: main-postgres-rw-pooler
+  namespace: databases
+spec:
+  cluster:
+    name: main-postgres
+  instances: 3  # Match PostgreSQL HA instances
+  type: rw      # Read-write pooler
+  pgbouncer:
+    poolMode: transaction  # Transaction pooling (works with most apps)
+    parameters:
+      max_client_conn: "75"       # Max client connections (7 apps × ~10 conn + buffer)
+      default_pool_size: "20"     # Connections per user/db to PostgreSQL
+      reserve_pool_size: "5"      # Reserved connections for emergencies
+      max_db_connections: "0"     # Unlimited per-database (use default_pool_size)
+      max_user_connections: "0"   # Unlimited per-user (use default_pool_size)
+      server_idle_timeout: "300"  # Close idle server connections after 5min (faster cleanup)
+      server_lifetime: "3600"     # Recycle connections every hour
+      server_connect_timeout: "15" # Connection timeout to PostgreSQL
+      query_timeout: "0"          # No query timeout (apps handle this)
+      idle_transaction_timeout: "600" # Kill idle transactions after 10min
+  template:
+    metadata:
+      labels:
+        app: pgbouncer
+        cluster: main-postgres
+    spec:
+      containers:
+        - name: pgbouncer
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
