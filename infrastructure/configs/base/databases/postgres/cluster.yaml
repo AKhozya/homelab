@@ -40,6 +40,12 @@ spec:
         superuser: true
         passwordSecret:
           name: postgres-admin-user
+      - name: cnpg_pooler_pgbouncer
+        ensure: present
+        comment: PgBouncer pooler user for connection pooling
+        login: true
+        passwordSecret:
+          name: main-postgres-pooler
       - name: linkding
         ensure: present
         comment: Linkding application user
