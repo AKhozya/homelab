@@ -222,14 +222,54 @@
 
 ---
 
-**Last Updated**: 2025-10-22 19:30 UTC
+**Last Updated**: 2025-10-23 22:45 UTC
 **Next Review**: 2025-11-18
 
 ---
 
 ## 📝 CHANGELOG
 
-### 2025-10-22 (Current)
+### 2025-10-23
+- ✅ **Backup Infrastructure Complete**: Comprehensive backup system operational
+- 🎯 **Impact**: Complete disaster recovery capability with automated daily backups
+- 🔧 **Technical Implementation**:
+  - **PostgreSQL Backups**: Daily 2 AM, 30-day retention, tar.gz, `/mnt/k8s-storage/backups/postgres/`
+    - Covers all 10 databases: Authentik, Immich, Paperless, Grafana, Linkding, Mealie, Wallabag, Audiobookshelf, N8N, App
+    - Method: pg_dump via CronJob
+  - **CouchDB Backups**: Daily 2:30 AM, 30-day retention, tar.gz, `/mnt/k8s-storage/backups/couchdb/`
+    - Covers obsidian-personal database
+    - Method: couchbackup via CronJob
+  - **PVC Backups**: Daily 3 AM, 3-day retention, mixed compression, `/mnt/k8s-storage/backups/pvc/`
+    - Covers: Home Assistant configs, Immich library (60GB), Paperless documents, Audiobookshelf
+    - Optimization: Skip compression on media files (saves 25 min, 0.5% space trade-off)
+    - Method: tar with selective compression (gzip for text, uncompressed for media)
+  - **Disaster Recovery Scripts**: Complete automation in `.backup/` directory
+    - `secrets-backup.sh` - Extracts all 50+ Kubernetes secrets (SOPS key, OIDC configs, credentials)
+    - `secrets-restore.sh` - Restores all secrets to cluster
+    - `disaster-recovery.sh` - Full automated cluster recovery with backup verification
+- 📋 **Storage Migration**: Moved from 48.9GB root partition to 4.2TB LVM storage (99% space increase)
+  - All backup paths updated: `/mnt/k8s-backup/` → `/mnt/k8s-storage/backups/`
+- 📚 **Comprehensive Documentation**: 3 detailed documents created
+  - `docs/BACKUP_STRATEGY.md` - Overall strategy, retention policies, disaster recovery procedures
+  - `docs/BACKUP_IMPLEMENTATION.md` - Technical details, resource optimization analysis
+  - `docs/BACKUP_COMPRESSION_ANALYSIS.md` - Compression ratio analysis and trade-offs
+  - `.backup/README.md` - Complete recovery guide with step-by-step procedures
+- ⚡ **Resource Optimization**: 32Mi memory request, 64Mi limit (down from 512Mi)
+  - Actual usage: ~50Mi peak during backup operations
+  - Selective compression reduces backup time from ~25 min to ~2-3 min
+- 🔒 **Security Coverage**: All critical secrets backed up
+  - SOPS age key (master key for all encrypted secrets)
+  - All OIDC integration secrets (8 apps)
+  - Database credentials (PostgreSQL, Redis, CouchDB)
+  - Infrastructure secrets (Cloudflare API, tunnel credentials)
+  - Application credentials (50+ secrets total)
+- 💪 **Disaster Recovery Capability**: Complete cluster recovery from scratch
+  - Automated secret restoration before Flux bootstrap
+  - Database and PVC restoration procedures documented
+  - Verified backup paths and disaster recovery scripts
+- Commits: 470972a, 4f400ae, 2ba824d, 9464f7a, 74f448a, bff6c87
+
+### 2025-10-22
 - ✅ **Home Assistant OIDC Integration**: Integrated Home Assistant with Authentik via hass-oidc-auth
 - 🎯 **Impact**: 7th app integrated with SSO (54% coverage), smart home centrally authenticated
 - 🔧 **Technical Details**:
