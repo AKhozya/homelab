@@ -24,7 +24,6 @@ spec:
             - --source=ingress
             - --domain-filter=h0melab.work
             - --provider=cloudflare
-            - --cloudflare-proxied=false
             - --policy=sync
             - --txt-owner-id=homelab-staging
             - --txt-prefix=_external-dns.
