@@ -138,13 +138,15 @@
 
 ---
 
-## 📱 CURRENT APPS (10 total)
+## 📱 CURRENT APPS (15 total)
 
 | App | Status | Security | OIDC/SSO | Notes |
 |-----|--------|----------|----------|-------|
 | **Homepage** | ✅ Running | ✅ NetworkPolicy | - | **Dashboard - Single pane of glass** ⭐ |
 | **Uptime Kuma** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Uptime monitoring** - Automated setup ⭐ |
 | **Authentik** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ Provider | **SSO Platform** - PostgreSQL + Redis ⭐ |
+| **Stirling PDF** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | **PDF toolkit** - Cloudflare Tunnel + internal access ⭐ |
+| **HomeHub** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Family dashboard** - Local only, no auth ⭐ |
 | **Grafana** | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Monitoring dashboard, Authentik SSO ⭐ |
 | **Immich** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Photo management, Web UI config ⭐ |
 | **Paperless-NGX** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Document management, env var config ⭐ |
@@ -156,8 +158,8 @@
 | Audiobookshelf | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Web UI config ⭐ |
 | Obsidian | ✅ Running | ✅ NetworkPolicy | - | CouchDB sync |
 
-**Security Coverage: 13/13 apps (100%)** ✅
-**SSO Coverage: 7/13 apps (54%)** ⭐ (1 app requires Enterprise plan)
+**Security Coverage: 15/15 apps (100%)** ✅
+**SSO Coverage: 9/15 apps (60%)** ⭐ (1 app requires Enterprise plan, 1 app local-only)
 
 ---
 
@@ -357,6 +359,32 @@ ingress:
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-10-25
+- ✅ **New Applications Deployed**: Added Stirling PDF and HomeHub (apps #14 and #15)
+- 🎯 **Impact**: PDF toolkit with OIDC + Family dashboard for local network
+- 🔧 **Technical Details**:
+  - **Stirling PDF**: Self-hosted PDF manipulation toolkit
+    - 50+ PDF operations (merge, split, compress, OCR, etc.)
+    - OIDC authentication via Authentik (env var config)
+    - Dual access: Cloudflare Tunnel (external) + Traefik Ingress (internal)
+    - NetworkPolicy: cloudflare-tunnel + traefik + uptime-kuma
+    - Stateless design: No database, emptyDir volumes for logs/temp/customFiles
+    - Domain: stirling.h0melab.work
+  - **HomeHub**: Family dashboard for home network
+    - Features: Shopping list, notes, chore tracker, expense tracker, calendar, media downloader
+    - No authentication (designed for trusted home network)
+    - ConfigMap-based configuration with all features enabled
+    - 5Gi PVC for persistent data (data, uploads, media, pdfs subdirectories)
+    - NetworkPolicy: STRICT - traefik only, NO cloudflare-tunnel access
+    - Domain: hh.h0melab.work (local access only)
+  - **Storage Strategy**:
+    - Stirling PDF: emptyDir for ephemeral data (logs, temp, customFiles)
+    - HomeHub: PVC with subPath mounts for persistent user data
+- 📋 **App Count**: 13 → 15 applications
+- 🔒 **Security**: 100% NetworkPolicy coverage maintained (15/15 apps)
+- 💪 **SSO**: 60% OIDC coverage (9/15 apps)
+- Commits: edabfeb, 12e12f0, ee66c7e, bcfc6f7, 74b8ede, e853474
 
 ### 2025-10-24
 - ✅ **Cloudflare Tunnel Expansion**: Added Authentik to Cloudflare Tunnel (9th service)
