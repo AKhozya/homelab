@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homehub-config
+  namespace: homehub
+data:
+  config.yml: |
+    instance_name: "Family Hub"
+    password: ""  # No password - trusted home network
+    admin_name: "Admin"
+
+    # Features - all enabled
+    features:
+      shopping_list: true
+      media_downloader: true
+      pdf_compressor: true
+      qr_generator: true
+      notes: true
+      shared_cloud: true
+      chore_tracker: true
+      recipes: true
+      expense_tracker: true
+      expiry_tracker: true
+      url_shortener: true
+      calendar_reminders: true
+      whos_home: true
+
+    # Family members
+    family_members:
+      - "Family"
+
+    # Reminders configuration
+    reminders:
+      time_format: "24h"
+      calendar_start_day: "Monday"
+      categories:
+        - label: "Personal"
+          color: "#3B82F6"
+        - label: "Work"
+          color: "#EF4444"
+        - label: "Family"
+          color: "#10B981"
+        - label: "Other"
+          color: "#6B7280"
+
+    # Theme customization
+    theme:
+      light_mode:
+        primary_accent: "#3B82F6"
+        secondary_accent: "#10B981"
+        background_color: "#F3F4F6"
+        card_color: "#FFFFFF"
+        text_color: "#1F2937"
+        sidebar:
+          background: "#FFFFFF"
+          text: "#1F2937"
+          links: "#3B82F6"
+          border: "#E5E7EB"
