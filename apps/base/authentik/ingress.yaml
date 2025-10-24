@@ -5,6 +5,8 @@ metadata:
   namespace: authentik
   annotations:
     traefik.ingress.kubernetes.io/router.middlewares: authentik-redirect-https@kubernetescrd
+    # Exclude from External-DNS: hostname managed by Cloudflare Tunnel
+    external-dns.alpha.kubernetes.io/exclude: "true"
 spec:
   ingressClassName: traefik
   tls:

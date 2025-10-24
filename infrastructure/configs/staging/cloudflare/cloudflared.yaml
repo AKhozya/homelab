@@ -142,6 +142,15 @@ data:
         noTLSVerify: false
         disableChunkedEncoding: false
 
+    # Authentik SSO (required for OIDC authentication from external access)
+    - hostname: authentik.h0melab.work
+      service: http://authentik-server.authentik.svc.cluster.local:9000
+      originRequest:
+        http2Origin: true
+        connectTimeout: 10s
+        noTLSVerify: false
+        disableChunkedEncoding: false
+
     # Catch-all
     - service: http_status:404
 ---
