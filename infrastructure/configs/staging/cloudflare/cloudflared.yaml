@@ -58,6 +58,10 @@ kind: ConfigMap
 metadata:
   name: cloudflared
   namespace: cloudflare-tunnel
+  annotations:
+    # IMPORTANT: Ingress routes are managed via Cloudflare Dashboard (Zero Trust > Tunnels)
+    # or Cloudflare API - NOT from this ConfigMap. This file only configures local settings
+    # like tunnel name, credentials path, and metrics endpoint.
 data:
   config.yaml: |
     tunnel: homelab
@@ -65,94 +69,7 @@ data:
 
     metrics: 0.0.0.0:2000
     no-autoupdate: true
-
-    # Connection settings for security and performance
     grace-period: 30s
-
-    ingress:
-    # CouchDB
-    - hostname: couchdb.h0melab.work
-      service: http://couchdb-svc-couchdb.couchdb.svc.cluster.local:5984
-      originRequest:
-        http2Origin: true
-        connectTimeout: 10s
-        noTLSVerify: false
-        disableChunkedEncoding: false
-
-    # Audiobookshelf
-    - hostname: audiobooks.h0melab.work
-      service: http://audiobookshelf.audiobookshelf.svc.cluster.local:3005
-      originRequest:
-        http2Origin: true
-        connectTimeout: 10s
-        noTLSVerify: false
-        disableChunkedEncoding: false
-
-    # n8n
-    - hostname: n8n.h0melab.work
-      service: http://n8n.n8n.svc.cluster.local:5678
-      originRequest:
-        http2Origin: true
-        connectTimeout: 10s
-        noTLSVerify: false
-        disableChunkedEncoding: false
-
-    # Linkding
-    - hostname: linkding.h0melab.work
-      service: http://linkding.linkding.svc.cluster.local:9090
-      originRequest:
-        http2Origin: true
-        connectTimeout: 10s
-        noTLSVerify: false
-        disableChunkedEncoding: false
-
-    # Mealie
-    - hostname: mealie.h0melab.work
-      service: http://mealie.mealie.svc.cluster.local:9000
-      originRequest:
-        http2Origin: true
-        connectTimeout: 10s
-        noTLSVerify: false
-        disableChunkedEncoding: false
-
-    # Wallabag
-    - hostname: wallabag.h0melab.work
-      service: http://wallabag.wallabag.svc.cluster.local:80
-      originRequest:
-        http2Origin: true
-        connectTimeout: 10s
-        noTLSVerify: false
-        disableChunkedEncoding: false
-
-    # Immich
-    - hostname: immich.h0melab.work
-      service: http://immich-server.immich.svc.cluster.local:8080
-      originRequest:
-        http2Origin: true
-        connectTimeout: 10s
-        noTLSVerify: false
-        disableChunkedEncoding: false
-
-    # Paperless-NGX
-    - hostname: paperless.h0melab.work
-      service: http://paperless-ngx.paperless-ngx.svc.cluster.local:8000
-      originRequest:
-        http2Origin: true
-        connectTimeout: 10s
-        noTLSVerify: false
-        disableChunkedEncoding: false
-
-    # Authentik SSO (required for OIDC authentication from external access)
-    - hostname: authentik.h0melab.work
-      service: http://authentik-server.authentik.svc.cluster.local:9000
-      originRequest:
-        http2Origin: true
-        connectTimeout: 10s
-        noTLSVerify: false
-        disableChunkedEncoding: false
-
-    # Catch-all
-    - service: http_status:404
 ---
 apiVersion: v1
 kind: Service
