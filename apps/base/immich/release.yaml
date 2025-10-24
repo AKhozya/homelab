@@ -55,8 +55,8 @@ spec:
         containers:
           main:
             env:
-              # Database configuration
-              DB_HOSTNAME: main-postgres-rw.databases.svc.cluster.local
+              # Database configuration (using PgBouncer pooler for runtime connections)
+              DB_HOSTNAME: main-postgres-rw-pooler.databases.svc.cluster.local
               DB_PORT: "5432"
               DB_DATABASE_NAME: immich
               DB_USERNAME: immich

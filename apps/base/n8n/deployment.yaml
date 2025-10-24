@@ -26,6 +26,10 @@ spec:
           envFrom:
             - secretRef:
                 name: n8n-env
+          env:
+            # Override DB_HOST for init check - use direct connection for consistency
+            - name: DB_POSTGRESDB_HOST
+              value: main-postgres-rw.databases.svc.cluster.local
           command:
             - sh
             - -c

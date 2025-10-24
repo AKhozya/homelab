@@ -25,6 +25,10 @@ spec:
           envFrom:
             - secretRef:
                 name: mealie-env
+          env:
+            # Override DB_HOST for init check - use direct connection for consistency
+            - name: POSTGRES_SERVER
+              value: main-postgres-rw.databases.svc.cluster.local
           command:
             - sh
             - -c

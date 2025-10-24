@@ -25,6 +25,10 @@ spec:
           envFrom:
             - secretRef:
                 name: linkding-container-env
+          env:
+            # Override DB_HOST for init check - use direct connection for consistency
+            - name: LD_DB_HOST
+              value: main-postgres-rw.databases.svc.cluster.local
           command:
             - sh
             - -c
@@ -64,6 +68,10 @@ spec:
           envFrom:
             - secretRef:
                 name: linkding-container-env
+          env:
+            # Override DB_HOST for migrations - must use direct connection, not pooler
+            - name: LD_DB_HOST
+              value: main-postgres-rw.databases.svc.cluster.local
           command:
             - sh
             - -c

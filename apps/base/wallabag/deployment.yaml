@@ -21,6 +21,10 @@ spec:
           envFrom:
             - secretRef:
                 name: wallabag-env
+          env:
+            # Override DB_HOST for init check - use direct connection for consistency
+            - name: SYMFONY__ENV__DATABASE_HOST
+              value: main-postgres-rw.databases.svc.cluster.local
           command:
             - sh
             - -c
@@ -60,6 +64,10 @@ spec:
           envFrom:
             - secretRef:
                 name: wallabag-env
+          env:
+            # Override DB_HOST for installation/migrations - must use direct connection, not pooler
+            - name: SYMFONY__ENV__DATABASE_HOST
+              value: main-postgres-rw.databases.svc.cluster.local
           command:
             - sh
             - -c
