@@ -8,6 +8,11 @@
 # Set explicit node name for the worker
 node-name: worker-node
 
+# Node Labels
+# Enable worker node for ServiceLB (LoadBalancer) traffic
+node-label:
+  - "svccontroller.k3s.cattle.io/enablelb=true"
+
 # Note: The K3s server URL and token are typically provided during installation
 # and are stored in /etc/systemd/system/k3s-agent.service.env
 # If you need to rejoin the cluster, use:

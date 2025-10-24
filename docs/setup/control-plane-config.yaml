@@ -20,3 +20,8 @@ node-name: gmk-k3s-control-plane
 # Only allow system pods (kube-system, flux-system, cert-manager, etc.)
 node-taint:
   - "node-role.kubernetes.io/control-plane:NoSchedule"
+
+# Node Labels
+# Exclude control plane from ServiceLB (LoadBalancer) traffic
+node-label:
+  - "svccontroller.k3s.cattle.io/enablelb=false"
