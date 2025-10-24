@@ -22,7 +22,9 @@ spec:
   bootstrap:
     initdb:
       database: postgres
-      owner: postgres
+      owner: postgres  # CRITICAL: CNPG auto-generates <cluster-name>-app secret with this username
+                        # Changing this after cluster creation causes reconciliation failure
+                        # If change needed: delete cluster and recreate, or delete secret to force recreation
       postInitTemplateSQL:
         - |
           -- Create common extensions in template1 so all new databases inherit them
