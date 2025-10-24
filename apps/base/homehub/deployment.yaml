@@ -63,6 +63,9 @@ spec:
             - name: homehub-data
               mountPath: /app/media
               subPath: media
+            - name: homehub-data
+              mountPath: /app/pdfs
+              subPath: pdfs
       volumes:
         - name: homehub-data
           persistentVolumeClaim:
