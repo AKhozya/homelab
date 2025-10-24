@@ -64,10 +64,14 @@ spec:
               mountPath: /configs
             - name: logs-dir
               mountPath: /logs
+            - name: custom-files-dir
+              mountPath: /customFiles
       volumes:
         - name: temp-dir
           emptyDir: {}
         - name: config-dir
           emptyDir: {}
         - name: logs-dir
+          emptyDir: {}
+        - name: custom-files-dir
           emptyDir: {}

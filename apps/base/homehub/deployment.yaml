@@ -57,11 +57,13 @@ spec:
           volumeMounts:
             - name: homehub-data
               mountPath: /app/data
-            - name: uploads-dir
+            - name: homehub-data
               mountPath: /app/uploads
+              subPath: uploads
+            - name: homehub-data
+              mountPath: /app/media
+              subPath: media
       volumes:
         - name: homehub-data
           persistentVolumeClaim:
             claimName: homehub-data-pvc
-        - name: uploads-dir
-          emptyDir: {}
