@@ -70,9 +70,18 @@ data:
     grace-period: 30s
 
     ingress:
-    # Authentik SSO (required for OIDC authentication from external access)
-    - hostname: authentik.h0melab.work
-      service: http://authentik-server.authentik.svc.cluster.local:9000
+    # CouchDB
+    - hostname: couchdb.h0melab.work
+      service: http://couchdb-svc-couchdb.couchdb.svc.cluster.local:5984
+      originRequest:
+        http2Origin: true
+        connectTimeout: 10s
+        noTLSVerify: false
+        disableChunkedEncoding: false
+
+    # Audiobookshelf
+    - hostname: audiobooks.h0melab.work
+      service: http://audiobookshelf.audiobookshelf.svc.cluster.local:3005
       originRequest:
         http2Origin: true
         connectTimeout: 10s
@@ -127,6 +136,15 @@ data:
     # Paperless-NGX
     - hostname: paperless.h0melab.work
       service: http://paperless-ngx.paperless-ngx.svc.cluster.local:8000
+      originRequest:
+        http2Origin: true
+        connectTimeout: 10s
+        noTLSVerify: false
+        disableChunkedEncoding: false
+
+    # Authentik SSO (required for OIDC authentication from external access)
+    - hostname: authentik.h0melab.work
+      service: http://authentik-server.authentik.svc.cluster.local:9000
       originRequest:
         http2Origin: true
         connectTimeout: 10s
