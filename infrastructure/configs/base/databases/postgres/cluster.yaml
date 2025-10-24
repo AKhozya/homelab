@@ -6,6 +6,7 @@ metadata:
 spec:
   instances: 3
   imageName: ghcr.io/cloudnative-pg/postgresql:18-standard-trixie
+  enableSuperuserAccess: true  # Required for operator to create pooler roles
   resources:
     requests:
       cpu: "250m"
@@ -40,12 +41,6 @@ spec:
         superuser: true
         passwordSecret:
           name: postgres-admin-user
-      - name: cnpg_pooler_pgbouncer
-        ensure: present
-        comment: PgBouncer pooler user for connection pooling
-        login: true
-        passwordSecret:
-          name: main-postgres-pooler
       - name: linkding
         ensure: present
         comment: Linkding application user
