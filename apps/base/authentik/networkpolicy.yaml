@@ -21,6 +21,16 @@ spec:
           port: 9000
         - protocol: TCP
           port: 9443
+    # Allow ingress from Cloudflare Tunnel for external access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflare-tunnel
+      ports:
+        - protocol: TCP
+          port: 9000
+        - protocol: TCP
+          port: 9443
     # Allow communication between server and worker
     - from:
         - podSelector:
