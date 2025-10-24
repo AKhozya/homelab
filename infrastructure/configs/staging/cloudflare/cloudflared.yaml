@@ -79,24 +79,6 @@ data:
         noTLSVerify: false
         disableChunkedEncoding: false
 
-    # CouchDB
-    - hostname: couchdb.h0melab.work
-      service: http://couchdb-svc-couchdb.couchdb.svc.cluster.local:5984
-      originRequest:
-        http2Origin: true
-        connectTimeout: 10s
-        noTLSVerify: false
-        disableChunkedEncoding: false
-
-    # Audiobookshelf
-    - hostname: audiobooks.h0melab.work
-      service: http://audiobookshelf.audiobookshelf.svc.cluster.local:3005
-      originRequest:
-        http2Origin: true
-        connectTimeout: 10s
-        noTLSVerify: false
-        disableChunkedEncoding: false
-
     # n8n
     - hostname: n8n.h0melab.work
       service: http://n8n.n8n.svc.cluster.local:5678
