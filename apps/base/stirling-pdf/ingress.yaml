@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: stirling-pdf
+  namespace: stirling-pdf
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: stirling-pdf-redirect-https@kubernetescrd
+    external-dns.alpha.kubernetes.io/hostname: stirling.h0melab.work
+    external-dns.alpha.kubernetes.io/ttl: "300"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - stirling.h0melab.work
+      secretName: stirling-pdf-tls-secret
+  rules:
+    - host: stirling.h0melab.work
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: stirling-pdf
+                port:
+                  number: 8080

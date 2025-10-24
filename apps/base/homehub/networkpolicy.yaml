@@ -1,0 +1,44 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: homehub-network-policy
+  namespace: homehub
+spec:
+  podSelector:
+    matchLabels:
+      app: homehub
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from traefik namespace for internal access ONLY
+    # NO cloudflare-tunnel access - strictly local
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow ingress from uptime-kuma namespace for monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow limited HTTPS outbound (for updates/media downloads if needed)
+    # HomeHub should primarily work offline
+    - ports:
+        - protocol: TCP
+          port: 443

@@ -13,3 +13,5 @@ resources:
   - authentik
   - paperless-ngx
   - immich
+  - stirling-pdf
+  - homehub
