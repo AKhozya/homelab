@@ -1,9 +1,9 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-10-22 19:30 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-10-24 20:55 UTC)
 **Cluster**: K3s (staging)
-**Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik)
+**Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
 
 ---
@@ -16,15 +16,17 @@
 - Solid GitOps foundation with Flux
 - Comprehensive monitoring (Prometheus, Grafana, Loki, Alertmanager)
 - **🆕 Centralized SSO with Authentik** ⭐
+- **🆕 Cloudflare Tunnel for secure external access** ⭐
+- **🆕 External-DNS for automated DNS management** ⭐
 - **🆕 Uptime monitoring with Uptime Kuma** ⭐
 - **🆕 4.22TB LVM Storage on Worker Node** ⭐
 - **✅ Complete PVC Migration to LVM** - All 19 PVCs migrated ⭐
 - **✅ Multi-PV LVM** - 3 physical volumes across 2 NVMe SSDs ⭐
 - Secrets management with SOPS/age
 - Automated dependency updates (Renovate)
-- **Complete NetworkPolicy coverage on all apps (10/10)**
+- **Complete NetworkPolicy coverage on all apps (13/13)**
 - **Clean namespace separation - no resource leaks**
-- CloudNativePG for managed PostgreSQL (3-node HA)
+- CloudNativePG for managed PostgreSQL (3-node HA) with PgBouncer pooler
 - Default credential elimination on all apps
 
 **Remaining Gaps** ⚠️
@@ -222,12 +224,169 @@
 
 ---
 
-**Last Updated**: 2025-10-23 22:45 UTC
+## 🌐 EXTERNAL ACCESS & DNS INFRASTRUCTURE
+
+### Cloudflare Tunnel Configuration
+
+**Zero Trust Network Access:**
+- **Tunnel ID**: c2188394-85ac-402a-8025-0e404ae6004f
+- **Tunnel Name**: homelab
+- **Zone**: h0melab.work (Zone ID: 58eff30c44f4f96e97eebf5d5a0b34be)
+- **Management**: Cloudflare Dashboard/API (NOT ConfigMap-based)
+- **Namespace**: cloudflare-tunnel
+
+**Active Services (9):**
+1. home.h0melab.work → Home Assistant (port 8123)
+2. grafana.h0melab.work → Grafana (port 80)
+3. uptime.h0melab.work → Uptime Kuma (port 3001)
+4. am.h0melab.work → Alertmanager (port 9093)
+5. authentik.h0melab.work → Authentik (port 9000) ⭐ NEW
+6. couchdb.h0melab.work → CouchDB (port 5984)
+7. audiobooks.h0melab.work → Audiobookshelf (port 80)
+8. n8n.h0melab.work → N8N (port 5678)
+9. linkding.h0melab.work → Linkding (port 9090)
+
+**Additional Services (not via tunnel):**
+- mealie, wallabag, immich, paperless (internal access only)
+
+**Configuration Details:**
+- **Deployment**: infrastructure/configs/staging/cloudflare/cloudflared.yaml
+- **ConfigMap**: Reference-only (tunnel config, metrics endpoint)
+- **Ingress Routes**: Managed via Cloudflare Dashboard Zero Trust section
+- **Important**: ConfigMap does NOT contain ingress/service routes (API-managed)
+
+**DNS Strategy:**
+- **CNAME records**: Manually created for tunnel services (e.g., authentik → tunnel_id.cfargotunnel.com)
+- **A records**: Auto-managed by External-DNS for internal Ingresses
+- **Proxied**: All tunnel CNAMEs proxied through Cloudflare (orange cloud)
+
+### External-DNS Configuration
+
+**Automated DNS Management:**
+- **Namespace**: external-dns
+- **Provider**: Cloudflare API
+- **Zone**: h0melab.work (58eff30c44f4f96e97eebf5d5a0b34be)
+- **Source**: Kubernetes Ingress resources
+- **Policy**: sync (create/update/delete DNS records)
+
+**Features:**
+- **Automatic A record creation** for Ingresses with annotations
+- **TXT record ownership tracking** (_external-dns.a-{subdomain}.h0melab.work)
+- **Automatic cleanup** when Ingresses are deleted
+- **TTL management** via annotations (external-dns.alpha.kubernetes.io/ttl)
+
+**Important Notes:**
+- External-DNS manages A records for internal Traefik Ingresses
+- Cloudflare Tunnel services use CNAME records (manual/API management)
+- If A record and CNAME both exist, delete A record (CNAME takes precedence)
+
+### NetworkPolicy Considerations
+
+**Dual-Access Pattern:**
+Apps accessible via both internal (Traefik) and external (Cloudflare Tunnel) require TWO ingress rules:
+
+```yaml
+ingress:
+  # Internal access via Traefik
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: traefik
+    ports:
+      - protocol: TCP
+        port: 9000
+  # External access via Cloudflare Tunnel
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: cloudflare-tunnel
+    ports:
+      - protocol: TCP
+        port: 9000
+```
+
+**Example**: Authentik NetworkPolicy includes both traefik and cloudflare-tunnel namespaces
+
+---
+
+## 🗄️ DATABASE INFRASTRUCTURE
+
+### CloudNativePG (CNPG) - PostgreSQL
+
+**Cluster Configuration:**
+- **Name**: main-postgres
+- **Replicas**: 3 (HA configuration)
+- **Version**: PostgreSQL 16.x
+- **Namespace**: databases
+
+**Connection Methods:**
+1. **Direct Connection** (not recommended for apps):
+   - Service: main-postgres-rw.databases.svc.cluster.local:5432
+   - Use case: Administrative tasks, migrations
+
+2. **PgBouncer Pooler** (recommended for apps):
+   - Service: main-postgres-rw-pooler.databases.svc.cluster.local:5432
+   - Pool mode: transaction
+   - Max connections: Configured per database
+   - Use case: Application connections
+
+**Databases (10):**
+- authentik, immich, paperless, grafana, linkding, mealie, wallabag, audiobookshelf, n8n, app
+
+**Pooler Benefits:**
+- Connection pooling reduces overhead
+- Better resource utilization
+- Prevents connection exhaustion
+- Automatic failover handling
+
+**Pooler Setup:**
+- User credentials: Created via CloudNativePG Pooler CRD
+- Role creation: Handled by CNPG operator
+- Secret management: Auto-generated by CNPG
+- **Important**: Delete stale secrets if pooler role creation fails
+
+**Apps Using Pooler:**
+- Authentik (AUTHENTIK_POSTGRESQL__HOST: main-postgres-rw-pooler.databases.svc.cluster.local)
+- All other apps configured similarly
+
+---
+
+**Last Updated**: 2025-10-24 20:55 UTC
 **Next Review**: 2025-11-18
 
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-10-24
+- ✅ **Cloudflare Tunnel Expansion**: Added Authentik to Cloudflare Tunnel (9th service)
+- ✅ **External-DNS Deployment**: Automated DNS management for Kubernetes Ingresses
+- ✅ **CNPG Pooler Fix**: Resolved pooler role creation issue for Authentik
+- 🎯 **Impact**: Authentik accessible externally via Cloudflare Tunnel with Zero Trust
+- 🔧 **Technical Details**:
+  - **Cloudflare Tunnel**: Added authentik.h0melab.work via Cloudflare API
+    - CNAME record: authentik → c2188394-85ac-402a-8025-0e404ae6004f.cfargotunnel.com
+    - Service routing: Cloudflare Dashboard (Zero Trust > Access > Tunnels)
+    - ConfigMap simplified: Removed unused ingress config, added documentation
+  - **External-DNS**: Deployed for automated A record management
+    - Provider: Cloudflare API (Zone: h0melab.work)
+    - Policy: sync (create/update/delete)
+    - TXT record ownership tracking for multi-controller support
+    - Automatic cleanup when Ingresses deleted
+  - **CNPG Pooler**: Fixed Authentik database connection
+    - Issue: Stale secret preventing pooler role creation
+    - Fix: Deleted secret, CNPG operator recreated pooler user successfully
+    - Authentik now connects via main-postgres-rw-pooler.databases.svc.cluster.local
+  - **NetworkPolicy Enhancement**: Added cloudflare-tunnel namespace to Authentik ingress
+    - Dual-access pattern: Both traefik (internal) and cloudflare-tunnel (external)
+    - Required for apps accessible via both internal Ingress and Cloudflare Tunnel
+- 📋 **DNS Management Strategy**:
+  - **Internal access**: External-DNS manages A records for Traefik Ingresses
+  - **External access**: Manual CNAME records for Cloudflare Tunnel services
+  - **Conflict resolution**: CNAME takes precedence over A record (delete A if both exist)
+- 🔒 **Security**: NetworkPolicy enforcement for dual-access apps
+- 💪 **Benefit**: Secure external access via Cloudflare Zero Trust, automated internal DNS
+- Commits: e657a23, 6b25c00, 08c133a
 
 ### 2025-10-23
 - ✅ **Backup Infrastructure Complete**: Comprehensive backup system operational
