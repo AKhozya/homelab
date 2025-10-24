@@ -23,4 +23,4 @@ spec:
               service:
                 name: homehub
                 port:
-                  number: 8080
+                  number: 5000

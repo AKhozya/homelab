@@ -24,7 +24,7 @@ spec:
         - name: homehub
           image: ghcr.io/surajverma/homehub:latest
           ports:
-            - containerPort: 8080
+            - containerPort: 5000
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false # HomeHub needs to write to data directory
@@ -34,7 +34,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /
-              port: 8080
+              port: 5000
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
@@ -42,7 +42,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /
-              port: 8080
+              port: 5000
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3
