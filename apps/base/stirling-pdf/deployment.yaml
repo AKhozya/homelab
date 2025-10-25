@@ -78,4 +78,5 @@ spec:
         - name: custom-files-dir
           emptyDir: {}
         - name: pipeline-dir
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: stirling-pdf-pipeline-pvc
