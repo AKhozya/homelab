@@ -21,8 +21,8 @@ spec:
               set -e
               export HOME=/tmp
 
-              echo "Installing uptime-kuma-api..."
-              pip install --quiet --user uptime-kuma-api
+              echo "Installing uptime-kuma-api and pyotp..."
+              pip install --quiet --user uptime-kuma-api pyotp
 
               echo "Waiting 10 seconds for Uptime Kuma to be ready..."
               sleep 10
@@ -33,12 +33,21 @@ spec:
               from uptime_kuma_api import UptimeKumaApi, MonitorType
               import os
               import time
+              import pyotp
 
-              # Connect to Uptime Kuma with API key
+              # Generate TOTP token
+              totp = pyotp.TOTP(os.environ['UPTIME_KUMA_TOTP_SECRET'])
+              token = totp.now()
+
+              # Connect to Uptime Kuma and login with 2FA
               api = UptimeKumaApi('http://uptime-kuma.uptime-kuma.svc.cluster.local:3001')
-              api.login_by_token(os.environ['UPTIME_KUMA_API_KEY'])
+              api.login(
+                  username=os.environ['UPTIME_KUMA_USERNAME'],
+                  password=os.environ['UPTIME_KUMA_PASSWORD'],
+                  token=token
+              )
 
-              print('Authenticated with API key successfully!')
+              print('Authenticated with 2FA successfully!')
 
               # Define all monitors
               monitors = [
@@ -222,11 +231,21 @@ spec:
 
               echo "All monitors configured!"
           env:
-            - name: UPTIME_KUMA_API_KEY
+            - name: UPTIME_KUMA_USERNAME
               valueFrom:
                 secretKeyRef:
                   name: uptime-kuma-admin
-                  key: api_key
+                  key: username
+            - name: UPTIME_KUMA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: uptime-kuma-admin
+                  key: password
+            - name: UPTIME_KUMA_TOTP_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: uptime-kuma-admin
+                  key: totp_secret
           volumeMounts:
             - name: tmp
               mountPath: /tmp
