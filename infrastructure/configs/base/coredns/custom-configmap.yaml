@@ -4,8 +4,8 @@ metadata:
   name: coredns-custom
   namespace: kube-system
 data:
-  homelab.override: |
-    h0melab.work {
+  homelab.server: |
+    h0melab.work:53 {
         errors
         log
         hosts {
