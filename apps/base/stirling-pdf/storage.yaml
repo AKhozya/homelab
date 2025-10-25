@@ -1,6 +1,19 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  name: stirling-pdf-configs-pvc
+  namespace: stirling-pdf
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: local-path
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
   name: stirling-pdf-pipeline-pvc
   namespace: stirling-pdf
 spec:

@@ -31,7 +31,6 @@ spec:
               echo "Creating required directory structure..."
               mkdir -p /pipeline/watchedFolders
               mkdir -p /pipeline/defaultWebUIConfigs
-              mkdir -p /configs/db/backup
               mkdir -p /logs
               mkdir -p /customFiles
               mkdir -p /tmp/stirling-pdf
@@ -115,7 +114,8 @@ spec:
         - name: temp-dir
           emptyDir: {}
         - name: config-dir
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: stirling-pdf-configs-pvc
         - name: logs-dir
           emptyDir: {}
         - name: custom-files-dir
