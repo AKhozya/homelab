@@ -25,6 +25,9 @@ spec:
           image: frooodle/s-pdf:1.5.0-fat
           ports:
             - containerPort: 8080
+          env:
+            - name: HOME
+              value: "/tmp"
           envFrom:
             - secretRef:
                 name: stirling-pdf-env
@@ -68,6 +71,10 @@ spec:
               mountPath: /customFiles
             - name: pipeline-dir
               mountPath: /pipeline
+            - name: fontconfig-cache
+              mountPath: /var/cache/fontconfig
+            - name: tessdata-dir
+              mountPath: /usr/share/tessdata
       volumes:
         - name: temp-dir
           emptyDir: {}
@@ -80,3 +87,8 @@ spec:
         - name: pipeline-dir
           persistentVolumeClaim:
             claimName: stirling-pdf-pipeline-pvc
+        - name: fontconfig-cache
+          emptyDir: {}
+        - name: tessdata-dir
+          persistentVolumeClaim:
+            claimName: stirling-pdf-tessdata-pvc
