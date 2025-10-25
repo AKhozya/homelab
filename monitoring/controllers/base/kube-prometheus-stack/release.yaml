@@ -114,6 +114,7 @@ spec:
         ingressClassName: traefik
         annotations:
           traefik.ingress.kubernetes.io/router.middlewares: monitoring-redirect-https@kubernetescrd
+          external-dns.alpha.kubernetes.io/exclude: "true"
         hosts:
           - grafana.h0melab.work
         tls:
@@ -191,6 +192,7 @@ spec:
         ingressClassName: traefik
         annotations:
           traefik.ingress.kubernetes.io/router.middlewares: monitoring-redirect-https@kubernetescrd
+          external-dns.alpha.kubernetes.io/exclude: "true"
         hosts:
           - am.h0melab.work
         tls:
