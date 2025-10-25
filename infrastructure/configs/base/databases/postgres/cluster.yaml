@@ -18,7 +18,7 @@ spec:
     size: 10Gi
     storageClass: "local-path"
   monitoring:
-    enablePodMonitor: true
+    enablePodMonitor: false  # Using custom PodMonitor with correct Prometheus labels
   bootstrap:
     initdb:
       database: postgres
