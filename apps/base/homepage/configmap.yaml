@@ -83,6 +83,12 @@ data:
             description: Photo management
             namespace: immich
             app: immich-server
+        - Stirling PDF:
+            icon: si-adobeacrobatreader
+            href: https://stirling.h0melab.work
+            description: PDF toolkit with OIDC
+            namespace: stirling-pdf
+            app: stirling-pdf
 
     - Media & Automation:
         - Audiobookshelf:
@@ -129,6 +135,12 @@ data:
             description: Alert management
             namespace: monitoring
             app: alertmanager
+        - HomeHub:
+            icon: si-homeassistantcommunitystore
+            href: http://hh.h0melab.work
+            description: Family utility dashboard (local only)
+            namespace: homehub
+            app: homehub
 
   widgets.yaml: |
     # NOTE: Kubernetes widget disabled due to "NaN undefined undefined" errors in v1.5.0
