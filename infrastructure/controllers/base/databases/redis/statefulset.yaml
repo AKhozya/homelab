@@ -79,7 +79,7 @@ spec:
             - --loglevel
             - warning
             - --maxmemory
-            - "200mb"
+            - "256mb"
             - --maxmemory-policy
             - allkeys-lru
           ports:
