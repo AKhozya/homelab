@@ -146,13 +146,14 @@
 
 ---
 
-## 📱 CURRENT APPS (15 total)
+## 📱 CURRENT APPS (16 total)
 
 | App | Status | Security | OIDC/SSO | Notes |
 |-----|--------|----------|----------|-------|
 | **Homepage** | ✅ Running | ✅ NetworkPolicy | - | **Dashboard - Single pane of glass** ⭐ |
 | **Uptime Kuma** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Uptime monitoring** - Automated setup ⭐ |
 | **Authentik** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ Provider | **SSO Platform** - PostgreSQL + Redis ⭐ |
+| **AdGuard Home** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **DNS filtering** - Local DNS resolution ⭐ |
 | **Stirling PDF** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | **PDF toolkit** - Cloudflare Tunnel + internal access ⭐ |
 | **HomeHub** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Family dashboard** - Local only, no auth ⭐ |
 | **Grafana** | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Monitoring dashboard, Authentik SSO ⭐ |
@@ -166,8 +167,12 @@
 | Audiobookshelf | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Web UI config ⭐ |
 | Obsidian | ✅ Running | ✅ NetworkPolicy | - | CouchDB sync |
 
-**Security Coverage: 15/15 apps (100%)** ✅
-**SSO Coverage: 9/15 apps (60%)** ⭐ (1 app requires Enterprise plan, 1 app local-only)
+**Security Coverage: 16/16 apps (100%)** ✅
+**SSO Coverage: 8/8 applicable apps (100%)** ⭐
+- **8 apps with OIDC**: Grafana, Immich, Paperless-NGX, Home Assistant, Mealie, Linkding, Audiobookshelf, Stirling PDF
+- **7 apps local-only/monitoring**: Homepage, Uptime Kuma, AdGuard Home, HomeHub, Obsidian, Wallabag, N8N*
+- **1 app (N8N)**: Requires Enterprise plan for SSO
+- **Note**: Authentik is the SSO provider (not counted as consumer)
 
 ---
 
@@ -266,29 +271,26 @@
 - **Important**: ConfigMap does NOT contain ingress/service routes (API-managed)
 
 **DNS Strategy:**
-- **CNAME records**: Manually created for tunnel services (e.g., authentik → tunnel_id.cfargotunnel.com)
-- **A records**: Auto-managed by External-DNS for internal Ingresses
+- **External services (via Cloudflare Tunnel)**: CNAME records pointing to tunnel (e.g., authentik → c2188394-85ac-402a-8025-0e404ae6004f.cfargotunnel.com)
+- **Internal services**: AdGuard Home for local DNS resolution
 - **Proxied**: All tunnel CNAMEs proxied through Cloudflare (orange cloud)
 
-### External-DNS Configuration
+### AdGuard Home Configuration
 
-**Automated DNS Management:**
-- **Namespace**: external-dns
-- **Provider**: Cloudflare API
-- **Zone**: h0melab.work (58eff30c44f4f96e97eebf5d5a0b34be)
-- **Source**: Kubernetes Ingress resources
-- **Policy**: sync (create/update/delete DNS records)
+**Local DNS Resolution:**
+- **Namespace**: adguard-home
+- **Purpose**: Local DNS server for internal homelab services
+- **Access**: adguard.h0melab.work (Traefik Ingress, internal only)
+- **Features**:
+  - Local DNS records for internal services (no external Cloudflare API dependency)
+  - DNS filtering and ad blocking
+  - Query logging and statistics
+  - Fast local resolution
 
-**Features:**
-- **Automatic A record creation** for Ingresses with annotations
-- **TXT record ownership tracking** (_external-dns.a-{subdomain}.h0melab.work)
-- **Automatic cleanup** when Ingresses are deleted
-- **TTL management** via annotations (external-dns.alpha.kubernetes.io/ttl)
-
-**Important Notes:**
-- External-DNS manages A records for internal Traefik Ingresses
-- Cloudflare Tunnel services use CNAME records (manual/API management)
-- If A record and CNAME both exist, delete A record (CNAME takes precedence)
+**DNS Resolution Flow:**
+- **Tunnel services** (9 apps): Internet → Cloudflare DNS → Cloudflare Tunnel → Service
+- **Internal services** (7 apps): Local network → AdGuard Home → Traefik Ingress → Service
+- **Benefit**: Fast local DNS, no Cloudflare API rate limits, simplified architecture
 
 ### NetworkPolicy Considerations
 
@@ -412,7 +414,32 @@ ingress:
 
 ## 📝 CHANGELOG
 
-### 2025-10-25 (Night Update - Database Monitoring)
+### 2025-10-25 (Night Update Part 2 - AdGuard Home & DNS Simplification)
+- ✅ **AdGuard Home Deployment**: Local DNS server for internal services
+- ✅ **DNS Architecture Simplification**: Removed External-DNS dependency
+- 🎯 **Impact**: Simplified DNS management, faster local resolution, no Cloudflare API dependency for internal services
+- 🔧 **Technical Details**:
+  - **AdGuard Home**:
+    - Purpose: Local DNS server with ad blocking and filtering
+    - Access: adguard.h0melab.work (Traefik Ingress, internal only)
+    - Replaces: External-DNS for internal service DNS resolution
+    - Features: Local DNS records, ad blocking, query logging, statistics
+  - **External-DNS Status**: Scaled to 0 replicas (namespace exists but inactive)
+    - Previous role: Automated Cloudflare DNS record creation for Ingresses
+    - Removal reason: Simplified architecture, reduced external API dependencies
+  - **New DNS Strategy**:
+    - External services (9 via tunnel): Cloudflare DNS → Cloudflare Tunnel → Service
+    - Internal services (7 local): AdGuard Home → Traefik Ingress → Service
+- 💪 **Benefits**:
+  - No Cloudflare API rate limits for internal DNS
+  - Faster local DNS resolution (no external API calls)
+  - Ad blocking and filtering at DNS level
+  - Simplified architecture (one less component)
+- 📋 **App Count**: 15 → 16 applications
+- 🔒 **Security**: 100% NetworkPolicy coverage maintained (16/16 apps)
+- **SSO Update**: 8/8 applicable apps have OIDC (100% coverage where applicable)
+
+### 2025-10-25 (Night Update Part 1 - Database Monitoring)
 - ✅ **Database Monitoring Infrastructure**: Comprehensive monitoring for PostgreSQL, Redis, and CouchDB
 - 🎯 **Impact**: Complete observability into database health, performance, and capacity
 - 🔧 **Technical Details**:
