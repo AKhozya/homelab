@@ -78,6 +78,10 @@ spec:
             - "1"
             - --loglevel
             - warning
+            - --maxmemory
+            - "200mb"
+            - --maxmemory-policy
+            - allkeys-lru
           ports:
             - containerPort: 6379
               name: redis
