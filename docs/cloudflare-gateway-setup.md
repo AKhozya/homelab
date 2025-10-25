@@ -19,15 +19,37 @@ Cloudflare Gateway provides DNS-level filtering for ad blocking, malware protect
 
 Configure your router or devices to use these DNS servers:
 
-**IPv4 DNS Servers:**
+**IPv4 DNS Servers (Network-Authenticated):**
 - Primary: `172.64.36.1`
 - Secondary: `172.64.36.2`
+- ⚠️ **Authentication Required:** Only works from authorized network `89.36.71.24/32`
+- If your home IP changes, update the network list in Cloudflare Gateway settings
 
 **IPv6 DNS Server:**
 - `2a06:98c1:54::20:4351`
 
-**DNS-over-HTTPS (DoH):**
+**DNS-over-HTTPS (DoH) (Recommended for Router):**
 - URL: `https://nvkj3k9t7f.cloudflare-gateway.com/dns-query`
+- ✅ Works from any network (uses unique subdomain authentication)
+- More secure than plain IPv4 DNS
+
+### Understanding Endpoint Authentication
+
+**Why IPv4 DNS Requires Authentication:**
+- IPv4 addresses (172.64.36.x) are **shared** across Cloudflare Gateway customers
+- Cloudflare requires source network verification to prevent unauthorized use
+- Your authorized network: `89.36.71.24/32`
+
+**Why Other Endpoints Don't:**
+- DoH URL uses your **unique subdomain**: `nvkj3k9t7f`
+- DoT hostname is also unique to your account
+- IPv6 address is unique to your location
+- These don't need source IP checks - the unique identifier is the authentication
+
+**In the Cloudflare UI:**
+- IPv4 DNS may show as "requires network authentication" or similar
+- This is normal and expected behavior
+- The endpoint is working correctly if your home IP matches the authorized network
 
 ## Active Filtering Policies
 
@@ -82,11 +104,20 @@ Blocks specific major tracking platforms:
 
 Configure your router's DHCP server to provide Cloudflare Gateway DNS:
 
+**If your router supports DNS-over-HTTPS (Best Option):**
+1. Access your router's admin panel
+2. Navigate to DNS settings
+3. Enable DoH and set URL: `https://nvkj3k9t7f.cloudflare-gateway.com/dns-query`
+4. Save and reboot router
+
+**If your router only supports traditional DNS:**
 1. Access your router's admin panel
 2. Navigate to DHCP/DNS settings
 3. Set Primary DNS: `172.64.36.1`
 4. Set Secondary DNS: `172.64.36.2`
 5. Save and reboot router
+6. ⚠️ **Important:** This only works if your home IP is `89.36.71.24`
+7. If your home IP changes, update the network list in Cloudflare Gateway
 
 **Benefits:**
 - Protects all devices on your network automatically
@@ -179,6 +210,32 @@ Visit: https://one.dash.cloudflare.com/ → Analytics → Gateway
 1. Dashboard: https://one.dash.cloudflare.com/
 2. Navigate to Gateway → Firewall Policies → DNS
 3. Edit rules or add exceptions
+
+### Update Authorized Network (If Your Home IP Changes)
+
+If your home IP changes and IPv4 DNS stops working:
+
+**Via Dashboard:**
+1. Go to: https://one.dash.cloudflare.com/
+2. Navigate to Gateway → Locations
+3. Click on "Homelab" location
+4. Update the network IP to your new public IP
+
+**Via API:**
+```bash
+curl -X PUT https://api.cloudflare.com/client/v4/accounts/***REMOVED-CF-ACCOUNT-ID***/gateway/locations/55e39ccecdf04717ba7a3363e5838da4 \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Homelab",
+    "networks": [{"network": "YOUR.NEW.IP.ADDRESS/32"}]
+  }'
+```
+
+**Find your current public IP:**
+```bash
+curl ifconfig.me
+```
 
 ### Add Exceptions (Allow specific domains)
 
