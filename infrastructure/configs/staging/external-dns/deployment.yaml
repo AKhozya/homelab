@@ -28,7 +28,7 @@ spec:
             - --txt-owner-id=homelab-staging
             - --txt-prefix=_external-dns.
             - --interval=5m
-            - --log-level=info
+            - --log-level=debug
           env:
             - name: CF_API_TOKEN
               valueFrom:
