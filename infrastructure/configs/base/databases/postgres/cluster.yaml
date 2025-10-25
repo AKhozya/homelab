@@ -92,10 +92,3 @@ spec:
         createdb: true
         passwordSecret:
           name: immich-db-user
-      - name: stirlingpdf
-        ensure: present
-        comment: Stirling PDF application user
-        login: true
-        createdb: true
-        passwordSecret:
-          name: stirling-pdf-db-user
