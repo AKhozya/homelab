@@ -116,7 +116,32 @@ nameserver 172.64.36.1
 nameserver 172.64.36.2
 ```
 
-### Option 3: DNS-over-HTTPS
+### Option 3: Mobile Devices (Works on Cellular/4G/5G!)
+
+**iPhone/iPad - DNS-over-HTTPS Profile (Recommended):**
+1. **Download the profile:** `/docs/cloudflare-gateway-mobile-doh.mobileconfig`
+2. **Transfer to your device:** AirDrop or email to yourself
+3. **Install:** Open the file → Settings → Profile Downloaded → Install
+4. **Enable:** Settings → General → VPN & Device Management → DNS → Select "Cloudflare Gateway"
+5. **Verify:** Works on Wi-Fi AND cellular networks!
+
+**Android - Private DNS (DNS-over-TLS):**
+1. Settings → Network & Internet → Private DNS
+2. Select "Private DNS provider hostname"
+3. **Note:** Android doesn't support custom DoH hostnames easily
+4. **Alternative:** Use the Cloudflare 1.1.1.1 app:
+   - Install "1.1.1.1: Faster Internet" from Play Store
+   - Open app → Settings (gear icon)
+   - Advanced → Connection options → DNS-over-HTTPS
+   - Enter: `https://nvkj3k9t7f.cloudflare-gateway.com/dns-query`
+
+**Alternative - Per-Network (Wi-Fi only):**
+- **iOS:** Settings → Wi-Fi → [Network] → Configure DNS → Manual
+  - Add: `172.64.36.1` and `172.64.36.2`
+- **Android:** Settings → Wi-Fi → [Network] → Advanced → DNS
+  - Add: `172.64.36.1` and `172.64.36.2`
+
+### Option 4: DNS-over-HTTPS (Browsers)
 
 For browsers or systems supporting DoH:
 
