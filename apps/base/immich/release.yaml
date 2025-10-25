@@ -32,10 +32,6 @@ spec:
               name: immich-server
             patch: |
               - op: add
-                path: /spec/template/metadata/annotations
-                value:
-                  kubectl.kubernetes.io/restartedAt: "2025-10-25T23:15:00Z"
-              - op: add
                 path: /spec/template/spec/volumes/-
                 value:
                   name: dri-devices
