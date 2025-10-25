@@ -10,7 +10,7 @@ spec:
     matchLabels:
       app: couchdb
   endpoints:
-    - port: prometheus
+    - port: couchdb
       interval: 30s
       path: /_node/_local/_prometheus
       scrapeTimeout: 10s
