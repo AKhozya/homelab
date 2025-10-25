@@ -153,8 +153,13 @@ spec:
           - match:
               alertname: Watchdog
             receiver: 'null'
+          - match:
+              alertname: KubeCPUOvercommit
+            receiver: 'null'
+          - match:
+              alertname: KubeMemoryOvercommit
+            receiver: 'null'
           # K3s component alerts disabled in defaultRules (embedded architecture)
-          # CPU overcommit alert disabled in defaultRules (homelab overcommit acceptable)
         receivers:
         - name: 'null'
         - name: 'telegram'
