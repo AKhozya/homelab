@@ -36,7 +36,7 @@ spec:
 
               # Connect to Uptime Kuma with API key
               api = UptimeKumaApi('http://uptime-kuma.uptime-kuma.svc.cluster.local:3001')
-              api.login_by_api_key(os.environ['UPTIME_KUMA_API_KEY'])
+              api.login_by_token(os.environ['UPTIME_KUMA_API_KEY'])
 
               print('Authenticated with API key successfully!')
 
