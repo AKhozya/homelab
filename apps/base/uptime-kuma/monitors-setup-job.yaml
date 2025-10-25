@@ -92,7 +92,8 @@ spec:
                       'url': 'http://hh.h0melab.work',
                       'type': MonitorType.HTTP,
                       'interval': 120,
-                      'description': 'Family utility dashboard (local only)'
+                      'description': 'Family utility dashboard (local only)',
+                      'conditions': ''
                   },
                   # External services (Cloudflare Tunnel)
                   {
@@ -157,7 +158,8 @@ spec:
                       'url': 'https://stirling.h0melab.work',
                       'type': MonitorType.HTTP,
                       'interval': 120,
-                      'description': 'PDF toolkit with OIDC'
+                      'description': 'PDF toolkit with OIDC',
+                      'conditions': ''
                   },
                   # Cloudflare Tunnel health
                   {
