@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: immich
+  namespace: immich
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: immich-redirect-https@kubernetescrd
+    external-dns.alpha.kubernetes.io/hostname: immich.h0melab.work
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - immich.h0melab.work
+      secretName: immich-tls-secret
+  rules:
+    - host: immich.h0melab.work
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: immich-server
+                port:
+                  number: 8080

@@ -3,3 +3,6 @@ kind: Kustomization
 namespace: couchdb
 resources:
   - networkpolicy.yaml
+  - ingress.yaml
+  - middleware.yaml
+  - certificate.yaml

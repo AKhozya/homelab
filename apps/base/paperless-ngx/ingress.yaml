@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: paperless-ngx
+  namespace: paperless-ngx
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: paperless-ngx-redirect-https@kubernetescrd
+    external-dns.alpha.kubernetes.io/hostname: paperless.h0melab.work
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - paperless.h0melab.work
+      secretName: paperless-ngx-tls-secret
+  rules:
+    - host: paperless.h0melab.work
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: paperless-ngx
+                port:
+                  number: 8000

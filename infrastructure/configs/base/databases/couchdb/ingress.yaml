@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: couchdb
+  namespace: couchdb
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: couchdb-redirect-https@kubernetescrd
+    external-dns.alpha.kubernetes.io/hostname: couchdb.h0melab.work
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - couchdb.h0melab.work
+      secretName: couchdb-tls-secret
+  rules:
+    - host: couchdb.h0melab.work
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: couchdb-svc-couchdb
+                port:
+                  number: 5984

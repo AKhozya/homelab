@@ -8,3 +8,6 @@ resources:
   - storage.yaml
   - networkpolicy.yaml
   - user-provision-script.yaml
+  - ingress.yaml
+  - middleware.yaml
+  - certificate.yaml

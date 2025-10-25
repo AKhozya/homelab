@@ -7,3 +7,5 @@ resources:
   - service.yaml
   - https-redirect-middleware.yaml
   - networkpolicy.yaml
+  - ingress.yaml
+  - certificate.yaml

@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: n8n
+  namespace: n8n
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: n8n-redirect-https@kubernetescrd
+    external-dns.alpha.kubernetes.io/hostname: n8n.h0melab.work
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - n8n.h0melab.work
+      secretName: n8n-tls-secret
+  rules:
+    - host: n8n.h0melab.work
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n
+                port:
+                  number: 5678

@@ -8,3 +8,6 @@ resources:
   - storage.yaml
   - networkpolicy.yaml
   - init-job.yaml
+  - ingress.yaml
+  - middleware.yaml
+  - certificate.yaml

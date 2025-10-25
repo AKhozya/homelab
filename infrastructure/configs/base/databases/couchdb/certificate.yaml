@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: couchdb-tls-cert
+  namespace: couchdb
+spec:
+  secretName: couchdb-tls-secret
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  dnsNames:
+    - couchdb.h0melab.work

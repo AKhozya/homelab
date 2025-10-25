@@ -11,6 +11,14 @@ spec:
     - Ingress
     - Egress
   ingress:
+    # Allow ingress from traefik namespace for local access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - protocol: TCP
+          port: 9090
     # Allow ingress from cloudflare-tunnel namespace for external access
     - from:
         - namespaceSelector:
