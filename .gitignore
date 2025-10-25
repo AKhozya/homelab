@@ -3,6 +3,7 @@
 .vscode/
 .idea/
 .claude/
+.*mcp*/
 
 # Common package manager directories
 node_modules/

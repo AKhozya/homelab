@@ -22,7 +22,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: homehub
-          image: ghcr.io/surajverma/homehub:latest
+          image: ghcr.io/surajverma/homehub:0.2.0
           ports:
             - containerPort: 5000
           securityContext:
