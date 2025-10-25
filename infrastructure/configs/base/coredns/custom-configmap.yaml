@@ -5,7 +5,7 @@ metadata:
   namespace: kube-system
 data:
   homelab.override: |
-    h0melab.work:53 {
+    h0melab.work {
         errors
         log
         hosts {
