@@ -6,6 +6,7 @@ metadata:
   labels:
     app: external-dns
 spec:
+  replicas: 0  # Suspended - DNS managed by CF Tunnel (public) and AdGuard (local)
   strategy:
     type: Recreate
   selector:
