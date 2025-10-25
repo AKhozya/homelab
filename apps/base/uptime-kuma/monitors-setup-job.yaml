@@ -83,6 +83,13 @@ spec:
                       'interval': 120,
                       'description': 'Uptime monitoring service'
                   },
+                  {
+                      'name': 'HomeHub',
+                      'url': 'http://hh.h0melab.work',
+                      'type': MonitorType.HTTP,
+                      'interval': 120,
+                      'description': 'Family utility dashboard (local only)'
+                  },
                   # External services (Cloudflare Tunnel)
                   {
                       'name': 'Wallabag',
@@ -140,6 +147,13 @@ spec:
                       'type': MonitorType.HTTP,
                       'interval': 120,
                       'description': 'Document management system'
+                  },
+                  {
+                      'name': 'Stirling PDF',
+                      'url': 'https://stirling.h0melab.work',
+                      'type': MonitorType.HTTP,
+                      'interval': 120,
+                      'description': 'PDF toolkit with OIDC'
                   },
                   # Cloudflare Tunnel health
                   {
