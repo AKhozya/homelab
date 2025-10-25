@@ -53,7 +53,38 @@ Configure your router or devices to use these DNS servers:
 
 ## Active Filtering Policies
 
-### 1. Block Security Threats (Precedence: 10000)
+### Priority: Allow Essential Services
+
+These rules have the highest precedence to ensure critical services work correctly:
+
+#### 1. Allow Apple Essential Services (Precedence: 15000)
+**Rule ID:** `ccc8d24d-9eef-40a4-b07a-017562883d3e`
+**Created:** 2025-10-25T15:14:17Z
+
+Allows:
+- `*.apple.com` - Core Apple services
+- `*.mzstatic.com` - App Store CDN
+- `*.apple-dns.net` - Apple DNS infrastructure
+- `*.cdn-apple.com` - Apple content delivery
+- `*.icloud.com` - iCloud services
+
+**Why:** Required for Apple Maps, App Store, and iOS core functionality
+
+#### 2. Allow Microsoft Essential Services (Precedence: 14900)
+**Rule ID:** `b8160349-b855-4440-ac8a-33c66c7f90f8`
+**Created:** 2025-10-25T15:14:24Z
+
+Allows:
+- `*.bing.com` - Bing search and rewards
+- `*.microsoft.com` - Microsoft services
+- `*.msn.com` - MSN services
+- `*.live.com` - Microsoft Live services
+
+**Why:** Required for Bing Rewards, Office, and Microsoft functionality
+
+### Blocking Policies
+
+#### 3. Block Security Threats (Precedence: 10000)
 **Rule ID:** `29b4d830-3b18-4408-a0a6-296f8a364fe2`
 **Created:** 2025-10-25T14:33:53Z
 
@@ -65,7 +96,7 @@ Blocks:
 - DNS Tunneling (category 176)
 - Newly Registered Domains (category 175)
 
-### 2. Block Ads (Precedence: 9000)
+#### 4. Block Ads (Precedence: 9000)
 **Rule ID:** `255a300f-3944-4204-9fa1-c267e5382ad3`
 **Created:** 2025-10-25T14:34:05Z
 
@@ -73,7 +104,7 @@ Blocks:
 - Advertising domains (category 22)
 - Ad-serving platforms
 
-### 3. Block Trackers (Precedence: 8000)
+#### 5. Block Trackers (Precedence: 8000)
 **Rule ID:** `d9c2b108-b991-450c-8510-a99779f7d358`
 **Created:** 2025-10-25T14:34:07Z
 
@@ -82,7 +113,7 @@ Blocks:
 - Analytics platforms
 - Telemetry services
 
-### 4. Block Major Trackers (Precedence: 7000)
+#### 6. Block Major Trackers (Precedence: 7000)
 **Rule ID:** `039fa9b2-a247-446f-a24a-b337ffdba018`
 **List ID:** `7d5b0733-d1eb-406e-a920-ae3dcb61a7eb`
 **Created:** 2025-10-25T14:34:36Z
@@ -155,6 +186,11 @@ nameserver 172.64.36.2
 3. **Install:** Open the file → Settings → Profile Downloaded → Install
 4. **Enable:** Settings → General → VPN & Device Management → DNS → Select "Cloudflare Gateway"
 5. **Verify:** Works on Wi-Fi AND cellular networks!
+
+**✅ Essential Services Whitelisted:**
+The configuration includes allow rules for Apple (Maps, App Store, iCloud) and Microsoft (Bing, Office) services, so they work correctly while still blocking third-party ads and trackers.
+
+**⚠️ Trade-off:** This allows first-party Apple and Microsoft telemetry but blocks third-party tracking. If you prefer maximum privacy over convenience, don't install the mobile profile and rely on router DNS for home WiFi only.
 
 **Android - Private DNS (DNS-over-TLS):**
 1. Settings → Network & Internet → Private DNS
