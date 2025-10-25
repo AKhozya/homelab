@@ -4,7 +4,7 @@ metadata:
   name: cnpg-postgres
   namespace: databases
   labels:
-    prometheus: kube-prometheus-stack-prometheus
+    release: kube-prometheus-stack
 spec:
   selector:
     matchLabels:
