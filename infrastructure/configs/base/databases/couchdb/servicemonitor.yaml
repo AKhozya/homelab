@@ -16,8 +16,8 @@ spec:
       scrapeTimeout: 10s
       basicAuth:
         username:
-          name: couchdb-admin
+          name: couchdb-couchdb
           key: adminUsername
         password:
-          name: couchdb-admin
+          name: couchdb-couchdb
           key: adminPassword
