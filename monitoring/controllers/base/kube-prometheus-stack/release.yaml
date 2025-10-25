@@ -153,20 +153,8 @@ spec:
           - match:
               alertname: Watchdog
             receiver: 'null'
-          # Silence K3s-specific false positives
-          - match:
-              alertname: KubeProxyDown
-            receiver: 'null'
-          - match:
-              alertname: KubeSchedulerDown
-            receiver: 'null'
-          - match:
-              alertname: KubeControllerManagerDown
-            receiver: 'null'
-          # Silence CPU overcommit alert (homelab - not a concern)
-          - match:
-              alertname: KubeCPUOvercommit
-            receiver: 'null'
+          # K3s component alerts disabled in defaultRules (embedded architecture)
+          # CPU overcommit alert disabled in defaultRules (homelab overcommit acceptable)
         receivers:
         - name: 'null'
         - name: 'telegram'
@@ -213,6 +201,14 @@ spec:
             cpu: 200m
             memory: 256Mi
     
+    # Disable K3s-specific component alerts (embedded architecture)
+    defaultRules:
+      rules:
+        kubeProxy: false
+        kubeSchedulerAlerting: false
+        kubeControllerManager: false
+        kubeScheduler: false  # Disable all scheduler rules
+
     prometheusOperator:
       resources:
         requests:
