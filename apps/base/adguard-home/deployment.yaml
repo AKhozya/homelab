@@ -26,10 +26,10 @@ spec:
             - sh
             - -c
             - |
-              if [ ! -f /opt/adguardhome/conf/AdGuardHome.yaml ]; then
-                cp /tmp/config/AdGuardHome.yaml /opt/adguardhome/conf/AdGuardHome.yaml
-                chmod 600 /opt/adguardhome/conf/AdGuardHome.yaml
-              fi
+              echo "Copying config from secret to PVC..."
+              cp /tmp/config/AdGuardHome.yaml /opt/adguardhome/conf/AdGuardHome.yaml
+              chmod 600 /opt/adguardhome/conf/AdGuardHome.yaml
+              echo "Config copied successfully"
           volumeMounts:
             - name: config
               mountPath: /tmp/config
