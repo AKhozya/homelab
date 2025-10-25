@@ -28,7 +28,8 @@ spec:
             - --txt-owner-id=homelab-staging
             - --txt-prefix=_external-dns.
             - --interval=5m
-            - --log-level=debug
+            - --log-level=info
+            - --annotation-filter=external-dns.alpha.kubernetes.io/publish=true
           env:
             - name: CF_API_TOKEN
               valueFrom:
