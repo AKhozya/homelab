@@ -202,12 +202,14 @@ spec:
             memory: 256Mi
     
     # Disable K3s-specific component alerts (embedded architecture)
+    # Disable CPU overcommit alert (homelab - intentional overcommit for burst capacity)
     defaultRules:
       rules:
         kubeProxy: false
         kubeSchedulerAlerting: false
         kubeControllerManager: false
         kubeScheduler: false  # Disable all scheduler rules
+        kubeCPUOvercommit: false  # Disable CPU overcommit warning (homelab uses intentional overcommit)
 
     prometheusOperator:
       resources:

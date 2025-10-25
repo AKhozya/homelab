@@ -128,7 +128,7 @@ spec:
               cpu: "10m"
               memory: "32Mi"
             limits:
-              cpu: "50m"
+              cpu: "100m"  # Increased from 50m to reduce 65% CPU throttling
               memory: "64Mi"
       volumes:
         - name: acl-template
