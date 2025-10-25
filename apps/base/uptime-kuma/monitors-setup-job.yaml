@@ -34,16 +34,11 @@ spec:
               import os
               import time
 
-              # Connect to Uptime Kuma
+              # Connect to Uptime Kuma with API key
               api = UptimeKumaApi('http://uptime-kuma.uptime-kuma.svc.cluster.local:3001')
+              api.login_by_api_key(os.environ['UPTIME_KUMA_API_KEY'])
 
-              # Login with admin credentials
-              api.login(
-                  username=os.environ['UPTIME_KUMA_USERNAME'],
-                  password=os.environ['UPTIME_KUMA_PASSWORD']
-              )
-
-              print('Logged in successfully!')
+              print('Authenticated with API key successfully!')
 
               # Define all monitors
               monitors = [
@@ -227,16 +222,11 @@ spec:
 
               echo "All monitors configured!"
           env:
-            - name: UPTIME_KUMA_USERNAME
+            - name: UPTIME_KUMA_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: uptime-kuma-admin
-                  key: username
-            - name: UPTIME_KUMA_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: uptime-kuma-admin
-                  key: password
+                  key: api_key
           volumeMounts:
             - name: tmp
               mountPath: /tmp
