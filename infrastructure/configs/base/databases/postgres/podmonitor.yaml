@@ -1,5 +1,5 @@
 apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
+kind: PodMonitor
 metadata:
   name: cnpg-postgres
   namespace: databases
@@ -9,8 +9,7 @@ spec:
   selector:
     matchLabels:
       cnpg.io/cluster: main-postgres
-  endpoints:
+  podMetricsEndpoints:
     - port: metrics
       interval: 30s
       path: /metrics
-      scrapeTimeout: 10s

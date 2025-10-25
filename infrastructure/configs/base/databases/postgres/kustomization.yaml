@@ -20,4 +20,4 @@ resources:
   - immich-database.yaml
   - immich-init-extensions-job.yaml
   - update-extensions-job.yaml
-  - servicemonitor.yaml
+  - podmonitor.yaml
