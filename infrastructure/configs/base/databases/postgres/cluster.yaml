@@ -5,6 +5,9 @@ metadata:
   namespace: databases
 spec:
   instances: 3
+  inheritedMetadata:
+    labels:
+      release: kube-prometheus-stack
   imageName: ghcr.io/cloudnative-pg/postgresql:18-standard-trixie
   enableSuperuserAccess: true  # Required for operator to create pooler roles
   resources:
@@ -18,7 +21,7 @@ spec:
     size: 10Gi
     storageClass: "local-path"
   monitoring:
-    enablePodMonitor: false  # Using custom PodMonitor with correct Prometheus labels
+    enablePodMonitor: true
   bootstrap:
     initdb:
       database: postgres
