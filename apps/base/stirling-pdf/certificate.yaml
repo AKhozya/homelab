@@ -6,7 +6,7 @@ metadata:
 spec:
   secretName: stirling-pdf-tls-secret
   issuerRef:
-    name: letsencrypt-production
+    name: letsencrypt-staging
     kind: ClusterIssuer
   dnsNames:
     - stirling.h0melab.work

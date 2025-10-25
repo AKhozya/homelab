@@ -6,7 +6,7 @@ metadata:
 spec:
   secretName: mealie-tls-secret
   issuerRef:
-    name: letsencrypt-production
+    name: letsencrypt-staging
     kind: ClusterIssuer
   dnsNames:
     - mealie.h0melab.work
