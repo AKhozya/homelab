@@ -40,3 +40,10 @@ spec:
           port: 3003
         - protocol: TCP
           port: 6379
+    - from:
+        - podSelector:
+            matchLabels:
+              app: immich-admin-setup
+      ports:
+        - protocol: TCP
+          port: 8080
