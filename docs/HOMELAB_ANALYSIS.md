@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-10-25 17:00 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-10-25 23:00 UTC)
 **Cluster**: K3s (staging)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -133,16 +133,16 @@
 
 ## 📈 CURRENT METRICS
 
-**Health Score: 97/100** (+2 from previous assessment) ⭐
+**Health Score: 98/100** (+1 from previous assessment) ⭐
 - Architecture: 95/100 (SSO infrastructure + 4.22TB LVM storage)
-- Security: 98/100 ⬆️ (+3 - Complete backup infrastructure)
+- Security: 98/100 (Complete backup infrastructure)
 - Code Quality: 90/100
 - UX: 90/100 (Uptime monitoring, Homepage dashboard)
-- Observability: 95/100
-- Automation: 98/100 ⬆️ (+3 - Automated backups + disaster recovery)
-- Documentation: 85/100 ⬆️ (+5 - Comprehensive backup documentation)
+- Observability: 98/100 ⬆️ (+3 - Comprehensive database monitoring)
+- Automation: 98/100 (Automated backups + disaster recovery)
+- Documentation: 85/100 (Comprehensive backup documentation)
 
-**Target: 98/100** (nearly achieved!) ✅ Previous target of 95/100 exceeded!
+**Target: 98/100 ACHIEVED!** 🎉 Previous target of 95/100 exceeded!
 
 ---
 
@@ -359,14 +359,106 @@ ingress:
 - Authentik (AUTHENTIK_POSTGRESQL__HOST: main-postgres-rw-pooler.databases.svc.cluster.local)
 - All other apps configured similarly
 
+### Database Monitoring
+
+**PostgreSQL (CloudNativePG):**
+- **Method**: PodMonitor (metrics exposed on pods, not services)
+- **Namespace**: databases
+- **Label Selector**: cnpg.io/cluster: main-postgres
+- **Targets**: 6 pods (3 database + 3 pooler)
+- **Port**: 9187 (metrics endpoint)
+- **Metrics**: 133 CNPG-specific metrics
+- **Key Metrics**: cnpg_backends_total, cnpg_collector_nodes_used, pg_stat_database metrics
+- **Alerts**: 7 alerts (down, pod not running, connection failure, too many connections, replication lag, deadlocks, high rollback rate)
+
+**Redis:**
+- **Method**: ServiceMonitor + redis-exporter sidecar
+- **Namespace**: databases
+- **Exporter**: oliver006/redis_exporter:v1.66.0-alpine
+- **Port**: 9121 (exporter metrics)
+- **Resources**: 10m CPU, 32Mi memory
+- **Service Label**: app: redis (required for ServiceMonitor discovery)
+- **Key Metrics**: redis_uptime_in_seconds, redis_connected_clients, redis_memory_used_bytes
+- **Alerts**: 7 alerts (down, pod not running, high memory, rejected connections, too many connections, slow queries, connection failure)
+- **NetworkPolicy**: Allows monitoring namespace access on port 9121
+
+**CouchDB:**
+- **Method**: ServiceMonitor with built-in Prometheus endpoint
+- **Namespace**: couchdb
+- **Endpoint**: /_node/_local/_prometheus (port 5984)
+- **Authentication**: Basic auth via couchdb-couchdb secret
+- **Metrics**: 236 built-in CouchDB metrics
+- **Key Metrics**: couchdb_httpd_requests_total, couchdb_database_reads_total
+- **Alerts**: 2 alerts (down, pod not running)
+
+**Storage Monitoring:**
+- **PVC Capacity**: Alerts at 80% (warning) and 90% (critical) usage
+- **Current State**: 8% usage, 3.7TB free of 4.2TB total
+- **Behavior**: local-path-provisioner shares node disk (no per-PVC quotas)
+- **Additional Alerts**: <1GB free (critical), >85% inodes (warning)
+
+**Alert Discovery:**
+- **PrometheusRule**: homelab-alerts (monitoring namespace)
+- **Required Label**: release: kube-prometheus-stack
+- **Alert Groups**: database-alerts, redis-alerts, couchdb-alerts
+- **Total Alerts**: 16 database-specific alerts
+
 ---
 
-**Last Updated**: 2025-10-24 20:55 UTC
+**Last Updated**: 2025-10-25 23:00 UTC
 **Next Review**: 2025-11-18
 
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-10-25 (Night Update - Database Monitoring)
+- ✅ **Database Monitoring Infrastructure**: Comprehensive monitoring for PostgreSQL, Redis, and CouchDB
+- 🎯 **Impact**: Complete observability into database health, performance, and capacity
+- 🔧 **Technical Details**:
+  - **PostgreSQL Monitoring**:
+    - Method: PodMonitor (CloudNativePG exposes metrics on pods, not services)
+    - Targets: 6 pods (3 DB pods + 3 pooler pods)
+    - Metrics: 133 CNPG-specific metrics (connections, replication, backups)
+    - Port: 9187 (metrics endpoint)
+    - Alerts: 7 alerts (down, pod not running, connection failure, too many connections, replication lag, deadlocks, high rollback rate)
+  - **Redis Monitoring**:
+    - Method: ServiceMonitor with redis-exporter sidecar
+    - Sidecar: oliver006/redis_exporter:v1.66.0-alpine
+    - Resources: 10m CPU request, 32Mi memory request
+    - Port: 9121 (exporter metrics)
+    - Alerts: 7 alerts (down, pod not running, high memory, rejected connections, too many connections, slow queries, connection failure)
+    - NetworkPolicy: Updated to allow Prometheus access on port 9121
+  - **CouchDB Monitoring**:
+    - Method: ServiceMonitor with built-in Prometheus endpoint
+    - Endpoint: /_node/_local/_prometheus
+    - Port: 5984 (same as CouchDB HTTP)
+    - Authentication: Basic auth via couchdb-couchdb secret
+    - Metrics: 236 built-in metrics
+    - Alerts: 2 alerts (down, pod not running)
+  - **Storage Capacity Monitoring**:
+    - PVC usage alerts at 80% (warning) and 90% (critical)
+    - Current usage: 8% of 4.2TB shared LVM storage
+    - local-path-provisioner behavior: All PVCs share node disk (no per-PVC quotas)
+    - Additional alerts: <1GB free (critical), >85% inodes (warning)
+- 🐛 **Issues Fixed** (5):
+  1. CouchDB ServiceMonitor port name (prometheus → couchdb)
+  2. CouchDB ServiceMonitor secret reference (couchdb-admin → couchdb-couchdb)
+  3. Redis Service missing app: redis label (ServiceMonitor couldn't discover)
+  4. Redis NetworkPolicy blocking Prometheus on port 9121
+  5. PrometheusRule missing release: kube-prometheus-stack label (alerts not loaded)
+- 📊 **Monitoring Status**:
+  - **All targets UP**: PostgreSQL (6), Redis (1), CouchDB (2)
+  - **All alerts loaded**: 16 database alerts active in Prometheus
+  - **Metrics flowing**: Verified PostgreSQL connections, Redis uptime, CouchDB requests
+- 🔒 **Security**: NetworkPolicy updates for Prometheus scraping
+- 💪 **Benefit**: Proactive alerting on database issues, capacity planning, performance monitoring
+- 📋 **Alert Coverage**:
+  - ✅ Database connection failures
+  - ✅ PVC capacity alerts (>80% usage)
+  - ✅ Redis downtime alerts
+  - ✅ Backup job failures (already existed)
+- Commits: 1ea67f1, 6f157cb, 3181866, 8940a66
 
 ### 2025-10-25 (Evening Update)
 - ✅ **Stirling PDF Production Fix**: Resolved CrashLoopBackOff issue
