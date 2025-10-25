@@ -178,31 +178,30 @@ nameserver 172.64.36.1
 nameserver 172.64.36.2
 ```
 
-### Option 3: Mobile Devices (Works on Cellular/4G/5G!)
+### Option 3: Mobile Devices Protection
 
-**iPhone/iPad - DNS-over-HTTPS Profile (Recommended):**
-1. **Download the profile:** `/docs/cloudflare-gateway-mobile-doh.mobileconfig`
-2. **Transfer to your device:** AirDrop or email to yourself
-3. **Install:** Open the file → Settings → Profile Downloaded → Install
-4. **Enable:** Settings → General → VPN & Device Management → DNS → Select "Cloudflare Gateway"
-5. **Verify:** Works on Wi-Fi AND cellular networks!
+**⚠️ Mobile DNS Profiles Not Recommended**
 
-**✅ Essential Services Whitelisted:**
-The configuration includes allow rules for Apple (Maps, App Store, iCloud) and Microsoft (Bing, Office) services, so they work correctly while still blocking third-party ads and trackers.
+DNS-over-HTTPS profiles for iOS/Android were tested but cause issues with essential services (Apple Maps, App Store, Microsoft services) even with allow rules configured. While third-party ads and trackers are blocked, the aggressive filtering breaks too many legitimate services.
 
-**⚠️ Trade-off:** This allows first-party Apple and Microsoft telemetry but blocks third-party tracking. If you prefer maximum privacy over convenience, don't install the mobile profile and rely on router DNS for home WiFi only.
+**Recommended Approach for Mobile Protection:**
 
-**Android - Private DNS (DNS-over-TLS):**
-1. Settings → Network & Internet → Private DNS
-2. Select "Private DNS provider hostname"
-3. **Note:** Android doesn't support custom DoH hostnames easily
-4. **Alternative:** Use the Cloudflare 1.1.1.1 app:
-   - Install "1.1.1.1: Faster Internet" from Play Store
-   - Open app → Settings (gear icon)
-   - Advanced → Connection options → DNS-over-HTTPS
-   - Enter: `https://nvkj3k9t7f.cloudflare-gateway.com/dns-query`
+Your home WiFi already provides full protection via router DNS. For protection on cellular (4G/5G) networks:
 
-**Alternative - Per-Network (Wi-Fi only):**
+**Option A: VPN Back to Home (Best Solution)**
+1. Enable VPN server on your home router (WireGuard or OpenVPN)
+2. Configure VPN on your iPhone/iPad
+3. Connect to home VPN when on cellular
+4. All DNS queries route through home router → Gateway DNS
+5. ✅ Full protection + everything works
+
+**Option B: Accept Trade-off**
+- ✅ **At home:** Full protection via router DNS
+- ❌ **On cellular:** No ad/tracker blocking, but all services work
+- Most of your browsing is likely at home anyway
+
+**Option C: Per-Network DNS (Wi-Fi Only)**
+For additional WiFi networks (office, friends' homes):
 - **iOS:** Settings → Wi-Fi → [Network] → Configure DNS → Manual
   - Add: `172.64.36.1` and `172.64.36.2`
 - **Android:** Settings → Wi-Fi → [Network] → Advanced → DNS
