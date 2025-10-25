@@ -18,7 +18,7 @@ spec:
               kubernetes.io/metadata.name: traefik
       ports:
         - protocol: TCP
-          port: 3000
+          port: 80
     # Allow DNS queries from anywhere (internal network)
     - ports:
         - protocol: TCP
