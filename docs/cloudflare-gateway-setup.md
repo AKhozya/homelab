@@ -12,6 +12,8 @@ Cloudflare Gateway provides DNS-level filtering for ad blocking, malware protect
 
 **Location ID:** `55e39ccecdf04717ba7a3363e5838da4`
 **Created:** 2025-10-25T14:33:37Z
+**Updated:** 2025-10-25T14:36:56Z
+**ECS Support:** ✅ Enabled (routes to nearest Cloudflare datacenter for optimal performance)
 
 ### DNS Server Addresses
 
