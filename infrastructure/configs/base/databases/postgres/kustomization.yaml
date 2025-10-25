@@ -11,6 +11,7 @@ resources:
   - wallabag-db-user.yaml
   - paperless-db-user.yaml
   - immich-db-user.yaml
+  - stirling-pdf-db-user.yaml
   - authentik-database.yaml
   - n8n-database.yaml
   - mealie-database.yaml
@@ -18,5 +19,6 @@ resources:
   - wallabag-database.yaml
   - paperless-database.yaml
   - immich-database.yaml
+  - stirling-pdf-database.yaml
   - immich-init-extensions-job.yaml
   - update-extensions-job.yaml
