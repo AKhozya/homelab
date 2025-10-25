@@ -48,8 +48,11 @@
 ### Immediate (This Week) 🔴
 
 1. ✅ **COMPLETED: Fix wallabag PVC Namespace Leak** - P0
-   - ✅ Deleted duplicate PVCs in default namespace
+   - ✅ Deleted duplicate 60GB PVCs in wrong namespace
    - ✅ Recovered 60GB storage
+   - ✅ Current PVCs correctly sized: 15GB total (5Gi data + 10Gi images)
+   - ✅ Actual usage: 12KB total (8KB data + 4KB images)
+   - ✅ No abandoned PVCs remaining on disk
    - Commit: a235309
 
 2. ✅ **COMPLETED: Add Missing NetworkPolicies** - P0
@@ -107,8 +110,6 @@
    - ✅ **Benefit**: Fast local HTTPS access + secure external access via Cloudflare
    - Commits: 2d8921b, ec2f63d
 8. **Enable Pod Security Standards** - P1
-9. **Optimize PVC Sizing** - P1
-   - wallabag: Reduce from 60GB to 15GB (5Gi data + 10Gi images)
 
 ### Medium Term (3 Months) 📋
 
@@ -780,7 +781,9 @@ ingress:
 - ✅ **Resource Optimization**: Fixed wallabag PVC namespace leak (60GB recovered)
 - 📊 **Score Update**: Security 70→90, Overall Health 82→87
 - 🏆 **Grade Update**: B+ → A-
-- 🔍 **Storage Analysis**: wallabag using 12KB/60GB (99.98% waste)
-  - Recommendation: 5Gi data + 10Gi images for 1000+ articles
+- 🔍 **Storage Cleanup**: Deleted duplicate 60GB wallabag PVCs from wrong namespace
+  - Correct PVCs: 5Gi data + 10Gi images = 15GB total (optimally sized)
+  - Actual usage: 12KB total (8KB data + 4KB images)
+  - No abandoned PVCs remaining
 - 🔧 **App Review**: Removed Vaultwarden (using 1Password)
 - Commit: a235309
