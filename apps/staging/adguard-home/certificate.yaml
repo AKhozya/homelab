@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: adguard-home-tls
+  namespace: adguard-home
+spec:
+  secretName: adguard-home-tls-secret
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+  dnsNames:
+    - adguard.h0melab.work
+  renewBefore: 720h  # 30 days
+  duration: 2160h  # 90 days

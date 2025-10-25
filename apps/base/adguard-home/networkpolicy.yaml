@@ -1,0 +1,46 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: adguard-home-network-policy
+  namespace: adguard-home
+spec:
+  podSelector:
+    matchLabels:
+      app: adguard-home
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from traefik namespace for web UI
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Allow DNS queries from anywhere (internal network)
+    - ports:
+        - protocol: TCP
+          port: 53
+        - protocol: UDP
+          port: 53
+  egress:
+    # Allow DNS resolution to upstream servers (Cloudflare)
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+        - protocol: TCP
+          port: 443  # DoH to Cloudflare
+        - protocol: TCP
+          port: 853  # DoT to Cloudflare
+    # Allow HTTPS for blocklist updates
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTP for blocklist updates
+    - ports:
+        - protocol: TCP
+          port: 80
