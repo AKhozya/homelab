@@ -66,6 +66,8 @@ spec:
               mountPath: /logs
             - name: custom-files-dir
               mountPath: /customFiles
+            - name: pipeline-dir
+              mountPath: /pipeline
       volumes:
         - name: temp-dir
           emptyDir: {}
@@ -74,4 +76,6 @@ spec:
         - name: logs-dir
           emptyDir: {}
         - name: custom-files-dir
+          emptyDir: {}
+        - name: pipeline-dir
           emptyDir: {}
