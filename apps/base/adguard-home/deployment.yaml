@@ -29,7 +29,7 @@ spec:
             - containerPort: 53
               name: dns-udp
               protocol: UDP
-            - containerPort: 3000
+            - containerPort: 80
               name: http
               protocol: TCP
           securityContext:
@@ -42,7 +42,7 @@ spec:
           livenessProbe:
             httpGet:
               path: /
-              port: 3000
+              port: 80
             initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 5
@@ -50,7 +50,7 @@ spec:
           readinessProbe:
             httpGet:
               path: /
-              port: 3000
+              port: 80
             initialDelaySeconds: 30
             periodSeconds: 5
             timeoutSeconds: 3
@@ -69,7 +69,13 @@ spec:
             - name: data
               mountPath: /opt/adguardhome/work
               subPath: work
+            - name: config
+              mountPath: /opt/adguardhome/conf/AdGuardHome.yaml
+              subPath: AdGuardHome.yaml
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: adguard-home-data-pvc
+        - name: config
+          secret:
+            secretName: adguard-home-config
