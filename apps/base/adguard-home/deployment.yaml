@@ -19,6 +19,23 @@ spec:
         fsGroup: 0
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: copy-config
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              if [ ! -f /opt/adguardhome/conf/AdGuardHome.yaml ]; then
+                cp /tmp/config/AdGuardHome.yaml /opt/adguardhome/conf/AdGuardHome.yaml
+                chmod 600 /opt/adguardhome/conf/AdGuardHome.yaml
+              fi
+          volumeMounts:
+            - name: config
+              mountPath: /tmp/config
+            - name: data
+              mountPath: /opt/adguardhome/conf
+              subPath: conf
       containers:
         - name: adguard-home
           image: adguard/adguardhome:latest
@@ -69,9 +86,6 @@ spec:
             - name: data
               mountPath: /opt/adguardhome/work
               subPath: work
-            - name: config
-              mountPath: /opt/adguardhome/conf/AdGuardHome.yaml
-              subPath: AdGuardHome.yaml
       volumes:
         - name: data
           persistentVolumeClaim:
