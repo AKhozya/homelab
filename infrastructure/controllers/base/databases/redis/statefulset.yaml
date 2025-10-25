@@ -97,6 +97,35 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+        - name: redis-exporter
+          image: oliver006/redis_exporter:v1.66.0-alpine
+          args:
+            - --redis.addr=redis://localhost:6379
+            - --redis.user=admin
+            - --redis.password=$(REDIS_PASSWORD)
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-passwords
+                  key: admin-password
+          ports:
+            - containerPort: 9121
+              name: metrics
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 59000
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
       volumes:
         - name: acl-template
           configMap:

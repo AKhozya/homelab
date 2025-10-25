@@ -84,7 +84,8 @@ spec:
 
     # Monitoring
     prometheus:
-      enabled: false
+      enabled: true
+      port: 9984
 
     # Health checks for auto-recovery and resilience
     livenessProbe:

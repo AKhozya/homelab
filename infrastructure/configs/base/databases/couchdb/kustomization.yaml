@@ -6,3 +6,4 @@ resources:
   - ingress.yaml
   - middleware.yaml
   - certificate.yaml
+  - servicemonitor.yaml

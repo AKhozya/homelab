@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: couchdb
+  namespace: couchdb
+  labels:
+    prometheus: kube-prometheus-stack-prometheus
+spec:
+  selector:
+    matchLabels:
+      app: couchdb
+  endpoints:
+    - port: prometheus
+      interval: 30s
+      path: /_node/_local/_prometheus
+      scrapeTimeout: 10s
+      basicAuth:
+        username:
+          name: couchdb-admin
+          key: adminUsername
+        password:
+          name: couchdb-admin
+          key: adminPassword

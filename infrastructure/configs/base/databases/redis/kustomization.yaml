@@ -5,3 +5,4 @@ resources:
   - networkpolicy.yaml
   - secret.yaml
   - acl-configmap.yaml
+  - servicemonitor.yaml
