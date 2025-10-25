@@ -6,6 +6,7 @@ metadata:
   labels:
     prometheus: kube-prometheus-stack-prometheus
     role: alert-rules
+    release: kube-prometheus-stack
 spec:
   groups:
   - name: node-alerts
