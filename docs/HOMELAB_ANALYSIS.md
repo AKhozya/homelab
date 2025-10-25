@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-10-24 20:55 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-10-25 15:30 UTC)
 **Cluster**: K3s (staging)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -360,7 +360,48 @@ ingress:
 
 ## 📝 CHANGELOG
 
-### 2025-10-25
+### 2025-10-25 (Evening Update)
+- ✅ **Stirling PDF Production Fix**: Resolved CrashLoopBackOff issue
+- ✅ **Cloudflare Gateway DNS Filtering**: Network-wide ad/tracker blocking deployed
+- 🎯 **Impact**: Stirling PDF stable deployment + network-level security enhancement
+- 🔧 **Technical Details**:
+  - **Stirling PDF Fix**:
+    - Root cause: RollingUpdate strategy incompatible with ReadWriteOnce PVC
+    - During rolling update, new pod couldn't mount PVC (old pod had exclusive access)
+    - Database initialization failed: "Unable to determine Dialect without JDBC metadata"
+    - Solution: Changed deployment strategy to `Recreate` (old pod terminates first)
+    - Result: Clean deployment, 1/1 Running, zero restarts
+    - Commit: e35e7a3
+  - **Cloudflare Gateway DNS**:
+    - Location: "Homelab" (ID: 55e39ccecdf04717ba7a3363e5838da4)
+    - DNS servers: 172.64.36.1, 172.64.36.2 (IPv4), 2a06:98c1:54::20:4351 (IPv6)
+    - DoH: https://nvkj3k9t7f.cloudflare-gateway.com/dns-query
+    - ECS support enabled (routes to nearest Cloudflare datacenter)
+    - **Filtering Policies** (4 active):
+      1. Block Security Threats (malware, phishing, C&C, cryptomining) - Precedence 10000
+      2. Block Ads (category 22) - Precedence 9000
+      3. Block Trackers (category 155) - Precedence 8000
+      4. Block Major Trackers (30 domains: Google Analytics, Facebook Pixel, etc.) - Precedence 7000
+    - **Allow Rules** (essential services):
+      1. Allow Apple services (*.apple.com, *.mzstatic.com, *.icloud.com) - Precedence 15000
+      2. Allow Microsoft services (*.bing.com, *.microsoft.com, *.live.com) - Precedence 14900
+    - **Mobile Setup Issue**: iOS DNS-over-HTTPS profile broke Apple Maps, App Store, Bing Rewards
+      - Allow rules added but profile still incompatible
+      - Profile removed, recommended VPN-back-to-home instead
+      - Router DNS works perfectly for home network protection
+    - **Authentication**: IPv4 DNS requires network authentication (89.36.71.24/32)
+      - IPv4 addresses shared across Cloudflare customers (require source IP verification)
+      - DoH/DoT/IPv6 use unique subdomain (no IP restriction)
+    - Documentation: `docs/cloudflare-gateway-setup.md` (comprehensive setup guide)
+    - Commits: c347087, e804f1f, a343840
+- 📋 **Lessons Learned**:
+  - **RWO PVC + RollingUpdate = Bad**: Always use Recreate strategy for stateful apps with RWO PVCs
+  - **DNS Filtering Trade-offs**: Mobile DNS profiles too aggressive even with allow rules
+  - **Network-level blocking**: Router DNS provides protection without compatibility issues
+- 🔒 **Security**: Network-wide ad/tracker blocking active on home network
+- 💪 **Stability**: Stirling PDF deployment now production-ready
+
+### 2025-10-25 (Morning Update)
 - ✅ **New Applications Deployed**: Added Stirling PDF and HomeHub (apps #14 and #15)
 - 🎯 **Impact**: PDF toolkit with OIDC + Family dashboard for local network
 - 🔧 **Technical Details**:
