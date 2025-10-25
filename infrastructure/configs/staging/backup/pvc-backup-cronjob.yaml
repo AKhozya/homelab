@@ -4,7 +4,7 @@ metadata:
   name: pvc-backup
   namespace: kube-system
 spec:
-  schedule: "0 3 * * *"  # 3 AM daily (after PostgreSQL backups)
+  schedule: "10 3 * * *"  # 3:10 AM daily (10 min after PostgreSQL backups)
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid  # Don't run concurrent backups

@@ -4,7 +4,7 @@ metadata:
   name: couchdb-backup
   namespace: couchdb
 spec:
-  schedule: "30 2 * * *"  # 2:30 AM daily (after PostgreSQL backups)
+  schedule: "5 3 * * *"  # 3:05 AM daily (5 min after PostgreSQL backups)
   successfulJobsHistoryLimit: 7
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid  # Don't run concurrent backups
