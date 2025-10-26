@@ -70,11 +70,11 @@ spec:
             failureThreshold: 3
           resources:
             requests:
-              cpu: "200m"
+              cpu: "100m"
               memory: "512Mi"
             limits:
-              cpu: "1000m"
-              memory: "2Gi"
+              cpu: "500m"
+              memory: "1536Mi"
           volumeMounts:
             - name: paperless-storage
               mountPath: /usr/src/paperless/data
