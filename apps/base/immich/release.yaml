@@ -247,7 +247,7 @@ spec:
                   memory: 256Mi
               securityContext:
                 allowPrivilegeEscalation: false
-                readOnlyRootFilesystem: true
+                readOnlyRootFilesystem: false  # nginx needs writable /etc/nginx, /var/cache/nginx
                 runAsNonRoot: true
                 runAsUser: 101  # nginx user
                 capabilities:
