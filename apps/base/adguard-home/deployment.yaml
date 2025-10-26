@@ -51,6 +51,12 @@ spec:
             - containerPort: 80
               name: http
               protocol: TCP
+            - containerPort: 853
+              name: dns-over-tls
+              protocol: TCP
+            - containerPort: 8443
+              name: dns-over-https
+              protocol: TCP
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
@@ -88,6 +94,9 @@ spec:
             - name: data
               mountPath: /opt/adguardhome/work
               subPath: work
+            - name: tls-cert
+              mountPath: /opt/adguardhome/certs
+              readOnly: true
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -95,3 +104,6 @@ spec:
         - name: config
           secret:
             secretName: adguard-home-config
+        - name: tls-cert
+          secret:
+            secretName: adguard-home-tls-secret
