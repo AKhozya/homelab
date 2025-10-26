@@ -13,18 +13,6 @@ spec:
       labels:
         app: uptime-kuma
     spec:
-      # Use AdGuard Home for DNS resolution to resolve internal-only .h0melab.work domains
-      dnsPolicy: "None"
-      dnsConfig:
-        nameservers:
-          - 10.43.191.172  # AdGuard Home DNS service
-        searches:
-          - uptime-kuma.svc.cluster.local
-          - svc.cluster.local
-          - cluster.local
-        options:
-          - name: ndots
-            value: "5"
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
