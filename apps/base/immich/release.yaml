@@ -180,11 +180,21 @@ spec:
                 - /bin/sh
                 - -c
                 - |
-                  cat > /etc/nginx/nginx.conf <<'EOF'
+                  cat > /tmp/nginx.conf <<'EOF'
+                  # Run nginx without privilege
+                  pid /tmp/nginx.pid;
+
                   events {
                     worker_connections 1024;
                   }
                   http {
+                    # Use /tmp for writable directories (read-only root filesystem)
+                    client_body_temp_path /tmp/client_temp;
+                    proxy_temp_path /tmp/proxy_temp;
+                    fastcgi_temp_path /tmp/fastcgi_temp;
+                    uwsgi_temp_path /tmp/uwsgi_temp;
+                    scgi_temp_path /tmp/scgi_temp;
+
                     # Optimize for video streaming
                     sendfile on;
                     tcp_nopush on;
@@ -237,7 +247,7 @@ spec:
                     }
                   }
                   EOF
-                  nginx -g 'daemon off;'
+                  exec nginx -c /tmp/nginx.conf -g 'daemon off;'
               resources:
                 requests:
                   cpu: 50m
@@ -247,7 +257,7 @@ spec:
                   memory: 256Mi
               securityContext:
                 allowPrivilegeEscalation: false
-                readOnlyRootFilesystem: false  # nginx needs writable /etc/nginx, /var/cache/nginx
+                readOnlyRootFilesystem: true
                 runAsNonRoot: true
                 runAsUser: 101  # nginx user
                 capabilities:
