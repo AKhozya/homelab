@@ -5,7 +5,6 @@ metadata:
   namespace: stirling-pdf
   annotations:
     traefik.ingress.kubernetes.io/router.middlewares: stirling-pdf-redirect-https@kubernetescrd
-    external-dns.alpha.kubernetes.io/hostname: stirling.h0melab.work
 spec:
   ingressClassName: traefik
   tls:

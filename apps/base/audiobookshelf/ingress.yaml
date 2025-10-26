@@ -5,7 +5,6 @@ metadata:
   namespace: audiobookshelf
   annotations:
     traefik.ingress.kubernetes.io/router.middlewares: audiobookshelf-redirect-https@kubernetescrd
-    external-dns.alpha.kubernetes.io/hostname: audiobooks.h0melab.work
 spec:
   ingressClassName: traefik
   tls:

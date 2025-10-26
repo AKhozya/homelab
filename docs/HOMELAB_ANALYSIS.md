@@ -18,7 +18,7 @@
 - **🆕 Centralized SSO with Authentik** ⭐
 - **🆕 Cloudflare Tunnel for secure external access** ⭐
 - **🆕 Dual-Access Pattern: Traefik Ingress + Cloudflare Tunnel** ⭐
-- **🆕 External-DNS for automated DNS management** ⭐
+- **🆕 AdGuard Home for local DNS management** ⭐
 - **🆕 Let's Encrypt TLS certificates for all services** ⭐
 - **🆕 Uptime monitoring with Uptime Kuma** ⭐
 - **🆕 4.22TB LVM Storage on Worker Node** ⭐
@@ -144,7 +144,7 @@
    - ✅ **Completed**: 2025-10-25
    - ✅ **Dual-Access Pattern Implemented**: 10 apps with Traefik Ingress + Cloudflare Tunnel
    - ✅ **Apps Configured**: authentik, stirling-pdf, immich, paperless-ngx, audiobookshelf, mealie, wallabag, n8n, linkding, couchdb
-   - ✅ **Features**: Let's Encrypt TLS, External-DNS automation, NetworkPolicy updates
+   - ✅ **Features**: Let's Encrypt TLS, AdGuard Home DNS management, NetworkPolicy updates
    - ✅ **Benefit**: Fast local HTTPS access + secure external access via Cloudflare
    - Commits: 2d8921b, ec2f63d
 
@@ -271,7 +271,7 @@
 6. FreshRSS/Miniflux - RSS reader
 7. Gitea - Self-hosted Git
 8. Velero - Kubernetes backup (P2 - Medium Term task)
-9. ~~External-DNS - DNS automation~~ ✅ **COMPLETED** (scaled to 0, AdGuard Home handles local DNS)
+9. ~~External-DNS - DNS automation~~ ✅ **REMOVED** (AdGuard Home handles local DNS)
 
 **Note**: Password management handled by 1Password (commercial service)
 
@@ -504,6 +504,21 @@ ingress:
 
 ## 📝 CHANGELOG
 
+### 2025-10-26 (Afternoon Update - External-DNS Cleanup)
+- ✅ **External-DNS Complete Removal**: Removed orphaned external-dns annotations from all Ingresses
+- 🎯 **Impact**: Cleaned up 14 Ingress resources with unused external-dns annotations
+- 🔧 **Technical Details**:
+  - **Status**: External-DNS was previously removed (no namespace, no deployment, no Flux Kustomization)
+  - **Replaced By**: AdGuard Home handles local DNS resolution
+  - **Cleanup**: Removed all external-dns annotations from Ingress resources
+    - **Removed hostname annotations** (10 files): authentik, stirling-pdf, immich, paperless-ngx, audiobookshelf, mealie, wallabag, n8n, linkding, couchdb
+    - **Removed exclude annotations** (5 files): uptime-kuma, homepage, homehub, home-assistant, adguard-home
+  - **Reason**: External-DNS not running, annotations serve no purpose and create confusion
+  - **DNS Strategy**:
+    - **External access** (9 services): Cloudflare Tunnel with manual CNAME records
+    - **Internal access** (16 services): AdGuard Home with local DNS records
+- 📋 **Benefit**: Cleaner Ingress manifests, no unused annotations
+
 ### 2025-10-26 (Late Morning Update - Complete App Restart & Node Drain)
 - ✅ **Complete Application Testing**: Restarted and verified all 16 homelab applications
 - ✅ **Pod Security Standards Fixes**: Fixed PSS violations in 3 applications
@@ -686,9 +701,10 @@ ingress:
     - Access: adguard.h0melab.work (Traefik Ingress, internal only)
     - Replaces: External-DNS for internal service DNS resolution
     - Features: Local DNS records, ad blocking, query logging, statistics
-  - **External-DNS Status**: Scaled to 0 replicas (namespace exists but inactive)
+  - **External-DNS Status**: Completely removed (2025-10-26)
     - Previous role: Automated Cloudflare DNS record creation for Ingresses
     - Removal reason: Simplified architecture, reduced external API dependencies
+    - Cleanup: All external-dns annotations removed from Ingress resources
   - **New DNS Strategy**:
     - External services (9 via tunnel): Cloudflare DNS → Cloudflare Tunnel → Service
     - Internal services (7 local): AdGuard Home → Traefik Ingress → Service
@@ -818,7 +834,7 @@ ingress:
 
 ### 2025-10-24
 - ✅ **Cloudflare Tunnel Expansion**: Added Authentik to Cloudflare Tunnel (9th service)
-- ✅ **External-DNS Deployment**: Automated DNS management for Kubernetes Ingresses
+- ~~**External-DNS Deployment**~~: ❌ **LATER REMOVED** (2025-10-25 - replaced by AdGuard Home)
 - ✅ **CNPG Pooler Fix**: Resolved pooler role creation issue for Authentik
 - 🎯 **Impact**: Authentik accessible externally via Cloudflare Tunnel with Zero Trust
 - 🔧 **Technical Details**:
@@ -826,11 +842,10 @@ ingress:
     - CNAME record: authentik → c2188394-85ac-402a-8025-0e404ae6004f.cfargotunnel.com
     - Service routing: Cloudflare Dashboard (Zero Trust > Access > Tunnels)
     - ConfigMap simplified: Removed unused ingress config, added documentation
-  - **External-DNS**: Deployed for automated A record management
-    - Provider: Cloudflare API (Zone: h0melab.work)
-    - Policy: sync (create/update/delete)
-    - TXT record ownership tracking for multi-controller support
-    - Automatic cleanup when Ingresses deleted
+  - **External-DNS**: ❌ **REMOVED** (2025-10-25)
+    - Deployed for automated A record management via Cloudflare API
+    - Replaced by AdGuard Home for local DNS resolution
+    - All annotations cleaned up on 2025-10-26
   - **CNPG Pooler**: Fixed Authentik database connection
     - Issue: Stale secret preventing pooler role creation
     - Fix: Deleted secret, CNPG operator recreated pooler user successfully
@@ -838,12 +853,11 @@ ingress:
   - **NetworkPolicy Enhancement**: Added cloudflare-tunnel namespace to Authentik ingress
     - Dual-access pattern: Both traefik (internal) and cloudflare-tunnel (external)
     - Required for apps accessible via both internal Ingress and Cloudflare Tunnel
-- 📋 **DNS Management Strategy**:
-  - **Internal access**: External-DNS manages A records for Traefik Ingresses
-  - **External access**: Manual CNAME records for Cloudflare Tunnel services
-  - **Conflict resolution**: CNAME takes precedence over A record (delete A if both exist)
+- 📋 **DNS Management Strategy** (Later changed - see 2025-10-25):
+  - ~~External-DNS for automated A records~~ → AdGuard Home for local DNS
+  - Manual CNAME records for Cloudflare Tunnel services
 - 🔒 **Security**: NetworkPolicy enforcement for dual-access apps
-- 💪 **Benefit**: Secure external access via Cloudflare Zero Trust, automated internal DNS
+- 💪 **Benefit**: Secure external access via Cloudflare Zero Trust
 - Commits: e657a23, 6b25c00, 08c133a
 
 ### 2025-10-23
@@ -1000,14 +1014,14 @@ ingress:
   - Created Ingress, Middleware, and Certificate resources for 10 apps
   - Apps: authentik, stirling-pdf, immich, paperless-ngx, audiobookshelf, mealie, wallabag, n8n, linkding, couchdb
   - Let's Encrypt TLS certificates (letsencrypt-staging ClusterIssuer)
-  - External-DNS automated A record creation (all pointing to Cloudflare IPs)
+  - ~~External-DNS automated A record creation~~ → Later replaced by AdGuard Home (2025-10-25)
   - NetworkPolicy updates to allow traefik namespace ingress
   - All apps accessible via: https://<app>.h0melab.work
 - 🚀 **Benefits**:
   - Local access: Direct Traefik route (faster, lower latency)
   - External access: Existing Cloudflare Tunnel (secure, zero trust)
   - Valid HTTPS certificates for local network
-  - Automated DNS management
+  - ~~Automated DNS management (External-DNS)~~ → AdGuard Home (2025-10-25)
 - 📊 **Resources**: 46 files created/modified, 571 insertions
 - Commits: 2d8921b (main implementation), ec2f63d (ClusterIssuer fix)
 

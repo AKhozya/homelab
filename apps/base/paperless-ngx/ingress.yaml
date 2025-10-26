@@ -5,7 +5,6 @@ metadata:
   namespace: paperless-ngx
   annotations:
     traefik.ingress.kubernetes.io/router.middlewares: paperless-ngx-redirect-https@kubernetescrd
-    external-dns.alpha.kubernetes.io/hostname: paperless.h0melab.work
 spec:
   ingressClassName: traefik
   tls:
