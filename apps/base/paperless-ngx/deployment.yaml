@@ -35,6 +35,7 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE"]
             seccompProfile:
               type: RuntimeDefault
       containers:
