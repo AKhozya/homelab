@@ -22,41 +22,6 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
-      initContainers:
-        - name: prepare-directories
-          image: busybox:1.37
-          command:
-            - sh
-            - -c
-            - |
-              set -e
-              echo "Creating required directory structure..."
-              mkdir -p /pipeline/watchedFolders
-              mkdir -p /pipeline/defaultWebUIConfigs
-              mkdir -p /logs
-              mkdir -p /customFiles
-              mkdir -p /tmp/stirling-pdf
-              echo "Setting ownership to UID 1000..."
-              chown -R 1000:1000 /pipeline
-              chown -R 1000:1000 /configs
-              chown -R 1000:1000 /logs
-              chown -R 1000:1000 /customFiles
-              chown -R 1000:1000 /tmp
-              echo "Directory preparation complete"
-          securityContext:
-            runAsUser: 0
-            runAsNonRoot: false
-          volumeMounts:
-            - name: temp-dir
-              mountPath: /tmp
-            - name: config-dir
-              mountPath: /configs
-            - name: logs-dir
-              mountPath: /logs
-            - name: custom-files-dir
-              mountPath: /customFiles
-            - name: pipeline-dir
-              mountPath: /pipeline
       containers:
         - name: stirling-pdf
           image: frooodle/s-pdf:1.5.0-fat
