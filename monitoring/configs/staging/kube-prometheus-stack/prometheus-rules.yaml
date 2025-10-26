@@ -412,7 +412,7 @@ spec:
         description: "Backup CronJob hasn't run for more than 1 hour past its schedule time. Backups may not be running! Check: kubectl get cronjob {{ $labels.cronjob }} -n {{ $labels.namespace }}"
 
     - alert: BackupJobRunningTooLong
-      expr: time() - kube_job_status_start_time{job_name=~".*backup.*"} > 7200
+      expr: (time() - kube_job_status_start_time{job_name=~".*backup.*"} > 7200) and (kube_job_complete{job_name=~".*backup.*"} == 0)
       for: 5m
       labels:
         severity: warning
