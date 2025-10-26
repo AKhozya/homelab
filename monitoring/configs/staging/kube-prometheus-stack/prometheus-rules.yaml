@@ -508,7 +508,7 @@ spec:
         description: "Redis is unreachable. Applications using Redis cache/session storage will fail!"
 
     - alert: RedisPodNotRunning
-      expr: kube_pod_status_phase{pod=~"redis.*", phase!="Running"} > 0
+      expr: kube_pod_status_phase{namespace="databases",pod=~"redis.*", phase!="Running"} > 0
       for: 5m
       labels:
         severity: critical
@@ -574,7 +574,7 @@ spec:
         description: "CouchDB is unreachable. Sync functionality may be unavailable!"
 
     - alert: CouchDBPodNotRunning
-      expr: kube_pod_status_phase{namespace="couchdb",pod=~"couchdb.*",phase!="Running"} > 0
+      expr: kube_pod_status_phase{namespace="couchdb",pod=~"couchdb-couchdb.*",phase!="Running"} > 0
       for: 5m
       labels:
         severity: critical
