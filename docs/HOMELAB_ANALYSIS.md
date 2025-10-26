@@ -89,8 +89,20 @@
    - 📋 **Next:** Test disaster recovery procedure, implement backup validation
    - Commits: Multiple (470972a, 4f400ae, 2ba824d, 9464f7a, 74f448a, bff6c87)
 
-4. **Document User Provision Pattern** - P1
-   - Create SECURITY.md template
+4. **Enable Pod Security Standards** - P1 🔴 **TOMORROW**
+   - Apply Pod Security Admission at namespace level
+   - Use `restricted` policy for most apps, `baseline` for privileged workloads
+   - Testing: Very thorough functionality testing and log review after applying
+   - Impact: Enhanced pod-level security compliance
+   - Documentation: Update affected app manifests with security context requirements
+   - 📋 **Next Session**: Implementation and testing
+
+5. **Document Home Assistant Security** - P1 🔴 **TOMORROW**
+   - Create `apps/base/home-assistant/SECURITY.md`
+   - Explain root requirement and security rationale
+   - Document why runAsNonRoot: false is necessary (hardware access, supervisor architecture)
+   - Impact: Clear security documentation for privileged workload
+   - 📋 **Next Session**: Documentation creation
 
 ### Short Term (This Month) ⚠️
 
@@ -110,7 +122,6 @@
    - ✅ **Features**: Let's Encrypt TLS, External-DNS automation, NetworkPolicy updates
    - ✅ **Benefit**: Fast local HTTPS access + secure external access via Cloudflare
    - Commits: 2d8921b, ec2f63d
-8. **Enable Pod Security Standards** - P1
 
 ### Medium Term (3 Months) 📋
 
