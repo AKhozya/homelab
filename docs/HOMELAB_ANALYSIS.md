@@ -129,28 +129,83 @@
    - Impact: **100% PSS compliance validated** for all 16 homelab applications, node drain procedures verified
    - Commits: 0874dfd, a5e67b8, ca3891c, 7f12be2, 8162673, d3b5036, abb323c
 
+8. ✅ **COMPLETED: Performance Optimization** - P1 ⭐
+   - ✅ Completed performance and security audit (2025-10-26)
+   - ✅ Optimized 3 over-provisioned apps (Stirling PDF, Paperless-NGX, Immich ML)
+   - ✅ **Memory savings**: 7.5Gi (62.5% reduction)
+   - ✅ **Efficiency improvement**: 69% → 91% memory utilization
+   - ✅ Created `docs/PERFORMANCE_SECURITY_AUDIT.md` (335+ lines)
+   - Impact: Better resource utilization, improved scheduling efficiency
+   - Commit: 45664d6
+
+9. ✅ **COMPLETED: Secrets Rotation Framework** - P1 ⭐
+   - ✅ Created comprehensive secrets rotation playbook (2025-10-26)
+   - ✅ Documented 20+ secrets inventory (DB, Redis, OIDC, TLS)
+   - ✅ Defined rotation schedules (90/180/365 day cycles)
+   - ✅ Step-by-step procedures with rollback instructions
+   - ✅ Emergency rotation protocols
+   - ✅ Created `docs/SECRETS_ROTATION.md` (350+ lines)
+   - Impact: Established security rotation framework
+   - Commit: c4abd54
+
+10. ✅ **COMPLETED: App Alternatives Research** - P1 ⭐
+    - ✅ Researched alternatives for all 16 apps (2025-10-26)
+    - ✅ Current stack grade: **A+ (96/100)**
+    - ✅ 13 apps confirmed best-in-class
+    - ✅ Identified Windmill as potential N8N alternative (44% less memory)
+    - ✅ Created `docs/APP_ALTERNATIVES_RESEARCH.md` (317+ lines)
+    - Impact: Validated current infrastructure choices, identified optimization opportunities
+    - Commit: c4abd54
+
 ### Short Term (This Month) ⚠️
 
-4. ✅ **COMPLETED: Add Homepage Dashboard** - P1
-   - ✅ Centralized dashboard for all apps
-   - Commit: c5b0244
-5. ✅ **COMPLETED: Add Uptime Kuma** - P1
-   - ✅ Uptime monitoring with automated user setup
-   - Commit: 46cc485
-6. ✅ **COMPLETED: Add SSO (Authentik)** - P1
-   - ✅ SSO platform deployed with PostgreSQL and Redis
-   - Commit: 46cc485
-7. ✅ **COMPLETED: Create Ingresses for All Apps** - P1 ⭐
-   - ✅ **Completed**: 2025-10-25
-   - ✅ **Dual-Access Pattern Implemented**: 10 apps with Traefik Ingress + Cloudflare Tunnel
-   - ✅ **Apps Configured**: authentik, stirling-pdf, immich, paperless-ngx, audiobookshelf, mealie, wallabag, n8n, linkding, couchdb
-   - ✅ **Features**: Let's Encrypt TLS, AdGuard Home DNS management, NetworkPolicy updates
-   - ✅ **Benefit**: Fast local HTTPS access + secure external access via Cloudflare
-   - Commits: 2d8921b, ec2f63d
+8. **Document Initial Secret Rotation Dates** - P1
+   - Record current deployment dates for all secrets
+   - Establish baseline for rotation tracking
+   - Update `docs/SECRETS_ROTATION.md` with dates
+   - Estimated time: 30 minutes
+
+9. **Add Prometheus Resource Alerts** - P2
+   - Configure alerts for pods approaching memory limits (>80%)
+   - Configure alerts for high restart counts
+   - Configure alerts for PVC usage (>80%)
+   - Estimated time: 45 minutes
+   - Reference: `docs/PERFORMANCE_SECURITY_AUDIT.md`
+
+11. ✅ **COMPLETED: Add Homepage Dashboard** - P1
+    - ✅ Centralized dashboard for all apps
+    - Commit: c5b0244
+12. ✅ **COMPLETED: Add Uptime Kuma** - P1
+    - ✅ Uptime monitoring with automated user setup
+    - Commit: 46cc485
+13. ✅ **COMPLETED: Add SSO (Authentik)** - P1
+    - ✅ SSO platform deployed with PostgreSQL and Redis
+    - Commit: 46cc485
+14. ✅ **COMPLETED: Create Ingresses for All Apps** - P1 ⭐
+    - ✅ **Completed**: 2025-10-25
+    - ✅ **Dual-Access Pattern Implemented**: 10 apps with Traefik Ingress + Cloudflare Tunnel
+    - ✅ **Apps Configured**: authentik, stirling-pdf, immich, paperless-ngx, audiobookshelf, mealie, wallabag, n8n, linkding, couchdb
+    - ✅ **Features**: Let's Encrypt TLS, AdGuard Home DNS management, NetworkPolicy updates
+    - ✅ **Benefit**: Fast local HTTPS access + secure external access via Cloudflare
+    - Commits: 2d8921b, ec2f63d
 
 ### Medium Term (3 Months) 📋
 
-10. ✅ **COMPLETED: Integrate Apps with Authentik SSO** - P2 ⭐
+10. **Evaluate Windmill as N8N Alternative** - P2 🆕
+    - Deploy Windmill in separate namespace (windmill-eval)
+    - Migrate 1-2 simple workflows to test functionality
+    - Compare performance (memory usage, execution speed)
+    - Compare usability (code-first vs visual workflows)
+    - **Decision criteria**:
+      - Performance improvement >30% (currently 44% less memory)
+      - Acceptable learning curve for workflow migration
+      - Feature parity for current use cases
+    - **If successful**: Plan N8N migration
+    - **If not**: Keep N8N (current setup works fine)
+    - Estimated time: 3-4 hours
+    - Reference: `docs/APP_ALTERNATIVES_RESEARCH.md`
+
+15. ✅ **COMPLETED: Integrate Apps with Authentik SSO** - P2 ⭐
     - **Completed**: 2025-10-22
     - **Apps Configured via Environment Variables** (3): Paperless-NGX, Linkding, Mealie
     - **Apps Configured via Web UI** (3): Grafana, Immich, Audiobookshelf
@@ -164,7 +219,7 @@
       - Custom integration (GitOps): Home Assistant (hass-oidc-auth via HACS)
     - **Note**: N8N Community Edition does not support SSO/LDAP - Enterprise plan required
     - Commit: 5e85276
-11. ✅ **COMPLETED: Backup Validation** - P2 ⭐
+16. ✅ **COMPLETED: Backup Validation** - P2 ⭐
     - ✅ **Status:** FULLY VALIDATED - All backups tested and proven restorable
     - ✅ **PostgreSQL:** 2 databases restored successfully (authentik: 178 tables, immich: 49 tables)
     - ✅ **CouchDB:** 337 documents restored successfully
@@ -174,10 +229,42 @@
     - ✅ **Data Integrity:** No corruption detected in any backup
     - ✅ **Documentation:** Comprehensive validation report created
     - 📋 **Report:** `docs/BACKUP_VALIDATION_REPORT.md`
-    - 🎯 **Next:** Proceed to task #12 (Velero deployment)
+    - 🎯 **Next:** Proceed to task #17 (Velero deployment)
     - Date Completed: 2025-10-26
 
-12. **Add Velero for Cluster Backups** - P2
+17. **Add Velero for Cluster Backups** - P2
+    - Kubernetes-native backup solution for complete cluster state
+    - Backup etcd, PVCs, and cluster resources
+    - Integration with existing backup infrastructure
+
+### Long Term (6 Months) 📋
+
+18. **Tighten NetworkPolicy Egress Rules** - P3
+    - Currently: Most apps allow all egress
+    - Goal: Restrict egress to specific ports and destinations
+    - Example: Authentik only needs PostgreSQL (5432), Redis (6379), DNS (53)
+    - Benefit: Reduced attack surface, better security posture
+    - Estimated time: 2-3 hours across all apps
+    - Reference: `docs/PERFORMANCE_SECURITY_AUDIT.md` section 5
+
+19. **Monitor Emerging Technology** - P3 🆕
+    - **Blocky** (AdGuard Home alternative): K8s-native, YAML config, lightweight
+    - **Gatus** (Uptime Kuma alternative): 61% less memory, config-as-code
+    - **Zitadel v3** (Authentik alternative): Watch for AGPL-3.0 license changes
+    - Review quarterly for significant improvements
+    - Reference: `docs/APP_ALTERNATIVES_RESEARCH.md`
+
+20. **Consider Falco for Runtime Security** - P3
+    - Runtime security monitoring for anomalous behavior
+    - Trade-off: ~100Mi memory overhead
+    - Benefit: Enhanced security observability
+    - Reference: `docs/PERFORMANCE_SECURITY_AUDIT.md`
+
+21. **Evaluate Kubernetes Audit Logging** - P3
+    - Track API access and cluster changes
+    - Trade-off: Additional storage for logs (~1-2GB/month)
+    - Benefit: Security monitoring and compliance
+    - Reference: `docs/PERFORMANCE_SECURITY_AUDIT.md`
 
 ---
 
