@@ -264,14 +264,14 @@
 1. ~~Homepage/Heimdall - Dashboard~~ ✅ **COMPLETED**
 2. ~~Authentik/Authelia - SSO~~ ✅ **COMPLETED**
 3. ~~Uptime Kuma - Uptime monitoring~~ ✅ **COMPLETED**
-4. Paperless-NGX - Document management
+4. ~~Paperless-NGX - Document management~~ ✅ **COMPLETED**
+5. ~~Immich - Photo management~~ ✅ **COMPLETED**
 
 **Medium Priority:**
-5. FreshRSS/Miniflux - RSS reader
-6. Gitea - Self-hosted Git
-7. Immich - Photo management
-8. Velero - Kubernetes backup
-9. External-DNS - DNS automation
+6. FreshRSS/Miniflux - RSS reader
+7. Gitea - Self-hosted Git
+8. Velero - Kubernetes backup (P2 - Medium Term task)
+9. ~~External-DNS - DNS automation~~ ✅ **COMPLETED** (scaled to 0, AdGuard Home handles local DNS)
 
 **Note**: Password management handled by 1Password (commercial service)
 
