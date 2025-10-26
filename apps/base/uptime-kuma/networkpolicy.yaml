@@ -55,6 +55,8 @@ spec:
         - protocol: TCP
           port: 3005        # Audiobookshelf
         - protocol: TCP
+          port: 5000        # HomeHub
+        - protocol: TCP
           port: 5432        # PostgreSQL
         - protocol: TCP
           port: 5678        # N8N
