@@ -93,7 +93,7 @@ data:
     - Media & Automation:
         - Audiobookshelf:
             icon: audiobookshelf.png
-            href: https://audiobookshelf.h0melab.work
+            href: https://audiobooks.h0melab.work
             description: Audiobook & podcast server
             namespace: audiobookshelf
             app: audiobookshelf
