@@ -71,6 +71,9 @@ spec:
                   paperless-ngx/paperless-data-pvc/*paperless-data-pvc*
                   audiobookshelf/audiobookshelf-audiobooks/*audiobookshelf-audiobooks*
                   audiobookshelf/audiobookshelf-podcasts/*audiobookshelf-podcasts*
+                  homehub/homehub-data-pvc/*homehub-data-pvc*
+                  stirling-pdf/stirling-pdf-configs-pvc/*stirling-pdf-configs-pvc*
+                  uptime-kuma/uptime-kuma-data-pvc/*uptime-kuma-data-pvc*
                   "
 
                   # PVCs containing already-compressed media files (photos/videos/audio)

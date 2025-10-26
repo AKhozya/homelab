@@ -96,6 +96,9 @@ kubectl get secret audiobookshelf-admin -n audiobookshelf -o json > "${BACKUP_DI
 # Uptime Kuma
 kubectl get secret uptime-kuma-admin -n uptime-kuma -o json > "${BACKUP_DIR}/secrets/uptime-kuma-admin.json"
 
+# Stirling PDF
+kubectl get secret stirling-pdf-env -n stirling-pdf -o json > "${BACKUP_DIR}/secrets/stirling-pdf-env.json"
+
 # Obsidian CouchDB
 kubectl get secret couchdb-admin-credentials -n obsidian -o json > "${BACKUP_DIR}/secrets/couchdb-admin-credentials.json" 2>/dev/null || echo "   ⚠️  No obsidian/couchdb-admin-credentials"
 kubectl get secret couchdb-credentials -n obsidian -o json > "${BACKUP_DIR}/secrets/couchdb-credentials.json" 2>/dev/null || echo "   ⚠️  No obsidian/couchdb-credentials"
@@ -158,7 +161,7 @@ echo "   📱 All application secrets:"
 echo "      - Authentik, Immich, Home Assistant"
 echo "      - N8N, Linkding, Mealie, Wallabag"
 echo "      - Paperless-NGX, Audiobookshelf, Uptime Kuma"
-echo "      - CouchDB (Obsidian)"
+echo "      - Stirling PDF, CouchDB (Obsidian)"
 echo "   🔐 OIDC integration secrets:"
 echo "      - Grafana, Immich, Home Assistant, Linkding"
 echo "      - Mealie, N8N, Paperless-NGX, Audiobookshelf"

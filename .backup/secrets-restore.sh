@@ -132,6 +132,11 @@ kubectl create namespace uptime-kuma --dry-run=client -o yaml | kubectl apply -f
 kubectl apply -f "${BACKUP_DIR}/secrets/uptime-kuma-admin.json"
 echo "   ✅ Uptime Kuma"
 
+# Stirling PDF
+kubectl create namespace stirling-pdf --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f "${BACKUP_DIR}/secrets/stirling-pdf-env.json"
+echo "   ✅ Stirling PDF"
+
 # Obsidian CouchDB
 if [ -f "${BACKUP_DIR}/secrets/couchdb-admin-credentials.json" ]; then
     kubectl create namespace obsidian --dry-run=client -o yaml | kubectl apply -f -
