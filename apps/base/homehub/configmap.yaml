@@ -6,7 +6,7 @@ metadata:
 data:
   config.yml: |
     instance_name: "Family Hub"
-    password: "226bEH5pPhMdAYvitw0QjN6O"
+    password: "PLACEHOLDER_PASSWORD"
     admin_name: "Admin"
 
     # Feature toggles

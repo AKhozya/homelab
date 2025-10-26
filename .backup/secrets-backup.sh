@@ -99,6 +99,9 @@ kubectl get secret uptime-kuma-admin -n uptime-kuma -o json > "${BACKUP_DIR}/sec
 # Stirling PDF
 kubectl get secret stirling-pdf-env -n stirling-pdf -o json > "${BACKUP_DIR}/secrets/stirling-pdf-env.json"
 
+# HomeHub
+kubectl get secret homehub-password -n homehub -o json > "${BACKUP_DIR}/secrets/homehub-password.json"
+
 # Obsidian CouchDB
 kubectl get secret couchdb-admin-credentials -n obsidian -o json > "${BACKUP_DIR}/secrets/couchdb-admin-credentials.json" 2>/dev/null || echo "   ⚠️  No obsidian/couchdb-admin-credentials"
 kubectl get secret couchdb-credentials -n obsidian -o json > "${BACKUP_DIR}/secrets/couchdb-credentials.json" 2>/dev/null || echo "   ⚠️  No obsidian/couchdb-credentials"

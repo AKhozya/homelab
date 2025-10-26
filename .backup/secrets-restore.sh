@@ -137,6 +137,11 @@ kubectl create namespace stirling-pdf --dry-run=client -o yaml | kubectl apply -
 kubectl apply -f "${BACKUP_DIR}/secrets/stirling-pdf-env.json"
 echo "   ✅ Stirling PDF"
 
+# HomeHub
+kubectl create namespace homehub --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f "${BACKUP_DIR}/secrets/homehub-password.json"
+echo "   ✅ HomeHub"
+
 # Obsidian CouchDB
 if [ -f "${BACKUP_DIR}/secrets/couchdb-admin-credentials.json" ]; then
     kubectl create namespace obsidian --dry-run=client -o yaml | kubectl apply -f -

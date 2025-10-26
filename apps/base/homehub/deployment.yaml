@@ -20,6 +20,30 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: setup-config
+          image: busybox:1.37
+          command:
+            - sh
+            - -c
+            - |
+              # Read password from secret
+              PASSWORD=$(cat /tmp/secret/password)
+              # Substitute placeholder with actual password in config
+              sed "s/PLACEHOLDER_PASSWORD/$PASSWORD/g" /tmp/config/config.yml > /app/config/config.yml
+              echo "Config file prepared with password from secret"
+          volumeMounts:
+            - name: config-template
+              mountPath: /tmp/config
+            - name: secret
+              mountPath: /tmp/secret
+            - name: runtime-config
+              mountPath: /app/config
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: homehub
           image: ghcr.io/surajverma/homehub:0.2.0
@@ -66,7 +90,7 @@ spec:
             - name: homehub-data
               mountPath: /app/pdfs
               subPath: pdfs
-            - name: config
+            - name: runtime-config
               mountPath: /app/config.yml
               subPath: config.yml
               readOnly: true
@@ -74,6 +98,11 @@ spec:
         - name: homehub-data
           persistentVolumeClaim:
             claimName: homehub-data-pvc
-        - name: config
+        - name: config-template
           configMap:
             name: homehub-config
+        - name: secret
+          secret:
+            secretName: homehub-password
+        - name: runtime-config
+          emptyDir: {}
