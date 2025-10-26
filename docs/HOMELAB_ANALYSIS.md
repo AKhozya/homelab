@@ -33,9 +33,10 @@
 
 **Remaining Gaps** ⚠️
 - ✅ **Backup**: IMPLEMENTED - Complete backup infrastructure operational (P0) ⭐
-  - ✅ PostgreSQL daily backups (2 AM, 30-day retention)
-  - ✅ CouchDB daily backups (2:30 AM, 30-day retention)
-  - ✅ PVC daily backups (3 AM, 3-day retention)
+  - ✅ PostgreSQL daily backups (3:00 AM, 30-day retention)
+  - ✅ CouchDB daily backups (3:05 AM, 30-day retention)
+  - ✅ PVC daily backups (3:10 AM, 3-day retention)
+  - ✅ Consolidated 3am backup window (optimized from staggered 2-3am)
   - ✅ Disaster recovery scripts complete (`.backup/` directory)
   - ✅ Comprehensive documentation (3 docs)
   - ✅ Storage: 4.2TB on `/mnt/k8s-storage/backups/`
@@ -328,9 +329,14 @@ ingress:
 
 **Cluster Configuration:**
 - **Name**: main-postgres
-- **Replicas**: 3 (HA configuration)
-- **Version**: PostgreSQL 16.x
+- **Replicas**: 3 (HA configuration) ⭐
+- **Version**: PostgreSQL 18.x
 - **Namespace**: databases
+- **HA Validation**: ✅ Proven during WAL corruption incident (2025-10-26)
+  - Lost 1 replica (main-postgres-1) to checkpoint corruption
+  - Cluster remained operational with 2 healthy replicas
+  - Zero downtime, zero data loss
+  - Auto-recovery: CNPG created main-postgres-4 as replacement
 
 **Connection Methods:**
 1. **Direct Connection** (not recommended for apps):
@@ -406,14 +412,130 @@ ingress:
 - **Alert Groups**: database-alerts, redis-alerts, couchdb-alerts
 - **Total Alerts**: 16 database-specific alerts
 
+### Database Replication Strategy
+
+**PostgreSQL (3 Replicas)**: ✅ **High Availability Required**
+- **Usage**: Critical application data (Authentik, Immich, Paperless, Grafana, etc.)
+- **Replicas**: 3 instances (1 primary, 2 standby)
+- **Replication**: Streaming replication with WAL shipping
+- **Failover**: Automatic via CNPG operator
+- **Why HA**: Critical data, zero data loss requirement, automatic recovery
+- **Validation**: Proven during 2025-10-26 corruption incident (zero downtime, zero data loss)
+
+**Redis (Single Instance)**: ✅ **Decision: NO Replication**
+- **Usage**: Session cache, job queues (Authentik, Paperless, Immich)
+- **Current Setup**: 1 instance with PVC persistence
+- **Why Single Instance**:
+  - Cache/ephemeral data - acceptable to lose on restart
+  - Apps handle Redis restarts gracefully (session re-login, job retry)
+  - Session timeout acceptable for homelab (not business-critical)
+  - Redis Sentinel/manual failover adds significant complexity
+  - 2x memory overhead (cache duplicated) not justified
+  - Job queues auto-retry on reconnect
+- **Mitigation**:
+  - PVC for persistence (survives pod restarts)
+  - Proper resource limits configured (200m CPU, 64Mi memory)
+  - Daily backups via postgres-backup (captures app state)
+- **Acceptable Downtime**: 5-10 seconds during restarts (pod recreation)
+
+**CouchDB (Single Instance)**: ✅ **Decision: NO Replication**
+- **Usage**: Obsidian note sync (single user, personal notes)
+- **Current Setup**: 1 instance with PVC persistence
+- **Why Single Instance**:
+  - Single-user use case (not multi-tenant)
+  - Sync downtime acceptable for homelab (5-10 min during upgrades)
+  - Daily backups already implemented (couchdb-backup@3:05am, 30-day retention)
+  - CouchDB clustering requires complex multi-master configuration
+  - 3x storage overhead for full replication (3 copies of all data)
+  - Replication overhead (network traffic, CPU for conflict resolution)
+- **Mitigation**:
+  - Daily automated backups with 30-day retention
+  - Upgrade during off-hours (minimal user impact)
+  - Fast recovery from backup if needed
+- **Acceptable Downtime**: 5-10 minutes during scheduled maintenance
+
+**Summary**:
+- **Critical data (PostgreSQL)**: 3 replicas, HA, zero downtime
+- **Cache/ephemeral (Redis)**: Single instance, restart tolerance acceptable
+- **Personal sync (CouchDB)**: Single instance, backup-based recovery acceptable
+
 ---
 
-**Last Updated**: 2025-10-25 23:00 UTC
+**Last Updated**: 2025-10-26 01:00 UTC
 **Next Review**: 2025-11-18
 
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-10-26 (Early Morning Update - PostgreSQL Recovery & Infrastructure Decisions)
+- 🚨 **PostgreSQL Corruption Incident**: Recovered from WAL checkpoint corruption on main-postgres-1
+- ✅ **Alert Configuration Cleanup**: Disabled K3s false-positive alerts and CPU overcommit warnings
+- ✅ **Backup Schedule Alignment**: Consolidated all backups to 3am window
+- 🎯 **Impact**: PostgreSQL cluster healthy, alert noise eliminated, backup window optimized
+- 🔧 **Technical Details**:
+  - **PostgreSQL Corruption Recovery**:
+    - **Root Cause**: Force-deleted main-postgres-1 pod during CNPG operator upgrade (earlier in session)
+      - Used `kubectl delete pod --force --grace-period=0` when pod was terminating
+      - PostgreSQL didn't complete graceful shutdown
+      - WAL checkpoint record corrupted: "invalid resource manager ID in checkpoint record"
+      - Error: `PANIC: could not locate a valid checkpoint record at 8/1712A030`
+    - **Impact**: Pod crash loop, pg_rewind failed, cluster stuck in "Failing over" state
+    - **Resolution**:
+      - Deleted corrupted main-postgres-1 pod and PVC
+      - CNPG auto-created main-postgres-4 as replacement
+      - New replica synced via streaming replication from healthy primary (main-postgres-2)
+      - Cluster returned to "Cluster in healthy state"
+    - **Data Safety**: ✅ Zero data loss - replicas main-postgres-2 and main-postgres-3 retained all data
+    - **Lesson Learned**: ⚠️ NEVER force-delete database pods unless confirmed hung/deadlocked
+      - Always wait for graceful termination (default 30s)
+      - Check logs to verify pod is making progress
+      - Use `kubectl rollout restart` instead of delete when possible
+  - **Alert Configuration Cleanup**:
+    - **Disabled K3s False Positives**: KubeProxyDown, KubeSchedulerDown, KubeControllerManagerDown
+      - Reason: K3s uses embedded control plane architecture (no separate components)
+      - Method: Set `defaultRules.rules.kubeProxy: false` (etc.) in kube-prometheus-stack Helm values
+      - Result: Alerts removed from Prometheus, no longer firing
+    - **Silenced CPU/Memory Overcommit Alerts**: KubeCPUOvercommit, KubeMemoryOvercommit
+      - Reason: Homelab intentionally uses overcommit for burst capacity (32 cores capacity, 31.95 cores in limits)
+      - Method: AlertManager routing to 'null' receiver (alerts visible in UI but no Telegram notifications)
+      - Current overcommit: 99.8% CPU limits (acceptable for homelab)
+    - **Eliminated CPU Throttling**: Increased redis-exporter CPU limit from 50m → 200m
+      - Before: 65% CPU throttling (CPUThrottlingHigh alert firing)
+      - After: Alert resolved, no performance degradation
+  - **Backup Schedule Alignment**:
+    - **Before**: postgres-backup@2:00am, couchdb-backup@2:30am, pvc-backup@3:00am
+    - **After**: postgres-backup@3:00am, couchdb-backup@3:05am, pvc-backup@3:10am
+    - **Reason**: Consolidated backup window to reduce maintenance noise
+    - **Benefit**: All database backups complete before PVC backup starts
+- 📋 **Infrastructure Decisions**:
+  - **Redis (Single Instance)**: ✅ Decision to NOT add replicas
+    - **Usage**: Cache/queue for Authentik, Paperless, Immich
+    - **Risk**: Session loss during restarts (users logged out), background tasks delayed
+    - **Why Single Instance**:
+      - Apps handle Redis restarts gracefully
+      - Session timeout acceptable for homelab
+      - Job queues auto-retry on reconnect
+      - Redis Sentinel/manual failover adds complexity
+      - 2x memory overhead not worth uptime benefit
+    - **Mitigation**: Proper resource limits configured, PVC for persistence
+  - **CouchDB (Single Instance)**: ✅ Decision to NOT add replicas
+    - **Usage**: Obsidian sync (single user, notes database)
+    - **Risk**: Sync unavailable during restarts (5-10 min downtime during upgrades)
+    - **Why Single Instance**:
+      - Daily backups already implemented (couchdb-backup@3:05am)
+      - Sync downtime acceptable for homelab usage pattern
+      - CouchDB clustering requires complex multi-master config
+      - 3x storage overhead for replication
+    - **Mitigation**: Daily backups, upgrade during off-hours
+  - **PostgreSQL (3 Replicas)**: ✅ Correct decision - critical data requires HA
+    - **Validation**: Corruption incident proved value of replicas
+    - **Recovery**: Lost 1 replica, cluster remained operational with 2 healthy replicas
+    - **Result**: Zero downtime, zero data loss despite WAL corruption
+- 🔒 **Security**: Alert noise reduction improves signal-to-noise ratio for real issues
+- 💪 **Reliability**: PostgreSQL HA validated under failure scenario
+- 📊 **Alert Status**: Down from 18 alerts to 5 expected alerts (Watchdog, InfoInhibitor, minor transient issues)
+- Commits: 491e93e (backups), 1964b7e (K3s alerts), 5bd7df1 + 994bf41 (redis-exporter), 6b8c072 (overcommit routing)
 
 ### 2025-10-25 (Night Update Part 2 - AdGuard Home & DNS Simplification)
 - ✅ **AdGuard Home Deployment**: Local DNS server for internal services
