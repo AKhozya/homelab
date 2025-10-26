@@ -17,13 +17,5 @@ spec:
       targetPort: 53
       protocol: UDP
       name: dns-udp
-    - port: 853
-      targetPort: 853
-      protocol: TCP
-      name: dns-over-tls
-    - port: 8443
-      targetPort: 8443
-      protocol: TCP
-      name: dns-over-https
   selector:
     app: adguard-home

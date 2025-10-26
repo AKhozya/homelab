@@ -10,6 +10,5 @@ spec:
     kind: ClusterIssuer
   dnsNames:
     - adguard.h0melab.work
-    - dns.h0melab.work
   renewBefore: 720h  # 30 days
   duration: 2160h  # 90 days

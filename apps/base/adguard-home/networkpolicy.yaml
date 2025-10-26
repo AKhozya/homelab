@@ -25,14 +25,6 @@ spec:
           port: 53
         - protocol: UDP
           port: 53
-    # Allow DNS-over-TLS (DoT) queries
-    - ports:
-        - protocol: TCP
-          port: 853
-    # Allow DNS-over-HTTPS (DoH) queries
-    - ports:
-        - protocol: TCP
-          port: 8443
   egress:
     # Allow DNS resolution to upstream servers (Cloudflare)
     - ports:
