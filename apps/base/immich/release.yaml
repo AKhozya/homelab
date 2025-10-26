@@ -165,7 +165,8 @@ spec:
                 # No privileged access needed for CPU-only encoding
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: false
-                runAsNonRoot: false
+                runAsNonRoot: true
+                runAsUser: 1000
             # Nginx sidecar to forward traffic from 0.0.0.0:8080 to 127.0.0.1:2283
             # Workaround for Immich localhost-only binding issue
             # Nginx handles video streaming better than socat (buffering, keep-alive)

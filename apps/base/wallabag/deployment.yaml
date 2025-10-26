@@ -13,6 +13,10 @@ spec:
         app: wallabag
     spec:
       securityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
         seccompProfile:
           type: RuntimeDefault
       initContainers:
