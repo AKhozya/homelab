@@ -43,7 +43,7 @@
 - ✅ **Scattered middleware** (P1-HIGH) - COMPLETED (centralized)
 - ⚠️ **Overly permissive Redis ACLs** (P1-HIGH) - VALID BUT NOT FIXABLE (apps don't support prefixes)
 - ⚠️ **No automated backup validation** (P1-HIGH) - Manual testing only
-- 📋 **Total Findings**: 36 issues (2 P0 completed, 1 P0 deferred, 1 P0 removed, 5 P1 completed, 1 P1 N/A, 1 P1 accepted, 1 P1 removed, 2 P1 remaining, 15 P2, 8 P3)
+- 📋 **Total Findings**: 36 issues (2 P0 completed, 1 P0 deferred, 1 P0 removed, 6 P1 completed, 1 P1 N/A, 1 P1 accepted, 1 P1 removed, 1 P1 remaining, 15 P2, 8 P3)
 
 **Backup Infrastructure** ✅
 - ✅ PostgreSQL daily backups (3:00 AM, 30-day retention)
@@ -118,13 +118,14 @@
    - **Reason**: Redis stores only ephemeral/cache data - no persistent data requiring backup
    - **Priority**: Closed - no action needed
 
-#### 9. **Inconsistent Flux Timeout Settings**
-   - **Risk**: Unpredictable reconciliation behavior
-   - **Current State**: apps (45s), configs (45s), controllers (1m)
-   - **Action**: Standardize all timeouts to 45s
-   - **Estimated Effort**: 15 minutes
-   - **Priority**: P1-HIGH
-   - **Files**: `clusters/staging/controllers.yaml:13`
+#### 9. ✅ **Flux Timeout Settings Standardization** - COMPLETED (2025-10-27)
+   - **Status**: ✅ All 6 kustomizations standardized to 45s timeout
+   - **Before**: infrastructure-controllers (5m), infrastructure-configs (10m), apps (5m), monitoring-controllers (5m), monitoring-configs (5m)
+   - **After**: All kustomizations use 45s timeout (consistent)
+   - **Impact**: Predictable reconciliation behavior, faster failure detection
+   - **Verified**: All kustomizations READY at commit 4cc2834
+   - **Commit**: 4cc2834
+   - **Files**: `clusters/infrastructure.yaml`, `clusters/infrastructure-configs.yaml`, `clusters/apps.yaml`, `clusters/monitoring.yaml`
 
 #### 10. ✅ **Traefik Health Checks** - ALREADY IMPLEMENTED (2025-10-27)
    - **Status**: ✅ 15/15 apps have readinessProbe and livenessProbe
@@ -422,7 +423,15 @@
    - Documentation: `/tmp/PSS_JOBS_SUMMARY.md`
    - Commits: 0bd0be2, 3003c9a, 52dc11e, 101e4f9, ac839ff, 0858cc8
 
-9. ✅ **COMPLETED: Performance Optimization** - P1 ⭐
+9. ✅ **COMPLETED: Flux Timeout Standardization** - P1 ⭐
+   - ✅ Standardized all 6 Flux kustomizations to 45s timeout
+   - ✅ **Before**: infrastructure-controllers (5m), infrastructure-configs (10m), apps (5m), monitoring (5m each)
+   - ✅ **After**: All kustomizations use consistent 45s timeout
+   - ✅ Verified all kustomizations reconciled successfully with new timeout
+   - Impact: Predictable reconciliation behavior, faster failure detection
+   - Commit: 4cc2834
+
+10. ✅ **COMPLETED: Performance Optimization** - P1 ⭐
    - ✅ Completed performance and security audit (2025-10-26)
    - ✅ Optimized 3 over-provisioned apps (Stirling PDF, Paperless-NGX, Immich ML)
    - ✅ **Memory savings**: 7.5Gi (62.5% reduction)
