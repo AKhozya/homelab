@@ -109,8 +109,11 @@ spec:
         drop:
           - ALL
 
-    # Node tolerations (for control plane if needed)
-    tolerations: []
+    # Node tolerations (allow scanning control plane node)
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
 
     # Node affinity (prefer worker nodes)
     affinity: {}
