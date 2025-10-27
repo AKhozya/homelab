@@ -9,6 +9,12 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: user-provision
           image: python:3.14-slim
@@ -64,6 +70,13 @@ spec:
           volumeMounts:
             - name: provision-script
               mountPath: /scripts
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
       volumes:
         - name: provision-script
           configMap:

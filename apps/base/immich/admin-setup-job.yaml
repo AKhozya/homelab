@@ -12,6 +12,12 @@ spec:
         app: immich-admin-setup
     spec:
       restartPolicy: OnFailure
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: wait-for-migrations
           image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie

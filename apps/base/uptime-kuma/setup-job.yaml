@@ -11,6 +11,12 @@ spec:
         app: uptime-kuma-setup
     spec:
       restartPolicy: OnFailure
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: setup
           image: python:3.14-slim

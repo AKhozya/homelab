@@ -8,6 +8,12 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: init
           image: curlimages/curl:8.16.0
@@ -49,6 +55,13 @@ spec:
           volumeMounts:
             - name: scripts
               mountPath: /scripts
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
       volumes:
         - name: scripts
           configMap:
