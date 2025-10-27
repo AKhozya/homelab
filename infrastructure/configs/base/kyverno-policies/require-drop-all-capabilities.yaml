@@ -1,0 +1,46 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-drop-all-capabilities
+  annotations:
+    policies.kyverno.io/title: Require Drop All Capabilities
+    policies.kyverno.io/category: Pod Security Standards (Restricted)
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Containers should drop all Linux capabilities and only add back
+      specific ones if needed. This reduces the attack surface.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: require-drop-all
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - flux-system
+                - kyverno
+                - trivy-system
+      validate:
+        message: "Containers must drop all capabilities (capabilities.drop: [ALL])"
+        pattern:
+          spec:
+            =(initContainers):
+              - =(securityContext):
+                  =(capabilities):
+                    drop:
+                      - ALL
+            containers:
+              - =(securityContext):
+                  =(capabilities):
+                    drop:
+                      - ALL

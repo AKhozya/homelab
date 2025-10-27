@@ -1,0 +1,41 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-privilege-escalation
+  annotations:
+    policies.kyverno.io/title: Disallow Privilege Escalation
+    policies.kyverno.io/category: Pod Security Standards (Restricted)
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Privilege escalation should be disallowed to prevent containers from gaining
+      more privileges than their parent process. This is part of Pod Security Standards.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: disallow-privilege-escalation
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - flux-system
+                - kyverno
+      validate:
+        message: "Privilege escalation must be disabled (allowPrivilegeEscalation: false)"
+        pattern:
+          spec:
+            =(initContainers):
+              - =(securityContext):
+                  =(allowPrivilegeEscalation): false
+            containers:
+              - =(securityContext):
+                  =(allowPrivilegeEscalation): false

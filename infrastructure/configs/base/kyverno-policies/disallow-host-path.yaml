@@ -1,0 +1,40 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-host-path
+  annotations:
+    policies.kyverno.io/title: Disallow hostPath Volumes
+    policies.kyverno.io/category: Pod Security Standards (Baseline)
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod,Volume
+    policies.kyverno.io/description: >-
+      HostPath volumes allow pods to access the host filesystem, which can be a security
+      risk. This policy disallows hostPath volumes except in system namespaces.
+spec:
+  validationFailureAction: Audit
+  background: true
+  rules:
+    - name: disallow-host-path
+      match:
+        any:
+          - resources:
+              kinds:
+                - Pod
+      exclude:
+        any:
+          - resources:
+              namespaces:
+                - kube-system
+                - kube-public
+                - kube-node-lease
+                - flux-system
+                - kyverno
+                - trivy-system
+                - monitoring
+                - loki
+      validate:
+        message: "hostPath volumes are not allowed"
+        pattern:
+          spec:
+            =(volumes):
+              - X(hostPath): "null"
