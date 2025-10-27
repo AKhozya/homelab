@@ -42,8 +42,8 @@
 - ✅ **Traefik health checks** (P1-HIGH) - ALREADY IMPLEMENTED (15/15 apps)
 - ✅ **Scattered middleware** (P1-HIGH) - COMPLETED (centralized)
 - ⚠️ **Overly permissive Redis ACLs** (P1-HIGH) - VALID BUT NOT FIXABLE (apps don't support prefixes)
-- ⚠️ **No automated backup validation** (P1-HIGH) - Manual testing only
-- 📋 **Total Findings**: 36 issues (2 P0 completed, 1 P0 deferred, 1 P0 removed, 6 P1 completed, 1 P1 N/A, 1 P1 accepted, 1 P1 removed, 1 P1 remaining, 15 P2, 8 P3)
+- ⏸️ **Automated backup validation** (P1-HIGH) - DEFERRED to Q1 2026 (homelab stabilization needed)
+- 📋 **Total Findings**: 36 issues (2 P0 completed, 1 P0 deferred, 1 P0 removed, 6 P1 completed, 1 P1 N/A, 1 P1 accepted, 1 P1 removed, 1 P1 deferred, 15 P2, 8 P3)
 
 **Backup Infrastructure** ✅
 - ✅ PostgreSQL daily backups (3:00 AM, 30-day retention)
@@ -88,14 +88,13 @@
 
 ### ⚠️ P1-HIGH (This Month)
 
-#### 5. **No Automated Backup Validation Testing**
-   - **Risk**: Backup corruption may go undetected for months
-   - **Impact**: Discover during actual disaster = too late
-   - **Current State**: Manual validation testing (last: 2025-10-26)
-   - **Action**: Add quarterly CronJob for backup validation
-   - **Estimated Effort**: 3-4 hours
-   - **Priority**: P1-HIGH
-   - **Schedule**: 1st of Jan/Apr/Jul/Oct at 5 AM
+#### 5. ⏸️ **Automated Backup Validation Testing** - DEFERRED (2025-10-27)
+   - **Status**: ⏸️ Deferred until homelab infrastructure stabilizes
+   - **Current State**: Manual validation testing (last: 2025-10-26) - sufficient for now
+   - **Risk**: Backup corruption may go undetected between manual tests (acceptable)
+   - **Reason**: Infrastructure still evolving - automation premature, could cause false alarms
+   - **Future Action**: Implement quarterly CronJob after 2-3 months of stability
+   - **Priority**: Deferred to Q1 2026
 
 #### 6. ❌ **Pod Anti-Affinity for PostgreSQL** - NOT APPLICABLE (2025-10-27)
    - **Status**: ❌ Hardware-blocked - Single worker node architecture
