@@ -20,6 +20,13 @@ spec:
         - name: user-provision
           image: python:3.14-slim
           command: ["/bin/bash", "/scripts/provision-user.sh"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           env:
             # User credentials to provision
             - name: MEALIE_USER_EMAIL
@@ -80,6 +87,7 @@ spec:
             runAsUser: 0
             capabilities:
               drop: ["ALL"]
+              add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]  # Required for apt-get install
       volumes:
         - name: provision-script
           configMap:
