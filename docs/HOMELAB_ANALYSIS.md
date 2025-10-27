@@ -632,8 +632,8 @@
 7. ~~Popeye - Cluster sanitizer~~ ✅ **COMPLETED** (2025-10-27)
 8. ~~Kyverno - Policy enforcement~~ ✅ **COMPLETED** (2025-10-27)
 9. FreshRSS/Miniflux - RSS reader
-10. GitLab CE - Self-hosted Git + CI/CD + Registry
-11. Velero - Kubernetes backup (P2 - Medium Term task)
+10. Gitea - Lightweight self-hosted Git with CI/CD (10x lighter than GitLab)
+11. K8up - Lightweight Kubernetes backup operator (Restic-based, lighter than Velero)
 12. ~~External-DNS - DNS automation~~ ✅ **REMOVED** (AdGuard Home handles local DNS)
 
 **Note**: Password management handled by 1Password (commercial service)

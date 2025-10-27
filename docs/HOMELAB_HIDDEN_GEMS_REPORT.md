@@ -1271,48 +1271,41 @@ apprise -t "Backup Complete" -b "All services backed up successfully" \
 
 ## 19. Git & Container Registry
 
-### 🏆 Hidden Gem: GitLab CE (Community Edition)
+### 🏆 Hidden Gem: Gitea
 
-**Why it's underutilized:** Many homelabbers avoid GitLab due to outdated resource perception or choose GitHub
+**Why it's underutilized:** GitLab is well-known, but heavy for homelabs
 
-**What it does:** Complete DevOps platform with Git repository management, CI/CD, and container registry
+**What it does:** Lightweight self-hosted Git service with built-in CI/CD
 
 **Value proposition:**
-- **Complete DevOps platform** in one application
-- Built-in CI/CD (GitLab CI/CD) with Kubernetes integration
-- Container Registry with vulnerability scanning
-- Issue tracking, merge requests, wiki, releases
-- Built-in package registry (NPM, PyPI, Maven, Helm, etc.)
-- Auto DevOps with predefined pipelines
-- Security scanning (SAST, DAST, dependency scanning)
-- Review apps and environments
-- GitOps integration with Flux/ArgoCD
-- Web IDE for quick edits
-- API-first design with extensive automation
+- Extremely lightweight (can run on Raspberry Pi)
+- GitHub-like interface
+- Built-in CI/CD (Gitea Actions - GitHub Actions compatible)
+- Issue tracking, wiki, releases
+- Low resource usage (10x lighter than GitLab)
+- Fast installation
+- Perfect for homelab scale
 
-**Integration complexity:** Medium
-**GitHub Stars:** 24k+ (GitLab CE)
-**Kubernetes-native:** Official Helm charts, excellent K8s integration
-**Resource requirements:** Moderate (2-4GB RAM recommended)
+**Integration complexity:** Easy
+**GitHub Stars:** 44k+
+**Kubernetes-native:** Runs in containers
+**Resource requirements:** Very low (200-500MB RAM)
 
 **Use case for homelab:**
-- All-in-one DevOps platform replacing multiple tools
-- Ideal for learning enterprise DevOps workflows
-- Single source of truth for code, CI/CD, and artifacts
-- Perfect for portfolio/resume building (industry standard)
+- Self-hosted Git with minimal resources
+- CI/CD without GitLab overhead
+- GitHub Actions workflow compatibility
 
-**Modern Resource Reality:**
-- GitLab CE now runs efficiently on 2-4GB RAM
-- Much lighter than historical reputation (5-8GB)
-- Sidekiq workers can be tuned for homelab scale
-- Built-in PostgreSQL and Redis (no external dependencies)
+**Gitea vs GitLab:**
+- **Gitea**: Lightweight (200-500MB), fast, essential features, GitHub Actions compatible
+- **GitLab**: Feature-rich (2-4GB RAM), heavy, enterprise features
 
-**Why GitLab over separate tools:**
-- Replaces: Git server + CI/CD + Container Registry + Package Registry
-- Single authentication system
-- Native integrations (no glue code)
-- Industry-standard workflows
-- Better for resume/portfolio (widely used in enterprises)
+**Why Gitea for homelabs:**
+- 10x lighter resource footprint
+- Faster deployment and startup
+- Simpler to maintain
+- GitHub Actions compatible (reusable workflows)
+- Perfect for learning Git workflows without infrastructure overhead
 
 ---
 
@@ -1483,11 +1476,11 @@ Based on value vs. complexity, here's a recommended implementation order:
 3. **Popeye** - Cluster health checks
 
 ### Phase 4: Backup & DR (Week 7-8)
-1. **K8up** or **Velero** - Backup solution
+1. **K8up** - Lightweight Kubernetes backup (Restic-based, lighter than Velero)
 2. **Longhorn** - Distributed storage (if multi-node)
 
 ### Phase 5: Quality of Life (Week 9-10)
-1. **GitLab CE** - Complete DevOps platform
+1. **Gitea** - Lightweight self-hosted Git with CI/CD
 2. **Homepage** - Dashboard
 3. **Wiki.js** or **Docmost** - Documentation
 4. **Apprise** - Unified notifications
@@ -1521,7 +1514,7 @@ These tools provide immediate value with minimal setup:
 
 If your goal includes learning enterprise Kubernetes practices:
 
-1. **GitLab CE** - Learn complete DevOps workflows (Git + CI/CD + Registry)
+1. **Gitea** - Learn Git workflows and CI/CD (GitHub Actions compatible)
 2. **Kyverno** - Learn policy-as-code without Rego complexity
 3. **ArgoCD** - Understand GitOps with visual feedback
 4. **OpenCost** - Learn FinOps concepts
@@ -1530,6 +1523,7 @@ If your goal includes learning enterprise Kubernetes practices:
 7. **Tekton** - Learn cloud-native CI/CD
 8. **step-ca** - Learn PKI and certificate management
 9. **Cilium** - Learn eBPF and advanced networking
+10. **K8up** - Learn Kubernetes backup strategies with Restic
 
 ---
 
@@ -1545,7 +1539,7 @@ If your goal includes learning enterprise Kubernetes practices:
 | Log Aggregation | ELK Stack | Loki + Fluent Bit | 90% less storage |
 | Service Mesh | Istio | Linkerd | 10x lighter |
 | Ingress | NGINX | Traefik | Dynamic config, Let's Encrypt |
-| Git + CI/CD | GitHub/External CI | GitLab CE | Complete DevOps platform |
+| Git + CI/CD | GitHub/External CI | Gitea | 10x lighter, Actions-compatible |
 | Uptime | Commercial | Uptime Kuma | Self-hosted, beautiful UI |
 | Analytics | Google Analytics | Umami | Privacy-focused, self-hosted |
 | Notifications | Individual APIs | Apprise | 100+ services, one API |
