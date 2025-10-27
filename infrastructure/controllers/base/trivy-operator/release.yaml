@@ -115,5 +115,12 @@ spec:
         operator: Exists
         effect: NoSchedule
 
+    # Node collector specific tolerations (allow scanning control plane)
+    nodeCollector:
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+
     # Node affinity (prefer worker nodes)
     affinity: {}
