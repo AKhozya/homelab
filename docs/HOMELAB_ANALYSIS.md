@@ -18,11 +18,12 @@
 - Comprehensive monitoring (Prometheus, Grafana, Loki, Alertmanager)
 - **🆕 Trivy Operator - Continuous vulnerability scanning** ⭐ (2025-10-27)
 - **🆕 Popeye - Cluster health monitoring (A grade, 100/100 score)** ⭐ (2025-10-27)
-- **🆕 Kyverno - Kubernetes-native policy enforcement (7 policies: 3 Enforce + 4 Audit, daily alerts)** ⭐ (2025-10-27)
-  - **Enforced policies:** disallow-privilege-escalation, require-drop-all-capabilities, require-labels (0 violations)
-  - **Audit policies:** require-resource-limits (64), require-non-root (24), disallow-latest-tag (13), disallow-host-path (4)
+- **🆕 Kyverno - Kubernetes-native policy enforcement (10 policies: 4 Enforce + 6 Audit, daily alerts)** ⭐ (2025-10-27)
+  - **Enforced policies:** disallow-privilege-escalation, require-drop-all-capabilities, require-labels, disallow-host-namespaces (0 violations)
+  - **Audit policies:** require-resource-limits (64), require-non-root (24), require-non-default-serviceaccount (23), require-seccomp-runtimedefault (23), disallow-latest-tag (13), disallow-host-path (4)
   - **Enforcement strategy:** Phased approach with zero-risk policies enforced first
   - **Monitoring:** Daily violation summaries via Prometheus/Telegram
+  - **Security posture:** ~75% Pod Security Standards (Baseline), ~60% Pod Security Standards (Restricted)
 - **🆕 Centralized SSO with Authentik** ⭐
 - **🆕 Cloudflare Tunnel for secure external access** ⭐
 - **🆕 Dual-Access Pattern: Traefik Ingress + Cloudflare Tunnel** ⭐
