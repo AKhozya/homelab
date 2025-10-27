@@ -1,0 +1,116 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: trivy-operator
+  namespace: trivy-system
+spec:
+  interval: 6h
+  chart:
+    spec:
+      chart: trivy-operator
+      version: 0.25.x
+      sourceRef:
+        kind: HelmRepository
+        name: trivy-operator
+        namespace: trivy-system
+      interval: 12h
+  install:
+    crds: Create
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  rollback:
+    recreate: true
+    cleanupOnFail: true
+  values:
+    # Trivy Operator configuration
+    operator:
+      # Resource limits for operator
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+      # Replica count (single node homelab)
+      replicas: 1
+
+      # Leader election settings
+      leaderElectionId: trivy-operator-lock
+
+    # Trivy scanner configuration
+    trivy:
+      # Resource limits for scan jobs
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+
+      # Severity levels to include in reports
+      severity: CRITICAL,HIGH,MEDIUM
+
+      # Image scanning mode
+      mode: Standalone
+
+      # Offline scan mode (uses embedded database)
+      offlineScan: false
+
+      # Timeout for scan jobs
+      timeout: 5m
+
+    # Vulnerability scanning configuration
+    vulnerabilityReports:
+      # Scan all images on startup
+      scanJobsInSameNamespace: true
+
+    # Configuration audit scanning
+    configAuditReports:
+      # Enable config audit scanning
+      scanJobsInSameNamespace: true
+
+    # RBAC Scanner configuration
+    rbacAssessmentReports:
+      # Enable RBAC scanning
+      scanJobsInSameNamespace: true
+
+    # Compliance reports
+    compliance:
+      # Generate compliance reports
+      failEntriesLimit: 10
+
+    # Metrics and monitoring
+    serviceMonitor:
+      # Enable Prometheus ServiceMonitor
+      enabled: true
+      # Interval for metrics scraping
+      interval: 30s
+
+    # Expose metrics endpoint
+    metrics:
+      enabled: true
+
+    # Security context
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 65534
+      fsGroup: 65534
+      allowPrivilegeEscalation: false
+      readOnlyRootFilesystem: true
+      capabilities:
+        drop:
+          - ALL
+
+    # Node tolerations (for control plane if needed)
+    tolerations: []
+
+    # Node affinity (prefer worker nodes)
+    affinity: {}
