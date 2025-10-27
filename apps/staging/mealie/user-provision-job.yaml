@@ -9,10 +9,11 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      # PSS Baseline (not Restricted): Job needs root to install apt packages
       securityContext:
-        runAsUser: 65534
-        runAsGroup: 65534
-        fsGroup: 65534
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -75,8 +76,8 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false  # Job installs packages (apt, pip) - needs write access
-            runAsNonRoot: true
-            runAsUser: 65534
+            runAsNonRoot: false  # PSS Baseline: needs root for apt-get install
+            runAsUser: 0
             capabilities:
               drop: ["ALL"]
       volumes:
