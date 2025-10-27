@@ -9,5 +9,4 @@ resources:
   - admin-setup-job.yaml
   - networkpolicy.yaml
   - ingress.yaml
-  - middleware.yaml
   - certificate.yaml

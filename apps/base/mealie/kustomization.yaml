@@ -9,5 +9,4 @@ resources:
   - networkpolicy.yaml
   - user-provision-script.yaml
   - ingress.yaml
-  - middleware.yaml
   - certificate.yaml

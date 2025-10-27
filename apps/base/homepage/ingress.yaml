@@ -4,7 +4,7 @@ metadata:
   name: homepage
   namespace: homepage
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: homepage-redirect-https@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:

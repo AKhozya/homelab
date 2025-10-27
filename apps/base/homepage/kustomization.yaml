@@ -9,4 +9,3 @@ resources:
   - service.yaml
   - networkpolicy.yaml
   - ingress.yaml
-  - https-redirect-middleware.yaml

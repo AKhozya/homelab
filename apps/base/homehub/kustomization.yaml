@@ -8,5 +8,4 @@ resources:
   - storage.yaml
   - service.yaml
   - ingress.yaml
-  - https-redirect-middleware.yaml
   - networkpolicy.yaml

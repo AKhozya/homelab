@@ -4,7 +4,7 @@ metadata:
   name: authentik
   namespace: authentik
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: authentik-redirect-https@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:

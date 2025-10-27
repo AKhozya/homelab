@@ -4,7 +4,7 @@ metadata:
   name: couchdb
   namespace: couchdb
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: couchdb-redirect-https@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:

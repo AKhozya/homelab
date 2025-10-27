@@ -7,5 +7,4 @@ resources:
   - service.yaml
   - networkpolicy.yaml
   - ingress.yaml
-  - middleware.yaml
   - certificate.yaml

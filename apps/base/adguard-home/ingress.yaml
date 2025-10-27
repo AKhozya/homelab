@@ -4,7 +4,7 @@ metadata:
   name: adguard-home
   namespace: adguard-home
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: adguard-home-redirect-https@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
