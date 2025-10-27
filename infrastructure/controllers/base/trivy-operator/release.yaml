@@ -82,6 +82,11 @@ spec:
       # Enable RBAC scanning
       scanJobsInSameNamespace: true
 
+    # Infrastructure assessment (node scanning)
+    infraAssessmentReports:
+      # Enable node scanning
+      scanJobsInSameNamespace: true
+
     # Compliance reports
     compliance:
       # Generate compliance reports
