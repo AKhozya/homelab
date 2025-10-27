@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - cluster.yaml
   - pooler.yaml
+  - networkpolicy.yaml
   - postgres-admin-user.yaml
   - authentik-db-user.yaml
   - linkding-app-user-secret.yaml

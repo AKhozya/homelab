@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-allow-apps
+  namespace: databases
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: main-postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    # Allow from app namespaces (authentik, immich, paperless, etc.)
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            kustomize.toolkit.fluxcd.io/name: apps
+      ports:
+      - protocol: TCP
+        port: 5432
+
+    # Allow from monitoring namespace (Prometheus metrics scraping)
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            kustomize.toolkit.fluxcd.io/name: monitoring-controllers
+      ports:
+      - protocol: TCP
+        port: 9187
+
+    # Allow intra-cluster replication (PostgreSQL pods talking to each other)
+    - from:
+      - podSelector:
+          matchLabels:
+            cnpg.io/cluster: main-postgres
+      ports:
+      - protocol: TCP
+        port: 5432
+      - protocol: TCP
+        port: 8008  # CNPG instance manager API
