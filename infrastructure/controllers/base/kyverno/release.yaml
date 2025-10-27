@@ -180,17 +180,8 @@ spec:
         - "[*/*,flux-system/*]"
 
       # Webhook configuration
-      webhooks:
-        - namespaceSelector:
-            matchExpressions:
-              - key: kubernetes.io/metadata.name
-                operator: NotIn
-                values:
-                  - kube-system
-                  - kube-public
-                  - kube-node-lease
-                  - kyverno
-                  - flux-system
+      webhookAnnotations: {}
+      webhookMatchConditions: []
 
     # Metrics
     metricsService:
