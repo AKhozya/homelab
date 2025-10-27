@@ -33,14 +33,14 @@
 - Default credential elimination on all apps
 
 **Critical Gaps (from 2025-10-27 Comprehensive Review)** 🔴
-- ❌ **No offsite backup replication** (P0-CRITICAL) - Single point of failure
-- ❌ **PostgreSQL has no NetworkPolicy** (P0-CRITICAL) - Unrestricted DB access
-- ❌ **Duplicate cert-manager ClusterIssuers** (P0-CRITICAL) - Conflict risk
-- ❌ **No CNPG WAL archiving** (P0-CRITICAL) - 24h RPO, no PITR
+- ⏸️ **No offsite backup replication** (P0-CRITICAL) - DEFERRED to November 2025 (NAS arrival)
+- ✅ **PostgreSQL NetworkPolicy** (P0-CRITICAL) - COMPLETED (2025-10-27)
+- ✅ **Duplicate cert-manager ClusterIssuers** (P0-CRITICAL) - COMPLETED (2025-10-27)
+- ❌ **CNPG WAL archiving** (P0-CRITICAL) - REMOVED (Not Implementing - pg_dump acceptable)
 - ⚠️ **No pod anti-affinity for PostgreSQL** (P1-HIGH) - False HA
 - ⚠️ **No automated backup validation** (P1-HIGH) - Manual testing only
 - ⚠️ **No PostgreSQL TLS** (P1-HIGH) - Credentials in plaintext
-- 📋 **Total Findings**: 36 issues (4 P0, 9 P1, 15 P2, 8 P3)
+- 📋 **Total Findings**: 36 issues (2 P0 completed, 1 P0 deferred, 1 P0 removed, 9 P1, 15 P2, 8 P3)
 
 **Backup Infrastructure** ✅
 - ✅ PostgreSQL daily backups (3:00 AM, 30-day retention)
@@ -59,44 +59,27 @@
 
 ### 🔴 P0-CRITICAL (Immediate - This Week)
 
-#### 1. **No Offsite Backup Replication** 🔴 CRITICAL
-   - **Risk**: Complete data loss if worker node fails
-   - **Impact**: All backups stored on single node `/mnt/k8s-storage/backups/`
-   - **Current RPO**: 24 hours
-   - **Current RTO**: Infinite (if node hardware fails)
-   - **Action**: Set up rsync CronJob to 24TB NAS
-   - **Estimated Effort**: 4 hours
-   - **Priority**: P0-CRITICAL
-   - **Files**: New CronJob manifest in `infrastructure/configs/staging/backup/`
-
-#### 2. **PostgreSQL Has No NetworkPolicy** 🔴 CRITICAL
+#### 1. ✅ **COMPLETED: PostgreSQL NetworkPolicy** (2025-10-27)
+   - **Status**: ✅ Completed - NetworkPolicy deployed and active
    - **Risk**: Unrestricted access to all databases from any pod
-   - **Impact**: All 10 production databases accessible cluster-wide
    - **CVSS**: 7.5 (HIGH)
-   - **Action**: Create NetworkPolicy for PostgreSQL cluster
-   - **Estimated Effort**: 2 hours
-   - **Priority**: P0-CRITICAL
-   - **Files**: `infrastructure/configs/base/databases/postgres/networkpolicy.yaml` (MISSING)
+   - **Solution**: Created NetworkPolicy restricting access to app namespaces only
+   - **Commit**: a80d4bf
+   - **Files**: `infrastructure/configs/base/databases/postgres/networkpolicy.yaml`
 
-#### 3. **Duplicate cert-manager ClusterIssuers** 🔴 CRITICAL
+#### 2. ✅ **COMPLETED: Duplicate cert-manager ClusterIssuers** (2025-10-27)
+   - **Status**: ✅ Completed - Orphaned ClusterIssuer removed
    - **Risk**: Unpredictable certificate issuance, renewal failures
-   - **Impact**: TLS certificate requests may fail
-   - **Current State**: ClusterIssuer `letsencrypt-staging` defined in TWO locations
-   - **Action**: Remove duplicate from base or staging
-   - **Estimated Effort**: 30 minutes
-   - **Priority**: P0-CRITICAL
-   - **Files**: `infrastructure/configs/base/cert-manager/clusterissuer.yaml:1-28`, `infrastructure/configs/staging/cert-manager/clusterissuer.yaml:1-28`
+   - **Solution**: Deleted orphaned `controllers/base/cert-manager/clusterissuer.yaml`
+   - **Commit**: 2cb9e78
+   - **Files**: Removed duplicate, kept `infrastructure/configs/base/cert-manager/clusterissuer.yaml`
 
-#### 4. **No CNPG Native Backup / WAL Archiving** 🔴 CRITICAL
-   - **Risk**: 24-hour RPO for all databases
-   - **Impact**: Data loss of up to 24 hours if cluster fails between backups
-   - **Current State**: Only pg_dump logical backups (daily at 3 AM)
-   - **Action**: Configure CNPG barman with WAL archiving
-   - **Benefit**: Reduces RPO from 24h to <5 minutes, enables PITR
-   - **Estimated Effort**: 3 hours
-   - **Priority**: P0-CRITICAL
-   - **Files**: `infrastructure/configs/base/databases/postgres/cluster.yaml:1-189`
-   - **Storage Impact**: +1-2GB/day (~60GB/month)
+#### 3. ❌ **REMOVED: CNPG WAL Archiving** (Not Implementing)
+   - **Decision**: Not implementing - CNPG barman requires S3/Azure/Google credentials
+   - **Alternative**: Continue with existing pg_dump daily backups (24h RPO acceptable for homelab)
+   - **Reason**: barmanObjectStore doesn't support local filesystem paths
+   - **Future Option**: Deploy MinIO for S3-compatible local storage (P2 task if needed)
+   - **Current RPO**: 24 hours (pg_dump at 3 AM) - acceptable for homelab
 
 ---
 
@@ -316,6 +299,32 @@
    - **Impact**: No default resource limits
    - **Action**: Add LimitRanges
    - **Priority**: P3-LOW
+
+---
+
+### 📅 DEFERRED TASKS (November 2025)
+
+#### 37. **Offsite Backup Replication to NAS** ⏸️ BLOCKED
+   - **Status**: BLOCKED - Waiting for 24TB NAS hardware arrival (November 2025)
+   - **Priority**: P0-CRITICAL (deferred until NAS available)
+   - **Risk**: Complete data loss if worker node fails
+   - **Impact**: All backups currently stored on single node `/mnt/k8s-storage/backups/`
+   - **Current RPO**: 24 hours
+   - **Current RTO**: Infinite (if node hardware fails)
+   - **Action**:
+     1. Set up 24TB NAS on local network
+     2. Configure rsync CronJob (daily at 4 AM, 1h after local backups)
+     3. Test backup replication and restore procedures
+     4. Update disaster recovery documentation
+   - **Estimated Effort**: 4-6 hours total
+     - NAS setup: 2 hours
+     - rsync CronJob configuration: 1 hour
+     - Testing: 1-2 hours
+     - Documentation: 1 hour
+   - **Target Date**: November 2025 (upon NAS arrival)
+   - **Files**: New CronJob manifest in `infrastructure/configs/staging/backup/offsite-replication.yaml`
+   - **Benefit**: Protects against node hardware failure, data center disaster
+   - **Note**: DO NOT NAG UNTIL NOVEMBER
 
 ---
 
@@ -917,6 +926,45 @@ ingress:
   - Infrastructure components reliable but need HA improvements
 - 🎯 **Next Steps**: Address P0 issues (10 hours) to reach A+ (96/100)
 - Commit: 839aedc (review report), [pending] (HOMELAB_ANALYSIS.md update)
+
+### 2025-10-27 PM (P0 Quick Wins Completed) ⚡
+- ✅ **PostgreSQL NetworkPolicy**: Implemented network isolation for PostgreSQL cluster ⭐
+- ✅ **Duplicate ClusterIssuers Removed**: Eliminated cert-manager conflict risk ⭐
+- 🎯 **Impact**: 2 of 4 P0-CRITICAL issues resolved in <1 hour
+- 🔧 **Technical Details**:
+  - **PostgreSQL NetworkPolicy** (P0-CRITICAL → ✅ COMPLETED):
+    - Created: `infrastructure/configs/base/databases/postgres/networkpolicy.yaml`
+    - Ingress rules: App namespaces only (kustomize.toolkit.fluxcd.io/name=apps)
+    - Monitoring allowed: Prometheus metrics scraping (port 9187)
+    - Intra-cluster: PostgreSQL replication (ports 5432, 8008)
+    - Verification: All 7 PostgreSQL-dependent apps healthy (authentik, immich, paperless, linkding, mealie, wallabag, n8n)
+    - Security improvement: CVSS 7.5 HIGH vulnerability eliminated
+    - Commit: a80d4bf
+  - **Duplicate cert-manager ClusterIssuers** (P0-CRITICAL → ✅ COMPLETED):
+    - Deleted: `infrastructure/controllers/base/cert-manager/clusterissuer.yaml` (orphaned duplicate)
+    - Kept: `infrastructure/configs/base/cert-manager/clusterissuer.yaml` (authoritative)
+    - Risk eliminated: Unpredictable certificate issuance/renewal failures
+    - Commit: 2cb9e78
+  - **CNPG WAL Archiving** (P0-CRITICAL → ❌ REMOVED):
+    - Decision: Not implementing - CNPG barman requires S3/Azure/Google credentials
+    - Attempted: Local filesystem path configuration
+    - Error: `missing credentials. One and only one of azureCredentials, s3Credentials and googleCredentials are required`
+    - User decision: Keep existing pg_dump daily backups (24h RPO acceptable for homelab)
+    - Alternative: Deploy MinIO for S3-compatible local storage (P2 task if needed)
+    - Commit: 3e734d1 (revert)
+  - **Redis ACL Restriction** (P1-HIGH → ❌ REVERTED):
+    - Attempted: Restrict ACLs to app-specific key prefixes (~authentik:*, ~paperless:*, ~immich:*)
+    - Error: Apps don't use key prefixes by default, broke existing cache keys
+    - Impact: Authentik NoPermissionError - couldn't access existing cache
+    - Reverted: Back to ~* (all keys) with -@dangerous -acl restrictions
+    - Commit: 48da32c (revert)
+  - **Offsite Backup Replication** (P0-CRITICAL → ⏸️ DEFERRED):
+    - Status: BLOCKED - Waiting for 24TB NAS hardware arrival (November 2025)
+    - Added: DEFERRED TASKS section in HOMELAB_ANALYSIS.md
+    - Note: Do not address until November 2025
+- 📊 **Progress**: P0-CRITICAL: 2 completed, 1 deferred, 1 removed (50% completion rate)
+- 🎯 **Health Check**: All PostgreSQL apps verified healthy after NetworkPolicy deployment
+- Commits: 2cb9e78 (ClusterIssuer), a80d4bf (NetworkPolicy), 3e734d1 (WAL revert), 48da32c (Redis ACL revert)
 
 ### 2025-10-26 (Night Update - Performance Optimization & Infrastructure Hardening)
 - ✅ **Performance Optimization**: Optimized resource limits for 3 over-provisioned apps ⭐
