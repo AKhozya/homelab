@@ -43,7 +43,7 @@
 - ✅ **Scattered middleware** (P1-HIGH) - COMPLETED (centralized)
 - ⚠️ **Overly permissive Redis ACLs** (P1-HIGH) - VALID BUT NOT FIXABLE (apps don't support prefixes)
 - ⚠️ **No automated backup validation** (P1-HIGH) - Manual testing only
-- 📋 **Total Findings**: 36 issues (2 P0 completed, 1 P0 deferred, 1 P0 removed, 4 P1 completed, 1 P1 N/A, 1 P1 accepted, 3 P1 remaining, 15 P2, 8 P3)
+- 📋 **Total Findings**: 36 issues (2 P0 completed, 1 P0 deferred, 1 P0 removed, 5 P1 completed, 1 P1 N/A, 1 P1 accepted, 1 P1 removed, 2 P1 remaining, 15 P2, 8 P3)
 
 **Backup Infrastructure** ✅
 - ✅ PostgreSQL daily backups (3:00 AM, 30-day retention)
@@ -111,13 +111,12 @@
    - **Minor gap**: Could enforce TLS at pg_hba level (host→hostssl)
    - **Priority**: Downgraded to P3-LOW (optional enforcement)
 
-#### 8. **No Redis Backup Automation**
-   - **Risk**: Redis data loss on pod deletion
-   - **Impact**: User re-login required, jobs re-queued
-   - **Current State**: RDB snapshots on PVC, no offsite backup
-   - **Action**: Add Redis RDB backup to backup CronJob
-   - **Estimated Effort**: 2 hours
-   - **Priority**: P1-HIGH
+#### 8. ❌ **Redis Backup Automation** - NOT IMPLEMENTING
+   - **Status**: ❌ Not implementing - Redis used only as cache (ephemeral data)
+   - **Impact**: User re-login required, jobs re-queued on pod deletion (acceptable)
+   - **Current State**: RDB snapshots on PVC (sufficient for cache use case)
+   - **Reason**: Redis stores only ephemeral/cache data - no persistent data requiring backup
+   - **Priority**: Closed - no action needed
 
 #### 9. **Inconsistent Flux Timeout Settings**
    - **Risk**: Unpredictable reconciliation behavior
@@ -412,7 +411,18 @@
    - Impact: **100% PSS compliance validated** for all 16 homelab applications, node drain procedures verified
    - Commits: 0874dfd, a5e67b8, ca3891c, 7f12be2, 8162673, d3b5036, abb323c
 
-8. ✅ **COMPLETED: Performance Optimization** - P1 ⭐
+8. ✅ **COMPLETED: Pod Security Standards for Jobs** - P1 ⭐
+   - ✅ Fixed 6 init/setup jobs with PSS violations (all now working)
+   - ✅ **PSS RESTRICTED** (5/6 jobs - 83%): audiobookshelf-init, immich-admin-setup, n8n-user-provision, couchdb-init, uptime-kuma-setup
+   - ✅ **PSS BASELINE** (1/6 jobs - 17%): mealie-user-provision (requires root for apt-get install)
+   - ✅ Security controls: seccompProfile:RuntimeDefault, allowPrivilegeEscalation:false, capabilities drop ALL, resource limits
+   - ✅ mealie job requires: runAsUser:0, capabilities add [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+   - ✅ mealie namespace changed from PSS restricted to baseline (documented limitation)
+   - Impact: **100% PSS compliance for jobs** (6/6 working), enhanced job security posture
+   - Documentation: `/tmp/PSS_JOBS_SUMMARY.md`
+   - Commits: 0bd0be2, 3003c9a, 52dc11e, 101e4f9, ac839ff, 0858cc8
+
+9. ✅ **COMPLETED: Performance Optimization** - P1 ⭐
    - ✅ Completed performance and security audit (2025-10-26)
    - ✅ Optimized 3 over-provisioned apps (Stirling PDF, Paperless-NGX, Immich ML)
    - ✅ **Memory savings**: 7.5Gi (62.5% reduction)
@@ -509,7 +519,7 @@
 **Target**: 96/100 (A+) after addressing P0 issues (~10 hours effort)
 
 **Security Achievements** ✅:
-- **100% Pod Security Standards** (11 restricted, 4 baseline, 1 privileged)
+- **100% Pod Security Standards** (Apps: 11 restricted, 4 baseline, 1 privileged | Jobs: 5 restricted, 1 baseline)
 - **100% NetworkPolicy Coverage** (16/16 apps)
 - **100% SOPS Encryption** for secrets
 - **100% Image Version Pinning** (no :latest tags)
@@ -911,7 +921,7 @@ ingress:
   - Updated: `docs/HOMELAB_ANALYSIS.md` (added 36 ranked findings)
   - Action plan: Detailed roadmap with time estimates and priorities
 - 💪 **Security Achievements Confirmed**:
-  - 100% Pod Security Standards (11 restricted, 4 baseline, 1 privileged)
+  - 100% Pod Security Standards (Apps: 11 restricted, 4 baseline, 1 privileged | Jobs: 5 restricted, 1 baseline)
   - 100% NetworkPolicy coverage (16/16 apps)
   - 100% SOPS encryption for secrets
   - 100% image version pinning (no :latest tags)
