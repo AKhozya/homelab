@@ -28,6 +28,13 @@ spec:
       - protocol: TCP
         port: 9187
 
+    # Allow from same namespace (maintenance jobs like immich-init-extensions)
+    - from:
+      - podSelector: {}
+      ports:
+      - protocol: TCP
+        port: 5432
+
     # Allow intra-cluster replication (PostgreSQL pods talking to each other)
     - from:
       - podSelector:
