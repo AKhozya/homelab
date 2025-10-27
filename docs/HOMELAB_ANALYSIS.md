@@ -1,16 +1,17 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-10-25 23:00 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-10-27 00:00 UTC)
 **Cluster**: K3s (staging)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
+**Last Comprehensive Review**: 2025-10-27 ([COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md))
 
 ---
 
 ## 📊 EXECUTIVE SUMMARY
 
-### Overall Grade: **A+ (Exceptional)**
+### Overall Grade: **A- (Excellent with Critical Gaps)**
 
 **Strengths** ✅
 - Solid GitOps foundation with Flux
@@ -31,24 +32,296 @@
 - CloudNativePG for managed PostgreSQL (3-node HA) with PgBouncer pooler
 - Default credential elimination on all apps
 
-**Remaining Gaps** ⚠️
-- ✅ **Backup**: IMPLEMENTED - Complete backup infrastructure operational (P0) ⭐
-  - ✅ PostgreSQL daily backups (3:00 AM, 30-day retention)
-  - ✅ CouchDB daily backups (3:05 AM, 30-day retention)
-  - ✅ PVC daily backups (3:10 AM, 3-day retention)
-  - ✅ Consolidated 3am backup window (optimized from staggered 2-3am)
-  - ✅ Disaster recovery scripts complete (`.backup/` directory)
-  - ✅ Comprehensive documentation (3 docs)
-  - ✅ Storage: 4.2TB on `/mnt/k8s-storage/backups/`
-- **Apps**: Some productivity tools still being added
+**Critical Gaps (from 2025-10-27 Comprehensive Review)** 🔴
+- ❌ **No offsite backup replication** (P0-CRITICAL) - Single point of failure
+- ❌ **PostgreSQL has no NetworkPolicy** (P0-CRITICAL) - Unrestricted DB access
+- ❌ **Duplicate cert-manager ClusterIssuers** (P0-CRITICAL) - Conflict risk
+- ❌ **No CNPG WAL archiving** (P0-CRITICAL) - 24h RPO, no PITR
+- ⚠️ **No pod anti-affinity for PostgreSQL** (P1-HIGH) - False HA
+- ⚠️ **No automated backup validation** (P1-HIGH) - Manual testing only
+- ⚠️ **No PostgreSQL TLS** (P1-HIGH) - Credentials in plaintext
+- 📋 **Total Findings**: 36 issues (4 P0, 9 P1, 15 P2, 8 P3)
+
+**Backup Infrastructure** ✅
+- ✅ PostgreSQL daily backups (3:00 AM, 30-day retention)
+- ✅ CouchDB daily backups (3:05 AM, 30-day retention)
+- ✅ PVC daily backups (3:10 AM, 3-day retention)
+- ✅ Disaster recovery scripts complete (`.backup/` directory)
+- ✅ Backup validation completed (2025-10-26)
+- ❌ **Missing**: Offsite replication, WAL archiving, automated validation
 
 ---
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-### Immediate (This Week) 🔴
+**Last Updated**: 2025-10-27 (Post-Comprehensive Review)
+**Source**: [COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md)
 
-1. ✅ **COMPLETED: Fix wallabag PVC Namespace Leak** - P0
+### 🔴 P0-CRITICAL (Immediate - This Week)
+
+#### 1. **No Offsite Backup Replication** 🔴 CRITICAL
+   - **Risk**: Complete data loss if worker node fails
+   - **Impact**: All backups stored on single node `/mnt/k8s-storage/backups/`
+   - **Current RPO**: 24 hours
+   - **Current RTO**: Infinite (if node hardware fails)
+   - **Action**: Set up rsync CronJob to 24TB NAS
+   - **Estimated Effort**: 4 hours
+   - **Priority**: P0-CRITICAL
+   - **Files**: New CronJob manifest in `infrastructure/configs/staging/backup/`
+
+#### 2. **PostgreSQL Has No NetworkPolicy** 🔴 CRITICAL
+   - **Risk**: Unrestricted access to all databases from any pod
+   - **Impact**: All 10 production databases accessible cluster-wide
+   - **CVSS**: 7.5 (HIGH)
+   - **Action**: Create NetworkPolicy for PostgreSQL cluster
+   - **Estimated Effort**: 2 hours
+   - **Priority**: P0-CRITICAL
+   - **Files**: `infrastructure/configs/base/databases/postgres/networkpolicy.yaml` (MISSING)
+
+#### 3. **Duplicate cert-manager ClusterIssuers** 🔴 CRITICAL
+   - **Risk**: Unpredictable certificate issuance, renewal failures
+   - **Impact**: TLS certificate requests may fail
+   - **Current State**: ClusterIssuer `letsencrypt-staging` defined in TWO locations
+   - **Action**: Remove duplicate from base or staging
+   - **Estimated Effort**: 30 minutes
+   - **Priority**: P0-CRITICAL
+   - **Files**: `infrastructure/configs/base/cert-manager/clusterissuer.yaml:1-28`, `infrastructure/configs/staging/cert-manager/clusterissuer.yaml:1-28`
+
+#### 4. **No CNPG Native Backup / WAL Archiving** 🔴 CRITICAL
+   - **Risk**: 24-hour RPO for all databases
+   - **Impact**: Data loss of up to 24 hours if cluster fails between backups
+   - **Current State**: Only pg_dump logical backups (daily at 3 AM)
+   - **Action**: Configure CNPG barman with WAL archiving
+   - **Benefit**: Reduces RPO from 24h to <5 minutes, enables PITR
+   - **Estimated Effort**: 3 hours
+   - **Priority**: P0-CRITICAL
+   - **Files**: `infrastructure/configs/base/databases/postgres/cluster.yaml:1-189`
+   - **Storage Impact**: +1-2GB/day (~60GB/month)
+
+---
+
+### ⚠️ P1-HIGH (This Month)
+
+#### 5. **No Automated Backup Validation Testing**
+   - **Risk**: Backup corruption may go undetected for months
+   - **Impact**: Discover during actual disaster = too late
+   - **Current State**: Manual validation testing (last: 2025-10-26)
+   - **Action**: Add quarterly CronJob for backup validation
+   - **Estimated Effort**: 3-4 hours
+   - **Priority**: P1-HIGH
+   - **Schedule**: 1st of Jan/Apr/Jul/Oct at 5 AM
+
+#### 6. **No Pod Anti-Affinity for PostgreSQL**
+   - **Risk**: All 3 PostgreSQL replicas may run on same node
+   - **Impact**: False HA - node failure = complete database outage
+   - **Current State**: 3-replica CNPG cluster, no anti-affinity rules
+   - **Action**: Add podAntiAffinity to cluster.yaml
+   - **Estimated Effort**: 1 hour
+   - **Priority**: P1-HIGH
+   - **Files**: `infrastructure/configs/base/databases/postgres/cluster.yaml:1-189`
+
+#### 7. **No PostgreSQL TLS/Encryption**
+   - **Risk**: Database credentials transmitted in plaintext
+   - **Impact**: Network sniffing = credential theft
+   - **CVSS**: 6.5 (MEDIUM)
+   - **Action**: Enable TLS for PostgreSQL connections
+   - **Estimated Effort**: 2-3 hours
+   - **Priority**: P1-HIGH
+
+#### 8. **No Redis Backup Automation**
+   - **Risk**: Redis data loss on pod deletion
+   - **Impact**: User re-login required, jobs re-queued
+   - **Current State**: RDB snapshots on PVC, no offsite backup
+   - **Action**: Add Redis RDB backup to backup CronJob
+   - **Estimated Effort**: 2 hours
+   - **Priority**: P1-HIGH
+
+#### 9. **Inconsistent Flux Timeout Settings**
+   - **Risk**: Unpredictable reconciliation behavior
+   - **Current State**: apps (45s), configs (45s), controllers (1m)
+   - **Action**: Standardize all timeouts to 45s
+   - **Estimated Effort**: 15 minutes
+   - **Priority**: P1-HIGH
+   - **Files**: `clusters/staging/controllers.yaml:13`
+
+#### 10. **No Traefik Health Checks on IngressRoutes**
+   - **Risk**: Traffic routed to unhealthy pods
+   - **Impact**: 502 Bad Gateway errors for users
+   - **Action**: Add health check middleware to Traefik
+   - **Estimated Effort**: 2 hours
+   - **Priority**: P1-HIGH
+
+#### 11. **Single Replica Deployments (Traefik, cert-manager)**
+   - **Risk**: Service outage during pod restart/upgrade
+   - **Impact**: Traefik outage = all apps inaccessible
+   - **Current State**: Traefik (1), cert-manager (1), MetalLB (1)
+   - **Action**: Increase to 2 replicas with anti-affinity
+   - **Estimated Effort**: 1 hour
+   - **Priority**: P1-HIGH
+
+#### 12. **Scattered Middleware Configurations**
+   - **Risk**: Inconsistent security headers across apps
+   - **Impact**: Some apps missing CSP, HSTS, X-Frame-Options
+   - **Current State**: Middlewares in multiple locations
+   - **Action**: Centralize all middlewares in `traefik/middleware.yaml`
+   - **Estimated Effort**: 3 hours
+   - **Priority**: P1-HIGH
+
+#### 13. **Overly Permissive Redis ACLs**
+   - **Risk**: Apps can access other apps' Redis data
+   - **Impact**: Authentik can read Immich cache, Paperless jobs
+   - **Current ACLs**: `~* &* +@all -acl` (all keys, all commands)
+   - **Action**: Restrict to app-specific key prefixes
+   - **Estimated Effort**: 2-3 hours
+   - **Priority**: P1-HIGH
+
+---
+
+### 📋 P2-MEDIUM (Next 3 Months)
+
+#### 14. **Deploy Velero for Cluster-Level Backups**
+   - **Benefit**: Kubernetes-native backup solution
+   - **Action**: Deploy Velero with CSI snapshot support
+   - **Estimated Effort**: 4-6 hours
+   - **Priority**: P2-MEDIUM
+   - **Status**: Already in roadmap (task #17)
+
+#### 15. **Add Backup Integrity Checks (SHA256)**
+   - **Benefit**: Detect silent data corruption
+   - **Action**: Add SHA256 checksums to all backup files
+   - **Estimated Effort**: 2 hours
+   - **Priority**: P2-MEDIUM
+
+#### 16. **Encrypt Secrets Backup with GPG**
+   - **Risk**: Secrets backup stored unencrypted in `.backup/secrets/`
+   - **Action**: Add GPG encryption to `secrets-backup.sh`
+   - **Estimated Effort**: 1 hour
+   - **Priority**: P2-MEDIUM
+
+#### 17. **Implement Backup Immutability**
+   - **Benefit**: Ransomware protection via S3 object lock or ZFS snapshots
+   - **Action**: Implement immutable backups
+   - **Estimated Effort**: 2-4 hours
+   - **Priority**: P2-MEDIUM
+
+#### 18. **Missing Rate Limiting Middleware**
+   - **Risk**: No protection against brute force attacks
+   - **Action**: Add rate limiting to Traefik
+   - **Estimated Effort**: 2 hours
+   - **Priority**: P2-MEDIUM
+
+#### 19. **No Security Headers (CSP, HSTS)**
+   - **Risk**: XSS, clickjacking vulnerabilities
+   - **Action**: Add security headers middleware
+   - **Estimated Effort**: 2 hours
+   - **Priority**: P2-MEDIUM
+
+#### 20. **Inconsistent PgBouncer Pooler Usage**
+   - **Risk**: Connection exhaustion possible
+   - **Current State**: Some apps use pooler, others don't
+   - **Action**: Standardize pooler usage
+   - **Estimated Effort**: 1 hour
+   - **Priority**: P2-MEDIUM
+
+#### 21. **Overly Permissive Database User Permissions**
+   - **Risk**: App users have CREATEDB, CREATEROLE privileges
+   - **Action**: Restrict database user permissions
+   - **Estimated Effort**: 2 hours
+   - **Priority**: P2-MEDIUM
+
+#### 22. **Single Instance Redis and CouchDB**
+   - **Note**: Intentional decision for homelab (acceptable risk)
+   - **Mitigation**: Proper backups and persistence configured
+   - **Action**: Document decision
+   - **Priority**: P2-MEDIUM (documentation only)
+
+#### 23. **SOPS Single Encryption Key**
+   - **Risk**: Single age key for all secrets
+   - **Impact**: Key compromise = all secrets exposed
+   - **Action**: Implement multi-key SOPS encryption
+   - **Estimated Effort**: 4 hours (key rotation)
+   - **Priority**: P2-MEDIUM
+
+#### 24. **MetalLB Not in GitOps**
+   - **Risk**: Manual configuration not tracked in git
+   - **Action**: Migrate MetalLB to GitOps
+   - **Estimated Effort**: 2 hours
+   - **Priority**: P2-MEDIUM
+
+#### 25. **No Cloudflare Tunnel Health Checks**
+   - **Risk**: Tunnel failures not detected quickly
+   - **Action**: Add health checks
+   - **Estimated Effort**: 1 hour
+   - **Priority**: P2-MEDIUM
+
+#### 26. **ReadOnlyRootFilesystem Only 44% Adoption**
+   - **Current**: 7/16 apps use readOnlyRootFilesystem
+   - **Impact**: Increased attack surface
+   - **Action**: Enable for remaining 9 apps
+   - **Estimated Effort**: 4-6 hours (per app)
+   - **Priority**: P2-MEDIUM
+
+#### 27. **Overly Permissive NetworkPolicy Egress**
+   - **Current**: 13/16 apps allow all egress (0.0.0.0/0)
+   - **Impact**: Compromised pod = unrestricted internet access
+   - **Action**: Restrict egress to required destinations only
+   - **Estimated Effort**: 3-4 hours
+   - **Priority**: P2-MEDIUM
+
+#### 28. **No Prometheus Resource Alerts**
+   - **Risk**: Resource exhaustion not alerted
+   - **Action**: Add alerts for memory/CPU limits
+   - **Estimated Effort**: 2 hours
+   - **Priority**: P2-MEDIUM
+
+---
+
+### 📋 P3-LOW (Nice to Have / Long Term)
+
+#### 29. **Extended PVC Backup Retention (7 days)**
+   - **Current**: 3 days
+   - **Storage Impact**: +184GB
+   - **Action**: Increase retention after offsite backups
+   - **Priority**: P3-LOW
+
+#### 30. **Backup Alert Grouping to Dedicated Telegram Thread**
+   - **Benefit**: Easier monitoring
+   - **Action**: Group backup alerts
+   - **Priority**: P3-LOW
+
+#### 31. **Improve Documentation for Secrets Rotation**
+   - **Action**: Document initial rotation dates
+   - **Priority**: P3-LOW
+
+#### 32. **Add Grafana Dashboards for App Metrics**
+   - **Benefit**: Better app-level observability
+   - **Action**: Create custom dashboards
+   - **Priority**: P3-LOW
+
+#### 33. **Document SSH Key Backup Location**
+   - **Action**: Document in BACKUP_STRATEGY.md
+   - **Priority**: P3-LOW
+
+#### 34. **Add PrometheusRules for Custom App Metrics**
+   - **Benefit**: App-specific alerting
+   - **Action**: Create custom rules
+   - **Priority**: P3-LOW
+
+#### 35. **Missing Resource Quotas for Namespaces**
+   - **Impact**: No resource isolation
+   - **Action**: Add ResourceQuotas
+   - **Priority**: P3-LOW
+
+#### 36. **No LimitRanges for Namespaces**
+   - **Impact**: No default resource limits
+   - **Action**: Add LimitRanges
+   - **Priority**: P3-LOW
+
+---
+
+### ✅ Completed Action Items (Archive)
+
+#### 1. ✅ **COMPLETED: Fix wallabag PVC Namespace Leak** - P0
    - ✅ Deleted duplicate 60GB PVCs in wrong namespace
    - ✅ Recovered 60GB storage
    - ✅ Current PVCs correctly sized: 15GB total (5Gi data + 10Gi images)
@@ -157,31 +430,19 @@
     - Impact: Validated current infrastructure choices, identified optimization opportunities
     - Commit: c4abd54
 
-### Short Term (This Month) ⚠️
-
-8. **Document Initial Secret Rotation Dates** - P1
-   - Record current deployment dates for all secrets
-   - Establish baseline for rotation tracking
-   - Update `docs/SECRETS_ROTATION.md` with dates
-   - Estimated time: 30 minutes
-
-9. **Add Prometheus Resource Alerts** - P2
-   - Configure alerts for pods approaching memory limits (>80%)
-   - Configure alerts for high restart counts
-   - Configure alerts for PVC usage (>80%)
-   - Estimated time: 45 minutes
-   - Reference: `docs/PERFORMANCE_SECURITY_AUDIT.md`
-
-11. ✅ **COMPLETED: Add Homepage Dashboard** - P1
+#### 11. ✅ **COMPLETED: Add Homepage Dashboard** - P1
     - ✅ Centralized dashboard for all apps
     - Commit: c5b0244
-12. ✅ **COMPLETED: Add Uptime Kuma** - P1
+
+#### 12. ✅ **COMPLETED: Add Uptime Kuma** - P1
     - ✅ Uptime monitoring with automated user setup
     - Commit: 46cc485
-13. ✅ **COMPLETED: Add SSO (Authentik)** - P1
+
+#### 13. ✅ **COMPLETED: Add SSO (Authentik)** - P1
     - ✅ SSO platform deployed with PostgreSQL and Redis
     - Commit: 46cc485
-14. ✅ **COMPLETED: Create Ingresses for All Apps** - P1 ⭐
+
+#### 14. ✅ **COMPLETED: Create Ingresses for All Apps** - P1 ⭐
     - ✅ **Completed**: 2025-10-25
     - ✅ **Dual-Access Pattern Implemented**: 10 apps with Traefik Ingress + Cloudflare Tunnel
     - ✅ **Apps Configured**: authentik, stirling-pdf, immich, paperless-ngx, audiobookshelf, mealie, wallabag, n8n, linkding, couchdb
@@ -189,23 +450,7 @@
     - ✅ **Benefit**: Fast local HTTPS access + secure external access via Cloudflare
     - Commits: 2d8921b, ec2f63d
 
-### Medium Term (3 Months) 📋
-
-10. **Evaluate Windmill as N8N Alternative** - P2 🆕
-    - Deploy Windmill in separate namespace (windmill-eval)
-    - Migrate 1-2 simple workflows to test functionality
-    - Compare performance (memory usage, execution speed)
-    - Compare usability (code-first vs visual workflows)
-    - **Decision criteria**:
-      - Performance improvement >30% (currently 44% less memory)
-      - Acceptable learning curve for workflow migration
-      - Feature parity for current use cases
-    - **If successful**: Plan N8N migration
-    - **If not**: Keep N8N (current setup works fine)
-    - Estimated time: 3-4 hours
-    - Reference: `docs/APP_ALTERNATIVES_RESEARCH.md`
-
-15. ✅ **COMPLETED: Integrate Apps with Authentik SSO** - P2 ⭐
+#### 15. ✅ **COMPLETED: Integrate Apps with Authentik SSO** - P2 ⭐
     - **Completed**: 2025-10-22
     - **Apps Configured via Environment Variables** (3): Paperless-NGX, Linkding, Mealie
     - **Apps Configured via Web UI** (3): Grafana, Immich, Audiobookshelf
@@ -219,7 +464,8 @@
       - Custom integration (GitOps): Home Assistant (hass-oidc-auth via HACS)
     - **Note**: N8N Community Edition does not support SSO/LDAP - Enterprise plan required
     - Commit: 5e85276
-16. ✅ **COMPLETED: Backup Validation** - P2 ⭐
+
+#### 16. ✅ **COMPLETED: Backup Validation** - P2 ⭐
     - ✅ **Status:** FULLY VALIDATED - All backups tested and proven restorable
     - ✅ **PostgreSQL:** 2 databases restored successfully (authentik: 178 tables, immich: 49 tables)
     - ✅ **CouchDB:** 337 documents restored successfully
@@ -232,61 +478,38 @@
     - 🎯 **Next:** Proceed to task #17 (Velero deployment)
     - Date Completed: 2025-10-26
 
-17. **Add Velero for Cluster Backups** - P2
-    - Kubernetes-native backup solution for complete cluster state
-    - Backup etcd, PVCs, and cluster resources
-    - Integration with existing backup infrastructure
-
-### Long Term (6 Months) 📋
-
-18. **Tighten NetworkPolicy Egress Rules** - P3
-    - Currently: Most apps allow all egress
-    - Goal: Restrict egress to specific ports and destinations
-    - Example: Authentik only needs PostgreSQL (5432), Redis (6379), DNS (53)
-    - Benefit: Reduced attack surface, better security posture
-    - Estimated time: 2-3 hours across all apps
-    - Reference: `docs/PERFORMANCE_SECURITY_AUDIT.md` section 5
-
-19. **Monitor Emerging Technology** - P3 🆕
-    - **Blocky** (AdGuard Home alternative): K8s-native, YAML config, lightweight
-    - **Gatus** (Uptime Kuma alternative): 61% less memory, config-as-code
-    - **Zitadel v3** (Authentik alternative): Watch for AGPL-3.0 license changes
-    - Review quarterly for significant improvements
-    - Reference: `docs/APP_ALTERNATIVES_RESEARCH.md`
-
-20. **Consider Falco for Runtime Security** - P3
-    - Runtime security monitoring for anomalous behavior
-    - Trade-off: ~100Mi memory overhead
-    - Benefit: Enhanced security observability
-    - Reference: `docs/PERFORMANCE_SECURITY_AUDIT.md`
-
-21. **Evaluate Kubernetes Audit Logging** - P3
-    - Track API access and cluster changes
-    - Trade-off: Additional storage for logs (~1-2GB/month)
-    - Benefit: Security monitoring and compliance
-    - Reference: `docs/PERFORMANCE_SECURITY_AUDIT.md`
-
 ---
 
 ## 📈 CURRENT METRICS
 
-**Health Score: 99/100** (+1 from previous assessment) ⭐
-- Architecture: 95/100 (SSO infrastructure + 4.22TB LVM storage)
-- Security: 99/100 ⬆️ (+1 - Secrets rotation playbook, security audit)
-- Code Quality: 90/100
-- UX: 90/100 (Uptime monitoring, Homepage dashboard)
-- Observability: 98/100 (Comprehensive database monitoring)
-- Automation: 98/100 (Automated backups + disaster recovery)
-- Documentation: 90/100 ⬆️ (+5 - Performance audit, security hardening, app alternatives research)
-- Performance: 92/100 ⬆️ (NEW - Resource optimization, 91% efficiency)
+**Health Score: 92/100** (A- Grade) - Comprehensive Review 2025-10-27
+- **Security**: 94/100 (A) ✅ - 100% PSS, 100% NetworkPolicy coverage
+- **Backup/DR**: 90/100 (A) ⚠️ - Good backups, missing offsite/WAL archiving
+- **Database**: 67/100 (B) ⚠️ - PostgreSQL HA, missing NetworkPolicy/TLS
+- **Infrastructure**: 75/100 (B+) ⚠️ - Flux/Traefik solid, cert-manager duplicates
+- **Maintainability**: 95/100 (A) ✅ - Excellent docs, GitOps-driven
+- **Best Practices**: 88/100 (A-) ✅ - K8s standards followed, some gaps
+- **Performance**: 92/100 (A-) ✅ - Resource optimization, 91% efficiency
 
-**Target: 99/100 ACHIEVED!** 🎉 Previous target of 98/100 exceeded!
+**Overall Grade**: A- (92/100) - Down from A+ (99/100) after comprehensive review
+- **Critical Issues**: 4 P0 issues requiring immediate attention
+- **High Priority**: 9 P1 issues to complete this month
+- **Total Findings**: 36 actionable items (4 P0, 9 P1, 15 P2, 8 P3)
 
-**Recent Improvements** (2025-10-26):
-- ✅ Optimized resource allocation (7.5Gi memory saved)
-- ✅ Created secrets rotation framework
-- ✅ Completed infrastructure audit (performance + security)
-- ✅ Researched app alternatives (current stack: A+ grade)
+**Target**: 96/100 (A+) after addressing P0 issues (~10 hours effort)
+
+**Security Achievements** ✅:
+- **100% Pod Security Standards** (11 restricted, 4 baseline, 1 privileged)
+- **100% NetworkPolicy Coverage** (16/16 apps)
+- **100% SOPS Encryption** for secrets
+- **100% Image Version Pinning** (no :latest tags)
+- **100% SSO Coverage** (8/8 applicable apps)
+
+**Critical Gaps Identified** (2025-10-27 Review) 🔴:
+- No offsite backup replication (P0-CRITICAL)
+- PostgreSQL has no NetworkPolicy (P0-CRITICAL)
+- Duplicate cert-manager ClusterIssuers (P0-CRITICAL)
+- No CNPG WAL archiving - 24h RPO (P0-CRITICAL)
 
 ---
 
@@ -609,6 +832,91 @@ ingress:
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-10-27 (Comprehensive Codebase Review) ⭐
+- ✅ **Comprehensive Infrastructure Review**: Complete audit of 16 apps, 6 infrastructure components, 3 databases ⭐
+- 🎯 **Impact**: 36 actionable findings identified and ranked (4 P0, 9 P1, 15 P2, 8 P3)
+- 📊 **Overall Grade**: A- (92/100) - Down from A+ (99/100) due to critical gaps identified
+- 🔧 **Review Scope**:
+  - **Infrastructure**: Flux, Traefik, cert-manager, MetalLB, Cloudflare Tunnel (28 findings)
+  - **Database**: PostgreSQL, Redis, CouchDB (13 critical gaps)
+  - **Security**: 100% PSS compliance, 100% NetworkPolicy coverage (94/100 score)
+  - **Backup/DR**: Comprehensive backup system with critical gaps (90/100 score)
+  - **Monitoring**: Prometheus, Grafana, Alertmanager configurations
+  - **Maintainability**: GitOps-driven, excellent documentation (95/100 score)
+- 🔴 **P0-CRITICAL Issues Identified** (4):
+  1. **No offsite backup replication** - Single point of failure
+  2. **PostgreSQL has no NetworkPolicy** - Unrestricted DB access (CVSS 7.5)
+  3. **Duplicate cert-manager ClusterIssuers** - Conflict risk
+  4. **No CNPG WAL archiving** - 24h RPO, no point-in-time recovery
+- ⚠️ **P1-HIGH Issues** (9):
+  - No automated backup validation testing
+  - No pod anti-affinity for PostgreSQL (false HA)
+  - No PostgreSQL TLS/encryption
+  - No Redis backup automation
+  - Inconsistent Flux timeout settings
+  - No Traefik health checks on IngressRoutes
+  - Single replica deployments (Traefik, cert-manager)
+  - Scattered middleware configurations
+  - Overly permissive Redis ACLs
+- 📋 **P2-MEDIUM Issues** (15):
+  - Velero deployment (already in roadmap)
+  - Backup integrity checks (SHA256)
+  - Encrypt secrets backup with GPG
+  - Backup immutability (S3 object lock)
+  - Rate limiting middleware
+  - Security headers (CSP, HSTS)
+  - Inconsistent PgBouncer pooler usage
+  - Overly permissive database user permissions
+  - SOPS single encryption key
+  - MetalLB not in GitOps
+  - ReadOnlyRootFilesystem only 44% adoption
+  - Overly permissive NetworkPolicy egress
+  - No Prometheus resource alerts
+  - And 2 more...
+- 📋 **P3-LOW Issues** (8):
+  - Extended PVC backup retention
+  - Backup alert grouping
+  - Documentation improvements
+  - Grafana dashboards for app metrics
+  - PrometheusRules for custom metrics
+  - Resource quotas and LimitRanges
+  - And 2 more...
+- 📈 **Category Scores**:
+  - **Security**: 94/100 (A) ✅ - 100% PSS, 100% NetworkPolicy coverage
+  - **Backup/DR**: 90/100 (A) ⚠️ - Good backups, missing offsite/WAL archiving
+  - **Database**: 67/100 (B) ⚠️ - PostgreSQL HA, missing NetworkPolicy/TLS
+  - **Infrastructure**: 75/100 (B+) ⚠️ - Flux/Traefik solid, cert-manager duplicates
+  - **Maintainability**: 95/100 (A) ✅ - Excellent docs, GitOps-driven
+  - **Best Practices**: 88/100 (A-) ✅ - K8s standards followed, some gaps
+  - **Performance**: 92/100 (A-) ✅ - Resource optimization, 91% efficiency
+- 🎯 **Recovery Plan**:
+  - **Week 1 (P0)**: ~10 hours to address critical issues
+  - **Month 1 (P1)**: ~18 hours for high priority fixes
+  - **Months 2-3 (P2)**: ~21 hours for medium priority improvements
+  - **Total effort to reach A+ (96/100)**: ~10 hours (P0 only)
+  - **Total effort to reach A++ (99/100)**: ~49 hours (P0+P1+P2)
+- 📋 **Deliverables**:
+  - Created: `docs/COMPREHENSIVE_CODEBASE_REVIEW.md` (1,133 lines)
+  - Updated: `docs/HOMELAB_ANALYSIS.md` (added 36 ranked findings)
+  - Action plan: Detailed roadmap with time estimates and priorities
+- 💪 **Security Achievements Confirmed**:
+  - 100% Pod Security Standards (11 restricted, 4 baseline, 1 privileged)
+  - 100% NetworkPolicy coverage (16/16 apps)
+  - 100% SOPS encryption for secrets
+  - 100% image version pinning (no :latest tags)
+  - 100% SSO coverage (8/8 applicable apps)
+- 🔒 **Critical Security Gaps**:
+  - PostgreSQL unrestricted access (CVSS 7.5 HIGH)
+  - Database credentials in plaintext (CVSS 6.5 MEDIUM)
+  - Overly permissive egress rules (13/16 apps)
+- 💡 **Key Insights**:
+  - Current infrastructure is excellent for homelab, but has enterprise-level gaps
+  - Backup system is comprehensive but lacks offsite replication (catastrophic risk)
+  - Database infrastructure solid but missing critical security controls
+  - Infrastructure components reliable but need HA improvements
+- 🎯 **Next Steps**: Address P0 issues (10 hours) to reach A+ (96/100)
+- Commit: 839aedc (review report), [pending] (HOMELAB_ANALYSIS.md update)
 
 ### 2025-10-26 (Night Update - Performance Optimization & Infrastructure Hardening)
 - ✅ **Performance Optimization**: Optimized resource limits for 3 over-provisioned apps ⭐
