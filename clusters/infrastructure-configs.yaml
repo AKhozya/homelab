@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1m0s
-  timeout: 10m
+  timeout: 45s
   dependsOn:
     - name: infrastructure-controllers
   healthChecks:

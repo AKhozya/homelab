@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1m0s
-  timeout: 5m
+  timeout: 45s
   sourceRef:
     kind: GitRepository
     name: flux-system
@@ -19,7 +19,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1m0s
-  timeout: 5m
+  timeout: 45s
   sourceRef:
     kind: GitRepository
     name: flux-system

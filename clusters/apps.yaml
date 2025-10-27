@@ -8,7 +8,7 @@ spec:
   retryInterval: 2m
   wait: false
   force: true
-  timeout: 5m
+  timeout: 45s
   dependsOn:
     - name: infrastructure-configs
   healthChecks:
