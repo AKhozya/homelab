@@ -11,7 +11,7 @@ metadata:
       Containers should drop all Linux capabilities and only add back
       specific ones if needed. This reduces the attack surface.
 spec:
-  validationFailureAction: Audit
+  validationFailureAction: Enforce
   background: true
   rules:
     - name: require-drop-all

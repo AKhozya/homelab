@@ -11,7 +11,7 @@ metadata:
       Labels are essential for organization, filtering, and tooling integration.
       This policy requires all pods to have common labels for better resource management.
 spec:
-  validationFailureAction: Audit
+  validationFailureAction: Enforce
   background: true
   rules:
     - name: require-app-label

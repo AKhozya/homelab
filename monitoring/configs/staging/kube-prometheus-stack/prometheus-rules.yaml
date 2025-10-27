@@ -645,34 +645,25 @@ spec:
         description: "Alertmanager cannot send notifications to {{ $labels.integration }}. Check Telegram bot token and network connectivity."
 
   - name: kyverno-policy-alerts
-    interval: 1m
+    interval: 1h
     rules:
-    - alert: KyvernoPolicyViolationsHigh
-      expr: sum(kyverno_policy_rule_results_total{rule_result="fail"}) > 100
-      for: 30m
-      labels:
-        severity: warning
-      annotations:
-        summary: "High number of Kyverno policy violations detected"
-        description: "Total policy violations: {{ $value }}. Review violations with: kubectl get policyreports -A"
-
-    - alert: KyvernoHighSeverityViolations
-      expr: sum(kyverno_policy_rule_results_total{rule_result="fail",policy_severity="high"}) > 20
-      for: 15m
-      labels:
-        severity: warning
-      annotations:
-        summary: "High severity policy violations detected"
-        description: "{{ $value }} high-severity policy violations found. Review with: kubectl get policyreports -A -o json | jq '.items[] | select(.summary.fail > 0)'"
-
-    - alert: KyvernoPolicyViolationsIncreasing
-      expr: increase(kyverno_policy_rule_results_total{rule_result="fail"}[1h]) > 10
-      for: 5m
+    - alert: KyvernoPolicyViolationsDailySummary
+      expr: sum(kyverno_policy_rule_results_total{rule_result="fail"}) > 50
+      for: 24h
       labels:
         severity: info
       annotations:
-        summary: "Policy violations are increasing"
-        description: "{{ $value }} new policy violations in the last hour. New workloads may not be compliant."
+        summary: "Daily Kyverno policy violations summary"
+        description: "Total policy violations: {{ $value }}. This is a daily summary. Review violations with: kubectl get policyreports -A"
+
+    - alert: KyvernoHighSeverityViolationsDaily
+      expr: sum(kyverno_policy_rule_results_total{rule_result="fail",policy_severity="high"}) > 10
+      for: 24h
+      labels:
+        severity: info
+      annotations:
+        summary: "Daily high severity policy violations summary"
+        description: "{{ $value }} high-severity policy violations found. Review with: kubectl get policyreports -A -o json | jq '.items[] | select(.summary.fail > 0)'"
 
     - alert: KyvernoAdmissionControllerDown
       expr: up{job="kyverno"} == 0
@@ -682,12 +673,3 @@ spec:
       annotations:
         summary: "Kyverno admission controller is down"
         description: "Kyverno is unreachable. Policy enforcement may not be working!"
-
-    - alert: KyvernoPolicyReportsFailing
-      expr: sum(rate(kyverno_policy_results_total{policy_result="error"}[5m])) > 0
-      for: 10m
-      labels:
-        severity: warning
-      annotations:
-        summary: "Kyverno policy execution errors detected"
-        description: "Policies are failing to execute. Check Kyverno logs: kubectl logs -n kyverno deployment/kyverno-admission-controller"
