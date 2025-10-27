@@ -13,6 +13,8 @@ spec:
       labels:
         app: uptime-kuma
     spec:
+      serviceAccountName: uptime-kuma
+      automountServiceAccountToken: false
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000

@@ -10,6 +10,8 @@ spec:
       labels:
         app: audiobookshelf-init
     spec:
+      serviceAccountName: audiobookshelf
+      automountServiceAccountToken: false
       restartPolicy: OnFailure
       securityContext:
         runAsUser: 65534

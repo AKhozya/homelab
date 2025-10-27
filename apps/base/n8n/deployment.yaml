@@ -13,6 +13,8 @@ spec:
       labels:
         app: n8n
     spec:
+      serviceAccountName: n8n
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
         runAsUser: 1000

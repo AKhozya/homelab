@@ -15,6 +15,8 @@ spec:
         app: authentik
         component: server
     spec:
+      serviceAccountName: authentik
+      automountServiceAccountToken: false
       # NOTE: Server pod runs migrations on startup
       #
       # WHY: Both server and worker run Django migrations automatically. To prevent

@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: wallabag
 resources:
   - namespace.yaml
+  - serviceaccount.yaml
   - storage.yaml
   - deployment.yaml
   - service.yaml

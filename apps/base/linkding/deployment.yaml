@@ -12,6 +12,8 @@ spec:
       labels:
         app: linkding
     spec:
+      serviceAccountName: linkding
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 33 # www-data group ID
         runAsUser: 33 # www-data user ID

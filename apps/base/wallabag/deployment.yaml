@@ -12,6 +12,8 @@ spec:
       labels:
         app: wallabag
     spec:
+      serviceAccountName: wallabag
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: false
         runAsUser: 0

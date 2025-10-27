@@ -10,6 +10,8 @@ spec:
       labels:
         app: uptime-kuma-setup
     spec:
+      serviceAccountName: uptime-kuma
+      automountServiceAccountToken: false
       restartPolicy: OnFailure
       securityContext:
         runAsUser: 65534

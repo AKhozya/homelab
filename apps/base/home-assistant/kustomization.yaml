@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: home-assistant
 resources:
   - namespace.yaml
+  - serviceaccount.yaml
   - storage.yaml
   - configmap.yaml
   - deployment.yaml

@@ -9,6 +9,8 @@ metadata:
 spec:
   template:
     spec:
+      serviceAccountName: uptime-kuma
+      automountServiceAccountToken: false
       restartPolicy: Never
       containers:
       - name: fix-permissions

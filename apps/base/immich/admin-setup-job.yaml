@@ -11,6 +11,8 @@ spec:
       labels:
         app: immich-admin-setup
     spec:
+      serviceAccountName: immich
+      automountServiceAccountToken: false
       restartPolicy: OnFailure
       securityContext:
         runAsUser: 65534

@@ -12,6 +12,8 @@ spec:
       labels:
         app: mealie
     spec:
+      serviceAccountName: mealie
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 911
         runAsUser: 911

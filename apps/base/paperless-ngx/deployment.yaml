@@ -12,6 +12,8 @@ spec:
       labels:
         app: paperless-ngx
     spec:
+      serviceAccountName: paperless-ngx
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
         runAsUser: 1000

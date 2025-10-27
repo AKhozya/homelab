@@ -27,6 +27,12 @@ spec:
   # /dev/dri hostPath mount removed for Pod Security Standards (restricted) compliance
   # hostPath volumes violate PSS restricted policy
   values:
+    # Service Account configuration
+    serviceAccount:
+      create: true
+      name: immich
+      automountServiceAccountToken: false
+
     # Global image configuration for Renovate/Dependabot tracking
     # See: https://github.com/immich-app/immich-charts/issues/68
     image:

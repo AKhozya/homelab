@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: n8n
 resources:
   - namespace.yaml
+  - serviceaccount.yaml
   - service.yaml
   - storage.yaml
   - deployment.yaml

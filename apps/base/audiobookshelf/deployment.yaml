@@ -12,6 +12,8 @@ spec:
       labels:
         app: audiobookshelf
     spec:
+      serviceAccountName: audiobookshelf
+      automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
