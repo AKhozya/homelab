@@ -32,6 +32,8 @@ spec:
                 - trivy-system
                 - monitoring
                 - loki
+                - databases
+                - couchdb
       validate:
         message: "hostPath volumes are not allowed"
         pattern:

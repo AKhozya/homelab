@@ -6,3 +6,5 @@ resources:
   - require-drop-all-capabilities.yaml
   - disallow-host-path.yaml
   - require-non-root.yaml
+  - disallow-latest-tag.yaml
+  - require-labels.yaml
