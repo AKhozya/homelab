@@ -7,6 +7,6 @@ data:
   users.acl: |
     user default off nopass ~* &* +@all
     user admin on >${REDIS_ADMIN_PASSWORD} ~* &* +@all
-    user authentik on >${REDIS_AUTHENTIK_PASSWORD} ~* &* +@all -@dangerous +keys +flushdb +info
-    user paperless on >${REDIS_PAPERLESS_PASSWORD} ~* &* +@all -@dangerous +keys +flushdb +info
-    user immich on >${REDIS_IMMICH_PASSWORD} ~* &* +@all -@dangerous +keys +flushdb +info
+    user authentik on >${REDIS_AUTHENTIK_PASSWORD} ~authentik:* &* +@all -@dangerous -acl
+    user paperless on >${REDIS_PAPERLESS_PASSWORD} ~paperless:* &* +@all -@dangerous -acl
+    user immich on >${REDIS_IMMICH_PASSWORD} ~immich:* &* +@all -@dangerous -acl
