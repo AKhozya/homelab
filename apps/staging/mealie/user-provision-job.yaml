@@ -70,6 +70,8 @@ spec:
           volumeMounts:
             - name: provision-script
               mountPath: /scripts
+            - name: tmp
+              mountPath: /tmp
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -82,3 +84,5 @@ spec:
           configMap:
             name: mealie-user-provision-script
             defaultMode: 0755
+        - name: tmp
+          emptyDir: {}
