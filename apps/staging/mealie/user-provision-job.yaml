@@ -74,7 +74,7 @@ spec:
               mountPath: /tmp
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
+            readOnlyRootFilesystem: false  # Job installs packages (apt, pip) - needs write access
             runAsNonRoot: true
             runAsUser: 65534
             capabilities:
