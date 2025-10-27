@@ -20,6 +20,18 @@ spec:
   storage:
     size: 10Gi
     storageClass: "local-path"
+  backup:
+    barmanObjectStore:
+      destinationPath: /mnt/k8s-storage/backups/postgres-barman
+      wal:
+        compression: gzip
+        maxParallel: 2
+      data:
+        compression: gzip
+        jobs: 2
+    retentionPolicy: "30d"
+    volumeSnapshot:
+      className: local-path
   monitoring:
     enablePodMonitor: true
   bootstrap:
