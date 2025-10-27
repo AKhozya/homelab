@@ -3,6 +3,7 @@ kind: Namespace
 metadata:
   name: mealie
   labels:
-    pod-security.kubernetes.io/enforce: restricted
-    pod-security.kubernetes.io/audit: restricted
-    pod-security.kubernetes.io/warn: restricted
+    # PSS Baseline (not Restricted): mealie-user-provision job needs root for apt-get
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
