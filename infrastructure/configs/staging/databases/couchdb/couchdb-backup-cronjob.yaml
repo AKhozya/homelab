@@ -16,6 +16,8 @@ spec:
           labels:
             app: couchdb-backup
         spec:
+          serviceAccountName: couchdb-jobs
+          automountServiceAccountToken: false
           restartPolicy: OnFailure
           securityContext:
             runAsUser: 1000  # non-root user

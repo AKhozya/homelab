@@ -13,6 +13,8 @@ spec:
       labels:
         app: immich-init-extensions
     spec:
+      serviceAccountName: postgres-jobs
+      automountServiceAccountToken: false
       restartPolicy: OnFailure
       containers:
         - name: init-extensions

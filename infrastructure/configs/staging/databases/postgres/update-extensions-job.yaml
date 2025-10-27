@@ -19,6 +19,8 @@ spec:
           labels:
             app: postgres-update-extensions
         spec:
+          serviceAccountName: postgres-jobs
+          automountServiceAccountToken: false
           restartPolicy: OnFailure
           containers:
             - name: update-extensions

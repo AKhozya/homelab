@@ -16,6 +16,8 @@ spec:
           labels:
             app: postgres-backup
         spec:
+          serviceAccountName: postgres-jobs
+          automountServiceAccountToken: false
           restartPolicy: OnFailure
           securityContext:
             runAsUser: 999  # postgres user
