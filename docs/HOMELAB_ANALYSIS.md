@@ -18,6 +18,7 @@
 - Comprehensive monitoring (Prometheus, Grafana, Loki, Alertmanager)
 - **🆕 Trivy Operator - Continuous vulnerability scanning** ⭐ (2025-10-27)
 - **🆕 Popeye - Cluster health monitoring (A grade, 100/100 score)** ⭐ (2025-10-27)
+- **🆕 Kyverno - Kubernetes-native policy enforcement (5 policies, 89 total violations)** ⭐ (2025-10-27)
 - **🆕 Centralized SSO with Authentik** ⭐
 - **🆕 Cloudflare Tunnel for secure external access** ⭐
 - **🆕 Dual-Access Pattern: Traefik Ingress + Cloudflare Tunnel** ⭐
@@ -629,10 +630,11 @@
 **Medium Priority:**
 6. ~~Trivy Operator - Vulnerability scanning~~ ✅ **COMPLETED** (2025-10-27)
 7. ~~Popeye - Cluster sanitizer~~ ✅ **COMPLETED** (2025-10-27)
-8. FreshRSS/Miniflux - RSS reader
-9. GitLab CE - Self-hosted Git + CI/CD + Registry
-10. Velero - Kubernetes backup (P2 - Medium Term task)
-11. ~~External-DNS - DNS automation~~ ✅ **REMOVED** (AdGuard Home handles local DNS)
+8. ~~Kyverno - Policy enforcement~~ ✅ **COMPLETED** (2025-10-27)
+9. FreshRSS/Miniflux - RSS reader
+10. GitLab CE - Self-hosted Git + CI/CD + Registry
+11. Velero - Kubernetes backup (P2 - Medium Term task)
+12. ~~External-DNS - DNS automation~~ ✅ **REMOVED** (AdGuard Home handles local DNS)
 
 **Note**: Password management handled by 1Password (commercial service)
 
