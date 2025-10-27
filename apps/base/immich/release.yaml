@@ -263,6 +263,22 @@ spec:
                 capabilities:
                   drop:
                     - ALL
+              readinessProbe:
+                httpGet:
+                  path: /
+                  port: 8080
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+              livenessProbe:
+                httpGet:
+                  path: /
+                  port: 8080
+                initialDelaySeconds: 60
+                periodSeconds: 30
+                timeoutSeconds: 5
+                failureThreshold: 3
       # Service configuration - point to nginx proxy port
       service:
         main:
