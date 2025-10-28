@@ -30,13 +30,14 @@ spec:
     # Trivy Operator configuration
     operator:
       # Resource limits for operator
+      # Peak usage: 945Mi memory, 618m CPU during vulnerability scanning
       resources:
         requests:
           cpu: 100m
-          memory: 256Mi
-        limits:
-          cpu: 500m
           memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 1.5Gi
 
       # Replica count (single node homelab)
       replicas: 1
