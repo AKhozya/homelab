@@ -4,7 +4,6 @@ resources:
   - namespace.yaml
   - serviceaccount.yaml
   - storage.yaml
-  - fix-permissions-job.yaml
   - deployment.yaml
   - service.yaml
   - ingress.yaml
