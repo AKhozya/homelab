@@ -1,0 +1,10 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: immich-machine-learning
+  namespace: immich
+spec:
+  template:
+    spec:
+      serviceAccountName: immich
+      automountServiceAccountToken: false

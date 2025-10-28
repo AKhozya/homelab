@@ -11,3 +11,6 @@ resources:
   - networkpolicy.yaml
   - ingress.yaml
   - certificate.yaml
+patchesStrategicMerge:
+  - patch-server-sa.yaml
+  - patch-ml-sa.yaml
