@@ -27,16 +27,6 @@ spec:
   # /dev/dri hostPath mount removed for Pod Security Standards (restricted) compliance
   # hostPath volumes violate PSS restricted policy
   values:
-    # Service Account configuration (created via separate manifest)
-    server:
-      serviceAccount:
-        create: false
-        name: immich
-    machine-learning:
-      serviceAccount:
-        create: false
-        name: immich
-
     # Global image configuration for Renovate/Dependabot tracking
     # See: https://github.com/immich-app/immich-charts/issues/68
     image:
@@ -87,6 +77,10 @@ spec:
     # Immich Server component
     server:
       enabled: true
+      # Service Account configuration (created via separate manifest)
+      serviceAccount:
+        create: false
+        name: immich
       controllers:
         main:
           pod:
@@ -302,6 +296,10 @@ spec:
     # Immich Machine Learning component
     machine-learning:
       enabled: true
+      # Service Account configuration (created via separate manifest)
+      serviceAccount:
+        create: false
+        name: immich
       controllers:
         main:
           containers:
