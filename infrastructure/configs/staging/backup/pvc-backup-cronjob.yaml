@@ -22,6 +22,8 @@ spec:
             runAsUser: 0  # Need root to access all PVC files
             runAsGroup: 0
             fsGroup: 0
+            seccompProfile:
+              type: RuntimeDefault
           initContainers:
             - name: setup-permissions
               image: alpine:3.22

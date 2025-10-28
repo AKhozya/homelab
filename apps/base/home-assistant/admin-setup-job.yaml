@@ -13,6 +13,9 @@ spec:
       serviceAccountName: home-assistant
       automountServiceAccountToken: false
       restartPolicy: OnFailure
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: setup
           image: curlimages/curl:8.16.0

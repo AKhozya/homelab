@@ -3,4 +3,3 @@ kind: Kustomization
 resources:
   - kube-prometheus-stack
   - flux-notifications.yaml
-  - node-cleanup-cronjob.yaml

@@ -22,6 +22,9 @@ spec:
     spec:
       serviceAccountName: cloudflare-tunnel
       automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: cloudflared
         image: cloudflare/cloudflared:2025.10.0

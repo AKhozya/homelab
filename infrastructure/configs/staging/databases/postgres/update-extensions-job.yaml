@@ -22,6 +22,9 @@ spec:
           serviceAccountName: postgres-jobs
           automountServiceAccountToken: false
           restartPolicy: OnFailure
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: update-extensions
               image: ghcr.io/cloudnative-pg/postgresql:18-standard-trixie

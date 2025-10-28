@@ -23,6 +23,8 @@ spec:
             runAsUser: 1000  # non-root user
             runAsGroup: 1000
             fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
           initContainers:
             - name: setup-permissions
               image: alpine:3.22

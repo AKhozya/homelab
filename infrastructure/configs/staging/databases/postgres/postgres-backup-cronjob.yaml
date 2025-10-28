@@ -23,6 +23,8 @@ spec:
             runAsUser: 999  # postgres user
             runAsGroup: 999
             fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
           initContainers:
             - name: setup-permissions
               image: alpine:3.22
