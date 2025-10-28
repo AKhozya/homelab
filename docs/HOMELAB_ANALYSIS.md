@@ -18,12 +18,13 @@
 - Comprehensive monitoring (Prometheus, Grafana, Loki, Alertmanager)
 - **🆕 Trivy Operator - Continuous vulnerability scanning** ⭐ (2025-10-27)
 - **🆕 Popeye - Cluster health monitoring (A grade, 100/100 score)** ⭐ (2025-10-27)
-- **🆕 Kyverno - Kubernetes-native policy enforcement (10 policies: 4 Enforce + 6 Audit, daily alerts)** ⭐ (2025-10-27)
-  - **Enforced policies:** disallow-privilege-escalation, require-drop-all-capabilities, require-labels, disallow-host-namespaces (0 violations)
-  - **Audit policies:** require-resource-limits (64), require-non-root (24), require-non-default-serviceaccount (23), require-seccomp-runtimedefault (23), disallow-latest-tag (13), disallow-host-path (4)
+- **🆕 Kyverno - Kubernetes-native policy enforcement (10 policies: 5 Enforce + 5 Audit, daily alerts)** ⭐ (2025-10-27, Updated: 2025-10-28)
+  - **Enforced policies:** disallow-privilege-escalation, require-drop-all-capabilities, require-labels, disallow-host-namespaces, **require-non-default-serviceaccount** ✅ (0 violations)
+  - **Audit policies:** require-resource-limits (64), require-non-root (24), require-seccomp-runtimedefault (23), disallow-latest-tag (13), disallow-host-path (4)
+  - **Phase 1 Complete (2025-10-28):** Service account remediation - 31 pods migrated, 16 custom SAs created, enforce mode enabled ✅
   - **Enforcement strategy:** Phased approach with zero-risk policies enforced first
   - **Monitoring:** Daily violation summaries via Prometheus/Telegram
-  - **Security posture:** ~75% Pod Security Standards (Baseline), ~60% Pod Security Standards (Restricted)
+  - **Security posture:** ~80% Pod Security Standards (Baseline), ~65% Pod Security Standards (Restricted)
 - **🆕 Centralized SSO with Authentik** ⭐
 - **🆕 Cloudflare Tunnel for secure external access** ⭐
 - **🆕 Dual-Access Pattern: Traefik Ingress + Cloudflare Tunnel** ⭐
@@ -165,6 +166,22 @@
    - **Current**: `~* &* +@all -@dangerous -acl` (all keys, safe commands only)
    - **Mitigation**: NetworkPolicy restricts Redis access to app namespaces
    - **Priority**: Downgraded to P3-LOW (defense-in-depth, not critical)
+
+#### 14. ✅ **Kyverno Policy Remediation - Phase 1: Service Accounts** - COMPLETED (2025-10-28)
+   - **Status**: ✅ COMPLETED - require-non-default-serviceaccount policy enabled in Enforce mode
+   - **Implementation**:
+     - Created 16 custom ServiceAccounts (13 apps + 3 infrastructure components)
+     - Updated 44 manifests (deployments, jobs, StatefulSets)
+     - Migrated 31 pods to custom service accounts
+     - Special fix for Immich Helm chart using Flux postRenderers
+   - **Git Activity**: 7 commits (a293197 → 584d3a1)
+   - **Security Impact**:
+     - ✅ Eliminated default service account usage across all applications
+     - ✅ Enforced least privilege principle at admission control
+     - ✅ Policy now blocks insecure pods at admission webhook
+   - **Testing**: All 31 pods verified running with 0 restarts, all applications functional
+   - **Next**: Phase 2 (seccomp profiles), Phase 3 (resource limits)
+   - **Commit**: 584d3a1
 
 ---
 
