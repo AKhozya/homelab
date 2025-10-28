@@ -8,6 +8,14 @@ metadata:
     argocd.argoproj.io/hook-delete-policy: HookSucceeded
 spec:
   template:
+    metadata:
+      labels:
+        app: uptime-kuma-fix-permissions
+      annotations:
+        # PSS Baseline: Job needs root to run chown for volume permissions
+        pod-security.kubernetes.io/enforce: baseline
+        pod-security.kubernetes.io/audit: baseline
+        pod-security.kubernetes.io/warn: baseline
     spec:
       serviceAccountName: uptime-kuma
       automountServiceAccountToken: false
@@ -25,6 +33,13 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /app/data
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
