@@ -23,6 +23,30 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
+  # Post-renderer to patch service accounts (Helm chart doesn't support per-component serviceAccount)
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: immich-server
+            patch: |-
+              - op: replace
+                path: /spec/template/spec/serviceAccountName
+                value: immich
+              - op: add
+                path: /spec/template/spec/automountServiceAccountToken
+                value: false
+          - target:
+              kind: Deployment
+              name: immich-machine-learning
+            patch: |-
+              - op: replace
+                path: /spec/template/spec/serviceAccountName
+                value: immich
+              - op: add
+                path: /spec/template/spec/automountServiceAccountToken
+                value: false
   # Note: Hardware acceleration (VAAPI) is disabled via IMMICH_MEDIA_FFMPEG_ACCEL=disabled
   # /dev/dri hostPath mount removed for Pod Security Standards (restricted) compliance
   # hostPath volumes violate PSS restricted policy
