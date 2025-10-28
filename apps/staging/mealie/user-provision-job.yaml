@@ -8,6 +8,8 @@ spec:
   backoffLimit: 3
   template:
     spec:
+      serviceAccountName: mealie
+      automountServiceAccountToken: false
       restartPolicy: OnFailure
       # PSS Baseline (not Restricted): Job needs root to install apt packages
       securityContext:
