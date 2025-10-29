@@ -1,0 +1,283 @@
+#!/bin/bash
+#
+# Analyze Renovate PR for Breaking Changes and Action Items
+#
+# Usage: ./scripts/analyze-update.sh <PR_NUMBER>
+#
+# This script:
+# 1. Fetches PR details from GitHub
+# 2. Extracts package name and version change
+# 3. Fetches changelog/release notes
+# 4. Identifies breaking changes, deprecations, and action items
+# 5. Generates a summary report
+#
+
+set -euo pipefail
+
+PR_NUMBER="${1:-}"
+
+if [ -z "$PR_NUMBER" ]; then
+    echo "Usage: $0 <PR_NUMBER>"
+    echo ""
+    echo "Example: $0 85"
+    exit 1
+fi
+
+echo "==================================="
+echo "Analyzing Renovate PR #$PR_NUMBER"
+echo "==================================="
+echo ""
+
+# Fetch PR details
+echo "📥 Fetching PR details..."
+PR_JSON=$(gh pr view "$PR_NUMBER" --json title,body,files,state)
+PR_TITLE=$(echo "$PR_JSON" | jq -r '.title')
+PR_BODY=$(echo "$PR_JSON" | jq -r '.body')
+PR_STATE=$(echo "$PR_JSON" | jq -r '.state')
+
+echo "Title: $PR_TITLE"
+echo "State: $PR_STATE"
+echo ""
+
+# Extract package and version info from PR body or title
+echo "📦 Extracting package information..."
+
+# Try to extract from PR body table
+PACKAGE_INFO=$(echo "$PR_BODY" | grep "^|" | grep -v "Package\|---" | head -n 1 || echo "")
+
+if [ -n "$PACKAGE_INFO" ]; then
+    # Parse from table format
+    PACKAGE_NAME=$(echo "$PACKAGE_INFO" | awk -F'|' '{print $2}' | xargs | sed 's/\[//' | sed 's/\].*//')
+    UPDATE_TYPE=$(echo "$PACKAGE_INFO" | awk -F'|' '{print $3}' | xargs)
+    VERSION_CHANGE=$(echo "$PACKAGE_INFO" | awk -F'|' '{print $4}' | xargs)
+    OLD_VERSION=$(echo "$VERSION_CHANGE" | awk '{print $1}' | sed 's/`//g' | sed 's/->.*//')
+    NEW_VERSION=$(echo "$VERSION_CHANGE" | awk '{print $3}' | sed 's/`//g')
+else
+    # Fall back to parsing title
+    PACKAGE_NAME=$(echo "$PR_TITLE" | sed 's/chore(deps): update //' | sed 's/ Docker tag.*//' | sed 's/ to.*//')
+    OLD_VERSION="unknown"
+    NEW_VERSION=$(echo "$PR_TITLE" | grep -oE 'to v?[0-9.]+' | sed 's/to v\?//' || echo "unknown")
+    UPDATE_TYPE=$(echo "$PR_TITLE" | grep -iq "major" && echo "major" || echo "$PR_TITLE" | grep -iq "minor" && echo "minor" || echo "patch")
+fi
+
+echo "Package: $PACKAGE_NAME"
+echo "Update Type: $UPDATE_TYPE"
+echo "Version Change: $OLD_VERSION → $NEW_VERSION"
+echo ""
+
+# Extract release notes link if available
+RELEASE_LINK=$(echo "$PR_BODY" | grep -oE 'https://[^)]+/releases/tag/[^)]+' | head -n 1 || echo "")
+CHANGELOG_LINK=$(echo "$PR_BODY" | grep -oE 'https://[^)]+/CHANGELOG[^)]*' | head -n 1 || echo "")
+COMPARE_LINK=$(echo "$PR_BODY" | grep -oE 'https://[^)]+/compare/[^)]+' | head -n 1 || echo "")
+
+# Determine which link to use
+DOCS_LINK=""
+if [ -n "$RELEASE_LINK" ]; then
+    DOCS_LINK="$RELEASE_LINK"
+    echo "📝 Release Notes: $RELEASE_LINK"
+elif [ -n "$CHANGELOG_LINK" ]; then
+    DOCS_LINK="$CHANGELOG_LINK"
+    echo "📝 Changelog: $CHANGELOG_LINK"
+elif [ -n "$COMPARE_LINK" ]; then
+    DOCS_LINK="$COMPARE_LINK"
+    echo "📝 Compare: $COMPARE_LINK"
+else
+    echo "⚠️  No release notes link found"
+fi
+echo ""
+
+# Show changed files
+echo "📄 Changed files:"
+echo "$PR_JSON" | jq -r '.files[].path' | sed 's/^/  - /'
+echo ""
+
+# Check for specific keywords in update type
+PRIORITY="MEDIUM"
+if [ "$UPDATE_TYPE" = "major" ]; then
+    PRIORITY="HIGH"
+    echo "🔴 MAJOR UPDATE - High risk of breaking changes"
+elif [ "$UPDATE_TYPE" = "patch" ]; then
+    PRIORITY="LOW"
+    echo "🟢 PATCH UPDATE - Low risk"
+else
+    echo "🟡 MINOR UPDATE - Medium risk"
+fi
+echo ""
+
+# Package-specific guidance
+echo "📋 Package-Specific Analysis:"
+echo ""
+
+case "$PACKAGE_NAME" in
+    *authentik*)
+        echo "🔐 Authentik Update"
+        echo "Check for:"
+        echo "  - Authentication flow changes"
+        echo "  - OAuth/OIDC provider changes"
+        echo "  - Database schema migrations"
+        echo "  - Redis/cache configuration changes"
+        echo "  - Provider configuration updates"
+        echo ""
+        echo "Action items:"
+        echo "  1. Review release notes for breaking changes"
+        echo "  2. Test login flows after deployment"
+        echo "  3. Check provider integrations (Grafana, etc.)"
+        echo "  4. Monitor authentication error rates"
+        ;;
+
+    *prometheus-stack*|*grafana*)
+        echo "📊 Monitoring Stack Update"
+        echo "Check for:"
+        echo "  - Dashboard compatibility"
+        echo "  - Alert rule changes"
+        echo "  - Grafana plugin updates"
+        echo "  - Prometheus query language changes"
+        echo "  - Security fixes (especially credentials)"
+        echo ""
+        echo "Action items:"
+        echo "  1. Verify all dashboards load correctly"
+        echo "  2. Test alert notifications"
+        echo "  3. Check Grafana admin credentials"
+        echo "  4. Review prometheus query performance"
+        ;;
+
+    *flux*|*kustomize*|*helm-controller*)
+        echo "🔄 Flux/GitOps Update"
+        echo "Check for:"
+        echo "  - API version changes"
+        echo "  - Reconciliation behavior changes"
+        echo "  - Breaking changes in controllers"
+        echo "  - New CRD versions"
+        echo ""
+        echo "Action items:"
+        echo "  1. Monitor reconciliation after update"
+        echo "  2. Check for failed kustomizations"
+        echo "  3. Verify all apps reconcile successfully"
+        echo "  4. Review controller logs for warnings"
+        ;;
+
+    *traefik*)
+        echo "🌐 Traefik Ingress Update"
+        echo "Check for:"
+        echo "  - Middleware API changes"
+        echo "  - IngressRoute compatibility"
+        echo "  - TLS configuration changes"
+        echo "  - Plugin updates"
+        echo ""
+        echo "Action items:"
+        echo "  1. Test all ingress routes"
+        echo "  2. Verify TLS certificates"
+        echo "  3. Check middleware configurations"
+        echo "  4. Monitor HTTP error rates"
+        ;;
+
+    *external-dns*)
+        echo "🌍 External-DNS Update"
+        echo "Check for:"
+        echo "  - Provider API changes (Cloudflare, etc.)"
+        echo "  - DNS record format changes"
+        echo "  - IPv4/IPv6 handling changes"
+        echo "  - TTL and zone changes"
+        echo ""
+        echo "Action items:"
+        echo "  1. Verify DNS records after deployment"
+        echo "  2. Check for unexpected A/AAAA records"
+        echo "  3. Monitor external-dns logs"
+        echo "  4. Test DNS resolution for all domains"
+        ;;
+
+    *postgres*|*couchdb*)
+        echo "🗄️  Database Update"
+        echo "Check for:"
+        echo "  - Schema migration requirements"
+        echo "  - Configuration parameter changes"
+        echo "  - Backup compatibility"
+        echo "  - Extension updates"
+        echo "  - Breaking SQL changes"
+        echo ""
+        echo "Action items:"
+        echo "  1. BACKUP DATABASE BEFORE APPLYING"
+        echo "  2. Review migration scripts"
+        echo "  3. Test application connections"
+        echo "  4. Monitor query performance"
+        echo "  5. Verify backup/restore works"
+        ;;
+
+    *redis*)
+        echo "💾 Redis Update"
+        echo "Check for:"
+        echo "  - Configuration changes"
+        echo "  - Persistence behavior changes"
+        echo "  - Command deprecations"
+        echo "  - Memory management changes"
+        echo ""
+        echo "Action items:"
+        echo "  1. Review configuration compatibility"
+        echo "  2. Test application connections"
+        echo "  3. Monitor memory usage"
+        echo "  4. Check for deprecated commands in logs"
+        ;;
+
+    *n8n*|*paperless*|*immich*|*home-assistant*)
+        echo "📱 Application Update"
+        echo "Check for:"
+        echo "  - Feature additions/removals"
+        echo "  - Configuration file changes"
+        echo "  - Database migrations"
+        echo "  - Plugin/integration updates"
+        echo ""
+        echo "Action items:"
+        echo "  1. Review application changelog"
+        echo "  2. Test core functionality"
+        echo "  3. Check for new configuration options"
+        echo "  4. Monitor application logs"
+        ;;
+
+    *)
+        echo "📦 General Update"
+        echo "Check for:"
+        echo "  - Breaking changes in release notes"
+        echo "  - Deprecated features"
+        echo "  - New configuration requirements"
+        echo "  - Security advisories"
+        echo ""
+        echo "Action items:"
+        echo "  1. Review release notes/changelog"
+        echo "  2. Test affected functionality"
+        echo "  3. Monitor application logs"
+        ;;
+esac
+
+echo ""
+echo "==================================="
+echo "Review Checklist"
+echo "==================================="
+echo ""
+echo "Before merging:"
+echo "  [ ] Read release notes/changelog"
+echo "  [ ] Identify breaking changes"
+echo "  [ ] Check for deprecation warnings"
+echo "  [ ] Review configuration changes needed"
+echo "  [ ] Assess rollback complexity"
+echo ""
+echo "After merging:"
+echo "  [ ] Monitor application logs"
+echo "  [ ] Verify core functionality"
+echo "  [ ] Check Prometheus alerts"
+echo "  [ ] Test affected integrations"
+echo "  [ ] Document any issues found"
+echo ""
+
+if [ -n "$DOCS_LINK" ]; then
+    echo "📖 Full release notes: $DOCS_LINK"
+    echo ""
+fi
+
+echo "To merge this PR:"
+echo "  gh pr merge $PR_NUMBER --squash"
+echo ""
+
+echo "To monitor deployment:"
+echo "  flux reconcile source git flux-system --timeout 45s --force"
+echo "  flux reconcile kustomization apps --timeout 45s --force"
+echo ""
