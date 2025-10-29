@@ -16,6 +16,14 @@ spec:
     enablePodAntiAffinity: true  # Enable built-in anti-affinity (default, but explicit)
     podAntiAffinityType: "preferred"  # Soft constraint - allow same node if needed
     topologyKey: "kubernetes.io/hostname"  # Spread across different nodes
+    # Prefer control plane for better distribution (combined with anti-affinity)
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 50
+          preference:
+            matchExpressions:
+              - key: node-role.kubernetes.io/control-plane
+                operator: Exists
     tolerations:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
