@@ -2,71 +2,84 @@
 
 ## Overview
 
-This repository uses three GitHub Action workflows to manage automated reviews and analysis:
+This repository uses **two GitHub Action workflows**:
 
-1. **renovate-analysis.yaml** - Automated analysis of Renovate dependency updates
-2. **claude-code-review.yml** - Claude-powered code review for regular PRs
-3. **claude.yml** - Interactive Claude responses via @claude mentions
+1. **renovate-analysis.yaml** - Automated version change analysis for Renovate dependency updates
+2. **claude.yml** - Interactive Claude responses via @claude mentions
 
-**Renovate Detection**: All workflows use **actor-based detection** (`github.actor == 'renovate[bot]'`) instead of title matching for more reliable filtering.
+**Important**: This setup does **NOT** include automatic code reviews. The Renovate workflow detects version changes and breaking changes only.
 
 ---
 
-## Renovate PR Analysis
+## Renovate Version Change Analysis
 
 **Workflow**: `renovate-analysis.yaml`
 
 ### What it does
 
-Automatically analyzes every Renovate PR and posts a comment with:
-- Package name and version change
-- Update type (major/minor/patch) and risk level
-- Package-specific guidance (Authentik, Flux, Traefik, etc.)
-- Breaking changes checklist
-- Action items before and after merge
-- Quick merge commands
+Automatically analyzes **version changes** in Renovate PRs and posts detailed analysis:
+
+**Detects:**
+- 📦 What changed: Docker image, Helm chart, or Flux component
+- 📊 Version change: old → new
+- 🎯 Update type: major/minor/patch and risk level
+- 🚨 Package-specific breaking changes to review
+- 📝 Links to release notes and changelogs
+
+**Does NOT:**
+- ❌ Review code quality
+- ❌ Check syntax or formatting
+- ❌ Analyze application logic
 
 ### How it works
 
-1. **Trigger**: Runs when a PR is opened, synchronized, or reopened
-2. **Filter**: Only runs for PRs created by `renovate[bot]`
+1. **Trigger**: Runs when Renovate PRs are opened/updated
+2. **Filter**: Only runs for `github.actor == 'renovate[bot]'`
 3. **Analysis**: Executes `scripts/analyze-update-gh.sh`
-4. **Comment**: Posts or updates a comment on the PR with the analysis
+4. **Output**: Posts or updates a comment with version analysis
 
 ### Example Output
 
-The workflow posts a collapsible comment like this:
-
 ```markdown
-## 🔍 Automated Update Analysis
+## 🔄 Version Change Analysis
+
+> **Note**: This analyzes version changes and breaking changes, not code quality.
 
 <details>
 <summary>📋 Click to expand full analysis</summary>
 
-[Full analysis output with version changes, risk assessment, and action items]
+Package: ghcr.io/goauthentik/server
+Update Type: minor
+Version Change: v2025.10.0 → v2025.11.0
+Update Category: Docker Image in Kubernetes resource
 
+🟡 MINOR UPDATE - Medium risk
+
+🔐 Authentik Update
+Check for:
+  - Authentication flow changes
+  - OAuth/OIDC provider changes
+  - Database schema migrations
+  - Redis/cache configuration changes
+
+Action items:
+  1. Review release notes for breaking changes
+  2. Test login flows after deployment
+  [...]
 </details>
-
-### Quick Actions
-
-**Merge this PR:**
-```bash
-gh pr merge 123 --squash
-```
 ```
 
 ### Permissions Required
 
-The workflow needs these permissions (already configured):
-- `pull-requests: write` - To post comments
+- `pull-requests: write` - To post analysis comments
 - `contents: read` - To checkout the repository
 
 ### Manual Testing
 
-You can test the analysis script locally:
+Test the analysis script locally:
 
 ```bash
-# Analyze a specific PR
+# Analyze a specific Renovate PR
 ./scripts/analyze-update.sh <PR_NUMBER>
 
 # Generate GitHub-formatted output
@@ -77,52 +90,9 @@ You can test the analysis script locally:
 
 To add package-specific analysis:
 1. Edit `scripts/analyze-update.sh`
-2. Add a new case in the package analysis section
+2. Add a new case in the package analysis section (line ~110)
 3. Define what to check and action items
-4. Commit and push - workflow uses the latest script version
-
-### Troubleshooting
-
-**Workflow not running?**
-- Check that the PR author is `renovate[bot]`
-- View workflow runs: Actions → Renovate PR Analysis
-
-**Comment not appearing?**
-- Check workflow logs for errors
-- Verify `GITHUB_TOKEN` has write permissions
-- Ensure the script is executable in the repository
-
-**Need to update an existing comment?**
-- Push changes to the PR branch
-- Workflow will automatically update its comment
-
----
-
-## Claude Code Review
-
-**Workflow**: `claude-code-review.yml`
-
-### What it does
-
-Automatically reviews **non-Renovate PRs** when they're opened or updated using Claude Code.
-
-**Reviews include:**
-- Code quality and best practices
-- Potential bugs or issues
-- Performance considerations
-- Security concerns
-- Test coverage
-
-**Exclusions:**
-- ❌ Renovate PRs (handled by renovate-analysis.yaml)
-- ✅ All other PRs get automatic review
-
-### How it works
-
-1. PR opened/synchronized by any author except Renovate
-2. Checks `github.actor` to skip Renovate
-3. Runs Claude Code review with repository context
-4. Posts review as PR comment using `gh pr comment`
+4. Commit and push - workflow uses the latest version
 
 ---
 
@@ -134,37 +104,114 @@ Automatically reviews **non-Renovate PRs** when they're opened or updated using 
 
 Responds to **@claude mentions** in:
 - Issue comments
-- PR review comments
-- PR reviews
+- PR review comments (except Renovate PRs)
+- PR reviews (except Renovate PRs)
 - New issues
 
-**Exclusions:**
-- ❌ @claude mentions on Renovate PRs are ignored
+### Exclusions
+
+- ❌ @claude mentions on Renovate PRs are ignored (use version analysis instead)
 - ✅ @claude works everywhere else
 
 ### How to use
 
-Simply mention `@claude` in a comment with your request:
+Mention `@claude` in a comment with your request:
 
 ```
 @claude can you explain how this authentication flow works?
 ```
 
 ```
-@claude please review the error handling in this PR
+@claude what does this function do?
 ```
 
-**Note**: Claude has access to repository files and can run limited commands via `gh` CLI.
+**Note**: Claude has access to repository files and can run limited `gh` CLI commands.
 
 ---
 
 ## Workflow Coordination
 
-| Event | Renovate PR | Regular PR |
-|-------|-------------|------------|
-| **PR opened** | renovate-analysis.yaml runs | claude-code-review.yml runs |
-| **PR updated** | renovate-analysis.yaml updates comment | claude-code-review.yml runs |
-| **@claude mention** | ❌ Ignored | claude.yml responds |
-| **Issue created** | N/A | claude.yml responds if @claude |
+| Event | Renovate PR | Regular PR | Issue |
+|-------|-------------|------------|-------|
+| **Opened/Updated** | ✅ Version analysis posted | ❌ No automatic action | N/A |
+| **@claude mention** | ❌ Ignored | ✅ Claude responds | ✅ Claude responds |
 
-All workflows use consistent **actor-based detection** to identify Renovate PRs.
+**Renovate Detection**: Both workflows use `github.actor == 'renovate[bot]'` for consistent filtering.
+
+---
+
+## Disabled Workflows
+
+### claude-code-review.yml.disabled
+
+**Why disabled**: To avoid automatic code reviews on all PRs. The repository focuses on:
+- Version change analysis for dependencies (Renovate)
+- Manual @claude interactions when needed
+
+**To re-enable**: Rename from `.disabled` to `.yml` and adjust the workflow conditions as needed.
+
+---
+
+## Troubleshooting
+
+### Renovate Analysis Not Running?
+
+**Check:**
+1. PR author is `renovate[bot]` or `app/renovate`
+2. View workflow runs: Actions → Renovate Version Change Analysis
+3. Check workflow logs for errors
+
+### Comment Not Appearing?
+
+**Check:**
+1. Workflow completed successfully (green checkmark)
+2. `GITHUB_TOKEN` has write permissions to pull-requests
+3. Scripts are executable in the repository
+4. Look for error in "Post comment on PR" step
+
+### Need to Update Analysis?
+
+**Options:**
+1. Push changes to PR branch → workflow auto-updates comment
+2. Edit `scripts/analyze-update.sh` → affects future PRs
+3. Manually run: `./scripts/analyze-update-gh.sh <PR_NUMBER>`
+
+---
+
+## Adding New Package Analysis
+
+Edit `scripts/analyze-update.sh` and add a case:
+
+```bash
+case "$PACKAGE_NAME" in
+    *your-package*)
+        echo "📦 Your Package Update"
+        echo "Check for:"
+        echo "  - Specific breaking changes"
+        echo "  - Configuration updates"
+        echo ""
+        echo "Action items:"
+        echo "  1. Review release notes"
+        echo "  2. Test functionality"
+        ;;
+esac
+```
+
+Common packages already covered:
+- Authentik, Grafana, Prometheus Stack
+- Flux, Traefik, External-DNS
+- PostgreSQL, Redis
+- n8n, Paperless, Immich, Home Assistant
+
+---
+
+## Summary
+
+**Active Workflows:** 2
+- ✅ Renovate version analysis (automatic)
+- ✅ @claude mentions (manual)
+
+**Disabled Workflows:** 1
+- ❌ Claude code review (not needed)
+
+**Focus:** Detecting version changes and breaking changes in dependencies, not code review.

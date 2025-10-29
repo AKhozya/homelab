@@ -16,7 +16,9 @@ fi
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo "## 🔍 Automated Update Analysis"
+echo "## 🔄 Version Change Analysis"
+echo ""
+echo "> **Note**: This analyzes version changes and breaking changes, not code quality."
 echo ""
 echo "<details>"
 echo "<summary>📋 Click to expand full analysis</summary>"

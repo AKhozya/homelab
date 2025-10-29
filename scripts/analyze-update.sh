@@ -1,15 +1,16 @@
 #!/bin/bash
 #
-# Analyze Renovate PR for Breaking Changes and Action Items
+# Analyze Renovate PR - Detect Version Changes and Breaking Changes
 #
 # Usage: ./scripts/analyze-update.sh <PR_NUMBER>
 #
-# This script:
-# 1. Fetches PR details from GitHub
-# 2. Extracts package name and version change
-# 3. Fetches changelog/release notes
-# 4. Identifies breaking changes, deprecations, and action items
-# 5. Generates a summary report
+# This script analyzes dependency updates (NOT code review):
+# 1. Detects what changed: Docker image, Helm chart, or Flux component
+# 2. Extracts version change (old → new)
+# 3. Identifies update type: major/minor/patch
+# 4. Provides package-specific breaking change checklist
+# 5. Links to release notes and changelogs
+# 6. Generates actionable review checklist
 #
 
 set -euo pipefail
@@ -86,9 +87,26 @@ else
 fi
 echo ""
 
-# Show changed files
+# Show changed files and extract what's being updated
 echo "📄 Changed files:"
-echo "$PR_JSON" | jq -r '.files[].path' | sed 's/^/  - /'
+CHANGED_FILES=$(echo "$PR_JSON" | jq -r '.files[].path')
+echo "$CHANGED_FILES" | sed 's/^/  - /'
+echo ""
+
+# Detect update type from files
+UPDATE_CATEGORY="unknown"
+if echo "$CHANGED_FILES" | grep -q "deployment.yaml\|statefulset.yaml\|daemonset.yaml"; then
+    UPDATE_CATEGORY="Docker Image"
+    echo "📦 Update Type: Docker Image in Kubernetes resource"
+elif echo "$CHANGED_FILES" | grep -q "release.yaml\|helmrelease.yaml"; then
+    UPDATE_CATEGORY="Helm Chart"
+    echo "📦 Update Type: Helm Chart version"
+elif echo "$CHANGED_FILES" | grep -q "gotk-components.yaml"; then
+    UPDATE_CATEGORY="Flux Components"
+    echo "📦 Update Type: Flux GitOps components"
+else
+    echo "📦 Update Type: Configuration file"
+fi
 echo ""
 
 # Check for specific keywords in update type

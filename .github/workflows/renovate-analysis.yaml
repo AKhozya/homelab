@@ -1,4 +1,4 @@
-name: Renovate PR Analysis
+name: Renovate Version Change Analysis
 
 on:
   pull_request:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   analyze:
-    name: Analyze Renovate Update
+    name: Detect Version Changes
     runs-on: ubuntu-latest
 
     # Only run for Renovate PRs
@@ -55,7 +55,7 @@ jobs:
 
             const botComment = comments.find(comment =>
               comment.user.type === 'Bot' &&
-              comment.body.includes('🔍 Automated Update Analysis')
+              comment.body.includes('🔄 Version Change Analysis')
             );
 
             if (botComment) {
