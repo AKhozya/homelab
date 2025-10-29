@@ -111,25 +111,36 @@ if [ -n "$DOCS_LINK" ]; then
         # Look for removed features/dependencies
         REMOVED_SECTION=$(echo "$CLEAN_CONTENT" | grep -iB 2 -A 10 "removed\|no longer\|drop.*support" | head -25 || echo "")
 
+        # Look for security issues
+        SECURITY_SECTION=$(echo "$CLEAN_CONTENT" | grep -iB 2 -A 10 "security\|vulnerability\|CVE\|insecure\|exploit\|password.*fix\|credential.*fix" | head -25 || echo "")
+
         # Check for important keywords
         HAS_BREAKING=false
         HAS_MIGRATION=false
         HAS_CONFIG_CHANGE=false
         HAS_REMOVAL=false
+        HAS_SECURITY=false
 
         [ -n "$BREAKING_SECTION" ] && HAS_BREAKING=true
         echo "$CLEAN_CONTENT" | grep -qi "migration\|migrate" && HAS_MIGRATION=true
         echo "$CLEAN_CONTENT" | grep -qi "configuration\|config.*change\|environment variable\|setting" && HAS_CONFIG_CHANGE=true
         [ -n "$REMOVED_SECTION" ] && HAS_REMOVAL=true
+        [ -n "$SECURITY_SECTION" ] && HAS_SECURITY=true
 
         # Display findings
-        if [ "$HAS_BREAKING" = true ] || [ "$HAS_MIGRATION" = true ] || [ "$HAS_CONFIG_CHANGE" = true ] || [ "$HAS_REMOVAL" = true ]; then
+        if [ "$HAS_BREAKING" = true ] || [ "$HAS_MIGRATION" = true ] || [ "$HAS_CONFIG_CHANGE" = true ] || [ "$HAS_REMOVAL" = true ] || [ "$HAS_SECURITY" = true ]; then
             echo "🚨 IMPORTANT FINDINGS FROM RELEASE NOTES:"
             echo ""
 
             if [ "$HAS_BREAKING" = true ]; then
                 echo "  ⚠️  Breaking changes detected:"
                 echo "$BREAKING_SECTION" | grep -i "breaking\|break" | sed 's/^/     /' | head -5
+                echo ""
+            fi
+
+            if [ "$HAS_SECURITY" = true ]; then
+                echo "  🔐 Security fixes/issues detected:"
+                echo "$SECURITY_SECTION" | grep -iE "security|vulnerability|CVE|insecure|password|credential" | sed 's/^/     /' | head -5
                 echo ""
             fi
 
