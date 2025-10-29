@@ -32,7 +32,7 @@ spec:
             - -c
             - |
               # Replace password placeholders in ACL file
-              sed "s/\${REDIS_ADMIN_PASSWORD}/$REDIS_ADMIN_PASSWORD/g; s/\${REDIS_AUTHENTIK_PASSWORD}/$REDIS_AUTHENTIK_PASSWORD/g; s/\${REDIS_PAPERLESS_PASSWORD}/$REDIS_PAPERLESS_PASSWORD/g; s/\${REDIS_IMMICH_PASSWORD}/$REDIS_IMMICH_PASSWORD/g" \
+              sed "s/\${REDIS_ADMIN_PASSWORD}/$REDIS_ADMIN_PASSWORD/g; s/\${REDIS_PAPERLESS_PASSWORD}/$REDIS_PAPERLESS_PASSWORD/g; s/\${REDIS_IMMICH_PASSWORD}/$REDIS_IMMICH_PASSWORD/g" \
                 /tmp/acl-template/users.acl > /data/users.acl
               chmod 600 /data/users.acl
               echo "ACL file configured successfully"
@@ -42,11 +42,6 @@ spec:
                 secretKeyRef:
                   name: redis-passwords
                   key: admin-password
-            - name: REDIS_AUTHENTIK_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: redis-passwords
-                  key: authentik-password
             - name: REDIS_PAPERLESS_PASSWORD
               valueFrom:
                 secretKeyRef:
