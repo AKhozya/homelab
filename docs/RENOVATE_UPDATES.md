@@ -9,6 +9,27 @@ Auto-merge has been **disabled** for all updates. All minor, patch, and major up
 
 ---
 
+## 🤖 Automated Analysis (NEW!)
+
+**GitHub Action**: `.github/workflows/renovate-analysis.yaml`
+
+Every Renovate PR now gets **automatic analysis** posted as a comment:
+- ✅ Package name and version change
+- ✅ Update risk level (major/minor/patch)
+- ✅ Package-specific breaking changes to check
+- ✅ Action items checklist
+- ✅ Quick merge and monitoring commands
+
+**Manual analysis** is still available:
+```bash
+./scripts/analyze-update.sh <PR_NUMBER>
+./scripts/analyze-update-gh.sh <PR_NUMBER>  # GitHub-formatted
+```
+
+See [Workflow Documentation](.github/workflows/README.md) for details.
+
+---
+
 ## Recent Updates Analysis
 
 ### Update Types & Review Guidelines

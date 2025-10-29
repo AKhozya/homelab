@@ -1,0 +1,79 @@
+name: Renovate PR Analysis
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze Renovate Update
+    runs-on: ubuntu-latest
+
+    # Only run for Renovate PRs
+    if: github.actor == 'renovate[bot]' || github.actor == 'app/renovate'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup GitHub CLI
+        run: |
+          type -p gh >/dev/null 2>&1 || (echo "gh CLI is pre-installed on GitHub Actions runners" && gh --version)
+
+      - name: Run update analysis
+        id: analysis
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Make scripts executable
+          chmod +x scripts/analyze-update.sh
+          chmod +x scripts/analyze-update-gh.sh
+
+          # Run GitHub-friendly analysis and save output
+          ./scripts/analyze-update-gh.sh ${{ github.event.pull_request.number }} > analysis.txt 2>&1
+
+      - name: Post comment on PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const analysisContent = fs.readFileSync('analysis.txt', 'utf8');
+
+            // Check if we already commented
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const botComment = comments.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('🔍 Automated Update Analysis')
+            );
+
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: analysisContent
+              });
+              console.log('Updated existing analysis comment');
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: analysisContent
+              });
+              console.log('Created new analysis comment');
+            }
