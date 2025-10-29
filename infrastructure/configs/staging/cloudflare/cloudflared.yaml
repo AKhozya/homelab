@@ -33,6 +33,13 @@ spec:
         - --config
         - /etc/cloudflared/config/config.yaml
         - run
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop: ["ALL"]
         resources:
           requests:
             cpu: 100m
@@ -44,9 +51,18 @@ spec:
           httpGet:
             path: /ready
             port: 2000
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 2000
           failureThreshold: 1
           initialDelaySeconds: 10
           periodSeconds: 10
+          timeoutSeconds: 5
         volumeMounts:
         - name: config
           mountPath: /etc/cloudflared/config

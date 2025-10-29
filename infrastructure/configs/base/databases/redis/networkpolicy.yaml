@@ -11,14 +11,6 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from authentik namespace
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: authentik
-      ports:
-        - protocol: TCP
-          port: 6379
     # Allow ingress from uptime-kuma for monitoring
     - from:
         - namespaceSelector:
