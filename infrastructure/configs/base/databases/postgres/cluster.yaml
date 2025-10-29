@@ -14,16 +14,8 @@ spec:
   # Allow scheduling on control plane for HA (1 replica on control plane, 2 on worker)
   affinity:
     enablePodAntiAffinity: true  # Enable built-in anti-affinity (default, but explicit)
-    podAntiAffinityType: "preferred"  # Soft constraint - allow same node if needed
+    podAntiAffinityType: "required"  # HARD constraint - MUST be on different nodes
     topologyKey: "kubernetes.io/hostname"  # Spread across different nodes
-    # Prefer control plane for better distribution (combined with anti-affinity)
-    nodeAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 50
-          preference:
-            matchExpressions:
-              - key: node-role.kubernetes.io/control-plane
-                operator: Exists
     tolerations:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
