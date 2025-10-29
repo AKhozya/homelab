@@ -4,14 +4,14 @@ metadata:
   name: main-postgres
   namespace: databases
 spec:
-  instances: 3
+  instances: 2  # 1 primary + 1 replica across 2 nodes for true HA
   inheritedMetadata:
     labels:
       release: kube-prometheus-stack
   imageName: ghcr.io/cloudnative-pg/postgresql:18-standard-trixie
   enableSuperuserAccess: true  # Required for operator to create pooler roles
 
-  # Allow scheduling on control plane for HA (1 replica on control plane, 2 on worker)
+  # Allow scheduling on control plane for HA (1 pod on control plane, 1 pod on worker)
   affinity:
     enablePodAntiAffinity: true  # Enable built-in anti-affinity (default, but explicit)
     podAntiAffinityType: "required"  # HARD constraint - MUST be on different nodes
