@@ -302,7 +302,7 @@
    - **Documentation**: Created `infrastructure/controllers/base/servicelb/README.md`
    - **Fixed**: Removed incorrect MetalLB annotation from adguard-home service
    - **Decision**: Keep K3s ServiceLB (adequate for 2 services, zero configuration)
-   - **Commit**: [pending]
+   - **Commit**: 0da1bd5
 
 #### 25. **No Cloudflare Tunnel Health Checks**
    - **Risk**: Tunnel failures not detected quickly
