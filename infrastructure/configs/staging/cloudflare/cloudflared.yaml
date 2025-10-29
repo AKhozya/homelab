@@ -11,7 +11,7 @@ metadata:
   name: cloudflared
   namespace: cloudflare-tunnel
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: cloudflared
@@ -22,6 +22,21 @@ spec:
     spec:
       serviceAccountName: cloudflare-tunnel
       automountServiceAccountToken: false
+      # Allow scheduling on control plane for HA
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      # Pod anti-affinity: spread across both nodes
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: cloudflared
+                topologyKey: kubernetes.io/hostname
       securityContext:
         seccompProfile:
           type: RuntimeDefault

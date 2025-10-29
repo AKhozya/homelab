@@ -27,7 +27,13 @@ spec:
     deployment:
       replicas: 2
 
-    # Pod anti-affinity: prefer different nodes, allow same node if needed (single worker)
+    # Allow scheduling on control plane for HA
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+
+    # Pod anti-affinity: spread across both nodes (control plane + worker)
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:

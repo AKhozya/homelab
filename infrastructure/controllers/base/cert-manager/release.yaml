@@ -37,6 +37,13 @@ spec:
 
     # High availability: 2 replicas with pod anti-affinity
     replicaCount: 2
+
+    # Allow scheduling on control plane for HA
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -65,6 +72,10 @@ spec:
     # operation, as the controllers also perform validation.
     webhook:
       replicaCount: 2
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
@@ -101,6 +112,10 @@ spec:
     # CA Injector settings
     cainjector:
       replicaCount: 2
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
