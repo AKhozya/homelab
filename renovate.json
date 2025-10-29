@@ -57,13 +57,17 @@
       ]
     },
     {
-      "description": "Auto-merge minor and patch updates",
+      "description": "Require review for minor and patch updates",
       "matchUpdateTypes": [
         "minor",
         "patch"
       ],
-      "automerge": true,
-      "automergeType": "branch"
+      "reviewers": [
+        "AKhozya"
+      ],
+      "assignees": [
+        "AKhozya"
+      ]
     },
     {
       "description": "Pin digests for Helm charts and images",
