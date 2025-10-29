@@ -25,8 +25,18 @@ spec:
   values:
     # Deployment settings
     deployment:
-      replicas: 1
-    
+      replicas: 2
+      # Pod anti-affinity: prefer different nodes, allow same node if needed (single worker)
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: traefik
+                  app.kubernetes.io/instance: traefik-traefik
+              topologyKey: kubernetes.io/hostname
+
     # Service settings
     service:
       type: LoadBalancer

@@ -29,12 +29,26 @@ spec:
   values:
     # Install CRDs as part of the Helm release
     installCRDs: true
-    
+
     # Global settings
     global:
       leaderElection:
         namespace: cert-manager
-    
+
+    # High availability: 2 replicas with pod anti-affinity
+    replicaCount: 2
+    affinity:
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: cert-manager
+                  app.kubernetes.io/instance: cert-manager
+                  app.kubernetes.io/component: controller
+              topologyKey: kubernetes.io/hostname
+
     # Resource limits for cert-manager controller
     resources:
       requests:
@@ -50,6 +64,18 @@ spec:
     # The webhook provides admission validation but is not strictly required for cert-manager
     # operation, as the controllers also perform validation.
     webhook:
+      replicaCount: 2
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: cert-manager
+                    app.kubernetes.io/instance: cert-manager
+                    app.kubernetes.io/component: webhook
+                topologyKey: kubernetes.io/hostname
       resources:
         requests:
           cpu: 50m
@@ -74,6 +100,18 @@ spec:
 
     # CA Injector settings
     cainjector:
+      replicaCount: 2
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: cert-manager
+                    app.kubernetes.io/instance: cert-manager
+                    app.kubernetes.io/component: cainjector
+                topologyKey: kubernetes.io/hostname
       resources:
         requests:
           cpu: 50m
