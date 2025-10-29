@@ -1,5 +1,17 @@
 # GitHub Workflows
 
+## Overview
+
+This repository uses three GitHub Action workflows to manage automated reviews and analysis:
+
+1. **renovate-analysis.yaml** - Automated analysis of Renovate dependency updates
+2. **claude-code-review.yml** - Claude-powered code review for regular PRs
+3. **claude.yml** - Interactive Claude responses via @claude mentions
+
+**Renovate Detection**: All workflows use **actor-based detection** (`github.actor == 'renovate[bot]'`) instead of title matching for more reliable filtering.
+
+---
+
 ## Renovate PR Analysis
 
 **Workflow**: `renovate-analysis.yaml`
@@ -83,3 +95,76 @@ To add package-specific analysis:
 **Need to update an existing comment?**
 - Push changes to the PR branch
 - Workflow will automatically update its comment
+
+---
+
+## Claude Code Review
+
+**Workflow**: `claude-code-review.yml`
+
+### What it does
+
+Automatically reviews **non-Renovate PRs** when they're opened or updated using Claude Code.
+
+**Reviews include:**
+- Code quality and best practices
+- Potential bugs or issues
+- Performance considerations
+- Security concerns
+- Test coverage
+
+**Exclusions:**
+- ❌ Renovate PRs (handled by renovate-analysis.yaml)
+- ✅ All other PRs get automatic review
+
+### How it works
+
+1. PR opened/synchronized by any author except Renovate
+2. Checks `github.actor` to skip Renovate
+3. Runs Claude Code review with repository context
+4. Posts review as PR comment using `gh pr comment`
+
+---
+
+## Claude Interactive
+
+**Workflow**: `claude.yml`
+
+### What it does
+
+Responds to **@claude mentions** in:
+- Issue comments
+- PR review comments
+- PR reviews
+- New issues
+
+**Exclusions:**
+- ❌ @claude mentions on Renovate PRs are ignored
+- ✅ @claude works everywhere else
+
+### How to use
+
+Simply mention `@claude` in a comment with your request:
+
+```
+@claude can you explain how this authentication flow works?
+```
+
+```
+@claude please review the error handling in this PR
+```
+
+**Note**: Claude has access to repository files and can run limited commands via `gh` CLI.
+
+---
+
+## Workflow Coordination
+
+| Event | Renovate PR | Regular PR |
+|-------|-------------|------------|
+| **PR opened** | renovate-analysis.yaml runs | claude-code-review.yml runs |
+| **PR updated** | renovate-analysis.yaml updates comment | claude-code-review.yml runs |
+| **@claude mention** | ❌ Ignored | claude.yml responds |
+| **Issue created** | N/A | claude.yml responds if @claude |
+
+All workflows use consistent **actor-based detection** to identify Renovate PRs.

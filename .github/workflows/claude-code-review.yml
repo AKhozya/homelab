@@ -23,9 +23,11 @@ jobs:
       - name: Check if PR should be reviewed
         id: should_review
         run: |
-          if [[ "${{ github.event.pull_request.title }}" == "chore(deps): "* ]]; then
+          # Skip Renovate PRs - they have dedicated analysis workflow (renovate-analysis.yaml)
+          # Using actor-based detection (more reliable than title matching)
+          if [[ "${{ github.actor }}" == "renovate[bot]" ]] || [[ "${{ github.actor }}" == "app/renovate" ]]; then
             echo "skip=true" >> $GITHUB_OUTPUT
-            echo "Skipping review for Renovate PR: ${{ github.event.pull_request.title }}"
+            echo "Skipping review for Renovate PR (author: ${{ github.actor }})"
           else
             echo "skip=false" >> $GITHUB_OUTPUT
           fi
