@@ -147,7 +147,8 @@
 #### 11. **Single Replica Deployments (Traefik, cert-manager)**
    - **Risk**: Service outage during pod restart/upgrade
    - **Impact**: Traefik outage = all apps inaccessible
-   - **Current State**: Traefik (1), cert-manager (1), MetalLB (1)
+   - **Current State**: Traefik (1), cert-manager (1)
+   - **Note**: K3s ServiceLB runs as DaemonSet (automatically HA on multi-node)
    - **Action**: Increase to 2 replicas with anti-affinity
    - **Estimated Effort**: 1 hour
    - **Priority**: P1-HIGH
@@ -291,11 +292,17 @@
    - **Estimated Effort**: 4 hours (key rotation)
    - **Priority**: P2-MEDIUM
 
-#### 24. **MetalLB Not in GitOps**
-   - **Risk**: Manual configuration not tracked in git
-   - **Action**: Migrate MetalLB to GitOps
-   - **Estimated Effort**: 2 hours
-   - **Priority**: P2-MEDIUM
+#### 24. ✅ **LoadBalancer Documentation - Using K3s ServiceLB** - COMPLETED (2025-10-29)
+   - **Status**: ✅ Documented - MetalLB is NOT installed, using K3s built-in ServiceLB
+   - **Discovery**: Cluster uses K3s ServiceLB (svclb) for LoadBalancer services
+   - **Current State**:
+     - 2 LoadBalancer services (traefik, adguard-home-dns)
+     - Both services use worker node IP: 192.168.1.129
+     - ServiceLB DaemonSet pods running in kube-system
+   - **Documentation**: Created `infrastructure/controllers/base/servicelb/README.md`
+   - **Fixed**: Removed incorrect MetalLB annotation from adguard-home service
+   - **Decision**: Keep K3s ServiceLB (adequate for 2 services, zero configuration)
+   - **Commit**: [pending]
 
 #### 25. **No Cloudflare Tunnel Health Checks**
    - **Risk**: Tunnel failures not detected quickly
@@ -935,7 +942,7 @@ ingress:
 - 🎯 **Impact**: 36 actionable findings identified and ranked (4 P0, 9 P1, 15 P2, 8 P3)
 - 📊 **Overall Grade**: A- (92/100) - Down from A+ (99/100) due to critical gaps identified
 - 🔧 **Review Scope**:
-  - **Infrastructure**: Flux, Traefik, cert-manager, MetalLB, Cloudflare Tunnel (28 findings)
+  - **Infrastructure**: Flux, Traefik, cert-manager, K3s ServiceLB, Cloudflare Tunnel (28 findings)
   - **Database**: PostgreSQL, Redis, CouchDB (13 critical gaps)
   - **Security**: 100% PSS compliance, 100% NetworkPolicy coverage (94/100 score)
   - **Backup/DR**: Comprehensive backup system with critical gaps (90/100 score)
@@ -966,7 +973,7 @@ ingress:
   - Inconsistent PgBouncer pooler usage
   - Overly permissive database user permissions
   - SOPS single encryption key
-  - MetalLB not in GitOps
+  - ✅ LoadBalancer documentation (K3s ServiceLB)
   - ReadOnlyRootFilesystem only 44% adoption
   - Overly permissive NetworkPolicy egress
   - No Prometheus resource alerts

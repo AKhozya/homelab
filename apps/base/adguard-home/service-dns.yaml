@@ -4,7 +4,8 @@ metadata:
   name: adguard-home-dns
   namespace: adguard-home
   annotations:
-    metallb.universe.tf/loadBalancerIPs: 192.168.1.130
+    # K3s servicelb: LoadBalancer IP is automatically assigned to worker node IP (192.168.1.129)
+    # MetalLB annotation not used: metallb.universe.tf/loadBalancerIPs: 192.168.1.130
 spec:
   type: LoadBalancer
   externalTrafficPolicy: Local
