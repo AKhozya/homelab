@@ -87,6 +87,82 @@ else
 fi
 echo ""
 
+# Fetch and analyze release notes if available
+if [ -n "$DOCS_LINK" ]; then
+    echo "🔍 Fetching and analyzing release notes..."
+    echo ""
+
+    # Fetch the content
+    RELEASE_CONTENT=$(curl -sL "$DOCS_LINK" 2>/dev/null || echo "")
+
+    if [ -n "$RELEASE_CONTENT" ]; then
+        # Convert HTML to more readable text (strip tags, decode entities)
+        CLEAN_CONTENT=$(echo "$RELEASE_CONTENT" | sed 's/<[^>]*>//g' | sed 's/&lt;/</g' | sed 's/&gt;/>/g' | sed 's/&amp;/\&/g' | sed 's/&quot;/"/g')
+
+        # Extract sections with breaking changes
+        BREAKING_SECTION=$(echo "$CLEAN_CONTENT" | grep -iB 2 -A 15 "breaking change" | head -30 || echo "")
+
+        # Extract migration/upgrade sections
+        MIGRATION_SECTION=$(echo "$CLEAN_CONTENT" | grep -iB 2 -A 15 "migration\|upgrade.*note\|action required" | head -30 || echo "")
+
+        # Extract deprecation warnings
+        DEPRECATION_SECTION=$(echo "$CLEAN_CONTENT" | grep -iB 2 -A 10 "deprecat" | head -25 || echo "")
+
+        # Look for removed features/dependencies
+        REMOVED_SECTION=$(echo "$CLEAN_CONTENT" | grep -iB 2 -A 10 "removed\|no longer\|drop.*support" | head -25 || echo "")
+
+        # Check for important keywords
+        HAS_BREAKING=false
+        HAS_MIGRATION=false
+        HAS_CONFIG_CHANGE=false
+        HAS_REMOVAL=false
+
+        [ -n "$BREAKING_SECTION" ] && HAS_BREAKING=true
+        echo "$CLEAN_CONTENT" | grep -qi "migration\|migrate" && HAS_MIGRATION=true
+        echo "$CLEAN_CONTENT" | grep -qi "configuration\|config.*change\|environment variable\|setting" && HAS_CONFIG_CHANGE=true
+        [ -n "$REMOVED_SECTION" ] && HAS_REMOVAL=true
+
+        # Display findings
+        if [ "$HAS_BREAKING" = true ] || [ "$HAS_MIGRATION" = true ] || [ "$HAS_CONFIG_CHANGE" = true ] || [ "$HAS_REMOVAL" = true ]; then
+            echo "🚨 IMPORTANT FINDINGS FROM RELEASE NOTES:"
+            echo ""
+
+            if [ "$HAS_BREAKING" = true ]; then
+                echo "  ⚠️  Breaking changes detected:"
+                echo "$BREAKING_SECTION" | grep -i "breaking\|break" | sed 's/^/     /' | head -5
+                echo ""
+            fi
+
+            if [ "$HAS_REMOVAL" = true ]; then
+                echo "  🗑️  Removed features/dependencies detected:"
+                echo "$REMOVED_SECTION" | grep -iE "removed|no longer|drop" | sed 's/^/     /' | head -5
+                echo ""
+            fi
+
+            if [ "$HAS_MIGRATION" = true ]; then
+                echo "  📋 Migration/upgrade steps may be required"
+                echo "$MIGRATION_SECTION" | grep -iE "migration|migrate|upgrade" | sed 's/^/     /' | head -5
+                echo ""
+            fi
+
+            if [ "$HAS_CONFIG_CHANGE" = true ]; then
+                echo "  🔧 Configuration changes detected"
+                echo ""
+            fi
+
+            echo "  👉 READ THE FULL RELEASE NOTES BEFORE MERGING: $DOCS_LINK"
+            echo ""
+        else
+            echo "✅ No obvious breaking changes detected in release notes"
+            echo "   (Still recommended to review: $DOCS_LINK)"
+            echo ""
+        fi
+    else
+        echo "⚠️  Could not fetch release notes content"
+        echo ""
+    fi
+fi
+
 # Show changed files and extract what's being updated
 echo "📄 Changed files:"
 CHANGED_FILES=$(echo "$PR_JSON" | jq -r '.files[].path')
