@@ -144,14 +144,26 @@
    - **Verification**: CouchDB (/_up), Immich (/api/server/ping), PostgreSQL (pg_isready), Redis (redis-cli ping)
    - **Priority**: No action required - already compliant
 
-#### 11. **Single Replica Deployments (Traefik, cert-manager)**
-   - **Risk**: Service outage during pod restart/upgrade
-   - **Impact**: Traefik outage = all apps inaccessible
-   - **Current State**: Traefik (1), cert-manager (1)
-   - **Note**: K3s ServiceLB runs as DaemonSet (automatically HA on multi-node)
-   - **Action**: Increase to 2 replicas with anti-affinity
-   - **Estimated Effort**: 1 hour
-   - **Priority**: P1-HIGH
+#### 11. ✅ **High Availability for Critical Components** - COMPLETED (2025-10-29)
+   - **Status**: ✅ Implemented - All critical components now run with 2 replicas + pod anti-affinity
+   - **Previous State**: Traefik (1), cert-manager (1), webhook (1), cainjector (1)
+   - **Current State**:
+     - Traefik: 2 replicas with pod anti-affinity
+     - cert-manager controller: 2 replicas with pod anti-affinity
+     - cert-manager webhook: 2 replicas with pod anti-affinity
+     - cert-manager cainjector: 2 replicas with pod anti-affinity
+   - **Implementation**:
+     - Pod anti-affinity: `preferredDuringSchedulingIgnoredDuringExecution` (soft constraint)
+     - Topology key: `kubernetes.io/hostname` (prefer different nodes)
+     - Weight: 100 (high preference for spreading)
+   - **Benefits**:
+     - ✅ Zero downtime during Renovate updates (rolling updates)
+     - ✅ One pod stays up while other updates
+     - ✅ Service availability maintained during pod restarts
+     - ✅ Future-proof for multi-worker cluster expansion
+   - **Testing**: Verified rolling update during reconciliation - 3 pods during update, 2 stable
+   - **Note**: Single worker node means both replicas on same node currently, but still beneficial for rolling updates
+   - **Commits**: e07474a, 898d969
 
 #### 12. ✅ **Scattered Middleware Configurations** - COMPLETED (2025-10-27)
    - **Status**: ✅ Centralized HTTPS redirect middleware to traefik namespace
