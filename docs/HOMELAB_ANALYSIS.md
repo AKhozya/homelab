@@ -107,17 +107,28 @@
    - **Future Action**: Implement quarterly CronJob after 2-3 months of stability
    - **Priority**: Deferred to Q1 2026
 
-#### 6. ✅ **Pod Anti-Affinity for PostgreSQL** - IMPLEMENTED (2025-10-29)
-   - **Status**: ✅ CNPG native anti-affinity enabled, control plane scheduling allowed
-   - **Implementation**:
-     - Enabled CNPG built-in anti-affinity: `enablePodAntiAffinity: true`
-     - Set soft constraint: `podAntiAffinityType: "preferred"`
+#### 6. ✅ **Pod Anti-Affinity for PostgreSQL** - COMPLETED (2025-10-29)
+   - **Status**: ✅ True cross-node HA with required anti-affinity
+   - **Final Configuration**:
+     - Instances: 2 (reduced from 3 for 2-node cluster)
+     - Anti-affinity: `podAntiAffinityType: "required"` (HARD constraint)
      - Topology key: `topologyKey: "kubernetes.io/hostname"`
-     - Added control plane tolerations for cross-node scheduling capability
-   - **Current State**: All 3 replicas on worker-node (main-postgres-2, 4, 5)
-   - **Reason**: Scheduler correctly prefers worker node (32 CPUs, 64GB) over control plane (4 CPUs, 16GB) for database workloads
-   - **Benefit**: Infrastructure ready for multi-node deployment when second worker added
-   - **Commit**: cbc71d0
+     - Control plane tolerations enabled
+   - **Current State**:
+     - main-postgres-5 (Primary): worker-node ✅
+     - main-postgres-6 (Replica): gmk-k3s-control-plane ✅
+   - **Control Plane Impact**:
+     - CPU: 774m (19%) - well within capacity
+     - Memory: 4.1GB (26%) - stable
+   - **Key Decisions**:
+     - Required anti-affinity forces cross-node distribution (pods MUST be on different nodes)
+     - 2 instances optimal for 2-node cluster (1 primary + 1 replica)
+     - Local-path storage creates node-specific PVCs automatically
+   - **Benefits**:
+     - Worker node failure: Control plane has PostgreSQL replica + infrastructure
+     - True physical HA across 2 nodes
+     - Zero downtime failover capability
+   - **Commits**: cbc71d0, 30c1f8a, 95fe37a, eef307d
 
 #### 7. ✅ **PostgreSQL TLS/Encryption** - ALREADY IMPLEMENTED (2025-10-27)
    - **Status**: ✅ TLS enabled by CloudNativePG, all apps using it
@@ -168,11 +179,11 @@
      - cert-manager webhook: 1 on control plane, 1 on worker ✓
      - cert-manager cainjector: 1 on control plane, 1 on worker ✓
      - Cloudflare tunnel: 1 on control plane, 1 on worker ✓
-     - PostgreSQL: 3 replicas on worker node (scheduler correctly prefers more powerful node)
+     - PostgreSQL: 2 instances with required anti-affinity - 1 on control plane (replica), 1 on worker (primary) ✓
    - **Control Plane Impact**:
      - Before: 470m CPU (11%), 3.6GB RAM (22%)
-     - After: 832m CPU (20%), 4.0GB RAM (25%)
-     - Increase: +362m CPU, +400Mi RAM
+     - After (with PostgreSQL): 774m CPU (19%), 4.1GB RAM (26%)
+     - Increase: +304m CPU, +500Mi RAM
      - Status: Well within capacity (4 CPUs, 16GB RAM available)
    - **Implementation Details**:
      - Pod anti-affinity: `preferredDuringSchedulingIgnoredDuringExecution` (soft constraint)
