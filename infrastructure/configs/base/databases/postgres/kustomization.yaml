@@ -4,4 +4,5 @@ resources:
   - cluster.yaml
   - pooler.yaml
   - networkpolicy.yaml
+  - podmonitor.yaml
   - postgres-admin-user.yaml
