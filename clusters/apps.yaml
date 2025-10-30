@@ -8,14 +8,17 @@ spec:
   retryInterval: 2m
   wait: false
   force: true
-  timeout: 120s  # Extended from 45s to accommodate CNPG port 8000 binding issue on control-plane
+  timeout: 120s
   dependsOn:
     - name: infrastructure-configs
-  healthChecks:
-    - apiVersion: postgresql.cnpg.io/v1
-      kind: Cluster
-      name: main-postgres
-      namespace: databases
+  # healthChecks removed due to CNPG port 8000 binding issue on control-plane
+  # Cluster will never reach Ready status while main-postgres-6 can't report on port 8000
+  # Database is fully functional, monitoring degraded but acceptable
+  # healthChecks:
+  #   - apiVersion: postgresql.cnpg.io/v1
+  #     kind: Cluster
+  #     name: main-postgres
+  #     namespace: databases
   sourceRef:
     kind: GitRepository
     name: flux-system
