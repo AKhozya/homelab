@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-10-27 00:00 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-10-30 16:35 UTC)
 **Cluster**: K3s (staging)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -42,6 +42,15 @@
 - **Clean namespace separation - no resource leaks**
 - CloudNativePG for managed PostgreSQL (3-node HA) with PgBouncer pooler
 - Default credential elimination on all apps
+- **🆕 Comprehensive Security Headers & Protections** ⭐ (2025-10-30)
+  - **Phase 1 (Completed)**: Safe security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy)
+  - **Phase 2 (Completed)**: HSTS deployment - Dual layer (Cloudflare edge: 1 month, Traefik origin: 1 week)
+  - **Phase 3 (Completed)**: Rate limiting with monitoring - Standard (100/min + 150 burst), High-frequency (200/min + 300 burst)
+  - **Phase 4 (Completed)**: CSP in report-only mode with centralized logging to Loki
+  - **Coverage**: All 17 services (14 apps + Grafana + AlertManager + CouchDB)
+  - **Monitoring**: 6 Prometheus alerts for rate limiting (attack detection, false positive detection)
+  - **Next Review**: 2025-11-06 (7 days) - Analyze CSP violations, adjust policy, enable enforcement
+  - **HSTS Review**: 2025-11-30 (1 month) - Increase max-age to 1 year, consider includeSubdomains
 
 **Critical Gaps (from 2025-10-27 Comprehensive Review)** 🔴
 - ⏸️ **No offsite backup replication** (P0-CRITICAL) - DEFERRED to November 2025 (NAS arrival)
@@ -68,7 +77,7 @@
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-**Last Updated**: 2025-10-27 (Post-Comprehensive Review)
+**Last Updated**: 2025-10-30 (Post-Security Hardening Phase 1-4)
 **Source**: [COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md)
 
 ### 🔴 P0-CRITICAL (Immediate - This Week)
@@ -94,6 +103,47 @@
    - **Reason**: barmanObjectStore doesn't support local filesystem paths
    - **Future Option**: Deploy MinIO for S3-compatible local storage (P2 task if needed)
    - **Current RPO**: 24 hours (pg_dump at 3 AM) - acceptable for homelab
+
+---
+
+### 🛡️ SECURITY HARDENING REVIEWS (Scheduled)
+
+#### 1. **📅 CSP Violation Analysis & Enforcement** - 2025-11-06 (7 days)
+   - **Status**: 📊 In progress - Collecting CSP violations in report-only mode
+   - **Current**: CSP report-only deployed to all 17 services (2025-10-30)
+   - **Monitoring**: Violations logged to csp-reporter service → Loki
+   - **Grafana Query**: `{namespace="csp-reporter"} | json | type="csp-violation"`
+   - **Review Date**: **2025-11-06** (after 7-day collection period)
+   - **Review Tasks**:
+     1. Analyze CSP violations in Grafana/Loki
+     2. Identify which directives are violated and why
+     3. Adjust CSP policy:
+        - Relax directives if apps need specific external resources
+        - Tighten by removing `'unsafe-inline'`/`'unsafe-eval'` where possible
+        - Add nonces/hashes for inline scripts if needed
+     4. Enable enforcement mode (`Content-Security-Policy` header)
+   - **Files to Update**:
+     - `infrastructure/controllers/base/traefik/csp-middleware.yaml` (rename from csp-report-only)
+     - `monitoring/configs/staging/kube-prometheus-stack/csp-middleware.yaml`
+     - All 17 ingress middleware chains
+   - **Commits**: b8b6306, 7b2c72b, 54c8484
+
+#### 2. **📅 HSTS Max-Age Optimization** - 2025-11-30 (1 month)
+   - **Status**: ⏰ Scheduled review after 1 month of testing
+   - **Current**: Dual-layer HSTS deployed (2025-10-30)
+     - Cloudflare Edge: `max-age=2628000` (1 month)
+     - Traefik Origin: `max-age=604800` (1 week)
+   - **Review Date**: **2025-11-30** (after 1-month testing period)
+   - **Review Tasks**:
+     1. Verify no HSTS-related issues reported
+     2. Increase max-age to 1 year (31536000 seconds)
+     3. Consider adding `includeSubdomains` directive
+     4. Update both Cloudflare and Traefik configurations
+   - **Cloudflare API**: Use API to update edge HSTS settings
+   - **Files to Update**:
+     - `infrastructure/controllers/base/traefik/security-headers-middleware.yaml`
+     - `monitoring/configs/staging/kube-prometheus-stack/security-headers-middleware.yaml`
+     - Cloudflare Zone Settings (API call)
 
 ---
 

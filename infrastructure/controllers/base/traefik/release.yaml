@@ -76,6 +76,8 @@ spec:
           enabled: true
         serviceMonitor:
           enabled: true
+          additionalLabels:
+            release: kube-prometheus-stack
     
     # Enable access logs
     logs:
