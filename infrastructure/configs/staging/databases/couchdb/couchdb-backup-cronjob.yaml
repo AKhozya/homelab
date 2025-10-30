@@ -124,12 +124,19 @@ spec:
                   COMPRESSED_SIZE=$(du -h "couchdb_${TIMESTAMP}.tar.gz" | cut -f1)
                   echo "✅ Compressed backup: couchdb_${TIMESTAMP}.tar.gz ($COMPRESSED_SIZE)"
 
+                  # Generate SHA256 checksum for backup integrity
+                  echo "Generating SHA256 checksum for backup integrity..."
+                  sha256sum "couchdb_${TIMESTAMP}.tar.gz" > "couchdb_${TIMESTAMP}.tar.gz.sha256"
+                  echo "✅ Checksum saved: couchdb_${TIMESTAMP}.tar.gz.sha256"
+                  cat "couchdb_${TIMESTAMP}.tar.gz.sha256"
+
                   # Remove uncompressed directory
                   rm -rf "$TIMESTAMP"
 
-                  # Keep only last 30 days of backups
+                  # Keep only last 30 days of backups (including checksums)
                   echo "Cleaning old backups (keeping last 30 days)..."
                   find /backup -name "couchdb_*.tar.gz" -mtime +30 -delete
+                  find /backup -name "couchdb_*.tar.gz.sha256" -mtime +30 -delete
 
                   # List current backups
                   echo ""
