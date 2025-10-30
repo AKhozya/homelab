@@ -129,6 +129,38 @@
      - True physical HA across 2 nodes
      - Zero downtime failover capability
    - **Commits**: cbc71d0, 30c1f8a, 95fe37a, eef307d
+   - **Known Issue**: CNPG port 8000 binding failure on control-plane (see below)
+
+#### 6b. ⚠️ **KNOWN ISSUE: CNPG Port 8000 Binding on Control-Plane** (2025-10-30)
+   - **Status**: ⚠️ Accepted - Database fully functional, monitoring degraded
+   - **Issue**: CNPG instance manager silently fails to bind status port 8000 on K3s control-plane node
+   - **Impact**:
+     - PostgreSQL database: ✅ Fully functional (port 5432 works, replication active)
+     - CNPG operator: ❌ Cannot monitor main-postgres-6 health (port 8000 connection refused)
+     - Applications: ✅ Unaffected (connect via PgBouncer pooler)
+     - Flux health checks: Extended timeout from 45s→120s to accommodate delay
+   - **Root Cause**: Unknown - appears to be K3s control-plane specific issue
+     - Port 8000 hardcoded in CNPG (cannot be changed)
+     - Logs show "Starting webserver :8000 hasTLS=true" but port never binds
+     - Zero error messages - completely silent failure
+     - Only affects control-plane node (worker-node works perfectly)
+     - Recreating pod doesn't fix (systematic, not transient)
+     - Network policy: ✅ Correct (allows CNPG operator + intra-cluster)
+     - Security contexts: ✅ Identical between nodes
+     - TLS certificates: ✅ Valid
+   - **Investigation**:
+     - Port 8000 not in use by other processes on control-plane
+     - Seccomp/capabilities identical between working and failing pods
+     - Process runs with correct flags `--status-port-tls`
+   - **Resolution**: Accepted current state
+     - Alternative: Remove control-plane tolerance → loses cross-node HA
+     - Trade-off: Monitoring degradation acceptable vs. losing true HA
+   - **Mitigation**:
+     - Extended Flux timeout to 120s (was 45s)
+     - Database fully functional (primary use case working)
+     - Main-postgres-5 on worker-node provides full monitoring
+   - **Upstream**: Issue reported to CNPG project
+   - **File**: `clusters/apps.yaml` (timeout: 120s)
 
 #### 7. ✅ **PostgreSQL TLS/Encryption** - ALREADY IMPLEMENTED (2025-10-27)
    - **Status**: ✅ TLS enabled by CloudNativePG, all apps using it

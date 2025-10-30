@@ -8,7 +8,7 @@ spec:
   retryInterval: 2m
   wait: false
   force: true
-  timeout: 45s
+  timeout: 120s  # Extended from 45s to accommodate CNPG port 8000 binding issue on control-plane
   dependsOn:
     - name: infrastructure-configs
   healthChecks:
