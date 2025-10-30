@@ -6,6 +6,7 @@ resources:
   - grafana-admin-secret.yaml
   - grafana-oidc-secret.yaml  # Authentik OIDC integration
   - https-redirect-middleware.yaml
+  - security-headers-middleware.yaml
   - alertmanager-telegram-secret.yaml
   - alertmanager-certificate.yaml
   - prometheus-rules.yaml
