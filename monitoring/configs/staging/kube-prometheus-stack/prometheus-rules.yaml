@@ -644,6 +644,26 @@ spec:
         summary: "Alertmanager notifications failing to {{ $labels.integration }}"
         description: "Alertmanager cannot send notifications to {{ $labels.integration }}. Check Telegram bot token and network connectivity."
 
+  - name: alertmanager-overrides
+    interval: 30s
+    rules:
+    - alert: AlertmanagerFailedToSendAlerts
+      annotations:
+        summary: An Alertmanager instance failed to send notifications.
+        description: Alertmanager {{ $labels.namespace }}/{{ $labels.pod}} failed to send {{ $value | humanizePercentage }} of notifications to {{ $labels.integration }}.
+      expr: |-
+        (
+          rate(alertmanager_notifications_failed_total{job="kube-prometheus-stack-alertmanager",container="alertmanager",namespace="monitoring"}[15m])
+        /
+          ignoring (reason) group_left rate(alertmanager_notifications_total{job="kube-prometheus-stack-alertmanager",container="alertmanager",namespace="monitoring"}[15m])
+        )
+        > 0.01
+        and
+        rate(alertmanager_notifications_total{job="kube-prometheus-stack-alertmanager",container="alertmanager",namespace="monitoring"}[15m]) > 0
+      for: 5m
+      labels:
+        severity: warning
+
   - name: kyverno-policy-alerts
     interval: 1h
     rules:
