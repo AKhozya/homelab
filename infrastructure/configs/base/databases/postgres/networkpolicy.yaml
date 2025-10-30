@@ -35,6 +35,15 @@ spec:
       - protocol: TCP
         port: 5432
 
+    # Allow CNPG operator to access status API for health monitoring
+    - from:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: cloudnative-pg
+      ports:
+      - protocol: TCP
+        port: 8000  # CNPG instance manager status API
+
     # Allow intra-cluster replication (PostgreSQL pods talking to each other)
     - from:
       - podSelector:
@@ -44,4 +53,8 @@ spec:
       - protocol: TCP
         port: 5432
       - protocol: TCP
+<<<<<<< HEAD
         port: 8000  # CNPG instance manager status API
+=======
+        port: 8000  # CNPG instance manager status API (for liveness checks)
+>>>>>>> 911684e (Allow CNPG operator access to PostgreSQL status API (port 8000))
