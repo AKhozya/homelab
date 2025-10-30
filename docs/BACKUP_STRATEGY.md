@@ -70,6 +70,7 @@
 - Uses `pg_dump -F c` (custom format) for each database
 - Auto-discovers databases (excludes system databases)
 - Compresses entire backup directory with `tar -czf` (gzip)
+- **Generates SHA256 checksum** for backup integrity verification
 - Stores at `/mnt/k8s-backup/postgres/` on worker node
 
 **Results:**
@@ -82,6 +83,9 @@
 
 **Restore procedure:**
 ```bash
+# Verify backup integrity
+sha256sum -c /mnt/k8s-backup/postgres/postgres_YYYYMMDD_HHMMSS.tar.gz.sha256
+
 # Extract latest backup
 tar -xzf /mnt/k8s-backup/postgres/postgres_YYYYMMDD_HHMMSS.tar.gz
 
@@ -102,6 +106,7 @@ kubectl exec -n databases main-postgres-1 -- \
 - Auto-discovers databases (excludes system databases)
 - Exports each database to `.couchbackup` format
 - Compresses with `tar -czf` (gzip)
+- **Generates SHA256 checksum** for backup integrity verification
 - Stores at `/mnt/k8s-backup/couchdb/` on worker node
 
 **Results:**
@@ -112,6 +117,9 @@ kubectl exec -n databases main-postgres-1 -- \
 
 **Restore procedure:**
 ```bash
+# Verify backup integrity
+sha256sum -c /mnt/k8s-backup/couchdb/couchdb_YYYYMMDD_HHMMSS.tar.gz.sha256
+
 # Extract backup
 tar -xzf /mnt/k8s-backup/couchdb/couchdb_YYYYMMDD_HHMMSS.tar.gz
 
@@ -179,14 +187,24 @@ kubectl scale deployment/home-assistant -n home-assistant --replicas=1
 - 📱 All application secrets (25+ applications)
 - 🔐 **NEW:** OIDC integration secrets (audiobookshelf, grafana, home-assistant, immich, linkding, mealie, n8n, paperless-ngx)
 
+**Encryption:** 🔐 **GPG AES256 with interactive passphrase**
+- Script prompts for passphrase during backup
+- No hardcoded defaults for security
+- Passphrase confirmation to prevent typos
+- Backups saved as `.tar.gz.gpg` encrypted archives
+
 **Usage:**
 ```bash
 # Create backup (run monthly or before major changes)
 cd .backup
 ./secrets-backup.sh
 
-# Secrets saved to .backup/secrets/ (gitignored!)
-# Store these securely: 1Password, encrypted USB, etc.
+# You'll be prompted:
+# - Enter passphrase: [hidden]
+# - Confirm passphrase: [hidden]
+#
+# Output: secrets-backup-YYYYMMDD_HHMMSS.tar.gz.gpg
+# ⚠️ Store passphrase in 1Password!
 ```
 
 **Restore procedure:**
@@ -195,6 +213,11 @@ cd .backup
 cd .backup
 ./secrets-restore.sh
 
+# The script will:
+# 1. Automatically find latest encrypted backup
+# 2. Prompt for passphrase to decrypt
+# 3. Restore all secrets to cluster
+#
 # Then bootstrap Flux
 flux bootstrap github --owner=AKhozya --repository=homelab --path=clusters/staging --personal
 ```
