@@ -220,7 +220,7 @@ spec:
     interval: 30s
     rules:
     - alert: CloudflareTunnelDown
-      expr: up{job="cloudflared"} == 0
+      expr: up{job="cloudflared-metrics"} == 0
       for: 2m
       labels:
         severity: critical
