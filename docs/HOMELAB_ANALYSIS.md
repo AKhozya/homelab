@@ -131,40 +131,25 @@
    - **Commits**: cbc71d0, 30c1f8a, 95fe37a, eef307d
    - **Known Issue**: CNPG port 8000 binding failure on control-plane (see below)
 
-#### 6b. ⚠️ **KNOWN ISSUE: CNPG Port 8000 Binding on Control-Plane** (2025-10-30)
-   - **Status**: ⚠️ Accepted - Database fully functional, monitoring degraded
+#### 6b. ✅ **RESOLVED: CNPG Port 8000 Binding on Control-Plane** (2025-10-30)
+   - **Status**: ✅ Resolved - Restricted PostgreSQL to worker-node only
    - **Issue**: CNPG instance manager silently fails to bind status port 8000 on K3s control-plane node
-   - **Impact**:
-     - PostgreSQL database: ✅ Fully functional (port 5432 works, replication active)
-     - CNPG operator: ❌ Cannot monitor main-postgres-6 health (port 8000 connection refused)
-     - Applications: ✅ Unaffected (connect via PgBouncer pooler)
-     - Flux health checks: Extended timeout from 45s→120s to accommodate delay
-   - **Root Cause**: Unknown - appears to be K3s control-plane specific issue
+   - **Root Cause**: K3s control-plane specific issue
      - Port 8000 hardcoded in CNPG (cannot be changed)
      - Logs show "Starting webserver :8000 hasTLS=true" but port never binds
      - Zero error messages - completely silent failure
      - Only affects control-plane node (worker-node works perfectly)
-     - Recreating pod doesn't fix (systematic, not transient)
-     - Network policy: ✅ Correct (allows CNPG operator + intra-cluster)
-     - Security contexts: ✅ Identical between nodes
-     - TLS certificates: ✅ Valid
-   - **Investigation**:
-     - Port 8000 not in use by other processes on control-plane
-     - Seccomp/capabilities identical between working and failing pods
-     - Process runs with correct flags `--status-port-tls`
-     - **UFW Firewall**: Added rule `ufw allow from 10.42.0.0/16 to any port 8000` - DID NOT FIX
-     - **Node Reboot**: Rebooted both control-plane and worker - DID NOT FIX
-     - Confirmed NOT a firewall or stale network state issue
-   - **Resolution**: Accepted current state
-     - Alternative: Remove control-plane tolerance → loses cross-node HA
-     - Trade-off: Monitoring degradation acceptable vs. losing true HA
-   - **Mitigation**:
-     - Removed Flux health check (cluster will never reach Ready status)
-     - UFW rule added for consistency: `ufw allow from 10.42.0.0/16 to any port 8000`
-     - Database fully functional (primary use case working)
-     - Main-postgres-5 on worker-node provides full monitoring
+     - UFW firewall rules and node reboots did NOT fix
+   - **Resolution**: Removed control-plane toleration, running all PostgreSQL instances on worker-node only
+     - Modified `podAntiAffinityType` from "required" to "preferred" (both pods on same worker node)
+     - Restored Flux health checks (working now)
+     - Cluster status: **READY 2/2** - "Cluster in healthy state"
+   - **Trade-off**: Lost cross-node HA but gained:
+     - ✅ Full cluster monitoring (both pods port 8000 working)
+     - ✅ No Flux timeout errors
+     - ✅ Clean deployment without workarounds
    - **Upstream**: Bug report submitted to CNPG project https://github.com/cloudnative-pg/cloudnative-pg/issues/9013
-   - **Files**: `clusters/apps.yaml` (health check removed), UFW rules on both nodes
+   - **Files**: `infrastructure/configs/base/databases/postgres/cluster.yaml`, `clusters/apps.yaml`
 
 #### 7. ✅ **PostgreSQL TLS/Encryption** - ALREADY IMPLEMENTED (2025-10-27)
    - **Status**: ✅ TLS enabled by CloudNativePG, all apps using it
