@@ -693,3 +693,66 @@ spec:
       annotations:
         summary: "Kyverno admission controller is down"
         description: "Kyverno is unreachable. Policy enforcement may not be working!"
+
+  - name: rate-limiting-alerts
+    interval: 1m
+    rules:
+    - alert: RateLimitHighRejectionRate
+      expr: sum(rate(traefik_service_requests_total{code="429"}[5m])) by (service) > 0.5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High rate of rate-limited requests on {{ $labels.service }}"
+        description: "{{ $labels.service }} is rejecting {{ printf \"%.1f\" $value }} requests/sec due to rate limiting. This may indicate: (1) an attack in progress, or (2) rate limits are too strict for legitimate use. Current limits: Standard apps (100 req/min + 150 burst), High-frequency apps (200 req/min + 300 burst)."
+
+    - alert: RateLimitPossibleBruteForce
+      expr: sum(rate(traefik_service_requests_total{code="429",service=~".*authentik.*"}[2m])) > 1
+      for: 3m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Possible brute force attack on Authentik SSO"
+        description: "Authentik is rejecting {{ printf \"%.1f\" $value }} requests/sec due to rate limiting for more than 3 minutes. This strongly indicates a brute force login attempt. Investigate immediately!"
+
+    - alert: RateLimitCouchDBSyncBlocked
+      expr: sum(rate(traefik_service_requests_total{code="429",service=~".*couchdb.*"}[5m])) > 0.1
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "CouchDB sync may be blocked by rate limiting"
+        description: "CouchDB is experiencing {{ printf \"%.1f\" $value }} rate-limited requests/sec. This may block Obsidian vault syncing. If this persists during normal sync operations, consider increasing CouchDB rate limit (current: 200 req/min + 300 burst)."
+
+    - alert: RateLimitAPIClientsBlocked
+      expr: sum(rate(traefik_service_requests_total{code="429",service=~".*n8n.*|.*immich.*"}[5m])) by (service) > 0.3
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "API service {{ $labels.service }} rate limiting clients"
+        description: "{{ $labels.service }} is rejecting {{ printf \"%.1f\" $value }} requests/sec. This may block API clients, webhooks, or automation. Check if limits need adjustment (current: 200 req/min + 300 burst)."
+
+    - alert: RateLimitSuddenSpike
+      expr: (sum(rate(traefik_service_requests_total{code="429"}[1m])) - sum(rate(traefik_service_requests_total{code="429"}[30m]))) > 5
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Sudden spike in rate-limited requests detected"
+        description: "Rate limit rejections increased by {{ printf \"%.1f\" $value }} requests/sec compared to 30min average. This likely indicates an ongoing attack or service misconfiguration."
+
+    - alert: RateLimitPersistentRejections
+      expr: sum(increase(traefik_service_requests_total{code="429"}[1h])) by (service) > 500
+      for: 10m
+      labels:
+        severity: info
+      annotations:
+        summary: "{{ $labels.service }} has persistent rate limiting"
+        description: "{{ $labels.service }} rejected {{ $value }} requests in the last hour due to rate limiting. If this is not an attack, rate limits may need to be relaxed. Current limits: Standard (100 req/min), High-frequency (200 req/min)."
+
+    # NOTE: These alerts depend on Traefik metrics being properly collected by Prometheus
+    # If alerts don't fire despite rate limiting occurring, check:
+    # 1. Traefik ServiceMonitor configuration
+    # 2. Prometheus scraping Traefik metrics endpoint
+    # 3. Query: traefik_service_requests_total{code="429"} should return data
