@@ -756,3 +756,87 @@ spec:
     # 1. Traefik ServiceMonitor configuration
     # 2. Prometheus scraping Traefik metrics endpoint
     # 3. Query: traefik_service_requests_total{code="429"} should return data
+
+  - name: resource-exhaustion-alerts
+    interval: 1m
+    rules:
+    - alert: ClusterCPUPressure
+      expr: (sum(rate(container_cpu_usage_seconds_total[5m])) / sum(machine_cpu_cores)) * 100 > 80
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Cluster-wide CPU usage is high"
+        description: "Cluster CPU usage is {{ printf \"%.1f\" $value }}% across all nodes. Consider scaling up or optimizing workloads."
+
+    - alert: ClusterMemoryPressure
+      expr: (1 - sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes)) * 100 > 80
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Cluster-wide memory usage is high"
+        description: "Cluster memory usage is {{ printf \"%.1f\" $value }}% across all nodes. Consider scaling up or adding memory."
+
+    - alert: ClusterCPUExhaustion
+      expr: (sum(rate(container_cpu_usage_seconds_total[5m])) / sum(machine_cpu_cores)) * 100 > 90
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Cluster CPU resources nearly exhausted"
+        description: "Cluster CPU usage is {{ printf \"%.1f\" $value }}%. Pod scheduling may fail. Immediate action required!"
+
+    - alert: ClusterMemoryExhaustion
+      expr: (1 - sum(node_memory_MemAvailable_bytes) / sum(node_memory_MemTotal_bytes)) * 100 > 90
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Cluster memory resources nearly exhausted"
+        description: "Cluster memory usage is {{ printf \"%.1f\" $value }}%. Pods may be OOM killed. Immediate action required!"
+
+    - alert: NodeAllocatableCPULow
+      expr: (kube_node_status_allocatable{resource="cpu"} - on(node) group_left sum by (node) (kube_pod_container_resource_requests{resource="cpu"})) / kube_node_status_allocatable{resource="cpu"} * 100 < 20
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Node {{ $labels.node }} has low allocatable CPU"
+        description: "Only {{ printf \"%.1f\" $value }}% CPU allocatable on {{ $labels.node }}. New pods may not schedule."
+
+    - alert: NodeAllocatableMemoryLow
+      expr: (kube_node_status_allocatable{resource="memory"} - on(node) group_left sum by (node) (kube_pod_container_resource_requests{resource="memory"})) / kube_node_status_allocatable{resource="memory"} * 100 < 20
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Node {{ $labels.node }} has low allocatable memory"
+        description: "Only {{ printf \"%.1f\" $value }}% memory allocatable on {{ $labels.node }}. New pods may not schedule."
+
+    - alert: TooManyPodsPending
+      expr: count(kube_pod_status_phase{phase="Pending"}) > 5
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Multiple pods stuck in Pending state"
+        description: "{{ $value }} pods are stuck in Pending state. Likely resource exhaustion or scheduling constraints."
+
+    - alert: NamespaceMemoryQuotaExceeded
+      expr: kube_resourcequota{resource="requests.memory",type="used"} / kube_resourcequota{resource="requests.memory",type="hard"} * 100 > 90
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Namespace {{ $labels.namespace }} approaching memory quota"
+        description: "Namespace {{ $labels.namespace }} is using {{ printf \"%.1f\" $value }}% of its memory quota. May not be able to schedule new pods."
+
+    - alert: NamespaceCPUQuotaExceeded
+      expr: kube_resourcequota{resource="requests.cpu",type="used"} / kube_resourcequota{resource="requests.cpu",type="hard"} * 100 > 90
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Namespace {{ $labels.namespace }} approaching CPU quota"
+        description: "Namespace {{ $labels.namespace }} is using {{ printf \"%.1f\" $value }}% of its CPU quota. May not be able to schedule new pods."
