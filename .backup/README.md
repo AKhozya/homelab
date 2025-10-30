@@ -19,13 +19,13 @@ This directory contains scripts and documentation for complete cluster recovery.
 ```bash
 cd .backup
 chmod +x secrets-backup.sh
-
-# REQUIRED: Set your secure passphrase
-export GPG_PASSPHRASE='your-very-secure-passphrase'
 ./secrets-backup.sh
 
-# ⚠️ The script will fail if GPG_PASSPHRASE is not set (no default for security)
-# ⚠️ Store this passphrase securely in 1Password!
+# The script will prompt you to enter a passphrase interactively
+# You can also set it as an environment variable to avoid the prompt:
+# export GPG_PASSPHRASE='your-very-secure-passphrase'
+
+# ⚠️ Store this passphrase securely in 1Password - you'll need it to decrypt!
 ```
 
 **Output**: `secrets-backup-YYYYMMDD_HHMMSS.tar.gz.gpg` (encrypted archive)

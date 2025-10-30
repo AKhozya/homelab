@@ -149,15 +149,35 @@ kubectl get secret redis-passwords -n databases -o jsonpath='{.data.immich-passw
 # =============================================================================
 echo "🔐 Encrypting backup with GPG..."
 
-# Require GPG_PASSPHRASE to be set (no default for security)
+# Get passphrase (prompt if not set as environment variable)
 if [ -z "${GPG_PASSPHRASE}" ]; then
-  echo "❌ ERROR: GPG_PASSPHRASE environment variable is not set!"
   echo ""
-  echo "For security reasons, you must provide your own passphrase."
-  echo "Set it with: export GPG_PASSPHRASE='your-very-secure-passphrase'"
+  echo "⚠️  You need a passphrase to encrypt this backup."
+  echo "⚠️  Store this passphrase securely in 1Password - you'll need it to decrypt!"
   echo ""
-  echo "⚠️  Store this passphrase securely in 1Password or similar!"
-  exit 1
+
+  # Prompt for passphrase (hidden input)
+  read -s -p "Enter passphrase: " GPG_PASSPHRASE
+  echo ""
+
+  # Confirm passphrase
+  read -s -p "Confirm passphrase: " GPG_PASSPHRASE_CONFIRM
+  echo ""
+
+  # Verify passwords match
+  if [ "${GPG_PASSPHRASE}" != "${GPG_PASSPHRASE_CONFIRM}" ]; then
+    echo "❌ ERROR: Passphrases do not match!"
+    exit 1
+  fi
+
+  # Verify passphrase is not empty
+  if [ -z "${GPG_PASSPHRASE}" ]; then
+    echo "❌ ERROR: Passphrase cannot be empty!"
+    exit 1
+  fi
+
+  echo "✅ Passphrase set"
+  echo ""
 fi
 
 ENCRYPTED_FILE="${BACKUP_DIR}/secrets-backup-${TIMESTAMP}.tar.gz.gpg"
