@@ -4,7 +4,7 @@ metadata:
   name: n8n
   namespace: n8n
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-high-frequency@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:

@@ -6,3 +6,5 @@ resources:
   - release.yaml
   - redirect-https-middleware.yaml
   - security-headers-middleware.yaml
+  - rate-limit-standard-middleware.yaml
+  - rate-limit-high-frequency-middleware.yaml

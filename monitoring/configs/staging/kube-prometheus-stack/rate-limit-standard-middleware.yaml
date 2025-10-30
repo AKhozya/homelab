@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: rate-limit-standard
+  namespace: monitoring
+spec:
+  rateLimit:
+    # Standard rate limit for monitoring services (Grafana, AlertManager)
+    # 100 requests/minute sustained, allows bursts up to 150
+    average: 100
+    burst: 150
+    # Rate limit based on client IP
+    sourceCriterion:
+      ipStrategy:
+        depth: 0

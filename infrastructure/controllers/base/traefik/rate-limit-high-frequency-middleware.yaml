@@ -1,0 +1,15 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: rate-limit-high-frequency
+  namespace: traefik
+spec:
+  rateLimit:
+    # High-frequency rate limit for APIs and services with burst traffic
+    # 200 requests/minute sustained, allows bursts up to 300
+    average: 200
+    burst: 300
+    # Rate limit based on client IP
+    sourceCriterion:
+      ipStrategy:
+        depth: 0

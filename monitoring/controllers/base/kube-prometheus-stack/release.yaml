@@ -115,7 +115,7 @@ spec:
         enabled: true
         ingressClassName: traefik
         annotations:
-          traefik.ingress.kubernetes.io/router.middlewares: monitoring-redirect-https@kubernetescrd,monitoring-security-headers@kubernetescrd
+          traefik.ingress.kubernetes.io/router.middlewares: monitoring-redirect-https@kubernetescrd,monitoring-security-headers@kubernetescrd,monitoring-rate-limit-standard@kubernetescrd
           external-dns.alpha.kubernetes.io/exclude: "true"
         hosts:
           - grafana.h0melab.work
@@ -191,7 +191,7 @@ spec:
         enabled: true
         ingressClassName: traefik
         annotations:
-          traefik.ingress.kubernetes.io/router.middlewares: monitoring-redirect-https@kubernetescrd,monitoring-security-headers@kubernetescrd
+          traefik.ingress.kubernetes.io/router.middlewares: monitoring-redirect-https@kubernetescrd,monitoring-security-headers@kubernetescrd,monitoring-rate-limit-standard@kubernetescrd
           external-dns.alpha.kubernetes.io/exclude: "true"
         hosts:
           - am.h0melab.work

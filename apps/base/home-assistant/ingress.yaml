@@ -4,7 +4,7 @@ metadata:
   name: home-assistant
   namespace: home-assistant
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-high-frequency@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
