@@ -8,10 +8,55 @@ BACKUP_DIR="$(dirname "$0")"
 
 echo "🔄 Restoring ALL secrets to cluster for disaster recovery..."
 
-# Check if backup files exist
+# =============================================================================
+# Decrypt backup if needed
+# =============================================================================
 if [ ! -d "${BACKUP_DIR}/secrets" ]; then
-    echo "❌ Error: No backup directory found at ${BACKUP_DIR}/secrets/"
-    echo "   Run secrets-backup.sh first to create backups"
+    echo "📦 Secrets directory not found. Looking for encrypted backups..."
+
+    # Find the latest encrypted backup
+    LATEST_BACKUP=$(ls -t "${BACKUP_DIR}"/secrets-backup-*.tar.gz.gpg 2>/dev/null | head -1)
+
+    if [ -z "${LATEST_BACKUP}" ]; then
+        echo "❌ Error: No encrypted backup found in ${BACKUP_DIR}/"
+        echo "   Expected file: secrets-backup-YYYYMMDD_HHMMSS.tar.gz.gpg"
+        echo "   Run secrets-backup.sh first to create backups"
+        exit 1
+    fi
+
+    echo "🔓 Found encrypted backup: $(basename ${LATEST_BACKUP})"
+    echo ""
+
+    # Get passphrase (prompt if not set as environment variable)
+    if [ -z "${GPG_PASSPHRASE}" ]; then
+        echo "⚠️  This backup is encrypted. You need the passphrase to decrypt it."
+        echo ""
+
+        # Prompt for passphrase (hidden input)
+        read -s -p "Enter passphrase: " GPG_PASSPHRASE
+        echo ""
+
+        # Verify passphrase is not empty
+        if [ -z "${GPG_PASSPHRASE}" ]; then
+            echo "❌ ERROR: Passphrase cannot be empty!"
+            exit 1
+        fi
+    fi
+
+    # Decrypt and extract backup
+    echo "🔓 Decrypting backup..."
+    if gpg --decrypt --batch --passphrase-file <(echo "${GPG_PASSPHRASE}") "${LATEST_BACKUP}" | tar -xzf - -C "${BACKUP_DIR}"; then
+        echo "✅ Backup decrypted successfully"
+        echo ""
+    else
+        echo "❌ ERROR: Failed to decrypt backup. Check your passphrase."
+        exit 1
+    fi
+fi
+
+# Verify secrets directory exists now
+if [ ! -d "${BACKUP_DIR}/secrets" ]; then
+    echo "❌ Error: Secrets directory still not found after decryption"
     exit 1
 fi
 

@@ -30,7 +30,11 @@ chmod +x secrets-backup.sh
 
 **Output**: `secrets-backup-YYYYMMDD_HHMMSS.tar.gz.gpg` (encrypted archive)
 
-### 2. Decrypt Backup (when needed for disaster recovery)
+### 2. Decrypt Backup (optional - automatic during restore)
+
+**Note:** The `secrets-restore.sh` script automatically decrypts backups, so manual decryption is usually not needed.
+
+If you need to decrypt manually for inspection:
 
 ```bash
 # Interactive (will prompt for passphrase)
@@ -153,9 +157,16 @@ brew install fluxcd/tap/flux  # macOS
 cd .backup
 chmod +x secrets-restore.sh
 ./secrets-restore.sh
+
+# The script will:
+# 1. Automatically find the latest encrypted backup
+# 2. Prompt you for the passphrase to decrypt it
+# 3. Restore all secrets to their respective namespaces
+#
+# You can also set GPG_PASSPHRASE environment variable to avoid the prompt
 ```
 
-This will restore ALL secrets needed for cluster operation to their respective namespaces.
+This will automatically decrypt the backup and restore ALL secrets needed for cluster operation.
 
 #### Step 5: Bootstrap Flux
 
