@@ -16,7 +16,41 @@ spec:
       serviceAccountName: csp-reporter
       containers:
       - name: csp-reporter
-        image: ghcr.io/jacobian/csp-reporter:latest
+        image: node:22-alpine
+        command:
+        - sh
+        - -c
+        - |
+          cat > /tmp/server.js << 'EOF'
+          const http = require('http');
+          const server = http.createServer((req, res) => {
+            if (req.method === 'POST' && req.url === '/report') {
+              let body = '';
+              req.on('data', chunk => { body += chunk; });
+              req.on('end', () => {
+                try {
+                  const report = JSON.parse(body);
+                  console.log(JSON.stringify({
+                    timestamp: new Date().toISOString(),
+                    type: 'csp-violation',
+                    report: report
+                  }));
+                } catch (e) {
+                  console.error('Failed to parse CSP report:', e);
+                }
+                res.writeHead(204);
+                res.end();
+              });
+            } else {
+              res.writeHead(404);
+              res.end();
+            }
+          });
+          server.listen(8080, () => {
+            console.log('CSP reporter listening on :8080');
+          });
+          EOF
+          node /tmp/server.js
         ports:
         - containerPort: 8080
         resources:
