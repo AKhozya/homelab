@@ -4,22 +4,17 @@ metadata:
   name: main-postgres
   namespace: databases
 spec:
-  instances: 2  # 1 primary + 1 replica across 2 nodes for true HA
+  instances: 2  # 1 primary + 1 replica on worker node only
   inheritedMetadata:
     labels:
       release: kube-prometheus-stack
   imageName: ghcr.io/cloudnative-pg/postgresql:18-standard-trixie
   enableSuperuserAccess: true  # Required for operator to create pooler roles
 
-  # Allow scheduling on control plane for HA (1 pod on control plane, 1 pod on worker)
+  # Worker node only - control-plane has port 8000 binding issue (https://github.com/cloudnative-pg/cloudnative-pg/issues/9013)
   affinity:
-    enablePodAntiAffinity: true  # Enable built-in anti-affinity (default, but explicit)
-    podAntiAffinityType: "required"  # HARD constraint - MUST be on different nodes
-    topologyKey: "kubernetes.io/hostname"  # Spread across different nodes
-    tolerations:
-      - key: node-role.kubernetes.io/control-plane
-        operator: Exists
-        effect: NoSchedule
+    enablePodAntiAffinity: true  # Enable built-in anti-affinity
+    podAntiAffinityType: "preferred"  # Soft constraint - prefer different scheduling (both will be on same worker node)
 
   resources:
     requests:

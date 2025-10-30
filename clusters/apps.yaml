@@ -8,17 +8,14 @@ spec:
   retryInterval: 2m
   wait: false
   force: true
-  timeout: 120s
+  timeout: 45s
   dependsOn:
     - name: infrastructure-configs
-  # Health check removed - CNPG cluster will never reach Ready due to port 8000 binding issue on control-plane
-  # Issue persists after UFW rule addition and node reboot - confirmed K3s control-plane specific issue
-  # Database fully functional, monitoring degraded but acceptable
-  # healthChecks:
-  #   - apiVersion: postgresql.cnpg.io/v1
-  #     kind: Cluster
-  #     name: main-postgres
-  #     namespace: databases
+  healthChecks:
+    - apiVersion: postgresql.cnpg.io/v1
+      kind: Cluster
+      name: main-postgres
+      namespace: databases
   sourceRef:
     kind: GitRepository
     name: flux-system
