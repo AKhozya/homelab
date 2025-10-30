@@ -4,7 +4,7 @@ metadata:
   name: audiobookshelf
   namespace: audiobookshelf
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-standard@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-standard@kubernetescrd,traefik-csp-report-only@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:

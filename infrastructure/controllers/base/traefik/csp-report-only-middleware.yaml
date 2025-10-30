@@ -1,0 +1,12 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: csp-report-only
+  namespace: traefik
+spec:
+  headers:
+    customResponseHeaders:
+      # Content Security Policy in report-only mode
+      # Violations are sent to csp-reporter service and logged to Loki
+      # Monitor for 7 days to see what needs adjustment before enforcing
+      Content-Security-Policy-Report-Only: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'; report-uri http://csp-reporter.csp-reporter.svc.cluster.local/report"

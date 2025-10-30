@@ -5,6 +5,7 @@ resources:
   - traefik
   - trivy-operator
   - kyverno
+  - csp-reporter
   - databases/postgres
   - databases/couchdb
   - databases/redis
