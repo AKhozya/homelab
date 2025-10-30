@@ -163,7 +163,7 @@
      - UFW rule added for consistency: `ufw allow from 10.42.0.0/16 to any port 8000`
      - Database fully functional (primary use case working)
      - Main-postgres-5 on worker-node provides full monitoring
-   - **Upstream**: Bug report prepared for CNPG project (`docs/CNPG_BUG_REPORT.md`)
+   - **Upstream**: Bug report submitted to CNPG project https://github.com/cloudnative-pg/cloudnative-pg/issues/9013
    - **Files**: `clusters/apps.yaml` (health check removed), UFW rules on both nodes
 
 #### 7. ✅ **PostgreSQL TLS/Encryption** - ALREADY IMPLEMENTED (2025-10-27)
