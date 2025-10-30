@@ -4,7 +4,7 @@ metadata:
   name: linkding
   namespace: linkding
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
