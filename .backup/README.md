@@ -9,8 +9,8 @@ This directory contains scripts and documentation for complete cluster recovery.
 - ✅ **Encrypted**: All backups are automatically encrypted using GPG
 - ✅ **Secure**: Unencrypted secrets directory removed after encryption
 - ✅ **Gitignored**: `.backup/` directory is in `.gitignore`
-- ⚠️ **Passphrase**: Store GPG passphrase securely (1Password recommended)
-- ⚠️ **Default**: Default passphrase is `homelab-secrets-backup` - CHANGE THIS!
+- ✅ **No Default**: No default passphrase - you MUST set your own
+- ⚠️ **Passphrase**: Store GPG passphrase securely in 1Password!
 
 ## 📦 Backup Process
 
@@ -20,12 +20,12 @@ This directory contains scripts and documentation for complete cluster recovery.
 cd .backup
 chmod +x secrets-backup.sh
 
-# With default passphrase (CHANGE THIS!)
-./secrets-backup.sh
-
-# With custom passphrase (recommended)
+# REQUIRED: Set your secure passphrase
 export GPG_PASSPHRASE='your-very-secure-passphrase'
 ./secrets-backup.sh
+
+# ⚠️ The script will fail if GPG_PASSPHRASE is not set (no default for security)
+# ⚠️ Store this passphrase securely in 1Password!
 ```
 
 **Output**: `secrets-backup-YYYYMMDD_HHMMSS.tar.gz.gpg` (encrypted archive)

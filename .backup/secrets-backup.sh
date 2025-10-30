@@ -148,11 +148,23 @@ kubectl get secret redis-passwords -n databases -o jsonpath='{.data.immich-passw
 # Encrypt backup with GPG
 # =============================================================================
 echo "🔐 Encrypting backup with GPG..."
+
+# Require GPG_PASSPHRASE to be set (no default for security)
+if [ -z "${GPG_PASSPHRASE}" ]; then
+  echo "❌ ERROR: GPG_PASSPHRASE environment variable is not set!"
+  echo ""
+  echo "For security reasons, you must provide your own passphrase."
+  echo "Set it with: export GPG_PASSPHRASE='your-very-secure-passphrase'"
+  echo ""
+  echo "⚠️  Store this passphrase securely in 1Password or similar!"
+  exit 1
+fi
+
 ENCRYPTED_FILE="${BACKUP_DIR}/secrets-backup-${TIMESTAMP}.tar.gz.gpg"
 
 # Create tarball of secrets directory
 tar -czf - -C "${BACKUP_DIR}" secrets | \
-  gpg --symmetric --cipher-algo AES256 --batch --yes --passphrase-file <(echo "${GPG_PASSPHRASE:-homelab-secrets-backup}") \
+  gpg --symmetric --cipher-algo AES256 --batch --yes --passphrase-file <(echo "${GPG_PASSPHRASE}") \
   -o "${ENCRYPTED_FILE}"
 
 if [ $? -eq 0 ]; then
@@ -184,8 +196,8 @@ echo ""
 echo "🔒 Security Notes:"
 echo "   ✅ Backup is encrypted with GPG AES256"
 echo "   ✅ Unencrypted secrets directory removed"
+echo "   ✅ No default passphrase - you must set GPG_PASSPHRASE"
 echo "   ⚠️  Store GPG passphrase securely (1Password recommended)"
-echo "   ⚠️  Default passphrase: 'homelab-secrets-backup' (change via GPG_PASSPHRASE env var)"
 echo "   ⚠️  The .backup/ directory is in .gitignore"
 echo ""
 echo "📋 Backed up secrets for:"
