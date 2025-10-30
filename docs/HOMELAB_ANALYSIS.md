@@ -152,15 +152,19 @@
      - Port 8000 not in use by other processes on control-plane
      - Seccomp/capabilities identical between working and failing pods
      - Process runs with correct flags `--status-port-tls`
+     - **UFW Firewall**: Added rule `ufw allow from 10.42.0.0/16 to any port 8000` - DID NOT FIX
+     - **Node Reboot**: Rebooted both control-plane and worker - DID NOT FIX
+     - Confirmed NOT a firewall or stale network state issue
    - **Resolution**: Accepted current state
      - Alternative: Remove control-plane tolerance → loses cross-node HA
      - Trade-off: Monitoring degradation acceptable vs. losing true HA
    - **Mitigation**:
-     - Extended Flux timeout to 120s (was 45s)
+     - Removed Flux health check (cluster will never reach Ready status)
+     - UFW rule added for consistency: `ufw allow from 10.42.0.0/16 to any port 8000`
      - Database fully functional (primary use case working)
      - Main-postgres-5 on worker-node provides full monitoring
-   - **Upstream**: Issue reported to CNPG project
-   - **File**: `clusters/apps.yaml` (timeout: 120s)
+   - **Upstream**: Bug report prepared for CNPG project (`docs/CNPG_BUG_REPORT.md`)
+   - **Files**: `clusters/apps.yaml` (health check removed), UFW rules on both nodes
 
 #### 7. ✅ **PostgreSQL TLS/Encryption** - ALREADY IMPLEMENTED (2025-10-27)
    - **Status**: ✅ TLS enabled by CloudNativePG, all apps using it
