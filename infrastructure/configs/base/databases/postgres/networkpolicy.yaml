@@ -44,4 +44,4 @@ spec:
       - protocol: TCP
         port: 5432
       - protocol: TCP
-        port: 8008  # CNPG instance manager API
+        port: 8000  # CNPG instance manager status API
