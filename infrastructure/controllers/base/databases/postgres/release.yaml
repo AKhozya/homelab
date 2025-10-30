@@ -26,8 +26,8 @@ spec:
     recreate: true
     cleanupOnFail: true
   values:
-    hostNetwork: true
-    dnsPolicy: ClusterFirstWithHostNet
+    # hostNetwork: true
+    # dnsPolicy: ClusterFirstWithHostNet
     # Resource limits for CNPG operator
     resources:
       requests:
