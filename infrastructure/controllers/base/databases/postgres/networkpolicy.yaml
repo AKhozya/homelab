@@ -1,0 +1,66 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cnpg-operator-policy
+  namespace: databases
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudnative-pg
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow validating/mutating webhook traffic from Kubernetes API server
+    # API server source IPs vary (control-plane nodes), so we allow all sources on webhook port
+    - ports:
+        - protocol: TCP
+          port: 9443
+
+    # Allow Prometheus metrics scraping from monitoring namespace
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kustomize.toolkit.fluxcd.io/name: monitoring-controllers
+      ports:
+        - protocol: TCP
+          port: 8080  # Metrics endpoint
+
+  egress:
+    # Allow DNS resolution to kube-system
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+
+    # Allow HTTPS access to Kubernetes API server
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 443
+
+    # Allow access to PostgreSQL instances in databases namespace
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: main-postgres
+      ports:
+        - protocol: TCP
+          port: 5432  # PostgreSQL
+        - protocol: TCP
+          port: 8000  # CNPG instance manager status API
+
+    # Allow access to PostgreSQL pooler
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/podRole: pooler
+      ports:
+        - protocol: TCP
+          port: 5432
