@@ -53,8 +53,4 @@ spec:
       - protocol: TCP
         port: 5432
       - protocol: TCP
-<<<<<<< HEAD
-        port: 8000  # CNPG instance manager status API
-=======
         port: 8000  # CNPG instance manager status API (for liveness checks)
->>>>>>> 911684e (Allow CNPG operator access to PostgreSQL status API (port 8000))
