@@ -145,15 +145,48 @@ kubectl get secret alertmanager-telegram -n monitoring -o jsonpath='{.data.bot_t
 kubectl get secret redis-passwords -n databases -o jsonpath='{.data.immich-password}' | base64 -d > "${BACKUP_DIR}/secrets/redis-password-immich.txt" 2>/dev/null
 
 # =============================================================================
+# Encrypt backup with GPG
+# =============================================================================
+echo "🔐 Encrypting backup with GPG..."
+ENCRYPTED_FILE="${BACKUP_DIR}/secrets-backup-${TIMESTAMP}.tar.gz.gpg"
+
+# Create tarball of secrets directory
+tar -czf - -C "${BACKUP_DIR}" secrets | \
+  gpg --symmetric --cipher-algo AES256 --batch --yes --passphrase-file <(echo "${GPG_PASSPHRASE:-homelab-secrets-backup}") \
+  -o "${ENCRYPTED_FILE}"
+
+if [ $? -eq 0 ]; then
+  echo "✅ Encrypted backup created: ${ENCRYPTED_FILE}"
+  echo "📊 Backup size: $(du -h "${ENCRYPTED_FILE}" | awk '{print $1}')"
+
+  # Remove unencrypted secrets directory
+  echo "🗑️  Removing unencrypted secrets directory for security..."
+  rm -rf "${BACKUP_DIR}/secrets"
+
+  echo ""
+  echo "🔓 To decrypt this backup later, use:"
+  echo "   gpg --decrypt ${ENCRYPTED_FILE} | tar -xzf - -C ${BACKUP_DIR}"
+  echo ""
+  echo "   Or set GPG_PASSPHRASE environment variable:"
+  echo "   export GPG_PASSPHRASE='your-secure-passphrase'"
+  echo "   gpg --decrypt --batch --passphrase-file <(echo \"\$GPG_PASSPHRASE\") ${ENCRYPTED_FILE} | tar -xzf - -C ${BACKUP_DIR}"
+else
+  echo "❌ GPG encryption failed! Secrets remain unencrypted in ${BACKUP_DIR}/secrets/"
+  exit 1
+fi
+
+# =============================================================================
 # Summary
 # =============================================================================
 echo ""
-echo "✅ Backup complete! Files saved to: ${BACKUP_DIR}/secrets/"
+echo "✅ Encrypted backup complete!"
 echo ""
-echo "⚠️  IMPORTANT: These files contain UNENCRYPTED secrets!"
-echo "   - DO NOT commit them to git"
-echo "   - Store them securely (1Password, encrypted USB, etc.)"
-echo "   - The .backup/ directory is already in .gitignore"
+echo "🔒 Security Notes:"
+echo "   ✅ Backup is encrypted with GPG AES256"
+echo "   ✅ Unencrypted secrets directory removed"
+echo "   ⚠️  Store GPG passphrase securely (1Password recommended)"
+echo "   ⚠️  Default passphrase: 'homelab-secrets-backup' (change via GPG_PASSPHRASE env var)"
+echo "   ⚠️  The .backup/ directory is in .gitignore"
 echo ""
 echo "📋 Backed up secrets for:"
 echo "   🔑 SOPS age encryption key (CRITICAL)"
@@ -169,4 +202,4 @@ echo "   🔐 OIDC integration secrets:"
 echo "      - Grafana, Immich, Home Assistant, Linkding"
 echo "      - Mealie, N8N, Paperless-NGX, Audiobookshelf"
 echo ""
-echo "📂 Total files backed up: $(ls -1 "${BACKUP_DIR}/secrets/" | wc -l)"
+echo "📂 Encrypted file: $(basename ${ENCRYPTED_FILE})"

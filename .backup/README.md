@@ -4,21 +4,45 @@ This directory contains scripts and documentation for complete cluster recovery.
 
 ## ⚠️ IMPORTANT
 
-**Files in `.backup/secrets/` contain UNENCRYPTED credentials!**
+**All secrets backups are now ENCRYPTED with GPG AES256!**
 
-- DO NOT commit these files to git
-- The `.backup/` directory is already in `.gitignore`
-- Store backups securely (password manager, encrypted drive, etc.)
+- ✅ **Encrypted**: All backups are automatically encrypted using GPG
+- ✅ **Secure**: Unencrypted secrets directory removed after encryption
+- ✅ **Gitignored**: `.backup/` directory is in `.gitignore`
+- ⚠️ **Passphrase**: Store GPG passphrase securely (1Password recommended)
+- ⚠️ **Default**: Default passphrase is `homelab-secrets-backup` - CHANGE THIS!
 
 ## 📦 Backup Process
 
-### 1. Create Backup (run regularly - monthly recommended)
+### 1. Create Encrypted Backup (run regularly - monthly recommended)
 
 ```bash
 cd .backup
 chmod +x secrets-backup.sh
+
+# With default passphrase (CHANGE THIS!)
+./secrets-backup.sh
+
+# With custom passphrase (recommended)
+export GPG_PASSPHRASE='your-very-secure-passphrase'
 ./secrets-backup.sh
 ```
+
+**Output**: `secrets-backup-YYYYMMDD_HHMMSS.tar.gz.gpg` (encrypted archive)
+
+### 2. Decrypt Backup (when needed for disaster recovery)
+
+```bash
+# Interactive (will prompt for passphrase)
+gpg --decrypt secrets-backup-20251030_120000.tar.gz.gpg | tar -xzf - -C .
+
+# Non-interactive (using environment variable)
+export GPG_PASSPHRASE='your-passphrase'
+gpg --decrypt --batch --passphrase-file <(echo "$GPG_PASSPHRASE") \
+  secrets-backup-20251030_120000.tar.gz.gpg | tar -xzf - -C .
+```
+
+This extracts to `secrets/` directory containing all secret JSON files.
 
 This will extract and save **ALL** secrets needed for complete cluster rebuild:
 
