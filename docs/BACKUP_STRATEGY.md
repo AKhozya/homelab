@@ -28,7 +28,7 @@
 |------------|----------|-----------|-----------|-------------|--------|
 | **PostgreSQL** | 2:00 AM daily | databases | 30 days | gzip (tar.gz) | ✅ Operational |
 | **CouchDB** | 2:30 AM daily | couchdb | 30 days | gzip (tar.gz) | ✅ Operational |
-| **PVC** | 3:00 AM daily | kube-system | 3 days | gzip (tar.gz) | ✅ Operational |
+| **PVC** | 3:00 AM daily | kube-system | 7 days | gzip (tar.gz) | ✅ Operational |
 | **Kubernetes Secrets** | Manual (monthly) | N/A | In `.backup/` | Unencrypted JSON | ✅ Scripts ready |
 
 ### What's Protected (GitOps + Automated Backups)
@@ -156,7 +156,7 @@ cat obsidian-personal.couchbackup | couchrestore \
 - **Resource usage:** 1 core CPU / 48Mi memory (very efficient!)
 - **Resources allocated:** 2 cores / 512Mi (plenty of headroom)
 
-**Storage:** 3-day retention = ~138GB total
+**Storage:** 7-day retention = ~322GB total
 
 **Restore procedure:**
 ```bash
@@ -245,11 +245,11 @@ flux bootstrap github --owner=AKhozya --repository=homelab --path=clusters/stagi
 |--------|----------|-----------|---------------|
 | PostgreSQL | 43 MB | 30 days | **1.3 GB** |
 | CouchDB | 3 MB | 30 days | **90 MB** |
-| PVC | 46 GB | 3 days | **138 GB** |
-| **TOTAL** | | | **~139 GB / 4.2 TB** ✅ |
+| PVC | 46 GB | 7 days | **322 GB** |
+| **TOTAL** | | | **~323 GB / 4.2 TB** ✅ |
 
 **Available storage:** 4.2 TB on `/mnt/k8s-storage`
-**Used by backups:** 139 GB (3.3%)
+**Used by backups:** 323 GB (7.7%)
 **Plenty of room for growth!** ✅
 
 ### Why gzip instead of zstd ultra?
@@ -507,7 +507,7 @@ cd .backup
 |------|------|-------|-----|-----------|
 | **PostgreSQL** | Daily 2:00 AM | `/mnt/k8s-backup/postgres/` | Automated CronJob | 30 days |
 | **CouchDB** | Daily 2:30 AM | `/mnt/k8s-backup/couchdb/` | Automated CronJob | 30 days |
-| **PVC** | Daily 3:00 AM | `/mnt/k8s-backup/pvc/` | Automated CronJob | 3 days |
+| **PVC** | Daily 3:00 AM | `/mnt/k8s-backup/pvc/` | Automated CronJob | 7 days |
 | **Secrets** | Manual (monthly) | `.backup/secrets/` | Manual script | Store securely |
 
 ---
