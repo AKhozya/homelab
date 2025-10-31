@@ -380,17 +380,30 @@
    - **Estimated Effort**: 2-4 hours
    - **Priority**: P2-MEDIUM
 
-#### 18. **Missing Rate Limiting Middleware**
-   - **Risk**: No protection against brute force attacks
-   - **Action**: Add rate limiting to Traefik
-   - **Estimated Effort**: 2 hours
-   - **Priority**: P2-MEDIUM
+#### 18. ✅ **COMPLETED: Rate Limiting Middleware** (2025-10-31)
+   - **Status**: ✅ 100% coverage - All 17 ingresses have rate limiting
+   - **Implementation**: Two-tier rate limiting strategy
+     - **Standard (11 apps)**: 100 req/sec average, 150 burst (adguard-home, audiobookshelf, homehub, homepage, linkding, mealie, paperless-ngx, stirling-pdf, uptime-kuma, wallabag, monitoring)
+     - **High-frequency (5 apps)**: 200 req/sec average, 300 burst (authentik, couchdb, home-assistant, immich, n8n)
+   - **Configuration**: Per-IP rate limiting (ipStrategy depth: 0)
+   - **Middleware**: `traefik-rate-limit-standard`, `traefik-rate-limit-high-frequency`
+   - **Benefits**: Protection against brute force attacks, API abuse prevention
+   - **No action needed** - Already fully implemented
 
-#### 19. **No Security Headers (CSP, HSTS)**
-   - **Risk**: XSS, clickjacking vulnerabilities
-   - **Action**: Add security headers middleware
-   - **Estimated Effort**: 2 hours
-   - **Priority**: P2-MEDIUM
+#### 19. ✅ **COMPLETED: Security Headers (CSP, HSTS)** (2025-10-31)
+   - **Status**: ✅ 100% coverage - All 17 ingresses have security headers
+   - **Implementation**: Comprehensive security header middleware
+     - **HSTS**: `Strict-Transport-Security: max-age=604800` (1 week, enforced HTTPS)
+     - **XSS Protection**: `X-Content-Type-Options: nosniff` (prevents MIME sniffing)
+     - **Clickjacking**: `X-Frame-Options: SAMEORIGIN` (prevents iframe embedding)
+     - **Referrer Policy**: `strict-origin-when-cross-origin` (privacy protection)
+     - **Permissions Policy**: `interest-cohort=()` (blocks Google FLoC tracking)
+     - **Server Fingerprinting**: `X-Powered-By: ""` (removes server version disclosure)
+     - **CSP**: Content Security Policy in report-only mode (monitoring violations)
+   - **Middleware**: `traefik-security-headers`, `monitoring-security-headers`
+   - **Cloudflare Edge**: Additional HSTS at edge (1 month max-age) for tunnel-exposed services
+   - **Benefits**: Protection against XSS, clickjacking, MIME sniffing, tracking, man-in-the-middle attacks
+   - **No action needed** - Already fully implemented
 
 #### 20. ✅ **VERIFIED: PgBouncer Pooler Usage is Correct** (2025-10-31)
    - **Status**: ✅ All apps correctly using `main-postgres-rw-pooler.databases.svc.cluster.local`
