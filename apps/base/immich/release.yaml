@@ -56,28 +56,11 @@ spec:
                 path: /spec/template/spec/containers/0/volumeMounts/-
                 value:
                   name: rapidocr-models
-                  # Mount at version-independent path, symlink created at startup
-                  mountPath: /cache/rapidocr-models
-              - op: add
-                path: /spec/template/spec/containers/0/command
-                value:
-                  - /bin/sh
-                  - -c
-                  - |
-                    # Dynamically detect Python version and create symlink for rapidocr models
-                    # This prevents hardcoding Python version (e.g., python3.11)
-                    PYTHON_VERSION=$(python -c 'import sys; print(f"python{sys.version_info.major}.{sys.version_info.minor}")')
-                    MODELS_PATH="/opt/venv/lib/${PYTHON_VERSION}/site-packages/rapidocr/models"
-
-                    echo "Detected Python version: ${PYTHON_VERSION}"
-                    echo "Creating symlink: ${MODELS_PATH} -> /cache/rapidocr-models"
-
-                    # Remove original directory and create symlink
-                    rm -rf "${MODELS_PATH}"
-                    ln -sf /cache/rapidocr-models "${MODELS_PATH}"
-
-                    # Start the application
-                    exec tini -- python -m immich_ml
+                  # Hardcoded Python version - update when Immich ML updates Python
+                  # Attempted version-independent symlink approach but failed due to permission issues
+                  # (can't create symlink in root-owned /opt/venv as user 1000)
+                  # Manual update needed ~annually when Python minor version changes
+                  mountPath: /opt/venv/lib/python3.11/site-packages/rapidocr/models
   # Note: Hardware acceleration (VAAPI) is disabled via IMMICH_MEDIA_FFMPEG_ACCEL=disabled
   # /dev/dri hostPath mount removed for Pod Security Standards (restricted) compliance
   # hostPath volumes violate PSS restricted policy
