@@ -1,7 +1,8 @@
 # 🔐 Secrets Rotation Playbook
 
 **Cluster**: K3s Homelab
-**Last Updated**: 2025-10-26
+**Last Updated**: 2025-10-31
+**Audit Trail**: All rotation dates are tracked in git commit history with detailed commit messages
 
 ---
 
@@ -11,30 +12,30 @@
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
-| `immich-db-password` | Immich | PostgreSQL | TBD | 90 days | High |
-| `linkding-db-password` | Linkding | PostgreSQL | TBD | 90 days | Medium |
-| `mealie-db-password` | Mealie | PostgreSQL | TBD | 90 days | Medium |
-| `n8n-db-password` | N8N | PostgreSQL | TBD | 90 days | High |
-| `paperless-db-password` | Paperless-NGX | PostgreSQL | TBD | 90 days | Medium |
-| `wallabag-db-password` | Wallabag | PostgreSQL | TBD | 90 days | Medium |
+| `immich-db-password` | Immich | PostgreSQL | 2025-10-19 | 2026-01-17 | High |
+| `linkding-db-password` | Linkding | PostgreSQL | 2025-10-23 | 2026-01-21 | Medium |
+| `mealie-db-password` | Mealie | PostgreSQL | 2025-10-23 | 2026-01-21 | Medium |
+| `n8n-db-password` | N8N | PostgreSQL | 2025-10-23 | 2026-01-21 | High |
+| `paperless-db-password` | Paperless-NGX | PostgreSQL | 2025-10-19 | 2026-01-17 | Medium |
+| `wallabag-db-password` | Wallabag | PostgreSQL | 2025-10-23 | 2026-01-21 | Medium |
 
 ### Redis Credentials
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
-| `authentik-redis-password` | Authentik | Redis | TBD | 90 days | High |
-| `immich-redis-password` | Immich | Redis | TBD | 90 days | High |
-| `paperless-redis-password` | Paperless-NGX | Redis | TBD | 90 days | Medium |
-| `wallabag-redis-password` | Wallabag | Redis | TBD | 90 days | Medium |
+| `authentik-redis-password` | Authentik | Redis | N/A (Removed 2025-10-29) | N/A | N/A |
+| `immich-redis-password` | Immich | Redis | 2025-10-18 | 2026-01-16 | High |
+| `paperless-redis-password` | Paperless-NGX | Redis | 2025-10-18 | 2026-01-16 | Medium |
+| `wallabag-redis-password` | Wallabag | Redis | 2025-10-18 | 2026-01-16 | Medium |
 
 ### Application Credentials
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
-| `authentik-secret-key` | Authentik | Django Secret | TBD | 180 days | High |
+| `authentik-secret-key` | Authentik | Django Secret | 2025-10-18 | 2026-04-16 | High |
 | `n8n-encryption-key` | N8N | Encryption Key | Never* | N/A | Critical |
-| `homehub-password` | HomeHub | Bcrypt Password | 2025-10-26 | 90 days | Medium |
-| `adguard-home-config` | AdGuard Home | Bcrypt Password | TBD | 180 days | Medium |
+| `homehub-password` | HomeHub | Bcrypt Password | 2025-10-26 | 2026-01-24 | Medium |
+| `adguard-home-config` | AdGuard Home | Bcrypt Password | 2025-10-25 | 2026-04-23 | Medium |
 
 \* **IMPORTANT**: N8N encryption key should NEVER be rotated as it encrypts workflow credentials
 
@@ -42,7 +43,7 @@
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
-| `authentik-oidc-*` | Various | OIDC Client Secret | TBD | 180 days | High |
+| `authentik-oidc-*` | Various (7 apps) | OIDC Client Secret | 2025-10-20 | 2026-04-18 | High |
 
 ### TLS Certificates
 
@@ -304,14 +305,40 @@ If a secret is compromised:
 ## 📊 ROTATION TRACKING
 
 ### 2025 Q4 (Oct-Dec)
-- [x] 2025-10-26: HomeHub password rotated
+- [x] 2025-10-18: Initial deployment with secure credentials
+  - Authentik database password
+  - Authentik Django secret key
+  - Redis passwords (Immich, Paperless-NGX, Wallabag)
+- [x] 2025-10-19: Database password rotations
+  - Immich database password (64-char hex)
+  - Paperless-NGX database password
+- [x] 2025-10-20: OIDC secrets deployment
+  - Added OIDC client secrets for 7 apps (Authentik SSO integration)
+- [x] 2025-10-23: Database password standardization
+  - Linkding, Mealie, N8N, Wallabag database passwords (hex-only)
+  - CouchDB admin password updated
+- [x] 2025-10-25: Application credential deployment
+  - AdGuard Home bcrypt password
+  - Stirling PDF OAuth2 client secret
+- [x] 2025-10-26: Security incident response
+  - HomeHub password rotated (exposed password remediation)
+- [x] 2025-10-29: Architecture change
+  - Removed Redis from Authentik (no longer applicable)
 
 ### 2026 Q1 (Jan-Mar)
-- [ ] TBD: Schedule first rotation cycle for all database passwords
-- [ ] TBD: Schedule first rotation cycle for all Redis passwords
+- [ ] 2026-01-16: Redis password rotation (90-day cycle)
+  - Immich, Paperless-NGX, Wallabag Redis passwords
+- [ ] 2026-01-17: High-priority database password rotation (90-day cycle)
+  - Immich, Paperless-NGX database passwords
+- [ ] 2026-01-21: Medium-priority database password rotation (90-day cycle)
+  - Linkding, Mealie, N8N, Wallabag database passwords
+- [ ] 2026-01-24: HomeHub password rotation (90-day cycle)
 
 ### 2026 Q2 (Apr-Jun)
-- [ ] TBD: Schedule rotation for OIDC client secrets
+- [ ] 2026-04-16: Authentik secret key rotation (180-day cycle)
+- [ ] 2026-04-18: OIDC client secret rotation (180-day cycle)
+  - All 7 Authentik-integrated apps
+- [ ] 2026-04-23: AdGuard Home password rotation (180-day cycle)
 
 ---
 
@@ -350,6 +377,21 @@ If a secret is compromised:
 - [Security Documentation](./SECURITY.md) - Security policies and incident response
 - [Performance & Security Audit](./PERFORMANCE_SECURITY_AUDIT.md) - Latest audit findings
 - [Homelab Analysis](./HOMELAB_ANALYSIS.md) - Infrastructure overview
+
+### Git Audit Trail
+
+To verify secret rotation history and exact dates, use git commit history:
+
+```bash
+# View all secret rotation commits with dates
+git log --all --date=short --format="%ad %s" --grep="secret\|password\|rotate" -- apps/
+
+# View specific secret file history
+git log --all --date=short --format="%ad %h %s" --follow -- apps/base/immich/secret.yaml
+
+# View detailed changes for a specific commit
+git show <commit-hash> -- apps/base/immich/secret.yaml
+```
 
 ---
 
