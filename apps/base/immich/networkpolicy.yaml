@@ -9,6 +9,7 @@ spec:
       app.kubernetes.io/instance: immich
   policyTypes:
     - Ingress
+    - Egress
   ingress:
     - from:
         - namespaceSelector:
@@ -47,3 +48,34 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow PostgreSQL database access
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+          podSelector:
+            matchLabels:
+              cnpg.io/cluster: main-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow Redis access
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+          podSelector:
+            matchLabels:
+              app: redis
+      ports:
+        - protocol: TCP
+          port: 6379

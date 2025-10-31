@@ -37,8 +37,3 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow limited HTTPS outbound (for updates/media downloads if needed)
-    # HomeHub should primarily work offline
-    - ports:
-        - protocol: TCP
-          port: 443
