@@ -30,10 +30,10 @@ metadata:
   namespace: databases
 spec:
   hard:
-    requests.cpu: "8"
-    requests.memory: 16Gi
-    limits.cpu: "24"
-    limits.memory: 32Gi
+    requests.cpu: "3"
+    requests.memory: 6Gi
+    limits.cpu: "10"
+    limits.memory: 12Gi
     pods: "50"
     services: "20"
     persistentvolumeclaims: "20"

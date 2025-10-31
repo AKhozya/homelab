@@ -7,10 +7,10 @@ metadata:
 spec:
   hard:
     # Total resource limits across all pods in namespace
-    requests.cpu: "8"          # 8 CPUs total requests
-    requests.memory: 16Gi      # 16GB total memory requests
-    limits.cpu: "24"           # 24 CPUs total limits
-    limits.memory: 32Gi        # 32GB total memory limits
+    requests.cpu: "3"          # 3 CPUs total requests
+    requests.memory: 6Gi       # 6GB total memory requests
+    limits.cpu: "10"           # 10 CPUs total limits
+    limits.memory: 12Gi        # 12GB total memory limits
 
     # Object count limits
     pods: "50"                 # Max 50 pods
