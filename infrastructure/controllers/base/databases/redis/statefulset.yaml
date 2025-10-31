@@ -125,7 +125,7 @@ spec:
               cpu: "10m"
               memory: "32Mi"
             limits:
-              cpu: "200m"  # Increased from 50m to eliminate 65% CPU throttling
+              cpu: "300m"  # Increased from 200m to eliminate 25.93% CPU throttling during Prometheus scrapes
               memory: "64Mi"
       volumes:
         - name: acl-template
