@@ -53,40 +53,13 @@ spec:
                   name: rapidocr-models
                   emptyDir: {}
               - op: add
-                path: /spec/template/spec/initContainers/-
-                value:
-                  name: setup-rapidocr-models
-                  image: ghcr.io/immich-app/immich-machine-learning:v2.2.0
-                  command:
-                    - sh
-                    - -c
-                    - |
-                      # Find Python version dynamically and create symlink
-                      PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
-                      SITE_PACKAGES="/opt/venv/lib/python${PYTHON_VERSION}/site-packages"
-                      MODELS_DIR="${SITE_PACKAGES}/rapidocr/models"
-
-                      # Remove existing models directory and create symlink to writable location
-                      rm -rf "$MODELS_DIR"
-                      ln -sf /cache/rapidocr-models "$MODELS_DIR"
-
-                      echo "Created symlink: $MODELS_DIR -> /cache/rapidocr-models"
-                  volumeMounts:
-                    - name: rapidocr-models
-                      mountPath: /cache/rapidocr-models
-                  securityContext:
-                    allowPrivilegeEscalation: false
-                    readOnlyRootFilesystem: false
-                    runAsNonRoot: false
-                    runAsUser: 0
-                    capabilities:
-                      drop:
-                        - ALL
-              - op: add
                 path: /spec/template/spec/containers/0/volumeMounts/-
                 value:
                   name: rapidocr-models
-                  mountPath: /cache/rapidocr-models
+                  # NOTE: Python version hardcoded - update when Immich ML updates Python
+                  # Current: Python 3.11 (as of Immich v2.2.0)
+                  # rapidocr library downloads fonts to this path on first run
+                  mountPath: /opt/venv/lib/python3.11/site-packages/rapidocr/models
   # Note: Hardware acceleration (VAAPI) is disabled via IMMICH_MEDIA_FFMPEG_ACCEL=disabled
   # /dev/dri hostPath mount removed for Pod Security Standards (restricted) compliance
   # hostPath volumes violate PSS restricted policy
