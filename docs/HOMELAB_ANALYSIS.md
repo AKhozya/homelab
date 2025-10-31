@@ -351,17 +351,21 @@
    - **Priority**: P2-MEDIUM
    - **Status**: Already in roadmap (task #17)
 
-#### 15. **Add Backup Integrity Checks (SHA256)**
-   - **Benefit**: Detect silent data corruption
-   - **Action**: Add SHA256 checksums to all backup files
-   - **Estimated Effort**: 2 hours
-   - **Priority**: P2-MEDIUM
+#### 15. ✅ **COMPLETED: Backup Integrity Checks (SHA256)** (2025-10-31)
+   - **Status**: ✅ All backup systems now generate SHA256 checksums
+   - **Implementation**: PostgreSQL, CouchDB, and PVC backups all generate `.sha256` files
+   - **Verification**: `sha256sum -c backup_file.tar.gz.sha256` before restore
+   - **Benefit**: Detect silent data corruption during restore operations
+   - **Documentation**: BACKUP_STRATEGY.md updated with SHA256 verification steps
+   - **No action needed** - Already complete
 
-#### 16. **Encrypt Secrets Backup with GPG**
-   - **Risk**: Secrets backup stored unencrypted in `.backup/secrets/`
-   - **Action**: Add GPG encryption to `secrets-backup.sh`
-   - **Estimated Effort**: 1 hour
-   - **Priority**: P2-MEDIUM
+#### 16. ✅ **COMPLETED: Encrypt Secrets Backup with GPG** (2025-10-31)
+   - **Status**: ✅ GPG AES256 encryption fully implemented with interactive passphrase
+   - **Implementation**: `.backup/secrets-backup.sh` and `.backup/secrets-restore.sh`
+   - **Security**: Interactive passphrase prompt (no hardcoded defaults), confirmation to prevent typos
+   - **Format**: Backups saved as `.tar.gz.gpg` encrypted archives
+   - **Documentation**: BACKUP_STRATEGY.md lines 190-224 documents usage
+   - **No action needed** - Already complete
 
 #### 17. **Implement Backup Immutability**
    - **Benefit**: Ransomware protection via S3 object lock or ZFS snapshots
@@ -381,12 +385,13 @@
    - **Estimated Effort**: 2 hours
    - **Priority**: P2-MEDIUM
 
-#### 20. **Inconsistent PgBouncer Pooler Usage**
-   - **Risk**: Connection exhaustion possible
-   - **Current State**: Some apps use pooler, others don't
-   - **Action**: Standardize pooler usage
-   - **Estimated Effort**: 1 hour
-   - **Priority**: P2-MEDIUM
+#### 20. ✅ **VERIFIED: PgBouncer Pooler Usage is Correct** (2025-10-31)
+   - **Status**: ✅ All apps correctly using `main-postgres-rw-pooler.databases.svc.cluster.local`
+   - **Configuration**: 3 PgBouncer pooler pods running in HA mode
+   - **Pooler Type**: Read-Write (rw) pooler - correct for all apps requiring write access
+   - **Verified Apps**: authentik, immich, n8n, paperless, linkding, mealie, wallabag, audiobookshelf
+   - **Connection Pooling**: Active and protecting PostgreSQL from connection exhaustion
+   - **No action needed** - Already working correctly
 
 #### 21. **Overly Permissive Database User Permissions**
    - **Risk**: App users have CREATEDB, CREATEROLE privileges

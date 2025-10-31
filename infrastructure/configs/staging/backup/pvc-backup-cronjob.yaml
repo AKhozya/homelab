@@ -149,10 +149,16 @@ spec:
                         BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
                         ORIGINAL_SIZE=$(du -sh "$SOURCE_DIR" | cut -f1)
 
+                        # Generate SHA256 checksum for backup integrity
+                        echo "Generating SHA256 checksum..."
+                        CHECKSUM_FILE="${BACKUP_FILE}.sha256"
+                        sha256sum "$BACKUP_FILE" > "$CHECKSUM_FILE"
+
                         echo ""
                         echo "✅ Backup completed successfully"
                         echo "   Size:     $BACKUP_SIZE"
                         echo "   Duration: ${DURATION}s"
+                        echo "   Checksum: $(basename $CHECKSUM_FILE)"
                         echo "   Note:     No compression (media files)"
                         echo ""
 
@@ -174,11 +180,17 @@ spec:
                         COMPRESSED_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
                         ORIGINAL_SIZE=$(du -sh "$SOURCE_DIR" | cut -f1)
 
+                        # Generate SHA256 checksum for backup integrity
+                        echo "Generating SHA256 checksum..."
+                        CHECKSUM_FILE="${BACKUP_FILE}.sha256"
+                        sha256sum "$BACKUP_FILE" > "$CHECKSUM_FILE"
+
                         echo ""
                         echo "✅ Backup completed successfully"
                         echo "   Original:   $ORIGINAL_SIZE"
                         echo "   Compressed: $COMPRESSED_SIZE"
                         echo "   Duration:   ${DURATION}s"
+                        echo "   Checksum:   $(basename $CHECKSUM_FILE)"
                         echo ""
 
                         success_count=$((success_count + 1))

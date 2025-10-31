@@ -136,9 +136,10 @@ cat obsidian-personal.couchbackup | couchrestore \
 **File:** `infrastructure/configs/staging/backup/pvc-backup-cronjob.yaml`
 
 **Implementation:**
-- CronJob runs daily at 3:00 AM (after database backups)
+- CronJob runs daily at 3:10 AM (after database backups)
 - Uses `tar -czf` for direct compression (no complex pipelines)
 - Backs up critical PVCs only (not all PVCs)
+- **Generates SHA256 checksum** for each backup file for integrity verification
 - Stores at `/mnt/k8s-backup/pvc/YYYYMMDD_HHMMSS/` on worker node
 - Organized by namespace
 
@@ -159,12 +160,15 @@ cat obsidian-personal.couchbackup | couchrestore \
 
 **Restore procedure:**
 ```bash
+# Verify backup integrity
+cd /mnt/k8s-backup/pvc/YYYYMMDD_HHMMSS/home-assistant
+sha256sum -c home-assistant-data-pvc.tar.gz.sha256
+
 # Stop application
 kubectl scale deployment/home-assistant -n home-assistant --replicas=0
 
 # Extract and restore
-tar -xzf /mnt/k8s-backup/pvc/YYYYMMDD_HHMMSS/home-assistant/home-assistant-data-pvc.tar.gz \
-  -C /mnt/k8s-storage/pvc-XXXXX/
+tar -xzf home-assistant-data-pvc.tar.gz -C /mnt/k8s-storage/pvc-XXXXX/
 
 # Restart application
 kubectl scale deployment/home-assistant -n home-assistant --replicas=1
@@ -186,6 +190,15 @@ kubectl scale deployment/home-assistant -n home-assistant --replicas=1
 - 🗄️ All application database user credentials (authentik, immich, linkding, mealie, n8n, paperless, wallabag)
 - 📱 All application secrets (25+ applications)
 - 🔐 **NEW:** OIDC integration secrets (audiobookshelf, grafana, home-assistant, immich, linkding, mealie, n8n, paperless-ngx)
+
+**What's NOT backed up (already stored securely):**
+- 🔑 **SSH keys**: **Already stored in 1Password** ✅
+  - **Not on disk** - 1Password SSH agent manages keys securely
+  - **Critical for**: Git operations, cluster access, Flux GitHub integration
+  - **No backup needed** - 1Password is the source of truth
+- 📦 **Local SOPS age key**: **Already stored in 1Password** ✅
+  - **Also at**: `~/.config/sops/age/keys.txt` (local copy)
+  - **No backup needed** - 1Password is the source of truth
 
 **Encryption:** 🔐 **GPG AES256 with interactive passphrase**
 - Script prompts for passphrase during backup
@@ -548,6 +561,15 @@ cd .backup
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-10-31: SHA256 Checksums and Documentation Updates
+- ✅ Added SHA256 checksum generation to PVC backup script (completes backup integrity checks)
+- ✅ All three backup systems now generate SHA256 checksums (PostgreSQL, CouchDB, PVC)
+- ✅ Documented SSH keys and SOPS age key already stored in 1Password (no backup needed)
+- ✅ Updated restore procedures to include SHA256 verification steps
+- ✅ Verified PgBouncer pooler usage - all apps correctly using rw-pooler
+- ✅ Verified GPG encryption already implemented with interactive passphrase
+- 📋 Updated HOMELAB_ANALYSIS.md to mark both tasks as complete
 
 ### 2025-10-23: Backups Fully Operational
 - ✅ PostgreSQL automated backups implemented and tested (10 databases, 43.3MB)
