@@ -56,10 +56,28 @@ spec:
                 path: /spec/template/spec/containers/0/volumeMounts/-
                 value:
                   name: rapidocr-models
-                  # NOTE: Python version hardcoded - update when Immich ML updates Python
-                  # Current: Python 3.11 (as of Immich v2.2.0)
-                  # rapidocr library downloads fonts to this path on first run
-                  mountPath: /opt/venv/lib/python3.11/site-packages/rapidocr/models
+                  # Mount at version-independent path, symlink created at startup
+                  mountPath: /cache/rapidocr-models
+              - op: add
+                path: /spec/template/spec/containers/0/command
+                value:
+                  - /bin/sh
+                  - -c
+                  - |
+                    # Dynamically detect Python version and create symlink for rapidocr models
+                    # This prevents hardcoding Python version (e.g., python3.11)
+                    PYTHON_VERSION=$(python -c 'import sys; print(f"python{sys.version_info.major}.{sys.version_info.minor}")')
+                    MODELS_PATH="/opt/venv/lib/${PYTHON_VERSION}/site-packages/rapidocr/models"
+
+                    echo "Detected Python version: ${PYTHON_VERSION}"
+                    echo "Creating symlink: ${MODELS_PATH} -> /cache/rapidocr-models"
+
+                    # Remove original directory and create symlink
+                    rm -rf "${MODELS_PATH}"
+                    ln -sf /cache/rapidocr-models "${MODELS_PATH}"
+
+                    # Start the application
+                    exec tini -- python -m immich_ml
   # Note: Hardware acceleration (VAAPI) is disabled via IMMICH_MEDIA_FFMPEG_ACCEL=disabled
   # /dev/dri hostPath mount removed for Pod Security Standards (restricted) compliance
   # hostPath volumes violate PSS restricted policy
