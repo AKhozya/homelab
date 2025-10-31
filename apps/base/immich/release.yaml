@@ -47,6 +47,16 @@ spec:
               - op: add
                 path: /spec/template/spec/automountServiceAccountToken
                 value: false
+              - op: add
+                path: /spec/template/spec/volumes/-
+                value:
+                  name: rapidocr-models
+                  emptyDir: {}
+              - op: add
+                path: /spec/template/spec/containers/0/volumeMounts/-
+                value:
+                  name: rapidocr-models
+                  mountPath: /opt/venv/lib/python3.11/site-packages/rapidocr/models
   # Note: Hardware acceleration (VAAPI) is disabled via IMMICH_MEDIA_FFMPEG_ACCEL=disabled
   # /dev/dri hostPath mount removed for Pod Security Standards (restricted) compliance
   # hostPath volumes violate PSS restricted policy
