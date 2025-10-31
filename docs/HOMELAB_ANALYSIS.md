@@ -506,11 +506,14 @@
 
 ### 📋 P3-LOW (Nice to Have / Long Term)
 
-#### 29. **Extended PVC Backup Retention (7 days)**
-   - **Current**: 3 days
-   - **Storage Impact**: +184GB
-   - **Action**: Increase retention after offsite backups
-   - **Priority**: P3-LOW
+#### 29. ✅ **COMPLETED: Extended PVC Backup Retention (7 days)** (2025-10-31)
+   - **Status**: ✅ Increased retention from 3 to 7 days (133% increase)
+   - **Implementation**: Updated pvc-backup-cronjob.yaml to keep 7 days of backups
+     - Changed retention logic from `-mtime +3` to `-mtime +7`
+     - Updated all documentation references to 7-day retention
+   - **Storage Impact**: +184GB (138GB → 322GB, still only 7.7% of 4.2TB)
+   - **Benefits**: Better disaster recovery window, more flexibility for point-in-time recovery
+   - **Commit**: 0ac8028
 
 #### 30. **Backup Alert Grouping to Dedicated Telegram Thread**
    - **Benefit**: Easier monitoring
@@ -534,9 +537,14 @@
    - **Action**: Create custom dashboards
    - **Priority**: P3-LOW
 
-#### 33. **Document SSH Key Backup Location**
-   - **Action**: Document in BACKUP_STRATEGY.md
-   - **Priority**: P3-LOW
+#### 33. ✅ **COMPLETED: Document SSH Key Backup Location** (2025-10-31)
+   - **Status**: ✅ Already documented in BACKUP_STRATEGY.md (lines 195-201)
+   - **Implementation**: SSH keys stored in 1Password (not on disk)
+     - 1Password SSH agent manages keys securely
+     - Critical for: Git operations, cluster access, Flux GitHub integration
+     - No backup needed - 1Password is the source of truth
+   - **Also Documented**: SOPS age key also in 1Password (lines 199-201)
+   - **Benefits**: Secure key management, no local files to backup, centralized access
 
 #### 34. **Add PrometheusRules for Custom App Metrics**
    - **Benefit**: App-specific alerting
