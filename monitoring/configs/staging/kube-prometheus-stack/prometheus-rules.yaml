@@ -580,7 +580,7 @@ spec:
         description: "Redis is using {{ printf \"%.1f\" $value }}% of max client connections."
 
     - alert: RedisSlowQueries
-      expr: redis_slowlog_length > 10
+      expr: redis_slowlog_length > 50
       for: 5m
       labels:
         severity: warning
