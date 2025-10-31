@@ -108,42 +108,40 @@
 
 ### 🛡️ SECURITY HARDENING REVIEWS (Scheduled)
 
-#### 1. **📅 CSP Violation Analysis & Enforcement** - 2025-11-06 (7 days)
-   - **Status**: 📊 In progress - Collecting CSP violations in report-only mode
+#### 1. **📅 CSP Violation Analysis & Enforcement** - ACCELERATED (2025-11-03)
+   - **Status**: 📊 Collecting violations (20+ hours elapsed, zero violations observed)
    - **Current**: CSP report-only deployed to all 17 services (2025-10-30)
-   - **Monitoring**: Violations logged to csp-reporter service → Loki
-   - **Grafana Query**: `{namespace="csp-reporter"} | json | type="csp-violation"`
-   - **Review Date**: **2025-11-06** (after 7-day collection period)
+     - Policy: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'`
+     - Monitoring: csp-reporter service → Loki (`{namespace="csp-reporter"}`)
+   - **Observation**: ✅ **Zero violations after 20 hours** - permissive policy is working
+   - **Accelerated Review**: **2025-11-03** (72 hours instead of 7 days)
    - **Review Tasks**:
-     1. Analyze CSP violations in Grafana/Loki
-     2. Identify which directives are violated and why
-     3. Adjust CSP policy:
-        - Relax directives if apps need specific external resources
-        - Tighten by removing `'unsafe-inline'`/`'unsafe-eval'` where possible
-        - Add nonces/hashes for inline scripts if needed
-     4. Enable enforcement mode (`Content-Security-Policy` header)
+     1. ✅ Check for CSP violations in Grafana/Loki (expected: none or minimal)
+     2. Plan policy tightening (remove `'unsafe-inline'`/`'unsafe-eval'` if possible)
+     3. Enable enforcement mode (`Content-Security-Policy` header)
+     4. Monitor first 48h after enforcement for real violations
+   - **Next Steps (2025-11-03)**:
+     - Verify still zero violations
+     - Switch from `Content-Security-Policy-Report-Only` to `Content-Security-Policy`
+     - Keep report-uri for continued monitoring
    - **Files to Update**:
-     - `infrastructure/controllers/base/traefik/csp-middleware.yaml` (rename from csp-report-only)
+     - `infrastructure/controllers/base/traefik/csp-middleware.yaml`
      - `monitoring/configs/staging/kube-prometheus-stack/csp-middleware.yaml`
-     - All 17 ingress middleware chains
    - **Commits**: b8b6306, 7b2c72b, 54c8484
 
-#### 2. **📅 HSTS Max-Age Optimization** - 2025-11-30 (1 month)
-   - **Status**: ⏰ Scheduled review after 1 month of testing
-   - **Current**: Dual-layer HSTS deployed (2025-10-30)
+#### 2. **📅 HSTS Max-Age Optimization** - Gradual Rollout (IN PROGRESS)
+   - **Status**: 🔄 Step 1/3 Complete - 1 month max-age deployed (2025-10-31)
+   - **Current**: Unified HSTS across all layers
      - Cloudflare Edge: `max-age=2628000` (1 month)
-     - Traefik Origin: `max-age=604800` (1 week)
-   - **Review Date**: **2025-11-30** (after 1-month testing period)
-   - **Review Tasks**:
-     1. Verify no HSTS-related issues reported
-     2. Increase max-age to 1 year (31536000 seconds)
-     3. Consider adding `includeSubdomains` directive
-     4. Update both Cloudflare and Traefik configurations
-   - **Cloudflare API**: Use API to update edge HSTS settings
-   - **Files to Update**:
-     - `infrastructure/controllers/base/traefik/security-headers-middleware.yaml`
-     - `monitoring/configs/staging/kube-prometheus-stack/security-headers-middleware.yaml`
-     - Cloudflare Zone Settings (API call)
+     - Traefik Origin: `max-age=2628000` (1 month) ✅ **UPDATED**
+     - All 17 ingresses now have consistent 1-month HSTS
+   - **Gradual Rollout Plan**:
+     - ✅ **Step 1**: 1 month (2628000s) - Deployed 2025-10-31
+     - ⏰ **Step 2**: 6 months (15768000s) - Target: 2025-11-15 (2 weeks)
+     - ⏰ **Step 3**: 1 year (31536000s) - Target: 2026-01-15 (final)
+   - **Next Review**: **2025-11-15** (verify no issues, increase to 6 months)
+   - **Files Updated**: Both traefik and monitoring security-headers middleware
+   - **Commit**: 5e109cd
 
 ---
 
