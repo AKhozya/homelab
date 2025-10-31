@@ -206,7 +206,43 @@ spec:
       annotations:
         summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} is being CPU throttled"
         description: "Container is being CPU throttled {{ printf \"%.1f\" $value }}% of the time. Performance may be degraded. Consider increasing CPU limits."
-    
+
+    - alert: ContainerCPUNearLimit
+      expr: (rate(container_cpu_usage_seconds_total{container!=""}[5m]) / container_spec_cpu_limit{container!=""}) * 100 > 80 and container_spec_cpu_limit{container!=""} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} near CPU limit"
+        description: "Container is using {{ printf \"%.1f\" $value }}% of its CPU limit. May be throttled soon, affecting performance."
+
+    - alert: ContainerNoResourceLimits
+      expr: kube_pod_container_resource_limits{resource="memory"} == 0 and kube_pod_info{namespace!~"kube-system|monitoring|flux-system"}
+      for: 30m
+      labels:
+        severity: info
+      annotations:
+        summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} has no resource limits"
+        description: "Container running without memory limits. Can potentially exhaust node resources. Consider adding resource limits for better stability."
+
+    - alert: ContainerNoResourceRequests
+      expr: kube_pod_container_resource_requests{resource="memory"} == 0 and kube_pod_info{namespace!~"kube-system|monitoring|flux-system"}
+      for: 30m
+      labels:
+        severity: info
+      annotations:
+        summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} has no resource requests"
+        description: "Container running without memory requests. Scheduling may be suboptimal. Consider adding resource requests for better placement."
+
+    - alert: ContainerMemoryCritical
+      expr: (container_memory_working_set_bytes / container_spec_memory_limit_bytes) * 100 > 95 and container_spec_memory_limit_bytes > 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} critically low on memory"
+        description: "Container is using {{ printf \"%.1f\" $value }}% of its memory limit. OOMKill imminent! Immediate action required."
+
     - alert: PodImagePullError
       expr: kube_pod_container_status_waiting_reason{reason=~"ImagePullBackOff|ErrImagePull"} > 0
       for: 5m

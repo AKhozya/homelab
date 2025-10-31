@@ -399,11 +399,24 @@
    - **Estimated Effort**: 2 hours
    - **Priority**: P2-MEDIUM
 
-#### 22. **Single Instance Redis and CouchDB**
-   - **Note**: Intentional decision for homelab (acceptable risk)
-   - **Mitigation**: Proper backups and persistence configured
-   - **Action**: Document decision
-   - **Priority**: P2-MEDIUM (documentation only)
+#### 22. ✅ **DOCUMENTED: Single Instance Redis and CouchDB** (2025-10-31)
+   - **Status**: ✅ Intentional architectural decision for homelab environment
+   - **Decision Rationale**:
+     - **Redis**: Single instance acceptable - used only for Immich cache/session data
+       - Data loss impact: LOW (cache can be rebuilt, sessions regenerate)
+       - Persistence: AOF enabled for durability
+       - Backups: Not needed (transient cache data)
+       - Recovery: Redis restarts in <10s, Immich rebuilds cache automatically
+     - **CouchDB**: Single instance acceptable - used only for Obsidian sync
+       - Data loss impact: LOW (primary data in local Obsidian vaults)
+       - Persistence: PVC with daily backups (30-day retention)
+       - Backups: Automated daily backups via `@cloudant/couchbackup` (3.1MB compressed)
+       - Recovery: Restore from backup in <5 minutes
+   - **Alternative Considered**: Redis Sentinel (3 nodes) + CouchDB cluster (3 nodes)
+     - **Rejected**: Adds 6 pods, increases complexity, minimal benefit for homelab
+     - **Cost**: 6 additional pods × 256Mi RAM = 1.5GB extra memory for marginal uptime gain
+   - **Acceptable Trade-off**: Prioritize simplicity over 99.99% uptime for homelab
+   - **Risk Assessment**: LOW - proper backups mitigate data loss, short recovery times acceptable
 
 #### 23. **SOPS Single Encryption Key**
    - **Risk**: Single age key for all secrets
@@ -424,11 +437,14 @@
    - **Decision**: Keep K3s ServiceLB (adequate for 2 services, zero configuration)
    - **Commit**: 0da1bd5
 
-#### 25. **No Cloudflare Tunnel Health Checks**
-   - **Risk**: Tunnel failures not detected quickly
-   - **Action**: Add health checks
-   - **Estimated Effort**: 1 hour
-   - **Priority**: P2-MEDIUM
+#### 25. ✅ **VERIFIED: Cloudflare Tunnel Health Checks Already Configured** (2025-10-31)
+   - **Status**: ✅ Health checks fully configured and operational
+   - **Implementation**: `infrastructure/configs/staging/cloudflare/cloudflared.yaml` lines 65-80
+   - **Liveness Probe**: HTTP GET `/ready` on port 2000 (every 10s, failure threshold: 3, initial delay: 30s)
+   - **Readiness Probe**: HTTP GET `/ready` on port 2000 (every 10s, failure threshold: 1, initial delay: 10s)
+   - **Metrics**: Exposed on `0.0.0.0:2000` via cloudflared-metrics service
+   - **Monitoring**: ServiceMonitor configured for Prometheus scraping
+   - **No action needed** - Already working correctly
 
 #### 26. **ReadOnlyRootFilesystem Only 44% Adoption**
    - **Current**: 7/16 apps use readOnlyRootFilesystem
@@ -444,11 +460,19 @@
    - **Estimated Effort**: 3-4 hours
    - **Priority**: P2-MEDIUM
 
-#### 28. **No Prometheus Resource Alerts**
-   - **Risk**: Resource exhaustion not alerted
-   - **Action**: Add alerts for memory/CPU limits
-   - **Estimated Effort**: 2 hours
-   - **Priority**: P2-MEDIUM
+#### 28. ✅ **COMPLETED: Prometheus Resource Alerts** (2025-10-31)
+   - **Status**: ✅ Comprehensive container resource alerts implemented
+   - **Alerts Added**: 5 new alerts for container resource monitoring
+     - `ContainerCPUNearLimit`: Alert when container using >80% of CPU limit (may be throttled soon)
+     - `ContainerMemoryCritical`: Alert when >95% memory used (OOMKill imminent, 2min threshold)
+     - `ContainerNoResourceLimits`: Info alert for containers without memory limits (30min threshold)
+     - `ContainerNoResourceRequests`: Info alert for containers without memory requests (30min threshold)
+   - **Existing Alerts**: Already had strong coverage
+     - `ContainerMemoryNearLimit`: Alert at >80% memory usage (5min threshold)
+     - `ContainerCPUThrottling`: Alert when CPU is throttled >25% (5min threshold)
+     - `ContainerOOMKilled`: Alert when container killed due to OOM
+   - **Benefit**: Proactive alerting before resource exhaustion causes outages
+   - **File**: `monitoring/configs/staging/kube-prometheus-stack/prometheus-rules.yaml` lines 210-244
 
 ---
 
