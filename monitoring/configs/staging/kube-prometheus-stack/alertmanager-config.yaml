@@ -22,6 +22,10 @@ stringData:
       - match:
           alertname: InfoInhibitor
         receiver: 'null'
+      - match_re:
+          alertname: ^(BackupJobFailed|BackupCronJobMissedSchedule|BackupJobRunningTooLong|NoRecentBackups)$
+        receiver: 'telegram-backup'
+        continue: false
       - match:
           severity: critical
         receiver: 'telegram'
@@ -33,7 +37,7 @@ stringData:
     
     receivers:
     - name: 'null'
-    
+
     - name: 'telegram'
       telegram_configs:
       - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot_token
@@ -41,6 +45,23 @@ stringData:
         parse_mode: 'HTML'
         message: |
           <b>{{ .Status | toUpper }}</b>
+          {{ range .Alerts }}
+          <b>Alert:</b> {{ .Labels.alertname }}
+          <b>Severity:</b> {{ .Labels.severity }}
+          <b>Summary:</b> {{ .Annotations.summary }}
+          <b>Description:</b> {{ .Annotations.description }}
+          {{ if .Labels.namespace }}<b>Namespace:</b> {{ .Labels.namespace }}{{ end }}
+          {{ if .Labels.pod }}<b>Pod:</b> {{ .Labels.pod }}{{ end }}
+          {{ if .Labels.container }}<b>Container:</b> {{ .Labels.container }}{{ end }}
+          {{ end }}
+
+    - name: 'telegram-backup'
+      telegram_configs:
+      - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot_token
+        chat_id: 113452686
+        parse_mode: 'HTML'
+        message: |
+          💾 <b>BACKUP {{ .Status | toUpper }}</b>
           {{ range .Alerts }}
           <b>Alert:</b> {{ .Labels.alertname }}
           <b>Severity:</b> {{ .Labels.severity }}
