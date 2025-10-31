@@ -517,9 +517,17 @@
    - **Action**: Group backup alerts
    - **Priority**: P3-LOW
 
-#### 31. **Improve Documentation for Secrets Rotation**
-   - **Action**: Document initial rotation dates
-   - **Priority**: P3-LOW
+#### 31. ✅ **COMPLETED: Improve Documentation for Secrets Rotation** (2025-10-31)
+   - **Status**: ✅ Added complete baseline rotation tracking to SECRETS_ROTATION.md
+   - **Implementation**: Populated all rotation tables with actual dates from git history
+     - Database passwords: 6 secrets (2025-10-19 to 2025-10-23)
+     - Redis passwords: 3 secrets (2025-10-18)
+     - Application credentials: 4 secrets (2025-10-18 to 2025-10-26)
+     - OIDC secrets: 7 apps (2025-10-20)
+   - **Next Rotation Dates**: All calculated based on 90/180-day cycles (Jan-Apr 2026)
+   - **Enhancements**: Added git audit trail section with verification commands
+   - **Benefits**: Complete rotation history tracking, proactive scheduling, audit trail
+   - **Commit**: ba643a8
 
 #### 32. **Add Grafana Dashboards for App Metrics**
    - **Benefit**: Better app-level observability
