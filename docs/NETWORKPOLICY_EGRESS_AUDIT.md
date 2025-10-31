@@ -9,13 +9,12 @@
 
 ## EXECUTIVE SUMMARY
 
-### Overall Status: ⚠️ **13/18 Apps Have Unrestricted Egress**
+### Overall Status: ✅ **9/18 Apps Have Unrestricted Egress** (Improved from 13/18)
 
 **Key Findings:**
-- ❌ **1 app** has NO Egress policy (default allow ALL)
-- ⚠️ **11 apps** allow unrestricted HTTP/HTTPS (ports 80/443 to ANY destination)
-- ⚠️ **1 app** has partially restricted egress but allows 443 to ANY
-- ✅ **5 apps** have well-restricted egress (cluster-only or specific destinations)
+- ✅ **0 apps** have NO Egress policy (was 1 - Immich fixed)
+- ⚠️ **9 apps** allow unrestricted HTTP/HTTPS (ports 80/443 to ANY destination)
+- ✅ **9 apps** have well-restricted egress (cluster-only or specific destinations)
 
 **Risk Assessment:**
 - **Impact**: Compromised pod = unrestricted internet access
@@ -192,16 +191,17 @@ egress:
 ---
 
 #### 10. **AdGuard Home** (apps/base/adguard-home/networkpolicy.yaml)
-**Current**: Allows ports 53/80/443/853 without destination restriction
+**Current**: ✅ **RESTRICTED** - DNS upstream limited to trusted providers only
 **Legitimate Needs**:
-- DNS upstream resolution (ports 53/853/443 for DoH/DoT) ⚠️ UNRESTRICTED
-- HTTPS for blocklist updates ⚠️ UNRESTRICTED
+- DNS upstream to Cloudflare (1.1.1.1, 1.0.0.1) ✅ RESTRICTED
+- DNS upstream to Google (8.8.8.8, 8.8.4.4) ✅ RESTRICTED
+- DNS upstream to Quad9 (9.9.9.9) ✅ RESTRICTED
+- DoT (port 853) to trusted providers ✅ RESTRICTED
+- HTTPS for blocklist updates (ports 80/443) ⚠️ UNRESTRICTED (required for GitHub, community lists)
 
-**Assessment**: CAN BE PARTIALLY RESTRICTED - DNS upstream can be restricted to Cloudflare (1.1.1.1/1.0.0.1)
+**Assessment**: OPTIMALLY RESTRICTED - DNS exfiltration limited to trusted providers
 
-**Recommended Fix**: Restrict DNS ports to Cloudflare IPs only
-
-**Action**: ⏰ **P3-LOW** - Restrict DNS upstream to Cloudflare IPs
+**Action**: ✅ **COMPLETE** - DNS upstream restricted to Cloudflare/Google/Quad9 IPs
 
 ---
 

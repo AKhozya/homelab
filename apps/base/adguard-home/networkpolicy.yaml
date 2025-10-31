@@ -34,17 +34,45 @@ spec:
         - protocol: UDP
           port: 53
   egress:
-    # Allow DNS resolution to upstream servers (Cloudflare)
-    - ports:
+    # Allow DNS resolution to trusted upstream servers only
+    # Cloudflare DNS (1.1.1.1, 1.0.0.1)
+    - to:
+        - ipBlock:
+            cidr: 1.1.1.1/32
+        - ipBlock:
+            cidr: 1.0.0.1/32
+      ports:
         - protocol: UDP
           port: 53
         - protocol: TCP
           port: 53
         - protocol: TCP
-          port: 443  # DoH to Cloudflare
+          port: 853  # DoT
+    # Google DNS (8.8.8.8, 8.8.4.4)
+    - to:
+        - ipBlock:
+            cidr: 8.8.8.8/32
+        - ipBlock:
+            cidr: 8.8.4.4/32
+      ports:
+        - protocol: UDP
+          port: 53
         - protocol: TCP
-          port: 853  # DoT to Cloudflare
-    # Allow HTTPS for blocklist updates
+          port: 53
+        - protocol: TCP
+          port: 853  # DoT
+    # Quad9 DNS (9.9.9.9)
+    - to:
+        - ipBlock:
+            cidr: 9.9.9.9/32
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+        - protocol: TCP
+          port: 853  # DoT
+    # Allow HTTPS for blocklist updates (GitHub, community lists, etc.)
     - ports:
         - protocol: TCP
           port: 443
