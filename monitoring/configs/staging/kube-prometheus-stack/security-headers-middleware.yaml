@@ -14,7 +14,7 @@ spec:
       Referrer-Policy: "strict-origin-when-cross-origin"
       # Disable FLoC tracking
       Permissions-Policy: "interest-cohort=()"
-      # Force HTTPS (1 week max-age, Cloudflare edge has 1 month)
-      Strict-Transport-Security: "max-age=604800"
+      # Force HTTPS (1 month max-age, matching Cloudflare edge)
+      Strict-Transport-Security: "max-age=2628000"
       # Remove server version info
       X-Powered-By: ""
