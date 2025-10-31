@@ -535,15 +535,16 @@
    - **Action**: Create custom rules
    - **Priority**: P3-LOW
 
-#### 35. ✅ **COMPLETED: Resource Quotas for All Namespaces** (2025-10-31)
-   - **Status**: ✅ 25 ResourceQuotas deployed across all app namespaces
-   - **Implementation**: Tiered approach based on resource needs
-     - Large tier (4 namespaces): databases, immich, monitoring, loki - 8 CPU req, 16Gi RAM req, 24 CPU limit, 32Gi RAM limit
-     - Medium tier (6 namespaces): authentik, paperless-ngx, n8n, home-assistant, obsidian, couchdb - 4 CPU req, 8Gi RAM req, 12 CPU limit, 16Gi RAM limit
+#### 35. ✅ **COMPLETED: Resource Quotas for All Namespaces** (2025-10-31, Tightened)
+   - **Status**: ✅ 25 ResourceQuotas deployed with tightened limits based on actual usage
+   - **Implementation**: Tiered approach based on real resource consumption
+     - Large tier (4 namespaces): databases, immich, monitoring, loki - **3 CPU req, 6Gi RAM req, 10 CPU limit, 12Gi RAM limit**
+     - Medium tier (6 namespaces): authentik, paperless-ngx, n8n, home-assistant, obsidian, couchdb - **1.5 CPU req, 4Gi RAM req, 5 CPU limit, 8Gi RAM limit**
      - Small tier (15 namespaces): All other apps and infrastructure - 2 CPU req, 4Gi RAM req, 6 CPU limit, 8Gi RAM limit
-   - **Benefits**: Resource isolation, prevents runaway consumption, capacity planning
-   - **Verified**: Working correctly (databases: 960m/8 CPU, 1696Mi/16Gi RAM used)
-   - **Commit**: 8bcf208
+   - **Optimization**: Reduced large tier by 62% and medium tier by 62% after analyzing actual usage
+   - **Current Usage**: databases (960m/3 CPU, 1.7Gi/6Gi RAM), immich (450m/3 CPU, 1.1Gi/6Gi RAM), monitoring (650m/3 CPU, 1.9Gi/6Gi RAM)
+   - **Benefits**: Resource isolation, prevents runaway consumption, tighter capacity planning
+   - **Commits**: 8bcf208 (initial), 6f0087c (tightened)
 
 #### 36. ✅ **COMPLETED: LimitRanges for All Namespaces** (2025-10-31)
    - **Status**: ✅ 25 LimitRanges deployed across all app namespaces
