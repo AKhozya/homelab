@@ -352,12 +352,19 @@
    - **Status**: Already in roadmap (task #17)
 
 #### 15. ✅ **COMPLETED: Backup Integrity Checks (SHA256)** (2025-10-31)
-   - **Status**: ✅ All backup systems now generate SHA256 checksums
+   - **Status**: ✅ All backup systems now generate SHA256 checksums, validated working correctly
    - **Implementation**: PostgreSQL, CouchDB, and PVC backups all generate `.sha256` files
+   - **Validation Testing** (2025-10-31):
+     - Created test backups for all three systems (PostgreSQL, CouchDB, PVC)
+     - Ran `sha256sum -c` validation on actual backup files
+     - ✅ PostgreSQL: Checksum validation PASSED
+     - ✅ CouchDB: Checksum validation PASSED
+     - ✅ PVC: Checksum validation PASSED (after fix)
+   - **Bug Fix**: PVC backup script used absolute paths in SHA256 files, fixed to use relative paths
    - **Verification**: `sha256sum -c backup_file.tar.gz.sha256` before restore
    - **Benefit**: Detect silent data corruption during restore operations
    - **Documentation**: BACKUP_STRATEGY.md updated with SHA256 verification steps
-   - **No action needed** - Already complete
+   - **Commits**: PVC backup fix (0fbbd37)
 
 #### 16. ✅ **COMPLETED: Encrypt Secrets Backup with GPG** (2025-10-31)
    - **Status**: ✅ GPG AES256 encryption fully implemented with interactive passphrase
