@@ -6,3 +6,4 @@ resources:
   - databases
   - cloudflare
   - backup
+  - resource-governance

@@ -1,0 +1,18 @@
+# ResourceQuota for small applications
+# Limits total resource consumption per namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: namespace-quota
+spec:
+  hard:
+    # Total resource limits across all pods in namespace
+    requests.cpu: "2"          # 2 CPUs total requests
+    requests.memory: 4Gi       # 4GB total memory requests
+    limits.cpu: "6"            # 6 CPUs total limits
+    limits.memory: 8Gi         # 8GB total memory limits
+
+    # Object count limits
+    pods: "20"                 # Max 20 pods
+    services: "10"             # Max 10 services
+    persistentvolumeclaims: "5" # Max 5 PVCs

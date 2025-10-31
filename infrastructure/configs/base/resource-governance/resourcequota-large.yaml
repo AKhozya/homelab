@@ -1,0 +1,18 @@
+# ResourceQuota for large applications (databases, monitoring, media processing)
+# Limits total resource consumption per namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: namespace-quota
+spec:
+  hard:
+    # Total resource limits across all pods in namespace
+    requests.cpu: "8"          # 8 CPUs total requests
+    requests.memory: 16Gi      # 16GB total memory requests
+    limits.cpu: "24"           # 24 CPUs total limits
+    limits.memory: 32Gi        # 32GB total memory limits
+
+    # Object count limits
+    pods: "50"                 # Max 50 pods
+    services: "20"             # Max 20 services
+    persistentvolumeclaims: "20" # Max 20 PVCs
