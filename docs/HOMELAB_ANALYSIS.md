@@ -535,15 +535,26 @@
    - **Action**: Create custom rules
    - **Priority**: P3-LOW
 
-#### 35. **Missing Resource Quotas for Namespaces**
-   - **Impact**: No resource isolation
-   - **Action**: Add ResourceQuotas
-   - **Priority**: P3-LOW
+#### 35. ✅ **COMPLETED: Resource Quotas for All Namespaces** (2025-10-31)
+   - **Status**: ✅ 25 ResourceQuotas deployed across all app namespaces
+   - **Implementation**: Tiered approach based on resource needs
+     - Large tier (4 namespaces): databases, immich, monitoring, loki - 8 CPU req, 16Gi RAM req, 24 CPU limit, 32Gi RAM limit
+     - Medium tier (6 namespaces): authentik, paperless-ngx, n8n, home-assistant, obsidian, couchdb - 4 CPU req, 8Gi RAM req, 12 CPU limit, 16Gi RAM limit
+     - Small tier (15 namespaces): All other apps and infrastructure - 2 CPU req, 4Gi RAM req, 6 CPU limit, 8Gi RAM limit
+   - **Benefits**: Resource isolation, prevents runaway consumption, capacity planning
+   - **Verified**: Working correctly (databases: 960m/8 CPU, 1696Mi/16Gi RAM used)
+   - **Commit**: 8bcf208
 
-#### 36. **No LimitRanges for Namespaces**
-   - **Impact**: No default resource limits
-   - **Action**: Add LimitRanges
-   - **Priority**: P3-LOW
+#### 36. ✅ **COMPLETED: LimitRanges for All Namespaces** (2025-10-31)
+   - **Status**: ✅ 25 LimitRanges deployed across all app namespaces
+   - **Implementation**: Consistent defaults for all namespaces
+     - Default request: 100m CPU, 128Mi RAM
+     - Default limit: 1000m CPU, 1Gi RAM
+     - Max per container: 8 CPU, 16Gi RAM
+     - Max per pod: 16 CPU, 32Gi RAM
+   - **Benefits**: All new pods get resource limits automatically, prevents unbounded consumption
+   - **Impact**: New pods without resource specs will get sensible defaults
+   - **Commit**: 8bcf208
 
 ---
 
