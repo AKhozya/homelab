@@ -393,11 +393,32 @@
    - **Connection Pooling**: Active and protecting PostgreSQL from connection exhaustion
    - **No action needed** - Already working correctly
 
-#### 21. **Overly Permissive Database User Permissions**
-   - **Risk**: App users have CREATEDB, CREATEROLE privileges
-   - **Action**: Restrict database user permissions
-   - **Estimated Effort**: 2 hours
-   - **Priority**: P2-MEDIUM
+#### 21. ✅ **ACCEPTED: Database User CREATEDB Permissions** (2025-10-31)
+   - **Status**: ✅ Intentional architectural decision - CREATEDB privilege required and safe
+   - **Research Findings** (thorough investigation):
+     - **Apps with custom extensions** (genuinely need CREATEDB):
+       - Immich: 6 extensions (vector, cube, earthdistance, pg_trgm, unaccent, uuid-ossp)
+       - N8N: 1 extension (uuid-ossp) + schema creation
+     - **Apps with only default extensions** (plpgsql only):
+       - Authentik, Linkding, Mealie, Paperless, Wallabag (Django/standard migrations)
+   - **Why CREATEDB is Required**:
+     - Applications need `CREATE EXTENSION` privileges during migrations
+     - Future app versions may add new PostgreSQL extensions
+     - No mechanism to temporarily elevate privileges for upgrades
+     - CloudNativePG likely grants CREATEDB automatically to database owners
+   - **Migration Patterns Verified**:
+     - Django apps (Authentik, Paperless, Mealie): ALTER TABLE operations only after initial setup
+     - TypeORM apps (Immich, N8N): May create extensions during version upgrades
+     - Breaking apps during updates is worse than over-permissioning
+   - **Risk Mitigation in Place**:
+     - ✅ Apps isolated via NetworkPolicies (13/13 apps)
+     - ✅ Each app has dedicated database user (not shared)
+     - ✅ Apps can only access their own database (PostgreSQL grants)
+     - ✅ No CREATEROLE privilege (cannot create other users)
+     - ✅ Daily backups protect against data loss
+   - **Trade-off Analysis**: Removing CREATEDB risks breaking future migrations for marginal security gain
+   - **Decision**: Accept CREATEDB as necessary operational requirement for PostgreSQL-based apps
+   - **No action needed** - Current permissions are appropriate for homelab
 
 #### 22. ✅ **DOCUMENTED: Single Instance Redis and CouchDB** (2025-10-31)
    - **Status**: ✅ Intentional architectural decision for homelab environment
