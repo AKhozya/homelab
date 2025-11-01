@@ -346,6 +346,9 @@ spec:
                 pullPolicy: IfNotPresent
               env:
                 TRANSFORMERS_CACHE: /cache
+                # Fix HuggingFace XET storage permission issues (https://github.com/immich-app/immich-charts/commit/5e2e396)
+                HF_XET_CACHE: /cache/huggingface-xet
+                MPLCONFIGDIR: /cache/matplotlib-config
               resources:
                 requests:
                   cpu: 200m
