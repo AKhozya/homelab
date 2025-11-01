@@ -79,3 +79,19 @@ spec:
       ports:
         - protocol: TCP
           port: 6379
+    # Allow inter-pod communication (ML <-> Server)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: immich
+      ports:
+        - protocol: TCP
+          port: 3003
+        - protocol: TCP
+          port: 8080
+    # Allow HTTPS for ML model downloads (modelscope.cn, huggingface.co)
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 443
