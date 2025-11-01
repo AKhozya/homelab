@@ -90,8 +90,7 @@ spec:
         - protocol: TCP
           port: 8080
     # Allow HTTPS for ML model downloads (modelscope.cn, huggingface.co)
-    - to:
-        - namespaceSelector: {}
-      ports:
+    # No 'to' selector = allow to any destination (including internet)
+    - ports:
         - protocol: TCP
           port: 443
