@@ -48,20 +48,20 @@ spec:
           enabled: true
           resources:
             requests:
-              cpu: 20m
-              memory: 96Mi
-            limits:
               cpu: 50m
-              memory: 192Mi
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
         datasources:
           enabled: true
           resources:
             requests:
-              cpu: 20m
-              memory: 96Mi
-            limits:
               cpu: 50m
-              memory: 192Mi
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
       # Additional datasources
       additionalDataSources:
         - name: Loki
