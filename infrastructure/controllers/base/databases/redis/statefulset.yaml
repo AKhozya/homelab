@@ -76,7 +76,7 @@ spec:
             - --loglevel
             - warning
             - --maxmemory
-            - "256mb"
+            - "480mb"
             - --maxmemory-policy
             - noeviction
           ports:
@@ -93,8 +93,8 @@ spec:
               cpu: "50m"
               memory: "128Mi"
             limits:
-              cpu: "200m"
-              memory: "256Mi"
+              cpu: "400m"
+              memory: "512Mi"
           volumeMounts:
             - name: data
               mountPath: /data
