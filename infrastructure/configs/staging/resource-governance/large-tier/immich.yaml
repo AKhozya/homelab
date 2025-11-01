@@ -32,8 +32,8 @@ spec:
   hard:
     requests.cpu: "3"
     requests.memory: 6Gi
-    limits.cpu: "10"
-    limits.memory: 18Gi
+    limits.cpu: "12"  # Temporarily increased to accommodate 8-core Immich server (revert with app limits)
+    limits.memory: 24Gi  # Temporarily increased to accommodate 10Gi Immich server (revert with app limits)
     pods: "50"
     services: "20"
     persistentvolumeclaims: "20"
