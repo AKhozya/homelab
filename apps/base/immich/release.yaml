@@ -202,7 +202,7 @@ spec:
                   memory: 512Mi
                 limits:
                   cpu: 3000m
-                  memory: 8Gi
+                  memory: 10Gi
               securityContext:
                 # No privileged access needed for CPU-only encoding
                 allowPrivilegeEscalation: false
