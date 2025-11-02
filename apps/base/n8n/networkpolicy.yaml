@@ -65,7 +65,3 @@ spec:
     - ports:
         - protocol: TCP
           port: 443
-    # Allow HTTP for webhooks and external integrations
-    - ports:
-        - protocol: TCP
-          port: 80
