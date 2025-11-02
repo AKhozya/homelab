@@ -73,10 +73,8 @@ spec:
         - protocol: TCP
           port: 853  # DoT
     # Allow HTTPS for blocklist updates (GitHub, community lists, etc.)
+    # Modern blocklists use HTTPS (2024-2025): GitHub-hosted, HaGeZi, OISD
+    # Legacy HTTP sources (someonewhocares.org, pgl.yoyo.org) have HTTPS support
     - ports:
         - protocol: TCP
           port: 443
-    # Allow HTTP for blocklist updates
-    - ports:
-        - protocol: TCP
-          port: 80
