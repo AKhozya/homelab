@@ -48,7 +48,3 @@ spec:
     - ports:
         - protocol: TCP
           port: 443
-    # Allow HTTP for Authentik OIDC redirect
-    - ports:
-        - protocol: TCP
-          port: 80
