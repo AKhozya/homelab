@@ -201,7 +201,7 @@ spec:
                   cpu: 200m
                   memory: 512Mi
                 limits:
-                  cpu: 8000m  # Temporary increase for video transcoding (revert to 3000m tomorrow morning)
+                  cpu: 3000m
                   memory: 10Gi
               securityContext:
                 # No privileged access needed for CPU-only encoding
