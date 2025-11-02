@@ -97,13 +97,14 @@ spec:
       replicas: 1
 
       # Resource limits
+      # Peak usage: 120Mi (was hitting 93% of 128Mi limit)
       resources:
         requests:
           cpu: 50m
-          memory: 64Mi
+          memory: 128Mi
         limits:
           cpu: 200m
-          memory: 128Mi
+          memory: 256Mi
 
       # Security context
       securityContext:
