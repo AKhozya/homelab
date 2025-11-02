@@ -48,13 +48,14 @@ spec:
               source: message
     
     # Resource limits
+    # Peak usage: 181Mi (was hitting 70% of 256Mi limit)
     resources:
       requests:
         cpu: 50m
-        memory: 128Mi
+        memory: 192Mi
       limits:
         cpu: 200m
-        memory: 256Mi
+        memory: 384Mi
     
     # ServiceMonitor for Prometheus
     serviceMonitor:
