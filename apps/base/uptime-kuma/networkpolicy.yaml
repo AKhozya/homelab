@@ -34,15 +34,7 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow HTTPS for monitoring external services
-    - ports:
-        - protocol: TCP
-          port: 443
-    # Allow HTTP for monitoring services
-    - ports:
-        - protocol: TCP
-          port: 80
-    # Allow monitoring services in other namespaces
+    # Allow monitoring services in other namespaces (cluster-only)
     - to:
         - namespaceSelector: {}
       ports:
