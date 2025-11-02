@@ -44,13 +44,7 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow HTTPS for Authentik OIDC (cluster-only)
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: authentik
-      ports:
+    # Allow HTTPS for Authentik OIDC
+    - ports:
         - protocol: TCP
-          port: 9000
-        - protocol: TCP
-          port: 9443
+          port: 443
