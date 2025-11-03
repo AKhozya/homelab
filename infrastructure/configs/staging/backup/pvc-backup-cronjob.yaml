@@ -271,10 +271,10 @@ spec:
               resources:
                 requests:
                   cpu: "500m"
-                  memory: "32Mi"
+                  memory: "256Mi"  # Increased from 32Mi for 60GB+ backup operations
                 limits:
                   cpu: "2000m"
-                  memory: "64Mi"
+                  memory: "512Mi"  # Increased from 64Mi to prevent OOMKills during tar/gzip
           volumes:
             - name: k8s-storage
               hostPath:
