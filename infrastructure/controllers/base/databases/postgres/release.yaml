@@ -42,10 +42,9 @@ spec:
     # Webhook configuration
     webhook:
       port: 9443
-
-    # Increase startup probe tolerance for node reboots
-    # Gives operator 100s (20 * 5s) to start after reboot
-    # Prevents crash when API server isn't immediately available
-    startupProbe:
-      failureThreshold: 20  # Default: 6 (30s total)
-      periodSeconds: 5
+      # Increase startup probe tolerance for node reboots
+      # Gives operator 100s (20 * 5s) to start after reboot
+      # Prevents crash when API server isn't immediately available
+      startupProbe:
+        failureThreshold: 20  # Default: 6 (30s total)
+        periodSeconds: 5
