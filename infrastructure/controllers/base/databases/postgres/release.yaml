@@ -43,35 +43,9 @@ spec:
     webhook:
       port: 9443
 
-    # Init container to wait for API server availability
-    # Prevents crash on node reboot when operator starts before networking is ready
-    initContainers:
-      - name: wait-for-api
-        image: busybox:1.36
-        command:
-          - sh
-          - -c
-          - |
-            echo "Waiting for Kubernetes API server at 10.43.0.1:443..."
-            timeout=60
-            elapsed=0
-            until nc -z 10.43.0.1 443 2>/dev/null; do
-              if [ $elapsed -ge $timeout ]; then
-                echo "Timeout after ${timeout}s waiting for API server"
-                exit 1
-              fi
-              echo "API server not ready, retrying in 2s... (${elapsed}s/${timeout}s)"
-              sleep 2
-              elapsed=$((elapsed + 2))
-            done
-            echo "API server is ready!"
-        securityContext:
-          runAsNonRoot: true
-          runAsUser: 65534
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop:
-              - ALL
-          seccompProfile:
-            type: RuntimeDefault
-          readOnlyRootFilesystem: true
+    # Increase startup probe tolerance for node reboots
+    # Gives operator 100s (20 * 5s) to start after reboot
+    # Prevents crash when API server isn't immediately available
+    startupProbe:
+      failureThreshold: 20  # Default: 6 (30s total)
+      periodSeconds: 5
