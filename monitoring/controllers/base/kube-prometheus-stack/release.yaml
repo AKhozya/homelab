@@ -133,10 +133,10 @@ spec:
             cpu: 500m
             memory: 2.5Gi
         # Config reloader sidecar resources
-        configReloaderCpu: "10m"
-        configReloaderMemory: "32Mi"
-        configReloaderCpuLimit: "20m"
-        configReloaderMemoryLimit: "64Mi"
+        configReloaderCpu: "50m"
+        configReloaderMemory: "64Mi"
+        configReloaderCpuLimit: "200m"
+        configReloaderMemoryLimit: "192Mi"
         storageSpec:
           volumeClaimTemplate:
             spec:
@@ -231,10 +231,10 @@ spec:
             cpu: 100m
             memory: 128Mi
         # Config reloader sidecar resources
-        configReloaderCpu: "10m"
-        configReloaderMemory: "16Mi"
-        configReloaderCpuLimit: "20m"
-        configReloaderMemoryLimit: "64Mi"
+        configReloaderCpu: "50m"
+        configReloaderMemory: "64Mi"
+        configReloaderCpuLimit: "200m"
+        configReloaderMemoryLimit: "128Mi"
     
     # Disable K3s-specific component alerts (embedded architecture)
     # Disable CPU overcommit alert (homelab - intentional overcommit for burst capacity)

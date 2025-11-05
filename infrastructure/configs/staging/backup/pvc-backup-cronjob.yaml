@@ -43,6 +43,13 @@ spec:
                 capabilities:
                   drop: ["ALL"]
                   add: ["CHOWN", "DAC_OVERRIDE"]
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "128Mi"
           containers:
             - name: backup
               image: alpine:3.22

@@ -24,6 +24,21 @@ spec:
     recreate: true
     cleanupOnFail: true
   values:
+    # Init container image (pin version, don't use :latest)
+    initImage:
+      repository: busybox
+      tag: "1.37.0"
+      pullPolicy: IfNotPresent
+
+    # Init container resources
+    initResources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
     # CouchDB cluster configuration
     clusterSize: 1
 

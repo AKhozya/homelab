@@ -46,6 +46,13 @@ spec:
                 capabilities:
                   drop: ["ALL"]
                   add: ["CHOWN", "DAC_OVERRIDE"]
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "128Mi"
           containers:
             - name: backup
               image: postgres:18-alpine
@@ -153,6 +160,13 @@ spec:
                 capabilities:
                   drop: ["ALL"]
                 readOnlyRootFilesystem: false  # Need to write to /tmp for pg_dump
+              resources:
+                requests:
+                  cpu: "200m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1000m"
+                  memory: "1Gi"
           volumes:
             - name: backup-storage
               hostPath:
