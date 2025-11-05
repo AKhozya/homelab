@@ -1,87 +1,65 @@
 # Homelab
 
-Kubernetes homelab GitOps automation, monitoring, and disaster recovery.
+Personal Kubernetes homelab running on K3s with GitOps automation, monitoring, and 16 self-hosted applications.
 
-## Features
+## What's Inside
 
-- Automated cluster management with FluxCD (GitOps)
-- Dependency updates managed by Renovate
-- Disaster recovery scripts and backup strategy
-- Monitoring and alerting with Prometheus, Alertmanager, Telegram
-- Secrets management with SOPS and age encryption
-- Storage best practices and backup automation
+**Infrastructure:**
+- FluxCD for GitOps (everything in Git)
+- CloudNativePG for PostgreSQL (3-replica HA)
+- Traefik + Cloudflare Tunnel for ingress
+- Prometheus, Grafana, Loki for monitoring
+- Renovate for automated dependency updates
 
-## Quickstart
+**Applications:** Authentik (SSO), Home Assistant, Immich (photos), Paperless-NGX (documents), Obsidian sync, and [11 more](docs/HOMELAB_ANALYSIS.md#-current-apps-16-total).
 
-1. **Bootstrap Flux:**
+**Security:** 100% Pod Security Standards compliance, NetworkPolicies everywhere, SOPS-encrypted secrets, daily backups.
 
+## Quick Start
+
+**Bootstrap Flux:**
 ```bash
-flux reconcile source git flux-system && flux reconcile kustomization infrastructure-controllers
-flux reconcile kustomization apps --namespace flux-system
-flux reconcile kustomization monitoring-controllers --namespace flux-system
-flux reconcile kustomization monitoring-configs --namespace flux-system
-flux reconcile kustomization infrastructure-configs --namespace flux-system
+flux reconcile source git flux-system
+flux reconcile kustomization infrastructure-controllers infrastructure-configs
+flux reconcile kustomization apps monitoring-controllers monitoring-configs
 ```
 
-2. **Trigger Renovate:**
+**Force Renovate run:** Check the Dependency Dashboard issue on GitHub.
 
-- Renovate runs automatically and creates PRs for dependency updates.
-- To force a run, use the Dependency Dashboard issue in GitHub.
-
-3. **Restore from Backup:**
-
-- See [.backup/README.md](.backup/README.md) for full disaster recovery instructions.
-
-## Monitoring & Alerting
-
-- Prometheus and Alertmanager monitor cluster health and workloads
-- Telegram notifications for critical events and Flux reconciliation
-- Custom rules for app and infrastructure failures
-
-## Secrets Management
-
-- All secrets are encrypted with SOPS and age before being committed or backed up
-- Never store unencrypted secrets in git or cloud storage
-- Rotate credentials after restore
-
-## Obsidian Sync Setup
-
-CouchDB is configured for secure Obsidian note synchronization across devices.
-
-**Get Credentials:**
-```bash
-./get-obsidian-credentials.sh
-```
-
-**Setup Guide:**
-- [CouchDB Cloudflare Access Setup](infrastructure/configs/staging/couchdb/CLOUDFLARE_ACCESS_SETUP.md)
-- [Service Tokens Template](infrastructure/configs/staging/couchdb/SERVICE_TOKENS_TEMPLATE.md)
-
-**Current Status:**
-- ✅ CouchDB running with 1 replica, 30GB storage
-- ✅ Database initialized with user permissions
-- ✅ Cloudflare tunnel configured for secure access
-
-## Renovate
-
-- Auto-merges minor and patch updates directly to branch
-- Groups updates for Flux, Helm, Prometheus stack, Traefik
-- Pins digests for Docker images and Helm charts for reproducibility
-- Requires manual review for major updates
+**Disaster recovery:** See [.backup/README.md](.backup/README.md) for full restore procedures.
 
 ## Documentation
 
-- [Disaster Recovery Guide](.backup/README.md)
-- [Backup Scripts and Best Practices](.backup/STORAGE_BEST_PRACTICES.md)
+- **[HOMELAB_ANALYSIS.md](docs/HOMELAB_ANALYSIS.md)** - Complete infrastructure overview, security posture, metrics (A- grade, 92/100)
+- **[BACKUP_STRATEGY.md](docs/BACKUP_STRATEGY.md)** - Daily backups, retention policies, restore procedures
+- **[SECRETS_ROTATION.md](docs/SECRETS_ROTATION.md)** - Credential rotation schedules and playbooks
+- **[COMPREHENSIVE_CODEBASE_REVIEW.md](docs/COMPREHENSIVE_CODEBASE_REVIEW.md)** - Full security audit findings
 
-## Troubleshooting & Support
+## Monitoring
 
-- If reconciliation fails, check Flux logs and Telegram notifications
-- For backup/restore issues, see disaster recovery docs
-- For secrets issues, verify SOPS encryption and age key setup
+Prometheus → Alertmanager → Telegram for alerts. Custom rules for app failures, backup job status, and resource exhaustion.
 
-## Contributing
+**Check cluster health:**
+```bash
+kubectl get helmrelease -A
+flux get kustomizations
+```
 
-- Fork the repo, make changes, and open a PR
-- Use the provided scripts for backup and recovery
-## Renovate
+## Secrets
+
+All secrets encrypted with SOPS + age before commit. Never commit plaintext secrets.
+
+**Decrypt a secret:**
+```bash
+sops -d infrastructure/configs/staging/databases/postgres/admin-secret.yaml
+```
+
+## Troubleshooting
+
+- **Flux reconciliation failed?** Check `flux logs` and Telegram notifications
+- **Pod stuck?** Likely NetworkPolicy blocking - check with `kubectl describe pod`
+- **Backup issues?** See disaster recovery docs in `.backup/`
+
+## Notes
+
+This is a personal homelab, not production infrastructure. Some choices prioritize simplicity over enterprise HA (e.g., single Redis instance, accepted risk for certain CVEs).

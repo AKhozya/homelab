@@ -17,7 +17,7 @@
 - Solid GitOps foundation with Flux
 - Comprehensive monitoring (Prometheus, Grafana, Loki, Alertmanager)
 - **🆕 Trivy Operator - Continuous vulnerability scanning** ⭐ (2025-10-27)
-- **🆕 Popeye - Cluster health monitoring (A grade, 100/100 score)** ⭐ (2025-10-27)
+- **🆕 Popeye - Cluster health monitoring (B grade, 82/100 score)** ⭐ (2025-10-27, Updated: 2025-11-05)
 - **🆕 Kyverno - Kubernetes-native policy enforcement (10 policies: 7 Enforce + 3 Audit, daily alerts)** ⭐ (2025-10-27, Updated: 2025-10-28)
   - **Enforced policies:** disallow-privilege-escalation, require-drop-all-capabilities, require-labels, disallow-host-namespaces, **require-non-default-serviceaccount** ✅, **require-seccomp-runtimedefault** ✅ (0 violations)
   - **Audit policies:** require-resource-limits (14), require-non-root (24), disallow-latest-tag (13), disallow-host-path (4)
@@ -53,7 +53,7 @@
   - **HSTS Review**: 2025-11-30 (1 month) - Increase max-age to 1 year, consider includeSubdomains
 
 **Critical Gaps (from 2025-10-27 Comprehensive Review)** 🔴
-- ⏸️ **No offsite backup replication** (P0-CRITICAL) - DEFERRED to November 2025 (NAS arrival)
+- ⏸️ **No offsite backup replication** (P0-CRITICAL) - DEFERRED to late December 2025 (NAS delivery postponed)
 - ✅ **PostgreSQL NetworkPolicy** (P0-CRITICAL) - COMPLETED (2025-10-27)
 - ✅ **Duplicate cert-manager ClusterIssuers** (P0-CRITICAL) - COMPLETED (2025-10-27)
 - ❌ **CNPG WAL archiving** (P0-CRITICAL) - REMOVED (Not Implementing - pg_dump acceptable)
@@ -64,6 +64,51 @@
 - ⚠️ **Overly permissive Redis ACLs** (P1-HIGH) - VALID BUT NOT FIXABLE (apps don't support prefixes)
 - ⏸️ **Automated backup validation** (P1-HIGH) - DEFERRED to Q1 2026 (homelab stabilization needed)
 - 📋 **Total Findings**: 36 issues (2 P0 completed, 1 P0 deferred, 1 P0 removed, 6 P1 completed, 1 P1 N/A, 1 P1 accepted, 1 P1 removed, 1 P1 deferred, 15 P2, 8 P3)
+
+**Vulnerability Findings (Trivy Operator - 2025-11-05)** 🔍
+- **Total Vulnerabilities**: 34 Critical, 360 High, 819 Medium, 0 Low
+- **Top Resources with CRITICAL Vulnerabilities**:
+  1. **Stirling-PDF** (8 critical, 19 high, 104 medium) - ✅ All fixes available via Alpine package updates
+     - CVE-2024-11403 (libjxl): Fixed in 0.11.1-r0
+     - CVE-2025-58050 (pcre2): Fixed in 10.46-r0
+     - CVE-2025-48072 (openexr, 4 instances): Fixed in 3.4.2-r0
+     - CVE-2025-54874 (openjpeg): Fixed in 2.5.3-r1
+  2. **Uptime-Kuma** (4 critical, 23 high, 64 medium) - ⚠️ 2 no fix, 1 Go stdlib fix, 1 no fix
+     - CVE-2025-7458 (sqlite, 2 instances): ❌ No fix available
+     - CVE-2023-45853 (zlib): ❌ No fix available
+     - CVE-2024-24790 (golang stdlib): ✅ Fixed in Go 1.21.11/1.22.4
+  3. **Paperless-NGX** (4 critical, 34 high, 104 medium) - ❌ No fixes available
+     - CVE-2023-6879 (aom/libaom3): ❌ No fix available
+     - CVE-2025-47917 (mbedtls): ❌ No fix available
+     - CVE-2025-7458 (sqlite): ❌ No fix available
+     - CVE-2023-45853 (zlib): ❌ No fix available
+  4. **Home Assistant** (4 critical, 21 high, 23 medium) - ✅ All fixes available
+     - CVE-2024-45337 (golang.org/x/crypto): Fixed in 0.31.0
+     - CVE-2025-49794 (libxml2): Fixed in 2.13.9-r0
+     - CVE-2025-49796 (libxml2): Fixed in 2.13.9-r0
+     - CVE-2025-58050 (pcre2): Fixed in 10.46-r0
+  5. **Audiobookshelf** (4 critical, 13 high, 11 medium) - ✅ All fixes available
+     - CVE-2025-49794 (libxml2): Fixed in 2.13.9-r0
+     - CVE-2025-49796 (libxml2): Fixed in 2.13.9-r0
+     - CVE-2025-58050 (pcre2): Fixed in 10.46-r0
+     - CVE-2025-7783 (form-data): Fixed in 2.5.4/3.0.4/4.0.4
+  6. **Immich ML** (3 critical, 10 high, 24 medium)
+  7. **Mealie** (2 critical, 6 high, 16 medium)
+  8. **CouchDB** (2 critical, 5 high, 28 medium)
+  9. **Immich Server** (1 critical, 0 high, 15 medium)
+- **Common HIGH Vulnerabilities (across multiple apps)**:
+  - **Go stdlib CVEs** (CVE-2025-47912, CVE-2025-58183/6/7/8, CVE-2025-61724): Require Go 1.24.8 or 1.25.2
+    - Affects: Wallabag (11 HIGH), postgres-backup CronJob (6 HIGH), and other Go-based apps
+  - **OpenSSL CVEs** (CVE-2025-9230, CVE-2025-9231): Alpine libcrypto3/libssl3 vulnerabilities
+    - Affects: Trivy-operator (6 HIGH, 8 MEDIUM)
+- **Remediation Strategy**:
+  - ✅ **Immediately fixable** (16 critical): Home Assistant (4), Audiobookshelf (4), Stirling-PDF (8)
+    - Action: Wait for upstream images with updated Alpine packages (passive monitoring)
+  - ⏸️ **Requires upstream Go updates** (1+ critical, 11+ high): Uptime-Kuma, Wallabag, postgres-backup
+    - Action: Wait for base image updates with Go 1.24.8/1.25.2
+  - ❌ **No fix available** (9 critical): Paperless-NGX (4), Uptime-Kuma (2 sqlite + 1 zlib)
+    - Action: Monitor for security patches, accept risk for homelab environment
+- **Monitoring**: Trivy Operator scans daily, vulnerability reports updated automatically
 
 **Backup Infrastructure** ✅
 - ✅ PostgreSQL daily backups (3:00 AM, 30-day retention)
@@ -623,10 +668,10 @@
 
 ---
 
-### 📅 DEFERRED TASKS (November 2025)
+### 📅 DEFERRED TASKS (Late December 2025)
 
 #### 37. **Offsite Backup Replication to NAS** ⏸️ BLOCKED
-   - **Status**: BLOCKED - Waiting for 24TB NAS hardware arrival (November 2025)
+   - **Status**: BLOCKED - Waiting for 24TB NAS hardware arrival (late December 2025, delivery postponed)
    - **Priority**: P0-CRITICAL (deferred until NAS available)
    - **Risk**: Complete data loss if worker node fails
    - **Impact**: All backups currently stored on single node `/mnt/k8s-storage/backups/`
@@ -642,10 +687,10 @@
      - rsync CronJob configuration: 1 hour
      - Testing: 1-2 hours
      - Documentation: 1 hour
-   - **Target Date**: November 2025 (upon NAS arrival)
+   - **Target Date**: Late December 2025 (upon NAS arrival)
    - **Files**: New CronJob manifest in `infrastructure/configs/staging/backup/offsite-replication.yaml`
    - **Benefit**: Protects against node hardware failure, data center disaster
-   - **Note**: DO NOT NAG UNTIL NOVEMBER
+   - **Note**: DO NOT NAG UNTIL LATE DECEMBER
 
 ---
 
@@ -1184,6 +1229,54 @@ ingress:
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-11-05 (Trivy Vulnerability Analysis) 🔍
+- ✅ **Comprehensive Vulnerability Assessment**: Analyzed all Trivy Operator vulnerability reports across cluster ⭐
+- 🎯 **Impact**: Identified 34 Critical, 360 High, 819 Medium vulnerabilities requiring attention
+- 🔧 **Key Findings**:
+  - **Critical Vulnerabilities (34 total)**:
+    - **Stirling-PDF** (8 critical): All fixable via Alpine package updates (libjxl, pcre2, openexr, openjpeg)
+    - **Home Assistant** (4 critical): All fixable (golang.org/x/crypto, libxml2, pcre2)
+    - **Audiobookshelf** (4 critical): All fixable (libxml2, pcre2, form-data)
+    - **Uptime-Kuma** (4 critical): 3 no fix available (sqlite, zlib), 1 Go stdlib fix
+    - **Paperless-NGX** (4 critical): All no fix available (aom, mbedtls, sqlite, zlib)
+    - **Immich ML** (3 critical), **Mealie** (2 critical), **CouchDB** (2 critical), **Immich Server** (1 critical)
+  - **High Vulnerabilities (360 total)**:
+    - **Go stdlib CVEs** (CVE-2025-47912, CVE-2025-58183/6/7/8, CVE-2025-61724): Require Go 1.24.8/1.25.2
+      - Affects: Wallabag (11 HIGH), postgres-backup (6 HIGH), other Go apps
+    - **OpenSSL CVEs** (CVE-2025-9230, CVE-2025-9231): Alpine libcrypto3/libssl3
+      - Affects: Trivy-operator (6 HIGH, 8 MEDIUM)
+- 📊 **Remediation Strategy**:
+  - ✅ **16 critical fixable**: Wait for upstream images with Alpine package updates (passive)
+  - ⏸️ **1+ critical + 11+ high**: Wait for Go 1.24.8/1.25.2 base images
+  - ❌ **9 critical no fix**: Monitor for patches, accept risk for homelab
+- 💡 **Decision**: Passive monitoring approach - most fixes require upstream image updates
+- 📋 **Documentation**: Added comprehensive vulnerability section to HOMELAB_ANALYSIS.md
+- 🔒 **Security**: Trivy Operator continuous scanning ensures new vulnerabilities detected automatically
+
+### 2025-11-05 (Popeye Resource Limit Remediation) 🏥
+- ✅ **Popeye Cluster Scan Improvements**: Fixed resource limits across CronJobs, init containers, and sidecars ⭐
+- 🎯 **Impact**: Cluster score improved from C (79/100) to B (82/100)
+- 🔧 **Technical Details**:
+  - **Backup CronJobs** (3 files):
+    - postgres-backup: Added init resources (50m/64Mi → 200m/128Mi), main resources (200m/512Mi → 1000m/1Gi)
+    - couchdb-backup: Added init resources (50m/64Mi → 200m/128Mi)
+    - pvc-backup: Added init resources (50m/64Mi → 200m/128Mi)
+  - **CouchDB StatefulSet**:
+    - Fixed `:latest` tag → Pinned to `busybox:1.37.0`
+    - Added init resources (50m/64Mi → 200m/128Mi)
+  - **Redis StatefulSet**:
+    - Added init resources (50m/64Mi → 200m/128Mi)
+  - **Loki HelmRelease**:
+    - Increased lokiCanary resources (20m/96Mi → 100m/256Mi)
+  - **Prometheus/Alertmanager**:
+    - Increased config-reloader resources (50m/64Mi → 200m/192Mi for Prometheus, → 200m/128Mi for Alertmanager)
+- 📊 **Verification**: All containers manually verified to have proper resource limits
+  - **Note**: Remaining 3 Popeye warnings (loki-sc-rules, alertmanager/prometheus config-reloader) are false positives
+  - All containers have resources: 100m/128Mi requests, 1c/1Gi limits (Helm chart defaults)
+- 💪 **Benefits**: Reduced OOMKill risk, better resource planning, improved cluster stability
+- 📋 **Files Modified**: 7 files (3 backup CronJobs, CouchDB/Redis StatefulSets, Loki/Prometheus HelmReleases)
+- Commits: a933df4 (resource limits), 374e07e (pushed)
 
 ### 2025-11-02 (NetworkPolicy Egress Validation) 🔍
 - ✅ **NetworkPolicy Egress Hardening Attempted and Reverted**: Validated that existing egress rules are correct ⭐
