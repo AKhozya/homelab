@@ -8,6 +8,7 @@ spec:
   backoffLimit: 3
   template:
     spec:
+      serviceAccountName: n8n
       restartPolicy: OnFailure
       securityContext:
         runAsUser: 65534
