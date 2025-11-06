@@ -18,10 +18,6 @@ spec:
       serviceAccountName: discount-bandit
       automountServiceAccountToken: false
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 82  # www-data user in Alpine
-        runAsGroup: 82
-        fsGroup: 82
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -75,7 +71,6 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false  # Laravel needs writable storage/cache
-            runAsNonRoot: true
             capabilities:
               drop:
                 - ALL
