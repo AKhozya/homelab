@@ -907,7 +907,7 @@
 
 ---
 
-## 📱 CURRENT APPS (16 total)
+## 📱 CURRENT APPS (17 total)
 
 | App | Status | Security | OIDC/SSO | Notes |
 |-----|--------|----------|----------|-------|
@@ -917,6 +917,7 @@
 | **AdGuard Home** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **DNS filtering** - Local DNS resolution ⭐ |
 | **Stirling PDF** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | **PDF toolkit** - Cloudflare Tunnel + internal access ⭐ |
 | **HomeHub** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Family dashboard** - Local only, no auth ⭐ |
+| **Discount Bandit** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Price tracking** - SQLite, FrankenPHP, PSS baseline ⭐ |
 | **Grafana** | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Monitoring dashboard, Authentik SSO ⭐ |
 | **Immich** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Photo management, Web UI config ⭐ |
 | **Paperless-NGX** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Document management, env var config ⭐ |
@@ -928,10 +929,10 @@
 | Audiobookshelf | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Web UI config ⭐ |
 | Obsidian | ✅ Running | ✅ NetworkPolicy | - | CouchDB sync |
 
-**Security Coverage: 16/16 apps (100%)** ✅
+**Security Coverage: 17/17 apps (100%)** ✅
 **SSO Coverage: 8/8 applicable apps (100%)** ⭐
 - **8 apps with OIDC**: Grafana, Immich, Paperless-NGX, Home Assistant, Mealie, Linkding, Audiobookshelf, Stirling PDF
-- **7 apps local-only/monitoring**: Homepage, Uptime Kuma, AdGuard Home, HomeHub, Obsidian, Wallabag, N8N*
+- **8 apps local-only/monitoring**: Homepage, Uptime Kuma, AdGuard Home, HomeHub, Discount Bandit, Obsidian, Wallabag, N8N*
 - **1 app (N8N)**: Requires Enterprise plan for SSO
 - **Note**: Authentik is the SSO provider (not counted as consumer)
 
@@ -1229,6 +1230,34 @@ ingress:
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-11-06 (Discount Bandit Installation) 🛍️
+- ✅ **New Application Deployed**: Added Discount Bandit price tracking application (app #17)
+- 🎯 **Impact**: E-commerce price monitoring with automated tracking every 6 hours
+- 🔧 **Technical Details**:
+  - **Application**: Discount Bandit v4 - Laravel-based price tracker
+  - **Container**: cybrarist/discount-bandit:v4 with FrankenPHP web server
+  - **Database**: SQLite (embedded, no separate container)
+  - **Storage**: 5Gi PVC (local-path) with subPath mounts for database and logs
+  - **Security**: PSS baseline (root required for FrankenPHP), NetworkPolicy, SOPS-encrypted APP_KEY
+  - **Capabilities**: NET_BIND_SERVICE (required for FrankenPHP to bind port 80)
+  - **Deployment Strategy**: Recreate (RWO PVC requirement)
+  - **Resources**: 100m/256Mi requests, 500m/512Mi limits
+  - **Health Probes**: Disabled temporarily (app returns 500 during initialization)
+  - **URL**: https://discounts.h0melab.work (Traefik Ingress + Let's Encrypt staging)
+- 🐛 **Issues Resolved**:
+  1. Container needs root for composer install and supervisord - changed PSS from restricted to baseline
+  2. FrankenPHP requires NET_BIND_SERVICE capability - added to securityContext
+  3. Liveness probes causing restart loops - disabled temporarily
+- 📋 **App Count**: 16 → 17 applications
+- 🔒 **Security**: 100% NetworkPolicy coverage maintained (17/17 apps)
+- 📊 **Configuration**:
+  - **Cron**: Every 6 hours (less aggressive than default 5 minutes)
+  - **Timezone**: America/Los_Angeles
+  - **Theme**: Blue
+  - **Session**: 120 minutes
+- 💪 **Benefits**: Automated price tracking for e-commerce products, email notifications for price drops
+- Commits: 1b5e0e8 (initial), 3f7172f (baseline PSS), ef35aba (NET_BIND_SERVICE), e899008 (probe delays), 0f91985 (disable probes)
 
 ### 2025-11-05 (Trivy Vulnerability Analysis) 🔍
 - ✅ **Comprehensive Vulnerability Assessment**: Analyzed all Trivy Operator vulnerability reports across cluster ⭐
