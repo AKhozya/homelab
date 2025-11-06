@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: discount-bandit
+  namespace: discount-bandit
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # RWO PVC requires Recreate strategy
+  selector:
+    matchLabels:
+      app: discount-bandit
+  template:
+    metadata:
+      labels:
+        app: discount-bandit
+    spec:
+      serviceAccountName: discount-bandit
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 82  # www-data user in Alpine
+        runAsGroup: 82
+        fsGroup: 82
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: discount-bandit
+          image: cybrarist/discount-bandit:v4
+          ports:
+            - containerPort: 80
+              name: http
+          env:
+            - name: APP_NAME
+              value: "Discount Bandit"
+            - name: APP_ENV
+              value: "production"
+            - name: APP_DEBUG
+              value: "false"
+            - name: APP_URL
+              value: "https://discounts.h0melab.work"
+            - name: ASSET_URL
+              value: "https://discounts.h0melab.work"
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: discount-bandit-secret
+                  key: app-key
+            - name: DB_CONNECTION
+              value: "sqlite"
+            - name: APP_TIMEZONE
+              value: "America/Los_Angeles"
+            - name: THEME_COLOR
+              value: "Blue"
+            - name: CRON
+              value: "0 */6 * * *"  # Every 6 hours (less aggressive than default 5 min)
+            - name: LOG_CHANNEL
+              value: "daily"
+            - name: SESSION_LIFETIME
+              value: "120"
+          volumeMounts:
+            - name: data
+              mountPath: /app/database
+              subPath: database
+            - name: data
+              mountPath: /logs
+              subPath: logs
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # Laravel needs writable storage/cache
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: discount-bandit-data

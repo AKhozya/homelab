@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: discount-bandit-tls
+  namespace: discount-bandit
+spec:
+  secretName: discount-bandit-tls
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+  dnsNames:
+    - discounts.h0melab.work
