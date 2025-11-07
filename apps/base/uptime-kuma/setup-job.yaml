@@ -54,9 +54,6 @@ spec:
                   print("Uptime Kuma is already set up. Skipping setup.")
 
               api.disconnect()
-              print("")
-              print("NOTE: Monitors must be added manually via the Uptime Kuma web UI at https://uptime.h0melab.work")
-              print("Add monitor for: Discount Bandit - https://discounts.h0melab.work")
               PYEOF
 
               echo "Setup complete!"
