@@ -89,6 +89,12 @@ data:
             description: PDF toolkit with OIDC
             namespace: stirling-pdf
             app: stirling-pdf
+        - Discount Bandit:
+            icon: si-shopify
+            href: https://discounts.h0melab.work
+            description: E-commerce price tracker
+            namespace: discount-bandit
+            app: discount-bandit
 
     - Media & Automation:
         - Audiobookshelf:
