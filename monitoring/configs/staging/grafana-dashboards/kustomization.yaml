@@ -3,3 +3,6 @@ kind: Kustomization
 resources:
   - cnpg-dashboard.yaml
   - redis-dashboard.yaml
+  - traefik-k8s-dashboard.yaml
+  - loki-stack-dashboard.yaml
+  - cert-manager-dashboard.yaml
