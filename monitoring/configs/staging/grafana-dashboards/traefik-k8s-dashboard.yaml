@@ -1482,14 +1482,14 @@ data:
               "type": "prometheus",
               "uid": "Prometheus"
             },
-            "definition": "label_values(traefik_entrypoint_open_connections, entrypoint)",
+            "definition": "label_values(traefik_open_connections, entrypoint)",
             "hide": 0,
             "includeAll": true,
             "multi": false,
             "name": "entrypoint",
             "options": [],
             "query": {
-              "query": "label_values(traefik_entrypoint_open_connections, entrypoint)",
+              "query": "label_values(traefik_open_connections, entrypoint)",
               "refId": "StandardVariableQuery"
             },
             "refresh": 1,
@@ -1504,14 +1504,14 @@ data:
               "type": "prometheus",
               "uid": "Prometheus"
             },
-            "definition": "label_values(traefik_service_open_connections, service)",
+            "definition": "label_values(traefik_open_connections, service)",
             "hide": 0,
             "includeAll": true,
             "multi": false,
             "name": "service",
             "options": [],
             "query": {
-              "query": "label_values(traefik_service_open_connections, service)",
+              "query": "label_values(traefik_open_connections, service)",
               "refId": "StandardVariableQuery"
             },
             "refresh": 2,
