@@ -27,16 +27,13 @@ spec:
         - protocol: UDP
           port: 53
     # Allow access to Kubernetes API server (for dashboard sidecar)
+    # API server endpoint: 192.168.1.127:6443 (control plane node)
     - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-        - podSelector:
-            matchLabels:
-              component: kube-apiserver
+        - ipBlock:
+            cidr: 192.168.1.127/32
       ports:
         - protocol: TCP
-          port: 443
+          port: 6443
     # Allow access to Prometheus in the same namespace
     - to:
         - podSelector:
