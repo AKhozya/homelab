@@ -27,11 +27,9 @@ spec:
             - sh
             - -c
             - |
-              echo "Installing git for composer..."
-              apk add --no-cache git
               echo "Running composer install..."
               cd /app
-              composer install --no-dev --optimize-autoloader --no-interaction
+              composer install --optimize-autoloader --no-interaction
               echo "Composer install completed successfully"
           volumeMounts:
             - name: vendor
