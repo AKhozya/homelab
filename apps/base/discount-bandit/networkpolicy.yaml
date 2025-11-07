@@ -36,15 +36,17 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow HTTPS to internet for price scraping
+    # Allow HTTPS to internet (for price scraping and Composer dependencies)
     - to:
-        - namespaceSelector: {}
+        - ipBlock:
+            cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
           port: 443
     # Allow HTTP to internet (some sites may redirect)
     - to:
-        - namespaceSelector: {}
+        - ipBlock:
+            cidr: 0.0.0.0/0
       ports:
         - protocol: TCP
           port: 80
