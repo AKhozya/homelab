@@ -26,6 +26,17 @@ spec:
       ports:
         - protocol: UDP
           port: 53
+    # Allow access to Kubernetes API server (for dashboard sidecar)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        - podSelector:
+            matchLabels:
+              component: kube-apiserver
+      ports:
+        - protocol: TCP
+          port: 443
     # Allow access to Prometheus in the same namespace
     - to:
         - podSelector:
