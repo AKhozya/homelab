@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-10-30 16:35 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-11-07 18:50 UTC)
 **Cluster**: K3s (staging)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -1258,6 +1258,29 @@ ingress:
   - **Session**: 120 minutes
 - 💪 **Benefits**: Automated price tracking for e-commerce products, email notifications for price drops
 - Commits: 1b5e0e8 (initial), 3f7172f (baseline PSS), ef35aba (NET_BIND_SERVICE), e899008 (probe delays), 0f91985 (disable probes)
+
+### 2025-11-07 (Grafana Dashboard Infrastructure) 📊
+- ✅ **Grafana Dashboards Fixed**: Resolved sidecar connectivity issues ⭐
+- ✅ **Dashboards Added**: CloudNativePG (PostgreSQL) and Redis monitoring
+- ✅ **HSTS Enforcement Plan**: Documented 1-year gradual rollout strategy ⭐
+- 🎯 **Impact**: Complete database observability with official dashboards
+- 🔧 **Technical Details**:
+  - **CloudNativePG Dashboard**: 9,347 lines, 133 Prometheus metrics
+  - **Redis Dashboard**: 1,643 lines, redis_exporter official dashboard
+  - **Root Issue**: NetworkPolicy blocking Kubernetes API access
+  - **Fix**: Added egress ipBlock to control plane (192.168.1.127:6443)
+  - **Optimization**: Reverted from SLEEP → WATCH method (real-time updates)
+  - **Homepage Fix**: Restarted deployment to reload ConfigMap
+- 📋 **Files Created**:
+  - `monitoring/configs/staging/grafana-dashboards/cnpg-dashboard.yaml`
+  - `monitoring/configs/staging/grafana-dashboards/redis-dashboard.yaml`
+  - `docs/HSTS_ENFORCEMENT_PLAN.md` (442 lines)
+- 🐛 **Issues Resolved**:
+  - NetworkPolicy blocking Kubernetes API (192.168.1.127:6443)
+  - Homepage ConfigMap not reloaded (pod restart required)
+  - Grafana sidecar using WATCH method with persistent connection issues
+- 💪 **Benefits**: Real-time dashboard auto-discovery, comprehensive database monitoring
+- Commits: dbf1173, 09020ae, 46f31ef, 26315c2, d6176ef, 8bf8b18
 
 ### 2025-11-07 (Discount Bandit Architectural Review Complete) ✅
 - ✅ **Comprehensive Architectural Review**: Completed full compliance review against homelab standards ⭐
