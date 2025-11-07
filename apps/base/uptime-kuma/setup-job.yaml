@@ -65,14 +65,9 @@ spec:
                   {"name": "Discount Bandit", "url": "https://discounts.h0melab.work"},
               ]
 
-              # Get existing monitors
-              existing_monitors = {m['name']: m for m in api.get_monitors()}
-
               # Create or update monitors
               for monitor_config in monitors:
-                  if monitor_config['name'] in existing_monitors:
-                      print(f"Monitor '{monitor_config['name']}' already exists. Skipping.")
-                  else:
+                  try:
                       print(f"Creating monitor '{monitor_config['name']}'...")
                       api.add_monitor(
                           type="http",
@@ -84,6 +79,13 @@ spec:
                           accepted_statuscodes=["200-299", "302"]
                       )
                       print(f"Monitor '{monitor_config['name']}' created successfully!")
+                  except Exception as e:
+                      error_msg = str(e).lower()
+                      if "already exists" in error_msg or "duplicate" in error_msg:
+                          print(f"Monitor '{monitor_config['name']}' already exists. Skipping.")
+                      else:
+                          print(f"Error creating monitor '{monitor_config['name']}': {e}")
+                          raise
 
               api.disconnect()
               PYEOF
