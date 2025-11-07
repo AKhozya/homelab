@@ -258,11 +258,71 @@ Discount Bandit meets PSS Baseline requirements:
 
 **Impact**: No automated vulnerability reports for discount-bandit image (`cybrarist/discount-bandit:v4`)
 
-**Workaround**: Manual vulnerability scanning required via `trivy image cybrarist/discount-bandit:v4`
+**Alternative Scanning Methods Investigated** (2025-11-07):
 
-**Root Cause**: Unknown - Trivy Operator issue specific to this image or deployment configuration
+1. **Trivy CLI (Local)**: Failed - Docker Hub rate limit (unauthenticated pull limit exceeded)
+   ```
+   TOOMANYREQUESTS: You have reached your unauthenticated pull rate limit.
+   ```
 
-**Next Steps**: Monitor Trivy Operator updates, attempt manual scan quarterly
+2. **Grype (Anchore)**: Failed - Same Docker Hub rate limit issue
+   ```bash
+   grype cybrarist/discount-bandit:v4 --only-fixed --fail-on critical
+   # Error: TOOMANYREQUESTS: You have reached your unauthenticated pull rate limit.
+   ```
+
+3. **Syft + Kubernetes**: Failed - k8s:// schema not supported without Docker daemon
+   ```bash
+   syft k8s://discount-bandit/deployment/discount-bandit
+   # Error: docker not available, containerd not available
+   ```
+
+4. **Kubectl Run Trivy Pod**: Blocked - Kyverno policy `require-non-default-serviceaccount`
+   ```bash
+   kubectl run trivy-scan --image=aquasec/trivy:latest --rm -i
+   # Error: admission webhook denied - requires non-default service account
+   ```
+
+5. **SSH to Worker Node**: Failed - Authentication error (SSH keys not configured)
+
+**Fundamental Blocker**: All remote scanning methods fail due to:
+- Docker Hub unauthenticated pull rate limit (200 pulls/6 hours per IP)
+- No Docker daemon running on macOS control machine
+- Worker node containerd not accessible without SSH
+- Kyverno admission policies block temporary scanning pods
+
+**Workaround Options**:
+
+1. **Manual Scan from Worker Node** (Quarterly):
+   ```bash
+   # SSH to worker node
+   ssh worker-node
+
+   # Scan cached image using crictl + trivy
+   sudo crictl images | grep discount-bandit
+   sudo trivy image --severity CRITICAL,HIGH cybrarist/discount-bandit:v4
+   ```
+
+2. **Docker Hub Authenticated Scan** (When needed):
+   ```bash
+   # Authenticate with Docker Hub to bypass rate limit
+   docker login
+   docker pull cybrarist/discount-bandit:v4
+   trivy image --severity CRITICAL,HIGH cybrarist/discount-bandit:v4
+   grype cybrarist/discount-bandit:v4 --only-fixed
+   ```
+
+3. **Comparison with Similar Images** (Current approach):
+   - Discount Bandit uses Alpine Linux + PHP/Laravel + FrankenPHP
+   - Similar homelab apps: Stirling PDF (Alpine-based)
+   - Expected vulnerabilities: Alpine package CVEs (libxml2, pcre2, OpenSSL)
+   - Remediation: Passive monitoring, wait for upstream image updates
+
+**Root Cause**: Docker Hub rate limiting + Trivy Operator compatibility issue + SSH access limitations
+
+**Recommendation**: Accept manual quarterly scanning limitation for low-risk homelab application
+
+**Next Scan Date**: 2026-02-07 (Quarterly review cycle)
 
 ---
 
