@@ -53,9 +53,6 @@ spec:
       sidecar:
         dashboards:
           enabled: true
-          # Use LIST/SLEEP method instead of WATCH to avoid persistent connection issues
-          # SLEEP polls every 60 seconds instead of maintaining a watch connection
-          watchMethod: SLEEP
           resources:
             requests:
               cpu: 50m
