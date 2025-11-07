@@ -85,10 +85,10 @@ spec:
             - name: SESSION_LIFETIME
               value: "120"
             - name: DB_DATABASE
-              value: "/app/database/database.sqlite"
+              value: "/data/database.sqlite"
           volumeMounts:
             - name: data
-              mountPath: /app/database
+              mountPath: /data
               subPath: database
             - name: data
               mountPath: /logs
