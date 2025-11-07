@@ -282,3 +282,12 @@ spec:
         limits:
           cpu: 500m
           memory: 128Mi
+
+    # K3s-specific fix for cadvisor metrics
+    # K3s exports container='' (empty) with actual name in 'name' label
+    # Copy 'name' → 'container' for dashboard compatibility
+    kubelet:
+      serviceMonitor:
+        cAdvisorMetricRelabelings:
+          - sourceLabels: [name]
+            targetLabel: container
