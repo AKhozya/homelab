@@ -83,6 +83,7 @@ spec:
                   homehub/homehub-data-pvc/*homehub-data-pvc*
                   stirling-pdf/stirling-pdf-configs-pvc/*stirling-pdf-configs-pvc*
                   uptime-kuma/uptime-kuma-data-pvc/*uptime-kuma-data-pvc*
+                  discount-bandit/discount-bandit-data/*discount-bandit-data*
                   "
 
                   # PVCs containing already-compressed media files (photos/videos/audio)
