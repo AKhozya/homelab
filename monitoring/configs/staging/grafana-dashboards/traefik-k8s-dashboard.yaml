@@ -1323,7 +1323,7 @@ data:
                 "uid": "Prometheus"
               },
               "editorMode": "code",
-              "expr": "label_replace(\n    sum(traefik_service_open_connections{namespace=~\"$namespace\",service=~\"$service.*\"}) by (namespace,service),\n    \"service\", \"$1\", \"service\", \"([^-]+-[^-]+).*\")",
+              "expr": "label_replace(\n    sum(traefik_open_connections{namespace=~\"$namespace\",service=~\"$service.*\",protocol=\"TCP\"}) by (namespace,service),\n    \"service\", \"$1\", \"service\", \"([^-]+-[^-]+).*\")",
               "legendFormat": "{{namespace}} on {{service}}",
               "range": true,
               "refId": "A"
@@ -1421,7 +1421,7 @@ data:
                 "uid": "Prometheus"
               },
               "editorMode": "code",
-              "expr": "sum(traefik_entrypoint_open_connections{namespace=~\"$namespace\",entrypoint=~\"$entrypoint\"}) by (namespace,entrypoint)\n",
+              "expr": "sum(traefik_open_connections{namespace=~\"$namespace\",entrypoint=~\"$entrypoint\",protocol=\"TCP\"}) by (namespace,entrypoint)\n",
               "legendFormat": "{{namespace}} on {{entrypoint}}",
               "range": true,
               "refId": "A"
