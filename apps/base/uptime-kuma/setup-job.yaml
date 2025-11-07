@@ -51,43 +51,12 @@ spec:
                   )
                   print("Admin user created successfully!")
               else:
-                  print("Uptime Kuma is already set up.")
-
-              # Login to create monitors
-              print("Logging in to create monitors...")
-              api.login(
-                  username=os.environ['UPTIME_KUMA_USERNAME'],
-                  password=os.environ['UPTIME_KUMA_PASSWORD']
-              )
-
-              # Define monitors to create
-              monitors = [
-                  {"name": "Discount Bandit", "url": "https://discounts.h0melab.work"},
-              ]
-
-              # Create or update monitors
-              for monitor_config in monitors:
-                  try:
-                      print(f"Creating monitor '{monitor_config['name']}'...")
-                      api.add_monitor(
-                          type="http",
-                          name=monitor_config['name'],
-                          url=monitor_config['url'],
-                          interval=60,
-                          retryInterval=60,
-                          maxretries=3,
-                          accepted_statuscodes=["200-299", "302"]
-                      )
-                      print(f"Monitor '{monitor_config['name']}' created successfully!")
-                  except Exception as e:
-                      error_msg = str(e).lower()
-                      if "already exists" in error_msg or "duplicate" in error_msg:
-                          print(f"Monitor '{monitor_config['name']}' already exists. Skipping.")
-                      else:
-                          print(f"Error creating monitor '{monitor_config['name']}': {e}")
-                          raise
+                  print("Uptime Kuma is already set up. Skipping setup.")
 
               api.disconnect()
+              print("")
+              print("NOTE: Monitors must be added manually via the Uptime Kuma web UI at https://uptime.h0melab.work")
+              print("Add monitor for: Discount Bandit - https://discounts.h0melab.work")
               PYEOF
 
               echo "Setup complete!"
