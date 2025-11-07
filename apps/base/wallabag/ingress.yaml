@@ -4,7 +4,7 @@ metadata:
   name: wallabag
   namespace: wallabag
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-standard@kubernetescrd,traefik-csp-report-only@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-standard@kubernetescrd,traefik-csp@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:

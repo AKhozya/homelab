@@ -8,4 +8,4 @@ resources:
   - security-headers-middleware.yaml
   - rate-limit-standard-middleware.yaml
   - rate-limit-high-frequency-middleware.yaml
-  - csp-report-only-middleware.yaml
+  - csp-middleware.yaml
