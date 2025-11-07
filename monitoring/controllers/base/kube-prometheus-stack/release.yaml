@@ -43,6 +43,13 @@ spec:
         limits:
           cpu: 500m
           memory: 1Gi
+      # RBAC permissions for dashboard sidecar to list/watch ConfigMaps
+      rbac:
+        pspEnabled: false
+        extraPermissions:
+          - apiGroups: [""]
+            resources: ["configmaps"]
+            verbs: ["get", "list", "watch"]
       sidecar:
         dashboards:
           enabled: true
