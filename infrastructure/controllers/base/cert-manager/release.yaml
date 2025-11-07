@@ -141,3 +141,5 @@ spec:
       servicemonitor:
         enabled: true
         prometheusInstance: default
+        labels:
+          release: kube-prometheus-stack
