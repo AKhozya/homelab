@@ -28,21 +28,23 @@ spec:
             - |
               set -e
 
-              echo "Waiting 10 seconds for Discount Bandit to be ready..."
-              sleep 10
+              echo "Waiting 15 seconds for Discount Bandit to be ready..."
+              sleep 15
 
-              echo "Checking if admin user already exists..."
-              USER_COUNT=$(php artisan tinker --execute="echo App\\Models\\User::where('email', '${ADMIN_EMAIL}')->count();")
-
-              if [ "$USER_COUNT" -eq "0" ]; then
-                echo "Creating admin user..."
-                php artisan make:filament-user \
-                  --name="${ADMIN_NAME}" \
-                  --email="${ADMIN_EMAIL}" \
-                  --password="${ADMIN_PASSWORD}"
+              echo "Creating admin user..."
+              if php artisan make:filament-user \
+                --name="${ADMIN_NAME}" \
+                --email="${ADMIN_EMAIL}" \
+                --password="${ADMIN_PASSWORD}" 2>&1 | tee /tmp/user-creation.log; then
                 echo "Admin user created successfully!"
               else
-                echo "Admin user already exists. Skipping creation."
+                if grep -q "already" /tmp/user-creation.log || grep -q "duplicate" /tmp/user-creation.log; then
+                  echo "Admin user already exists. Skipping creation."
+                  exit 0
+                else
+                  echo "Failed to create admin user. Check logs above."
+                  exit 1
+                fi
               fi
 
               echo "Setup complete!"
