@@ -1,0 +1,95 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discount-bandit-admin-setup
+  namespace: discount-bandit
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: discount-bandit-admin-setup
+    spec:
+      serviceAccountName: discount-bandit
+      automountServiceAccountToken: false
+      restartPolicy: OnFailure
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: setup
+          image: cybrarist/discount-bandit:v4
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+
+              echo "Waiting 10 seconds for Discount Bandit to be ready..."
+              sleep 10
+
+              echo "Checking if admin user already exists..."
+              USER_COUNT=$(php artisan tinker --execute="echo App\\Models\\User::where('email', '${ADMIN_EMAIL}')->count();")
+
+              if [ "$USER_COUNT" -eq "0" ]; then
+                echo "Creating admin user..."
+                php artisan make:filament-user \
+                  --name="${ADMIN_NAME}" \
+                  --email="${ADMIN_EMAIL}" \
+                  --password="${ADMIN_PASSWORD}"
+                echo "Admin user created successfully!"
+              else
+                echo "Admin user already exists. Skipping creation."
+              fi
+
+              echo "Setup complete!"
+          env:
+            - name: ADMIN_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: discount-bandit-admin
+                  key: name
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: discount-bandit-admin
+                  key: email
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: discount-bandit-admin
+                  key: password
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: discount-bandit-secret
+                  key: app-key
+            - name: DB_CONNECTION
+              value: "sqlite"
+            - name: DB_DATABASE
+              value: "/data/database.sqlite"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+              subPath: database
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: discount-bandit-data

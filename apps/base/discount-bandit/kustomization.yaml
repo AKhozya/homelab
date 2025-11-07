@@ -5,8 +5,10 @@ resources:
   - namespace.yaml
   - serviceaccount.yaml
   - secret.yaml
+  - admin-secret.yaml
   - pvc.yaml
   - deployment.yaml
   - service.yaml
   - networkpolicy.yaml
   - ingress.yaml
+  - admin-setup-job.yaml
