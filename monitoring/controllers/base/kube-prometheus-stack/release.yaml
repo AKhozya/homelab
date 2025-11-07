@@ -53,6 +53,11 @@ spec:
       sidecar:
         dashboards:
           enabled: true
+          # Use LIST method instead of WATCH to avoid persistent connection issues
+          # LIST polls every 60 seconds instead of maintaining a watch connection
+          env:
+            - name: METHOD
+              value: "LIST"
           resources:
             requests:
               cpu: 50m
