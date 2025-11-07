@@ -135,6 +135,8 @@ spec:
     monitoring:
       serviceMonitor:
         enabled: true
+        labels:
+          release: kube-prometheus-stack  # Required for Prometheus discovery
 
       selfMonitoring:
         enabled: false

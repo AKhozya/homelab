@@ -60,6 +60,8 @@ spec:
     # ServiceMonitor for Prometheus
     serviceMonitor:
       enabled: true
+      labels:
+        release: kube-prometheus-stack  # Required for Prometheus discovery
     
     # Tolerations to run on all nodes including control plane
     tolerations:
