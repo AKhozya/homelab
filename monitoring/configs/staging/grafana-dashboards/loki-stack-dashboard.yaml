@@ -89,7 +89,7 @@ data:
         {
           "dashboardFilter": "",
           "dashboardTags": [],
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "fieldConfig": {
             "defaults": {
               "custom": {}
@@ -118,7 +118,7 @@ data:
         },
         {
           "collapsed": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "gridPos": {
             "h": 1,
             "w": 24,
@@ -170,7 +170,7 @@ data:
           "bars": true,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "description": "Total number of messages logged by Loki itself",
           "fieldConfig": {
             "defaults": {
@@ -301,7 +301,7 @@ data:
           }
         },
         {
-          "datasource": "Loki",
+          "datasource": "${DS_LOKI}",
           "fieldConfig": {
             "defaults": {
               "custom": {}
@@ -374,7 +374,7 @@ data:
           "bars": true,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "description": "Total number of messages logged by Promtail",
           "fieldConfig": {
             "defaults": {
@@ -496,7 +496,7 @@ data:
           }
         },
         {
-          "datasource": "Loki",
+          "datasource": "${DS_LOKI}",
           "fieldConfig": {
             "defaults": {
               "custom": {}
@@ -569,7 +569,7 @@ data:
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "fieldConfig": {
             "defaults": {
               "custom": {}
@@ -709,7 +709,7 @@ data:
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "description": "Number of log entries dropped because failed to be sent to the Loki ingester after all retries.",
           "fieldConfig": {
             "defaults": {
@@ -812,7 +812,7 @@ data:
         },
         {
           "collapsed": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "gridPos": {
             "h": 1,
             "w": 24,
@@ -864,7 +864,7 @@ data:
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "description": "The total number of streams created per tenant.\nThis should not increase after startup.",
           "fieldConfig": {
             "defaults": {
@@ -969,7 +969,7 @@ data:
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "description": "The total number of log entries received per tenant (not necessarily of lines, as an entry can have more than one line of text).",
           "fieldConfig": {
             "defaults": {
@@ -1101,7 +1101,7 @@ data:
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "description": "The total number of uncompressed bytes received per tenant.\n",
           "fieldConfig": {
             "defaults": {
@@ -1203,7 +1203,7 @@ data:
         },
         {
           "collapsed": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "gridPos": {
             "h": 1,
             "w": 24,
@@ -1255,7 +1255,7 @@ data:
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "decimals": 2,
           "description": "Percentage of actual usage over configured limit",
           "editable": true,
@@ -1375,7 +1375,7 @@ data:
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "decimals": 2,
           "editable": true,
           "error": false,
@@ -1550,7 +1550,7 @@ data:
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "decimals": 2,
           "description": "Percentage of actual usage over configured limit",
           "editable": true,
@@ -1670,7 +1670,7 @@ data:
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "decimals": 2,
           "editable": true,
           "error": false,
@@ -1806,7 +1806,7 @@ data:
         },
         {
           "collapsed": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "gridPos": {
             "h": 1,
             "w": 24,
@@ -1858,7 +1858,7 @@ data:
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "decimals": 3,
           "description": "percentage of configured limit",
           "editable": true,
@@ -1980,7 +1980,7 @@ data:
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "decimals": 3,
           "description": "",
           "editable": true,
@@ -2157,7 +2157,7 @@ data:
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "decimals": 3,
           "description": "percentage of configured limit",
           "editable": true,
@@ -2279,7 +2279,7 @@ data:
           "bars": false,
           "dashLength": 10,
           "dashes": false,
-          "datasource": "Prometheus",
+          "datasource": "${DS_PROMETHEUS}",
           "decimals": 3,
           "description": "",
           "editable": true,
@@ -2424,7 +2424,44 @@ data:
         "loki"
       ],
       "templating": {
-        "list": []
+        "list": [
+          {
+            "current": {
+              "selected": false,
+              "text": "Prometheus",
+              "value": "Prometheus"
+            },
+            "hide": 0,
+            "includeAll": false,
+            "label": "Prometheus",
+            "multi": false,
+            "name": "DS_PROMETHEUS",
+            "options": [],
+            "query": "prometheus",
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "type": "datasource"
+          },
+          {
+            "current": {
+              "selected": false,
+              "text": "Loki",
+              "value": "Loki"
+            },
+            "hide": 0,
+            "includeAll": false,
+            "label": "Loki",
+            "multi": false,
+            "name": "DS_LOKI",
+            "options": [],
+            "query": "loki",
+            "refresh": 1,
+            "regex": "",
+            "skipUrlSync": false,
+            "type": "datasource"
+          }
+        ]
       },
       "time": {
         "from": "now-24h",
