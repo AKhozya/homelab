@@ -19,6 +19,34 @@ spec:
         fsGroup: 82  # Match PVC GID
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: install-dependencies
+          image: cybrarist/discount-bandit:v4
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running composer install..."
+              cd /app
+              composer install --optimize-autoloader --no-interaction
+              echo "Composer install completed successfully"
+          volumeMounts:
+            - name: vendor
+              mountPath: /app/vendor
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
       containers:
         - name: setup
           image: cybrarist/discount-bandit:v4
@@ -84,6 +112,8 @@ spec:
             - name: data
               mountPath: /data
               subPath: database
+            - name: vendor
+              mountPath: /app/vendor
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
@@ -95,3 +125,5 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: discount-bandit-data
+        - name: vendor
+          emptyDir: {}
