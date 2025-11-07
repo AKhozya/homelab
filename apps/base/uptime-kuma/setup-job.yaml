@@ -51,7 +51,39 @@ spec:
                   )
                   print("Admin user created successfully!")
               else:
-                  print("Uptime Kuma is already set up. Skipping setup.")
+                  print("Uptime Kuma is already set up.")
+
+              # Login to create monitors
+              print("Logging in to create monitors...")
+              api.login(
+                  username=os.environ['UPTIME_KUMA_USERNAME'],
+                  password=os.environ['UPTIME_KUMA_PASSWORD']
+              )
+
+              # Define monitors to create
+              monitors = [
+                  {"name": "Discount Bandit", "url": "https://discounts.h0melab.work"},
+              ]
+
+              # Get existing monitors
+              existing_monitors = {m['name']: m for m in api.get_monitors()}
+
+              # Create or update monitors
+              for monitor_config in monitors:
+                  if monitor_config['name'] in existing_monitors:
+                      print(f"Monitor '{monitor_config['name']}' already exists. Skipping.")
+                  else:
+                      print(f"Creating monitor '{monitor_config['name']}'...")
+                      api.add_monitor(
+                          type="http",
+                          name=monitor_config['name'],
+                          url=monitor_config['url'],
+                          interval=60,
+                          retryInterval=60,
+                          maxretries=3,
+                          accepted_statuscodes=["200-299", "302"]
+                      )
+                      print(f"Monitor '{monitor_config['name']}' created successfully!")
 
               api.disconnect()
               PYEOF
