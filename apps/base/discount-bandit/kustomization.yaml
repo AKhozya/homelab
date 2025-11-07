@@ -10,6 +10,5 @@ resources:
   - deployment.yaml
   - service.yaml
   - networkpolicy.yaml
-  - certificate.yaml
   - ingress.yaml
   - admin-setup-job.yaml
