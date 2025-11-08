@@ -645,13 +645,13 @@ spec:
         description: "Prometheus cannot scrape {{ $labels.job }} on {{ $labels.instance }}. Monitoring data may be incomplete."
     
     - alert: PrometheusTargetScrapeTooSlow
-      expr: prometheus_target_interval_length_seconds{quantile="0.9"} > 60
+      expr: prometheus_target_interval_length_seconds{quantile="0.9"} > 65
       for: 5m
       labels:
         severity: warning
       annotations:
         summary: "Prometheus scraping {{ $labels.job }} is slow"
-        description: "Prometheus target {{ $labels.job }} takes more than 60s to scrape. May cause monitoring gaps."
+        description: "Prometheus target {{ $labels.job }} takes more than 65s to scrape. May cause monitoring gaps."
     
     - alert: PrometheusTooManyRestarts
       expr: changes(process_start_time_seconds{job=~".*prometheus.*"}[15m]) > 2
