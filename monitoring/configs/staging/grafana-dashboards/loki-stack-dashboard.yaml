@@ -1311,7 +1311,7 @@ data:
           "steppedLine": false,
           "targets": [
             {
-              "expr": "100 * max by(pod,container) (container_memory_working_set_bytes{container=~\".+\",container!~\"POD\",pod=~\"loki.*\"})\n/\non (pod,container) group_left  kube_pod_container_resource_limits{resource="memory",pod=~\"loki.*\"}",
+              "expr": "100 * max by(pod,container) (container_memory_working_set_bytes{container=~\".+\",container!~\"POD\",pod=~\"loki.*\"})\n/\non (pod,container) group_left  kube_pod_container_resource_limits{resource=\"memory\",pod=~\"loki.*\"}",
               "hide": false,
               "interval": "",
               "legendFormat": "Usage (pod={{pod}}, container={{container}}, name={{name}})",
@@ -1454,7 +1454,7 @@ data:
               "step": 10
             },
             {
-              "expr": "min(kube_pod_container_resource_limits{resource="memory",pod=~\"loki.*\"})",
+              "expr": "min(kube_pod_container_resource_limits{resource=\"memory\",pod=~\"loki.*\"})",
               "interval": "",
               "legendFormat": "Limit",
               "refId": "B"
@@ -1606,7 +1606,7 @@ data:
           "steppedLine": false,
           "targets": [
             {
-              "expr": "100* max by(pod,container) (container_memory_working_set_bytes{container=~\".+\",container!~\"POD\",pod=~\"promtail.*\"})\n/\non (pod,container) (kube_pod_container_resource_limits{resource="memory",pod=~\"promtail.*\"})",
+              "expr": "100* max by(pod,container) (container_memory_working_set_bytes{container=~\".+\",container!~\"POD\",pod=~\"promtail.*\"})\n/\non (pod,container) (kube_pod_container_resource_limits{resource=\"memory\",pod=~\"promtail.*\"})",
               "hide": false,
               "interval": "",
               "legendFormat": "",
@@ -1748,7 +1748,7 @@ data:
               "step": 10
             },
             {
-              "expr": "min(kube_pod_container_resource_limits{resource="memory",pod=~\"promtail.*\"})",
+              "expr": "min(kube_pod_container_resource_limits{resource=\"memory\",pod=~\"promtail.*\"})",
               "interval": "",
               "legendFormat": "Limit",
               "refId": "B"
@@ -1914,7 +1914,7 @@ data:
           "steppedLine": false,
           "targets": [
             {
-              "expr": "100* rate(container_cpu_usage_seconds_total{container!~\"POD\",container=~\".+\",pod=~\"loki.*\"}[1m])\n/\non (pod,container) kube_pod_container_resource_limits{resource="cpu",container=\"loki\"}",
+              "expr": "100* rate(container_cpu_usage_seconds_total{container!~\"POD\",container=~\".+\",pod=~\"loki.*\"}[1m])\n/\non (pod,container) kube_pod_container_resource_limits{resource=\"cpu\",container=\"loki\"}",
               "interval": "10s",
               "intervalFactor": 1,
               "legendFormat": "",
@@ -2060,7 +2060,7 @@ data:
               "step": 10
             },
             {
-              "expr": "min(kube_pod_container_resource_limits{resource="cpu",pod=~\"loki.*\"})",
+              "expr": "min(kube_pod_container_resource_limits{resource=\"cpu\",pod=~\"loki.*\"})",
               "interval": "",
               "legendFormat": "CPU Limit",
               "refId": "B"
@@ -2213,7 +2213,7 @@ data:
           "steppedLine": false,
           "targets": [
             {
-              "expr": "100 * rate(container_cpu_usage_seconds_total{container=~\".+\",container!~\"POD\",pod=~\"promtail.*\"}[1m])\n/\non (pod,container) kube_pod_container_resource_limits{resource="cpu",pod=~\"promtail.*\"}",
+              "expr": "100 * rate(container_cpu_usage_seconds_total{container=~\".+\",container!~\"POD\",pod=~\"promtail.*\"}[1m])\n/\non (pod,container) kube_pod_container_resource_limits{resource=\"cpu\",pod=~\"promtail.*\"}",
               "interval": "10s",
               "intervalFactor": 1,
               "legendFormat": "",
@@ -2358,7 +2358,7 @@ data:
               "step": 10
             },
             {
-              "expr": "min(kube_pod_container_resource_limits{resource="cpu",pod=~\"promtail.*\"})",
+              "expr": "min(kube_pod_container_resource_limits{resource=\"cpu\",pod=~\"promtail.*\"})",
               "interval": "",
               "legendFormat": "CPU Limit",
               "refId": "B"
