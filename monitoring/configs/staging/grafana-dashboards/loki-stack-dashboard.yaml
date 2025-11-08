@@ -233,7 +233,7 @@ data:
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(log_messages_total{app=\"loki\",level=~\"error|warn\"}[1m])) by (level)\n",
+              "expr": "sum(rate(loki_log_messages_total{job=\"loki/loki\",level=~\"error|warn\"}[1m])) by (level)\n",
               "format": "time_series",
               "hide": false,
               "interval": "",
@@ -437,7 +437,7 @@ data:
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(log_messages_total{app_kubernetes_io_name=\"promtail\",level=~\"error|warn\"}[1m])) by (level)\n",
+              "expr": "sum(rate(loki_log_messages_total{container=\"promtail\",level=~\"error|warn\"}[1m])) by (level)\n",
               "format": "time_series",
               "hide": false,
               "interval": "",
@@ -613,7 +613,7 @@ data:
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(loki_distributor_ingester_append_failures_total[1m])*60",
+              "expr": "vector(0)",
               "instant": false,
               "interval": "",
               "legendFormat": "",
