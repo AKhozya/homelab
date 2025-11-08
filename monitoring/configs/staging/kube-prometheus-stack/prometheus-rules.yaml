@@ -199,13 +199,13 @@ spec:
         description: "Container is using {{ printf \"%.1f\" $value }}% of its memory limit. May be OOM killed soon."
     
     - alert: ContainerCPUThrottling
-      expr: rate(container_cpu_cfs_throttled_seconds_total[5m]) > 0.25
+      expr: rate(container_cpu_cfs_throttled_seconds_total[5m]) * 100 > 25
       for: 10m
       labels:
         severity: warning
       annotations:
         summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} is being CPU throttled"
-        description: "Container is being CPU throttled {{ printf \"%.1f\" (mul $value 100) }}% of the time for over 10 minutes. Performance may be degraded. Consider increasing CPU limits."
+        description: "Container is being CPU throttled {{ printf \"%.1f\" $value }}% of the time for over 10 minutes. Performance may be degraded. Consider increasing CPU limits."
 
     - alert: ContainerCPUNearLimit
       expr: (rate(container_cpu_usage_seconds_total{container!=""}[5m]) / container_spec_cpu_limit{container!=""}) * 100 > 80 and container_spec_cpu_limit{container!=""} > 0
