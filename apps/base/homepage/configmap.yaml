@@ -53,24 +53,18 @@ data:
 
   services.yaml: |
     - Productivity:
-        - Wallabag:
-            icon: wallabag.png
-            href: https://wallabag.h0melab.work
-            description: Read-it-later service
-            namespace: wallabag
-            app: wallabag
+        - LinkWarden:
+            icon: si-linkfire
+            href: https://linkwarden.h0melab.work
+            description: Bookmark manager & read-it-later (2-in-1)
+            namespace: linkwarden
+            app: linkwarden
         - Mealie:
             icon: mealie.png
             href: https://mealie.h0melab.work
             description: Recipe manager
             namespace: mealie
             app: mealie
-        - Linkding:
-            icon: linkding.png
-            href: https://linkding.h0melab.work
-            description: Bookmark manager
-            namespace: linkding
-            app: linkding
         - Paperless-NGX:
             icon: paperless.png
             href: https://paperless.h0melab.work
