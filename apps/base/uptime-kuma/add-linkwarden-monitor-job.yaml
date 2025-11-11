@@ -1,0 +1,104 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: uptime-kuma-add-linkwarden-monitor
+  namespace: uptime-kuma
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        app: uptime-kuma-add-monitor
+    spec:
+      serviceAccountName: uptime-kuma
+      automountServiceAccountToken: false
+      restartPolicy: OnFailure
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: add-monitor
+          image: python:3.14-slim
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              export HOME=/tmp
+              echo "Installing uptime-kuma-api..."
+              pip install --quiet --user uptime-kuma-api
+
+              echo "Waiting 5 seconds for Uptime Kuma to be ready..."
+              sleep 5
+
+              echo "Adding LinkWarden monitor..."
+
+              python3 << 'PYEOF'
+              from uptime_kuma_api import UptimeKumaApi, MonitorType
+              import os
+
+              api = UptimeKumaApi('http://uptime-kuma.uptime-kuma.svc.cluster.local:3001')
+
+              # Login with admin credentials
+              api.login(
+                  username=os.environ['UPTIME_KUMA_USERNAME'],
+                  password=os.environ['UPTIME_KUMA_PASSWORD']
+              )
+
+              # Check if LinkWarden monitor already exists
+              monitors = api.get_monitors()
+              linkwarden_exists = any(m['name'] == 'LinkWarden' for m in monitors)
+
+              if not linkwarden_exists:
+                  print("Creating LinkWarden monitor...")
+                  api.add_monitor(
+                      type=MonitorType.HTTP,
+                      name="LinkWarden",
+                      url="https://linkwarden.h0melab.work",
+                      maxretries=3,
+                      retryInterval=60,
+                      interval=60,
+                      accepted_statuscodes=["200-299"]
+                  )
+                  print("LinkWarden monitor created successfully!")
+              else:
+                  print("LinkWarden monitor already exists. Skipping creation.")
+
+              api.disconnect()
+              PYEOF
+
+              echo "Monitor setup complete!"
+          env:
+            - name: UPTIME_KUMA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: uptime-kuma-admin
+                  key: username
+            - name: UPTIME_KUMA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: uptime-kuma-admin
+                  key: password
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: tmp
+          emptyDir: {}

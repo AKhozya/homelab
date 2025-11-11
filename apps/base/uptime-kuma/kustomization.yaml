@@ -9,3 +9,4 @@ resources:
   - ingress.yaml
   - networkpolicy.yaml
   - setup-job.yaml
+  - add-linkwarden-monitor-job.yaml
