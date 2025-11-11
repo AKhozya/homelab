@@ -94,6 +94,31 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
+        - name: install-playwright-browsers
+          image: ghcr.io/linkwarden/linkwarden:v2.13.1
+          command:
+            - sh
+            - -c
+            - |
+              echo "Installing Playwright Chromium browser..."
+              yarn playwright install chromium
+              echo "Playwright browsers installed successfully!"
+          volumeMounts:
+            - name: playwright-cache
+              mountPath: /.cache
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
       containers:
         - name: linkwarden
           image: ghcr.io/linkwarden/linkwarden:v2.13.1
@@ -140,6 +165,8 @@ spec:
               mountPath: /tmp
             - name: next-cache
               mountPath: /app/.next/cache
+            - name: playwright-cache
+              mountPath: /.cache
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -147,4 +174,6 @@ spec:
         - name: tmp
           emptyDir: {}
         - name: next-cache
+          emptyDir: {}
+        - name: playwright-cache
           emptyDir: {}
