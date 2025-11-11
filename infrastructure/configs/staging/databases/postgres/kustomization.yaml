@@ -10,8 +10,6 @@ resources:
   - immich-db-user.yaml
   - immich-database.yaml
   - immich-init-extensions-job.yaml
-  - linkding-app-user-secret.yaml
-  - linkding-database.yaml
   - linkwarden-app-user-secret.yaml
   - linkwarden-database.yaml
   - mealie-db-user.yaml
@@ -20,6 +18,4 @@ resources:
   - n8n-database.yaml
   - paperless-db-user.yaml
   - paperless-database.yaml
-  - wallabag-db-user.yaml
-  - wallabag-database.yaml
   - update-extensions-job.yaml
