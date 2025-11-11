@@ -8,7 +8,6 @@ resources:
   - n8n
   - home-assistant
   - mealie
-  - wallabag
   - homepage
   - uptime-kuma
   - authentik
