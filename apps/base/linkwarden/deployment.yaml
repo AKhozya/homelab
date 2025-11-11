@@ -61,7 +61,7 @@ spec:
             capabilities:
               drop: ["ALL"]
         - name: wait-for-meilisearch
-          image: curlimages/curl:8.11.1
+          image: curlimages/curl:8.17.0
           command:
             - sh
             - -c
