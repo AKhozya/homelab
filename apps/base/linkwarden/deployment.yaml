@@ -105,7 +105,7 @@ spec:
               echo "Playwright browsers installed successfully!"
           volumeMounts:
             - name: playwright-cache
-              mountPath: /.cache
+              mountPath: /home/node/.cache
           resources:
             requests:
               cpu: "100m"
@@ -166,7 +166,7 @@ spec:
             - name: next-cache
               mountPath: /app/.next/cache
             - name: playwright-cache
-              mountPath: /.cache
+              mountPath: /home/node/.cache
       volumes:
         - name: data
           persistentVolumeClaim:
