@@ -84,6 +84,8 @@ spec:
                   stirling-pdf/stirling-pdf-configs-pvc/*stirling-pdf-configs-pvc*
                   uptime-kuma/uptime-kuma-data-pvc/*uptime-kuma-data-pvc*
                   discount-bandit/discount-bandit-data/*discount-bandit-data*
+                  linkwarden/linkwarden-data/*linkwarden-data*
+                  linkwarden/meilisearch-data/*meilisearch-data*
                   "
 
                   # PVCs containing already-compressed media files (photos/videos/audio)
