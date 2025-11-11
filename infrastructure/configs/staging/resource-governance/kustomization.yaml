@@ -17,8 +17,7 @@ resources:
   - medium-tier/couchdb.yaml
 
   # Small tier: Lightweight applications
-  - small-tier/linkding.yaml
-  - small-tier/wallabag.yaml
+  - small-tier/linkwarden.yaml
   - small-tier/stirling-pdf.yaml
   - small-tier/uptime-kuma.yaml
   - small-tier/homehub.yaml
