@@ -96,7 +96,7 @@ spec:
               drop: ["ALL"]
       containers:
         - name: linkwarden
-          image: ghcr.io/linkwarden/linkwarden:v2.13.0
+          image: ghcr.io/linkwarden/linkwarden:v2.13.1
           ports:
             - containerPort: 3000
               name: http
