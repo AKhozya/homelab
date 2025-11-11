@@ -907,7 +907,7 @@
 
 ---
 
-## 📱 CURRENT APPS (17 total)
+## 📱 CURRENT APPS (16 total)
 
 | App | Status | Security | OIDC/SSO | Notes |
 |-----|--------|----------|----------|-------|
@@ -922,17 +922,16 @@
 | **Immich** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Photo management, Web UI config ⭐ |
 | **Paperless-NGX** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Document management, env var config ⭐ |
 | **Home Assistant** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Smart home, hass-oidc-auth, GitOps install ⭐ |
-| Wallabag | ✅ Running | ✅ NetworkPolicy | - | Custom user setup ✅ |
+| **LinkWarden** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | **Bookmark manager + Meilisearch** - Replaces Linkding & Wallabag ⭐ |
 | Mealie | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | User provision + OIDC (env var) ⭐ |
 | N8N | ✅ Running | ✅ NetworkPolicy | ❌ Enterprise | User provision ✅, SSO requires Enterprise |
-| Linkding | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | OIDC env var config ⭐ |
 | Audiobookshelf | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Web UI config ⭐ |
 | Obsidian | ✅ Running | ✅ NetworkPolicy | - | CouchDB sync |
 
-**Security Coverage: 17/17 apps (100%)** ✅
+**Security Coverage: 16/16 apps (100%)** ✅
 **SSO Coverage: 8/8 applicable apps (100%)** ⭐
-- **8 apps with OIDC**: Grafana, Immich, Paperless-NGX, Home Assistant, Mealie, Linkding, Audiobookshelf, Stirling PDF
-- **8 apps local-only/monitoring**: Homepage, Uptime Kuma, AdGuard Home, HomeHub, Discount Bandit, Obsidian, Wallabag, N8N*
+- **8 apps with OIDC**: Grafana, Immich, Paperless-NGX, Home Assistant, Mealie, LinkWarden, Audiobookshelf, Stirling PDF
+- **7 apps local-only/monitoring**: Homepage, Uptime Kuma, AdGuard Home, HomeHub, Discount Bandit, Obsidian, N8N*
 - **1 app (N8N)**: Requires Enterprise plan for SSO
 - **Note**: Authentik is the SSO provider (not counted as consumer)
 
