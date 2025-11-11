@@ -112,7 +112,7 @@ spec:
               drop: ["ALL"]
           livenessProbe:
             httpGet:
-              path: /api/v1/health
+              path: /
               port: 3000
             initialDelaySeconds: 60
             periodSeconds: 10
@@ -120,7 +120,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /api/v1/health
+              path: /
               port: 3000
             initialDelaySeconds: 30
             periodSeconds: 5
