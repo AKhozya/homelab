@@ -1,0 +1,150 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: linkwarden
+  namespace: linkwarden
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # RWO PVC requires Recreate strategy
+  selector:
+    matchLabels:
+      app: linkwarden
+  template:
+    metadata:
+      labels:
+        app: linkwarden
+    spec:
+      serviceAccountName: linkwarden
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: wait-for-database
+          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for LinkWarden database..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
+
+              until pg_isready -h main-postgres-rw-pooler.databases.svc.cluster.local -p 5432 -U linkwarden -d linkwarden > /dev/null 2>&1; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Database not ready after ${MAX_RETRIES} attempts"
+                  exit 1
+                fi
+                echo "Waiting for database (attempt $RETRY_COUNT/$MAX_RETRIES)..."
+                sleep 2
+              done
+
+              echo "Database is ready!"
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 65534
+            capabilities:
+              drop: ["ALL"]
+        - name: wait-for-meilisearch
+          image: curlimages/curl:8.11.1
+          command:
+            - sh
+            - -c
+            - |
+              echo "Waiting for Meilisearch..."
+              MAX_RETRIES=60
+              RETRY_COUNT=0
+
+              until curl -sf http://meilisearch.linkwarden.svc.cluster.local:7700/health > /dev/null 2>&1; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
+                  echo "ERROR: Meilisearch not ready after ${MAX_RETRIES} attempts"
+                  exit 1
+                fi
+                echo "Waiting for Meilisearch (attempt $RETRY_COUNT/$MAX_RETRIES)..."
+                sleep 2
+              done
+
+              echo "Meilisearch is ready!"
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+      containers:
+        - name: linkwarden
+          image: ghcr.io/linkwarden/linkwarden:v2.13.0
+          ports:
+            - containerPort: 3000
+              name: http
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: linkwarden
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # Next.js needs writable filesystem
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "1Gi"
+          volumeMounts:
+            - name: data
+              mountPath: /data/data
+            - name: tmp
+              mountPath: /tmp
+            - name: next-cache
+              mountPath: /app/.next/cache
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: linkwarden-data
+        - name: tmp
+          emptyDir: {}
+        - name: next-cache
+          emptyDir: {}

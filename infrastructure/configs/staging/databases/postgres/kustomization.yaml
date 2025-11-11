@@ -12,6 +12,8 @@ resources:
   - immich-init-extensions-job.yaml
   - linkding-app-user-secret.yaml
   - linkding-database.yaml
+  - linkwarden-app-user-secret.yaml
+  - linkwarden-database.yaml
   - mealie-db-user.yaml
   - mealie-database.yaml
   - n8n-db-user.yaml

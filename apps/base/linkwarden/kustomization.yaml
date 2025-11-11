@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - meilisearch-pvc.yaml
+  - meilisearch-statefulset.yaml
+  - meilisearch-service.yaml
+  - linkwarden-pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - networkpolicy.yaml
+  - ingress.yaml
+  - certificate.yaml

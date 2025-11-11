@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - adguard-home
   - linkding
+  - linkwarden
   - audiobookshelf
   - obsidian
   - n8n

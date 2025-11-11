@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: linkwarden-tls-cert
+  namespace: linkwarden
+spec:
+  secretName: linkwarden-tls-secret
+  issuerRef:
+    name: letsencrypt-staging
+    kind: ClusterIssuer
+  dnsNames:
+    - linkwarden.h0melab.work

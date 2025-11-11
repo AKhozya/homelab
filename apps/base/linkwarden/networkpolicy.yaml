@@ -1,0 +1,100 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: linkwarden-network-policy
+  namespace: linkwarden
+spec:
+  podSelector:
+    matchLabels:
+      app: linkwarden
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from traefik namespace for local access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Allow ingress from cloudflare-tunnel namespace for external access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflare-tunnel
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Allow ingress from uptime-kuma namespace for monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
+      ports:
+        - protocol: TCP
+          port: 3000
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow PostgreSQL database access
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: main-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # Allow Meilisearch access (same namespace)
+    - to:
+        - podSelector:
+            matchLabels:
+              app: meilisearch
+      ports:
+        - protocol: TCP
+          port: 7700
+    # Allow HTTPS for external APIs (web archiving, metadata fetching)
+    - ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: meilisearch-network-policy
+  namespace: linkwarden
+spec:
+  podSelector:
+    matchLabels:
+      app: meilisearch
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from LinkWarden app only
+    - from:
+        - podSelector:
+            matchLabels:
+              app: linkwarden
+      ports:
+        - protocol: TCP
+          port: 7700
+  egress:
+    # Allow DNS resolution only (no internet access needed)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
