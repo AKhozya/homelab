@@ -132,6 +132,8 @@ spec:
     
     prometheus:
       prometheusSpec:
+        # Retention reduced from 10d to 7d for memory optimization
+        retention: 7d
         resources:
           requests:
             cpu: 200m
@@ -288,6 +290,24 @@ spec:
     # Copy 'name' → 'container' for dashboard compatibility
     kubelet:
       serviceMonitor:
+        # Reduce scrape interval from 10s to 30s for memory optimization
+        # Reduces kubelet/cadvisor series by 66% (134k → 45k series)
+        interval: 30s
         cAdvisorMetricRelabelings:
           - sourceLabels: [name]
             targetLabel: container
+        # Drop high-cardinality API server histogram metrics
+        # Reduces ~75k series (apiserver_request_* buckets)
+        metricRelabelings:
+          - sourceLabels: [__name__]
+            regex: 'apiserver_request_(duration|sli_duration|body_size)_seconds_bucket'
+            action: drop
+          - sourceLabels: [__name__]
+            regex: 'apiserver_response_sizes_bucket'
+            action: drop
+          - sourceLabels: [__name__]
+            regex: 'etcd_request_duration_seconds_bucket'
+            action: drop
+          - sourceLabels: [__name__]
+            regex: 'apiserver_watch_(cache_read_wait_seconds|events_sizes)_bucket'
+            action: drop
