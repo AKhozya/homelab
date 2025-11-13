@@ -285,19 +285,10 @@ spec:
           cpu: 500m
           memory: 128Mi
 
-    # K3s-specific fix for cadvisor metrics
-    # K3s exports container='' (empty) with actual name in 'name' label
-    # Copy 'name' → 'container' for dashboard compatibility
-    kubelet:
+    # Drop high-cardinality API server histogram metrics
+    # Reduces ~75k series (apiserver_request_* buckets)
+    kubeApiServer:
       serviceMonitor:
-        # Reduce scrape interval from 10s to 30s for memory optimization
-        # Reduces kubelet/cadvisor series by 66% (134k → 45k series)
-        interval: 30s
-        cAdvisorMetricRelabelings:
-          - sourceLabels: [name]
-            targetLabel: container
-        # Drop high-cardinality API server histogram metrics
-        # Reduces ~75k series (apiserver_request_* buckets)
         metricRelabelings:
           - sourceLabels: [__name__]
             regex: 'apiserver_request_(duration|sli_duration|body_size)_seconds_bucket'
@@ -311,3 +302,15 @@ spec:
           - sourceLabels: [__name__]
             regex: 'apiserver_watch_(cache_read_wait_seconds|events_sizes)_bucket'
             action: drop
+
+    # K3s-specific fix for cadvisor metrics
+    # K3s exports container='' (empty) with actual name in 'name' label
+    # Copy 'name' → 'container' for dashboard compatibility
+    kubelet:
+      serviceMonitor:
+        # Reduce scrape interval from 10s to 30s for memory optimization
+        # Reduces kubelet/cadvisor series by 66% (134k → 45k series)
+        interval: 30s
+        cAdvisorMetricRelabelings:
+          - sourceLabels: [name]
+            targetLabel: container
