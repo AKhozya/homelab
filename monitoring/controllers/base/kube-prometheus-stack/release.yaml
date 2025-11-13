@@ -177,6 +177,9 @@ spec:
           - match:
               alertname: KubeMemoryOvercommit
             receiver: 'null'
+          - match:
+              alertname: KubeAPIErrorBudgetBurn
+            receiver: 'null'
           - match_re:
               alertname: ^(BackupJobFailed|BackupCronJobMissedSchedule|BackupJobRunningTooLong|NoRecentBackups)$
             receiver: 'telegram-backup'
