@@ -250,6 +250,7 @@ spec:
     
     # Disable K3s-specific component alerts (embedded architecture)
     # Disable CPU overcommit alert (homelab - intentional overcommit for burst capacity)
+    # Disable API server error budget alerts (homelab - SLI/SLO tracking not needed)
     defaultRules:
       rules:
         kubeProxy: false
@@ -257,6 +258,7 @@ spec:
         kubeControllerManager: false
         kubeScheduler: false  # Disable all scheduler rules
         kubeCPUOvercommit: false  # Disable CPU overcommit warning (homelab uses intentional overcommit)
+        kubeAPIServer: false  # Disable API error budget burn alerts (overkill for homelab)
 
     prometheusOperator:
       resources:
