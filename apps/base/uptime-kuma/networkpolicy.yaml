@@ -71,6 +71,8 @@ spec:
         - protocol: TCP
           port: 9000        # Mealie, Authentik
         - protocol: TCP
+          port: 8428        # VictoriaMetrics VMSingle
+        - protocol: TCP
           port: 9090        # Prometheus, Linkding
         - protocol: TCP
           port: 9093        # Alertmanager
