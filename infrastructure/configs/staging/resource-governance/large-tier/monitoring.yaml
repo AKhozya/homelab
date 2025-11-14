@@ -32,8 +32,8 @@ spec:
   hard:
     requests.cpu: "4"      # Temporary increase for VM migration
     requests.memory: 8Gi   # Temporary increase for VM migration
-    limits.cpu: "15"       # Temporary increase for VM migration (both Prom + VM)
-    limits.memory: 16Gi    # Temporary increase for VM migration (both Prom + VM)
+    limits.cpu: "18"       # Temporary increase for VM migration + Grafana rollout
+    limits.memory: 20Gi    # Temporary increase for VM migration + Grafana rollout
     pods: "50"
     services: "20"
     persistentvolumeclaims: "20"
