@@ -30,10 +30,10 @@ metadata:
   namespace: monitoring
 spec:
   hard:
-    requests.cpu: "4"      # Temporary increase for VM migration
-    requests.memory: 8Gi   # Temporary increase for VM migration
-    limits.cpu: "18"       # Temporary increase for VM migration + Grafana rollout
-    limits.memory: 20Gi    # Temporary increase for VM migration + Grafana rollout
+    requests.cpu: "3"
+    requests.memory: 6Gi
+    limits.cpu: "10"
+    limits.memory: 12Gi
     pods: "50"
     services: "20"
     persistentvolumeclaims: "20"
