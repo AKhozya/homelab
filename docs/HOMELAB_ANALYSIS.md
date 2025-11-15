@@ -1230,6 +1230,33 @@ ingress:
 
 ## 📝 CHANGELOG
 
+### 2025-11-15 (VictoriaMetrics Migration Aborted) ⚠️
+- ❌ **VictoriaMetrics Migration Failed**: Aborted migration from Prometheus to VictoriaMetrics
+- 🎯 **Impact**: Kept Prometheus as monitoring solution, removed all VictoriaMetrics components
+- 🔧 **Technical Details**:
+  - **Goal**: Reduce memory usage by switching to VictoriaMetrics (touted as more efficient)
+  - **Issue Discovered**: VictoriaMetrics metricRelabelConfigs not functioning despite correct configuration
+  - **Evidence**:
+    - VictoriaMetrics collected 231,189 series vs Prometheus 155,749 series (+48% more)
+    - API server histogram metrics NOT dropped despite proper VMNodeScrape configuration
+    - Configuration showed "ConfigParsedAndApplied" status but drops didn't work
+    - Prometheus successfully dropped same metrics with identical configuration
+  - **Root Cause**: VictoriaMetrics operator or VMAgent bug/limitation in processing metric drops
+  - **Decision**: Aborted migration - VictoriaMetrics more memory hungry than Prometheus (defeating purpose)
+- 🗑️ **Cleanup Actions**:
+  - Removed VictoriaMetrics HelmRelease and operator
+  - Deleted all VictoriaMetrics CRDs (VMAgent, VMAlert, VMSingle, VMNodeScrape)
+  - Removed VictoriaMetrics datasource from Grafana
+  - Deleted migration backup documentation
+  - Updated monitoring kustomization to remove VictoriaMetrics references
+- 📊 **Prometheus Optimization**:
+  - Current memory: 905Mi / 2.5Gi (36% utilization)
+  - Series count: 188,301
+  - Already optimized: 7d retention, 30s kubelet scrape, API server metric drops working
+  - Conclusion: No further optimization needed, current configuration appropriate
+- 💪 **Lesson Learned**: VictoriaMetrics metric drops don't work correctly - Prometheus remains superior choice
+- Commits: 270aef1, 2d0bb7d, c8f68f5
+
 ### 2025-11-06 (Discount Bandit Installation) 🛍️
 - ✅ **New Application Deployed**: Added Discount Bandit price tracking application (app #17)
 - 🎯 **Impact**: E-commerce price monitoring with automated tracking every 6 hours
