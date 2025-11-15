@@ -103,3 +103,31 @@ data:
     # VictoriaMetrics Operator config
     victoria-metrics-operator:
       enabled: false  # Already installed in Phase 2
+
+    # Kubelet scraping config - DROP high-cardinality API server metrics
+    kubelet:
+      vmScrape:
+        spec:
+          metricRelabelConfigs:
+            # Default drops (from upstream chart)
+            - action: labeldrop
+              regex: (uid)
+            - action: labeldrop
+              regex: (id|name)
+            - action: drop
+              source_labels: [__name__]
+              regex: (rest_client_request_duration_seconds_bucket|rest_client_request_duration_seconds_sum|rest_client_request_duration_seconds_count)
+
+            # Custom API server histogram drops (match Prometheus config)
+            - action: drop
+              source_labels: [__name__]
+              regex: 'apiserver_request_(duration|sli_duration|body_size)_seconds_bucket'
+            - action: drop
+              source_labels: [__name__]
+              regex: 'apiserver_response_sizes_bucket'
+            - action: drop
+              source_labels: [__name__]
+              regex: 'etcd_request_duration_seconds_bucket'
+            - action: drop
+              source_labels: [__name__]
+              regex: 'apiserver_watch_(cache_read_wait_seconds|events_sizes)_bucket'
