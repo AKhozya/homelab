@@ -73,6 +73,11 @@ spec:
                 secretKeyRef:
                   name: discount-bandit-secret
                   key: app-key
+            - name: EXCHANGE_RATE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: discount-bandit-secret
+                  key: exchange-rate-api-key
             - name: DB_CONNECTION
               value: "sqlite"
             - name: APP_TIMEZONE
