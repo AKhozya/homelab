@@ -27,7 +27,7 @@ data:
       --password="${ADMIN_PASSWORD}" 2>&1 | tee /tmp/user-creation.log; then
       echo "Admin user created successfully!"
     else
-      if grep -q "already" /tmp/user-creation.log || grep -q "duplicate" /tmp/user-creation.log; then
+      if grep -qi "already\|duplicate\|UNIQUE constraint" /tmp/user-creation.log; then
         echo "Admin user already exists. Skipping."
       else
         echo "WARNING: Failed to create admin user. Check logs above."
