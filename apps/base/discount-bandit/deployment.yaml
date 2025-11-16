@@ -56,6 +56,16 @@ spec:
           ports:
             - containerPort: 80
               name: http
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - |
+                    sleep 5
+                    php artisan route:clear || true
+                    php artisan config:clear || true
           env:
             - name: APP_NAME
               value: "Discount Bandit"
