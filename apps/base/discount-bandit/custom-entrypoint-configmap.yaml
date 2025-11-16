@@ -16,6 +16,9 @@ data:
     # Run database migrations
     php artisan migrate --force
 
+    # Seed database (ensures fresh deploys work from scratch)
+    php artisan db:seed --force
+
     # Clear all caches (avoids route cache bug with duplicate 'products.show' route)
     php artisan optimize:clear
     php artisan filament:optimize-clear
