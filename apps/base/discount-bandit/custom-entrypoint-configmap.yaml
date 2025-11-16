@@ -19,11 +19,7 @@ data:
     # Seed database (ensures fresh deploys work from scratch)
     php artisan db:seed --force
 
-    # Clear all caches (avoids route cache bug with duplicate 'products.show' route)
-    php artisan optimize:clear
-    php artisan filament:optimize-clear
-
-    # Cache config from environment variables
+    # Cache config from environment variables (testing if route cache issue is blocking or just warning)
     php artisan config:cache
 
     php artisan octane:install --server=frankenphp
