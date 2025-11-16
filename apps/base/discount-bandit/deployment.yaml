@@ -53,7 +53,7 @@ spec:
       containers:
         - name: discount-bandit
           image: cybrarist/discount-bandit:v4
-          command: ["/custom-entrypoint.sh"]  # Use custom entrypoint to skip php artisan optimize
+          command: ["/custom-entrypoint.sh"]  # Injects APP_KEY, configures sessions (CSRF), skips route caching (upstream bug)
           ports:
             - containerPort: 80
               name: http
@@ -61,7 +61,7 @@ spec:
             - name: APP_NAME
               value: "Discount Bandit"
             - name: APP_ENV
-              value: "local"  # Changed from production to prevent route caching (app has duplicate route names bug)
+              value: "production"
             - name: APP_DEBUG
               value: "false"
             - name: APP_URL
