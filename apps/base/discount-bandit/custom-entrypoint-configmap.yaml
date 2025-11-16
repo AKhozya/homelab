@@ -10,9 +10,6 @@ data:
 
     php artisan storage:link
 
-    # Make env vars available to supervisord/FrankenPHP
-    printenv > /etc/environment
-
     # Run database migrations
     php artisan migrate --force
 
