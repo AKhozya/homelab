@@ -153,48 +153,44 @@
 
 ### 🛡️ SECURITY HARDENING REVIEWS (Scheduled)
 
-#### 1. **📅 CSP Violation Analysis & Enforcement** - READY FOR ENFORCEMENT (2025-10-31)
-   - **Status**: ✅ **Automated testing complete - ZERO violations (85 tests across 17 apps)**
-   - **Testing Completed**: 2025-10-31 (Automated CSP testing with `csp-test.sh`)
-   - **Current**: CSP report-only deployed to all 17 services (2025-10-30)
+#### 1. ✅ **COMPLETED: CSP Enforcement** - Enforced since 2025-10-31 ⭐
+   - **Status**: ✅ **COMPLETED - CSP in enforcement mode across all 17 apps (16 days active, zero violations)**
+   - **Enforcement Date**: 2025-10-31 (Commit 04df8a4)
+   - **Current**: CSP enforcement mode deployed to all 17 services
      - Policy: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'`
      - Monitoring: csp-reporter service → Loki (`{namespace="csp-reporter"}`)
+     - Header: `Content-Security-Policy` (enforcement mode, not report-only)
    - **Testing Results**: ✅ **100% pass rate (0 violations)**
      - **85 automated tests**: 17 apps × 5 scenarios (page load, JS, CSS, images, API)
      - **Baseline violations**: 0
-     - **Post-test violations**: 0
+     - **Post-enforcement violations**: 0
      - **Confidence level**: HIGH
      - **Test duration**: ~60 seconds
      - **Full report**: `docs/CSP_TEST_RESULTS.md`
-   - **Observation**: ✅ **Zero violations after 20+ hours passive + automated testing**
-   - **Review Tasks**:
-     1. ✅ Check for CSP violations in Grafana/Loki (COMPLETE - zero violations)
-     2. ✅ Automated testing across all apps (COMPLETE - 100% pass rate)
-     3. ⏰ Enable enforcement mode (`Content-Security-Policy` header)
-     4. ⏰ Monitor first 48h after enforcement for real violations
-   - **Next Steps (Ready Now)**:
-     - Switch from `Content-Security-Policy-Report-Only` to `Content-Security-Policy`
-     - Keep report-uri for continued monitoring
-     - Monitor for 48 hours post-enforcement
-   - **Files to Update**:
+   - **Production Validation**: ✅ **Zero violations after 16 days in production**
+   - **Completed Tasks**:
+     1. ✅ Automated testing across all apps (COMPLETE - 100% pass rate)
+     2. ✅ Enabled enforcement mode (COMPLETE - deployed 2025-10-31)
+     3. ✅ Monitored post-enforcement (COMPLETE - 16 days, zero violations)
+   - **Files Updated**:
      - `infrastructure/controllers/base/traefik/csp-middleware.yaml`
      - `monitoring/configs/staging/kube-prometheus-stack/csp-middleware.yaml`
-   - **Commits**: b8b6306, 7b2c72b, 54c8484
+   - **Commits**: b8b6306, 7b2c72b, 54c8484, 04df8a4
    - **Test Script**: `csp-test.sh` (re-run anytime with `./csp-test.sh`)
 
 #### 2. **📅 HSTS Max-Age Optimization** - Gradual Rollout (IN PROGRESS)
-   - **Status**: 🔄 Step 1/3 Complete - 1 month max-age deployed (2025-10-31)
+   - **Status**: 🔄 Step 2/3 Complete - 6 months max-age deployed (2025-11-16)
    - **Current**: Unified HSTS across all layers
-     - Cloudflare Edge: `max-age=2628000` (1 month)
-     - Traefik Origin: `max-age=2628000` (1 month) ✅ **UPDATED**
-     - All 17 ingresses now have consistent 1-month HSTS
+     - Cloudflare Edge: `max-age=2628000` (1 month) - will update to match Traefik
+     - Traefik Origin: `max-age=15768000` (6 months) ✅ **UPDATED 2025-11-16**
+     - All 17 ingresses now have 6-month HSTS
    - **Gradual Rollout Plan**:
      - ✅ **Step 1**: 1 month (2628000s) - Deployed 2025-10-31
-     - ⏰ **Step 2**: 6 months (15768000s) - Target: 2025-11-15 (2 weeks)
+     - ✅ **Step 2**: 6 months (15768000s) - Deployed 2025-11-16
      - ⏰ **Step 3**: 1 year (31536000s) - Target: 2026-01-15 (final)
-   - **Next Review**: **2025-11-15** (verify no issues, increase to 6 months)
+   - **Next Review**: **2026-01-15** (verify 6 months deployment stable, increase to 1 year)
    - **Files Updated**: Both traefik and monitoring security-headers middleware
-   - **Commit**: 5e109cd
+   - **Commits**: 5e109cd (Step 1), 793a247 (Step 2)
 
 ---
 
@@ -1229,6 +1225,37 @@ ingress:
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-11-16 (Security Hardening Reviews Complete) ✅
+- ✅ **HSTS Step 2 Deployment**: Increased HSTS max-age from 1 month to 6 months (Step 2/3) ⭐
+- ✅ **CSP Enforcement Validation**: Confirmed CSP already in enforcement mode since 2025-10-31 (16 days, zero violations)
+- ✅ **Discount Bandit Memory Evaluation**: Reviewed resource allocation, no changes needed (477Mi usage, 38% headroom)
+- 🎯 **Impact**: All 3 overdue security hardening reviews addressed
+- 🔧 **Technical Details**:
+  - **HSTS Step 2 (Completed 2025-11-16)**:
+    - Updated both security-headers middleware files
+    - Changed HSTS max-age from 2628000s (1 month) → 15768000s (6 months)
+    - Files: `infrastructure/controllers/base/traefik/security-headers-middleware.yaml`, `monitoring/configs/staging/kube-prometheus-stack/security-headers-middleware.yaml`
+    - Deployment: GitOps via Flux reconciliation (both kustomizations succeeded)
+    - Next step: Final increase to 1 year (31536000s) on 2026-01-15
+  - **CSP Enforcement (Already Complete)**:
+    - Enforcement mode deployed: 2025-10-31 (Commit 04df8a4)
+    - Production uptime: 16 days with zero violations
+    - Testing: 85 automated tests across 17 apps (100% pass rate)
+    - Both middleware files use `Content-Security-Policy` header (not report-only)
+    - No code changes needed, documentation updated to reflect completion
+  - **Discount Bandit Memory (No Changes Needed)**:
+    - Current allocation: 512Mi request / 768Mi limit
+    - Current usage: 477Mi (62% of limit, 38% headroom)
+    - Analysis: Memory allocation appropriate for workload
+    - Conclusion: No adjustment required, healthy buffer maintained
+- 📊 **Gradual HSTS Rollout Progress**:
+  - ✅ Step 1 (1 month): Deployed 2025-10-31
+  - ✅ Step 2 (6 months): Deployed 2025-11-16
+  - ⏰ Step 3 (1 year): Target 2026-01-15 (final step)
+- 💪 **Benefits**: Progressive HSTS deployment reduces risk, CSP enforcement validated with production uptime
+- 📋 **Documentation**: Updated HOMELAB_ANALYSIS.md with completion status for all 3 reviews
+- Commits: 793a247 (HSTS Step 2)
 
 ### 2025-11-15 (VictoriaMetrics Migration Aborted) ⚠️
 - ❌ **VictoriaMetrics Migration Failed**: Aborted migration from Prometheus to VictoriaMetrics
