@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: discount-bandit-entrypoint
+  namespace: discount-bandit
+data:
+  entrypoint.sh: |
+    #!/bin/sh
+
+    if [ ! -f "vendor/autoload.php" ]; then
+        echo "Installing Composer"
+        composer install --no-interaction --no-progress
+    fi
+
+    cp .env.example .env
+
+    if [ ! -f "/logs" ]; then
+        mkdir /logs
+    fi
+
+    php artisan storage:link
+
+    printenv > /etc/environment
+
+    php artisan migrate --force --seed
+
+    # Clear all caches - don't create them (avoids duplicate route name bug)
+    php artisan optimize:clear
+
+    php artisan filament:optimize-clear
+
+    php artisan octane:install --server=frankenphp
+
+    # SKIP: php artisan optimize  # <-- Removed to avoid route cache bug with duplicate 'products.show' route
+    # SKIP: php artisan filament:optimize  # <-- Removed
+
+    php artisan discount:fill-supervisor-workers
+
+    php artisan discount:exchange-rate
+
+    Xvfb :99 -screen 0 2000x2000x24 & export DISPLAY=:99
+
+    #php artisan discount:test-notify
+
+    supervisord -c  /etc/supervisor/conf.d/supervisord.conf

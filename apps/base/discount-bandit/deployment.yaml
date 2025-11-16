@@ -53,19 +53,10 @@ spec:
       containers:
         - name: discount-bandit
           image: cybrarist/discount-bandit:v4
+          command: ["/custom-entrypoint.sh"]  # Use custom entrypoint to skip php artisan optimize
           ports:
             - containerPort: 80
               name: http
-          lifecycle:
-            postStart:
-              exec:
-                command:
-                  - sh
-                  - -c
-                  - |
-                    sleep 5
-                    php artisan route:clear || true
-                    php artisan config:clear || true
           env:
             - name: APP_NAME
               value: "Discount Bandit"
@@ -105,6 +96,9 @@ spec:
               subPath: logs
             - name: vendor
               mountPath: /app/vendor
+            - name: custom-entrypoint
+              mountPath: /custom-entrypoint.sh
+              subPath: entrypoint.sh
           resources:
             requests:
               cpu: 100m
@@ -142,3 +136,7 @@ spec:
             claimName: discount-bandit-data
         - name: vendor
           emptyDir: {}
+        - name: custom-entrypoint
+          configMap:
+            name: discount-bandit-entrypoint
+            defaultMode: 0755
