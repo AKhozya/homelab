@@ -42,12 +42,16 @@ data:
 
     printenv > /etc/environment
 
-    php artisan migrate --force --seed
+    # Run migrations without seeding (seeding only needed on first deploy)
+    php artisan migrate --force
 
     # Clear all caches - don't create them (avoids duplicate route name bug)
     php artisan optimize:clear
 
     php artisan filament:optimize-clear
+
+    # Cache config with correct APP_KEY and session settings before Octane starts
+    php artisan config:cache
 
     php artisan octane:install --server=frankenphp
 
