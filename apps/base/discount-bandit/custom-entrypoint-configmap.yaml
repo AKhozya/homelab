@@ -12,7 +12,21 @@ data:
         composer install --no-interaction --no-progress
     fi
 
-    cp .env.example .env
+    # Create .env file with proper session configuration for Kubernetes
+    cat .env.example > .env
+
+    # Override session settings to fix CSRF/Livewire issues
+    # Extract domain from APP_URL (e.g., https://discounts.h0melab.work -> .h0melab.work)
+    DOMAIN=$(echo $APP_URL | sed 's|https\?://||' | sed 's|[^.]*\.\(.*\)|.\1|')
+
+    # Update session configuration in .env
+    sed -i "s|SESSION_DOMAIN=null|SESSION_DOMAIN=${DOMAIN}|g" .env
+    sed -i "s|SESSION_DRIVER=file|SESSION_DRIVER=database|g" .env
+
+    # Add secure cookie setting if not present
+    if ! grep -q "SESSION_SECURE_COOKIE" .env; then
+        echo "SESSION_SECURE_COOKIE=true" >> .env
+    fi
 
     if [ ! -f "/logs" ]; then
         mkdir /logs
