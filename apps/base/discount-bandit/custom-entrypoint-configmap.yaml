@@ -15,6 +15,12 @@ data:
     # Create .env file with proper session configuration for Kubernetes
     cat .env.example > .env
 
+    # Set APP_KEY from environment variable (CRITICAL for CSRF tokens)
+    # Insert APP_KEY after APP_DEBUG line (line 3) since .env.example doesn't have it
+    if [ -n "$APP_KEY" ]; then
+        sed -i "/^APP_DEBUG=/a APP_KEY=${APP_KEY}" .env
+    fi
+
     # Override session settings to fix CSRF/Livewire issues
     # Extract domain from APP_URL (e.g., https://discounts.h0melab.work -> .h0melab.work)
     DOMAIN=$(echo $APP_URL | sed 's|https\?://||' | sed 's|[^.]*\.\(.*\)|.\1|')
