@@ -12,4 +12,3 @@ resources:
   - service.yaml
   - networkpolicy.yaml
   - ingress.yaml
-  - admin-setup-job.yaml

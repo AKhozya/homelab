@@ -98,6 +98,21 @@ spec:
               value: "true"
             - name: DB_DATABASE
               value: "/data/database.sqlite"
+            - name: ADMIN_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: discount-bandit-admin
+                  key: name
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: discount-bandit-admin
+                  key: email
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: discount-bandit-admin
+                  key: password
           volumeMounts:
             - name: data
               mountPath: /data

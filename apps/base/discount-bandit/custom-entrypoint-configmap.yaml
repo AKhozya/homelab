@@ -19,7 +19,23 @@ data:
     # Seed database (ensures fresh deploys work from scratch)
     php artisan db:seed --force
 
-    # Cache config from environment variables (testing if route cache issue is blocking or just warning)
+    # Create admin user (idempotent - skips if user already exists)
+    echo "Creating admin user..."
+    if php artisan make:filament-user \
+      --name="${ADMIN_NAME}" \
+      --email="${ADMIN_EMAIL}" \
+      --password="${ADMIN_PASSWORD}" 2>&1 | tee /tmp/user-creation.log; then
+      echo "Admin user created successfully!"
+    else
+      if grep -q "already" /tmp/user-creation.log || grep -q "duplicate" /tmp/user-creation.log; then
+        echo "Admin user already exists. Skipping."
+      else
+        echo "WARNING: Failed to create admin user. Check logs above."
+        # Don't fail the entire startup - app can still run
+      fi
+    fi
+
+    # Cache config from environment variables (route cache issue is non-blocking)
     php artisan config:cache
 
     php artisan octane:install --server=frankenphp
