@@ -70,7 +70,7 @@ spec:
             - name: APP_NAME
               value: "Discount Bandit"
             - name: APP_ENV
-              value: "production"
+              value: "local"  # Changed from production to prevent route caching (app has duplicate route names bug)
             - name: APP_DEBUG
               value: "false"
             - name: APP_URL
