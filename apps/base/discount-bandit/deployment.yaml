@@ -53,7 +53,7 @@ spec:
       containers:
         - name: discount-bandit
           image: cybrarist/discount-bandit:v4
-          command: ["/custom-entrypoint.sh"]  # Injects APP_KEY, configures sessions (CSRF), skips route caching (upstream bug)
+          command: ["/custom-entrypoint.sh"]  # Runs migrations, caches config from env vars, skips route cache (upstream bug)
           ports:
             - containerPort: 80
               name: http
@@ -90,6 +90,12 @@ spec:
               value: "daily"
             - name: SESSION_LIFETIME
               value: "120"
+            - name: SESSION_DRIVER
+              value: "database"
+            - name: SESSION_DOMAIN
+              value: ".h0melab.work"
+            - name: SESSION_SECURE_COOKIE
+              value: "true"
             - name: DB_DATABASE
               value: "/data/database.sqlite"
           volumeMounts:

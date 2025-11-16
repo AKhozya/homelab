@@ -6,64 +6,31 @@ metadata:
 data:
   entrypoint.sh: |
     #!/bin/sh
-
-    if [ ! -f "vendor/autoload.php" ]; then
-        echo "Installing Composer"
-        composer install --no-interaction --no-progress
-    fi
-
-    # Create .env file with proper session configuration for Kubernetes
-    cat .env.example > .env
-
-    # Set APP_KEY from environment variable (CRITICAL for CSRF tokens)
-    # Insert APP_KEY after APP_DEBUG line (line 3) since .env.example doesn't have it
-    if [ -n "$APP_KEY" ]; then
-        sed -i "/^APP_DEBUG=/a APP_KEY=${APP_KEY}" .env
-    fi
-
-    # Override session settings to fix CSRF/Livewire issues
-    # Extract domain from APP_URL (e.g., https://discounts.h0melab.work -> .h0melab.work)
-    DOMAIN=$(echo $APP_URL | sed 's|https\?://||' | sed 's|[^.]*\.\(.*\)|.\1|')
-
-    # Update session configuration in .env
-    sed -i "s|SESSION_DOMAIN=null|SESSION_DOMAIN=${DOMAIN}|g" .env
-    sed -i "s|SESSION_DRIVER=file|SESSION_DRIVER=database|g" .env
-
-    # Add secure cookie setting if not present
-    if ! grep -q "SESSION_SECURE_COOKIE" .env; then
-        echo "SESSION_SECURE_COOKIE=true" >> .env
-    fi
-
-    if [ ! -f "/logs" ]; then
-        mkdir /logs
-    fi
+    # Simplified entrypoint - Laravel reads config from environment variables
 
     php artisan storage:link
 
+    # Make env vars available to supervisord/FrankenPHP
     printenv > /etc/environment
 
-    # Run migrations without seeding (seeding only needed on first deploy)
+    # Run database migrations
     php artisan migrate --force
 
-    # Clear all caches - don't create them (avoids duplicate route name bug)
+    # Clear all caches (avoids route cache bug with duplicate 'products.show' route)
     php artisan optimize:clear
-
     php artisan filament:optimize-clear
 
-    # Cache config with correct APP_KEY and session settings before Octane starts
+    # Cache config from environment variables
     php artisan config:cache
 
     php artisan octane:install --server=frankenphp
 
-    # SKIP: php artisan optimize  # <-- Removed to avoid route cache bug with duplicate 'products.show' route
-    # SKIP: php artisan filament:optimize  # <-- Removed
-
+    # App-specific setup
     php artisan discount:fill-supervisor-workers
-
     php artisan discount:exchange-rate
 
+    # Start virtual display for browser automation
     Xvfb :99 -screen 0 2000x2000x24 & export DISPLAY=:99
 
-    #php artisan discount:test-notify
-
-    supervisord -c  /etc/supervisor/conf.d/supervisord.conf
+    # Start application
+    supervisord -c /etc/supervisor/conf.d/supervisord.conf
