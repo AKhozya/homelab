@@ -140,7 +140,7 @@ spec:
             memory: 1Gi
           limits:
             cpu: 500m
-            memory: 2.5Gi
+            memory: 1.5Gi
         # Config reloader sidecar resources
         configReloaderCpu: "50m"
         configReloaderMemory: "64Mi"
