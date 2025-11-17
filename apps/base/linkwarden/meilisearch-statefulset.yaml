@@ -26,6 +26,7 @@ spec:
       containers:
         - name: meilisearch
           image: getmeili/meilisearch:v1.26.0
+          command: ["meilisearch"]
           args:
             - "--experimental-dumpless-upgrade"
           ports:
