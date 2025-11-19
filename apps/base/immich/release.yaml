@@ -342,7 +342,7 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-machine-learning
-                tag: v2.2.3  # CPU-only (ROCm gfx1036 not supported)
+                tag: v2.3.0  # CPU-only (ROCm gfx1036 not supported)
                 pullPolicy: IfNotPresent
               env:
                 TRANSFORMERS_CACHE: /cache
