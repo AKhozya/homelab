@@ -46,11 +46,10 @@
   - **Phase 1 (Completed)**: Safe security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy)
   - **Phase 2 (Completed)**: HSTS deployment - Dual layer (Cloudflare edge: 1 month, Traefik origin: 1 week)
   - **Phase 3 (Completed)**: Rate limiting with monitoring - Standard (100/min + 150 burst), High-frequency (200/min + 300 burst)
-  - **Phase 4 (Completed)**: CSP in report-only mode with centralized logging to Loki
+  - **Phase 4 (Completed)**: CSP enforcement mode (deployed 2025-10-31, 16 days production, zero violations)
   - **Coverage**: All 17 services (14 apps + Grafana + AlertManager + CouchDB)
   - **Monitoring**: 6 Prometheus alerts for rate limiting (attack detection, false positive detection)
-  - **Next Review**: 2025-11-06 (7 days) - Analyze CSP violations, adjust policy, enable enforcement
-  - **HSTS Review**: 2025-11-30 (1 month) - Increase max-age to 1 year, consider includeSubdomains
+  - **HSTS Review**: 2025-11-30 - Step 3 final rollout (increase max-age to 1 year)
 
 **Critical Gaps (from 2025-10-27 Comprehensive Review)** 🔴
 - ⏸️ **No offsite backup replication** (P0-CRITICAL) - DEFERRED to late December 2025 (NAS delivery postponed)
@@ -1219,12 +1218,47 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-10-26 23:00 UTC
-**Next Review**: 2025-11-18
+**Last Updated**: 2025-11-19 22:55 UTC
+**Next Review**: 2025-12-15
 
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-11-19 (Documentation Update) 📋
+- ✅ **CSP Enforcement Status Update**: Updated executive summary to reflect CSP enforcement completion (deployed 2025-10-31, 19 days in production)
+- ✅ **Review Dates Updated**: Set next general review to 2025-12-15, HSTS final rollout scheduled 2025-11-30
+- ✅ **Shell Configuration**: Disabled "Last login" and "You have mail" messages via .hushlogin and MAILCHECK unset
+- 🎯 **Impact**: Resolved documentation inconsistencies, cleaned up overdue review items
+- Commits: chezmoi b3d3528 (dotfiles)
+
+### 2025-11-18 (Prometheus Memory Monitoring Complete) 📊
+- ✅ **68-Hour Monitoring Window Complete**: Extended observation of Prometheus memory consumption (Sat 15 Nov 23:10 - Tue 18 Nov 19:00 GMT)
+- ✅ **Decision**: KEEP current 1.5Gi limit - No changes needed ⭐
+- 🎯 **Impact**: Confirmed Prometheus memory allocation is appropriate with 29.2% headroom above peak usage
+- 🔧 **Technical Details**:
+  - **Actual Current Limit**: 1.5Gi (1536Mi) - Documentation previously stated 2.5Gi incorrectly
+  - **Peak Usage**: 1088Mi (70.8% of 1.5Gi limit) observed on Mon 17 Nov 20:08 GMT
+  - **Current Headroom**: 448Mi (29.2% above peak) - Adequate for metric spikes
+  - **Data Collection**:
+    - Attempted 18 automated measurements (every 3 hours)
+    - Only 3 successful data points collected (83% failure rate)
+    - Root cause: metrics-server intermittent availability (2 restarts during monitoring period)
+  - **Automated Analysis**:
+    - Formula: Peak × 1.3 = 1088Mi × 1.3 = 1414Mi (~1.4Gi)
+    - Recommendation: Reduce from 1.5Gi → 1.4Gi (save 102Mi)
+    - Decision: Rejected due to limited dataset and minimal savings (6.8% reduction)
+- 📊 **Rationale for Keeping 1.5Gi**:
+  - Current headroom (29.2%) adequate for metric spikes during incidents
+  - Only 3 of 18 data points captured - incomplete dataset
+  - Savings minimal (102Mi) not worth risk
+  - Limit already optimized through previous reductions (3Gi → 2.5Gi → 1.5Gi)
+- 🗑️ **Cleanup**:
+  - Removed all prometheus-memory monitoring cron jobs
+  - Archived scripts, logs, and analysis to `.monitoring-archive/prometheus-memory-monitoring-2025-11/`
+  - Updated documentation: `PROMETHEUS_MEMORY_MONITORING.md`, `prometheus-memory-automation.md`
+- 💪 **Benefits**: Validated current resource allocation, automated monitoring/analysis system proven effective
+- 📋 **Archive**: All monitoring artifacts preserved in `.monitoring-archive/prometheus-memory-monitoring-2025-11/` with comprehensive README
 
 ### 2025-11-16 (Security Hardening Reviews Complete) ✅
 - ✅ **HSTS Step 2 Deployment**: Increased HSTS max-age from 1 month to 6 months (Step 2/3) ⭐
