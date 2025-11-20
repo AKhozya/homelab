@@ -189,7 +189,7 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-server
-                tag: v2.3.0
+                tag: v2.3.1
                 pullPolicy: IfNotPresent
               env:
                 # Hardware acceleration disabled due to buggy Mesa VAAPI encoding on Radeon 610M
@@ -342,7 +342,7 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-machine-learning
-                tag: v2.3.0  # CPU-only (ROCm gfx1036 not supported)
+                tag: v2.3.1  # CPU-only (ROCm gfx1036 not supported)
                 pullPolicy: IfNotPresent
               env:
                 TRANSFORMERS_CACHE: /cache
