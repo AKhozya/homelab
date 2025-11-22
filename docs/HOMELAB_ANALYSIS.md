@@ -1239,6 +1239,23 @@ ingress:
 - 💪 **Benefits**: Bug fixes, security patches, updated container runtime
 - 📋 **Verification**: Both nodes Ready, all HelmReleases healthy, Flux reconciliation successful
 
+### 2025-11-22 (Discount Bandit Memory Fix) 🛍️
+- ✅ **OOM Kill Prevention**: Increased memory limits to prevent Out of Memory kills
+- 🎯 **Impact**: Pod stability restored after OOM incident at 82.8% memory usage
+- 🔧 **Technical Details**:
+  - **Root Cause**: Memory usage grew 33% in 6 days (477Mi → 636Mi peak)
+  - **OOM Incident**: Pod killed at 82.8% of 768Mi limit (~636Mi)
+  - **Fix**: Increased memory request 512Mi → 650Mi, limit 768Mi → 1Gi
+  - **Current Usage**: 405Mi (39.5% of new 1Gi limit)
+  - **Headroom**: 61% above previous peak (388Mi buffer)
+- 📊 **Memory Growth Pattern**:
+  - 2025-11-16: 477Mi (62% of 768Mi) ✅
+  - 2025-11-22: 636Mi (82.8% of 768Mi) ❌ OOM killed
+  - Post-fix: 405Mi (39.5% of 1Gi) ✅
+- 💪 **Benefits**: Prevents future OOM kills, accommodates continued memory growth
+- 📋 **Status**: Pod running healthy with 0 restarts, alert will clear on next Prometheus evaluation
+- Commit: 6f094f8
+
 ### 2025-11-19 (Documentation Update) 📋
 - ✅ **CSP Enforcement Status Update**: Updated executive summary to reflect CSP enforcement completion (deployed 2025-10-31, 19 days in production)
 - ✅ **Review Dates Updated**: Set next general review to 2025-12-15, HSTS final rollout scheduled 2025-11-30
