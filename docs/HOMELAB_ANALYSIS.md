@@ -1218,12 +1218,26 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-11-19 22:55 UTC
+**Last Updated**: 2025-11-22 23:40 UTC
 **Next Review**: 2025-12-15
 
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-11-22 (K3s Cluster Upgrade) 🚀
+- ✅ **K3s Upgrade Complete**: Upgraded both nodes from v1.34.1+k3s1 to v1.34.2+k3s1
+- ✅ **Control-Plane Node**: Successfully upgraded to v1.34.2+k3s1 (192.168.1.127)
+- ✅ **Worker Node**: Successfully upgraded to v1.34.2+k3s1 (192.168.1.129)
+- 🎯 **Impact**: Latest Kubernetes v1.34.2 with updated components (Containerd 2.1.5-k3s1, Traefik 3.5.1, CoreDNS 1.13.1)
+- 🔧 **Technical Details**:
+  - **Upgrade Method**: curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.34.2+k3s1 sh -
+  - **Worker Node Issue**: Installation script cleared K3S_URL/K3S_TOKEN from service.env, required re-installation with token
+  - **Cluster Health**: All 63 pods running, PostgreSQL cluster healthy (2/2 ready)
+  - **Downtime**: ~2 minutes worker node restart, all pods recovered automatically
+  - **Component Updates**: Containerd 2.1.4-k3s2 → 2.1.5-k3s1, Runc v1.3.3, Traefik v3.5.1
+- 💪 **Benefits**: Bug fixes, security patches, updated container runtime
+- 📋 **Verification**: Both nodes Ready, all HelmReleases healthy, Flux reconciliation successful
 
 ### 2025-11-19 (Documentation Update) 📋
 - ✅ **CSP Enforcement Status Update**: Updated executive summary to reflect CSP enforcement completion (deployed 2025-10-31, 19 days in production)
