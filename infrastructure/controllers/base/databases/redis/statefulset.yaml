@@ -106,7 +106,7 @@ spec:
             - name: data
               mountPath: /data
         - name: redis-exporter
-          image: oliver006/redis_exporter:v1.80.0-alpine
+          image: oliver006/redis_exporter:v1.80.1-alpine
           args:
             - --redis.addr=redis://localhost:6379
             - --redis.user=admin
