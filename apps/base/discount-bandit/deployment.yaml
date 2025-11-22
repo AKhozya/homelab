@@ -128,10 +128,10 @@ spec:
           resources:
             requests:
               cpu: 100m
-              memory: 512Mi
+              memory: 650Mi
             limits:
               cpu: 500m
-              memory: 768Mi
+              memory: 1Gi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false  # Laravel needs writable storage/cache
