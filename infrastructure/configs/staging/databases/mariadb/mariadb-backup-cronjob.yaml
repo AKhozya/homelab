@@ -55,7 +55,7 @@ spec:
                   memory: "128Mi"
           containers:
             - name: backup
-              image: mariadb:11.6
+              image: mariadb:11.8
               command:
                 - /bin/bash
                 - -c
