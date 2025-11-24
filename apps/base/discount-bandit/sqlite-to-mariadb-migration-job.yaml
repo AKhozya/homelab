@@ -60,7 +60,7 @@ spec:
 
               # Install sqlite3 and mariadb-client
               echo "Installing required tools..."
-              apk add --no-cache sqlite mariadb-client
+              apt-get update && apt-get install -y sqlite3 mariadb-client
 
               # Verify SQLite database exists
               if [ ! -f "/data/database/database.sqlite" ]; then
