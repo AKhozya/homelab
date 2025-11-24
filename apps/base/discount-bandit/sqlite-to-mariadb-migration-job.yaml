@@ -66,22 +66,14 @@ spec:
 
               echo "SQLite database found: $(ls -lh /data/database/database.sqlite)"
 
-              # Test MariaDB connectivity
-              echo "Testing MariaDB connectivity..."
-              mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" -e "SELECT 1;" > /dev/null 2>&1 || {
-                echo "ERROR: Cannot connect to MariaDB"
+              # Test MariaDB connectivity and create schema
+              echo "Testing MariaDB connectivity and running migrations..."
+              php artisan migrate --database=mysql --force || {
+                echo "ERROR: Cannot connect to MariaDB or migration failed"
                 exit 1
               }
 
-              echo "MariaDB connection successful"
-
-              # Export SQLite schema
-              echo "Exporting SQLite schema..."
-              sqlite3 /data/database/database.sqlite .schema > /tmp/sqlite-schema.sql
-
-              # Run migrations on MariaDB to create schema
-              echo "Creating MariaDB schema via Laravel migrations..."
-              php artisan migrate --database=mysql --force
+              echo "MariaDB connection successful and schema created"
 
               # Export data from SQLite and import to MariaDB table by table
               echo "Migrating data from SQLite to MariaDB..."
