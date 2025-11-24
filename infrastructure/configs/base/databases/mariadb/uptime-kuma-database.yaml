@@ -1,0 +1,13 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: Database
+metadata:
+  name: uptime-kuma
+  namespace: databases
+spec:
+  mariaDbRef:
+    name: main-mariadb
+    waitForIt: true
+  name: uptimekuma
+  characterSet: utf8mb4
+  collate: utf8mb4_unicode_ci
+  retryInterval: 5s
