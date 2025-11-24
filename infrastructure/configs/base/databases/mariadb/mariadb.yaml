@@ -4,8 +4,8 @@ metadata:
   name: main-mariadb
   namespace: databases
 spec:
-  # High Availability - 3 replicas with Galera synchronous replication
-  replicas: 3
+  # High Availability - Start with 1 replica, scale to 3 after first bind
+  replicas: 1
 
   # MariaDB version
   image: mariadb:12.1.2  # Latest LTS version
