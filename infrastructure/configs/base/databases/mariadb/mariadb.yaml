@@ -22,7 +22,7 @@ spec:
   # Storage configuration (per replica)
   storage:
     size: 20Gi
-    storageClassName: local-path
+    storageClassName: local-path-immediate
     resizeInUseVolumes: true  # Allow online storage resize
     waitForVolumeResize: true
 
