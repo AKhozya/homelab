@@ -1215,7 +1215,7 @@ ingress:
 - **Usage**: Application data for Home Assistant, Discount Bandit, Uptime Kuma (3 apps migrated from SQLite)
 - **Cluster Type**: Galera multi-master synchronous replication
 - **Replicas**: 2 instances (active-active replication)
-- **Version**: MariaDB 11.6
+- **Version**: MariaDB 12.1
 - **Operator**: mariadb-operator v0.37.1
 - **Replication**: Synchronous multi-master (all nodes writable)
 - **Failover**: Automatic via MariaDB operator
@@ -1254,7 +1254,7 @@ ingress:
 - 🎯 **Impact**: Eliminated SQLite from homelab, all apps now use production-grade databases (PostgreSQL or MariaDB)
 - 🔧 **Technical Details**:
   - **Cluster Type**: Galera multi-master synchronous replication (2 replicas)
-  - **Version**: MariaDB 11.6
+  - **Version**: MariaDB 12.1
   - **Architecture**: Aligned with PostgreSQL pattern (base = infrastructure, staging = app-specific)
   - **Databases Created**: homeassistant, discountbandit, uptimekuma (3 databases, 3 users, 3 grants)
   - **Migration Approaches**:
