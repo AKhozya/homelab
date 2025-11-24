@@ -1,0 +1,121 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: uptime-kuma-sqlite-to-mariadb-migration
+  namespace: uptime-kuma
+spec:
+  ttlSecondsAfterFinished: 3600  # Keep job for 1 hour after completion
+  template:
+    metadata:
+      labels:
+        app: uptime-kuma-migration
+    spec:
+      serviceAccountName: uptime-kuma
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate-data
+          image: python:3.12-alpine
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              echo "=== Starting SQLite to MariaDB Migration ==="
+
+              # Install dependencies
+              echo "Installing sqlite3-to-mysql and MariaDB client..."
+              apk add --no-cache mariadb-client mariadb-connector-c-dev build-base
+              pip install --no-cache-dir sqlite3-to-mysql
+
+              # Verify SQLite database exists
+              if [ ! -f "/data/kuma.db" ]; then
+                echo "ERROR: SQLite database not found at /data/kuma.db"
+                exit 1
+              fi
+
+              echo "SQLite database found: $(ls -lh /data/kuma.db)"
+
+              # Create backup of SQLite database
+              echo "Creating backup of SQLite database..."
+              cp /data/kuma.db /data/kuma.db.backup-$(date +%Y%m%d_%H%M%S)
+              echo "Backup created successfully"
+
+              # Test MariaDB connectivity
+              echo "Testing MariaDB connectivity..."
+              mysql \
+                -h main-mariadb-primary.databases.svc.cluster.local \
+                -P 3306 \
+                -u uptimekuma \
+                -p"$MARIADB_PASSWORD" \
+                -D uptimekuma \
+                -e "SELECT 1;" || {
+                echo "ERROR: Cannot connect to MariaDB"
+                exit 1
+              }
+              echo "MariaDB connection successful"
+
+              # Migrate data using sqlite3-to-mysql
+              echo "Starting data migration..."
+              echo "NOTE: Using -i IGNORE flag to handle timestamp format incompatibilities"
+
+              sqlite3mysql \
+                -f /data/kuma.db \
+                -d uptimekuma \
+                -u uptimekuma \
+                -p "$MARIADB_PASSWORD" \
+                -h main-mariadb-primary.databases.svc.cluster.local \
+                -P 3306 \
+                -K \
+                -i IGNORE || {
+                echo "ERROR: Migration failed"
+                exit 1
+              }
+
+              echo "=== Migration Complete ==="
+              echo "SQLite backup remains at /data/kuma.db.backup-*"
+              echo "Original SQLite database: /data/kuma.db (kept for rollback)"
+
+              # Show MariaDB table count
+              echo ""
+              echo "Verifying MariaDB tables..."
+              mysql \
+                -h main-mariadb-primary.databases.svc.cluster.local \
+                -P 3306 \
+                -u uptimekuma \
+                -p"$MARIADB_PASSWORD" \
+                -D uptimekuma \
+                -e "SHOW TABLES;" | wc -l
+          env:
+            - name: MARIADB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: uptime-kuma-mariadb-credentials
+                  key: password
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: uptime-kuma-data-pvc  # Mount existing PVC with SQLite database
