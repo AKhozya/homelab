@@ -1,0 +1,175 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: discount-bandit-sqlite-to-mariadb-migration
+  namespace: discount-bandit
+spec:
+  ttlSecondsAfterFinished: 3600  # Keep job for 1 hour after completion
+  template:
+    metadata:
+      labels:
+        app: discount-bandit-migration
+    spec:
+      serviceAccountName: discount-bandit
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Install dependencies first (composer install)
+        - name: install-dependencies
+          image: cybrarist/discount-bandit:v4
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running composer install..."
+              cd /app
+              composer install --optimize-autoloader --no-interaction
+              echo "Composer install completed successfully"
+          volumeMounts:
+            - name: vendor
+              mountPath: /app/vendor
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      containers:
+        - name: migrate-data
+          image: cybrarist/discount-bandit:v4
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              echo "=== Starting SQLite to MariaDB Migration ==="
+              cd /app
+
+              # Verify SQLite database exists
+              if [ ! -f "/data/database.sqlite" ]; then
+                echo "ERROR: SQLite database not found at /data/database.sqlite"
+                exit 1
+              fi
+
+              echo "SQLite database found: $(ls -lh /data/database.sqlite)"
+
+              # Test MariaDB connectivity
+              echo "Testing MariaDB connectivity..."
+              php artisan migrate:status --database=mysql || {
+                echo "ERROR: Cannot connect to MariaDB"
+                exit 1
+              }
+
+              echo "MariaDB connection successful"
+
+              # Export SQLite schema
+              echo "Exporting SQLite schema..."
+              sqlite3 /data/database.sqlite .schema > /tmp/sqlite-schema.sql
+
+              # Run migrations on MariaDB to create schema
+              echo "Creating MariaDB schema via Laravel migrations..."
+              php artisan migrate --database=mysql --force
+
+              # Export data from SQLite and import to MariaDB table by table
+              echo "Migrating data from SQLite to MariaDB..."
+
+              # Get list of tables from SQLite (excluding sqlite_sequence)
+              TABLES=$(sqlite3 /data/database.sqlite "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
+
+              for TABLE in $TABLES; do
+                echo "Migrating table: $TABLE"
+
+                # Export table data as SQL INSERT statements
+                sqlite3 /data/database.sqlite ".mode insert $TABLE" "SELECT * FROM $TABLE;" > /tmp/${TABLE}.sql
+
+                # Import to MariaDB using mysql command
+                mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" < /tmp/${TABLE}.sql || {
+                  echo "WARNING: Failed to migrate table $TABLE (might be empty or already migrated)"
+                }
+
+                # Count rows to verify
+                SQLITE_COUNT=$(sqlite3 /data/database.sqlite "SELECT COUNT(*) FROM $TABLE;")
+                MARIADB_COUNT=$(mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" -sN -e "SELECT COUNT(*) FROM $TABLE;")
+
+                echo "  SQLite rows: $SQLITE_COUNT"
+                echo "  MariaDB rows: $MARIADB_COUNT"
+
+                if [ "$SQLITE_COUNT" != "$MARIADB_COUNT" ]; then
+                  echo "  WARNING: Row count mismatch for table $TABLE"
+                fi
+              done
+
+              echo "=== Migration Complete ==="
+              echo "SQLite database remains at /data/database.sqlite (not deleted - kept as backup)"
+              echo "Verify application functionality before removing SQLite database"
+          env:
+            # MariaDB connection (destination)
+            - name: DB_CONNECTION
+              value: "mysql"
+            - name: DB_HOST
+              value: "main-mariadb-primary.databases.svc.cluster.local"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_DATABASE
+              value: "discountbandit"
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: discount-bandit-mariadb-credentials
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: discount-bandit-mariadb-credentials
+                  key: password
+            # Application config (required for Laravel)
+            - name: APP_NAME
+              value: "Discount Bandit Migration"
+            - name: APP_ENV
+              value: "production"
+            - name: APP_DEBUG
+              value: "false"
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: discount-bandit-secret
+                  key: app-key
+            - name: APP_TIMEZONE
+              value: "America/Los_Angeles"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: vendor
+              mountPath: /app/vendor
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: discount-bandit-data  # Mount existing PVC with SQLite database
+        - name: vendor
+          emptyDir: {}
