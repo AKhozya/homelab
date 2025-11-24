@@ -11,6 +11,9 @@ spec:
   image: mariadb:11.6.2  # Latest LTS version
   imagePullPolicy: IfNotPresent
 
+  # Service account for pods
+  serviceAccountName: mariadb
+
   # Root credentials
   rootPasswordSecretKeyRef:
     name: mariadb-root
