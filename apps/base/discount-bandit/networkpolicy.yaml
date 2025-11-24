@@ -50,3 +50,11 @@ spec:
       ports:
         - protocol: TCP
           port: 80
+    # Allow MariaDB access to databases namespace
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+      ports:
+        - protocol: TCP
+          port: 3306
