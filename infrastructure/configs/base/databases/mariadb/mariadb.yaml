@@ -8,7 +8,7 @@ spec:
   replicas: 3
 
   # MariaDB version
-  image: mariadb:11.6.2  # Latest LTS version
+  image: mariadb:12.1.2  # Latest LTS version
   imagePullPolicy: IfNotPresent
 
   # Root credentials
