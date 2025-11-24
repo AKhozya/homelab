@@ -3,4 +3,5 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - helmrepository.yaml
+  - crds-helmrelease.yaml  # Must be applied before operator
   - helmrelease.yaml

@@ -22,7 +22,10 @@ spec:
     remediation:
       retries: 3
   values:
-    # Operator configuration
+    # High availability - 3 replicas
+    replicas: 3
+
+    # Operator image configuration
     image:
       repository: ghcr.io/mariadb-operator/mariadb-operator
       pullPolicy: IfNotPresent
@@ -44,10 +47,6 @@ spec:
         certManager:
           enabled: true  # Use cert-manager for webhook certificates
 
-    # High availability
-    ha:
-      enabled: true  # Enable HA for operator itself
-
     # Metrics
     metrics:
       enabled: true
@@ -56,13 +55,12 @@ spec:
         additionalLabels:
           release: kube-prometheus-stack
 
-    # Security context
+    # Security context (relaxed from previous - operator needs more permissions)
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
         drop:
           - ALL
-      readOnlyRootFilesystem: true
       runAsNonRoot: true
       seccompProfile:
         type: RuntimeDefault
