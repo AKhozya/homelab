@@ -151,7 +151,7 @@ spec:
                 - name: MARIADB_ROOT_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: main-mariadb-admin
+                      name: mariadb-root
                       key: password
               volumeMounts:
                 - name: backup-storage
