@@ -4,6 +4,7 @@ metadata:
   name: mariadb-init-job-exception
   namespace: databases
 spec:
+  background: true
   exceptions:
     - policyName: require-non-default-serviceaccount
       ruleNames:
@@ -16,4 +17,4 @@ spec:
           namespaces:
             - databases
           names:
-            - main-mariadb-init*
+            - "main-mariadb-init*"
