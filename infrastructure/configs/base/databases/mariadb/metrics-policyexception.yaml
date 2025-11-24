@@ -1,0 +1,19 @@
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: mariadb-metrics-serviceaccount
+  namespace: databases
+spec:
+  exceptions:
+    - policyName: require-non-default-serviceaccount
+      ruleNames:
+        - non-default-serviceaccount
+  match:
+    any:
+      - resources:
+          kinds:
+            - Deployment
+          names:
+            - main-mariadb-metrics
+          namespaces:
+            - databases

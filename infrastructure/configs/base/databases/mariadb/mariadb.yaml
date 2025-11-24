@@ -76,7 +76,6 @@ spec:
   # Metrics for Prometheus
   metrics:
     enabled: true
-    serviceAccountName: mariadb  # Use dedicated ServiceAccount (Kyverno requirement)
     exporter:
       image: prom/mysqld-exporter:v0.18.0
       port: 9104
