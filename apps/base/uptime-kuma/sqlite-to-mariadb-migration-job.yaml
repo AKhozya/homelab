@@ -123,16 +123,16 @@ spec:
               total_rows = 0
               for table in TABLES_TO_MIGRATE:
                   try:
-                      # Get row count from SQLite
-                      sqlite_cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                      # Get row count from SQLite (use double quotes for reserved keywords)
+                      sqlite_cursor.execute(f'SELECT COUNT(*) FROM "{table}"')
                       row_count = sqlite_cursor.fetchone()[0]
 
                       if row_count == 0:
                           print(f"  {table}: 0 rows (skipping)")
                           continue
 
-                      # Get all data from SQLite
-                      sqlite_cursor.execute(f"SELECT * FROM {table}")
+                      # Get all data from SQLite (use double quotes for reserved keywords)
+                      sqlite_cursor.execute(f'SELECT * FROM "{table}"')
                       rows = sqlite_cursor.fetchall()
 
                       if len(rows) == 0:
