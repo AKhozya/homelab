@@ -14,11 +14,38 @@ spec:
       automountServiceAccountToken: false
       restartPolicy: Never
       securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: install-dependencies
+          image: python:3.12-alpine
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              echo "Installing dependencies..."
+              apk add --no-cache mariadb-client mariadb-connector-c-dev build-base
+              pip install --no-cache-dir --target=/deps sqlite3-to-mysql
+              echo "Dependencies installed successfully"
+          volumeMounts:
+            - name: deps
+              mountPath: /deps
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
       containers:
         - name: migrate-data
           image: python:3.12-alpine
@@ -29,10 +56,9 @@ spec:
               set -e
               echo "=== Starting SQLite to MariaDB Migration ==="
 
-              # Install dependencies
-              echo "Installing sqlite3-to-mysql and MariaDB client..."
-              apk add --no-cache mariadb-client mariadb-connector-c-dev build-base
-              pip install --no-cache-dir sqlite3-to-mysql
+              # Add dependencies to Python path
+              export PYTHONPATH=/deps:$PYTHONPATH
+              export PATH=/deps/bin:$PATH
 
               # Verify SQLite database exists
               if [ ! -f "/data/kuma.db" ]; then
@@ -101,6 +127,8 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            - name: deps
+              mountPath: /deps
           resources:
             requests:
               cpu: 200m
@@ -109,6 +137,8 @@ spec:
               cpu: 1000m
               memory: 1Gi
           securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
             runAsNonRoot: true
@@ -119,3 +149,5 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: uptime-kuma-data-pvc  # Mount existing PVC with SQLite database
+        - name: deps
+          emptyDir: {}  # Shared volume for Python dependencies
