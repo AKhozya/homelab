@@ -4,8 +4,8 @@ metadata:
   name: main-mariadb
   namespace: databases
 spec:
-  # High Availability - Start with 1 replica, scale to 3 after first bind
-  replicas: 1
+  # High Availability - 3 replicas with Galera synchronous replication
+  replicas: 3
 
   # MariaDB version
   image: mariadb:12.1.2  # Latest LTS version
@@ -22,7 +22,7 @@ spec:
   # Storage configuration (per replica)
   storage:
     size: 20Gi
-    storageClassName: local-path
+    storageClassName: mariadb-local-path  # Custom StorageClass with Immediate binding
     resizeInUseVolumes: true  # Allow online storage resize
     waitForVolumeResize: true
 

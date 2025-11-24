@@ -1,0 +1,8 @@
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: mariadb-local-path
+provisioner: rancher.io/local-path
+reclaimPolicy: Delete
+volumeBindingMode: Immediate  # Required for MariaDB Galera - operator needs PVCs Bound before StatefulSet creation
+allowVolumeExpansion: true
