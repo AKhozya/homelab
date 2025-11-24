@@ -6,9 +6,9 @@ resources:
   - mariadb.yaml
   - networkpolicy.yaml
   # User credentials
-  - ha-password.yaml
+  - ha-mariadb-credentials.yaml
   - discount-bandit-credentials.yaml
-  - uptime-kuma-password.yaml
+  - uptime-kuma-mariadb-credentials.yaml
   # Databases
   - ha-database.yaml
   - discount-bandit-database.yaml

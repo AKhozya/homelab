@@ -9,7 +9,7 @@ spec:
     waitForIt: true
   name: homeassistant
   passwordSecretKeyRef:
-    name: ha-mariadb-password
+    name: ha-mariadb-credentials
     key: password
   maxUserConnections: 20
   retryInterval: 5s

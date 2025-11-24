@@ -9,7 +9,7 @@ spec:
     waitForIt: true
   name: uptimekuma
   passwordSecretKeyRef:
-    name: uptime-kuma-mariadb-password
+    name: uptime-kuma-mariadb-credentials
     key: password
   maxUserConnections: 10
   retryInterval: 5s
