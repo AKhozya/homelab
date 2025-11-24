@@ -29,8 +29,9 @@ spec:
 
               # Install pymysql (pure Python, no root needed)
               echo "Installing pymysql..."
+              export HOME=/tmp
               pip install --user --no-cache-dir pymysql
-              export PATH=$HOME/.local/bin:$PATH
+              export PATH=/tmp/.local/bin:$PATH
 
               # Verify SQLite database exists
               if [ ! -f "/data/kuma.db" ]; then
