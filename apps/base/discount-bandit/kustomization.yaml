@@ -8,7 +8,6 @@ resources:
   - admin-secret.yaml
   - pvc.yaml
   - custom-entrypoint-configmap.yaml
-  - sqlite-to-mariadb-migration-job.yaml
   - deployment.yaml
   - service.yaml
   - networkpolicy.yaml
