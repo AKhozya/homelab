@@ -1,0 +1,19 @@
+apiVersion: kyverno.io/v2
+kind: PolicyException
+metadata:
+  name: mariadb-init-job-exception
+  namespace: databases
+spec:
+  exceptions:
+    - policyName: require-non-default-serviceaccount
+      ruleNames:
+        - autogen-non-default-serviceaccount
+  match:
+    any:
+      - resources:
+          kinds:
+            - Job
+          namespaces:
+            - databases
+          names:
+            - main-mariadb-init*
