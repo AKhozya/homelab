@@ -42,7 +42,7 @@ spec:
     replicaThreads: 1  # Parallel replication threads
     agent:
       # Agent for cluster monitoring and recovery
-      image: ghcr.io/mariadb-operator/mariadb-operator:v0.0.35
+      image: ghcr.io/mariadb-operator/mariadb-operator:0.38.1
       port: 5555
       kubernetesAuth:
         enabled: true  # Use Kubernetes ServiceAccount for auth
