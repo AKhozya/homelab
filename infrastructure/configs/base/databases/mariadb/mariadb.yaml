@@ -40,7 +40,7 @@ spec:
     enabled: true
     primary:
       podIndex: 0  # Use first pod as initial primary
-      automaticFailover: true  # Enable automatic primary failover
+      autoFailover: true  # Enable automatic primary failover
     sst: mariabackup  # Use mariabackup for State Snapshot Transfer
     replicaThreads: 1  # Parallel replication threads
     agent:
