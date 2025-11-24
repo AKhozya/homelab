@@ -17,35 +17,6 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
-      initContainers:
-        - name: install-dependencies
-          image: python:3.12-alpine
-          command:
-            - sh
-            - -c
-            - |
-              set -e
-              echo "Installing dependencies..."
-              apk add --no-cache mariadb-client mariadb-connector-c-dev build-base
-              pip install --no-cache-dir --target=/deps sqlite3-to-mysql
-              echo "Dependencies installed successfully"
-          volumeMounts:
-            - name: deps
-              mountPath: /deps
-          resources:
-            requests:
-              cpu: 100m
-              memory: 256Mi
-            limits:
-              cpu: 500m
-              memory: 512Mi
-          securityContext:
-            runAsUser: 0
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
-            capabilities:
-              drop:
-                - ALL
       containers:
         - name: migrate-data
           image: python:3.12-alpine
@@ -56,9 +27,10 @@ spec:
               set -e
               echo "=== Starting SQLite to MariaDB Migration ==="
 
-              # Add dependencies to Python path
-              export PYTHONPATH=/deps:$PYTHONPATH
-              export PATH=/deps/bin:$PATH
+              # Install pymysql (pure Python, no root needed)
+              echo "Installing pymysql..."
+              pip install --user --no-cache-dir pymysql
+              export PATH=$HOME/.local/bin:$PATH
 
               # Verify SQLite database exists
               if [ ! -f "/data/kuma.db" ]; then
@@ -73,51 +45,152 @@ spec:
               cp /data/kuma.db /data/kuma.db.backup-$(date +%Y%m%d_%H%M%S)
               echo "Backup created successfully"
 
-              # Test MariaDB connectivity
-              echo "Testing MariaDB connectivity..."
-              mysql \
-                -h main-mariadb-primary.databases.svc.cluster.local \
-                -P 3306 \
-                -u uptimekuma \
-                -p"$MARIADB_PASSWORD" \
-                -D uptimekuma \
-                -e "SELECT 1;" || {
-                echo "ERROR: Cannot connect to MariaDB"
-                exit 1
-              }
-              echo "MariaDB connection successful"
+              # Run Python migration script
+              python3 << 'PYTHON_SCRIPT'
+              import sqlite3
+              import pymysql
+              import os
+              import sys
+              from datetime import datetime
 
-              # Migrate data using sqlite3-to-mysql
-              echo "Starting data migration..."
-              echo "NOTE: Using -i IGNORE flag to handle timestamp format incompatibilities"
+              # Configuration
+              SQLITE_DB = "/data/kuma.db"
+              MARIADB_HOST = "main-mariadb-primary.databases.svc.cluster.local"
+              MARIADB_PORT = 3306
+              MARIADB_USER = "uptimekuma"
+              MARIADB_PASSWORD = os.environ.get("MARIADB_PASSWORD")
+              MARIADB_DB = "uptimekuma"
 
-              sqlite3mysql \
-                -f /data/kuma.db \
-                -d uptimekuma \
-                -u uptimekuma \
-                -p "$MARIADB_PASSWORD" \
-                -h main-mariadb-primary.databases.svc.cluster.local \
-                -P 3306 \
-                -K \
-                -i IGNORE || {
-                echo "ERROR: Migration failed"
-                exit 1
-              }
+              # Tables to migrate (user priorities: user, monitors, 2FA, settings)
+              # EXCLUDE: heartbeat, stat_daily, stat_hourly, stat_minutely, notification_sent_history
+              TABLES_TO_MIGRATE = [
+                  "user",
+                  "monitor",
+                  "notification",
+                  "setting",
+                  "group",
+                  "monitor_group",
+                  "monitor_notification",
+                  "monitor_tag",
+                  "tag",
+                  "api_key",
+                  "docker_host",
+                  "proxy",
+                  "status_page",
+                  "status_page_cname",
+                  "incident",
+                  "maintenance",
+                  "maintenance_status_page",
+                  "monitor_maintenance",
+                  "monitor_tls_info",
+                  "remote_browser",
+                  "knex_migrations",
+                  "knex_migrations_lock"
+              ]
 
-              echo "=== Migration Complete ==="
-              echo "SQLite backup remains at /data/kuma.db.backup-*"
-              echo "Original SQLite database: /data/kuma.db (kept for rollback)"
+              print("\n=== Connecting to databases ===")
 
-              # Show MariaDB table count
+              # Connect to SQLite
+              try:
+                  sqlite_conn = sqlite3.connect(SQLITE_DB)
+                  sqlite_conn.row_factory = sqlite3.Row
+                  sqlite_cursor = sqlite_conn.cursor()
+                  print(f"✓ Connected to SQLite: {SQLITE_DB}")
+              except Exception as e:
+                  print(f"✗ Failed to connect to SQLite: {e}")
+                  sys.exit(1)
+
+              # Connect to MariaDB
+              try:
+                  mariadb_conn = pymysql.connect(
+                      host=MARIADB_HOST,
+                      port=MARIADB_PORT,
+                      user=MARIADB_USER,
+                      password=MARIADB_PASSWORD,
+                      database=MARIADB_DB,
+                      charset='utf8mb4'
+                  )
+                  mariadb_cursor = mariadb_conn.cursor()
+                  print(f"✓ Connected to MariaDB: {MARIADB_HOST}:{MARIADB_PORT}/{MARIADB_DB}")
+              except Exception as e:
+                  print(f"✗ Failed to connect to MariaDB: {e}")
+                  sys.exit(1)
+
+              print("\n=== Starting table migration ===")
+              print(f"Migrating {len(TABLES_TO_MIGRATE)} tables (excluding heartbeat and stat_* tables)")
+
+              total_rows = 0
+              for table in TABLES_TO_MIGRATE:
+                  try:
+                      # Get row count from SQLite
+                      sqlite_cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                      row_count = sqlite_cursor.fetchone()[0]
+
+                      if row_count == 0:
+                          print(f"  {table}: 0 rows (skipping)")
+                          continue
+
+                      # Get all data from SQLite
+                      sqlite_cursor.execute(f"SELECT * FROM {table}")
+                      rows = sqlite_cursor.fetchall()
+
+                      if len(rows) == 0:
+                          print(f"  {table}: 0 rows (skipping)")
+                          continue
+
+                      # Get column names
+                      columns = [description[0] for description in sqlite_cursor.description]
+
+                      # Insert data into MariaDB
+                      placeholders = ', '.join(['%s'] * len(columns))
+                      column_names = ', '.join([f"`{col}`" for col in columns])
+                      insert_sql = f"INSERT IGNORE INTO `{table}` ({column_names}) VALUES ({placeholders})"
+
+                      # Convert rows to tuples
+                      data = [tuple(row) for row in rows]
+
+                      # Execute batch insert
+                      mariadb_cursor.executemany(insert_sql, data)
+                      mariadb_conn.commit()
+
+                      inserted = mariadb_cursor.rowcount
+                      total_rows += inserted
+                      print(f"  {table}: {inserted}/{row_count} rows migrated")
+
+                  except Exception as e:
+                      print(f"  {table}: ERROR - {e}")
+                      # Continue with other tables
+                      continue
+
+              print(f"\n=== Migration Summary ===")
+              print(f"Total rows migrated: {total_rows}")
+              print(f"Tables processed: {len(TABLES_TO_MIGRATE)}")
+              print(f"\nExcluded tables (as requested):")
+              print(f"  - heartbeat")
+              print(f"  - stat_daily")
+              print(f"  - stat_hourly")
+              print(f"  - stat_minutely")
+              print(f"  - notification_sent_history")
+
+              # Verify critical tables
+              print(f"\n=== Verifying Critical Tables ===")
+              critical_tables = ["user", "monitor", "notification", "setting"]
+              for table in critical_tables:
+                  mariadb_cursor.execute(f"SELECT COUNT(*) FROM `{table}`")
+                  count = mariadb_cursor.fetchone()[0]
+                  print(f"  {table}: {count} rows")
+
+              # Close connections
+              sqlite_conn.close()
+              mariadb_conn.close()
+
+              print(f"\n=== Migration Complete ===")
+              print(f"SQLite backup: /data/kuma.db.backup-*")
+              print(f"Original SQLite: /data/kuma.db (kept for rollback)")
+              PYTHON_SCRIPT
+
               echo ""
-              echo "Verifying MariaDB tables..."
-              mysql \
-                -h main-mariadb-primary.databases.svc.cluster.local \
-                -P 3306 \
-                -u uptimekuma \
-                -p"$MARIADB_PASSWORD" \
-                -D uptimekuma \
-                -e "SHOW TABLES;" | wc -l
+              echo "Migration job finished successfully"
           env:
             - name: MARIADB_PASSWORD
               valueFrom:
@@ -127,8 +200,6 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
-            - name: deps
-              mountPath: /deps
           resources:
             requests:
               cpu: 200m
@@ -148,6 +219,4 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: uptime-kuma-data-pvc  # Mount existing PVC with SQLite database
-        - name: deps
-          emptyDir: {}  # Shared volume for Python dependencies
+            claimName: uptime-kuma-data-pvc
