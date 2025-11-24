@@ -84,7 +84,6 @@ spec:
           cpu: 300m
           memory: 512Mi
     serviceMonitor:
-      enabled: true
       prometheusRelease: kube-prometheus-stack
       interval: 30s
       scrapeTimeout: 10s
@@ -92,9 +91,10 @@ spec:
   # Service configuration
   service:
     type: ClusterIP
-    annotations:
-      prometheus.io/scrape: "true"
-      prometheus.io/port: "9104"
+    metadata:
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9104"
 
   # Pod configuration
   podDisruptionBudget:
