@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: mariadb-operator-crds
-      version: "0.35.x"  # Match operator version
+      version: "25.10.x"  # Match operator version
       sourceRef:
         kind: HelmRepository
         name: mariadb-operator
