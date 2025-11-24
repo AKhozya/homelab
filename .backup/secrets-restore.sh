@@ -111,11 +111,10 @@ kubectl apply -f "${BACKUP_DIR}/secrets/postgres-admin-user.json"
 # Database users
 kubectl apply -f "${BACKUP_DIR}/secrets/authentik-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/immich-db-user.json"
-kubectl apply -f "${BACKUP_DIR}/secrets/linkding-db-user.json"
+kubectl apply -f "${BACKUP_DIR}/secrets/linkwarden-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/mealie-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/n8n-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/paperless-db-user.json"
-kubectl apply -f "${BACKUP_DIR}/secrets/wallabag-db-user.json"
 echo "   ✅ Database secrets restored"
 
 # =============================================================================
@@ -146,26 +145,28 @@ kubectl apply -f "${BACKUP_DIR}/secrets/n8n-env.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/n8n-user-credentials.json"
 echo "   ✅ N8N"
 
-# Linkding
-kubectl create namespace linkding --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f "${BACKUP_DIR}/secrets/linkding-container-env.json"
-echo "   ✅ Linkding"
-
 # Mealie
 kubectl create namespace mealie --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/mealie-env.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/mealie-user-credentials.json"
 echo "   ✅ Mealie"
 
-# Wallabag
-kubectl create namespace wallabag --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f "${BACKUP_DIR}/secrets/wallabag-env.json"
-echo "   ✅ Wallabag"
-
 # Paperless-NGX
 kubectl create namespace paperless-ngx --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/paperless-env.json"
 echo "   ✅ Paperless-NGX"
+
+# LinkWarden (replaced Linkding + Wallabag)
+kubectl create namespace linkwarden --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f "${BACKUP_DIR}/secrets/linkwarden.json"
+kubectl apply -f "${BACKUP_DIR}/secrets/meilisearch.json"
+echo "   ✅ LinkWarden"
+
+# Discount Bandit
+kubectl create namespace discount-bandit --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f "${BACKUP_DIR}/secrets/discount-bandit-admin.json"
+kubectl apply -f "${BACKUP_DIR}/secrets/discount-bandit-secret.json"
+echo "   ✅ Discount Bandit"
 
 # Audiobookshelf
 kubectl create namespace audiobookshelf --dry-run=client -o yaml | kubectl apply -f -
@@ -227,17 +228,14 @@ fi
 if [ -f "${BACKUP_DIR}/secrets/immich-oidc.json" ]; then
     kubectl apply -f "${BACKUP_DIR}/secrets/immich-oidc.json"
 fi
-if [ -f "${BACKUP_DIR}/secrets/linkding-oidc.json" ]; then
-    kubectl apply -f "${BACKUP_DIR}/secrets/linkding-oidc.json"
-fi
 if [ -f "${BACKUP_DIR}/secrets/mealie-oidc.json" ]; then
     kubectl apply -f "${BACKUP_DIR}/secrets/mealie-oidc.json"
 fi
-if [ -f "${BACKUP_DIR}/secrets/n8n-oidc.json" ]; then
-    kubectl apply -f "${BACKUP_DIR}/secrets/n8n-oidc.json"
-fi
 if [ -f "${BACKUP_DIR}/secrets/paperless-oidc.json" ]; then
     kubectl apply -f "${BACKUP_DIR}/secrets/paperless-oidc.json"
+fi
+if [ -f "${BACKUP_DIR}/secrets/stirling-pdf-oidc.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/stirling-pdf-oidc.json"
 fi
 echo "   ✅ OIDC integration secrets restored"
 
@@ -260,7 +258,12 @@ echo "      kubectl get pods -A"
 echo ""
 echo "   4. Verify applications are accessible:"
 echo "      - https://grafana.h0melab.work"
+echo "      - https://authentik.h0melab.work"
 echo "      - https://immich.h0melab.work"
 echo "      - https://n8n.h0melab.work"
+echo "      - https://paperless.h0melab.work"
+echo "      - https://linkwarden.h0melab.work"
+echo "      - https://stirling.h0melab.work"
+echo "      - https://discounts.h0melab.work"
 echo "      etc."
 echo ""

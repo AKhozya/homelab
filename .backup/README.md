@@ -69,12 +69,14 @@ This will extract and save **ALL** secrets needed for complete cluster rebuild:
 - Immich (photo management)
 - Home Assistant
 - N8N (workflow automation)
-- Linkding (bookmark manager)
+- LinkWarden (bookmark + read-it-later manager)
 - Mealie (recipe manager)
-- Wallabag (read-it-later)
 - Paperless-NGX (document management)
 - Audiobookshelf
 - Uptime Kuma (uptime monitoring)
+- Stirling PDF (PDF toolkit)
+- HomeHub (family dashboard)
+- Discount Bandit (price tracking)
 - CouchDB (Obsidian sync)
 
 Files are saved to `.backup/secrets/` (gitignored)
@@ -92,20 +94,6 @@ Files are saved to `.backup/secrets/` (gitignored)
 **No manual action required** - backups run automatically via Kubernetes CronJobs
 
 ## 🔄 Recovery Process
-
-### Quick Recovery (2 commands)
-
-If you have:
-
-1. Fresh K3s cluster
-2. Flux already bootstrapped
-3. Backup files in `.backup/secrets/`
-
-```bash
-cd .backup
-chmod +x disaster-recovery.sh
-./disaster-recovery.sh
-```
 
 ### Full Recovery (from scratch)
 

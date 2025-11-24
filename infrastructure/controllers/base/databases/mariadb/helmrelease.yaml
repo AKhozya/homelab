@@ -1,0 +1,68 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: mariadb-operator
+  namespace: mariadb-operator
+spec:
+  interval: 30m
+  timeout: 15m
+  chart:
+    spec:
+      chart: mariadb-operator
+      version: "0.35.x"  # Latest stable version
+      sourceRef:
+        kind: HelmRepository
+        name: mariadb-operator
+        namespace: mariadb-operator
+      interval: 12h
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  values:
+    # Operator configuration
+    image:
+      repository: ghcr.io/mariadb-operator/mariadb-operator
+      pullPolicy: IfNotPresent
+
+    # Resource limits for operator
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+    # Webhook configuration
+    webhook:
+      enabled: true
+      port: 9443
+      cert:
+        certManager:
+          enabled: true  # Use cert-manager for webhook certificates
+
+    # High availability
+    ha:
+      enabled: true  # Enable HA for operator itself
+
+    # Metrics
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        additionalLabels:
+          release: kube-prometheus-stack
+
+    # Security context
+    securityContext:
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+      readOnlyRootFilesystem: true
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault

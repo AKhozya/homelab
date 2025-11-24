@@ -9,3 +9,4 @@ resources:
   - databases/postgres
   - databases/couchdb
   - databases/redis
+  - databases/mariadb

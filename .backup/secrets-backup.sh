@@ -50,11 +50,10 @@ kubectl get secret postgres-admin-user -n databases -o json > "${BACKUP_DIR}/sec
 # Database users (CloudNativePG auto-generates these, but backup for safety)
 kubectl get secret authentik-db-user -n databases -o json > "${BACKUP_DIR}/secrets/authentik-db-user.json"
 kubectl get secret immich-db-user -n databases -o json > "${BACKUP_DIR}/secrets/immich-db-user.json"
-kubectl get secret linkding-db-app-user -n databases -o json > "${BACKUP_DIR}/secrets/linkding-db-user.json"
+kubectl get secret linkwarden-db-app-user -n databases -o json > "${BACKUP_DIR}/secrets/linkwarden-db-user.json"
 kubectl get secret mealie-db-user -n databases -o json > "${BACKUP_DIR}/secrets/mealie-db-user.json"
 kubectl get secret n8n-db-user -n databases -o json > "${BACKUP_DIR}/secrets/n8n-db-user.json"
 kubectl get secret paperless-db-user -n databases -o json > "${BACKUP_DIR}/secrets/paperless-db-user.json"
-kubectl get secret wallabag-db-user -n databases -o json > "${BACKUP_DIR}/secrets/wallabag-db-user.json"
 
 # =============================================================================
 # Application Secrets (user credentials, API keys, environment variables)
@@ -77,18 +76,20 @@ kubectl get secret home-assistant-secrets -n home-assistant -o json > "${BACKUP_
 kubectl get secret n8n-env -n n8n -o json > "${BACKUP_DIR}/secrets/n8n-env.json"
 kubectl get secret n8n-user-credentials -n n8n -o json > "${BACKUP_DIR}/secrets/n8n-user-credentials.json"
 
-# Linkding
-kubectl get secret linkding-container-env -n linkding -o json > "${BACKUP_DIR}/secrets/linkding-container-env.json"
-
 # Mealie
 kubectl get secret mealie-env -n mealie -o json > "${BACKUP_DIR}/secrets/mealie-env.json"
 kubectl get secret mealie-user-credentials -n mealie -o json > "${BACKUP_DIR}/secrets/mealie-user-credentials.json"
 
-# Wallabag
-kubectl get secret wallabag-env -n wallabag -o json > "${BACKUP_DIR}/secrets/wallabag-env.json"
-
 # Paperless-NGX
 kubectl get secret paperless-env -n paperless-ngx -o json > "${BACKUP_DIR}/secrets/paperless-env.json"
+
+# LinkWarden (replaced Linkding + Wallabag)
+kubectl get secret linkwarden -n linkwarden -o json > "${BACKUP_DIR}/secrets/linkwarden.json"
+kubectl get secret meilisearch -n linkwarden -o json > "${BACKUP_DIR}/secrets/meilisearch.json"
+
+# Discount Bandit
+kubectl get secret discount-bandit-admin -n discount-bandit -o json > "${BACKUP_DIR}/secrets/discount-bandit-admin.json"
+kubectl get secret discount-bandit-secret -n discount-bandit -o json > "${BACKUP_DIR}/secrets/discount-bandit-secret.json"
 
 # Audiobookshelf
 kubectl get secret audiobookshelf-admin -n audiobookshelf -o json > "${BACKUP_DIR}/secrets/audiobookshelf-admin.json"
@@ -122,10 +123,9 @@ kubectl get secret audiobookshelf-oidc -n audiobookshelf -o json > "${BACKUP_DIR
 kubectl get secret grafana-oidc -n monitoring -o json > "${BACKUP_DIR}/secrets/grafana-oidc.json" 2>/dev/null || echo "   ⚠️  No monitoring/grafana-oidc"
 kubectl get secret home-assistant-oidc -n home-assistant -o json > "${BACKUP_DIR}/secrets/home-assistant-oidc.json" 2>/dev/null || echo "   ⚠️  No home-assistant/home-assistant-oidc"
 kubectl get secret immich-oidc -n immich -o json > "${BACKUP_DIR}/secrets/immich-oidc.json" 2>/dev/null || echo "   ⚠️  No immich/immich-oidc"
-kubectl get secret linkding-oidc -n linkding -o json > "${BACKUP_DIR}/secrets/linkding-oidc.json" 2>/dev/null || echo "   ⚠️  No linkding/linkding-oidc"
 kubectl get secret mealie-oidc -n mealie -o json > "${BACKUP_DIR}/secrets/mealie-oidc.json" 2>/dev/null || echo "   ⚠️  No mealie/mealie-oidc"
-kubectl get secret n8n-oidc -n n8n -o json > "${BACKUP_DIR}/secrets/n8n-oidc.json" 2>/dev/null || echo "   ⚠️  No n8n/n8n-oidc"
 kubectl get secret paperless-oidc -n paperless-ngx -o json > "${BACKUP_DIR}/secrets/paperless-oidc.json" 2>/dev/null || echo "   ⚠️  No paperless-ngx/paperless-oidc"
+kubectl get secret stirling-pdf-oidc -n stirling-pdf -o json > "${BACKUP_DIR}/secrets/stirling-pdf-oidc.json" 2>/dev/null || echo "   ⚠️  No stirling-pdf/stirling-pdf-oidc"
 
 # =============================================================================
 # Extract important plaintext values for easy reference
@@ -227,11 +227,12 @@ echo "   📊 Grafana & Telegram (monitoring)"
 echo "   🗄️  Redis & PostgreSQL (databases)"
 echo "   📱 All application secrets:"
 echo "      - Authentik, Immich, Home Assistant"
-echo "      - N8N, Linkding, Mealie, Wallabag"
-echo "      - Paperless-NGX, Audiobookshelf, Uptime Kuma"
-echo "      - Stirling PDF, CouchDB (Obsidian)"
+echo "      - N8N, Mealie, Paperless-NGX"
+echo "      - Audiobookshelf, Uptime Kuma, Stirling PDF"
+echo "      - HomeHub, LinkWarden, Discount Bandit"
+echo "      - CouchDB (Obsidian)"
 echo "   🔐 OIDC integration secrets:"
-echo "      - Grafana, Immich, Home Assistant, Linkding"
-echo "      - Mealie, N8N, Paperless-NGX, Audiobookshelf"
+echo "      - Grafana, Immich, Home Assistant, Mealie"
+echo "      - Paperless-NGX, Audiobookshelf, Stirling PDF"
 echo ""
 echo "📂 Encrypted file: $(basename ${ENCRYPTED_FILE})"
