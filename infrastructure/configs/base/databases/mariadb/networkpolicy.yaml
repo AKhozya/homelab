@@ -52,7 +52,7 @@ spec:
       - protocol: TCP
         port: 4444  # Galera SST (State Snapshot Transfer)
 
-    # Allow mariadb-operator to access agent API for health monitoring
+    # Allow mariadb-operator to access agent API for health monitoring and database management
     - from:
       - namespaceSelector:
           matchLabels:
@@ -60,3 +60,5 @@ spec:
       ports:
       - protocol: TCP
         port: 5555  # Galera agent API
+      - protocol: TCP
+        port: 3306  # MariaDB port (for Database/User/Grant CRDs)
