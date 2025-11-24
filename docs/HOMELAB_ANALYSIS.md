@@ -907,16 +907,16 @@
 | App | Status | Security | OIDC/SSO | Notes |
 |-----|--------|----------|----------|-------|
 | **Homepage** | ✅ Running | ✅ NetworkPolicy | - | **Dashboard - Single pane of glass** ⭐ |
-| **Uptime Kuma** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Uptime monitoring** - Automated setup ⭐ |
+| **Uptime Kuma** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Uptime monitoring** - MariaDB, Automated setup ⭐ |
 | **Authentik** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ Provider | **SSO Platform** - PostgreSQL + Redis ⭐ |
 | **AdGuard Home** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **DNS filtering** - Local DNS resolution ⭐ |
 | **Stirling PDF** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | **PDF toolkit** - Cloudflare Tunnel + internal access ⭐ |
 | **HomeHub** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Family dashboard** - Local only, no auth ⭐ |
-| **Discount Bandit** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Price tracking** - SQLite, FrankenPHP, PSS baseline ⭐ |
+| **Discount Bandit** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Price tracking** - MariaDB, FrankenPHP, PSS baseline ⭐ |
 | **Grafana** | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Monitoring dashboard, Authentik SSO ⭐ |
 | **Immich** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Photo management, Web UI config ⭐ |
 | **Paperless-NGX** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Document management, env var config ⭐ |
-| **Home Assistant** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Smart home, hass-oidc-auth, GitOps install ⭐ |
+| **Home Assistant** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Smart home, MariaDB, hass-oidc-auth, GitOps install ⭐ |
 | **LinkWarden** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | **Bookmark manager + Meilisearch** - Replaces Linkding & Wallabag ⭐ |
 | Mealie | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | User provision + OIDC (env var) ⭐ |
 | N8N | ✅ Running | ✅ NetworkPolicy | ❌ Enterprise | User provision ✅, SSO requires Enterprise |
@@ -1211,19 +1211,65 @@ ingress:
   - Fast recovery from backup if needed
 - **Acceptable Downtime**: 5-10 minutes during scheduled maintenance
 
+**MariaDB (2 Replicas)**: ✅ **High Availability with Galera Cluster**
+- **Usage**: Application data for Home Assistant, Discount Bandit, Uptime Kuma (3 apps migrated from SQLite)
+- **Cluster Type**: Galera multi-master synchronous replication
+- **Replicas**: 2 instances (active-active replication)
+- **Version**: MariaDB 11.6
+- **Operator**: mariadb-operator v0.37.1
+- **Replication**: Synchronous multi-master (all nodes writable)
+- **Failover**: Automatic via MariaDB operator
+- **Why HA**: Critical application data, multi-master for write availability, automatic recovery
+- **Architecture**: Matches PostgreSQL pattern (base = infrastructure, staging = app-specific resources)
+- **Databases**: 3 databases (homeassistant, discountbandit, uptimekuma)
+- **Backups**: Daily automated backups (3:15 AM, 30-day retention, SHA256 checksums)
+- **Migration Date**: 2025-11-24 (completed migration from SQLite for all 3 apps)
+- **Migration Approach**:
+  - Home Assistant: Fresh start (42 tables auto-created)
+  - Discount Bandit: Fresh start (Laravel migrations)
+  - Uptime Kuma: Custom Python migration (22 tables migrated, 5 excluded)
+- **Storage**: 10Gi per replica (local-path PVCs on worker node)
+- **NetworkPolicy**: Restricts access to app namespaces + monitoring
+- **Connection Pattern**: Direct to primary (main-mariadb-primary.databases.svc.cluster.local:3306)
+- **Documentation**: Complete migration guide in `docs/MARIADB_MIGRATION.md`
+
 **Summary**:
 - **Critical data (PostgreSQL)**: 3 replicas, HA, zero downtime
+- **Critical data (MariaDB)**: 2 replicas, Galera multi-master, automatic failover
 - **Cache/ephemeral (Redis)**: Single instance, restart tolerance acceptable
 - **Personal sync (CouchDB)**: Single instance, backup-based recovery acceptable
 
 ---
 
-**Last Updated**: 2025-11-22 23:40 UTC
+**Last Updated**: 2025-11-24 21:50 UTC
 **Next Review**: 2025-12-15
 
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-11-24 (MariaDB Introduction & SQLite Migration Complete) 🗄️
+- ✅ **MariaDB Galera Cluster Deployed**: 2-replica high-availability cluster with mariadb-operator v0.37.1
+- ✅ **3 Apps Migrated from SQLite to MariaDB**: Home Assistant, Discount Bandit, Uptime Kuma
+- 🎯 **Impact**: Eliminated SQLite from homelab, all apps now use production-grade databases (PostgreSQL or MariaDB)
+- 🔧 **Technical Details**:
+  - **Cluster Type**: Galera multi-master synchronous replication (2 replicas)
+  - **Version**: MariaDB 11.6
+  - **Architecture**: Aligned with PostgreSQL pattern (base = infrastructure, staging = app-specific)
+  - **Databases Created**: homeassistant, discountbandit, uptimekuma (3 databases, 3 users, 3 grants)
+  - **Migration Approaches**:
+    - Home Assistant: Fresh start - 42 tables auto-created by application
+    - Discount Bandit: Fresh start - Laravel migrations created schema
+    - Uptime Kuma: Custom Python migration script - 22 tables migrated (selective), 5 tables excluded (heartbeat history)
+  - **Backup Strategy**: Daily automated backups at 3:15 AM with 30-day retention (matches PostgreSQL)
+  - **NetworkPolicy**: Restricts access to app namespaces + monitoring
+  - **Storage**: 10Gi per replica on local-path PVCs
+  - **Connection Pattern**: Direct to primary (no pooler needed for Galera multi-master)
+- 📚 **Documentation**: Created comprehensive `docs/MARIADB_MIGRATION.md` (337 lines)
+- 🔒 **Security**: All 4 MariaDB secrets added to cluster-wide backup/restore scripts
+- 💪 **Benefits**: Multi-master replication, automatic failover, production-grade database for all apps
+- 📋 **Verification**: All 3 apps running successfully with MariaDB, zero data loss
+- Commits: Multiple (backup job, architecture alignment, migration cleanup)
 
 ### 2025-11-22 (K3s Cluster Upgrade) 🚀
 - ✅ **K3s Upgrade Complete**: Upgraded both nodes from v1.34.1+k3s1 to v1.34.2+k3s1
