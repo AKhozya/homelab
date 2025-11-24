@@ -27,6 +27,25 @@ spec:
           ports:
             - containerPort: 3001
               name: http
+          env:
+            - name: UPTIME_KUMA_DB_TYPE
+              value: "mariadb"
+            - name: DB_HOST
+              value: "main-mariadb-primary.databases.svc.cluster.local"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_NAME
+              value: "uptimekuma"
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: uptime-kuma-mariadb-credentials
+                  key: username
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: uptime-kuma-mariadb-credentials
+                  key: password
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
