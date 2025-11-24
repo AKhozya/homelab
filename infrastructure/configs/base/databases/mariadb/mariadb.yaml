@@ -6,6 +6,7 @@ metadata:
 spec:
   # High Availability - 2 replicas (1 primary + 1 replica) with Galera synchronous replication
   replicas: 2
+  replicasAllowEvenNumber: true  # Allow 2-node cluster (normally Galera requires odd numbers to avoid split brain)
 
   # MariaDB version
   image: mariadb:12.1.2  # Latest LTS version
