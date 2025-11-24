@@ -2,6 +2,8 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../../base/databases/mariadb
+  - mariadb-jobs-serviceaccount.yaml
+  - mariadb-backup-cronjob.yaml
   # App-specific database users and databases will be added here
   # - home-assistant-db-user.yaml
   # - home-assistant-database.yaml

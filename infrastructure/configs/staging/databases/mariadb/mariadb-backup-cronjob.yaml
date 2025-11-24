@@ -1,0 +1,177 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mariadb-backup
+  namespace: databases
+spec:
+  schedule: "15 3 * * *"  # 3:15 AM daily (avoid overlap with PostgreSQL at 3:00 AM)
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid  # Don't run concurrent backups
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 86400  # Keep job for 24h for debugging
+      template:
+        metadata:
+          labels:
+            app: mariadb-backup
+        spec:
+          serviceAccountName: mariadb-jobs
+          automountServiceAccountToken: false
+          restartPolicy: OnFailure
+          securityContext:
+            runAsUser: 999  # mysql user
+            runAsGroup: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: setup-permissions
+              image: alpine:3.22
+              command:
+                - sh
+                - -c
+                - |
+                  # Ensure backup directory exists and has correct permissions
+                  mkdir -p /backup
+                  chown -R 999:999 /backup
+                  chmod 755 /backup
+                  echo "Backup directory ready"
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+              securityContext:
+                runAsUser: 0  # Need root to chown
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                  add: ["CHOWN", "DAC_OVERRIDE"]
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "128Mi"
+          containers:
+            - name: backup
+              image: mariadb:11.6
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -e
+
+                  echo "=== MariaDB Backup Started ==="
+                  echo "Timestamp: $(date)"
+
+                  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  BACKUP_DIR="/backup/$TIMESTAMP"
+                  mkdir -p "$BACKUP_DIR"
+
+                  # Auto-discover databases (exclude system databases)
+                  echo "Discovering databases..."
+                  DATABASES=$(mariadb \
+                    -h main-mariadb-primary.databases.svc.cluster.local \
+                    -u root \
+                    -p"$MARIADB_ROOT_PASSWORD" \
+                    -e "SHOW DATABASES;" \
+                    | grep -v -E "^(Database|information_schema|performance_schema|mysql|sys)$")
+
+                  echo "Found databases: $DATABASES"
+
+                  # Backup each database
+                  for DB in $DATABASES; do
+                    echo "Backing up database: $DB"
+                    mariadb-dump \
+                      -h main-mariadb-primary.databases.svc.cluster.local \
+                      -u root \
+                      -p"$MARIADB_ROOT_PASSWORD" \
+                      --single-transaction \
+                      --routines \
+                      --triggers \
+                      --events \
+                      "$DB" > "$BACKUP_DIR/${DB}.sql" 2>&1 | tee "$BACKUP_DIR/${DB}.log"
+
+                    if [ $? -eq 0 ]; then
+                      SIZE=$(du -h "$BACKUP_DIR/${DB}.sql" | cut -f1)
+                      echo "✅ $DB backup completed ($SIZE)"
+                    else
+                      echo "❌ $DB backup failed!"
+                    fi
+                  done
+
+                  # Create manifest
+                  cat > "$BACKUP_DIR/MANIFEST.txt" <<EOF
+                  MariaDB Backup Manifest
+                  Timestamp: $(date)
+                  Backup ID: $TIMESTAMP
+                  Databases: $DATABASES
+                  Host: main-mariadb-primary.databases.svc.cluster.local
+
+                  Backup Files:
+                  $(ls -lh $BACKUP_DIR/*.sql)
+
+                  Total Size:
+                  $(du -sh $BACKUP_DIR)
+                  EOF
+
+                  # Compress backup directory with gzip
+                  echo "Compressing backup with gzip..."
+                  cd /backup
+                  tar -czf "mariadb_${TIMESTAMP}.tar.gz" "$TIMESTAMP"
+                  COMPRESSED_SIZE=$(du -h "mariadb_${TIMESTAMP}.tar.gz" | cut -f1)
+                  echo "✅ Compressed backup: mariadb_${TIMESTAMP}.tar.gz ($COMPRESSED_SIZE)"
+
+                  # Generate SHA256 checksum for backup integrity
+                  echo "Generating SHA256 checksum for backup integrity..."
+                  sha256sum "mariadb_${TIMESTAMP}.tar.gz" > "mariadb_${TIMESTAMP}.tar.gz.sha256"
+                  echo "✅ Checksum saved: mariadb_${TIMESTAMP}.tar.gz.sha256"
+                  cat "mariadb_${TIMESTAMP}.tar.gz.sha256"
+
+                  # Remove uncompressed directory
+                  rm -rf "$TIMESTAMP"
+
+                  # Keep only last 30 days of backups (including checksums)
+                  echo "Cleaning old backups (keeping last 30 days)..."
+                  find /backup -name "mariadb_*.tar.gz" -mtime +30 -delete
+                  find /backup -name "mariadb_*.tar.gz.sha256" -mtime +30 -delete
+
+                  # List current backups
+                  echo ""
+                  echo "=== Current Backups ==="
+                  ls -lh /backup/mariadb_*.tar.gz 2>/dev/null || echo "No backups found"
+
+                  echo ""
+                  echo "=== Backup Complete ==="
+                  echo "Backup ID: $TIMESTAMP"
+                  echo "Location: /backup/mariadb_${TIMESTAMP}.tar.gz"
+                  echo "Size: $COMPRESSED_SIZE"
+              env:
+                - name: MARIADB_ROOT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: main-mariadb-admin
+                      key: password
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: false  # Need to write to /tmp for mariadb-dump
+              resources:
+                requests:
+                  cpu: "200m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "1000m"
+                  memory: "1Gi"
+          volumes:
+            - name: backup-storage
+              hostPath:
+                path: /mnt/k8s-storage/backups/mariadb
+                type: DirectoryOrCreate
+          nodeSelector:
+            kubernetes.io/hostname: worker-node  # Run on worker node with storage
