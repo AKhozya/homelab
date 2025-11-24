@@ -5,7 +5,6 @@ resources:
   - root-password.yaml
   - mariadb.yaml
   - networkpolicy.yaml
-  - metrics-policyexception.yaml
   # User credentials
   - ha-password.yaml
   - discount-bandit-credentials.yaml
