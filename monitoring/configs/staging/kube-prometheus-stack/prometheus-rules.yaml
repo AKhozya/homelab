@@ -618,6 +618,72 @@ spec:
         summary: "CouchDB pod {{ $labels.pod }} not running"
         description: "CouchDB pod is in {{ $labels.phase }} state. Database may be unavailable!"
 
+  - name: mariadb-alerts
+    interval: 30s
+    rules:
+    - alert: MariaDBDown
+      expr: mysql_up{job="main-mariadb-metrics"} == 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "MariaDB instance {{ $labels.instance }} is down"
+        description: "MariaDB on {{ $labels.instance }} is unreachable. Applications may lose database connectivity!"
+
+    - alert: MariaDBPodNotRunning
+      expr: kube_pod_status_phase{namespace="databases",pod=~"main-mariadb-.*",phase!="Running"} > 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "MariaDB pod {{ $labels.pod }} not running"
+        description: "MariaDB pod is in {{ $labels.phase }} state. Database cluster may be degraded!"
+
+    - alert: MariaDBTooManyConnections
+      expr: mysql_global_status_threads_connected{job="main-mariadb-metrics"} / mysql_global_variables_max_connections{job="main-mariadb-metrics"} > 0.8
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "MariaDB {{ $labels.instance }} connection usage high"
+        description: "MariaDB is using {{ $value | humanizePercentage }} of max connections ({{ $labels.threads_connected }}/{{ $labels.max_connections }}). May reject new connections soon!"
+
+    - alert: MariaDBConnectionFailure
+      expr: rate(mysql_global_status_connection_errors_total{job="main-mariadb-metrics",error="max_connections"}[5m]) > 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "MariaDB {{ $labels.instance }} rejecting connections"
+        description: "MariaDB is rejecting connections due to max_connections limit. Applications cannot connect to database!"
+
+    - alert: MariaDBGaleraClusterSizeMismatch
+      expr: mysql_global_status_wsrep_cluster_size{job="main-mariadb-metrics"} != 2
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "MariaDB Galera cluster size incorrect"
+        description: "Galera cluster has {{ $value }} nodes (expected 2). A node may be down or partitioned!"
+
+    - alert: MariaDBGaleraNodeNotSynced
+      expr: (mysql_global_status_wsrep_local_state{job="main-mariadb-metrics"} != 4) or (mysql_global_status_wsrep_ready{job="main-mariadb-metrics"} != 1)
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "MariaDB Galera node {{ $labels.instance }} not synced"
+        description: "Galera node is not in Synced state (wsrep_local_state={{ $value }}). Replication may be broken!"
+
+    - alert: MariaDBHighReplicationLag
+      expr: mysql_galera_evs_repl_latency_avg_seconds{job="main-mariadb-metrics"} > 0.1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "MariaDB Galera replication lag high on {{ $labels.instance }}"
+        description: "Galera replication latency is {{ $value }}s (>100ms). Network issues or high write load may be causing delays."
+
   # service-alerts group - ServiceDown alert removed, replaced by Uptime Kuma
   # See docs/UPTIME_KUMA_TELEGRAM_REPORT.md for details
   - name: service-alerts
