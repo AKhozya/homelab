@@ -59,12 +59,12 @@ spec:
               cd /app
 
               # Verify SQLite database exists
-              if [ ! -f "/data/database.sqlite" ]; then
-                echo "ERROR: SQLite database not found at /data/database.sqlite"
+              if [ ! -f "/data/database/database.sqlite" ]; then
+                echo "ERROR: SQLite database not found at /data/database/database.sqlite"
                 exit 1
               fi
 
-              echo "SQLite database found: $(ls -lh /data/database.sqlite)"
+              echo "SQLite database found: $(ls -lh /data/database/database.sqlite)"
 
               # Test MariaDB connectivity
               echo "Testing MariaDB connectivity..."
@@ -77,7 +77,7 @@ spec:
 
               # Export SQLite schema
               echo "Exporting SQLite schema..."
-              sqlite3 /data/database.sqlite .schema > /tmp/sqlite-schema.sql
+              sqlite3 /data/database/database.sqlite .schema > /tmp/sqlite-schema.sql
 
               # Run migrations on MariaDB to create schema
               echo "Creating MariaDB schema via Laravel migrations..."
@@ -87,13 +87,13 @@ spec:
               echo "Migrating data from SQLite to MariaDB..."
 
               # Get list of tables from SQLite (excluding sqlite_sequence)
-              TABLES=$(sqlite3 /data/database.sqlite "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
+              TABLES=$(sqlite3 /data/database/database.sqlite "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
 
               for TABLE in $TABLES; do
                 echo "Migrating table: $TABLE"
 
                 # Export table data as SQL INSERT statements
-                sqlite3 /data/database.sqlite ".mode insert $TABLE" "SELECT * FROM $TABLE;" > /tmp/${TABLE}.sql
+                sqlite3 /data/database/database.sqlite ".mode insert $TABLE" "SELECT * FROM $TABLE;" > /tmp/${TABLE}.sql
 
                 # Import to MariaDB using mysql command
                 mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" < /tmp/${TABLE}.sql || {
@@ -101,7 +101,7 @@ spec:
                 }
 
                 # Count rows to verify
-                SQLITE_COUNT=$(sqlite3 /data/database.sqlite "SELECT COUNT(*) FROM $TABLE;")
+                SQLITE_COUNT=$(sqlite3 /data/database/database.sqlite "SELECT COUNT(*) FROM $TABLE;")
                 MARIADB_COUNT=$(mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" -sN -e "SELECT COUNT(*) FROM $TABLE;")
 
                 echo "  SQLite rows: $SQLITE_COUNT"
@@ -113,7 +113,7 @@ spec:
               done
 
               echo "=== Migration Complete ==="
-              echo "SQLite database remains at /data/database.sqlite (not deleted - kept as backup)"
+              echo "SQLite database remains at /data/database/database.sqlite (not deleted - kept as backup)"
               echo "Verify application functionality before removing SQLite database"
           env:
             # MariaDB connection (destination)
