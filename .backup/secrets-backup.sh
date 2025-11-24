@@ -47,13 +47,19 @@ echo "📦 Backing up database secrets..."
 kubectl get secret redis-passwords -n databases -o json > "${BACKUP_DIR}/secrets/redis-passwords.json"
 kubectl get secret postgres-admin-user -n databases -o json > "${BACKUP_DIR}/secrets/postgres-admin-user.json"
 
-# Database users (CloudNativePG auto-generates these, but backup for safety)
+# PostgreSQL database users (CloudNativePG auto-generates these, but backup for safety)
 kubectl get secret authentik-db-user -n databases -o json > "${BACKUP_DIR}/secrets/authentik-db-user.json"
 kubectl get secret immich-db-user -n databases -o json > "${BACKUP_DIR}/secrets/immich-db-user.json"
 kubectl get secret linkwarden-db-app-user -n databases -o json > "${BACKUP_DIR}/secrets/linkwarden-db-user.json"
 kubectl get secret mealie-db-user -n databases -o json > "${BACKUP_DIR}/secrets/mealie-db-user.json"
 kubectl get secret n8n-db-user -n databases -o json > "${BACKUP_DIR}/secrets/n8n-db-user.json"
 kubectl get secret paperless-db-user -n databases -o json > "${BACKUP_DIR}/secrets/paperless-db-user.json"
+
+# MariaDB secrets
+kubectl get secret mariadb-root -n databases -o json > "${BACKUP_DIR}/secrets/mariadb-root.json"
+kubectl get secret ha-mariadb-credentials -n databases -o json > "${BACKUP_DIR}/secrets/ha-mariadb-credentials.json"
+kubectl get secret discount-bandit-mariadb-credentials -n databases -o json > "${BACKUP_DIR}/secrets/discount-bandit-mariadb-credentials.json"
+kubectl get secret uptime-kuma-mariadb-credentials -n databases -o json > "${BACKUP_DIR}/secrets/uptime-kuma-mariadb-credentials.json"
 
 # =============================================================================
 # Application Secrets (user credentials, API keys, environment variables)
@@ -224,7 +230,10 @@ echo "📋 Backed up secrets for:"
 echo "   🔑 SOPS age encryption key (CRITICAL)"
 echo "   🌐 Cloudflare API token & tunnel credentials"
 echo "   📊 Grafana & Telegram (monitoring)"
-echo "   🗄️  Redis & PostgreSQL (databases)"
+echo "   🗄️  Databases:"
+echo "      - Redis passwords"
+echo "      - PostgreSQL admin & app users (6 apps)"
+echo "      - MariaDB root & app credentials (3 apps)"
 echo "   📱 All application secrets:"
 echo "      - Authentik, Immich, Home Assistant"
 echo "      - N8N, Mealie, Paperless-NGX"

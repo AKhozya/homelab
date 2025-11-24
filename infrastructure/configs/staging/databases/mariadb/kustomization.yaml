@@ -4,10 +4,16 @@ resources:
   - ../../../base/databases/mariadb
   - mariadb-jobs-serviceaccount.yaml
   - mariadb-backup-cronjob.yaml
-  # App-specific database users and databases will be added here
-  # - home-assistant-db-user.yaml
-  # - home-assistant-database.yaml
-  # - discount-bandit-db-user.yaml
-  # - discount-bandit-database.yaml
-  # - uptime-kuma-db-user.yaml
-  # - uptime-kuma-database.yaml
+  # App-specific database users and databases
+  - ha-mariadb-credentials.yaml
+  - ha-user.yaml
+  - ha-database.yaml
+  - ha-grant.yaml
+  - discount-bandit-credentials.yaml
+  - discount-bandit-user.yaml
+  - discount-bandit-database.yaml
+  - discount-bandit-grant.yaml
+  - uptime-kuma-mariadb-credentials.yaml
+  - uptime-kuma-user.yaml
+  - uptime-kuma-database.yaml
+  - uptime-kuma-grant.yaml

@@ -10,4 +10,3 @@ resources:
   - ingress.yaml
   - networkpolicy.yaml
   - setup-job.yaml
-  - sqlite-to-mariadb-migration-job.yaml

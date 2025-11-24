@@ -108,14 +108,20 @@ kubectl create namespace databases --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/redis-passwords.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/postgres-admin-user.json"
 
-# Database users
+# PostgreSQL database users
 kubectl apply -f "${BACKUP_DIR}/secrets/authentik-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/immich-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/linkwarden-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/mealie-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/n8n-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/paperless-db-user.json"
-echo "   ✅ Database secrets restored"
+
+# MariaDB secrets
+kubectl apply -f "${BACKUP_DIR}/secrets/mariadb-root.json"
+kubectl apply -f "${BACKUP_DIR}/secrets/ha-mariadb-credentials.json"
+kubectl apply -f "${BACKUP_DIR}/secrets/discount-bandit-mariadb-credentials.json"
+kubectl apply -f "${BACKUP_DIR}/secrets/uptime-kuma-mariadb-credentials.json"
+echo "   ✅ Database secrets restored (PostgreSQL + MariaDB)"
 
 # =============================================================================
 # Application Secrets
