@@ -68,7 +68,7 @@ spec:
 
               # Test MariaDB connectivity
               echo "Testing MariaDB connectivity..."
-              php artisan migrate:status --database=mysql || {
+              mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" -e "SELECT 1;" > /dev/null 2>&1 || {
                 echo "ERROR: Cannot connect to MariaDB"
                 exit 1
               }
