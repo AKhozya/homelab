@@ -4,6 +4,7 @@ metadata:
   name: mariadb-metrics-serviceaccount
   namespace: databases
 spec:
+  background: false  # This is for admission control, not background scans
   exceptions:
     - policyName: require-non-default-serviceaccount
       ruleNames:
