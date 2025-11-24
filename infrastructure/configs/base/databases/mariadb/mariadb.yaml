@@ -1,0 +1,132 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: MariaDB
+metadata:
+  name: main-mariadb
+  namespace: databases
+spec:
+  # High Availability - 3 replicas with Galera synchronous replication
+  replicas: 3
+
+  # MariaDB version
+  image: mariadb:11.6.2  # Latest LTS version
+  imagePullPolicy: IfNotPresent
+
+  # Root credentials
+  rootPasswordSecretKeyRef:
+    name: mariadb-root
+    key: password
+
+  # Storage configuration (per replica)
+  storage:
+    size: 20Gi
+    storageClassName: local-path
+    resizeInUseVolumes: true  # Allow online storage resize
+    waitForVolumeResize: true
+
+  # Resource allocation (similar to PostgreSQL)
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+
+  # Galera cluster configuration
+  galera:
+    enabled: true
+    primary:
+      podIndex: 0  # Use first pod as initial primary
+      automaticFailover: true  # Enable automatic primary failover
+    sst: mariabackup  # Use mariabackup for State Snapshot Transfer
+    replicaThreads: 1  # Parallel replication threads
+    agent:
+      # Agent for cluster monitoring and recovery
+      image: ghcr.io/mariadb-operator/mariadb-operator:v0.0.35
+      port: 5555
+      kubernetesAuth:
+        enabled: true  # Use Kubernetes ServiceAccount for auth
+      gracefulShutdownTimeout: 5s
+    recovery:
+      enabled: true
+      minClusterSize: 2  # Minimum replicas to consider cluster healthy
+      clusterMonitorInterval: 10s
+      clusterHealthyTimeout: 30s
+      clusterBootstrapTimeout: 10m
+      podRecoveryTimeout: 5m
+      podSyncTimeout: 5m
+
+  # MariaDB configuration
+  myCnf: |
+    [mariadb]
+    bind-address=*
+    default_storage_engine=InnoDB
+    binlog_format=row
+    innodb_autoinc_lock_mode=2
+    innodb_buffer_pool_size=512M
+    max_allowed_packet=256M
+
+    # Galera-specific settings
+    wsrep_on=ON
+    wsrep_provider_options="gcache.size=512M"
+
+  # Metrics for Prometheus
+  metrics:
+    enabled: true
+    exporter:
+      image: prom/mysqld-exporter:v0.16.0
+      port: 9104
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 300m
+          memory: 512Mi
+    serviceMonitor:
+      enabled: true
+      prometheusRelease: kube-prometheus-stack
+      interval: 30s
+      scrapeTimeout: 10s
+
+  # Service configuration
+  service:
+    type: ClusterIP
+    annotations:
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9104"
+
+  # Pod configuration
+  podDisruptionBudget:
+    maxUnavailable: 1  # Allow only 1 pod to be unavailable during updates
+
+  updateStrategy:
+    type: RollingUpdate  # Rolling updates for zero downtime
+    rollingUpdate:
+      maxUnavailable: 1
+
+  # Affinity rules - spread across nodes
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: mariadb
+                app.kubernetes.io/instance: main-mariadb
+            topologyKey: kubernetes.io/hostname
+
+  # Security context
+  podSecurityContext:
+    runAsUser: 999  # MariaDB user
+    runAsGroup: 999
+    fsGroup: 999
+    seccompProfile:
+      type: RuntimeDefault
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
