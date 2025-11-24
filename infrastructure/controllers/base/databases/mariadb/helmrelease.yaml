@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: mariadb-operator
-      version: "0.35.x"  # Latest stable version
+      version: "25.10.x"  # Latest stable version
       sourceRef:
         kind: HelmRepository
         name: mariadb-operator
