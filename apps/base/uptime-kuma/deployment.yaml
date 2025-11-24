@@ -30,7 +30,7 @@ spec:
           env:
             - name: UPTIME_KUMA_DB_TYPE
               value: "mariadb"
-            - name: UPTIME_KUMA_DB_HOST
+            - name: UPTIME_KUMA_DB_HOSTNAME
               value: "main-mariadb-primary.databases.svc.cluster.local"
             - name: UPTIME_KUMA_DB_PORT
               value: "3306"
