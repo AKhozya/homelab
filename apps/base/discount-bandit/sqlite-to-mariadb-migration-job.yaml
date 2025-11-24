@@ -58,10 +58,6 @@ spec:
               echo "=== Starting SQLite to MariaDB Migration ==="
               cd /app
 
-              # Install sqlite3 and mariadb-client
-              echo "Installing required tools..."
-              apt-get update && apt-get install -y sqlite3 mariadb-client
-
               # Verify SQLite database exists
               if [ ! -f "/data/database/database.sqlite" ]; then
                 echo "ERROR: SQLite database not found at /data/database/database.sqlite"
@@ -79,45 +75,54 @@ spec:
 
               echo "MariaDB connection successful and schema created"
 
-              # Migrate data from SQLite to MariaDB table by table
-              echo "Migrating data from SQLite to MariaDB..."
+              # Migrate data from SQLite to MariaDB using PHP/Laravel
+              echo "Migrating data from SQLite to MariaDB using PHP..."
+              php artisan tinker --execute="
+                // Configure SQLite database path
+                config(['database.connections.sqlite.database' => '/data/database/database.sqlite']);
 
-              # Get list of tables from SQLite (excluding sqlite_sequence and migrations)
-              TABLES=$(sqlite3 /data/database/database.sqlite "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != 'migrations';")
+                // Get all tables from SQLite except migrations
+                \$sqlitePdo = DB::connection('sqlite')->getPdo();
+                \$tables = \$sqlitePdo->query(\"SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name != 'migrations'\")->fetchAll(PDO::FETCH_COLUMN);
 
-              for TABLE in $TABLES; do
-                echo "Migrating table: $TABLE"
+                foreach (\$tables as \$table) {
+                    echo \"Migrating table: \$table\\n\";
 
-                # Count rows in SQLite
-                SQLITE_COUNT=$(sqlite3 /data/database/database.sqlite "SELECT COUNT(*) FROM $TABLE;")
+                    try {
+                        // Get row count from SQLite
+                        \$sqliteCount = DB::connection('sqlite')->table(\$table)->count();
 
-                if [ "$SQLITE_COUNT" -gt 0 ]; then
-                  # Export table data as SQL INSERT statements
-                  sqlite3 /data/database/database.sqlite ".mode insert $TABLE" "SELECT * FROM $TABLE;" > /tmp/${TABLE}.sql
+                        if (\$sqliteCount > 0) {
+                            // Fetch all data from SQLite
+                            \$rows = DB::connection('sqlite')->table(\$table)->get();
 
-                  # Import to MariaDB
-                  mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" < /tmp/${TABLE}.sql || {
-                    echo "  WARNING: Failed to migrate table $TABLE"
-                  }
+                            // Insert into MariaDB in chunks of 100
+                            foreach (\$rows->chunk(100) as \$chunk) {
+                                DB::connection('mysql')->table(\$table)->insert(\$chunk->map(fn(\$row) => (array)\$row)->toArray());
+                            }
+                        }
 
-                  # Verify row count
-                  MARIADB_COUNT=$(mysql -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USERNAME" -p"$DB_PASSWORD" "$DB_DATABASE" -sN -e "SELECT COUNT(*) FROM $TABLE;")
+                        // Verify row count
+                        \$mariadbCount = DB::connection('mysql')->table(\$table)->count();
+                        echo \"  SQLite rows: \$sqliteCount\\n\";
+                        echo \"  MariaDB rows: \$mariadbCount\\n\";
 
-                  echo "  SQLite rows: $SQLITE_COUNT"
-                  echo "  MariaDB rows: $MARIADB_COUNT"
+                        if (\$sqliteCount != \$mariadbCount) {
+                            echo \"  ERROR: Row count mismatch for table \$table\\n\";
+                            exit(1);
+                        }
+                    } catch (Exception \$e) {
+                        echo \"  ERROR: Failed to migrate table \$table: \" . \$e->getMessage() . \"\\n\";
+                        exit(1);
+                    }
+                }
 
-                  if [ "$SQLITE_COUNT" != "$MARIADB_COUNT" ]; then
-                    echo "  WARNING: Row count mismatch for table $TABLE"
-                    exit 1
-                  fi
-                else
-                  echo "  Table $TABLE is empty, skipping"
-                fi
-              done
-
-              echo "=== Migration Complete ==="
-              echo "SQLite database remains at /data/database/database.sqlite (not deleted - kept as backup)"
-              echo "Verify application functionality before removing SQLite database"
+                echo \"=== Migration Complete ===\\n\";
+                echo \"SQLite database remains at /data/database/database.sqlite (kept as backup)\\n\";
+              " || {
+                echo "ERROR: Data migration failed"
+                exit 1
+              }
           env:
             # MariaDB connection (destination)
             - name: DB_CONNECTION
