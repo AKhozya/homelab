@@ -1248,6 +1248,38 @@ ingress:
 
 ## 📝 CHANGELOG
 
+### 2025-11-25 (Prometheus Metric Optimization) 📉
+- ✅ **High-Cardinality Metric Drop**: Reduced Prometheus storage by dropping 5 high-cardinality histogram metrics
+- 🎯 **Impact**: ~18,250 fewer time series (13.5% reduction from baseline), improved memory efficiency
+- 🔧 **Technical Details**:
+  - **Metrics Dropped** (5 total, ~18,250 series):
+    1. apiserver_request_body_size_bytes_bucket: 11,136 series (bug fix - was using wrong suffix)
+    2. workqueue_work_duration_seconds_bucket: 2,258 series (90% reduced, 234 remain from operators)
+    3. workqueue_queue_duration_seconds_bucket: 2,258 series (90% reduced)
+    4. scheduler_plugin_execution_duration_seconds_bucket: 1,218 series
+    5. prober_probe_duration_seconds_bucket: 1,380 series (required probesMetricRelabelings config)
+  - **Bug Fix**: Fixed existing apiserver_request_body_size drop rule (incorrect regex pattern)
+  - **Configuration Changes**:
+    - Added 4 drop rules to kubeApiServer.serviceMonitor.metricRelabelings
+    - Added 4 drop rules to kubelet.serviceMonitor.metricRelabelings
+    - Added 1 drop rule to kubelet.serviceMonitor.probesMetricRelabelings (new section)
+  - **Version Fix**: Downgraded kube-prometheus-stack 79.8.1 → 79.8.0 (79.8.1 not in Helm repo)
+- 📊 **Current State**:
+  - Memory: 1720Mi / 2Gi (86%, increased from 81% due to pod restarts)
+  - Total series: 155,465 (up from baseline 134,809 due to new series after restart)
+  - All dropped metrics verified at 0 series
+- 🐛 **Issues Resolved**:
+  1. apiserver_request_body_size used _bytes_bucket not _seconds_bucket suffix
+  2. prober_probe metrics come from kubelet /metrics/probes endpoint (separate config needed)
+  3. Chart version 79.8.1 doesn't exist in Helm repository
+- 💡 **Lesson Learned**: Kubelet has 3 separate metrics endpoints requiring distinct metricRelabelings configs:
+  - `/metrics` → metricRelabelings
+  - `/metrics/cadvisor` → cAdvisorMetricRelabelings
+  - `/metrics/probes` → probesMetricRelabelings
+- 💪 **Benefits**: Reduced storage overhead for unused histogram buckets, cleaner metrics
+- 📋 **File Modified**: `monitoring/controllers/base/kube-prometheus-stack/release.yaml`
+- Commits: a9b3a72 (initial drops + bug fix), c2e4718 (prober_probe fix), bd787a0 (version fix)
+
 ### 2025-11-24 (MariaDB Introduction & SQLite Migration Complete) 🗄️
 - ✅ **MariaDB Galera Cluster Deployed**: 2-replica high-availability cluster with mariadb-operator v0.37.1
 - ✅ **3 Apps Migrated from SQLite to MariaDB**: Home Assistant, Discount Bandit, Uptime Kuma
