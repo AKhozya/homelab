@@ -319,10 +319,6 @@ spec:
           - sourceLabels: [__name__]
             regex: 'scheduler_plugin_execution_duration_seconds_bucket'
             action: drop
-          # Drop prober probe metrics (1.4k series)
-          - sourceLabels: [__name__]
-            regex: 'prober_probe_duration_seconds_bucket'
-            action: drop
 
     # K3s-specific fix for cadvisor metrics
     # K3s exports container='' (empty) with actual name in 'name' label
@@ -359,10 +355,11 @@ spec:
           - sourceLabels: [__name__]
             regex: 'scheduler_plugin_execution_duration_seconds_bucket'
             action: drop
-          # Drop prober probe metrics from kubelet (1.4k series)
-          - sourceLabels: [__name__]
-            regex: 'prober_probe_duration_seconds_bucket'
-            action: drop
         cAdvisorMetricRelabelings:
           - sourceLabels: [name]
             targetLabel: container
+        probesMetricRelabelings:
+          # Drop prober probe duration buckets from kubelet /metrics/probes endpoint (1.4k series)
+          - sourceLabels: [__name__]
+            regex: 'prober_probe_duration_seconds_bucket'
+            action: drop
