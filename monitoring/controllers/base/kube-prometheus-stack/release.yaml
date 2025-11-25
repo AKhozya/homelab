@@ -291,12 +291,16 @@ spec:
           memory: 128Mi
 
     # Drop high-cardinality API server histogram metrics
-    # Reduces ~75k series (apiserver_request_* buckets)
+    # Reduces ~95k series (apiserver_request_* + workqueue_* + scheduler_plugin_* + prober_probe_* buckets)
     kubeApiServer:
       serviceMonitor:
         metricRelabelings:
           - sourceLabels: [__name__]
-            regex: 'apiserver_request_(duration|sli_duration|body_size)_seconds_bucket'
+            regex: 'apiserver_request_(duration|sli_duration)_seconds_bucket'
+            action: drop
+          # Fixed: apiserver_request_body_size uses _bytes_bucket not _seconds_bucket (11k series)
+          - sourceLabels: [__name__]
+            regex: 'apiserver_request_body_size_bytes_bucket'
             action: drop
           - sourceLabels: [__name__]
             regex: 'apiserver_response_sizes_bucket'
@@ -306,6 +310,18 @@ spec:
             action: drop
           - sourceLabels: [__name__]
             regex: 'apiserver_watch_(cache_read_wait_seconds|events_sizes)_bucket'
+            action: drop
+          # Drop workqueue metrics from apiserver (4.5k series)
+          - sourceLabels: [__name__]
+            regex: 'workqueue_(work|queue)_duration_seconds_bucket'
+            action: drop
+          # Drop scheduler plugin metrics from apiserver (1.2k series)
+          - sourceLabels: [__name__]
+            regex: 'scheduler_plugin_execution_duration_seconds_bucket'
+            action: drop
+          # Drop prober probe metrics (1.4k series)
+          - sourceLabels: [__name__]
+            regex: 'prober_probe_duration_seconds_bucket'
             action: drop
 
     # K3s-specific fix for cadvisor metrics
@@ -317,10 +333,14 @@ spec:
         # Reduces kubelet/cadvisor series by 66% (134k → 45k series)
         interval: 30s
         # Drop high-cardinality API server histogram metrics from kubelet scrapes
-        # Kubelet exposes apiserver metrics which create ~75k series
+        # Kubelet exposes apiserver metrics which create ~95k series
         metricRelabelings:
           - sourceLabels: [__name__]
-            regex: 'apiserver_request_(duration|sli_duration|body_size)_seconds_bucket'
+            regex: 'apiserver_request_(duration|sli_duration)_seconds_bucket'
+            action: drop
+          # Fixed: apiserver_request_body_size uses _bytes_bucket not _seconds_bucket (11k series)
+          - sourceLabels: [__name__]
+            regex: 'apiserver_request_body_size_bytes_bucket'
             action: drop
           - sourceLabels: [__name__]
             regex: 'apiserver_response_sizes_bucket'
@@ -330,6 +350,18 @@ spec:
             action: drop
           - sourceLabels: [__name__]
             regex: 'apiserver_watch_(cache_read_wait_seconds|events_sizes)_bucket'
+            action: drop
+          # Drop workqueue metrics from kubelet (4.5k series)
+          - sourceLabels: [__name__]
+            regex: 'workqueue_(work|queue)_duration_seconds_bucket'
+            action: drop
+          # Drop scheduler plugin metrics from kubelet (1.2k series)
+          - sourceLabels: [__name__]
+            regex: 'scheduler_plugin_execution_duration_seconds_bucket'
+            action: drop
+          # Drop prober probe metrics from kubelet (1.4k series)
+          - sourceLabels: [__name__]
+            regex: 'prober_probe_duration_seconds_bucket'
             action: drop
         cAdvisorMetricRelabelings:
           - sourceLabels: [name]
