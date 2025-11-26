@@ -76,6 +76,10 @@ spec:
               mountPath: /var/cache/fontconfig
             - name: tessdata-dir
               mountPath: /usr/share/tessdata
+            - name: nginx-logs-dir
+              mountPath: /var/lib/nginx/logs
+            - name: nginx-tmp-dir
+              mountPath: /var/lib/nginx/tmp
       volumes:
         - name: temp-dir
           emptyDir: {}
@@ -94,3 +98,7 @@ spec:
         - name: tessdata-dir
           persistentVolumeClaim:
             claimName: stirling-pdf-tessdata-pvc
+        - name: nginx-logs-dir
+          emptyDir: {}
+        - name: nginx-tmp-dir
+          emptyDir: {}
