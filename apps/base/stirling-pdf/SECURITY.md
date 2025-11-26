@@ -48,9 +48,15 @@ securityContext:
   readOnlyRootFilesystem: false  # v2.0 needs writable filesystem
   capabilities:
     drop: ["ALL"]  # Drop all Linux capabilities
+    add: ["SETGID", "SETUID", "CHOWN", "DAC_OVERRIDE"]  # Minimal set for operation
 ```
 
-**Impact**: Container runs as root but with minimal Linux capabilities (none).
+**Required Capabilities**:
+- **SETUID/SETGID**: Privilege dropping via su-exec (switch from root to stirlingpdfuser)
+- **CHOWN**: Change directory ownership during startup
+- **DAC_OVERRIDE**: Bypass file permission checks (nginx needs to access /var/lib/nginx)
+
+**Impact**: Container runs as root but with only 4 specific Linux capabilities.
 
 ### Pod Security Standards
 
