@@ -37,6 +37,7 @@ spec:
             readOnlyRootFilesystem: false # Stirling PDF v2.0 needs to write temp files and modify system configs
             capabilities:
               drop: ["ALL"]
+              add: ["SETGID", "SETUID", "CHOWN"] # Required for su-exec privilege dropping and directory ownership
           livenessProbe:
             httpGet:
               path: /
