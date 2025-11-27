@@ -18,3 +18,7 @@ data:
         autoCreateUser: true
         blockRegistration: false
         provider: oidc
+    premium:
+      enabled: true
+      proFeatures:
+        SSOAutoLogin: false
