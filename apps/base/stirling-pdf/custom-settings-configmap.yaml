@@ -17,4 +17,4 @@ data:
         useAsUsername: email
         autoCreateUser: true
         blockRegistration: false
-        provider: authentik
+        provider: oidc
