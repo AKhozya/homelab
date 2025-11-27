@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: stirling-pdf-custom-settings
+  namespace: stirling-pdf
+data:
+  custom_settings.yml: |
+    security:
+      enableLogin: true
+      loginMethod: oauth2
+      oauth2:
+        enabled: true
+        issuer: https://authentik.h0melab.work/application/o/stirling-pdf/
+        clientId: stirling-pdf-client
+        clientSecret: Q8zP0jOKB7Xb17lfbVtdmYb5rP8MlQvkKlBlLLBhLlWRzpbyqXYXmFrxdIig8II8PF2CrLQIkqrWNhOEORqizpRKkCIyy9HHQNziCnz510K4cT3hKqJFCuKKD5daTpjc
+        scopes: openid,profile,email
+        useAsUsername: email
+        autoCreateUser: true
+        blockRegistration: false
+        provider: Authentik
