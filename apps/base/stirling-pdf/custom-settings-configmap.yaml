@@ -7,7 +7,7 @@ data:
   custom_settings.yml: |
     security:
       enableLogin: true
-      loginMethod: oauth2
+      loginMethod: all
       oauth2:
         enabled: true
         issuer: https://authentik.h0melab.work/application/o/stirling-pdf/
