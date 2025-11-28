@@ -290,8 +290,8 @@ spec:
           cpu: 500m
           memory: 128Mi
 
-    # Drop high-cardinality API server histogram metrics
-    # Reduces ~95k series (apiserver_request_* + workqueue_* + scheduler_plugin_* + prober_probe_* buckets)
+    # Drop high-cardinality histogram metrics and low-utility container metrics
+    # Reduces ~21k series (apiserver_request_* + workqueue_* + scheduler_plugin_* + prober_probe_* + container_* + kubelet_* buckets)
     kubeApiServer:
       serviceMonitor:
         metricRelabelings:
@@ -325,9 +325,9 @@ spec:
     # Copy 'name' → 'container' for dashboard compatibility
     kubelet:
       serviceMonitor:
-        # Reduce scrape interval from 10s to 30s for memory optimization
-        # Reduces kubelet/cadvisor series by 66% (134k → 45k series)
-        interval: 30s
+        # Reduce scrape interval from 10s to 60s for memory optimization
+        # Reduces kubelet/cadvisor series by 83% (134k → 22k series)
+        interval: 60s
         # Drop high-cardinality API server histogram metrics from kubelet scrapes
         # Kubelet exposes apiserver metrics which create ~95k series
         metricRelabelings:
@@ -355,9 +355,23 @@ spec:
           - sourceLabels: [__name__]
             regex: 'scheduler_plugin_execution_duration_seconds_bucket'
             action: drop
+          # Drop kubelet runtime operations histogram buckets (525 series)
+          - sourceLabels: [__name__]
+            regex: 'kubelet_runtime_operations_duration_seconds_bucket'
+            action: drop
         cAdvisorMetricRelabelings:
           - sourceLabels: [name]
             targetLabel: container
+          # Drop low-utility container metrics (2.2k series reduction)
+          - sourceLabels: [__name__]
+            regex: 'container_tasks_state'
+            action: drop
+          - sourceLabels: [__name__]
+            regex: 'container_memory_failures_total'
+            action: drop
+          - sourceLabels: [__name__]
+            regex: 'container_blkio_device_usage_total'
+            action: drop
         probesMetricRelabelings:
           # Drop prober probe duration buckets from kubelet /metrics/probes endpoint (1.4k series)
           - sourceLabels: [__name__]
