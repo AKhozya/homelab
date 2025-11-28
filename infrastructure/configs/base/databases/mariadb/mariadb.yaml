@@ -4,9 +4,8 @@ metadata:
   name: main-mariadb
   namespace: databases
 spec:
-  # High Availability - 2 replicas (1 primary + 1 replica) with Galera synchronous replication
-  replicas: 2
-  replicasAllowEvenNumber: true  # Allow 2-node cluster (normally Galera requires odd numbers to avoid split brain)
+  # High Availability - 3 replicas with Galera synchronous replication (quorum-based split-brain protection)
+  replicas: 3
 
   # MariaDB version
   image: mariadb:12.1.2  # Latest LTS version
@@ -52,7 +51,7 @@ spec:
       gracefulShutdownTimeout: 5s
     recovery:
       enabled: true
-      minClusterSize: 1  # Minimum replicas to consider cluster healthy (1 for 2-node cluster)
+      minClusterSize: 2  # Minimum replicas for quorum (2 out of 3 nodes)
       clusterMonitorInterval: 10s
       clusterHealthyTimeout: 30s
       clusterBootstrapTimeout: 10m
