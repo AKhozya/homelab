@@ -4,8 +4,12 @@ metadata:
   name: main-mariadb
   namespace: databases
 spec:
-  # Single instance (no HA) - relies on daily + 6-hourly binlog backups for DR
+  # Single instance (no HA) - relies on daily + hourly binlog backups for DR
   replicas: 1
+
+  # Explicitly disable Galera (operator enables by default)
+  galera:
+    enabled: false
 
   # MariaDB version
   image: mariadb:12.1.2  # Latest LTS version
