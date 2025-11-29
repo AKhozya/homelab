@@ -13,5 +13,5 @@ spec:
       app: cloudflared
   endpoints:
     - port: metrics
-      interval: 30s
+      interval: 60s
       path: /metrics

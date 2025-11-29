@@ -132,6 +132,8 @@ spec:
     
     prometheus:
       prometheusSpec:
+        # Global scrape interval increased from 30s to 60s for memory optimization
+        scrapeInterval: 60s
         # Retention reduced from 10d to 7d for memory optimization
         retention: 7d
         resources:

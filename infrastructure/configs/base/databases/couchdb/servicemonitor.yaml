@@ -11,7 +11,7 @@ spec:
       app: couchdb
   endpoints:
     - port: couchdb
-      interval: 30s
+      interval: 60s
       path: /_node/_local/_prometheus
       scrapeTimeout: 10s
       basicAuth:

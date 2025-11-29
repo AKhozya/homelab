@@ -97,8 +97,8 @@ spec:
     serviceMonitor:
       # Enable Prometheus ServiceMonitor
       enabled: true
-      # Interval for metrics scraping
-      interval: 30s
+      # Interval for metrics scraping (increased from 30s for memory optimization)
+      interval: 60s
 
     # Expose metrics endpoint
     metrics:
