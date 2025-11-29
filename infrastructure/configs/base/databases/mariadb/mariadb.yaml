@@ -4,8 +4,8 @@ metadata:
   name: main-mariadb
   namespace: databases
 spec:
-  # Single instance - HA via hourly binlog backups (1h RPO)
-  replicas: 1
+  # Primary-Replica replication for HA (like PostgreSQL)
+  replicas: 2
 
   # MariaDB version
   image: mariadb:12.1.2  # Latest LTS version
@@ -19,7 +19,7 @@ spec:
     name: mariadb-root
     key: password
 
-  # Storage configuration
+  # Storage configuration (per replica)
   storage:
     size: 20Gi
     storageClassName: local-path
@@ -35,7 +35,30 @@ spec:
       cpu: "1000m"
       memory: "1Gi"
 
-  # MariaDB configuration - single instance with binary logging for PITR
+  # Replication configuration (primary-replica like PostgreSQL)
+  replication:
+    enabled: true
+    primary:
+      podIndex: 0  # main-mariadb-0 is initial primary
+      autoFailover: true  # Automatic failover if primary fails
+    replica:
+      waitPoint: AfterCommit  # Wait for transaction commit before ack
+      gtid: CurrentPos  # Use GTID for position tracking
+    syncTimeout: 10s  # Timeout for replica sync during switchover
+    agent:
+      port: 5555
+      kubernetesAuth:
+        enabled: true
+      gracefulShutdownTimeout: 5s
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "200m"
+          memory: "128Mi"
+
+  # MariaDB configuration with binary logging for replication
   myCnf: |
     [mariadb]
     bind-address=*
@@ -43,12 +66,16 @@ spec:
     innodb_buffer_pool_size=512M
     max_allowed_packet=256M
 
-    # Binary logging for point-in-time recovery (PITR)
+    # Binary logging (required for replication)
     log_bin=mariadb-bin
     binlog_format=ROW
     sync_binlog=1
     expire_logs_days=3
     max_binlog_size=100M
+
+    # Replication settings
+    gtid_strict_mode=ON
+    log_slave_updates=ON
 
     # Performance settings
     innodb_flush_log_at_trx_commit=1
@@ -79,9 +106,21 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9104"
 
-  # Update strategy - OnDelete for controlled updates
+  # Update strategy - ReplicasFirstPrimaryLast for zero-downtime updates
   updateStrategy:
-    type: OnDelete  # Manual pod deletion triggers recreation
+    type: ReplicasFirstPrimaryLast
+
+  # Spread replicas across nodes if possible
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: mariadb
+                app.kubernetes.io/instance: main-mariadb
+            topologyKey: kubernetes.io/hostname
 
   # Security context
   podSecurityContext:

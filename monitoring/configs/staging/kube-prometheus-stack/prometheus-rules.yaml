@@ -657,17 +657,34 @@ spec:
         summary: "MariaDB {{ $labels.instance }} rejecting connections"
         description: "MariaDB is rejecting connections due to max_connections limit. Applications cannot connect to database!"
 
-    # Galera alerts removed - switched to single instance with binlog backups (2025-11-29)
-    # PITR via daily full backup + hourly binlog archiving
+    # Replication monitoring alerts (switched from Galera to primary-replica 2025-11-29)
 
-    - alert: MariaDBBinlogBackupMissing
-      expr: time() - max(kube_job_status_completion_time{job_name=~"mariadb-binlog-backup.*"}) > 7200
+    - alert: MariaDBReplicationLag
+      expr: mysql_slave_status_seconds_behind_master{job="main-mariadb-metrics"} > 30
       for: 5m
       labels:
         severity: warning
       annotations:
-        summary: "MariaDB binlog backup overdue"
-        description: "No successful binlog backup in the last 2 hours. PITR capability may be degraded!"
+        summary: "MariaDB replication lag high"
+        description: "Replica is {{ $value }}s behind primary. Data may be stale on failover!"
+
+    - alert: MariaDBReplicationStopped
+      expr: mysql_slave_status_slave_io_running{job="main-mariadb-metrics"} == 0 or mysql_slave_status_slave_sql_running{job="main-mariadb-metrics"} == 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "MariaDB replication stopped"
+        description: "Replication IO or SQL thread has stopped. HA capability is degraded!"
+
+    - alert: MariaDBReplicaCount
+      expr: count(mysql_up{job="main-mariadb-metrics"} == 1) < 2
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "MariaDB replica count low"
+        description: "Only {{ $value }} MariaDB instance(s) running (expected 2). HA capability may be degraded!"
 
   # service-alerts group - ServiceDown alert removed, replaced by Uptime Kuma
   # See docs/UPTIME_KUMA_TELEGRAM_REPORT.md for details
