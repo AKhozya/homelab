@@ -108,7 +108,7 @@ spec:
                   Timestamp: $(date)
                   Backup ID: $TIMESTAMP
                   Databases: $DATABASES
-                  Host: main-mariadb-primary.databases.svc.cluster.local
+                  Host: main-mariadb.databases.svc.cluster.local
 
                   Backup Files:
                   $(ls -lh $BACKUP_DIR/*.sql)

@@ -32,7 +32,7 @@ data:
       discovery_url: https://authentik.h0melab.work/application/o/home-assistant/.well-known/openid-configuration
 
     # MariaDB Recorder Configuration
-    # Uses Galera cluster for high availability
+    # Single instance - relies on daily + 6-hourly binlog backups for DR
     recorder:
       db_url: !secret db_url
       commit_interval: 5
