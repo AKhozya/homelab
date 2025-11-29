@@ -42,9 +42,9 @@ spec:
       podIndex: 0  # main-mariadb-0 is initial primary
       autoFailover: true  # Automatic failover if primary fails
     replica:
-      waitPoint: AfterCommit  # Wait for transaction commit before ack
       gtid: CurrentPos  # Use GTID for position tracking
-    syncTimeout: 10s  # Timeout for replica sync during switchover
+      syncTimeout: 10s  # Timeout for replica sync during switchover
+    semiSyncWaitPoint: AfterCommit  # Wait for transaction commit before ack
     agent:
       port: 5555
       kubernetesAuth:
