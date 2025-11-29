@@ -11,6 +11,10 @@ spec:
   galera:
     enabled: false
 
+  # Explicitly disable replication (single instance mode)
+  replication:
+    enabled: false
+
   # MariaDB version
   image: mariadb:12.1.2  # Latest LTS version
   imagePullPolicy: IfNotPresent
