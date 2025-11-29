@@ -1,0 +1,163 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mariadb-binlog-backup
+  namespace: databases
+spec:
+  schedule: "0 * * * *"  # Every hour on the hour
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 7200  # Keep job for 2h for debugging
+      template:
+        metadata:
+          labels:
+            app: mariadb-binlog-backup
+        spec:
+          serviceAccountName: mariadb-jobs
+          automountServiceAccountToken: false
+          restartPolicy: OnFailure
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: setup-permissions
+              image: alpine:3.22
+              command:
+                - sh
+                - -c
+                - |
+                  mkdir -p /backup/binlogs
+                  chown -R 999:999 /backup/binlogs
+                  chmod 755 /backup/binlogs
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+              securityContext:
+                runAsUser: 0
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                  add: ["CHOWN", "DAC_OVERRIDE"]
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "128Mi"
+          containers:
+            - name: binlog-backup
+              image: mariadb:12.1
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -e
+
+                  echo "=== MariaDB Binlog Backup Started ==="
+                  echo "Timestamp: $(date)"
+
+                  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  BACKUP_DIR="/backup/binlogs"
+
+                  # Flush binary logs to create a new file (ensures clean rotation)
+                  echo "Flushing binary logs..."
+                  mariadb \
+                    -h main-mariadb.databases.svc.cluster.local \
+                    -u root \
+                    -p"$MARIADB_ROOT_PASSWORD" \
+                    -e "FLUSH BINARY LOGS;"
+
+                  # Get list of binary log files
+                  echo "Getting binary log list..."
+                  BINLOGS=$(mariadb \
+                    -h main-mariadb.databases.svc.cluster.local \
+                    -u root \
+                    -p"$MARIADB_ROOT_PASSWORD" \
+                    -N -e "SHOW BINARY LOGS;" | awk '{print $1}')
+
+                  echo "Found binlogs: $BINLOGS"
+
+                  # Export each binlog file that hasn't been backed up yet
+                  for BINLOG in $BINLOGS; do
+                    BACKUP_FILE="$BACKUP_DIR/${BINLOG}_${TIMESTAMP}.sql"
+
+                    # Skip if this exact binlog was already backed up this hour
+                    if ls "$BACKUP_DIR/${BINLOG}_"*.sql 1>/dev/null 2>&1; then
+                      LATEST_BACKUP=$(ls -t "$BACKUP_DIR/${BINLOG}_"*.sql 2>/dev/null | head -1)
+                      if [ -n "$LATEST_BACKUP" ]; then
+                        # Check if backup is less than 1 hour old
+                        BACKUP_AGE=$(( $(date +%s) - $(stat -c %Y "$LATEST_BACKUP" 2>/dev/null || echo 0) ))
+                        if [ "$BACKUP_AGE" -lt 3600 ]; then
+                          echo "Skipping $BINLOG (backed up ${BACKUP_AGE}s ago)"
+                          continue
+                        fi
+                      fi
+                    fi
+
+                    echo "Backing up $BINLOG..."
+                    mariadb-binlog \
+                      --read-from-remote-server \
+                      --host=main-mariadb.databases.svc.cluster.local \
+                      --user=root \
+                      --password="$MARIADB_ROOT_PASSWORD" \
+                      --result-file="$BACKUP_FILE" \
+                      "$BINLOG" 2>&1 || echo "Warning: Could not backup $BINLOG"
+
+                    if [ -f "$BACKUP_FILE" ]; then
+                      SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+                      echo "✅ $BINLOG backed up ($SIZE)"
+                    fi
+                  done
+
+                  # Compress binlogs older than 1 hour
+                  echo "Compressing old binlogs..."
+                  find "$BACKUP_DIR" -name "*.sql" -mmin +60 -exec gzip -f {} \;
+
+                  # Clean up binlog backups older than 72 hours (3 days)
+                  echo "Cleaning old binlog backups (keeping 72 hours)..."
+                  find "$BACKUP_DIR" -name "*.sql*" -mmin +4320 -delete
+
+                  # Show current binlog backups
+                  echo ""
+                  echo "=== Current Binlog Backups ==="
+                  ls -lht "$BACKUP_DIR" | head -20
+
+                  TOTAL_SIZE=$(du -sh "$BACKUP_DIR" | cut -f1)
+                  echo ""
+                  echo "=== Binlog Backup Complete ==="
+                  echo "Total binlog backup size: $TOTAL_SIZE"
+              env:
+                - name: MARIADB_ROOT_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: mariadb-root
+                      key: password
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: false
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "512Mi"
+          volumes:
+            - name: backup-storage
+              hostPath:
+                path: /mnt/k8s-storage/backups/mariadb
+                type: DirectoryOrCreate
+          nodeSelector:
+            kubernetes.io/hostname: worker-node

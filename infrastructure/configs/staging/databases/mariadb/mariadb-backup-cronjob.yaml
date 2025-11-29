@@ -72,7 +72,7 @@ spec:
                   # Auto-discover databases (exclude system databases)
                   echo "Discovering databases..."
                   DATABASES=$(mariadb \
-                    -h main-mariadb-primary.databases.svc.cluster.local \
+                    -h main-mariadb.databases.svc.cluster.local \
                     -u root \
                     -p"$MARIADB_ROOT_PASSWORD" \
                     -e "SHOW DATABASES;" \
@@ -84,13 +84,14 @@ spec:
                   for DB in $DATABASES; do
                     echo "Backing up database: $DB"
                     mariadb-dump \
-                      -h main-mariadb-primary.databases.svc.cluster.local \
+                      -h main-mariadb.databases.svc.cluster.local \
                       -u root \
                       -p"$MARIADB_ROOT_PASSWORD" \
                       --single-transaction \
                       --routines \
                       --triggers \
                       --events \
+                      --master-data=2 \
                       "$DB" > "$BACKUP_DIR/${DB}.sql" 2>&1 | tee "$BACKUP_DIR/${DB}.log"
 
                     if [ $? -eq 0 ]; then

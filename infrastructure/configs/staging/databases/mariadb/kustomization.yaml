@@ -4,6 +4,7 @@ resources:
   - ../../../base/databases/mariadb
   - mariadb-jobs-serviceaccount.yaml
   - mariadb-backup-cronjob.yaml
+  - mariadb-binlog-backup-cronjob.yaml
   # App-specific database users and databases
   - ha-mariadb-credentials.yaml
   - ha-user.yaml
