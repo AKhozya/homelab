@@ -23,7 +23,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: stirling-pdf
-          image: frooodle/s-pdf:2.0.1-fat
+          image: frooodle/s-pdf:2.0.2-fat
           ports:
             - containerPort: 8080
           env:
