@@ -658,13 +658,13 @@ spec:
         description: "MariaDB is rejecting connections due to max_connections limit. Applications cannot connect to database!"
 
     - alert: MariaDBGaleraClusterSizeMismatch
-      expr: mysql_global_status_wsrep_cluster_size{job="main-mariadb-metrics"} != 2
+      expr: mysql_global_status_wsrep_cluster_size{job="main-mariadb-metrics"} != 3
       for: 5m
       labels:
         severity: warning
       annotations:
         summary: "MariaDB Galera cluster size incorrect"
-        description: "Galera cluster has {{ $value }} nodes (expected 2). A node may be down or partitioned!"
+        description: "Galera cluster has {{ $value }} nodes (expected 3). A node may be down or partitioned!"
 
     - alert: MariaDBGaleraNodeNotSynced
       expr: (mysql_global_status_wsrep_local_state{job="main-mariadb-metrics"} != 4) or (mysql_global_status_wsrep_ready{job="main-mariadb-metrics"} != 1)

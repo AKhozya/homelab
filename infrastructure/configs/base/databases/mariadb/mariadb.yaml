@@ -26,14 +26,14 @@ spec:
     resizeInUseVolumes: true  # Allow online storage resize
     waitForVolumeResize: true
 
-  # Resource allocation (similar to PostgreSQL)
+  # Resource allocation - optimized based on actual usage (~420Mi peak)
   resources:
     requests:
       cpu: "250m"
       memory: "512Mi"
     limits:
       cpu: "1000m"
-      memory: "2Gi"
+      memory: "1Gi"
 
   # Galera cluster configuration
   galera:
@@ -49,6 +49,14 @@ spec:
       kubernetesAuth:
         enabled: true  # Use Kubernetes ServiceAccount for auth
       gracefulShutdownTimeout: 5s
+      # Optimized resources - actual usage ~19Mi
+      resources:
+        requests:
+          cpu: "50m"
+          memory: "64Mi"
+        limits:
+          cpu: "200m"
+          memory: "128Mi"
     recovery:
       enabled: true
       minClusterSize: 2  # Minimum replicas for quorum (2 out of 3 nodes)
