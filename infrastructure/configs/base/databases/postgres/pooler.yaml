@@ -6,7 +6,7 @@ metadata:
 spec:
   cluster:
     name: main-postgres
-  instances: 3  # Match PostgreSQL HA instances
+  instances: 2  # 2 poolers sufficient for homelab
   type: rw      # Read-write pooler
   pgbouncer:
     poolMode: transaction  # Transaction pooling (works with most apps)
@@ -31,8 +31,8 @@ spec:
         - name: pgbouncer
           resources:
             requests:
-              cpu: "100m"
-              memory: "128Mi"
+              cpu: "50m"
+              memory: "64Mi"
             limits:
-              cpu: "500m"
-              memory: "512Mi"
+              cpu: "200m"
+              memory: "128Mi"  # Actual usage ~20Mi
