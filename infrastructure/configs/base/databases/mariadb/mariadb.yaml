@@ -26,6 +26,10 @@ spec:
     resizeInUseVolumes: true
     waitForVolumeResize: true
 
+  # Disable Galera (using replication instead)
+  galera:
+    enabled: false
+
   # Resource allocation - optimized based on actual usage (~420Mi peak)
   resources:
     requests:
