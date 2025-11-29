@@ -4,7 +4,7 @@ metadata:
   name: mariadb-binlog-backup
   namespace: databases
 spec:
-  schedule: "0 */6 * * *"  # Every 6 hours (0:00, 6:00, 12:00, 18:00)
+  schedule: "0 * * * *"  # Every hour
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid
