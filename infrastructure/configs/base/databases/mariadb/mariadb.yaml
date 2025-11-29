@@ -79,9 +79,9 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9104"
 
-  # Update strategy for single instance
+  # Update strategy - OnDelete for controlled updates
   updateStrategy:
-    type: Recreate
+    type: OnDelete  # Manual pod deletion triggers recreation
 
   # Security context
   podSecurityContext:
