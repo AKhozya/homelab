@@ -4,8 +4,8 @@ metadata:
   name: main-mariadb
   namespace: databases
 spec:
-  # Primary-Replica replication for HA (like PostgreSQL)
-  replicas: 2
+  # Single instance (no HA) - relies on daily + 6-hourly binlog backups for DR
+  replicas: 1
 
   # MariaDB version
   image: mariadb:12.1.2  # Latest LTS version
@@ -19,16 +19,12 @@ spec:
     name: mariadb-root
     key: password
 
-  # Storage configuration (per replica)
+  # Storage configuration
   storage:
     size: 20Gi
     storageClassName: local-path
     resizeInUseVolumes: true
     waitForVolumeResize: true
-
-  # Disable Galera (using replication instead)
-  galera:
-    enabled: false
 
   # Resource allocation - optimized based on actual usage (~420Mi peak)
   resources:
@@ -39,30 +35,7 @@ spec:
       cpu: "1000m"
       memory: "1Gi"
 
-  # Replication configuration (primary-replica like PostgreSQL)
-  replication:
-    enabled: true
-    primary:
-      podIndex: 0  # main-mariadb-0 is initial primary
-      autoFailover: true  # Automatic failover if primary fails
-    replica:
-      gtid: CurrentPos  # Use GTID for position tracking
-      syncTimeout: 10s  # Timeout for replica sync during switchover
-    semiSyncWaitPoint: AfterCommit  # Wait for transaction commit before ack
-    agent:
-      port: 5555
-      kubernetesAuth:
-        enabled: true
-      gracefulShutdownTimeout: 5s
-      resources:
-        requests:
-          cpu: "50m"
-          memory: "64Mi"
-        limits:
-          cpu: "200m"
-          memory: "128Mi"
-
-  # MariaDB configuration with binary logging for replication
+  # MariaDB configuration with binary logging for PITR backups
   myCnf: |
     [mariadb]
     bind-address=*
@@ -70,16 +43,12 @@ spec:
     innodb_buffer_pool_size=512M
     max_allowed_packet=256M
 
-    # Binary logging (required for replication)
+    # Binary logging (for PITR backups)
     log_bin=mariadb-bin
     binlog_format=ROW
     sync_binlog=1
     expire_logs_days=3
     max_binlog_size=100M
-
-    # Replication settings
-    gtid_strict_mode=ON
-    log_slave_updates=ON
 
     # Performance settings
     innodb_flush_log_at_trx_commit=1
@@ -110,21 +79,9 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9104"
 
-  # Update strategy - ReplicasFirstPrimaryLast for zero-downtime updates
+  # Update strategy - OnDelete for single instance (brief downtime during updates)
   updateStrategy:
-    type: ReplicasFirstPrimaryLast
-
-  # Spread replicas across nodes if possible
-  affinity:
-    podAntiAffinity:
-      preferredDuringSchedulingIgnoredDuringExecution:
-        - weight: 100
-          podAffinityTerm:
-            labelSelector:
-              matchLabels:
-                app.kubernetes.io/name: mariadb
-                app.kubernetes.io/instance: main-mariadb
-            topologyKey: kubernetes.io/hostname
+    type: OnDelete
 
   # Security context
   podSecurityContext:
