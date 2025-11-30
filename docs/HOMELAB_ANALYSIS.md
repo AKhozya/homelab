@@ -663,7 +663,7 @@
 
 ---
 
-### 📅 DEFERRED TASKS (Late December 2025)
+### 📅 DEFERRED TASKS (Late December 2025 - January 2026)
 
 #### 37. **Offsite Backup Replication to NAS** ⏸️ BLOCKED
    - **Status**: BLOCKED - Waiting for 24TB NAS hardware arrival (late December 2025, delivery postponed)
@@ -686,6 +686,29 @@
    - **Files**: New CronJob manifest in `infrastructure/configs/staging/backup/offsite-replication.yaml`
    - **Benefit**: Protects against node hardware failure, data center disaster
    - **Note**: DO NOT NAG UNTIL LATE DECEMBER
+
+#### 38. **Second Worker Node** 🖥️ PLANNED
+   - **Status**: PLANNED - Hardware arriving January 2026
+   - **Priority**: P1-HIGH (enables true HA)
+   - **Current State**: Single worker node (192.168.1.129) runs all application workloads
+   - **Benefit**:
+     - True high availability with pod anti-affinity
+     - PostgreSQL replicas on separate physical nodes
+     - Zero-downtime node maintenance (drain without service interruption)
+     - Increased cluster capacity for future workloads
+   - **Tasks Upon Arrival**:
+     1. Install K3s agent on new node
+     2. Configure LVM storage (match current worker setup)
+     3. Enable pod anti-affinity for critical workloads (PostgreSQL, Traefik, cert-manager)
+     4. Migrate some workloads to balance load
+     5. Update documentation
+   - **Estimated Effort**: 4-6 hours
+   - **Target Date**: January 2026
+   - **Unlocks**:
+     - PostgreSQL `podAntiAffinityType: "required"` (currently N/A due to single node)
+     - True cross-node HA for infrastructure components
+     - Node drain without workload disruption
+   - **Note**: DO NOT NAG UNTIL JANUARY
 
 ---
 
