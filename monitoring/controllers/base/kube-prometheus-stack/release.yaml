@@ -134,8 +134,9 @@ spec:
       prometheusSpec:
         # Global scrape interval increased from 30s to 60s for memory optimization
         scrapeInterval: 60s
-        # Retention reduced from 10d to 7d for memory optimization
-        retention: 7d
+        # Retention increased to 90 days for historical analysis
+        retention: 90d
+        retentionSize: 50GB
         resources:
           requests:
             cpu: 200m

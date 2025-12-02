@@ -688,27 +688,79 @@
    - **Note**: DO NOT NAG UNTIL LATE DECEMBER
 
 #### 38. **Second Worker Node** 🖥️ PLANNED
-   - **Status**: PLANNED - Hardware arriving January 2026
+   - **Status**: PLANNED - Hardware arriving December 2025 / January 2026
    - **Priority**: P1-HIGH (enables true HA)
    - **Current State**: Single worker node (192.168.1.129) runs all application workloads
+   - **Documentation** (created 2025-11-30):
+     - Setup guide: `docs/SECOND_WORKER_NODE_SETUP.md`
+     - Archinstall config: `docs/archinstall-worker-node.json`
+     - Post-install script: `docs/worker-node-post-install.sh`
    - **Benefit**:
      - True high availability with pod anti-affinity
      - PostgreSQL replicas on separate physical nodes
      - Zero-downtime node maintenance (drain without service interruption)
      - Increased cluster capacity for future workloads
    - **Tasks Upon Arrival**:
-     1. Install K3s agent on new node
-     2. Configure LVM storage (match current worker setup)
-     3. Enable pod anti-affinity for critical workloads (PostgreSQL, Traefik, cert-manager)
-     4. Migrate some workloads to balance load
-     5. Update documentation
-   - **Estimated Effort**: 4-6 hours
-   - **Target Date**: January 2026
+     1. Boot Arch ISO, run archinstall (use JSON config as reference for packages)
+     2. Edit `worker-node-post-install.sh` variables: NODE_IP, K3S_TOKEN, LVM_DEVICES
+     3. Get K3s token from control plane: `sudo cat /var/lib/rancher/k3s/server/node-token`
+     4. Run post-install script: `sudo bash worker-node-post-install.sh`
+     5. Verify node joined: `kubectl get nodes`
+     6. Enable required pod anti-affinity for PostgreSQL (`podAntiAffinityType: "required"`)
+     7. Test node drain/failover
+     8. Add worker-node-2 to: AdGuard Home DNS, ~/.ssh/config, Uptime Kuma monitors
+   - **Estimated Effort**: 2-3 hours (with automated scripts)
+   - **Target Date**: December 2025 / January 2026
    - **Unlocks**:
      - PostgreSQL `podAntiAffinityType: "required"` (currently N/A due to single node)
      - True cross-node HA for infrastructure components
      - Node drain without workload disruption
-   - **Note**: DO NOT NAG UNTIL JANUARY
+   - **Note**: DO NOT NAG UNTIL HARDWARE ARRIVES
+
+#### 39. **Switch to LTS Kernel 6.18** 🐧 SCHEDULED
+   - **Status**: SCHEDULED - Waiting for kernel 6.18 LTS release
+   - **Priority**: P2-MEDIUM (stability improvement)
+   - **Target Date**: Friday, December 5th, 2025
+   - **Current State**: Both nodes running mainline kernel
+   - **Scope**: Control plane (192.168.1.127) + Worker node (192.168.1.129)
+   - **Hardware Compatibility**: ✅ Verified
+     - Intel N100 (Alder Lake-N): Supported since 6.1+
+     - AMD Ryzen 9 9955HX (Zen 5): Supported since 6.10+ (included in 6.18)
+     - Intel I226-V (igc): Driver fixes in 6.6+
+     - AMD Radeon integrated (amdgpu): Mature by 6.12+
+   - **Procedure**:
+     1. Check 6.18 LTS availability: `pacman -Ss linux-lts`
+     2. Install on control plane first: `sudo pacman -S linux-lts linux-lts-headers`
+     3. Update bootloader: `sudo bootctl update`
+     4. Reboot and verify: `uname -r`
+     5. Repeat on worker node
+     6. Keep mainline kernel installed for rollback option
+   - **Benefit**: Long-term stability, 2+ year support, security backports
+   - **Rollback**: Boot into mainline kernel from bootloader menu if issues
+   - **Note**: Review on December 5th - proceed only if 6.18 LTS is released
+
+#### 40. **Re-evaluate VictoriaMetrics** 📊 DEFERRED
+   - **Status**: DEFERRED - Waiting for metricRelabelConfigs bug fix
+   - **Priority**: P3-LOW (optimization opportunity)
+   - **Target Date**: February 2026
+   - **Background**:
+     - Attempted migration on 2025-11-15, aborted due to bug
+     - Issue: `metricRelabelConfigs` not functioning in VMNodeScrape/VMServiceScrape
+     - Result: VictoriaMetrics collected 48% MORE series than Prometheus (defeating purpose)
+   - **Bug Tracking**:
+     - GitHub Issue: [#9951](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/9951) (still OPEN as of 2025-12-02)
+     - Workaround exists (use both relabelConfig + metricRelabelConfig) but not a real fix
+   - **Action in Feb 2026**:
+     1. Check if issue #9951 is resolved
+     2. If fixed, test VictoriaMetrics in staging with metric drops
+     3. Compare series count vs Prometheus
+     4. If working, plan migration for memory/disk savings
+   - **Expected Benefits** (if bug fixed):
+     - ~2-5x RAM reduction
+     - ~7x disk reduction (zstd compression)
+     - Native downsampling for long retention
+   - **Current Mitigation**: Prometheus retention increased to 90d (2025-12-02)
+   - **Note**: DO NOT NAG UNTIL FEBRUARY 2026
 
 ---
 
@@ -1270,6 +1322,34 @@ ingress:
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-11-30 (Arch Linux Comprehensive Hardening) 🔒
+- ✅ **Lynis Score Improvement**: Both nodes improved from 71 → 76 (+5 points)
+- ✅ **Headless Server Hardening**: Disabled WiFi and Bluetooth on both nodes
+- ✅ **Kernel Hardening**: Additional sysctl settings (kptr_restrict, bpf_jit_harden, sysrq restrictions)
+- ✅ **SSH Hardening**: AllowTcpForwarding, AllowAgentForwarding, LogLevel VERBOSE, MaxSessions
+- ✅ **Protocol Blacklisting**: Disabled unused protocols (dccp, sctp, rds, tipc)
+- ✅ **Security Tools Installed**: rkhunter (rootkit scanner), arch-audit (vulnerability scanner)
+- ✅ **Legal Banner**: Added to /etc/issue and /etc/issue.net
+- 🎯 **Impact**: Reduced attack surface on headless K3s nodes
+- 🔧 **Technical Details**:
+  - **Control Plane** (192.168.1.127): Intel N100, Realtek WiFi blacklisted (rtw89)
+  - **Worker Node** (192.168.1.129): AMD Ryzen 9 9955HX, MediaTek WiFi blacklisted (mt7921e)
+  - **GPU Drivers Kept**: Intel i915/xe and AMD amdgpu retained for hardware transcoding
+  - **USB/Firewire**: NOT blacklisted per user requirement
+  - **Firmware Packages**: Kept for reversibility (disabled via module blacklists)
+- 📋 **Scripts Created**:
+  - `/tmp/fix-critical.sh` - fstab, /boot, locale, noatime, initramfs
+  - `/tmp/fix-security.sh` - sysctl hardening, lynis, SSH, paccache
+  - `/tmp/fix-optimize.sh` - pacman config, hostname, journal cleanup
+  - `/tmp/fix-headless.sh` - WiFi/Bluetooth module blacklisting
+  - `/tmp/fix-lynis.sh` - Additional lynis recommendations
+- 🐛 **Issues Fixed**:
+  - egrep/fgrep deprecation warnings in rkhunter (created /etc/profile.d/grep-compat.sh)
+  - FQDN missing in /etc/hosts (NAME-4404)
+  - rkhunter baseline updated on both nodes
+- ⚠️ **Pending**: Package vulnerabilities (libxml2, pam, openssl) waiting on upstream fixes
+- 📅 **Scheduled**: LTS kernel 6.18 switch on Friday, December 5th, 2025
 
 ### 2025-11-25 (Prometheus Metric Optimization) 📉
 - ✅ **High-Cardinality Metric Drop**: Reduced Prometheus storage by dropping 5 high-cardinality histogram metrics
