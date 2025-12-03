@@ -38,20 +38,20 @@ spec:
             capabilities:
               drop: ["ALL"]
               add: ["SETGID", "SETUID", "CHOWN", "DAC_OVERRIDE"] # Required for su-exec privilege dropping, directory ownership, and nginx file access
-          # v2.0.3 takes ~45s to start, increased delays for safety
+          # v2.0.3 requires authentication on / - use /api/v1/info/status for health checks
           livenessProbe:
             httpGet:
-              path: /
+              path: /api/v1/info/status
               port: 8080
-            initialDelaySeconds: 90
+            initialDelaySeconds: 60
             periodSeconds: 15
             timeoutSeconds: 10
             failureThreshold: 6
           readinessProbe:
             httpGet:
-              path: /
+              path: /api/v1/info/status
               port: 8080
-            initialDelaySeconds: 60
+            initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 6
