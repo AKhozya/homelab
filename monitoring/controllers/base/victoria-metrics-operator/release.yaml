@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: victoria-metrics-operator
-      version: "0.56.x"  # Auto-convert Prometheus CRDs
+      version: "0.57.x"  # Auto-convert Prometheus CRDs
       sourceRef:
         kind: HelmRepository
         name: victoriametrics
