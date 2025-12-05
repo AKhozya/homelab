@@ -50,11 +50,7 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow HTTPS for metadata fetching and external integrations
+    # Allow HTTPS for metadata fetching (Audible, Google Books, OpenLibrary use HTTPS)
     - ports:
         - protocol: TCP
           port: 443
-    # Allow HTTP for metadata fetching
-    - ports:
-        - protocol: TCP
-          port: 80
