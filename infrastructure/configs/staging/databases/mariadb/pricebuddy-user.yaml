@@ -1,0 +1,13 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: User
+metadata:
+  name: pricebuddy
+  namespace: databases
+spec:
+  mariaDbRef:
+    name: main-mariadb
+  passwordSecretKeyRef:
+    name: pricebuddy-mariadb-credentials
+    key: password
+  maxUserConnections: 100
+  host: "%"

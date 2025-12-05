@@ -1,0 +1,15 @@
+apiVersion: k8s.mariadb.com/v1alpha1
+kind: Grant
+metadata:
+  name: pricebuddy-grant
+  namespace: databases
+spec:
+  mariaDbRef:
+    name: main-mariadb
+  privileges:
+    - ALL PRIVILEGES
+  database: pricebuddy
+  table: "*"
+  username: pricebuddy
+  grantOption: false
+  host: "%"

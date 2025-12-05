@@ -14,3 +14,7 @@ resources:
   - uptime-kuma-user.yaml
   - uptime-kuma-database.yaml
   - uptime-kuma-grant.yaml
+  - pricebuddy-mariadb-credentials.yaml
+  - pricebuddy-user.yaml
+  - pricebuddy-database.yaml
+  - pricebuddy-grant.yaml

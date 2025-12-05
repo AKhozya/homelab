@@ -1,0 +1,54 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pricebuddy-network-policy
+  namespace: pricebuddy
+spec:
+  podSelector:
+    matchLabels:
+      app: pricebuddy
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from traefik namespace for internal access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - protocol: TCP
+          port: 80
+    # Allow ingress from uptime-kuma for monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
+      ports:
+        - protocol: TCP
+          port: 80
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow MariaDB access
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+      ports:
+        - protocol: TCP
+          port: 3306
+    # Allow HTTPS for scraping external product pages
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTP for scraping external product pages
+    - ports:
+        - protocol: TCP
+          port: 80

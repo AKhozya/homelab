@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pricebuddy
+  namespace: pricebuddy
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: pricebuddy
+  template:
+    metadata:
+      labels:
+        app: pricebuddy
+    spec:
+      serviceAccountName: pricebuddy
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: pricebuddy
+          image: jez500/pricebuddy:v1.0.40
+          ports:
+            - containerPort: 80
+              name: http
+          env:
+            - name: APP_ENV
+              value: "production"
+            - name: APP_DEBUG
+              value: "false"
+            - name: APP_URL
+              value: "https://pricebuddy.h0melab.work"
+            - name: APP_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: pricebuddy-secrets
+                  key: app-key
+            - name: DB_CONNECTION
+              value: "mysql"
+            - name: DB_HOST
+              value: "main-mariadb.databases.svc.cluster.local"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_DATABASE
+              value: "pricebuddy"
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: pricebuddy-mariadb-credentials
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pricebuddy-mariadb-credentials
+                  key: password
+            - name: SCRAPER_BASE_URL
+              value: "http://localhost:4444"
+            - name: APP_USER_EMAIL
+              value: "alexander.khozya@gmail.com"
+            - name: APP_USER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pricebuddy-secrets
+                  key: app-user-password
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 60
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: storage
+              mountPath: /app/storage
+        - name: scraper
+          image: jez500/seleniumbase-scrapper:latest
+          ports:
+            - containerPort: 4444
+              name: scraper
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: pricebuddy-storage
