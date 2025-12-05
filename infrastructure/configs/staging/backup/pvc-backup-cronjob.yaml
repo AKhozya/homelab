@@ -85,6 +85,7 @@ spec:
                   uptime-kuma/uptime-kuma-data-pvc/*uptime-kuma-data-pvc*
                   linkwarden/linkwarden-data/*linkwarden-data*
                   linkwarden/meilisearch-data/*meilisearch-data*
+                  pricebuddy/pricebuddy-storage/*pricebuddy-storage*
                   "
 
                   # PVCs containing already-compressed media files (photos/videos/audio)

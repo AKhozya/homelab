@@ -83,6 +83,12 @@ data:
             description: PDF toolkit with OIDC
             namespace: stirling-pdf
             app: stirling-pdf
+        - PriceBuddy:
+            icon: si-amazon
+            href: https://pricebuddy.h0melab.work
+            description: Price tracking & comparison
+            namespace: pricebuddy
+            app: pricebuddy
 
     - Media & Automation:
         - Audiobookshelf:

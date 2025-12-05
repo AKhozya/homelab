@@ -120,6 +120,7 @@ kubectl apply -f "${BACKUP_DIR}/secrets/paperless-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/mariadb-root.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/ha-mariadb-credentials.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/uptime-kuma-mariadb-credentials.json"
+kubectl apply -f "${BACKUP_DIR}/secrets/pricebuddy-mariadb-credentials.json"
 echo "   ✅ Database secrets restored (PostgreSQL + MariaDB)"
 
 # =============================================================================
@@ -186,6 +187,12 @@ echo "   ✅ Stirling PDF"
 kubectl create namespace homehub --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/homehub-password.json"
 echo "   ✅ HomeHub"
+
+# PriceBuddy
+kubectl create namespace pricebuddy --dry-run=client -o yaml | kubectl apply -f -
+kubectl apply -f "${BACKUP_DIR}/secrets/pricebuddy-secrets.json"
+kubectl apply -f "${BACKUP_DIR}/secrets/pricebuddy-mariadb-credentials-app.json"
+echo "   ✅ PriceBuddy"
 
 # Obsidian CouchDB
 if [ -f "${BACKUP_DIR}/secrets/couchdb-admin-credentials.json" ]; then
@@ -263,5 +270,6 @@ echo "      - https://n8n.h0melab.work"
 echo "      - https://paperless.h0melab.work"
 echo "      - https://linkwarden.h0melab.work"
 echo "      - https://stirling.h0melab.work"
+echo "      - https://pricebuddy.h0melab.work"
 echo "      etc."
 echo ""
