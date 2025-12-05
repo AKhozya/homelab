@@ -9,6 +9,7 @@ resources:
   - mariadb-credentials.yaml
   - pvc.yaml
   - service.yaml
+  - apprise-configmap.yaml
   - deployment.yaml
   - networkpolicy.yaml
   - ingress.yaml

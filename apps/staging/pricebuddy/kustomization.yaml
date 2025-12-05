@@ -4,3 +4,4 @@ resources:
   - ../../base/pricebuddy
   - certificate.yaml
   - secrets.yaml
+  - telegram-secret.yaml

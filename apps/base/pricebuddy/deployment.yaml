@@ -21,6 +21,38 @@ spec:
         fsGroup: 33
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: apprise-init
+          image: alpine:3.23
+          command: ["/bin/sh", "/scripts/init.sh"]
+          env:
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: pricebuddy-telegram
+                  key: bot_token
+            - name: TELEGRAM_CHAT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: pricebuddy-telegram
+                  key: chat_id
+          volumeMounts:
+            - name: apprise-init-script
+              mountPath: /scripts
+            - name: apprise-config
+              mountPath: /config
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "32Mi"
       containers:
         - name: pricebuddy
           image: jez500/pricebuddy:v1.0.40
@@ -116,7 +148,50 @@ spec:
             limits:
               cpu: "1000m"
               memory: "1Gi"
+        - name: apprise
+          image: caronc/apprise:v1.9.3
+          ports:
+            - containerPort: 8000
+              name: apprise
+          env:
+            - name: APPRISE_STATEFUL_MODE
+              value: "simple"
+            - name: APPRISE_WORKER_COUNT
+              value: "1"
+          volumeMounts:
+            - name: apprise-config
+              mountPath: /config
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "32Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
       volumes:
         - name: storage
           persistentVolumeClaim:
             claimName: pricebuddy-storage
+        - name: apprise-config
+          emptyDir: {}
+        - name: apprise-init-script
+          configMap:
+            name: pricebuddy-apprise-init
+            defaultMode: 0755
