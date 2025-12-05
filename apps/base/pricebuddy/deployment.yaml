@@ -164,8 +164,11 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
+            runAsUser: 0
+            runAsNonRoot: false
             capabilities:
               drop: ["ALL"]
+              add: ["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER"]
           resources:
             requests:
               cpu: "10m"
