@@ -26,7 +26,6 @@ resources:
   - small-tier/adguard-home.yaml
   - small-tier/audiobookshelf.yaml
   - small-tier/csp-reporter.yaml
-  - small-tier/discount-bandit.yaml
 
   # Infrastructure tier
   - small-tier/traefik.yaml

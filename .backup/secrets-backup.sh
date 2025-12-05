@@ -58,7 +58,6 @@ kubectl get secret paperless-db-user -n databases -o json > "${BACKUP_DIR}/secre
 # MariaDB secrets
 kubectl get secret mariadb-root -n databases -o json > "${BACKUP_DIR}/secrets/mariadb-root.json"
 kubectl get secret ha-mariadb-credentials -n databases -o json > "${BACKUP_DIR}/secrets/ha-mariadb-credentials.json"
-kubectl get secret discount-bandit-mariadb-credentials -n databases -o json > "${BACKUP_DIR}/secrets/discount-bandit-mariadb-credentials.json"
 kubectl get secret uptime-kuma-mariadb-credentials -n databases -o json > "${BACKUP_DIR}/secrets/uptime-kuma-mariadb-credentials.json"
 
 # =============================================================================
@@ -92,10 +91,6 @@ kubectl get secret paperless-env -n paperless-ngx -o json > "${BACKUP_DIR}/secre
 # LinkWarden (replaced Linkding + Wallabag)
 kubectl get secret linkwarden -n linkwarden -o json > "${BACKUP_DIR}/secrets/linkwarden.json"
 kubectl get secret meilisearch -n linkwarden -o json > "${BACKUP_DIR}/secrets/meilisearch.json"
-
-# Discount Bandit
-kubectl get secret discount-bandit-admin -n discount-bandit -o json > "${BACKUP_DIR}/secrets/discount-bandit-admin.json"
-kubectl get secret discount-bandit-secret -n discount-bandit -o json > "${BACKUP_DIR}/secrets/discount-bandit-secret.json"
 
 # Audiobookshelf
 kubectl get secret audiobookshelf-admin -n audiobookshelf -o json > "${BACKUP_DIR}/secrets/audiobookshelf-admin.json"
@@ -233,13 +228,12 @@ echo "   📊 Grafana & Telegram (monitoring)"
 echo "   🗄️  Databases:"
 echo "      - Redis passwords"
 echo "      - PostgreSQL admin & app users (6 apps)"
-echo "      - MariaDB root & app credentials (3 apps)"
+echo "      - MariaDB root & app credentials (2 apps)"
 echo "   📱 All application secrets:"
 echo "      - Authentik, Immich, Home Assistant"
 echo "      - N8N, Mealie, Paperless-NGX"
 echo "      - Audiobookshelf, Uptime Kuma, Stirling PDF"
-echo "      - HomeHub, LinkWarden, Discount Bandit"
-echo "      - CouchDB (Obsidian)"
+echo "      - HomeHub, LinkWarden, CouchDB (Obsidian)"
 echo "   🔐 OIDC integration secrets:"
 echo "      - Grafana, Immich, Home Assistant, Mealie"
 echo "      - Paperless-NGX, Audiobookshelf, Stirling PDF"

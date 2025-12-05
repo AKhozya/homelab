@@ -119,7 +119,6 @@ kubectl apply -f "${BACKUP_DIR}/secrets/paperless-db-user.json"
 # MariaDB secrets
 kubectl apply -f "${BACKUP_DIR}/secrets/mariadb-root.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/ha-mariadb-credentials.json"
-kubectl apply -f "${BACKUP_DIR}/secrets/discount-bandit-mariadb-credentials.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/uptime-kuma-mariadb-credentials.json"
 echo "   ✅ Database secrets restored (PostgreSQL + MariaDB)"
 
@@ -167,12 +166,6 @@ kubectl create namespace linkwarden --dry-run=client -o yaml | kubectl apply -f 
 kubectl apply -f "${BACKUP_DIR}/secrets/linkwarden.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/meilisearch.json"
 echo "   ✅ LinkWarden"
-
-# Discount Bandit
-kubectl create namespace discount-bandit --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f "${BACKUP_DIR}/secrets/discount-bandit-admin.json"
-kubectl apply -f "${BACKUP_DIR}/secrets/discount-bandit-secret.json"
-echo "   ✅ Discount Bandit"
 
 # Audiobookshelf
 kubectl create namespace audiobookshelf --dry-run=client -o yaml | kubectl apply -f -
@@ -270,6 +263,5 @@ echo "      - https://n8n.h0melab.work"
 echo "      - https://paperless.h0melab.work"
 echo "      - https://linkwarden.h0melab.work"
 echo "      - https://stirling.h0melab.work"
-echo "      - https://discounts.h0melab.work"
 echo "      etc."
 echo ""

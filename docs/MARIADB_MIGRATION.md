@@ -4,6 +4,8 @@
 
 This document describes the migration of applications from SQLite to MariaDB Galera cluster in the homelab infrastructure.
 
+> **Note (2025-12-05)**: Discount Bandit was removed from the homelab. The sections below are kept for historical reference. Only Home Assistant and Uptime Kuma currently use MariaDB.
+
 ## MariaDB Architecture
 
 ### Cluster Configuration
@@ -40,12 +42,6 @@ infrastructure/
     ├── ha-database.yaml                   # Database CRD
     └── ha-grant.yaml                      # Grant CRD
     │
-    # Discount Bandit
-    ├── discount-bandit-credentials.yaml   # SOPS-encrypted credentials
-    ├── discount-bandit-user.yaml          # User CRD
-    ├── discount-bandit-database.yaml      # Database CRD
-    └── discount-bandit-grant.yaml         # Grant CRD
-    │
     # Uptime Kuma
     ├── uptime-kuma-mariadb-credentials.yaml  # SOPS-encrypted credentials
     ├── uptime-kuma-user.yaml              # User CRD
@@ -76,16 +72,18 @@ env:
 
 **Result**: ✅ Successfully migrated, 42 tables created automatically
 
-### 2. Discount Bandit (2025-11-23)
+### 2. Discount Bandit (2025-11-23) - REMOVED
+
+> **Note**: Discount Bandit was removed from the homelab on 2025-12-05. This section is kept for historical reference.
 
 **Migration Type**: Fresh start (no data migration needed)
 - **Database**: `discountbandit` (utf8mb4, utf8mb4_unicode_ci)
 - **User**: `discountbandit` (all privileges)
 - **Reason**: New deployment, no existing data
 
-**Configuration**:
+**Configuration** (historical):
 ```yaml
-# apps/base/discount-bandit/deployment.yaml
+# apps/base/discount-bandit/deployment.yaml (REMOVED)
 env:
   - name: DB_CONNECTION
     value: "mysql"
@@ -96,6 +94,7 @@ env:
 ```
 
 **Result**: ✅ Successfully migrated, Laravel migrations created schema
+**Status**: ❌ Removed on 2025-12-05
 
 ### 3. Uptime Kuma (2025-11-24)
 
@@ -174,7 +173,6 @@ MariaDB secrets are included in the cluster-wide secret backup:
 **Secrets Backed Up**:
 - `mariadb-root` - Root password
 - `ha-mariadb-credentials` - Home Assistant database credentials
-- `discount-bandit-mariadb-credentials` - Discount Bandit database credentials
 - `uptime-kuma-mariadb-credentials` - Uptime Kuma database credentials
 
 **Backup Script**: `.backup/secrets-backup.sh`
@@ -277,7 +275,6 @@ Password: <from secret>
 4. **Restart applications**:
    ```bash
    kubectl rollout restart deployment -n home-assistant
-   kubectl rollout restart deployment -n discount-bandit
    kubectl rollout restart deployment -n uptime-kuma
    ```
 

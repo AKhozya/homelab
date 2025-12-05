@@ -11,7 +11,7 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    # Allow from app namespaces (home-assistant, discount-bandit, uptime-kuma)
+    # Allow from app namespaces (home-assistant, uptime-kuma)
     - from:
       - namespaceSelector:
           matchLabels:

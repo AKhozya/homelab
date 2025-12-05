@@ -990,7 +990,6 @@
 | **AdGuard Home** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **DNS filtering** - Local DNS resolution ⭐ |
 | **Stirling PDF** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | **PDF toolkit** - Cloudflare Tunnel + internal access ⭐ |
 | **HomeHub** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Family dashboard** - Local only, no auth ⭐ |
-| **Discount Bandit** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Price tracking** - MariaDB, FrankenPHP, PSS baseline ⭐ |
 | **Grafana** | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Monitoring dashboard, Authentik SSO ⭐ |
 | **Immich** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Photo management, Web UI config ⭐ |
 | **Paperless-NGX** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Document management, env var config ⭐ |
@@ -1001,10 +1000,10 @@
 | Audiobookshelf | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Web UI config ⭐ |
 | Obsidian | ✅ Running | ✅ NetworkPolicy | - | CouchDB sync |
 
-**Security Coverage: 16/16 apps (100%)** ✅
+**Security Coverage: 15/15 apps (100%)** ✅
 **SSO Coverage: 8/8 applicable apps (100%)** ⭐
 - **8 apps with OIDC**: Grafana, Immich, Paperless-NGX, Home Assistant, Mealie, LinkWarden, Audiobookshelf, Stirling PDF
-- **7 apps local-only/monitoring**: Homepage, Uptime Kuma, AdGuard Home, HomeHub, Discount Bandit, Obsidian, N8N*
+- **6 apps local-only/monitoring**: Homepage, Uptime Kuma, AdGuard Home, HomeHub, Obsidian, N8N*
 - **1 app (N8N)**: Requires Enterprise plan for SSO
 - **Note**: Authentik is the SSO provider (not counted as consumer)
 
@@ -1290,7 +1289,7 @@ ingress:
 - **Acceptable Downtime**: 5-10 minutes during scheduled maintenance
 
 **MariaDB (2 Replicas)**: ✅ **High Availability with Galera Cluster**
-- **Usage**: Application data for Home Assistant, Discount Bandit, Uptime Kuma (3 apps migrated from SQLite)
+- **Usage**: Application data for Home Assistant, Uptime Kuma (2 apps migrated from SQLite)
 - **Cluster Type**: Galera multi-master synchronous replication
 - **Replicas**: 2 instances (active-active replication)
 - **Version**: MariaDB 12.1
@@ -1299,12 +1298,11 @@ ingress:
 - **Failover**: Automatic via MariaDB operator
 - **Why HA**: Critical application data, multi-master for write availability, automatic recovery
 - **Architecture**: Matches PostgreSQL pattern (base = infrastructure, staging = app-specific resources)
-- **Databases**: 3 databases (homeassistant, discountbandit, uptimekuma)
+- **Databases**: 2 databases (homeassistant, uptimekuma)
 - **Backups**: Daily automated backups (3:15 AM, 30-day retention, SHA256 checksums)
-- **Migration Date**: 2025-11-24 (completed migration from SQLite for all 3 apps)
+- **Migration Date**: 2025-11-24 (completed migration from SQLite for Home Assistant & Uptime Kuma)
 - **Migration Approach**:
   - Home Assistant: Fresh start (42 tables auto-created)
-  - Discount Bandit: Fresh start (Laravel migrations)
   - Uptime Kuma: Custom Python migration (22 tables migrated, 5 excluded)
 - **Storage**: 10Gi per replica (local-path PVCs on worker node)
 - **NetworkPolicy**: Restricts access to app namespaces + monitoring
@@ -1319,12 +1317,25 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-11-24 21:50 UTC
+**Last Updated**: 2025-12-05 12:15 UTC
 **Next Review**: 2025-12-15
 
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-12-05 (Discount Bandit Removal) 🗑️
+- ❌ **Application Removed**: Discount Bandit price tracking app removed from homelab
+- 🎯 **Reason**: Application required too much manual maintenance and wasn't providing enough value
+- 🔧 **Technical Details**:
+  - Removed all Kubernetes resources (deployment, service, ingress, networkpolicy, configmaps, secrets)
+  - Removed MariaDB database CRDs (database, user, grant, credentials)
+  - Removed from backup cronjob, secrets backup/restore scripts
+  - Removed from Homepage dashboard
+  - Updated resource governance and kustomization files
+- 📋 **Future Alternative**: May try [PriceBuddy](https://github.com/jez500/pricebuddy) instead
+- 🔢 **App Count**: 16 → 15 applications
+- 💾 **MariaDB Databases**: 3 → 2 (homeassistant, uptimekuma)
 
 ### 2025-11-30 (Arch Linux Comprehensive Hardening) 🔒
 - ✅ **Lynis Score Improvement**: Both nodes improved from 71 → 76 (+5 points)
