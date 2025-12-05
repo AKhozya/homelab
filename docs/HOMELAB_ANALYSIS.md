@@ -717,11 +717,14 @@
      - Node drain without workload disruption
    - **Note**: DO NOT NAG UNTIL HARDWARE ARRIVES
 
-#### 39. **Switch to LTS Kernel 6.18** 🐧 SCHEDULED
-   - **Status**: SCHEDULED - Waiting for kernel 6.18 LTS release
+#### 39. **Switch to LTS Kernel 6.18** 🐧 DEFERRED
+   - **Status**: DEFERRED - Waiting for Arch Linux to update `linux-lts` package to 6.18
    - **Priority**: P2-MEDIUM (stability improvement)
-   - **Target Date**: Friday, December 5th, 2025
-   - **Current State**: Both nodes running mainline kernel
+   - **Target Date**: February 2026
+   - **Current State**: Both nodes running mainline kernel 6.17.9
+   - **Blocker**: Arch `linux-lts` still at 6.12.60-1 (checked 2025-12-03)
+     - Linux 6.18 released upstream: Nov 30, 2025 (confirmed LTS)
+     - Arch typically takes 4-8 weeks to transition LTS kernel series
    - **Scope**: Control plane (192.168.1.127) + Worker node (192.168.1.129)
    - **Hardware Compatibility**: ✅ Verified
      - Intel N100 (Alder Lake-N): Supported since 6.1+
@@ -737,7 +740,7 @@
      6. Keep mainline kernel installed for rollback option
    - **Benefit**: Long-term stability, 2+ year support, security backports
    - **Rollback**: Boot into mainline kernel from bootloader menu if issues
-   - **Note**: Review on December 5th - proceed only if 6.18 LTS is released
+   - **Note**: Check monthly until Arch updates linux-lts to 6.18
 
 #### 40. **Re-evaluate VictoriaMetrics** 📊 DEFERRED
    - **Status**: DEFERRED - Waiting for metricRelabelConfigs bug fix
