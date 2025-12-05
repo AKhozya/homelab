@@ -18,9 +18,7 @@ spec:
       serviceAccountName: pricebuddy
       automountServiceAccountToken: false
       securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
+        fsGroup: 33
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -71,7 +69,6 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
-            runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
           livenessProbe:
@@ -108,7 +105,6 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
-            runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
           resources:
