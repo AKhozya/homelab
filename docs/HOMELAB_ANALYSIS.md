@@ -999,6 +999,7 @@
 | N8N | ✅ Running | ✅ NetworkPolicy | ❌ Enterprise | User provision ✅, SSO requires Enterprise |
 | Audiobookshelf | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Web UI config ⭐ |
 | Obsidian | ✅ Running | ✅ NetworkPolicy | - | CouchDB sync |
+| **PriceBuddy** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Price tracking** - MariaDB, Apprise Telegram notifications ⭐ |
 
 **Security Coverage: 15/15 apps (100%)** ✅
 **SSO Coverage: 8/8 applicable apps (100%)** ⭐
@@ -1317,12 +1318,31 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-05 12:15 UTC
+**Last Updated**: 2025-12-05 17:00 UTC
 **Next Review**: 2025-12-15
 
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-12-05 (Prometheus Memory Optimization & PriceBuddy Deployment) 📊
+- ✅ **Prometheus Memory Limit Reduced**: 2Gi → 1.1Gi based on 72-hour monitoring ⭐
+- ✅ **PriceBuddy Deployed**: New price tracking application (replaces Discount Bandit)
+- 🎯 **Impact**: 900Mi memory savings, dedicated Telegram notifications for price alerts
+- 🔧 **Technical Details**:
+  - **Prometheus Monitoring** (72 hours, 23 data points):
+    - Peak usage: 777Mi (70.6% of new 1.1Gi limit)
+    - Range: 622Mi - 777Mi (stable)
+    - Headroom: 323Mi (29.4% above peak)
+    - Memory savings: 900Mi (2Gi → 1.1Gi)
+  - **PriceBuddy Stack**:
+    - Main app: jez500/pricebuddy:v1.0.40
+    - Scraper sidecar: jez500/seleniumbase-scrapper:latest
+    - Notifications: Apprise sidecar (caronc/apprise:1.2.6)
+    - Database: MariaDB (shared cluster)
+    - Telegram: Dedicated bot (@pricebuddyalertbot) and channel
+  - **kube-prometheus-stack**: Updated to 79.12.0
+- 📋 **Commits**: c9ee4fe (Prometheus memory), 4a3baeb (PriceBuddy Telegram)
 
 ### 2025-12-05 (Discount Bandit Removal) 🗑️
 - ❌ **Application Removed**: Discount Bandit price tracking app removed from homelab
