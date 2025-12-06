@@ -37,6 +37,8 @@ spec:
                 - home-assistant
                 - adguard-home      # DNS binding requires root for port 53
                 - pricebuddy        # apprise sidecar requires root for config
+                - stirling-pdf      # PDF processing with user switching capabilities
+                - loki              # promtail requires root to read host logs
       validate:
         message: "Containers must not run as root (runAsNonRoot: true or runAsUser != 0)"
         anyPattern:
