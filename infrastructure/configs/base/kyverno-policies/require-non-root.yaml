@@ -35,6 +35,8 @@ spec:
               namespaces:
                 - mealie
                 - home-assistant
+                - adguard-home      # DNS binding requires root for port 53
+                - pricebuddy        # apprise sidecar requires root for config
       validate:
         message: "Containers must not run as root (runAsNonRoot: true or runAsUser != 0)"
         anyPattern:
