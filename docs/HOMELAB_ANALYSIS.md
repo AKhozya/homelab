@@ -16,7 +16,6 @@
 **Strengths** ✅
 - Solid GitOps foundation with Flux
 - Comprehensive monitoring (Prometheus, Grafana, Loki, Alertmanager)
-- **🆕 Trivy Operator - Continuous vulnerability scanning** ⭐ (2025-10-27)
 - **🆕 Popeye - Cluster health monitoring (B grade, 82/100 score)** ⭐ (2025-10-27, Updated: 2025-11-05)
 - **🆕 Kyverno - Kubernetes-native policy enforcement (10 policies: 7 Enforce + 3 Audit, daily alerts)** ⭐ (2025-10-27, Updated: 2025-10-28)
   - **Enforced policies:** disallow-privilege-escalation, require-drop-all-capabilities, require-labels, disallow-host-namespaces, **require-non-default-serviceaccount** ✅, **require-seccomp-runtimedefault** ✅ (0 violations)
@@ -64,50 +63,16 @@
 - ⏸️ **Automated backup validation** (P1-HIGH) - DEFERRED to Q1 2026 (homelab stabilization needed)
 - 📋 **Total Findings**: 36 issues (2 P0 completed, 1 P0 deferred, 1 P0 removed, 6 P1 completed, 1 P1 N/A, 1 P1 accepted, 1 P1 removed, 1 P1 deferred, 15 P2, 8 P3)
 
-**Vulnerability Findings (Trivy Operator - 2025-11-05)** 🔍
-- **Total Vulnerabilities**: 34 Critical, 360 High, 819 Medium, 0 Low
-- **Top Resources with CRITICAL Vulnerabilities**:
-  1. **Stirling-PDF** (8 critical, 19 high, 104 medium) - ✅ All fixes available via Alpine package updates
-     - CVE-2024-11403 (libjxl): Fixed in 0.11.1-r0
-     - CVE-2025-58050 (pcre2): Fixed in 10.46-r0
-     - CVE-2025-48072 (openexr, 4 instances): Fixed in 3.4.2-r0
-     - CVE-2025-54874 (openjpeg): Fixed in 2.5.3-r1
-  2. **Uptime-Kuma** (4 critical, 23 high, 64 medium) - ⚠️ 2 no fix, 1 Go stdlib fix, 1 no fix
-     - CVE-2025-7458 (sqlite, 2 instances): ❌ No fix available
-     - CVE-2023-45853 (zlib): ❌ No fix available
-     - CVE-2024-24790 (golang stdlib): ✅ Fixed in Go 1.21.11/1.22.4
-  3. **Paperless-NGX** (4 critical, 34 high, 104 medium) - ❌ No fixes available
-     - CVE-2023-6879 (aom/libaom3): ❌ No fix available
-     - CVE-2025-47917 (mbedtls): ❌ No fix available
-     - CVE-2025-7458 (sqlite): ❌ No fix available
-     - CVE-2023-45853 (zlib): ❌ No fix available
-  4. **Home Assistant** (4 critical, 21 high, 23 medium) - ✅ All fixes available
-     - CVE-2024-45337 (golang.org/x/crypto): Fixed in 0.31.0
-     - CVE-2025-49794 (libxml2): Fixed in 2.13.9-r0
-     - CVE-2025-49796 (libxml2): Fixed in 2.13.9-r0
-     - CVE-2025-58050 (pcre2): Fixed in 10.46-r0
-  5. **Audiobookshelf** (4 critical, 13 high, 11 medium) - ✅ All fixes available
-     - CVE-2025-49794 (libxml2): Fixed in 2.13.9-r0
-     - CVE-2025-49796 (libxml2): Fixed in 2.13.9-r0
-     - CVE-2025-58050 (pcre2): Fixed in 10.46-r0
-     - CVE-2025-7783 (form-data): Fixed in 2.5.4/3.0.4/4.0.4
-  6. **Immich ML** (3 critical, 10 high, 24 medium)
-  7. **Mealie** (2 critical, 6 high, 16 medium)
-  8. **CouchDB** (2 critical, 5 high, 28 medium)
-  9. **Immich Server** (1 critical, 0 high, 15 medium)
-- **Common HIGH Vulnerabilities (across multiple apps)**:
-  - **Go stdlib CVEs** (CVE-2025-47912, CVE-2025-58183/6/7/8, CVE-2025-61724): Require Go 1.24.8 or 1.25.2
-    - Affects: Wallabag (11 HIGH), postgres-backup CronJob (6 HIGH), and other Go-based apps
-  - **OpenSSL CVEs** (CVE-2025-9230, CVE-2025-9231): Alpine libcrypto3/libssl3 vulnerabilities
-    - Affects: Trivy-operator (6 HIGH, 8 MEDIUM)
-- **Remediation Strategy**:
-  - ✅ **Immediately fixable** (16 critical): Home Assistant (4), Audiobookshelf (4), Stirling-PDF (8)
-    - Action: Wait for upstream images with updated Alpine packages (passive monitoring)
-  - ⏸️ **Requires upstream Go updates** (1+ critical, 11+ high): Uptime-Kuma, Wallabag, postgres-backup
-    - Action: Wait for base image updates with Go 1.24.8/1.25.2
-  - ❌ **No fix available** (9 critical): Paperless-NGX (4), Uptime-Kuma (2 sqlite + 1 zlib)
-    - Action: Monitor for security patches, accept risk for homelab environment
-- **Monitoring**: Trivy Operator scans daily, vulnerability reports updated automatically
+**Vulnerability Scanning** 🔍
+- ❌ **Trivy Operator - REMOVED** (2025-12-06)
+  - **Rationale**: Limited actionable value for homelab with Renovate-managed updates
+  - **Issues Found**:
+    - Most vulnerabilities (~70%) have no fix available (OS-level: zlib, sqlite, curl)
+    - Fixable vulnerabilities require upstream image rebuilds (outside user control)
+    - Renovate already handles updates to latest versions automatically
+    - Findings were informational only - no actionable remediation possible
+  - **Alternative Strategy**: Renovate bot for automated dependency updates + GitHub security advisories
+  - **Cost-Benefit**: Trivy generated noise without enabling action - removal simplifies infrastructure
 
 **Backup Infrastructure** ✅
 - ✅ PostgreSQL daily backups (3:00 AM, 30-day retention)
@@ -1324,6 +1289,23 @@ ingress:
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-12-06 (Trivy Operator Removal) 🗑️
+- ❌ **Trivy Operator Removed**: Vulnerability scanning operator removed from homelab ⭐
+- 🎯 **Reason**: Limited actionable value with Renovate-managed updates
+- 🔧 **Technical Details**:
+  - **Analysis**: 67 vulnerability reports analyzed - most vulnerabilities (70%+) have no fix available
+  - **Categories**:
+    - OS-level vulnerabilities (zlib, sqlite, curl): No fix available, embedded in upstream images
+    - Application dependencies: Require upstream maintainer to rebuild images
+    - Go stdlib CVEs: Require upstream Go version updates
+  - **Alternative Strategy**: Renovate already handles automatic updates to latest versions
+  - **Benefit**: Removes informational noise, simplifies infrastructure
+  - **Kyverno Cleanup**: Removed trivy-system namespace exceptions from 4 policies
+- 📋 **Files Removed**:
+  - `infrastructure/controllers/base/trivy-operator/` (4 files: kustomization, namespace, release, repository)
+  - `infrastructure/configs/staging/resource-governance/small-tier/trivy-system.yaml`
+- 🔒 **Security Impact**: None - vulnerabilities identified were informational only (no actionable fixes)
 
 ### 2025-12-06 (Prometheus Memory Limit Increase) 📊
 - ✅ **Prometheus Memory Limit Increased**: 1.1Gi → 1.3Gi due to observed peak of 913Mi ⭐

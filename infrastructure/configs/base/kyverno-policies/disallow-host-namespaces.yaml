@@ -32,7 +32,6 @@ spec:
                 - kyverno
                 - databases
                 - monitoring
-                - trivy-system
       validate:
         message: "Using host namespaces (hostNetwork, hostPID, hostIPC) is disallowed"
         pattern:

@@ -31,5 +31,4 @@ resources:
   - small-tier/traefik.yaml
   - small-tier/cert-manager.yaml
   - small-tier/cloudflare-tunnel.yaml
-  - small-tier/trivy-system.yaml
   - small-tier/kyverno.yaml

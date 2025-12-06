@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   - cert-manager
   - traefik
-  - trivy-operator
   - kyverno
   - csp-reporter
   - databases/postgres

@@ -1,8 +1,0 @@
-apiVersion: source.toolkit.fluxcd.io/v1
-kind: HelmRepository
-metadata:
-  name: trivy-operator
-  namespace: trivy-system
-spec:
-  interval: 6h
-  url: https://aquasecurity.github.io/helm-charts/

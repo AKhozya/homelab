@@ -29,7 +29,6 @@ spec:
                 - kube-node-lease
                 - flux-system
                 - kyverno
-                - trivy-system
                 - monitoring
                 - loki
                 - databases
