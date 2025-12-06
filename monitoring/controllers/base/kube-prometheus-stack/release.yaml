@@ -140,10 +140,10 @@ spec:
         resources:
           requests:
             cpu: 200m
-            memory: 800Mi
+            memory: 900Mi
           limits:
             cpu: 500m
-            memory: 1100Mi
+            memory: 1300Mi
         # Config reloader sidecar resources
         configReloaderCpu: "50m"
         configReloaderMemory: "64Mi"
