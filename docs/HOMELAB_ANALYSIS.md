@@ -653,7 +653,7 @@
    - **Note**: DO NOT NAG UNTIL LATE DECEMBER
 
 #### 38. **Second Worker Node** 🖥️ PLANNED
-   - **Status**: PLANNED - Hardware arriving December 2025 / January 2026
+   - **Status**: PLANNED - Hardware arriving January 2026 (delayed from December 2025)
    - **Priority**: P1-HIGH (enables true HA)
    - **Current State**: Single worker node (192.168.1.129) runs all application workloads
    - **Documentation** (created 2025-11-30):
@@ -675,7 +675,7 @@
      7. Test node drain/failover
      8. Add worker-node-2 to: AdGuard Home DNS, ~/.ssh/config, Uptime Kuma monitors
    - **Estimated Effort**: 2-3 hours (with automated scripts)
-   - **Target Date**: December 2025 / January 2026
+   - **Target Date**: January 2026
    - **Unlocks**:
      - PostgreSQL `podAntiAffinityType: "required"` (currently N/A due to single node)
      - True cross-node HA for infrastructure components
@@ -1289,6 +1289,19 @@ ingress:
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-12-06 (Kyverno Policy Cleanup & Documentation Update) 🔧
+- ✅ **Kyverno Policy Violations Resolved**: Cleaned up all actionable policy violations ⭐
+- ✅ **Image Tag Pinning**: Pinned seleniumbase-scrapper from :latest to v1.0
+- ✅ **Policy Exclusions Added**: Added namespace exclusions to require-non-root policy
+  - adguard-home (DNS binding requires root for port 53)
+  - pricebuddy (apprise sidecar requires root for config)
+  - stirling-pdf (PDF processing with user switching capabilities)
+  - loki (promtail requires root to read host logs)
+- ✅ **Cluster Cleanup**: Deleted 213 old ReplicaSets and 15 completed jobs
+- 📅 **Second Worker Node Delay**: Updated from December 2025 to January 2026
+- 📋 **Commits**: 9ab43ff, 401b62d, 6fea5cb, 5d5d615
+- 🎯 **Final Kyverno Status**: 0 disallow-latest-tag, 0 require-non-root (after exclusions), 48 require-resource-limits (audit mode)
 
 ### 2025-12-06 (Trivy Operator Removal) 🗑️
 - ❌ **Trivy Operator Removed**: Vulnerability scanning operator removed from homelab ⭐
