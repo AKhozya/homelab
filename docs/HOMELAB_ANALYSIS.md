@@ -1318,15 +1318,26 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-05 17:00 UTC
+**Last Updated**: 2025-12-06 08:30 UTC
 **Next Review**: 2025-12-15
 
 ---
 
 ## 📝 CHANGELOG
 
+### 2025-12-06 (Prometheus Memory Limit Increase) 📊
+- ✅ **Prometheus Memory Limit Increased**: 1.1Gi → 1.3Gi due to observed peak of 913Mi ⭐
+- 🎯 **Impact**: Resolved ContainerMemoryNearLimit alerts (was firing at 80%+)
+- 🔧 **Technical Details**:
+  - **Observed Peak**: 913Mi (7d), previously 777Mi when limit was set to 1.1Gi
+  - **Old Configuration**: 800Mi request / 1100Mi limit (peak was 83% of limit)
+  - **New Configuration**: 900Mi request / 1300Mi limit (peak now 70% of limit)
+  - **Headroom**: Increased from 17% to 42% above observed peak
+  - **Alert Threshold**: 80% (1040Mi) - well above 913Mi peak
+- 📋 **Commit**: 2af6339
+
 ### 2025-12-05 (Prometheus Memory Optimization & PriceBuddy Deployment) 📊
-- ✅ **Prometheus Memory Limit Reduced**: 2Gi → 1.1Gi based on 72-hour monitoring ⭐
+- ✅ **Prometheus Memory Limit Reduced**: 2Gi → 1.1Gi based on 72-hour monitoring ⭐ (Later increased to 1.3Gi on 2025-12-06)
 - ✅ **PriceBuddy Deployed**: New price tracking application (replaces Discount Bandit)
 - 🎯 **Impact**: 900Mi memory savings, dedicated Telegram notifications for price alerts
 - 🔧 **Technical Details**:
