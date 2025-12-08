@@ -8,12 +8,13 @@
 # 1. Detects what changed: Docker image, Helm chart, or Flux component
 # 2. Extracts version change (old → new)
 # 3. Identifies update type: major/minor/patch
-# 4. Provides package-specific breaking change checklist
-# 5. Links to release notes and changelogs
+# 4. Fetches documentation from multiple sources (GitHub API, changelog files, UPGRADE.md)
+# 5. Detects breaking changes using standard patterns
 # 6. Generates actionable review checklist
 #
 
-set -euo pipefail
+set -eu
+# Note: pipefail disabled to avoid SIGPIPE when awk exits early on large content
 
 PR_NUMBER="${1:-}"
 
@@ -23,6 +24,9 @@ if [ -z "$PR_NUMBER" ]; then
     echo "Example: $0 85"
     exit 1
 fi
+
+# Maximum content length to prevent GitHub comment overflow (65536 limit)
+MAX_CONTENT_LENGTH=30000
 
 echo "==================================="
 echo "Analyzing Renovate PR #$PR_NUMBER"
@@ -66,149 +70,395 @@ echo "Update Type: $UPDATE_TYPE"
 echo "Version Change: $OLD_VERSION → $NEW_VERSION"
 echo ""
 
-# Extract release notes link if available
-RELEASE_LINK=$(echo "$PR_BODY" | grep -oE 'https://[^)]+/releases/tag/[^)]+' | head -n 1 || echo "")
-CHANGELOG_LINK=$(echo "$PR_BODY" | grep -oE 'https://[^)]+/CHANGELOG[^)]*' | head -n 1 || echo "")
-COMPARE_LINK=$(echo "$PR_BODY" | grep -oE 'https://[^)]+/compare/[^)]+' | head -n 1 || echo "")
-
-# Determine which link to use
-DOCS_LINK=""
-if [ -n "$RELEASE_LINK" ]; then
-    DOCS_LINK="$RELEASE_LINK"
-    echo "📝 Release Notes: $RELEASE_LINK"
-elif [ -n "$CHANGELOG_LINK" ]; then
-    DOCS_LINK="$CHANGELOG_LINK"
-    echo "📝 Changelog: $CHANGELOG_LINK"
-elif [ -n "$COMPARE_LINK" ]; then
-    DOCS_LINK="$COMPARE_LINK"
-    echo "📝 Compare: $COMPARE_LINK"
-else
-    echo "⚠️  No release notes link found"
-fi
-echo ""
-
-# Fetch and analyze release notes if available
-if [ -n "$DOCS_LINK" ]; then
-    echo "🔍 Fetching and analyzing release notes..."
-    echo ""
-
-    # Convert GitHub blob URLs to raw URLs for cleaner content (avoids HTML/JSON metadata)
-    RAW_URL="$DOCS_LINK"
-    if echo "$DOCS_LINK" | grep -q "github.com.*blob"; then
-        RAW_URL=$(echo "$DOCS_LINK" | sed 's|github.com|raw.githubusercontent.com|' | sed 's|/blob/|/|')
-    elif echo "$DOCS_LINK" | grep -q "redirect.github.com.*blob"; then
-        RAW_URL=$(echo "$DOCS_LINK" | sed 's|redirect.github.com|raw.githubusercontent.com|' | sed 's|/blob/|/|')
-    fi
-
-    # Fetch the content (limit to 50000 chars - GitHub comment limit is 65536, leaving buffer for script output)
-    RELEASE_CONTENT=$(curl -sL "$RAW_URL" 2>/dev/null | head -c 50000 || echo "")
-
-    if [ -n "$RELEASE_CONTENT" ]; then
-        # Convert HTML to more readable text (strip tags, decode entities)
-        CLEAN_CONTENT=$(echo "$RELEASE_CONTENT" | sed 's/<[^>]*>//g' | sed 's/&lt;/</g' | sed 's/&gt;/>/g' | sed 's/&amp;/\&/g' | sed 's/&quot;/"/g')
-
-        # Extract sections with breaking changes
-        BREAKING_SECTION=$(echo "$CLEAN_CONTENT" | grep -iB 2 -A 15 "breaking change" | head -30 || echo "")
-
-        # Extract migration/upgrade sections
-        MIGRATION_SECTION=$(echo "$CLEAN_CONTENT" | grep -iB 2 -A 15 "migration\|upgrade.*note\|action required" | head -30 || echo "")
-
-        # Extract deprecation warnings
-        DEPRECATION_SECTION=$(echo "$CLEAN_CONTENT" | grep -iB 2 -A 10 "deprecat" | head -25 || echo "")
-
-        # Look for removed features/dependencies
-        REMOVED_SECTION=$(echo "$CLEAN_CONTENT" | grep -iB 2 -A 10 "removed\|no longer\|drop.*support" | head -25 || echo "")
-
-        # Look for security issues
-        SECURITY_SECTION=$(echo "$CLEAN_CONTENT" | grep -iB 2 -A 10 "security\|vulnerability\|CVE\|insecure\|exploit\|password.*fix\|credential.*fix" | head -25 || echo "")
-
-        # Check for important keywords
-        HAS_BREAKING=false
-        HAS_MIGRATION=false
-        HAS_CONFIG_CHANGE=false
-        HAS_REMOVAL=false
-        HAS_SECURITY=false
-
-        [ -n "$BREAKING_SECTION" ] && HAS_BREAKING=true
-        echo "$CLEAN_CONTENT" | grep -qi "migration\|migrate" && HAS_MIGRATION=true
-        echo "$CLEAN_CONTENT" | grep -qi "configuration\|config.*change\|environment variable\|setting" && HAS_CONFIG_CHANGE=true
-        [ -n "$REMOVED_SECTION" ] && HAS_REMOVAL=true
-        [ -n "$SECURITY_SECTION" ] && HAS_SECURITY=true
-
-        # Display findings
-        if [ "$HAS_BREAKING" = true ] || [ "$HAS_MIGRATION" = true ] || [ "$HAS_CONFIG_CHANGE" = true ] || [ "$HAS_REMOVAL" = true ] || [ "$HAS_SECURITY" = true ]; then
-            echo "🚨 IMPORTANT FINDINGS FROM RELEASE NOTES:"
-            echo ""
-
-            if [ "$HAS_BREAKING" = true ]; then
-                echo "  ⚠️  Breaking changes detected:"
-                echo "$BREAKING_SECTION" | grep -i "breaking\|break" | sed 's/^/     /' | head -5
-                echo ""
-            fi
-
-            if [ "$HAS_SECURITY" = true ]; then
-                echo "  🔐 Security fixes/issues detected:"
-                echo "$SECURITY_SECTION" | grep -iE "security|vulnerability|CVE|insecure|password|credential" | sed 's/^/     /' | head -5
-                echo ""
-            fi
-
-            if [ "$HAS_REMOVAL" = true ]; then
-                echo "  🗑️  Removed features/dependencies detected:"
-                echo "$REMOVED_SECTION" | grep -iE "removed|no longer|drop" | sed 's/^/     /' | head -5
-                echo ""
-            fi
-
-            if [ "$HAS_MIGRATION" = true ]; then
-                echo "  📋 Migration/upgrade steps may be required"
-                echo "$MIGRATION_SECTION" | grep -iE "migration|migrate|upgrade" | sed 's/^/     /' | head -5
-                echo ""
-            fi
-
-            if [ "$HAS_CONFIG_CHANGE" = true ]; then
-                echo "  🔧 Configuration changes detected"
-                echo ""
-            fi
-
-            echo "  👉 READ THE FULL RELEASE NOTES BEFORE MERGING: $DOCS_LINK"
-            echo ""
-        else
-            echo "✅ No obvious breaking changes detected in release notes"
-            echo "   (Still recommended to review: $DOCS_LINK)"
-            echo ""
-        fi
-    else
-        echo "⚠️  Could not fetch release notes content"
-        echo ""
-    fi
-fi
-
-# Show changed files and extract what's being updated
-echo "📄 Changed files:"
+# Show changed files and detect update category EARLY (needed for conditional logic)
 CHANGED_FILES=$(echo "$PR_JSON" | jq -r '.files[].path')
-echo "$CHANGED_FILES" | sed 's/^/  - /'
-echo ""
 
-# Detect update type from files
 UPDATE_CATEGORY="unknown"
 if echo "$CHANGED_FILES" | grep -q "deployment.yaml\|statefulset.yaml\|daemonset.yaml"; then
     UPDATE_CATEGORY="Docker Image"
-    echo "📦 Update Type: Docker Image in Kubernetes resource"
 elif echo "$CHANGED_FILES" | grep -q "release.yaml\|helmrelease.yaml"; then
     UPDATE_CATEGORY="Helm Chart"
-    echo "📦 Update Type: Helm Chart version"
 elif echo "$CHANGED_FILES" | grep -q "gotk-components.yaml"; then
     UPDATE_CATEGORY="Flux Components"
-    echo "📦 Update Type: Flux GitOps components"
 else
-    echo "📦 Update Type: Configuration file"
+    UPDATE_CATEGORY="Configuration"
+fi
+
+# Extract source repository from PR body (markdown format: [source](url))
+SOURCE_REPO=""
+if echo "$PR_BODY" | grep -qE '\[source\]'; then
+    SOURCE_REPO=$(echo "$PR_BODY" | grep -oE '\[source\]\(https://[^)]+\)' | sed 's|\[source\](||' | sed 's|)||' | sed 's|redirect.github.com|github.com|' | head -1)
+fi
+
+# Extract various documentation links from PR body
+RELEASE_LINK=$(echo "$PR_BODY" | grep -oE 'https://[^)]+/releases/tag/[^)]+' | head -n 1 | sed 's|redirect.github.com|github.com|' || echo "")
+CHANGELOG_LINK=$(echo "$PR_BODY" | grep -oE 'https://[^)]+/CHANGELOG[^)]*' | head -n 1 | sed 's|redirect.github.com|github.com|' || echo "")
+COMPARE_LINK=$(echo "$PR_BODY" | grep -oE 'https://[^)]+/compare/[^)]+' | head -n 1 | sed 's|redirect.github.com|github.com|' || echo "")
+
+echo "📄 Changed files:"
+echo "$CHANGED_FILES" | sed 's/^/  - /'
+echo ""
+echo "📦 Update Type: $UPDATE_CATEGORY"
+echo ""
+
+# Display detected links
+if [ -n "$RELEASE_LINK" ]; then
+    echo "📝 Release Notes: $RELEASE_LINK"
+fi
+if [ -n "$CHANGELOG_LINK" ]; then
+    echo "📝 Changelog: $CHANGELOG_LINK"
+fi
+if [ -n "$COMPARE_LINK" ]; then
+    echo "📝 Compare: $COMPARE_LINK"
+fi
+if [ -n "$SOURCE_REPO" ]; then
+    echo "📝 Source: $SOURCE_REPO"
 fi
 echo ""
 
-# Check for specific keywords in update type
+# Function to extract repo path from GitHub URL
+extract_repo_path() {
+    local url="$1"
+    echo "$url" | sed -E 's|https?://(redirect\.)?github\.com/||' | sed 's|/releases.*||' | sed 's|/blob.*||' | sed 's|/compare.*||'
+}
+
+# Function to fetch GitHub release via API
+fetch_github_release() {
+    local repo="$1"
+    local tag="$2"
+    local package_name="${3:-}"
+
+    # Try various tag formats
+    local content=""
+
+    # 1. Try exact tag
+    content=$(curl -sL "https://api.github.com/repos/$repo/releases/tags/$tag" 2>/dev/null | jq -r '.body // empty' 2>/dev/null || echo "")
+
+    # 2. Try with 'v' prefix
+    if [ -z "$content" ] && [[ ! "$tag" =~ ^v ]]; then
+        content=$(curl -sL "https://api.github.com/repos/$repo/releases/tags/v$tag" 2>/dev/null | jq -r '.body // empty' 2>/dev/null || echo "")
+    fi
+
+    # 3. Try monorepo format: package@version (e.g., n8n@1.123.4)
+    if [ -z "$content" ] && [ -n "$package_name" ]; then
+        local short_name=$(echo "$package_name" | sed 's|.*/||')  # n8nio/n8n -> n8n
+        content=$(curl -sL "https://api.github.com/repos/$repo/releases/tags/${short_name}@$tag" 2>/dev/null | jq -r '.body // empty' 2>/dev/null || echo "")
+    fi
+
+    echo "$content" | head -c "$MAX_CONTENT_LENGTH"
+}
+
+# Function to fetch raw file from GitHub
+fetch_raw_file() {
+    local repo="$1"
+    local filepath="$2"
+    local branch="${3:-main}"
+
+    # Try main, then master
+    local content=""
+    content=$(curl -sL "https://raw.githubusercontent.com/$repo/$branch/$filepath" 2>/dev/null || echo "")
+
+    if [ -z "$content" ] || echo "$content" | grep -q "404: Not Found"; then
+        content=$(curl -sL "https://raw.githubusercontent.com/$repo/master/$filepath" 2>/dev/null || echo "")
+    fi
+
+    # Check if we got valid content (not 404 page)
+    if echo "$content" | grep -q "404: Not Found"; then
+        echo ""
+    else
+        echo "$content" | head -c "$MAX_CONTENT_LENGTH"
+    fi
+}
+
+# Function to search for changelog files
+find_changelog() {
+    local repo="$1"
+
+    # Standard changelog file names (priority order per Keep a Changelog)
+    local filenames=("CHANGELOG.md" "changelog.md" "HISTORY.md" "History.md" "CHANGES.md" "Changes.md" "RELEASES.md" "releases.md" "NEWS.md" "news.md" "RELEASE_NOTES.md")
+
+    for filename in "${filenames[@]}"; do
+        local content
+        content=$(fetch_raw_file "$repo" "$filename")
+        if [ -n "$content" ]; then
+            echo "   Found: $filename"
+            echo "$content"
+            return
+        fi
+    done
+
+    echo ""
+}
+
+# Function to extract version-specific section from changelog
+extract_version_section() {
+    local content="$1"
+    local version="$2"
+
+    # Remove 'v' prefix for matching
+    local clean_version="${version#v}"
+
+    # Try to extract section between this version header and next version header
+    # Common formats: ## [1.2.3], ## v1.2.3, ### v1.2.3, ## 1.2.3
+    local section
+    section=$(echo "$content" | awk -v ver="$clean_version" '
+        BEGIN { found=0; printing=0 }
+        /^##+ *\[?v?[0-9]+\.[0-9]+/ {
+            if (printing) exit
+            if (index($0, ver) > 0) { found=1; printing=1 }
+        }
+        printing { print }
+    ' | head -100)
+
+    if [ -n "$section" ]; then
+        echo "$section"
+    else
+        # Fallback: just return first 100 lines
+        echo "$content" | head -100
+    fi
+}
+
+# Fetch documentation from multiple sources
+echo "🔍 Fetching documentation..."
+echo ""
+
+RELEASE_CONTENT=""
+CHANGELOG_CONTENT=""
+UPGRADE_CONTENT=""
+BREAKING_CHANGES_CONTENT=""
+
+# Determine repository path
+REPO_PATH=""
+if [ -n "$SOURCE_REPO" ]; then
+    REPO_PATH=$(extract_repo_path "$SOURCE_REPO")
+elif [ -n "$RELEASE_LINK" ]; then
+    REPO_PATH=$(extract_repo_path "$RELEASE_LINK")
+elif [ -n "$CHANGELOG_LINK" ]; then
+    REPO_PATH=$(extract_repo_path "$CHANGELOG_LINK")
+fi
+
+if [ -n "$REPO_PATH" ]; then
+    echo "   Repository: $REPO_PATH"
+
+    # 1. Try GitHub Release API first (cleanest source)
+    if [ -n "$RELEASE_LINK" ]; then
+        TAG=$(echo "$RELEASE_LINK" | sed -E 's|.*/releases/tag/||')
+        echo "   Fetching GitHub release for tag: $TAG"
+        RELEASE_CONTENT=$(fetch_github_release "$REPO_PATH" "$TAG" "$PACKAGE_NAME")
+        if [ -n "$RELEASE_CONTENT" ]; then
+            echo "   ✓ Found GitHub release notes"
+        fi
+    elif [ -n "$NEW_VERSION" ] && [ "$NEW_VERSION" != "unknown" ]; then
+        # No explicit release link, try to fetch release by version
+        echo "   Fetching GitHub release for version: $NEW_VERSION"
+        RELEASE_CONTENT=$(fetch_github_release "$REPO_PATH" "$NEW_VERSION" "$PACKAGE_NAME")
+        if [ -n "$RELEASE_CONTENT" ]; then
+            echo "   ✓ Found GitHub release notes"
+        fi
+    fi
+
+    # 2. Try changelog files if no release content
+    if [ -z "$RELEASE_CONTENT" ]; then
+        echo "   Searching for changelog files..."
+        CHANGELOG_CONTENT=$(find_changelog "$REPO_PATH")
+        if [ -n "$CHANGELOG_CONTENT" ]; then
+            # Extract version-specific section
+            CHANGELOG_CONTENT=$(extract_version_section "$CHANGELOG_CONTENT" "$NEW_VERSION")
+        fi
+    fi
+
+    # 3. For Helm charts, also fetch UPGRADE.md and BREAKING_CHANGES.md
+    if [ "$UPDATE_CATEGORY" = "Helm Chart" ] || echo "$PACKAGE_NAME" | grep -qi "helm\|chart\|prometheus-stack"; then
+        echo "   Checking for Helm-specific documentation..."
+
+        # kube-prometheus-stack has its own chart repo
+        if echo "$PACKAGE_NAME" | grep -qi "kube-prometheus-stack"; then
+            UPGRADE_CONTENT=$(fetch_raw_file "prometheus-community/helm-charts" "charts/kube-prometheus-stack/UPGRADE.md")
+            if [ -n "$UPGRADE_CONTENT" ]; then
+                echo "   ✓ Found UPGRADE.md"
+            fi
+        else
+            UPGRADE_CONTENT=$(fetch_raw_file "$REPO_PATH" "UPGRADE.md")
+            if [ -z "$UPGRADE_CONTENT" ]; then
+                UPGRADE_CONTENT=$(fetch_raw_file "$REPO_PATH" "charts/UPGRADE.md")
+            fi
+        fi
+
+        BREAKING_CHANGES_CONTENT=$(fetch_raw_file "$REPO_PATH" "BREAKING_CHANGES.md")
+        if [ -n "$BREAKING_CHANGES_CONTENT" ]; then
+            echo "   ✓ Found BREAKING_CHANGES.md"
+        fi
+    fi
+fi
+
+echo ""
+
+# Combine all content for analysis
+ALL_CONTENT="${RELEASE_CONTENT}${CHANGELOG_CONTENT}"
+
+# Initialize breaking change flags (must be defined before use)
+HAS_BREAKING=false
+HAS_MIGRATION=false
+HAS_REMOVAL=false
+HAS_SECURITY=false
+HAS_DEPRECATED=false
+HAS_CONFIG_CHANGE=false
+
+# Analyze for breaking changes
+if [ -n "$ALL_CONTENT" ]; then
+    # Clean content (strip HTML if any)
+    CLEAN_CONTENT=$(echo "$ALL_CONTENT" | sed 's/<[^>]*>//g' | sed 's/&lt;/</g' | sed 's/&gt;/>/g' | sed 's/&amp;/\&/g' | sed 's/&quot;/"/g')
+
+    # Check for breaking change patterns (Conventional Commits + Common Changelog)
+    if echo "$CLEAN_CONTENT" | grep -qiE "breaking.?change|BREAKING:|^\*\*Breaking:"; then
+        HAS_BREAKING=true
+    fi
+
+    # Check for migration requirements
+    if echo "$CLEAN_CONTENT" | grep -qiE "migration.?required|action.?required|migrate|upgrade.?note"; then
+        HAS_MIGRATION=true
+    fi
+
+    # Check for removals
+    if echo "$CLEAN_CONTENT" | grep -qiE "removed|no longer|drop.*support|deprecated.*removed"; then
+        HAS_REMOVAL=true
+    fi
+
+    # Check for security fixes
+    if echo "$CLEAN_CONTENT" | grep -qiE "security|vulnerability|CVE-|insecure|exploit"; then
+        HAS_SECURITY=true
+    fi
+
+    # Check for deprecations
+    if echo "$CLEAN_CONTENT" | grep -qiE "deprecated|deprecating"; then
+        HAS_DEPRECATED=true
+    fi
+
+    # Check for config changes
+    if echo "$CLEAN_CONTENT" | grep -qiE "configuration.?change|config.?change|environment.?variable|breaking.*config"; then
+        HAS_CONFIG_CHANGE=true
+    fi
+
+    # Display findings
+    if [ "$HAS_BREAKING" = true ] || [ "$HAS_MIGRATION" = true ] || [ "$HAS_REMOVAL" = true ] || [ "$HAS_SECURITY" = true ] || [ "$HAS_DEPRECATED" = true ]; then
+        echo "🚨 IMPORTANT FINDINGS:"
+        echo ""
+
+        if [ "$HAS_BREAKING" = true ]; then
+            echo "  ⚠️  BREAKING CHANGES detected!"
+            echo "$CLEAN_CONTENT" | grep -iE "breaking|BREAKING:" | head -5 | sed 's/^/     /'
+            echo ""
+        fi
+
+        if [ "$HAS_SECURITY" = true ]; then
+            echo "  🔐 Security fixes detected:"
+            echo "$CLEAN_CONTENT" | grep -iE "security|vulnerability|CVE-" | head -5 | sed 's/^/     /'
+            echo ""
+        fi
+
+        if [ "$HAS_REMOVAL" = true ]; then
+            echo "  🗑️  Removed features detected:"
+            echo "$CLEAN_CONTENT" | grep -iE "removed|no longer" | head -5 | sed 's/^/     /'
+            echo ""
+        fi
+
+        if [ "$HAS_DEPRECATED" = true ]; then
+            echo "  ⏳ Deprecations detected:"
+            echo "$CLEAN_CONTENT" | grep -iE "deprecated" | head -3 | sed 's/^/     /'
+            echo ""
+        fi
+
+        if [ "$HAS_MIGRATION" = true ]; then
+            echo "  📋 Migration steps may be required"
+            echo "$CLEAN_CONTENT" | grep -iE "migration|migrate|action.?required" | head -3 | sed 's/^/     /'
+            echo ""
+        fi
+
+        if [ "$HAS_CONFIG_CHANGE" = true ]; then
+            echo "  🔧 Configuration changes detected"
+            echo ""
+        fi
+    else
+        echo "✅ No obvious breaking changes detected in release notes"
+        echo ""
+    fi
+
+    # Show release content summary
+    if [ -n "$RELEASE_CONTENT" ]; then
+        echo "📋 Release Notes Summary:"
+        echo "---"
+        # Show first 50 lines of release notes
+        echo "$RELEASE_CONTENT" | head -50
+        echo "---"
+        echo ""
+    elif [ -n "$CHANGELOG_CONTENT" ]; then
+        echo "📋 Changelog Summary (version $NEW_VERSION):"
+        echo "---"
+        echo "$CHANGELOG_CONTENT" | head -50
+        echo "---"
+        echo ""
+    fi
+else
+    echo "⚠️  Could not fetch release notes or changelog"
+    echo ""
+fi
+
+# Display UPGRADE.md content for Helm charts
+if [ -n "$UPGRADE_CONTENT" ]; then
+    echo "📦 Helm Chart Upgrade Notes:"
+    echo "---"
+
+    # Try to extract version-specific upgrade section
+    # kube-prometheus-stack uses "From 79.x to 80.x" format
+    VERSION_SECTION=""
+    if [ -n "$OLD_VERSION" ] && [ "$OLD_VERSION" != "unknown" ]; then
+        OLD_MAJOR=$(echo "$OLD_VERSION" | cut -d. -f1)
+        NEW_MAJOR=$(echo "$NEW_VERSION" | cut -d. -f1)
+
+        # Look for section like "From 79.x to 80.x" or "## 80.0.0"
+        VERSION_SECTION=$(echo "$UPGRADE_CONTENT" | awk -v old="$OLD_MAJOR" -v new="$NEW_MAJOR" '
+            BEGIN { found=0; printing=0 }
+            /^##+ *(From|Upgrading)/ {
+                if (printing) exit
+                if ((index($0, old".x") > 0 && index($0, new".x") > 0) || index($0, new".0") > 0) {
+                    found=1; printing=1
+                }
+            }
+            /^##+ *[0-9]+\.[0-9]+/ {
+                if (printing) exit
+                if (index($0, new".") > 0) { found=1; printing=1 }
+            }
+            printing { print }
+        ' | head -60)
+    fi
+
+    if [ -n "$VERSION_SECTION" ]; then
+        echo "$VERSION_SECTION"
+    else
+        # Just show recent upgrade notes
+        echo "$UPGRADE_CONTENT" | head -60
+    fi
+    echo "---"
+    echo ""
+fi
+
+# Display BREAKING_CHANGES.md if found
+if [ -n "$BREAKING_CHANGES_CONTENT" ]; then
+    echo "⚠️  Helm Chart Breaking Changes:"
+    echo "---"
+    echo "$BREAKING_CHANGES_CONTENT" | head -40
+    echo "---"
+    echo ""
+fi
+
+# Priority assessment
 PRIORITY="MEDIUM"
 if [ "$UPDATE_TYPE" = "major" ]; then
     PRIORITY="HIGH"
     echo "🔴 MAJOR UPDATE - High risk of breaking changes"
+elif [ "$HAS_BREAKING" = true ] || [ "$HAS_SECURITY" = true ]; then
+    PRIORITY="HIGH"
+    echo "🔴 HIGH PRIORITY - Breaking changes or security fixes detected"
 elif [ "$UPDATE_TYPE" = "patch" ]; then
     PRIORITY="LOW"
     echo "🟢 PATCH UPDATE - Low risk"
@@ -218,179 +468,73 @@ fi
 echo ""
 
 # Package-specific guidance
-echo "📋 Package-Specific Analysis:"
+echo "📋 Package-Specific Checklist:"
 echo ""
 
 case "$PACKAGE_NAME" in
     *authentik*)
         echo "🔐 Authentik Update"
-        echo "Check for:"
-        echo "  - Authentication flow changes"
-        echo "  - OAuth/OIDC provider changes"
-        echo "  - Database schema migrations"
-        echo "  - Redis/cache configuration changes"
-        echo "  - Provider configuration updates"
-        echo ""
-        echo "Action items:"
-        echo "  1. Review release notes for breaking changes"
-        echo "  2. Test login flows after deployment"
-        echo "  3. Check provider integrations (Grafana, etc.)"
-        echo "  4. Monitor authentication error rates"
+        echo "  - [ ] Check authentication flow changes"
+        echo "  - [ ] Review OAuth/OIDC provider changes"
+        echo "  - [ ] Monitor database migrations"
+        echo "  - [ ] Test login flows after deployment"
         ;;
-
     *prometheus-stack*|*grafana*)
         echo "📊 Monitoring Stack Update"
-        echo "Check for:"
-        echo "  - Dashboard compatibility"
-        echo "  - Alert rule changes"
-        echo "  - Grafana plugin updates"
-        echo "  - Prometheus query language changes"
-        echo "  - Security fixes (especially credentials)"
-        echo ""
-        echo "Action items:"
-        echo "  1. Verify all dashboards load correctly"
-        echo "  2. Test alert notifications"
-        echo "  3. Check Grafana admin credentials"
-        echo "  4. Review prometheus query performance"
+        echo "  - [ ] Run CRD update commands from UPGRADE.md"
+        echo "  - [ ] Verify dashboards load correctly"
+        echo "  - [ ] Test alert notifications"
+        echo "  - [ ] Check Prometheus targets are healthy"
         ;;
-
     *flux*|*kustomize*|*helm-controller*)
         echo "🔄 Flux/GitOps Update"
-        echo "Check for:"
-        echo "  - API version changes"
-        echo "  - Reconciliation behavior changes"
-        echo "  - Breaking changes in controllers"
-        echo "  - New CRD versions"
-        echo ""
-        echo "Action items:"
-        echo "  1. Monitor reconciliation after update"
-        echo "  2. Check for failed kustomizations"
-        echo "  3. Verify all apps reconcile successfully"
-        echo "  4. Review controller logs for warnings"
+        echo "  - [ ] Monitor reconciliation after update"
+        echo "  - [ ] Check for failed kustomizations"
+        echo "  - [ ] Verify all HelmReleases reconcile"
         ;;
-
     *traefik*)
         echo "🌐 Traefik Ingress Update"
-        echo "Check for:"
-        echo "  - Middleware API changes"
-        echo "  - IngressRoute compatibility"
-        echo "  - TLS configuration changes"
-        echo "  - Plugin updates"
-        echo ""
-        echo "Action items:"
-        echo "  1. Test all ingress routes"
-        echo "  2. Verify TLS certificates"
-        echo "  3. Check middleware configurations"
-        echo "  4. Monitor HTTP error rates"
+        echo "  - [ ] Test ingress routes"
+        echo "  - [ ] Verify TLS certificates"
+        echo "  - [ ] Check middleware configurations"
         ;;
-
-    *external-dns*)
-        echo "🌍 External-DNS Update"
-        echo "Check for:"
-        echo "  - Provider API changes (Cloudflare, etc.)"
-        echo "  - DNS record format changes"
-        echo "  - IPv4/IPv6 handling changes"
-        echo "  - TTL and zone changes"
-        echo ""
-        echo "Action items:"
-        echo "  1. Verify DNS records after deployment"
-        echo "  2. Check for unexpected A/AAAA records"
-        echo "  3. Monitor external-dns logs"
-        echo "  4. Test DNS resolution for all domains"
-        ;;
-
-    *postgres*|*couchdb*)
+    *postgres*|*couchdb*|*mariadb*)
         echo "🗄️  Database Update"
-        echo "Check for:"
-        echo "  - Schema migration requirements"
-        echo "  - Configuration parameter changes"
-        echo "  - Backup compatibility"
-        echo "  - Extension updates"
-        echo "  - Breaking SQL changes"
-        echo ""
-        echo "Action items:"
-        echo "  1. BACKUP DATABASE BEFORE APPLYING"
-        echo "  2. Review migration scripts"
-        echo "  3. Test application connections"
-        echo "  4. Monitor query performance"
-        echo "  5. Verify backup/restore works"
+        echo "  - [ ] BACKUP DATABASE BEFORE MERGE"
+        echo "  - [ ] Review migration scripts"
+        echo "  - [ ] Test application connections"
         ;;
-
-    *redis*)
-        echo "💾 Redis Update"
-        echo "Check for:"
-        echo "  - Configuration changes"
-        echo "  - Persistence behavior changes"
-        echo "  - Command deprecations"
-        echo "  - Memory management changes"
-        echo ""
-        echo "Action items:"
-        echo "  1. Review configuration compatibility"
-        echo "  2. Test application connections"
-        echo "  3. Monitor memory usage"
-        echo "  4. Check for deprecated commands in logs"
-        ;;
-
-    *n8n*|*paperless*|*immich*|*home-assistant*)
+    *n8n*|*paperless*|*immich*|*home-assistant*|*adguard*)
         echo "📱 Application Update"
-        echo "Check for:"
-        echo "  - Feature additions/removals"
-        echo "  - Configuration file changes"
-        echo "  - Database migrations"
-        echo "  - Plugin/integration updates"
-        echo ""
-        echo "Action items:"
-        echo "  1. Review application changelog"
-        echo "  2. Test core functionality"
-        echo "  3. Check for new configuration options"
-        echo "  4. Monitor application logs"
+        echo "  - [ ] Review changelog for new features"
+        echo "  - [ ] Check for config file changes"
+        echo "  - [ ] Test core functionality after deployment"
         ;;
-
     *)
         echo "📦 General Update"
-        echo "Check for:"
-        echo "  - Breaking changes in release notes"
-        echo "  - Deprecated features"
-        echo "  - New configuration requirements"
-        echo "  - Security advisories"
-        echo ""
-        echo "Action items:"
-        echo "  1. Review release notes/changelog"
-        echo "  2. Test affected functionality"
-        echo "  3. Monitor application logs"
+        echo "  - [ ] Review release notes"
+        echo "  - [ ] Check for breaking changes"
+        echo "  - [ ] Test affected functionality"
         ;;
 esac
 
 echo ""
 echo "==================================="
-echo "Review Checklist"
+echo "Quick Actions"
 echo "==================================="
 echo ""
-echo "Before merging:"
-echo "  [ ] Read release notes/changelog"
-echo "  [ ] Identify breaking changes"
-echo "  [ ] Check for deprecation warnings"
-echo "  [ ] Review configuration changes needed"
-echo "  [ ] Assess rollback complexity"
+echo "Merge: gh pr merge $PR_NUMBER --squash"
 echo ""
-echo "After merging:"
-echo "  [ ] Monitor application logs"
-echo "  [ ] Verify core functionality"
-echo "  [ ] Check Prometheus alerts"
-echo "  [ ] Test affected integrations"
-echo "  [ ] Document any issues found"
-echo ""
-
-if [ -n "$DOCS_LINK" ]; then
-    echo "📖 Full release notes: $DOCS_LINK"
-    echo ""
-fi
-
-echo "To merge this PR:"
-echo "  gh pr merge $PR_NUMBER --squash"
-echo ""
-
-echo "To monitor deployment:"
+echo "Monitor deployment:"
 echo "  flux reconcile source git flux-system --timeout 45s --force"
 echo "  flux reconcile kustomization apps --timeout 45s --force"
 echo ""
+
+# Show documentation links
+if [ -n "$RELEASE_LINK" ] || [ -n "$CHANGELOG_LINK" ]; then
+    echo "📖 Documentation:"
+    [ -n "$RELEASE_LINK" ] && echo "  Release: $RELEASE_LINK"
+    [ -n "$CHANGELOG_LINK" ] && echo "  Changelog: $CHANGELOG_LINK"
+    [ -n "$COMPARE_LINK" ] && echo "  Compare: $COMPARE_LINK"
+    echo ""
+fi
