@@ -92,8 +92,16 @@ if [ -n "$DOCS_LINK" ]; then
     echo "🔍 Fetching and analyzing release notes..."
     echo ""
 
-    # Fetch the content
-    RELEASE_CONTENT=$(curl -sL "$DOCS_LINK" 2>/dev/null || echo "")
+    # Convert GitHub blob URLs to raw URLs for cleaner content (avoids HTML/JSON metadata)
+    RAW_URL="$DOCS_LINK"
+    if echo "$DOCS_LINK" | grep -q "github.com.*blob"; then
+        RAW_URL=$(echo "$DOCS_LINK" | sed 's|github.com|raw.githubusercontent.com|' | sed 's|/blob/|/|')
+    elif echo "$DOCS_LINK" | grep -q "redirect.github.com.*blob"; then
+        RAW_URL=$(echo "$DOCS_LINK" | sed 's|redirect.github.com|raw.githubusercontent.com|' | sed 's|/blob/|/|')
+    fi
+
+    # Fetch the content (limit to 50000 chars - GitHub comment limit is 65536, leaving buffer for script output)
+    RELEASE_CONTENT=$(curl -sL "$RAW_URL" 2>/dev/null | head -c 50000 || echo "")
 
     if [ -n "$RELEASE_CONTENT" ]; then
         # Convert HTML to more readable text (strip tags, decode entities)
