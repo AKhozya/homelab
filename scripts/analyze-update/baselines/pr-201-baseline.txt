@@ -23,9 +23,8 @@ Version Change: 79.11.0 → 79.12.0
 🔍 Fetching documentation...
 
    Repository: prometheus-community/helm-charts
-   Fetching GitHub release for tag: kube-prometheus-stack-79.12.0
+   Fetching GitHub release for version: kube-prometheus-stack-79.12.0
    ✓ Found GitHub release notes
-   Checking for Helm-specific documentation...
    ✓ Found UPGRADE.md
 
 ✅ No obvious breaking changes detected in release notes
@@ -61,6 +60,7 @@ kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-oper
 kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.87.0/example/prometheus-operator-crd/monitoring.coreos.com_servicemonitors.yaml
 kubectl apply --server-side -f https://raw.githubusercontent.com/prometheus-operator/prometheus-operator/v0.87.0/example/prometheus-operator-crd/monitoring.coreos.com_thanosrulers.yaml
 ```
+
 ---
 
 🟡 MINOR UPDATE - Medium risk

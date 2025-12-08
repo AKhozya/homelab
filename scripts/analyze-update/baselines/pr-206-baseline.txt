@@ -22,15 +22,10 @@ Version Change: v1.28.2 → v1.29.0
 🔍 Fetching documentation...
 
    Repository: meilisearch/meilisearch
-   Fetching GitHub release for tag: v1.29.0
+   Fetching GitHub release for version: v1.29.0
    ✓ Found GitHub release notes
 
-🚨 IMPORTANT FINDINGS:
-
-  🗑️  Removed features detected:
-     * We no longer run macOS and Windows tests at PR time. These CI jobs were very slow and given their limited impact they will only be run on the nightly builds. Ny @Kerollmops in https://github.com/meilisearch/meilisearch/pull/6021
-
-  🔧 Configuration changes detected
+✅ No obvious breaking changes detected in release notes
 
 📋 Release Notes Summary:
 ---

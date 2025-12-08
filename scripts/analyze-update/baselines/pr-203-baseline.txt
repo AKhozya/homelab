@@ -22,7 +22,7 @@ Version Change: 2.1.0-fat → 2.1.1-fat
 🔍 Fetching documentation...
 
    Repository: Stirling-Tools/Stirling-PDF
-   Fetching GitHub release for tag: v2.1.1
+   Fetching GitHub release for version: v2.1.1
    ✓ Found GitHub release notes
 
 ✅ No obvious breaking changes detected in release notes

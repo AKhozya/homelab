@@ -20,7 +20,7 @@ Version Change: v1.0.40 → v1.0.42
 🔍 Fetching documentation...
 
 
-⚠️  Could not fetch release notes or changelog
+✅ No obvious breaking changes detected in release notes
 
 🟢 PATCH UPDATE - Low risk
 

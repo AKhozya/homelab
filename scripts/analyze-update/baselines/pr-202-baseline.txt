@@ -23,7 +23,7 @@ Version Change: 2025.12.0 → 2025.12.1
 🔍 Fetching documentation...
 
    Repository: home-assistant/core
-   Fetching GitHub release for tag: 2025.12.1
+   Fetching GitHub release for version: 2025.12.1
    ✓ Found GitHub release notes
 
 🚨 IMPORTANT FINDINGS:

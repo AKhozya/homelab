@@ -75,6 +75,7 @@ In this release, the schema version has changed from 31 to 32.
 - Optimistic DNS cache not working (#8148).
 
 [ms-v0.107.71]: https://github.com/AdguardTeam/AdGuardHome/milestone/106?closed=1
+
 ---
 
 🟢 PATCH UPDATE - Low risk

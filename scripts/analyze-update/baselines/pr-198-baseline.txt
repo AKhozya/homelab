@@ -23,9 +23,8 @@ Version Change: 0.56.x → 0.57.x
 🔍 Fetching documentation...
 
    Repository: VictoriaMetrics/helm-charts
-   Fetching GitHub release for tag: victoria-metrics-k8s-stack-0.57.0
+   Fetching GitHub release for version: victoria-metrics-k8s-stack-0.57.0
    ✓ Found GitHub release notes
-   Checking for Helm-specific documentation...
 
 ✅ No obvious breaking changes detected in release notes
 
@@ -40,6 +39,7 @@ Version Change: 0.56.x → 0.57.x
 **Update note 1**: This release contains new CRD VLAgent. It requires to perform CRD versions update.
 
 - updates operator to [v0.61.0](https://github.com/VictoriaMetrics/operator/releases/tag/v0.61.0) version
+
 ---
 
 🟡 MINOR UPDATE - Medium risk

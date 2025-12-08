@@ -293,12 +293,11 @@ func extractPackageInfo(pr *PullRequest) PackageInfo {
 				// Package name (column 2) - extract just the first [name] from markdown
 				nameCol := strings.TrimSpace(parts[1])
 				// Extract text from first markdown link [text](url)
-				linkRe := regexp.MustCompile(`\[([^\]]+)\]\([^)]+\)`)
-				if match := linkRe.FindStringSubmatch(nameCol); len(match) > 1 {
+				if match := markdownLinkRe.FindStringSubmatch(nameCol); len(match) > 1 {
 					info.Name = match[1]
 				} else {
 					// Fallback: strip all markdown links
-					info.Name = linkRe.ReplaceAllString(nameCol, "$1")
+					info.Name = markdownLinkRe.ReplaceAllString(nameCol, "$1")
 				}
 
 				// Update type (column 3)
@@ -340,9 +339,9 @@ func extractPackageInfo(pr *PullRequest) PackageInfo {
 				break
 			}
 		}
-		info.Name = regexp.MustCompile(` Docker tag.*| to.*| Helm release.*| for `).ReplaceAllString(info.Name, "")
+		info.Name = titleCleanupRe.ReplaceAllString(info.Name, "")
 
-		versionMatch := regexp.MustCompile(`to v?([0-9.]+)`).FindStringSubmatch(pr.Title)
+		versionMatch := versionExtractRe.FindStringSubmatch(pr.Title)
 		if len(versionMatch) > 1 {
 			info.NewVersion = versionMatch[1]
 		}
@@ -378,26 +377,22 @@ func extractDocumentationLinks(body string) DocumentationLinks {
 	links := DocumentationLinks{}
 
 	// Release link
-	releaseRe := regexp.MustCompile(`https://[^)\s]+/releases/tag/[^)\s]+`)
-	if match := releaseRe.FindString(body); match != "" {
+	if match := releaseLinkRe.FindString(body); match != "" {
 		links.ReleaseLink = strings.ReplaceAll(match, "redirect.github.com", "github.com")
 	}
 
 	// Changelog link
-	changelogRe := regexp.MustCompile(`(?i)https://[^)\s]+/CHANGELOG[^)\s]*`)
-	if match := changelogRe.FindString(body); match != "" {
+	if match := changelogLinkRe.FindString(body); match != "" {
 		links.ChangelogLink = strings.ReplaceAll(match, "redirect.github.com", "github.com")
 	}
 
 	// Compare link
-	compareRe := regexp.MustCompile(`https://[^)\s]+/compare/[^)\s]+`)
-	if match := compareRe.FindString(body); match != "" {
+	if match := compareLinkRe.FindString(body); match != "" {
 		links.CompareLink = strings.ReplaceAll(match, "redirect.github.com", "github.com")
 	}
 
 	// Source repo from [source](url) format
-	sourceRe := regexp.MustCompile(`\[source\]\((https://[^)]+)\)`)
-	if matches := sourceRe.FindStringSubmatch(body); len(matches) > 1 {
+	if matches := sourceLinkRe.FindStringSubmatch(body); len(matches) > 1 {
 		links.SourceRepo = strings.ReplaceAll(matches[1], "redirect.github.com", "github.com")
 	}
 
@@ -405,8 +400,7 @@ func extractDocumentationLinks(body string) DocumentationLinks {
 }
 
 func extractRepoPath(url string) string {
-	re := regexp.MustCompile(`github\.com/([^/]+/[^/]+)`)
-	if matches := re.FindStringSubmatch(url); len(matches) > 1 {
+	if matches := repoPathRe.FindStringSubmatch(url); len(matches) > 1 {
 		return matches[1]
 	}
 	return ""
@@ -475,8 +469,7 @@ func fetchDocumentation(links DocumentationLinks, pkgInfo PackageInfo, category 
 
 	// 1. Try GitHub Release API first
 	if links.ReleaseLink != "" {
-		tagRe := regexp.MustCompile(`/releases/tag/(.+)$`)
-		if matches := tagRe.FindStringSubmatch(links.ReleaseLink); len(matches) > 1 {
+		if matches := tagExtractRe.FindStringSubmatch(links.ReleaseLink); len(matches) > 1 {
 			tag := matches[1]
 			if content := fetchGitHubRelease(repoPath, tag, pkgInfo.Name, true); content != "" {
 				docs.ReleaseNotes = truncate(content)
@@ -616,7 +609,6 @@ func extractVersionSection(content, version string) string {
 	var result []string
 	capturing := false
 
-	versionHeaderRe := regexp.MustCompile(`^##+ *\[?v?(\d+\.\d+)`)
 
 	for _, line := range lines {
 		if versionHeaderRe.MatchString(line) {
@@ -736,10 +728,23 @@ var (
 		regexp.MustCompile(`(?i)breaking.*config`),
 		regexp.MustCompile(`(?i)renamed[\s-]?(option|parameter|flag)`),
 	}
+
+	// Pre-compiled regexes for parsing (avoid runtime compilation)
+	markdownLinkRe    = regexp.MustCompile(`\[([^\]]+)\]\([^)]+\)`)
+	titleCleanupRe    = regexp.MustCompile(` Docker tag.*| to.*| Helm release.*| for `)
+	versionExtractRe  = regexp.MustCompile(`to v?([0-9.]+)`)
+	releaseLinkRe     = regexp.MustCompile(`https://[^)\s]+/releases/tag/[^)\s]+`)
+	changelogLinkRe   = regexp.MustCompile(`(?i)https://[^)\s]+/CHANGELOG[^)\s]*`)
+	compareLinkRe     = regexp.MustCompile(`https://[^)\s]+/compare/[^)\s]+`)
+	sourceLinkRe      = regexp.MustCompile(`\[source\]\((https://[^)]+)\)`)
+	repoPathRe        = regexp.MustCompile(`github\.com/([^/]+/[^/]+)`)
+	tagExtractRe      = regexp.MustCompile(`/releases/tag/(.+)$`)
+	versionHeaderRe   = regexp.MustCompile(`^##+ *\[?v?(\d+\.\d+)`)
+	htmlTagRe         = regexp.MustCompile(`<[^>]*>`)
 )
 
 func cleanContent(content string) string {
-	content = regexp.MustCompile(`<[^>]*>`).ReplaceAllString(content, "")
+	content = htmlTagRe.ReplaceAllString(content, "")
 	content = strings.ReplaceAll(content, "&lt;", "<")
 	content = strings.ReplaceAll(content, "&gt;", ">")
 	content = strings.ReplaceAll(content, "&amp;", "&")
