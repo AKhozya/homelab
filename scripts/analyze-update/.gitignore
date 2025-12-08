@@ -1,0 +1,6 @@
+# Compiled binary
+analyze-update
+
+# Test coverage
+coverage.out
+coverage.html

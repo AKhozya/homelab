@@ -1,0 +1,43 @@
+===================================
+Analyzing Renovate PR #204
+===================================
+
+📥 Fetching PR details...
+Title: chore(deps): update jez500/pricebuddy Docker tag to v1.0.42
+State: MERGED
+
+📦 Extracting package information...
+Package: jez500/pricebuddy
+Update Type: patch
+Version Change: v1.0.40 → v1.0.42
+
+📄 Changed files:
+  - apps/base/pricebuddy/deployment.yaml
+
+📦 Update Type: Docker Image
+
+
+🔍 Fetching documentation...
+
+
+⚠️  Could not fetch release notes or changelog
+
+🟢 PATCH UPDATE - Low risk
+
+📋 Package-Specific Checklist:
+
+📦 General Update
+  - [ ] Review release notes
+  - [ ] Check for breaking changes
+  - [ ] Test affected functionality
+
+===================================
+Quick Actions
+===================================
+
+Merge: gh pr merge 204 --squash
+
+Monitor deployment:
+  flux reconcile source git flux-system --timeout 45s --force
+  flux reconcile kustomization apps --timeout 45s --force
+

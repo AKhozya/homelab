@@ -1,0 +1,73 @@
+===================================
+Analyzing Renovate PR #203
+===================================
+
+📥 Fetching PR details...
+Title: chore(deps): update frooodle/s-pdf Docker tag to v2.1.1
+State: MERGED
+
+📦 Extracting package information...
+Package: frooodle/s-pdf
+Update Type: patch
+Version Change: 2.1.0-fat → 2.1.1-fat
+
+📄 Changed files:
+  - apps/base/stirling-pdf/deployment.yaml
+
+📦 Update Type: Docker Image
+
+📝 Release Notes: https://github.com/Stirling-Tools/Stirling-PDF/releases/tag/v2.1.1
+📝 Compare: https://github.com/Stirling-Tools/Stirling-PDF/compare/v2.1.0...v2.1.1
+
+🔍 Fetching documentation...
+
+   Repository: Stirling-Tools/Stirling-PDF
+   Fetching GitHub release for tag: v2.1.1
+   ✓ Found GitHub release notes
+
+✅ No obvious breaking changes detected in release notes
+
+📋 Release Notes Summary:
+---
+A quick hotfix update for general UI tweaks and bugs and possible fix for SSO issues
+I would also like to take this time to apologise for any of the issues users have been seeing with SSO in our 2.0 update, we are doing the best we can to identify and resolve!
+
+## What's Changed
+### Minor Enhancements
+* Desktop to match normal login screens by @ConnorYoh in https://github.com/Stirling-Tools/Stirling-PDF/pull/5122
+* SSO login fix by @DarioGii in https://github.com/Stirling-Tools/Stirling-PDF/pull/5167
+### Other Changes
+* More fixes for automate by @jbrunton96 in https://github.com/Stirling-Tools/Stirling-PDF/pull/5168
+* Update OCR setup guide link in LanguagePicker by @keonchennl in https://github.com/Stirling-Tools/Stirling-PDF/pull/5162
+* add enum SERVER to list of valid licenses by @EthanHealy01 in https://github.com/Stirling-Tools/Stirling-PDF/pull/5172
+* Chore/bump gradle version number by @EthanHealy01 in https://github.com/Stirling-Tools/Stirling-PDF/pull/5176
+
+## New Contributors
+* @keonchennl made their first contribution in https://github.com/Stirling-Tools/Stirling-PDF/pull/5162
+
+**Full Changelog**: https://github.com/Stirling-Tools/Stirling-PDF/compare/v2.1.0...v2.1.1
+---
+
+🟢 PATCH UPDATE - Low risk
+
+📋 Package-Specific Checklist:
+
+📦 General Update
+  - [ ] Review release notes
+  - [ ] Check for breaking changes
+  - [ ] Test affected functionality
+
+===================================
+Quick Actions
+===================================
+
+Merge: gh pr merge 203 --squash
+
+Monitor deployment:
+  flux reconcile source git flux-system --timeout 45s --force
+  flux reconcile kustomization apps --timeout 45s --force
+
+📖 Documentation:
+  Release: https://github.com/Stirling-Tools/Stirling-PDF/releases/tag/v2.1.1
+  Compare: https://github.com/Stirling-Tools/Stirling-PDF/compare/v2.1.0...v2.1.1
+

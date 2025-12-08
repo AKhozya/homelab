@@ -1,0 +1,102 @@
+===================================
+Analyzing Renovate PR #208
+===================================
+
+📥 Fetching PR details...
+Title: chore(deps): update adguard/adguardhome Docker tag to v0.107.71
+State: MERGED
+
+📦 Extracting package information...
+Package: adguard/adguardhome
+Update Type: patch
+Version Change: v0.107.70 → v0.107.71
+
+📄 Changed files:
+  - apps/base/adguard-home/deployment.yaml
+
+📦 Update Type: Docker Image
+
+📝 Changelog: https://github.com/AdguardTeam/AdGuardHome/blob/HEAD/CHANGELOG.md#v010771---2025-12-17-APPROX
+📝 Compare: https://github.com/AdguardTeam/AdGuardHome/compare/v0.107.70...v0.107.71
+📝 Source: https://github.com/AdguardTeam/AdGuardHome
+
+🔍 Fetching documentation...
+
+   Repository: AdguardTeam/AdGuardHome
+   Fetching GitHub release for version: v0.107.71
+   ✓ Found GitHub release notes
+
+✅ No obvious breaking changes detected in release notes
+
+📋 Release Notes Summary:
+---
+As it turns out, our changes to optimistic DNS cache in the previous update were a little too optimistic, and we’ve broken it a little bit in the process.  This hotfix brings everything back to normal, and, as a bonus, we’re adding new settings for users to manually set the upper age limit and TTL for optimistic cache’s stale answers.
+
+## Acknowledgments
+
+A special thanks to our community moderators team and to everyone who filed and inspected issues, added translations, and helped us test this release!
+
+## Full changelog
+
+See also the [v0.107.71 GitHub milestone][ms-v0.107.71].
+
+### Changed
+
+- Stale records in optimistic DNS cache now have an upper age limit controlled by `dns.cache_optimistic_max_age`.  The default value is 12 hours.
+
+- TTL for stale answers from optimistic DNS cache is now controlled by `dns.cache_optimistic_answer_ttl`.  The default value is 30 seconds.
+
+#### Configuration changes
+
+In this release, the schema version has changed from 31 to 32.
+
+- Added a new string fields `dns.cache_optimistic_answer_ttl` and `dns.cache_optimistic_max_age`.
+
+    ```yaml
+    # BEFORE:
+    'dns':
+      'cache_enabled': true
+      'cache_optimistic': true
+      # …
+
+    # AFTER:
+    'dns':
+      'cache_enabled': true
+      'cache_optimistic': true
+      'cache_optimistic_answer_ttl': '30s'
+      'cache_optimistic_max_age': '12h'
+      # …
+    ```
+
+    To roll back this change, set the `schema_version` back to `31`.
+
+### Fixed
+
+- Optimistic DNS cache not working (#8148).
+
+[ms-v0.107.71]: https://github.com/AdguardTeam/AdGuardHome/milestone/106?closed=1
+---
+
+🟢 PATCH UPDATE - Low risk
+
+📋 Package-Specific Checklist:
+
+📱 Application Update
+  - [ ] Review changelog for new features
+  - [ ] Check for config file changes
+  - [ ] Test core functionality after deployment
+
+===================================
+Quick Actions
+===================================
+
+Merge: gh pr merge 208 --squash
+
+Monitor deployment:
+  flux reconcile source git flux-system --timeout 45s --force
+  flux reconcile kustomization apps --timeout 45s --force
+
+📖 Documentation:
+  Changelog: https://github.com/AdguardTeam/AdGuardHome/blob/HEAD/CHANGELOG.md#v010771---2025-12-17-APPROX
+  Compare: https://github.com/AdguardTeam/AdGuardHome/compare/v0.107.70...v0.107.71
+
