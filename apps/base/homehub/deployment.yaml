@@ -48,7 +48,7 @@ spec:
               drop: ["ALL"]
       containers:
         - name: homehub
-          image: ghcr.io/surajverma/homehub:0.2.2
+          image: ghcr.io/surajverma/homehub:0.2.3
           ports:
             - containerPort: 5000
           securityContext:
