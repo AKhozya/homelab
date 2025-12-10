@@ -202,7 +202,7 @@ spec:
                   memory: 512Mi
                 limits:
                   cpu: 3000m
-                  memory: 4Gi
+                  memory: 6Gi  # Increased from 4Gi for video transcoding (CPU-only)
               securityContext:
                 # No privileged access needed for CPU-only encoding
                 allowPrivilegeEscalation: false
