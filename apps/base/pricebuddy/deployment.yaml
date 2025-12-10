@@ -129,7 +129,7 @@ spec:
               memory: "256Mi"
             limits:
               cpu: "500m"
-              memory: "512Mi"
+              memory: "540Mi"
           volumeMounts:
             - name: storage
               mountPath: /app/storage
@@ -174,10 +174,10 @@ spec:
           resources:
             requests:
               cpu: "50m"
-              memory: "256Mi"
+              memory: "128Mi"
             limits:
               cpu: "200m"
-              memory: "512Mi"
+              memory: "210Mi"
           livenessProbe:
             httpGet:
               path: /status

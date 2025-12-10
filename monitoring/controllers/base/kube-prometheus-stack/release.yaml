@@ -42,7 +42,7 @@ spec:
           memory: 512Mi
         limits:
           cpu: 500m
-          memory: 1Gi
+          memory: 1200Mi
       # RBAC permissions for dashboard sidecar to list/watch ConfigMaps
       rbac:
         pspEnabled: false
