@@ -201,8 +201,8 @@ spec:
                   cpu: 200m
                   memory: 512Mi
                 limits:
-                  cpu: 3000m
-                  memory: 8Gi  # Increased for CPU video transcoding (6Gi still OOMKilled)
+                  cpu: 5000m
+                  memory: 12Gi  # Increased for CPU video transcoding (8Gi still OOMKilled)
               securityContext:
                 # No privileged access needed for CPU-only encoding
                 allowPrivilegeEscalation: false
