@@ -37,6 +37,25 @@ spec:
               - op: add
                 path: /spec/template/spec/automountServiceAccountToken
                 value: false
+              # GPU transcoding: Replace main container securityContext with privileged mode
+              - op: replace
+                path: /spec/template/spec/containers/0/securityContext
+                value:
+                  privileged: true
+              # GPU transcoding: Add /dev/dri hostPath volume
+              - op: add
+                path: /spec/template/spec/volumes/-
+                value:
+                  name: dri
+                  hostPath:
+                    path: /dev/dri
+                    type: Directory
+              # GPU transcoding: Mount /dev/dri to main container
+              - op: add
+                path: /spec/template/spec/containers/0/volumeMounts/-
+                value:
+                  name: dri
+                  mountPath: /dev/dri
           - target:
               kind: Deployment
               name: immich-machine-learning
@@ -204,10 +223,7 @@ spec:
                 limits:
                   cpu: 5000m
                   memory: 12Gi  # Increased for CPU video transcoding (8Gi still OOMKilled)
-              securityContext:
-                # Privileged mode required for GPU device cgroup access
-                # All non-privileged configurations tested and failed (SYS_ADMIN, seccomp, etc.)
-                privileged: true
+              # securityContext overridden via postRenderer patch (privileged: true for GPU)
             # Nginx sidecar to forward traffic from 0.0.0.0:8080 to 127.0.0.1:2283
             # Workaround for Immich localhost-only binding issue
             # Nginx handles video streaming better than socat (buffering, keep-alive)
@@ -326,16 +342,7 @@ spec:
             http:
               port: 8080
               targetPort: 8080
-      # GPU device for hardware transcoding (only mounted to main container, not nginx proxy)
-      persistence:
-        dri:
-          enabled: true
-          type: hostPath
-          hostPath: /dev/dri
-          advancedMounts:
-            main:
-              main:
-                - path: /dev/dri
+      # GPU /dev/dri hostPath added via postRenderer patch (above)
 
     # Immich Machine Learning component
     machine-learning:
