@@ -29,7 +29,6 @@ spec:
                 - kube-node-lease
                 - flux-system
                 - kyverno
-                - gpu-test
       validate:
         message: "Containers must drop all capabilities (capabilities.drop: [ALL])"
         pattern:

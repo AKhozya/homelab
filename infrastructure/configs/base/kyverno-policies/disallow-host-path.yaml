@@ -33,7 +33,6 @@ spec:
                 - loki
                 - databases
                 - couchdb
-                - gpu-test
       validate:
         message: "hostPath volumes are not allowed"
         pattern:

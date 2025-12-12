@@ -30,7 +30,6 @@ spec:
                 - kube-node-lease
                 - flux-system
                 - kyverno
-                - gpu-test
       validate:
         message: "Pods must set securityContext.seccompProfile.type to RuntimeDefault"
         anyPattern:

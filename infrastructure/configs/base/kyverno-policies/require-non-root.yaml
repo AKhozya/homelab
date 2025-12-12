@@ -30,7 +30,6 @@ spec:
                 - flux-system
                 - kyverno
                 - databases
-                - gpu-test
           # Exclude specific apps that require root
           - resources:
               namespaces:
