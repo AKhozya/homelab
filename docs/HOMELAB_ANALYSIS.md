@@ -685,11 +685,12 @@
 #### 39. **Switch to LTS Kernel 6.18** 🐧 DEFERRED
    - **Status**: DEFERRED - Waiting for Arch Linux to update `linux-lts` package to 6.18
    - **Priority**: P2-MEDIUM (stability improvement)
-   - **Target Date**: February 2026
+   - **Target Date**: January-February 2026 (when Arch packages 6.18)
    - **Current State**: Both nodes running mainline kernel 6.17.9
-   - **Blocker**: Arch `linux-lts` still at 6.12.60-1 (checked 2025-12-03)
-     - Linux 6.18 released upstream: Nov 30, 2025 (confirmed LTS)
+   - **Blocker**: Arch `linux-lts` still at 6.12.61-1 (checked 2025-12-12)
+     - Linux 6.18 released upstream: Nov 30, 2025 (confirmed LTS, supported until Dec 2027)
      - Arch typically takes 4-8 weeks to transition LTS kernel series
+     - Expected availability: Late January to Late February 2026
    - **Scope**: Control plane (192.168.1.127) + Worker node (192.168.1.129)
    - **Hardware Compatibility**: ✅ Verified
      - Intel N100 (Alder Lake-N): Supported since 6.1+
@@ -697,15 +698,16 @@
      - Intel I226-V (igc): Driver fixes in 6.6+
      - AMD Radeon integrated (amdgpu): Mature by 6.12+
    - **Procedure**:
-     1. Check 6.18 LTS availability: `pacman -Ss linux-lts`
-     2. Install on control plane first: `sudo pacman -S linux-lts linux-lts-headers`
-     3. Update bootloader: `sudo bootctl update`
-     4. Reboot and verify: `uname -r`
-     5. Repeat on worker node
-     6. Keep mainline kernel installed for rollback option
-   - **Benefit**: Long-term stability, 2+ year support, security backports
+     1. Check 6.18 LTS availability: `pacman -Si linux-lts | grep Version`
+     2. Wait ~1 week after 6.18 appears for initial patches (6.18.1, 6.18.2)
+     3. Install on control plane first: `sudo pacman -S linux-lts linux-lts-headers`
+     4. Update bootloader: `sudo bootctl update`
+     5. Reboot and verify: `uname -r`
+     6. Repeat on worker node
+     7. Keep mainline kernel installed for rollback option
+   - **Benefit**: Long-term stability, 2+ year support (until Dec 2027), security backports
    - **Rollback**: Boot into mainline kernel from bootloader menu if issues
-   - **Note**: Check monthly until Arch updates linux-lts to 6.18
+   - **Note**: Start checking weekly from mid-January 2026
 
 #### 40. **Re-evaluate VictoriaMetrics** 📊 DEFERRED
    - **Status**: DEFERRED - Waiting for metricRelabelConfigs bug fix
