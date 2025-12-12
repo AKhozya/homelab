@@ -221,8 +221,8 @@ spec:
                   cpu: 200m
                   memory: 512Mi
                 limits:
-                  cpu: 5000m
-                  memory: 12Gi  # Increased for CPU video transcoding (8Gi still OOMKilled)
+                  cpu: "4"
+                  memory: 9Gi
               # securityContext overridden via postRenderer patch (privileged: true for GPU)
             # Nginx sidecar to forward traffic from 0.0.0.0:8080 to 127.0.0.1:2283
             # Workaround for Immich localhost-only binding issue
