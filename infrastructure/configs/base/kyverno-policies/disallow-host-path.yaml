@@ -33,6 +33,7 @@ spec:
                 - loki
                 - databases
                 - couchdb
+                - immich  # GPU hardware transcoding requires /dev/dri hostPath
       validate:
         message: "hostPath volumes are not allowed"
         pattern:

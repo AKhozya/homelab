@@ -61,9 +61,8 @@ spec:
                   # (can't create symlink in root-owned /opt/venv as user 1000)
                   # Manual update needed ~annually when Python minor version changes
                   mountPath: /opt/venv/lib/python3.11/site-packages/rapidocr/models
-  # Note: Hardware acceleration (VAAPI) is disabled via IMMICH_MEDIA_FFMPEG_ACCEL=disabled
-  # /dev/dri hostPath mount removed for Pod Security Standards (restricted) compliance
-  # hostPath volumes violate PSS restricted policy
+  # Hardware acceleration (VAAPI) enabled for GPU transcoding on AMD Radeon
+  # Requires: privileged container, /dev/dri hostPath, PSS privileged namespace
   values:
     # Service Account configuration (created via separate manifest)
     # Applied globally to all Immich components
@@ -128,8 +127,10 @@ spec:
               runAsUser: 1000
               runAsGroup: 1000
               fsGroup: 1000
-              seccompProfile:
-                type: RuntimeDefault
+              # Video (985) and render (989) groups for GPU device access
+              supplementalGroups:
+                - 985  # video group on worker-node
+                - 989  # render group on worker-node
           initContainers:
             wait-for-database:
               image:
@@ -192,10 +193,10 @@ spec:
                 tag: v2.3.1
                 pullPolicy: IfNotPresent
               env:
-                # Hardware acceleration disabled due to buggy Mesa VAAPI encoding on Radeon 610M
-                # CPU-only encoding is faster than VAAPI (which fails and retries before CPU fallback)
-                # Settings like CRF, preset, codec are configured via UI
-                IMMICH_MEDIA_FFMPEG_ACCEL: disabled
+                # Hardware acceleration via VAAPI on AMD Radeon GPU
+                # Tested: 27x faster than CPU encoding (privileged container required)
+                IMMICH_MEDIA_FFMPEG_ACCEL: vaapi
+                LIBVA_DRIVER_NAME: radeonsi
               resources:
                 requests:
                   cpu: 200m
@@ -204,14 +205,9 @@ spec:
                   cpu: 5000m
                   memory: 12Gi  # Increased for CPU video transcoding (8Gi still OOMKilled)
               securityContext:
-                # No privileged access needed for CPU-only encoding
-                allowPrivilegeEscalation: false
-                readOnlyRootFilesystem: false
-                runAsNonRoot: true
-                runAsUser: 1000
-                capabilities:
-                  drop:
-                    - ALL
+                # Privileged mode required for GPU device cgroup access
+                # All non-privileged configurations tested and failed (SYS_ADMIN, seccomp, etc.)
+                privileged: true
             # Nginx sidecar to forward traffic from 0.0.0.0:8080 to 127.0.0.1:2283
             # Workaround for Immich localhost-only binding issue
             # Nginx handles video streaming better than socat (buffering, keep-alive)
@@ -330,8 +326,16 @@ spec:
             http:
               port: 8080
               targetPort: 8080
-      # Hardware acceleration disabled: IMMICH_MEDIA_FFMPEG_ACCEL=disabled
-      # Reason: Buggy Mesa VAAPI encoding on Radeon 610M (CPU encoding is faster)
+      # GPU device for hardware transcoding (only mounted to main container, not nginx proxy)
+      persistence:
+        dri:
+          enabled: true
+          type: hostPath
+          hostPath: /dev/dri
+          advancedMounts:
+            main:
+              main:
+                - path: /dev/dri
 
     # Immich Machine Learning component
     machine-learning:

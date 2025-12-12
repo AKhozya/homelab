@@ -3,6 +3,7 @@ kind: Namespace
 metadata:
   name: immich
   labels:
-    pod-security.kubernetes.io/enforce: restricted
-    pod-security.kubernetes.io/audit: restricted
-    pod-security.kubernetes.io/warn: restricted
+    # Changed to privileged for GPU hardware transcoding (requires /dev/dri hostPath + privileged container)
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
