@@ -89,543 +89,103 @@
 
 **Last Updated**: 2025-12-13 (Documentation refresh, Immich quota fix)
 **Source**: [COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md)
+**Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
 
-### 🔴 P0-CRITICAL (Immediate - This Week)
+### ✅ Completed P0-CRITICAL Items (Summary)
 
-#### 1. ✅ **COMPLETED: PostgreSQL NetworkPolicy** (2025-10-27)
-   - **Status**: ✅ Completed - NetworkPolicy deployed and active
-   - **Risk**: Unrestricted access to all databases from any pod
-   - **CVSS**: 7.5 (HIGH)
-   - **Solution**: Created NetworkPolicy restricting access to app namespaces only
-   - **Commit**: a80d4bf
-   - **Files**: `infrastructure/configs/base/databases/postgres/networkpolicy.yaml`
+| Item | Date | Commit | Notes |
+|------|------|--------|-------|
+| PostgreSQL NetworkPolicy | 2025-10-27 | a80d4bf | Restricts DB access to app namespaces |
+| cert-manager ClusterIssuers | 2025-10-27 | 2cb9e78 | Removed duplicate, kept single source |
+| CNPG WAL Archiving | N/A | - | ❌ Not implementing (pg_dump acceptable) |
 
-#### 2. ✅ **COMPLETED: Duplicate cert-manager ClusterIssuers** (2025-10-27)
-   - **Status**: ✅ Completed - Orphaned ClusterIssuer removed
-   - **Risk**: Unpredictable certificate issuance, renewal failures
-   - **Solution**: Deleted orphaned `controllers/base/cert-manager/clusterissuer.yaml`
-   - **Commit**: 2cb9e78
-   - **Files**: Removed duplicate, kept `infrastructure/configs/base/cert-manager/clusterissuer.yaml`
+### 🛡️ SECURITY HARDENING (Active)
 
-#### 3. ❌ **REMOVED: CNPG WAL Archiving** (Not Implementing)
-   - **Decision**: Not implementing - CNPG barman requires S3/Azure/Google credentials
-   - **Alternative**: Continue with existing pg_dump daily backups (24h RPO acceptable for homelab)
-   - **Reason**: barmanObjectStore doesn't support local filesystem paths
-   - **Future Option**: Deploy MinIO for S3-compatible local storage (P2 task if needed)
-   - **Current RPO**: 24 hours (pg_dump at 3 AM) - acceptable for homelab
+#### **📅 HSTS Max-Age Optimization** - IN PROGRESS
+   - **Status**: 🔄 Step 2/3 Complete - 6 months deployed (2025-11-16)
+   - **Current**: `max-age=15768000` (6 months) on all 17 ingresses
+   - **Gradual Rollout**: ✅ Step 1 (1mo) → ✅ Step 2 (6mo) → ⏰ Step 3 (1yr: 2026-01-15)
+   - **Next Review**: **2026-01-15** (increase to 1 year)
+   - **Commits**: 5e109cd, 793a247
+
+#### ✅ CSP Enforcement - COMPLETED (2025-10-31)
+   - 43 days in production, zero violations, 85 automated tests passed
 
 ---
 
-### 🛡️ SECURITY HARDENING REVIEWS (Scheduled)
+### ⚠️ P1-HIGH (Active Items Only)
 
-#### 1. ✅ **COMPLETED: CSP Enforcement** - Enforced since 2025-10-31 ⭐
-   - **Status**: ✅ **COMPLETED - CSP in enforcement mode across all 17 apps (16 days active, zero violations)**
-   - **Enforcement Date**: 2025-10-31 (Commit 04df8a4)
-   - **Current**: CSP enforcement mode deployed to all 17 services
-     - Policy: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'`
-     - Monitoring: csp-reporter service → Loki (`{namespace="csp-reporter"}`)
-     - Header: `Content-Security-Policy` (enforcement mode, not report-only)
-   - **Testing Results**: ✅ **100% pass rate (0 violations)**
-     - **85 automated tests**: 17 apps × 5 scenarios (page load, JS, CSS, images, API)
-     - **Baseline violations**: 0
-     - **Post-enforcement violations**: 0
-     - **Confidence level**: HIGH
-     - **Test duration**: ~60 seconds
-     - **Full report**: `docs/CSP_TEST_RESULTS.md`
-   - **Production Validation**: ✅ **Zero violations after 43 days in production**
-   - **Completed Tasks**:
-     1. ✅ Automated testing across all apps (COMPLETE - 100% pass rate)
-     2. ✅ Enabled enforcement mode (COMPLETE - deployed 2025-10-31)
-     3. ✅ Monitored post-enforcement (COMPLETE - 43 days, zero violations)
-   - **Files Updated**:
-     - `infrastructure/controllers/base/traefik/csp-middleware.yaml`
-     - `monitoring/configs/staging/kube-prometheus-stack/csp-middleware.yaml`
-   - **Commits**: b8b6306, 7b2c72b, 54c8484, 04df8a4
-   - **Test Script**: `csp-test.sh` (re-run anytime with `./csp-test.sh`)
+#### ⏸️ **Automated Backup Validation Testing** - DEFERRED to Q1 2026
+   - Manual validation (last: 2025-10-26) sufficient for now
+   - Infrastructure still evolving - automation premature
 
-#### 2. **📅 HSTS Max-Age Optimization** - Gradual Rollout (IN PROGRESS)
-   - **Status**: 🔄 Step 2/3 Complete - 6 months max-age deployed (2025-11-16)
-   - **Current**: Unified HSTS across all layers
-     - Cloudflare Edge: `max-age=2628000` (1 month) - will update to match Traefik
-     - Traefik Origin: `max-age=15768000` (6 months) ✅ **UPDATED 2025-11-16**
-     - All 17 ingresses now have 6-month HSTS
-   - **Gradual Rollout Plan**:
-     - ✅ **Step 1**: 1 month (2628000s) - Deployed 2025-10-31
-     - ✅ **Step 2**: 6 months (15768000s) - Deployed 2025-11-16
-     - ⏰ **Step 3**: 1 year (31536000s) - Target: 2026-01-15 (final)
-   - **Next Review**: **2026-01-15** (verify 6 months deployment stable, increase to 1 year)
-   - **Files Updated**: Both traefik and monitoring security-headers middleware
-   - **Commits**: 5e109cd (Step 1), 793a247 (Step 2)
+#### ⚠️ **Kyverno Phase 3: Resource Limits** - PARTIALLY COMPLETED
+   - 30 violations remain (monitoring sidecars, kube-system)
+   - Policy in Audit mode - Helm charts don't expose sidecar resource config
+   - Commit: 5e28d3e
+
+### ✅ Completed P1-HIGH Items (Summary)
+
+| Item | Date | Status | Commits |
+|------|------|--------|---------|
+| Pod Anti-Affinity PostgreSQL | 2025-10-29 | ✅ 2 instances, required anti-affinity | cbc71d0 |
+| CNPG Port 8000 Binding | 2025-10-30 | ✅ Resolved - worker-node only | [#9013](https://github.com/cloudnative-pg/cloudnative-pg/issues/9013) |
+| PostgreSQL TLS | 2025-10-27 | ✅ Already implemented | - |
+| Redis Backup | - | ❌ Not implementing (cache only) | - |
+| Flux Timeout Standardization | 2025-10-27 | ✅ All 6 kustomizations 45s | 4cc2834 |
+| Traefik Health Checks | 2025-10-27 | ✅ 15/15 apps compliant | - |
+| HA Critical Components | 2025-10-29 | ✅ 2 replicas across nodes | e07474a |
+| Scattered Middleware | 2025-10-27 | ✅ Centralized to traefik ns | 9a9ebce |
+| Redis ACLs | 2025-10-27 | ⚠️ Accepted (apps don't support prefixes) | - |
+| Kyverno Phase 1 (Service Accounts) | 2025-10-28 | ✅ Enforce mode, 31 pods | 584d3a1 |
+| Kyverno Phase 2 (Seccomp) | 2025-10-28 | ✅ Enforce mode, 23 workloads | 8eaf7ea |
 
 ---
 
-### ⚠️ P1-HIGH (This Month)
+### 📋 P2-MEDIUM (Active Items Only)
 
-#### 5. ⏸️ **Automated Backup Validation Testing** - DEFERRED (2025-10-27)
-   - **Status**: ⏸️ Deferred until homelab infrastructure stabilizes
-   - **Current State**: Manual validation testing (last: 2025-10-26) - sufficient for now
-   - **Risk**: Backup corruption may go undetected between manual tests (acceptable)
-   - **Reason**: Infrastructure still evolving - automation premature, could cause false alarms
-   - **Future Action**: Implement quarterly CronJob after 2-3 months of stability
-   - **Priority**: Deferred to Q1 2026
+| Pending Item | Effort | Priority |
+|--------------|--------|----------|
+| Deploy Velero for cluster backups | 4-6h | P2 |
+| Implement backup immutability (S3 object lock/ZFS) | 2-4h | P2 |
+| SOPS multi-key encryption | 4h | P2 |
+| ReadOnlyRootFilesystem (7/16 apps currently) | 4-6h/app | P2 |
 
-#### 6. ✅ **Pod Anti-Affinity for PostgreSQL** - COMPLETED (2025-10-29)
-   - **Status**: ✅ True cross-node HA with required anti-affinity
-   - **Final Configuration**:
-     - Instances: 2 (reduced from 3 for 2-node cluster)
-     - Anti-affinity: `podAntiAffinityType: "required"` (HARD constraint)
-     - Topology key: `topologyKey: "kubernetes.io/hostname"`
-     - Control plane tolerations enabled
-   - **Current State**:
-     - main-postgres-5 (Primary): worker-node ✅
-     - main-postgres-6 (Replica): gmk-k3s-control-plane ✅
-   - **Control Plane Impact**:
-     - CPU: 774m (19%) - well within capacity
-     - Memory: 4.1GB (26%) - stable
-   - **Key Decisions**:
-     - Required anti-affinity forces cross-node distribution (pods MUST be on different nodes)
-     - 2 instances optimal for 2-node cluster (1 primary + 1 replica)
-     - Local-path storage creates node-specific PVCs automatically
-   - **Benefits**:
-     - Worker node failure: Control plane has PostgreSQL replica + infrastructure
-     - True physical HA across 2 nodes
-     - Zero downtime failover capability
-   - **Commits**: cbc71d0, 30c1f8a, 95fe37a, eef307d
-   - **Known Issue**: CNPG port 8000 binding failure on control-plane (see below)
+### ✅ Completed P2-MEDIUM Items (Summary)
 
-#### 6b. ✅ **RESOLVED: CNPG Port 8000 Binding on Control-Plane** (2025-10-30)
-   - **Status**: ✅ Resolved - Restricted PostgreSQL to worker-node only
-   - **Issue**: CNPG instance manager silently fails to bind status port 8000 on K3s control-plane node
-   - **Root Cause**: K3s control-plane specific issue
-     - Port 8000 hardcoded in CNPG (cannot be changed)
-     - Logs show "Starting webserver :8000 hasTLS=true" but port never binds
-     - Zero error messages - completely silent failure
-     - Only affects control-plane node (worker-node works perfectly)
-     - UFW firewall rules and node reboots did NOT fix
-   - **Resolution**: Removed control-plane toleration, running all PostgreSQL instances on worker-node only
-     - Modified `podAntiAffinityType` from "required" to "preferred" (both pods on same worker node)
-     - Restored Flux health checks (working now)
-     - Cluster status: **READY 2/2** - "Cluster in healthy state"
-   - **Trade-off**: Lost cross-node HA but gained:
-     - ✅ Full cluster monitoring (both pods port 8000 working)
-     - ✅ No Flux timeout errors
-     - ✅ Clean deployment without workarounds
-   - **Upstream**: Bug report submitted to CNPG project https://github.com/cloudnative-pg/cloudnative-pg/issues/9013
-   - **Files**: `infrastructure/configs/base/databases/postgres/cluster.yaml`, `clusters/apps.yaml`
-
-#### 7. ✅ **PostgreSQL TLS/Encryption** - ALREADY IMPLEMENTED (2025-10-27)
-   - **Status**: ✅ TLS enabled by CloudNativePG, all apps using it
-   - **Evidence**: All connections show ssl=t in pg_stat_ssl view
-   - **Current**: pg_hba.conf allows plaintext (host) but apps voluntarily use TLS
-   - **Minor gap**: Could enforce TLS at pg_hba level (host→hostssl)
-   - **Priority**: Downgraded to P3-LOW (optional enforcement)
-
-#### 8. ❌ **Redis Backup Automation** - NOT IMPLEMENTING
-   - **Status**: ❌ Not implementing - Redis used only as cache (ephemeral data)
-   - **Impact**: User re-login required, jobs re-queued on pod deletion (acceptable)
-   - **Current State**: RDB snapshots on PVC (sufficient for cache use case)
-   - **Reason**: Redis stores only ephemeral/cache data - no persistent data requiring backup
-   - **Priority**: Closed - no action needed
-
-#### 9. ✅ **Flux Timeout Settings Standardization** - COMPLETED (2025-10-27)
-   - **Status**: ✅ All 6 kustomizations standardized to 45s timeout
-   - **Before**: infrastructure-controllers (5m), infrastructure-configs (10m), apps (5m), monitoring-controllers (5m), monitoring-configs (5m)
-   - **After**: All kustomizations use 45s timeout (consistent)
-   - **Impact**: Predictable reconciliation behavior, faster failure detection
-   - **Verified**: All kustomizations READY at commit 4cc2834
-   - **Commit**: 4cc2834
-   - **Files**: `clusters/infrastructure.yaml`, `clusters/infrastructure-configs.yaml`, `clusters/apps.yaml`, `clusters/monitoring.yaml`
-
-#### 10. ✅ **Traefik Health Checks** - ALREADY IMPLEMENTED (2025-10-27)
-   - **Status**: ✅ 15/15 apps have readinessProbe and livenessProbe
-   - **Mechanism**: Kubernetes Service endpoints automatically exclude unhealthy pods
-   - **Traefik Integration**: Inherits pod health state from Kubernetes
-   - **Verification**: CouchDB (/_up), Immich (/api/server/ping), PostgreSQL (pg_isready), Redis (redis-cli ping)
-   - **Priority**: No action required - already compliant
-
-#### 11. ✅ **High Availability for Critical Components** - COMPLETED (2025-10-29)
-   - **Status**: ✅ Implemented - Critical infrastructure now runs across 2 physical nodes (control plane + worker)
-   - **Previous State**: Traefik (1), cert-manager (1), all on worker node only
-   - **Phase 1 (2025-10-29)**: Increased replicas to 2 with pod anti-affinity
-     - Traefik: 2 replicas with pod anti-affinity
-     - cert-manager controller: 2 replicas with pod anti-affinity
-     - cert-manager webhook: 2 replicas with pod anti-affinity
-     - cert-manager cainjector: 2 replicas with pod anti-affinity
-     - Commits: e07474a, 898d969
-   - **Phase 2 (2025-10-29)**: Enabled control plane scheduling for true HA
-     - Added tolerations for `node-role.kubernetes.io/control-plane` taint
-     - Components: Traefik, cert-manager (all 3 components), Cloudflare tunnel, PostgreSQL
-     - Commits: 6a52f5c, cbc71d0
-   - **Current State**:
-     - Traefik: 2 replicas on control plane (both scheduled there during rollout)
-     - cert-manager controller: 2 replicas on control plane
-     - cert-manager webhook: 1 on control plane, 1 on worker ✓
-     - cert-manager cainjector: 1 on control plane, 1 on worker ✓
-     - Cloudflare tunnel: 1 on control plane, 1 on worker ✓
-     - PostgreSQL: 2 instances with required anti-affinity - 1 on control plane (replica), 1 on worker (primary) ✓
-   - **Control Plane Impact**:
-     - Before: 470m CPU (11%), 3.6GB RAM (22%)
-     - After (with PostgreSQL): 774m CPU (19%), 4.1GB RAM (26%)
-     - Increase: +304m CPU, +500Mi RAM
-     - Status: Well within capacity (4 CPUs, 16GB RAM available)
-   - **Implementation Details**:
-     - Pod anti-affinity: `preferredDuringSchedulingIgnoredDuringExecution` (soft constraint)
-     - Topology key: `kubernetes.io/hostname` (prefer different nodes)
-     - Weight: 100 (high preference for spreading)
-     - PostgreSQL uses CNPG-native anti-affinity: `enablePodAntiAffinity: true`, `podAntiAffinityType: "preferred"`
-   - **Benefits**:
-     - ✅ True physical HA: Worker node failure won't take down all infrastructure
-     - ✅ Zero downtime during Renovate updates (rolling updates)
-     - ✅ Better resource utilization of idle control plane capacity
-     - ✅ Future-proof for multi-worker cluster expansion
-   - **Note**: Soft anti-affinity sometimes places both replicas on same node during simultaneous rollout (acceptable for homelab)
-
-#### 12. ✅ **Scattered Middleware Configurations** - COMPLETED (2025-10-27)
-   - **Status**: ✅ Centralized HTTPS redirect middleware to traefik namespace
-   - **Before**: 15 duplicate middleware files across apps (140 lines of YAML)
-   - **After**: Single `traefik/redirect-https` middleware
-   - **Updated**: 15 ingress annotations to reference centralized middleware
-   - **Benefit**: Single source of truth, easier maintenance
-   - **Note**: Security headers (CSP, HSTS) remain as separate P2 task
-   - **Commit**: 9a9ebce
-
-#### 13. ⚠️ **Overly Permissive Redis ACLs** - VALID BUT NOT FIXABLE (2025-10-27)
-   - **Status**: ⚠️ Accept current state - apps don't support key prefixes
-   - **Attempted**: Restricted ACLs to ~authentik:*, ~paperless:*, ~immich:*
-   - **Result**: Broke existing cache keys (apps don't use prefixes by default)
-   - **Current**: `~* &* +@all -@dangerous -acl` (all keys, safe commands only)
-   - **Mitigation**: NetworkPolicy restricts Redis access to app namespaces
-   - **Priority**: Downgraded to P3-LOW (defense-in-depth, not critical)
-
-#### 14. ✅ **Kyverno Policy Remediation - Phase 1: Service Accounts** - COMPLETED (2025-10-28)
-   - **Status**: ✅ COMPLETED - require-non-default-serviceaccount policy enabled in Enforce mode
-   - **Implementation**:
-     - Created 16 custom ServiceAccounts (13 apps + 3 infrastructure components)
-     - Updated 44 manifests (deployments, jobs, StatefulSets)
-     - Migrated 31 pods to custom service accounts
-     - Special fix for Immich Helm chart using Flux postRenderers
-   - **Git Activity**: 7 commits (a293197 → 584d3a1)
-   - **Security Impact**:
-     - ✅ Eliminated default service account usage across all applications
-     - ✅ Enforced least privilege principle at admission control
-     - ✅ Policy now blocks insecure pods at admission webhook
-   - **Testing**: All 31 pods verified running with 0 restarts, all applications functional
-   - **Commit**: 584d3a1
-
-#### 15. ✅ **Kyverno Policy Remediation - Phase 2: Seccomp Profiles** - COMPLETED (2025-10-28)
-   - **Status**: ✅ COMPLETED - require-seccomp-runtimedefault policy enabled in Enforce mode
-   - **Implementation**:
-     - Added `seccompProfile: RuntimeDefault` to 23 workloads
-     - Fixed 16 application deployments (all apps now compliant)
-     - Fixed 6 infrastructure components (Trivy, Kyverno, cert-manager, databases)
-     - Removed node-cleanup job (no longer needed with seccomp)
-     - Removed uptime-kuma fix-permissions job (seccomp incompatible)
-   - **Git Activity**: 2 commits (5a68943, 8eaf7ea)
-   - **Security Impact**:
-     - ✅ Enabled kernel syscall filtering across all workloads
-     - ✅ Reduced attack surface via default seccomp profile
-     - ✅ Policy now blocks pods without seccomp at admission webhook
-   - **Testing**: All 31 pods verified running with seccomp RuntimeDefault, 0 restarts
-   - **Commit**: 8eaf7ea
-
-#### 16. ⚠️ **Kyverno Policy Remediation - Phase 3: Resource Limits** - PARTIALLY COMPLETED (2025-10-28)
-   - **Status**: ⚠️ PARTIALLY COMPLETED - require-resource-limits policy remains in Audit mode
-   - **Implementation**:
-     - Analyzed 7-day peak resource usage from Prometheus metrics
-     - Added resource limits to Immich jobs (admin-setup, init-extensions)
-     - Added resource limits to Loki canary (96Mi/20m) ✅
-     - Configured Prometheus stack limits (Grafana sidecars: 192Mi, config-reloaders: 64Mi)
-     - Increased Trivy operator limits (1.5Gi/1000m for peak scanning workload)
-   - **Git Activity**: 1 commit (5e28d3e)
-   - **Helm Chart Limitations Discovered**:
-     - Grafana sidecars (sc-dashboard, sc-datasources): Chart doesn't expose resource configuration
-     - Prometheus/Alertmanager config-reloader: Chart doesn't support sidecar resource limits
-     - Loki sc-rules sidecar: Chart doesn't support resource configuration
-     - Trivy/Kyverno: Helm values keys don't match chart expectations
-   - **Remaining Violations**: 14 workloads (8 monitoring sidecars, 5 kube-system, 1 Trivy)
-   - **Peak Usage Data** (7 days):
-     - Grafana sidecars: 143Mi peak → 192Mi configured
-     - Prometheus: 1705Mi/66m peak → 2.5Gi/500m configured
-     - Alertmanager: 68Mi peak → 128Mi configured
-     - Trivy: 945Mi/618m peak → 1.5Gi/1000m configured
-   - **Decision**: Keep policy in Audit mode - sidecars are low-resource (<150Mi peak), fixing requires Kustomize post-render patches
-   - **Testing**: Main workloads (Loki canary) verified with limits applied, all pods running
-   - **Commit**: 5e28d3e
+| Item | Date | Status |
+|------|------|--------|
+| Backup Integrity Checks (SHA256) | 2025-10-31 | ✅ All backups generate checksums |
+| GPG Secrets Encryption | 2025-10-31 | ✅ AES256 with interactive passphrase |
+| Rate Limiting Middleware | 2025-10-31 | ✅ 100% coverage (17 ingresses) |
+| Security Headers | 2025-10-31 | ✅ 100% coverage (HSTS, CSP, etc.) |
+| PgBouncer Pooler | 2025-10-31 | ✅ All apps using pooler correctly |
+| CREATEDB Permissions | 2025-10-31 | ✅ Accepted (required for migrations) |
+| Single Redis/CouchDB | 2025-10-31 | ✅ Documented as intentional |
+| LoadBalancer Docs | 2025-10-29 | ✅ K3s ServiceLB documented |
+| Cloudflare Health Checks | 2025-10-31 | ✅ Already configured |
+| NetworkPolicy Egress | 2025-11-02 | ✅ Validated as correct |
+| Prometheus Resource Alerts | 2025-10-31 | ✅ 5 new alerts added |
 
 ---
 
-### 📋 P2-MEDIUM (Next 3 Months)
+### 📋 P3-LOW (Active Items Only)
 
-#### 14. **Deploy Velero for Cluster-Level Backups**
-   - **Benefit**: Kubernetes-native backup solution
-   - **Action**: Deploy Velero with CSI snapshot support
-   - **Estimated Effort**: 4-6 hours
-   - **Priority**: P2-MEDIUM
-   - **Status**: Already in roadmap (task #17)
+| Pending Item | Priority |
+|--------------|----------|
+| Backup alert grouping to Telegram thread | P3 |
+| Grafana dashboards for app metrics | P3 |
+| PrometheusRules for custom app metrics | P3 |
 
-#### 15. ✅ **COMPLETED: Backup Integrity Checks (SHA256)** (2025-10-31)
-   - **Status**: ✅ All backup systems now generate SHA256 checksums, validated working correctly
-   - **Implementation**: PostgreSQL, CouchDB, and PVC backups all generate `.sha256` files
-   - **Validation Testing** (2025-10-31):
-     - Created test backups for all three systems (PostgreSQL, CouchDB, PVC)
-     - Ran `sha256sum -c` validation on actual backup files
-     - ✅ PostgreSQL: Checksum validation PASSED
-     - ✅ CouchDB: Checksum validation PASSED
-     - ✅ PVC: Checksum validation PASSED (after fix)
-   - **Bug Fix**: PVC backup script used absolute paths in SHA256 files, fixed to use relative paths
-   - **Verification**: `sha256sum -c backup_file.tar.gz.sha256` before restore
-   - **Benefit**: Detect silent data corruption during restore operations
-   - **Documentation**: BACKUP_STRATEGY.md updated with SHA256 verification steps
-   - **Commits**: PVC backup fix (0fbbd37)
+### ✅ Completed P3-LOW Items (Summary)
 
-#### 16. ✅ **COMPLETED: Encrypt Secrets Backup with GPG** (2025-10-31)
-   - **Status**: ✅ GPG AES256 encryption fully implemented with interactive passphrase
-   - **Implementation**: `.backup/secrets-backup.sh` and `.backup/secrets-restore.sh`
-   - **Security**: Interactive passphrase prompt (no hardcoded defaults), confirmation to prevent typos
-   - **Format**: Backups saved as `.tar.gz.gpg` encrypted archives
-   - **Documentation**: BACKUP_STRATEGY.md lines 190-224 documents usage
-   - **No action needed** - Already complete
-
-#### 17. **Implement Backup Immutability**
-   - **Benefit**: Ransomware protection via S3 object lock or ZFS snapshots
-   - **Action**: Implement immutable backups
-   - **Estimated Effort**: 2-4 hours
-   - **Priority**: P2-MEDIUM
-
-#### 18. ✅ **COMPLETED: Rate Limiting Middleware** (2025-10-31)
-   - **Status**: ✅ 100% coverage - All 17 ingresses have rate limiting
-   - **Implementation**: Two-tier rate limiting strategy
-     - **Standard (11 apps)**: 100 req/sec average, 150 burst (adguard-home, audiobookshelf, homehub, homepage, linkding, mealie, paperless-ngx, stirling-pdf, uptime-kuma, wallabag, monitoring)
-     - **High-frequency (5 apps)**: 200 req/sec average, 300 burst (authentik, couchdb, home-assistant, immich, n8n)
-   - **Configuration**: Per-IP rate limiting (ipStrategy depth: 0)
-   - **Middleware**: `traefik-rate-limit-standard`, `traefik-rate-limit-high-frequency`
-   - **Benefits**: Protection against brute force attacks, API abuse prevention
-   - **No action needed** - Already fully implemented
-
-#### 19. ✅ **COMPLETED: Security Headers (CSP, HSTS)** (2025-10-31)
-   - **Status**: ✅ 100% coverage - All 17 ingresses have security headers
-   - **Implementation**: Comprehensive security header middleware
-     - **HSTS**: `Strict-Transport-Security: max-age=604800` (1 week, enforced HTTPS)
-     - **XSS Protection**: `X-Content-Type-Options: nosniff` (prevents MIME sniffing)
-     - **Clickjacking**: `X-Frame-Options: SAMEORIGIN` (prevents iframe embedding)
-     - **Referrer Policy**: `strict-origin-when-cross-origin` (privacy protection)
-     - **Permissions Policy**: `interest-cohort=()` (blocks Google FLoC tracking)
-     - **Server Fingerprinting**: `X-Powered-By: ""` (removes server version disclosure)
-     - **CSP**: Content Security Policy in report-only mode (monitoring violations)
-   - **Middleware**: `traefik-security-headers`, `monitoring-security-headers`
-   - **Cloudflare Edge**: Additional HSTS at edge (1 month max-age) for tunnel-exposed services
-   - **Benefits**: Protection against XSS, clickjacking, MIME sniffing, tracking, man-in-the-middle attacks
-   - **No action needed** - Already fully implemented
-
-#### 20. ✅ **VERIFIED: PgBouncer Pooler Usage is Correct** (2025-10-31)
-   - **Status**: ✅ All apps correctly using `main-postgres-rw-pooler.databases.svc.cluster.local`
-   - **Configuration**: 3 PgBouncer pooler pods running in HA mode
-   - **Pooler Type**: Read-Write (rw) pooler - correct for all apps requiring write access
-   - **Verified Apps**: authentik, immich, n8n, paperless, linkding, mealie, wallabag, audiobookshelf
-   - **Connection Pooling**: Active and protecting PostgreSQL from connection exhaustion
-   - **No action needed** - Already working correctly
-
-#### 21. ✅ **ACCEPTED: Database User CREATEDB Permissions** (2025-10-31)
-   - **Status**: ✅ Intentional architectural decision - CREATEDB privilege required and safe
-   - **Research Findings** (thorough investigation):
-     - **Apps with custom extensions** (genuinely need CREATEDB):
-       - Immich: 6 extensions (vector, cube, earthdistance, pg_trgm, unaccent, uuid-ossp)
-       - N8N: 1 extension (uuid-ossp) + schema creation
-     - **Apps with only default extensions** (plpgsql only):
-       - Authentik, Linkding, Mealie, Paperless, Wallabag (Django/standard migrations)
-   - **Why CREATEDB is Required**:
-     - Applications need `CREATE EXTENSION` privileges during migrations
-     - Future app versions may add new PostgreSQL extensions
-     - No mechanism to temporarily elevate privileges for upgrades
-     - CloudNativePG likely grants CREATEDB automatically to database owners
-   - **Migration Patterns Verified**:
-     - Django apps (Authentik, Paperless, Mealie): ALTER TABLE operations only after initial setup
-     - TypeORM apps (Immich, N8N): May create extensions during version upgrades
-     - Breaking apps during updates is worse than over-permissioning
-   - **Risk Mitigation in Place**:
-     - ✅ Apps isolated via NetworkPolicies (13/13 apps)
-     - ✅ Each app has dedicated database user (not shared)
-     - ✅ Apps can only access their own database (PostgreSQL grants)
-     - ✅ No CREATEROLE privilege (cannot create other users)
-     - ✅ Daily backups protect against data loss
-   - **Trade-off Analysis**: Removing CREATEDB risks breaking future migrations for marginal security gain
-   - **Decision**: Accept CREATEDB as necessary operational requirement for PostgreSQL-based apps
-   - **No action needed** - Current permissions are appropriate for homelab
-
-#### 22. ✅ **DOCUMENTED: Single Instance Redis and CouchDB** (2025-10-31)
-   - **Status**: ✅ Intentional architectural decision for homelab environment
-   - **Decision Rationale**:
-     - **Redis**: Single instance acceptable - used only for Immich cache/session data
-       - Data loss impact: LOW (cache can be rebuilt, sessions regenerate)
-       - Persistence: AOF enabled for durability
-       - Backups: Not needed (transient cache data)
-       - Recovery: Redis restarts in <10s, Immich rebuilds cache automatically
-     - **CouchDB**: Single instance acceptable - used only for Obsidian sync
-       - Data loss impact: LOW (primary data in local Obsidian vaults)
-       - Persistence: PVC with daily backups (30-day retention)
-       - Backups: Automated daily backups via `@cloudant/couchbackup` (3.1MB compressed)
-       - Recovery: Restore from backup in <5 minutes
-   - **Alternative Considered**: Redis Sentinel (3 nodes) + CouchDB cluster (3 nodes)
-     - **Rejected**: Adds 6 pods, increases complexity, minimal benefit for homelab
-     - **Cost**: 6 additional pods × 256Mi RAM = 1.5GB extra memory for marginal uptime gain
-   - **Acceptable Trade-off**: Prioritize simplicity over 99.99% uptime for homelab
-   - **Risk Assessment**: LOW - proper backups mitigate data loss, short recovery times acceptable
-
-#### 23. **SOPS Single Encryption Key**
-   - **Risk**: Single age key for all secrets
-   - **Impact**: Key compromise = all secrets exposed
-   - **Action**: Implement multi-key SOPS encryption
-   - **Estimated Effort**: 4 hours (key rotation)
-   - **Priority**: P2-MEDIUM
-
-#### 24. ✅ **LoadBalancer Documentation - Using K3s ServiceLB** - COMPLETED (2025-10-29)
-   - **Status**: ✅ Documented - MetalLB is NOT installed, using K3s built-in ServiceLB
-   - **Discovery**: Cluster uses K3s ServiceLB (svclb) for LoadBalancer services
-   - **Current State**:
-     - 2 LoadBalancer services (traefik, adguard-home-dns)
-     - Both services use worker node IP: 192.168.1.129
-     - ServiceLB DaemonSet pods running in kube-system
-   - **Documentation**: Created `infrastructure/controllers/base/servicelb/README.md`
-   - **Fixed**: Removed incorrect MetalLB annotation from adguard-home service
-   - **Decision**: Keep K3s ServiceLB (adequate for 2 services, zero configuration)
-   - **Commit**: 0da1bd5
-
-#### 25. ✅ **VERIFIED: Cloudflare Tunnel Health Checks Already Configured** (2025-10-31)
-   - **Status**: ✅ Health checks fully configured and operational
-   - **Implementation**: `infrastructure/configs/staging/cloudflare/cloudflared.yaml` lines 65-80
-   - **Liveness Probe**: HTTP GET `/ready` on port 2000 (every 10s, failure threshold: 3, initial delay: 30s)
-   - **Readiness Probe**: HTTP GET `/ready` on port 2000 (every 10s, failure threshold: 1, initial delay: 10s)
-   - **Metrics**: Exposed on `0.0.0.0:2000` via cloudflared-metrics service
-   - **Monitoring**: ServiceMonitor configured for Prometheus scraping
-   - **No action needed** - Already working correctly
-
-#### 26. **ReadOnlyRootFilesystem Only 44% Adoption**
-   - **Current**: 7/16 apps use readOnlyRootFilesystem
-   - **Impact**: Increased attack surface
-   - **Action**: Enable for remaining 9 apps
-   - **Estimated Effort**: 4-6 hours (per app)
-   - **Priority**: P2-MEDIUM
-
-#### 27. ✅ **VERIFIED: NetworkPolicy Egress Rules Are Correct** (2025-11-02)
-   - **Status**: ✅ Egress rules validated as appropriate and necessary for application functionality
-   - **Initial Assessment**: 13/16 apps allow HTTPS egress (0.0.0.0/0) - appeared "overly permissive"
-   - **Validation Result**: All egress rules are **legitimate and required** for core application functionality
-   - **Lessons Learned** (2025-11-02):
-     - **Uptime Kuma** requires unrestricted HTTP/HTTPS egress:
-       - Monitors external URLs exposed via Cloudflare Tunnel
-       - Core function: uptime monitoring of internet-facing services
-       - Restriction breaks: External service monitoring capability
-     - **Stirling PDF** requires unrestricted HTTPS egress:
-       - OIDC authentication flow reaches Authentik via ingress/external URL
-       - Apps may access internal services via public DNS names
-       - Restriction breaks: OIDC login functionality
-     - **General Pattern**: Apps monitoring external services, fetching internet content, or using OIDC legitimately need port 443 egress
-   - **Apps With Legitimate Internet HTTPS Egress** (13/16):
-     - Uptime Kuma (external URL monitoring)
-     - Stirling PDF (OIDC via ingress)
-     - Immich (ML model downloads)
-     - N8N (workflow automation, external APIs)
-     - Mealie (recipe scraping)
-     - Wallabag (article fetching)
-     - Home Assistant (IoT cloud integrations)
-     - AdGuard Home (blocklist updates)
-     - Audiobookshelf (metadata fetching)
-     - Linkding (bookmark metadata)
-     - Authentik (external OIDC providers, SMTP)
-     - Paperless-NGX (email, external integrations)
-     - Homepage (cluster-scoped HTTPS only)
-   - **Apps With Proper Restrictions** (3/16):
-     - HomeHub (no internet egress, DNS only) ✅
-     - Homepage (cluster-scoped HTTPS only) ✅
-     - Remaining apps (legitimate internet access) ✅
-   - **Testing Performed**: Attempted hardening broke both apps, reverted in commit 760d274
-   - **Recommendation**: **No changes needed** - current NetworkPolicies are correct and appropriately scoped
-   - **Priority**: CLOSED - Not a security issue
-
-#### 28. ✅ **COMPLETED: Prometheus Resource Alerts** (2025-10-31)
-   - **Status**: ✅ Comprehensive container resource alerts implemented
-   - **Alerts Added**: 5 new alerts for container resource monitoring
-     - `ContainerCPUNearLimit`: Alert when container using >80% of CPU limit (may be throttled soon)
-     - `ContainerMemoryCritical`: Alert when >95% memory used (OOMKill imminent, 2min threshold)
-     - `ContainerNoResourceLimits`: Info alert for containers without memory limits (30min threshold)
-     - `ContainerNoResourceRequests`: Info alert for containers without memory requests (30min threshold)
-   - **Existing Alerts**: Already had strong coverage
-     - `ContainerMemoryNearLimit`: Alert at >80% memory usage (5min threshold)
-     - `ContainerCPUThrottling`: Alert when CPU is throttled >25% (5min threshold)
-     - `ContainerOOMKilled`: Alert when container killed due to OOM
-   - **Benefit**: Proactive alerting before resource exhaustion causes outages
-   - **File**: `monitoring/configs/staging/kube-prometheus-stack/prometheus-rules.yaml` lines 210-244
-
----
-
-### 📋 P3-LOW (Nice to Have / Long Term)
-
-#### 29. ✅ **COMPLETED: Extended PVC Backup Retention (7 days)** (2025-10-31)
-   - **Status**: ✅ Increased retention from 3 to 7 days (133% increase)
-   - **Implementation**: Updated pvc-backup-cronjob.yaml to keep 7 days of backups
-     - Changed retention logic from `-mtime +3` to `-mtime +7`
-     - Updated all documentation references to 7-day retention
-   - **Storage Impact**: +184GB (138GB → 322GB, still only 7.7% of 4.2TB)
-   - **Benefits**: Better disaster recovery window, more flexibility for point-in-time recovery
-   - **Commit**: 0ac8028
-
-#### 30. **Backup Alert Grouping to Dedicated Telegram Thread**
-   - **Benefit**: Easier monitoring
-   - **Action**: Group backup alerts
-   - **Priority**: P3-LOW
-
-#### 31. ✅ **COMPLETED: Improve Documentation for Secrets Rotation** (2025-10-31)
-   - **Status**: ✅ Added complete baseline rotation tracking to SECRETS_ROTATION.md
-   - **Implementation**: Populated all rotation tables with actual dates from git history
-     - Database passwords: 6 secrets (2025-10-19 to 2025-10-23)
-     - Redis passwords: 3 secrets (2025-10-18)
-     - Application credentials: 4 secrets (2025-10-18 to 2025-10-26)
-     - OIDC secrets: 7 apps (2025-10-20)
-   - **Next Rotation Dates**: All calculated based on 90/180-day cycles (Jan-Apr 2026)
-   - **Enhancements**: Added git audit trail section with verification commands
-   - **Benefits**: Complete rotation history tracking, proactive scheduling, audit trail
-   - **Commit**: ba643a8
-
-#### 32. **Add Grafana Dashboards for App Metrics**
-   - **Benefit**: Better app-level observability
-   - **Action**: Create custom dashboards
-   - **Priority**: P3-LOW
-
-#### 33. ✅ **COMPLETED: Document SSH Key Backup Location** (2025-10-31)
-   - **Status**: ✅ Already documented in BACKUP_STRATEGY.md (lines 195-201)
-   - **Implementation**: SSH keys stored in 1Password (not on disk)
-     - 1Password SSH agent manages keys securely
-     - Critical for: Git operations, cluster access, Flux GitHub integration
-     - No backup needed - 1Password is the source of truth
-   - **Also Documented**: SOPS age key also in 1Password (lines 199-201)
-   - **Benefits**: Secure key management, no local files to backup, centralized access
-
-#### 34. **Add PrometheusRules for Custom App Metrics**
-   - **Benefit**: App-specific alerting
-   - **Action**: Create custom rules
-   - **Priority**: P3-LOW
-
-#### 35. ✅ **COMPLETED: Resource Quotas for All Namespaces** (2025-10-31, Tightened)
-   - **Status**: ✅ 25 ResourceQuotas deployed with tightened limits based on actual usage
-   - **Implementation**: Tiered approach based on real resource consumption
-     - Large tier (4 namespaces): databases, immich, monitoring, loki - **3 CPU req, 6Gi RAM req, 10 CPU limit, 12Gi RAM limit**
-     - Medium tier (6 namespaces): authentik, paperless-ngx, n8n, home-assistant, obsidian, couchdb - **1.5 CPU req, 4Gi RAM req, 5 CPU limit, 8Gi RAM limit**
-     - Small tier (15 namespaces): All other apps and infrastructure - 2 CPU req, 4Gi RAM req, 6 CPU limit, 8Gi RAM limit
-   - **Optimization**: Reduced large tier by 62% and medium tier by 62% after analyzing actual usage
-   - **Current Usage**: databases (960m/3 CPU, 1.7Gi/6Gi RAM), immich (450m/3 CPU, 1.1Gi/6Gi RAM), monitoring (650m/3 CPU, 1.9Gi/6Gi RAM)
-   - **Benefits**: Resource isolation, prevents runaway consumption, tighter capacity planning
-   - **Commits**: 8bcf208 (initial), 6f0087c (tightened)
-
-#### 36. ✅ **COMPLETED: LimitRanges for All Namespaces** (2025-10-31)
-   - **Status**: ✅ 25 LimitRanges deployed across all app namespaces
-   - **Implementation**: Consistent defaults for all namespaces
-     - Default request: 100m CPU, 128Mi RAM
-     - Default limit: 1000m CPU, 1Gi RAM
-     - Max per container: 8 CPU, 16Gi RAM
-     - Max per pod: 16 CPU, 32Gi RAM
-   - **Benefits**: All new pods get resource limits automatically, prevents unbounded consumption
-   - **Impact**: New pods without resource specs will get sensible defaults
-   - **Commit**: 8bcf208
+| Item | Date | Status |
+|------|------|--------|
+| PVC Backup Retention (7 days) | 2025-10-31 | ✅ Increased from 3 to 7 days |
+| Secrets Rotation Docs | 2025-10-31 | ✅ Complete tracking in SECRETS_ROTATION.md |
+| SSH Key Backup Location | 2025-10-31 | ✅ Documented (1Password) |
+| Resource Quotas | 2025-10-31 | ✅ 25 quotas deployed |
+| LimitRanges | 2025-10-31 | ✅ 25 LimitRanges deployed |
 
 ---
 

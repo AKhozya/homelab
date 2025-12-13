@@ -192,6 +192,173 @@
     - 🎯 **Next:** Proceed to task #17 (Velero deployment)
     - Date Completed: 2025-10-26
 
+---
+
+### Additional Completed Items (From Comprehensive Review 2025-10-27)
+
+#### 17. ✅ **PostgreSQL NetworkPolicy** - P0-CRITICAL (2025-10-27)
+   - Created NetworkPolicy restricting access to app namespaces only
+   - Risk: Unrestricted access to all databases from any pod (CVSS: 7.5 HIGH)
+   - Files: `infrastructure/configs/base/databases/postgres/networkpolicy.yaml`
+   - Commit: a80d4bf
+
+#### 18. ✅ **Duplicate cert-manager ClusterIssuers** - P0-CRITICAL (2025-10-27)
+   - Deleted orphaned `controllers/base/cert-manager/clusterissuer.yaml`
+   - Kept `infrastructure/configs/base/cert-manager/clusterissuer.yaml`
+   - Commit: 2cb9e78
+
+#### 19. ❌ **CNPG WAL Archiving** - P0 REMOVED (Not Implementing)
+   - Decision: Not implementing - CNPG barman requires S3/Azure/Google credentials
+   - Alternative: Continue with existing pg_dump daily backups (24h RPO acceptable for homelab)
+   - barmanObjectStore doesn't support local filesystem paths
+
+#### 20. ✅ **CSP Enforcement** - P1 (2025-10-31) ⭐
+   - CSP in enforcement mode across all 17 apps (43 days active, zero violations)
+   - Policy: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'`
+   - Monitoring: csp-reporter service → Loki
+   - Testing: 85 automated tests (17 apps × 5 scenarios) - 100% pass rate
+   - Commits: b8b6306, 7b2c72b, 54c8484, 04df8a4
+
+#### 21. ✅ **Pod Anti-Affinity for PostgreSQL** - P1 (2025-10-29)
+   - True cross-node HA with required anti-affinity
+   - Instances: 2 (reduced from 3 for 2-node cluster)
+   - Anti-affinity: `podAntiAffinityType: "required"` (HARD constraint)
+   - main-postgres-5 (Primary): worker-node, main-postgres-6 (Replica): control-plane
+   - Commits: cbc71d0, 30c1f8a, 95fe37a, eef307d
+
+#### 22. ✅ **CNPG Port 8000 Binding** - P1 RESOLVED (2025-10-30)
+   - Issue: CNPG instance manager silently fails to bind status port 8000 on K3s control-plane
+   - Resolution: Removed control-plane toleration, running PostgreSQL on worker-node only
+   - Bug report: https://github.com/cloudnative-pg/cloudnative-pg/issues/9013
+
+#### 23. ✅ **PostgreSQL TLS** - ALREADY IMPLEMENTED (2025-10-27)
+   - TLS enabled by CloudNativePG, all apps using it (ssl=t in pg_stat_ssl)
+   - Minor gap: Could enforce TLS at pg_hba level (host→hostssl)
+
+#### 24. ❌ **Redis Backup** - NOT IMPLEMENTING
+   - Redis used only as cache (ephemeral data)
+   - Impact: User re-login required, jobs re-queued on pod deletion (acceptable)
+   - RDB snapshots on PVC sufficient for cache use case
+
+#### 25. ✅ **Flux Timeout Standardization** - P1 (2025-10-27)
+   - All 6 kustomizations standardized to 45s timeout
+   - Commit: 4cc2834
+
+#### 26. ✅ **Traefik Health Checks** - ALREADY IMPLEMENTED (2025-10-27)
+   - 15/15 apps have readinessProbe and livenessProbe
+   - Kubernetes Service endpoints automatically exclude unhealthy pods
+
+#### 27. ✅ **High Availability for Critical Components** - P1 (2025-10-29)
+   - Traefik: 2 replicas with pod anti-affinity
+   - cert-manager (all 3 components): 2 replicas with pod anti-affinity
+   - Cloudflare tunnel: 2 replicas across nodes
+   - Control plane tolerations enabled for all
+   - Commits: e07474a, 898d969, 6a52f5c, cbc71d0
+
+#### 28. ✅ **Scattered Middleware Configurations** - P1 (2025-10-27)
+   - Centralized HTTPS redirect middleware to traefik namespace
+   - Before: 15 duplicate middleware files (140 lines)
+   - After: Single `traefik/redirect-https` middleware
+   - Commit: 9a9ebce
+
+#### 29. ⚠️ **Redis ACLs** - VALID BUT NOT FIXABLE (2025-10-27)
+   - Apps don't support key prefixes (broke cache keys when restricted)
+   - Current: `~* &* +@all -@dangerous -acl` (all keys, safe commands only)
+   - Mitigation: NetworkPolicy restricts Redis access to app namespaces
+
+#### 30. ✅ **Kyverno Phase 1: Service Accounts** - P1 (2025-10-28)
+   - require-non-default-serviceaccount policy enabled in Enforce mode
+   - Created 16 custom ServiceAccounts, updated 44 manifests, migrated 31 pods
+   - Commits: a293197 → 584d3a1
+
+#### 31. ✅ **Kyverno Phase 2: Seccomp Profiles** - P1 (2025-10-28)
+   - require-seccomp-runtimedefault policy enabled in Enforce mode
+   - Added `seccompProfile: RuntimeDefault` to 23 workloads
+   - Commits: 5a68943, 8eaf7ea
+
+#### 32. ⚠️ **Kyverno Phase 3: Resource Limits** - PARTIALLY COMPLETED (2025-10-28)
+   - require-resource-limits policy remains in Audit mode
+   - 30 violations remain (monitoring sidecars, kube-system)
+   - Helm charts don't expose sidecar resource configuration
+   - Commit: 5e28d3e
+
+#### 33. ✅ **Backup Integrity Checks (SHA256)** - P2 (2025-10-31)
+   - All backup systems generate SHA256 checksums
+   - PostgreSQL, CouchDB, PVC backups all validated
+   - Bug Fix: PVC script fixed to use relative paths
+   - Commit: 0fbbd37
+
+#### 34. ✅ **GPG Secrets Encryption** - P2 (2025-10-31)
+   - GPG AES256 encryption with interactive passphrase
+   - Files: `.backup/secrets-backup.sh`, `.backup/secrets-restore.sh`
+   - Format: `.tar.gz.gpg` encrypted archives
+
+#### 35. ✅ **Rate Limiting Middleware** - P2 (2025-10-31)
+   - 100% coverage - All 17 ingresses have rate limiting
+   - Standard (11 apps): 100 req/sec, 150 burst
+   - High-frequency (5 apps): 200 req/sec, 300 burst
+
+#### 36. ✅ **Security Headers** - P2 (2025-10-31)
+   - 100% coverage - All 17 ingresses have security headers
+   - HSTS, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, CSP
+
+#### 37. ✅ **PgBouncer Pooler** - VERIFIED (2025-10-31)
+   - All apps correctly using `main-postgres-rw-pooler.databases.svc.cluster.local`
+   - 3 PgBouncer pods in HA mode
+
+#### 38. ✅ **Database CREATEDB Permissions** - ACCEPTED (2025-10-31)
+   - Intentional decision - CREATEDB required for extensions during migrations
+   - Immich: 6 extensions, N8N: 1 extension + schema creation
+   - Risk mitigated via NetworkPolicies and per-app database users
+
+#### 39. ✅ **Single Instance Redis/CouchDB** - DOCUMENTED (2025-10-31)
+   - Redis: Cache data, acceptable loss, <10s restart recovery
+   - CouchDB: Obsidian sync, primary data in local vaults, daily backups
+   - Trade-off: Simplicity over 99.99% uptime for homelab
+
+#### 40. ✅ **LoadBalancer Documentation** - P2 (2025-10-29)
+   - Documented K3s ServiceLB (not MetalLB)
+   - Created `infrastructure/controllers/base/servicelb/README.md`
+   - Commit: 0da1bd5
+
+#### 41. ✅ **Cloudflare Tunnel Health Checks** - VERIFIED (2025-10-31)
+   - Liveness/Readiness probes configured on port 2000
+   - ServiceMonitor for Prometheus scraping
+
+#### 42. ✅ **NetworkPolicy Egress Rules** - VERIFIED (2025-11-02)
+   - All egress rules validated as legitimate for app functionality
+   - 13/16 apps need HTTPS egress for OIDC, external APIs, content fetching
+   - Testing: Hardening broke apps, reverted (commit 760d274)
+
+#### 43. ✅ **Prometheus Resource Alerts** - P2 (2025-10-31)
+   - 5 new container resource alerts implemented
+   - ContainerCPUNearLimit, ContainerMemoryCritical, ContainerNoResourceLimits/Requests
+
+#### 44. ✅ **Extended PVC Backup Retention** - P3 (2025-10-31)
+   - Increased from 3 to 7 days
+   - Storage impact: +184GB (still only 7.7% of 4.2TB)
+   - Commit: 0ac8028
+
+#### 45. ✅ **Secrets Rotation Documentation** - P3 (2025-10-31)
+   - Complete baseline rotation tracking in SECRETS_ROTATION.md
+   - All rotation dates populated from git history
+   - Next rotation dates calculated (Jan-Apr 2026)
+   - Commit: ba643a8
+
+#### 46. ✅ **SSH Key Backup Location** - P3 (2025-10-31)
+   - Already documented in BACKUP_STRATEGY.md
+   - SSH keys and SOPS age key stored in 1Password
+
+#### 47. ✅ **Resource Quotas for All Namespaces** - P3 (2025-10-31)
+   - 25 ResourceQuotas deployed (tiered: large/medium/small)
+   - Optimized based on actual usage (62% reduction in large/medium tiers)
+   - Commits: 8bcf208, 6f0087c
+
+#### 48. ✅ **LimitRanges for All Namespaces** - P3 (2025-10-31)
+   - 25 LimitRanges deployed
+   - Default: 100m CPU/128Mi RAM request, 1000m CPU/1Gi RAM limit
+   - Max per container: 8 CPU/16Gi RAM
+   - Commit: 8bcf208
 
 ---
 
