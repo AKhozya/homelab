@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-12-13 20:00 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-12-13 22:00 UTC)
 **Cluster**: K3s (staging)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -17,13 +17,13 @@
 **Strengths** ✅
 - Solid GitOps foundation with Flux
 - Comprehensive monitoring (Prometheus, Grafana, Loki, Alertmanager)
-- **🆕 Popeye - Cluster health monitoring (B grade, 82/100 score)** ⭐ (2025-10-27, Updated: 2025-11-05)
+- **🆕 Popeye - Cluster health monitoring (A grade, 100/100 score)** ⭐ (2025-10-27, Updated: 2025-12-13)
 - **🆕 Kyverno - Kubernetes-native policy enforcement (10 policies: 7 Enforce + 3 Audit, daily alerts)** ⭐ (2025-10-27, Updated: 2025-10-28)
   - **Enforced policies:** disallow-privilege-escalation, require-drop-all-capabilities, require-labels, disallow-host-namespaces, **require-non-default-serviceaccount** ✅, **require-seccomp-runtimedefault** ✅ (0 violations)
-  - **Audit policies:** require-resource-limits (30) - others resolved via namespace exclusions (2025-12-06)
+  - **Audit policies:** require-resource-limits (0) - all violations resolved (2025-12-13)
   - **Phase 1 Complete (2025-10-28):** Service account remediation - 31 pods migrated, 16 custom SAs created, enforce mode enabled ✅
   - **Phase 2 Complete (2025-10-28):** Seccomp profiles - 23 workloads with RuntimeDefault, enforce mode enabled ✅
-  - **Phase 3 Partial (2025-12-13):** Resource limits - 30 violations remain (monitoring sidecars, kube-system), audit mode ⚠️
+  - **Phase 3 Complete (2025-12-13):** Resource limits - 0 violations (added limits to 6 jobs/webhooks), audit mode ✅
   - **Enforcement strategy:** Phased approach with zero-risk policies enforced first
   - **Monitoring:** Daily violation summaries via Prometheus/Telegram
   - **Security posture:** ~80% Pod Security Standards (Baseline), ~65% Pod Security Standards (Restricted)
@@ -87,7 +87,7 @@
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-**Last Updated**: 2025-12-13 (Documentation refresh, Immich quota fix)
+**Last Updated**: 2025-12-13 (Kyverno violations resolved, cluster cleanup)
 **Source**: [COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md)
 **Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
 
@@ -675,23 +675,24 @@ ingress:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
-### 2025-12-13 (Documentation Refresh & Immich Quota Fix) 📋
-- ✅ **Immich ResourceQuota Increased**: Fixed rolling update failures by increasing namespace quota ⭐
-- ✅ **Documentation Refresh**: Updated stale dates and metrics throughout HOMELAB_ANALYSIS.md
-- 🎯 **Impact**: Immich deployments now succeed during rolling updates, documentation accurate
+### 2025-12-13 (Kyverno Violations Resolved & Cluster Cleanup) 🔧
+- ✅ **Kyverno Phase 3 Complete**: All `require-resource-limits` violations resolved (30 → 0) ⭐
+- ✅ **Popeye Health Scan**: Cluster score 100/100 (A grade), no issues found
+- ✅ **Cluster Cleanup**: Deleted 25 stale ReplicaSets from rolling updates
+- ✅ **Immich ResourceQuota Increased**: Fixed rolling update failures by increasing namespace quota
+- 🎯 **Impact**: Zero Kyverno policy violations, clean cluster state
 - 🔧 **Technical Details**:
-  - **Immich Quota Fix**:
-    - Root cause: Rolling updates need 2x resources temporarily (old + new pods)
-    - Old quota: 18Gi memory limit (insufficient for 2x 9Gi pods)
-    - New quota: 24Gi memory limit, 16 CPU limit
-    - File: `infrastructure/configs/staging/resource-governance/large-tier/immich.yaml`
-  - **Documentation Updates**:
-    - Header date: 2025-11-07 → 2025-12-13
-    - Kyverno violations: Updated to current counts (30 require-resource-limits in audit mode)
-    - CSP production uptime: 16 days → 43 days (still zero violations)
-    - PVC backup retention: Corrected from 3-day to 7-day
-    - HSTS review date: Fixed to 2026-01-15
-- 📋 **Commit**: ccc0598 (Immich quota)
+  - **Resource Limits Added** (6 workloads):
+    - `postgres-update-extensions` CronJob: 50m/200m CPU, 64Mi/256Mi memory
+    - `mariadb-operator-webhook` Deployment: 20m/200m CPU, 64Mi/256Mi memory
+    - `audiobookshelf-init` Job: 10m/100m CPU, 32Mi/64Mi memory
+    - `home-assistant-admin-setup` Job: 10m/100m CPU, 32Mi/64Mi memory
+    - `n8n-user-provision` Job: 10m/100m CPU, 32Mi/64Mi memory
+    - `couchdb-init` Job: 10m/100m CPU, 32Mi/64Mi memory
+  - **Jobs Verified**: All curl-based jobs complete in <20s with new limits (no OOM)
+  - **Stale ReplicaSets Deleted**: 25 RS across 14 namespaces (cert-manager, monitoring, home-assistant, n8n, paperless-ngx, stirling-pdf, etc.)
+  - **Immich Quota**: 18Gi → 24Gi memory limit (supports rolling updates)
+- 📋 **Commits**: 393a039, 785aa5d, 7d79735, ccc0598
 
 ### 2025-12-06 (Kyverno Policy Cleanup & Documentation Update) 🔧
 - ✅ **Kyverno Policy Violations Resolved**: Cleaned up all actionable policy violations ⭐
