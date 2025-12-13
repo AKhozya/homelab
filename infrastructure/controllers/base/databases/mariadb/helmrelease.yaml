@@ -46,6 +46,14 @@ spec:
       cert:
         certManager:
           enabled: true  # Use cert-manager for webhook certificates
+      # Resource limits for webhook
+      resources:
+        requests:
+          cpu: 20m
+          memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
 
     # Metrics
     metrics:
