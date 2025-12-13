@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-11-07 18:50 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-12-13 20:00 UTC)
 **Cluster**: K3s (staging)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -19,10 +19,10 @@
 - **🆕 Popeye - Cluster health monitoring (B grade, 82/100 score)** ⭐ (2025-10-27, Updated: 2025-11-05)
 - **🆕 Kyverno - Kubernetes-native policy enforcement (10 policies: 7 Enforce + 3 Audit, daily alerts)** ⭐ (2025-10-27, Updated: 2025-10-28)
   - **Enforced policies:** disallow-privilege-escalation, require-drop-all-capabilities, require-labels, disallow-host-namespaces, **require-non-default-serviceaccount** ✅, **require-seccomp-runtimedefault** ✅ (0 violations)
-  - **Audit policies:** require-resource-limits (14), require-non-root (24), disallow-latest-tag (13), disallow-host-path (4)
+  - **Audit policies:** require-resource-limits (30) - others resolved via namespace exclusions (2025-12-06)
   - **Phase 1 Complete (2025-10-28):** Service account remediation - 31 pods migrated, 16 custom SAs created, enforce mode enabled ✅
   - **Phase 2 Complete (2025-10-28):** Seccomp profiles - 23 workloads with RuntimeDefault, enforce mode enabled ✅
-  - **Phase 3 Partial (2025-10-28):** Resource limits - 14 violations remain (monitoring sidecars, kube-system), audit mode ⚠️
+  - **Phase 3 Partial (2025-12-13):** Resource limits - 30 violations remain (monitoring sidecars, kube-system), audit mode ⚠️
   - **Enforcement strategy:** Phased approach with zero-risk policies enforced first
   - **Monitoring:** Daily violation summaries via Prometheus/Telegram
   - **Security posture:** ~80% Pod Security Standards (Baseline), ~65% Pod Security Standards (Restricted)
@@ -45,10 +45,10 @@
   - **Phase 1 (Completed)**: Safe security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy)
   - **Phase 2 (Completed)**: HSTS deployment - Dual layer (Cloudflare edge: 1 month, Traefik origin: 1 week)
   - **Phase 3 (Completed)**: Rate limiting with monitoring - Standard (100/min + 150 burst), High-frequency (200/min + 300 burst)
-  - **Phase 4 (Completed)**: CSP enforcement mode (deployed 2025-10-31, 16 days production, zero violations)
+  - **Phase 4 (Completed)**: CSP enforcement mode (deployed 2025-10-31, 43 days production, zero violations)
   - **Coverage**: All 17 services (14 apps + Grafana + AlertManager + CouchDB)
   - **Monitoring**: 6 Prometheus alerts for rate limiting (attack detection, false positive detection)
-  - **HSTS Review**: 2025-11-30 - Step 3 final rollout (increase max-age to 1 year)
+  - **HSTS Review**: 2026-01-15 - Step 3 final rollout (increase max-age to 1 year)
 
 **Critical Gaps (from 2025-10-27 Comprehensive Review)** 🔴
 - ⏸️ **No offsite backup replication** (P0-CRITICAL) - DEFERRED to late December 2025 (NAS delivery postponed)
@@ -77,7 +77,7 @@
 **Backup Infrastructure** ✅
 - ✅ PostgreSQL daily backups (3:00 AM, 30-day retention)
 - ✅ CouchDB daily backups (3:05 AM, 30-day retention)
-- ✅ PVC daily backups (3:10 AM, 3-day retention)
+- ✅ PVC daily backups (3:10 AM, 7-day retention)
 - ✅ Disaster recovery scripts complete (`.backup/` directory)
 - ✅ Backup validation completed (2025-10-26)
 - ❌ **Missing**: Offsite replication, WAL archiving, automated validation
@@ -86,7 +86,7 @@
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-**Last Updated**: 2025-10-30 (Post-Security Hardening Phase 1-4)
+**Last Updated**: 2025-12-13 (Documentation refresh, Immich quota fix)
 **Source**: [COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md)
 
 ### 🔴 P0-CRITICAL (Immediate - This Week)
@@ -131,11 +131,11 @@
      - **Confidence level**: HIGH
      - **Test duration**: ~60 seconds
      - **Full report**: `docs/CSP_TEST_RESULTS.md`
-   - **Production Validation**: ✅ **Zero violations after 16 days in production**
+   - **Production Validation**: ✅ **Zero violations after 43 days in production**
    - **Completed Tasks**:
      1. ✅ Automated testing across all apps (COMPLETE - 100% pass rate)
      2. ✅ Enabled enforcement mode (COMPLETE - deployed 2025-10-31)
-     3. ✅ Monitored post-enforcement (COMPLETE - 16 days, zero violations)
+     3. ✅ Monitored post-enforcement (COMPLETE - 43 days, zero violations)
    - **Files Updated**:
      - `infrastructure/controllers/base/traefik/csp-middleware.yaml`
      - `monitoring/configs/staging/kube-prometheus-stack/csp-middleware.yaml`
@@ -1285,12 +1285,30 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-06 08:30 UTC
-**Next Review**: 2025-12-15
+**Last Updated**: 2025-12-13 20:00 UTC
+**Next Review**: 2025-12-27
 
 ---
 
 ## 📝 CHANGELOG
+
+### 2025-12-13 (Documentation Refresh & Immich Quota Fix) 📋
+- ✅ **Immich ResourceQuota Increased**: Fixed rolling update failures by increasing namespace quota ⭐
+- ✅ **Documentation Refresh**: Updated stale dates and metrics throughout HOMELAB_ANALYSIS.md
+- 🎯 **Impact**: Immich deployments now succeed during rolling updates, documentation accurate
+- 🔧 **Technical Details**:
+  - **Immich Quota Fix**:
+    - Root cause: Rolling updates need 2x resources temporarily (old + new pods)
+    - Old quota: 18Gi memory limit (insufficient for 2x 9Gi pods)
+    - New quota: 24Gi memory limit, 16 CPU limit
+    - File: `infrastructure/configs/staging/resource-governance/large-tier/immich.yaml`
+  - **Documentation Updates**:
+    - Header date: 2025-11-07 → 2025-12-13
+    - Kyverno violations: Updated to current counts (30 require-resource-limits in audit mode)
+    - CSP production uptime: 16 days → 43 days (still zero violations)
+    - PVC backup retention: Corrected from 3-day to 7-day
+    - HSTS review date: Fixed to 2026-01-15
+- 📋 **Commit**: ccc0598 (Immich quota)
 
 ### 2025-12-06 (Kyverno Policy Cleanup & Documentation Update) 🔧
 - ✅ **Kyverno Policy Violations Resolved**: Cleaned up all actionable policy violations ⭐
