@@ -77,6 +77,13 @@ spec:
                 secretKeyRef:
                   name: home-assistant-admin-credentials
                   key: password
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
