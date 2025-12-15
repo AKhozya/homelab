@@ -39,8 +39,23 @@ spec:
         cpu: 200m
         memory: 128Mi
 
-    # CouchDB cluster configuration
-    clusterSize: 1
+    # CouchDB cluster configuration - 2 replicas for HA
+    clusterSize: 2
+
+    # Allow scheduling on control plane for rolling updates
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+
+    # Distribute across worker nodes for HA
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: couchdb
+            topologyKey: kubernetes.io/hostname
 
     # Cluster UUID (required for multi-node setup)
     couchdbConfig:

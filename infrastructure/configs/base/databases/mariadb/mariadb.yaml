@@ -4,14 +4,60 @@ metadata:
   name: main-mariadb
   namespace: databases
 spec:
-  # Single instance (no HA) - relies on daily + hourly binlog backups for DR
-  replicas: 1
+  # HA with Galera multi-master replication (3 nodes for proper quorum)
+  replicas: 3
 
-  # Explicitly disable Galera (operator enables by default)
+  # Enable Galera for synchronous multi-master replication
   galera:
-    enabled: false
+    enabled: true
+    primary:
+      podIndex: 0          # main-mariadb-0 is primary bootstrap node
+      autoFailover: true   # Automatic primary failover
+    sst: mariabackup       # State Snapshot Transfer method
+    replicaThreads: 1      # Parallel replication threads
+    agent:
+      image: ghcr.io/mariadb-operator/mariadb-operator:v0.37.1
+      resources:
+        requests:
+          cpu: "10m"
+          memory: "32Mi"
+        limits:
+          cpu: "100m"
+          memory: "128Mi"
+    recovery:
+      enabled: true
+      clusterHealthyTimeout: 5m
+      clusterBootstrapTimeout: 10m
+      podRecoveryTimeout: 5m
+      podSyncTimeout: 5m
+    config:
+      reuseStorageVolume: false
+      volumeClaimTemplate:
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 1Gi
+        accessModes:
+          - ReadWriteOnce
 
-  # Explicitly disable replication (single instance mode)
+  # Allow scheduling on control plane (3 nodes needed for quorum)
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
+
+  # Distribute across all nodes for HA (1 replica per node)
+  affinity:
+    antiAffinityEnabled: true
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: mariadb
+              app.kubernetes.io/instance: main-mariadb
+          topologyKey: kubernetes.io/hostname
+
+  # Explicitly disable async replication (using Galera instead)
   replication:
     enabled: false
 
@@ -87,9 +133,9 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9104"
 
-  # Update strategy - OnDelete for single instance (brief downtime during updates)
+  # Update strategy - RollingUpdate for Galera (zero-downtime rolling updates)
   updateStrategy:
-    type: OnDelete
+    type: RollingUpdate
 
   # Security context
   podSecurityContext:
