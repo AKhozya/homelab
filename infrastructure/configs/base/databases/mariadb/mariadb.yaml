@@ -4,45 +4,16 @@ metadata:
   name: main-mariadb
   namespace: databases
 spec:
-  # Galera HA cluster with 2 replicas across worker nodes
-  replicas: 2
-  replicasAllowEvenNumber: true  # Allow 2 replicas (normally Galera prefers odd)
+  # Single instance (no HA) - relies on daily + hourly binlog backups for DR
+  replicas: 1
 
-  # Galera multi-master synchronous replication
+  # Explicitly disable Galera (operator enables by default)
   galera:
-    enabled: true
-    primary:
-      podIndex: 0
-      autoFailover: true
-    sst: mariabackup  # State Snapshot Transfer method
-    replicaThreads: 1
-    agent:
-      port: 5555
-      kubernetesAuth:
-        enabled: true
-      gracefulShutdownTimeout: 5s
-    recovery:
-      enabled: true
-      minClusterSize: 1
-      clusterMonitorInterval: 10s
-      clusterHealthyTimeout: 5m
-      clusterBootstrapTimeout: 10m
-      podRecoveryTimeout: 5m
-      podSyncTimeout: 5m
-      forceClusterBootstrapInPod: main-mariadb-0  # Force bootstrap from existing data
-
-  # Disable async replication (using Galera sync replication instead)
-  replication:
     enabled: false
 
-  # Pod anti-affinity to spread across worker nodes
-  affinity:
-    podAntiAffinity:
-      requiredDuringSchedulingIgnoredDuringExecution:
-        - labelSelector:
-            matchLabels:
-              app.kubernetes.io/instance: main-mariadb
-          topologyKey: kubernetes.io/hostname
+  # Explicitly disable replication (single instance mode)
+  replication:
+    enabled: false
 
   # MariaDB version
   image: mariadb:12.1.2  # Latest LTS version
@@ -116,9 +87,9 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9104"
 
-  # Update strategy - RollingUpdate for Galera HA (zero downtime updates)
+  # Update strategy - OnDelete for single instance (brief downtime during updates)
   updateStrategy:
-    type: RollingUpdate
+    type: OnDelete
 
   # Security context
   podSecurityContext:
