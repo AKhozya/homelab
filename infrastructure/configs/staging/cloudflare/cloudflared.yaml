@@ -22,12 +22,7 @@ spec:
     spec:
       serviceAccountName: cloudflare-tunnel
       automountServiceAccountToken: false
-      # Allow scheduling on control plane for HA
-      tolerations:
-        - key: node-role.kubernetes.io/control-plane
-          operator: Exists
-          effect: NoSchedule
-      # Pod anti-affinity: require distribution across nodes for HA
+      # Pod anti-affinity: require distribution across worker nodes for HA
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
