@@ -29,7 +29,7 @@ spec:
         storage: 20Gi
     storageClassName: local-path
 
-  # Pod configuration
+  # Pod configuration with resources and anti-affinity
   podSpec:
     containers:
       - name: mysql
@@ -40,9 +40,6 @@ spec:
           limits:
             cpu: "1000m"
             memory: "1Gi"
-
-  # Pod anti-affinity to spread across nodes
-  podSpec:
     affinity:
       podAntiAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
