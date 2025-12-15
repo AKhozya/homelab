@@ -4,7 +4,7 @@ metadata:
   name: authentik-worker
   namespace: authentik
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: authentik
@@ -17,6 +17,15 @@ spec:
     spec:
       serviceAccountName: authentik
       automountServiceAccountToken: false
+      # Distribute across worker nodes for HA
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: authentik
+                  component: worker
+              topologyKey: kubernetes.io/hostname
       # NOTE: Worker waits for server to be ready before starting
       #
       # WHY: Both server and worker run Django migrations on startup. To avoid

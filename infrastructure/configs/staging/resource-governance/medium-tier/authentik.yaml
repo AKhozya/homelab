@@ -30,10 +30,11 @@ metadata:
   namespace: authentik
 spec:
   hard:
-    requests.cpu: "1500m"
-    requests.memory: 4Gi
-    limits.cpu: "5"
-    limits.memory: 8Gi
+    # Increased for 2 replicas each of server + worker with rolling update headroom
+    requests.cpu: "2"
+    requests.memory: 6Gi
+    limits.cpu: "8"
+    limits.memory: 12Gi
     pods: "30"
     services: "15"
     persistentvolumeclaims: "10"

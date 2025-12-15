@@ -46,15 +46,13 @@ spec:
 
     affinity:
       podAntiAffinity:
-        preferredDuringSchedulingIgnoredDuringExecution:
-          - weight: 100
-            podAffinityTerm:
-              labelSelector:
-                matchLabels:
-                  app.kubernetes.io/name: cert-manager
-                  app.kubernetes.io/instance: cert-manager
-                  app.kubernetes.io/component: controller
-              topologyKey: kubernetes.io/hostname
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: cert-manager
+                app.kubernetes.io/instance: cert-manager
+                app.kubernetes.io/component: controller
+            topologyKey: kubernetes.io/hostname
 
     # Resource limits for cert-manager controller
     resources:
@@ -78,15 +76,13 @@ spec:
           effect: NoSchedule
       affinity:
         podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              podAffinityTerm:
-                labelSelector:
-                  matchLabels:
-                    app.kubernetes.io/name: cert-manager
-                    app.kubernetes.io/instance: cert-manager
-                    app.kubernetes.io/component: webhook
-                topologyKey: kubernetes.io/hostname
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: cert-manager
+                  app.kubernetes.io/instance: cert-manager
+                  app.kubernetes.io/component: webhook
+              topologyKey: kubernetes.io/hostname
       resources:
         requests:
           cpu: 50m
@@ -118,15 +114,13 @@ spec:
           effect: NoSchedule
       affinity:
         podAntiAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-            - weight: 100
-              podAffinityTerm:
-                labelSelector:
-                  matchLabels:
-                    app.kubernetes.io/name: cert-manager
-                    app.kubernetes.io/instance: cert-manager
-                    app.kubernetes.io/component: cainjector
-                topologyKey: kubernetes.io/hostname
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: cert-manager
+                  app.kubernetes.io/instance: cert-manager
+                  app.kubernetes.io/component: cainjector
+              topologyKey: kubernetes.io/hostname
       resources:
         requests:
           cpu: 50m
