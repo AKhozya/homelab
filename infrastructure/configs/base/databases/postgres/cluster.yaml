@@ -11,10 +11,10 @@ spec:
   imageName: ghcr.io/cloudnative-pg/postgresql:18-standard-trixie
   enableSuperuserAccess: true  # Required for operator to create pooler roles
 
-  # Worker node only - control-plane has port 8000 binding issue (https://github.com/cloudnative-pg/cloudnative-pg/issues/9013)
+  # Worker nodes only - control-plane has NoSchedule taint
   affinity:
-    enablePodAntiAffinity: true  # Enable built-in anti-affinity
-    podAntiAffinityType: "preferred"  # Soft constraint - prefer different scheduling (both will be on same worker node)
+    enablePodAntiAffinity: true
+    podAntiAffinityType: "required"  # Hard constraint - one instance per worker node (true HA)
 
   resources:
     requests:
