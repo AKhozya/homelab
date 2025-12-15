@@ -2,7 +2,7 @@ apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
   name: couchdb
-  namespace: couchdb
+  namespace: databases
 spec:
   url: https://apache.github.io/couchdb-helm
   interval: 6h
