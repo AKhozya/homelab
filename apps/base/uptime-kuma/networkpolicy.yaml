@@ -78,3 +78,17 @@ spec:
           port: 9090        # Prometheus, Linkding
         - protocol: TCP
           port: 9093        # Alertmanager
+    # Allow monitoring K8s node infrastructure (host network)
+    # Nodes: control-plane (.127), worker-node (.129), worker-node-2 (.126)
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.0/24
+      ports:
+        - protocol: TCP
+          port: 65300       # SSH (custom port)
+        - protocol: TCP
+          port: 10250       # Kubelet API
+    # Allow ICMP (ping) to nodes - rule without ports allows all protocols
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.0/24
