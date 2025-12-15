@@ -1,0 +1,52 @@
+apiVersion: mysql.oracle.com/v2
+kind: InnoDBCluster
+metadata:
+  name: main-mysql
+  namespace: databases
+spec:
+  # 2 instances for HA across worker nodes
+  instances: 2
+
+  # MySQL Router for connection routing
+  router:
+    instances: 1
+
+  # TLS disabled for simplicity (internal cluster network)
+  tlsUseSelfSigned: true
+
+  # Root credentials secret
+  secretName: mysql-root-credentials
+
+  # MySQL version
+  version: "9.1.0"
+
+  # Storage configuration
+  datadirVolumeClaimTemplate:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: 20Gi
+    storageClassName: local-path
+
+  # Pod configuration
+  podSpec:
+    containers:
+      - name: mysql
+        resources:
+          requests:
+            cpu: "250m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+
+  # Pod anti-affinity to spread across nodes
+  podSpec:
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/instance: main-mysql
+            topologyKey: kubernetes.io/hostname

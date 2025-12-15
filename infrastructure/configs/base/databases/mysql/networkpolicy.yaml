@@ -1,0 +1,78 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mysql-cluster
+  namespace: databases
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: main-mysql
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # MySQL port from app namespaces
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: home-assistant
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: pricebuddy
+      ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 6446  # MySQL Router read-write
+        - protocol: TCP
+          port: 6447  # MySQL Router read-only
+    # Cluster internal communication
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: main-mysql
+      ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 33060  # X Protocol
+        - protocol: TCP
+          port: 33061  # Group Replication
+    # Monitoring from Prometheus
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9104  # MySQL exporter
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+    # Cluster internal communication
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: main-mysql
+      ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 33060
+        - protocol: TCP
+          port: 33061
+    # Kubernetes API for operator
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 443

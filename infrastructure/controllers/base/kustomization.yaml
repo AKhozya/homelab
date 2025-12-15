@@ -8,5 +8,4 @@ resources:
   - databases/postgres
   - databases/couchdb
   - databases/redis
-  # MariaDB removed - migrating to MySQL
-  # - databases/mariadb
+  - databases/mysql
