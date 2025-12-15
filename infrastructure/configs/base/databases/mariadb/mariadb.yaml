@@ -4,16 +4,44 @@ metadata:
   name: main-mariadb
   namespace: databases
 spec:
-  # Single instance (no HA) - relies on daily + hourly binlog backups for DR
-  replicas: 1
+  # Galera HA cluster with 2 replicas across worker nodes
+  replicas: 2
+  replicasAllowEvenNumber: true  # Allow 2 replicas (normally Galera prefers odd)
 
-  # Explicitly disable Galera (operator enables by default)
+  # Galera multi-master synchronous replication
   galera:
-    enabled: false
+    enabled: true
+    primary:
+      podIndex: 0
+      autoFailover: true
+    sst: mariabackup  # State Snapshot Transfer method
+    replicaThreads: 1
+    agent:
+      port: 5555
+      kubernetesAuth:
+        enabled: true
+      gracefulShutdownTimeout: 5s
+    recovery:
+      enabled: true
+      minClusterSize: 1
+      clusterMonitorInterval: 10s
+      clusterHealthyTimeout: 5m
+      clusterBootstrapTimeout: 10m
+      podRecoveryTimeout: 5m
+      podSyncTimeout: 5m
 
-  # Explicitly disable replication (single instance mode)
+  # Disable async replication (using Galera sync replication instead)
   replication:
     enabled: false
+
+  # Pod anti-affinity to spread across worker nodes
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - labelSelector:
+            matchLabels:
+              app.kubernetes.io/instance: main-mariadb
+          topologyKey: kubernetes.io/hostname
 
   # MariaDB version
   image: mariadb:12.1.2  # Latest LTS version
@@ -87,9 +115,9 @@ spec:
         prometheus.io/scrape: "true"
         prometheus.io/port: "9104"
 
-  # Update strategy - OnDelete for single instance (brief downtime during updates)
+  # Update strategy - RollingUpdate for Galera HA (zero downtime updates)
   updateStrategy:
-    type: OnDelete
+    type: RollingUpdate
 
   # Security context
   podSecurityContext:
@@ -104,3 +132,8 @@ spec:
     capabilities:
       drop:
         - ALL
+
+  # TLS disabled - Galera has certificate EKU compatibility issues
+  # Internal cluster communication is on private network
+  tls:
+    enabled: false
