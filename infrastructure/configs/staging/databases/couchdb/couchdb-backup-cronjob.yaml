@@ -92,13 +92,21 @@ spec:
                     echo "Backing up database: $DB"
 
                     START_TIME=$(date +%s)
+                    # Use --log to separate log from data, then filter to keep only JSON arrays
                     /tmp/node_modules/.bin/couchbackup \
                       --url "$COUCHDB_URL" \
                       --db "$DB" \
-                      > "$BACKUP_DIR/${DB}.couchbackup" \
-                      2>&1 | tee "$BACKUP_DIR/${DB}.log"
+                      --log "$BACKUP_DIR/${DB}.log" \
+                      > "$BACKUP_DIR/${DB}.raw" 2>&1
 
-                    if [ $? -eq 0 ]; then
+                    BACKUP_EXIT=$?
+
+                    # Filter the output to keep only JSON array lines (actual data)
+                    # This removes couchbackup header/metadata that breaks couchrestore
+                    grep "^\[" "$BACKUP_DIR/${DB}.raw" > "$BACKUP_DIR/${DB}.couchbackup" 2>/dev/null || true
+                    rm -f "$BACKUP_DIR/${DB}.raw"
+
+                    if [ $BACKUP_EXIT -eq 0 ]; then
                       END_TIME=$(date +%s)
                       DURATION=$((END_TIME - START_TIME))
                       SIZE=$(du -h "$BACKUP_DIR/${DB}.couchbackup" | cut -f1)
