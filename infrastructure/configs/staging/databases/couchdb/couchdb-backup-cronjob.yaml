@@ -2,7 +2,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: couchdb-backup
-  namespace: couchdb
+  namespace: databases
 spec:
   schedule: "5 3 * * *"  # 3:05 AM daily (5 min after PostgreSQL backups)
   successfulJobsHistoryLimit: 7
@@ -75,7 +75,7 @@ spec:
                   mkdir -p "$BACKUP_DIR"
 
                   # CouchDB connection details
-                  COUCHDB_URL="http://$COUCHDB_USER:$COUCHDB_PASSWORD@couchdb-couchdb.couchdb.svc.cluster.local:5984"
+                  COUCHDB_URL="http://$COUCHDB_USER:$COUCHDB_PASSWORD@couchdb-couchdb.databases.svc.cluster.local:5984"
 
                   # Auto-discover databases (exclude system databases)
                   echo "Discovering databases..."
@@ -115,7 +115,7 @@ spec:
                   Timestamp: $(date)
                   Backup ID: $TIMESTAMP
                   Databases: $DATABASES
-                  Host: couchdb-couchdb.couchdb.svc.cluster.local:5984
+                  Host: couchdb-couchdb.databases.svc.cluster.local:5984
 
                   Backup Files:
                   $(ls -lh $BACKUP_DIR/*.couchbackup 2>/dev/null || echo "No backups created")

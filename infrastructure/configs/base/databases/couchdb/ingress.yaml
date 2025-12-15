@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: couchdb
-  namespace: couchdb
+  namespace: databases
   annotations:
     traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-high-frequency@kubernetescrd,traefik-csp@kubernetescrd
 spec:

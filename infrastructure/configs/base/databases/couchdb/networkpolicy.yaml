@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: couchdb-network-policy
-  namespace: couchdb
+  namespace: databases
 spec:
   podSelector:
     matchLabels:
@@ -11,9 +11,12 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from Cloudflare tunnel only
+    # Allow ingress from Cloudflare tunnel
     - from:
-        - podSelector:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflare-tunnel
+          podSelector:
             matchLabels:
               app: cloudflared
       ports:
@@ -27,9 +30,25 @@ spec:
       ports:
         - protocol: TCP
           port: 5984
-    # Allow ingress from within the same namespace (for init jobs, backups)
+    # Allow ingress from within the same namespace (for backups, monitoring)
     - from:
         - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 5984
+    # Allow ingress from Obsidian namespace (for init jobs)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: obsidian
+      ports:
+        - protocol: TCP
+          port: 5984
+    # Allow ingress from Prometheus for monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
           port: 5984
