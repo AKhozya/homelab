@@ -27,6 +27,14 @@ spec:
         app: pgbouncer
         cluster: main-postgres
     spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: pgbouncer
+                  cluster: main-postgres
+              topologyKey: kubernetes.io/hostname
       containers:
         - name: pgbouncer
           resources:
