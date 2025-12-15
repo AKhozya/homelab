@@ -17,7 +17,12 @@ spec:
     spec:
       serviceAccountName: authentik
       automountServiceAccountToken: false
-      # Distribute across worker nodes for HA
+      # Allow scheduling on control plane for HA (rolling updates need 3 nodes)
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      # Distribute across nodes for HA
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
