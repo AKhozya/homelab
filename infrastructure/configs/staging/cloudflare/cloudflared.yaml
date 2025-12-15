@@ -12,6 +12,12 @@ metadata:
   namespace: cloudflare-tunnel
 spec:
   replicas: 2
+  # Rolling update strategy compatible with required anti-affinity on 2 nodes
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: cloudflared
