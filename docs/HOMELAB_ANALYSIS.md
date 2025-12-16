@@ -656,7 +656,7 @@ ingress:
 - **Connection Pattern**: MySQL Router (main-mysql.databases.svc.cluster.local:6446)
 - **Known Issue**: PriceBuddy start-app.sh uses `nc` without `-z` flag causing startup hang
   - **Workaround**: ConfigMap override with fixed script
-  - **Upstream Issue**: https://github.com/jez500/pricebuddy/issues/XX (pending creation)
+  - **Upstream Issue**: https://github.com/jez500/pricebuddy/issues/101
   - **TODO**: Remove workaround when upstream fix merged
 
 **Summary**:
@@ -692,7 +692,7 @@ ingress:
 - 🐛 **PriceBuddy Bug Fixed**: start-app.sh uses `nc` without `-z` flag causing hang
   - **Root Cause**: `nc` without `-z` waits for MySQL handshake data indefinitely
   - **Workaround**: ConfigMap override with fixed script (`nc -z`)
-  - **Upstream**: Issue pending at https://github.com/jez500/pricebuddy/issues/XX
+  - **Upstream**: [Issue #101](https://github.com/jez500/pricebuddy/issues/101)
 - 📋 **Commits**: 774b9d9, b71622b, c512650, 9233753, fe67ea1, b2afdde
 
 ### 2025-12-13 (Kyverno Violations Resolved & Cluster Cleanup) 🔧
