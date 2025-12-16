@@ -22,10 +22,10 @@ spec:
   upgradeOptions:
     apply: disabled
 
-  # Orchestrator for async replication failover
+  # Orchestrator for async replication failover (3 for quorum on all nodes)
   orchestrator:
     enabled: true
-    size: 2
+    size: 3
     image: percona/percona-orchestrator:3.2.6-18
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
