@@ -11,7 +11,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # MySQL port from app namespaces (via Router on 6446)
+    # MySQL port from app namespaces
     - from:
         - namespaceSelector:
             matchLabels:
@@ -25,11 +25,15 @@ spec:
       ports:
         - protocol: TCP
           port: 3306
+    # Backup job (same namespace)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mysql-backup
+      ports:
         - protocol: TCP
-          port: 6446  # MySQL Router read-write
-        - protocol: TCP
-          port: 6447  # MySQL Router read-only
-    # Cluster internal communication (MySQL + Router + Orchestrator pods)
+          port: 3306
+    # Cluster internal communication (MySQL + HAProxy + Orchestrator)
     - from:
         - podSelector:
             matchLabels:
@@ -40,13 +44,7 @@ spec:
         - protocol: TCP
           port: 33060  # X Protocol
         - protocol: TCP
-          port: 33061  # Group Replication
-        - protocol: TCP
-          port: 33062  # Admin port
-        - protocol: TCP
-          port: 6446
-        - protocol: TCP
-          port: 6447
+          port: 33062  # Admin port (HAProxy health checks)
         - protocol: TCP
           port: 3000   # Orchestrator HTTP API
         - protocol: TCP
@@ -78,7 +76,7 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Cluster internal communication (MySQL + Orchestrator)
+    # Cluster internal communication (MySQL + HAProxy + Orchestrator)
     - to:
         - podSelector:
             matchLabels:
@@ -87,15 +85,9 @@ spec:
         - protocol: TCP
           port: 3306
         - protocol: TCP
-          port: 33060
+          port: 33060  # X Protocol
         - protocol: TCP
-          port: 33061
-        - protocol: TCP
-          port: 33062
-        - protocol: TCP
-          port: 6446
-        - protocol: TCP
-          port: 6447
+          port: 33062  # Admin port
         - protocol: TCP
           port: 3000   # Orchestrator HTTP API
         - protocol: TCP
