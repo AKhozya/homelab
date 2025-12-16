@@ -20,6 +20,12 @@ spec:
   upgradeOptions:
     apply: disabled
 
+  # Backup configuration (required even if not using backups)
+  backup:
+    enabled: false
+    image: percona/percona-xtrabackup:8.4.0-4.1
+    imagePullPolicy: IfNotPresent
+
   # MySQL cluster configuration
   mysql:
     clusterType: group-replication
