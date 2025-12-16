@@ -55,7 +55,7 @@ spec:
                   memory: "128Mi"
           containers:
             - name: backup
-              image: mysql:9.1
+              image: mysql:9.5
               command:
                 - /bin/bash
                 - -c
