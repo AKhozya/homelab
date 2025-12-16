@@ -637,36 +637,37 @@ ingress:
   - Fast recovery from backup if needed
 - **Acceptable Downtime**: 5-10 minutes during scheduled maintenance
 
-**MariaDB (2 Replicas)**: ✅ **High Availability with Galera Cluster**
-- **Usage**: Application data for Home Assistant, Uptime Kuma (2 apps migrated from SQLite)
-- **Cluster Type**: Galera multi-master synchronous replication
-- **Replicas**: 2 instances (active-active replication)
-- **Version**: MariaDB 12.1
-- **Operator**: mariadb-operator v0.37.1
-- **Replication**: Synchronous multi-master (all nodes writable)
-- **Failover**: Automatic via MariaDB operator
-- **Why HA**: Critical application data, multi-master for write availability, automatic recovery
+**MySQL (2 Replicas)**: ✅ **High Availability with InnoDB Cluster**
+- **Usage**: Application data for Home Assistant, Uptime Kuma, PriceBuddy
+- **Cluster Type**: Oracle MySQL InnoDB Cluster with Group Replication
+- **Replicas**: 2 instances (primary-secondary with automatic failover)
+- **Version**: MySQL 9.1.0
+- **Operator**: mysql-operator (Oracle)
+- **Replication**: Group Replication (synchronous within cluster)
+- **Failover**: Automatic via MySQL Router
+- **Why HA**: Critical application data, automatic failover, proven enterprise solution
 - **Architecture**: Matches PostgreSQL pattern (base = infrastructure, staging = app-specific resources)
-- **Databases**: 2 databases (homeassistant, uptimekuma)
+- **Databases**: 3 databases (homeassistant, uptimekuma, pricebuddy)
 - **Backups**: Daily automated backups (3:15 AM, 30-day retention, SHA256 checksums)
-- **Migration Date**: 2025-11-24 (completed migration from SQLite for Home Assistant & Uptime Kuma)
-- **Migration Approach**:
-  - Home Assistant: Fresh start (42 tables auto-created)
-  - Uptime Kuma: Custom Python migration (22 tables migrated, 5 excluded)
-- **Storage**: 10Gi per replica (local-path PVCs on worker node)
-- **NetworkPolicy**: Restricts access to app namespaces + monitoring
-- **Connection Pattern**: Direct to primary (main-mariadb-primary.databases.svc.cluster.local:3306)
-- **Documentation**: Complete migration guide in `docs/MARIADB_MIGRATION.md`
+- **Migration Date**: 2025-12-16 (migrated from failed MariaDB Galera cluster)
+- **Migration Reason**: MariaDB Galera had persistent cluster formation issues; MySQL InnoDB Cluster more stable
+- **Storage**: 20Gi per replica (local-path PVCs on worker node)
+- **NetworkPolicy**: Restricts access to app namespaces + monitoring (port 6446)
+- **Connection Pattern**: MySQL Router (main-mysql.databases.svc.cluster.local:6446)
+- **Known Issue**: PriceBuddy start-app.sh uses `nc` without `-z` flag causing startup hang
+  - **Workaround**: ConfigMap override with fixed script
+  - **Upstream Issue**: https://github.com/jez500/pricebuddy/issues/XX (pending creation)
+  - **TODO**: Remove workaround when upstream fix merged
 
 **Summary**:
 - **Critical data (PostgreSQL)**: 3 replicas, HA, zero downtime
-- **Critical data (MariaDB)**: 2 replicas, Galera multi-master, automatic failover
+- **Critical data (MySQL)**: 2 replicas, InnoDB Cluster, automatic failover via Router
 - **Cache/ephemeral (Redis)**: Single instance, restart tolerance acceptable
 - **Personal sync (CouchDB)**: Single instance, backup-based recovery acceptable
 
 ---
 
-**Last Updated**: 2025-12-13 20:00 UTC
+**Last Updated**: 2025-12-16 01:00 UTC
 **Next Review**: 2025-12-27
 
 ---
@@ -674,6 +675,25 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2025-12-16 (MySQL Migration from MariaDB) 🗄️
+- ✅ **Migrated from MariaDB Galera to Oracle MySQL InnoDB Cluster** ⭐
+- ✅ **Apps Migrated**: Home Assistant, Uptime Kuma, PriceBuddy (3 apps)
+- ✅ **MySQL Router**: Connection routing via port 6446 for automatic failover
+- 🎯 **Reason**: MariaDB Galera had persistent cluster formation issues
+- 🔧 **Technical Details**:
+  - **Cluster Type**: Oracle MySQL InnoDB Cluster with Group Replication
+  - **Version**: MySQL 9.1.0 with mysql-operator
+  - **Instances**: 2 replicas with required anti-affinity across worker nodes
+  - **Router**: 1 replica for connection routing (port 6446)
+  - **Storage**: 20Gi per replica on local-path PVCs
+  - **NetworkPolicy**: Updated all apps to allow port 6446 (router) instead of 3306
+  - **Backups**: Restored from MariaDB backup (2025-12-15 03:15 UTC)
+- 🐛 **PriceBuddy Bug Fixed**: start-app.sh uses `nc` without `-z` flag causing hang
+  - **Root Cause**: `nc` without `-z` waits for MySQL handshake data indefinitely
+  - **Workaround**: ConfigMap override with fixed script (`nc -z`)
+  - **Upstream**: Issue pending at https://github.com/jez500/pricebuddy/issues/XX
+- 📋 **Commits**: 774b9d9, b71622b, c512650, 9233753, fe67ea1, b2afdde
 
 ### 2025-12-13 (Kyverno Violations Resolved & Cluster Cleanup) 🔧
 - ✅ **Kyverno Phase 3 Complete**: All `require-resource-limits` violations resolved (30 → 0) ⭐
