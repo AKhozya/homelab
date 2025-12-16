@@ -48,7 +48,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: server
-          image: ghcr.io/goauthentik/server:2025.10.2
+          image: ghcr.io/goauthentik/server:2025.10.3
           command:
             - ak
             - server
