@@ -59,7 +59,8 @@ spec:
         - name: pricebuddy
           image: jez500/pricebuddy:v1.0.42
           # WORKAROUND: Override start-app.sh to fix nc without -z flag
-          # Upstream issue: https://github.com/jez500/pricebuddy/issues/101
+          # Upstream: https://github.com/jez500/pricebuddy/issues/101
+          # PR: https://github.com/jez500/pricebuddy/pull/102
           # TODO: Remove command override and start-app-configmap.yaml when PR merged
           command: ["/bin/bash", "/scripts/start-app.sh"]
           ports:
