@@ -26,7 +26,7 @@ spec:
   orchestrator:
     enabled: true
     size: 2
-    image: percona/percona-server-mysql-operator:1.0.0-orchestrator
+    image: percona/percona-orchestrator:3.2.6-18
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
     resources:
