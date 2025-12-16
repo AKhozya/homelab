@@ -116,12 +116,9 @@ kubectl apply -f "${BACKUP_DIR}/secrets/mealie-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/n8n-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/paperless-db-user.json"
 
-# MariaDB secrets
-kubectl apply -f "${BACKUP_DIR}/secrets/mariadb-root.json"
-kubectl apply -f "${BACKUP_DIR}/secrets/ha-mariadb-credentials.json"
-kubectl apply -f "${BACKUP_DIR}/secrets/uptime-kuma-mariadb-credentials.json"
-kubectl apply -f "${BACKUP_DIR}/secrets/pricebuddy-mariadb-credentials.json"
-echo "   ✅ Database secrets restored (PostgreSQL + MariaDB)"
+# MySQL secrets
+kubectl apply -f "${BACKUP_DIR}/secrets/mysql-root-credentials.json"
+echo "   ✅ Database secrets restored (PostgreSQL + MySQL)"
 
 # =============================================================================
 # Application Secrets
@@ -176,6 +173,7 @@ echo "   ✅ Audiobookshelf"
 # Uptime Kuma
 kubectl create namespace uptime-kuma --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/uptime-kuma-admin.json"
+kubectl apply -f "${BACKUP_DIR}/secrets/uptime-kuma-mysql-credentials.json"
 echo "   ✅ Uptime Kuma"
 
 # Stirling PDF
@@ -191,7 +189,8 @@ echo "   ✅ HomeHub"
 # PriceBuddy
 kubectl create namespace pricebuddy --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/pricebuddy-secrets.json"
-kubectl apply -f "${BACKUP_DIR}/secrets/pricebuddy-mariadb-credentials-app.json"
+kubectl apply -f "${BACKUP_DIR}/secrets/pricebuddy-mysql-credentials.json"
+kubectl apply -f "${BACKUP_DIR}/secrets/pricebuddy-telegram.json"
 echo "   ✅ PriceBuddy"
 
 # Obsidian CouchDB

@@ -55,11 +55,12 @@ kubectl get secret mealie-db-user -n databases -o json > "${BACKUP_DIR}/secrets/
 kubectl get secret n8n-db-user -n databases -o json > "${BACKUP_DIR}/secrets/n8n-db-user.json"
 kubectl get secret paperless-db-user -n databases -o json > "${BACKUP_DIR}/secrets/paperless-db-user.json"
 
-# MariaDB secrets
-kubectl get secret mariadb-root -n databases -o json > "${BACKUP_DIR}/secrets/mariadb-root.json"
-kubectl get secret ha-mariadb-credentials -n databases -o json > "${BACKUP_DIR}/secrets/ha-mariadb-credentials.json"
-kubectl get secret uptime-kuma-mariadb-credentials -n databases -o json > "${BACKUP_DIR}/secrets/uptime-kuma-mariadb-credentials.json"
-kubectl get secret pricebuddy-mariadb-credentials -n databases -o json > "${BACKUP_DIR}/secrets/pricebuddy-mariadb-credentials.json"
+# MySQL secrets
+kubectl get secret mysql-root-credentials -n databases -o json > "${BACKUP_DIR}/secrets/mysql-root-credentials.json"
+
+# MySQL app credentials (in app namespaces)
+kubectl get secret uptime-kuma-mysql-credentials -n uptime-kuma -o json > "${BACKUP_DIR}/secrets/uptime-kuma-mysql-credentials.json"
+kubectl get secret pricebuddy-mysql-credentials -n pricebuddy -o json > "${BACKUP_DIR}/secrets/pricebuddy-mysql-credentials.json"
 
 # =============================================================================
 # Application Secrets (user credentials, API keys, environment variables)
@@ -107,7 +108,7 @@ kubectl get secret homehub-password -n homehub -o json > "${BACKUP_DIR}/secrets/
 
 # PriceBuddy
 kubectl get secret pricebuddy-secrets -n pricebuddy -o json > "${BACKUP_DIR}/secrets/pricebuddy-secrets.json"
-kubectl get secret pricebuddy-mariadb-credentials -n pricebuddy -o json > "${BACKUP_DIR}/secrets/pricebuddy-mariadb-credentials-app.json"
+kubectl get secret pricebuddy-telegram -n pricebuddy -o json > "${BACKUP_DIR}/secrets/pricebuddy-telegram.json"
 
 # Obsidian CouchDB
 kubectl get secret couchdb-admin-credentials -n obsidian -o json > "${BACKUP_DIR}/secrets/couchdb-admin-credentials.json" 2>/dev/null || echo "   ⚠️  No obsidian/couchdb-admin-credentials"
@@ -233,7 +234,7 @@ echo "   📊 Grafana & Telegram (monitoring)"
 echo "   🗄️  Databases:"
 echo "      - Redis passwords"
 echo "      - PostgreSQL admin & app users (6 apps)"
-echo "      - MariaDB root & app credentials (3 apps)"
+echo "      - MySQL root & app credentials (3 apps)"
 echo "   📱 All application secrets:"
 echo "      - Authentik, Immich, Home Assistant"
 echo "      - N8N, Mealie, Paperless-NGX"
