@@ -36,14 +36,14 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow MySQL access
+    # Allow MySQL Router access
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: databases
       ports:
         - protocol: TCP
-          port: 3306
+          port: 6446
     # Allow HTTPS for scraping external product pages (e-commerce sites use HTTPS)
     - ports:
         - protocol: TCP

@@ -57,7 +57,9 @@ spec:
         - protocol: TCP
           port: 5000        # HomeHub
         - protocol: TCP
-          port: 3306        # MySQL
+          port: 3306        # MySQL direct
+        - protocol: TCP
+          port: 6446        # MySQL Router
         - protocol: TCP
           port: 5432        # PostgreSQL
         - protocol: TCP

@@ -45,6 +45,14 @@ spec:
           port: 1883  # MQTT
         - protocol: TCP
           port: 8883  # MQTT over TLS
+    # Allow MySQL Router access
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+      ports:
+        - protocol: TCP
+          port: 6446
     # Allow access to local network devices (for integrations)
     # Home Assistant needs to discover and communicate with local IoT devices
     - to:
