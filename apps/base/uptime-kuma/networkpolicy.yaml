@@ -69,7 +69,9 @@ spec:
         - protocol: TCP
           port: 6379        # Redis
         - protocol: TCP
-          port: 8080        # Various apps
+          port: 8000        # Paperless-NGX
+        - protocol: TCP
+          port: 8080        # Various apps (Immich, Stirling PDF)
         - protocol: TCP
           port: 8123        # Home Assistant
         - protocol: TCP
