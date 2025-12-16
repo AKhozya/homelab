@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-12-16 16:30 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-12-16 22:50 UTC)
 **Cluster**: K3s (staging)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -638,40 +638,40 @@ ingress:
   - Fast recovery from backup if needed
 - **Acceptable Downtime**: 5-10 minutes during scheduled maintenance
 
-**MySQL (2 Replicas)**: ✅ **High Availability with InnoDB Cluster**
+**MySQL (2 Replicas)**: ✅ **High Availability with Percona Async Replication**
 - **Usage**: Application data for Home Assistant, Uptime Kuma, PriceBuddy
-- **Cluster Type**: Oracle MySQL InnoDB Cluster with Group Replication
-- **Replicas**: 2 instances (primary-secondary with automatic failover)
-- **Version**: MySQL 9.1.0
-- **Operator**: mysql-operator (Oracle)
-- **Replication**: Group Replication (synchronous within cluster)
-- **Failover**: Automatic via MySQL Router
-- **Why HA**: Critical application data, automatic failover, proven enterprise solution
+- **Cluster Type**: Percona Server for MySQL with async replication
+- **Replicas**: 2 instances (primary-replica with Orchestrator failover)
+- **Version**: MySQL 8.4.6 (Percona Server)
+- **Operator**: Percona Operator for MySQL (PS) v1.0.0
+- **Replication**: Async (traditional MySQL replication)
+- **Failover**: Automatic via Percona Orchestrator (3 replicas, one per node for HA)
+- **Proxy**: HAProxy for connection routing (port 3306)
+- **Why HA**: Critical application data, automatic failover, more stable than Oracle operator
 - **Architecture**: Matches PostgreSQL pattern (base = infrastructure, staging = app-specific resources)
 - **Databases**: 3 databases (homeassistant, uptimekuma, pricebuddy)
 - **Backups**: Daily automated backups (3:15 AM, 30-day retention, SHA256 checksums)
-- **Migration Date**: 2025-12-16 (migrated from failed MariaDB Galera cluster)
-- **Migration Reason**: MariaDB Galera had persistent cluster formation issues; MySQL InnoDB Cluster more stable
+- **Migration Date**: 2025-12-16 (migrated from Oracle MySQL InnoDB Cluster)
+- **Migration Reason**: Oracle MySQL Operator had persistent issues with Group Replication, RBAC, and auto-recovery
 - **Storage**: 20Gi per replica (local-path PVCs on worker node)
-- **NetworkPolicy**: Restricts access to app namespaces + monitoring (port 6446)
-- **Connection Pattern**: MySQL Router (main-mysql.databases.svc.cluster.local:6446)
+- **NetworkPolicy**: Restricts access to app namespaces + monitoring (port 3306)
+- **Connection Pattern**: HAProxy (main-mysql-haproxy.databases.svc.cluster.local:3306)
+- **Components**:
+  - MySQL: 2 replicas (async replication)
+  - Orchestrator: 3 replicas (one per node for HA during rolling updates)
+  - HAProxy: 2 replicas for connection routing
+  - Toolkit: pt-heartbeat sidecar for replication monitoring
+- **Known Limitations**:
+  - Replication password must be ≤32 characters (MySQL limitation)
+  - HAProxy admin port (33062) probe may fail; main port (3306) works fine
 - **Known Issue**: PriceBuddy start-app.sh uses `nc` without `-z` flag causing startup hang
   - **Workaround**: ConfigMap override with fixed script
   - **Upstream**: [Issue #101](https://github.com/jez500/pricebuddy/issues/101) / [PR #102](https://github.com/jez500/pricebuddy/pull/102)
   - **TODO**: Remove workaround when PR #102 merged
-- **⚠️ Operator Limitations** (mysql-operator v2.2.6):
-  - **Metadata Version Mismatch**: MySQL Shell 2.2.0 creates metadata 2.3.0, causes `add_instance()` failures
-  - **No Auto-Recovery**: `group_replication_start_on_boot` requires `loose_` prefix; operator doesn't auto-bootstrap
-  - **ConfigMap Not Reconciled**: Changes to `spec.mycnf` don't update existing ConfigMaps (requires pod delete)
-  - **Sidecar RBAC**: kopf framework needs cluster-wide namespace/CRD list permissions (manual RBAC required)
-  - **Version Lag**: Operator ships MySQL 9.1.0, not latest 9.5.x (slow release cadence)
-  - **Manual Recovery**: Cluster going OFFLINE requires manual `SET GLOBAL group_replication_bootstrap_group=ON`
-  - **Alternative Considered**: [Percona Operator for MySQL](https://docs.percona.com/percona-operator-for-mysql/ps/) - more actively maintained
-  - **Decision**: Accept limitations for now; MySQL data is backed up daily; consider migration if issues persist
 
 **Summary**:
 - **Critical data (PostgreSQL)**: 3 replicas, HA, zero downtime
-- **Critical data (MySQL)**: 2 replicas, InnoDB Cluster, automatic failover via Router
+- **Critical data (MySQL)**: 2 replicas, Percona async replication, Orchestrator failover
 - **Cache/ephemeral (Redis)**: Single instance, restart tolerance acceptable
 - **Personal sync (CouchDB)**: Single instance, backup-based recovery acceptable
 
@@ -685,6 +685,23 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2025-12-16 (Percona MySQL Migration) 🗄️
+- ✅ **Migrated from Oracle MySQL Operator to Percona Operator for MySQL** ⭐
+- ✅ **All 3 apps restored and working**: Home Assistant, Uptime Kuma, PriceBuddy
+- 🎯 **Reason**: Oracle MySQL Operator had persistent issues with Group Replication, RBAC, and auto-recovery
+- 🔧 **Technical Details**:
+  - **Cluster Type**: Percona Server for MySQL with async replication
+  - **Version**: MySQL 8.4.6 (Percona Server)
+  - **Operator**: Percona Operator for MySQL (PS) v1.0.0
+  - **Replication**: Async (traditional MySQL replication, not Group Replication)
+  - **Failover**: Percona Orchestrator (3 replicas, one per node for HA)
+  - **Proxy**: HAProxy for connection routing (port 3306, replaces Router on 6446)
+  - **Storage**: 20Gi per replica on local-path PVCs
+  - **NetworkPolicy**: Updated all apps to use port 3306 instead of 6446
+  - **Fix**: Replication password reduced from 64 to 32 chars (MySQL limitation)
+- 📋 **Commits**: e81f354 (password fix), fb2da06 (NetworkPolicy fix)
+- 🔄 **Migration Path**: MariaDB Galera → Oracle MySQL InnoDB → Percona Async
 
 ### 2025-12-16 (MySQL Operator Limitations Documented) 📝
 - ✅ **MySQL Operator Limitations Documented**: Comprehensive analysis of mysql-operator v2.2.6 issues ⭐
