@@ -55,7 +55,9 @@ spec:
                   memory: "128Mi"
           containers:
             - name: backup
-              image: mysql:8.4  # LTS version - matches Percona Server 8.4.x
+              # Pin to 8.4.7 to match Percona Server 8.4.6 - update manually with cluster
+              # renovate: ignore
+              image: mysql:8.4.7
               command:
                 - /bin/bash
                 - -c

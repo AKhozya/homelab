@@ -17,8 +17,9 @@ spec:
   # Secrets for credentials
   secretsName: mysql-cluster-secrets
 
-  # Update strategy (OnDelete for async without full orchestrator)
-  updateStrategy: OnDelete
+  # Update strategy: SmartUpdate for zero-downtime (updates replicas first, primary last)
+  # Requires orchestrator.enabled=true for async replication
+  updateStrategy: SmartUpdate
   upgradeOptions:
     apply: disabled
 
