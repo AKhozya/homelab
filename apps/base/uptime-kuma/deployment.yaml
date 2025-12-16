@@ -33,7 +33,7 @@ spec:
             - name: UPTIME_KUMA_DB_HOSTNAME
               value: "main-mysql.databases.svc.cluster.local"
             - name: UPTIME_KUMA_DB_PORT
-              value: "6446"
+              value: "3306"
             - name: UPTIME_KUMA_DB_NAME
               value: "uptimekuma"
             - name: UPTIME_KUMA_DB_USERNAME
