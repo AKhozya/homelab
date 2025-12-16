@@ -77,3 +77,5 @@ spec:
     # HAProxy disabled (using Router)
     haproxy:
       enabled: false
+      size: 0
+      image: percona/haproxy:2.8.15
