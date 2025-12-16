@@ -1,65 +1,84 @@
-apiVersion: mysql.oracle.com/v2
-kind: InnoDBCluster
+apiVersion: ps.percona.com/v1
+kind: PerconaServerMySQL
 metadata:
   name: main-mysql
   namespace: databases
+  finalizers:
+    - percona.com/delete-mysql-pods-in-order
 spec:
-  # 2 instances for HA across worker nodes
-  instances: 2
+  crVersion: "1.0.0"
 
-  # MySQL Router for connection routing (2 replicas for HA)
-  router:
-    instances: 2
-    podSpec:
-      affinity:
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchLabels:
-                  component: mysqlrouter
-              topologyKey: kubernetes.io/hostname
+  # Secrets for credentials
+  secretsName: mysql-cluster-secrets
 
-  # TLS disabled for simplicity (internal cluster network)
-  tlsUseSelfSigned: true
+  # Update strategy
+  updateStrategy: SmartUpdate
+  upgradeOptions:
+    apply: disabled
 
-  # Root credentials secret
-  secretName: mysql-root-credentials
+  # MySQL cluster configuration
+  mysql:
+    clusterType: group-replication
+    autoRecovery: true
+    size: 2
+    image: percona/percona-server:8.4.6-6.1
+    imagePullPolicy: IfNotPresent
 
-  # MySQL version
-  version: "9.1.0"
-
-  # MySQL configuration for Group Replication auto-recovery
-  mycnf: |
-    [mysqld]
-    # Enable Group Replication to start automatically on MySQL restart
-    # This ensures the cluster recovers without manual intervention
-    # Use loose_ prefix so MySQL doesn't error if GR plugin not loaded yet
-    loose_group_replication_start_on_boot=ON
-
-  # Storage configuration
-  datadirVolumeClaimTemplate:
-    accessModes:
-      - ReadWriteOnce
+    # Resources
     resources:
       requests:
-        storage: 20Gi
-    storageClassName: local-path
+        cpu: "250m"
+        memory: "768Mi"
+      limits:
+        cpu: "1000m"
+        memory: "1536Mi"
 
-  # Pod configuration with resources and anti-affinity
-  podSpec:
-    containers:
-      - name: mysql
+    # Anti-affinity for HA
+    affinity:
+      antiAffinityTopologyKey: kubernetes.io/hostname
+
+    # Expose primary service
+    exposePrimary:
+      enabled: true
+      type: ClusterIP
+
+    # Storage
+    volumeSpec:
+      persistentVolumeClaim:
+        accessModes:
+          - ReadWriteOnce
         resources:
           requests:
-            cpu: "250m"
-            memory: "768Mi"
-          limits:
-            cpu: "1000m"
-            memory: "1536Mi"  # Increased from 1Gi - was causing OOM alerts at 987Mi usage
-    affinity:
-      podAntiAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchLabels:
-                app.kubernetes.io/instance: main-mysql
-            topologyKey: kubernetes.io/hostname
+            storage: 20Gi
+        storageClassName: local-path
+
+    # MySQL configuration
+    configuration: |
+      [mysqld]
+      max_connections=250
+
+  # MySQL Router for connection routing
+  proxy:
+    router:
+      enabled: true
+      size: 2
+      image: percona/percona-mysql-router:8.4.6
+      imagePullPolicy: IfNotPresent
+
+      # Resources for router
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "500m"
+          memory: "256Mi"
+
+      # Expose router service
+      expose:
+        enabled: true
+        type: ClusterIP
+
+    # HAProxy disabled (using Router)
+    haproxy:
+      enabled: false

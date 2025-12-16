@@ -11,7 +11,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # MySQL port from app namespaces
+    # MySQL port from app namespaces (via Router on 6446)
     - from:
         - namespaceSelector:
             matchLabels:
@@ -29,7 +29,7 @@ spec:
           port: 6446  # MySQL Router read-write
         - protocol: TCP
           port: 6447  # MySQL Router read-only
-    # Cluster internal communication
+    # Cluster internal communication (MySQL + Router pods)
     - from:
         - podSelector:
             matchLabels:
@@ -41,6 +41,24 @@ spec:
           port: 33060  # X Protocol
         - protocol: TCP
           port: 33061  # Group Replication
+        - protocol: TCP
+          port: 33062  # Admin port
+        - protocol: TCP
+          port: 6446
+        - protocol: TCP
+          port: 6447
+    # Operator access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: percona-mysql
+      ports:
+        - protocol: TCP
+          port: 3306
+        - protocol: TCP
+          port: 33060
+        - protocol: TCP
+          port: 33062
     # Monitoring from Prometheus
     - from:
         - namespaceSelector:
@@ -68,11 +86,25 @@ spec:
           port: 33060
         - protocol: TCP
           port: 33061
-    # Kubernetes API for operator
+        - protocol: TCP
+          port: 33062
+        - protocol: TCP
+          port: 6446
+        - protocol: TCP
+          port: 6447
+    # Kubernetes API for operator/cluster communication
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: default
+      ports:
+        - protocol: TCP
+          port: 443
+    # Operator namespace
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: percona-mysql
       ports:
         - protocol: TCP
           port: 443

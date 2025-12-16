@@ -72,7 +72,7 @@ spec:
                   # Auto-discover databases (exclude system databases)
                   echo "Discovering databases..."
                   DATABASES=$(mysql \
-                    -h main-mysql.databases.svc.cluster.local \
+                    -h main-mysql-router.databases.svc.cluster.local \
                     -P 6446 \
                     -u "$MYSQL_USER" \
                     -p"$MYSQL_PASSWORD" \
@@ -85,7 +85,7 @@ spec:
                   for DB in $DATABASES; do
                     echo "Backing up database: $DB"
                     mysqldump \
-                      -h main-mysql.databases.svc.cluster.local \
+                      -h main-mysql-router.databases.svc.cluster.local \
                       -P 6446 \
                       -u "$MYSQL_USER" \
                       -p"$MYSQL_PASSWORD" \
@@ -110,7 +110,7 @@ spec:
                   Timestamp: $(date)
                   Backup ID: $TIMESTAMP
                   Databases: $DATABASES
-                  Host: main-mysql.databases.svc.cluster.local:6446
+                  Host: main-mysql-router.databases.svc.cluster.local:6446
 
                   Backup Files:
                   $(ls -lh $BACKUP_DIR/*.sql 2>/dev/null || echo "No SQL files")
@@ -152,15 +152,12 @@ spec:
                   echo "Size: $COMPRESSED_SIZE"
               env:
                 - name: MYSQL_USER
-                  valueFrom:
-                    secretKeyRef:
-                      name: mysql-root-credentials
-                      key: rootUser
+                  value: "root"
                 - name: MYSQL_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: mysql-root-credentials
-                      key: rootPassword
+                      name: mysql-cluster-secrets
+                      key: root
               volumeMounts:
                 - name: backup-storage
                   mountPath: /backup
