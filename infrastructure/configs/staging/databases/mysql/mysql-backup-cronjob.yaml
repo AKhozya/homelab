@@ -55,7 +55,7 @@ spec:
                   memory: "128Mi"
           containers:
             - name: backup
-              image: mysql:9.5
+              image: mysql:8.4  # LTS version - matches Percona Server 8.4.x
               command:
                 - /bin/bash
                 - -c

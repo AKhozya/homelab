@@ -116,8 +116,8 @@ kubectl apply -f "${BACKUP_DIR}/secrets/mealie-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/n8n-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/paperless-db-user.json"
 
-# MySQL secrets
-kubectl apply -f "${BACKUP_DIR}/secrets/mysql-root-credentials.json"
+# MySQL secrets (Percona cluster - contains root, replication, xtrabackup, etc.)
+kubectl apply -f "${BACKUP_DIR}/secrets/mysql-cluster-secrets.json"
 echo "   ✅ Database secrets restored (PostgreSQL + MySQL)"
 
 # =============================================================================
@@ -140,6 +140,7 @@ echo "   ✅ Immich"
 # Home Assistant
 kubectl create namespace home-assistant --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/home-assistant-admin-credentials.json"
+kubectl apply -f "${BACKUP_DIR}/secrets/home-assistant-secrets.json"
 echo "   ✅ Home Assistant"
 
 # N8N

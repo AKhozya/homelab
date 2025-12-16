@@ -55,8 +55,8 @@ kubectl get secret mealie-db-user -n databases -o json > "${BACKUP_DIR}/secrets/
 kubectl get secret n8n-db-user -n databases -o json > "${BACKUP_DIR}/secrets/n8n-db-user.json"
 kubectl get secret paperless-db-user -n databases -o json > "${BACKUP_DIR}/secrets/paperless-db-user.json"
 
-# MySQL secrets
-kubectl get secret mysql-root-credentials -n databases -o json > "${BACKUP_DIR}/secrets/mysql-root-credentials.json"
+# MySQL secrets (Percona cluster - contains root, replication, xtrabackup, etc.)
+kubectl get secret mysql-cluster-secrets -n databases -o json > "${BACKUP_DIR}/secrets/mysql-cluster-secrets.json"
 
 # MySQL app credentials (in app namespaces)
 kubectl get secret uptime-kuma-mysql-credentials -n uptime-kuma -o json > "${BACKUP_DIR}/secrets/uptime-kuma-mysql-credentials.json"
