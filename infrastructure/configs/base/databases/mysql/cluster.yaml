@@ -7,9 +7,17 @@ spec:
   # 2 instances for HA across worker nodes
   instances: 2
 
-  # MySQL Router for connection routing
+  # MySQL Router for connection routing (2 replicas for HA)
   router:
-    instances: 1
+    instances: 2
+    podSpec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  component: mysqlrouter
+              topologyKey: kubernetes.io/hostname
 
   # TLS disabled for simplicity (internal cluster network)
   tlsUseSelfSigned: true
