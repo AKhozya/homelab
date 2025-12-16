@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-12-13 22:00 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-12-16 16:30 UTC)
 **Cluster**: K3s (staging)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -79,6 +79,7 @@
 - ✅ PostgreSQL daily backups (3:00 AM, 30-day retention)
 - ✅ CouchDB daily backups (3:05 AM, 30-day retention)
 - ✅ PVC daily backups (3:10 AM, 7-day retention)
+- ✅ MySQL daily backups (3:15 AM, 30-day retention, SHA256 checksums) ⭐
 - ✅ Disaster recovery scripts complete (`.backup/` directory)
 - ✅ Backup validation completed (2025-10-26)
 - ❌ **Missing**: Offsite replication, WAL archiving, automated validation
@@ -87,7 +88,7 @@
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-**Last Updated**: 2025-12-13 (Kyverno violations resolved, cluster cleanup)
+**Last Updated**: 2025-12-16 (MySQL cluster recovery, Uptime Kuma monitor fixes)
 **Source**: [COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md)
 **Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
 
@@ -675,6 +676,25 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2025-12-16 (MySQL Cluster Recovery & Uptime Kuma Monitor Fixes) 🔧
+- ✅ **MySQL InnoDB Cluster Recovered**: Group Replication manually restarted after cluster went OFFLINE ⭐
+- ✅ **Uptime Kuma Monitors Fixed**: All 27 monitors now healthy (status=1)
+- 🎯 **Root Cause**: Group Replication configured with `start_on_boot=OFF`, doesn't auto-recover after pod restarts
+- 🔧 **Technical Details**:
+  - **MySQL Recovery**:
+    - Cluster status was OFFLINE (0 online instances) after mysql-0 container restart
+    - Manual bootstrap on mysql-0: `SET GLOBAL group_replication_bootstrap_group=ON; START GROUP_REPLICATION;`
+    - mysql-1 rejoined automatically after primary was bootstrapped
+    - Cluster now ONLINE (2/2 instances: PRIMARY + SECONDARY)
+  - **Uptime Kuma Fixes**:
+    - **Paperless-NGX**: Added port 8000 to NetworkPolicy egress rules (was ECONNREFUSED)
+    - **CouchDB**: Updated accepted status codes to include 401 (requires auth)
+    - **Kubelets (3)**: Updated accepted status codes to include 401 (requires auth)
+  - **Known Issue**: MySQL sidecar has RBAC permission issues preventing automatic cluster management
+  - **Mitigation**: Manual recovery documented; consider enabling `start_on_boot=ON` in future
+- 📋 **Commits**: 3fc4fc3 (NetworkPolicy fix)
+- 🗄️ **Database Changes**: `UPDATE uptimekuma.monitor SET accepted_statuscodes_json='["200-299","401"]' WHERE id IN (11, 35, 36, 37);`
 
 ### 2025-12-16 (MySQL Migration from MariaDB) 🗄️
 - ✅ **Migrated from MariaDB Galera to Oracle MySQL InnoDB Cluster** ⭐
