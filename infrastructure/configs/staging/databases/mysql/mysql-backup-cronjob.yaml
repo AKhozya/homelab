@@ -72,8 +72,8 @@ spec:
                   # Auto-discover databases (exclude system databases)
                   echo "Discovering databases..."
                   DATABASES=$(mysql \
-                    -h main-mysql-router.databases.svc.cluster.local \
-                    -P 6446 \
+                    -h main-mysql-haproxy.databases.svc.cluster.local \
+                    -P 3306 \
                     -u "$MYSQL_USER" \
                     -p"$MYSQL_PASSWORD" \
                     -N -e "SHOW DATABASES" \
@@ -85,8 +85,8 @@ spec:
                   for DB in $DATABASES; do
                     echo "Backing up database: $DB"
                     mysqldump \
-                      -h main-mysql-router.databases.svc.cluster.local \
-                      -P 6446 \
+                      -h main-mysql-haproxy.databases.svc.cluster.local \
+                      -P 3306 \
                       -u "$MYSQL_USER" \
                       -p"$MYSQL_PASSWORD" \
                       --single-transaction \
@@ -110,7 +110,7 @@ spec:
                   Timestamp: $(date)
                   Backup ID: $TIMESTAMP
                   Databases: $DATABASES
-                  Host: main-mysql-router.databases.svc.cluster.local:6446
+                  Host: main-mysql-haproxy.databases.svc.cluster.local:3306
 
                   Backup Files:
                   $(ls -lh $BACKUP_DIR/*.sql 2>/dev/null || echo "No SQL files")

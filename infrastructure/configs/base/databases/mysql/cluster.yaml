@@ -8,17 +8,41 @@ metadata:
 spec:
   crVersion: "1.0.0"
 
-  # Allow 2 replicas for group replication (single worker node can't run 3)
+  # Allow 2 replicas and simplified orchestrator (homelab setup)
   unsafeFlags:
     mysqlSize: true
+    orchestrator: true
+    orchestratorSize: true
 
   # Secrets for credentials
   secretsName: mysql-cluster-secrets
 
-  # Update strategy
-  updateStrategy: SmartUpdate
+  # Update strategy (OnDelete for async without full orchestrator)
+  updateStrategy: OnDelete
   upgradeOptions:
     apply: disabled
+
+  # Orchestrator for async replication failover
+  orchestrator:
+    enabled: true
+    size: 2
+    image: percona/percona-server-mysql-operator:1.0.0-orchestrator
+    imagePullPolicy: IfNotPresent
+    serviceAccountName: main-mysql
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "64Mi"
+      limits:
+        cpu: "200m"
+        memory: "128Mi"
+    # Distribute across all nodes including control plane
+    affinity:
+      antiAffinityTopologyKey: kubernetes.io/hostname
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
 
   # Backup configuration (required even if not using backups)
   backup:
@@ -28,7 +52,7 @@ spec:
 
   # MySQL cluster configuration
   mysql:
-    clusterType: group-replication
+    clusterType: async
     autoRecovery: true
     size: 2
     image: percona/percona-server:8.4.6-6.1
@@ -68,16 +92,16 @@ spec:
       [mysqld]
       max_connections=250
 
-  # MySQL Router for connection routing
+  # HAProxy for connection routing (required for async replication)
   proxy:
-    router:
+    haproxy:
       enabled: true
       size: 2
-      image: percona/percona-mysql-router:8.4.6
+      image: percona/haproxy:2.8.15
       imagePullPolicy: IfNotPresent
       serviceAccountName: main-mysql
 
-      # Resources for router
+      # Resources for HAProxy
       resources:
         requests:
           cpu: "100m"
@@ -86,8 +110,8 @@ spec:
           cpu: "500m"
           memory: "256Mi"
 
-    # HAProxy disabled (using Router)
-    haproxy:
+    # Router disabled (only works with group-replication)
+    router:
       enabled: false
       size: 0
-      image: percona/haproxy:2.8.15
+      image: percona/percona-mysql-router:8.4.6

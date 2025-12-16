@@ -31,9 +31,9 @@ spec:
             - name: UPTIME_KUMA_DB_TYPE
               value: "mariadb"
             - name: UPTIME_KUMA_DB_HOSTNAME
-              value: "main-mysql-router.databases.svc.cluster.local"
+              value: "main-mysql-haproxy.databases.svc.cluster.local"
             - name: UPTIME_KUMA_DB_PORT
-              value: "6446"
+              value: "3306"
             - name: UPTIME_KUMA_DB_NAME
               value: "uptimekuma"
             - name: UPTIME_KUMA_DB_USERNAME
