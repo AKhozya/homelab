@@ -29,22 +29,22 @@ spec:
               name: http
           env:
             - name: UPTIME_KUMA_DB_TYPE
-              value: "mariadb"
+              value: "mysql"
             - name: UPTIME_KUMA_DB_HOSTNAME
-              value: "main-mariadb.databases.svc.cluster.local"
+              value: "main-mysql.databases.svc.cluster.local"
             - name: UPTIME_KUMA_DB_PORT
-              value: "3306"
+              value: "6446"
             - name: UPTIME_KUMA_DB_NAME
               value: "uptimekuma"
             - name: UPTIME_KUMA_DB_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: uptime-kuma-mariadb-credentials
+                  name: uptime-kuma-mysql-credentials
                   key: username
             - name: UPTIME_KUMA_DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: uptime-kuma-mariadb-credentials
+                  name: uptime-kuma-mysql-credentials
                   key: password
           securityContext:
             allowPrivilegeEscalation: false

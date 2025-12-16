@@ -3,7 +3,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - serviceaccount.yaml
-  # mariadb-credentials.yaml removed - migrating to MySQL
+  - mysql-credentials.yaml
   - storage.yaml
   - deployment.yaml
   - service.yaml
