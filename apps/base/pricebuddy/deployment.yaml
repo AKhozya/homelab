@@ -107,11 +107,21 @@ spec:
             readOnlyRootFilesystem: false
             capabilities:
               drop: ["ALL"]
+          # Startup probe - gives container up to 5 minutes to start
+          # (30 failures * 10s period = 300s)
+          # MySQL router connection check in start-app.sh can hang
+          startupProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           livenessProbe:
             httpGet:
               path: /
               port: 80
-            initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
@@ -119,7 +129,6 @@ spec:
             httpGet:
               path: /
               port: 80
-            initialDelaySeconds: 30
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
