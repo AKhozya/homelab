@@ -33,7 +33,8 @@ spec:
     [mysqld]
     # Enable Group Replication to start automatically on MySQL restart
     # This ensures the cluster recovers without manual intervention
-    group_replication_start_on_boot=ON
+    # Use loose_ prefix so MySQL doesn't error if GR plugin not loaded yet
+    loose_group_replication_start_on_boot=ON
 
   # Storage configuration
   datadirVolumeClaimTemplate:
