@@ -58,6 +58,8 @@ spec:
       containers:
         - name: pricebuddy
           image: jez500/pricebuddy:v1.0.42
+          # Override entrypoint to use fixed start-app.sh with nc -z
+          command: ["/bin/bash", "/scripts/start-app.sh"]
           ports:
             - containerPort: 80
               name: http
@@ -142,6 +144,8 @@ spec:
           volumeMounts:
             - name: storage
               mountPath: /app/storage
+            - name: start-app-script
+              mountPath: /scripts
         - name: scraper
           image: jez500/seleniumbase-scrapper:v1.0
           ports:
@@ -208,4 +212,8 @@ spec:
         - name: apprise-init-script
           configMap:
             name: pricebuddy-apprise-init
+            defaultMode: 0755
+        - name: start-app-script
+          configMap:
+            name: pricebuddy-start-app
             defaultMode: 0755

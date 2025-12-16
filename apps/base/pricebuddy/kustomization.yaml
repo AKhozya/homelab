@@ -10,6 +10,7 @@ resources:
   - pvc.yaml
   - service.yaml
   - apprise-configmap.yaml
+  - start-app-configmap.yaml
   - deployment.yaml
   - networkpolicy.yaml
   - ingress.yaml
