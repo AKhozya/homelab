@@ -28,6 +28,13 @@ spec:
   # MySQL version
   version: "9.1.0"
 
+  # MySQL configuration for Group Replication auto-recovery
+  mycnf: |
+    [mysqld]
+    # Enable Group Replication to start automatically on MySQL restart
+    # This ensures the cluster recovers without manual intervention
+    group_replication_start_on_boot=ON
+
   # Storage configuration
   datadirVolumeClaimTemplate:
     accessModes:
@@ -44,10 +51,10 @@ spec:
         resources:
           requests:
             cpu: "250m"
-            memory: "512Mi"
+            memory: "768Mi"
           limits:
             cpu: "1000m"
-            memory: "1Gi"
+            memory: "1536Mi"  # Increased from 1Gi - was causing OOM alerts at 987Mi usage
     affinity:
       podAntiAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:

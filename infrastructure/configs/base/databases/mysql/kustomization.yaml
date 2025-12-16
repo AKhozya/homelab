@@ -4,3 +4,4 @@ resources:
   - root-secret.yaml
   - cluster.yaml
   - networkpolicy.yaml
+  - sidecar-rbac.yaml
