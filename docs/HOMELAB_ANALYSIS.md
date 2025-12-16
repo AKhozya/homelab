@@ -659,6 +659,15 @@ ingress:
   - **Workaround**: ConfigMap override with fixed script
   - **Upstream**: [Issue #101](https://github.com/jez500/pricebuddy/issues/101) / [PR #102](https://github.com/jez500/pricebuddy/pull/102)
   - **TODO**: Remove workaround when PR #102 merged
+- **⚠️ Operator Limitations** (mysql-operator v2.2.6):
+  - **Metadata Version Mismatch**: MySQL Shell 2.2.0 creates metadata 2.3.0, causes `add_instance()` failures
+  - **No Auto-Recovery**: `group_replication_start_on_boot` requires `loose_` prefix; operator doesn't auto-bootstrap
+  - **ConfigMap Not Reconciled**: Changes to `spec.mycnf` don't update existing ConfigMaps (requires pod delete)
+  - **Sidecar RBAC**: kopf framework needs cluster-wide namespace/CRD list permissions (manual RBAC required)
+  - **Version Lag**: Operator ships MySQL 9.1.0, not latest 9.5.x (slow release cadence)
+  - **Manual Recovery**: Cluster going OFFLINE requires manual `SET GLOBAL group_replication_bootstrap_group=ON`
+  - **Alternative Considered**: [Percona Operator for MySQL](https://docs.percona.com/percona-operator-for-mysql/ps/) - more actively maintained
+  - **Decision**: Accept limitations for now; MySQL data is backed up daily; consider migration if issues persist
 
 **Summary**:
 - **Critical data (PostgreSQL)**: 3 replicas, HA, zero downtime
@@ -668,7 +677,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-16 01:00 UTC
+**Last Updated**: 2025-12-16 21:00 UTC
 **Next Review**: 2025-12-27
 
 ---
@@ -676,6 +685,24 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2025-12-16 (MySQL Operator Limitations Documented) 📝
+- ✅ **MySQL Operator Limitations Documented**: Comprehensive analysis of mysql-operator v2.2.6 issues ⭐
+- ✅ **GitOps Fix Applied**: `loose_group_replication_start_on_boot=ON` committed to cluster.yaml
+- ✅ **Sidecar RBAC Fixed**: Created ClusterRole/ClusterRoleBinding for kopf framework permissions
+- ✅ **Memory Limit Increased**: MySQL container 1Gi → 1536Mi (was near OOM at 99.9%)
+- ✅ **Manual Backup Created**: Full MySQL dump saved to `.backup/mysql-backup-20251216_203346.tar.gz`
+- 🔧 **Technical Details**:
+  - **Operator Issues Identified**:
+    - Metadata version mismatch (Shell 2.2.0 vs metadata 2.3.0) breaks `add_instance()`
+    - ConfigMap not reconciled when `spec.mycnf` changes (requires pod delete)
+    - Version lag: ships MySQL 9.1.0, not latest 9.5.x
+    - No automatic bootstrap when cluster goes OFFLINE
+  - **GitOps Fixes**:
+    - `cluster.yaml`: Added `loose_` prefix to allow GR variable before plugin loads
+    - `sidecar-rbac.yaml`: ClusterRole for kopf framework namespace/CRD permissions
+  - **Decision**: Accept operator limitations; daily backups protect data; consider Percona Operator if issues persist
+- 📋 **Commits**: af57092 (mycnf fix), previous session (RBAC, memory)
 
 ### 2025-12-16 (MySQL Cluster Recovery & Uptime Kuma Monitor Fixes) 🔧
 - ✅ **MySQL InnoDB Cluster Recovered**: Group Replication manually restarted after cluster went OFFLINE ⭐
