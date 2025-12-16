@@ -57,7 +57,7 @@ spec:
         - protocol: TCP
           port: 5000        # HomeHub
         - protocol: TCP
-          port: 3306        # MariaDB
+          port: 3306        # MySQL
         - protocol: TCP
           port: 5432        # PostgreSQL
         - protocol: TCP

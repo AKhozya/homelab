@@ -6,7 +6,7 @@ namespace: pricebuddy
 resources:
   - namespace.yaml
   - serviceaccount.yaml
-  # mariadb-credentials.yaml removed - migrating to MySQL
+  - mysql-credentials.yaml
   - pvc.yaml
   - service.yaml
   - apprise-configmap.yaml

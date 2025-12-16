@@ -78,7 +78,7 @@ spec:
             - name: DB_CONNECTION
               value: "mysql"
             - name: DB_HOST
-              value: "main-mariadb.databases.svc.cluster.local"
+              value: "main-mysql-1.main-mysql-instances.databases.svc.cluster.local"
             - name: DB_PORT
               value: "3306"
             - name: DB_DATABASE
@@ -86,12 +86,12 @@ spec:
             - name: DB_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: pricebuddy-mariadb-credentials
+                  name: pricebuddy-mysql-credentials
                   key: username
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: pricebuddy-mariadb-credentials
+                  name: pricebuddy-mysql-credentials
                   key: password
             - name: SCRAPER_BASE_URL
               value: "http://localhost:4444"

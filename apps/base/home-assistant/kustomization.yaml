@@ -6,6 +6,7 @@ resources:
   - serviceaccount.yaml
   - storage.yaml
   - configmap.yaml
+  - ha-secrets.yaml
   - deployment.yaml
   - service.yaml
   - networkpolicy.yaml

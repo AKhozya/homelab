@@ -31,8 +31,8 @@ data:
       client_secret: !secret oidc_client_secret
       discovery_url: https://authentik.h0melab.work/application/o/home-assistant/.well-known/openid-configuration
 
-    # MariaDB Recorder Configuration
-    # Single instance - relies on daily + 6-hourly binlog backups for DR
+    # MySQL Recorder Configuration
+    # Single instance - relies on daily backups for DR
     recorder:
       db_url: !secret db_url
       commit_interval: 5

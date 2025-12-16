@@ -36,7 +36,7 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow MariaDB access
+    # Allow MySQL access
     - to:
         - namespaceSelector:
             matchLabels:
