@@ -8,6 +8,10 @@ metadata:
 spec:
   crVersion: "1.0.0"
 
+  # Allow 2 replicas for group replication (single worker node can't run 3)
+  unsafeFlags:
+    mysqlSize: true
+
   # Secrets for credentials
   secretsName: mysql-cluster-secrets
 
