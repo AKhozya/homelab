@@ -31,9 +31,9 @@ spec:
             - name: UPTIME_KUMA_DB_TYPE
               value: "mariadb"
             - name: UPTIME_KUMA_DB_HOSTNAME
-              value: "main-mysql-1.main-mysql-instances.databases.svc.cluster.local"
+              value: "main-mysql.databases.svc.cluster.local"
             - name: UPTIME_KUMA_DB_PORT
-              value: "3306"
+              value: "6446"
             - name: UPTIME_KUMA_DB_NAME
               value: "uptimekuma"
             - name: UPTIME_KUMA_DB_USERNAME

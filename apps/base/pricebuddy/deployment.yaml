@@ -78,9 +78,9 @@ spec:
             - name: DB_CONNECTION
               value: "mysql"
             - name: DB_HOST
-              value: "main-mysql-1.main-mysql-instances.databases.svc.cluster.local"
+              value: "main-mysql.databases.svc.cluster.local"
             - name: DB_PORT
-              value: "3306"
+              value: "6446"
             - name: DB_DATABASE
               value: "pricebuddy"
             - name: DB_USERNAME
