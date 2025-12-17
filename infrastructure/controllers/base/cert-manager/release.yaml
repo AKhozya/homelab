@@ -38,6 +38,14 @@ spec:
     # High availability: 2 replicas with pod anti-affinity
     replicaCount: 2
 
+    # Rolling update strategy: delete old pod before creating new
+    # Required with 2 replicas + required anti-affinity on 2 worker nodes
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+
     # Allow scheduling on control plane for HA
     tolerations:
       - key: node-role.kubernetes.io/control-plane
@@ -70,6 +78,11 @@ spec:
     # operation, as the controllers also perform validation.
     webhook:
       replicaCount: 2
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxSurge: 0
+          maxUnavailable: 1
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
@@ -108,6 +121,11 @@ spec:
     # CA Injector settings
     cainjector:
       replicaCount: 2
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxSurge: 0
+          maxUnavailable: 1
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists

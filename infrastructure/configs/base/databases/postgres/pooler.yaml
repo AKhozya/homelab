@@ -7,6 +7,13 @@ spec:
   cluster:
     name: main-postgres
   instances: 2  # 2 poolers sufficient for homelab
+  # Rolling update strategy: delete old pod before creating new
+  # Required with 2 replicas + required anti-affinity on 2 worker nodes
+  deploymentStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   type: rw      # Read-write pooler
   pgbouncer:
     poolMode: transaction  # Transaction pooling (works with most apps)

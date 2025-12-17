@@ -28,8 +28,23 @@ spec:
     cleanupOnFail: true
   values:
     # Admission controller configuration
+    # HA: 2 replicas for webhook availability during node reboots
     admissionController:
-      replicas: 1
+      replicas: 2
+
+      # Allow scheduling on control plane for HA
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+
+      # Rolling update strategy: delete old pod before creating new
+      # Required with 2 replicas + required anti-affinity on 2 worker nodes
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxSurge: 0
+          maxUnavailable: 1
 
       # Resource limits
       resources:
@@ -58,9 +73,10 @@ spec:
         enabled: true
         interval: 60s
 
-      # Anti-affinity (none for single node)
+      # Anti-affinity for HA across nodes
       podAntiAffinity:
-        enabled: false
+        enabled: true
+        mode: required
 
     # Background controller for policy reports
     backgroundController:
