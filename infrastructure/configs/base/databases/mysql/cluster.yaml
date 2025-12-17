@@ -115,9 +115,9 @@ spec:
     configuration: |
       [mysqld]
       max_connections=100
-      # Explicit buffer pool size - 512MB for current 10MB data + growth
-      # With 1.5GB limit and ~500MB base overhead, leaves ~500MB headroom
-      innodb_buffer_pool_size=512M
+      # Buffer pool right-sized: only 79MB actually cached, 256MB is 3x headroom
+      # Reduced from 512MB to eliminate memory pressure alerts
+      innodb_buffer_pool_size=256M
       innodb_buffer_pool_instances=1
       # Slow query logging for performance debugging
       slow_query_log=ON
