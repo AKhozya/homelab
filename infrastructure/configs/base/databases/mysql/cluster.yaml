@@ -47,14 +47,9 @@ spec:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
-    # Custom Orchestrator configuration for better recovery behavior
-    # These settings override operator defaults to reduce brittleness
-    configuration: |
-      {
-        "RecoveryPeriodBlockSeconds": 60,
-        "DelayMasterPromotionIfSQLThreadNotUpToDate": true,
-        "PostponeReplicaRecoveryOnLagMinutes": 5
-      }
+    # NOTE: orchestrator.configuration field exists in CRD but is not implemented
+    # by the operator (v1.0.0). Custom orchestrator settings cannot be applied.
+    # See: https://github.com/percona/percona-server-mysql-operator
 
   # Backup configuration (required even if not using backups)
   backup:

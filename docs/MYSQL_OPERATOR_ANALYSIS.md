@@ -147,13 +147,34 @@ kubectl delete pod -n databases main-mysql-haproxy-0 main-mysql-haproxy-1
 
 ## Configuration Recommendations
 
-### Current Configuration (Acceptable)
+### Resilience Configuration (Applied 2025-12-17)
+
 ```yaml
 mysql:
   autoRecovery: true
   clusterType: async
   size: 2
   gracePeriod: 30
+
+  # Environment variables for longer timeouts during clone/recovery
+  env:
+    - name: BOOTSTRAP_CLONE_TIMEOUT
+      value: "7200"  # 2 hours (default 3600s)
+    - name: BOOTSTRAP_READ_TIMEOUT
+      value: "3600"  # 1 hour
+    - name: BOOTSTRAP_WRITE_TIMEOUT
+      value: "3600"  # 1 hour
+
+  # More lenient probes to handle recovery scenarios
+  startupProbe:
+    failureThreshold: 1
+    timeoutSeconds: 43200  # 12 hours for clone
+  readinessProbe:
+    failureThreshold: 6    # Increased from 3
+    periodSeconds: 10      # Increased from 5
+  livenessProbe:
+    failureThreshold: 6    # Increased from 3
+    initialDelaySeconds: 300  # 5 min for recovery
 
 orchestrator:
   enabled: true
@@ -165,17 +186,28 @@ proxy:
     size: 2
 ```
 
-### Recommended Additions
+### Key Configuration Changes
 
-1. **Increase timeouts** for clone operations (already default 3600s in v1.0.0)
+| Setting | Default | New Value | Reason |
+|---------|---------|-----------|--------|
+| BOOTSTRAP_CLONE_TIMEOUT | 3600s | 7200s | Prevent clone timeouts on large data |
+| readinessProbe.failureThreshold | 3 | 6 | More tolerance during recovery |
+| livenessProbe.failureThreshold | 3 | 6 | Prevent premature pod kills |
+| livenessProbe.initialDelaySeconds | 15 | 300 | Allow time for recovery |
 
-2. **Add monitoring alerts** for:
+### Known Limitations
+
+1. **orchestrator.configuration field** - Exists in CRD but NOT implemented by operator v1.0.0
+   - Custom Orchestrator settings (RecoveryPeriodBlockSeconds, etc.) cannot be applied
+   - Feature request: https://github.com/percona/percona-server-mysql-operator/issues
+
+2. **Monitoring alerts** - Recommend adding:
    - Replication lag > 30 seconds
    - Both nodes read_only or writable
    - Clone operations taking > 10 minutes
    - pt-heartbeat container not running
 
-3. **Daily backup verification** - backups are your safety net
+3. **Daily backup verification** - Backups are your safety net
 
 ---
 
