@@ -37,6 +37,13 @@ spec:
                 app.kubernetes.io/name: cloudnative-pg
             topologyKey: kubernetes.io/hostname
 
+    # Update strategy: delete old pod before creating new (required with anti-affinity + 2 nodes)
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+
     # Resource limits for CNPG operator
     resources:
       requests:
