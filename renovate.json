@@ -89,6 +89,12 @@
         "AKhozya"
       ],
       "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Ignore MySQL backup image - manually updated with cluster",
+      "matchPackageNames": ["mysql"],
+      "matchFileNames": ["**/mysql-backup-cronjob.yaml"],
+      "enabled": false
     }
   ],
   "timezone": "Europe/London",

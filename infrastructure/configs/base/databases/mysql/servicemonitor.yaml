@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mysql-metrics
+  namespace: databases
+  labels:
+    release: kube-prometheus-stack  # Required for Prometheus discovery
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: database
+      app.kubernetes.io/instance: main-mysql
+      app.kubernetes.io/name: mysql
+  namespaceSelector:
+    matchNames:
+      - databases
+  endpoints:
+    - port: "9104"  # mysqld-exporter metrics port
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
