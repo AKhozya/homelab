@@ -26,6 +26,17 @@ spec:
     recreate: true
     cleanupOnFail: true
   values:
+    # HA: Run 2 replicas across different nodes for webhook availability during reboots
+    replicaCount: 2
+
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: cloudnative-pg
+            topologyKey: kubernetes.io/hostname
+
     # Resource limits for CNPG operator
     resources:
       requests:
