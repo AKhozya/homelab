@@ -5,4 +5,5 @@ resources:
   - cluster-secrets.yaml
   - cluster.yaml
   - networkpolicy.yaml
+  - exporter.yaml
   - servicemonitor.yaml

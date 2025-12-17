@@ -61,7 +61,7 @@ spec:
           port: 33060
         - protocol: TCP
           port: 33062
-    # Monitoring from Prometheus
+    # Monitoring from Prometheus (exporter sidecar - deprecated, keeping for reference)
     - from:
         - namespaceSelector:
             matchLabels:
@@ -69,6 +69,14 @@ spec:
       ports:
         - protocol: TCP
           port: 9104  # MySQL exporter
+    # MySQL exporter deployment access
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mysql-exporter
+      ports:
+        - protocol: TCP
+          port: 3306
   egress:
     # DNS
     - to:

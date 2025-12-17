@@ -117,29 +117,6 @@ spec:
       # Larger redo log for better write performance
       innodb_redo_log_capacity=256M
 
-    # Prometheus mysqld-exporter sidecar for metrics
-    sidecars:
-      - name: mysqld-exporter
-        image: prom/mysqld-exporter:v0.16.0
-        ports:
-          - containerPort: 9104
-            name: metrics
-        env:
-          - name: MYSQLD_EXPORTER_PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: mysql-cluster-secrets
-                key: monitor
-          - name: DATA_SOURCE_NAME
-            value: "monitor:$(MYSQLD_EXPORTER_PASSWORD)@(localhost:3306)/"
-        resources:
-          requests:
-            cpu: "10m"
-            memory: "32Mi"
-          limits:
-            cpu: "100m"
-            memory: "64Mi"
-
   # HAProxy for connection routing (required for async replication)
   proxy:
     haproxy:

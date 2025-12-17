@@ -8,14 +8,12 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app.kubernetes.io/component: database
-      app.kubernetes.io/instance: main-mysql
-      app.kubernetes.io/name: mysql
+      app: mysql-exporter
   namespaceSelector:
     matchNames:
       - databases
   endpoints:
-    - port: "9104"  # mysqld-exporter metrics port
+    - port: metrics
       path: /metrics
       interval: 30s
       scrapeTimeout: 10s
