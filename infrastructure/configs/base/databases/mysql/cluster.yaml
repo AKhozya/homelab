@@ -122,6 +122,8 @@ spec:
       long_query_time=2
       # Redo log - 64MB is sufficient for light workload
       innodb_redo_log_capacity=64M
+      # Binlog retention - 7 days sufficient for homelab with daily backups
+      binlog_expire_logs_seconds=604800
 
   # HAProxy for connection routing (required for async replication)
   proxy:
@@ -132,14 +134,14 @@ spec:
       imagePullPolicy: IfNotPresent
       serviceAccountName: main-mysql
 
-      # Resources for HAProxy
+      # Resources for HAProxy (actual usage ~25-35m CPU, ~25-35Mi memory)
       resources:
         requests:
-          cpu: "100m"
-          memory: "128Mi"
+          cpu: "50m"
+          memory: "64Mi"
         limits:
-          cpu: "500m"
-          memory: "256Mi"
+          cpu: "300m"
+          memory: "128Mi"
 
     # Router disabled (only works with group-replication)
     router:
