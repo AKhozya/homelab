@@ -664,6 +664,10 @@ ingress:
 - **Known Limitations**:
   - Replication password must be ≤32 characters (MySQL limitation)
   - HAProxy admin port (33062) probe may fail; main port (3306) works fine
+- **Operator Brittleness**: ⚠️ Manual intervention often required during recovery
+  - See [MYSQL_OPERATOR_ANALYSIS.md](./MYSQL_OPERATOR_ANALYSIS.md) for detailed runbook
+  - Common issues: clone.lock cleanup, stale IPs, read_only state, errant GTIDs
+  - Alternative considered: MOCO operator (evaluate if incidents >1/month)
 - **Known Issue**: PriceBuddy start-app.sh uses `nc` without `-z` flag causing startup hang
   - **Workaround**: ConfigMap override with fixed script
   - **Upstream**: [Issue #101](https://github.com/jez500/pricebuddy/issues/101) / [PR #102](https://github.com/jez500/pricebuddy/pull/102)
@@ -677,7 +681,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-17 01:30 UTC
+**Last Updated**: 2025-12-17 22:30 UTC
 **Next Review**: 2025-12-27
 
 ---
@@ -705,6 +709,30 @@ ingress:
   - **Redo Log**: 64MB (sufficient for light homelab workload)
 - 📋 **Commits**: 46fd44a (binlog + HAProxy), 1eedfcc (gracePeriod)
 - 📊 **Result**: Zero memory pressure alerts, metrics flowing to Prometheus
+
+### 2025-12-17 (MySQL Cluster Recovery & Brittleness Analysis) 🔧
+- ✅ **MySQL Cluster Recovered**: Manual intervention required after node scheduling changes ⭐
+- ✅ **Brittleness Analysis Complete**: Documented 6 common failure modes with recovery procedures
+- ✅ **Alternative Operators Evaluated**: MOCO identified as best CloudNativePG-like alternative
+- 🎯 **Root Causes Identified**:
+  - Clone lock file (`/var/lib/mysql/clone.lock`) not cleaned up after clone completion
+  - Operator caches stale pod IPs after pod recreation
+  - Read-only state not automatically enforced by Orchestrator
+  - Errant GTIDs from brief writable window on replica
+  - HAProxy config not updated after topology changes
+- 🔧 **Manual Fixes Applied**:
+  1. Restarted operator deployment to clear stale IP cache
+  2. Deleted mysql-0 pod to recreate with fresh state
+  3. Manually removed clone.lock file on mysql-1
+  4. Deleted mysql-1 pod to re-clone and fix errant GTIDs
+  5. Set correct read_only state on both nodes
+- 📋 **Documentation Created**: [MYSQL_OPERATOR_ANALYSIS.md](./MYSQL_OPERATOR_ANALYSIS.md)
+  - Recovery runbook for common scenarios
+  - Known GitHub issues (#1099, #1097)
+  - Configuration recommendations
+  - Alternative operator comparison (MOCO, Oracle, Bitpoke)
+- 🔄 **Final State**: mysql-0 (PRIMARY, read_only=0), mysql-1 (REPLICA, read_only=1)
+- 💡 **Recommendation**: Keep current setup with documented procedures; evaluate MOCO if >1 incident/month
 
 ### 2025-12-16 (Percona MySQL Migration) 🗄️
 - ✅ **Migrated from Oracle MySQL Operator to Percona Operator for MySQL** ⭐
