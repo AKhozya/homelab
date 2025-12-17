@@ -25,3 +25,12 @@ spec:
     # Operator runs in percona-mysql namespace
     # Watches all namespaces for PerconaServerForMySQL CRs
     watchAllNamespaces: true
+
+    # Resource limits for Kyverno compliance
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
