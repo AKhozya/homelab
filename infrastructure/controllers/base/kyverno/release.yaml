@@ -40,7 +40,7 @@ spec:
 
       # Rolling update strategy: delete old pod before creating new
       # Required with 2 replicas + required anti-affinity on 2 worker nodes
-      strategy:
+      updateStrategy:
         type: RollingUpdate
         rollingUpdate:
           maxSurge: 0

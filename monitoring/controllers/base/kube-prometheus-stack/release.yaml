@@ -267,32 +267,8 @@ spec:
         kubeAPIServer: false  # Disable API error budget burn alerts (overkill for homelab)
 
     prometheusOperator:
-      # HA: 2 replicas for webhook availability during node reboots
-      replicas: 2
-
-      # Allow scheduling on control plane for HA
-      tolerations:
-        - key: node-role.kubernetes.io/control-plane
-          operator: Exists
-          effect: NoSchedule
-
-      # Anti-affinity for HA across nodes
-      affinity:
-        podAntiAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchLabels:
-                  app: kube-prometheus-stack-operator
-              topologyKey: kubernetes.io/hostname
-
-      # Rolling update strategy: delete old pod before creating new
-      # Required with 2 replicas + required anti-affinity on 2 worker nodes
-      strategy:
-        type: RollingUpdate
-        rollingUpdate:
-          maxSurge: 0
-          maxUnavailable: 1
-
+      # Note: Prometheus Operator runs as single instance by design (uses leader election)
+      # The replicas field is hardcoded to 1 in the chart
       resources:
         requests:
           cpu: 50m
