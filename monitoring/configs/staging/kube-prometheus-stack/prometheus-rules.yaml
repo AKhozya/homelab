@@ -618,46 +618,98 @@ spec:
         summary: "CouchDB pod {{ $labels.pod }} not running"
         description: "CouchDB pod is in {{ $labels.phase }} state. Database may be unavailable!"
 
-  - name: mariadb-alerts
+  - name: mysql-alerts
     interval: 30s
     rules:
-    - alert: MariaDBDown
-      expr: mysql_up{job="main-mariadb-metrics"} == 0
+    - alert: MySQLDown
+      expr: mysql_up{job="mysql-exporter"} == 0
       for: 2m
       labels:
         severity: critical
       annotations:
-        summary: "MariaDB instance {{ $labels.instance }} is down"
-        description: "MariaDB on {{ $labels.instance }} is unreachable. Applications may lose database connectivity!"
+        summary: "MySQL exporter cannot connect to database"
+        description: "MySQL exporter is unable to connect to the database. Check MySQL cluster health and HAProxy status."
 
-    - alert: MariaDBPodNotRunning
-      expr: kube_pod_status_phase{namespace="databases",pod=~"main-mariadb-.*",phase!="Running"} > 0
+    - alert: MySQLPodNotRunning
+      expr: kube_pod_status_phase{namespace="databases",pod=~"main-mysql-mysql-.*",phase!="Running"} > 0
       for: 5m
       labels:
         severity: critical
       annotations:
-        summary: "MariaDB pod {{ $labels.pod }} not running"
-        description: "MariaDB pod is in {{ $labels.phase }} state. Database cluster may be degraded!"
+        summary: "MySQL pod {{ $labels.pod }} not running"
+        description: "MySQL pod is in {{ $labels.phase }} state. Database cluster may be degraded!"
 
-    - alert: MariaDBTooManyConnections
-      expr: mysql_global_status_threads_connected{job="main-mariadb-metrics"} / mysql_global_variables_max_connections{job="main-mariadb-metrics"} > 0.8
+    - alert: MySQLHAProxyNotRunning
+      expr: kube_pod_status_phase{namespace="databases",pod=~"main-mysql-haproxy-.*",phase!="Running"} > 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "MySQL HAProxy pod {{ $labels.pod }} not running"
+        description: "HAProxy pod is in {{ $labels.phase }} state. Application database connectivity may be affected!"
+
+    - alert: MySQLOrchestratorNotRunning
+      expr: count(kube_pod_status_phase{namespace="databases",pod=~"main-mysql-orc-.*",phase="Running"}) < 2
       for: 5m
       labels:
         severity: warning
       annotations:
-        summary: "MariaDB {{ $labels.instance }} connection usage high"
-        description: "MariaDB is using {{ $value | humanizePercentage }} of max connections ({{ $labels.threads_connected }}/{{ $labels.max_connections }}). May reject new connections soon!"
+        summary: "MySQL Orchestrator quorum at risk"
+        description: "Only {{ $value }} Orchestrator pods running. Need at least 2 for failover quorum. Check Orchestrator pods."
 
-    - alert: MariaDBConnectionFailure
-      expr: rate(mysql_global_status_connection_errors_total{job="main-mariadb-metrics",error="max_connections"}[5m]) > 0
+    - alert: MySQLTooManyConnections
+      expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections * 100 > 80
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "MySQL connection usage high"
+        description: "MySQL is using {{ printf \"%.1f\" $value }}% of max connections. May reject new connections soon."
+
+    - alert: MySQLReplicationNotRunning
+      expr: mysql_slave_status_slave_io_running == 0 or mysql_slave_status_slave_sql_running == 0
       for: 2m
       labels:
         severity: critical
       annotations:
-        summary: "MariaDB {{ $labels.instance }} rejecting connections"
-        description: "MariaDB is rejecting connections due to max_connections limit. Applications cannot connect to database!"
+        summary: "MySQL replication is not running"
+        description: "MySQL replica IO or SQL thread is not running. Replication is broken! Check SHOW REPLICA STATUS."
 
-    # Single instance monitoring (2025-11-29) - no HA, relies on backups for DR
+    - alert: MySQLReplicationLag
+      expr: mysql_slave_status_seconds_behind_master > 60
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "MySQL replication lag detected"
+        description: "MySQL replica is {{ $value }}s behind primary. Data may be out of sync."
+
+    - alert: MySQLSlowQueries
+      expr: rate(mysql_global_status_slow_queries[5m]) > 0.1
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "MySQL slow queries detected"
+        description: "{{ printf \"%.2f\" $value }} slow queries/sec detected. Check slow query log for optimization opportunities."
+
+    - alert: MySQLHighAbortedConnections
+      expr: rate(mysql_global_status_aborted_connects[5m]) > 0.5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High rate of aborted MySQL connections"
+        description: "{{ printf \"%.2f\" $value }} aborted connections/sec. May indicate network issues or authentication failures."
+
+    - alert: MySQLInnoDBBufferPoolHitRateLow
+      expr: (mysql_global_status_innodb_buffer_pool_read_requests - mysql_global_status_innodb_buffer_pool_reads) / mysql_global_status_innodb_buffer_pool_read_requests * 100 < 95
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "MySQL InnoDB buffer pool hit rate low"
+        description: "Buffer pool hit rate is {{ printf \"%.1f\" $value }}%. Consider increasing innodb_buffer_pool_size."
 
   # service-alerts group - ServiceDown alert removed, replaced by Uptime Kuma
   # See docs/UPTIME_KUMA_TELEGRAM_REPORT.md for details
