@@ -1,11 +1,12 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-12-17 01:30 UTC)
-**Cluster**: K3s (staging)
-**Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
+**Assessment Date**: 2025-10-18 (Updated: 2025-12-18 00:15 UTC)
+**Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
+**Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
-**Last Comprehensive Review**: 2025-10-27 ([COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md))
+**Last Comprehensive Review**: 2025-12-17 ([HOMELAB_REVIEW_2025_12_17.md](./HOMELAB_REVIEW_2025_12_17.md))
+**Previous Review**: 2025-10-27 ([COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md))
 **Historical Archive**: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) - Completed tasks & changelog (Oct-Nov 2025)
 
 ---
@@ -17,16 +18,18 @@
 **Strengths** ✅
 - Solid GitOps foundation with Flux
 - Comprehensive monitoring (Prometheus, Grafana, Loki, Alertmanager)
-- **🆕 Popeye - Cluster health monitoring (A grade, 100/100 score)** ⭐ (2025-10-27, Updated: 2025-12-13)
-- **🆕 Kyverno - Kubernetes-native policy enforcement (10 policies: 7 Enforce + 3 Audit, daily alerts)** ⭐ (2025-10-27, Updated: 2025-10-28)
+- **🆕 Popeye - Cluster health monitoring (A grade, 100/100 score)** ⭐ (2025-10-27, Updated: 2025-12-18)
+  - **Score restored** from 87 to 100 after orphaned RBAC cleanup (mariadb ClusterRoleBindings, CouchDB NetworkPolicy)
+  - **Status**: Clean cluster state, no issues
+- **🆕 Kyverno - Kubernetes-native policy enforcement (10 policies: 7 Enforce + 3 Audit, daily alerts)** ⭐ (2025-10-27, Updated: 2025-12-18)
   - **Enforced policies:** disallow-privilege-escalation, require-drop-all-capabilities, require-labels, disallow-host-namespaces, **require-non-default-serviceaccount** ✅, **require-seccomp-runtimedefault** ✅ (0 violations)
-  - **Audit policies:** require-resource-limits (0) - all violations resolved (2025-12-13)
+  - **Audit policies:** require-resource-limits (**0 violations**) ✅
   - **Phase 1 Complete (2025-10-28):** Service account remediation - 31 pods migrated, 16 custom SAs created, enforce mode enabled ✅
   - **Phase 2 Complete (2025-10-28):** Seccomp profiles - 23 workloads with RuntimeDefault, enforce mode enabled ✅
-  - **Phase 3 Complete (2025-12-13):** Resource limits - 0 violations (added limits to 6 jobs/webhooks), audit mode ✅
+  - **Phase 3 Complete (2025-12-18):** Resource limits - Percona operator limits added, 0 violations ✅
   - **Enforcement strategy:** Phased approach with zero-risk policies enforced first
   - **Monitoring:** Daily violation summaries via Prometheus/Telegram
-  - **Security posture:** ~80% Pod Security Standards (Baseline), ~65% Pod Security Standards (Restricted)
+  - **Security posture:** ~68% seccomp RuntimeDefault, ~76% non-root pods
 - **🆕 Centralized SSO with Authentik** ⭐
 - **🆕 Cloudflare Tunnel for secure external access** ⭐
 - **🆕 Dual-Access Pattern: Traefik Ingress + Cloudflare Tunnel** ⭐
@@ -40,7 +43,9 @@
 - Automated dependency updates (Renovate)
 - **Complete NetworkPolicy coverage on all apps (13/13)**
 - **Clean namespace separation - no resource leaks**
-- CloudNativePG for managed PostgreSQL (3-node HA) with PgBouncer pooler
+- CloudNativePG for managed PostgreSQL (2-node HA) with PgBouncer pooler
+- **🆕 Percona MySQL Operator** for MySQL (2-node async replication) with HAProxy ⭐
+- **🆕 3-Node Cluster** - worker-node-2 added (2025-12-15) ⭐
 - Default credential elimination on all apps
 - **🆕 Comprehensive Security Headers & Protections** ⭐ (2025-10-30)
   - **Phase 1 (Completed)**: Safe security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy)
@@ -88,9 +93,28 @@
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-**Last Updated**: 2025-12-17 (MySQL performance tuning, Prometheus monitoring)
-**Source**: [COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md)
+**Last Updated**: 2025-12-17 23:00 UTC (Comprehensive Review)
+**Source**: [HOMELAB_REVIEW_2025_12_17.md](./HOMELAB_REVIEW_2025_12_17.md)
+**Previous Reviews**: [COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md)
 **Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
+
+### 🚨 December 2025 Review Findings (NEW)
+
+| Priority | Issue | Status | Action |
+|----------|-------|--------|--------|
+| P0 | worker-node-2 has no swap | ✅ FIXED | 16GB LVM swap added (2025-12-18) |
+| P0 | Stale mariadb backup directory | ✅ FIXED | Archived and removed (2025-12-18) |
+| P1 | Kyverno violations returned (22) | ✅ FIXED | Percona operator limits added (2025-12-18) |
+| P1 | Popeye score dropped (87/100) | ✅ FIXED | Score restored to 100/100 (2025-12-18) |
+| P1 | ContainerMemoryNearLimit alert | ✅ FIXED | PriceBuddy apprise limit increased (2025-12-18) |
+| P1 | Monitoring not HA | ⚠️ Gap | Enable 2 replicas for Prometheus/Alertmanager/Loki |
+| P1 | MySQL HAProxy no anti-affinity | ⚠️ Gap | Add podAntiAffinity |
+| P2 | PVC distribution imbalanced | 📊 Review | Consider migration to worker-node-2 |
+| P2 | Resource governance reduced | 📊 Review | Audit missing quotas/limits |
+
+**Full Details**: See [HOMELAB_REVIEW_2025_12_17.md](./HOMELAB_REVIEW_2025_12_17.md)
+
+---
 
 ### ✅ Completed P0-CRITICAL Items (Summary)
 
@@ -120,10 +144,11 @@
    - Manual validation (last: 2025-10-26) sufficient for now
    - Infrastructure still evolving - automation premature
 
-#### ⚠️ **Kyverno Phase 3: Resource Limits** - PARTIALLY COMPLETED
-   - 30 violations remain (monitoring sidecars, kube-system)
-   - Policy in Audit mode - Helm charts don't expose sidecar resource config
-   - Commit: 5e28d3e
+#### ✅ **Kyverno Phase 3: Resource Limits** - COMPLETED (2025-12-18)
+   - **0 violations** as of 2025-12-18 (was 22 on 2025-12-17)
+   - Fixed by adding resource limits to Percona MySQL operator HelmRelease
+   - All non-system pods now have resource limits
+   - Commits: f67f9ba (operator limits), 5e28d3e (original fix)
 
 ### ✅ Completed P1-HIGH Items (Summary)
 
@@ -214,46 +239,43 @@
    - **Benefit**: Protects against node hardware failure, data center disaster
    - **Note**: DO NOT NAG UNTIL LATE DECEMBER
 
-#### 38. **Second Worker Node** 🖥️ PLANNED
-   - **Status**: PLANNED - Hardware arriving January 2026 (delayed from December 2025)
-   - **Priority**: P1-HIGH (enables true HA)
-   - **Current State**: Single worker node (192.168.1.129) runs all application workloads
-   - **Documentation** (created 2025-11-30):
-     - Setup guide: `docs/SECOND_WORKER_NODE_SETUP.md`
-     - Archinstall config: `docs/archinstall-worker-node.json`
-     - Post-install script: `docs/worker-node-post-install.sh`
-   - **Benefit**:
-     - True high availability with pod anti-affinity
-     - PostgreSQL replicas on separate physical nodes
-     - Zero-downtime node maintenance (drain without service interruption)
-     - Increased cluster capacity for future workloads
-   - **Tasks Upon Arrival**:
-     1. Boot Arch ISO, run archinstall (use JSON config as reference for packages)
-     2. Edit `worker-node-post-install.sh` variables: NODE_IP, K3S_TOKEN, LVM_DEVICES
-     3. Get K3s token from control plane: `sudo cat /var/lib/rancher/k3s/server/node-token`
-     4. Run post-install script: `sudo bash worker-node-post-install.sh`
-     5. Verify node joined: `kubectl get nodes`
-     6. Enable required pod anti-affinity for PostgreSQL (`podAntiAffinityType: "required"`)
-     7. Test node drain/failover
-     8. Add worker-node-2 to: AdGuard Home DNS, ~/.ssh/config, Uptime Kuma monitors
-   - **Estimated Effort**: 2-3 hours (with automated scripts)
-   - **Target Date**: January 2026
-   - **Unlocks**:
-     - PostgreSQL `podAntiAffinityType: "required"` (currently N/A due to single node)
-     - True cross-node HA for infrastructure components
-     - Node drain without workload disruption
-   - **Note**: DO NOT NAG UNTIL HARDWARE ARRIVES
+#### 38. **Second Worker Node** 🖥️ ✅ COMPLETED
+   - **Status**: ✅ DEPLOYED - 2025-12-15 (ahead of schedule!)
+   - **Priority**: ~~P1-HIGH~~ COMPLETED
+   - **Node Details**:
+     - **Hostname**: worker-node-2 (192.168.1.126)
+     - **User**: z3us
+     - **Hardware**: 30GB RAM, 1TB NVMe (system) + 3.6TB NVMe (k8s-storage)
+     - **Kernel**: 6.18.1-arch1-2
+     - **K3s**: v1.34.2+k3s1
+   - **Storage**: 3.6TB LVM (`k8s-storage` VG) - 1% used
+   - **Current Workloads** (31 pods):
+     - PostgreSQL replica (main-postgres-11)
+     - CouchDB replica (couchdb-couchdb-0)
+     - MySQL replica (main-mysql-mysql-0) + HAProxy + Orchestrator
+     - Promtail, Loki canary, system pods
+   - **Swap**: ✅ 16GB LVM swap configured (2025-12-18)
+   - **LVM Resize** (2025-12-18):
+     - Root: 20GB → 50GB (21% used)
+     - Home: 932GB → 10GB
+     - Swap: 16GB (new LV)
+     - Extra: 863GB at /mnt/extra-storage
+   - **Remaining Tasks**:
+     - ⚠️ **Enable monitoring HA** (Prometheus, Alertmanager, Loki still single-instance)
+     - ⚠️ **Add to Uptime Kuma** monitors
+     - ⚠️ **Update AdGuard Home** DNS entries
+   - **Documentation**: `docs/SECOND_WORKER_NODE_SETUP.md` (used for deployment)
 
-#### 39. **Switch to LTS Kernel 6.18** 🐧 DEFERRED
-   - **Status**: DEFERRED - Waiting for Arch Linux to update `linux-lts` package to 6.18
+#### 39. **Switch to LTS Kernel 6.18** 🐧 PARTIALLY COMPLETE
+   - **Status**: ⚠️ Running mainline 6.18.1, waiting for LTS package
    - **Priority**: P2-MEDIUM (stability improvement)
-   - **Target Date**: January-February 2026 (when Arch packages 6.18)
-   - **Current State**: Both nodes running mainline kernel 6.17.9
-   - **Blocker**: Arch `linux-lts` still at 6.12.61-1 (checked 2025-12-12)
+   - **Target Date**: January-February 2026 (when Arch packages 6.18 LTS)
+   - **Current State**: All 3 nodes running mainline kernel **6.18.1-arch1-2** (not LTS)
+   - **Blocker**: Arch `linux-lts` still at 6.12.x (checked 2025-12-17)
      - Linux 6.18 released upstream: Nov 30, 2025 (confirmed LTS, supported until Dec 2027)
      - Arch typically takes 4-8 weeks to transition LTS kernel series
      - Expected availability: Late January to Late February 2026
-   - **Scope**: Control plane (192.168.1.127) + Worker node (192.168.1.129)
+   - **Scope**: All 3 nodes (control-plane, worker-node, worker-node-2)
    - **Hardware Compatibility**: ✅ Verified
      - Intel N100 (Alder Lake-N): Supported since 6.1+
      - AMD Ryzen 9 9955HX (Zen 5): Supported since 6.10+ (included in 6.18)
@@ -681,7 +703,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-17 22:30 UTC
+**Last Updated**: 2025-12-18 00:15 UTC
 **Next Review**: 2025-12-27
 
 ---
@@ -689,6 +711,25 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2025-12-18 (December Review Remediation) 🔧
+- ✅ **worker-node-2 LVM Resize**: Root disk expanded and swap added ⭐
+  - Root: 20GB → 50GB (was 100% full)
+  - Home: 932GB → 10GB (freed for other use)
+  - Swap: 16GB LVM (new)
+  - Extra: 863GB at /mnt/extra-storage
+- ✅ **Kyverno Violations Fixed**: 22 → 0 violations
+  - Added resource limits to Percona MySQL operator HelmRelease
+  - Commit: f67f9ba
+- ✅ **Popeye Score Restored**: 87/100 → 100/100
+  - Deleted 13 orphaned MariaDB ClusterRoleBindings
+  - Deleted orphaned CouchDB NetworkPolicy in default namespace
+- ✅ **PriceBuddy Memory Alert Fixed**: Apprise container limit 210Mi → 300Mi
+  - Commit: 2c68eda
+- ✅ **Stale MariaDB Backup Archived**: `/mnt/k8s-storage/backups/mariadb` removed
+- ✅ **Old K3s Data Cleaned**: Freed 12GB on worker-node-2 root partition
+- 🔧 **Resolved Alerts**: ContainerMemoryNearLimit, PostgreSQLPodNotRunning, MySQLPodNotRunning
+- 📋 **Review Reference**: [HOMELAB_REVIEW_2025_12_17.md](./HOMELAB_REVIEW_2025_12_17.md)
 
 ### 2025-12-17 (MySQL Performance Tuning & Monitoring) ⚡
 - ✅ **Prometheus Monitoring Enabled**: Standalone mysqld-exporter deployment with ServiceMonitor ⭐
