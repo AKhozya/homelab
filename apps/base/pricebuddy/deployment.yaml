@@ -133,7 +133,9 @@ spec:
               cpu: "100m"
               memory: "256Mi"
             limits:
-              cpu: "500m"
+              # Increased from 500m to reduce CPU throttling (57% throttled with 500m)
+              # PHP/Laravel has bursty CPU patterns during request handling
+              cpu: "750m"
               memory: "540Mi"
           volumeMounts:
             - name: storage
