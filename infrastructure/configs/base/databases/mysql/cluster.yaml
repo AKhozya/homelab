@@ -47,6 +47,14 @@ spec:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
+    # Custom Orchestrator configuration for better recovery behavior
+    # These settings override operator defaults to reduce brittleness
+    configuration: |
+      {
+        "RecoveryPeriodBlockSeconds": 60,
+        "DelayMasterPromotionIfSQLThreadNotUpToDate": true,
+        "PostponeReplicaRecoveryOnLagMinutes": 5
+      }
 
   # Backup configuration (required even if not using backups)
   backup:
@@ -76,6 +84,34 @@ spec:
     image: percona/percona-server:8.4.6-6.1
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
+
+    # Environment variables for longer timeouts during clone/recovery
+    # These prevent "query interrupted" errors during large data transfers
+    env:
+      - name: BOOTSTRAP_CLONE_TIMEOUT
+        value: "7200"  # 2 hours (default 3600s, increased for stability)
+      - name: BOOTSTRAP_READ_TIMEOUT
+        value: "3600"  # 1 hour (explicit setting)
+      - name: BOOTSTRAP_WRITE_TIMEOUT
+        value: "3600"  # 1 hour (explicit setting)
+
+    # Probe configurations - more lenient to handle recovery scenarios
+    # Default failureThreshold=3 causes premature restarts during recovery
+    startupProbe:
+      failureThreshold: 1
+      initialDelaySeconds: 15
+      periodSeconds: 10
+      timeoutSeconds: 43200  # 12 hours for clone operations
+    readinessProbe:
+      failureThreshold: 6     # Increased from 3 - more tolerance during recovery
+      initialDelaySeconds: 30
+      periodSeconds: 10       # Increased from 5 - less aggressive probing
+      timeoutSeconds: 5
+    livenessProbe:
+      failureThreshold: 6     # Increased from 3 - prevent premature kills
+      initialDelaySeconds: 300  # 5 min - allow time for recovery
+      periodSeconds: 10
+      timeoutSeconds: 5
 
     # PodDisruptionBudget - ensure at least 1 replica during maintenance
     podDisruptionBudget:
