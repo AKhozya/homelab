@@ -79,14 +79,14 @@ spec:
     podDisruptionBudget:
       minAvailable: 1
 
-    # Resources
+    # Resources - optimized for homelab (10MB actual data)
     resources:
       requests:
-        cpu: "250m"
-        memory: "1024Mi"
+        cpu: "100m"
+        memory: "384Mi"
       limits:
         cpu: "1000m"
-        memory: "2048Mi"
+        memory: "768Mi"
 
     # Anti-affinity for HA
     affinity:
@@ -110,12 +110,16 @@ spec:
     # MySQL configuration
     configuration: |
       [mysqld]
-      max_connections=250
+      max_connections=100
+      # Explicit buffer pool size - 256MB is plenty for 10MB data with growth room
+      # Prevents auto-tuning from over-allocating memory
+      innodb_buffer_pool_size=256M
+      innodb_buffer_pool_instances=1
       # Slow query logging for performance debugging
       slow_query_log=ON
       long_query_time=2
-      # Larger redo log for better write performance
-      innodb_redo_log_capacity=256M
+      # Redo log - 64MB is sufficient for light workload
+      innodb_redo_log_capacity=64M
 
   # HAProxy for connection routing (required for async replication)
   proxy:
