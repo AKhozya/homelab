@@ -80,14 +80,15 @@ spec:
       minAvailable: 1
 
     # Resources - optimized for homelab (10MB actual data)
-    # MySQL 8.4 base memory ~400-500MB + buffer pool
+    # MySQL 8.4 base memory ~400-500MB + 512MB buffer pool = ~1GB typical
+    # 1.5GB limit gives ~500MB headroom for growth
     resources:
       requests:
         cpu: "100m"
-        memory: "512Mi"
+        memory: "768Mi"
       limits:
         cpu: "1000m"
-        memory: "1024Mi"
+        memory: "1536Mi"
 
     # Anti-affinity for HA
     affinity:
@@ -112,9 +113,9 @@ spec:
     configuration: |
       [mysqld]
       max_connections=100
-      # Explicit buffer pool size - 256MB is plenty for 10MB data with growth room
-      # Prevents auto-tuning from over-allocating memory
-      innodb_buffer_pool_size=256M
+      # Explicit buffer pool size - 512MB for current 10MB data + growth
+      # With 1.5GB limit and ~500MB base overhead, leaves ~500MB headroom
+      innodb_buffer_pool_size=512M
       innodb_buffer_pool_instances=1
       # Slow query logging for performance debugging
       slow_query_log=ON
