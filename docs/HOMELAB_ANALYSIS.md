@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-12-16 22:50 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-12-17 01:30 UTC)
 **Cluster**: K3s (staging)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -88,7 +88,7 @@
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-**Last Updated**: 2025-12-16 (MySQL cluster recovery, Uptime Kuma monitor fixes)
+**Last Updated**: 2025-12-17 (MySQL performance tuning, Prometheus monitoring)
 **Source**: [COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md)
 **Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
 
@@ -677,7 +677,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-16 21:00 UTC
+**Last Updated**: 2025-12-17 01:30 UTC
 **Next Review**: 2025-12-27
 
 ---
@@ -685,6 +685,26 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2025-12-17 (MySQL Performance Tuning & Monitoring) ⚡
+- ✅ **Prometheus Monitoring Enabled**: Standalone mysqld-exporter deployment with ServiceMonitor ⭐
+- ✅ **Memory Optimization**: Right-sized buffer pool (512MB) for actual 18.6MB data
+- ✅ **Binlog Retention Reduced**: 30 days → 7 days (sufficient with daily backups)
+- ✅ **HAProxy Resources Right-Sized**: Reduced CPU/memory to match actual usage
+- ✅ **PodDisruptionBudget Added**: minAvailable=1 for safe maintenance
+- ✅ **Slow Query Logging Enabled**: Threshold 2 seconds for performance debugging
+- ✅ **Volume Expansion Enabled**: Dynamic storage growth without downtime
+- ✅ **gracePeriod Added**: 30s on MySQL + HAProxy for smoother rolling updates
+- ✅ **Renovate Ignore Fixed**: Added packageRules for MySQL backup image
+- 🔧 **Technical Details**:
+  - **Memory**: 768Mi request / 1536Mi limit (actual ~1100-1150Mi usage)
+  - **Buffer Pool**: 512MB (was defaulting to 1GB, excessive for 18.6MB data)
+  - **Exporter**: prom/mysqld-exporter:v0.16.0 with all collectors enabled
+  - **HAProxy**: Reduced from 100m/128Mi to 50m/64Mi request (actual ~30m/25Mi)
+  - **Binlog**: 604800 seconds (7 days) - matches backup RPO
+  - **Redo Log**: 64MB (sufficient for light homelab workload)
+- 📋 **Commits**: 46fd44a (binlog + HAProxy), 1eedfcc (gracePeriod)
+- 📊 **Result**: Zero memory pressure alerts, metrics flowing to Prometheus
 
 ### 2025-12-16 (Percona MySQL Migration) 🗄️
 - ✅ **Migrated from Oracle MySQL Operator to Percona Operator for MySQL** ⭐
