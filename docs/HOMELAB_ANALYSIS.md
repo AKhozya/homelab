@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-12-18 00:15 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-12-18 09:00 UTC)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -17,7 +17,7 @@
 
 **Strengths** ✅
 - Solid GitOps foundation with Flux
-- Comprehensive monitoring (Prometheus, Grafana, Loki, Alertmanager)
+- Comprehensive monitoring (Prometheus, Grafana, Loki, Alertmanager) - **HA enabled** (2 replicas with anti-affinity) ⭐
 - **🆕 Popeye - Cluster health monitoring (A grade, 100/100 score)** ⭐ (2025-10-27, Updated: 2025-12-18)
   - **Score restored** from 87 to 100 after orphaned RBAC cleanup (mariadb ClusterRoleBindings, CouchDB NetworkPolicy)
   - **Status**: Clean cluster state, no issues
@@ -108,8 +108,9 @@
 | P1 | Kyverno violations returned (22) | ✅ FIXED | Percona operator limits added (2025-12-18) |
 | P1 | Popeye score dropped (87/100) | ✅ FIXED | Score restored to 100/100 (2025-12-18) |
 | P1 | ContainerMemoryNearLimit alert | ✅ FIXED | PriceBuddy apprise limit increased (2025-12-18) |
-| P1 | Monitoring not HA | ⚠️ Gap | Enable 2 replicas for Prometheus/Alertmanager/Loki |
-| P1 | MySQL HAProxy no anti-affinity | ⚠️ Gap | Add podAntiAffinity |
+| P1 | Monitoring not HA | ✅ FIXED | Prometheus/Alertmanager 2 replicas with anti-affinity (2025-12-18) |
+| P1 | MySQL HAProxy no anti-affinity | ✅ FIXED | Added antiAffinityTopologyKey (2025-12-18) |
+| P1 | AdGuard Home DNS missing worker-node-2 | ✅ FIXED | Added 192.168.1.126 to DNS rewrites (2025-12-18) |
 | P2 | PVC distribution imbalanced | 📊 Review | Consider migration to worker-node-2 |
 | P2 | Resource governance reduced | 📊 Review | Audit missing quotas/limits |
 
@@ -727,6 +728,24 @@ ingress:
 - ✅ **Old MariaDB Archive Deleted**: 25GB reclaimed on each node
 - ✅ **Storage Reduced**: 580GB → 2.3GB per node (99.6% reduction!)
 - ✅ **Backup Scripts Updated**: Fixed CouchDB namespace, added backup-replication SSH key, n8n-oidc, linkwarden-oidc
+
+### 2025-12-18 (HA Enablement & DNS Configuration) 🔄
+- ✅ **Prometheus/Alertmanager HA Enabled**: 2 replicas with hard anti-affinity ⭐
+  - Prometheus pods spread across worker-node and worker-node-2
+  - Alertmanager pods spread across worker-node and worker-node-2
+  - Loki skipped (requires object storage for HA, SingleBinary mode)
+  - Commits: release.yaml updated with replicas: 2, podAntiAffinity: "hard"
+- ✅ **MySQL HAProxy Anti-Affinity Added**: Pods now spread across worker nodes
+  - Added `affinity.antiAffinityTopologyKey: kubernetes.io/hostname`
+  - Verified: HAProxy-0 on worker-node, HAProxy-1 on worker-node-2
+- ✅ **AdGuard Home DNS Updated**: Added worker-node-2 to DNS rewrites
+  - Both 192.168.1.129 and 192.168.1.126 now in `*.h0melab.work` rewrites
+  - Enables DNS-based failover for internal services
+  - Commit: cbf4ac6
+- ✅ **Uptime Kuma Monitors Verified**: worker-node-2 already monitored
+  - SSH monitor (id=34) and kubelet monitor (id=37) already active
+- 🔧 **Stale Alerts Resolved**: NodeDown alerts from pod restarts during HA enablement
+- 🔧 **CouchDB Backup Job**: Failed job cleaned up (backup file was created successfully)
 
 ### 2025-12-18 (December Review Remediation) 🔧
 - ✅ **worker-node-2 LVM Resize**: Root disk expanded and swap added ⭐
