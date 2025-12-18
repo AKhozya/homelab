@@ -724,7 +724,7 @@ ingress:
   - worker-node-2: 4 PVCs (~110Gi) - database replicas only
   - Rationale: Rebalancing requires significant effort for minimal benefit
 - ✅ **Documentation Updated**: Marked worker-node-2 remaining tasks as completed
-- 📋 **Commits**: TBD (resource governance files)
+- 📋 **Commits**: 9acda51 (resource governance files)
 
 ### 2025-12-18 (Backup Replication & Storage Optimization) 💾
 - ✅ **Backup Replication to worker-node-2**: rsync CronJob at 4:00 AM daily ⭐
