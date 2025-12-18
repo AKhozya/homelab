@@ -1,0 +1,99 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: backup-replication
+  namespace: backup-replication
+spec:
+  # Run at 4:00 AM daily (after all backups complete at 3:00-3:15 AM)
+  schedule: "0 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 7200  # 2 hour timeout
+      template:
+        metadata:
+          labels:
+            app: backup-replication
+        spec:
+          serviceAccountName: backup-replication
+          automountServiceAccountToken: false
+          restartPolicy: OnFailure
+          # Run on worker-node (source of backups)
+          nodeSelector:
+            kubernetes.io/hostname: worker-node
+          securityContext:
+            # Run as root to install rsync/ssh and access backup files
+            runAsUser: 0
+            runAsGroup: 0
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: rsync
+              image: alpine:3.21
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  echo "=== Backup Replication Started: $(date) ==="
+
+                  # Install rsync and openssh
+                  apk add --no-cache rsync openssh-client
+
+                  # Setup SSH
+                  mkdir -p ~/.ssh
+                  cp /ssh-key/ssh-private-key ~/.ssh/id_ed25519
+                  chmod 600 ~/.ssh/id_ed25519
+
+                  # Add host key to known_hosts (port 65300)
+                  ssh-keyscan -p 65300 192.168.1.126 >> ~/.ssh/known_hosts 2>/dev/null
+
+                  # Show source backup status
+                  echo "=== Source Backups ==="
+                  du -sh /source-backups/*/ 2>/dev/null || echo "No backups found"
+
+                  # Rsync to worker-node-2
+                  echo ""
+                  echo "=== Starting rsync to worker-node-2 ==="
+                  rsync -avz --delete \
+                    --exclude='*.tmp' \
+                    --exclude='.*.swp' \
+                    -e "ssh -p 65300 -o StrictHostKeyChecking=no" \
+                    /source-backups/ \
+                    z3us@192.168.1.126:/mnt/extra-storage/backups/
+
+                  echo ""
+                  echo "=== Verifying destination ==="
+                  ssh -p 65300 z3us@192.168.1.126 "du -sh /mnt/extra-storage/backups/*/ 2>/dev/null || echo 'Verification failed'"
+
+                  echo ""
+                  echo "=== Backup Replication Completed: $(date) ==="
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "500m"
+                  memory: "256Mi"
+              volumeMounts:
+                - name: source-backups
+                  mountPath: /source-backups
+                  readOnly: true
+                - name: ssh-key
+                  mountPath: /ssh-key
+                  readOnly: true
+          volumes:
+            - name: source-backups
+              hostPath:
+                path: /mnt/k8s-storage/backups
+                type: Directory
+            - name: ssh-key
+              secret:
+                secretName: backup-replication-ssh-key
+                defaultMode: 0400

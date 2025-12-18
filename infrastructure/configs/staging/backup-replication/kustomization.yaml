@@ -1,0 +1,8 @@
+apiVersion: kustomize.io/v1beta1
+kind: Kustomization
+namespace: backup-replication
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - ssh-key-secret.yaml
+  - cronjob.yaml

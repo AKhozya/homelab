@@ -34,6 +34,7 @@ spec:
                 - databases
                 - couchdb
                 - immich  # GPU hardware transcoding requires /dev/dri hostPath
+                - backup-replication  # Needs access to host backup directory
       validate:
         message: "hostPath volumes are not allowed"
         pattern:
