@@ -14,6 +14,7 @@ spec:
         app: homepage
     spec:
       serviceAccountName: homepage
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -62,7 +63,7 @@ spec:
               value: "*"
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
@@ -92,8 +93,12 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /app/config
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: config
+          emptyDir: {}
+        - name: tmp
           emptyDir: {}
         - name: configmap
           configMap:
