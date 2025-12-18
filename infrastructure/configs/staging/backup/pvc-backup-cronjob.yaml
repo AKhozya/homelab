@@ -74,9 +74,11 @@ spec:
                   # Define critical PVCs to backup (one per line)
                   # Format: namespace/pvc-name/source-pattern
                   # Note: CouchDB is backed up via database backup (not PVC)
+                  # Note: Immich library excluded - 62GB/day of photos/videos
+                  # Photos can be re-uploaded from source; database (faces, albums, metadata)
+                  # is backed up via PostgreSQL daily backup
                   CRITICAL_PVCS="
                   home-assistant/home-assistant-data-pvc/*home-assistant-data-pvc*
-                  immich/immich-library/*immich-library*
                   paperless-ngx/paperless-data-pvc/*paperless-data-pvc*
                   audiobookshelf/audiobookshelf-audiobooks/*audiobookshelf-audiobooks*
                   audiobookshelf/audiobookshelf-podcasts/*audiobookshelf-podcasts*
@@ -88,10 +90,9 @@ spec:
                   pricebuddy/pricebuddy-storage/*pricebuddy-storage*
                   "
 
-                  # PVCs containing already-compressed media files (photos/videos/audio)
-                  # Skip compression for these - saves 25+ minutes with 0.5% space benefit
+                  # PVCs containing already-compressed media files (audio)
+                  # Skip compression for these - saves time with minimal space benefit
                   NO_COMPRESS_PVCS="
-                  immich-library
                   audiobookshelf-audiobooks
                   audiobookshelf-podcasts
                   "
