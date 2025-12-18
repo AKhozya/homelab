@@ -30,10 +30,11 @@ metadata:
   namespace: monitoring
 spec:
   hard:
-    requests.cpu: "3"
-    requests.memory: 6Gi
-    limits.cpu: "10"
-    limits.memory: 12Gi
+    # Increased for HA (Prometheus/Alertmanager 2 replicas)
+    requests.cpu: "5"
+    requests.memory: 10Gi
+    limits.cpu: "15"
+    limits.memory: 18Gi
     pods: "50"
     services: "20"
     persistentvolumeclaims: "20"

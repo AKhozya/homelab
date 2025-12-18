@@ -27,6 +27,16 @@ spec:
       ports:
         - protocol: TCP
           port: 9093
+    # Allow Alertmanager cluster gossip (HA mesh communication)
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: alertmanager
+      ports:
+        - protocol: TCP
+          port: 9094
+        - protocol: UDP
+          port: 9094
   egress:
     # Allow DNS resolution
     - to:
@@ -36,7 +46,17 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow HTTPS for webhook notifications (if needed)
+    # Allow Alertmanager cluster gossip (HA mesh communication)
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: alertmanager
+      ports:
+        - protocol: TCP
+          port: 9094
+        - protocol: UDP
+          port: 9094
+    # Allow HTTPS for webhook notifications (Telegram API, etc.)
     - ports:
         - protocol: TCP
           port: 443
@@ -44,7 +64,3 @@ spec:
     - ports:
         - protocol: TCP
           port: 80
-    # Allow Telegram API (api.telegram.org)
-    - ports:
-        - protocol: TCP
-          port: 443
