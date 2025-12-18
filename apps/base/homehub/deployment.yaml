@@ -53,7 +53,7 @@ spec:
             - containerPort: 5000
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false # HomeHub needs to write to data directory
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
@@ -96,6 +96,8 @@ spec:
               mountPath: /app/config.yml
               subPath: config.yml
               readOnly: true
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: homehub-data
           persistentVolumeClaim:
@@ -107,4 +109,6 @@ spec:
           secret:
             secretName: homehub-password
         - name: runtime-config
+          emptyDir: {}
+        - name: tmp
           emptyDir: {}
