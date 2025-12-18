@@ -132,6 +132,9 @@ spec:
     
     prometheus:
       prometheusSpec:
+        # HA configuration - 2 replicas with anti-affinity
+        replicas: 2
+        podAntiAffinity: "hard"
         # Global scrape interval increased from 30s to 60s for memory optimization
         scrapeInterval: 60s
         # Retention increased to 90 days for historical analysis
@@ -236,6 +239,9 @@ spec:
             hosts:
             - am.h0melab.work
       alertmanagerSpec:
+        # HA configuration - 2 replicas with anti-affinity
+        replicas: 2
+        podAntiAffinity: "hard"
         # Configure external URL so Alert Manager generates HTTPS links
         # This prevents mixed content warnings in browsers
         externalUrl: https://am.h0melab.work

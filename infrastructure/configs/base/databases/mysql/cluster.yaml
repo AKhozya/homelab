@@ -178,6 +178,10 @@ spec:
           cpu: "300m"
           memory: "128Mi"
 
+      # Anti-affinity for HA - spread across nodes
+      affinity:
+        antiAffinityTopologyKey: kubernetes.io/hostname
+
     # Router disabled (only works with group-replication)
     router:
       enabled: false
