@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-12-18 09:00 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-12-18 22:00 UTC)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -177,12 +177,78 @@
 | Deploy Velero for cluster backups | 4-6h | P2 |
 | Implement backup immutability (S3 object lock/ZFS) | 2-4h | P2 |
 | SOPS multi-key encryption | 4h | P2 |
-| ReadOnlyRootFilesystem (7/16 apps currently) | 4-6h/app | P2 |
+| ReadOnlyRootFilesystem Phase 3 (linkwarden, immich-ml, immich-proxy) | 2-3h | P2 |
+
+#### 🔒 **ReadOnlyRootFilesystem Security Hardening** (P2-MEDIUM) - PHASE 1+2 COMPLETE ✅
+
+**Investigation Date**: 2025-12-18
+**Implementation Date**: 2025-12-18
+**Current State**: 10/16 apps have readOnlyRootFilesystem enabled (was 3, +7 containers hardened)
+**Goal**: Maximize containers with read-only root filesystems to reduce attack surface
+
+##### ✅ **Tier 1: COMPLETED** (2025-12-18)
+
+| App | Container | Status | Commit |
+|-----|-----------|--------|--------|
+| **paperless-ngx** | main | ✅ Enabled | e1d5e5b |
+| **authentik-server** | server | ✅ Enabled | 3c1fddb |
+| **authentik-worker** | worker | ✅ Enabled | 5213a69 |
+
+##### ✅ **Tier 2: COMPLETED** (2025-12-18)
+
+| App | Container | Changes | Commit |
+|-----|-----------|---------|--------|
+| **csp-reporter** | main | Added /tmp emptyDir, full security hardening | 48ba5fc |
+| **homepage** | main | Added /tmp emptyDir, automountServiceAccountToken: false | 9e04864 |
+| **homehub** | main | Added /tmp emptyDir | d8da2a0 |
+| **uptime-kuma** | main | Added /tmp emptyDir, runAsNonRoot to pod spec | 2034718 |
+
+**Verification**: All 7 apps restarted, init containers tested, setup jobs re-run, CSP reports confirmed working
+
+##### ⏸️ **Tier 3: DEFERRED to Late December 2025**
+
+| App | Container | Issue | Recommendation |
+|-----|-----------|-------|----------------|
+| **linkwarden** | main | Comment says "Next.js needs writable filesystem" but has emptyDir for cache | Test if enabling works |
+| **immich-ml** | main | Has readOnlyRootFilesystem: false explicit | Test with emptyDir for model cache |
+| **immich-proxy** | nginx | Needs /tmp, /var/cache, /var/run writable | Add emptyDir volumes |
+
+**Effort**: 2-3 hours (test each, may need multiple iterations)
+**Status**: Deferred to end of December 2025 - higher risk, requires more testing
+
+##### ❌ **Tier 4: Not Feasible**
+
+| App | Reason | Mitigation |
+|-----|--------|------------|
+| **pricebuddy** (scraper) | Selenium writes browser data in many locations | Container isolation, NetworkPolicy |
+| **pricebuddy** (apprise) | Runs as root, writes to /config | emptyDir already used, root required |
+| **stirling-pdf** | Comment: "needs to write temp files and modify system configs" | Has many emptyDir, needs root for nginx/PDF processing |
+| **adguard-home** | Runs as root for port 53, writes to multiple locations | Container isolation, PVC for data |
+| **home-assistant** | Runs as root, writes plugins/states/custom components everywhere | Official limitation, many capabilities required |
+| **immich-server** | Runs as privileged for GPU transcoding | Required for VAAPI hardware acceleration |
+| **grafana** | Helm chart complexity, multiple sidecars | Would require extensive chart customization |
+
+##### 📋 **Implementation Summary**
+
+**Phase 1** (Tier 1 - Zero Risk): ✅ **COMPLETED 2025-12-18**
+- Enabled on paperless-ngx, authentik-server, authentik-worker
+- Commits: e1d5e5b, 3c1fddb, 5213a69
+
+**Phase 2** (Tier 2 - Low Risk): ✅ **COMPLETED 2025-12-18**
+- Added /tmp emptyDir to csp-reporter, homepage, homehub, uptime-kuma
+- Commits: 48ba5fc, 9e04864, d8da2a0, 2034718
+
+**Phase 3** (Tier 3 - Medium Risk): ⏸️ **DEFERRED to Late December 2025**
+- linkwarden, immich-ml, immich-proxy - requires more testing
+
+**Outcome**: 10 containers with readOnlyRootFilesystem (was 3, +7 hardened)
+**Security Benefit**: Reduced attack surface, prevents runtime filesystem tampering
 
 ### ✅ Completed P2-MEDIUM Items (Summary)
 
 | Item | Date | Status |
 |------|------|--------|
+| ReadOnlyRootFilesystem Phase 1+2 | 2025-12-18 | ✅ 7 apps hardened (paperless, authentik×2, csp-reporter, homepage, homehub, uptime-kuma) |
 | Backup Integrity Checks (SHA256) | 2025-10-31 | ✅ All backups generate checksums |
 | GPG Secrets Encryption | 2025-10-31 | ✅ AES256 with interactive passphrase |
 | Rate Limiting Middleware | 2025-10-31 | ✅ 100% coverage (17 ingresses) |
@@ -713,6 +779,27 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2025-12-18 (ReadOnlyRootFilesystem Implementation - Phase 1+2) 🔒
+- ✅ **Phase 1 Complete**: Enabled readOnlyRootFilesystem on 3 apps (Tier 1 - zero risk) ⭐
+  - **paperless-ngx**: Already had emptyDir volumes, just enabled flag (e1d5e5b)
+  - **authentik-server**: Changed from false to true (3c1fddb)
+  - **authentik-worker**: Changed from false to true (5213a69)
+- ✅ **Phase 2 Complete**: Enabled readOnlyRootFilesystem on 4 apps with /tmp emptyDir (Tier 2 - low risk) ⭐
+  - **csp-reporter**: Added full security hardening + /tmp emptyDir (48ba5fc)
+  - **homepage**: Added /tmp emptyDir + automountServiceAccountToken: false (9e04864)
+  - **homehub**: Added /tmp emptyDir, removed misleading comment (d8da2a0)
+  - **uptime-kuma**: Added /tmp emptyDir + runAsNonRoot to pod spec (2034718)
+- ✅ **All 7 Apps Verified**:
+  - Rollout restarts completed successfully
+  - Init containers tested (fix-permissions, copy-config, setup-config, wait-for-server)
+  - Setup jobs re-run (uptime-kuma-setup)
+  - CSP reporter confirmed receiving and logging violation reports
+  - Root filesystem write blocked, /tmp and PVC writes working
+- ⏸️ **Phase 3 Deferred**: linkwarden, immich-ml, immich-proxy - deferred to late December 2025
+- 📊 **Outcome**: 10 containers with readOnlyRootFilesystem (was 3, +7 hardened)
+- 🔒 **Security Benefit**: Reduced attack surface, prevents runtime filesystem tampering
+- 🔧 **Key Finding**: PVC-mounted paths remain writable regardless of readOnlyRootFilesystem setting
 
 ### 2025-12-18 (Resource Governance Completion) 📊
 - ✅ **Resource Governance Gaps Fixed**: Added ResourceQuota and LimitRange for 3 namespaces ⭐
