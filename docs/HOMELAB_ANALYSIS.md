@@ -57,7 +57,7 @@
   - **HSTS Review**: 2026-01-15 - Step 3 final rollout (increase max-age to 1 year)
 
 **Critical Gaps (from 2025-10-27 Comprehensive Review)** 🔴
-- ⏸️ **No offsite backup replication** (P0-CRITICAL) - DEFERRED to late December 2025 (NAS delivery postponed)
+- ✅ **Backup replication to worker-node-2** (P0-CRITICAL) - COMPLETED (2025-12-18) - rsync CronJob at 4AM daily
 - ✅ **PostgreSQL NetworkPolicy** (P0-CRITICAL) - COMPLETED (2025-10-27)
 - ✅ **Duplicate cert-manager ClusterIssuers** (P0-CRITICAL) - COMPLETED (2025-10-27)
 - ❌ **CNPG WAL archiving** (P0-CRITICAL) - REMOVED (Not Implementing - pg_dump acceptable)
@@ -83,11 +83,12 @@
 **Backup Infrastructure** ✅
 - ✅ PostgreSQL daily backups (3:00 AM, 30-day retention)
 - ✅ CouchDB daily backups (3:05 AM, 30-day retention)
-- ✅ PVC daily backups (3:10 AM, 7-day retention)
+- ✅ PVC daily backups (3:10 AM, 7-day retention) - Immich excluded (photos can be re-uploaded, DB in PostgreSQL)
 - ✅ MySQL daily backups (3:15 AM, 30-day retention, SHA256 checksums) ⭐
+- ✅ **Backup replication to worker-node-2** (4:00 AM, rsync over SSH) ⭐ NEW
 - ✅ Disaster recovery scripts complete (`.backup/` directory)
 - ✅ Backup validation completed (2025-10-26)
-- ❌ **Missing**: Offsite replication, WAL archiving, automated validation
+- ✅ Storage optimized: 2.3GB per node (was 580GB before Immich exclusion)
 
 ---
 
@@ -703,7 +704,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-18 00:15 UTC
+**Last Updated**: 2025-12-18 02:00 UTC
 **Next Review**: 2025-12-27
 
 ---
@@ -711,6 +712,21 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2025-12-18 (Backup Replication & Storage Optimization) 💾
+- ✅ **Backup Replication to worker-node-2**: rsync CronJob at 4:00 AM daily ⭐
+  - SSH key-based auth, SOPS-encrypted secret
+  - Syncs postgres, couchdb, mysql, pvc backups
+  - Kyverno policy exception for hostPath volumes
+  - Tested: 2.3GB replicated successfully
+  - Commits: cc70bba (manifests), b79d193 (Immich exclusion)
+- ✅ **Immich Excluded from PVC Backups**: Saves ~500GB/node
+  - Photos can be re-uploaded from source devices
+  - Database (faces, albums, metadata) backed up via PostgreSQL
+  - Old Immich backups cleaned up on both nodes
+- ✅ **Old MariaDB Archive Deleted**: 25GB reclaimed on each node
+- ✅ **Storage Reduced**: 580GB → 2.3GB per node (99.6% reduction!)
+- ✅ **Backup Scripts Updated**: Fixed CouchDB namespace, added backup-replication SSH key, n8n-oidc, linkwarden-oidc
 
 ### 2025-12-18 (December Review Remediation) 🔧
 - ✅ **worker-node-2 LVM Resize**: Root disk expanded and swap added ⭐

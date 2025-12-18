@@ -202,11 +202,17 @@ if [ -f "${BACKUP_DIR}/secrets/couchdb-admin-credentials.json" ]; then
     echo "   ✅ Obsidian CouchDB"
 fi
 
-# CouchDB
+# CouchDB (in databases namespace)
 if [ -f "${BACKUP_DIR}/secrets/couchdb-couchdb.json" ]; then
-    kubectl create namespace couchdb --dry-run=client -o yaml | kubectl apply -f -
     kubectl apply -f "${BACKUP_DIR}/secrets/couchdb-couchdb.json"
     echo "   ✅ CouchDB"
+fi
+
+# Backup Replication
+if [ -f "${BACKUP_DIR}/secrets/backup-replication-ssh-key.json" ]; then
+    kubectl create namespace backup-replication --dry-run=client -o yaml | kubectl apply -f -
+    kubectl apply -f "${BACKUP_DIR}/secrets/backup-replication-ssh-key.json"
+    echo "   ✅ Backup Replication"
 fi
 
 # Loki/Promtail
@@ -242,6 +248,12 @@ if [ -f "${BACKUP_DIR}/secrets/paperless-oidc.json" ]; then
 fi
 if [ -f "${BACKUP_DIR}/secrets/stirling-pdf-oidc.json" ]; then
     kubectl apply -f "${BACKUP_DIR}/secrets/stirling-pdf-oidc.json"
+fi
+if [ -f "${BACKUP_DIR}/secrets/n8n-oidc.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/n8n-oidc.json"
+fi
+if [ -f "${BACKUP_DIR}/secrets/linkwarden-oidc.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/linkwarden-oidc.json"
 fi
 echo "   ✅ OIDC integration secrets restored"
 

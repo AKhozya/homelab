@@ -114,8 +114,11 @@ kubectl get secret pricebuddy-telegram -n pricebuddy -o json > "${BACKUP_DIR}/se
 kubectl get secret couchdb-admin-credentials -n obsidian -o json > "${BACKUP_DIR}/secrets/couchdb-admin-credentials.json" 2>/dev/null || echo "   ⚠️  No obsidian/couchdb-admin-credentials"
 kubectl get secret couchdb-credentials -n obsidian -o json > "${BACKUP_DIR}/secrets/couchdb-credentials.json" 2>/dev/null || echo "   ⚠️  No obsidian/couchdb-credentials"
 
-# CouchDB (for Obsidian)
-kubectl get secret couchdb-couchdb -n couchdb -o json > "${BACKUP_DIR}/secrets/couchdb-couchdb.json" 2>/dev/null || echo "   ⚠️  No couchdb/couchdb-couchdb"
+# CouchDB (for Obsidian) - in databases namespace
+kubectl get secret couchdb-couchdb -n databases -o json > "${BACKUP_DIR}/secrets/couchdb-couchdb.json" 2>/dev/null || echo "   ⚠️  No databases/couchdb-couchdb"
+
+# Backup Replication (SSH key for cross-node backup sync)
+kubectl get secret backup-replication-ssh-key -n backup-replication -o json > "${BACKUP_DIR}/secrets/backup-replication-ssh-key.json" 2>/dev/null || echo "   ⚠️  No backup-replication/backup-replication-ssh-key"
 
 # Loki/Promtail
 kubectl get secret promtail -n loki -o json > "${BACKUP_DIR}/secrets/promtail.json" 2>/dev/null || echo "   ⚠️  No loki/promtail secret"
@@ -133,6 +136,8 @@ kubectl get secret immich-oidc -n immich -o json > "${BACKUP_DIR}/secrets/immich
 kubectl get secret mealie-oidc -n mealie -o json > "${BACKUP_DIR}/secrets/mealie-oidc.json" 2>/dev/null || echo "   ⚠️  No mealie/mealie-oidc"
 kubectl get secret paperless-oidc -n paperless-ngx -o json > "${BACKUP_DIR}/secrets/paperless-oidc.json" 2>/dev/null || echo "   ⚠️  No paperless-ngx/paperless-oidc"
 kubectl get secret stirling-pdf-oidc -n stirling-pdf -o json > "${BACKUP_DIR}/secrets/stirling-pdf-oidc.json" 2>/dev/null || echo "   ⚠️  No stirling-pdf/stirling-pdf-oidc"
+kubectl get secret n8n-oidc -n n8n -o json > "${BACKUP_DIR}/secrets/n8n-oidc.json" 2>/dev/null || echo "   ⚠️  No n8n/n8n-oidc"
+kubectl get secret linkwarden-oidc -n linkwarden -o json > "${BACKUP_DIR}/secrets/linkwarden-oidc.json" 2>/dev/null || echo "   ⚠️  No linkwarden/linkwarden-oidc"
 
 # =============================================================================
 # Extract important plaintext values for easy reference
