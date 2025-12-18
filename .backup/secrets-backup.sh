@@ -135,9 +135,9 @@ kubectl get secret home-assistant-oidc -n home-assistant -o json > "${BACKUP_DIR
 kubectl get secret immich-oidc -n immich -o json > "${BACKUP_DIR}/secrets/immich-oidc.json" 2>/dev/null || echo "   ⚠️  No immich/immich-oidc"
 kubectl get secret mealie-oidc -n mealie -o json > "${BACKUP_DIR}/secrets/mealie-oidc.json" 2>/dev/null || echo "   ⚠️  No mealie/mealie-oidc"
 kubectl get secret paperless-oidc -n paperless-ngx -o json > "${BACKUP_DIR}/secrets/paperless-oidc.json" 2>/dev/null || echo "   ⚠️  No paperless-ngx/paperless-oidc"
-kubectl get secret stirling-pdf-oidc -n stirling-pdf -o json > "${BACKUP_DIR}/secrets/stirling-pdf-oidc.json" 2>/dev/null || echo "   ⚠️  No stirling-pdf/stirling-pdf-oidc"
 kubectl get secret n8n-oidc -n n8n -o json > "${BACKUP_DIR}/secrets/n8n-oidc.json" 2>/dev/null || echo "   ⚠️  No n8n/n8n-oidc"
-kubectl get secret linkwarden-oidc -n linkwarden -o json > "${BACKUP_DIR}/secrets/linkwarden-oidc.json" 2>/dev/null || echo "   ⚠️  No linkwarden/linkwarden-oidc"
+# Note: stirling-pdf uses stirling-pdf-env for OIDC config (already backed up above)
+# Note: linkwarden uses main 'linkwarden' secret for OIDC config (already backed up above)
 
 # =============================================================================
 # Extract important plaintext values for easy reference

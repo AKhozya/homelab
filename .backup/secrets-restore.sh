@@ -246,15 +246,10 @@ fi
 if [ -f "${BACKUP_DIR}/secrets/paperless-oidc.json" ]; then
     kubectl apply -f "${BACKUP_DIR}/secrets/paperless-oidc.json"
 fi
-if [ -f "${BACKUP_DIR}/secrets/stirling-pdf-oidc.json" ]; then
-    kubectl apply -f "${BACKUP_DIR}/secrets/stirling-pdf-oidc.json"
-fi
 if [ -f "${BACKUP_DIR}/secrets/n8n-oidc.json" ]; then
     kubectl apply -f "${BACKUP_DIR}/secrets/n8n-oidc.json"
 fi
-if [ -f "${BACKUP_DIR}/secrets/linkwarden-oidc.json" ]; then
-    kubectl apply -f "${BACKUP_DIR}/secrets/linkwarden-oidc.json"
-fi
+# Note: stirling-pdf and linkwarden OIDC configs are in their main secrets (already restored above)
 echo "   ✅ OIDC integration secrets restored"
 
 # =============================================================================
