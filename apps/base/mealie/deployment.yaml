@@ -67,7 +67,7 @@ spec:
               drop: ["ALL"]
       containers:
         - name: mealie
-          image: ghcr.io/mealie-recipes/mealie:v3.7.0
+          image: ghcr.io/mealie-recipes/mealie:v3.8.0
           ports:
             - containerPort: 9000
               name: http
