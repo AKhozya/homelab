@@ -112,9 +112,11 @@ spec:
             readOnlyRootFilesystem: false
             capabilities:
               drop: ["ALL"]
+          # Use /up endpoint to avoid session creation (Laravel 11 health route)
+          # See: https://github.com/jez500/pricebuddy/issues/103
           livenessProbe:
             httpGet:
-              path: /
+              path: /up
               port: 80
             initialDelaySeconds: 60
             periodSeconds: 10
@@ -122,7 +124,7 @@ spec:
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /
+              path: /up
               port: 80
             initialDelaySeconds: 30
             periodSeconds: 5
