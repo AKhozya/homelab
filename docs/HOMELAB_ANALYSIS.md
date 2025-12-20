@@ -425,6 +425,27 @@ Installs required firmware and removes unnecessary AUR packages.
 
 **Status** (2025-12-20): ✅ All 3 nodes cleaned (no reboot required)
 
+### Performance Optimization
+Applies CPU governor, kernel tuning for K8s, and network optimizations.
+
+| Script | Node | Run Command |
+|--------|------|-------------|
+| `optimize-master.sh` | gmk-k3s-control-plane | `sudo bash /tmp/optimize-master.sh` |
+| `optimize-worker-1.sh` | worker-node | `sudo bash /tmp/optimize-worker-1.sh` |
+| `optimize-worker-2.sh` | worker-node-2 | `sudo bash /tmp/optimize-worker-2.sh` |
+
+**What they configure:**
+- CPU governor → `performance` (consistent low latency, persists via tmpfiles.d)
+- `fs.inotify.max_user_instances` → 8192 (more containers)
+- `fs.inotify.max_user_watches` → 1048576 (more file watches)
+- TCP congestion → BBR (better throughput)
+- TCP buffers → 16MB (high throughput)
+- `net.netfilter.nf_conntrack_max` → 1048576 (K8s services)
+- `vm.swappiness` → 10 (prefer RAM over swap)
+- `vm.dirty_ratio` → 10/5 (faster SSD writeback)
+
+**Status** (2025-12-20): ⏸️ Scripts ready, pending execution
+
 ---
 
 ## 📈 CURRENT METRICS
