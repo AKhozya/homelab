@@ -386,6 +386,47 @@
 
 ---
 
+## 🛠️ NODE MANAGEMENT SCRIPTS
+
+Scripts for node-level configuration stored in `docs/scripts/`. Run manually when needed.
+
+### Graceful Node Shutdown Configuration
+Configures K3s kubelet for proper pod eviction during node reboots/shutdowns.
+
+| Script | Node | Run Command |
+|--------|------|-------------|
+| `graceful-shutdown-master.sh` | gmk-k3s-control-plane | `sudo bash /tmp/graceful-shutdown-master.sh` |
+| `graceful-shutdown-worker-1.sh` | worker-node | `sudo bash /tmp/graceful-shutdown-worker-1.sh` |
+| `graceful-shutdown-worker-2.sh` | worker-node-2 | `sudo bash /tmp/graceful-shutdown-worker-2.sh` |
+
+**What they configure:**
+- `/etc/rancher/k3s/kubelet.yaml`: KubeletConfiguration with `shutdownGracePeriod: 120s`
+- `/etc/rancher/k3s/config.yaml`: References kubelet config file
+- `/etc/systemd/system.conf`: `DefaultTimeoutStopSec=120s`
+- systemd service override: `TimeoutStopSec=150s` (120s + buffer)
+
+**Status** (2025-12-20):
+- ✅ Control-plane: Configured (`shutdownGracePeriod: 2m0s`)
+- ⏸️ Worker-1: Pending (script ready)
+- ⏸️ Worker-2: Pending (script ready)
+
+### Firmware Management
+Installs required firmware and removes unnecessary AUR packages.
+
+| Script | Node | Hardware |
+|--------|------|----------|
+| `firmware-master.sh` | gmk-k3s-control-plane | Intel N100, Intel UHD, Realtek WiFi, Intel I226-V |
+| `firmware-worker-1.sh` | worker-node | AMD Ryzen 9 9955HX, AMD Radeon, MediaTek WiFi, Intel NICs |
+| `firmware-worker-2.sh` | worker-node-2 | AMD Ryzen 7 8745H, AMD Radeon 780M, MediaTek WiFi |
+
+**What they do:**
+- Install required: `intel-ucode`/`amd-ucode`, `linux-firmware`, `linux-firmware-whence`
+- Remove unnecessary AUR packages: `aic94xx-firmware`, `ast-firmware`, `upd72020x-fw`, `wd719x-firmware`
+
+**Status** (2025-12-20): ✅ All 3 nodes cleaned (no reboot required)
+
+---
+
 ## 📈 CURRENT METRICS
 
 **Health Score: 92/100** (A- Grade) - Comprehensive Review 2025-10-27
@@ -771,7 +812,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-18 10:30 UTC
+**Last Updated**: 2025-12-20 13:00 UTC
 **Next Review**: 2025-12-27
 
 ---
@@ -779,6 +820,32 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2025-12-20 (Node Management Scripts & Alert Fixes) 🔧
+- ✅ **Graceful Node Shutdown Scripts**: Created for all 3 nodes ⭐
+  - Configures K3s kubelet with `shutdownGracePeriod: 120s`
+  - Uses KubeletConfiguration file approach (K3s doesn't support shutdown flags via kubelet-arg)
+  - Sets systemd `TimeoutStopSec=150s` for buffer
+  - **Control-plane**: Applied and verified (`shutdownGracePeriod: 2m0s`)
+  - **Worker nodes**: Scripts ready in `/tmp/`, pending user execution
+  - Commits: 2500924
+- ✅ **Firmware Management Scripts**: Created and executed on all 3 nodes ⭐
+  - **Master**: Intel N100 - keeps intel-ucode, linux-firmware
+  - **Worker-1**: AMD Ryzen 9 9955HX - keeps amd-ucode, linux-firmware
+  - **Worker-2**: AMD Ryzen 7 8745H - keeps amd-ucode, linux-firmware
+  - Removed unnecessary AUR packages: aic94xx-firmware, ast-firmware, upd72020x-fw, wd719x-firmware
+  - No reboot required (removed packages weren't loaded)
+  - Commits: 79f187c
+- ✅ **mysql-exporter CPU Throttling Fixed**: Increased CPU limit 100m → 200m
+  - Alert: CPUThrottlingHigh was firing at >25% throttle
+  - Commit: 5d4a192
+- ✅ **PriceBuddy Pod Recovery**: Force deleted stale pod stuck in "Unknown" state
+  - Root cause: Worker-node had 3 reboots in quick succession (Dec 19)
+  - Pod had corrupted emptyDir volume mounts from sudden termination
+- 🔧 **Investigation**: Discovered GracefulNodeShutdown was DISABLED
+  - systemd was waiting 90s during reboot, but kubelet wasn't evicting pods
+  - `shutdownGracePeriod: "0s"` in kubelet config
+  - Now fixed with scripts above
 
 ### 2025-12-18 (ReadOnlyRootFilesystem Implementation - Phase 1+2) 🔒
 - ✅ **Phase 1 Complete**: Enabled readOnlyRootFilesystem on 3 apps (Tier 1 - zero risk) ⭐
