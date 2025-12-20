@@ -407,8 +407,8 @@ Configures K3s kubelet for proper pod eviction during node reboots/shutdowns.
 
 **Status** (2025-12-20):
 - ✅ Control-plane: Configured (`shutdownGracePeriod: 2m0s`)
-- ⏸️ Worker-1: Pending (script ready)
-- ⏸️ Worker-2: Pending (script ready)
+- ✅ Worker-1: Configured (`shutdownGracePeriod: 2m0s`)
+- ✅ Worker-2: Configured (`shutdownGracePeriod: 2m0s`)
 
 ### Firmware Management
 Installs required firmware and removes unnecessary AUR packages.
@@ -444,7 +444,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 - `vm.swappiness` → 10 (prefer RAM over swap)
 - `vm.dirty_ratio` → 10/5 (faster SSD writeback)
 
-**Status** (2025-12-20): ⏸️ Scripts ready, pending execution
+**Status** (2025-12-20): ✅ All 3 nodes optimized (BBR, TCP tuning, CPU performance governor)
 
 ---
 
@@ -842,31 +842,29 @@ ingress:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
-### 2025-12-20 (Node Management Scripts & Alert Fixes) 🔧
-- ✅ **Graceful Node Shutdown Scripts**: Created for all 3 nodes ⭐
+### 2025-12-20 (Node Management Scripts & Performance Optimization) 🔧
+- ✅ **Graceful Node Shutdown Scripts**: Applied to all 3 nodes ⭐
   - Configures K3s kubelet with `shutdownGracePeriod: 120s`
   - Uses KubeletConfiguration file approach (K3s doesn't support shutdown flags via kubelet-arg)
   - Sets systemd `TimeoutStopSec=150s` for buffer
-  - **Control-plane**: Applied and verified (`shutdownGracePeriod: 2m0s`)
-  - **Worker nodes**: Scripts ready in `/tmp/`, pending user execution
+  - All 3 nodes verified via kubelet API (`shutdownGracePeriod: 2m0s`)
   - Commits: 2500924
-- ✅ **Firmware Management Scripts**: Created and executed on all 3 nodes ⭐
+- ✅ **Firmware Management Scripts**: Applied to all 3 nodes ⭐
   - **Master**: Intel N100 - keeps intel-ucode, linux-firmware
   - **Worker-1**: AMD Ryzen 9 9955HX - keeps amd-ucode, linux-firmware
   - **Worker-2**: AMD Ryzen 7 8745H - keeps amd-ucode, linux-firmware
   - Removed unnecessary AUR packages: aic94xx-firmware, ast-firmware, upd72020x-fw, wd719x-firmware
-  - No reboot required (removed packages weren't loaded)
   - Commits: 79f187c
+- ✅ **Performance Optimization Scripts**: Applied to all 3 nodes ⭐
+  - CPU governor → `performance` (persists via tmpfiles.d)
+  - TCP congestion → BBR, inotify instances → 8192
+  - nf_conntrack_max → 1048576, swappiness → 10
+  - Commits: aea0f83
 - ✅ **mysql-exporter CPU Throttling Fixed**: Increased CPU limit 100m → 200m
-  - Alert: CPUThrottlingHigh was firing at >25% throttle
   - Commit: 5d4a192
-- ✅ **PriceBuddy Pod Recovery**: Force deleted stale pod stuck in "Unknown" state
-  - Root cause: Worker-node had 3 reboots in quick succession (Dec 19)
-  - Pod had corrupted emptyDir volume mounts from sudden termination
-- 🔧 **Investigation**: Discovered GracefulNodeShutdown was DISABLED
-  - systemd was waiting 90s during reboot, but kubelet wasn't evicting pods
-  - `shutdownGracePeriod: "0s"` in kubelet config
-  - Now fixed with scripts above
+- ✅ **Post-Reboot Cleanup**: Deleted 65 stale pods after 3-node sequential reboot
+  - All deployments recovered with healthy running pods
+  - Transient authentik resource alerts (post-reboot spike)
 
 ### 2025-12-18 (ReadOnlyRootFilesystem Implementation - Phase 1+2) 🔒
 - ✅ **Phase 1 Complete**: Enabled readOnlyRootFilesystem on 3 apps (Tier 1 - zero risk) ⭐
