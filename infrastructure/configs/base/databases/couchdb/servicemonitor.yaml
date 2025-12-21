@@ -21,3 +21,8 @@ spec:
         password:
           name: couchdb-couchdb
           key: adminPassword
+      # Drop high-cardinality erlang metrics (860 series, not actionable)
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: 'couchdb_erlang_message_queue_size'
+          action: drop

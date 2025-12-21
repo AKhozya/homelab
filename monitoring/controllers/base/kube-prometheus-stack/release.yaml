@@ -330,6 +330,22 @@ spec:
           - sourceLabels: [__name__]
             regex: 'scheduler_plugin_execution_duration_seconds_bucket'
             action: drop
+          # Drop storage operation histograms (980 series)
+          - sourceLabels: [__name__]
+            regex: 'storage_operation_duration_seconds_bucket'
+            action: drop
+          # Drop kubernetes feature flags (832 series, informational only)
+          - sourceLabels: [__name__]
+            regex: 'kubernetes_feature_enabled'
+            action: drop
+          # Drop admission controller histograms (756 series)
+          - sourceLabels: [__name__]
+            regex: 'apiserver_admission_controller_admission_duration_seconds_bucket'
+            action: drop
+          # Drop rest client histograms (1.4k series total)
+          - sourceLabels: [__name__]
+            regex: 'rest_client_(request_duration|request_size|response_size)_bytes?_bucket'
+            action: drop
 
     # K3s-specific fix for cadvisor metrics
     # K3s exports container='' (empty) with actual name in 'name' label
@@ -365,6 +381,22 @@ spec:
           # Drop scheduler plugin metrics from kubelet (1.2k series)
           - sourceLabels: [__name__]
             regex: 'scheduler_plugin_execution_duration_seconds_bucket'
+            action: drop
+          # Drop storage operation histograms (980 series)
+          - sourceLabels: [__name__]
+            regex: 'storage_operation_duration_seconds_bucket'
+            action: drop
+          # Drop kubernetes feature flags (832 series, informational only)
+          - sourceLabels: [__name__]
+            regex: 'kubernetes_feature_enabled'
+            action: drop
+          # Drop admission controller histograms (756 series)
+          - sourceLabels: [__name__]
+            regex: 'apiserver_admission_controller_admission_duration_seconds_bucket'
+            action: drop
+          # Drop rest client histograms (1.4k series total)
+          - sourceLabels: [__name__]
+            regex: 'rest_client_(request_duration|request_size|response_size)_bytes?_bucket'
             action: drop
           # Drop kubelet runtime operations histogram buckets (525 series)
           - sourceLabels: [__name__]
