@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-12-18 22:00 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-12-21 22:00 UTC)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -841,6 +841,27 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2025-12-21 (Firmware Audit & Cluster Recovery) 🔧
+- ✅ **Firmware Audit**: All 3 nodes verified current ⭐
+  - **Control-plane (GMK NucBox G3)**: BIOS GMK_G3 (2024-10-10), AirDisk 256GB SSD (no updates)
+  - **Worker-node (Minisforum MS-A2)**: BIOS 1.02 (2025-06-16, latest), WD SN7100 FW 7615M0WD (latest)
+  - **Worker-node-2 (Minisforum UM870)**: BIOS 1.08 (2024-11-05, latest), Kingston+Crucial SSDs (no updates)
+  - fwupd/LVFS checked - no updates available for any hardware
+- ✅ **Cluster Recovery**: Kernel 6.18.1→6.18.2 reboot handled ⭐
+  - 67 stale pods (Completed/Error) cleaned up cluster-wide
+  - All critical services verified: cloudflare-tunnel, databases, authentik, flux
+  - Uptime Kuma crash-loop alerts resolved (initial restart churn)
+- ✅ **Backup Validation**: All systems healthy ⭐
+  - PostgreSQL: Dec 21 03:00, 52.5MB
+  - CouchDB: Dec 21 03:05, 19.2MB
+  - MySQL: Dec 21 03:15, 1003KB
+  - PVC: Dec 21 03:10, ~400MB
+  - Replication to worker-node-2: ~2.6GB total at /mnt/extra-storage/backups/
+- ✅ **Kyverno Violations Resolved**: 25 violations → 0 ⭐
+  - Violations were from stale pods after kernel reboot
+  - Cleaned up with pod cleanup, policy reports now show 0 violations
+  - Popeye score: 100/100
 
 ### 2025-12-21 (Prometheus Metric Optimization - Round 2) 📉
 - ✅ **Histogram Count/Sum Drops**: Removed orphaned count/sum metrics for already-dropped buckets ⭐
