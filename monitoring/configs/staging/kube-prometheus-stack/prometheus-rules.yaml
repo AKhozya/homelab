@@ -10,7 +10,7 @@ metadata:
 spec:
   groups:
   - name: node-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: NodeDown
       expr: up{job="node-exporter"} == 0
@@ -112,7 +112,7 @@ spec:
         description: "Network interface {{ $labels.device }} is experiencing errors ({{ printf \"%.0f\" $value }}/s). Check network hardware and cables."
 
   - name: storage-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: PVCUsageHigh
       expr: (kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes) * 100 > 80
@@ -160,7 +160,7 @@ spec:
         description: "PV has been in error state for more than 5 minutes. Check PV and PVC bindings."
 
   - name: pod-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: PodCrashLooping
       expr: increase(kube_pod_container_status_restarts_total[15m]) > 2
@@ -253,7 +253,7 @@ spec:
         description: "Container {{ $labels.container }} has been failing to pull image for more than 5 minutes. Check image name, registry access, and credentials."
 
   - name: cloudflare-tunnel-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: CloudflareTunnelDown
       expr: up{job="cloudflared-metrics"} == 0
@@ -292,7 +292,7 @@ spec:
         description: "P99 latency is {{ $value }}s on Cloudflare tunnel in {{ $labels.namespace }}. Users may experience slow response times."
 
   - name: certificate-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: CertificateExpiringSoon
       expr: certmanager_certificate_expiration_timestamp_seconds - time() < 604800
@@ -331,7 +331,7 @@ spec:
         description: "Certificate renewal has failed {{ $value }} times in the last hour. Check cert-manager logs immediately!"
 
   - name: kubernetes-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: DeploymentReplicasMismatch
       expr: kube_deployment_spec_replicas - kube_deployment_status_replicas_available != 0
@@ -397,7 +397,7 @@ spec:
         description: "CronJob hasn't been scheduled for more than 10 minutes past its schedule time. Check if suspended or configuration issues."
 
   - name: flux-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: FluxReconciliationFailure
       expr: max(gotk_reconcile_condition{type="Ready",status="False"}) by (namespace,name,kind) > 0
@@ -427,7 +427,7 @@ spec:
         description: "Resource {{ $labels.namespace }}/{{ $labels.name }} is suspended and will not reconcile automatically. Resume with: flux resume {{ $labels.kind }} {{ $labels.name }} -n {{ $labels.namespace }}"
 
   - name: backup-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: BackupJobFailed
       expr: kube_job_status_failed{job_name=~".*backup.*"} > 0
@@ -466,7 +466,7 @@ spec:
         description: "Most recent backup in {{ $labels.namespace }} is older than 48 hours. Data protection is at risk! Check backup CronJobs and recent job logs."
 
   - name: database-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: PostgreSQLDown
       expr: pg_up == 0
@@ -532,7 +532,7 @@ spec:
         description: "{{ printf \"%.1f\" $value }}% of transactions are rolling back. May indicate application errors."
 
   - name: redis-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: RedisDown
       expr: redis_up == 0
@@ -598,7 +598,7 @@ spec:
         description: "No clients connected to Redis for 10 minutes while pod is running. May indicate connection issues."
 
   - name: couchdb-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: CouchDBDown
       expr: up{job="couchdb"} == 0
@@ -619,7 +619,7 @@ spec:
         description: "CouchDB pod is in {{ $labels.phase }} state. Database may be unavailable!"
 
   - name: mysql-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: MySQLDown
       expr: mysql_up{job="mysql-exporter"} == 0
@@ -714,7 +714,7 @@ spec:
   # service-alerts group - ServiceDown alert removed, replaced by Uptime Kuma
   # See docs/UPTIME_KUMA_TELEGRAM_REPORT.md for details
   - name: service-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: HighErrorRate
       expr: rate(prometheus_http_requests_total{code=~"5.."}[5m]) > 0.05
@@ -726,7 +726,7 @@ spec:
         description: "HTTP 5xx error rate is above 5% for {{ $labels.job }}"
 
   - name: monitoring-health-alerts
-    interval: 30s
+    interval: 60s
     rules:
     - alert: PrometheusTargetDown
       expr: up == 0
@@ -774,7 +774,7 @@ spec:
         description: "Alertmanager cannot send notifications to {{ $labels.integration }}. Check Telegram bot token and network connectivity."
 
   - name: alertmanager-overrides
-    interval: 30s
+    interval: 60s
     rules:
     - alert: AlertmanagerFailedToSendAlerts
       annotations:

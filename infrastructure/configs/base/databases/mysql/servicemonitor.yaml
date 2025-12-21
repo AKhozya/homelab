@@ -15,7 +15,7 @@ spec:
   endpoints:
     - port: metrics
       path: /metrics
-      interval: 30s
+      interval: 60s
       scrapeTimeout: 10s
       # Drop InnoDB compression metrics (~50 series, not using compressed tables)
       metricRelabelings:

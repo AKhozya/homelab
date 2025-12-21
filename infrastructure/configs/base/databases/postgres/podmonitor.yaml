@@ -12,7 +12,7 @@ spec:
       cnpg.io/podRole: instance
   podMetricsEndpoints:
     - port: metrics
-      interval: 30s
+      interval: 60s
       scrapeTimeout: 10s
       # Drop PostgreSQL settings exported as metrics (~570 series, not useful for alerting)
       metricRelabelings:
