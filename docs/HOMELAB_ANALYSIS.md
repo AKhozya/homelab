@@ -833,7 +833,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-20 13:00 UTC
+**Last Updated**: 2025-12-21 21:00 UTC
 **Next Review**: 2025-12-27
 
 ---
@@ -841,6 +841,38 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2025-12-21 (Prometheus Metric Optimization - Round 2) 📉
+- ✅ **Histogram Count/Sum Drops**: Removed orphaned count/sum metrics for already-dropped buckets ⭐
+  - apiserver_request_sli_duration_seconds_(count|sum): ~1.2k series
+  - apiserver_response_sizes_(count|sum): ~600 series
+  - etcd_request_duration_seconds_(count|sum): ~2.8k series
+  - Commits: a146b01
+- ✅ **Kubelet/Workqueue/Go Runtime Drops**: Removed internal timing metrics
+  - kubelet_*_bucket: ~1.5k series (internal kubelet timing)
+  - workqueue_(work|queue)_duration_seconds_(count|sum): ~768 series
+  - go_(gc_heap_|sched_).*_bucket, go_gc_pauses_seconds_bucket: ~1.3k series
+  - Commits: c6f6ae7
+- ✅ **Database Metric Drops**: Removed unused feature metrics (~880 series)
+  - **PostgreSQL**: cnpg_pg_settings_setting (~570 series) - config as metrics, not useful for alerting
+  - **CouchDB**: couchdb_dreyfus_* (~216 series), couchdb_nouveau_* (~48 series) - full-text search not used
+  - **MySQL**: mysql_info_schema_innodb_cmp* (~50 series) - compression metrics not used
+  - Commits: 6ddb2f1
+- ✅ **Scrape Interval Standardization**: All custom monitors aligned to 60s
+  - MySQL ServiceMonitor: 30s → 60s
+  - PostgreSQL PodMonitor: 30s → 60s
+  - Prometheus recording rules: 15 rule groups 30s → 60s
+  - Commits: cd0dc79
+- 📊 **Results**:
+  - **Series count**: ~107k → 97.6k (~10% reduction)
+  - **Memory**: 1021Mi / 1300Mi (78% utilization)
+  - **CPU overhead**: Reduced by 50% scrape/evaluation frequency on custom monitors
+- 🔧 **Files Modified**:
+  - `monitoring/controllers/base/kube-prometheus-stack/release.yaml` (metric drops)
+  - `infrastructure/configs/base/databases/mysql/servicemonitor.yaml` (interval + drops)
+  - `infrastructure/configs/base/databases/postgres/podmonitor.yaml` (interval + drops)
+  - `infrastructure/configs/base/databases/couchdb/servicemonitor.yaml` (metric drops)
+  - `monitoring/configs/staging/kube-prometheus-stack/prometheus-rules.yaml` (rule intervals)
 
 ### 2025-12-20 (Node Management Scripts & Performance Optimization) 🔧
 - ✅ **Graceful Node Shutdown Scripts**: Applied to all 3 nodes ⭐
