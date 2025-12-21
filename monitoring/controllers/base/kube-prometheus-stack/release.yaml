@@ -346,6 +346,16 @@ spec:
           - sourceLabels: [__name__]
             regex: 'rest_client_(request_duration|request_size|response_size)_bytes?_bucket'
             action: drop
+          # Drop histogram count/sum for already-dropped buckets (~4.6k series cumulative)
+          - sourceLabels: [__name__]
+            regex: 'apiserver_request_sli_duration_seconds_(count|sum)'
+            action: drop
+          - sourceLabels: [__name__]
+            regex: 'apiserver_response_sizes_(count|sum)'
+            action: drop
+          - sourceLabels: [__name__]
+            regex: 'etcd_request_duration_seconds_(count|sum)'
+            action: drop
 
     # K3s-specific fix for cadvisor metrics
     # K3s exports container='' (empty) with actual name in 'name' label
@@ -401,6 +411,16 @@ spec:
           # Drop kubelet runtime operations histogram buckets (525 series)
           - sourceLabels: [__name__]
             regex: 'kubelet_runtime_operations_duration_seconds_bucket'
+            action: drop
+          # Drop histogram count/sum for already-dropped buckets (~4.6k series cumulative)
+          - sourceLabels: [__name__]
+            regex: 'apiserver_request_sli_duration_seconds_(count|sum)'
+            action: drop
+          - sourceLabels: [__name__]
+            regex: 'apiserver_response_sizes_(count|sum)'
+            action: drop
+          - sourceLabels: [__name__]
+            regex: 'etcd_request_duration_seconds_(count|sum)'
             action: drop
         cAdvisorMetricRelabelings:
           - sourceLabels: [name]
