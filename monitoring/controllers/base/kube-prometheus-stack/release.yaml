@@ -356,6 +356,17 @@ spec:
           - sourceLabels: [__name__]
             regex: 'etcd_request_duration_seconds_(count|sum)'
             action: drop
+          # Drop workqueue histogram count/sum (768 series - buckets already dropped)
+          - sourceLabels: [__name__]
+            regex: 'workqueue_(work|queue)_duration_seconds_(count|sum)'
+            action: drop
+          # Drop Go runtime histogram buckets (~1.3k series - internal GC/scheduler timing)
+          - sourceLabels: [__name__]
+            regex: 'go_(gc_heap_|sched_).*_bucket'
+            action: drop
+          - sourceLabels: [__name__]
+            regex: 'go_gc_pauses_seconds_bucket'
+            action: drop
 
     # K3s-specific fix for cadvisor metrics
     # K3s exports container='' (empty) with actual name in 'name' label
@@ -408,9 +419,9 @@ spec:
           - sourceLabels: [__name__]
             regex: 'rest_client_(request_duration|request_size|response_size)_bytes?_bucket'
             action: drop
-          # Drop kubelet runtime operations histogram buckets (525 series)
+          # Drop all kubelet histogram buckets (~1.5k series - internal timing not useful)
           - sourceLabels: [__name__]
-            regex: 'kubelet_runtime_operations_duration_seconds_bucket'
+            regex: 'kubelet_.*_bucket'
             action: drop
           # Drop histogram count/sum for already-dropped buckets (~4.6k series cumulative)
           - sourceLabels: [__name__]
@@ -421,6 +432,17 @@ spec:
             action: drop
           - sourceLabels: [__name__]
             regex: 'etcd_request_duration_seconds_(count|sum)'
+            action: drop
+          # Drop workqueue histogram count/sum (768 series - buckets already dropped)
+          - sourceLabels: [__name__]
+            regex: 'workqueue_(work|queue)_duration_seconds_(count|sum)'
+            action: drop
+          # Drop Go runtime histogram buckets (~1.3k series - internal GC/scheduler timing)
+          - sourceLabels: [__name__]
+            regex: 'go_(gc_heap_|sched_).*_bucket'
+            action: drop
+          - sourceLabels: [__name__]
+            regex: 'go_gc_pauses_seconds_bucket'
             action: drop
         cAdvisorMetricRelabelings:
           - sourceLabels: [name]
