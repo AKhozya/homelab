@@ -17,3 +17,8 @@ spec:
       path: /metrics
       interval: 30s
       scrapeTimeout: 10s
+      # Drop InnoDB compression metrics (~50 series, not using compressed tables)
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: 'mysql_info_schema_innodb_cmp.*'
+          action: drop

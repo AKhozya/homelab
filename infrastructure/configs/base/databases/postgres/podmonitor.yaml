@@ -14,3 +14,8 @@ spec:
     - port: metrics
       interval: 30s
       scrapeTimeout: 10s
+      # Drop PostgreSQL settings exported as metrics (~570 series, not useful for alerting)
+      metricRelabelings:
+        - sourceLabels: [__name__]
+          regex: 'cnpg_pg_settings_setting'
+          action: drop

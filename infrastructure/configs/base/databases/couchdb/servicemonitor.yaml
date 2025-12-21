@@ -26,3 +26,10 @@ spec:
         - sourceLabels: [__name__]
           regex: 'couchdb_erlang_message_queue_size'
           action: drop
+        # Drop full-text search metrics (~264 series, not using search features)
+        - sourceLabels: [__name__]
+          regex: 'couchdb_dreyfus_.*'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'couchdb_nouveau_.*'
+          action: drop
