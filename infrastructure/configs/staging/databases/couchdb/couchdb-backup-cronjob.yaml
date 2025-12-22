@@ -161,24 +161,30 @@ spec:
                     echo "[$(elapsed)] Backing up database: $DB"
                     DB_START=$(date +%s)
 
-                    # Run couchbackup with timeout (reduced from 180s to 60s for faster failure detection)
-                    if /tmp/node_modules/.bin/couchbackup \
+                    # Run couchbackup - stdout=JSON data, stderr=logs (keep separate!)
+                    # Note: couchbackup may return non-zero even when data is written successfully
+                    /tmp/node_modules/.bin/couchbackup \
                       --url "$COUCHDB_URL" \
                       --db "$DB" \
                       --log "$BACKUP_DIR/${DB}.log" \
                       --request-timeout 60000 \
-                      > "$BACKUP_DIR/${DB}.raw" 2>&1; then
+                      > "$BACKUP_DIR/${DB}.raw" 2>&1 || true
 
+                    # Check if actual JSON data was written (lines starting with '[')
+                    if grep -q "^\[" "$BACKUP_DIR/${DB}.raw" 2>/dev/null; then
                       # Filter output to keep only JSON array lines
-                      grep "^\[" "$BACKUP_DIR/${DB}.raw" > "$BACKUP_DIR/${DB}.couchbackup" 2>/dev/null || true
+                      grep "^\[" "$BACKUP_DIR/${DB}.raw" > "$BACKUP_DIR/${DB}.couchbackup"
                       rm -f "$BACKUP_DIR/${DB}.raw"
 
                       DB_DURATION=$(($(date +%s) - DB_START))
                       SIZE=$(du -h "$BACKUP_DIR/${DB}.couchbackup" | cut -f1)
                       echo "[$(elapsed)] ✅ $DB completed ($SIZE, ${DB_DURATION}s)"
                     else
-                      echo "[$(elapsed)] ❌ $DB backup failed!"
-                      cat "$BACKUP_DIR/${DB}.raw" 2>/dev/null || true
+                      echo "[$(elapsed)] ❌ $DB backup failed - no JSON data produced!"
+                      echo "Raw output:"
+                      cat "$BACKUP_DIR/${DB}.raw" 2>/dev/null || echo "(empty)"
+                      echo "Log file:"
+                      cat "$BACKUP_DIR/${DB}.log" 2>/dev/null || echo "(empty)"
                       rm -f "$BACKUP_DIR/${DB}.raw"
                       exit 1
                     fi
