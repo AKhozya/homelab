@@ -7,7 +7,7 @@
     {
       "customType": "regex",
       "description": "n8n via GitHub releases to filter pre-releases",
-      "managerFilePatterns": ["/apps/base/n8n/deployment\\.yaml$/"],
+      "managerFilePatterns": ["/^apps\\/base\\/n8n\\/deployment\\.yaml$/"],
       "matchStrings": ["image:\\s*n8nio/n8n:(?<currentValue>[^\\s]+)"],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "n8n-io/n8n",
