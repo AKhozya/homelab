@@ -95,6 +95,11 @@
       "matchPackageNames": ["mysql"],
       "matchFileNames": ["**/mysql-backup-cronjob.yaml"],
       "enabled": false
+    },
+    {
+      "description": "Follow stable tag for n8n - avoids pre-release versions like 2.2.0",
+      "matchPackageNames": ["n8nio/n8n"],
+      "followTag": "stable"
     }
   ],
   "timezone": "Europe/London",
