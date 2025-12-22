@@ -109,9 +109,9 @@
       "enabled": false
     },
     {
-      "description": "Disable kubernetes manager for n8n - using custom GitHub releases manager",
+      "description": "Disable all managers for n8n - using custom GitHub releases manager",
       "matchPackageNames": ["n8nio/n8n"],
-      "matchManagers": ["kubernetes"],
+      "matchManagers": ["kubernetes", "flux", "kustomize"],
       "enabled": false
     }
   ],
