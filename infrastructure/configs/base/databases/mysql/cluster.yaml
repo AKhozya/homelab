@@ -186,4 +186,4 @@ spec:
     router:
       enabled: false
       size: 0
-      image: percona/percona-mysql-router:8.4.6
+      image: percona/percona-mysql-router:8.4.7
