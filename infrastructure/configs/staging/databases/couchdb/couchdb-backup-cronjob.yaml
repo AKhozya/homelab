@@ -10,6 +10,7 @@ spec:
   concurrencyPolicy: Forbid  # Don't run concurrent backups
   jobTemplate:
     spec:
+      backoffLimit: 3  # Retry up to 3 times before marking job as failed
       ttlSecondsAfterFinished: 86400  # Keep job for 24h for debugging
       template:
         metadata:
@@ -53,6 +54,53 @@ spec:
                 limits:
                   cpu: "200m"
                   memory: "128Mi"
+            - name: wait-for-couchdb
+              image: alpine:3.23
+              command:
+                - sh
+                - -c
+                - |
+                  echo "Waiting for CouchDB to be ready..."
+                  COUCHDB_URL="http://$COUCHDB_USER:$COUCHDB_PASSWORD@couchdb-couchdb.databases.svc.cluster.local:5984"
+                  MAX_RETRIES=30
+                  RETRY_INTERVAL=2
+
+                  for i in $(seq 1 $MAX_RETRIES); do
+                    if wget -q --timeout=5 -O /dev/null "$COUCHDB_URL/_up"; then
+                      echo "✅ CouchDB is ready (attempt $i)"
+                      exit 0
+                    fi
+                    echo "Attempt $i/$MAX_RETRIES: CouchDB not ready, waiting ${RETRY_INTERVAL}s..."
+                    sleep $RETRY_INTERVAL
+                  done
+
+                  echo "❌ CouchDB did not become ready after $MAX_RETRIES attempts"
+                  exit 1
+              env:
+                - name: COUCHDB_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: couchdb-couchdb
+                      key: adminUsername
+                - name: COUCHDB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: couchdb-couchdb
+                      key: adminPassword
+              securityContext:
+                runAsUser: 1000
+                runAsGroup: 1000
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                readOnlyRootFilesystem: true
+              resources:
+                requests:
+                  cpu: "10m"
+                  memory: "32Mi"
+                limits:
+                  cpu: "100m"
+                  memory: "64Mi"
           containers:
             - name: backup
               image: node:24-alpine
@@ -65,9 +113,39 @@ spec:
                   echo "=== CouchDB Backup Started ==="
                   echo "Timestamp: $(date)"
 
-                  # Install couchbackup
+                  # Retry wrapper function with exponential backoff
+                  retry_with_backoff() {
+                    local max_attempts=$1
+                    local delay=$2
+                    local max_delay=$3
+                    shift 3
+                    local attempt=1
+
+                    while [ $attempt -le $max_attempts ]; do
+                      if "$@"; then
+                        return 0
+                      fi
+                      if [ $attempt -lt $max_attempts ]; then
+                        echo "Attempt $attempt failed, retrying in ${delay}s..."
+                        sleep $delay
+                        delay=$((delay * 2))
+                        [ $delay -gt $max_delay ] && delay=$max_delay
+                      fi
+                      attempt=$((attempt + 1))
+                    done
+                    echo "All $max_attempts attempts failed"
+                    return 1
+                  }
+
+                  # Configure npm for reliability
+                  npm config set fetch-retries 3
+                  npm config set fetch-retry-mintimeout 10000
+                  npm config set fetch-retry-maxtimeout 60000
+                  npm config set fetch-timeout 120000
+
+                  # Install couchbackup with retry
                   echo "Installing couchbackup..."
-                  npm install --prefix /tmp @cloudant/couchbackup
+                  retry_with_backoff 3 5 30 npm install --prefix /tmp @cloudant/couchbackup
                   export PATH="/tmp/node_modules/.bin:$PATH"
 
                   TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -77,43 +155,50 @@ spec:
                   # CouchDB connection details
                   COUCHDB_URL="http://$COUCHDB_USER:$COUCHDB_PASSWORD@couchdb-couchdb.databases.svc.cluster.local:5984"
 
-                  # Auto-discover databases (exclude system databases)
+                  # Auto-discover databases with retry (exclude system databases)
                   echo "Discovering databases..."
-                  DATABASES=$(wget -q -O- "$COUCHDB_URL/_all_dbs" | \
-                    sed 's/\[//g;s/\]//g;s/"//g;s/,/ /g' | \
-                    tr ' ' '\n' | \
-                    grep -v '^_' | \
-                    grep -v '^$')
+                  discover_dbs() {
+                    wget -q --timeout=30 -O- "$COUCHDB_URL/_all_dbs" | \
+                      sed 's/\[//g;s/\]//g;s/"//g;s/,/ /g' | \
+                      tr ' ' '\n' | \
+                      grep -v '^_' | \
+                      grep -v '^$'
+                  }
+                  DATABASES=$(retry_with_backoff 3 5 30 discover_dbs)
 
                   echo "Found databases: $DATABASES"
 
-                  # Backup each database
+                  # Backup each database with retry
                   for DB in $DATABASES; do
                     echo "Backing up database: $DB"
 
                     START_TIME=$(date +%s)
-                    # Use --log to separate log from data, then filter to keep only JSON arrays
-                    /tmp/node_modules/.bin/couchbackup \
-                      --url "$COUCHDB_URL" \
-                      --db "$DB" \
-                      --log "$BACKUP_DIR/${DB}.log" \
-                      > "$BACKUP_DIR/${DB}.raw" 2>&1
 
-                    BACKUP_EXIT=$?
+                    # Wrapper for couchbackup with retry
+                    do_backup() {
+                      /tmp/node_modules/.bin/couchbackup \
+                        --url "$COUCHDB_URL" \
+                        --db "$DB" \
+                        --log "$BACKUP_DIR/${DB}.log" \
+                        --request-timeout 60000 \
+                        > "$BACKUP_DIR/${DB}.raw" 2>&1
+                    }
 
-                    # Filter the output to keep only JSON array lines (actual data)
-                    # This removes couchbackup header/metadata that breaks couchrestore
-                    grep "^\[" "$BACKUP_DIR/${DB}.raw" > "$BACKUP_DIR/${DB}.couchbackup" 2>/dev/null || true
-                    rm -f "$BACKUP_DIR/${DB}.raw"
+                    if retry_with_backoff 3 10 60 do_backup; then
+                      # Filter the output to keep only JSON array lines (actual data)
+                      # This removes couchbackup header/metadata that breaks couchrestore
+                      grep "^\[" "$BACKUP_DIR/${DB}.raw" > "$BACKUP_DIR/${DB}.couchbackup" 2>/dev/null || true
+                      rm -f "$BACKUP_DIR/${DB}.raw"
 
-                    if [ $BACKUP_EXIT -eq 0 ]; then
                       END_TIME=$(date +%s)
                       DURATION=$((END_TIME - START_TIME))
                       SIZE=$(du -h "$BACKUP_DIR/${DB}.couchbackup" | cut -f1)
 
                       echo "✅ $DB backup completed ($SIZE, ${DURATION}s)"
                     else
-                      echo "❌ $DB backup failed!"
+                      rm -f "$BACKUP_DIR/${DB}.raw"
+                      echo "❌ $DB backup failed after retries!"
+                      exit 1
                     fi
                   done
 
