@@ -109,9 +109,10 @@
       "enabled": false
     },
     {
-      "description": "Disable all managers for n8n - using custom GitHub releases manager",
+      "description": "Disable Docker detection for n8n - using custom GitHub releases manager",
       "matchPackageNames": ["n8nio/n8n"],
-      "matchManagers": ["kubernetes", "flux", "kustomize"],
+      "matchFileNames": ["**/n8n/**"],
+      "matchDatasources": ["docker"],
       "enabled": false
     },
     {
