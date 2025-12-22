@@ -3,8 +3,17 @@
   "extends": [
     "config:recommended"
   ],
-  "ignoreDeps": [
-    "n8nio/n8n"
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "n8n via GitHub releases to filter pre-releases",
+      "fileMatch": ["apps/base/n8n/deployment\\.yaml$"],
+      "matchStrings": ["image:\\s*n8nio/n8n:(?<currentValue>[^\\s]+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "n8n-io/n8n",
+      "extractVersionTemplate": "n8n@(?<version>.*)",
+      "versioningTemplate": "semver-coerced"
+    }
   ],
   "commitMessagePrefix": "chore(deps): ",
   "commitMessageAction": "update",
@@ -97,6 +106,12 @@
       "description": "Ignore MySQL backup image - manually updated with cluster",
       "matchPackageNames": ["mysql"],
       "matchFileNames": ["**/mysql-backup-cronjob.yaml"],
+      "enabled": false
+    },
+    {
+      "description": "Disable kubernetes manager for n8n - using custom GitHub releases manager",
+      "matchPackageNames": ["n8nio/n8n"],
+      "matchManagers": ["kubernetes"],
       "enabled": false
     }
   ],
