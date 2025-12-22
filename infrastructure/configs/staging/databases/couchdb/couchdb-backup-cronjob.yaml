@@ -10,7 +10,7 @@ spec:
   concurrencyPolicy: Forbid  # Don't run concurrent backups
   jobTemplate:
     spec:
-      backoffLimit: 3  # Retry up to 3 times before marking job as failed
+      backoffLimit: 6  # Retry up to 6 times before marking job as failed
       ttlSecondsAfterFinished: 86400  # Keep job for 24h for debugging
       template:
         metadata:
@@ -108,10 +108,14 @@ spec:
                 - /bin/sh
                 - -c
                 - |
-                  set -e
+                  set -eo pipefail
 
                   echo "=== CouchDB Backup Started ==="
                   echo "Timestamp: $(date)"
+
+                  # Clean up orphaned directories from failed previous attempts
+                  echo "Cleaning orphaned backup directories..."
+                  find /backup -maxdepth 1 -type d -name "2*" -mmin +60 -exec rm -rf {} \; 2>/dev/null || true
 
                   # Retry wrapper function with exponential backoff
                   retry_with_backoff() {
@@ -157,16 +161,18 @@ spec:
 
                   # Auto-discover databases with retry (exclude system databases)
                   echo "Discovering databases..."
-                  discover_dbs() {
-                    wget -q --timeout=30 -O- "$COUCHDB_URL/_all_dbs" | \
-                      sed 's/\[//g;s/\]//g;s/"//g;s/,/ /g' | \
-                      tr ' ' '\n' | \
-                      grep -v '^_' | \
-                      grep -v '^$'
-                  }
-                  DATABASES=$(retry_with_backoff 3 5 30 discover_dbs)
+                  DATABASES=$(wget -q --timeout=30 -O- "$COUCHDB_URL/_all_dbs" | \
+                    sed 's/\[//g;s/\]//g;s/"//g;s/,/ /g' | \
+                    tr ' ' '\n' | \
+                    grep -v '^_' | \
+                    grep -v '^$' || echo "")
 
                   echo "Found databases: $DATABASES"
+
+                  if [ -z "$DATABASES" ]; then
+                    echo "❌ No databases found to backup!"
+                    exit 1
+                  fi
 
                   # Backup each database with retry
                   for DB in $DATABASES; do
@@ -174,17 +180,27 @@ spec:
 
                     START_TIME=$(date +%s)
 
-                    # Wrapper for couchbackup with retry
-                    do_backup() {
-                      /tmp/node_modules/.bin/couchbackup \
+                    # Run couchbackup with increased timeout
+                    BACKUP_SUCCESS=false
+                    for attempt in 1 2 3 4 5; do
+                      echo "  Backup attempt $attempt/5..."
+                      if /tmp/node_modules/.bin/couchbackup \
                         --url "$COUCHDB_URL" \
                         --db "$DB" \
                         --log "$BACKUP_DIR/${DB}.log" \
-                        --request-timeout 60000 \
-                        > "$BACKUP_DIR/${DB}.raw" 2>&1
-                    }
+                        --request-timeout 180000 \
+                        > "$BACKUP_DIR/${DB}.raw" 2>&1; then
+                        BACKUP_SUCCESS=true
+                        break
+                      fi
+                      if [ $attempt -lt 5 ]; then
+                        DELAY=$((attempt * 15))
+                        echo "  Attempt $attempt failed, waiting ${DELAY}s..."
+                        sleep $DELAY
+                      fi
+                    done
 
-                    if retry_with_backoff 3 10 60 do_backup; then
+                    if [ "$BACKUP_SUCCESS" = true ]; then
                       # Filter the output to keep only JSON array lines (actual data)
                       # This removes couchbackup header/metadata that breaks couchrestore
                       grep "^\[" "$BACKUP_DIR/${DB}.raw" > "$BACKUP_DIR/${DB}.couchbackup" 2>/dev/null || true
