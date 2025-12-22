@@ -3,6 +3,18 @@
   "extends": [
     "config:recommended"
   ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "n8n via GitHub releases to respect pre-release flags",
+      "fileMatch": ["apps/base/n8n/deployment\\.yaml$"],
+      "matchStrings": ["image:\\s*n8nio/n8n:(?<currentValue>[^\\s]+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "n8n-io/n8n",
+      "extractVersionTemplate": "^n8n@(?<version>.*)$",
+      "versioningTemplate": "semver"
+    }
+  ],
   "commitMessagePrefix": "chore(deps): ",
   "commitMessageAction": "update",
   "dependencyDashboard": true,
@@ -97,9 +109,10 @@
       "enabled": false
     },
     {
-      "description": "Follow stable tag for n8n - avoids pre-release versions like 2.2.0",
+      "description": "Disable default Docker manager for n8n - using custom GitHub releases manager",
       "matchPackageNames": ["n8nio/n8n"],
-      "followTag": "stable"
+      "matchManagers": ["kubernetes"],
+      "enabled": false
     }
   ],
   "timezone": "Europe/London",
