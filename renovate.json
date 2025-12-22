@@ -113,6 +113,12 @@
       "matchPackageNames": ["n8nio/n8n"],
       "matchManagers": ["kubernetes"],
       "enabled": false
+    },
+    {
+      "description": "Ignore n8n pre-releases (marked as prerelease on GitHub)",
+      "matchPackageNames": ["n8n-io/n8n"],
+      "matchDatasources": ["github-releases"],
+      "ignoreUnstable": true
     }
   ],
   "timezone": "Europe/London",
