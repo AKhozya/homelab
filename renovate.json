@@ -113,6 +113,12 @@
       "matchPackageNames": ["n8nio/n8n"],
       "matchManagers": ["kubernetes", "flux", "kustomize"],
       "enabled": false
+    },
+    {
+      "description": "Ignore n8n pre-releases from GitHub releases datasource",
+      "matchPackageNames": ["n8n-io/n8n"],
+      "matchDatasources": ["github-releases"],
+      "ignoreUnstable": true
     }
   ],
   "timezone": "Europe/London",
