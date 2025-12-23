@@ -45,7 +45,7 @@ spec:
 
                   # Double-check server is responding
                   if command -v curl >/dev/null 2>&1; then
-                    if curl -sf -m 5 http://immich-server.immich.svc.cluster.local:2283/ > /dev/null 2>&1; then
+                    if curl -sf -m 5 http://immich-server.immich.svc.cluster.local:8080/ > /dev/null 2>&1; then
                       echo "✅ Immich server is also responding!"
                     fi
                   fi
@@ -100,7 +100,7 @@ spec:
 
               # Try to sign up admin user
               response=$(curl -s -w "\n%{http_code}" -m 30 -X POST \
-                "http://immich-server.immich.svc.cluster.local:2283/api/auth/admin-sign-up" \
+                "http://immich-server.immich.svc.cluster.local:8080/api/auth/admin-sign-up" \
                 -H "Content-Type: application/json" \
                 -H "Accept: application/json" \
                 -d "{

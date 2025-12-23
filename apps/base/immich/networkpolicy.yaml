@@ -17,21 +17,21 @@ spec:
               kubernetes.io/metadata.name: traefik
       ports:
         - protocol: TCP
-          port: 2283
+          port: 8080
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: cloudflare-tunnel
       ports:
         - protocol: TCP
-          port: 2283
+          port: 8080
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: uptime-kuma
       ports:
         - protocol: TCP
-          port: 2283
+          port: 8080
     - from:
         - podSelector:
             matchLabels:
@@ -47,7 +47,7 @@ spec:
               app: immich-admin-setup
       ports:
         - protocol: TCP
-          port: 2283
+          port: 8080
   egress:
     # Allow DNS resolution
     - to:
@@ -88,7 +88,7 @@ spec:
         - protocol: TCP
           port: 3003
         - protocol: TCP
-          port: 2283
+          port: 8080
     # Allow HTTPS for ML model downloads (modelscope.cn, huggingface.co)
     # No 'to' selector = allow to any destination (including internet)
     - ports:
