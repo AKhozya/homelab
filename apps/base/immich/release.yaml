@@ -213,7 +213,7 @@ spec:
                 pullPolicy: IfNotPresent
               env:
                 # Bind to all interfaces (default is localhost only)
-                HOST: "0.0.0.0"
+                HOST: "::"
                 # Hardware acceleration via VAAPI on AMD Radeon GPU
                 # Tested: 27x faster than CPU encoding (privileged container required)
                 IMMICH_MEDIA_FFMPEG_ACCEL: vaapi
