@@ -1,7 +1,7 @@
 # 🔐 Secrets Rotation Playbook
 
-**Cluster**: K3s Homelab
-**Last Updated**: 2025-10-31
+**Cluster**: K3s Homelab (single-master, SQLite backend)
+**Last Updated**: 2025-12-23
 **Audit Trail**: All rotation dates are tracked in git commit history with detailed commit messages
 
 ---
@@ -10,14 +10,32 @@
 
 ### Database Credentials
 
+#### PostgreSQL (CloudNativePG)
+
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
 | `immich-db-password` | Immich | PostgreSQL | 2025-10-19 | 2026-01-17 | High |
-| `linkding-db-password` | Linkding | PostgreSQL | 2025-10-23 | 2026-01-21 | Medium |
+| `linkwarden-db-password` | Linkwarden | PostgreSQL | 2025-11-24 | 2026-02-22 | Medium |
 | `mealie-db-password` | Mealie | PostgreSQL | 2025-10-23 | 2026-01-21 | Medium |
 | `n8n-db-password` | N8N | PostgreSQL | 2025-10-23 | 2026-01-21 | High |
 | `paperless-db-password` | Paperless-NGX | PostgreSQL | 2025-10-19 | 2026-01-17 | Medium |
-| `wallabag-db-password` | Wallabag | PostgreSQL | 2025-10-23 | 2026-01-21 | Medium |
+| `authentik-db-password` | Authentik | PostgreSQL | 2025-10-18 | 2026-01-16 | Critical |
+| `grafana-db-password` | Grafana | PostgreSQL | 2025-10-18 | 2026-01-16 | High |
+| `audiobookshelf-db-password` | Audiobookshelf | PostgreSQL | 2025-10-23 | 2026-01-21 | Medium |
+
+#### MySQL (Percona Operator)
+
+| Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
+|-------------|-----|------|--------------|---------------|----------|
+| `home-assistant-mysql` | Home Assistant | MySQL | 2025-12-16 | 2026-03-16 | High |
+| `uptime-kuma-mysql` | Uptime Kuma | MySQL | 2025-12-16 | 2026-03-16 | Medium |
+| `pricebuddy-mysql` | PriceBuddy | MySQL | 2025-12-16 | 2026-03-16 | Medium |
+
+#### CouchDB
+
+| Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
+|-------------|-----|------|--------------|---------------|----------|
+| `couchdb-admin-credentials` | Obsidian Sync | CouchDB Admin | 2025-10-23 | 2026-04-21 | Medium |
 
 ### Redis Credentials
 
@@ -43,7 +61,25 @@
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
-| `authentik-oidc-*` | Various (7 apps) | OIDC Client Secret | 2025-10-20 | 2026-04-18 | High |
+| `grafana-oidc` | Grafana | OIDC Client Secret | 2025-10-20 | 2026-04-18 | High |
+| `immich-oidc` | Immich | OIDC Client Secret | 2025-10-20 | 2026-04-18 | High |
+| `paperless-oidc` | Paperless-NGX | OIDC Client Secret | 2025-10-20 | 2026-04-18 | High |
+| `mealie-oidc` | Mealie | OIDC Client Secret | 2025-10-20 | 2026-04-18 | Medium |
+| `linkwarden-oidc` | Linkwarden | OIDC Client Secret | 2025-11-24 | 2026-05-22 | Medium |
+| `audiobookshelf-oidc` | Audiobookshelf | OIDC Client Secret | 2025-10-20 | 2026-04-18 | Medium |
+| `home-assistant-oidc` | Home Assistant | OIDC Client Secret | 2025-10-20 | 2026-04-18 | High |
+| `stirling-pdf-oidc` | Stirling PDF | OIDC Client Secret | 2025-10-25 | 2026-04-23 | Medium |
+
+### Infrastructure Credentials
+
+| Secret Name | Component | Type | Last Rotated | Next Rotation | Priority |
+|-------------|-----------|------|--------------|---------------|----------|
+| `tunnel-credentials` | Cloudflare Tunnel | Tunnel Token | 2025-10-18 | Never* | Critical |
+| `grafana-admin-secret` | Grafana | Admin Password | 2025-10-18 | 2026-04-16 | High |
+| `pricebuddy-telegram` | PriceBuddy | Telegram Bot Token | 2025-12-05 | Never* | Medium |
+| `backup-replication-ssh` | Backup Jobs | SSH Private Key | 2025-12-18 | 2026-12-18 | High |
+
+\* **Tunnel/API tokens**: Only rotate if compromised; regeneration requires reconfiguration
 
 ### TLS Certificates
 
@@ -172,7 +208,43 @@ kubectl logs -n authentik deployment/authentik-server --tail=20 | grep -i "redis
 
 ---
 
-### 3. OIDC Client Secret Rotation
+### 3. MySQL Password Rotation (Percona)
+
+#### Steps
+
+```bash
+# 1. Generate new password (32 characters, alphanumeric only)
+NEW_PASSWORD=$(openssl rand -base64 24 | tr -d '+/=' | head -c 32)
+
+# 2. Update MySQL user password via Percona operator
+# The operator manages users via the PerconaServerMySQL CRD
+# Update the secret referenced by the user definition
+
+# 3. Update SOPS-encrypted secret for the app
+# Example for Home Assistant:
+sops apps/staging/home-assistant/secrets.yaml
+# Update the MySQL password value
+
+# 4. Commit and push
+git add apps/staging/home-assistant/secrets.yaml
+git commit -m "Rotate Home Assistant MySQL password"
+git push
+
+# 5. Reconcile and restart
+flux reconcile source git flux-system --timeout 45s
+flux reconcile kustomization apps --timeout 45s --force
+kubectl rollout restart deployment/home-assistant -n home-assistant
+
+# 6. Verify connectivity
+kubectl logs -n home-assistant deployment/home-assistant --tail=20 | grep -i "mysql\|database\|error"
+```
+
+**Note**: Percona MySQL operator handles password updates through its CRDs. The user secrets
+are stored in the `databases` namespace and referenced by the PerconaServerMySQL resource.
+
+---
+
+### 4. OIDC Client Secret Rotation
 
 #### Steps
 
@@ -206,7 +278,7 @@ kubectl rollout restart deployment/grafana -n grafana
 
 ---
 
-### 4. Application Password Rotation (HomeHub, AdGuard Home)
+### 5. Application Password Rotation (HomeHub, AdGuard Home)
 
 #### HomeHub Password Rotation
 
@@ -324,20 +396,35 @@ If a secret is compromised:
   - HomeHub password rotated (exposed password remediation)
 - [x] 2025-10-29: Architecture change
   - Removed Redis from Authentik (no longer applicable)
+- [x] 2025-11-24: Linkwarden deployment (replaced Linkding)
+  - Linkwarden database password (PostgreSQL)
+  - Linkwarden OIDC client secret
+- [x] 2025-12-05: PriceBuddy deployment
+  - PriceBuddy Telegram bot token
+- [x] 2025-12-16: MySQL migration (MariaDB → Percona MySQL)
+  - Home Assistant MySQL credentials
+  - Uptime Kuma MySQL credentials
+  - PriceBuddy MySQL credentials
+- [x] 2025-12-18: Backup replication setup
+  - SSH key for backup replication to worker-node-2
 
 ### 2026 Q1 (Jan-Mar)
 - [ ] 2026-01-16: Redis password rotation (90-day cycle)
-  - Immich, Paperless-NGX, Wallabag Redis passwords
-- [ ] 2026-01-17: High-priority database password rotation (90-day cycle)
-  - Immich, Paperless-NGX database passwords
-- [ ] 2026-01-21: Medium-priority database password rotation (90-day cycle)
-  - Linkding, Mealie, N8N, Wallabag database passwords
+  - Immich, Paperless-NGX Redis passwords
+- [ ] 2026-01-17: High-priority PostgreSQL password rotation (90-day cycle)
+  - Immich, Paperless-NGX, Authentik database passwords
+- [ ] 2026-01-21: Medium-priority PostgreSQL password rotation (90-day cycle)
+  - Mealie, N8N, Audiobookshelf database passwords
 - [ ] 2026-01-24: HomeHub password rotation (90-day cycle)
+- [ ] 2026-02-22: Linkwarden database password rotation (90-day cycle)
+- [ ] 2026-03-16: MySQL password rotation (90-day cycle)
+  - Home Assistant, Uptime Kuma, PriceBuddy MySQL passwords
 
 ### 2026 Q2 (Apr-Jun)
 - [ ] 2026-04-16: Authentik secret key rotation (180-day cycle)
 - [ ] 2026-04-18: OIDC client secret rotation (180-day cycle)
-  - All 7 Authentik-integrated apps
+  - 8 Authentik-integrated apps (Grafana, Immich, Paperless, Mealie, Linkwarden, Audiobookshelf, Home Assistant, Stirling PDF)
+- [ ] 2026-04-21: CouchDB admin password rotation (180-day cycle)
 - [ ] 2026-04-23: AdGuard Home password rotation (180-day cycle)
 
 ---

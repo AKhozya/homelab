@@ -171,9 +171,9 @@ postgresql:
 
 ### Gaps Identified
 
-1. **Missing Loki health alerts** - No alerts for ingestion issues
-2. **No Traefik-specific alerts** - Backend errors, high latency
-3. **No Etcd alerts** - Critical for K3s
+1. **Missing Loki health alerts** - No alerts for ingestion issues ✅ *Fixed 2025-12-23*
+2. **No Traefik-specific alerts** - Backend errors, high latency ✅ *Fixed 2025-12-23*
+3. ~~No Etcd alerts~~ - N/A: K3s single-master uses embedded SQLite, not etcd
 4. **Missing runbook links** in alert annotations
 
 ### Metric Optimization (Impressive)
@@ -318,7 +318,7 @@ This homelab demonstrates **Staff DevOps Engineer-level infrastructure design** 
 
 **Primary improvement areas:**
 1. **DRY refactoring** - Significant opportunity to reduce duplication
-2. **Monitoring gaps** - Loki, Traefik, Etcd alerts missing
+2. ~~Monitoring gaps~~ - ✅ Loki, Traefik alerts added (Etcd N/A - K3s uses SQLite)
 3. **Documentation gaps** - Secrets rotation, RBAC decisions
 
 **Overall: This is a reference implementation** that other homelab projects could learn from. The main technical debt is copy-paste code that could be templated, but the fundamentals are solid.
