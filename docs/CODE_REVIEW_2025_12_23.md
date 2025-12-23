@@ -88,9 +88,11 @@ egress:
   - to: [DNS, databases, HTTPS endpoints]
 ```
 
-**Issue:** Label selector inconsistency:
-- Apps use: `kubernetes.io/metadata.name: traefik`
-- Infrastructure uses: `kustomize.toolkit.fluxcd.io/name: apps`
+**Note:** Label selector patterns are intentionally different by use case:
+- **Apps** use `kubernetes.io/metadata.name: <namespace>` for precise ingress control
+- **Databases** use `kustomize.toolkit.fluxcd.io/name: apps` to auto-allow all app namespaces
+
+This is intentional: databases allow broad access (new apps auto-get DB access), while apps specify exact allowed sources.
 
 ### Ingress Configuration
 
