@@ -9,6 +9,41 @@ spec:
       cnpg.io/cluster: main-postgres
   policyTypes:
     - Ingress
+    - Egress
+  egress:
+    # DNS resolution
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+      ports:
+      - protocol: UDP
+        port: 53
+      - protocol: TCP
+        port: 53
+
+    # Intra-cluster replication (PostgreSQL pods talking to each other)
+    - to:
+      - podSelector:
+          matchLabels:
+            cnpg.io/cluster: main-postgres
+      ports:
+      - protocol: TCP
+        port: 5432
+      - protocol: TCP
+        port: 8000  # CNPG instance manager status API
+
+    # CNPG operator communication (reports status, receives commands)
+    - to:
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/name: cloudnative-pg
+      ports:
+      - protocol: TCP
+        port: 9443  # Webhook
+      - protocol: TCP
+        port: 8080  # Metrics
+
   ingress:
     # Allow from app namespaces (authentik, immich, paperless, etc.)
     - from:

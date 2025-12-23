@@ -969,3 +969,174 @@ spec:
       annotations:
         summary: "Namespace {{ $labels.namespace }} approaching CPU quota"
         description: "Namespace {{ $labels.namespace }} is using {{ printf \"%.1f\" $value }}% of its CPU quota. May not be able to schedule new pods."
+
+  # ==========================================================================
+  # LOKI ALERTS - Log aggregation health monitoring
+  # ==========================================================================
+  - name: loki-alerts
+    interval: 1m
+    rules:
+    - alert: LokiDown
+      expr: up{job=~"loki.*"} == 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Loki is down"
+        description: "Loki instance {{ $labels.instance }} has been down for more than 2 minutes. Log ingestion is affected."
+
+    - alert: LokiHighIngestionRate
+      expr: sum(rate(loki_distributor_bytes_received_total[5m])) > 10485760
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Loki ingestion rate is high"
+        description: "Loki is ingesting {{ printf \"%.2f\" $value | humanize1024 }}B/s (>10MB/s). Consider increasing resources or reducing log volume."
+
+    - alert: LokiIngestionErrors
+      expr: sum(rate(loki_distributor_ingester_appends_total{status="fail"}[5m])) > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Loki has ingestion errors"
+        description: "Loki is experiencing {{ printf \"%.2f\" $value }} failed append operations per second. Check Loki logs for details."
+
+    - alert: LokiCompactorNotRunning
+      expr: sum(loki_compactor_running) == 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Loki compactor is not running"
+        description: "Loki compactor has not been running for 10 minutes. Log retention/cleanup may not be working."
+
+    - alert: PromtailDown
+      expr: up{job=~".*promtail.*"} == 0
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Promtail is down on {{ $labels.instance }}"
+        description: "Promtail on {{ $labels.instance }} has been down for more than 2 minutes. Logs from this node are not being collected."
+
+    - alert: PromtailTargetsMissing
+      expr: promtail_targets_active_total == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Promtail has no active targets"
+        description: "Promtail on {{ $labels.instance }} has no active scrape targets. Log collection is not working."
+
+  # ==========================================================================
+  # TRAEFIK ALERTS - Ingress controller health monitoring
+  # ==========================================================================
+  - name: traefik-alerts
+    interval: 1m
+    rules:
+    - alert: TraefikDown
+      expr: up{job=~".*traefik.*"} == 0
+      for: 2m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Traefik is down"
+        description: "Traefik instance {{ $labels.instance }} has been down for more than 2 minutes. Ingress routing is affected."
+
+    - alert: TraefikBackendDown
+      expr: traefik_service_server_up == 0
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Traefik backend {{ $labels.service }} is down"
+        description: "Service {{ $labels.service }} has no healthy backends for more than 2 minutes."
+
+    - alert: TraefikHighErrorRate
+      expr: sum(rate(traefik_service_requests_total{code=~"5.."}[5m])) by (service) / sum(rate(traefik_service_requests_total[5m])) by (service) * 100 > 10
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High error rate on {{ $labels.service }}"
+        description: "Service {{ $labels.service }} has {{ printf \"%.1f\" $value }}% error rate (5xx responses) over the last 5 minutes."
+
+    - alert: TraefikHighLatency
+      expr: histogram_quantile(0.99, sum(rate(traefik_service_request_duration_seconds_bucket[5m])) by (le, service)) > 2
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High latency on {{ $labels.service }}"
+        description: "Service {{ $labels.service }} has p99 latency of {{ printf \"%.2f\" $value }}s (>2s threshold)."
+
+    - alert: TraefikCertificateExpiringSoon
+      expr: (traefik_tls_certs_not_after - time()) / 86400 < 14
+      for: 1h
+      labels:
+        severity: warning
+      annotations:
+        summary: "TLS certificate expiring soon"
+        description: "Certificate for {{ $labels.cn }} expires in {{ printf \"%.0f\" $value }} days."
+
+    - alert: TraefikCertificateExpired
+      expr: (traefik_tls_certs_not_after - time()) < 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "TLS certificate has expired"
+        description: "Certificate for {{ $labels.cn }} has expired! HTTPS connections will fail."
+
+  # ==========================================================================
+  # ETCD ALERTS - K3s embedded etcd health monitoring
+  # ==========================================================================
+  - name: etcd-alerts
+    interval: 1m
+    rules:
+    - alert: EtcdNoLeader
+      expr: etcd_server_has_leader == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "etcd has no leader"
+        description: "etcd cluster has no leader for more than 1 minute. Kubernetes API server may be unavailable."
+
+    - alert: EtcdHighCommitDuration
+      expr: histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[5m])) > 0.25
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "etcd commit latency is high"
+        description: "etcd p99 commit duration is {{ printf \"%.3f\" $value }}s (>250ms). Disk I/O may be slow."
+
+    - alert: EtcdHighFsyncDuration
+      expr: histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[5m])) > 0.25
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "etcd WAL fsync latency is high"
+        description: "etcd p99 WAL fsync duration is {{ printf \"%.3f\" $value }}s (>250ms). Disk I/O may be slow."
+
+    - alert: EtcdDatabaseSizeLarge
+      expr: etcd_mvcc_db_total_size_in_bytes > 5368709120
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "etcd database is getting large"
+        description: "etcd database size is {{ $value | humanize1024 }}B (>5GB). Consider compaction or increasing quota."
+
+    - alert: EtcdHighNumberOfFailedProposals
+      expr: increase(etcd_server_proposals_failed_total[1h]) > 5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "etcd has many failed proposals"
+        description: "etcd has {{ printf \"%.0f\" $value }} failed proposals in the last hour. Cluster health may be degraded."

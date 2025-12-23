@@ -12,7 +12,7 @@ metadata:
       it difficult to track which version is deployed and can lead to unexpected
       updates. This policy disallows images with the 'latest' tag or no tag specified.
 spec:
-  validationFailureAction: Audit
+  validationFailureAction: Enforce
   background: true
   rules:
     - name: disallow-latest-tag
