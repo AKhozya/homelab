@@ -144,32 +144,11 @@
 | 49 | Document RBAC decisions per app | 2 hours | Documentation | ✅ Done (CODE_REVIEW §5.RBAC) |
 | 50 | ~~Add Etcd availability alerts~~ | N/A | N/A | ❌ N/A (K3s single-master uses SQLite) |
 
-#### Low Priority (Future)
-
-| # | Item | Notes | Status |
-|---|------|-------|--------|
-| 51 | Consider Velero for cluster-level backups | Complements current backup strategy | ⏳ Pending |
-| 52 | Evaluate Grafana HA (2 replicas) | Currently single replica | ⏳ Pending |
-| 53 | Add synthetic monitoring | Complement Uptime Kuma | ⏳ Pending |
-| 54 | Secrets rotation automation | External-secrets operator | ⏳ Pending |
-
 #### DRY Refactoring Opportunities
 
-**Potential file count reduction: 30-40%**
+**Status**: ❌ Declined (2025-12-23) - Complexity outweighs benefit for homelab scale.
 
-| Pattern | Files Affected | Duplication % | Priority |
-|---------|---------------|---------------|----------|
-| NetworkPolicy template | 14 files | ~90% | High |
-| Ingress template | 15 files | ~90% | High |
-| Certificate template | 7 files | ~95% | Medium |
-| ServiceAccount | 19 files | ~100% | Low |
-| Security Context | 12 files | ~85% | Low |
-| Database init container | 2 files | ~99% | Medium |
-
-**Implementation Strategy**:
-1. Create `apps/components/` directory for shared patterns
-2. Start with NetworkPolicy component (highest ROI)
-3. Migrate apps incrementally, test after each
+Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ---
 

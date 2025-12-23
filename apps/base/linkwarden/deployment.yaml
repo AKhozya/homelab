@@ -106,6 +106,8 @@ spec:
           volumeMounts:
             - name: playwright-cache
               mountPath: /home/node/.cache
+            - name: tmp
+              mountPath: /tmp
           resources:
             requests:
               cpu: "100m"
@@ -115,7 +117,7 @@ spec:
               memory: "512Mi"
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
@@ -131,7 +133,7 @@ spec:
                 name: linkwarden
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false  # Next.js needs writable filesystem
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
