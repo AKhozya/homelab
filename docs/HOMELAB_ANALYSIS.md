@@ -211,13 +211,12 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 | Deploy Velero for cluster backups | 4-6h | P2 |
 | Implement backup immutability (S3 object lock/ZFS) | 2-4h | P2 |
 | SOPS multi-key encryption | 4h | P2 |
-| ReadOnlyRootFilesystem Phase 3 (linkwarden, immich-ml, immich-proxy) | 2-3h | P2 |
 
-#### 🔒 **ReadOnlyRootFilesystem Security Hardening** (P2-MEDIUM) - PHASE 1+2 COMPLETE ✅
+#### 🔒 **ReadOnlyRootFilesystem Security Hardening** (P2-MEDIUM) - PHASE 1-3 COMPLETE ✅
 
 **Investigation Date**: 2025-12-18
-**Implementation Date**: 2025-12-18
-**Current State**: 10/16 apps have readOnlyRootFilesystem enabled (was 3, +7 containers hardened)
+**Implementation Date**: 2025-12-18 (Phase 1+2), 2025-12-23 (Phase 3)
+**Current State**: 13/16 apps have readOnlyRootFilesystem enabled (was 3, +10 containers hardened)
 **Goal**: Maximize containers with read-only root filesystems to reduce attack surface
 
 ##### ✅ **Tier 1: COMPLETED** (2025-12-18)
@@ -239,16 +238,15 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 **Verification**: All 7 apps restarted, init containers tested, setup jobs re-run, CSP reports confirmed working
 
-##### ⏸️ **Tier 3: DEFERRED to Late December 2025**
+##### ✅ **Tier 3: COMPLETED** (2025-12-23)
 
-| App | Container | Issue | Recommendation |
-|-----|-----------|-------|----------------|
-| **linkwarden** | main | Comment says "Next.js needs writable filesystem" but has emptyDir for cache | Test if enabling works |
-| **immich-ml** | main | Has readOnlyRootFilesystem: false explicit | Test with emptyDir for model cache |
-| **immich-proxy** | nginx | Needs /tmp, /var/cache, /var/run writable | Add emptyDir volumes |
+| App | Container | Changes | Commit |
+|-----|-----------|---------|--------|
+| **linkwarden** | main | Already had emptyDirs for /tmp, /app/.next/cache, /home/node/.cache | 3d4d533 |
+| **immich-ml** | main | Added /tmp emptyDir via persistence section | 3d4d533 |
+| **immich-proxy** | nginx | Added /tmp emptyDir via postRenderer patch (advancedMounts doesn't work) | 3d4d533 |
 
-**Effort**: 2-3 hours (test each, may need multiple iterations)
-**Status**: Deferred to end of December 2025 - higher risk, requires more testing
+**Verification**: All 3 apps tested - linkwarden SSO works, immich API responds, nginx proxy /tmp writable
 
 ##### ❌ **Tier 4: Not Feasible**
 
@@ -272,17 +270,20 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 - Added /tmp emptyDir to csp-reporter, homepage, homehub, uptime-kuma
 - Commits: 48ba5fc, 9e04864, d8da2a0, 2034718
 
-**Phase 3** (Tier 3 - Medium Risk): ⏸️ **DEFERRED to Late December 2025**
-- linkwarden, immich-ml, immich-proxy - requires more testing
+**Phase 3** (Tier 3 - Medium Risk): ✅ **COMPLETED 2025-12-23**
+- Enabled on linkwarden, immich-ml, immich-proxy (nginx sidecar)
+- Key finding: Immich HOST env var bug - nginx proxy sidecar required
+- Key finding: bjw-s chart advancedMounts doesn't work - used postRenderer instead
+- Commits: 3d4d533
 
-**Outcome**: 10 containers with readOnlyRootFilesystem (was 3, +7 hardened)
+**Outcome**: 13 containers with readOnlyRootFilesystem (was 3, +10 hardened)
 **Security Benefit**: Reduced attack surface, prevents runtime filesystem tampering
 
 ### ✅ Completed P2-MEDIUM Items (Summary)
 
 | Item | Date | Status |
 |------|------|--------|
-| ReadOnlyRootFilesystem Phase 1+2 | 2025-12-18 | ✅ 7 apps hardened (paperless, authentik×2, csp-reporter, homepage, homehub, uptime-kuma) |
+| ReadOnlyRootFilesystem Phase 1-3 | 2025-12-23 | ✅ 10 apps hardened (paperless, authentik×2, csp-reporter, homepage, homehub, uptime-kuma, linkwarden, immich-ml, immich-proxy) |
 | Backup Integrity Checks (SHA256) | 2025-10-31 | ✅ All backups generate checksums |
 | GPG Secrets Encryption | 2025-10-31 | ✅ AES256 with interactive passphrase |
 | Rate Limiting Middleware | 2025-10-31 | ✅ 100% coverage (17 ingresses) |
@@ -867,7 +868,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-23 10:00 UTC
+**Last Updated**: 2025-12-23 23:00 UTC
 **Next Review**: 2025-12-30
 
 ---
@@ -900,6 +901,21 @@ ingress:
   4. Enforce disallow-latest-tag policy (15 min)
   5. Traefik service alerts (1 hour)
 - 📄 **Documentation**: [CODE_REVIEW_2025_12_23.md](./CODE_REVIEW_2025_12_23.md)
+
+### 2025-12-23 (ReadOnlyRootFilesystem Phase 3 Complete) 🔒
+- ✅ **Phase 3 Complete**: Enabled readOnlyRootFilesystem on 3 remaining Tier 3 apps ⭐
+  - **linkwarden**: Already had emptyDirs for /tmp, /app/.next/cache, /home/node/.cache - just enabled flag
+  - **immich-ml**: Added /tmp emptyDir via persistence section
+  - **immich-proxy**: Added /tmp emptyDir via postRenderer patch
+- 🔧 **Key Findings**:
+  - Immich ignores HOST/IMMICH_HOST env vars (bug) - nginx proxy sidecar required
+  - bjw-s chart advancedMounts doesn't work - used postRenderer JSON patch instead
+- ✅ **Verification**:
+  - Linkwarden: SSO login redirects to Authentik correctly
+  - Immich: API responds with pong, version 2.4.1
+  - All containers have writable /tmp via emptyDir
+- 📊 **Outcome**: 13/16 apps now have readOnlyRootFilesystem (was 10, +3 hardened)
+- 📋 **Commits**: 3d4d533
 
 ### 2025-12-22 (CouchDB Backup Reliability Fix) 💾
 - ✅ **Backup Job Fixed**: 10/10 tests passed, completes in 5-7 seconds (was failing or timing out at 300s+) ⭐
