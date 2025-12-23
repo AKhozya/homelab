@@ -150,6 +150,9 @@ spec:
               supplementalGroups:
                 - 985  # video group on worker-node
                 - 989  # render group on worker-node
+            volumes:
+              - name: nginx-tmp
+                emptyDir: {}
           initContainers:
             wait-for-database:
               image:
@@ -307,10 +310,6 @@ spec:
                   port: 8080
                 initialDelaySeconds: 60
                 periodSeconds: 30
-          pod:
-            volumes:
-              - name: nginx-tmp
-                emptyDir: {}
       service:
         main:
           ports:
