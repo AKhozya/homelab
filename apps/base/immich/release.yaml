@@ -150,9 +150,6 @@ spec:
               supplementalGroups:
                 - 985  # video group on worker-node
                 - 989  # render group on worker-node
-            volumes:
-              - name: nginx-tmp
-                emptyDir: {}
           initContainers:
             wait-for-database:
               image:
@@ -295,9 +292,6 @@ spec:
                 runAsUser: 101
                 capabilities:
                   drop: ["ALL"]
-              volumeMounts:
-                - name: nginx-tmp
-                  mountPath: /tmp
               readinessProbe:
                 httpGet:
                   path: /
@@ -317,6 +311,15 @@ spec:
               port: 8080
               targetPort: 8080
       # GPU /dev/dri hostPath added via postRenderer patch (above)
+      # Persistence for nginx proxy sidecar (readOnlyRootFilesystem requires writable /tmp)
+      persistence:
+        proxy-tmp:
+          enabled: true
+          type: emptyDir
+          advancedMounts:
+            main:
+              proxy:
+                - path: /tmp
 
     # Immich Machine Learning component
     machine-learning:
