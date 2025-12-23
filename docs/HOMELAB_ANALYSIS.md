@@ -140,8 +140,8 @@
 |---|------|--------|--------|--------|
 | 46 | ~~Create Kustomize components for DRY~~ | N/A | N/A | ❌ Declined (complexity vs benefit) |
 | 47 | ~~Standardize NetworkPolicy label selectors~~ | N/A | N/A | ✅ Documented as intentional design |
-| 48 | Add backup monitoring Grafana dashboard | 2 hours | Observability | ⏳ Pending |
-| 49 | Document RBAC decisions per app | 2 hours | Documentation | ⏳ Pending |
+| 48 | Add backup monitoring Grafana dashboard | 2 hours | Observability | ✅ Done (grafana-dashboards/) |
+| 49 | Document RBAC decisions per app | 2 hours | Documentation | ✅ Done (CODE_REVIEW §5.RBAC) |
 | 50 | ~~Add Etcd availability alerts~~ | N/A | N/A | ❌ N/A (K3s single-master uses SQLite) |
 
 #### Low Priority (Future)

@@ -220,9 +220,59 @@ Extensive metric relabeling reduces cardinality:
 
 ### RBAC
 
-- Minimal RBAC - only Homepage has ClusterRole (for dashboard visibility)
-- All apps use `automountServiceAccountToken: false`
-- No wildcard permissions found
+**Design Principle:** Minimal RBAC - apps get only what they need, nothing more.
+
+#### Per-App RBAC Decisions
+
+| App | ServiceAccount | ClusterRole | Reason |
+|-----|----------------|-------------|--------|
+| **homepage** | ✅ Dedicated | ✅ Read-only | Dashboard needs cluster visibility |
+| **authentik** | ✅ Dedicated | ❌ None | SSO provider, no K8s API access needed |
+| **home-assistant** | ✅ Dedicated | ❌ None | Smart home, no K8s API access needed |
+| **immich** | ✅ Dedicated | ❌ None | Photo management, no K8s API access needed |
+| **paperless-ngx** | ✅ Dedicated | ❌ None | Document management, no K8s API access needed |
+| **mealie** | ✅ Dedicated | ❌ None | Recipe management, no K8s API access needed |
+| **linkwarden** | ✅ Dedicated | ❌ None | Bookmark manager, no K8s API access needed |
+| **meilisearch** | ✅ Dedicated | ❌ None | Search engine for Linkwarden |
+| **n8n** | ✅ Dedicated | ❌ None | Automation, no K8s API access needed |
+| **audiobookshelf** | ✅ Dedicated | ❌ None | Audiobook server, no K8s API access needed |
+| **uptime-kuma** | ✅ Dedicated | ❌ None | Monitoring external services, not K8s |
+| **adguard-home** | ✅ Dedicated | ❌ None | DNS server, no K8s API access needed |
+| **stirling-pdf** | ✅ Dedicated | ❌ None | PDF tools, no K8s API access needed |
+| **homehub** | ✅ Dedicated | ❌ None | Family dashboard, no K8s API access needed |
+| **pricebuddy** | ✅ Dedicated | ❌ None | Price tracking, no K8s API access needed |
+| **obsidian** | ✅ Dedicated | ❌ None | Note sync, no K8s API access needed |
+
+#### Homepage ClusterRole (Only Exception)
+
+Homepage requires cluster-wide read access to display the dashboard:
+
+```yaml
+# Read-only access to core resources
+- apiGroups: [""]
+  resources: [namespaces, pods, nodes, services, secrets]
+  verbs: [get, list]
+
+# Read-only access to ingresses
+- apiGroups: ["networking.k8s.io"]
+  resources: [ingresses]
+  verbs: [get, list]
+
+# Read-only access to metrics
+- apiGroups: ["metrics.k8s.io"]
+  resources: [nodes, pods]
+  verbs: [get, list]
+```
+
+**Justification:** Homepage displays service status, resource usage, and cluster health. Without this ClusterRole, the dashboard would be empty.
+
+#### Security Controls
+
+- **All apps:** `automountServiceAccountToken: false` (prevents token mounting unless explicitly needed)
+- **All ServiceAccounts:** `automountServiceAccountToken: false` at SA level (defense in depth)
+- **No wildcard permissions:** No `*` in verbs or resources
+- **No write permissions:** Homepage only has `get, list` (read-only)
+- **Namespace isolation:** Apps can't access resources in other namespaces (except Homepage)
 
 ---
 
@@ -319,9 +369,9 @@ This homelab demonstrates **Staff DevOps Engineer-level infrastructure design** 
 - **Comprehensive disaster recovery** with tested procedures
 
 **Primary improvement areas:**
-1. **DRY refactoring** - Significant opportunity to reduce duplication
+1. **DRY refactoring** - Significant opportunity to reduce duplication (declined - complexity vs benefit)
 2. ~~Monitoring gaps~~ - ✅ Loki, Traefik alerts added (Etcd N/A - K3s uses SQLite)
-3. **Documentation gaps** - Secrets rotation, RBAC decisions
+3. ~~Documentation gaps~~ - ✅ Secrets rotation documented, RBAC decisions documented per-app
 
 **Overall: This is a reference implementation** that other homelab projects could learn from. The main technical debt is copy-paste code that could be templated, but the fundamentals are solid.
 

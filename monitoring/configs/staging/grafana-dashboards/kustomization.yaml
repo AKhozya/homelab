@@ -6,3 +6,4 @@ resources:
   - traefik-k8s-dashboard.yaml
   - loki-stack-dashboard.yaml
   - cert-manager-dashboard.yaml
+  - backup-monitoring-dashboard.yaml
