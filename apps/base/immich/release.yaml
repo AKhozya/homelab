@@ -56,6 +56,18 @@ spec:
                 value:
                   name: dri
                   mountPath: /dev/dri
+              # Nginx proxy sidecar: Add /tmp emptyDir volume for readOnlyRootFilesystem
+              - op: add
+                path: /spec/template/spec/volumes/-
+                value:
+                  name: proxy-tmp
+                  emptyDir: {}
+              # Nginx proxy sidecar: Mount /tmp to proxy container (index 1)
+              - op: add
+                path: /spec/template/spec/containers/1/volumeMounts/-
+                value:
+                  name: proxy-tmp
+                  mountPath: /tmp
           - target:
               kind: Deployment
               name: immich-machine-learning
@@ -310,16 +322,7 @@ spec:
             http:
               port: 8080
               targetPort: 8080
-      # GPU /dev/dri hostPath added via postRenderer patch (above)
-      # Persistence for nginx proxy sidecar (readOnlyRootFilesystem requires writable /tmp)
-      persistence:
-        proxy-tmp:
-          enabled: true
-          type: emptyDir
-          advancedMounts:
-            main:
-              proxy:
-                - path: /tmp
+      # GPU /dev/dri, proxy /tmp added via postRenderer patches (above)
 
     # Immich Machine Learning component
     machine-learning:
