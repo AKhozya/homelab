@@ -128,11 +128,11 @@
 
 | # | Item | Effort | Impact | Status |
 |---|------|--------|--------|--------|
-| 41 | Add PostgreSQL egress NetworkPolicy | 30 min | Security | ⏳ Pending |
-| 42 | Add Loki health alerts | 1 hour | Observability | ⏳ Pending |
+| 41 | Add PostgreSQL egress NetworkPolicy | 30 min | Security | ✅ Done (9589c59) |
+| 42 | Add Loki health alerts | 1 hour | Observability | ✅ Done (9589c59) |
 | 43 | Document secrets rotation schedule | 1 hour | Security | ⏳ Pending |
-| 44 | Enforce `disallow-latest-tag` Kyverno policy | 15 min | Security | ⏳ Pending |
-| 45 | Add Traefik service alerts | 1 hour | Observability | ⏳ Pending |
+| 44 | Enforce `disallow-latest-tag` Kyverno policy | 15 min | Security | ✅ Done (9589c59) |
+| 45 | Add Traefik service alerts | 1 hour | Observability | ✅ Done (9589c59) |
 
 #### Medium Priority (This Quarter)
 
@@ -142,7 +142,7 @@
 | 47 | Standardize NetworkPolicy label selectors | 2 hours | Reliability | ⏳ Pending |
 | 48 | Add backup monitoring Grafana dashboard | 2 hours | Observability | ⏳ Pending |
 | 49 | Document RBAC decisions per app | 2 hours | Documentation | ⏳ Pending |
-| 50 | Add Etcd availability alerts | 1 hour | Observability | ⏳ Pending |
+| 50 | Add Etcd availability alerts | 1 hour | Observability | ✅ Done (9589c59) |
 
 #### Low Priority (Future)
 
