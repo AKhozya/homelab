@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-12-23 10:00 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-12-24 12:00 UTC)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -47,6 +47,10 @@
 - CloudNativePG for managed PostgreSQL (2-node HA) with PgBouncer pooler
 - **🆕 Percona MySQL Operator** for MySQL (2-node async replication) with HAProxy ⭐
 - **🆕 3-Node Cluster** - worker-node-2 added (2025-12-15) ⭐
+- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24)
+  - Nightly reproducible build verification (2am-8am)
+  - worker-node: 12 CPU, 24GB RAM | worker-node-2: 6 CPU, 16GB RAM
+  - LVM-backed storage for builds
 - Default credential elimination on all apps
 - **🆕 Comprehensive Security Headers & Protections** ⭐ (2025-10-30)
   - **Phase 1 (Completed)**: Safe security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy)
@@ -868,7 +872,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-23 23:00 UTC
+**Last Updated**: 2025-12-24 12:00 UTC
 **Next Review**: 2025-12-30
 
 ---
@@ -876,6 +880,37 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2025-12-24 (LVM Migration & Rebuilderd Setup) 💾
+- ✅ **Rebuilderd Contribution to Arch Linux**: Nightly builds for reproducible package verification ⭐
+  - **Schedule**: 2:00 AM - 8:00 AM daily (6 hours)
+  - **worker-node**: 12 CPU cores, 24GB RAM dedicated
+  - **worker-node-2**: 6 CPU cores, 16GB RAM dedicated
+  - **Storage**: LVM-backed builds (not tmpfs/RAM)
+  - **Purpose**: Verify Arch Linux binary packages are reproducible
+  - **Graceful stop**: Current build completes before timer stop
+- ✅ **LVM Storage Migration - worker-node-2**: Root SSD freed ~14.5GB ⭐
+  - `/var/lib/kubelet` → `/mnt/extra-storage/kubelet` (bind mount)
+  - `/var/lib/rebuilderd-worker` → `/mnt/extra-storage/rebuilderd-worker` (symlink)
+  - `/var/lib/repro` → `/mnt/extra-storage/repro` (symlink)
+  - **Result**: Root SSD 37% → 8% used (3.5G/50G)
+- ✅ **LVM Storage Migration - worker-node**: Root SSD freed ~30GB ⭐
+  - `/var/lib/kubelet` → `/mnt/k8s-storage/kubelet` (bind mount)
+  - `/var/lib/rebuilderd-worker` → `/mnt/k8s-storage/rebuilderd-worker` (symlink)
+  - `/var/lib/repro` → `/mnt/k8s-storage/repro` (symlink)
+  - **Result**: Root SSD → 6% used (2.7G/49G)
+- ✅ **Disk Cleanup**: Both nodes cleaned
+  - Pacman cache (paccache -rk2)
+  - Journal logs (vacuum to 100MB)
+  - Old swapfile removed on worker-node-2 (6.4GB)
+  - Unused container images pruned
+- 🔧 **Scripts Created** (`docs/scripts/`):
+  - `configure-rebuilderd-storage.sh` - LVM storage config for builds
+  - `migrate-to-lvm-worker1.sh` - Combined migration script
+  - `migrate-rebuilderd-to-lvm.sh` - Rebuilderd data migration
+  - `cleanup-kubelet-old.sh` - Stale mount cleanup
+  - `analyze-disk-usage.sh` - Disk analysis utility
+  - `cleanup-disk.sh` - Disk cleanup utility
 
 ### 2025-12-23 (Comprehensive Code Review) 📋
 - ✅ **Full Codebase Review Completed**: 89/100 (A-) overall score ⭐
