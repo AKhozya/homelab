@@ -101,7 +101,7 @@ spec:
             - -c
             - |
               echo "Installing Playwright Chromium browser..."
-              yarn playwright install chromium
+              npx playwright install chromium
               echo "Playwright browsers installed successfully!"
           volumeMounts:
             - name: playwright-cache
