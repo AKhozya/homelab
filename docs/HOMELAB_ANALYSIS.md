@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-12-24 12:00 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-12-26 23:00 UTC)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -47,10 +47,11 @@
 - CloudNativePG for managed PostgreSQL (2-node HA) with PgBouncer pooler
 - **🆕 Percona MySQL Operator** for MySQL (2-node async replication) with HAProxy ⭐
 - **🆕 3-Node Cluster** - worker-node-2 added (2025-12-15) ⭐
-- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24)
-  - Nightly reproducible build verification (2am-8am)
-  - worker-node: 12 CPU, 24GB RAM | worker-node-2: 6 CPU, 16GB RAM
+- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2025-12-26)
+  - Nightly reproducible build verification (2am-9am, 7 hours)
+  - worker-node: 12 CPU, 24GB RAM | worker-node-2: 6 CPU, 12GB RAM
   - LVM-backed storage for builds
+  - CPU quota fix: Patched archlinux-repro to pass limits to nspawn containers ([PR #143](https://github.com/archlinux/archlinux-repro/pull/143))
 - Default credential elimination on all apps
 - **🆕 Comprehensive Security Headers & Protections** ⭐ (2025-10-30)
   - **Phase 1 (Completed)**: Safe security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy)
@@ -872,7 +873,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-24 12:00 UTC
+**Last Updated**: 2025-12-26 23:00 UTC
 **Next Review**: 2025-12-30
 
 ---
@@ -881,11 +882,32 @@ ingress:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
+### 2025-12-26 (Rebuilderd CPU Quota Fix & Upstream PR) 🔧
+- ✅ **CPU Quota Fix for nspawn Containers**: Patched archlinux-repro to pass CPU limits ⭐
+  - **Problem**: nspawn containers with `--register=no` bypass parent cgroup CPU limits
+  - **Solution**: Added `--property="CPUQuota=${MAX_CPU}"` to nspawn call (mirrors existing MAX_MEMORY pattern)
+  - **Upstream PR**: [archlinux/archlinux-repro#143](https://github.com/archlinux/archlinux-repro/pull/143)
+  - **Patch Applied**: Both worker nodes running patched version
+- ✅ **3-Hour Verification Test**: CPU limits confirmed working ⭐
+  - **worker-node**: Peak 39% CPU (was 99% before fix) - 1,167 packages processed
+  - **worker-node-2**: Peak 33% CPU - 508 packages processed
+  - **Zero CPU alerts** during test period
+  - cgroup cpu.max correctly shows limits (1200000/100000, 600000/100000)
+- ✅ **worker-node-2 CPU Increased**: 5 cores → 6 cores (500% → 600%)
+- ✅ **Schedule Extended**: 2am-8am → 2am-9am (7 hours instead of 6)
+- 🔧 **Scripts Created** (`/tmp/` on nodes):
+  - `configure-rebuilderd-cpu-limit.sh` - Initial CPU limit setup
+  - `test-rebuilderd-cpu-limits.sh` - Verification test script
+  - `monitor-rebuilderd-3hr.sh` - 3-hour monitoring with 10-min intervals
+  - `update-cpu-limit-worker2.sh` - CPU increase from 5 to 6 cores
+  - `update-rebuilderd-schedule.sh` - Schedule change script
+- 📋 **Commits**: Patch script in `docs/scripts/patch-archlinux-repro-cpu.sh`
+
 ### 2025-12-24 (LVM Migration & Rebuilderd Setup) 💾
 - ✅ **Rebuilderd Contribution to Arch Linux**: Nightly builds for reproducible package verification ⭐
-  - **Schedule**: 2:00 AM - 8:00 AM daily (6 hours)
+  - **Schedule**: 2:00 AM - 9:00 AM daily (7 hours)
   - **worker-node**: 12 CPU cores, 24GB RAM dedicated
-  - **worker-node-2**: 6 CPU cores, 16GB RAM dedicated
+  - **worker-node-2**: 6 CPU cores, 12GB RAM dedicated
   - **Storage**: LVM-backed builds (not tmpfs/RAM)
   - **Purpose**: Verify Arch Linux binary packages are reproducible
   - **Graceful stop**: Current build completes before timer stop
