@@ -4,7 +4,7 @@ metadata:
   name: n8n-user-provision
   namespace: n8n
 spec:
-  ttlSecondsAfterFinished: 86400  # Clean up after 24 hours
+  ttlSecondsAfterFinished: 300
   backoffLimit: 3
   template:
     spec:

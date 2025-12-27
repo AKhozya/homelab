@@ -4,7 +4,7 @@ metadata:
   name: couchdb-init
   namespace: obsidian
 spec:
-  ttlSecondsAfterFinished: 28800 # Keep job for 8h for debugging
+  ttlSecondsAfterFinished: 300
   template:
     spec:
       serviceAccountName: obsidian

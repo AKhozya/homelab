@@ -1,7 +1,7 @@
 #!/bin/bash
 # Setup rebuilderd on worker-node-2 (16 cores, 30GB RAM)
-# Resources: 4 CPUs, 8GB RAM
-# Schedule: 1am-8am daily
+# Resources: 5 CPUs, 12GB RAM (conservative to avoid K8s memory pressure)
+# Schedule: 2am-8am daily
 set -e
 
 echo "=== Installing rebuilderd ==="
@@ -47,15 +47,15 @@ source = "https://geo.mirror.pkgbuild.com/extra/os/x86_64/extra.db"
 CONF
 
 echo "=== Creating resource limits override ==="
-sudo mkdir -p /etc/systemd/system/rebuilderd-worker.service.d
-sudo tee /etc/systemd/system/rebuilderd-worker.service.d/resources.conf > /dev/null << 'CONF'
+sudo mkdir -p /etc/systemd/system/rebuilderd-worker@.service.d
+sudo tee /etc/systemd/system/rebuilderd-worker@.service.d/resources.conf > /dev/null << 'CONF'
 [Service]
-# 4 CPUs (out of 16) - leaves plenty for K8s
-CPUQuota=400%
+# 5 CPUs (out of 16) - conservative to avoid K8s memory pressure
+CPUQuota=500%
 
-# 8GB max memory - leaves 22GB for K8s
-MemoryMax=8G
-MemoryHigh=6G
+# 12GB max memory - leaves 18GB for K8s
+MemoryMax=12G
+MemoryHigh=10G
 
 # Low I/O priority - won't compete with databases
 IOSchedulingClass=best-effort
@@ -65,18 +65,15 @@ Nice=15
 # Graceful stop - wait up to 2 hours for current build to finish
 TimeoutStopSec=7200
 KillMode=mixed
-
-# Build directory on extra storage
-Environment="BUILDDIR=/mnt/extra-storage/rebuilderd/builds"
 CONF
 
-echo "=== Creating start timer (1am) ==="
+echo "=== Creating start timer (2am) ==="
 sudo tee /etc/systemd/system/rebuilderd-worker-start.timer > /dev/null << 'CONF'
 [Unit]
-Description=Start rebuilderd worker at 1am
+Description=Start rebuilderd worker at 2am
 
 [Timer]
-OnCalendar=*-*-* 01:00:00
+OnCalendar=*-*-* 02:00:00
 Persistent=true
 
 [Install]
@@ -134,8 +131,8 @@ echo "============================================"
 echo "  worker-node-2 rebuilderd setup complete!"
 echo "============================================"
 echo ""
-echo "Schedule: Worker runs 1am-8am daily"
-echo "Resources: 4 CPUs, 8GB RAM, low I/O priority"
+echo "Schedule: Worker runs 2am-8am daily"
+echo "Resources: 5 CPUs, 12GB RAM, low I/O priority"
 echo "Graceful stop: Waits up to 2 hours for build"
 echo ""
 echo "Commands:"

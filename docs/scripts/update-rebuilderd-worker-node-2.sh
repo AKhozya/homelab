@@ -1,15 +1,15 @@
 #!/bin/bash
 # Update rebuilderd settings on worker-node-2
-# - RAM: 8GB -> 16GB
-# - Start time: 1am -> 2am
+# Resources: 5 CPUs, 12GB RAM (conservative to avoid K8s memory pressure)
+# Schedule: 2am-8am daily
 set -e
 
-echo "=== Updating resource limits (16GB RAM) ==="
+echo "=== Updating resource limits (5 CPUs, 12GB RAM) ==="
 sudo tee /etc/systemd/system/rebuilderd-worker@.service.d/resources.conf > /dev/null << 'CONF'
 [Service]
-CPUQuota=400%
-MemoryMax=16G
-MemoryHigh=14G
+CPUQuota=500%
+MemoryMax=12G
+MemoryHigh=10G
 IOSchedulingClass=best-effort
 IOSchedulingPriority=7
 Nice=15
