@@ -57,7 +57,7 @@ spec:
               memory: "32Mi"
       containers:
         - name: pricebuddy
-          image: jez500/pricebuddy:v1.0.43
+          image: jez500/pricebuddy:v1.0.44
           ports:
             - containerPort: 80
               name: http
