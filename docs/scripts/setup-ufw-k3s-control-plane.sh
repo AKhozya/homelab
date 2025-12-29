@@ -67,15 +67,14 @@ ufw allow from 192.168.1.0/24 to any port 80 proto tcp comment "HTTP from LAN"
 ufw allow from 192.168.1.0/24 to any port 443 proto tcp comment "HTTPS from LAN"
 
 echo ""
-echo "=== Current UFW Rules (not yet enabled) ==="
+echo "=== Enabling UFW ==="
+ufw --force enable
+systemctl enable ufw
+
+echo ""
+echo "=== UFW Status ==="
 ufw status numbered
 
 echo ""
-echo "=== Ready to Enable UFW ==="
-echo "Review the rules above. If they look correct, run:"
-echo "  sudo ufw enable"
-echo ""
-echo "To test without enabling permanently:"
-echo "  sudo ufw --dry-run enable"
-echo ""
-echo "If you get locked out, physical console access required to fix."
+echo "=== Done! ==="
+echo "UFW is now active and will persist across reboots."
