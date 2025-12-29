@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-12-29 14:30 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-12-29 15:10 UTC)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -622,25 +622,21 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 ### Cloudflare Tunnel Configuration
 
 **Zero Trust Network Access:**
-- **Tunnel ID**: c2188394-85ac-402a-8025-0e404ae6004f
-- **Tunnel Name**: homelab
-- **Zone**: h0melab.work (Zone ID: 58eff30c44f4f96e97eebf5d5a0b34be)
+- **Tunnel ID**: ***REMOVED-CF-TUNNEL-UUID***
+- **Tunnel Name**: homelab-gitops
+- **Zone**: h0melab.work (Zone ID: 082e62c3fe08e1fc9e059a7edc43221f)
 - **Management**: Cloudflare Dashboard/API (NOT ConfigMap-based)
 - **Namespace**: cloudflare-tunnel
 
-**Active Services (9):**
-1. home.h0melab.work → Home Assistant (port 8123)
-2. grafana.h0melab.work → Grafana (port 80)
-3. uptime.h0melab.work → Uptime Kuma (port 3001)
-4. am.h0melab.work → Alertmanager (port 9093)
-5. authentik.h0melab.work → Authentik (port 9000) ⭐ NEW
-6. couchdb.h0melab.work → CouchDB (port 5984)
-7. audiobooks.h0melab.work → Audiobookshelf (port 80)
-8. n8n.h0melab.work → N8N (port 5678)
-9. linkding.h0melab.work → Linkding (port 9090)
-
-**Additional Services (not via tunnel):**
-- mealie, wallabag, immich, paperless (internal access only)
+**Active Services (8):**
+1. authentik.h0melab.work → Authentik (port 9000)
+2. couchdb.h0melab.work → CouchDB (port 5984)
+3. audiobooks.h0melab.work → Audiobookshelf (port 3005)
+4. linkwarden.h0melab.work → LinkWarden (port 3000)
+5. stirling-pdf.h0melab.work → Stirling PDF (port 8080)
+6. mealie.h0melab.work → Mealie (port 9000)
+7. paperless.h0melab.work → Paperless-NGX (port 8000)
+8. immich.h0melab.work → Immich (port 8080) ⭐ NEW
 
 **Configuration Details:**
 - **Deployment**: infrastructure/configs/staging/cloudflare/cloudflared.yaml
@@ -649,7 +645,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 - **Important**: ConfigMap does NOT contain ingress/service routes (API-managed)
 
 **DNS Strategy:**
-- **External services (via Cloudflare Tunnel)**: CNAME records pointing to tunnel (e.g., authentik → c2188394-85ac-402a-8025-0e404ae6004f.cfargotunnel.com)
+- **External services (via Cloudflare Tunnel)**: CNAME records pointing to tunnel (e.g., authentik → ***REMOVED-CF-TUNNEL-UUID***.cfargotunnel.com)
 - **Internal services**: AdGuard Home for local DNS resolution
 - **Proxied**: All tunnel CNAMEs proxied through Cloudflare (orange cloud)
 
@@ -666,8 +662,8 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
   - Fast local resolution
 
 **DNS Resolution Flow:**
-- **Tunnel services** (9 apps): Internet → Cloudflare DNS → Cloudflare Tunnel → Service
-- **Internal services** (7 apps): Local network → AdGuard Home → Traefik Ingress → Service
+- **Tunnel services** (8 apps): Internet → Cloudflare DNS → Cloudflare Tunnel → Service
+- **Internal services**: Local network → AdGuard Home → Traefik Ingress → Service
 - **Benefit**: Fast local DNS, no Cloudflare API rate limits, simplified architecture
 
 ### NetworkPolicy Considerations
