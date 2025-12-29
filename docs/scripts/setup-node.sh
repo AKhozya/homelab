@@ -300,7 +300,12 @@ echo "  - /boot/loader/entries/*.conf (pcie_aspm=off)"
 echo "  - /etc/rancher/k3s/kubelet.yaml"
 echo "  - /etc/systemd/system/${K3S_SERVICE}.service.d/shutdown-timeout.conf"
 echo ""
+if [ "$NODE_TYPE" = "control-plane" ]; then
+    UFW_SCRIPT="setup-ufw-k3s-control-plane.sh"
+else
+    UFW_SCRIPT="setup-ufw-k3s-worker.sh"
+fi
 echo "Next steps:"
 echo "  1. Restart K3s: sudo systemctl restart $K3S_SERVICE"
-echo "  2. Setup UFW: sudo bash setup-ufw-k3s-*.sh"
+echo "  2. Setup UFW (if needed): sudo bash /tmp/$UFW_SCRIPT"
 echo ""
