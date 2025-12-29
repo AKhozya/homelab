@@ -66,14 +66,37 @@ echo "=============================================="
 echo "Installing firmware packages..."
 pacman -S --noconfirm --needed $UCODE_PKG linux-firmware linux-firmware-whence 2>/dev/null || true
 
-# Remove unnecessary AUR firmware (if installed)
-echo "Removing unnecessary AUR firmware..."
-for pkg in aic94xx-firmware ast-firmware upd72020x-fw wd719x-firmware; do
-    if pacman -Qi "$pkg" &>/dev/null; then
-        pacman -Rns --noconfirm "$pkg" 2>/dev/null || true
-        echo "  Removed: $pkg"
+# Install optional firmware to suppress mkinitcpio warnings
+echo "Installing optional firmware (AUR)..."
+AUR_PKGS="aic94xx-firmware ast-firmware wd719x-firmware upd72020x-fw"
+if command -v yay &>/dev/null; then
+    sudo -u nobody true 2>/dev/null || true  # Test if we can drop privs
+    # Find a non-root user to run yay
+    SUDO_USER=${SUDO_USER:-$(who | head -1 | awk '{print $1}')}
+    if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+        for pkg in $AUR_PKGS; do
+            if ! pacman -Qi "$pkg" &>/dev/null; then
+                sudo -u "$SUDO_USER" yay -S --noconfirm --needed "$pkg" 2>/dev/null && echo "  Installed: $pkg" || true
+            fi
+        done
+    else
+        echo "  Skipped: Cannot run yay as root, install manually"
     fi
-done
+elif command -v paru &>/dev/null; then
+    SUDO_USER=${SUDO_USER:-$(who | head -1 | awk '{print $1}')}
+    if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+        for pkg in $AUR_PKGS; do
+            if ! pacman -Qi "$pkg" &>/dev/null; then
+                sudo -u "$SUDO_USER" paru -S --noconfirm --needed "$pkg" 2>/dev/null && echo "  Installed: $pkg" || true
+            fi
+        done
+    else
+        echo "  Skipped: Cannot run paru as root, install manually"
+    fi
+else
+    echo "  Skipped: No AUR helper (yay/paru) found"
+    echo "  To install manually: yay -S aic94xx-firmware ast-firmware wd719x-firmware upd72020x-fw"
+fi
 echo "  Done: Firmware configured"
 echo ""
 
