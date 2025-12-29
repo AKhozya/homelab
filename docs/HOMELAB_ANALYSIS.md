@@ -628,7 +628,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 - **Management**: Cloudflare Dashboard/API (NOT ConfigMap-based)
 - **Namespace**: cloudflare-tunnel
 
-**Active Services (8):**
+**Active Services (9):**
 1. authentik.h0melab.work → Authentik (port 9000)
 2. couchdb.h0melab.work → CouchDB (port 5984)
 3. audiobooks.h0melab.work → Audiobookshelf (port 3005)
@@ -636,7 +636,8 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 5. stirling-pdf.h0melab.work → Stirling PDF (port 8080)
 6. mealie.h0melab.work → Mealie (port 9000)
 7. paperless.h0melab.work → Paperless-NGX (port 8000)
-8. immich.h0melab.work → Immich (port 8080) ⭐ NEW
+8. immich.h0melab.work → Immich (port 8080)
+9. n8n.h0melab.work → N8N (port 5678) ⭐ NEW
 
 **Configuration Details:**
 - **Deployment**: infrastructure/configs/staging/cloudflare/cloudflared.yaml
@@ -662,7 +663,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
   - Fast local resolution
 
 **DNS Resolution Flow:**
-- **Tunnel services** (8 apps): Internet → Cloudflare DNS → Cloudflare Tunnel → Service
+- **Tunnel services** (9 apps): Internet → Cloudflare DNS → Cloudflare Tunnel → Service
 - **Internal services**: Local network → AdGuard Home → Traefik Ingress → Service
 - **Benefit**: Fast local DNS, no Cloudflare API rate limits, simplified architecture
 
