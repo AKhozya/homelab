@@ -181,10 +181,17 @@ options nvme_core default_ps_max_latency_us=0
 EOF
 echo 0 > /sys/module/nvme_core/parameters/default_ps_max_latency_us 2>/dev/null || true
 
-# NVMe: Disable PCI runtime power management via udev
+# NVMe: Disable PCI runtime power management via udev (for new devices)
 cat > /etc/udev/rules.d/60-nvme-no-pm.rules << 'EOF'
 # Disable runtime PM for NVMe devices
 ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x010802", ATTR{power/control}="on"
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="nvme*", RUN+="/bin/sh -c 'echo on > /sys$devpath/device/power/control 2>/dev/null || true'"
+EOF
+
+# NVMe: Also use tmpfiles.d for reliability at boot (udev timing can be inconsistent)
+cat > /etc/tmpfiles.d/nvme-no-pm.conf << 'EOF'
+# Disable NVMe runtime power management at boot
+w /sys/block/nvme*/device/power/control - - - - on
 EOF
 
 # Apply immediately to existing NVMe devices
@@ -292,6 +299,7 @@ echo "  - Graceful shutdown: 120s (30s critical)"
 echo ""
 echo "Files created/modified:"
 echo "  - /etc/tmpfiles.d/cpu-power-settings.conf"
+echo "  - /etc/tmpfiles.d/nvme-no-pm.conf"
 echo "  - /etc/sysctl.d/99-k8s-performance.conf"
 echo "  - /etc/modprobe.d/nvme-no-apst.conf"
 echo "  - /etc/udev/rules.d/60-nvme-no-pm.rules"
