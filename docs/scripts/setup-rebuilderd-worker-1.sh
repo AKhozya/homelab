@@ -2,9 +2,9 @@
 # Setup rebuilderd on worker-node (192.168.1.129)
 #
 # Configuration:
-#   - 4 workers (@1, @2, @3, @4)
-#   - CPU: 300% per worker = 1200% total (12 cores of 32)
-#   - RAM: 6GB per worker = 24GB total (of 64GB)
+#   - 3 workers (@1, @2, @3)
+#   - CPU: 400% per worker = 1200% total (12 cores of 32)
+#   - RAM: 6GB per worker = 18GB total (of 64GB)
 #   - Schedule: 2:00 AM - 9:00 AM daily
 #
 # Run as root: sudo bash setup-rebuilderd-worker-1.sh
@@ -35,12 +35,12 @@ mkdir -p /etc/systemd/system/rebuilderd-worker@.service.d
 # These limits apply to EACH worker instance independently
 cat > /etc/systemd/system/rebuilderd-worker@.service.d/resources.conf << 'EOF'
 [Service]
-# CPU: 300% per worker (3 cores each)
-# 4 workers x 300% = 1200% total (12 of 32 cores)
-CPUQuota=300%
+# CPU: 400% per worker (4 cores each)
+# 3 workers x 400% = 1200% total (12 of 32 cores)
+CPUQuota=400%
 
 # RAM: 6GB per worker (hard limit)
-# 4 workers x 6GB = 24GB total (of 64GB available)
+# 3 workers x 6GB = 18GB total (of 64GB available)
 MemoryMax=6G
 MemoryHigh=5G
 
@@ -59,12 +59,12 @@ Nice=10
 TimeoutStopSec=7200
 KillMode=mixed
 
-# Environment for archlinux-repro CPU limit patch
-# This passes the limit to nspawn containers
-Environment=MAX_CPU=300%
+# Environment for archlinux-repro patches
+# These pass limits to nspawn containers
+Environment="MAX_CPU=400%" "MAX_MEMORY=6G"
 EOF
 
-echo "Created resource limits (300% CPU, 6GB RAM per worker)"
+echo "Created resource limits (400% CPU, 6GB RAM per worker)"
 
 # Create timer for scheduled operation (2am start)
 cat > /etc/systemd/system/rebuilderd-worker-scheduled.timer << 'EOF'
@@ -85,7 +85,7 @@ Description=Start rebuilderd workers for scheduled build window
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/systemctl start rebuilderd-worker@1 rebuilderd-worker@2 rebuilderd-worker@3 rebuilderd-worker@4
+ExecStart=/usr/bin/systemctl start rebuilderd-worker@1 rebuilderd-worker@2 rebuilderd-worker@3
 EOF
 
 # Create stop timer (9am)
@@ -107,7 +107,7 @@ Description=Stop rebuilderd workers after build window
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/systemctl stop rebuilderd-worker@1 rebuilderd-worker@2 rebuilderd-worker@3 rebuilderd-worker@4
+ExecStart=/usr/bin/systemctl stop rebuilderd-worker@1 rebuilderd-worker@2 rebuilderd-worker@3
 EOF
 
 echo "Created scheduled timers (2am-9am)"
@@ -119,34 +119,36 @@ systemctl daemon-reload
 systemctl enable --now rebuilderd-worker-scheduled.timer
 systemctl enable --now rebuilderd-worker-stop.timer
 
-# If workers are currently running, restart them to apply new limits
-if systemctl is-active --quiet rebuilderd-worker@1; then
-    echo "Restarting active workers to apply new limits..."
-    systemctl restart rebuilderd-worker@1 rebuilderd-worker@2 rebuilderd-worker@3 rebuilderd-worker@4
-fi
+# Stop any currently running workers (config only, timers handle scheduling)
+echo "Stopping any running workers..."
+systemctl stop rebuilderd-worker@1 rebuilderd-worker@2 rebuilderd-worker@3 rebuilderd-worker@4 2>/dev/null || true
+
+# Disable worker@4 (reduced from 4 to 3 workers)
+systemctl disable rebuilderd-worker@4 2>/dev/null || true
 
 echo ""
 echo "=== Configuration Summary ==="
 echo "Node: worker-node (192.168.1.129)"
-echo "Workers: 4 (@1, @2, @3, @4)"
+echo "Workers: 3 (@1, @2, @3)"
 echo ""
 echo "Per Worker:"
-echo "  CPU: 300% (3 cores)"
-echo "  RAM: 6GB (hard limit)"
+echo "  CPU: 400% (4 cores)"
+echo "  RAM: 6GB (hard limit, passed to nspawn)"
 echo ""
 echo "Total:"
 echo "  CPU: 1200% (12 cores of 32)"
-echo "  RAM: 24GB (of 64GB available)"
+echo "  RAM: 18GB (of 64GB available)"
 echo ""
 echo "Schedule: 2:00 AM - 9:00 AM daily (7 hours)"
+echo "Workers will start automatically at 2am via timer."
 echo ""
 echo "=== Timer Status ==="
 systemctl list-timers rebuilderd-worker* --no-pager
 
 echo ""
 echo "=== Manual Control ==="
-echo "Start: sudo systemctl start rebuilderd-worker@{1..4}"
-echo "Stop:  sudo systemctl stop rebuilderd-worker@{1..4}"
-echo "Status: systemctl status rebuilderd-worker@{1..4}"
+echo "Start: sudo systemctl start rebuilderd-worker@{1..3}"
+echo "Stop:  sudo systemctl stop rebuilderd-worker@{1..3}"
+echo "Status: systemctl status rebuilderd-worker@{1..3}"
 echo ""
 echo "Done!"

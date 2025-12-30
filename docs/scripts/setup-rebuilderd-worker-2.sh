@@ -59,9 +59,9 @@ Nice=10
 TimeoutStopSec=7200
 KillMode=mixed
 
-# Environment for archlinux-repro CPU limit patch
-# This passes the limit to nspawn containers
-Environment=MAX_CPU=300%
+# Environment for archlinux-repro patches
+# These pass limits to nspawn containers
+Environment="MAX_CPU=300%" "MAX_MEMORY=6G"
 EOF
 
 echo "Created resource limits (300% CPU, 6GB RAM per worker)"
@@ -96,11 +96,11 @@ systemctl daemon-reload
 # Enable boot timer (24/7 operation)
 systemctl enable --now rebuilderd-worker-boot.timer
 
-# If workers are currently running, restart them to apply new limits
-if systemctl is-active --quiet rebuilderd-worker@1; then
-    echo "Restarting active workers to apply new limits..."
-    systemctl restart rebuilderd-worker@1 rebuilderd-worker@2
-fi
+# Stop any currently running workers to apply new limits
+# They will restart via boot timer or can be started manually
+echo "Stopping any running workers to apply new config..."
+systemctl stop rebuilderd-worker@1 rebuilderd-worker@2 2>/dev/null || true
+echo "Workers stopped. They will start via boot timer or manual start."
 
 echo ""
 echo "=== Configuration Summary ==="
@@ -109,7 +109,7 @@ echo "Workers: 2 (@1, @2)"
 echo ""
 echo "Per Worker:"
 echo "  CPU: 300% (3 cores)"
-echo "  RAM: 6GB (hard limit)"
+echo "  RAM: 6GB (hard limit, passed to nspawn)"
 echo ""
 echo "Total:"
 echo "  CPU: 600% (6 cores of 16)"
