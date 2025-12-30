@@ -39,7 +39,8 @@ spec:
         memory: "64Mi"
       limits:
         cpu: "300m"
-        memory: "128Mi"
+        # Increased from 128Mi to 192Mi (2025-12-30) - OOM during cluster recovery
+        memory: "192Mi"
     # Distribute across all nodes including control plane
     affinity:
       antiAffinityTopologyKey: kubernetes.io/hostname
