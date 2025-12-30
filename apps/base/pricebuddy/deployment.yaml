@@ -133,7 +133,8 @@ spec:
               # Increased to 1000m to eliminate CPU throttling alerts
               # PHP/Laravel has bursty CPU patterns during request handling
               cpu: "1000m"
-              memory: "540Mi"
+              # Increased from 540Mi to 700Mi (2025-12-30) - 82% usage triggered alert
+              memory: "700Mi"
           volumeMounts:
             - name: storage
               mountPath: /app/storage

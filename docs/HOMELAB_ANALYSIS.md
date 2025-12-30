@@ -47,11 +47,14 @@
 - CloudNativePG for managed PostgreSQL (2-node HA) with PgBouncer pooler
 - **🆕 Percona MySQL Operator** for MySQL (2-node async replication) with HAProxy ⭐
 - **🆕 3-Node Cluster** - worker-node-2 added (2025-12-15) ⭐
-- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2025-12-26)
-  - Nightly reproducible build verification (2am-9am, 7 hours)
-  - worker-node: 12 CPU, 24GB RAM | worker-node-2: 6 CPU, 12GB RAM
+- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2025-12-30)
+  - Nightly reproducible build verification
+  - worker-node: 4 workers, 12 CPU (1200%), 24GB RAM, **scheduled 2am-9am**
+  - worker-node-2: 2 workers, 6 CPU (600%), 12GB RAM, **24/7 (10min after boot)**
+  - Each worker = 1 concurrent build (~3 cores per worker for stability)
   - LVM-backed storage for builds
   - CPU quota fix: Patched archlinux-repro to pass limits to nspawn containers ([PR #143](https://github.com/archlinux/archlinux-repro/pull/143))
+  - Kernel watchdog: nmi_watchdog + softlockup/hardlockup panic enabled for crash detection
 - Default credential elimination on all apps
 - **🆕 Comprehensive Security Headers & Protections** ⭐ (2025-10-30)
   - **Phase 1 (Completed)**: Safe security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy)
@@ -879,7 +882,23 @@ ingress:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
-### 2025-12-29 (Health Review & Node Setup Scripts) 🔍
+### 2025-12-30 (Rebuilderd Hard Lockup Fix & Worker Reduction) 🔧
+- ✅ **Hard Lockup Investigation**: Both worker nodes crashed under heavy rebuilderd load ⭐
+  - **Symptom**: SSH unreachable, kubectl shows NotReady, required physical reboot
+  - **Analysis**: Clean dmesg on both nodes (no OOM, no thermal, no panic - hard lockup)
+  - **Root Cause**: Too many concurrent nspawn containers caused kernel scheduler stress
+  - **Previous Config**: worker-node 6 workers, worker-node-2 3 workers (~2 cores/worker)
+- ✅ **Worker Count Reduction**: Increased headroom to ~3 cores per worker ⭐
+  - **worker-node**: 6 → 4 workers (12 CPU, scheduled 2am-9am)
+  - **worker-node-2**: 3 → 2 workers (6 CPU, 24/7 with 10min boot delay)
+  - **Scripts**: `/tmp/fix-rebuilderd-worker1-scheduled.sh`, `/tmp/fix-rebuilderd-worker2-boot.sh`
+- ✅ **Kernel Watchdog Enabled**: Better crash detection for future incidents
+  - `kernel.nmi_watchdog=1` - hardware lockup detection
+  - `kernel.softlockup_panic=1` - logs before crash
+  - `kernel.hardlockup_panic=1` - triggers reboot on hard lockup
+  - Config: `/etc/sysctl.d/99-watchdog.conf` on both nodes
+
+### 2025-12-29 (Health Review & Rebuilderd Multi-Worker Fix) 🔍
 - ✅ **Health Review Complete**: All systems healthy, no issues found ⭐
   - **Nodes**: 3/3 Ready (control-plane 19% CPU, worker-node 0%, worker-node-2 2%)
   - **PostgreSQL**: 2/2 healthy (Cluster in healthy state)
@@ -889,6 +908,14 @@ ingress:
   - **Popeye Score**: 100/100 (A grade)
   - **Kyverno Violations**: 14 (all null/null from ephemeral pods - not actionable)
   - **Alerts**: None firing
+- ✅ **Rebuilderd Multi-Worker Fix**: Corrected worker count for proper CPU utilization ⭐
+  - **Issue**: Timer was starting single worker (`@1`) regardless of CPU allocation
+  - **Root Cause**: `-n` flag is worker name, not concurrency; 1 worker = 1 concurrent build
+  - **Fix**: Start multiple worker instances for parallel builds
+  - **worker-node**: 6 workers (`@1`-`@6`) for 12 CPU cores
+  - **worker-node-2**: 3 workers (`@1`-`@3`) for 6 CPU cores
+  - **Rationale**: ~2 cores per worker for balanced throughput (not 1:1 to avoid contention)
+  - **Scripts**: `/tmp/fix-rebuilderd-worker1.sh`, `/tmp/fix-rebuilderd-worker2.sh`
 - ✅ **NVMe PM Fix**: Updated setup-node.sh with tmpfiles.d for boot reliability ⭐
   - Added `/etc/tmpfiles.d/nvme-no-pm.conf` for consistent NVMe PM settings
   - Dual udev rule approach (PCI + block device trigger)
@@ -924,8 +951,9 @@ ingress:
 ### 2025-12-24 (LVM Migration & Rebuilderd Setup) 💾
 - ✅ **Rebuilderd Contribution to Arch Linux**: Nightly builds for reproducible package verification ⭐
   - **Schedule**: 2:00 AM - 9:00 AM daily (7 hours)
-  - **worker-node**: 12 CPU cores, 24GB RAM dedicated
-  - **worker-node-2**: 6 CPU cores, 12GB RAM dedicated
+  - **worker-node**: 6 workers, 12 CPU cores (1200%), 24GB RAM
+  - **worker-node-2**: 3 workers, 6 CPU cores (600%), 12GB RAM
+  - **Concurrency**: Each worker = 1 build (~2 cores each for balanced throughput)
   - **Storage**: LVM-backed builds (not tmpfs/RAM)
   - **Purpose**: Verify Arch Linux binary packages are reproducible
   - **Graceful stop**: Current build completes before timer stop
