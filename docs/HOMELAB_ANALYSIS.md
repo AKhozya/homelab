@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-12-29 15:10 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2025-12-31 00:00 UTC)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -47,13 +47,13 @@
 - CloudNativePG for managed PostgreSQL (2-node HA) with PgBouncer pooler
 - **🆕 Percona MySQL Operator** for MySQL (2-node async replication) with HAProxy ⭐
 - **🆕 3-Node Cluster** - worker-node-2 added (2025-12-15) ⭐
-- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2025-12-30)
+- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2025-12-31)
   - Nightly reproducible build verification
-  - worker-node: 4 workers, 12 CPU (1200%), 24GB RAM, **scheduled 2am-9am**
+  - worker-node: 3 workers, 12 CPU (1200%), 18GB RAM, **scheduled 2am-9am**
   - worker-node-2: 2 workers, 6 CPU (600%), 12GB RAM, **24/7 (10min after boot)**
-  - Each worker = 1 concurrent build (~3 cores per worker for stability)
+  - Each worker = 1 concurrent build (~4 cores per worker for stability)
   - LVM-backed storage for builds
-  - CPU quota fix: Patched archlinux-repro to pass limits to nspawn containers ([PR #143](https://github.com/archlinux/archlinux-repro/pull/143))
+  - CPU/RAM quota fix: Patched archlinux-repro to pass limits to nspawn containers ([PR #143](https://github.com/archlinux/archlinux-repro/pull/143))
   - Kernel watchdog: nmi_watchdog + softlockup/hardlockup panic enabled for crash detection
 - Default credential elimination on all apps
 - **🆕 Comprehensive Security Headers & Protections** ⭐ (2025-10-30)
@@ -882,20 +882,28 @@ ingress:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
-### 2025-12-30 (Rebuilderd Hard Lockup Fix & Worker Reduction) 🔧
-- ✅ **Hard Lockup Investigation**: Both worker nodes crashed under heavy rebuilderd load ⭐
-  - **Symptom**: SSH unreachable, kubectl shows NotReady, required physical reboot
-  - **Analysis**: Clean dmesg on both nodes (no OOM, no thermal, no panic - hard lockup)
-  - **Root Cause**: Too many concurrent nspawn containers caused kernel scheduler stress
-  - **Previous Config**: worker-node 6 workers, worker-node-2 3 workers (~2 cores/worker)
-- ✅ **Worker Count Reduction**: Increased headroom to ~3 cores per worker ⭐
-  - **worker-node**: 6 → 4 workers (12 CPU, scheduled 2am-9am)
-  - **worker-node-2**: 3 → 2 workers (6 CPU, 24/7 with 10min boot delay)
-  - **Scripts**: `/tmp/fix-rebuilderd-worker1-scheduled.sh`, `/tmp/fix-rebuilderd-worker2-boot.sh`
-- ✅ **Kernel Watchdog Enabled**: Better crash detection for future incidents
-  - `kernel.nmi_watchdog=1` - hardware lockup detection
-  - `kernel.softlockup_panic=1` - logs before crash
-  - `kernel.hardlockup_panic=1` - triggers reboot on hard lockup
+### 2025-12-30 (Rebuilderd OOM Fix & Telegram Template Improvement) 🔧
+- ✅ **Rebuilderd MAX_MEMORY Fix**: nspawn containers now properly memory-limited ⭐
+  - **Root Cause**: `MemoryMax=6G` only limited rebuilderd-worker process, not child nspawn containers
+  - **Analysis**: Kernel OOM killer invoked (`cc1plus invoked oom-killer`, `ld.lld` used 5.3GB RAM)
+  - **Fix**: Added `Environment="MAX_CPU=..." "MAX_MEMORY=6G"` to systemd drop-in
+  - **Impact**: Nspawn containers now receive `--property="MemoryMax=6G"` from archlinux-repro patch
+- ✅ **Worker Configuration Updated**: Better resource allocation ⭐
+  - **worker-node**: 4 → 3 workers × 400% CPU × 6GB RAM (18GB total, scheduled 2am-9am)
+  - **worker-node-2**: 2 workers × 300% CPU × 6GB RAM (12GB total, 24/7)
+  - **Scripts Updated**: `docs/scripts/setup-rebuilderd-worker-1.sh`, `docs/scripts/setup-rebuilderd-worker-2.sh`
+- ✅ **MySQL-0 OOMKilled Recovery**: Pod caught in rebuilderd OOM crossfire ⭐
+  - **Symptom**: mysql-0 1/2 ready with 14 restarts, exit code 137 (OOMKilled)
+  - **Fix**: Pod deleted and recreated, replication resumed from mysql-1
+  - **Result**: Cluster healthy, 2/2 ready, 0s replication lag
+- ✅ **Telegram Alert Template Improved**: Prevents HTML truncation ⭐
+  - **Problem**: 34 stale PodCrashLooping alerts → 4096 char Telegram limit → broken HTML tags
+  - **Fix**: New template limits to 5 alerts per message with "...and X more" summary
+  - **Format**: `FIRING (34 alerts) • AlertName [namespace] summary ...and 29 more`
+  - **Commit**: d336149
+- ✅ **Alertmanager Queue Cleared**: Restarted to flush stale notifications
+- ✅ **Kernel Watchdog Enabled** (earlier in day): Better crash detection
+  - `kernel.nmi_watchdog=1`, `kernel.softlockup_panic=1`, `kernel.hardlockup_panic=1`
   - Config: `/etc/sysctl.d/99-watchdog.conf` on both nodes
 
 ### 2025-12-29 (Health Review & Rebuilderd Multi-Worker Fix) 🔍
