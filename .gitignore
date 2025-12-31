@@ -37,3 +37,4 @@ target/
 .backup/secrets/*.txt
 .backup/secrets/*.agekey
 .backup/ENV_VARS.md
+.monitoring/
