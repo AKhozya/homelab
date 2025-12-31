@@ -882,6 +882,19 @@ ingress:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
+### 2025-12-31 (K3s Upgrade to v1.35.0) 🚀
+- ✅ **K3s Cluster Upgrade**: All 3 nodes upgraded to v1.35.0+k3s1 ⭐
+  - **gmk-k3s-control-plane**: v1.34.2+k3s1 → v1.35.0+k3s1
+  - **worker-node**: v1.34.2+k3s1 → v1.35.0+k3s1
+  - **worker-node-2**: v1.34.2+k3s1 → v1.35.0+k3s1
+  - **Components**: Containerd 2.1.5-k3s1, Go 1.25.5
+  - **Pods**: 104 running, all HelmReleases healthy
+  - **Note**: Worker nodes require K3S_URL and K3S_TOKEN for agent install
+- ✅ **Bash History Expansion Fix**: Disabled `!!` expansion to prevent sudo password issues ⭐
+  - **Root Cause**: Password ending with `!!` triggered bash history expansion intermittently
+  - **Fix**: Added `set +H` to ~/.bashrc on all 3 nodes
+  - **Script**: `/tmp/fix-bash-history-expansion.sh`
+
 ### 2025-12-30 (Rebuilderd OOM Fix & Telegram Template Improvement) 🔧
 - ✅ **Rebuilderd MAX_MEMORY Fix**: nspawn containers now properly memory-limited ⭐
   - **Root Cause**: `MemoryMax=6G` only limited rebuilderd-worker process, not child nspawn containers
