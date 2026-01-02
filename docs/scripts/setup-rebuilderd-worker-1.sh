@@ -2,9 +2,9 @@
 # Setup rebuilderd on worker-node (192.168.1.129)
 #
 # Configuration:
-#   - 3 workers (@1, @2, @3)
-#   - CPU: 400% per worker = 1200% total (12 cores of 32)
-#   - RAM: 6GB per worker = 18GB total (of 64GB)
+#   - 2 workers (@1, @2)
+#   - CPU: 600% per worker = 1200% total (12 cores of 32)
+#   - RAM: 12GB per worker = 24GB total (of 64GB)
 #   - Schedule: 2:00 AM - 9:00 AM daily
 #
 # Run as root: sudo bash setup-rebuilderd-worker-1.sh
@@ -35,21 +35,16 @@ mkdir -p /etc/systemd/system/rebuilderd-worker@.service.d
 # These limits apply to EACH worker instance independently
 cat > /etc/systemd/system/rebuilderd-worker@.service.d/resources.conf << 'EOF'
 [Service]
-# CPU: 400% per worker (4 cores each)
-# 3 workers x 400% = 1200% total (12 of 32 cores)
-CPUQuota=400%
+# CPU: 600% per worker (6 cores each)
+# 2 workers x 600% = 1200% total (12 of 32 cores)
+CPUQuota=600%
 
-# RAM: 6GB per worker (hard limit)
-# 3 workers x 6GB = 18GB total (of 64GB available)
-MemoryMax=6G
-MemoryHigh=5G
+# RAM: 12GB per worker (hard limit)
+# 2 workers x 12GB = 24GB total (of 64GB available)
+MemoryMax=12G
+MemoryHigh=11G
 
 # IO: Low priority to not interfere with k8s workloads
-# IOSchedulingClass is per-process (not cgroup)
-IOSchedulingClass=best-effort
-IOSchedulingPriority=7
-# IOWeight is cgroup-level (1-10000, default 100)
-# Lower = less IO bandwidth when competing with other cgroups
 IOWeight=50
 
 # Nice: Run with lower priority
@@ -61,10 +56,10 @@ KillMode=mixed
 
 # Environment for archlinux-repro patches
 # These pass limits to nspawn containers
-Environment="MAX_CPU=400%" "MAX_MEMORY=6G"
+Environment="MAX_CPU=600%" "MAX_MEMORY=12G"
 EOF
 
-echo "Created resource limits (400% CPU, 6GB RAM per worker)"
+echo "Created resource limits (600% CPU, 12GB RAM per worker)"
 
 # Create timer for scheduled operation (2am start)
 cat > /etc/systemd/system/rebuilderd-worker-scheduled.timer << 'EOF'
@@ -85,7 +80,7 @@ Description=Start rebuilderd workers for scheduled build window
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/systemctl start rebuilderd-worker@1 rebuilderd-worker@2 rebuilderd-worker@3
+ExecStart=/usr/bin/systemctl start rebuilderd-worker@1 rebuilderd-worker@2
 EOF
 
 # Create stop timer (9am)
@@ -107,7 +102,7 @@ Description=Stop rebuilderd workers after build window
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/systemctl stop rebuilderd-worker@1 rebuilderd-worker@2 rebuilderd-worker@3
+ExecStart=/bin/bash -c "systemctl stop 'rebuilderd-worker@*'"
 EOF
 
 echo "Created scheduled timers (2am-9am)"
@@ -121,23 +116,20 @@ systemctl enable --now rebuilderd-worker-stop.timer
 
 # Stop any currently running workers (config only, timers handle scheduling)
 echo "Stopping any running workers..."
-systemctl stop rebuilderd-worker@1 rebuilderd-worker@2 rebuilderd-worker@3 rebuilderd-worker@4 2>/dev/null || true
-
-# Disable worker@4 (reduced from 4 to 3 workers)
-systemctl disable rebuilderd-worker@4 2>/dev/null || true
+systemctl stop 'rebuilderd-worker@*' 2>/dev/null || true
 
 echo ""
 echo "=== Configuration Summary ==="
 echo "Node: worker-node (192.168.1.129)"
-echo "Workers: 3 (@1, @2, @3)"
+echo "Workers: 2 (@1, @2)"
 echo ""
 echo "Per Worker:"
-echo "  CPU: 400% (4 cores)"
-echo "  RAM: 6GB (hard limit, passed to nspawn)"
+echo "  CPU: 600% (6 cores)"
+echo "  RAM: 12GB (hard limit, passed to nspawn)"
 echo ""
 echo "Total:"
 echo "  CPU: 1200% (12 cores of 32)"
-echo "  RAM: 18GB (of 64GB available)"
+echo "  RAM: 24GB (of 64GB available)"
 echo ""
 echo "Schedule: 2:00 AM - 9:00 AM daily (7 hours)"
 echo "Workers will start automatically at 2am via timer."
@@ -147,8 +139,8 @@ systemctl list-timers rebuilderd-worker* --no-pager
 
 echo ""
 echo "=== Manual Control ==="
-echo "Start: sudo systemctl start rebuilderd-worker@{1..3}"
-echo "Stop:  sudo systemctl stop rebuilderd-worker@{1..3}"
-echo "Status: systemctl status rebuilderd-worker@{1..3}"
+echo "Start: sudo systemctl start rebuilderd-worker@{1..2}"
+echo "Stop:  sudo systemctl stop 'rebuilderd-worker@*'"
+echo "Status: systemctl status rebuilderd-worker@{1..2}"
 echo ""
 echo "Done!"

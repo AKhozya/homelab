@@ -3,8 +3,8 @@
 #
 # Configuration:
 #   - 2 workers (@1, @2)
-#   - CPU: 300% per worker = 600% total (6 cores of 16)
-#   - RAM: 6GB per worker = 12GB total (of 30GB)
+#   - CPU: 400% per worker = 800% total (8 cores of 16)
+#   - RAM: 9GB per worker = 18GB total (of 30GB)
 #   - Schedule: 24/7 (starts 10 min after boot)
 #
 # Run as root: sudo bash setup-rebuilderd-worker-2.sh
@@ -35,21 +35,16 @@ mkdir -p /etc/systemd/system/rebuilderd-worker@.service.d
 # These limits apply to EACH worker instance independently
 cat > /etc/systemd/system/rebuilderd-worker@.service.d/resources.conf << 'EOF'
 [Service]
-# CPU: 300% per worker (3 cores each)
-# 2 workers x 300% = 600% total (6 of 16 cores)
-CPUQuota=300%
+# CPU: 400% per worker (4 cores each)
+# 2 workers x 400% = 800% total (8 of 16 cores)
+CPUQuota=400%
 
-# RAM: 6GB per worker (hard limit)
-# 2 workers x 6GB = 12GB total (of 30GB available)
-MemoryMax=6G
-MemoryHigh=5G
+# RAM: 9GB per worker (hard limit)
+# 2 workers x 9GB = 18GB total (of 30GB available)
+MemoryMax=9G
+MemoryHigh=8G
 
 # IO: Low priority to not interfere with k8s workloads
-# IOSchedulingClass is per-process (not cgroup)
-IOSchedulingClass=best-effort
-IOSchedulingPriority=7
-# IOWeight is cgroup-level (1-10000, default 100)
-# Lower = less IO bandwidth when competing with other cgroups
 IOWeight=50
 
 # Nice: Run with lower priority
@@ -61,10 +56,10 @@ KillMode=mixed
 
 # Environment for archlinux-repro patches
 # These pass limits to nspawn containers
-Environment="MAX_CPU=300%" "MAX_MEMORY=6G"
+Environment="MAX_CPU=400%" "MAX_MEMORY=9G"
 EOF
 
-echo "Created resource limits (300% CPU, 6GB RAM per worker)"
+echo "Created resource limits (400% CPU, 9GB RAM per worker)"
 
 # Create boot delay service (starts workers 10 min after boot)
 cat > /etc/systemd/system/rebuilderd-worker-boot.timer << 'EOF'
@@ -99,7 +94,7 @@ systemctl enable --now rebuilderd-worker-boot.timer
 # Stop any currently running workers to apply new limits
 # They will restart via boot timer or can be started manually
 echo "Stopping any running workers to apply new config..."
-systemctl stop rebuilderd-worker@1 rebuilderd-worker@2 2>/dev/null || true
+systemctl stop 'rebuilderd-worker@*' 2>/dev/null || true
 echo "Workers stopped. They will start via boot timer or manual start."
 
 echo ""
@@ -108,12 +103,12 @@ echo "Node: worker-node-2 (192.168.1.126)"
 echo "Workers: 2 (@1, @2)"
 echo ""
 echo "Per Worker:"
-echo "  CPU: 300% (3 cores)"
-echo "  RAM: 6GB (hard limit, passed to nspawn)"
+echo "  CPU: 400% (4 cores)"
+echo "  RAM: 9GB (hard limit, passed to nspawn)"
 echo ""
 echo "Total:"
-echo "  CPU: 600% (6 cores of 16)"
-echo "  RAM: 12GB (of 30GB available)"
+echo "  CPU: 800% (8 cores of 16)"
+echo "  RAM: 18GB (of 30GB available)"
 echo ""
 echo "Schedule: 24/7 (starts 10 min after boot)"
 echo ""
@@ -123,7 +118,7 @@ systemctl list-timers rebuilderd-worker* --no-pager
 echo ""
 echo "=== Manual Control ==="
 echo "Start: sudo systemctl start rebuilderd-worker@{1..2}"
-echo "Stop:  sudo systemctl stop rebuilderd-worker@{1..2}"
+echo "Stop:  sudo systemctl stop 'rebuilderd-worker@*'"
 echo "Status: systemctl status rebuilderd-worker@{1..2}"
 echo ""
 echo "Done!"

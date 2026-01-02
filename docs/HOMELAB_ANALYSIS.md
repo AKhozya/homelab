@@ -47,11 +47,11 @@
 - CloudNativePG for managed PostgreSQL (2-node HA) with PgBouncer pooler
 - **🆕 Percona MySQL Operator** for MySQL (2-node async replication) with HAProxy ⭐
 - **🆕 3-Node Cluster** - worker-node-2 added (2025-12-15) ⭐
-- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2025-12-31)
+- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2026-01-02)
   - Nightly reproducible build verification
-  - worker-node: 3 workers, 12 CPU (1200%), 18GB RAM, **scheduled 2am-9am**
-  - worker-node-2: 2 workers, 6 CPU (600%), 12GB RAM, **24/7 (10min after boot)**
-  - Each worker = 1 concurrent build (~4 cores per worker for stability)
+  - worker-node: 2 workers, 12 CPU (1200%), 24GB RAM (12GB/worker), **scheduled 2am-9am**
+  - worker-node-2: 2 workers, 8 CPU (800%), 18GB RAM (9GB/worker), **24/7 (10min after boot)**
+  - Each worker = 1 concurrent build (~6 cores per worker)
   - LVM-backed storage for builds
   - CPU/RAM quota fix: Patched archlinux-repro to pass limits to nspawn containers ([PR #143](https://github.com/archlinux/archlinux-repro/pull/143))
   - Kernel watchdog: nmi_watchdog + softlockup/hardlockup panic enabled for crash detection
@@ -972,9 +972,9 @@ ingress:
 ### 2025-12-24 (LVM Migration & Rebuilderd Setup) 💾
 - ✅ **Rebuilderd Contribution to Arch Linux**: Nightly builds for reproducible package verification ⭐
   - **Schedule**: 2:00 AM - 9:00 AM daily (7 hours)
-  - **worker-node**: 6 workers, 12 CPU cores (1200%), 24GB RAM
-  - **worker-node-2**: 3 workers, 6 CPU cores (600%), 12GB RAM
-  - **Concurrency**: Each worker = 1 build (~2 cores each for balanced throughput)
+  - **worker-node**: 2 workers, 12 CPU cores (1200%), 24GB RAM (12GB/worker)
+  - **worker-node-2**: 2 workers, 8 CPU cores (800%), 18GB RAM (9GB/worker)
+  - **Concurrency**: Each worker = 1 build (~6 cores per worker)
   - **Storage**: LVM-backed builds (not tmpfs/RAM)
   - **Purpose**: Verify Arch Linux binary packages are reproducible
   - **Graceful stop**: Current build completes before timer stop
