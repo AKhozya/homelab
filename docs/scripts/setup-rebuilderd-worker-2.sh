@@ -88,9 +88,20 @@ systemctl daemon-reload
 # Enable boot timer (24/7 operation)
 systemctl enable --now rebuilderd-worker-boot.timer
 
-# Stop old workers and start new config
+# Stop ALL old workers (explicit + glob for safety)
 echo "Stopping any running workers..."
+systemctl stop rebuilderd-worker@1 rebuilderd-worker@2 2>/dev/null || true
 systemctl stop 'rebuilderd-worker@*' 2>/dev/null || true
+
+# Kill any orphaned nspawn containers from rebuilderd
+echo "Cleaning up orphaned nspawn containers..."
+pkill -f 'systemd-nspawn.*repro' 2>/dev/null || true
+
+# Kill any zombie rebuilderd-worker processes
+pkill -9 -f 'rebuilderd-worker' 2>/dev/null || true
+
+# Wait for cleanup
+sleep 2
 
 # Start the single worker
 echo "Starting rebuilderd-worker@1..."
