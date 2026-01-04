@@ -257,6 +257,9 @@ spec:
     # Disable CPU overcommit alert (homelab - intentional overcommit for burst capacity)
     # Disable API server error budget alerts (homelab - SLI/SLO tracking not needed)
     defaultRules:
+      # Disable specific alerts that we override with custom thresholds
+      disabled:
+        NodeMemoryMajorPagesFaults: true  # Overridden below with 30m duration
       rules:
         kubeProxy: false
         kubeSchedulerAlerting: false
@@ -264,6 +267,25 @@ spec:
         kubeScheduler: false  # Disable all scheduler rules
         kubeCPUOvercommit: false  # Disable CPU overcommit warning (homelab uses intentional overcommit)
         kubeAPIServer: false  # Disable API error budget burn alerts (overkill for homelab)
+
+    # Override default alerts with adjusted thresholds for homelab workloads
+    additionalPrometheusRulesMap:
+      node-memory-override:
+        groups:
+          - name: node-memory-override
+            rules:
+              # Override: increase duration from 15m to 30m for rebuilderd compilation workloads
+              - alert: NodeMemoryMajorPagesFaults
+                expr: rate(node_vmstat_pgmajfault{job="node-exporter"}[5m]) > 500
+                for: 30m
+                labels:
+                  severity: warning
+                annotations:
+                  summary: Memory major page faults are occurring at very high rate.
+                  description: |
+                    Memory major pages are occurring at very high rate at {{ $labels.instance }}, 500 major page faults per second for the last 30 minutes, is currently at {{ printf "%.2f" $value }}.
+                    Please check that there is enough memory available at this instance.
+                  runbook_url: https://runbooks.prometheus-operator.dev/runbooks/node/nodememorymajorpagesfaults
 
     prometheusOperator:
       # Note: Prometheus Operator runs as single instance by design (uses leader election)
