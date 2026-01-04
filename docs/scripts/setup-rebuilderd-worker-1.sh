@@ -2,10 +2,10 @@
 # Setup rebuilderd on worker-node (192.168.1.129)
 #
 # Configuration:
-#   - 2 workers (@1, @2)
-#   - CPU: 600% per worker = 1200% total (12 cores of 32)
-#   - RAM: 12GB per worker = 24GB total (of 64GB)
-#   - Schedule: 2:00 AM - 9:00 AM daily
+#   - 1 worker (@1)
+#   - CPU: 600% (6 cores of 32)
+#   - RAM: 18GB
+#   - Schedule: 24/7 (starts 10 min after boot)
 #
 # Run as root: sudo bash setup-rebuilderd-worker-1.sh
 #
@@ -32,17 +32,14 @@ fi
 mkdir -p /etc/systemd/system/rebuilderd-worker@.service.d
 
 # Configure resource limits per worker
-# These limits apply to EACH worker instance independently
 cat > /etc/systemd/system/rebuilderd-worker@.service.d/resources.conf << 'EOF'
 [Service]
-# CPU: 600% per worker (6 cores each)
-# 2 workers x 600% = 1200% total (12 of 32 cores)
+# CPU: 600% (6 cores)
 CPUQuota=600%
 
-# RAM: 12GB per worker (hard limit)
-# 2 workers x 12GB = 24GB total (of 64GB available)
-MemoryMax=12G
-MemoryHigh=11G
+# RAM: 18GB (hard limit)
+MemoryMax=18G
+MemoryHigh=17G
 
 # IO: Low priority to not interfere with k8s workloads
 IOWeight=50
@@ -56,91 +53,81 @@ KillMode=mixed
 
 # Environment for archlinux-repro patches
 # These pass limits to nspawn containers
-Environment="MAX_CPU=600%" "MAX_MEMORY=12G"
+Environment="MAX_CPU=600%" "MAX_MEMORY=18G"
 EOF
 
-echo "Created resource limits (600% CPU, 12GB RAM per worker)"
+echo "Created resource limits (600% CPU, 18GB RAM)"
 
-# Create timer for scheduled operation (2am start)
-cat > /etc/systemd/system/rebuilderd-worker-scheduled.timer << 'EOF'
+# Remove old scheduled timers if they exist
+systemctl disable --now rebuilderd-worker-scheduled.timer 2>/dev/null || true
+systemctl disable --now rebuilderd-worker-stop.timer 2>/dev/null || true
+rm -f /etc/systemd/system/rebuilderd-worker-scheduled.timer
+rm -f /etc/systemd/system/rebuilderd-worker-scheduled.service
+rm -f /etc/systemd/system/rebuilderd-worker-stop.timer
+rm -f /etc/systemd/system/rebuilderd-worker-stop.service
+
+echo "Removed old scheduled timers"
+
+# Create boot delay service (starts worker 10 min after boot)
+cat > /etc/systemd/system/rebuilderd-worker-boot.timer << 'EOF'
 [Unit]
-Description=Start rebuilderd workers at 2am
+Description=Start rebuilderd worker 10 minutes after boot
 
 [Timer]
-OnCalendar=*-*-* 02:00:00
-Persistent=true
+OnBootSec=10min
+Unit=rebuilderd-worker-boot.service
 
 [Install]
 WantedBy=timers.target
 EOF
 
-cat > /etc/systemd/system/rebuilderd-worker-scheduled.service << 'EOF'
+cat > /etc/systemd/system/rebuilderd-worker-boot.service << 'EOF'
 [Unit]
-Description=Start rebuilderd workers for scheduled build window
+Description=Start rebuilderd worker after boot delay
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/systemctl start rebuilderd-worker@1 rebuilderd-worker@2
+ExecStart=/usr/bin/systemctl start rebuilderd-worker@1
 EOF
 
-# Create stop timer (9am)
-cat > /etc/systemd/system/rebuilderd-worker-stop.timer << 'EOF'
-[Unit]
-Description=Stop rebuilderd workers at 9am
-
-[Timer]
-OnCalendar=*-*-* 09:00:00
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-EOF
-
-cat > /etc/systemd/system/rebuilderd-worker-stop.service << 'EOF'
-[Unit]
-Description=Stop rebuilderd workers after build window
-
-[Service]
-Type=oneshot
-ExecStart=/bin/bash -c "systemctl stop 'rebuilderd-worker@*'"
-EOF
-
-echo "Created scheduled timers (2am-9am)"
+echo "Created boot timer (10 min delay)"
 
 # Reload systemd
 systemctl daemon-reload
 
-# Enable and start timers
-systemctl enable --now rebuilderd-worker-scheduled.timer
-systemctl enable --now rebuilderd-worker-stop.timer
+# Enable boot timer (24/7 operation)
+systemctl enable --now rebuilderd-worker-boot.timer
 
-# Stop any currently running workers (config only, timers handle scheduling)
+# Stop old workers and start new config
 echo "Stopping any running workers..."
 systemctl stop 'rebuilderd-worker@*' 2>/dev/null || true
+
+# Start the single worker
+echo "Starting rebuilderd-worker@1..."
+systemctl start rebuilderd-worker@1
 
 echo ""
 echo "=== Configuration Summary ==="
 echo "Node: worker-node (192.168.1.129)"
-echo "Workers: 2 (@1, @2)"
+echo "Workers: 1 (@1)"
 echo ""
 echo "Per Worker:"
 echo "  CPU: 600% (6 cores)"
-echo "  RAM: 12GB (hard limit, passed to nspawn)"
+echo "  RAM: 18GB (hard limit, passed to nspawn)"
 echo ""
-echo "Total:"
-echo "  CPU: 1200% (12 cores of 32)"
-echo "  RAM: 24GB (of 64GB available)"
-echo ""
-echo "Schedule: 2:00 AM - 9:00 AM daily (7 hours)"
-echo "Workers will start automatically at 2am via timer."
+echo "Schedule: 24/7 (starts 10 min after boot)"
 echo ""
 echo "=== Timer Status ==="
 systemctl list-timers rebuilderd-worker* --no-pager
 
 echo ""
+echo "=== Worker Status ==="
+systemctl status rebuilderd-worker@1 --no-pager | head -5
+
+echo ""
 echo "=== Manual Control ==="
-echo "Start: sudo systemctl start rebuilderd-worker@{1..2}"
-echo "Stop:  sudo systemctl stop 'rebuilderd-worker@*'"
-echo "Status: systemctl status rebuilderd-worker@{1..2}"
+echo "Start:  sudo systemctl start rebuilderd-worker@1"
+echo "Stop:   sudo systemctl stop rebuilderd-worker@1"
+echo "Status: systemctl status rebuilderd-worker@1"
 echo ""
 echo "Done!"
