@@ -93,15 +93,12 @@ echo "Stopping any running workers..."
 systemctl stop rebuilderd-worker@1 rebuilderd-worker@2 2>/dev/null || true
 systemctl stop 'rebuilderd-worker@*' 2>/dev/null || true
 
-# Kill any orphaned nspawn containers from rebuilderd
+# Wait for systemd to fully clean up
+sleep 2
+
+# Kill any orphaned nspawn containers left behind
 echo "Cleaning up orphaned nspawn containers..."
 pkill -f 'systemd-nspawn.*repro' 2>/dev/null || true
-
-# Kill any zombie rebuilderd-worker processes
-pkill -9 -f 'rebuilderd-worker' 2>/dev/null || true
-
-# Wait for cleanup
-sleep 2
 
 # Start the single worker
 echo "Starting rebuilderd-worker@1..."
