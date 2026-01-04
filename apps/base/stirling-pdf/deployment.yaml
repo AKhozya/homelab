@@ -39,6 +39,14 @@ spec:
               drop: ["ALL"]
               add: ["SETGID", "SETUID", "CHOWN", "DAC_OVERRIDE"] # Required for su-exec privilege dropping, directory ownership, and nginx file access
           # v2.0.3 requires authentication on / - use /api/v1/info/status for health checks
+          # startupProbe allows 90s for slow startup (9 * 10s)
+          startupProbe:
+            httpGet:
+              path: /api/v1/info/status
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 9
+            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /api/v1/info/status
