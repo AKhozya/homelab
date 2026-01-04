@@ -202,7 +202,7 @@ spec:
             message: |
               <b>{{ .Status | toUpper }}</b> ({{ len .Alerts }} alert{{ if gt (len .Alerts) 1 }}s{{ end }})
               {{ range $i, $a := .Alerts }}{{ if lt $i 5 }}
-              • <b>{{ $a.Labels.alertname }}</b>{{ if $a.Labels.namespace }} [{{ $a.Labels.namespace }}]{{ end }}
+              • <b>{{ $a.Labels.alertname }}</b>{{ if $a.Labels.namespace }} [{{ $a.Labels.namespace }}]{{ end }}{{ if $a.Labels.instance }} ({{ $a.Labels.instance }}){{ end }}
               {{ $a.Annotations.summary }}{{ end }}{{ end }}{{ if gt (len .Alerts) 5 }}
               <i>...and more</i>{{ end }}
         - name: 'telegram-backup'
@@ -214,7 +214,7 @@ spec:
             message: |
               💾 <b>BACKUP {{ .Status | toUpper }}</b> ({{ len .Alerts }} alert{{ if gt (len .Alerts) 1 }}s{{ end }})
               {{ range $i, $a := .Alerts }}{{ if lt $i 5 }}
-              • <b>{{ $a.Labels.alertname }}</b>{{ if $a.Labels.namespace }} [{{ $a.Labels.namespace }}]{{ end }}
+              • <b>{{ $a.Labels.alertname }}</b>{{ if $a.Labels.namespace }} [{{ $a.Labels.namespace }}]{{ end }}{{ if $a.Labels.instance }} ({{ $a.Labels.instance }}){{ end }}
               {{ $a.Annotations.summary }}{{ end }}{{ end }}{{ if gt (len .Alerts) 5 }}
               <i>...and more</i>{{ end }}
       # Ingress enabled for internal network access via am.h0melab.work
