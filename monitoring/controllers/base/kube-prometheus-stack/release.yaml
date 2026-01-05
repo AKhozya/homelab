@@ -260,6 +260,7 @@ spec:
       # Disable specific alerts that we override with custom thresholds
       disabled:
         NodeMemoryMajorPagesFaults: true  # Overridden below with 30m duration
+        NodeDiskIOSaturation: true  # Overridden below with 1h duration
       rules:
         kubeProxy: false
         kubeSchedulerAlerting: false
@@ -286,6 +287,18 @@ spec:
                     Memory major pages are occurring at very high rate at {{ $labels.instance }}, 500 major page faults per second for the last 30 minutes, is currently at {{ printf "%.2f" $value }}.
                     Please check that there is enough memory available at this instance.
                   runbook_url: https://runbooks.prometheus-operator.dev/runbooks/node/nodememorymajorpagesfaults
+              # Override: increase duration from 30m to 1h for rebuilderd compilation workloads
+              - alert: NodeDiskIOSaturation
+                expr: rate(node_disk_io_time_weighted_seconds_total{job="node-exporter", device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"}[5m]) > 10
+                for: 1h
+                labels:
+                  severity: warning
+                annotations:
+                  summary: Disk IO queue is high.
+                  description: |
+                    Disk IO queue (aqu-sq) is high on {{ $labels.device }} at {{ $labels.instance }}, has been above 10 for the last 1 hour, is currently at {{ printf "%.2f" $value }}.
+                    This symptom might indicate disk saturation.
+                  runbook_url: https://runbooks.prometheus-operator.dev/runbooks/node/nodediskiosaturation
 
     prometheusOperator:
       # Note: Prometheus Operator runs as single instance by design (uses leader election)
