@@ -47,10 +47,10 @@
 - CloudNativePG for managed PostgreSQL (2-node HA) with PgBouncer pooler
 - **🆕 Percona MySQL Operator** for MySQL (2-node async replication) with HAProxy ⭐
 - **🆕 3-Node Cluster** - worker-node-2 added (2025-12-15) ⭐
-- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2026-01-04)
+- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2026-01-06)
   - Reproducible build verification for Arch Linux packages
-  - worker-node: 1 worker, 6 CPU (600%), 18GB RAM, **24/7 (10min after boot)**
-  - worker-node-2: 1 worker, 3 CPU (300%), 18GB RAM, **24/7 (10min after boot)**
+  - worker-node: 1 worker, 6 CPU (600%), 18GB RAM, **09:00-23:00 daily (14h)**
+  - worker-node-2: 1 worker, 3 CPU (300%), 18GB RAM, **09:00-23:00 daily (14h)**
   - LVM-backed storage for builds
   - CPU/RAM quota fix: Patched archlinux-repro to pass limits to nspawn containers ([PR #143](https://github.com/archlinux/archlinux-repro/pull/143))
   - Kernel watchdog: nmi_watchdog + softlockup/hardlockup panic enabled for crash detection
@@ -880,6 +880,14 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-01-06 (Rebuilderd Schedule Change) 🕐
+- ✅ **Schedule Changed**: 24/7 → 09:00-23:00 daily (14 hours) ⭐
+  - **Both nodes**: worker-node (600% CPU) and worker-node-2 (300% CPU)
+  - **Rationale**: Reduce resource contention during off-hours
+  - **Implementation**: Replaced boot timer with start/stop timers
+  - **Graceful shutdown**: TimeoutStopSec=7200 allows current builds to complete
+  - **Scripts Updated**: `setup-rebuilderd-worker-1.sh`, `setup-rebuilderd-worker-2.sh`
 
 ### 2025-12-31 (K3s Upgrade to v1.35.0) 🚀
 - ✅ **K3s Cluster Upgrade**: All 3 nodes upgraded to v1.35.0+k3s1 ⭐

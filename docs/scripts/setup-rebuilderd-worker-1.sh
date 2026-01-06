@@ -5,7 +5,7 @@
 #   - 1 worker (@1)
 #   - CPU: 600% (6 cores of 32)
 #   - RAM: 18GB
-#   - Schedule: 24/7 (starts 10 min after boot)
+#   - Schedule: 09:00 - 23:00 daily (14 hours)
 #
 # Run as root: sudo bash setup-rebuilderd-worker-1.sh
 #
@@ -58,61 +58,68 @@ EOF
 
 echo "Created resource limits (600% CPU, 18GB RAM)"
 
-# Remove old scheduled timers if they exist
-systemctl disable --now rebuilderd-worker-scheduled.timer 2>/dev/null || true
-systemctl disable --now rebuilderd-worker-stop.timer 2>/dev/null || true
-rm -f /etc/systemd/system/rebuilderd-worker-scheduled.timer
-rm -f /etc/systemd/system/rebuilderd-worker-scheduled.service
-rm -f /etc/systemd/system/rebuilderd-worker-stop.timer
-rm -f /etc/systemd/system/rebuilderd-worker-stop.service
+# Remove old boot timer if it exists
+systemctl disable --now rebuilderd-worker-boot.timer 2>/dev/null || true
+rm -f /etc/systemd/system/rebuilderd-worker-boot.timer
+rm -f /etc/systemd/system/rebuilderd-worker-boot.service
 
-echo "Removed old scheduled timers"
+echo "Removed old boot timer"
 
-# Create boot delay service (starts worker 10 min after boot)
-cat > /etc/systemd/system/rebuilderd-worker-boot.timer << 'EOF'
+# Create scheduled start timer (09:00 daily)
+cat > /etc/systemd/system/rebuilderd-worker-start.timer << 'EOF'
 [Unit]
-Description=Start rebuilderd worker 10 minutes after boot
+Description=Start rebuilderd worker at 09:00 daily
 
 [Timer]
-OnBootSec=10min
-Unit=rebuilderd-worker-boot.service
+OnCalendar=*-*-* 09:00:00
+Persistent=true
 
 [Install]
 WantedBy=timers.target
 EOF
 
-cat > /etc/systemd/system/rebuilderd-worker-boot.service << 'EOF'
+cat > /etc/systemd/system/rebuilderd-worker-start.service << 'EOF'
 [Unit]
-Description=Start rebuilderd worker after boot delay
+Description=Start rebuilderd worker
 
 [Service]
 Type=oneshot
 ExecStart=/usr/bin/systemctl start rebuilderd-worker@1
 EOF
 
-echo "Created boot timer (10 min delay)"
+echo "Created start timer (09:00 daily)"
+
+# Create scheduled stop timer (23:00 daily)
+cat > /etc/systemd/system/rebuilderd-worker-stop.timer << 'EOF'
+[Unit]
+Description=Stop rebuilderd worker at 23:00 daily
+
+[Timer]
+OnCalendar=*-*-* 23:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+cat > /etc/systemd/system/rebuilderd-worker-stop.service << 'EOF'
+[Unit]
+Description=Stop rebuilderd worker gracefully
+
+[Service]
+Type=oneshot
+# Graceful stop - TimeoutStopSec=7200 in resources.conf allows builds to complete
+ExecStart=/usr/bin/systemctl stop rebuilderd-worker@1
+EOF
+
+echo "Created stop timer (23:00 daily)"
 
 # Reload systemd
 systemctl daemon-reload
 
-# Enable boot timer (24/7 operation)
-systemctl enable --now rebuilderd-worker-boot.timer
-
-# Stop ALL old workers (explicit + glob for safety)
-echo "Stopping any running workers..."
-systemctl stop rebuilderd-worker@1 rebuilderd-worker@2 2>/dev/null || true
-systemctl stop 'rebuilderd-worker@*' 2>/dev/null || true
-
-# Wait for systemd to fully clean up
-sleep 2
-
-# Kill any orphaned nspawn containers left behind
-echo "Cleaning up orphaned nspawn containers..."
-pkill -f 'systemd-nspawn.*repro' 2>/dev/null || true
-
-# Start the single worker
-echo "Starting rebuilderd-worker@1..."
-systemctl start rebuilderd-worker@1
+# Enable scheduled timers
+systemctl enable --now rebuilderd-worker-start.timer
+systemctl enable --now rebuilderd-worker-stop.timer
 
 echo ""
 echo "=== Configuration Summary ==="
@@ -123,14 +130,16 @@ echo "Per Worker:"
 echo "  CPU: 600% (6 cores)"
 echo "  RAM: 18GB (hard limit, passed to nspawn)"
 echo ""
-echo "Schedule: 24/7 (starts 10 min after boot)"
+echo "Schedule: 09:00 - 23:00 daily (14 hours)"
+echo "  Start: 09:00"
+echo "  Stop:  23:00 (graceful, current build completes)"
 echo ""
 echo "=== Timer Status ==="
 systemctl list-timers rebuilderd-worker* --no-pager
 
 echo ""
 echo "=== Worker Status ==="
-systemctl status rebuilderd-worker@1 --no-pager | head -5
+systemctl status rebuilderd-worker@1 --no-pager 2>/dev/null | head -5 || echo "Worker not currently running"
 
 echo ""
 echo "=== Manual Control ==="
