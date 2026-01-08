@@ -18,7 +18,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: user-provision
-          image: curlimages/curl:8.17.0
+          image: curlimages/curl:8.18.0
           command: ["/bin/sh", "/scripts/provision-user.sh"]
           env:
             - name: N8N_USER_EMAIL
