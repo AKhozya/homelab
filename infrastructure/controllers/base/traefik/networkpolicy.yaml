@@ -166,3 +166,11 @@ spec:
       ports:
         - protocol: TCP
           port: 3001
+    # Allow access to CSP Reporter
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: csp-reporter
+      ports:
+        - protocol: TCP
+          port: 8080
