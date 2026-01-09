@@ -111,14 +111,15 @@ spec:
     
     # Sidecar containers configuration
     sidecar:
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          cpu: 50m
+          memory: 128Mi
       rules:
-        resources:
-          requests:
-            cpu: 10m
-            memory: 64Mi
-          limits:
-            cpu: 20m
-            memory: 128Mi
+        enabled: true
 
     # Loki canary configuration
     lokiCanary:
