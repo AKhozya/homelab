@@ -68,7 +68,7 @@ spec:
               drop: ["ALL"]
       containers:
         - name: n8n
-          image: n8nio/n8n:2.2.5
+          image: n8nio/n8n:2.2.6
           ports:
             - containerPort: 5678
               name: http
