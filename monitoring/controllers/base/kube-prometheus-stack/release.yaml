@@ -51,24 +51,18 @@ spec:
             resources: ["configmaps"]
             verbs: ["get", "list", "watch"]
       sidecar:
+        # Resources apply to all sidecar containers (dashboards + datasources)
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
         dashboards:
           enabled: true
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 200m
-              memory: 256Mi
         datasources:
           enabled: true
-          resources:
-            requests:
-              cpu: 50m
-              memory: 128Mi
-            limits:
-              cpu: 200m
-              memory: 256Mi
       # Additional datasources
       additionalDataSources:
         - name: Loki
