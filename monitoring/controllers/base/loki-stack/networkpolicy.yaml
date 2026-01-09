@@ -21,7 +21,7 @@ spec:
               app.kubernetes.io/name: promtail
       ports:
         - protocol: TCP
-          port: 80
+          port: 8080
         - protocol: TCP
           port: 3100
     # Allow Grafana and Prometheus to query loki
@@ -31,7 +31,7 @@ spec:
               kubernetes.io/metadata.name: monitoring
       ports:
         - protocol: TCP
-          port: 80
+          port: 8080
         - protocol: TCP
           port: 3100
         - protocol: TCP
@@ -46,7 +46,7 @@ spec:
               app.kubernetes.io/name: loki
       ports:
         - protocol: TCP
-          port: 80
+          port: 8080
         - protocol: TCP
           port: 3100
         - protocol: TCP
@@ -74,7 +74,7 @@ spec:
               app.kubernetes.io/name: loki
       ports:
         - protocol: TCP
-          port: 80
+          port: 8080
         - protocol: TCP
           port: 3100
         - protocol: TCP
@@ -124,6 +124,6 @@ spec:
               app.kubernetes.io/name: loki
       ports:
         - protocol: TCP
-          port: 80
+          port: 8080
         - protocol: TCP
           port: 3100
