@@ -46,6 +46,13 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
       containers:
         - name: homehub
           image: ghcr.io/surajverma/homehub:0.2.3
