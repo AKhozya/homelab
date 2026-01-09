@@ -102,12 +102,104 @@
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-**Last Updated**: 2026-01-09 (Health Review)
+**Last Updated**: 2026-01-09 (Comprehensive Review)
 **Source**: [HOMELAB_REVIEW_2025_12_17.md](./HOMELAB_REVIEW_2025_12_17.md)
 **Previous Reviews**: [COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md)
 **Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
 
-### 🚨 December 2025 Review Findings (NEW)
+### 🔍 January 2026 Comprehensive Review (NEW)
+
+**Review Date**: 2026-01-09
+**Reviewer**: Staff DevOps/SRE + Staff Software Developer
+**Overall Status**: ✅ **HEALTHY** - Minor gaps identified
+
+#### Infrastructure Health (Staff DevOps/SRE Perspective)
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.0, Kernel 6.18.3-arch1-1 |
+| **Control Plane** | ✅ Healthy | 14% CPU, 17% memory |
+| **worker-node** | ✅ Healthy | 20% CPU, 24% memory (rebuilderd active) |
+| **worker-node-2** | ✅ Healthy | 22% CPU, 40% memory (tensorflow building) |
+| **Pods** | ✅ 82 Running | 0 CrashLoop, 48 Completed jobs |
+| **PostgreSQL** | ✅ 2/2 Ready | Cluster in healthy state |
+| **MySQL** | ✅ 2/2 Ready | Async replication, HAProxy active |
+| **CouchDB** | ✅ 2/2 Running | StatefulSet in databases namespace |
+| **Redis** | ✅ 1/1 Running | Cache healthy |
+| **Prometheus** | ⚠️ 87% memory | 244k series, 1125Mi/1300Mi |
+| **Alerts** | ✅ None firing | Clean alert state |
+| **Backups** | ✅ All successful | Replication to worker-node-2 working |
+| **Certificates** | ✅ All Ready | 60+ days until expiration |
+| **Flux/GitOps** | ✅ All healthy | All kustomizations reconciled |
+| **Resource Governance** | ✅ Complete | 26 quotas, 25 limitranges |
+
+#### Security Gaps Found (P2-MEDIUM)
+
+| Issue | Namespace | Impact | Recommendation |
+|-------|-----------|--------|----------------|
+| Missing NetworkPolicy | cloudflare-tunnel | Low - internal only | Add default-deny + allow traefik |
+| Missing NetworkPolicy | csp-reporter | Low - internal only | Add default-deny |
+| Missing NetworkPolicy | loki | Medium - logging | Add egress restrictions |
+| Missing NetworkPolicy | obsidian | Low - personal | Add default-deny |
+| Missing NetworkPolicy | traefik | Medium - ingress | Add explicit policies |
+| Popeye not scheduled | popeye | Low - visibility | Add weekly CronJob |
+
+#### Kyverno Policy Violations (Audit Mode - Informational)
+
+| Namespace | Policy | Reason | Action |
+|-----------|--------|--------|--------|
+| backup-replication | require-non-root | rsync needs root | ✅ Expected - add exclusion |
+| loki | require-resource-limits | Ephemeral pods | Investigate |
+| monitoring | require-resource-limits | Ephemeral pods | Investigate |
+
+#### Known Privileged Workloads (Documented Exceptions)
+
+| Workload | Reason | Mitigation |
+|----------|--------|------------|
+| immich-server | GPU transcoding (VAAPI) | NetworkPolicy, namespace isolation |
+| adguard-home | Port 53 binding | NetworkPolicy, dedicated namespace |
+| promtail | Host log access | DaemonSet, read-only mounts |
+| home-assistant | Hardware integrations | NetworkPolicy, capability restrictions |
+
+#### Code Quality (Staff Software Developer Perspective)
+
+| Check | Status | Notes |
+|-------|--------|-------|
+| Image tags | ✅ All pinned | No :latest tags in use |
+| Security headers | ✅ 100% coverage | All ingresses have middleware |
+| Stale ReplicaSets | ✅ 0 found | Clean cluster state |
+| Job cleanup | ✅ 13 total | Normal backup job history |
+| DRY violations | ⚠️ Acceptable | Documented as intentional for homelab |
+
+#### Prometheus Cardinality Watch
+
+- **Series Count**: 244,658 (↑ from last review)
+- **Memory**: 1125Mi / 1300Mi (87%)
+- **Action**: Monitor - consider metric drops if >260k
+
+#### Rebuilderd Contribution Status
+
+| Node | Current Build | Progress | ETA |
+|------|---------------|----------|-----|
+| worker-node | rocfft → next | ✅ Completed | Picking next |
+| worker-node-2 | tensorflow 2.20.0 | 57% (20,313/35,367) | ~17:00 UTC |
+
+#### Action Items from This Review
+
+| Priority | Item | Effort | Status |
+|----------|------|--------|--------|
+| P2 | Add NetworkPolicy to cloudflare-tunnel | 30 min | 📋 TODO |
+| P2 | Add NetworkPolicy to loki | 30 min | 📋 TODO |
+| P2 | Add NetworkPolicy to traefik | 30 min | 📋 TODO |
+| P3 | Add Popeye CronJob (weekly) | 15 min | 📋 TODO |
+| P3 | Add Kyverno exclusion for backup-replication | 10 min | 📋 TODO |
+| INFO | Investigate null resource-limit violations | 15 min | 📋 TODO |
+
+**Next Review**: 2026-02-09 (Monthly)
+
+---
+
+### 🚨 December 2025 Review Findings
 
 | Priority | Issue | Status | Action |
 |----------|-------|--------|--------|
@@ -871,7 +963,7 @@ ingress:
 ---
 
 **Last Updated**: 2026-01-09
-**Next Review**: 2026-01-15
+**Next Review**: 2026-02-09
 
 ---
 
@@ -879,7 +971,15 @@ ingress:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
-### 2026-01-09 (HSTS Final Rollout) 🔒
+### 2026-01-09 (Comprehensive Review + HSTS Final) 🔍
+- ✅ **Comprehensive Homelab Review Complete**: Staff DevOps/SRE + Software Developer perspective ⭐
+  - **Infrastructure**: All 3 nodes healthy, K3s v1.35.0, Kernel 6.18.3
+  - **Databases**: PostgreSQL 2/2, MySQL 2/2, CouchDB 2/2, Redis 1/1 - all healthy
+  - **Monitoring**: Prometheus at 87% memory (244k series), no alerts firing
+  - **Backups**: All jobs successful, replication to worker-node-2 working
+  - **Security Gaps Found**: 5 namespaces missing NetworkPolicy (P2)
+  - **Code Quality**: All image tags pinned, 100% security headers coverage
+  - **Next Review**: 2026-02-09
 - ✅ **HSTS Step 3 Complete**: Increased max-age from 6 months to 1 year ⭐
   - `max-age=31536000` (1 year) deployed on all 17 ingresses
   - Gradual rollout complete: 1mo (Oct) → 6mo (Nov) → 1yr (Jan)
