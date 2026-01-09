@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2025-12-31 00:00 UTC)
+**Assessment Date**: 2025-10-18 (Updated: 2026-01-09)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -62,7 +62,7 @@
   - **Phase 4 (Completed)**: CSP enforcement mode (deployed 2025-10-31, 43 days production, zero violations)
   - **Coverage**: All 17 services (14 apps + Grafana + AlertManager + CouchDB)
   - **Monitoring**: 6 Prometheus alerts for rate limiting (attack detection, false positive detection)
-  - **HSTS Review**: 2026-01-15 - Step 3 final rollout (increase max-age to 1 year)
+  - **HSTS Complete**: ✅ Step 3 deployed 2026-01-09 (max-age=1 year)
 
 **Critical Gaps (from 2025-10-27 Comprehensive Review)** 🔴
 - ✅ **Backup replication to worker-node-2** (P0-CRITICAL) - COMPLETED (2025-12-18) - rsync CronJob at 4AM daily
@@ -102,7 +102,7 @@
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-**Last Updated**: 2025-12-29 14:30 UTC (Health Review)
+**Last Updated**: 2026-01-09 (Health Review)
 **Source**: [HOMELAB_REVIEW_2025_12_17.md](./HOMELAB_REVIEW_2025_12_17.md)
 **Previous Reviews**: [COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md)
 **Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
@@ -169,11 +169,9 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ### 🛡️ SECURITY HARDENING (Active)
 
-#### **📅 HSTS Max-Age Optimization** - IN PROGRESS
-   - **Status**: 🔄 Step 2/3 Complete - 6 months deployed (2025-11-16)
-   - **Current**: `max-age=15768000` (6 months) on all 17 ingresses
-   - **Gradual Rollout**: ✅ Step 1 (1mo) → ✅ Step 2 (6mo) → ⏰ Step 3 (1yr: 2026-01-15)
-   - **Next Review**: **2026-01-15** (increase to 1 year)
+#### ✅ **HSTS Max-Age Optimization** - COMPLETED (2026-01-09)
+   - **Final**: `max-age=31536000` (1 year) on all 17 ingresses
+   - **Gradual Rollout**: ✅ Step 1 (1mo) → ✅ Step 2 (6mo) → ✅ Step 3 (1yr)
    - **Commits**: 5e109cd, 793a247
 
 #### ✅ CSP Enforcement - COMPLETED (2025-10-31)
@@ -872,7 +870,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2025-12-29 14:30 UTC
+**Last Updated**: 2026-01-09
 **Next Review**: 2026-01-15
 
 ---
@@ -880,6 +878,12 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-01-09 (HSTS Final Rollout) 🔒
+- ✅ **HSTS Step 3 Complete**: Increased max-age from 6 months to 1 year ⭐
+  - `max-age=31536000` (1 year) deployed on all 17 ingresses
+  - Gradual rollout complete: 1mo (Oct) → 6mo (Nov) → 1yr (Jan)
+  - Files: traefik + monitoring security-headers-middleware.yaml
 
 ### 2026-01-06 (Rebuilderd Schedule Change) 🕐
 - ✅ **Schedule Changed**: 24/7 → 09:00-23:00 daily (14 hours) ⭐

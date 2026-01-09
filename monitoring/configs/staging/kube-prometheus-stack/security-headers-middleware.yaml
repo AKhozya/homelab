@@ -14,7 +14,7 @@ spec:
       Referrer-Policy: "strict-origin-when-cross-origin"
       # Disable FLoC tracking
       Permissions-Policy: "interest-cohort=()"
-      # Force HTTPS (6 months max-age, gradual increase to 1 year)
-      Strict-Transport-Security: "max-age=15768000"
+      # Force HTTPS (1 year max-age - final step)
+      Strict-Transport-Security: "max-age=31536000"
       # Remove server version info
       X-Powered-By: ""
