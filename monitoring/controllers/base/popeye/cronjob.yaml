@@ -21,8 +21,6 @@ spec:
               image: derailed/popeye:v0.21.5
               args:
                 - "-A"  # All namespaces
-                - "-o"
-                - "json"
                 - "--force-exit-zero"  # Don't fail on issues found
               resources:
                 requests:
