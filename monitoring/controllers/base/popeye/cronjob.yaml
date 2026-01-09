@@ -18,7 +18,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: popeye
-              image: derailed/popeye:v0.21.5
+              image: derailed/popeye:v0.22.1
               args:
                 - "-A"  # All namespaces
                 - "--force-exit-zero"  # Don't fail on issues found
@@ -29,3 +29,9 @@ spec:
                 limits:
                   cpu: 500m
                   memory: 512Mi
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: tmp
+              emptyDir: {}
