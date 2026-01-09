@@ -26,11 +26,11 @@ spec:
                 - "--force-exit-zero"  # Don't fail on issues found
               resources:
                 requests:
-                  cpu: 50m
-                  memory: 64Mi
-                limits:
-                  cpu: 200m
+                  cpu: 100m
                   memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
