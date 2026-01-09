@@ -6,3 +6,4 @@ resources:
   - cloudflared.yaml
   - tunnel-credentials.yaml
   - cloudflared-config-secret.yaml
+  - networkpolicy.yaml

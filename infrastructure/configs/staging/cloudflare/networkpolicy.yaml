@@ -1,0 +1,106 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudflare-tunnel-network-policy
+  namespace: cloudflare-tunnel
+spec:
+  podSelector:
+    matchLabels:
+      app: cloudflared
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow Prometheus to scrape metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 2000
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS to Cloudflare (tunnel connection)
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow access to Authentik
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+      ports:
+        - protocol: TCP
+          port: 9000
+    # Allow access to Audiobookshelf
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: audiobookshelf
+      ports:
+        - protocol: TCP
+          port: 3005
+    # Allow access to LinkWarden
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkwarden
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Allow access to Stirling PDF
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: stirling-pdf
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow access to Mealie
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mealie
+      ports:
+        - protocol: TCP
+          port: 9000
+    # Allow access to Paperless-NGX
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: paperless-ngx
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Allow access to Immich
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: immich
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow access to N8N
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: n8n
+      ports:
+        - protocol: TCP
+          port: 5678
+    # Allow access to CouchDB (for Obsidian sync)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+      ports:
+        - protocol: TCP
+          port: 5984

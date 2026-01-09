@@ -1,0 +1,168 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: traefik-network-policy
+  namespace: traefik
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow external traffic (LoadBalancer) on HTTP/HTTPS
+    - ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 8443
+    # Allow Prometheus to scrape metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9100
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow access to Authentik
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: authentik
+      ports:
+        - protocol: TCP
+          port: 9000
+    # Allow access to AdGuard Home
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: adguard-home
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Allow access to Audiobookshelf
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: audiobookshelf
+      ports:
+        - protocol: TCP
+          port: 3005
+    # Allow access to Databases (CouchDB)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+      ports:
+        - protocol: TCP
+          port: 5984
+    # Allow access to Home Assistant
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: home-assistant
+      ports:
+        - protocol: TCP
+          port: 8123
+    # Allow access to HomeHub
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: homehub
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Allow access to Homepage
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: homepage
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Allow access to Immich
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: immich
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow access to LinkWarden
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: linkwarden
+      ports:
+        - protocol: TCP
+          port: 3000
+    # Allow access to Mealie
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: mealie
+      ports:
+        - protocol: TCP
+          port: 9000
+    # Allow access to Monitoring (Grafana, Alertmanager)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 9093
+    # Allow access to N8N
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: n8n
+      ports:
+        - protocol: TCP
+          port: 5678
+    # Allow access to Paperless-NGX
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: paperless-ngx
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Allow access to PriceBuddy
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: pricebuddy
+      ports:
+        - protocol: TCP
+          port: 80
+    # Allow access to Stirling PDF
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: stirling-pdf
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow access to Uptime Kuma
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
+      ports:
+        - protocol: TCP
+          port: 3001

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: default-limits
+  namespace: popeye
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 200m
+        memory: 256Mi
+      defaultRequest:
+        cpu: 50m
+        memory: 64Mi
+      max:
+        cpu: 500m
+        memory: 512Mi
+      min:
+        cpu: 10m
+        memory: 16Mi
+    - type: Pod
+      max:
+        cpu: 1000m
+        memory: 1Gi
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: namespace-quota
+  namespace: popeye
+spec:
+  hard:
+    requests.cpu: "500m"
+    requests.memory: 512Mi
+    limits.cpu: "1"
+    limits.memory: 1Gi
+    pods: "5"
+    services: "2"
+    persistentvolumeclaims: "0"

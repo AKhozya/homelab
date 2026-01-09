@@ -35,10 +35,11 @@ spec:
               namespaces:
                 - mealie
                 - home-assistant
-                - adguard-home      # DNS binding requires root for port 53
-                - pricebuddy        # apprise sidecar requires root for config
-                - stirling-pdf      # PDF processing with user switching capabilities
-                - loki              # promtail requires root to read host logs
+                - adguard-home         # DNS binding requires root for port 53
+                - pricebuddy           # apprise sidecar requires root for config
+                - stirling-pdf         # PDF processing with user switching capabilities
+                - loki                 # promtail requires root to read host logs
+                - backup-replication   # rsync needs root to access backup files
       validate:
         message: "Containers must not run as root (runAsNonRoot: true or runAsUser != 0)"
         anyPattern:

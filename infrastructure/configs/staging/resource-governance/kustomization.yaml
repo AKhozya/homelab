@@ -34,3 +34,4 @@ resources:
   - small-tier/kyverno.yaml
   - small-tier/percona-mysql.yaml
   - small-tier/backup-replication.yaml
+  - small-tier/popeye.yaml

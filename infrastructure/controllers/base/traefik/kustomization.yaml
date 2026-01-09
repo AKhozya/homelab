@@ -9,3 +9,4 @@ resources:
   - rate-limit-standard-middleware.yaml
   - rate-limit-high-frequency-middleware.yaml
   - csp-middleware.yaml
+  - networkpolicy.yaml
