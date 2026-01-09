@@ -133,24 +133,24 @@
 | **Flux/GitOps** | ✅ All healthy | All kustomizations reconciled |
 | **Resource Governance** | ✅ Complete | 26 quotas, 25 limitranges |
 
-#### Security Gaps Found (P2-MEDIUM)
+#### Security Gaps Found (P2-MEDIUM) - ✅ ALL RESOLVED
 
-| Issue | Namespace | Impact | Recommendation |
-|-------|-----------|--------|----------------|
-| Missing NetworkPolicy | cloudflare-tunnel | Low - internal only | Add default-deny + allow traefik |
-| Missing NetworkPolicy | csp-reporter | Low - internal only | Add default-deny |
-| Missing NetworkPolicy | loki | Medium - logging | Add egress restrictions |
-| Missing NetworkPolicy | obsidian | Low - personal | Add default-deny |
-| Missing NetworkPolicy | traefik | Medium - ingress | Add explicit policies |
-| Popeye not scheduled | popeye | Low - visibility | Add weekly CronJob |
+| Issue | Namespace | Impact | Status |
+|-------|-----------|--------|--------|
+| ~~Missing NetworkPolicy~~ | cloudflare-tunnel | Low | ✅ Fixed (8c9bd9b) |
+| ~~Missing NetworkPolicy~~ | csp-reporter | Low | ✅ Fixed (8c9bd9b) |
+| ~~Missing NetworkPolicy~~ | loki | Medium | ✅ Fixed (8c9bd9b) |
+| ~~Missing NetworkPolicy~~ | obsidian | Low | ✅ Fixed (8c9bd9b) |
+| ~~Missing NetworkPolicy~~ | traefik | Medium | ✅ Fixed (8c9bd9b) |
+| ~~Popeye not scheduled~~ | popeye | Low | ✅ Fixed - Weekly CronJob (8c9bd9b) |
 
-#### Kyverno Policy Violations (Audit Mode - Informational)
+#### Kyverno Policy Violations (Audit Mode - Informational) - ✅ ALL RESOLVED
 
-| Namespace | Policy | Reason | Action |
+| Namespace | Policy | Reason | Status |
 |-----------|--------|--------|--------|
-| backup-replication | require-non-root | rsync needs root | ✅ Expected - add exclusion |
-| loki | require-resource-limits | Ephemeral pods | Investigate |
-| monitoring | require-resource-limits | Ephemeral pods | Investigate |
+| backup-replication | require-non-root | rsync needs root | ✅ Exclusion added (8c9bd9b) |
+| loki | require-resource-limits | Sidecar missing limits | ✅ Fixed (0510d1d) |
+| monitoring | require-resource-limits | Stale ReplicaSets | ✅ Not actionable - old pods |
 
 #### Known Privileged Workloads (Documented Exceptions)
 
@@ -188,12 +188,15 @@
 
 | Priority | Item | Effort | Status |
 |----------|------|--------|--------|
-| P2 | Add NetworkPolicy to cloudflare-tunnel | 30 min | 📋 TODO |
-| P2 | Add NetworkPolicy to loki | 30 min | 📋 TODO |
-| P2 | Add NetworkPolicy to traefik | 30 min | 📋 TODO |
-| P3 | Add Popeye CronJob (weekly) | 15 min | 📋 TODO |
-| P3 | Add Kyverno exclusion for backup-replication | 10 min | 📋 TODO |
-| INFO | Investigate null resource-limit violations | 15 min | 📋 TODO |
+| P2 | Add NetworkPolicy to cloudflare-tunnel | 30 min | ✅ Done (8c9bd9b) |
+| P2 | Add NetworkPolicy to loki | 30 min | ✅ Done (8c9bd9b) |
+| P2 | Add NetworkPolicy to traefik | 30 min | ✅ Done (8c9bd9b) |
+| P2 | Add NetworkPolicy to csp-reporter | 15 min | ✅ Done (8c9bd9b) |
+| P2 | Add NetworkPolicy to obsidian | 15 min | ✅ Done (8c9bd9b) |
+| P3 | Add Popeye CronJob (weekly) | 15 min | ✅ Done (8c9bd9b) |
+| P3 | Add Kyverno exclusion for backup-replication | 10 min | ✅ Done (8c9bd9b) |
+| P3 | Fix loki-sc-rules sidecar resources | 10 min | ✅ Done (0510d1d) |
+| INFO | Investigate null resource-limit violations | 15 min | ✅ Done - stale reports from old ReplicaSets |
 
 **Next Review**: 2026-02-09 (Monthly)
 
