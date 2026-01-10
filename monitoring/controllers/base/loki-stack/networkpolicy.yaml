@@ -24,7 +24,7 @@ spec:
           port: 8080
         - protocol: TCP
           port: 3100
-    # Allow Grafana and Prometheus to query loki
+    # Allow Grafana and Prometheus to query loki and scrape canary metrics
     - from:
         - namespaceSelector:
             matchLabels:
@@ -34,6 +34,8 @@ spec:
           port: 8080
         - protocol: TCP
           port: 3100
+        - protocol: TCP
+          port: 3500  # loki-canary metrics
         - protocol: TCP
           port: 9095
     # Allow internal loki communication (memberlist, canary, gateway)
