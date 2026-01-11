@@ -32,7 +32,7 @@ spec:
   hard:
     requests.cpu: "5"  # Temporarily increased for MariaDB rollout (3 replicas × 250m = 750m + PostgreSQL 960m = 1.71 total)
     requests.memory: 8Gi  # Temporarily increased for MariaDB rollout (3 replicas × 512Mi = 1.5Gi + PostgreSQL 1.7Gi = 3.2Gi total)
-    limits.cpu: "15"  # Temporarily increased for MariaDB rollout (3 replicas × 1 CPU = 3 + PostgreSQL 6.2 = 9.2 total)
+    limits.cpu: "17"  # Increased for MySQL component CPU limits (HAProxy/Orchestrator 500m)
     limits.memory: 18Gi  # Temporarily increased for MariaDB rollout (3 replicas × 2Gi = 6Gi + PostgreSQL 8.3Gi = 14.3Gi total)
     pods: "50"
     services: "20"
