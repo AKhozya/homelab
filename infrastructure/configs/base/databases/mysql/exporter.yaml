@@ -48,7 +48,8 @@ spec:
               cpu: "10m"
               memory: "32Mi"
             limits:
-              cpu: "200m"
+              # Increased from 200m to 300m (2026-01-11) - CPU throttling during rebuilderd load
+              cpu: "300m"
               memory: "64Mi"
           livenessProbe:
             httpGet:

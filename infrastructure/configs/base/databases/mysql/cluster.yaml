@@ -38,7 +38,8 @@ spec:
         cpu: "50m"
         memory: "64Mi"
       limits:
-        cpu: "300m"
+        # Increased from 300m to 500m (2026-01-11) - CPU throttling during rebuilderd load
+        cpu: "500m"
         # Increased from 128Mi to 192Mi (2025-12-30) - OOM during cluster recovery
         memory: "192Mi"
     # Distribute across all nodes including control plane
@@ -176,7 +177,8 @@ spec:
           cpu: "50m"
           memory: "64Mi"
         limits:
-          cpu: "300m"
+          # Increased from 300m to 500m (2026-01-11) - CPU throttling during rebuilderd load
+          cpu: "500m"
           memory: "128Mi"
 
       # Anti-affinity for HA - spread across nodes
