@@ -3,7 +3,7 @@
 #
 # Configuration:
 #   - 1 worker (@1)
-#   - CPU: 300% (3 cores of 16)
+#   - CPU: 400% (4 cores of 16)
 #   - RAM: 18GB
 #   - Schedule: 09:00 - 23:00 daily (14 hours)
 #
@@ -34,8 +34,8 @@ mkdir -p /etc/systemd/system/rebuilderd-worker@.service.d
 # Configure resource limits per worker
 cat > /etc/systemd/system/rebuilderd-worker@.service.d/resources.conf << 'EOF'
 [Service]
-# CPU: 300% (3 cores)
-CPUQuota=300%
+# CPU: 400% (4 cores)
+CPUQuota=400%
 
 # RAM: 18GB (hard limit)
 MemoryMax=18G
@@ -53,10 +53,10 @@ KillMode=mixed
 
 # Environment for archlinux-repro patches
 # These pass limits to nspawn containers
-Environment="MAX_CPU=300%" "MAX_MEMORY=18G"
+Environment="MAX_CPU=400%" "MAX_MEMORY=18G"
 EOF
 
-echo "Created resource limits (300% CPU, 18GB RAM)"
+echo "Created resource limits (400% CPU, 18GB RAM)"
 
 # Remove old boot timer if it exists
 systemctl disable --now rebuilderd-worker-boot.timer 2>/dev/null || true
@@ -127,7 +127,7 @@ echo "Node: worker-node-2 (192.168.1.126)"
 echo "Workers: 1 (@1)"
 echo ""
 echo "Per Worker:"
-echo "  CPU: 300% (3 cores)"
+echo "  CPU: 400% (4 cores)"
 echo "  RAM: 18GB (hard limit, passed to nspawn)"
 echo ""
 echo "Schedule: 09:00 - 23:00 daily (14 hours)"

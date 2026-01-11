@@ -51,7 +51,7 @@
 - **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2026-01-06)
   - Reproducible build verification for Arch Linux packages
   - worker-node: 1 worker, 6 CPU (600%), 18GB RAM, **09:00-23:00 daily (14h)**
-  - worker-node-2: 1 worker, 3 CPU (300%), 18GB RAM, **09:00-23:00 daily (14h)**
+  - worker-node-2: 1 worker, 4 CPU (400%), 18GB RAM, **09:00-23:00 daily (14h)**
   - LVM-backed storage for builds
   - CPU/RAM quota fix: Patched archlinux-repro to pass limits to nspawn containers ([PR #143](https://github.com/archlinux/archlinux-repro/pull/143))
   - Kernel watchdog: nmi_watchdog + softlockup/hardlockup panic enabled for crash detection
@@ -277,9 +277,10 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ### ⚠️ P1-HIGH (Active Items Only)
 
-#### ⏸️ **Automated Backup Validation Testing** - DEFERRED to Q1 2026
+#### ⏸️ **Automated Backup Validation Testing** - DEFERRED to February 2026
    - Manual validation (last: 2025-10-26) sufficient for now
-   - Infrastructure still evolving - automation premature
+   - Plan to implement alongside NAS setup in February 2026
+   - Makes sense to validate full backup chain (local → worker-node-2 → NAS)
 
 #### ✅ **Kyverno Phase 3: Resource Limits** - COMPLETED (2025-12-18)
    - **0 violations** as of 2025-12-18 (was 22 on 2025-12-17)
@@ -419,15 +420,16 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ---
 
-### 📅 DEFERRED TASKS (Late December 2025 - January 2026)
+### 📅 DEFERRED TASKS (February 2026)
 
 #### 37. **Offsite Backup Replication to NAS** ⏸️ BLOCKED
-   - **Status**: BLOCKED - Waiting for 24TB NAS hardware arrival (late December 2025, delivery postponed)
+   - **Status**: BLOCKED - Waiting for 24TB NAS hardware arrival (February 2026)
    - **Priority**: P0-CRITICAL (deferred until NAS available)
    - **Risk**: Complete data loss if worker node fails
    - **Impact**: All backups currently stored on single node `/mnt/k8s-storage/backups/`
    - **Current RPO**: 24 hours
    - **Current RTO**: Infinite (if node hardware fails)
+   - **Mitigation**: Backup replication to worker-node-2 provides some redundancy
    - **Action**:
      1. Set up 24TB NAS on local network
      2. Configure rsync CronJob (daily at 4 AM, 1h after local backups)
@@ -438,10 +440,10 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      - rsync CronJob configuration: 1 hour
      - Testing: 1-2 hours
      - Documentation: 1 hour
-   - **Target Date**: Late December 2025 (upon NAS arrival)
+   - **Target Date**: February 2026 (upon NAS arrival)
    - **Files**: New CronJob manifest in `infrastructure/configs/staging/backup/offsite-replication.yaml`
    - **Benefit**: Protects against node hardware failure, data center disaster
-   - **Note**: DO NOT NAG UNTIL LATE DECEMBER
+   - **Note**: DO NOT NAG UNTIL FEBRUARY 2026
 
 #### 38. **Second Worker Node** 🖥️ ✅ COMPLETED
    - **Status**: ✅ DEPLOYED - 2025-12-15 (ahead of schedule!)
@@ -993,7 +995,7 @@ ingress:
 
 ### 2026-01-06 (Rebuilderd Schedule Change) 🕐
 - ✅ **Schedule Changed**: 24/7 → 09:00-23:00 daily (14 hours) ⭐
-  - **Both nodes**: worker-node (600% CPU) and worker-node-2 (300% CPU)
+  - **Both nodes**: worker-node (600% CPU) and worker-node-2 (400% CPU)
   - **Rationale**: Reduce resource contention during off-hours
   - **Implementation**: Replaced boot timer with start/stop timers
   - **Graceful shutdown**: TimeoutStopSec=7200 allows current builds to complete
@@ -1020,7 +1022,7 @@ ingress:
   - **Impact**: Nspawn containers now receive `--property="MemoryMax=6G"` from archlinux-repro patch
 - ✅ **Worker Configuration Updated**: Better resource allocation ⭐
   - **worker-node**: 4 → 3 workers × 400% CPU × 6GB RAM (18GB total, scheduled 2am-9am)
-  - **worker-node-2**: 2 workers × 300% CPU × 6GB RAM (12GB total, 24/7)
+  - **worker-node-2**: 1 worker × 400% CPU × 18GB RAM (09:00-23:00 daily)
   - **Scripts Updated**: `docs/scripts/setup-rebuilderd-worker-1.sh`, `docs/scripts/setup-rebuilderd-worker-2.sh`
 - ✅ **MySQL-0 OOMKilled Recovery**: Pod caught in rebuilderd OOM crossfire ⭐
   - **Symptom**: mysql-0 1/2 ready with 14 restarts, exit code 137 (OOMKilled)
