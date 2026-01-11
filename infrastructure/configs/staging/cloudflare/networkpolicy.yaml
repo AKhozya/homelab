@@ -36,14 +36,17 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow HTTPS to Cloudflare (tunnel connection)
+    # Allow tunnel connection to Cloudflare edge (port 7844 required)
+    # See: https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/
+    - ports:
+        - protocol: UDP
+          port: 7844  # QUIC (preferred)
+        - protocol: TCP
+          port: 7844  # HTTP/2 fallback
+    # Allow HTTPS to Cloudflare (optional: updates, JWT validation, error reporting)
     - ports:
         - protocol: TCP
           port: 443
-    # Allow QUIC to Cloudflare (tunnel connection, preferred protocol)
-    - ports:
-        - protocol: UDP
-          port: 7844
     # Allow access to Authentik
     - to:
         - namespaceSelector:
