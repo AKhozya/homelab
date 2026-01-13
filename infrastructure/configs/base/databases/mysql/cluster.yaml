@@ -165,7 +165,7 @@ spec:
     haproxy:
       enabled: true
       size: 2
-      image: percona/haproxy:2.8.17
+      image: percona/haproxy:2.8.18
       imagePullPolicy: IfNotPresent
       serviceAccountName: main-mysql
       # Grace period for draining connections during rolling updates
