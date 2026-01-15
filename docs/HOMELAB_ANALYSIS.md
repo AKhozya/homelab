@@ -423,7 +423,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 ### 📅 DEFERRED TASKS (February 2026)
 
 #### 37. **Offsite Backup Replication to NAS** ⏸️ BLOCKED
-   - **Status**: BLOCKED - Waiting for 24TB NAS hardware arrival (February 2026)
+   - **Status**: BLOCKED - Waiting for 24TB NAS hardware arrival (~February 25, 2026)
    - **Priority**: P0-CRITICAL (deferred until NAS available)
    - **Risk**: Complete data loss if worker node fails
    - **Impact**: All backups currently stored on single node `/mnt/k8s-storage/backups/`
@@ -440,10 +440,10 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      - rsync CronJob configuration: 1 hour
      - Testing: 1-2 hours
      - Documentation: 1 hour
-   - **Target Date**: February 2026 (upon NAS arrival)
+   - **Target Date**: ~February 25, 2026 (upon NAS arrival)
    - **Files**: New CronJob manifest in `infrastructure/configs/staging/backup/offsite-replication.yaml`
    - **Benefit**: Protects against node hardware failure, data center disaster
-   - **Note**: DO NOT NAG UNTIL FEBRUARY 2026
+   - **Note**: DO NOT NAG UNTIL LATE FEBRUARY 2026
 
 #### 38. **Second Worker Node** 🖥️ ✅ COMPLETED
    - **Status**: ✅ DEPLOYED - 2025-12-15 (ahead of schedule!)
@@ -475,12 +475,12 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 #### 39. **Switch to LTS Kernel 6.18** 🐧 PARTIALLY COMPLETE
    - **Status**: ⚠️ Running mainline 6.18.1, waiting for LTS package
    - **Priority**: P2-MEDIUM (stability improvement)
-   - **Target Date**: January-February 2026 (when Arch packages 6.18 LTS)
+   - **Target Date**: End of January 2026 (when Arch packages 6.18 LTS)
    - **Current State**: All 3 nodes running mainline kernel **6.18.1-arch1-2** (not LTS)
-   - **Blocker**: Arch `linux-lts` still at 6.12.x (checked 2025-12-17)
+   - **Blocker**: Arch `linux-lts` still at 6.12.x (checked 2026-01-15)
      - Linux 6.18 released upstream: Nov 30, 2025 (confirmed LTS, supported until Dec 2027)
      - Arch typically takes 4-8 weeks to transition LTS kernel series
-     - Expected availability: Late January to Late February 2026
+     - Expected availability: Late January 2026
    - **Scope**: All 3 nodes (control-plane, worker-node, worker-node-2)
    - **Hardware Compatibility**: ✅ Verified
      - Intel N100 (Alder Lake-N): Supported since 6.1+
@@ -497,7 +497,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      7. Keep mainline kernel installed for rollback option
    - **Benefit**: Long-term stability, 2+ year support (until Dec 2027), security backports
    - **Rollback**: Boot into mainline kernel from bootloader menu if issues
-   - **Note**: Start checking weekly from mid-January 2026
+   - **Note**: Check weekly until end of January 2026
 
 #### 40. **Re-evaluate VictoriaMetrics** 📊 DEFERRED
    - **Status**: DEFERRED - Waiting for metricRelabelConfigs bug fix
