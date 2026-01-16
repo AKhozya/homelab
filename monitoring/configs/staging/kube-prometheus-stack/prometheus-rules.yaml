@@ -94,13 +94,14 @@ spec:
         description: "Disk {{ $labels.mountpoint }} has less than 5% free space (current: {{ $value }}%)"
     
     - alert: NodeHighIOWait
-      expr: rate(node_cpu_seconds_total{mode="iowait"}[5m]) * 100 > 20
-      for: 5m
+      # Average I/O wait across all CPUs (node-wide, not per-core)
+      expr: avg by(instance) (rate(node_cpu_seconds_total{mode="iowait"}[5m])) * 100 > 10
+      for: 10m
       labels:
         severity: warning
       annotations:
         summary: "High I/O wait on {{ $labels.instance }}"
-        description: "CPU is waiting for I/O {{ printf \"%.1f\" $value }}% of the time. Disk may be bottleneck. Check disk performance."
+        description: "Node-wide CPU I/O wait is {{ printf \"%.1f\" $value }}%. Disk may be bottleneck. Check with iostat -x."
     
     - alert: NodeNetworkErrors
       expr: rate(node_network_receive_errs_total[5m]) + rate(node_network_transmit_errs_total[5m]) > 10
