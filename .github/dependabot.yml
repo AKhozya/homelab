@@ -4,7 +4,8 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/scripts/analyze-update"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "sunday"
     commit-message:
       prefix: "chore(deps):"
     labels:
@@ -18,7 +19,8 @@ updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "daily"
+      interval: "weekly"
+      day: "sunday"
     commit-message:
       prefix: "chore(deps):"
     labels:
