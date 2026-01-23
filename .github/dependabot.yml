@@ -5,7 +5,9 @@ updates:
     directory: "/scripts/analyze-update"
     schedule:
       interval: "weekly"
-      day: "sunday"
+      day: "monday"
+      time: "18:00"
+      timezone: "UTC"
     commit-message:
       prefix: "chore(deps):"
     labels:
@@ -20,7 +22,9 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-      day: "sunday"
+      day: "monday"
+      time: "18:00"
+      timezone: "UTC"
     commit-message:
       prefix: "chore(deps):"
     labels:
