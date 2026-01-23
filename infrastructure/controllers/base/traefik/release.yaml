@@ -66,8 +66,7 @@ spec:
       websecure:
         port: 443
         exposedPort: 443
-        tls:
-          enabled: true
+        # TLS enabled by default in v39+
     
     # Enable Prometheus metrics
     metrics:
