@@ -29,7 +29,8 @@ jobs:
       - name: Get current and new versions
         id: versions
         run: |
-          CURRENT=$(grep -m1 'Flux Version:' clusters/staging/flux-system/gotk-components.yaml | awk '{print $4}')
+          # Extract versions and normalize (remove 'v' prefix for comparison)
+          CURRENT=$(grep -m1 'Flux Version:' clusters/staging/flux-system/gotk-components.yaml | awk '{print $4}' | sed 's/^v//')
           NEW=$(flux --version | awk '{print $NF}')
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
           echo "new=$NEW" >> $GITHUB_OUTPUT
