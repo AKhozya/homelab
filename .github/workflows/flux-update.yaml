@@ -1,0 +1,66 @@
+name: Flux Update
+
+on:
+  schedule:
+    # Weekly on Sunday at 06:00 UTC
+    - cron: '0 6 * * 0'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Flux version (leave empty for latest)'
+        required: false
+        type: string
+
+jobs:
+  update-flux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flux CLI
+        uses: fluxcd/flux2/action@main
+        with:
+          version: ${{ inputs.version || 'latest' }}
+
+      - name: Get current and new versions
+        id: versions
+        run: |
+          CURRENT=$(grep -m1 'Flux Version:' clusters/staging/flux-system/gotk-components.yaml | awk '{print $4}')
+          NEW=$(flux --version | awk '{print $NF}')
+          echo "current=$CURRENT" >> $GITHUB_OUTPUT
+          echo "new=$NEW" >> $GITHUB_OUTPUT
+          echo "Current: $CURRENT, New: $NEW"
+
+      - name: Generate new manifests
+        if: steps.versions.outputs.current != steps.versions.outputs.new
+        run: |
+          flux install --export > clusters/staging/flux-system/gotk-components.yaml
+
+      - name: Create Pull Request
+        if: steps.versions.outputs.current != steps.versions.outputs.new
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore(deps): update Flux to ${{ steps.versions.outputs.new }}"
+          title: "chore(deps): update Flux to ${{ steps.versions.outputs.new }}"
+          body: |
+            Automated Flux update from `${{ steps.versions.outputs.current }}` to `${{ steps.versions.outputs.new }}`.
+
+            ## Release Notes
+            https://github.com/fluxcd/flux2/releases/tag/${{ steps.versions.outputs.new }}
+
+            ## Verification
+            After merging, verify with:
+            ```bash
+            flux check
+            kubectl get pods -n flux-system
+            ```
+          branch: flux-update-${{ steps.versions.outputs.new }}
+          delete-branch: true
+          labels: |
+            dependencies
+            flux
