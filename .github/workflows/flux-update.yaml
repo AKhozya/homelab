@@ -43,7 +43,7 @@ jobs:
 
       - name: Create Pull Request
         if: steps.versions.outputs.current != steps.versions.outputs.new
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore(deps): update Flux to ${{ steps.versions.outputs.new }}"
