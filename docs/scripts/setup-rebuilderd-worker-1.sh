@@ -90,13 +90,14 @@ EOF
 echo "Created start timer (09:00 daily)"
 
 # Create scheduled stop timer (23:00 daily)
+# NOTE: Persistent=false prevents catch-up firing when timer is re-enabled at 09:00
 cat > /etc/systemd/system/rebuilderd-worker-stop.timer << 'EOF'
 [Unit]
 Description=Stop rebuilderd worker at 23:00 daily
 
 [Timer]
 OnCalendar=*-*-* 23:00:00
-Persistent=true
+Persistent=false
 
 [Install]
 WantedBy=timers.target
