@@ -58,6 +58,19 @@ EOF
 
 echo "Created resource limits (600% CPU, 18GB RAM)"
 
+# Configure 48-hour build timeout in rebuilderd-worker.conf
+CONFIG="/etc/rebuilderd-worker.conf"
+if [ -f "$CONFIG" ]; then
+    if grep -q "^timeout" "$CONFIG"; then
+        sed -i 's/^timeout.*/timeout = 172800/' "$CONFIG"
+    else
+        echo "" >> "$CONFIG"
+        echo "# Build timeout in seconds (48 hours for large packages like python-aotriton)" >> "$CONFIG"
+        echo "timeout = 172800" >> "$CONFIG"
+    fi
+    echo "Configured 48-hour build timeout"
+fi
+
 # Remove old boot timer if it exists
 systemctl disable --now rebuilderd-worker-boot.timer 2>/dev/null || true
 rm -f /etc/systemd/system/rebuilderd-worker-boot.timer

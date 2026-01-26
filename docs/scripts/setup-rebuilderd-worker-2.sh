@@ -5,7 +5,8 @@
 #   - 1 worker (@1)
 #   - CPU: 400% (4 cores of 16)
 #   - RAM: 18GB
-#   - Schedule: 09:00 - 23:00 daily (14 hours)
+#   - Schedule: 24/7 (starts 10 min after boot)
+#   - Build timeout: 48 hours
 #
 # Run as root: sudo bash setup-rebuilderd-worker-2.sh
 #
@@ -47,7 +48,7 @@ IOWeight=50
 # Nice: Run with lower priority
 Nice=10
 
-# Timeout: Allow long builds (2h) to complete gracefully
+# Timeout: Allow long builds (2h) to complete gracefully on stop
 TimeoutStopSec=7200
 KillMode=mixed
 
@@ -58,69 +59,52 @@ EOF
 
 echo "Created resource limits (400% CPU, 18GB RAM)"
 
-# Remove old boot timer if it exists
-systemctl disable --now rebuilderd-worker-boot.timer 2>/dev/null || true
-rm -f /etc/systemd/system/rebuilderd-worker-boot.timer
-rm -f /etc/systemd/system/rebuilderd-worker-boot.service
+# Configure 48-hour build timeout in rebuilderd-worker.conf
+CONFIG="/etc/rebuilderd-worker.conf"
+if [ -f "$CONFIG" ]; then
+    if grep -q "^timeout" "$CONFIG"; then
+        sed -i 's/^timeout.*/timeout = 172800/' "$CONFIG"
+    else
+        echo "" >> "$CONFIG"
+        echo "# Build timeout in seconds (48 hours for large packages like python-aotriton)" >> "$CONFIG"
+        echo "timeout = 172800" >> "$CONFIG"
+    fi
+    echo "Configured 48-hour build timeout"
+fi
 
-echo "Removed old boot timer"
+# Remove old scheduled timers
+systemctl disable --now rebuilderd-worker-start.timer 2>/dev/null || true
+systemctl disable --now rebuilderd-worker-stop.timer 2>/dev/null || true
+rm -f /etc/systemd/system/rebuilderd-worker-start.timer
+rm -f /etc/systemd/system/rebuilderd-worker-start.service
+rm -f /etc/systemd/system/rebuilderd-worker-stop.timer
+rm -f /etc/systemd/system/rebuilderd-worker-stop.service
 
-# Create scheduled start timer (09:00 daily)
-cat > /etc/systemd/system/rebuilderd-worker-start.timer << 'EOF'
+echo "Removed old scheduled timers"
+
+# Create boot timer (starts 10 minutes after boot)
+cat > /etc/systemd/system/rebuilderd-worker-boot.timer << 'EOF'
 [Unit]
-Description=Start rebuilderd worker at 09:00 daily
+Description=Start rebuilderd worker 10 minutes after boot
 
 [Timer]
-OnCalendar=*-*-* 09:00:00
-Persistent=true
+OnBootSec=10min
+Unit=rebuilderd-worker@1.service
 
 [Install]
 WantedBy=timers.target
 EOF
 
-cat > /etc/systemd/system/rebuilderd-worker-start.service << 'EOF'
-[Unit]
-Description=Start rebuilderd worker
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/systemctl start rebuilderd-worker@1
-EOF
-
-echo "Created start timer (09:00 daily)"
-
-# Create scheduled stop timer (23:00 daily)
-# NOTE: Persistent=false prevents catch-up firing when timer is re-enabled at 09:00
-cat > /etc/systemd/system/rebuilderd-worker-stop.timer << 'EOF'
-[Unit]
-Description=Stop rebuilderd worker at 23:00 daily
-
-[Timer]
-OnCalendar=*-*-* 23:00:00
-Persistent=false
-
-[Install]
-WantedBy=timers.target
-EOF
-
-cat > /etc/systemd/system/rebuilderd-worker-stop.service << 'EOF'
-[Unit]
-Description=Stop rebuilderd worker gracefully
-
-[Service]
-Type=oneshot
-# Graceful stop - TimeoutStopSec=7200 in resources.conf allows builds to complete
-ExecStart=/usr/bin/systemctl stop rebuilderd-worker@1
-EOF
-
-echo "Created stop timer (23:00 daily)"
+echo "Created boot timer (10 min delay after reboot)"
 
 # Reload systemd
 systemctl daemon-reload
 
-# Enable scheduled timers
-systemctl enable --now rebuilderd-worker-start.timer
-systemctl enable --now rebuilderd-worker-stop.timer
+# Enable boot timer for automatic start after reboot
+systemctl enable rebuilderd-worker-boot.timer
+
+# Start worker now (don't wait for timer on first setup)
+systemctl start rebuilderd-worker@1
 
 echo ""
 echo "=== Configuration Summary ==="
@@ -130,22 +114,19 @@ echo ""
 echo "Per Worker:"
 echo "  CPU: 400% (4 cores)"
 echo "  RAM: 18GB (hard limit, passed to nspawn)"
+echo "  Build timeout: 48 hours"
 echo ""
-echo "Schedule: 09:00 - 23:00 daily (14 hours)"
-echo "  Start: 09:00"
-echo "  Stop:  23:00 (graceful, current build completes)"
-echo ""
-echo "=== Timer Status ==="
-systemctl list-timers rebuilderd-worker* --no-pager
-
+echo "Schedule: 24/7 (starts 10 min after boot)"
 echo ""
 echo "=== Worker Status ==="
-systemctl status rebuilderd-worker@1 --no-pager 2>/dev/null | head -5 || echo "Worker not currently running"
+systemctl status rebuilderd-worker@1 --no-pager 2>/dev/null | head -10 || echo "Worker starting..."
 
 echo ""
 echo "=== Manual Control ==="
-echo "Start:  sudo systemctl start rebuilderd-worker@1"
-echo "Stop:   sudo systemctl stop rebuilderd-worker@1"
-echo "Status: systemctl status rebuilderd-worker@1"
+echo "Start:   sudo systemctl start rebuilderd-worker@1"
+echo "Stop:    sudo systemctl stop rebuilderd-worker@1"
+echo "Restart: sudo systemctl restart rebuilderd-worker@1"
+echo "Status:  systemctl status rebuilderd-worker@1"
+echo "Logs:    journalctl -u rebuilderd-worker@1 -f"
 echo ""
 echo "Done!"

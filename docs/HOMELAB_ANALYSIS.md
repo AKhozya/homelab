@@ -48,10 +48,11 @@
 - CloudNativePG for managed PostgreSQL (2-node HA) with PgBouncer pooler
 - **🆕 Percona MySQL Operator** for MySQL (2-node async replication) with HAProxy ⭐
 - **🆕 3-Node Cluster** - worker-node-2 added (2025-12-15) ⭐
-- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2026-01-06)
+- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2026-01-26)
   - Reproducible build verification for Arch Linux packages
   - worker-node: 1 worker, 6 CPU (600%), 18GB RAM, **09:00-23:00 daily (14h)**
-  - worker-node-2: 1 worker, 4 CPU (400%), 18GB RAM, **09:00-23:00 daily (14h)**
+  - worker-node-2: 1 worker, 4 CPU (400%), 18GB RAM, **24/7**
+  - Build timeout: 48 hours (for large packages like python-aotriton)
   - LVM-backed storage for builds
   - CPU/RAM quota fix: Patched archlinux-repro to pass limits to nspawn containers ([PR #143](https://github.com/archlinux/archlinux-repro/pull/143))
   - Kernel watchdog: nmi_watchdog + softlockup/hardlockup panic enabled for crash detection
@@ -992,6 +993,17 @@ ingress:
   - `max-age=31536000` (1 year) deployed on all 17 ingresses
   - Gradual rollout complete: 1mo (Oct) → 6mo (Nov) → 1yr (Jan)
   - Files: traefik + monitoring security-headers-middleware.yaml
+
+### 2026-01-26 (Rebuilderd Config Updates) ⚙️
+- ✅ **Build Timeout Increased**: 24 hours → 48 hours (172800 seconds) ⭐
+  - **Reason**: python-aotriton build was at 65% (106,500/163,981) when 24h timeout hit
+  - **Estimate**: ~13 hours remaining, 48h provides comfortable margin
+  - **Both nodes**: Timeout configured in /etc/rebuilderd-worker.conf
+- ✅ **worker-node-2 Schedule Changed**: 09:00-23:00 → 24/7 ⭐
+  - **Reason**: Dedicated to rebuilderd, no need for schedule
+  - **Implementation**: Removed start/stop timers, boot timer starts service 10 min after reboot
+  - **worker-node**: Stays on 09:00-23:00 schedule (shared with k8s workloads)
+- 📋 **Scripts Updated**: `setup-rebuilderd-worker-1.sh`, `setup-rebuilderd-worker-2.sh`
 
 ### 2026-01-06 (Rebuilderd Schedule Change) 🕐
 - ✅ **Schedule Changed**: 24/7 → 09:00-23:00 daily (14 hours) ⭐
