@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2026-01-09)
+**Assessment Date**: 2025-10-18 (Updated: 2026-01-29)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -119,7 +119,7 @@
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Nodes** | ✅ 3/3 Ready | K3s v1.35.0, Kernel 6.18.3-arch1-1 |
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.0, Kernel 6.18.7-arch1-1 |
 | **Control Plane** | ✅ Healthy | 14% CPU, 17% memory |
 | **worker-node** | ✅ Healthy | 20% CPU, 24% memory (rebuilderd active) |
 | **worker-node-2** | ✅ Healthy | 22% CPU, 40% memory (tensorflow building) |
@@ -453,8 +453,8 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      - **Hostname**: worker-node-2 (192.168.1.126)
      - **User**: z3us
      - **Hardware**: 30GB RAM, 1TB NVMe (system) + 3.6TB NVMe (k8s-storage)
-     - **Kernel**: 6.18.1-arch1-2
-     - **K3s**: v1.34.2+k3s1
+     - **Kernel**: 6.18.7-arch1-1
+     - **K3s**: v1.35.0+k3s1
    - **Storage**: 3.6TB LVM (`k8s-storage` VG) - 1% used
    - **Current Workloads** (31 pods):
      - PostgreSQL replica (main-postgres-11)
@@ -473,15 +473,15 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      - ✅ **AdGuard Home DNS** - Added 192.168.1.126 to DNS rewrites
    - **Documentation**: `docs/SECOND_WORKER_NODE_SETUP.md` (used for deployment)
 
-#### 39. **Switch to LTS Kernel 6.18** 🐧 PARTIALLY COMPLETE
-   - **Status**: ⚠️ Running mainline 6.18.1, waiting for LTS package
+#### 39. **Switch to LTS Kernel 6.18** 🐧 WAITING ON ARCH
+   - **Status**: ⏸️ Running mainline 6.18.6, waiting for Arch to package 6.18 LTS
    - **Priority**: P2-MEDIUM (stability improvement)
-   - **Target Date**: End of January 2026 (when Arch packages 6.18 LTS)
-   - **Current State**: All 3 nodes running mainline kernel **6.18.1-arch1-2** (not LTS)
-   - **Blocker**: Arch `linux-lts` still at 6.12.x (checked 2026-01-15)
+   - **Target Date**: ~~End of January 2026~~ → TBD (Arch hasn't switched yet)
+   - **Current State**: All 3 nodes have mainline kernel **6.18.7-arch1-1** installed (not LTS)
+   - **Blocker**: Arch `linux-lts` still at 6.12.67 (checked 2026-01-29)
      - Linux 6.18 released upstream: Nov 30, 2025 (confirmed LTS, supported until Dec 2027)
-     - Arch typically takes 4-8 weeks to transition LTS kernel series
-     - Expected availability: Late January 2026
+     - Arch taking longer than typical 4-8 weeks to transition LTS kernel series
+     - Expected availability: Unknown - check https://archlinux.org/packages/core/x86_64/linux-lts/
    - **Scope**: All 3 nodes (control-plane, worker-node, worker-node-2)
    - **Hardware Compatibility**: ✅ Verified
      - Intel N100 (Alder Lake-N): Supported since 6.1+
