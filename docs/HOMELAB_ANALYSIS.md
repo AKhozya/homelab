@@ -501,7 +501,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
    - **Note**: Check weekly until end of January 2026
 
 #### 40. **Re-evaluate VictoriaMetrics** 📊 DEFERRED
-   - **Status**: DEFERRED - Waiting for metricRelabelConfigs bug fix
+   - **Status**: DEFERRED - Bug closed without fix, workaround available
    - **Priority**: P3-LOW (optimization opportunity)
    - **Target Date**: February 2026
    - **Background**:
@@ -509,18 +509,19 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      - Issue: `metricRelabelConfigs` not functioning in VMNodeScrape/VMServiceScrape
      - Result: VictoriaMetrics collected 48% MORE series than Prometheus (defeating purpose)
    - **Bug Tracking**:
-     - GitHub Issue: [#9951](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/9951) (still OPEN as of 2025-12-02)
-     - Workaround exists (use both relabelConfig + metricRelabelConfig) but not a real fix
+     - GitHub Issue: [#9951](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/9951) - **CLOSED** (2026-01-05, inactivity - not fixed)
+     - Maintainer requested VMAgent CR + VMServiceScrape config, reporter never provided
+     - **Workaround confirmed by reporter**: Use BOTH `relabelConfig` + `metricRelabelConfig` together
    - **Action in Feb 2026**:
-     1. Check if issue #9951 is resolved
-     2. If fixed, test VictoriaMetrics in staging with metric drops
+     1. Test workaround: configure both relabelConfig + metricRelabelConfig for metric drops
+     2. Deploy VictoriaMetrics in test namespace
      3. Compare series count vs Prometheus
-     4. If working, plan migration for memory/disk savings
-   - **Expected Benefits** (if bug fixed):
+     4. If workaround works, plan migration
+   - **Expected Benefits** (if workaround works):
      - ~2-5x RAM reduction
      - ~7x disk reduction (zstd compression)
      - Native downsampling for long retention
-   - **Current Mitigation**: Prometheus retention increased to 90d (2025-12-02)
+   - **Current Mitigation**: Prometheus retention at 90d, 87% memory (1125Mi/1300Mi)
    - **Note**: DO NOT NAG UNTIL FEBRUARY 2026
 
 ---
