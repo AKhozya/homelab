@@ -50,8 +50,8 @@
 - **🆕 3-Node Cluster** - worker-node-2 added (2025-12-15) ⭐
 - **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2026-01-26)
   - Reproducible build verification for Arch Linux packages
-  - worker-node: 1 worker, 6 CPU (600%), 18GB RAM, **09:00-23:00 daily (14h)**
-  - worker-node-2: 1 worker, 4 CPU (400%), 18GB RAM, **24/7**
+  - worker-node: 1 worker, 6 CPU (600%), 24GB RAM, **09:00-23:00 daily (14h)**
+  - worker-node-2: 1 worker, 4 CPU (400%), 24GB RAM, **24/7**
   - Build timeout: 48 hours (for large packages like python-aotriton)
   - LVM-backed storage for builds
   - CPU/RAM quota fix: Patched archlinux-repro to pass limits to nspawn containers ([PR #143](https://github.com/archlinux/archlinux-repro/pull/143))
@@ -1035,7 +1035,7 @@ ingress:
   - **Impact**: Nspawn containers now receive `--property="MemoryMax=6G"` from archlinux-repro patch
 - ✅ **Worker Configuration Updated**: Better resource allocation ⭐
   - **worker-node**: 4 → 3 workers × 400% CPU × 6GB RAM (18GB total, scheduled 2am-9am)
-  - **worker-node-2**: 1 worker × 400% CPU × 18GB RAM (09:00-23:00 daily)
+  - **worker-node-2**: 1 worker × 400% CPU × 24GB RAM (09:00-23:00 daily)
   - **Scripts Updated**: `docs/scripts/setup-rebuilderd-worker-1.sh`, `docs/scripts/setup-rebuilderd-worker-2.sh`
 - ✅ **MySQL-0 OOMKilled Recovery**: Pod caught in rebuilderd OOM crossfire ⭐
   - **Symptom**: mysql-0 1/2 ready with 14 restarts, exit code 137 (OOMKilled)
@@ -1105,7 +1105,7 @@ ingress:
 - ✅ **Rebuilderd Contribution to Arch Linux**: Nightly builds for reproducible package verification ⭐
   - **Schedule**: 2:00 AM - 9:00 AM daily (7 hours)
   - **worker-node**: 2 workers, 12 CPU cores (1200%), 24GB RAM (12GB/worker)
-  - **worker-node-2**: 2 workers, 6 CPU cores (600%), 18GB RAM (9GB/worker) - reduced for thermal headroom
+  - **worker-node-2**: 2 workers, 6 CPU cores (600%), 24GB RAM (9GB/worker) - reduced for thermal headroom
   - **Concurrency**: Each worker = 1 build (6 cores on worker-node, 3 cores on worker-node-2)
   - **Storage**: LVM-backed builds (not tmpfs/RAM)
   - **Purpose**: Verify Arch Linux binary packages are reproducible
