@@ -54,7 +54,7 @@
   - worker-node-2: 1 worker, 4 CPU (400%), 18GB RAM, **24/7**
   - Build timeout: 48 hours (for large packages like python-aotriton)
   - LVM-backed storage for builds
-  - CPU/RAM quota fix: Patched archlinux-repro to pass limits to nspawn containers ([PR #143](https://github.com/archlinux/archlinux-repro/pull/143))
+  - CPU/RAM quota fix: archlinux-repro passes limits to nspawn containers (upstream [PR #143](https://github.com/archlinux/archlinux-repro/pull/143) merged)
   - Kernel watchdog: nmi_watchdog + softlockup/hardlockup panic enabled for crash detection
 - Default credential elimination on all apps
 - **🆕 Comprehensive Security Headers & Protections** ⭐ (2025-10-30)
@@ -1032,7 +1032,7 @@ ingress:
   - **Root Cause**: `MemoryMax=6G` only limited rebuilderd-worker process, not child nspawn containers
   - **Analysis**: Kernel OOM killer invoked (`cc1plus invoked oom-killer`, `ld.lld` used 5.3GB RAM)
   - **Fix**: Added `Environment="MAX_CPU=..." "MAX_MEMORY=6G"` to systemd drop-in
-  - **Impact**: Nspawn containers now receive `--property="MemoryMax=6G"` from archlinux-repro patch
+  - **Impact**: Nspawn containers now receive `--property="MemoryMax=6G"` from archlinux-repro (now upstream)
 - ✅ **Worker Configuration Updated**: Better resource allocation ⭐
   - **worker-node**: 4 → 3 workers × 400% CPU × 6GB RAM (18GB total, scheduled 2am-9am)
   - **worker-node-2**: 1 worker × 400% CPU × 18GB RAM (24/7)
@@ -1081,11 +1081,11 @@ ingress:
 - 📋 **Commits**: 389585f (NVMe PM fix)
 
 ### 2025-12-26 (Rebuilderd CPU Quota Fix & Upstream PR) 🔧
-- ✅ **CPU Quota Fix for nspawn Containers**: Patched archlinux-repro to pass CPU limits ⭐
+- ✅ **CPU Quota Fix for nspawn Containers**: archlinux-repro now passes CPU limits ⭐
   - **Problem**: nspawn containers with `--register=no` bypass parent cgroup CPU limits
   - **Solution**: Added `--property="CPUQuota=${MAX_CPU}"` to nspawn call (mirrors existing MAX_MEMORY pattern)
-  - **Upstream PR**: [archlinux/archlinux-repro#143](https://github.com/archlinux/archlinux-repro/pull/143)
-  - **Patch Applied**: Both worker nodes running patched version
+  - **Upstream PR**: [archlinux/archlinux-repro#143](https://github.com/archlinux/archlinux-repro/pull/143) - **MERGED**
+  - **Status**: Now part of official archlinux-repro package
 - ✅ **3-Hour Verification Test**: CPU limits confirmed working ⭐
   - **worker-node**: Peak 39% CPU (was 99% before fix) - 1,167 packages processed
   - **worker-node-2**: Peak 33% CPU - 508 packages processed
