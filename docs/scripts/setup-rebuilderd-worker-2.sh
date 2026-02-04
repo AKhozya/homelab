@@ -4,7 +4,7 @@
 # Configuration:
 #   - 1 worker (@1)
 #   - CPU: 400% (4 cores of 16)
-#   - RAM: 24GB
+#   - RAM: 18GB
 #   - Schedule: 24/7 (starts 10 min after boot)
 #   - Build timeout: 48 hours
 #
@@ -38,9 +38,9 @@ cat > /etc/systemd/system/rebuilderd-worker@.service.d/resources.conf << 'EOF'
 # CPU: 400% (4 cores)
 CPUQuota=400%
 
-# RAM: 24GB (hard limit)
-MemoryMax=24G
-MemoryHigh=23G
+# RAM: 18GB (hard limit)
+MemoryMax=18G
+MemoryHigh=17G
 
 # IO: Low priority to not interfere with k8s workloads
 IOWeight=50
@@ -54,10 +54,10 @@ KillMode=mixed
 
 # Environment for archlinux-repro patches
 # These pass limits to nspawn containers
-Environment="MAX_CPU=400%" "MAX_MEMORY=24G"
+Environment="MAX_CPU=400%" "MAX_MEMORY=18G"
 EOF
 
-echo "Created resource limits (400% CPU, 24GB RAM)"
+echo "Created resource limits (400% CPU, 18GB RAM)"
 
 # Configure 48-hour build timeout in rebuilderd-worker.conf
 CONFIG="/etc/rebuilderd-worker.conf"
@@ -113,7 +113,7 @@ echo "Workers: 1 (@1)"
 echo ""
 echo "Per Worker:"
 echo "  CPU: 400% (4 cores)"
-echo "  RAM: 24GB (hard limit, passed to nspawn)"
+echo "  RAM: 18GB (hard limit, passed to nspawn)"
 echo "  Build timeout: 48 hours"
 echo ""
 echo "Schedule: 24/7 (starts 10 min after boot)"
