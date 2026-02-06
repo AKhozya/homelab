@@ -313,9 +313,13 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 | Pending Item | Effort | Priority |
 |--------------|--------|----------|
-| Deploy Velero for cluster backups | 4-6h | P2 |
-| Implement backup immutability (S3 object lock/ZFS) | 2-4h | P2 |
+| ~~Deploy Velero for cluster backups~~ | ~~4-6h~~ | ❌ Declined |
+| ~~Implement backup immutability (S3 object lock/ZFS)~~ | ~~2-4h~~ | ❌ Declined |
 | SOPS multi-key encryption | 4h | P2 |
+
+**Velero - DECLINED** (2026-02-06): Flux GitOps already reconstructs all cluster state (RBAC, CRDs, ConfigMaps, namespaces) from Git. Databases have dedicated daily backups with SHA256 validation. PVCs have daily backups. Velero would only help with non-Git stateful resources, which are all already covered. Not worth the operational overhead for a homelab.
+
+**Backup Immutability - DECLINED** (2026-02-06): NAS rsync daemon runs without `--delete`, making backups append-only by design. Remote deletion not possible via rsync protocol. NAS web UI is the only way to delete, requiring physical network access + credentials. For a homelab on a local network, the risk of backup tampering is negligible. S3 object lock would require cloud storage; ZFS would require NAS OS changes (not supported on Zettlab).
 
 #### 🔒 **ReadOnlyRootFilesystem Security Hardening** (P2-MEDIUM) - PHASE 1-3 COMPLETE ✅
 
