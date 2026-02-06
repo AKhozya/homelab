@@ -64,14 +64,41 @@ spec:
                   printf '%s' "$NAS_RSYNC_PASSWORD" > /tmp/nas-rsync-pass
                   chmod 600 /tmp/nas-rsync-pass
 
-                  # Check backup size against NAS 500GB limit
+                  # Check backup size against NAS 500GB limit and auto-prune at 370GB
                   BACKUP_SIZE_KB=$(du -sk /source-backups/ 2>/dev/null | cut -f1)
                   BACKUP_SIZE_GB=$((BACKUP_SIZE_KB / 1048576))
                   echo "=== Source Backups (${BACKUP_SIZE_GB}GB / 500GB NAS limit) ==="
                   du -sh /source-backups/*/ 2>/dev/null || echo "No backups found"
+
+                  # Auto-prune oldest backups when >370GB (74% of 500GB)
+                  PRUNE_THRESHOLD_KB=388070400  # 370GB in KB
+                  if [ "$BACKUP_SIZE_KB" -gt "$PRUNE_THRESHOLD_KB" ]; then
+                    echo ""
+                    echo "=== Auto-pruning: ${BACKUP_SIZE_GB}GB exceeds 370GB threshold ==="
+                    # Find and remove oldest date-stamped directories across all backup types
+                    while [ "$BACKUP_SIZE_KB" -gt "$PRUNE_THRESHOLD_KB" ]; do
+                      OLDEST=$(find /source-backups -maxdepth 2 -mindepth 2 -type d -name '[0-9]*_[0-9]*' | sort | head -1)
+                      if [ -z "$OLDEST" ]; then
+                        echo "No more directories to prune"
+                        break
+                      fi
+                      OLDEST_SIZE=$(du -sh "$OLDEST" 2>/dev/null | cut -f1)
+                      echo "Pruning: $OLDEST ($OLDEST_SIZE)"
+                      rm -rf "$OLDEST"
+                      # Also remove matching .tar.gz files (postgres/couchdb/mysql top-level archives)
+                      BASENAME=$(basename "$OLDEST")
+                      PARENT=$(dirname "$OLDEST")
+                      PARENT_NAME=$(basename "$PARENT")
+                      rm -f "${PARENT}/${PARENT_NAME}_${BASENAME}"*.tar.gz*
+                      BACKUP_SIZE_KB=$(du -sk /source-backups/ 2>/dev/null | cut -f1)
+                      BACKUP_SIZE_GB=$((BACKUP_SIZE_KB / 1048576))
+                    done
+                    echo "After pruning: ${BACKUP_SIZE_GB}GB"
+                  fi
+
                   if [ "$BACKUP_SIZE_KB" -gt 461373440 ]; then
-                    echo "CRITICAL: Backup size ${BACKUP_SIZE_GB}GB exceeds 440GB (88% of 500GB NAS limit)!"
-                    echo "ACTION REQUIRED: Reduce retention or increase NAS quota."
+                    echo "CRITICAL: Backup size ${BACKUP_SIZE_GB}GB exceeds 440GB after pruning!"
+                    echo "ACTION REQUIRED: Increase NAS quota or reduce backup scope."
                   elif [ "$BACKUP_SIZE_KB" -gt 419430400 ]; then
                     echo "WARNING: Backup size ${BACKUP_SIZE_GB}GB exceeds 400GB (80% of 500GB NAS limit)."
                   fi
@@ -107,12 +134,6 @@ spec:
                   RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
                     "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/" 2>/dev/null \
                     | head -20 || echo "NAS verification failed"
-
-                  # Clean up source backups (now replicated to both worker-node-2 and NAS)
-                  echo ""
-                  echo "=== Cleaning up source backups on worker-node ==="
-                  rm -rf /source-backups/postgres/* /source-backups/couchdb/* /source-backups/mysql/* /source-backups/pvc/*
-                  echo "Source backups cleaned up (replicated to 2 destinations)"
 
                   rm -f /tmp/nas-rsync-pass
                   echo ""
