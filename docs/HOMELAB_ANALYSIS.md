@@ -437,7 +437,8 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      - User + password stored as SOPS-encrypted Kubernetes Secret (`nas-rsync-credentials`)
      - Uses rsync daemon protocol (`rsync --port=50555 akhozya@192.168.1.136/akhozya/backups/homelab/`)
      - NAS limitation: module root is read-only, writes go to `backups/homelab/` subfolder
-     - Size check in CronJob: warns at 400GB (80%), critical at 440GB (88%)
+     - Auto-pruning: oldest backups deleted when >370GB (74%), rsync --delete propagates to all destinations
+     - Warnings: 400GB (80%) warning, 440GB (88%) critical - last-resort alerts after pruning
    - **Action**:
      1. ✅ NAS hardware arrived and initial setup (2026-02-05)
      2. ✅ Configure NAS on local network (IP: 192.168.1.136, rsync port 50555)
