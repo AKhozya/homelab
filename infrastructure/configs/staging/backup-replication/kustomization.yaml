@@ -6,4 +6,5 @@ resources:
   - serviceaccount.yaml
   - ssh-key-secret.yaml
   - nas-rsync-secret.yaml
+  - backup-telegram-secret.yaml
   - cronjob.yaml

@@ -44,6 +44,16 @@ spec:
                     secretKeyRef:
                       name: nas-rsync-credentials
                       key: rsync-password
+                - name: TELEGRAM_BOT_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-telegram
+                      key: bot_token
+                - name: TELEGRAM_CHAT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: backup-telegram
+                      key: chat_id
               command:
                 - /bin/sh
                 - -c
@@ -51,8 +61,8 @@ spec:
                   set -e
                   echo "=== Backup Replication Started: $(date) ==="
 
-                  # Install rsync and openssh
-                  apk add --no-cache rsync openssh-client
+                  # Install rsync, openssh, and curl
+                  apk add --no-cache rsync openssh-client curl
 
                   # Setup SSH for worker-node-2
                   mkdir -p ~/.ssh
@@ -92,25 +102,164 @@ spec:
                     "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/" 2>/dev/null \
                     | head -20 || echo "NAS verification failed"
 
-                  # Step 4: Clean source on worker-node (data is on NAS + worker-node-2)
+                  # Step 4: Validate backups
                   echo ""
-                  echo "=== Step 4: Cleaning source backups ==="
+                  echo "=== Step 4: Validating backups ==="
+                  REPORT_FILE="/tmp/backup-report.txt"
+                  : > "$REPORT_FILE"
+                  OVERALL_OK=true
+                  TODAY=$(date +%Y-%m-%d)
+
+                  validate_backup() {
+                    local type="$1"
+                    local dir="/source-backups/$type"
+                    local min_size="$2"
+                    local label="$3"
+                    local failed=false
+                    local checks=""
+
+                    echo "--- Checking $label ---"
+
+                    # Find latest .tar.gz
+                    local latest
+                    latest=$(find "$dir" -name "*.tar.gz" -type f 2>/dev/null | sort -r | head -1)
+
+                    if [ -z "$latest" ]; then
+                      echo "FAIL: No .tar.gz found in $dir"
+                      printf "FAIL|%s|MISSING - no backup found!\n" "$label" >> "$REPORT_FILE"
+                      OVERALL_OK=false
+                      return 1
+                    fi
+
+                    local size
+                    size=$(stat -c%s "$latest" 2>/dev/null || stat -f%z "$latest" 2>/dev/null)
+                    local size_human
+                    size_human=$(du -h "$latest" | cut -f1)
+
+                    echo "  File: $(basename "$latest") ($size_human)"
+
+                    # Check age (< 25 hours)
+                    local file_epoch
+                    file_epoch=$(stat -c%Y "$latest" 2>/dev/null || stat -f%m "$latest" 2>/dev/null)
+                    local now_epoch
+                    now_epoch=$(date +%s)
+                    local age_hours=$(( (now_epoch - file_epoch) / 3600 ))
+
+                    if [ "$age_hours" -gt 25 ]; then
+                      echo "  FAIL: Age ${age_hours}h (>25h)"
+                      checks="age ${age_hours}h OLD"
+                      failed=true
+                    else
+                      echo "  OK: Age ${age_hours}h"
+                    fi
+
+                    # Check SHA256
+                    local sha_file="${latest}.sha256"
+                    if [ -f "$sha_file" ]; then
+                      local expected
+                      expected=$(awk '{print $1}' "$sha_file")
+                      local actual
+                      actual=$(sha256sum "$latest" | awk '{print $1}')
+                      if [ "$expected" = "$actual" ]; then
+                        echo "  OK: SHA256 matches"
+                        checks="${checks:+$checks, }SHA256 OK"
+                      else
+                        echo "  FAIL: SHA256 mismatch!"
+                        checks="${checks:+$checks, }SHA256 FAIL"
+                        failed=true
+                      fi
+                    else
+                      echo "  SKIP: No .sha256 file"
+                      checks="${checks:+$checks, }no checksum"
+                    fi
+
+                    # Check tar integrity
+                    if tar -tzf "$latest" >/dev/null 2>&1; then
+                      echo "  OK: tar integrity"
+                      checks="${checks:+$checks, }tar OK"
+                    else
+                      echo "  FAIL: tar integrity check failed!"
+                      checks="${checks:+$checks, }tar FAIL"
+                      failed=true
+                    fi
+
+                    # Check minimum size
+                    if [ "$size" -lt "$min_size" ]; then
+                      echo "  FAIL: Size ${size_human} below minimum"
+                      checks="${checks:+$checks, }too small"
+                      failed=true
+                    else
+                      echo "  OK: Size ${size_human}"
+                    fi
+
+                    if [ "$failed" = true ]; then
+                      printf "FAIL|%s|%s, %s\n" "$label" "$size_human" "$checks" >> "$REPORT_FILE"
+                      OVERALL_OK=false
+                    else
+                      printf "OK|%s|%s, %s\n" "$label" "$size_human" "$checks" >> "$REPORT_FILE"
+                    fi
+                  }
+
+                  # Validate each backup type (min sizes: postgres >1MB, couchdb >100KB, mysql >10KB, pvc >100KB)
+                  validate_backup "postgres" 1048576 "PostgreSQL" || true
+                  validate_backup "couchdb" 102400 "CouchDB" || true
+                  validate_backup "mysql" 10240 "MySQL" || true
+                  validate_backup "pvc" 102400 "PVC" || true
+
+                  # Step 5: Clean source on worker-node (data is on NAS + worker-node-2)
+                  echo ""
+                  echo "=== Step 5: Cleaning source backups ==="
                   rm -rf /source-backups/postgres/* /source-backups/couchdb/* /source-backups/mysql/* /source-backups/pvc/*
                   echo "Source cleaned (data on NAS + worker-node-2)"
 
-                  # Step 5: Check NAS storage usage (500GB hard limit)
+                  # Step 6: Check NAS storage usage (500GB hard limit)
                   echo ""
-                  echo "=== Step 5: Checking NAS storage ==="
+                  echo "=== Step 6: Checking NAS storage ==="
                   NAS_SIZE_GB=$(RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
                     "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/" 2>/dev/null \
                     | awk '/^-/{sum+=$2} END{printf "%d", sum/1073741824}')
                   echo "NAS backup size: ~${NAS_SIZE_GB}GB / 500GB limit"
 
+                  NAS_STATUS="NAS: ${NAS_SIZE_GB}GB / 500GB"
                   if [ "$NAS_SIZE_GB" -gt 450 ]; then
                     echo "CRITICAL: NAS backup size ~${NAS_SIZE_GB}GB exceeds 450GB! Manual pruning required via NAS web UI."
+                    NAS_STATUS="NAS: ${NAS_SIZE_GB}GB / 500GB CRITICAL"
+                    OVERALL_OK=false
                   elif [ "$NAS_SIZE_GB" -gt 400 ]; then
                     echo "WARNING: NAS backup size ~${NAS_SIZE_GB}GB exceeds 400GB. Consider pruning old backups via NAS web UI."
+                    NAS_STATUS="NAS: ${NAS_SIZE_GB}GB / 500GB WARNING"
                   fi
+
+                  # Step 7: Send Telegram report
+                  echo ""
+                  echo "=== Step 7: Sending Telegram report ==="
+
+                  # Build Telegram message from report file
+                  MSG_FILE="/tmp/telegram-msg.txt"
+                  if [ "$OVERALL_OK" = true ]; then
+                    printf "✅ <b>Backup Validation Passed</b> (%s)\n\n" "$TODAY" > "$MSG_FILE"
+                  else
+                    printf "❌ <b>Backup Validation FAILED</b> (%s)\n\n" "$TODAY" > "$MSG_FILE"
+                  fi
+
+                  while IFS='|' read -r status label details; do
+                    if [ "$status" = "OK" ]; then
+                      printf "✅ <b>%s</b>: %s\n" "$label" "$details" >> "$MSG_FILE"
+                    else
+                      printf "❌ <b>%s</b>: %s\n" "$label" "$details" >> "$MSG_FILE"
+                    fi
+                  done < "$REPORT_FILE"
+
+                  printf "\n<b>%s</b>\nReplication: NAS + worker-node-2 OK" "$NAS_STATUS" >> "$MSG_FILE"
+
+                  cat "$MSG_FILE"
+                  MSG_TEXT=$(cat "$MSG_FILE")
+                  curl -s -X POST \
+                    "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                    -d chat_id="${TELEGRAM_CHAT_ID}" \
+                    -d parse_mode=HTML \
+                    --data-urlencode "text=${MSG_TEXT}" \
+                    -o /dev/null -w "Telegram HTTP %{http_code}\n"
 
                   echo ""
                   echo "=== Backup Replication Completed: $(date) ==="
