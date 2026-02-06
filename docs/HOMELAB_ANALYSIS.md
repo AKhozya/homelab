@@ -67,7 +67,7 @@
   - **HSTS Complete**: ✅ Step 3 deployed 2026-01-09 (max-age=1 year)
 
 **Critical Gaps (from 2025-10-27 Comprehensive Review)** 🔴
-- ✅ **Backup replication to NAS + worker-node-2** (P0-CRITICAL) - COMPLETED (2026-02-06) - rsync CronJob at 4AM daily
+- ✅ **Backup replication to NAS + worker-node-2** (P0-CRITICAL) - COMPLETED (2026-02-06) - rsync CronJob at 3:30 AM daily
 - ✅ **PostgreSQL NetworkPolicy** (P0-CRITICAL) - COMPLETED (2025-10-27)
 - ✅ **Duplicate cert-manager ClusterIssuers** (P0-CRITICAL) - COMPLETED (2025-10-27)
 - ❌ **CNPG WAL archiving** (P0-CRITICAL) - REMOVED (Not Implementing - pg_dump acceptable)
@@ -986,6 +986,20 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-02-06 (Automated Backup Validation) 💾
+- ✅ **Automated Backup Validation**: Daily integrity checks integrated into replication CronJob ⭐
+  - **Checks**: SHA256 checksum, tar integrity, minimum size thresholds, file age (<25h)
+  - **Thresholds**: PostgreSQL >1MB, CouchDB >100KB, MySQL >10KB, PVC >100KB
+  - **Telegram**: Failure-only notifications (silent on success)
+  - **Replication trap**: Sends Telegram alert with failed step name if rsync fails
+  - **Flow**: Sync NAS → Sync worker-2 → Verify NAS → Validate backups → Clean source → Check NAS storage
+  - **Tested**: Corrupted backup (SHA256/tar/size FAIL), missing backup (MISSING), NAS unreachable (trap)
+  - **Files**: `infrastructure/configs/staging/backup-replication/` (cronjob.yaml, backup-telegram-secret.yaml)
+- ✅ **Score Update**: Overall 94→96/100 (A+), Backup/DR 95→98/100
+  - P1 "Automated Backup Validation" completed (was last remaining P1)
+  - 0 P0, 0 P1 active issues
+- 📋 **Commits**: 7c3235e (validation + telegram), 6326b3b (failure trap), b1280e8 (failure-only notifications)
 
 ### 2026-01-09 (Comprehensive Review + HSTS Final) 🔍
 - ✅ **Comprehensive Homelab Review Complete**: Staff DevOps/SRE + Software Developer perspective ⭐
