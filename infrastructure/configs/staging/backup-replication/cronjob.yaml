@@ -223,10 +223,10 @@ spec:
                     fi
                   }
 
-                  # Validate each backup type (min sizes: postgres >1MB, couchdb >100KB, mysql >10KB, pvc >100KB)
+                  # Validate each backup type (min sizes: postgres >1MB, couchdb/mysql/pvc >100KB)
                   validate_backup "postgres" 1048576 "PostgreSQL" || true
                   validate_backup "couchdb" 102400 "CouchDB" || true
-                  validate_backup "mysql" 10240 "MySQL" || true
+                  validate_backup "mysql" 102400 "MySQL" || true
                   validate_backup "pvc" 102400 "PVC" || true
 
                   # Step 5: Clean source on worker-node (data is on NAS + worker-node-2)

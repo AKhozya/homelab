@@ -283,7 +283,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
    - Daily automated validation: SHA256 checksum, tar integrity, size thresholds, age checks
    - Telegram daily report with per-backup status (pass/fail per type)
    - Integrated into backup-replication CronJob (Step 4, before source cleanup)
-   - Checks: PostgreSQL >1MB, CouchDB >100KB, MySQL >10KB, PVC >100KB, age <25h
+   - Checks: PostgreSQL >1MB, CouchDB >100KB, MySQL >100KB, PVC >100KB, age <25h
 
 #### ✅ **Kyverno Phase 3: Resource Limits** - COMPLETED (2025-12-18)
    - **0 violations** as of 2025-12-18 (was 22 on 2025-12-17)
@@ -990,7 +990,7 @@ ingress:
 ### 2026-02-06 (Automated Backup Validation) 💾
 - ✅ **Automated Backup Validation**: Daily integrity checks integrated into replication CronJob ⭐
   - **Checks**: SHA256 checksum, tar integrity, minimum size thresholds, file age (<25h)
-  - **Thresholds**: PostgreSQL >1MB, CouchDB >100KB, MySQL >10KB, PVC >100KB
+  - **Thresholds**: PostgreSQL >1MB, CouchDB >100KB, MySQL >100KB, PVC >100KB
   - **Telegram**: Failure-only notifications (silent on success)
   - **Replication trap**: Sends Telegram alert with failed step name if rsync fails
   - **Flow**: Sync NAS → Sync worker-2 → Verify NAS → Validate backups → Clean source → Check NAS storage
