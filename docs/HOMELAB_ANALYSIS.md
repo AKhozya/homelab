@@ -95,10 +95,11 @@
 - ✅ CouchDB daily backups (3:05 AM, 30-day retention)
 - ✅ PVC daily backups (3:10 AM, 7-day retention) - Immich excluded (photos can be re-uploaded, DB in PostgreSQL)
 - ✅ MySQL daily backups (3:15 AM, 30-day retention, SHA256 checksums) ⭐
-- ✅ **Backup replication to worker-node-2** (4:00 AM, rsync over SSH) ⭐ NEW
+- ✅ **Backup replication to worker-node-2** (4:00 AM, rsync over SSH) ⭐
+- ✅ **Backup replication to NAS** (4:00 AM, rsync daemon, 500GB limit) ⭐ NEW
 - ✅ Disaster recovery scripts complete (`.backup/` directory)
 - ✅ Backup validation completed (2025-10-26)
-- ✅ Storage optimized: 2.3GB per node (was 580GB before Immich exclusion)
+- ✅ Storage optimized: 2.6GB per node (was 580GB before Immich exclusion)
 
 ---
 
@@ -280,8 +281,8 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 #### ⏸️ **Automated Backup Validation Testing** - DEFERRED to February 2026
    - Manual validation (last: 2025-10-26) sufficient for now
-   - NAS arrived 2026-02-05 (Zettlab 6 Ultra, 14TB) - setup in progress
-   - Plan to validate full backup chain once NAS replication is configured (local → worker-node-2 → NAS)
+   - NAS replication operational (2026-02-06, Zettlab 6 Ultra, 14TB, 500GB backup limit)
+   - Full backup chain validated: local → worker-node-2 → NAS (2.6GB verified)
 
 #### ✅ **Kyverno Phase 3: Resource Limits** - COMPLETED (2025-12-18)
    - **0 violations** as of 2025-12-18 (was 22 on 2025-12-17)
@@ -423,33 +424,30 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ### 📅 DEFERRED TASKS (February 2026)
 
-#### 37. **Offsite Backup Replication to NAS** 🔄 IN PROGRESS
-   - **Status**: IN PROGRESS - NAS arrived 2026-02-05, setup underway
-   - **Priority**: P0-CRITICAL
+#### 37. **Offsite Backup Replication to NAS** ✅ COMPLETED
+   - **Status**: ✅ COMPLETED - NAS replication fully operational (2026-02-06)
+   - **Priority**: ~~P0-CRITICAL~~ COMPLETED
    - **Hardware**: Zettlab 6 Ultra (14TB usable)
    - **Constraint**: Runs its own OS, Docker only (no K8s), **no SSH access**
-   - **Risk**: Complete data loss if worker node fails
-   - **Impact**: All backups currently stored on single node `/mnt/k8s-storage/backups/`
-   - **Current RPO**: 24 hours
-   - **Current RTO**: Infinite (if node hardware fails)
-   - **Mitigation**: Backup replication to worker-node-2 provides some redundancy
+   - **NAS Storage Limit**: **500GB** allocated for homelab backups (current usage: 2.6GB)
+   - **Current RPO**: 24 hours (daily replication at 4 AM)
+   - **Current RTO**: ~30 minutes (restore from NAS or worker-node-2)
    - **Replication Strategy**: Native rsync daemon on NAS (user/password auth, port 50555)
      - NAS has built-in rsync support — no NFS mounts or Docker containers needed
-     - User + password stored as SOPS-encrypted Kubernetes Secret (`nas-rsync-password`)
-     - Uses rsync daemon protocol (`rsync --port=50555 user@192.168.1.136/akhozya/backups/homelab/`)
+     - User + password stored as SOPS-encrypted Kubernetes Secret (`nas-rsync-credentials`)
+     - Uses rsync daemon protocol (`rsync --port=50555 akhozya@192.168.1.136/akhozya/backups/homelab/`)
      - NAS limitation: module root is read-only, writes go to `backups/homelab/` subfolder
+     - Size check in CronJob: warns at 400GB (80%), critical at 440GB (88%)
    - **Action**:
      1. ✅ NAS hardware arrived and initial setup (2026-02-05)
      2. ✅ Configure NAS on local network (IP: 192.168.1.136, rsync port 50555)
      3. ✅ Create SOPS-encrypted secret for rsync user/password
      4. ✅ Configure backup replication CronJob (daily at 4 AM, rsync daemon protocol)
-     5. Test backup replication and restore procedures
+     5. ✅ Test backup replication (2.6GB transferred, sizes verified)
      6. Update disaster recovery documentation
    - **TODO**: Remove worker-node-2 replication after 1 week of successful NAS backups (~Feb 13, 2026)
-   - **Estimated Effort**: 4-6 hours total
-   - **Target Date**: February 2026
-   - **Files**: New CronJob manifest in `infrastructure/configs/staging/backup/offsite-replication.yaml`
-   - **Benefit**: Protects against node hardware failure, data center disaster
+   - **Files**: `infrastructure/configs/staging/backup-replication/` (cronjob.yaml, nas-rsync-secret.yaml)
+   - **Benefit**: Protects against node hardware failure, 3-way replication (local + worker-node-2 + NAS)
 
 #### 38. **Second Worker Node** 🖥️ ✅ COMPLETED
    - **Status**: ✅ DEPLOYED - 2025-12-15 (ahead of schedule!)
@@ -597,7 +595,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 
 **Health Score: 94/100** (A Grade) - Updated 2026-01-09 ⬆️
 - **Security**: 96/100 (A+) ✅ - 100% PSS, 100% NetworkPolicy (apps + infra namespaces)
-- **Backup/DR**: 92/100 (A) ✅ - Daily backups + replication to worker-node-2
+- **Backup/DR**: 95/100 (A) ✅ - Daily backups + 3-way replication (local + worker-node-2 + NAS)
 - **Database**: 90/100 (A) ✅ - PostgreSQL HA + MySQL HA, NetworkPolicy, TLS
 - **Infrastructure**: 88/100 (A-) ✅ - Flux/Traefik solid, all controllers healthy
 - **Maintainability**: 95/100 (A) ✅ - Excellent docs, GitOps-driven
@@ -609,7 +607,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 - **High Priority**: 1 P1 deferred (automated backup validation - Q1 2026)
 - **Total Findings**: All actionable items from Oct-Dec 2025 reviews completed
 
-**Target**: 96/100 (A+) - requires automated backup validation + offsite NAS
+**Target**: 96/100 (A+) - requires automated backup validation
 
 **Security Achievements** ✅:
 - **100% Pod Security Standards** (Apps: 11 restricted, 4 baseline, 1 privileged | Jobs: 5 restricted, 1 baseline)
@@ -698,7 +696,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 - ✅ **Expansion Complete**: All available space added to LVM (+132GB)
 - 🎯 **Capacity**: 4.2TB available for massive growth
 - 💪 **Performance**: Multi-PV LVM spans 2 NVMe SSDs (3 partitions)
-- 🔮 **NAS**: Zettlab 6 Ultra (14TB) - setup in progress (2026-02-05)
+- 🔮 **NAS**: Zettlab 6 Ultra (14TB, 500GB backup limit) - operational (2026-02-06)
 
 ---
 

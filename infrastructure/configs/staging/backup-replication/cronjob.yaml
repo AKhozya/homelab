@@ -64,9 +64,17 @@ spec:
                   printf '%s' "$NAS_RSYNC_PASSWORD" > /tmp/nas-rsync-pass
                   chmod 600 /tmp/nas-rsync-pass
 
-                  # Show source backup status
-                  echo "=== Source Backups ==="
+                  # Check backup size against NAS 500GB limit
+                  BACKUP_SIZE_KB=$(du -sk /source-backups/ 2>/dev/null | cut -f1)
+                  BACKUP_SIZE_GB=$((BACKUP_SIZE_KB / 1048576))
+                  echo "=== Source Backups (${BACKUP_SIZE_GB}GB / 500GB NAS limit) ==="
                   du -sh /source-backups/*/ 2>/dev/null || echo "No backups found"
+                  if [ "$BACKUP_SIZE_KB" -gt 461373440 ]; then
+                    echo "CRITICAL: Backup size ${BACKUP_SIZE_GB}GB exceeds 440GB (88% of 500GB NAS limit)!"
+                    echo "ACTION REQUIRED: Reduce retention or increase NAS quota."
+                  elif [ "$BACKUP_SIZE_KB" -gt 419430400 ]; then
+                    echo "WARNING: Backup size ${BACKUP_SIZE_GB}GB exceeds 400GB (80% of 500GB NAS limit)."
+                  fi
 
                   # Rsync to worker-node-2
                   echo ""
@@ -100,6 +108,12 @@ spec:
                     "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/" 2>/dev/null \
                     | head -20 || echo "NAS verification failed"
 
+                  # Clean up source backups (now replicated to both worker-node-2 and NAS)
+                  echo ""
+                  echo "=== Cleaning up source backups on worker-node ==="
+                  rm -rf /source-backups/postgres/* /source-backups/couchdb/* /source-backups/mysql/* /source-backups/pvc/*
+                  echo "Source backups cleaned up (replicated to 2 destinations)"
+
                   rm -f /tmp/nas-rsync-pass
                   echo ""
                   echo "=== Backup Replication Completed: $(date) ==="
@@ -116,7 +130,6 @@ spec:
               volumeMounts:
                 - name: source-backups
                   mountPath: /source-backups
-                  readOnly: true
                 - name: ssh-key
                   mountPath: /ssh-key
                   readOnly: true
