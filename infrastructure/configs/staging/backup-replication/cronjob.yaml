@@ -37,12 +37,12 @@ spec:
                 - name: NAS_RSYNC_USER
                   valueFrom:
                     secretKeyRef:
-                      name: nas-rsync-password
+                      name: nas-rsync-credentials
                       key: rsync-user
                 - name: NAS_RSYNC_PASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: nas-rsync-password
+                      name: nas-rsync-credentials
                       key: rsync-password
               command:
                 - /bin/sh
