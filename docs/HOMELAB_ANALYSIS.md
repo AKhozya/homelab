@@ -67,7 +67,7 @@
   - **HSTS Complete**: ✅ Step 3 deployed 2026-01-09 (max-age=1 year)
 
 **Critical Gaps (from 2025-10-27 Comprehensive Review)** 🔴
-- ✅ **Backup replication to worker-node-2** (P0-CRITICAL) - COMPLETED (2025-12-18) - rsync CronJob at 4AM daily
+- ✅ **Backup replication to NAS + worker-node-2** (P0-CRITICAL) - COMPLETED (2026-02-06) - rsync CronJob at 4AM daily
 - ✅ **PostgreSQL NetworkPolicy** (P0-CRITICAL) - COMPLETED (2025-10-27)
 - ✅ **Duplicate cert-manager ClusterIssuers** (P0-CRITICAL) - COMPLETED (2025-10-27)
 - ❌ **CNPG WAL archiving** (P0-CRITICAL) - REMOVED (Not Implementing - pg_dump acceptable)
@@ -95,8 +95,8 @@
 - ✅ CouchDB daily backups (3:05 AM, 30-day retention)
 - ✅ PVC daily backups (3:10 AM, 7-day retention) - Immich excluded (photos can be re-uploaded, DB in PostgreSQL)
 - ✅ MySQL daily backups (3:15 AM, 30-day retention, SHA256 checksums) ⭐
-- ✅ **Backup replication to worker-node-2** (4:00 AM, rsync over SSH) ⭐
-- ✅ **Backup replication to NAS** (4:00 AM, rsync daemon, 500GB limit) ⭐ NEW
+- ✅ **Backup replication to NAS** (4:00 AM, rsync daemon, NAS accumulates full history, 500GB limit) ⭐
+- ✅ **Backup replication to worker-node-2** (4:00 AM, rsync over SSH, today's backup only, temporary safety net) ⭐
 - ✅ Disaster recovery scripts complete (`.backup/` directory)
 - ✅ Backup validation completed (2025-10-26)
 - ✅ Storage optimized: 2.6GB per node (was 580GB before Immich exclusion)
@@ -449,7 +449,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      6. Update disaster recovery documentation
    - **TODO**: Remove worker-node-2 replication after 1 week of successful NAS backups (~Feb 13, 2026)
    - **Files**: `infrastructure/configs/staging/backup-replication/` (cronjob.yaml, nas-rsync-secret.yaml)
-   - **Benefit**: Protects against node hardware failure, 3-way replication (local + worker-node-2 + NAS)
+   - **Benefit**: Protects against node hardware failure (NAS = full history, worker-node-2 = today's safety net)
 
 #### 38. **Second Worker Node** 🖥️ ✅ COMPLETED
    - **Status**: ✅ DEPLOYED - 2025-12-15 (ahead of schedule!)
@@ -597,7 +597,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 
 **Health Score: 94/100** (A Grade) - Updated 2026-01-09 ⬆️
 - **Security**: 96/100 (A+) ✅ - 100% PSS, 100% NetworkPolicy (apps + infra namespaces)
-- **Backup/DR**: 95/100 (A) ✅ - Daily backups + 3-way replication (local + worker-node-2 + NAS)
+- **Backup/DR**: 95/100 (A) ✅ - Daily backups + replication (NAS full history + worker-node-2 safety net)
 - **Database**: 90/100 (A) ✅ - PostgreSQL HA + MySQL HA, NetworkPolicy, TLS
 - **Infrastructure**: 88/100 (A-) ✅ - Flux/Traefik solid, all controllers healthy
 - **Maintainability**: 95/100 (A) ✅ - Excellent docs, GitOps-driven
@@ -621,7 +621,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 - **Popeye Weekly Health Scan** (Sunday 6 AM) ⬆️
 
 **Resolved Critical Gaps** ✅:
-- ✅ Backup replication to worker-node-2 (completed 2025-12-18)
+- ✅ Backup replication to NAS + worker-node-2 (completed 2026-02-06)
 - ✅ PostgreSQL NetworkPolicy (completed 2025-10-27)
 - ✅ Duplicate cert-manager ClusterIssuers (completed 2025-10-27)
 - ✅ All infrastructure NetworkPolicies (completed 2026-01-09)
