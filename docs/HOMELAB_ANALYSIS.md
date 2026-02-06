@@ -432,13 +432,14 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
    - **NAS Storage Limit**: **500GB** allocated for homelab backups (current usage: 2.6GB)
    - **Current RPO**: 24 hours (daily replication at 4 AM)
    - **Current RTO**: ~30 minutes (restore from NAS or worker-node-2)
-   - **Replication Strategy**: Native rsync daemon on NAS (user/password auth, port 50555)
-     - NAS has built-in rsync support — no NFS mounts or Docker containers needed
-     - User + password stored as SOPS-encrypted Kubernetes Secret (`nas-rsync-credentials`)
-     - Uses rsync daemon protocol (`rsync --port=50555 akhozya@192.168.1.136/akhozya/backups/homelab/`)
+   - **Replication Strategy**: Worker-node-2 is backup accumulator, NAS mirrors it
+     - Worker-1: creates backups → syncs to worker-2 → cleaned after replication
+     - Worker-2: accumulates all backup history (863GB available), pruned at 500GB
+     - NAS: mirrors worker-2 via `rsync --delete` (always consistent)
+     - NAS connection: rsync daemon protocol, port 50555, SOPS secret (`nas-rsync-credentials`)
      - NAS limitation: module root is read-only, writes go to `backups/homelab/` subfolder
-     - Auto-pruning: oldest backups deleted when >370GB (74%), rsync --delete propagates to all destinations
-     - Warnings: 400GB (80%) warning, 440GB (88%) critical - last-resort alerts after pruning
+     - **500GB hard limit**: auto-prunes oldest backups on worker-2 when exceeded
+     - **Alerts**: 400GB warning, 450GB critical (in job logs)
    - **Action**:
      1. ✅ NAS hardware arrived and initial setup (2026-02-05)
      2. ✅ Configure NAS on local network (IP: 192.168.1.136, rsync port 50555)
