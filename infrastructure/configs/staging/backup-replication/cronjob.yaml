@@ -59,9 +59,29 @@ spec:
                 - -c
                 - |
                   set -e
+                  CURRENT_STEP="init"
+
+                  # Send Telegram failure notification on unexpected exit
+                  send_failure() {
+                    if [ -n "$TELEGRAM_BOT_TOKEN" ] && command -v curl >/dev/null 2>&1; then
+                      MSG="❌ <b>Backup Replication FAILED</b> ($(date +%Y-%m-%d))
+
+                  Failed at: <b>${CURRENT_STEP}</b>
+                  Source backups preserved (not cleaned)."
+                      curl -s -X POST \
+                        "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                        -d chat_id="${TELEGRAM_CHAT_ID}" \
+                        -d parse_mode=HTML \
+                        --data-urlencode "text=${MSG}" \
+                        -o /dev/null 2>/dev/null || true
+                    fi
+                  }
+                  trap send_failure EXIT
+
                   echo "=== Backup Replication Started: $(date) ==="
 
                   # Install rsync, openssh, and curl
+                  CURRENT_STEP="Installing dependencies"
                   apk add --no-cache rsync openssh-client curl
 
                   # Setup SSH for worker-node-2
@@ -75,6 +95,7 @@ spec:
                   du -sh /source-backups/*/ 2>/dev/null || echo "No backups found"
 
                   # Step 1: Sync to NAS (no --delete, NAS accumulates full history)
+                  CURRENT_STEP="Step 1: Syncing to NAS"
                   echo ""
                   echo "=== Step 1: Syncing to NAS ==="
                   RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync -avz \
@@ -86,6 +107,7 @@ spec:
 
                   # Step 2: Sync to worker-node-2 (--delete, keeps only current backup as safety net)
                   # TODO: Remove worker-node-2 step after 1 week of successful NAS backups (~Feb 13, 2026)
+                  CURRENT_STEP="Step 2: Syncing to worker-node-2"
                   echo ""
                   echo "=== Step 2: Syncing to worker-node-2 (safety net) ==="
                   rsync -avz --delete \
@@ -96,6 +118,7 @@ spec:
                     z3us@192.168.1.126:/mnt/extra-storage/backups/
 
                   # Step 3: Verify NAS
+                  CURRENT_STEP="Step 3: Verifying NAS"
                   echo ""
                   echo "=== Step 3: Verifying NAS ==="
                   RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
@@ -260,6 +283,9 @@ spec:
                     -d parse_mode=HTML \
                     --data-urlencode "text=${MSG_TEXT}" \
                     -o /dev/null -w "Telegram HTTP %{http_code}\n"
+
+                  # Clear failure trap on success (Telegram report already sent above)
+                  trap - EXIT
 
                   echo ""
                   echo "=== Backup Replication Completed: $(date) ==="
