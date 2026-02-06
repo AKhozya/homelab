@@ -280,8 +280,8 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 #### ⏸️ **Automated Backup Validation Testing** - DEFERRED to February 2026
    - Manual validation (last: 2025-10-26) sufficient for now
-   - Plan to implement alongside NAS setup in February 2026
-   - Makes sense to validate full backup chain (local → worker-node-2 → NAS)
+   - NAS arrived 2026-02-05 (Zettlab 6 Ultra, 14TB) - setup in progress
+   - Plan to validate full backup chain once NAS replication is configured (local → worker-node-2 → NAS)
 
 #### ✅ **Kyverno Phase 3: Resource Limits** - COMPLETED (2025-12-18)
    - **0 violations** as of 2025-12-18 (was 22 on 2025-12-17)
@@ -423,28 +423,33 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ### 📅 DEFERRED TASKS (February 2026)
 
-#### 37. **Offsite Backup Replication to NAS** ⏸️ BLOCKED
-   - **Status**: BLOCKED - Waiting for 24TB NAS hardware arrival (~February 25, 2026)
-   - **Priority**: P0-CRITICAL (deferred until NAS available)
+#### 37. **Offsite Backup Replication to NAS** 🔄 IN PROGRESS
+   - **Status**: IN PROGRESS - NAS arrived 2026-02-05, setup underway
+   - **Priority**: P0-CRITICAL
+   - **Hardware**: Zettlab 6 Ultra (14TB usable)
+   - **Constraint**: Runs its own OS, Docker only (no K8s), **no SSH access**
    - **Risk**: Complete data loss if worker node fails
    - **Impact**: All backups currently stored on single node `/mnt/k8s-storage/backups/`
    - **Current RPO**: 24 hours
    - **Current RTO**: Infinite (if node hardware fails)
    - **Mitigation**: Backup replication to worker-node-2 provides some redundancy
+   - **Replication Strategy**: Native rsync daemon on NAS (user/password auth, port 50555)
+     - NAS has built-in rsync support — no NFS mounts or Docker containers needed
+     - User + password stored as SOPS-encrypted Kubernetes Secret (`nas-rsync-password`)
+     - Uses rsync daemon protocol (`rsync --port=50555 user@192.168.1.136/akhozya/backups/homelab/`)
+     - NAS limitation: module root is read-only, writes go to `backups/homelab/` subfolder
    - **Action**:
-     1. Set up 24TB NAS on local network
-     2. Configure rsync CronJob (daily at 4 AM, 1h after local backups)
-     3. Test backup replication and restore procedures
-     4. Update disaster recovery documentation
+     1. ✅ NAS hardware arrived and initial setup (2026-02-05)
+     2. ✅ Configure NAS on local network (IP: 192.168.1.136, rsync port 50555)
+     3. ✅ Create SOPS-encrypted secret for rsync user/password
+     4. ✅ Configure backup replication CronJob (daily at 4 AM, rsync daemon protocol)
+     5. Test backup replication and restore procedures
+     6. Update disaster recovery documentation
+   - **TODO**: Remove worker-node-2 replication after 1 week of successful NAS backups (~Feb 13, 2026)
    - **Estimated Effort**: 4-6 hours total
-     - NAS setup: 2 hours
-     - rsync CronJob configuration: 1 hour
-     - Testing: 1-2 hours
-     - Documentation: 1 hour
-   - **Target Date**: ~February 25, 2026 (upon NAS arrival)
+   - **Target Date**: February 2026
    - **Files**: New CronJob manifest in `infrastructure/configs/staging/backup/offsite-replication.yaml`
    - **Benefit**: Protects against node hardware failure, data center disaster
-   - **Note**: DO NOT NAG UNTIL LATE FEBRUARY 2026
 
 #### 38. **Second Worker Node** 🖥️ ✅ COMPLETED
    - **Status**: ✅ DEPLOYED - 2025-12-15 (ahead of schedule!)
@@ -693,7 +698,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 - ✅ **Expansion Complete**: All available space added to LVM (+132GB)
 - 🎯 **Capacity**: 4.2TB available for massive growth
 - 💪 **Performance**: Multi-PV LVM spans 2 NVMe SSDs (3 partitions)
-- 🔮 **Future**: 24TB NAS planned for backups
+- 🔮 **NAS**: Zettlab 6 Ultra (14TB) - setup in progress (2026-02-05)
 
 ---
 

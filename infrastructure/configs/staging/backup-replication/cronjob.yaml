@@ -33,6 +33,17 @@ spec:
           containers:
             - name: rsync
               image: alpine:3.23
+              env:
+                - name: NAS_RSYNC_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: nas-rsync-password
+                      key: rsync-user
+                - name: NAS_RSYNC_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: nas-rsync-password
+                      key: rsync-password
               command:
                 - /bin/sh
                 - -c
@@ -43,13 +54,15 @@ spec:
                   # Install rsync and openssh
                   apk add --no-cache rsync openssh-client
 
-                  # Setup SSH
+                  # Setup SSH for worker-node-2
                   mkdir -p ~/.ssh
                   cp /ssh-key/ssh-private-key ~/.ssh/id_ed25519
                   chmod 600 ~/.ssh/id_ed25519
-
-                  # Add host key to known_hosts (port 65300)
                   ssh-keyscan -p 65300 192.168.1.126 >> ~/.ssh/known_hosts 2>/dev/null
+
+                  # Setup NAS rsync password file
+                  printf '%s' "$NAS_RSYNC_PASSWORD" > /tmp/nas-rsync-pass
+                  chmod 600 /tmp/nas-rsync-pass
 
                   # Show source backup status
                   echo "=== Source Backups ==="
@@ -66,9 +79,28 @@ spec:
                     z3us@192.168.1.126:/mnt/extra-storage/backups/
 
                   echo ""
-                  echo "=== Verifying destination ==="
+                  echo "=== Verifying worker-node-2 ==="
                   ssh -p 65300 z3us@192.168.1.126 "du -sh /mnt/extra-storage/backups/*/ 2>/dev/null || echo 'Verification failed'"
 
+                  # Rsync to NAS (Zettlab 6 Ultra)
+                  # TODO: Remove worker-node-2 replication after 1 week of successful NAS backups (~Feb 13, 2026)
+                  echo ""
+                  echo "=== Starting rsync to NAS ==="
+                  rsync -avz --delete \
+                    --exclude='*.tmp' \
+                    --exclude='.*.swp' \
+                    --port=50555 \
+                    --password-file=/tmp/nas-rsync-pass \
+                    /source-backups/ \
+                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/"
+
+                  echo ""
+                  echo "=== Verifying NAS ==="
+                  RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
+                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/" 2>/dev/null \
+                    | head -20 || echo "NAS verification failed"
+
+                  rm -f /tmp/nas-rsync-pass
                   echo ""
                   echo "=== Backup Replication Completed: $(date) ==="
               securityContext:
