@@ -432,13 +432,13 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
    - **NAS Storage Limit**: **500GB** allocated for homelab backups (current usage: 2.6GB)
    - **Current RPO**: 24 hours (daily replication at 4 AM)
    - **Current RTO**: ~30 minutes (restore from NAS or worker-node-2)
-   - **Replication Strategy**: Worker-node-2 is backup accumulator, NAS mirrors it
-     - Worker-1: creates backups → syncs to worker-2 → cleaned after replication
-     - Worker-2: accumulates all backup history (863GB available), pruned at 500GB
-     - NAS: mirrors worker-2 via `rsync --delete` (always consistent)
+   - **Replication Strategy**: NAS is primary backup store, worker-node-2 is temporary safety net
+     - Worker-1: creates backups → syncs to NAS + worker-2 → cleaned after replication
+     - NAS: accumulates full backup history (no `--delete`, ~190 days at 2.6GB/day)
+     - Worker-2: mirrors source with `--delete` (today's backup only, temporary until ~Feb 13, 2026)
      - NAS connection: rsync daemon protocol, port 50555, SOPS secret (`nas-rsync-credentials`)
      - NAS limitation: module root is read-only, writes go to `backups/homelab/` subfolder
-     - **500GB hard limit**: auto-prunes oldest backups on worker-2 when exceeded
+     - **500GB hard limit**: NAS storage allocation, manual pruning via NAS web UI when needed
      - **Alerts**: 400GB warning, 450GB critical (in job logs)
    - **Action**:
      1. ✅ NAS hardware arrived and initial setup (2026-02-05)

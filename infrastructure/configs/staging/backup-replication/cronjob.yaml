@@ -60,79 +60,57 @@ spec:
                   chmod 600 ~/.ssh/id_ed25519
                   ssh-keyscan -p 65300 192.168.1.126 >> ~/.ssh/known_hosts 2>/dev/null
 
-                  SSH_CMD="ssh -p 65300 -o StrictHostKeyChecking=no z3us@192.168.1.126"
-
                   # Show source backup status
                   echo "=== Source Backups ==="
                   du -sh /source-backups/*/ 2>/dev/null || echo "No backups found"
 
-                  # Step 1: Sync to worker-node-2 (no --delete, accumulate history)
+                  # Step 1: Sync to NAS (no --delete, NAS accumulates full history)
                   echo ""
-                  echo "=== Step 1: Syncing to worker-node-2 ==="
-                  rsync -avz \
+                  echo "=== Step 1: Syncing to NAS ==="
+                  RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync -avz \
+                    --exclude='*.tmp' \
+                    --exclude='.*.swp' \
+                    --port=50555 \
+                    /source-backups/ \
+                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/"
+
+                  # Step 2: Sync to worker-node-2 (--delete, keeps only current backup as safety net)
+                  # TODO: Remove worker-node-2 step after 1 week of successful NAS backups (~Feb 13, 2026)
+                  echo ""
+                  echo "=== Step 2: Syncing to worker-node-2 (safety net) ==="
+                  rsync -avz --delete \
                     --exclude='*.tmp' \
                     --exclude='.*.swp' \
                     -e "ssh -p 65300 -o StrictHostKeyChecking=no" \
                     /source-backups/ \
                     z3us@192.168.1.126:/mnt/extra-storage/backups/
 
-                  # Step 2: Prune worker-node-2 if approaching 500GB NAS hard limit
-                  # Worker-node-2 is the backup accumulator; NAS mirrors it
+                  # Step 3: Verify NAS
                   echo ""
-                  echo "=== Step 2: Checking backup size / pruning ==="
-                  $SSH_CMD bash -s << 'PRUNE_SCRIPT'
-                  BACKUP_DIR="/mnt/extra-storage/backups"
-                  HARD_LIMIT_KB=524288000
-                  WARN_KB=419430400
-                  CRIT_KB=471859200
-                  TOTAL_KB=$(du -sk "$BACKUP_DIR" 2>/dev/null | cut -f1)
-                  TOTAL_GB=$((TOTAL_KB / 1048576))
-                  echo "Backup size: ${TOTAL_GB}GB / 500GB NAS limit"
-                  du -sh "$BACKUP_DIR"/*/ 2>/dev/null
-
-                  while [ "$TOTAL_KB" -gt "$HARD_LIMIT_KB" ]; do
-                    OLDEST_DATE=$(find "$BACKUP_DIR" -maxdepth 2 \( -type d -o -type f \) -name '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_*' 2>/dev/null | sed 's/.*\///' | grep -oE '^[0-9]{8}' | sort -u | head -1)
-                    if [ -z "$OLDEST_DATE" ]; then
-                      echo "ERROR: No more backups to prune but still over 500GB!"
-                      break
-                    fi
-                    echo "Pruning backups from: $OLDEST_DATE"
-                    find "$BACKUP_DIR" -maxdepth 2 -mindepth 2 -type d -name "${OLDEST_DATE}_*" -exec rm -rf {} + 2>/dev/null
-                    find "$BACKUP_DIR" -maxdepth 2 -type f -name "*_${OLDEST_DATE}_*" -delete 2>/dev/null
-                    TOTAL_KB=$(du -sk "$BACKUP_DIR" 2>/dev/null | cut -f1)
-                    TOTAL_GB=$((TOTAL_KB / 1048576))
-                    echo "After pruning: ${TOTAL_GB}GB"
-                  done
-
-                  if [ "$TOTAL_KB" -gt "$CRIT_KB" ]; then
-                    echo "CRITICAL: Backup size ${TOTAL_GB}GB exceeds 450GB!"
-                  elif [ "$TOTAL_KB" -gt "$WARN_KB" ]; then
-                    echo "WARNING: Backup size ${TOTAL_GB}GB exceeds 400GB."
-                  fi
-                  PRUNE_SCRIPT
-
-                  # Step 3: Sync worker-node-2 → NAS (with --delete, NAS mirrors pruned worker-node-2)
-                  # TODO: Remove worker-node-2 step after 1 week of successful NAS backups (~Feb 13, 2026)
-                  echo ""
-                  echo "=== Step 3: Syncing worker-node-2 → NAS ==="
-                  $SSH_CMD "RSYNC_PASSWORD='$NAS_RSYNC_PASSWORD' rsync -avz --delete \
-                    --exclude='*.tmp' --exclude='.*.swp' \
-                    --port=50555 \
-                    /mnt/extra-storage/backups/ \
-                    'rsync://$NAS_RSYNC_USER@192.168.1.136/akhozya/backups/homelab/'"
-
-                  # Step 4: Verify NAS
-                  echo ""
-                  echo "=== Step 4: Verifying NAS ==="
+                  echo "=== Step 3: Verifying NAS ==="
                   RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
                     "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/" 2>/dev/null \
                     | head -20 || echo "NAS verification failed"
 
-                  # Step 5: Clean source on worker-node (data is on worker-node-2 + NAS)
+                  # Step 4: Clean source on worker-node (data is on NAS + worker-node-2)
                   echo ""
-                  echo "=== Step 5: Cleaning source backups ==="
+                  echo "=== Step 4: Cleaning source backups ==="
                   rm -rf /source-backups/postgres/* /source-backups/couchdb/* /source-backups/mysql/* /source-backups/pvc/*
-                  echo "Source cleaned (data on worker-node-2 + NAS)"
+                  echo "Source cleaned (data on NAS + worker-node-2)"
+
+                  # Step 5: Check NAS storage usage (500GB hard limit)
+                  echo ""
+                  echo "=== Step 5: Checking NAS storage ==="
+                  NAS_SIZE_GB=$(RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
+                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/" 2>/dev/null \
+                    | awk '/^-/{sum+=$2} END{printf "%d", sum/1073741824}')
+                  echo "NAS backup size: ~${NAS_SIZE_GB}GB / 500GB limit"
+
+                  if [ "$NAS_SIZE_GB" -gt 450 ]; then
+                    echo "CRITICAL: NAS backup size ~${NAS_SIZE_GB}GB exceeds 450GB! Manual pruning required via NAS web UI."
+                  elif [ "$NAS_SIZE_GB" -gt 400 ]; then
+                    echo "WARNING: NAS backup size ~${NAS_SIZE_GB}GB exceeds 400GB. Consider pruning old backups via NAS web UI."
+                  fi
 
                   echo ""
                   echo "=== Backup Replication Completed: $(date) ==="
