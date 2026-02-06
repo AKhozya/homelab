@@ -315,11 +315,13 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 |--------------|--------|----------|
 | ~~Deploy Velero for cluster backups~~ | ~~4-6h~~ | ❌ Declined |
 | ~~Implement backup immutability (S3 object lock/ZFS)~~ | ~~2-4h~~ | ❌ Declined |
-| SOPS multi-key encryption | 4h | P2 |
+| ~~SOPS multi-key encryption~~ | ~~4h~~ | ❌ Declined |
 
 **Velero - DECLINED** (2026-02-06): Flux GitOps already reconstructs all cluster state (RBAC, CRDs, ConfigMaps, namespaces) from Git. Databases have dedicated daily backups with SHA256 validation. PVCs have daily backups. Velero would only help with non-Git stateful resources, which are all already covered. Not worth the operational overhead for a homelab.
 
 **Backup Immutability - DECLINED** (2026-02-06): NAS rsync daemon runs without `--delete`, making backups append-only by design. Remote deletion not possible via rsync protocol. NAS web UI is the only way to delete, requiring physical network access + credentials. For a homelab on a local network, the risk of backup tampering is negligible. S3 object lock would require cloud storage; ZFS would require NAS OS changes (not supported on Zettlab).
+
+**SOPS Multi-Key - DECLINED** (2026-02-06): Multi-key is for team environments where multiple people need independent decryption (e.g., separate keys for CI/CD, teammates). Single operator with one age key stored in 1Password. No CI/CD pipeline needing its own key. Adding complexity for no benefit.
 
 #### 🔒 **ReadOnlyRootFilesystem Security Hardening** (P2-MEDIUM) - PHASE 1-3 COMPLETE ✅
 
