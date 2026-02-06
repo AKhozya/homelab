@@ -444,9 +444,9 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      1. ✅ NAS hardware arrived and initial setup (2026-02-05)
      2. ✅ Configure NAS on local network (IP: 192.168.1.136, rsync port 50555)
      3. ✅ Create SOPS-encrypted secret for rsync user/password
-     4. ✅ Configure backup replication CronJob (daily at 4 AM, rsync daemon protocol)
+     4. ✅ Configure backup replication CronJob (daily at 3:30 AM, rsync daemon protocol)
      5. ✅ Test backup replication (2.6GB transferred, sizes verified)
-     6. Update disaster recovery documentation
+     6. ✅ Update disaster recovery documentation (README.md, BACKUP_STRATEGY.md, secrets scripts)
    - **TODO**: Remove worker-node-2 replication after 1 week of successful NAS backups (~Feb 13, 2026)
    - **Files**: `infrastructure/configs/staging/backup-replication/` (cronjob.yaml, nas-rsync-secret.yaml)
    - **Benefit**: Protects against node hardware failure (NAS = full history, worker-node-2 = today's safety net)

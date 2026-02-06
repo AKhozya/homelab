@@ -61,8 +61,8 @@ This will extract and save **ALL** secrets needed for complete cluster rebuild:
 
 **Databases:**
 - 🗄️ Redis passwords (for all apps)
-- 🗄️ PostgreSQL admin credentials
-- 🗄️ All application database user credentials
+- 🗄️ PostgreSQL admin credentials + all app database users
+- 🗄️ MySQL cluster secrets + app credentials (Uptime Kuma, PriceBuddy)
 
 **Applications:**
 - Authentik (SSO & identity provider)
@@ -76,20 +76,26 @@ This will extract and save **ALL** secrets needed for complete cluster rebuild:
 - Uptime Kuma (uptime monitoring)
 - Stirling PDF (PDF toolkit)
 - HomeHub (family dashboard)
-- Discount Bandit (price tracking)
+- PriceBuddy (price tracking)
 - CouchDB (Obsidian sync)
+
+**Backup Replication:**
+- 🔑 SSH key for worker-node-2 sync
+- 🔑 NAS rsync credentials (rsync daemon auth)
 
 Files are saved to `.backup/secrets/` (gitignored)
 
-### 2. Automated Backups (Already Configured ✅)
+### 3. Automated Backups (Already Configured ✅)
 
 **Your cluster has automated daily backups configured:**
 
-- **PostgreSQL databases:** Daily at 2:00 AM → `/mnt/k8s-storage/backups/postgres/` (30 days retention)
-- **CouchDB databases:** Daily at 2:30 AM → `/mnt/k8s-storage/backups/couchdb/` (30 days retention)
-- **Critical PVCs:** Daily at 3:00 AM → `/mnt/k8s-storage/backups/pvc/` (3 days retention)
+- **PostgreSQL databases:** Daily at 3:00 AM → `/mnt/k8s-storage/backups/postgres/` (30 days retention)
+- **CouchDB databases:** Daily at 3:05 AM → `/mnt/k8s-storage/backups/couchdb/` (30 days retention)
+- **MySQL databases:** Daily at 3:15 AM → `/mnt/k8s-storage/backups/mysql/` (30 days retention)
+- **Critical PVCs:** Daily at 3:10 AM → `/mnt/k8s-storage/backups/pvc/` (7 days retention)
+- **Backup Replication:** Daily at 3:30 AM → NAS (full history) + worker-node-2 (today only)
 
-**Backup details in:** `docs/BACKUP_STRATEGY.md` and `docs/BACKUP_IMPLEMENTATION.md`
+**Backup details in:** `docs/BACKUP_STRATEGY.md`
 
 **No manual action required** - backups run automatically via Kubernetes CronJobs
 
@@ -106,7 +112,15 @@ curl -sfL https://get.k3s.io | sh -
 sudo cat /var/lib/rancher/k3s/server/node-token
 ```
 
-**On worker node (192.168.1.129):**
+**On worker-node (192.168.1.129):**
+
+```bash
+export K3S_URL=https://192.168.1.127:6443
+export K3S_TOKEN=<token-from-control-plane>
+curl -sfL https://get.k3s.io | sh -
+```
+
+**On worker-node-2 (192.168.1.126):**
 
 ```bash
 export K3S_URL=https://192.168.1.127:6443
@@ -125,7 +139,7 @@ sudo cat /etc/rancher/k3s/k3s.yaml
 
 #### Step 2: Configure Firewall
 
-**On both nodes:**
+**On all 3 nodes:**
 
 ```bash
 sudo ufw allow from 192.168.1.0/24
@@ -177,38 +191,69 @@ flux get kustomizations -A
 kubectl get helmrelease -A
 ```
 
-#### Step 7: Restore Databases and PVCs from Automated Backups
+#### Step 7: Restore Databases from Backups
 
-**See detailed procedures in:** `docs/BACKUP_STRATEGY.md`
+Backups are available from 3 sources (in order of preference):
+1. **NAS** (192.168.1.136) - Full backup history, rsync daemon on port 50555
+2. **worker-node-2** (192.168.1.126) - Latest backup only, at `/mnt/extra-storage/backups/`
+3. **worker-node** (192.168.1.129) - Source cleaned daily, may be empty
+
+**Copy backups from NAS to worker-node:**
+```bash
+# Get NAS credentials from restored secrets or 1Password
+export RSYNC_PASSWORD='<nas-rsync-password>'
+rsync -avz --port=50555 \
+  rsync://akhozya@192.168.1.136/akhozya/backups/homelab/ \
+  /mnt/k8s-storage/backups/
+```
+
+**Or copy from worker-node-2:**
+```bash
+rsync -avz -e "ssh -p 65300" \
+  z3us@192.168.1.126:/mnt/extra-storage/backups/ \
+  /mnt/k8s-storage/backups/
+```
 
 **PostgreSQL restore:**
 ```bash
 # Find latest backup
 LATEST_BACKUP=$(ls -t /mnt/k8s-storage/backups/postgres/postgres_*.tar.gz | head -1)
 
+# Verify integrity
+sha256sum -c ${LATEST_BACKUP}.sha256
+
 # Extract
 tar -xzf $LATEST_BACKUP -C /tmp
 
 # Restore each database
-for DB in authentik immich paperless grafana linkding mealie wallabag audiobookshelf n8n app; do
+for DB in authentik immich paperless grafana linkwarden mealie audiobookshelf n8n app; do
+  echo "Restoring $DB..."
   kubectl exec -n databases main-postgres-1 -- \
     pg_restore -U postgres -d $DB -c --if-exists \
     /tmp/$(basename $LATEST_BACKUP .tar.gz)/${DB}.dump
 done
 ```
 
-**PVC restore:**
+**MySQL restore:**
 ```bash
-# Find latest PVC backup
-LATEST_PVC=$(ls -td /mnt/k8s-storage/backups/pvc/* | head -1)
+# Find latest backup
+LATEST_MYSQL=$(ls -t /mnt/k8s-storage/backups/mysql/mysql_*.tar.gz | head -1)
 
-# For each critical application (stop, restore, start)
-kubectl scale deployment/home-assistant -n home-assistant --replicas=0
-tar -xzf $LATEST_PVC/home-assistant/home-assistant-data-pvc.tar.gz \
-  -C /mnt/k8s-storage/pvc-XXXXX/
-kubectl scale deployment/home-assistant -n home-assistant --replicas=1
+# Verify integrity
+sha256sum -c ${LATEST_MYSQL}.sha256
 
-# Repeat for: immich, paperless-ngx, couchdb, audiobookshelf
+# Extract
+tar -xzf $LATEST_MYSQL -C /tmp
+
+# Get root password
+MYSQL_ROOT_PWD=$(kubectl get secret -n databases main-mysql-secrets -o jsonpath='{.data.root}' | base64 -d)
+
+# Restore each database
+for DB in homeassistant uptimekuma pricebuddy; do
+  echo "Restoring $DB..."
+  kubectl exec -n databases main-mysql-mysql-0 -- \
+    mysql -uroot -p${MYSQL_ROOT_PWD} $DB < /tmp/*/mysql_${DB}.sql
+done
 ```
 
 **CouchDB restore:**
@@ -216,11 +261,43 @@ kubectl scale deployment/home-assistant -n home-assistant --replicas=1
 # Find latest backup
 LATEST_COUCHDB=$(ls -t /mnt/k8s-storage/backups/couchdb/couchdb_*.tar.gz | head -1)
 
+# Verify integrity
+sha256sum -c ${LATEST_COUCHDB}.sha256
+
 # Extract and restore
 tar -xzf $LATEST_COUCHDB -C /tmp
 cat /tmp/*/obsidian-personal.couchbackup | \
   kubectl exec -i -n couchdb couchdb-couchdb-0 -- \
   couchrestore --url http://admin:PASSWORD@localhost:5984 --db obsidian-personal
+```
+
+**PVC restore:**
+```bash
+# Find latest PVC backup
+LATEST_PVC=$(ls -td /mnt/k8s-storage/backups/pvc/* | head -1)
+
+# For each critical PVC (stop, restore, start):
+kubectl scale deployment/home-assistant -n home-assistant --replicas=0
+tar -xzf $LATEST_PVC/home-assistant/home-assistant-data-pvc.tar.gz \
+  -C /mnt/k8s-storage/pvc-XXXXX/
+kubectl scale deployment/home-assistant -n home-assistant --replicas=1
+
+# Repeat for: paperless-ngx, audiobookshelf
+# Note: Immich photos excluded from PVC backups (can re-upload from source devices)
+```
+
+#### Step 8: Verify Applications
+
+```bash
+# Check all pods are running
+kubectl get pods -A
+
+# Test applications
+curl -I https://authentik.h0melab.work
+curl -I https://grafana.h0melab.work
+curl -I https://immich.h0melab.work
+
+# Test OIDC login on all apps
 ```
 
 ## 🔍 Verification
@@ -243,9 +320,12 @@ kubectl get ingress -A
 
 # Access URLs
 # - https://grafana.h0melab.work
-# - https://am.h0melab.work  
-# - https://linkding.h0melab.work
-# - https://audiobookshelf.h0melab.work
+# - https://am.h0melab.work
+# - https://authentik.h0melab.work
+# - https://immich.h0melab.work
+# - https://linkwarden.h0melab.work
+# - https://paperless.h0melab.work
+# - https://n8n.h0melab.work
 ```
 
 ## 📋 What Gets Restored
@@ -262,20 +342,22 @@ kubectl get ingress -A
 - ✅ **SOPS age encryption key** (CRITICAL - enables Flux to decrypt secrets)
 - ✅ **All application secrets** (user credentials, API keys, env vars)
 - ✅ **All OIDC integration secrets** (Authentik SSO for 8 applications)
-- ✅ **Database credentials** (Redis, PostgreSQL users)
+- ✅ **Database credentials** (Redis, PostgreSQL users, MySQL cluster + app users)
 - ✅ **Infrastructure secrets** (Cloudflare tokens, tunnel credentials)
 - ✅ **Monitoring credentials** (Grafana admin, Telegram bot)
+- ✅ **Backup replication credentials** (SSH key, NAS rsync credentials)
 
-### Via Automated Backups (restore from `/mnt/k8s-storage/backups/`)
-- ✅ **PostgreSQL databases** - all 10 databases backed up daily (authentik, immich, paperless, etc.)
+### Via Automated Backups (restore from NAS or worker-node-2)
+- ✅ **PostgreSQL databases** - all app databases backed up daily
+- ✅ **MySQL databases** - homeassistant, uptimekuma, pricebuddy backed up daily
 - ✅ **CouchDB databases** - obsidian-personal backed up daily
-- ✅ **Critical PVCs** - Home Assistant, Immich library, Paperless, CouchDB storage, Audiobookshelf
+- ✅ **Critical PVCs** - Home Assistant, Paperless, Audiobookshelf
 - ⚠️ Use restore procedures in `docs/BACKUP_STRATEGY.md`
 
 ### Manual Steps Required (one-time setup)
 - ⚠️ **DNS A records** - only if node IPs changed:
   - `*.h0melab.work` records pointing to node IPs
-- ⚠️ **Firewall rules** on both nodes:
+- ⚠️ **Firewall rules** on all 3 nodes:
   - `sudo ufw allow from 192.168.1.0/24`
 
 ## 🔐 Security Best Practices

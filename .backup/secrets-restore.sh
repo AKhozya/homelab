@@ -208,11 +208,14 @@ if [ -f "${BACKUP_DIR}/secrets/couchdb-couchdb.json" ]; then
     echo "   ✅ CouchDB"
 fi
 
-# Backup Replication
+# Backup Replication (SSH key + NAS rsync credentials)
 if [ -f "${BACKUP_DIR}/secrets/backup-replication-ssh-key.json" ]; then
     kubectl create namespace backup-replication --dry-run=client -o yaml | kubectl apply -f -
     kubectl apply -f "${BACKUP_DIR}/secrets/backup-replication-ssh-key.json"
-    echo "   ✅ Backup Replication"
+    if [ -f "${BACKUP_DIR}/secrets/nas-rsync-credentials.json" ]; then
+        kubectl apply -f "${BACKUP_DIR}/secrets/nas-rsync-credentials.json"
+    fi
+    echo "   ✅ Backup Replication (SSH key + NAS credentials)"
 fi
 
 # Loki/Promtail
