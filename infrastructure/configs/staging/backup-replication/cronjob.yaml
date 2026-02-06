@@ -4,8 +4,8 @@ metadata:
   name: backup-replication
   namespace: backup-replication
 spec:
-  # Run at 4:00 AM daily (after all backups complete at 3:00-3:15 AM)
-  schedule: "0 4 * * *"
+  # Run at 3:30 AM daily (after all backups complete at 3:00-3:16 AM)
+  schedule: "30 3 * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
