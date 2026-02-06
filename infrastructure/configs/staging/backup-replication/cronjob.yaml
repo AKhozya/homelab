@@ -253,38 +253,37 @@ spec:
                     NAS_STATUS="NAS: ${NAS_SIZE_GB}GB / 500GB WARNING"
                   fi
 
-                  # Step 7: Send Telegram report
+                  # Step 7: Send Telegram report (only on failure)
                   echo ""
-                  echo "=== Step 7: Sending Telegram report ==="
-
-                  # Build Telegram message from report file
-                  MSG_FILE="/tmp/telegram-msg.txt"
                   if [ "$OVERALL_OK" = true ]; then
-                    printf "✅ <b>Backup Validation Passed</b> (%s)\n\n" "$TODAY" > "$MSG_FILE"
+                    echo "=== Step 7: All validations passed, skipping Telegram ==="
                   else
+                    echo "=== Step 7: Sending Telegram failure report ==="
+
+                    MSG_FILE="/tmp/telegram-msg.txt"
                     printf "❌ <b>Backup Validation FAILED</b> (%s)\n\n" "$TODAY" > "$MSG_FILE"
+
+                    while IFS='|' read -r status label details; do
+                      if [ "$status" = "OK" ]; then
+                        printf "✅ <b>%s</b>: %s\n" "$label" "$details" >> "$MSG_FILE"
+                      else
+                        printf "❌ <b>%s</b>: %s\n" "$label" "$details" >> "$MSG_FILE"
+                      fi
+                    done < "$REPORT_FILE"
+
+                    printf "\n<b>%s</b>" "$NAS_STATUS" >> "$MSG_FILE"
+
+                    cat "$MSG_FILE"
+                    MSG_TEXT=$(cat "$MSG_FILE")
+                    curl -s -X POST \
+                      "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                      -d chat_id="${TELEGRAM_CHAT_ID}" \
+                      -d parse_mode=HTML \
+                      --data-urlencode "text=${MSG_TEXT}" \
+                      -o /dev/null -w "Telegram HTTP %{http_code}\n"
                   fi
 
-                  while IFS='|' read -r status label details; do
-                    if [ "$status" = "OK" ]; then
-                      printf "✅ <b>%s</b>: %s\n" "$label" "$details" >> "$MSG_FILE"
-                    else
-                      printf "❌ <b>%s</b>: %s\n" "$label" "$details" >> "$MSG_FILE"
-                    fi
-                  done < "$REPORT_FILE"
-
-                  printf "\n<b>%s</b>\nReplication: NAS + worker-node-2 OK" "$NAS_STATUS" >> "$MSG_FILE"
-
-                  cat "$MSG_FILE"
-                  MSG_TEXT=$(cat "$MSG_FILE")
-                  curl -s -X POST \
-                    "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-                    -d chat_id="${TELEGRAM_CHAT_ID}" \
-                    -d parse_mode=HTML \
-                    --data-urlencode "text=${MSG_TEXT}" \
-                    -o /dev/null -w "Telegram HTTP %{http_code}\n"
-
-                  # Clear failure trap on success (Telegram report already sent above)
+                  # Clear failure trap on success
                   trap - EXIT
 
                   echo ""
