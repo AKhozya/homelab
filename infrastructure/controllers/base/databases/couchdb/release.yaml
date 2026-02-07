@@ -106,10 +106,9 @@ spec:
     # Enable clustering
     enableSearch: false
 
-    # Monitoring
-    prometheus:
-      enabled: true
-      port: 9984
+    # Monitoring: metrics scraped via external ServiceMonitor on port 5984 with basic auth
+    # (chart key is prometheusPort, not prometheus - but we don't need the standalone
+    # unauthenticated metrics port since ServiceMonitor already handles this)
 
     # Health checks for auto-recovery and resilience
     livenessProbe:
