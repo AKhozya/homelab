@@ -142,7 +142,6 @@ spec:
                     key: password
               # Immich-specific settings
               IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
-              PUBLIC_IMMICH_SERVER_URL: https://immich.h0melab.work
               IMMICH_METRICS: "true"
 
     # Immich shared configuration
