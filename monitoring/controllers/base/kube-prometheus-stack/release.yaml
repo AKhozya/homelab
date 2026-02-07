@@ -160,23 +160,23 @@ spec:
           repeat_interval: 12h
           receiver: 'telegram'
           routes:
-          - match:
-              alertname: Watchdog
+          - matchers:
+              - alertname = Watchdog
             receiver: 'null'
-          - match:
-              alertname: InfoInhibitor
+          - matchers:
+              - alertname = InfoInhibitor
             receiver: 'null'
-          - match:
-              alertname: KubeCPUOvercommit
+          - matchers:
+              - alertname = KubeCPUOvercommit
             receiver: 'null'
-          - match:
-              alertname: KubeMemoryOvercommit
+          - matchers:
+              - alertname = KubeMemoryOvercommit
             receiver: 'null'
-          - match:
-              alertname: KubeAPIErrorBudgetBurn
+          - matchers:
+              - alertname = KubeAPIErrorBudgetBurn
             receiver: 'null'
-          - match_re:
-              alertname: ^(BackupJobFailed|BackupCronJobMissedSchedule|BackupJobRunningTooLong|NoRecentBackups)$
+          - matchers:
+              - alertname =~ "^(BackupJobFailed|BackupCronJobMissedSchedule|BackupJobRunningTooLong|NoRecentBackups)$"
             receiver: 'telegram-backup'
             continue: false
           # K3s component alerts disabled in defaultRules (embedded architecture)

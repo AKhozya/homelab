@@ -28,7 +28,10 @@ spec:
     cleanupOnFail: true
   values:
     # Install CRDs as part of the Helm release
-    installCRDs: true
+    # Uses new crds section (installCRDs deprecated since cert-manager v1.15.0)
+    crds:
+      enabled: true
+      keep: true
 
     # Global settings
     global:

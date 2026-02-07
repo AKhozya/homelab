@@ -141,8 +141,6 @@ spec:
 
       selfMonitoring:
         enabled: false
-        grafanaAgent:
-          installOperator: false
     
     # Disable caching for single binary mode
     chunksCache:

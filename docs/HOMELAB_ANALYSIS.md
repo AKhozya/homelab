@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2026-01-29)
+**Assessment Date**: 2025-10-18 (Updated: 2026-02-07)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -96,21 +96,102 @@
 - ✅ PVC daily backups (3:10 AM, 7-day retention) - Immich excluded (photos can be re-uploaded, DB in PostgreSQL)
 - ✅ MySQL daily backups (3:15 AM, 30-day retention, SHA256 checksums) ⭐
 - ✅ **Backup replication to NAS** (3:30 AM, rsync daemon, NAS accumulates full history, 500GB limit) ⭐
-- ✅ **Backup replication to worker-node-2** (3:30 AM, rsync over SSH, today's backup only, temporary safety net) ⭐
+- ✅ **Backup replication to worker-node-2** (3:30 AM, rsync over SSH, today's backup only, temporary safety net until ~Feb 13) ⭐
+- ✅ **Replication order**: worker-node-2 first (SSH, reliable), NAS second (rsync daemon) ⭐
 - ✅ Disaster recovery scripts complete (`.backup/` directory)
-- ✅ **Automated backup validation** (daily, SHA256 + tar integrity + size + age, Telegram reports) ⭐
+- ✅ **Automated backup validation** (daily, SHA256 + tar integrity + size + age, Telegram failure-only reports) ⭐
 - ✅ Storage optimized: 2.6GB per node (was 580GB before Immich exclusion)
 
 ---
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-**Last Updated**: 2026-01-09 (Comprehensive Review)
+**Last Updated**: 2026-02-07 (Monthly Review)
 **Source**: [HOMELAB_REVIEW_2025_12_17.md](./HOMELAB_REVIEW_2025_12_17.md)
 **Previous Reviews**: [COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md)
 **Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
 
-### 🔍 January 2026 Comprehensive Review (NEW)
+### 🔍 February 2026 Monthly Review
+
+**Review Date**: 2026-02-07
+**Reviewer**: Staff DevOps/SRE + Staff Software Developer
+**Overall Status**: ✅ **HEALTHY** - Excellent state, minor housekeeping done
+
+#### Infrastructure Health (Staff DevOps/SRE Perspective)
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.0, Kernel 6.18.7-arch1-1 |
+| **Control Plane** | ✅ Healthy | 15% CPU, 19% memory |
+| **worker-node** | ✅ Healthy | 19% CPU, 26% memory (rebuilderd active) |
+| **worker-node-2** | ✅ Healthy | 8% CPU, 18% memory |
+| **Pods** | ✅ 81 Running | 0 CrashLoop, 15 Completed jobs |
+| **PostgreSQL** | ✅ 2/2 Ready | Cluster in healthy state |
+| **MySQL** | ✅ 2/2 Ready | Async replication, HAProxy active |
+| **CouchDB** | ✅ 2/2 Running | StatefulSet in databases namespace |
+| **Redis** | ✅ 1/1 Running | Cache healthy |
+| **Prometheus** | ✅ 71% memory | 111k series, 924Mi/1300Mi (improved from 244k/87%) |
+| **Alerts** | ✅ None firing | Clean alert state |
+| **Backups** | ✅ All successful | NAS + worker-node-2 replication working |
+| **Certificates** | ✅ All Ready | 36-86 days until expiration |
+| **Flux/GitOps** | ✅ All healthy | All 6 kustomizations reconciled |
+| **Resource Governance** | ✅ Complete | 27 quotas, 26 limitranges |
+| **Stale ReplicaSets** | ✅ 0 | Cleaned 87 stale RS this session |
+
+#### Prometheus Improvement
+
+- **Series Count**: 111k (↓ 54% from 244k in Jan review)
+- **Memory**: 924Mi / 1300Mi (71%, ↓ from 87%)
+- **Replicas**: 2 HA (924Mi + 775Mi)
+- **Scrape Targets**: 49
+
+#### Popeye Health Scan
+
+- **Score**: 86/100 (B grade) - down from 100/100
+- **Cause**: Mostly false positives from K3s and Percona operator
+- **False Positives** (not actionable):
+  - 4 kube-system services with no pods (K3s doesn't run controller-manager/etcd/proxy/scheduler as pods)
+  - 5 MySQL operator services with unmatched ports (operator-managed, normal)
+  - 5 orphaned ClusterRoleBindings (Flux image controllers not installed, K3s system)
+- **Actionable**: config-reloader sidecars missing resource limits (Prometheus + Alertmanager) - P3
+
+#### Kyverno Violations
+
+- **6 violations**: All `require-resource-limits` with null/null namespace (stale ephemeral pod reports)
+- **Status**: Not actionable - same as previous reviews
+
+#### Storage
+
+| Location | Used | Total | Usage |
+|----------|------|-------|-------|
+| worker-node `/mnt/k8s-storage` | 753GB | 4.2TB | 19% |
+| worker-node-2 `/mnt/extra-storage` | 204GB | 863GB | 25% |
+| worker-node-2 backups | 137MB | - | Today's backup only |
+| worker-node-2 repro (rebuilderd) | 34GB | - | Build artifacts |
+
+#### Uptime Kuma Monitors
+
+- **28 monitors**: All current (wallabag/linkding stale monitors already removed)
+- **NAS Zettlab** monitor added (id=38)
+
+#### Pending Scheduled Items
+
+| Item | Target Date | Priority |
+|------|-------------|----------|
+| Remove worker-node-2 replication step | ~Feb 13, 2026 | P2 |
+| Migrate Promtail to Grafana Alloy | Before March 2, 2026 | P1 |
+| Re-evaluate VictoriaMetrics | Feb 2026 | P3 |
+| LTS kernel 6.18 | TBD (Arch `linux-lts` still at 6.12.68) | P2 |
+
+**Monthly Review Checklist** (for next review):
+- [ ] Helm chart deprecation audit (`helm template --debug` + changelogs for all 10 releases)
+- [ ] Promtail EOL migration status
+
+**Next Review**: 2026-03-07 (Monthly)
+
+---
+
+### 🔍 January 2026 Comprehensive Review
 
 **Review Date**: 2026-01-09
 **Reviewer**: Staff DevOps/SRE + Staff Software Developer
@@ -201,8 +282,6 @@
 | P3 | Fix loki-sc-rules sidecar resources | 10 min | ✅ Done (0510d1d) |
 | INFO | Investigate null resource-limit violations | 15 min | ✅ Done - stale reports from old ReplicaSets |
 
-**Next Review**: 2026-02-09 (Monthly)
-
 ---
 
 ### 🚨 December 2025 Review Findings
@@ -278,6 +357,14 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 ---
 
 ### ⚠️ P1-HIGH (Active Items Only)
+
+#### ⏳ **Migrate Promtail to Grafana Alloy** - EOL March 2, 2026
+   - **Status**: PENDING - Promtail 6.17.1 is the FINAL version (EOL: March 2, 2026)
+   - **Priority**: P1-HIGH (23 days until EOL, no more security patches)
+   - **Replacement**: Grafana Alloy (official successor, combines Promtail + Grafana Agent)
+   - **Scope**: New HelmRelease for `grafana/alloy`, convert pipeline config, update NetworkPolicy, remove promtail
+   - **Action**: Defer to dedicated session — full migration, not a quick fix
+   - **Deadline**: Before March 2, 2026
 
 #### ✅ **Automated Backup Validation Testing** - COMPLETED (2026-02-06)
    - Daily automated validation: SHA256 checksum, tar integrity, size thresholds, age checks
@@ -413,6 +500,8 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 | Pending Item | Priority |
 |--------------|----------|
+| Prometheus/Alertmanager config-reloader resource limits | P3 |
+| Re-evaluate VictoriaMetrics (workaround available) | P3 |
 | Backup alert grouping to Telegram thread | P3 |
 | Grafana dashboards for app metrics | P3 |
 | PrometheusRules for custom app metrics | P3 |
@@ -437,7 +526,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
    - **Hardware**: Zettlab 6 Ultra (14TB usable)
    - **Constraint**: Runs its own OS, Docker only (no K8s), **no SSH access**
    - **NAS Storage Limit**: **500GB** allocated for homelab backups (current usage: 2.6GB)
-   - **Current RPO**: 24 hours (daily replication at 4 AM)
+   - **Current RPO**: 24 hours (daily replication at 3:30 AM)
    - **Current RTO**: ~30 minutes (restore from NAS or worker-node-2)
    - **Replication Strategy**: NAS is primary backup store, worker-node-2 is temporary safety net
      - Worker-1: creates backups → syncs to NAS + worker-2 → cleaned after replication
@@ -490,7 +579,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
    - **Priority**: P2-MEDIUM (stability improvement)
    - **Target Date**: ~~End of January 2026~~ → TBD (Arch hasn't switched yet)
    - **Current State**: All 3 nodes have mainline kernel **6.18.7-arch1-1** installed (not LTS)
-   - **Blocker**: Arch `linux-lts` still at 6.12.67 (checked 2026-01-29)
+   - **Blocker**: Arch `linux-lts` still at 6.12.68 (checked 2026-02-07)
      - Linux 6.18 released upstream: Nov 30, 2025 (confirmed LTS, supported until Dec 2027)
      - Arch taking longer than typical 4-8 weeks to transition LTS kernel series
      - Expected availability: Unknown - check https://archlinux.org/packages/core/x86_64/linux-lts/
@@ -533,7 +622,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      - ~2-5x RAM reduction
      - ~7x disk reduction (zstd compression)
      - Native downsampling for long retention
-   - **Current Mitigation**: Prometheus retention at 90d, 87% memory (1125Mi/1300Mi)
+   - **Current Mitigation**: Prometheus retention at 90d, 71% memory (924Mi/1300Mi), 111k series
    - **Note**: DO NOT NAG UNTIL FEBRUARY 2026
 
 ---
@@ -602,21 +691,20 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 
 ## 📈 CURRENT METRICS
 
-**Health Score: 96/100** (A+ Grade) - Updated 2026-02-06 ⬆️
+**Health Score: 96/100** (A+ Grade) - Updated 2026-02-07
 - **Security**: 96/100 (A+) ✅ - 100% PSS, 100% NetworkPolicy (apps + infra namespaces)
-- **Backup/DR**: 98/100 (A+) ✅ - Daily backups + replication + automated validation with Telegram alerts ⬆️
+- **Backup/DR**: 98/100 (A+) ✅ - Daily backups + NAS/worker-2 replication + automated validation
 - **Database**: 90/100 (A) ✅ - PostgreSQL HA + MySQL HA, NetworkPolicy, TLS
 - **Infrastructure**: 88/100 (A-) ✅ - Flux/Traefik solid, all controllers healthy
 - **Maintainability**: 95/100 (A) ✅ - Excellent docs, GitOps-driven
 - **Best Practices**: 92/100 (A) ✅ - Popeye scheduled, Kyverno enforced, resource governance
-- **Performance**: 92/100 (A-) ✅ - Resource optimization, 91% efficiency
+- **Performance**: 94/100 (A) ✅ - Prometheus series 244k→111k, memory 87%→71% ⬆️
 
-**Overall Grade**: A+ (96/100) - Up from A (94/100) after backup validation ⬆️
+**Overall Grade**: A+ (96/100) - Maintained
 - **Critical Issues**: 0 P0 issues ✅
-- **High Priority**: 0 P1 active ✅ (all completed)
-- **Total Findings**: All actionable items from Oct-Dec 2025 reviews completed
-
-**Target**: 96/100 (A+) - ACHIEVED ✅
+- **High Priority**: 1 P1 active ⚠️ (Promtail EOL March 2, 2026 — migrate to Alloy)
+- **Active P2**: Remove worker-node-2 replication (~Feb 13), LTS kernel (waiting on Arch)
+- **Active P3**: VictoriaMetrics re-evaluation, config-reloader resource limits
 
 **Security Achievements** ✅:
 - **100% Pod Security Standards** (Apps: 11 restricted, 4 baseline, 1 privileged | Jobs: 5 restricted, 1 baseline)
@@ -640,7 +728,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 | App | Status | Security | OIDC/SSO | Notes |
 |-----|--------|----------|----------|-------|
 | **Homepage** | ✅ Running | ✅ NetworkPolicy | - | **Dashboard - Single pane of glass** ⭐ |
-| **Uptime Kuma** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Uptime monitoring** - MariaDB, Automated setup ⭐ |
+| **Uptime Kuma** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Uptime monitoring** - MySQL, Automated setup ⭐ |
 | **Authentik** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ Provider | **SSO Platform** - PostgreSQL + Redis ⭐ |
 | **AdGuard Home** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **DNS filtering** - Local DNS resolution ⭐ |
 | **Stirling PDF** 🆕 | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | **PDF toolkit** - Cloudflare Tunnel + internal access ⭐ |
@@ -984,8 +1072,8 @@ ingress:
 
 ---
 
-**Last Updated**: 2026-01-09
-**Next Review**: 2026-02-09
+**Last Updated**: 2026-02-07
+**Next Review**: 2026-03-07
 
 ---
 
@@ -993,13 +1081,39 @@ ingress:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
+### 2026-02-07 (Helm Chart Deprecation Audit) 🔧
+- ✅ **Helm Chart Deprecation Audit**: Audited all 10 HelmReleases for deprecated fields ⭐
+  - **cert-manager**: `installCRDs: true` → `crds: { enabled: true, keep: true }` (deprecated since v1.15.0)
+  - **Loki**: Removed deprecated `grafanaAgent: installOperator: false` from selfMonitoring
+  - **Alertmanager**: Migrated `match:`/`match_re:` → `matchers:` list syntax (deprecated since v0.22+)
+  - **Grafana `rbac.pspEnabled`**: Cosmetic only (PSP removed K8s 1.25+), no fix needed
+- ⏳ **Promtail EOL Identified**: Promtail 6.17.1 is FINAL version, EOL March 2, 2026
+  - Added as P1-HIGH action item — migrate to Grafana Alloy before deadline
+  - Deferred to dedicated session (full migration scope)
+- ✅ **Monthly Helm Audit Checklist**: Added to review template for recurring checks
+
+### 2026-02-07 (Monthly Review + Cleanup) 🔍
+- ✅ **February Monthly Review Complete**: All systems healthy, A+ maintained ⭐
+  - **Infrastructure**: All 3 nodes healthy, 81 running pods, 0 alerts firing
+  - **Databases**: PostgreSQL 2/2, MySQL 2/2, CouchDB 2/2, Redis 1/1 - all healthy
+  - **Prometheus**: Series 244k→111k (54% reduction), memory 87%→71% (improved)
+  - **Certificates**: All valid, 36-86 days until expiration
+  - **Popeye**: 86/100 (B) - mostly K3s/Percona false positives, config-reloader limits P3
+- ✅ **Stale ReplicaSets Cleaned**: 87 stale RS deleted across 17 namespaces
+- ✅ **Replication Order Swapped**: worker-node-2 first (SSH), NAS second (rsync daemon)
+  - More reliable destination runs first, ensuring at least one copy on failure
+  - Commit: 54f1e2b
+- ✅ **CLAUDE.md Updated**: Fixed MySQL secret name, CouchDB namespace, added parallel tool call docs
+- ✅ **Uptime Kuma**: 28 monitors verified current, NAS Zettlab monitor active
+- 📋 **LTS Kernel**: Arch `linux-lts` still at 6.12.68 (not 6.18), continue waiting
+
 ### 2026-02-06 (Automated Backup Validation) 💾
 - ✅ **Automated Backup Validation**: Daily integrity checks integrated into replication CronJob ⭐
   - **Checks**: SHA256 checksum, tar integrity, minimum size thresholds, file age (<25h)
   - **Thresholds**: PostgreSQL >1MB, CouchDB >100KB, MySQL >100KB, PVC >100KB
   - **Telegram**: Failure-only notifications (silent on success)
   - **Replication trap**: Sends Telegram alert with failed step name if rsync fails
-  - **Flow**: Sync NAS → Sync worker-2 → Verify NAS → Validate backups → Clean source → Check NAS storage
+  - **Flow**: Sync worker-2 → Sync NAS → Verify NAS → Validate backups → Clean source → Check NAS storage
   - **Tested**: Corrupted backup (SHA256/tar/size FAIL), missing backup (MISSING), NAS unreachable (trap)
   - **Files**: `infrastructure/configs/staging/backup-replication/` (cronjob.yaml, backup-telegram-secret.yaml)
 - ✅ **Score Update**: Overall 94→96/100 (A+), Backup/DR 95→98/100
