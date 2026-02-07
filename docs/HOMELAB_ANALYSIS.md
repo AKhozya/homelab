@@ -657,7 +657,7 @@ Configures K3s kubelet for proper pod eviction during node reboots/shutdowns.
 - ✅ Worker-2: Configured (`shutdownGracePeriod: 2m0s`)
 
 ### Firmware Management
-Installs required firmware and removes unnecessary AUR packages.
+Installs required firmware packages.
 
 | Script | Node | Hardware |
 |--------|------|----------|
@@ -667,9 +667,9 @@ Installs required firmware and removes unnecessary AUR packages.
 
 **What they do:**
 - Install required: `intel-ucode`/`amd-ucode`, `linux-firmware`, `linux-firmware-whence`
-- Remove unnecessary AUR packages: `aic94xx-firmware`, `ast-firmware`, `upd72020x-fw`, `wd719x-firmware`
+- Install optional AUR firmware (suppresses mkinitcpio warnings): `aic94xx-firmware`, `ast-firmware`, `upd72020x-fw`, `wd719x-firmware`
 
-**Status** (2025-12-20): ✅ All 3 nodes cleaned (no reboot required)
+**Status** (2026-02-07): ✅ All 3 nodes have required + optional firmware installed
 
 ### Performance Optimization
 Applies CPU governor, kernel tuning for K8s, and network optimizations.
