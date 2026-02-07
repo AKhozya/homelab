@@ -52,7 +52,7 @@ spec:
       configMap:
         create: true
         content: |
-          // Discover all pods on this node
+          // Discover all pods on this node for metadata enrichment
           discovery.kubernetes "pods" {
             role = "pod"
             selectors {
@@ -61,24 +61,54 @@ spec:
             }
           }
 
-          // Discover all nodes (for node-level log collection)
-          discovery.kubernetes "nodes" {
-            role = "node"
+          // Relabel to add pod metadata as labels and set log file path
+          discovery.relabel "pods" {
+            targets = discovery.kubernetes.pods.targets
+
+            // Set the log file path from pod metadata
+            rule {
+              source_labels = ["__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
+              separator     = "/"
+              target_label  = "__path__"
+              replacement   = "/var/log/pods/*$1/$2/*.log"
+            }
+
+            // Keep namespace, pod, container, node as labels
+            rule {
+              source_labels = ["__meta_kubernetes_namespace"]
+              target_label  = "namespace"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_name"]
+              target_label  = "pod"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_container_name"]
+              target_label  = "container"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_node_name"]
+              target_label  = "node_name"
+            }
+
+            // Add app label from standard k8s labels
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+              target_label  = "app"
+            }
+            rule {
+              source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_instance"]
+              target_label  = "instance"
+            }
           }
 
-          // Collect container logs from /var/log/pods
-          local.file_match "pods" {
-            path_targets = [{
-              __path__ = "/var/log/pods/*/*/*.log",
-            }]
-          }
-
+          // Collect container logs using kubernetes-discovered targets
           loki.source.file "pods" {
-            targets    = local.file_match.pods.targets
+            targets    = discovery.relabel.pods.output
             forward_to = [loki.process.pipeline.receiver]
           }
 
-          // Pipeline: CRI parse -> labels -> timestamp -> output
+          // Pipeline: CRI parse -> extract stream label -> push to Loki
           loki.process "pipeline" {
             stage.cri {}
 
