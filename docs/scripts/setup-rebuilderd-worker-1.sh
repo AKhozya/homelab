@@ -28,6 +28,11 @@ if ! command -v rebuilderd-worker &> /dev/null; then
     pacman -S --noconfirm rebuilderd
 fi
 
+# Install firmware packages (suppresses mkinitcpio warnings)
+echo "Installing firmware packages..."
+pacman -S --noconfirm --needed amd-ucode linux-firmware linux-firmware-whence
+sudo -u akhozya yay -S --noconfirm --needed aic94xx-firmware ast-firmware wd719x-firmware upd72020x-fw
+
 # Create systemd override directory
 mkdir -p /etc/systemd/system/rebuilderd-worker@.service.d
 
