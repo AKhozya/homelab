@@ -179,13 +179,13 @@
 | Item | Target Date | Priority |
 |------|-------------|----------|
 | Remove worker-node-2 replication step | ~Feb 13, 2026 | P2 |
-| Migrate Promtail to Grafana Alloy | Before March 2, 2026 | P1 |
+| ~~Migrate Promtail to Grafana Alloy~~ | ~~Before March 2, 2026~~ | ✅ Done |
 | Re-evaluate VictoriaMetrics | Feb 2026 | P3 |
 | LTS kernel 6.18 | TBD (Arch `linux-lts` still at 6.12.68) | P2 |
 
 **Monthly Review Checklist** (for next review):
 - [ ] Helm chart deprecation audit (`helm template --debug` + changelogs for all 10 releases)
-- [ ] Promtail EOL migration status
+- [x] ~~Promtail EOL migration status~~ ✅ Migrated to Alloy (2026-02-07)
 
 **Next Review**: 2026-03-07 (Monthly)
 
@@ -242,7 +242,7 @@
 |----------|--------|------------|
 | immich-server | GPU transcoding (VAAPI) | NetworkPolicy, namespace isolation |
 | adguard-home | Port 53 binding | NetworkPolicy, dedicated namespace |
-| promtail | Host log access | DaemonSet, read-only mounts |
+| alloy | Host log access (K8s API) | DaemonSet, RBAC-scoped |
 | home-assistant | Hardware integrations | NetworkPolicy, capability restrictions |
 
 #### Code Quality (Staff Software Developer Perspective)
@@ -358,13 +358,14 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ### ⚠️ P1-HIGH (Active Items Only)
 
-#### ⏳ **Migrate Promtail to Grafana Alloy** - EOL March 2, 2026
-   - **Status**: PENDING - Promtail 6.17.1 is the FINAL version (EOL: March 2, 2026)
-   - **Priority**: P1-HIGH (23 days until EOL, no more security patches)
-   - **Replacement**: Grafana Alloy (official successor, combines Promtail + Grafana Agent)
-   - **Scope**: New HelmRelease for `grafana/alloy`, convert pipeline config, update NetworkPolicy, remove promtail
-   - **Action**: Defer to dedicated session — full migration, not a quick fix
-   - **Deadline**: Before March 2, 2026
+#### ✅ **Migrate Promtail to Grafana Alloy** - COMPLETED (2026-02-07)
+   - **Status**: ✅ COMPLETED - Alloy v1.12.1 (chart 1.5.1) deployed, Promtail removed
+   - **Priority**: ~~P1-HIGH~~ COMPLETED (24 days ahead of EOL deadline)
+   - **Details**: Grafana Alloy DaemonSet on all 3 nodes, `loki.source.kubernetes` for K8s API-based log tailing
+   - **Labels**: namespace, pod, container, node_name, app (same as Promtail)
+   - **Alerts**: AlloyDown, AlloyLogDeliveryFailing (replaced PromtailDown, PromtailTargetsMissing)
+   - **Dashboard**: Updated to show Alloy metrics and pod selectors
+   - **Commits**: 70371693, 4c6e8b27, 3d710ff7, 216f317e
 
 #### ✅ **Automated Backup Validation Testing** - COMPLETED (2026-02-06)
    - Daily automated validation: SHA256 checksum, tar integrity, size thresholds, age checks
@@ -702,7 +703,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 
 **Overall Grade**: A+ (96/100) - Maintained
 - **Critical Issues**: 0 P0 issues ✅
-- **High Priority**: 1 P1 active ⚠️ (Promtail EOL March 2, 2026 — migrate to Alloy)
+- **High Priority**: 0 P1 active ✅
 - **Active P2**: Remove worker-node-2 replication (~Feb 13), LTS kernel (waiting on Arch)
 - **Active P3**: VictoriaMetrics re-evaluation, config-reloader resource limits
 
@@ -1081,15 +1082,31 @@ ingress:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
+### 2026-02-07 (Promtail → Grafana Alloy Migration) 🔄
+- ✅ **Promtail Replaced with Grafana Alloy**: Full migration completed 24 days ahead of EOL deadline ⭐
+  - **Chart**: grafana/alloy v1.5.1 (app v1.12.1) — replaces promtail 6.17.1 (EOL March 2, 2026)
+  - **Config**: `loki.source.kubernetes` — tails logs via K8s API (no hostPath mounts needed)
+  - **Labels**: namespace, pod, container, node_name, app (same enrichment as Promtail)
+  - **Resources**: 50m/200m CPU, 256Mi/512Mi memory (DaemonSet, 3 pods)
+  - **Metrics port**: 12345 (was 3101 for Promtail)
+  - **Metric prefix**: `loki_write_*` (e.g., `loki_write_sent_bytes_total`, `loki_write_dropped_entries_total`)
+- ✅ **Alerts Updated**: PromtailDown → AlloyDown, PromtailTargetsMissing → AlloyLogDeliveryFailing
+- ✅ **Dashboard Updated**: All Promtail references replaced with Alloy metrics and selectors
+- ✅ **NetworkPolicy Updated**: Renamed promtail-network-policy → alloy-network-policy, port 12345
+- ✅ **Kyverno**: loki namespace exclusion still covers Alloy (namespace-level, no change needed)
+- 📋 **Commits**: 70371693, 4c6e8b27, 3d710ff7, 216f317e
+
 ### 2026-02-07 (Helm Chart Deprecation Audit) 🔧
 - ✅ **Helm Chart Deprecation Audit**: Audited all 10 HelmReleases for deprecated fields ⭐
   - **cert-manager**: `installCRDs: true` → `crds: { enabled: true, keep: true }` (deprecated since v1.15.0)
   - **Loki**: Removed deprecated `grafanaAgent: installOperator: false` from selfMonitoring
   - **Alertmanager**: Migrated `match:`/`match_re:` → `matchers:` list syntax (deprecated since v0.22+)
   - **Grafana `rbac.pspEnabled`**: Cosmetic only (PSP removed K8s 1.25+), no fix needed
-- ⏳ **Promtail EOL Identified**: Promtail 6.17.1 is FINAL version, EOL March 2, 2026
-  - Added as P1-HIGH action item — migrate to Grafana Alloy before deadline
-  - Deferred to dedicated session (full migration scope)
+- ✅ **Promtail → Alloy Migration Complete**: Promtail removed, Alloy v1.12.1 deployed ⭐
+  - Grafana Alloy DaemonSet on all 3 nodes using `loki.source.kubernetes` (K8s API)
+  - Labels: namespace, pod, container, node_name, app (matches Promtail)
+  - NetworkPolicy, alerts, dashboard all updated
+  - Commits: 70371693, 4c6e8b27, 3d710ff7, 216f317e
 - ✅ **Monthly Helm Audit Checklist**: Added to review template for recurring checks
 
 ### 2026-02-07 (Monthly Review + Cleanup) 🔍
@@ -1629,7 +1646,7 @@ ingress:
   - adguard-home (DNS binding requires root for port 53)
   - pricebuddy (apprise sidecar requires root for config)
   - stirling-pdf (PDF processing with user switching capabilities)
-  - loki (promtail requires root to read host logs)
+  - loki (alloy requires root to read host logs)
 - ✅ **Cluster Cleanup**: Deleted 213 old ReplicaSets and 15 completed jobs
 - 📅 **Second Worker Node Delay**: Updated from December 2025 to January 2026
 - 📋 **Commits**: 9ab43ff, 401b62d, 6fea5cb, 5d5d615
