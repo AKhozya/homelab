@@ -26,8 +26,7 @@ spec:
   storage:
     size: 10Gi
     storageClass: "local-path"
-  monitoring:
-    enablePodMonitor: false  # Disabled: using manually managed PodMonitor (see podmonitor.yaml)
+  monitoring: {}  # Metrics handled by manually managed PodMonitor (see podmonitor.yaml)
   bootstrap:
     initdb:
       database: postgres
