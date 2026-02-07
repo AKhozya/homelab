@@ -116,7 +116,7 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow Alloy to send logs to loki-gateway
+    # Allow Alloy to send logs to loki-gateway (nginx on port 8080)
     - to:
         - namespaceSelector:
             matchLabels:
@@ -127,8 +127,6 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-        - protocol: TCP
-          port: 3100
     # Allow Alloy to access Kubernetes API for discovery
     - to:
         - ipBlock:

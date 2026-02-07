@@ -44,36 +44,25 @@ spec:
           cpu: 200m
           memory: 512Mi
 
-      # Mount host log directories for log collection
-      mounts:
-        varlog: true
-
       # Alloy configuration (River/HCL syntax)
+      # Uses loki.source.kubernetes which tails logs via K8s API
+      # (no hostPath mounts needed, automatic pod metadata labels)
       configMap:
         create: true
         content: |
-          // Discover all pods on this node for metadata enrichment
+          // Discover pods on this node
           discovery.kubernetes "pods" {
             role = "pod"
             selectors {
               role  = "pod"
-              field = "spec.nodeName=" + sys.env("HOSTNAME")
+              field = "spec.nodeName=" + coalesce(sys.env("HOSTNAME"), constants.hostname)
             }
           }
 
-          // Relabel to add pod metadata as labels and set log file path
+          // Add namespace, pod, container, app labels from pod metadata
           discovery.relabel "pods" {
             targets = discovery.kubernetes.pods.targets
 
-            // Set the log file path from pod metadata
-            rule {
-              source_labels = ["__meta_kubernetes_pod_uid", "__meta_kubernetes_pod_container_name"]
-              separator     = "/"
-              target_label  = "__path__"
-              replacement   = "/var/log/pods/*$1/$2/*.log"
-            }
-
-            // Keep namespace, pod, container, node as labels
             rule {
               source_labels = ["__meta_kubernetes_namespace"]
               target_label  = "namespace"
@@ -90,25 +79,19 @@ spec:
               source_labels = ["__meta_kubernetes_pod_node_name"]
               target_label  = "node_name"
             }
-
-            // Add app label from standard k8s labels
             rule {
               source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
               target_label  = "app"
             }
-            rule {
-              source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_instance"]
-              target_label  = "instance"
-            }
           }
 
-          // Collect container logs using kubernetes-discovered targets
-          loki.source.file "pods" {
+          // Tail container logs via Kubernetes API
+          loki.source.kubernetes "pods" {
             targets    = discovery.relabel.pods.output
             forward_to = [loki.process.pipeline.receiver]
           }
 
-          // Pipeline: CRI parse -> extract stream label -> push to Loki
+          // Pipeline: extract stream label -> push to Loki
           loki.process "pipeline" {
             stage.cri {}
 
