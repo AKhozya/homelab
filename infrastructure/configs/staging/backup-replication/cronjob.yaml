@@ -94,28 +94,28 @@ spec:
                   echo "=== Source Backups ==="
                   du -sh /source-backups/*/ 2>/dev/null || echo "No backups found"
 
-                  # Step 1: Sync to NAS (no --delete, NAS accumulates full history)
-                  CURRENT_STEP="Step 1: Syncing to NAS"
-                  echo ""
-                  echo "=== Step 1: Syncing to NAS ==="
-                  RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync -avz \
-                    --exclude='*.tmp' \
-                    --exclude='.*.swp' \
-                    --port=50555 \
-                    /source-backups/ \
-                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/"
-
-                  # Step 2: Sync to worker-node-2 (--delete, keeps only current backup as safety net)
+                  # Step 1: Sync to worker-node-2 (--delete, keeps only current backup as safety net)
                   # TODO: Remove worker-node-2 step after 1 week of successful NAS backups (~Feb 13, 2026)
-                  CURRENT_STEP="Step 2: Syncing to worker-node-2"
+                  CURRENT_STEP="Step 1: Syncing to worker-node-2"
                   echo ""
-                  echo "=== Step 2: Syncing to worker-node-2 (safety net) ==="
+                  echo "=== Step 1: Syncing to worker-node-2 (safety net) ==="
                   rsync -avz --delete \
                     --exclude='*.tmp' \
                     --exclude='.*.swp' \
                     -e "ssh -p 65300 -o StrictHostKeyChecking=no" \
                     /source-backups/ \
                     z3us@192.168.1.126:/mnt/extra-storage/backups/
+
+                  # Step 2: Sync to NAS (no --delete, NAS accumulates full history)
+                  CURRENT_STEP="Step 2: Syncing to NAS"
+                  echo ""
+                  echo "=== Step 2: Syncing to NAS ==="
+                  RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync -avz \
+                    --exclude='*.tmp' \
+                    --exclude='.*.swp' \
+                    --port=50555 \
+                    /source-backups/ \
+                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/"
 
                   # Step 3: Verify NAS
                   CURRENT_STEP="Step 3: Verifying NAS"
