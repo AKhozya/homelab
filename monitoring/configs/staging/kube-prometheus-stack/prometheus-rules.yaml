@@ -1013,23 +1013,23 @@ spec:
         summary: "Loki compactor is not running"
         description: "Loki compactor has not been running for 10 minutes. Log retention/cleanup may not be working."
 
-    - alert: PromtailDown
-      expr: up{job=~".*promtail.*"} == 0
+    - alert: AlloyDown
+      expr: up{job=~".*alloy.*"} == 0
       for: 2m
       labels:
         severity: warning
       annotations:
-        summary: "Promtail is down on {{ $labels.instance }}"
-        description: "Promtail on {{ $labels.instance }} has been down for more than 2 minutes. Logs from this node are not being collected."
+        summary: "Alloy is down on {{ $labels.instance }}"
+        description: "Alloy on {{ $labels.instance }} has been down for more than 2 minutes. Logs from this node are not being collected."
 
-    - alert: PromtailTargetsMissing
-      expr: promtail_targets_active_total == 0
+    - alert: AlloyLogDeliveryFailing
+      expr: rate(loki_write_dropped_entries_total[5m]) > 0
       for: 5m
       labels:
         severity: warning
       annotations:
-        summary: "Promtail has no active targets"
-        description: "Promtail on {{ $labels.instance }} has no active scrape targets. Log collection is not working."
+        summary: "Alloy is dropping log entries on {{ $labels.instance }}"
+        description: "Alloy on {{ $labels.instance }} is failing to deliver logs to Loki. Check Alloy and Loki connectivity."
 
   # ==========================================================================
   # TRAEFIK ALERTS - Ingress controller health monitoring

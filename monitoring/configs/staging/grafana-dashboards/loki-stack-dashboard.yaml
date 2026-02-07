@@ -79,7 +79,7 @@ data:
           }
         ]
       },
-      "description": "This dashboard can be used to detect issues on the Loki stack, when deployed in Kubernetes. Shows: some error metrics published by Promtail/Loki. Error and warning logs emitted by Promtail/Loki. Memory and CPU usage of Promtail/Loki compared against the Kubernetes memory/cpu limits and requests.",
+      "description": "This dashboard can be used to detect issues on the Loki stack, when deployed in Kubernetes. Shows: some error metrics published by Alloy/Loki. Error and warning logs emitted by Alloy/Loki. Memory and CPU usage of Alloy/Loki compared against the Kubernetes memory/cpu limits and requests.",
       "editable": true,
       "gnetId": 14055,
       "graphTooltip": 0,
@@ -366,7 +366,7 @@ data:
             "for": "5m",
             "frequency": "1m",
             "handler": 1,
-            "name": "Promtail has emitted error/warning messages in the last 5m",
+            "name": "Alloy has emitted error/warning messages in the last 5m",
             "noDataState": "no_data",
             "notifications": []
           },
@@ -375,7 +375,7 @@ data:
           "dashLength": 10,
           "dashes": false,
           "datasource": "Prometheus",
-          "description": "Total number of messages logged by Promtail",
+          "description": "Total number of messages logged by Alloy",
           "fieldConfig": {
             "defaults": {
               "custom": {},
@@ -437,7 +437,7 @@ data:
           "steppedLine": false,
           "targets": [
             {
-              "expr": "sum(rate(loki_log_messages_total{container=\"promtail\",level=~\"error|warn\"}[1m])) by (level)\n",
+              "expr": "sum(rate(loki_log_messages_total{container=\"alloy\",level=~\"error|warn\"}[1m])) by (level)\n",
               "format": "time_series",
               "hide": false,
               "interval": "",
@@ -458,7 +458,7 @@ data:
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Error/warning messages logged by Promtail",
+          "title": "Error/warning messages logged by Alloy",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -519,14 +519,14 @@ data:
           "pluginVersion": "7.3.5",
           "targets": [
             {
-              "expr": "{app=\"promtail\"} | logfmt | level=\"warn\" or level=\"error\"",
+              "expr": "{app=\"alloy\"} | logfmt | level=\"warn\" or level=\"error\"",
               "legendFormat": "",
               "refId": "A"
             }
           ],
           "timeFrom": null,
           "timeShift": null,
-          "title": "Error/warning messages logged by Promtail",
+          "title": "Error/warning messages logged by Alloy",
           "type": "logs"
         },
         {
@@ -701,7 +701,7 @@ data:
             "for": "5m",
             "frequency": "1m",
             "handler": 1,
-            "name": "Promtail has dropped logs in the last 5m",
+            "name": "Alloy has dropped logs in the last 5m",
             "noDataState": "no_data",
             "notifications": []
           },
@@ -710,7 +710,7 @@ data:
           "dashLength": 10,
           "dashes": false,
           "datasource": "Prometheus",
-          "description": "Number of log entries dropped because failed to be sent to the Loki ingester after all retries.",
+          "description": "Number of log entries dropped because failed to be sent to the Loki ingester after all retries (Alloy).",
           "fieldConfig": {
             "defaults": {
               "custom": {}
@@ -754,7 +754,7 @@ data:
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(promtail_dropped_entries_total[1m])*60",
+              "expr": "rate(loki_write_dropped_entries_total[1m])*60",
               "instant": false,
               "interval": "",
               "legendFormat": "pod={{kubernetes_pod_name}}, instance={{instance}}",
@@ -773,7 +773,7 @@ data:
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Promtail - dropped log entries",
+          "title": "Alloy - dropped log entries",
           "tooltip": {
             "shared": true,
             "sort": 0,
@@ -1542,7 +1542,7 @@ data:
             "for": "5m",
             "frequency": "1m",
             "handler": 1,
-            "name": "Promtail memory usage is above 80% of the defined limit",
+            "name": "Alloy memory usage is above 80% of the defined limit",
             "noDataState": "no_data",
             "notifications": []
           },
@@ -1606,7 +1606,7 @@ data:
           "steppedLine": false,
           "targets": [
             {
-              "expr": "100* max by(pod,container) (container_memory_working_set_bytes{container=~\".+\",container!~\"POD\",pod=~\"promtail.*\"})\n/\non (pod,container) (kube_pod_container_resource_limits{resource=\"memory\",pod=~\"promtail.*\"})",
+              "expr": "100* max by(pod,container) (container_memory_working_set_bytes{container=~\".+\",container!~\"POD\",pod=~\"alloy.*\"})\n/\non (pod,container) (kube_pod_container_resource_limits{resource=\"memory\",pod=~\"alloy.*\"})",
               "hide": false,
               "interval": "",
               "legendFormat": "",
@@ -1625,7 +1625,7 @@ data:
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Promtail memory usage (% of Kubernetes memory limit)",
+          "title": "Alloy memory usage (% of Kubernetes memory limit)",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -1739,7 +1739,7 @@ data:
           "steppedLine": false,
           "targets": [
             {
-              "expr": "container_memory_working_set_bytes{container=~\".+\",container!~\"POD\",pod=~\"promtail.*\"}",
+              "expr": "container_memory_working_set_bytes{container=~\".+\",container!~\"POD\",pod=~\"alloy.*\"}",
               "interval": "10s",
               "intervalFactor": 1,
               "legendFormat": "Usage (pod={{pod}}, container={{container}})",
@@ -1748,13 +1748,13 @@ data:
               "step": 10
             },
             {
-              "expr": "min(kube_pod_container_resource_limits{resource=\"memory\",pod=~\"promtail.*\"})",
+              "expr": "min(kube_pod_container_resource_limits{resource=\"memory\",pod=~\"alloy.*\"})",
               "interval": "",
               "legendFormat": "Limit",
               "refId": "B"
             },
             {
-              "expr": "min(kube_pod_container_resource_requests_memory_bytes{pod=~\"promtail.*\"})",
+              "expr": "min(kube_pod_container_resource_requests_memory_bytes{pod=~\"alloy.*\"})",
               "interval": "",
               "legendFormat": "Request",
               "refId": "C"
@@ -1764,7 +1764,7 @@ data:
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Promtail memory usage vs Kubernetes limit and request",
+          "title": "Alloy memory usage vs Kubernetes limit and request",
           "tooltip": {
             "msResolution": false,
             "shared": true,
@@ -2149,7 +2149,7 @@ data:
             "for": "5m",
             "frequency": "1m",
             "handler": 1,
-            "name": "Promtail CPU usage is above 80% of the defined limit",
+            "name": "Alloy CPU usage is above 80% of the defined limit",
             "noDataState": "no_data",
             "notifications": []
           },
@@ -2213,7 +2213,7 @@ data:
           "steppedLine": false,
           "targets": [
             {
-              "expr": "100 * rate(container_cpu_usage_seconds_total{container=~\".+\",container!~\"POD\",pod=~\"promtail.*\"}[1m])\n/\non (pod,container) kube_pod_container_resource_limits{resource=\"cpu\",pod=~\"promtail.*\"}",
+              "expr": "100 * rate(container_cpu_usage_seconds_total{container=~\".+\",container!~\"POD\",pod=~\"alloy.*\"}[1m])\n/\non (pod,container) kube_pod_container_resource_limits{resource=\"cpu\",pod=~\"alloy.*\"}",
               "interval": "10s",
               "intervalFactor": 1,
               "legendFormat": "",
@@ -2234,7 +2234,7 @@ data:
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Promtail CPU usage (% of Kubernetes limit)",
+          "title": "Alloy CPU usage (% of Kubernetes limit)",
           "tooltip": {
             "msResolution": true,
             "shared": true,
@@ -2349,7 +2349,7 @@ data:
           "steppedLine": false,
           "targets": [
             {
-              "expr": "rate(container_cpu_usage_seconds_total{container=~\".+\",container!~\"POD\",pod=~\"promtail.*\"}[1m])",
+              "expr": "rate(container_cpu_usage_seconds_total{container=~\".+\",container!~\"POD\",pod=~\"alloy.*\"}[1m])",
               "interval": "10s",
               "intervalFactor": 1,
               "legendFormat": "CPU Usage (pod={{pod}}, container={{container}})",
@@ -2358,13 +2358,13 @@ data:
               "step": 10
             },
             {
-              "expr": "min(kube_pod_container_resource_limits{resource=\"cpu\",pod=~\"promtail.*\"})",
+              "expr": "min(kube_pod_container_resource_limits{resource=\"cpu\",pod=~\"alloy.*\"})",
               "interval": "",
               "legendFormat": "CPU Limit",
               "refId": "B"
             },
             {
-              "expr": "min(kube_pod_container_resource_requests_cpu_cores{pod=~\"promtail.*\"})",
+              "expr": "min(kube_pod_container_resource_requests_cpu_cores{pod=~\"alloy.*\"})",
               "hide": false,
               "interval": "",
               "legendFormat": "CPU Request",
@@ -2375,7 +2375,7 @@ data:
           "timeFrom": null,
           "timeRegions": [],
           "timeShift": null,
-          "title": "Promtail CPU usage vs Kubernetes limit and request",
+          "title": "Alloy CPU usage vs Kubernetes limit and request",
           "tooltip": {
             "msResolution": true,
             "shared": true,
@@ -2492,7 +2492,7 @@ data:
         ]
       },
       "timezone": "",
-      "title": "Loki stack monitoring (Promtail, Loki)",
+      "title": "Loki stack monitoring (Alloy, Loki)",
       "uid": "loki_stack_monitoring_quortex",
       "version": 5
     }
