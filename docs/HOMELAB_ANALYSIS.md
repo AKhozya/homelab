@@ -182,9 +182,13 @@
 | ~~Migrate Promtail to Grafana Alloy~~ | ~~Before March 2, 2026~~ | ✅ Done |
 | Re-evaluate VictoriaMetrics | Feb 2026 | P3 |
 | LTS kernel 6.18 | TBD (Arch `linux-lts` still at 6.12.68) | P2 |
+| Home Assistant: audit legacy template entities | Before June 2026 | P2 |
+| Authentik: update `/media` mount to `/data/media` | Next Authentik upgrade | P3 |
+| Immich: remove unrecognized `PUBLIC_IMMICH_SERVER_URL` env var | Next Immich change | P3 |
+| Linkwarden: update Playwright `chromium_headless_shell-1200` path | On Playwright version bump | P3 |
 
 **Monthly Review Checklist** (for next review):
-- [ ] Helm chart deprecation audit (`helm template --debug` + changelogs for all 10 releases)
+- [x] ~~Helm chart deprecation audit~~ ✅ Completed (2026-02-07) - 2 commits, Kyverno + CouchDB fixes
 - [x] ~~Promtail EOL migration status~~ ✅ Migrated to Alloy (2026-02-07)
 
 **Next Review**: 2026-03-07 (Monthly)
