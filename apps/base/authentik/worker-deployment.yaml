@@ -96,7 +96,7 @@ spec:
               memory: "1200Mi"
           volumeMounts:
             - name: media
-              mountPath: /media
+              mountPath: /data/media
             - name: tmp
               mountPath: /tmp
             - name: certs
