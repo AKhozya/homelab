@@ -33,7 +33,7 @@ spec:
     requests.cpu: "4"
     requests.memory: 8Gi
     limits.cpu: "16"
-    limits.memory: 28Gi
+    limits.memory: 20Gi
     pods: "50"
     services: "20"
     persistentvolumeclaims: "20"

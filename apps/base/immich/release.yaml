@@ -233,7 +233,7 @@ spec:
                   memory: 512Mi
                 limits:
                   cpu: "4"
-                  memory: 9Gi
+                  memory: 5Gi
               # securityContext overridden via postRenderer patch (privileged: true for GPU)
             # Nginx sidecar to forward traffic from 0.0.0.0:8080 to 127.0.0.1:2283
             # Required because Immich ignores HOST/IMMICH_HOST env vars (bug)
@@ -342,7 +342,7 @@ spec:
                   memory: 512Mi
                 limits:
                   cpu: 2000m
-                  memory: 3Gi
+                  memory: 2Gi
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
