@@ -141,11 +141,6 @@ spec:
           limits:
             cpu: 500m
             memory: 1500Mi
-        # Config reloader sidecar resources
-        configReloaderCpu: "50m"
-        configReloaderMemory: "64Mi"
-        configReloaderCpuLimit: "200m"
-        configReloaderMemoryLimit: "192Mi"
         storageSpec:
           volumeClaimTemplate:
             spec:
@@ -241,12 +236,6 @@ spec:
           limits:
             cpu: 200m
             memory: 128Mi
-        # Config reloader sidecar resources
-        configReloaderCpu: "50m"
-        configReloaderMemory: "64Mi"
-        configReloaderCpuLimit: "200m"
-        configReloaderMemoryLimit: "128Mi"
-    
     # Disable K3s-specific component alerts (embedded architecture)
     # Disable CPU overcommit alert (homelab - intentional overcommit for burst capacity)
     # Disable API server error budget alerts (homelab - SLI/SLO tracking not needed)
@@ -297,6 +286,14 @@ spec:
     prometheusOperator:
       # Note: Prometheus Operator runs as single instance by design (uses leader election)
       # The replicas field is hardcoded to 1 in the chart
+      prometheusConfigReloader:
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 192Mi
       resources:
         requests:
           cpu: 50m
