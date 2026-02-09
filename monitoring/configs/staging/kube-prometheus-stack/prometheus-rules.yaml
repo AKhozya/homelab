@@ -1056,7 +1056,7 @@ spec:
         description: "Service {{ $labels.service }} has no healthy backends for more than 2 minutes."
 
     - alert: TraefikHighErrorRate
-      expr: sum(rate(traefik_service_requests_total{code=~"5.."}[5m])) by (service) / sum(rate(traefik_service_requests_total[5m])) by (service) * 100 > 10
+      expr: sum(rate(traefik_service_requests_total{code=~"5..", service!="traefik-metrics"}[5m])) by (service) / sum(rate(traefik_service_requests_total{service!="traefik-metrics"}[5m])) by (service) * 100 > 10
       for: 5m
       labels:
         severity: warning
