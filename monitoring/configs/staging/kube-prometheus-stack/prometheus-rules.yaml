@@ -1056,7 +1056,7 @@ spec:
         description: "Service {{ $labels.service }} has no healthy backends for more than 2 minutes."
 
     - alert: TraefikHighErrorRate
-      expr: sum(rate(traefik_service_requests_total{code=~"5..", service!="traefik-metrics"}[5m])) by (service) / sum(rate(traefik_service_requests_total{service!="traefik-metrics"}[5m])) by (service) * 100 > 10
+      expr: sum(rate(traefik_service_requests_total{code=~"5.."}[5m])) by (service) / sum(rate(traefik_service_requests_total[5m])) by (service) * 100 > 10
       for: 5m
       labels:
         severity: warning
@@ -1065,7 +1065,7 @@ spec:
         description: "Service {{ $labels.service }} has {{ printf \"%.1f\" $value }}% error rate (5xx responses) over the last 5 minutes."
 
     - alert: TraefikHighLatency
-      expr: histogram_quantile(0.99, sum(rate(traefik_service_request_duration_seconds_bucket{service!="traefik-metrics"}[5m])) by (le, service)) > 2
+      expr: histogram_quantile(0.99, sum(rate(traefik_service_request_duration_seconds_bucket[5m])) by (le, service)) > 2
       for: 5m
       labels:
         severity: warning
