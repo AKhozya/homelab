@@ -51,12 +51,41 @@ data:
       echo "User '$DB_USER' created successfully"
     fi
 
-    # Set database permissions (user as member for normal sync operations)
-    echo "Setting member permissions for user '$DB_USER' on database '$DB_NAME'..."
+    # Set database permissions (user as DB admin for LiveSync operations)
+    echo "Setting DB admin permissions for user '$DB_USER' on database '$DB_NAME'..."
     curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
       "$COUCHDB_URL/$DB_NAME/_security" \
       -H "Content-Type: application/json" \
-      -d "{\"admins\":{\"names\":[],\"roles\":[]},\"members\":{\"names\":[\"$DB_USER\"],\"roles\":[]}}"
-    echo "Member permissions set successfully"
+      -d "{\"admins\":{\"names\":[\"$DB_USER\"],\"roles\":[]},\"members\":{\"names\":[\"$DB_USER\"],\"roles\":[]}}"
+    echo "DB admin permissions set successfully"
+
+    # Apply LiveSync recommended CouchDB settings
+    echo "Applying LiveSync recommended settings..."
+    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+      "$COUCHDB_URL/_node/_local/_config/chttpd/require_valid_user" -d '"true"'
+    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+      "$COUCHDB_URL/_node/_local/_config/chttpd_auth/require_valid_user" -d '"true"'
+    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+      "$COUCHDB_URL/_node/_local/_config/httpd/WWW-Authenticate" -d '"Basic realm=\"couchdb\""'
+    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+      "$COUCHDB_URL/_node/_local/_config/httpd/enable_cors" -d '"true"'
+    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+      "$COUCHDB_URL/_node/_local/_config/chttpd/enable_cors" -d '"true"'
+    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+      "$COUCHDB_URL/_node/_local/_config/chttpd/max_http_request_size" -d '"134217728"'
+    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+      "$COUCHDB_URL/_node/_local/_config/couchdb/max_document_size" -d '"50000000"'
+    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+      "$COUCHDB_URL/_node/_local/_config/cors/credentials" -d '"true"'
+    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+      "$COUCHDB_URL/_node/_local/_config/cors/origins" \
+      -d '"app://obsidian.md,capacitor://localhost,http://localhost"'
+    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+      "$COUCHDB_URL/_node/_local/_config/cors/headers" \
+      -d '"accept,authorization,content-type,origin,referer"'
+    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
+      "$COUCHDB_URL/_node/_local/_config/cors/methods" \
+      -d '"GET,PUT,POST,HEAD,DELETE"'
+    echo "LiveSync settings applied successfully"
 
     echo "Database initialization complete!"
