@@ -61,14 +61,19 @@ spec:
         delayed_commits: "false"
       chttpd:
         require_valid_user: true
-        max_http_request_size: 4294967296
+        max_http_request_size: 134217728
         # Rate limiting: max requests per connection per second (prevents brute force)
         # Set to 100 req/sec which is reasonable for sync operations
         max_http_request_rate: 100
+        enable_cors: true
+        WWW-Authenticate: Basic realm="couchdb"
+      chttpd_auth:
+        require_valid_user: true
       httpd:
         enable_cors: true
+        WWW-Authenticate: Basic realm="couchdb"
       cors:
-        origins: app://obsidian.md, capacitor://localhost, http://localhost, https://couchdb.h0melab.work
+        origins: app://obsidian.md,capacitor://localhost,http://localhost
         credentials: true
         headers: accept, authorization, content-type, origin, referer
         methods: GET, PUT, POST, HEAD, DELETE
