@@ -25,3 +25,13 @@ node-taint:
 # Exclude control plane from ServiceLB (LoadBalancer) traffic
 node-label:
   - "svccontroller.k3s.cattle.io/enablelb=false"
+
+# Kubelet Configuration
+# References external kubelet config file for eviction, log rotation, graceful shutdown
+kubelet-arg:
+  - "config=/etc/rancher/k3s/kubelet.yaml"
+
+# Secrets Encryption
+# Encrypts Kubernetes secrets at rest using AES-CBC
+# Enable procedure: k3s secrets-encrypt enable → add this flag → restart → rotate-keys → restart
+secrets-encryption: true

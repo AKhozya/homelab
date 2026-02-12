@@ -13,6 +13,11 @@ node-name: worker-node
 node-label:
   - "svccontroller.k3s.cattle.io/enablelb=true"
 
+# Kubelet Configuration
+# References external kubelet config file for eviction, log rotation, graceful shutdown
+kubelet-arg:
+  - "config=/etc/rancher/k3s/kubelet.yaml"
+
 # Note: The K3s server URL and token are typically provided during installation
 # and are stored in /etc/systemd/system/k3s-agent.service.env
 # If you need to rejoin the cluster, use:
