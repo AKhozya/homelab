@@ -4,7 +4,7 @@
 #
 # This script configures a K3s node with:
 # 1. Firmware (auto-detects Intel/AMD)
-# 2. Power/Performance optimization (powersave governor, balance_power EPP, SSD no-sleep, BBR)
+# 2. Power/Performance optimization (powersave governor for noise/heat reduction, balance_power EPP, SSD no-sleep, BBR)
 # 3. Graceful shutdown (kubelet config)
 #
 # Works for both control-plane and worker nodes (auto-detected)
@@ -108,6 +108,8 @@ echo "[2/3] Performance Optimization"
 echo "=============================================="
 
 # CPU Governor (powersave with balance_power EPP)
+# Using powersave (not performance) to reduce noise and heat on mini PCs
+# that also run rebuilderd alongside K3s workloads
 echo "Setting CPU governor to powersave..."
 if command -v cpupower &>/dev/null; then
     cpupower frequency-set -g powersave 2>/dev/null || true
@@ -246,6 +248,22 @@ apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
 shutdownGracePeriod: 120s
 shutdownGracePeriodCriticalPods: 30s
+# Eviction: hard threshold at 10%, soft at 15% with 1m grace
+evictionHard:
+  imagefs.available: "10%"
+  nodefs.available: "10%"
+  memory.available: "100Mi"
+evictionSoft:
+  imagefs.available: "15%"
+  nodefs.available: "15%"
+  memory.available: "200Mi"
+evictionSoftGracePeriod:
+  imagefs.available: "1m"
+  nodefs.available: "1m"
+  memory.available: "1m"
+# Log rotation
+containerLogMaxSize: "50Mi"
+containerLogMaxFiles: 5
 EOF
 
 # Update K3s config
@@ -268,11 +286,18 @@ EOF
     fi
 fi
 
-# Create systemd override for K3s service
+# Create systemd overrides for K3s service
 mkdir -p /etc/systemd/system/${K3S_SERVICE}.service.d/
 cat > /etc/systemd/system/${K3S_SERVICE}.service.d/shutdown-timeout.conf << EOF
 [Service]
 TimeoutStopSec=150
+EOF
+
+# K3s kube-proxy recalculates conntrack on startup (cores × 32768)
+# Override it after K3s starts to ensure our value sticks
+cat > /etc/systemd/system/${K3S_SERVICE}.service.d/conntrack-fix.conf << 'EOF'
+[Service]
+ExecStartPost=/sbin/sysctl -w net.netfilter.nf_conntrack_max=1048576
 EOF
 
 # Reload systemd
@@ -290,11 +315,13 @@ echo "=============================================="
 echo ""
 echo "Applied:"
 echo "  - Firmware: $UCODE_PKG, linux-firmware"
-echo "  - CPU governor: powersave (EPP: balance_power, boost enabled)"
+echo "  - CPU governor: powersave (noise/heat reduction, EPP: balance_power, boost enabled)"
 echo "  - TCP congestion: BBR"
 echo "  - SSD power saving: disabled (NVMe APST, PCIe ASPM, SATA ALPM)"
 echo "  - inotify limits: 8192 instances, 1M watches"
 echo "  - Conntrack max: 1048576"
+echo "  - Eviction: hard 10%, soft 15% (1m grace)"
+echo "  - Container logs: 50Mi × 5 files"
 echo "  - Graceful shutdown: 120s (30s critical)"
 echo ""
 echo "Files created/modified:"
