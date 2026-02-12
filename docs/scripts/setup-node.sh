@@ -171,6 +171,49 @@ vm.dirty_background_ratio = 5
 EOF
 sysctl -p /etc/sysctl.d/99-k8s-performance.conf >/dev/null 2>&1
 
+# Security hardening sysctls
+echo "Applying security hardening sysctls..."
+cat > /etc/sysctl.d/99-security-hardening.conf << 'EOF'
+# Security Hardening (February 2026)
+
+# Disable ICMP secure redirects (prevent MITM route injection)
+net.ipv4.conf.all.secure_redirects = 0
+net.ipv4.conf.default.secure_redirects = 0
+
+# Log martian packets (spoofed source addresses)
+net.ipv4.conf.all.log_martians = 1
+net.ipv4.conf.default.log_martians = 1
+
+# Harden BPF JIT compiler (prevent JIT spraying attacks)
+net.core.bpf_jit_harden = 2
+EOF
+sysctl -p /etc/sysctl.d/99-security-hardening.conf >/dev/null 2>&1
+
+# SSH hardening (post-quantum kex, strong ciphers only)
+echo "Applying SSH hardening..."
+cat > /etc/ssh/sshd_config.d/99-hardening.conf << 'EOF'
+# Security hardening - February 2026
+# Post-quantum key exchange (OpenSSH 10.x)
+KexAlgorithms mlkem768x25519-sha256,curve25519-sha256,curve25519-sha256@libssh.org
+
+# Strong ciphers only (no CBC, no 3DES)
+Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
+
+# ETM MACs only (no MD5, no SHA1, no non-ETM)
+MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
+
+# Modern host key algorithms only (no DSA, no ECDSA NIST curves)
+HostKeyAlgorithms ssh-ed25519,rsa-sha2-512,rsa-sha2-256
+PubkeyAcceptedAlgorithms ssh-ed25519,rsa-sha2-512,rsa-sha2-256
+EOF
+if sshd -t 2>/dev/null; then
+    systemctl reload sshd
+    echo "  Done: SSH hardened and reloaded"
+else
+    echo "  ERROR: SSH config invalid, reverting"
+    rm -f /etc/ssh/sshd_config.d/99-hardening.conf
+fi
+
 # Enable SSD TRIM
 systemctl enable --now fstrim.timer 2>/dev/null || true
 
@@ -267,6 +310,8 @@ evictionSoftGracePeriod:
 # Log rotation
 containerLogMaxSize: "50Mi"
 containerLogMaxFiles: 5
+# Streaming connection security (CIS benchmark, default 4h is excessive)
+streamingConnectionIdleTimeout: 5m
 EOF
 
 # Update K3s config
@@ -323,8 +368,11 @@ echo "  - TCP congestion: BBR"
 echo "  - SSD power saving: disabled (NVMe APST, PCIe ASPM, SATA ALPM)"
 echo "  - inotify limits: 8192 instances, 1M watches"
 echo "  - Conntrack max: 1048576"
+echo "  - SSH: post-quantum kex, strong ciphers/MACs only"
+echo "  - Kernel: secure_redirects off, log_martians, bpf_jit_harden=2"
 echo "  - Eviction: hard 10%, soft 15% (1m grace)"
 echo "  - Container logs: 50Mi × 5 files"
+echo "  - Kubelet streaming timeout: 5m"
 echo "  - Graceful shutdown: 120s (30s critical)"
 echo ""
 echo "Files created/modified:"
