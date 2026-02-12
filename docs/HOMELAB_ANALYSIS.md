@@ -59,7 +59,7 @@
 - Default credential elimination on all apps
 - **🆕 Node-Level Security Hardening** ⭐ (2026-02-12)
   - **SSH**: Post-quantum kex (mlkem768x25519), strong ciphers (chacha20/aes-gcm), ETM MACs only
-  - **Kernel**: secure_redirects=0, log_martians=1, bpf_jit_harden=2
+  - **Kernel**: secure_redirects=0, log_martians=1, unprivileged_bpf_disabled=1
   - **Kubelet**: streamingConnectionIdleTimeout=5m (CIS benchmark)
   - **K3s Secrets-at-Rest**: AES-CBC encryption enabled (control-plane)
   - **Coverage**: All 3 nodes hardened
@@ -358,7 +358,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 #### ✅ **Node-Level Hardening** - COMPLETED (2026-02-12)
    - **SSH**: Post-quantum kex (mlkem768x25519-sha256), strong ciphers only (chacha20-poly1305, aes256-gcm, aes128-gcm), ETM MACs only, ed25519/rsa-sha2 host keys
-   - **Kernel sysctls**: `secure_redirects=0` (prevent MITM), `log_martians=1` (detect spoofing), `bpf_jit_harden=2` (prevent JIT spraying)
+   - **Kernel sysctls**: `secure_redirects=0` (prevent MITM), `log_martians=1` (detect spoofing), `unprivileged_bpf_disabled=1` (block unprivileged BPF)
    - **Kubelet**: `streamingConnectionIdleTimeout=5m` (was 4h default, CIS benchmark)
    - **K3s Secrets-at-Rest**: AES-CBC encryption enabled on control-plane (`k3s secrets-encrypt rotate-keys`)
    - **Coverage**: All 3 nodes (SSH, kernel, kubelet), control-plane (secrets encryption)
@@ -1113,7 +1113,7 @@ ingress:
 - ✅ **Kernel Sysctl Hardening**: Applied to all 3 nodes ⭐
   - `net.ipv4.conf.all.secure_redirects=0` (prevent MITM route injection)
   - `net.ipv4.conf.all.log_martians=1` (detect spoofed source addresses)
-  - `net.core.bpf_jit_harden=2` (prevent JIT spraying attacks)
+  - `kernel.unprivileged_bpf_disabled=1` (block unprivileged BPF access; Arch kernel has BPF_JIT_ALWAYS_ON + BPF_UNPRIV_DEFAULT_OFF compiled-in)
   - Config: `/etc/sysctl.d/99-security-hardening.conf`
 - ✅ **Kubelet Streaming Timeout**: Reduced from 4h to 5m on all 3 nodes ⭐
   - CIS Kubernetes Benchmark recommendation

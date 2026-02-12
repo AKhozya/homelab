@@ -184,8 +184,10 @@ net.ipv4.conf.default.secure_redirects = 0
 net.ipv4.conf.all.log_martians = 1
 net.ipv4.conf.default.log_martians = 1
 
-# Harden BPF JIT compiler (prevent JIT spraying attacks)
-net.core.bpf_jit_harden = 2
+# BPF hardening: Arch kernel uses BPF_JIT_ALWAYS_ON + BPF_UNPRIV_DEFAULT_OFF
+# which is superior to bpf_jit_harden (no interpreter fallback, unprivileged blocked)
+# Ensure unprivileged BPF stays disabled (defense in depth)
+kernel.unprivileged_bpf_disabled = 1
 EOF
 sysctl -p /etc/sysctl.d/99-security-hardening.conf >/dev/null 2>&1
 
@@ -369,7 +371,7 @@ echo "  - SSD power saving: disabled (NVMe APST, PCIe ASPM, SATA ALPM)"
 echo "  - inotify limits: 8192 instances, 1M watches"
 echo "  - Conntrack max: 1048576"
 echo "  - SSH: post-quantum kex, strong ciphers/MACs only"
-echo "  - Kernel: secure_redirects off, log_martians, bpf_jit_harden=2"
+echo "  - Kernel: secure_redirects off, log_martians, unprivileged_bpf_disabled"
 echo "  - Eviction: hard 10%, soft 15% (1m grace)"
 echo "  - Container logs: 50Mi × 5 files"
 echo "  - Kubelet streaming timeout: 5m"
