@@ -391,7 +391,20 @@ if [ "$NODE_TYPE" = "control-plane" ]; then
 else
     UFW_SCRIPT="setup-ufw-k3s-worker.sh"
 fi
-echo "Next steps:"
-echo "  1. Restart K3s: sudo systemctl restart $K3S_SERVICE"
-echo "  2. Setup UFW (if needed): sudo bash /tmp/$UFW_SCRIPT"
+if [ "$NODE_TYPE" = "control-plane" ]; then
+    echo "Next steps:"
+    echo "  1. Restart K3s: sudo systemctl restart $K3S_SERVICE"
+    echo "  2. Enable secrets encryption (control-plane only):"
+    echo "       sudo k3s secrets-encrypt enable"
+    echo "       # Add 'secrets-encryption: true' to /etc/rancher/k3s/config.yaml"
+    echo "       sudo systemctl restart k3s"
+    echo "       sudo k3s secrets-encrypt rotate-keys"
+    echo "       sudo systemctl restart k3s"
+    echo "       sudo k3s secrets-encrypt status  # Expect: Enabled + reencrypt_finished"
+    echo "  3. Setup UFW (if needed): sudo bash /tmp/$UFW_SCRIPT"
+else
+    echo "Next steps:"
+    echo "  1. Restart K3s: sudo systemctl restart $K3S_SERVICE"
+    echo "  2. Setup UFW (if needed): sudo bash /tmp/$UFW_SCRIPT"
+fi
 echo ""
