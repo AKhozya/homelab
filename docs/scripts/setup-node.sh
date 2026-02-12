@@ -174,6 +174,9 @@ sysctl -p /etc/sysctl.d/99-k8s-performance.conf >/dev/null 2>&1
 # Enable SSD TRIM
 systemctl enable --now fstrim.timer 2>/dev/null || true
 
+# Enable pacman cache cleanup (keeps last 2 versions)
+systemctl enable --now paccache.timer 2>/dev/null || true
+
 # Disable SSD/NVMe power saving
 echo "Disabling SSD/NVMe power saving..."
 
