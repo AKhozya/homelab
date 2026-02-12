@@ -40,6 +40,10 @@ mkdir -p /etc/systemd/system/rebuilderd-worker@.service.d
 # Configure resource limits per worker
 cat > /etc/systemd/system/rebuilderd-worker@.service.d/resources.conf << 'EOF'
 [Service]
+# Explicit config path (implicit -c is deprecated)
+ExecStart=
+ExecStart=/usr/bin/rebuilderd-worker -n %i -c /etc/rebuilderd-worker.conf connect
+
 # CPU: 400% (4 cores)
 CPUQuota=400%
 
