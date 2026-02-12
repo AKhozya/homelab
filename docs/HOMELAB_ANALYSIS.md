@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2026-02-07)
+**Assessment Date**: 2025-10-18 (Updated: 2026-02-12)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -14,7 +14,7 @@
 
 ## 📊 EXECUTIVE SUMMARY
 
-### Overall Grade: **A+ (96/100) - Excellent** ⬆️
+### Overall Grade: **A+ (97/100) - Excellent** ⬆️
 
 **Strengths** ✅
 - Solid GitOps foundation with Flux
@@ -57,6 +57,12 @@
   - CPU/RAM quota fix: archlinux-repro passes limits to nspawn containers (upstream [PR #143](https://github.com/archlinux/archlinux-repro/pull/143) merged)
   - Kernel watchdog: nmi_watchdog + softlockup/hardlockup panic enabled for crash detection
 - Default credential elimination on all apps
+- **🆕 Node-Level Security Hardening** ⭐ (2026-02-12)
+  - **SSH**: Post-quantum kex (mlkem768x25519), strong ciphers (chacha20/aes-gcm), ETM MACs only
+  - **Kernel**: secure_redirects=0, log_martians=1, bpf_jit_harden=2
+  - **Kubelet**: streamingConnectionIdleTimeout=5m (CIS benchmark)
+  - **K3s Secrets-at-Rest**: AES-CBC encryption enabled (control-plane)
+  - **Coverage**: All 3 nodes hardened
 - **🆕 Comprehensive Security Headers & Protections** ⭐ (2025-10-30)
   - **Phase 1 (Completed)**: Safe security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy)
   - **Phase 2 (Completed)**: HSTS deployment - Dual layer (Cloudflare edge: 1 month, Traefik origin: 1 week)
@@ -349,6 +355,15 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 | CNPG WAL Archiving | N/A | - | ❌ Not implementing (pg_dump acceptable) |
 
 ### 🛡️ SECURITY HARDENING (Active)
+
+#### ✅ **Node-Level Hardening** - COMPLETED (2026-02-12)
+   - **SSH**: Post-quantum kex (mlkem768x25519-sha256), strong ciphers only (chacha20-poly1305, aes256-gcm, aes128-gcm), ETM MACs only, ed25519/rsa-sha2 host keys
+   - **Kernel sysctls**: `secure_redirects=0` (prevent MITM), `log_martians=1` (detect spoofing), `bpf_jit_harden=2` (prevent JIT spraying)
+   - **Kubelet**: `streamingConnectionIdleTimeout=5m` (was 4h default, CIS benchmark)
+   - **K3s Secrets-at-Rest**: AES-CBC encryption enabled on control-plane (`k3s secrets-encrypt rotate-keys`)
+   - **Coverage**: All 3 nodes (SSH, kernel, kubelet), control-plane (secrets encryption)
+   - **Scripts**: `docs/scripts/setup-node.sh` (all hardening), `/tmp/harden-node.sh` (applied to existing nodes)
+   - **Commits**: b9211fc0, ec68a7c7, b563df44
 
 #### ✅ **HSTS Max-Age Optimization** - COMPLETED (2026-01-09)
    - **Final**: `max-age=31536000` (1 year) on all 17 ingresses
@@ -696,16 +711,16 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 
 ## 📈 CURRENT METRICS
 
-**Health Score: 96/100** (A+ Grade) - Updated 2026-02-07
-- **Security**: 96/100 (A+) ✅ - 100% PSS, 100% NetworkPolicy (apps + infra namespaces)
+**Health Score: 97/100** (A+ Grade) - Updated 2026-02-12
+- **Security**: 98/100 (A+) ✅ - 100% PSS, 100% NetworkPolicy, SSH hardened, secrets-at-rest encrypted, kernel hardened ⬆️
 - **Backup/DR**: 98/100 (A+) ✅ - Daily backups + NAS/worker-2 replication + automated validation
 - **Database**: 90/100 (A) ✅ - PostgreSQL HA + MySQL HA, NetworkPolicy, TLS
 - **Infrastructure**: 88/100 (A-) ✅ - Flux/Traefik solid, all controllers healthy
 - **Maintainability**: 95/100 (A) ✅ - Excellent docs, GitOps-driven
 - **Best Practices**: 92/100 (A) ✅ - Popeye scheduled, Kyverno enforced, resource governance
-- **Performance**: 94/100 (A) ✅ - Prometheus series 244k→111k, memory 87%→71% ⬆️
+- **Performance**: 94/100 (A) ✅ - Prometheus series 244k→111k, memory 87%→71%
 
-**Overall Grade**: A+ (96/100) - Maintained
+**Overall Grade**: A+ (97/100) ⬆️
 - **Critical Issues**: 0 P0 issues ✅
 - **High Priority**: 0 P1 active ✅
 - **Active P2**: Remove worker-node-2 replication (~Feb 13), LTS kernel (waiting on Arch)
@@ -713,12 +728,14 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 
 **Security Achievements** ✅:
 - **100% Pod Security Standards** (Apps: 11 restricted, 4 baseline, 1 privileged | Jobs: 5 restricted, 1 baseline)
-- **100% NetworkPolicy Coverage** (16 apps + 5 infra namespaces) ⬆️
+- **100% NetworkPolicy Coverage** (16 apps + 5 infra namespaces)
 - **100% SOPS Encryption** for secrets
 - **100% Image Version Pinning** (no :latest tags)
 - **100% SSO Coverage** (8/8 applicable apps)
-- **100% HSTS Coverage** (max-age 1 year on all 17 ingresses) ⬆️
-- **Popeye Weekly Health Scan** (Sunday 6 AM) ⬆️
+- **100% HSTS Coverage** (max-age 1 year on all 17 ingresses)
+- **100% Node Hardening** (SSH post-quantum kex, kernel sysctls, kubelet CIS) ⬆️
+- **K3s Secrets-at-Rest Encryption** (AES-CBC on control-plane) ⬆️
+- **Popeye Weekly Health Scan** (Sunday 6 AM)
 
 **Resolved Critical Gaps** ✅:
 - ✅ Backup replication to NAS + worker-node-2 (completed 2026-02-06)
@@ -1085,6 +1102,32 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-02-12 (Node Security Hardening) 🔒
+- ✅ **SSH Hardening**: Post-quantum kex, strong ciphers/MACs only on all 3 nodes ⭐
+  - KexAlgorithms: mlkem768x25519-sha256, curve25519-sha256
+  - Ciphers: chacha20-poly1305, aes256-gcm, aes128-gcm (no CBC, no 3DES)
+  - MACs: hmac-sha2-512-etm, hmac-sha2-256-etm (no MD5, no SHA1, no non-ETM)
+  - HostKeyAlgorithms: ssh-ed25519, rsa-sha2-512, rsa-sha2-256 (no DSA, no ECDSA)
+  - Config: `/etc/ssh/sshd_config.d/99-hardening.conf`
+- ✅ **Kernel Sysctl Hardening**: Applied to all 3 nodes ⭐
+  - `net.ipv4.conf.all.secure_redirects=0` (prevent MITM route injection)
+  - `net.ipv4.conf.all.log_martians=1` (detect spoofed source addresses)
+  - `net.core.bpf_jit_harden=2` (prevent JIT spraying attacks)
+  - Config: `/etc/sysctl.d/99-security-hardening.conf`
+- ✅ **Kubelet Streaming Timeout**: Reduced from 4h to 5m on all 3 nodes ⭐
+  - CIS Kubernetes Benchmark recommendation
+  - Config: `/etc/rancher/k3s/kubelet.yaml`
+- ✅ **K3s Secrets-at-Rest Encryption**: AES-CBC enabled on control-plane ⭐
+  - Correct procedure: `enable` → add flag → restart → `rotate-keys` → restart
+  - Active key: `aescbckey-2026-02-12T22:27:05Z`
+  - All existing secrets re-encrypted
+  - Config flag: `secrets-encryption: true` in `/etc/rancher/k3s/config.yaml`
+- ✅ **K3s Config References Updated**: `docs/setup/` configs now include kubelet-arg and secrets-encryption
+- ✅ **K3s Optimization**: conntrack ExecStartPost drop-in, eviction thresholds, log rotation (earlier session)
+- ✅ **Rebuilderd Fix**: Implicit config deprecation warning resolved on both nodes
+- 📊 **Score**: Security 96→98/100, Overall 96→97/100
+- 📋 **Commits**: 178a84ee, 39e3f14d, 052fce9a, b9211fc0, ec68a7c7, b563df44
 
 ### 2026-02-07 (Promtail → Grafana Alloy Migration) 🔄
 - ✅ **Promtail Replaced with Grafana Alloy**: Full migration completed 24 days ahead of EOL deadline ⭐
