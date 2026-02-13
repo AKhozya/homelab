@@ -208,21 +208,23 @@ if [ -f "${BACKUP_DIR}/secrets/couchdb-couchdb.json" ]; then
     echo "   ✅ CouchDB"
 fi
 
-# Backup Replication (SSH key + NAS rsync credentials)
+# Backup Replication (SSH key + NAS rsync credentials + Telegram)
 if [ -f "${BACKUP_DIR}/secrets/backup-replication-ssh-key.json" ]; then
     kubectl create namespace backup-replication --dry-run=client -o yaml | kubectl apply -f -
     kubectl apply -f "${BACKUP_DIR}/secrets/backup-replication-ssh-key.json"
     if [ -f "${BACKUP_DIR}/secrets/nas-rsync-credentials.json" ]; then
         kubectl apply -f "${BACKUP_DIR}/secrets/nas-rsync-credentials.json"
     fi
-    echo "   ✅ Backup Replication (SSH key + NAS credentials)"
+    if [ -f "${BACKUP_DIR}/secrets/backup-telegram.json" ]; then
+        kubectl apply -f "${BACKUP_DIR}/secrets/backup-telegram.json"
+    fi
+    echo "   ✅ Backup Replication (SSH key + NAS credentials + Telegram)"
 fi
 
-# Loki/Promtail
-if [ -f "${BACKUP_DIR}/secrets/promtail.json" ]; then
-    kubectl create namespace loki --dry-run=client -o yaml | kubectl apply -f -
-    kubectl apply -f "${BACKUP_DIR}/secrets/promtail.json"
-    echo "   ✅ Promtail"
+# Cloudflare Tunnel config
+if [ -f "${BACKUP_DIR}/secrets/cloudflared-config.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/cloudflared-config.json"
+    echo "   ✅ Cloudflare tunnel config"
 fi
 
 # =============================================================================

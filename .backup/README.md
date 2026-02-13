@@ -53,11 +53,11 @@ This will extract and save **ALL** secrets needed for complete cluster rebuild:
 **Critical Infrastructure:**
 - 🔑 SOPS age encryption key (MOST IMPORTANT - needed to decrypt everything)
 - 🌐 Cloudflare API token (for cert-manager DNS-01 challenges)
-- 🌐 Cloudflare tunnel credentials
+- 🌐 Cloudflare tunnel credentials + tunnel config
 
 **Monitoring:**
 - 📊 Grafana admin credentials
-- 📱 Telegram bot token (Alertmanager notifications)
+- 📱 Alertmanager Telegram bot token
 
 **Databases:**
 - 🗄️ Redis passwords (for all apps)
@@ -82,6 +82,7 @@ This will extract and save **ALL** secrets needed for complete cluster rebuild:
 **Backup Replication:**
 - 🔑 SSH key for worker-node-2 sync
 - 🔑 NAS rsync credentials (rsync daemon auth)
+- 📱 Telegram bot token (backup failure notifications)
 
 Files are saved to `.backup/secrets/` (gitignored)
 
@@ -246,7 +247,7 @@ sha256sum -c ${LATEST_MYSQL}.sha256
 tar -xzf $LATEST_MYSQL -C /tmp
 
 # Get root password
-MYSQL_ROOT_PWD=$(kubectl get secret -n databases main-mysql-secrets -o jsonpath='{.data.root}' | base64 -d)
+MYSQL_ROOT_PWD=$(kubectl get secret -n databases mysql-cluster-secrets -o jsonpath='{.data.root}' | base64 -d)
 
 # Restore each database
 for DB in homeassistant uptimekuma pricebuddy; do
@@ -267,7 +268,7 @@ sha256sum -c ${LATEST_COUCHDB}.sha256
 # Extract and restore
 tar -xzf $LATEST_COUCHDB -C /tmp
 cat /tmp/*/obsidian-personal.couchbackup | \
-  kubectl exec -i -n couchdb couchdb-couchdb-0 -- \
+  kubectl exec -i -n databases couchdb-couchdb-0 -- \
   couchrestore --url http://admin:PASSWORD@localhost:5984 --db obsidian-personal
 ```
 
@@ -336,7 +337,7 @@ kubectl get ingress -A
 - ✅ NetworkPolicies, RBAC, ConfigMaps
 - ✅ Prometheus alerts and recording rules
 - ✅ Grafana dashboards (via ConfigMaps)
-- ✅ Loki and Promtail log aggregation
+- ✅ Loki and Alloy log aggregation
 
 ### Via Backup Scripts (run BEFORE Flux bootstrap)
 - ✅ **SOPS age encryption key** (CRITICAL - enables Flux to decrypt secrets)
@@ -345,7 +346,7 @@ kubectl get ingress -A
 - ✅ **Database credentials** (Redis, PostgreSQL users, MySQL cluster + app users)
 - ✅ **Infrastructure secrets** (Cloudflare tokens, tunnel credentials)
 - ✅ **Monitoring credentials** (Grafana admin, Telegram bot)
-- ✅ **Backup replication credentials** (SSH key, NAS rsync credentials)
+- ✅ **Backup replication credentials** (SSH key, NAS rsync credentials, Telegram)
 
 ### Via Automated Backups (restore from NAS or worker-node-2)
 - ✅ **PostgreSQL databases** - all app databases backed up daily

@@ -117,12 +117,13 @@ kubectl get secret couchdb-credentials -n obsidian -o json > "${BACKUP_DIR}/secr
 # CouchDB (for Obsidian) - in databases namespace
 kubectl get secret couchdb-couchdb -n databases -o json > "${BACKUP_DIR}/secrets/couchdb-couchdb.json" 2>/dev/null || echo "   ⚠️  No databases/couchdb-couchdb"
 
-# Backup Replication (SSH key for cross-node backup sync + NAS rsync credentials)
+# Backup Replication (SSH key for cross-node backup sync + NAS rsync credentials + Telegram)
 kubectl get secret backup-replication-ssh-key -n backup-replication -o json > "${BACKUP_DIR}/secrets/backup-replication-ssh-key.json" 2>/dev/null || echo "   ⚠️  No backup-replication/backup-replication-ssh-key"
 kubectl get secret nas-rsync-credentials -n backup-replication -o json > "${BACKUP_DIR}/secrets/nas-rsync-credentials.json" 2>/dev/null || echo "   ⚠️  No backup-replication/nas-rsync-credentials"
+kubectl get secret backup-telegram -n backup-replication -o json > "${BACKUP_DIR}/secrets/backup-telegram.json" 2>/dev/null || echo "   ⚠️  No backup-replication/backup-telegram"
 
-# Loki/Promtail
-kubectl get secret promtail -n loki -o json > "${BACKUP_DIR}/secrets/promtail.json" 2>/dev/null || echo "   ⚠️  No loki/promtail secret"
+# Cloudflare Tunnel config (contains tunnel config with metrics endpoint)
+kubectl get secret cloudflared-config -n cloudflare-tunnel -o json > "${BACKUP_DIR}/secrets/cloudflared-config.json" 2>/dev/null || echo "   ⚠️  No cloudflare-tunnel/cloudflared-config"
 
 # =============================================================================
 # OIDC Integration Secrets (for Authentik SSO)
@@ -246,6 +247,8 @@ echo "      - Authentik, Immich, Home Assistant"
 echo "      - N8N, Mealie, Paperless-NGX"
 echo "      - Audiobookshelf, Uptime Kuma, Stirling PDF"
 echo "      - HomeHub, LinkWarden, PriceBuddy, CouchDB (Obsidian)"
+echo "   💾 Backup replication (SSH key, NAS creds, Telegram)"
+echo "   ☁️  Cloudflare tunnel config"
 echo "   🔐 OIDC integration secrets:"
 echo "      - Grafana, Immich, Home Assistant, Mealie"
 echo "      - Paperless-NGX, Audiobookshelf, Stirling PDF"

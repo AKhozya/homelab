@@ -266,15 +266,15 @@ rsync -avz -e "ssh -p 65300" \
 
 **What's backed up:**
 - 🔑 **CRITICAL:** SOPS age encryption key (needed for Flux to decrypt everything)
-- 🌐 Cloudflare API token & tunnel credentials
+- 🌐 Cloudflare API token, tunnel credentials + tunnel config
 - 📊 Grafana admin secret
-- 📱 Alertmanager Telegram bot token
+- 📱 Telegram bot tokens (Alertmanager, backup-replication, PriceBuddy)
 - 🗄️ PostgreSQL admin user + all app database users
 - 🗄️ MySQL cluster secrets + app credentials
 - 🗄️ Redis passwords
 - 📱 All application secrets (13 applications)
 - 🔐 OIDC integration secrets (audiobookshelf, grafana, home-assistant, immich, mealie, n8n, paperless-ngx, stirling-pdf)
-- 🔑 Backup replication credentials (SSH key + NAS rsync)
+- 🔑 Backup replication credentials (SSH key, NAS rsync, Telegram)
 
 **What's NOT backed up (already stored securely):**
 - 🔑 **SSH keys**: **Already stored in 1Password** ✅
