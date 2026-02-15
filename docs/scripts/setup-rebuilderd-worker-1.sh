@@ -58,11 +58,19 @@ Nice=10
 
 # Timeout: Allow long builds (2h) to complete gracefully
 TimeoutStopSec=7200
-KillMode=mixed
+
+# KillMode: Send SIGTERM to ALL processes (including nspawn children)
+# 'mixed' immediately SIGKILLs children, leaving stale pacman locks
+# 'control-group' gives nspawn time to clean up before SIGKILL
+KillMode=control-group
 
 # Environment for archlinux-repro patches
 # These pass limits to nspawn containers
 Environment="MAX_CPU=600%" "MAX_MEMORY=24G"
+
+# Cleanup stale pacman locks from nspawn containers before starting
+# Prevents "unable to lock database" after unclean shutdown
+ExecStartPre=/bin/bash -c 'find /var/lib/repro/ /mnt/k8s-storage/repro/ -name "db.lck" -delete 2>/dev/null; true'
 EOF
 
 echo "Created resource limits (600% CPU, 24GB RAM)"
