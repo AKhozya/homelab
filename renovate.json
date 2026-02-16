@@ -110,7 +110,7 @@
         "percona/percona-toolkit",
         "percona/percona-orchestrator"
       ],
-      "versioning": "loose",
+      "versioning": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(-(?<build>\\d+)\\.(?<revision>\\d+))?$",
       "groupName": "Percona MySQL"
     },
     {
