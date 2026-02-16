@@ -5,6 +5,7 @@ metadata:
   namespace: authentik
 spec:
   replicas: 2
+  revisionHistoryLimit: 2
   # Rolling update strategy: delete old pod before creating new
   # Required with 2 replicas + required anti-affinity on 2 worker nodes
   strategy:

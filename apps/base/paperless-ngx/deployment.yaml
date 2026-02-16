@@ -4,6 +4,7 @@ metadata:
   name: paperless-ngx
 spec:
   replicas: 1
+  revisionHistoryLimit: 2
   selector:
     matchLabels:
       app: paperless-ngx

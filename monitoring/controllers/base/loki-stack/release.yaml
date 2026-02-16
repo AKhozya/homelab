@@ -27,6 +27,7 @@ spec:
   values:
     # Loki configuration
     loki:
+      revisionHistoryLimit: 2
       auth_enabled: false
       
       commonConfig:

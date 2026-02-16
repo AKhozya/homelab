@@ -31,6 +31,7 @@ spec:
     # HA: 2 replicas for webhook availability during node reboots
     admissionController:
       replicas: 2
+      revisionHistoryLimit: 2
 
       # Allow scheduling on control plane for HA
       tolerations:
@@ -89,6 +90,7 @@ spec:
     backgroundController:
       enabled: true
       replicas: 1
+      revisionHistoryLimit: 2
 
       # Resource limits
       resources:
@@ -119,6 +121,7 @@ spec:
     cleanupController:
       enabled: true
       replicas: 1
+      revisionHistoryLimit: 2
 
       # Resource limits
       # Peak usage: 120Mi (was hitting 93% of 128Mi limit)
@@ -150,6 +153,7 @@ spec:
     reportsController:
       enabled: true
       replicas: 1
+      revisionHistoryLimit: 2
 
       # Resource limits
       # Peak usage: 206Mi (was hitting 81% of 256Mi limit)

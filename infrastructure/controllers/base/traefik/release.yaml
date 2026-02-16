@@ -26,6 +26,7 @@ spec:
     # Deployment settings
     deployment:
       replicas: 2
+      revisionHistoryLimit: 2
 
     # Allow scheduling on control plane for HA
     tolerations:

@@ -12,6 +12,7 @@ metadata:
   namespace: cloudflare-tunnel
 spec:
   replicas: 2
+  revisionHistoryLimit: 2
   # Rolling update strategy compatible with required anti-affinity on 2 nodes
   strategy:
     type: RollingUpdate

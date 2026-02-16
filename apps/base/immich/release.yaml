@@ -31,6 +31,10 @@ spec:
               kind: Deployment
               name: immich-server
             patch: |-
+              # Limit old ReplicaSets to prevent buildup
+              - op: add
+                path: /spec/revisionHistoryLimit
+                value: 2
               # Recreate strategy: avoids quota doubling and advisory lock contention during upgrades
               - op: replace
                 path: /spec/strategy
@@ -77,6 +81,9 @@ spec:
               kind: Deployment
               name: immich-machine-learning
             patch: |-
+              - op: add
+                path: /spec/revisionHistoryLimit
+                value: 2
               - op: replace
                 path: /spec/strategy
                 value:
