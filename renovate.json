@@ -103,6 +103,17 @@
       "minimumReleaseAge": "3 days"
     },
     {
+      "description": "Percona images use X.Y.Z-A.B versioning (e.g. 8.4.7-7.1)",
+      "matchPackageNames": [
+        "percona/percona-server",
+        "percona/percona-xtrabackup",
+        "percona/percona-toolkit",
+        "percona/percona-orchestrator"
+      ],
+      "versioning": "loose",
+      "groupName": "Percona MySQL"
+    },
+    {
       "description": "Ignore MySQL backup image - manually updated with cluster",
       "matchPackageNames": ["mysql"],
       "matchFileNames": ["**/mysql-backup-cronjob.yaml"],

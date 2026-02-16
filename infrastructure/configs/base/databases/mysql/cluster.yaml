@@ -30,7 +30,7 @@ spec:
   orchestrator:
     enabled: true
     size: 3
-    image: percona/percona-orchestrator:3.2.6-18
+    image: percona/percona-orchestrator:3.2.6-19
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
     resources:
@@ -56,12 +56,12 @@ spec:
   # Backup configuration (required even if not using backups)
   backup:
     enabled: false
-    image: percona/percona-xtrabackup:8.4.0-4.1
+    image: percona/percona-xtrabackup:8.4.0-5.1
     imagePullPolicy: IfNotPresent
 
   # Toolkit sidecar (required for MySQL pods)
   toolkit:
-    image: percona/percona-toolkit:3.7.0-2
+    image: percona/percona-toolkit:3.7.1
     imagePullPolicy: IfNotPresent
     resources:
       requests:
@@ -78,7 +78,7 @@ spec:
     size: 2
     # Grace period for draining connections during rolling updates
     gracePeriod: 30
-    image: percona/percona-server:8.4.6-6.1
+    image: percona/percona-server:8.4.7-7.1
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
 
