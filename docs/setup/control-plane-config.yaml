@@ -35,3 +35,7 @@ kubelet-arg:
 # Encrypts Kubernetes secrets at rest using AES-CBC
 # Enable procedure: k3s secrets-encrypt enable → add this flag → restart → rotate-keys → restart
 secrets-encryption: true
+
+# Disable K3s bundled Traefik (managed by Flux HelmRelease instead)
+disable:
+  - traefik
