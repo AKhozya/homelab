@@ -76,6 +76,11 @@ spec:
           envFrom:
             - secretRef:
                 name: n8n-env
+          env:
+            # Disable statement_timeout in startup message - incompatible with PgBouncer transaction mode
+            # https://github.com/n8n-io/n8n/issues/25705
+            - name: DB_POSTGRESDB_STATEMENT_TIMEOUT
+              value: "0"
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
