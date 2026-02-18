@@ -5,7 +5,8 @@
 # This script configures a K3s node with:
 # 1. Firmware (auto-detects Intel/AMD)
 # 2. Power/Performance optimization (powersave governor for noise/heat reduction, balance_power EPP, SSD no-sleep, BBR)
-# 3. Graceful shutdown (kubelet config)
+# 3. K3s config (control-plane or worker, auto-detected)
+# 4. Graceful shutdown (kubelet config)
 #
 # Works for both control-plane and worker nodes (auto-detected)
 
@@ -59,7 +60,7 @@ echo ""
 # 1. FIRMWARE
 #######################################
 echo "=============================================="
-echo "[1/3] Firmware Setup"
+echo "[1/4] Firmware Setup"
 echo "=============================================="
 
 # Install required firmware
@@ -104,7 +105,7 @@ echo ""
 # 2. PERFORMANCE OPTIMIZATION
 #######################################
 echo "=============================================="
-echo "[2/3] Performance Optimization"
+echo "[2/4] Performance Optimization"
 echo "=============================================="
 
 # CPU Governor (powersave with balance_power EPP)
@@ -274,10 +275,75 @@ echo "  Done: Performance optimizations applied"
 echo ""
 
 #######################################
-# 3. GRACEFUL SHUTDOWN
+# 3. K3S CONFIG
 #######################################
 echo "=============================================="
-echo "[3/3] Graceful Shutdown Configuration"
+echo "[3/4] K3s Configuration"
+echo "=============================================="
+
+mkdir -p /etc/rancher/k3s/
+
+if [ "$NODE_TYPE" = "control-plane" ]; then
+    echo "Deploying control-plane K3s config..."
+    cat > /etc/rancher/k3s/config.yaml << 'EOF'
+# K3s Control Plane Configuration
+# Deployed by setup-node.sh
+
+# Storage: LVM on worker node for all PVCs
+default-local-storage-path: /mnt/k8s-storage
+
+# Disable Helm controller (Flux manages everything)
+disable-helm-controller: true
+
+# Disable K3s bundled Traefik (managed by Flux HelmRelease)
+disable:
+  - traefik
+
+node-name: gmk-k3s-control-plane
+
+# No workloads on control plane
+node-taint:
+  - "node-role.kubernetes.io/control-plane:NoSchedule"
+
+# Exclude from ServiceLB traffic
+node-label:
+  - "svccontroller.k3s.cattle.io/enablelb=false"
+
+kubelet-arg:
+  - "config=/etc/rancher/k3s/kubelet.yaml"
+
+# Secrets encrypted at rest (AES-CBC)
+# After first deploy, run: k3s secrets-encrypt enable → restart → rotate-keys → restart
+secrets-encryption: true
+EOF
+else
+    echo "Deploying worker K3s config..."
+    cat > /etc/rancher/k3s/config.yaml << EOF
+# K3s Worker Node Configuration
+# Deployed by setup-node.sh
+
+node-name: ${HOSTNAME}
+
+# Enable ServiceLB traffic on workers
+node-label:
+  - "svccontroller.k3s.cattle.io/enablelb=true"
+
+kubelet-arg:
+  - "config=/etc/rancher/k3s/kubelet.yaml"
+
+# Note: K3s server URL and token are in /etc/systemd/system/k3s-agent.service.env
+# To rejoin: curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<token> sh -
+EOF
+fi
+
+echo "  Done: K3s config deployed to /etc/rancher/k3s/config.yaml"
+echo ""
+
+#######################################
+# 4. GRACEFUL SHUTDOWN
+#######################################
+echo "=============================================="
+echo "[4/4] Graceful Shutdown Configuration"
 echo "=============================================="
 
 # Update systemd timeouts
@@ -288,9 +354,8 @@ else
     echo "DefaultTimeoutStopSec=120s" >> /etc/systemd/system.conf
 fi
 
-# Create kubelet config
+# Create kubelet config (referenced by K3s config from step 3)
 echo "Creating kubelet config..."
-mkdir -p /etc/rancher/k3s/
 cat > /etc/rancher/k3s/kubelet.yaml << 'EOF'
 apiVersion: kubelet.config.k8s.io/v1beta1
 kind: KubeletConfiguration
@@ -315,26 +380,6 @@ containerLogMaxFiles: 5
 # Streaming connection security (CIS benchmark, default 4h is excessive)
 streamingConnectionIdleTimeout: 5m
 EOF
-
-# Update K3s config
-CONFIG_FILE="/etc/rancher/k3s/config.yaml"
-if [ -f "$CONFIG_FILE" ]; then
-    # Remove old entries
-    sed -i '/shutdown-grace-period/d' "$CONFIG_FILE"
-
-    # Add kubelet config reference if not present
-    if ! grep -q 'config=/etc/rancher/k3s/kubelet.yaml' "$CONFIG_FILE"; then
-        if grep -q "^kubelet-arg:" "$CONFIG_FILE"; then
-            sed -i '/^kubelet-arg:/a\  - "config=/etc/rancher/k3s/kubelet.yaml"' "$CONFIG_FILE"
-        else
-            cat >> "$CONFIG_FILE" << 'EOF'
-
-kubelet-arg:
-  - "config=/etc/rancher/k3s/kubelet.yaml"
-EOF
-        fi
-    fi
-fi
 
 # Create systemd overrides for K3s service
 mkdir -p /etc/systemd/system/${K3S_SERVICE}.service.d/
@@ -372,6 +417,7 @@ echo "  - inotify limits: 8192 instances, 1M watches"
 echo "  - Conntrack max: 1048576"
 echo "  - SSH: post-quantum kex, strong ciphers/MACs only"
 echo "  - Kernel: secure_redirects off, log_martians, unprivileged_bpf_disabled"
+echo "  - K3s config: $NODE_TYPE (node-name: $HOSTNAME)"
 echo "  - Eviction: hard 10%, soft 15% (1m grace)"
 echo "  - Container logs: 50Mi × 5 files"
 echo "  - Kubelet streaming timeout: 5m"
@@ -385,6 +431,7 @@ echo "  - /etc/modprobe.d/nvme-no-apst.conf"
 echo "  - /etc/udev/rules.d/60-nvme-no-pm.rules"
 echo "  - /etc/udev/rules.d/60-sata-no-alpm.rules"
 echo "  - /boot/loader/entries/*.conf (pcie_aspm=off)"
+echo "  - /etc/rancher/k3s/config.yaml"
 echo "  - /etc/rancher/k3s/kubelet.yaml"
 echo "  - /etc/systemd/system/${K3S_SERVICE}.service.d/shutdown-timeout.conf"
 echo ""

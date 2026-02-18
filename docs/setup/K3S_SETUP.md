@@ -1,254 +1,107 @@
-# K3s Cluster Configuration
-
-This directory contains configuration files and documentation for the K3s cluster.
+# K3s Cluster Setup
 
 ## Cluster Architecture
 
 - **Control Plane**: `gmk-k3s-control-plane` (192.168.1.127)
-- **Worker Node**: `worker-node` (192.168.1.129)
-- **Storage**: 4.09TB multi-PV LVM storage on worker node
+- **Worker Node 1**: `worker-node` (192.168.1.129) - 4.2TB LVM storage
+- **Worker Node 2**: `worker-node-2` (192.168.1.126) - 863GB LVM storage
 
 ## Control Plane Setup
 
-### Installation
-
 ```bash
-# On control plane node (gmk-k3s-control-plane)
+# Install K3s
 curl -sfL https://get.k3s.io | sh -
-```
 
-### Configuration
+# Run setup script (deploys config, firmware, hardening, kubelet, shutdown)
+sudo bash setup-node.sh
 
-1. Copy the config file to the control plane:
-```bash
-sudo mkdir -p /etc/rancher/k3s
-sudo cp control-plane-config.yaml /etc/rancher/k3s/config.yaml
-```
-
-2. Restart K3s to apply:
-```bash
+# Restart K3s to apply config
 sudo systemctl restart k3s
-```
 
-3. Get the join token for worker nodes:
-```bash
+# Enable secrets encryption (first time only)
+sudo k3s secrets-encrypt enable
+# Add 'secrets-encryption: true' is already in config from setup-node.sh
+sudo systemctl restart k3s
+sudo k3s secrets-encrypt rotate-keys
+sudo systemctl restart k3s
+sudo k3s secrets-encrypt status  # Expect: Enabled + reencrypt_finished
+
+# Get join token for worker nodes
 sudo cat /var/lib/rancher/k3s/server/node-token
 ```
 
 ## Worker Node Setup
 
-### Storage Prerequisites
-
-The worker node requires LVM storage to be configured before joining:
-
-1. **4TB NVMe SSD** (`/dev/nvme1n1`): Entire disk as LVM PV
-2. **1TB NVMe SSD** (`/dev/nvme0n1p6`): 466GB partition as LVM PV
+### Storage Prerequisites (worker-node)
 
 ```bash
-# On worker node - LVM setup (already done)
+# 4TB + 1TB NVMe LVM setup
 sudo pvcreate /dev/nvme1n1
 sudo pvcreate /dev/nvme0n1p6
 sudo vgcreate k8s-storage /dev/nvme1n1 /dev/nvme0n1p6
 sudo lvcreate -l 100%FREE -n k8s-data k8s-storage
 sudo mkfs.ext4 /dev/mapper/k8s--storage-k8s--data
-
-# Mount point
 sudo mkdir -p /mnt/k8s-storage
 echo '/dev/mapper/k8s--storage-k8s--data /mnt/k8s-storage ext4 defaults 0 2' | sudo tee -a /etc/fstab
 sudo mount -a
 ```
 
-### Worker Node Installation
+### Installation
 
 ```bash
-# On worker node
-# Replace K3S_URL and K3S_TOKEN with your values
+# Install K3s agent (replace token)
 curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<node-token> sh -
+
+# Run setup script (deploys config, firmware, hardening, kubelet, shutdown)
+sudo bash setup-node.sh
+
+# Restart K3s agent
+sudo systemctl restart k3s-agent
 ```
 
-## Configuration Details
+## What setup-node.sh Configures
 
-### Storage Configuration
+The setup script (`docs/scripts/setup-node.sh`) auto-detects node type and applies:
 
-- **Path**: `/mnt/k8s-storage`
-- **Capacity**: 4.09 TiB
-- **Physical Volumes**:
-  - `/dev/nvme1n1`: 3.64 TiB (4TB SSD)
-  - `/dev/nvme0n1p6`: 466 GB (1TB SSD partition)
-- **Volume Group**: `k8s-storage`
-- **Logical Volume**: `k8s-data`
+1. **Firmware**: Intel/AMD microcode, linux-firmware, optional AUR firmware
+2. **Performance**: CPU governor, BBR, inotify limits, conntrack, SSD power management
+3. **Security**: SSH hardening (post-quantum kex), kernel sysctls, streaming timeout
+4. **K3s config**: Writes `/etc/rancher/k3s/config.yaml` (control-plane or worker, auto-detected)
+   - Control plane: disables Helm controller + bundled Traefik, taints node, secrets encryption flag
+   - Worker: sets node-name from hostname, enables ServiceLB
+5. **Graceful shutdown**: kubelet config (120s grace), systemd timeouts, conntrack fix
 
-All Kubernetes PersistentVolumes are created on this storage via the local-path-provisioner.
+## Node Scheduling
 
-### Disabled Components
+- **Control Plane**: Tainted `NoSchedule` — only system pods (kube-system, flux-system, cert-manager)
+- **Workers**: All application workloads, ServiceLB enabled
 
-- **Helm Controller**: Disabled (using Flux for GitOps)
+## ServiceLB
 
-### Node Scheduling
+- Control plane: `svccontroller.k3s.cattle.io/enablelb=false`
+- Workers: `svccontroller.k3s.cattle.io/enablelb=true`
+- Traefik EXTERNAL-IP should show worker node IPs only
 
-- **Control Plane Taint**: `node-role.kubernetes.io/control-plane:NoSchedule`
-  - Prevents application workloads from scheduling on the control plane
-  - System pods (kube-system, flux-system, cert-manager, etc.) can still run via tolerations
-  - All application workloads run on the worker node with the 4TB storage
+## Updating K3s
 
-To verify the taint is applied:
 ```bash
-kubectl describe node gmk-k3s-control-plane | grep Taints
-# Should show: Taints: node-role.kubernetes.io/control-plane:NoSchedule
+# Control plane
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.35.1+k3s1 sh -
+
+# Worker nodes (need URL + token)
+curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<token> INSTALL_K3S_VERSION=v1.35.1+k3s1 sh -
 ```
-
-To manually apply the taint if needed:
-```bash
-kubectl taint nodes gmk-k3s-control-plane node-role.kubernetes.io/control-plane:NoSchedule
-```
-
-### ServiceLB Node Selection
-
-K3s includes a built-in load balancer (ServiceLB) that assigns LoadBalancer IPs to services. By default, it runs on all nodes. For production best practices, we configure it to run only on the worker node.
-
-**Node Labels**:
-- **Control Plane**: `svccontroller.k3s.cattle.io/enablelb=false` - Excludes control plane from LoadBalancer traffic
-- **Worker Node**: `svccontroller.k3s.cattle.io/enablelb=true` - Enables worker node for LoadBalancer traffic
-
-These labels are configured in the node config files (`control-plane-config.yaml` and `worker-node-config.yaml`).
-
-To verify labels are applied:
-```bash
-# Check control plane label
-kubectl get node gmk-k3s-control-plane --show-labels | grep enablelb
-# Should show: svccontroller.k3s.cattle.io/enablelb=false
-
-# Check worker node label
-kubectl get node worker-node --show-labels | grep enablelb
-# Should show: svccontroller.k3s.cattle.io/enablelb=true
-```
-
-**Applying Node Label Changes**:
-
-If you modify the node labels in the config files, follow these steps to apply them:
-
-1. **On Control Plane** (gmk-k3s-control-plane):
-   ```bash
-   # Copy updated config
-   sudo cp control-plane-config.yaml /etc/rancher/k3s/config.yaml
-
-   # Restart K3s
-   sudo systemctl restart k3s
-
-   # Wait for K3s to fully start (30 seconds)
-   sleep 30
-
-   # Verify the label
-   kubectl get node gmk-k3s-control-plane --show-labels | grep enablelb
-   ```
-
-2. **On Worker Node** (worker-node):
-   ```bash
-   # Copy updated config
-   sudo cp worker-node-config.yaml /etc/rancher/k3s/config.yaml
-
-   # Restart K3s agent
-   sudo systemctl restart k3s-agent
-
-   # Wait for K3s agent to fully start (30 seconds)
-   sleep 30
-
-   # Verify the label (run from control plane)
-   kubectl get node worker-node --show-labels | grep enablelb
-   ```
-
-3. **Verify ServiceLB DaemonSet**:
-   ```bash
-   # ServiceLB DaemonSet should only run on worker node
-   kubectl get daemonset -n kube-system -l svccontroller.k3s.cattle.io/svcname=traefik
-
-   # Should show 1/1 pods (one on worker node only)
-   ```
-
-4. **Verify Traefik LoadBalancer IP**:
-   ```bash
-   # Traefik service should only have worker node IP
-   kubectl get svc traefik -n traefik
-
-   # EXTERNAL-IP should show: 192.168.1.129 (worker node only)
-   ```
 
 ## Verification
 
-After setup, verify:
-
 ```bash
-# Check K3s is running
-sudo systemctl status k3s
-
-# Check storage path configuration
-kubectl get configmap local-path-config -n kube-system -o jsonpath='{.data.config\.json}' | jq
-
-# Should show:
-# {
-#   "nodePathMap": [
-#     {
-#       "node": "DEFAULT_PATH_FOR_NON_LISTED_NODES",
-#       "paths": ["/mnt/k8s-storage"]
-#     }
-#   ]
-# }
-
-# Check nodes
-kubectl get nodes
-
-# Check PVs are on LVM storage
-kubectl get pv -o custom-columns=NAME:.metadata.name,PATH:.spec.local.path | grep /mnt/k8s-storage
+kubectl get nodes -o wide
+kubectl describe node gmk-k3s-control-plane | grep Taints
+kubectl get node --show-labels | grep enablelb
+kubectl get svc traefik -n traefik  # EXTERNAL-IP = worker IPs
 ```
 
-## Troubleshooting
+## Related
 
-### Config not applied after restart
-
-If the config doesn't apply after K3s restart, verify:
-
-```bash
-# Check config file exists and is readable
-cat /etc/rancher/k3s/config.yaml
-
-# Check K3s service status
-sudo systemctl status k3s
-
-# Check K3s logs
-sudo journalctl -u k3s -f
-```
-
-### Storage path reverts to default
-
-If storage path reverts to `/var/lib/rancher/k3s/storage`:
-
-1. Verify the config file exists: `cat /etc/rancher/k3s/config.yaml`
-2. Restart K3s: `sudo systemctl restart k3s`
-3. Wait 30 seconds for reconciliation
-4. Check ConfigMap: `kubectl get configmap local-path-config -n kube-system -o yaml`
-
-## Maintenance
-
-### Updating K3s
-
-```bash
-# On control plane
-curl -sfL https://get.k3s.io | sh -
-
-# On worker node
-curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<node-token> sh -
-```
-
-### Backing up K3s
-
-K3s state is stored in:
-- `/var/lib/rancher/k3s/server/` (control plane)
-- etcd snapshots (if configured)
-
-Consider regular etcd snapshots for disaster recovery.
-
-## Related Documentation
-
-- [K3s Official Docs](https://docs.k3s.io/)
 - [Homelab Analysis](../HOMELAB_ANALYSIS.md)
-- [Storage Infrastructure](../HOMELAB_ANALYSIS.md#-storage-infrastructure)
+- [Setup Script](../scripts/setup-node.sh)
