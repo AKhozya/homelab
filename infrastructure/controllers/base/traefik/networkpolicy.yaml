@@ -83,7 +83,7 @@ spec:
               kubernetes.io/metadata.name: homehub
       ports:
         - protocol: TCP
-          port: 3000
+          port: 5000
     # Allow access to Homepage
     - to:
         - namespaceSelector:
