@@ -40,6 +40,96 @@ spec:
       securityContext:
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+      - name: sync-tunnel-config
+        image: curlimages/curl:8.12.1
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          CONFIG="/etc/cloudflared/config/config.yaml"
+          TOKEN=$(cat /etc/cloudflared/api-token/api-token)
+          ACCOUNT="***REMOVED-CF-ACCOUNT-ID***"
+          TUNNEL="***REMOVED-CF-TUNNEL-UUID***"
+          API="https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/cfd_tunnel/${TUNNEL}/configurations"
+
+          # Parse ingress rules from YAML config into CF API JSON
+          RULES=""
+          SEP=""
+          HOST=""
+          SVC=""
+          IN=0
+          while IFS= read -r line; do
+            case "$line" in "  #"*|"#"*) continue ;; esac
+            case "$line" in "ingress:"*) IN=1; continue ;; esac
+            [ "$IN" -ne 1 ] && continue
+            case "$line" in
+              "  - "*)
+                if [ -n "$SVC" ]; then
+                  if [ -n "$HOST" ]; then
+                    RULES="${RULES}${SEP}{\"hostname\":\"${HOST}\",\"service\":\"${SVC}\"}"
+                  else
+                    RULES="${RULES}${SEP}{\"service\":\"${SVC}\"}"
+                  fi
+                  SEP=","
+                fi
+                HOST=""; SVC=""
+                case "$line" in *"hostname: "*) HOST="${line##*hostname: }" ;; esac
+                case "$line" in *"service: "*) SVC="${line##*service: }" ;; esac
+                ;;
+              *"hostname: "*) HOST="${line##*hostname: }" ;;
+              *"service: "*) SVC="${line##*service: }" ;;
+            esac
+          done < "$CONFIG"
+          if [ -n "$SVC" ]; then
+            if [ -n "$HOST" ]; then
+              RULES="${RULES}${SEP}{\"hostname\":\"${HOST}\",\"service\":\"${SVC}\"}"
+            else
+              RULES="${RULES}${SEP}{\"service\":\"${SVC}\"}"
+            fi
+          fi
+
+          PAYLOAD="{\"config\":{\"ingress\":[${RULES}]}}"
+          COUNT=$(printf '%s' "$RULES" | tr ',' '\n' | wc -l | tr -d ' ')
+          echo "Syncing ${COUNT} ingress rules to Cloudflare API..."
+
+          HTTP_CODE=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+            -X PUT "$API" \
+            -H "Authorization: Bearer ${TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          if [ "$HTTP_CODE" -eq 200 ]; then
+            echo "Config synced successfully (HTTP ${HTTP_CODE})"
+          else
+            echo "Config sync FAILED (HTTP ${HTTP_CODE})"
+            cat /tmp/response.json
+            exit 1
+          fi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 50m
+            memory: 64Mi
+        volumeMounts:
+        - name: config
+          mountPath: /etc/cloudflared/config
+          readOnly: true
+        - name: api-token
+          mountPath: /etc/cloudflared/api-token
+          readOnly: true
+        - name: sync-tmp
+          mountPath: /tmp
       containers:
       - name: cloudflared
         image: cloudflare/cloudflared:2026.2.0
@@ -95,6 +185,12 @@ spec:
           items:
           - key: config.yaml
             path: config.yaml
+      - name: api-token
+        secret:
+          secretName: cloudflare-tunnel-mgmt-token
+      - name: sync-tmp
+        emptyDir:
+          sizeLimit: 1Mi
 ---
 apiVersion: v1
 kind: Service
