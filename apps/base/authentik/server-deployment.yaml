@@ -57,6 +57,9 @@ spec:
       containers:
         - name: server
           image: ghcr.io/goauthentik/server:2025.12.4
+          # Always pull to prevent digest mismatch across nodes
+          # (Authentik re-publishes tags with different builds)
+          imagePullPolicy: Always
           command:
             - ak
             - server
