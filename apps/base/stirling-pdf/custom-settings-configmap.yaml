@@ -7,7 +7,7 @@ data:
   custom_settings.yml: |
     security:
       enableLogin: true
-      loginMethod: all  # FIXME: OAuth2 button not appearing - known bug in v2.0 (GitHub issue #5020)
+      loginMethod: oauth2
       oauth2:
         enabled: true
         issuer: https://authentik.h0melab.work/application/o/stirling-pdf/
