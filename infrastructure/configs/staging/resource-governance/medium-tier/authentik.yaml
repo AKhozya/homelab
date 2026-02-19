@@ -31,9 +31,11 @@ metadata:
 spec:
   hard:
     # Increased for 2 replicas each of server + worker with rolling update headroom
-    requests.cpu: "2"
-    requests.memory: 6Gi
-    limits.cpu: "8"
+    # Baseline: 400m/4Gi requests, 4000m/5400Mi limits
+    # Headroom needed: simultaneous server + worker rollouts with init containers
+    requests.cpu: "3"
+    requests.memory: 8Gi
+    limits.cpu: "12"
     limits.memory: 12Gi
     pods: "30"
     services: "15"
