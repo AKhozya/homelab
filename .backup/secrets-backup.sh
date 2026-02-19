@@ -125,6 +125,9 @@ kubectl get secret backup-telegram -n backup-replication -o json > "${BACKUP_DIR
 # Cloudflare Tunnel config (contains tunnel config with metrics endpoint)
 kubectl get secret cloudflared-config -n cloudflare-tunnel -o json > "${BACKUP_DIR}/secrets/cloudflared-config.json" 2>/dev/null || echo "   ⚠️  No cloudflare-tunnel/cloudflared-config"
 
+# Cloudflare Tunnel management API token (for syncing tunnel config from Git)
+kubectl get secret cloudflare-tunnel-mgmt-token -n cloudflare-tunnel -o json > "${BACKUP_DIR}/secrets/cloudflare-tunnel-mgmt-token.json" 2>/dev/null || echo "   ⚠️  No cloudflare-tunnel/cloudflare-tunnel-mgmt-token"
+
 # =============================================================================
 # OIDC Integration Secrets (for Authentik SSO)
 # =============================================================================
@@ -236,7 +239,7 @@ echo "   ⚠️  The .backup/ directory is in .gitignore"
 echo ""
 echo "📋 Backed up secrets for:"
 echo "   🔑 SOPS age encryption key (CRITICAL)"
-echo "   🌐 Cloudflare API token & tunnel credentials"
+echo "   🌐 Cloudflare API token, tunnel credentials & management token"
 echo "   📊 Grafana & Telegram (monitoring)"
 echo "   🗄️  Databases:"
 echo "      - Redis passwords"

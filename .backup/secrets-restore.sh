@@ -227,6 +227,12 @@ if [ -f "${BACKUP_DIR}/secrets/cloudflared-config.json" ]; then
     echo "   ✅ Cloudflare tunnel config"
 fi
 
+# Cloudflare Tunnel management API token (for syncing tunnel config from Git)
+if [ -f "${BACKUP_DIR}/secrets/cloudflare-tunnel-mgmt-token.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/cloudflare-tunnel-mgmt-token.json"
+    echo "   ✅ Cloudflare tunnel management token"
+fi
+
 # =============================================================================
 # OIDC Integration Secrets
 # =============================================================================

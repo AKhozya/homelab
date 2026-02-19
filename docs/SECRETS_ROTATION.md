@@ -78,8 +78,10 @@
 | `grafana-admin-secret` | Grafana | Admin Password | 2025-10-18 | 2026-04-16 | High |
 | `pricebuddy-telegram` | PriceBuddy | Telegram Bot Token | 2025-12-05 | Never* | Medium |
 | `backup-replication-ssh` | Backup Jobs | SSH Private Key | 2025-12-18 | 2026-12-18 | High |
+| `cloudflare-tunnel-mgmt-token` | CF Tunnel Mgmt | API Token | 2026-02-19 | 2026-12-31 | Medium |
 
 \* **Tunnel/API tokens**: Only rotate if compromised; regeneration requires reconfiguration
+\* **CF Tunnel Mgmt Token**: Permissions: Tunnel Edit + DNS Edit + Zone Read. Refresh before expiry (Dec 31, 2026)
 
 ### TLS Certificates
 
