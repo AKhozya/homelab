@@ -88,7 +88,8 @@ spec:
                   mkdir -p ~/.ssh
                   cp /ssh-key/ssh-private-key ~/.ssh/id_ed25519
                   chmod 600 ~/.ssh/id_ed25519
-                  ssh-keyscan -p 65300 192.168.1.126 >> ~/.ssh/known_hosts 2>/dev/null
+                  cp /ssh-known-hosts/known_hosts ~/.ssh/known_hosts
+                  chmod 644 ~/.ssh/known_hosts
 
                   # Show source backup status
                   echo "=== Source Backups ==="
@@ -102,7 +103,7 @@ spec:
                   rsync -avz --delete \
                     --exclude='*.tmp' \
                     --exclude='.*.swp' \
-                    -e "ssh -p 65300 -o StrictHostKeyChecking=no" \
+                    -e "ssh -p 65300 -o StrictHostKeyChecking=yes" \
                     /source-backups/ \
                     z3us@192.168.1.126:/mnt/extra-storage/backups/
 
@@ -304,6 +305,9 @@ spec:
                 - name: ssh-key
                   mountPath: /ssh-key
                   readOnly: true
+                - name: ssh-known-hosts
+                  mountPath: /ssh-known-hosts
+                  readOnly: true
           volumes:
             - name: source-backups
               hostPath:
@@ -313,3 +317,6 @@ spec:
               secret:
                 secretName: backup-replication-ssh-key
                 defaultMode: 0400
+            - name: ssh-known-hosts
+              configMap:
+                name: ssh-known-hosts

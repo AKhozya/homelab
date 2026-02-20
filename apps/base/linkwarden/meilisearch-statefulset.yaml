@@ -45,7 +45,7 @@ spec:
               value: "true"
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false  # Meilisearch needs writable filesystem
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
@@ -75,7 +75,11 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /meili_data
+            - name: tmp
+              mountPath: /tmp
       volumes:
+        - name: tmp
+          emptyDir: {}
         - name: data
           persistentVolumeClaim:
             claimName: meilisearch-data

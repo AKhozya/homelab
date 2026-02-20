@@ -17,7 +17,6 @@ spec:
             app: pvc-backup
         spec:
           restartPolicy: OnFailure
-          hostNetwork: true
           securityContext:
             runAsUser: 0  # Need root to access all PVC files
             runAsGroup: 0
@@ -163,8 +162,7 @@ spec:
                         # Generate SHA256 checksum for backup integrity
                         echo "Generating SHA256 checksum..."
                         CHECKSUM_FILE="${BACKUP_FILE}.sha256"
-                        cd "$DEST_DIR"
-                        sha256sum "$(basename "$BACKUP_FILE")" > "$(basename "$CHECKSUM_FILE")"
+                        (cd "$DEST_DIR" && sha256sum "$(basename "$BACKUP_FILE")" > "$(basename "$CHECKSUM_FILE")")
 
                         echo ""
                         echo "✅ Backup completed successfully"
@@ -195,8 +193,7 @@ spec:
                         # Generate SHA256 checksum for backup integrity
                         echo "Generating SHA256 checksum..."
                         CHECKSUM_FILE="${BACKUP_FILE}.sha256"
-                        cd "$DEST_DIR"
-                        sha256sum "$(basename "$BACKUP_FILE")" > "$(basename "$CHECKSUM_FILE")"
+                        (cd "$DEST_DIR" && sha256sum "$(basename "$BACKUP_FILE")" > "$(basename "$CHECKSUM_FILE")")
 
                         echo ""
                         echo "✅ Backup completed successfully"

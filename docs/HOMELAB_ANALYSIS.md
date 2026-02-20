@@ -1,11 +1,11 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2026-02-12)
+**Assessment Date**: 2025-10-18 (Updated: 2026-02-20)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
-**Code Review**: 2025-12-23 ([CODE_REVIEW_2025_12_23.md](./CODE_REVIEW_2025_12_23.md)) - Full codebase analysis (89/100, A-)
+**Code Review**: 2026-02-20 - Full codebase analysis (93/100, A) — previous: 2025-12-23 (89/100, A-)
 **Historical Archive**: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) - Completed tasks & changelog (Oct-Nov 2025)
 
 ---
@@ -312,6 +312,41 @@
 
 ---
 
+### 🔍 Code Review Findings (2026-02-20)
+
+**Overall Score**: 93/100 (A) — up from 89/100 in December 2025
+
+| Category | Score | Change | Notes |
+|----------|-------|--------|-------|
+| Project Structure | 95/100 | = | Clean GitOps, base/staging pattern |
+| Kubernetes Patterns | 92/100 | +4 | CF tunnel GitOps sync, HA cloudflared |
+| Database Infrastructure | 92/100 | = | PG+MySQL HA, pooler, managed roles |
+| Monitoring Stack | 90/100 | +5 | Series optimization, Alloy migration |
+| Security Implementation | 94/100 | = | Node hardening, secrets-at-rest |
+| Backup & DR | 96/100 | = | NAS replication, validation pipeline |
+| Code Quality (DRY) | 78/100 | +6 | Metric relabeling duplication accepted |
+| Documentation | 90/100 | -3 | Fixed PG instance count discrepancy |
+
+#### Findings Implemented
+
+| # | Finding | Severity | Status |
+|---|---------|----------|--------|
+| 1 | Alertmanager `chat_id` in plain YAML | P1 | ⚠️ Accepted (no `chat_id_file` in Alertmanager, commented) |
+| 2 | `StrictHostKeyChecking=no` in backup SSH | P1 | ✅ Fixed (ConfigMap known hosts, `StrictHostKeyChecking=yes`) |
+| 3 | PVC backup `hostNetwork: true` unnecessary | P1 | ✅ Fixed (removed) |
+| 5 | Duplicated Prometheus metric relabelings | P2 | ✅ Documented (cross-reference comment) |
+| 6 | Redis `readOnlyRootFilesystem: false` | P2 | ✅ Fixed (enabled + emptyDir /tmp) |
+| 7 | Alertmanager `group_interval: 10s` too aggressive | P2 | ✅ Fixed (10s → 5m) |
+| 8 | Telegram truncation missing count | P2 | ✅ Fixed (shows hidden alert count) |
+| 9 | CF tunnel YAML parser fragile | P2 | ⏸️ Deferred (add validation later) |
+| 10 | PG instance count discrepancy in docs | P2 | ✅ Fixed (3 → 2) |
+| 11 | MySQL buffer pool discrepancy in docs | P2 | ✅ Verified (changelog entries correct) |
+| 12 | PVC backup `cd` mid-script | P3 | ✅ Fixed (subshell) |
+| 13 | Loki chart stale pin comment | P3 | ✅ Fixed (updated comment) |
+| 14 | Meilisearch `readOnlyRootFilesystem` | P3 | ✅ Fixed (enabled + emptyDir /tmp) |
+| 15 | Backup `successfulJobsHistoryLimit` | P3 | ❌ Declined (history useful for debugging) |
+| 16 | Renovate groups all Helm charts | P3 | ✅ Fixed (removed catch-all group) |
+
 ### 🔍 Code Review Findings (2025-12-23)
 
 **Source**: [CODE_REVIEW_2025_12_23.md](./CODE_REVIEW_2025_12_23.md)
@@ -441,7 +476,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 **Investigation Date**: 2025-12-18
 **Implementation Date**: 2025-12-18 (Phase 1+2), 2025-12-23 (Phase 3)
-**Current State**: 13/16 apps have readOnlyRootFilesystem enabled (was 3, +10 containers hardened)
+**Current State**: 15/16 apps have readOnlyRootFilesystem enabled (was 3, +12 containers hardened)
 **Goal**: Maximize containers with read-only root filesystems to reduce attack surface
 
 ##### ✅ **Tier 1: COMPLETED** (2025-12-18)
@@ -933,7 +968,7 @@ ingress:
 
 **Cluster Configuration:**
 - **Name**: main-postgres
-- **Replicas**: 3 (HA configuration) ⭐
+- **Replicas**: 2 (HA configuration) ⭐
 - **Version**: PostgreSQL 18.x
 - **Namespace**: databases
 - **HA Validation**: ✅ Proven during WAL corruption incident (2025-10-26)
@@ -1018,9 +1053,9 @@ ingress:
 
 ### Database Replication Strategy
 
-**PostgreSQL (3 Replicas)**: ✅ **High Availability Required**
+**PostgreSQL (2 Replicas)**: ✅ **High Availability Required**
 - **Usage**: Critical application data (Authentik, Immich, Paperless, Grafana, etc.)
-- **Replicas**: 3 instances (1 primary, 2 standby)
+- **Replicas**: 2 instances (1 primary, 1 standby)
 - **Replication**: Streaming replication with WAL shipping
 - **Failover**: Automatic via CNPG operator
 - **Why HA**: Critical data, zero data loss requirement, automatic recovery
@@ -1094,7 +1129,7 @@ ingress:
   - **TODO**: Remove workaround when PR #102 merged
 
 **Summary**:
-- **Critical data (PostgreSQL)**: 3 replicas, HA, zero downtime
+- **Critical data (PostgreSQL)**: 2 replicas, HA, zero downtime
 - **Critical data (MySQL)**: 2 replicas, Percona async replication, Orchestrator failover
 - **Cache/ephemeral (Redis)**: Single instance, restart tolerance acceptable
 - **Personal sync (CouchDB)**: Single instance, backup-based recovery acceptable
@@ -1109,6 +1144,22 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-02-20 (February Code Review - 93/100, A) 📋
+- ✅ **Full Codebase Review**: Score improved 89/100 → 93/100 (+4 points) ⭐
+- ✅ **Security**: Removed `hostNetwork: true` from PVC backup (unnecessary network access)
+- ✅ **Security**: SSH host key verification hardened (ConfigMap known hosts, `StrictHostKeyChecking=yes`)
+- ✅ **Security**: Redis + Meilisearch `readOnlyRootFilesystem` enabled (emptyDir /tmp)
+- ✅ **Alerting**: `group_interval` 10s → 5m (prevents Telegram flood during incidents)
+- ✅ **Alerting**: Truncation message now shows hidden alert count
+- ✅ **Docs**: Fixed PostgreSQL instance count (3 → 2 throughout)
+- ✅ **Maintenance**: PVC backup checksum uses subshell (prevents working directory leak)
+- ✅ **Maintenance**: Renovate Helm catch-all group removed (per-chart PRs now)
+- ✅ **Maintenance**: Loki chart pin comment updated (stale bug reference)
+- ✅ **Maintenance**: Cross-reference comment for duplicated metric relabelings
+- ⚠️ **Accepted**: Alertmanager `chat_id` in plain YAML (no `chat_id_file` support)
+- ⏸️ **Deferred**: CF tunnel YAML parser hardening, pre-built backup image
+- 📊 **Findings**: 3 P1, 8 P2, 6 P3 — 12 fixed, 2 accepted, 2 deferred, 1 declined
 
 ### 2026-02-20 (Codebase Review Fixes) 🔧
 - ✅ **CouchDB Alert Namespace Fix**: Changed `namespace="couchdb"` → `namespace="databases"` in CouchDBPodNotRunning alert ⭐

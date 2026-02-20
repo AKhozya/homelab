@@ -155,7 +155,7 @@ spec:
         route:
           group_by: ['alertname', 'cluster', 'service', 'instance', 'device']
           group_wait: 10s
-          group_interval: 10s
+          group_interval: 5m
           repeat_interval: 12h
           receiver: 'telegram'
           routes:
@@ -184,6 +184,8 @@ spec:
         - name: 'telegram'
           telegram_configs:
           - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot_token
+            # chat_id is an integer field (no _file variant available in Alertmanager)
+            # Not a secret by itself — cannot send messages without bot_token
             chat_id: 113452686
             parse_mode: 'HTML'
             # Limit to 5 alerts max to avoid Telegram 4096 char limit truncation
@@ -192,10 +194,12 @@ spec:
               {{ range $i, $a := .Alerts }}{{ if lt $i 5 }}
               • <b>{{ $a.Labels.alertname }}</b>{{ if $a.Labels.namespace }} [{{ $a.Labels.namespace }}]{{ end }}{{ if $a.Labels.instance }} ({{ $a.Labels.instance }}){{ end }}
               {{ $a.Annotations.summary }}{{ end }}{{ end }}{{ if gt (len .Alerts) 5 }}
-              <i>...and more</i>{{ end }}
+              <i>...and {{ sub (len .Alerts) 5 }} more</i>{{ end }}
         - name: 'telegram-backup'
           telegram_configs:
           - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot_token
+            # chat_id is an integer field (no _file variant available in Alertmanager)
+            # Not a secret by itself — cannot send messages without bot_token
             chat_id: 113452686
             parse_mode: 'HTML'
             # Limit to 5 alerts max to avoid Telegram 4096 char limit truncation
@@ -204,7 +208,7 @@ spec:
               {{ range $i, $a := .Alerts }}{{ if lt $i 5 }}
               • <b>{{ $a.Labels.alertname }}</b>{{ if $a.Labels.namespace }} [{{ $a.Labels.namespace }}]{{ end }}{{ if $a.Labels.instance }} ({{ $a.Labels.instance }}){{ end }}
               {{ $a.Annotations.summary }}{{ end }}{{ end }}{{ if gt (len .Alerts) 5 }}
-              <i>...and more</i>{{ end }}
+              <i>...and {{ sub (len .Alerts) 5 }} more</i>{{ end }}
       # Ingress enabled for internal network access via am.h0melab.work
       # DNS points to internal IPs only (192.168.1.127, 192.168.1.129)
       # NOT exposed to the internet - NetworkPolicy restricts external access
@@ -322,6 +326,9 @@ spec:
 
     # Drop high-cardinality histogram metrics and low-utility container metrics
     # Reduces ~21k series (apiserver_request_* + workqueue_* + scheduler_plugin_* + prober_probe_* + container_* + kubelet_* buckets)
+    # NOTE: kubeApiServer and kubelet metricRelabelings are intentionally duplicated —
+    # Helm values don't support YAML anchors across different chart paths.
+    # When adding new drop rules, update BOTH sections.
     kubeApiServer:
       serviceMonitor:
         metricRelabelings:

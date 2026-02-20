@@ -45,13 +45,6 @@
       ]
     },
     {
-      "description": "Group Helm chart updates",
-      "matchDatasources": [
-        "helm"
-      ],
-      "groupName": "Helm charts"
-    },
-    {
       "description": "Group Prometheus stack updates",
       "groupName": "Monitoring stack",
       "matchPackageNames": [
