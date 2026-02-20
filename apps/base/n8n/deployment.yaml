@@ -81,6 +81,9 @@ spec:
             # https://github.com/n8n-io/n8n/issues/25705
             - name: DB_POSTGRESDB_STATEMENT_TIMEOUT
               value: "0"
+            # Pre-migrate storage path before n8n v3 renames binaryData → storage
+            - name: N8N_MIGRATE_FS_STORAGE_PATH
+              value: "true"
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
