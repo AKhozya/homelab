@@ -42,7 +42,7 @@ spec:
           type: RuntimeDefault
       initContainers:
       - name: sync-tunnel-config
-        image: curlimages/curl:8.12.1
+        image: curlimages/curl:8.18.0
         command:
         - /bin/sh
         - -c
