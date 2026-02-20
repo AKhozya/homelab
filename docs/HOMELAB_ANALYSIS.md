@@ -5,9 +5,7 @@
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
-**Last Comprehensive Review**: 2025-12-17 ([HOMELAB_REVIEW_2025_12_17.md](./HOMELAB_REVIEW_2025_12_17.md))
 **Code Review**: 2025-12-23 ([CODE_REVIEW_2025_12_23.md](./CODE_REVIEW_2025_12_23.md)) - Full codebase analysis (89/100, A-)
-**Previous Review**: 2025-10-27 ([COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md))
 **Historical Archive**: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) - Completed tasks & changelog (Oct-Nov 2025)
 
 ---
@@ -113,8 +111,7 @@
 ## 🎯 CRITICAL ACTION ITEMS
 
 **Last Updated**: 2026-02-07 (Monthly Review)
-**Source**: [HOMELAB_REVIEW_2025_12_17.md](./HOMELAB_REVIEW_2025_12_17.md)
-**Previous Reviews**: [COMPREHENSIVE_CODEBASE_REVIEW.md](./COMPREHENSIVE_CODEBASE_REVIEW.md)
+**Source**: HOMELAB_REVIEW_2025_12_17 (archived, see git history)
 **Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
 
 ### 🔍 February 2026 Monthly Review
@@ -311,7 +308,7 @@
 | P2 | PVC distribution imbalanced | ✅ ACCEPTED | Expected: worker-node-2 only has DB replicas (110Gi vs 600Gi) |
 | P2 | Resource governance reduced | ✅ FIXED | Added quotas for pricebuddy, backup-replication, percona-mysql (2025-12-18) |
 
-**Full Details**: See [HOMELAB_REVIEW_2025_12_17.md](./HOMELAB_REVIEW_2025_12_17.md)
+**Full Details**: See git history for HOMELAB_REVIEW_2025_12_17.md
 
 ---
 
@@ -371,6 +368,14 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
    - **Final**: `max-age=31536000` (1 year) on all 17 ingresses
    - **Gradual Rollout**: ✅ Step 1 (1mo) → ✅ Step 2 (6mo) → ✅ Step 3 (1yr)
    - **Commits**: 5e109cd, 793a247
+
+#### ✅ **Secrets Audit** - PASSED (2026-02-20)
+   - **Scope**: Full repository scan - 51 Secret YAML files, all scripts, docs, and configs
+   - **Result**: No plaintext secrets found in git-tracked files
+   - **SOPS**: All 51 Secret files encrypted with AES256-GCM/age
+   - **Scripts**: Use `kubectl get` / placeholders only, no hardcoded values
+   - **Gitignore**: `.backup/`, `*.agekey`, `*.key`, `*.pem`, `.env` all excluded
+   - **No history rewrite needed**
 
 #### ✅ CSP Enforcement - COMPLETED (2025-10-31)
    - 43 days in production, zero violations, 85 automated tests passed
@@ -594,7 +599,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      - ✅ **Monitoring HA enabled** - Prometheus/Alertmanager 2 replicas with anti-affinity
      - ✅ **Uptime Kuma monitors** - Already configured (SSH + kubelet monitors)
      - ✅ **AdGuard Home DNS** - Added 192.168.1.126 to DNS rewrites
-   - **Documentation**: `docs/SECOND_WORKER_NODE_SETUP.md` (used for deployment)
+   - **Documentation**: SECOND_WORKER_NODE_SETUP.md (archived, see git history)
 
 #### 39. **Switch to LTS Kernel 6.18** 🐧 WAITING ON ARCH
    - **Status**: ⏸️ Running mainline 6.18.6, waiting for Arch to package 6.18 LTS
@@ -1096,7 +1101,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2026-02-07
+**Last Updated**: 2026-02-20
 **Next Review**: 2026-03-07
 
 ---
@@ -1104,6 +1109,19 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-02-20 (Cloudflare Tunnel GitOps Sync & Secrets Audit) ☁️
+- ✅ **CF Tunnel Init Container**: Syncs Git config to CF API on every pod start ⭐
+  - Shell parser extracts ingress rules from YAML, PUTs JSON to CF Tunnel Configurations API
+  - Image: `curlimages/curl:8.12.1`, readOnlyRootFilesystem, runAsNonRoot, drop ALL
+  - Runs as init container — sync before cloudflared starts, fails pod if sync fails
+  - Workflow: Edit SOPS config → commit → push → Flux reconciles → rollout restart → synced
+  - Commits: fa963b83, 257708e9
+- ✅ **Secrets Audit**: Full repo scan — no plaintext secrets in git ⭐
+  - 51 Secret YAML files all SOPS-encrypted (AES256-GCM/age)
+  - Scripts, docs, configs — no hardcoded credentials
+  - `.gitignore` properly excludes `.backup/`, keys, `.env`
+  - No git history rewrite needed
 
 ### 2026-02-12 (Node Security Hardening) 🔒
 - ✅ **SSH Hardening**: Post-quantum kex, strong ciphers/MACs only on all 3 nodes ⭐
@@ -1550,7 +1568,7 @@ ingress:
 - ✅ **Stale MariaDB Backup Archived**: `/mnt/k8s-storage/backups/mariadb` removed
 - ✅ **Old K3s Data Cleaned**: Freed 12GB on worker-node-2 root partition
 - 🔧 **Resolved Alerts**: ContainerMemoryNearLimit, PostgreSQLPodNotRunning, MySQLPodNotRunning
-- 📋 **Review Reference**: [HOMELAB_REVIEW_2025_12_17.md](./HOMELAB_REVIEW_2025_12_17.md)
+- 📋 **Review Reference**: HOMELAB_REVIEW_2025_12_17.md (archived, see git history)
 
 ### 2025-12-17 (MySQL Performance Tuning & Monitoring) ⚡
 - ✅ **Prometheus Monitoring Enabled**: Standalone mysqld-exporter deployment with ServiceMonitor ⭐
@@ -1838,7 +1856,7 @@ ingress:
   - **NetworkPolicy**: Restricts access to app namespaces + monitoring
   - **Storage**: 10Gi per replica on local-path PVCs
   - **Connection Pattern**: Direct to primary (no pooler needed for Galera multi-master)
-- 📚 **Documentation**: Created comprehensive `docs/MARIADB_MIGRATION.md` (337 lines)
+- 📚 **Documentation**: MARIADB_MIGRATION.md (archived, see git history)
 - 🔒 **Security**: All 4 MariaDB secrets added to cluster-wide backup/restore scripts
 - 💪 **Benefits**: Multi-master replication, automatic failover, production-grade database for all apps
 - 📋 **Verification**: All 3 apps running successfully with MariaDB, zero data loss
