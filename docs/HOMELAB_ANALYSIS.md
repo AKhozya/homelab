@@ -100,7 +100,7 @@
 - ✅ PVC daily backups (3:10 AM, 7-day retention) - Immich excluded (photos can be re-uploaded, DB in PostgreSQL)
 - ✅ MySQL daily backups (3:15 AM, 30-day retention, SHA256 checksums) ⭐
 - ✅ **Backup replication to NAS** (3:30 AM, rsync daemon, NAS accumulates full history, 500GB limit) ⭐
-- ✅ **Backup replication to worker-node-2** (3:30 AM, rsync over SSH, today's backup only, temporary safety net until ~Feb 13) ⭐
+- ✅ **Backup replication to worker-node-2** (3:30 AM, rsync over SSH, today's backup only, temporary safety net until ~May 20) ⭐
 - ✅ **Replication order**: worker-node-2 first (SSH, reliable), NAS second (rsync daemon) ⭐
 - ✅ Disaster recovery scripts complete (`.backup/` directory)
 - ✅ **Automated backup validation** (daily, SHA256 + tar integrity + size + age, Telegram failure-only reports) ⭐
@@ -181,7 +181,7 @@
 
 | Item | Target Date | Priority |
 |------|-------------|----------|
-| Remove worker-node-2 replication step | ~Feb 13, 2026 | P2 |
+| Remove worker-node-2 replication step | ~May 20, 2026 | P2 |
 | ~~Migrate Promtail to Grafana Alloy~~ | ~~Before March 2, 2026~~ | ✅ Done |
 | Re-evaluate VictoriaMetrics | Feb 2026 | P3 |
 | LTS kernel 6.18 | TBD (Arch `linux-lts` still at 6.12.68) | P2 |
@@ -558,7 +558,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
    - **Replication Strategy**: NAS is primary backup store, worker-node-2 is temporary safety net
      - Worker-1: creates backups → syncs to NAS + worker-2 → cleaned after replication
      - NAS: accumulates full backup history (no `--delete`, ~190 days at 2.6GB/day)
-     - Worker-2: mirrors source with `--delete` (today's backup only, temporary until ~Feb 13, 2026)
+     - Worker-2: mirrors source with `--delete` (today's backup only, temporary until ~May 20, 2026)
      - NAS connection: rsync daemon protocol, port 50555, SOPS secret (`nas-rsync-credentials`)
      - NAS limitation: module root is read-only, writes go to `backups/homelab/` subfolder
      - **500GB hard limit**: NAS storage allocation, manual pruning via NAS web UI when needed
@@ -570,7 +570,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      4. ✅ Configure backup replication CronJob (daily at 3:30 AM, rsync daemon protocol)
      5. ✅ Test backup replication (2.6GB transferred, sizes verified)
      6. ✅ Update disaster recovery documentation (README.md, BACKUP_STRATEGY.md, secrets scripts)
-   - **TODO**: Remove worker-node-2 replication after 1 week of successful NAS backups (~Feb 13, 2026)
+   - **TODO**: Remove worker-node-2 replication after extended safety period (~May 20, 2026)
    - **Files**: `infrastructure/configs/staging/backup-replication/` (cronjob.yaml, nas-rsync-secret.yaml)
    - **Benefit**: Protects against node hardware failure (NAS = full history, worker-node-2 = today's safety net)
 
@@ -730,7 +730,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 **Overall Grade**: A+ (97/100) ⬆️
 - **Critical Issues**: 0 P0 issues ✅
 - **High Priority**: 0 P1 active ✅
-- **Active P2**: Remove worker-node-2 replication (~Feb 13), LTS kernel (waiting on Arch)
+- **Active P2**: Remove worker-node-2 replication (~May 20), LTS kernel (waiting on Arch)
 - **Active P3**: VictoriaMetrics re-evaluation, config-reloader resource limits
 
 **Security Achievements** ✅:
@@ -1109,6 +1109,17 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-02-20 (Codebase Review Fixes) 🔧
+- ✅ **CouchDB Alert Namespace Fix**: Changed `namespace="couchdb"` → `namespace="databases"` in CouchDBPodNotRunning alert ⭐
+  - Alert was never matching (CouchDB runs in databases namespace, not couchdb)
+- ✅ **NetworkPolicy Egress Hardened**: Alloy + Popeye restricted from `0.0.0.0/0` to `192.168.1.127/32` for K8s API ⭐
+  - Matches existing Grafana/Prometheus pattern
+- ✅ **Homepage ALLOWED_HOSTS**: Restricted from `*` to `home.h0melab.work` (prevents host header injection)
+- ✅ **MySQL Kustomization Path**: Fixed inconsistent relative path (4→3 levels, matches postgres/redis/couchdb siblings)
+- ✅ **Worker-node-2 Backup**: Extended safety period to ~May 20, 2026 (was ~Feb 13)
+- ✅ **Docs Cleanup**: Deleted 18 obsolete doc files (-6,164 lines)
+- 📋 **Commits**: 4053675e
 
 ### 2026-02-20 (Cloudflare Tunnel GitOps Sync & Secrets Audit) ☁️
 - ✅ **CF Tunnel Init Container**: Syncs Git config to CF API on every pod start ⭐
