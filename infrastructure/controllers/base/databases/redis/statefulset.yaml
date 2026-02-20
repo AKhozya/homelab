@@ -26,7 +26,7 @@ spec:
       initContainers:
         # Init container to process ACL template with actual passwords
         - name: init-acl
-          image: redis:8-alpine
+          image: redis:8.6.0-alpine
           command:
             - sh
             - -c
@@ -72,7 +72,7 @@ spec:
               memory: "128Mi"
       containers:
         - name: redis
-          image: redis:8-alpine
+          image: redis:8.6.0-alpine
           args:
             - redis-server
             - --aclfile

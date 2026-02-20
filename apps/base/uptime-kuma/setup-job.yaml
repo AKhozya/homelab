@@ -21,7 +21,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: setup
-          image: python:3.14-slim
+          image: python:3.14.3-slim
           command:
             - /bin/bash
             - -c

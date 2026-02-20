@@ -27,7 +27,7 @@ spec:
               type: RuntimeDefault
           initContainers:
             - name: setup-permissions
-              image: alpine:3.23
+              image: alpine:3.23.3
               command:
                 - sh
                 - -c
