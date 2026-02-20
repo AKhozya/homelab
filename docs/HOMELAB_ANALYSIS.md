@@ -129,10 +129,10 @@
 | **worker-node** | ✅ Healthy | 19% CPU, 26% memory (rebuilderd active) |
 | **worker-node-2** | ✅ Healthy | 8% CPU, 18% memory |
 | **Pods** | ✅ 81 Running | 0 CrashLoop, 15 Completed jobs |
-| **PostgreSQL** | ✅ 2/2 Ready | Cluster in healthy state |
+| **PostgreSQL** | ✅ 2/2 Ready | v18.2 (upgraded from 18.1, 2026-02-20) |
 | **MySQL** | ✅ 2/2 Ready | Async replication, HAProxy active |
 | **CouchDB** | ✅ 2/2 Running | StatefulSet in databases namespace |
-| **Redis** | ✅ 1/1 Running | Cache healthy |
+| **Redis** | ✅ 1/1 Running | v8.6.0 (upgraded from 8.2.2, 2026-02-20) |
 | **Prometheus** | ✅ 71% memory | 111k series, 924Mi/1300Mi (improved from 244k/87%) |
 | **Alerts** | ✅ None firing | Clean alert state |
 | **Backups** | ✅ All successful | NAS + worker-node-2 replication working |
@@ -258,7 +258,7 @@
 
 | Check | Status | Notes |
 |-------|--------|-------|
-| Image tags | ✅ All pinned | No :latest tags in use |
+| Image tags | ✅ All pinned | No :latest or floating tags (fixed 2026-02-20) |
 | Security headers | ✅ 100% coverage | All ingresses have middleware |
 | Stale ReplicaSets | ✅ 0 found | Clean cluster state |
 | Job cleanup | ✅ 13 total | Normal backup job history |
@@ -772,7 +772,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 - **100% Pod Security Standards** (Apps: 11 restricted, 4 baseline, 1 privileged | Jobs: 5 restricted, 1 baseline)
 - **100% NetworkPolicy Coverage** (16 apps + 5 infra namespaces)
 - **100% SOPS Encryption** for secrets
-- **100% Image Version Pinning** (no :latest tags)
+- **100% Image Version Pinning** (no :latest or floating tags, all pinned to semver) ⬆️
 - **100% SSO Coverage** (8/8 applicable apps)
 - **100% HSTS Coverage** (max-age 1 year on all 17 ingresses)
 - **100% Node Hardening** (SSH post-quantum kex, kernel sysctls, kubelet CIS) ⬆️
@@ -969,7 +969,7 @@ ingress:
 **Cluster Configuration:**
 - **Name**: main-postgres
 - **Replicas**: 2 (HA configuration) ⭐
-- **Version**: PostgreSQL 18.x
+- **Version**: PostgreSQL 18.2
 - **Namespace**: databases
 - **HA Validation**: ✅ Proven during WAL corruption incident (2025-10-26)
   - Lost 1 replica (main-postgres-1) to checkpoint corruption
@@ -1022,7 +1022,7 @@ ingress:
 **Redis:**
 - **Method**: ServiceMonitor + redis-exporter sidecar
 - **Namespace**: databases
-- **Exporter**: oliver006/redis_exporter:v1.66.0-alpine
+- **Exporter**: oliver006/redis_exporter:v1.81.0-alpine
 - **Port**: 9121 (exporter metrics)
 - **Resources**: 10m CPU, 32Mi memory
 - **Service Label**: app: redis (required for ServiceMonitor discovery)
@@ -1144,6 +1144,21 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-02-20 (Image Tag Pinning & Database Updates) 📌
+- ✅ **PostgreSQL Upgrade**: 18.1 → 18.2 (CNPG rolling update, zero downtime) ⭐
+- ✅ **Redis Upgrade**: 8.2.2 → 8.6.0 (was silently drifting on floating `8-alpine` tag) ⭐
+- ✅ **Floating Tags Pinned**: 15 image references across 13 files pinned to exact versions ⭐
+  - `alpine:3.23` → `3.23.3` (6 refs in backup/replication jobs)
+  - `busybox:1.37` → `1.37.0` (2 refs in homehub, adguard-home)
+  - `node:24-alpine` → `24.13.1-alpine` (2 refs in csp-reporter, couchdb-backup)
+  - `python:3.14-slim` → `3.14.3-slim` (2 refs in mealie, uptime-kuma jobs)
+  - `postgres:18-alpine` → `18.2-alpine` (1 ref in postgres-backup)
+  - `redis:8-alpine` → `8.6.0-alpine` (2 refs in redis statefulset)
+- ✅ **Root cause**: Renovate can't track floating tags (tag name never changes → no PR created)
+- ✅ **All 10 PG/Redis consumer apps** rollout-restarted and verified healthy
+- ✅ **Intentionally floating**: CNPG helper images (`18-minimal-trixie`, `18-standard-trixie`) for psql jobs — no action needed
+- 📋 **Commits**: 456163b0
 
 ### 2026-02-20 (February Code Review - 93/100, A) 📋
 - ✅ **Full Codebase Review**: Score improved 89/100 → 93/100 (+4 points) ⭐
