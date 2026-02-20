@@ -61,7 +61,7 @@ spec:
           port: 33060
         - protocol: TCP
           port: 33062
-    # Monitoring from Prometheus (exporter sidecar - deprecated, keeping for reference)
+    # Monitoring from Prometheus (standalone mysql-exporter on port 9104)
     - from:
         - namespaceSelector:
             matchLabels:
