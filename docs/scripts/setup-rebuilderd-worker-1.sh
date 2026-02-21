@@ -53,6 +53,7 @@ CPUQuota=600%
 # in rebuilderd cgroup (no K8s impact) but caused build failures (2026-02-21).
 MemoryMax=32G
 MemoryHigh=31G
+MemorySwapMax=16G
 
 # IO: Low priority to not interfere with k8s workloads
 IOWeight=50

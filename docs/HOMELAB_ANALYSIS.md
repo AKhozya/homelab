@@ -1161,6 +1161,10 @@ ingress:
   - K8s actual usage: 13.5GB of 61GB total — plenty of headroom
   - `MemoryMax=32G`, `MemoryHigh=31G`, `MAX_MEMORY=32G` (cgroup + nspawn)
   - Script updated: `docs/scripts/setup-rebuilderd-worker-1.sh`
+- ✅ **Swap spillover enabled**: Builds use swap instead of OOM killing ⭐
+  - worker-node: `MemorySwapMax=16G` (32GB RAM + 16GB swap = 48GB effective)
+  - worker-node-2: `MemorySwapMax=8G` (14GB RAM + 8GB swap = 22GB effective)
+  - Leaves half of each node's swap for K8s and system use
 
 ### 2026-02-20 (Image Tag Pinning & Database Updates) 📌
 - ✅ **PostgreSQL Upgrade**: 18.1 → 18.2 (CNPG rolling update, zero downtime) ⭐
