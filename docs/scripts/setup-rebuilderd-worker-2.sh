@@ -4,7 +4,7 @@
 # Configuration:
 #   - 1 worker (@1)
 #   - CPU: 400% (4 cores of 16)
-#   - RAM: 18GB
+#   - RAM: 14GB (reduced from 18GB after DPDK OOM killed K8s pods)
 #   - Schedule: 24/7 (starts 10 min after boot)
 #   - Build timeout: 48 hours
 #
@@ -47,9 +47,13 @@ ExecStart=/usr/bin/rebuilderd-worker -n %i -c /etc/rebuilderd-worker.conf connec
 # CPU: 400% (4 cores)
 CPUQuota=400%
 
-# RAM: 18GB (hard limit)
-MemoryMax=18G
-MemoryHigh=17G
+# RAM: 14GB (hard limit)
+# Reduced from 18GB after DPDK LTO build (lto1-ltrans) exceeded 18GB,
+# triggered OOM killer, and killed MySQL pods on the same node (2026-02-21).
+# 14GB leaves ~16GB for K8s pods; large builds fail inside cgroup instead
+# of pressuring the whole system.
+MemoryMax=14G
+MemoryHigh=13G
 
 # IO: Low priority to not interfere with k8s workloads
 IOWeight=50
@@ -67,14 +71,14 @@ KillMode=control-group
 
 # Environment for archlinux-repro patches
 # These pass limits to nspawn containers
-Environment="MAX_CPU=400%" "MAX_MEMORY=18G"
+Environment="MAX_CPU=400%" "MAX_MEMORY=14G"
 
 # Cleanup stale pacman locks from nspawn containers before starting
 # Prevents "unable to lock database" after unclean shutdown
 ExecStartPre=/bin/bash -c 'find /var/lib/repro/ /mnt/extra-storage/repro/ -name "db.lck" -delete 2>/dev/null; true'
 EOF
 
-echo "Created resource limits (400% CPU, 18GB RAM)"
+echo "Created resource limits (400% CPU, 14GB RAM)"
 
 # Configure 48-hour build timeout in rebuilderd-worker.conf
 CONFIG="/etc/rebuilderd-worker.conf"
@@ -130,7 +134,7 @@ echo "Workers: 1 (@1)"
 echo ""
 echo "Per Worker:"
 echo "  CPU: 400% (4 cores)"
-echo "  RAM: 18GB (hard limit, passed to nspawn)"
+echo "  RAM: 14GB (hard limit, passed to nspawn)"
 echo "  Build timeout: 48 hours"
 echo ""
 echo "Schedule: 24/7 (starts 10 min after boot)"

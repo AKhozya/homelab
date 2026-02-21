@@ -49,7 +49,7 @@
 - **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2026-01-26)
   - Reproducible build verification for Arch Linux packages
   - worker-node: 1 worker, 6 CPU (600%), 24GB RAM, **09:00-23:00 daily (14h)**
-  - worker-node-2: 1 worker, 4 CPU (400%), 18GB RAM, **24/7**
+  - worker-node-2: 1 worker, 4 CPU (400%), 14GB RAM, **24/7**
   - Build timeout: 48 hours (for large packages like python-aotriton)
   - LVM-backed storage for builds
   - CPU/RAM quota fix: archlinux-repro passes limits to nspawn containers (upstream [PR #143](https://github.com/archlinux/archlinux-repro/pull/143) merged)
@@ -1145,6 +1145,18 @@ ingress:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
+### 2026-02-21 (Rebuilderd OOM → MySQL Crash Fix) 🔧
+- ✅ **Root Cause Found**: Rebuilderd DPDK build OOM killed MySQL pods on worker-node-2 ⭐
+  - `lto1-ltrans` (GCC LTO linker) exceeded 18GB memory limit in nspawn container
+  - Cgroup `/machine.slice/dpdk1926193.scope`: 19.5GB usage, 228,266 failed allocations
+  - OOM killer triggered at 20:40:30 UTC, killing MySQL containers as collateral
+  - MySQL crash-looped 6 times before stabilizing (~7 minutes recovery)
+  - Percona image bump (Feb 16 commit 4a1f9110) applied opportunistically during pod recreation
+- ✅ **Fix**: Reduced worker-node-2 MAX_MEMORY 18GB → 14GB ⭐
+  - `MemoryMax=14G`, `MemoryHigh=13G`, `MAX_MEMORY=14G` (cgroup + nspawn)
+  - Leaves ~16GB for K8s pods; large LTO builds fail inside cgroup instead of pressuring system
+  - Script updated: `docs/scripts/setup-rebuilderd-worker-2.sh`
+
 ### 2026-02-20 (Image Tag Pinning & Database Updates) 📌
 - ✅ **PostgreSQL Upgrade**: 18.1 → 18.2 (CNPG rolling update, zero downtime) ⭐
 - ✅ **Redis Upgrade**: 8.2.2 → 8.6.0 (was silently drifting on floating `8-alpine` tag) ⭐
@@ -1336,7 +1348,7 @@ ingress:
   - **Impact**: Nspawn containers now receive `--property="MemoryMax=6G"` from archlinux-repro (now upstream)
 - ✅ **Worker Configuration Updated**: Better resource allocation ⭐
   - **worker-node**: 4 → 3 workers × 400% CPU × 6GB RAM (18GB total, scheduled 2am-9am)
-  - **worker-node-2**: 1 worker × 400% CPU × 18GB RAM (24/7)
+  - **worker-node-2**: 1 worker × 400% CPU × 14GB RAM (24/7, reduced from 18GB after DPDK OOM 2026-02-21)
   - **Scripts Updated**: `docs/scripts/setup-rebuilderd-worker-1.sh`, `docs/scripts/setup-rebuilderd-worker-2.sh`
 - ✅ **MySQL-0 OOMKilled Recovery**: Pod caught in rebuilderd OOM crossfire ⭐
   - **Symptom**: mysql-0 1/2 ready with 14 restarts, exit code 137 (OOMKilled)
