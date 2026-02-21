@@ -247,6 +247,7 @@ spec:
       disabled:
         NodeMemoryMajorPagesFaults: true  # Overridden below with 30m duration
         NodeDiskIOSaturation: true  # Overridden below with 1h duration
+        CPUThrottlingHigh: true  # Overridden below to exclude rebuilderd worker nodes
       rules:
         kubeProxy: false
         kubeSchedulerAlerting: false
@@ -261,9 +262,33 @@ spec:
         groups:
           - name: node-memory-override
             rules:
-              # Override: increase duration from 15m to 30m for rebuilderd compilation workloads
+              # Override: exclude rebuilderd worker nodes where CPU contention is expected
+              - alert: CPUThrottlingHigh
+                expr: |
+                  sum without (id, metrics_path, name, image, endpoint, job, node) (
+                    topk by (cluster, namespace, pod, container, instance) (1,
+                      increase(container_cpu_cfs_throttled_periods_total{container!="", job="kubelet", metrics_path="/metrics/cadvisor", instance!~"192.168.1.12(9|6):10250"}[5m])
+                    )
+                  )
+                  / on (cluster, namespace, pod, container, instance) group_left
+                  sum without (id, metrics_path, name, image, endpoint, job, node) (
+                    topk by (cluster, namespace, pod, container, instance) (1,
+                      increase(container_cpu_cfs_periods_total{job="kubelet", metrics_path="/metrics/cadvisor", instance!~"192.168.1.12(9|6):10250"}[5m])
+                    )
+                  )
+                  > ( 25 / 100 )
+                for: 15m
+                labels:
+                  severity: info
+                annotations:
+                  summary: Processes experience elevated CPU throttling.
+                  description: >-
+                    {{ $value | humanizePercentage }} throttling of CPU in namespace {{ $labels.namespace }} for container {{ $labels.container }} in pod {{ $labels.pod }}.
+                  runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/cputhrottlinghigh
+              # Override: exclude rebuilderd worker nodes (swap spillover causes expected page faults)
+              # Only alert on control-plane where page faults indicate real memory pressure
               - alert: NodeMemoryMajorPagesFaults
-                expr: rate(node_vmstat_pgmajfault{job="node-exporter"}[5m]) > 500
+                expr: rate(node_vmstat_pgmajfault{job="node-exporter", instance!~"192.168.1.12(9|6):9100"}[5m]) > 500
                 for: 30m
                 labels:
                   severity: warning
