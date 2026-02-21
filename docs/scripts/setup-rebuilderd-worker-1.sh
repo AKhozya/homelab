@@ -4,7 +4,7 @@
 # Configuration:
 #   - 1 worker (@1)
 #   - CPU: 600% (6 cores of 32)
-#   - RAM: 24GB
+#   - RAM: 32GB (increased from 24GB for heavy LTO builds like python-triton)
 #   - Schedule: 09:00 - 23:00 daily (14 hours)
 #
 # Run as root: sudo bash setup-rebuilderd-worker-1.sh
@@ -46,9 +46,13 @@ ExecStart=/usr/bin/rebuilderd-worker -n %i -c /etc/rebuilderd-worker.conf connec
 # CPU: 600% (6 cores)
 CPUQuota=600%
 
-# RAM: 24GB (hard limit)
-MemoryMax=24G
-MemoryHigh=23G
+# RAM: 32GB (hard limit)
+# Increased from 24GB to allow heavy LTO builds (python-triton ~40GB,
+# openvdb ~34GB) to complete. K8s actual usage is ~13.5GB of 61GB total,
+# so 32GB leaves ~29GB headroom for pods. OOM kills at 24GB were contained
+# in rebuilderd cgroup (no K8s impact) but caused build failures (2026-02-21).
+MemoryMax=32G
+MemoryHigh=31G
 
 # IO: Low priority to not interfere with k8s workloads
 IOWeight=50
@@ -66,14 +70,14 @@ KillMode=control-group
 
 # Environment for archlinux-repro patches
 # These pass limits to nspawn containers
-Environment="MAX_CPU=600%" "MAX_MEMORY=24G"
+Environment="MAX_CPU=600%" "MAX_MEMORY=32G"
 
 # Cleanup stale pacman locks from nspawn containers before starting
 # Prevents "unable to lock database" after unclean shutdown
 ExecStartPre=/bin/bash -c 'find /var/lib/repro/ /mnt/k8s-storage/repro/ -name "db.lck" -delete 2>/dev/null; true'
 EOF
 
-echo "Created resource limits (600% CPU, 24GB RAM)"
+echo "Created resource limits (600% CPU, 32GB RAM)"
 
 # Configure 48-hour build timeout in rebuilderd-worker.conf
 CONFIG="/etc/rebuilderd-worker.conf"
@@ -159,7 +163,7 @@ echo "Workers: 1 (@1)"
 echo ""
 echo "Per Worker:"
 echo "  CPU: 600% (6 cores)"
-echo "  RAM: 24GB (hard limit, passed to nspawn)"
+echo "  RAM: 32GB (hard limit, passed to nspawn)"
 echo ""
 echo "Schedule: 09:00 - 23:00 daily (14 hours)"
 echo "  Start: 09:00"

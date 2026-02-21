@@ -48,7 +48,7 @@
 - **🆕 3-Node Cluster** - worker-node-2 added (2025-12-15) ⭐
 - **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2026-01-26)
   - Reproducible build verification for Arch Linux packages
-  - worker-node: 1 worker, 6 CPU (600%), 24GB RAM, **09:00-23:00 daily (14h)**
+  - worker-node: 1 worker, 6 CPU (600%), 32GB RAM, **09:00-23:00 daily (14h)**
   - worker-node-2: 1 worker, 4 CPU (400%), 14GB RAM, **24/7**
   - Build timeout: 48 hours (for large packages like python-aotriton)
   - LVM-backed storage for builds
@@ -1156,6 +1156,11 @@ ingress:
   - `MemoryMax=14G`, `MemoryHigh=13G`, `MAX_MEMORY=14G` (cgroup + nspawn)
   - Leaves ~16GB for K8s pods; large LTO builds fail inside cgroup instead of pressuring system
   - Script updated: `docs/scripts/setup-rebuilderd-worker-2.sh`
+- ✅ **Bump**: Increased worker-node MAX_MEMORY 24GB → 32GB ⭐
+  - 13 OOM kills in last 24h (python-triton ~40GB, openvdb ~34GB, zed ~34GB) — all contained in cgroup, no K8s impact
+  - K8s actual usage: 13.5GB of 61GB total — plenty of headroom
+  - `MemoryMax=32G`, `MemoryHigh=31G`, `MAX_MEMORY=32G` (cgroup + nspawn)
+  - Script updated: `docs/scripts/setup-rebuilderd-worker-1.sh`
 
 ### 2026-02-20 (Image Tag Pinning & Database Updates) 📌
 - ✅ **PostgreSQL Upgrade**: 18.1 → 18.2 (CNPG rolling update, zero downtime) ⭐
