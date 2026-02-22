@@ -3,14 +3,66 @@
 **Purpose**: Historical changelog and completed task archive for the homelab infrastructure.
 **Related**: [HOMELAB_ANALYSIS.md](./HOMELAB_ANALYSIS.md) - Current status and active tasks
 **Created**: 2025-12-13
-**Coverage**: October 2025 - November 2025
+**Coverage**: October 2025 - December 2025
 
 ---
 
 ## 📋 Table of Contents
 
 1. [Completed Action Items Archive](#-completed-action-items-archive)
-2. [Historical Changelog](#-historical-changelog-october-november-2025)
+2. [Historical Changelog](#-historical-changelog-october-december-2025)
+
+---
+
+### 🚨 December 2025 Review Findings
+
+| Priority | Issue | Status | Action |
+|----------|-------|--------|--------|
+| P0 | worker-node-2 has no swap | ✅ FIXED | 16GB LVM swap added (2025-12-18) |
+| P0 | Stale mariadb backup directory | ✅ FIXED | Archived and removed (2025-12-18) |
+| P1 | Kyverno violations returned (22) | ✅ FIXED | Percona operator limits added (2025-12-18) |
+| P1 | Popeye score dropped (87/100) | ✅ FIXED | Score restored to 100/100 (2025-12-18) |
+| P1 | ContainerMemoryNearLimit alert | ✅ FIXED | PriceBuddy apprise limit increased (2025-12-18) |
+| P1 | Monitoring not HA | ✅ FIXED | Prometheus/Alertmanager 2 replicas with anti-affinity (2025-12-18) |
+| P1 | MySQL HAProxy no anti-affinity | ✅ FIXED | Added antiAffinityTopologyKey (2025-12-18) |
+| P1 | AdGuard Home DNS missing worker-node-2 | ✅ FIXED | Added 192.168.1.126 to DNS rewrites (2025-12-18) |
+| P2 | PVC distribution imbalanced | ✅ ACCEPTED | Expected: worker-node-2 only has DB replicas (110Gi vs 600Gi) |
+| P2 | Resource governance reduced | ✅ FIXED | Added quotas for pricebuddy, backup-replication, percona-mysql (2025-12-18) |
+
+**Full Details**: See git history for HOMELAB_REVIEW_2025_12_17.md
+
+---
+
+### 🔍 Code Review Findings (2025-12-23)
+
+**Source**: [CODE_REVIEW_2025_12_23.md](./CODE_REVIEW_2025_12_23.md)
+**Overall Score**: 89/100 (A-)
+
+#### High Priority (This Month)
+
+| # | Item | Effort | Impact | Status |
+|---|------|--------|--------|--------|
+| 41 | Add PostgreSQL egress NetworkPolicy | 30 min | Security | ✅ Done (9589c59) |
+| 42 | Add Loki health alerts | 1 hour | Observability | ✅ Done (9589c59) |
+| 43 | Document secrets rotation schedule | 1 hour | Security | ✅ Done (SECRETS_ROTATION.md updated) |
+| 44 | Enforce `disallow-latest-tag` Kyverno policy | 15 min | Security | ✅ Done (9589c59) |
+| 45 | Add Traefik service alerts | 1 hour | Observability | ✅ Done (9589c59) |
+
+#### Medium Priority (This Quarter)
+
+| # | Item | Effort | Impact | Status |
+|---|------|--------|--------|--------|
+| 46 | ~~Create Kustomize components for DRY~~ | N/A | N/A | ❌ Declined (complexity vs benefit) |
+| 47 | ~~Standardize NetworkPolicy label selectors~~ | N/A | N/A | ✅ Documented as intentional design |
+| 48 | Add backup monitoring Grafana dashboard | 2 hours | Observability | ✅ Done (grafana-dashboards/) |
+| 49 | Document RBAC decisions per app | 2 hours | Documentation | ✅ Done (CODE_REVIEW §5.RBAC) |
+| 50 | ~~Add Etcd availability alerts~~ | N/A | N/A | ❌ N/A (K3s single-master uses SQLite) |
+
+#### DRY Refactoring Opportunities
+
+**Status**: ❌ Declined (2025-12-23) - Complexity outweighs benefit for homelab scale.
+
+Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ---
 
@@ -362,7 +414,755 @@
 
 ---
 
-## 📝 Historical Changelog (October-November 2025)
+## 📝 Historical Changelog (October-December 2025)
+
+### 2025-12-31 (K3s Upgrade to v1.35.0) 🚀
+- ✅ **K3s Cluster Upgrade**: All 3 nodes upgraded to v1.35.0+k3s1 ⭐
+  - **gmk-k3s-control-plane**: v1.34.2+k3s1 → v1.35.0+k3s1
+  - **worker-node**: v1.34.2+k3s1 → v1.35.0+k3s1
+  - **worker-node-2**: v1.34.2+k3s1 → v1.35.0+k3s1
+  - **Components**: Containerd 2.1.5-k3s1, Go 1.25.5
+  - **Pods**: 104 running, all HelmReleases healthy
+  - **Note**: Worker nodes require K3S_URL and K3S_TOKEN for agent install
+- ✅ **Bash History Expansion Fix**: Disabled `!!` expansion to prevent sudo password issues ⭐
+  - **Root Cause**: Password ending with `!!` triggered bash history expansion intermittently
+  - **Fix**: Added `set +H` to ~/.bashrc on all 3 nodes
+  - **Script**: `/tmp/fix-bash-history-expansion.sh`
+
+### 2025-12-30 (Rebuilderd OOM Fix & Telegram Template Improvement) 🔧
+- ✅ **Rebuilderd MAX_MEMORY Fix**: nspawn containers now properly memory-limited ⭐
+  - **Root Cause**: `MemoryMax=6G` only limited rebuilderd-worker process, not child nspawn containers
+  - **Analysis**: Kernel OOM killer invoked (`cc1plus invoked oom-killer`, `ld.lld` used 5.3GB RAM)
+  - **Fix**: Added `Environment="MAX_CPU=..." "MAX_MEMORY=6G"` to systemd drop-in
+  - **Impact**: Nspawn containers now receive `--property="MemoryMax=6G"` from archlinux-repro (now upstream)
+- ✅ **Worker Configuration Updated**: Better resource allocation ⭐
+  - **worker-node**: 4 → 3 workers × 400% CPU × 6GB RAM (18GB total, scheduled 2am-9am)
+  - **worker-node-2**: 1 worker × 400% CPU × 14GB RAM (24/7, reduced from 18GB after DPDK OOM 2026-02-21)
+  - **Scripts Updated**: `docs/scripts/setup-rebuilderd-worker-1.sh`, `docs/scripts/setup-rebuilderd-worker-2.sh`
+- ✅ **MySQL-0 OOMKilled Recovery**: Pod caught in rebuilderd OOM crossfire ⭐
+  - **Symptom**: mysql-0 1/2 ready with 14 restarts, exit code 137 (OOMKilled)
+  - **Fix**: Pod deleted and recreated, replication resumed from mysql-1
+  - **Result**: Cluster healthy, 2/2 ready, 0s replication lag
+- ✅ **Telegram Alert Template Improved**: Prevents HTML truncation ⭐
+  - **Problem**: 34 stale PodCrashLooping alerts → 4096 char Telegram limit → broken HTML tags
+  - **Fix**: New template limits to 5 alerts per message with "...and X more" summary
+  - **Format**: `FIRING (34 alerts) • AlertName [namespace] summary ...and 29 more`
+  - **Commit**: d336149
+- ✅ **Alertmanager Queue Cleared**: Restarted to flush stale notifications
+- ✅ **Kernel Watchdog Enabled** (earlier in day): Better crash detection
+  - `kernel.nmi_watchdog=1`, `kernel.softlockup_panic=1`, `kernel.hardlockup_panic=1`
+  - Config: `/etc/sysctl.d/99-watchdog.conf` on both nodes
+
+### 2025-12-29 (Health Review & Rebuilderd Multi-Worker Fix) 🔍
+- ✅ **Health Review Complete**: All systems healthy, no issues found ⭐
+  - **Nodes**: 3/3 Ready (control-plane 19% CPU, worker-node 0%, worker-node-2 2%)
+  - **PostgreSQL**: 2/2 healthy (Cluster in healthy state)
+  - **MySQL**: 2/2 ready + 2 HAProxy replicas
+  - **CouchDB**: 2/2 running
+  - **Redis**: Running
+  - **Popeye Score**: 100/100 (A grade)
+  - **Kyverno Violations**: 14 (all null/null from ephemeral pods - not actionable)
+  - **Alerts**: None firing
+- ✅ **Rebuilderd Multi-Worker Fix**: Corrected worker count for proper CPU utilization ⭐
+  - **Issue**: Timer was starting single worker (`@1`) regardless of CPU allocation
+  - **Root Cause**: `-n` flag is worker name, not concurrency; 1 worker = 1 concurrent build
+  - **Fix**: Start multiple worker instances for parallel builds
+  - **worker-node**: 6 workers (`@1`-`@6`) for 12 CPU cores
+  - **worker-node-2**: 3 workers (`@1`-`@3`) for 6 CPU cores
+  - **Rationale**: ~2 cores per worker for balanced throughput (not 1:1 to avoid contention)
+  - **Scripts**: `/tmp/fix-rebuilderd-worker1.sh`, `/tmp/fix-rebuilderd-worker2.sh`
+- ✅ **NVMe PM Fix**: Updated setup-node.sh with tmpfiles.d for boot reliability ⭐
+  - Added `/etc/tmpfiles.d/nvme-no-pm.conf` for consistent NVMe PM settings
+  - Dual udev rule approach (PCI + block device trigger)
+  - Applied to all 3 nodes, verified PM=on
+- ✅ **Cluster Cleanup**: Deleted 13 stale ReplicaSets, 3 old jobs
+- ✅ **Storage Health**:
+  - worker-node: 242GB / 4.2TB (6%)
+  - worker-node-2: 68GB / 863GB (9%)
+  - Backup replication: ~2.5GB on worker-node-2
+- 📋 **Commits**: 389585f (NVMe PM fix)
+
+### 2025-12-26 (Rebuilderd CPU Quota Fix & Upstream PR) 🔧
+- ✅ **CPU Quota Fix for nspawn Containers**: archlinux-repro now passes CPU limits ⭐
+  - **Problem**: nspawn containers with `--register=no` bypass parent cgroup CPU limits
+  - **Solution**: Added `--property="CPUQuota=${MAX_CPU}"` to nspawn call (mirrors existing MAX_MEMORY pattern)
+  - **Upstream PR**: [archlinux/archlinux-repro#143](https://github.com/archlinux/archlinux-repro/pull/143) - **MERGED**
+  - **Status**: Now part of official archlinux-repro package
+- ✅ **3-Hour Verification Test**: CPU limits confirmed working ⭐
+  - **worker-node**: Peak 39% CPU (was 99% before fix) - 1,167 packages processed
+  - **worker-node-2**: Peak 33% CPU - 508 packages processed
+  - **Zero CPU alerts** during test period
+  - cgroup cpu.max correctly shows limits (1200000/100000, 600000/100000)
+- ✅ **worker-node-2 CPU Increased**: 5 cores → 6 cores (500% → 600%)
+- ✅ **Schedule Extended**: 2am-8am → 2am-9am (7 hours instead of 6)
+- 🔧 **Scripts Created** (`/tmp/` on nodes):
+  - `configure-rebuilderd-cpu-limit.sh` - Initial CPU limit setup
+  - `test-rebuilderd-cpu-limits.sh` - Verification test script
+  - `monitor-rebuilderd-3hr.sh` - 3-hour monitoring with 10-min intervals
+  - `update-cpu-limit-worker2.sh` - CPU increase from 5 to 6 cores
+  - `update-rebuilderd-schedule.sh` - Schedule change script
+- 📋 **Commits**: Patch script in `docs/scripts/patch-archlinux-repro-cpu.sh`
+
+### 2025-12-24 (LVM Migration & Rebuilderd Setup) 💾
+- ✅ **Rebuilderd Contribution to Arch Linux**: Nightly builds for reproducible package verification ⭐
+  - **Schedule**: 2:00 AM - 9:00 AM daily (7 hours)
+  - **worker-node**: 2 workers, 12 CPU cores (1200%), 24GB RAM (12GB/worker)
+  - **worker-node-2**: 2 workers, 6 CPU cores (600%), 18GB RAM (9GB/worker) - reduced for thermal headroom
+  - **Concurrency**: Each worker = 1 build (6 cores on worker-node, 3 cores on worker-node-2)
+  - **Storage**: LVM-backed builds (not tmpfs/RAM)
+  - **Purpose**: Verify Arch Linux binary packages are reproducible
+  - **Graceful stop**: Current build completes before timer stop
+- ✅ **LVM Storage Migration - worker-node-2**: Root SSD freed ~14.5GB ⭐
+  - `/var/lib/kubelet` → `/mnt/extra-storage/kubelet` (bind mount)
+  - `/var/lib/rebuilderd-worker` → `/mnt/extra-storage/rebuilderd-worker` (symlink)
+  - `/var/lib/repro` → `/mnt/extra-storage/repro` (symlink)
+  - **Result**: Root SSD 37% → 8% used (3.5G/50G)
+- ✅ **LVM Storage Migration - worker-node**: Root SSD freed ~30GB ⭐
+  - `/var/lib/kubelet` → `/mnt/k8s-storage/kubelet` (bind mount)
+  - `/var/lib/rebuilderd-worker` → `/mnt/k8s-storage/rebuilderd-worker` (symlink)
+  - `/var/lib/repro` → `/mnt/k8s-storage/repro` (symlink)
+  - **Result**: Root SSD → 6% used (2.7G/49G)
+- ✅ **Disk Cleanup**: Both nodes cleaned
+  - Pacman cache (paccache -rk2)
+  - Journal logs (vacuum to 100MB)
+  - Old swapfile removed on worker-node-2 (6.4GB)
+  - Unused container images pruned
+- 🔧 **Scripts Created** (`docs/scripts/`):
+  - `configure-rebuilderd-storage.sh` - LVM storage config for builds
+  - `migrate-to-lvm-worker1.sh` - Combined migration script
+  - `migrate-rebuilderd-to-lvm.sh` - Rebuilderd data migration
+  - `cleanup-kubelet-old.sh` - Stale mount cleanup
+  - `analyze-disk-usage.sh` - Disk analysis utility
+  - `cleanup-disk.sh` - Disk cleanup utility
+
+### 2025-12-23 (Comprehensive Code Review) 📋
+- ✅ **Full Codebase Review Completed**: 89/100 (A-) overall score ⭐
+- 📊 **Category Scores**:
+  - Project Structure: 95/100 (A)
+  - Kubernetes Patterns: 88/100 (A-)
+  - Database Infrastructure: 92/100 (A)
+  - Monitoring Stack: 85/100 (B+)
+  - Security Implementation: 94/100 (A)
+  - Backup & DR: 96/100 (A+)
+  - Code Quality (DRY): 72/100 (B-)
+  - Documentation: 93/100 (A)
+- 🔍 **Key Findings**:
+  - 394 YAML files, 15 apps with consistent base/staging pattern
+  - 100% NetworkPolicy coverage, 100% Pod Security Standards compliance
+  - Enterprise-grade backup with geographic replication
+  - DRY violations: 30-40% file reduction possible with Kustomize components
+- 📋 **Action Items Added**: 14 new items (#41-54) across High/Medium/Low priority
+- 🔧 **Top 5 High Priority**:
+  1. PostgreSQL egress NetworkPolicy (30 min)
+  2. Loki health alerts (1 hour)
+  3. Secrets rotation documentation (1 hour)
+  4. Enforce disallow-latest-tag policy (15 min)
+  5. Traefik service alerts (1 hour)
+- 📄 **Documentation**: [CODE_REVIEW_2025_12_23.md](./CODE_REVIEW_2025_12_23.md)
+
+### 2025-12-23 (ReadOnlyRootFilesystem Phase 3 Complete) 🔒
+- ✅ **Phase 3 Complete**: Enabled readOnlyRootFilesystem on 3 remaining Tier 3 apps ⭐
+  - **linkwarden**: Already had emptyDirs for /tmp, /app/.next/cache, /home/node/.cache - just enabled flag
+  - **immich-ml**: Added /tmp emptyDir via persistence section
+  - **immich-proxy**: Added /tmp emptyDir via postRenderer patch
+- 🔧 **Key Findings**:
+  - Immich ignores HOST/IMMICH_HOST env vars (bug) - nginx proxy sidecar required
+  - bjw-s chart advancedMounts doesn't work - used postRenderer JSON patch instead
+- ✅ **Verification**:
+  - Linkwarden: SSO login redirects to Authentik correctly
+  - Immich: API responds with pong, version 2.4.1
+  - All containers have writable /tmp via emptyDir
+- 📊 **Outcome**: 13/16 apps now have readOnlyRootFilesystem (was 10, +3 hardened)
+- 📋 **Commits**: 3d4d533
+
+### 2025-12-22 (CouchDB Backup Reliability Fix) 💾
+- ✅ **Backup Job Fixed**: 10/10 tests passed, completes in 5-7 seconds (was failing or timing out at 300s+) ⭐
+- 🎯 **Root Cause**: couchbackup tool returns non-zero exit code even when data is successfully written
+- 🔧 **Fix**: Check for actual JSON data in output file instead of relying on exit code
+  - Changed from `if couchbackup ...; then` to `couchbackup ... || true` then check `grep -q "^\["`
+  - Added `2>&1` still present but `|| true` ignores exit code
+  - Success now determined by presence of JSON array lines in backup file
+- 📋 **Commits**: 99191e3 (fix), 97baae4 (initial debugging with timing)
+- 📊 **Test Results**: 10 sequential tests, all passed (avg 5.6 seconds)
+- 🗑️ **Cleanup**: 35 test backup files removed, keeping scheduled backups only
+
+### 2025-12-21 (Firmware Audit & Cluster Recovery) 🔧
+- ✅ **Firmware Audit**: All 3 nodes verified current ⭐
+  - **Control-plane (GMK NucBox G3)**: BIOS GMK_G3 (2024-10-10), AirDisk 256GB SSD (no updates)
+  - **Worker-node (Minisforum MS-A2)**: BIOS 1.02 (2025-06-16, latest), WD SN7100 FW 7615M0WD (latest)
+  - **Worker-node-2 (Minisforum UM870)**: BIOS 1.08 (2024-11-05, latest), Kingston+Crucial SSDs (no updates)
+  - fwupd/LVFS checked - no updates available for any hardware
+- ✅ **Cluster Recovery**: Kernel 6.18.1→6.18.2 reboot handled ⭐
+  - 67 stale pods (Completed/Error) cleaned up cluster-wide
+  - All critical services verified: cloudflare-tunnel, databases, authentik, flux
+  - Uptime Kuma crash-loop alerts resolved (initial restart churn)
+- ✅ **Backup Validation**: All systems healthy ⭐
+  - PostgreSQL: Dec 21 03:00, 52.5MB
+  - CouchDB: Dec 21 03:05, 19.2MB
+  - MySQL: Dec 21 03:15, 1003KB
+  - PVC: Dec 21 03:10, ~400MB
+  - Replication to worker-node-2: ~2.6GB total at /mnt/extra-storage/backups/
+- ✅ **Kyverno Violations Resolved**: 25 violations → 0 ⭐
+  - Violations were from stale pods after kernel reboot
+  - Cleaned up with pod cleanup, policy reports now show 0 violations
+  - Popeye score: 100/100
+
+### 2025-12-21 (Prometheus Metric Optimization - Round 2) 📉
+- ✅ **Histogram Count/Sum Drops**: Removed orphaned count/sum metrics for already-dropped buckets ⭐
+  - apiserver_request_sli_duration_seconds_(count|sum): ~1.2k series
+  - apiserver_response_sizes_(count|sum): ~600 series
+  - etcd_request_duration_seconds_(count|sum): ~2.8k series
+  - Commits: a146b01
+- ✅ **Kubelet/Workqueue/Go Runtime Drops**: Removed internal timing metrics
+  - kubelet_*_bucket: ~1.5k series (internal kubelet timing)
+  - workqueue_(work|queue)_duration_seconds_(count|sum): ~768 series
+  - go_(gc_heap_|sched_).*_bucket, go_gc_pauses_seconds_bucket: ~1.3k series
+  - Commits: c6f6ae7
+- ✅ **Database Metric Drops**: Removed unused feature metrics (~880 series)
+  - **PostgreSQL**: cnpg_pg_settings_setting (~570 series) - config as metrics, not useful for alerting
+  - **CouchDB**: couchdb_dreyfus_* (~216 series), couchdb_nouveau_* (~48 series) - full-text search not used
+  - **MySQL**: mysql_info_schema_innodb_cmp* (~50 series) - compression metrics not used
+  - Commits: 6ddb2f1
+- ✅ **Scrape Interval Standardization**: All custom monitors aligned to 60s
+  - MySQL ServiceMonitor: 30s → 60s
+  - PostgreSQL PodMonitor: 30s → 60s
+  - Prometheus recording rules: 15 rule groups 30s → 60s
+  - Commits: cd0dc79
+- 📊 **Results**:
+  - **Series count**: ~107k → 97.6k (~10% reduction)
+  - **Memory**: 1021Mi / 1300Mi (78% utilization)
+  - **CPU overhead**: Reduced by 50% scrape/evaluation frequency on custom monitors
+- 🔧 **Files Modified**:
+  - `monitoring/controllers/base/kube-prometheus-stack/release.yaml` (metric drops)
+  - `infrastructure/configs/base/databases/mysql/servicemonitor.yaml` (interval + drops)
+  - `infrastructure/configs/base/databases/postgres/podmonitor.yaml` (interval + drops)
+  - `infrastructure/configs/base/databases/couchdb/servicemonitor.yaml` (metric drops)
+  - `monitoring/configs/staging/kube-prometheus-stack/prometheus-rules.yaml` (rule intervals)
+
+### 2025-12-20 (Node Management Scripts & Performance Optimization) 🔧
+- ✅ **Graceful Node Shutdown Scripts**: Applied to all 3 nodes ⭐
+  - Configures K3s kubelet with `shutdownGracePeriod: 120s`
+  - Uses KubeletConfiguration file approach (K3s doesn't support shutdown flags via kubelet-arg)
+  - Sets systemd `TimeoutStopSec=150s` for buffer
+  - All 3 nodes verified via kubelet API (`shutdownGracePeriod: 2m0s`)
+  - Commits: 2500924
+- ✅ **Firmware Management Scripts**: Applied to all 3 nodes ⭐
+  - **Master**: Intel N100 - keeps intel-ucode, linux-firmware
+  - **Worker-1**: AMD Ryzen 9 9955HX - keeps amd-ucode, linux-firmware
+  - **Worker-2**: AMD Ryzen 7 8745H - keeps amd-ucode, linux-firmware
+  - Removed unnecessary AUR packages: aic94xx-firmware, ast-firmware, upd72020x-fw, wd719x-firmware
+  - Commits: 79f187c
+- ✅ **Performance Optimization Scripts**: Applied to all 3 nodes ⭐
+  - CPU governor → `performance` (persists via tmpfiles.d)
+  - TCP congestion → BBR, inotify instances → 8192
+  - nf_conntrack_max → 1048576, swappiness → 10
+  - Commits: aea0f83
+- ✅ **mysql-exporter CPU Throttling Fixed**: Increased CPU limit 100m → 200m
+  - Commit: 5d4a192
+- ✅ **Post-Reboot Cleanup**: Deleted 65 stale pods after 3-node sequential reboot
+  - All deployments recovered with healthy running pods
+  - Transient authentik resource alerts (post-reboot spike)
+
+### 2025-12-18 (ReadOnlyRootFilesystem Implementation - Phase 1+2) 🔒
+- ✅ **Phase 1 Complete**: Enabled readOnlyRootFilesystem on 3 apps (Tier 1 - zero risk) ⭐
+  - **paperless-ngx**: Already had emptyDir volumes, just enabled flag (e1d5e5b)
+  - **authentik-server**: Changed from false to true (3c1fddb)
+  - **authentik-worker**: Changed from false to true (5213a69)
+- ✅ **Phase 2 Complete**: Enabled readOnlyRootFilesystem on 4 apps with /tmp emptyDir (Tier 2 - low risk) ⭐
+  - **csp-reporter**: Added full security hardening + /tmp emptyDir (48ba5fc)
+  - **homepage**: Added /tmp emptyDir + automountServiceAccountToken: false (9e04864)
+  - **homehub**: Added /tmp emptyDir, removed misleading comment (d8da2a0)
+  - **uptime-kuma**: Added /tmp emptyDir + runAsNonRoot to pod spec (2034718)
+- ✅ **All 7 Apps Verified**:
+  - Rollout restarts completed successfully
+  - Init containers tested (fix-permissions, copy-config, setup-config, wait-for-server)
+  - Setup jobs re-run (uptime-kuma-setup)
+  - CSP reporter confirmed receiving and logging violation reports
+  - Root filesystem write blocked, /tmp and PVC writes working
+- ⏸️ **Phase 3 Deferred**: linkwarden, immich-ml, immich-proxy - deferred to late December 2025
+- 📊 **Outcome**: 10 containers with readOnlyRootFilesystem (was 3, +7 hardened)
+- 🔒 **Security Benefit**: Reduced attack surface, prevents runtime filesystem tampering
+- 🔧 **Key Finding**: PVC-mounted paths remain writable regardless of readOnlyRootFilesystem setting
+
+### 2025-12-18 (Resource Governance Completion) 📊
+- ✅ **Resource Governance Gaps Fixed**: Added ResourceQuota and LimitRange for 3 namespaces ⭐
+  - pricebuddy: Medium tier (2 CPU / 4Gi request, 8 CPU / 8Gi limit)
+  - backup-replication: Small tier (1 CPU / 1Gi request, 2 CPU / 2Gi limit)
+  - percona-mysql: Small tier (1 CPU / 2Gi request, 4 CPU / 4Gi limit)
+- ✅ **PVC Distribution Decision**: Accepted as expected (worker-node-2 only has DB replicas)
+  - worker-node: 25 PVCs (~600Gi) - apps and primary storage
+  - worker-node-2: 4 PVCs (~110Gi) - database replicas only
+  - Rationale: Rebalancing requires significant effort for minimal benefit
+- ✅ **Documentation Updated**: Marked worker-node-2 remaining tasks as completed
+- 📋 **Commits**: 9acda51 (resource governance files)
+
+### 2025-12-18 (Backup Replication & Storage Optimization) 💾
+- ✅ **Backup Replication to worker-node-2**: rsync CronJob at 4:00 AM daily ⭐
+  - SSH key-based auth, SOPS-encrypted secret
+  - Syncs postgres, couchdb, mysql, pvc backups
+  - Kyverno policy exception for hostPath volumes
+  - Tested: 2.3GB replicated successfully
+  - Commits: cc70bba (manifests), b79d193 (Immich exclusion)
+- ✅ **Immich Excluded from PVC Backups**: Saves ~500GB/node
+  - Photos can be re-uploaded from source devices
+  - Database (faces, albums, metadata) backed up via PostgreSQL
+  - Old Immich backups cleaned up on both nodes
+- ✅ **Old MariaDB Archive Deleted**: 25GB reclaimed on each node
+- ✅ **Storage Reduced**: 580GB → 2.3GB per node (99.6% reduction!)
+- ✅ **Backup Scripts Updated**: Fixed CouchDB namespace, added backup-replication SSH key, n8n-oidc, linkwarden-oidc
+
+### 2025-12-18 (HA Enablement & DNS Configuration) 🔄
+- ✅ **Prometheus/Alertmanager HA Enabled**: 2 replicas with hard anti-affinity ⭐
+  - Prometheus pods spread across worker-node and worker-node-2
+  - Alertmanager pods spread across worker-node and worker-node-2
+  - Loki skipped (requires object storage for HA, SingleBinary mode)
+  - Commits: release.yaml updated with replicas: 2, podAntiAffinity: "hard"
+- ✅ **MySQL HAProxy Anti-Affinity Added**: Pods now spread across worker nodes
+  - Added `affinity.antiAffinityTopologyKey: kubernetes.io/hostname`
+  - Verified: HAProxy-0 on worker-node, HAProxy-1 on worker-node-2
+- ✅ **AdGuard Home DNS Updated**: Added worker-node-2 to DNS rewrites
+  - Both 192.168.1.129 and 192.168.1.126 now in `*.h0melab.work` rewrites
+  - Enables DNS-based failover for internal services
+  - Commit: cbf4ac6
+- ✅ **Uptime Kuma Monitors Verified**: worker-node-2 already monitored
+  - SSH monitor (id=34) and kubelet monitor (id=37) already active
+- 🔧 **Stale Alerts Resolved**: NodeDown alerts from pod restarts during HA enablement
+- 🔧 **CouchDB Backup Job**: Failed job cleaned up (backup file was created successfully)
+
+### 2025-12-18 (December Review Remediation) 🔧
+- ✅ **worker-node-2 LVM Resize**: Root disk expanded and swap added ⭐
+  - Root: 20GB → 50GB (was 100% full)
+  - Home: 932GB → 10GB (freed for other use)
+  - Swap: 16GB LVM (new)
+  - Extra: 863GB at /mnt/extra-storage
+- ✅ **Kyverno Violations Fixed**: 22 → 0 violations
+  - Added resource limits to Percona MySQL operator HelmRelease
+  - Commit: f67f9ba
+- ✅ **Popeye Score Restored**: 87/100 → 100/100
+  - Deleted 13 orphaned MariaDB ClusterRoleBindings
+  - Deleted orphaned CouchDB NetworkPolicy in default namespace
+- ✅ **PriceBuddy Memory Alert Fixed**: Apprise container limit 210Mi → 300Mi
+  - Commit: 2c68eda
+- ✅ **Stale MariaDB Backup Archived**: `/mnt/k8s-storage/backups/mariadb` removed
+- ✅ **Old K3s Data Cleaned**: Freed 12GB on worker-node-2 root partition
+- 🔧 **Resolved Alerts**: ContainerMemoryNearLimit, PostgreSQLPodNotRunning, MySQLPodNotRunning
+- 📋 **Review Reference**: HOMELAB_REVIEW_2025_12_17.md (archived, see git history)
+
+### 2025-12-17 (MySQL Performance Tuning & Monitoring) ⚡
+- ✅ **Prometheus Monitoring Enabled**: Standalone mysqld-exporter deployment with ServiceMonitor ⭐
+- ✅ **Memory Optimization**: Right-sized buffer pool (512MB) for actual 18.6MB data
+- ✅ **Binlog Retention Reduced**: 30 days → 7 days (sufficient with daily backups)
+- ✅ **HAProxy Resources Right-Sized**: Reduced CPU/memory to match actual usage
+- ✅ **PodDisruptionBudget Added**: minAvailable=1 for safe maintenance
+- ✅ **Slow Query Logging Enabled**: Threshold 2 seconds for performance debugging
+- ✅ **Volume Expansion Enabled**: Dynamic storage growth without downtime
+- ✅ **gracePeriod Added**: 30s on MySQL + HAProxy for smoother rolling updates
+- ✅ **Renovate Ignore Fixed**: Added packageRules for MySQL backup image
+- 🔧 **Technical Details**:
+  - **Memory**: 768Mi request / 1536Mi limit (actual ~1100-1150Mi usage)
+  - **Buffer Pool**: 512MB (was defaulting to 1GB, excessive for 18.6MB data)
+  - **Exporter**: prom/mysqld-exporter:v0.16.0 with all collectors enabled
+  - **HAProxy**: Reduced from 100m/128Mi to 50m/64Mi request (actual ~30m/25Mi)
+  - **Binlog**: 604800 seconds (7 days) - matches backup RPO
+  - **Redo Log**: 64MB (sufficient for light homelab workload)
+- 📋 **Commits**: 46fd44a (binlog + HAProxy), 1eedfcc (gracePeriod)
+- 📊 **Result**: Zero memory pressure alerts, metrics flowing to Prometheus
+
+### 2025-12-17 (MySQL Cluster Recovery & Brittleness Analysis) 🔧
+- ✅ **MySQL Cluster Recovered**: Manual intervention required after node scheduling changes ⭐
+- ✅ **Brittleness Analysis Complete**: Documented 6 common failure modes with recovery procedures
+- ✅ **Alternative Operators Evaluated**: MOCO identified as best CloudNativePG-like alternative
+- 🎯 **Root Causes Identified**:
+  - Clone lock file (`/var/lib/mysql/clone.lock`) not cleaned up after clone completion
+  - Operator caches stale pod IPs after pod recreation
+  - Read-only state not automatically enforced by Orchestrator
+  - Errant GTIDs from brief writable window on replica
+  - HAProxy config not updated after topology changes
+- 🔧 **Manual Fixes Applied**:
+  1. Restarted operator deployment to clear stale IP cache
+  2. Deleted mysql-0 pod to recreate with fresh state
+  3. Manually removed clone.lock file on mysql-1
+  4. Deleted mysql-1 pod to re-clone and fix errant GTIDs
+  5. Set correct read_only state on both nodes
+- 📋 **Documentation Created**: [MYSQL_OPERATOR_ANALYSIS.md](./MYSQL_OPERATOR_ANALYSIS.md)
+  - Recovery runbook for common scenarios
+  - Known GitHub issues (#1099, #1097)
+  - Configuration recommendations
+  - Alternative operator comparison (MOCO, Oracle, Bitpoke)
+- 🔄 **Final State**: mysql-0 (PRIMARY, read_only=0), mysql-1 (REPLICA, read_only=1)
+- 💡 **Recommendation**: Keep current setup with documented procedures; evaluate MOCO if >1 incident/month
+
+### 2025-12-16 (Percona MySQL Migration) 🗄️
+- ✅ **Migrated from Oracle MySQL Operator to Percona Operator for MySQL** ⭐
+- ✅ **All 3 apps restored and working**: Home Assistant, Uptime Kuma, PriceBuddy
+- 🎯 **Reason**: Oracle MySQL Operator had persistent issues with Group Replication, RBAC, and auto-recovery
+- 🔧 **Technical Details**:
+  - **Cluster Type**: Percona Server for MySQL with async replication
+  - **Version**: MySQL 8.4.6 (Percona Server)
+  - **Operator**: Percona Operator for MySQL (PS) v1.0.0
+  - **Replication**: Async (traditional MySQL replication, not Group Replication)
+  - **Failover**: Percona Orchestrator (3 replicas, one per node for HA)
+  - **Proxy**: HAProxy for connection routing (port 3306, replaces Router on 6446)
+  - **Storage**: 20Gi per replica on local-path PVCs
+  - **NetworkPolicy**: Updated all apps to use port 3306 instead of 6446
+  - **Fix**: Replication password reduced from 64 to 32 chars (MySQL limitation)
+- 📋 **Commits**: e81f354 (password fix), fb2da06 (NetworkPolicy fix)
+- 🔄 **Migration Path**: MariaDB Galera → Oracle MySQL InnoDB → Percona Async
+
+### 2025-12-16 (MySQL Operator Limitations Documented) 📝
+- ✅ **MySQL Operator Limitations Documented**: Comprehensive analysis of mysql-operator v2.2.6 issues ⭐
+- ✅ **GitOps Fix Applied**: `loose_group_replication_start_on_boot=ON` committed to cluster.yaml
+- ✅ **Sidecar RBAC Fixed**: Created ClusterRole/ClusterRoleBinding for kopf framework permissions
+- ✅ **Memory Limit Increased**: MySQL container 1Gi → 1536Mi (was near OOM at 99.9%)
+- ✅ **Manual Backup Created**: Full MySQL dump saved to `.backup/mysql-backup-20251216_203346.tar.gz`
+- 🔧 **Technical Details**:
+  - **Operator Issues Identified**:
+    - Metadata version mismatch (Shell 2.2.0 vs metadata 2.3.0) breaks `add_instance()`
+    - ConfigMap not reconciled when `spec.mycnf` changes (requires pod delete)
+    - Version lag: ships MySQL 9.1.0, not latest 9.5.x
+    - No automatic bootstrap when cluster goes OFFLINE
+  - **GitOps Fixes**:
+    - `cluster.yaml`: Added `loose_` prefix to allow GR variable before plugin loads
+    - `sidecar-rbac.yaml`: ClusterRole for kopf framework namespace/CRD permissions
+  - **Decision**: Accept operator limitations; daily backups protect data; consider Percona Operator if issues persist
+- 📋 **Commits**: af57092 (mycnf fix), previous session (RBAC, memory)
+
+### 2025-12-16 (MySQL Cluster Recovery & Uptime Kuma Monitor Fixes) 🔧
+- ✅ **MySQL InnoDB Cluster Recovered**: Group Replication manually restarted after cluster went OFFLINE ⭐
+- ✅ **Uptime Kuma Monitors Fixed**: All 27 monitors now healthy (status=1)
+- 🎯 **Root Cause**: Group Replication configured with `start_on_boot=OFF`, doesn't auto-recover after pod restarts
+- 🔧 **Technical Details**:
+  - **MySQL Recovery**:
+    - Cluster status was OFFLINE (0 online instances) after mysql-0 container restart
+    - Manual bootstrap on mysql-0: `SET GLOBAL group_replication_bootstrap_group=ON; START GROUP_REPLICATION;`
+    - mysql-1 rejoined automatically after primary was bootstrapped
+    - Cluster now ONLINE (2/2 instances: PRIMARY + SECONDARY)
+  - **Uptime Kuma Fixes**:
+    - **Paperless-NGX**: Added port 8000 to NetworkPolicy egress rules (was ECONNREFUSED)
+    - **CouchDB**: Updated accepted status codes to include 401 (requires auth)
+    - **Kubelets (3)**: Updated accepted status codes to include 401 (requires auth)
+  - **Known Issue**: MySQL sidecar has RBAC permission issues preventing automatic cluster management
+  - **Mitigation**: Manual recovery documented; consider enabling `start_on_boot=ON` in future
+- 📋 **Commits**: 3fc4fc3 (NetworkPolicy fix)
+- 🗄️ **Database Changes**: `UPDATE uptimekuma.monitor SET accepted_statuscodes_json='["200-299","401"]' WHERE id IN (11, 35, 36, 37);`
+
+### 2025-12-16 (MySQL Migration from MariaDB) 🗄️
+- ✅ **Migrated from MariaDB Galera to Oracle MySQL InnoDB Cluster** ⭐
+- ✅ **Apps Migrated**: Home Assistant, Uptime Kuma, PriceBuddy (3 apps)
+- ✅ **MySQL Router**: Connection routing via port 6446 for automatic failover
+- 🎯 **Reason**: MariaDB Galera had persistent cluster formation issues
+- 🔧 **Technical Details**:
+  - **Cluster Type**: Oracle MySQL InnoDB Cluster with Group Replication
+  - **Version**: MySQL 9.1.0 with mysql-operator
+  - **Instances**: 2 replicas with required anti-affinity across worker nodes
+  - **Router**: 1 replica for connection routing (port 6446)
+  - **Storage**: 20Gi per replica on local-path PVCs
+  - **NetworkPolicy**: Updated all apps to allow port 6446 (router) instead of 3306
+  - **Backups**: Restored from MariaDB backup (2025-12-15 03:15 UTC)
+- 🐛 **PriceBuddy Bug Fixed**: start-app.sh uses `nc` without `-z` flag causing hang
+  - **Root Cause**: `nc` without `-z` waits for MySQL handshake data indefinitely
+  - **Workaround**: ConfigMap override with fixed script (`nc -z`)
+  - **Upstream**: [Issue #101](https://github.com/jez500/pricebuddy/issues/101) / [PR #102](https://github.com/jez500/pricebuddy/pull/102)
+- 📋 **Commits**: 774b9d9, b71622b, c512650, 9233753, fe67ea1, b2afdde
+
+### 2025-12-13 (Kyverno Violations Resolved & Cluster Cleanup) 🔧
+- ✅ **Kyverno Phase 3 Complete**: All `require-resource-limits` violations resolved (30 → 0) ⭐
+- ✅ **Popeye Health Scan**: Cluster score 100/100 (A grade), no issues found
+- ✅ **Cluster Cleanup**: Deleted 25 stale ReplicaSets from rolling updates
+- ✅ **Immich ResourceQuota Increased**: Fixed rolling update failures by increasing namespace quota
+- 🎯 **Impact**: Zero Kyverno policy violations, clean cluster state
+- 🔧 **Technical Details**:
+  - **Resource Limits Added** (6 workloads):
+    - `postgres-update-extensions` CronJob: 50m/200m CPU, 64Mi/256Mi memory
+    - `mariadb-operator-webhook` Deployment: 20m/200m CPU, 64Mi/256Mi memory
+    - `audiobookshelf-init` Job: 10m/100m CPU, 32Mi/64Mi memory
+    - `home-assistant-admin-setup` Job: 10m/100m CPU, 32Mi/64Mi memory
+    - `n8n-user-provision` Job: 10m/100m CPU, 32Mi/64Mi memory
+    - `couchdb-init` Job: 10m/100m CPU, 32Mi/64Mi memory
+  - **Jobs Verified**: All curl-based jobs complete in <20s with new limits (no OOM)
+  - **Stale ReplicaSets Deleted**: 25 RS across 14 namespaces (cert-manager, monitoring, home-assistant, n8n, paperless-ngx, stirling-pdf, etc.)
+  - **Immich Quota**: 18Gi → 24Gi memory limit (supports rolling updates)
+- 📋 **Commits**: 393a039, 785aa5d, 7d79735, ccc0598
+
+### 2025-12-06 (Kyverno Policy Cleanup & Documentation Update) 🔧
+- ✅ **Kyverno Policy Violations Resolved**: Cleaned up all actionable policy violations ⭐
+- ✅ **Image Tag Pinning**: Pinned seleniumbase-scrapper from :latest to v1.0
+- ✅ **Policy Exclusions Added**: Added namespace exclusions to require-non-root policy
+  - adguard-home (DNS binding requires root for port 53)
+  - pricebuddy (apprise sidecar requires root for config)
+  - stirling-pdf (PDF processing with user switching capabilities)
+  - loki (alloy requires root to read host logs)
+- ✅ **Cluster Cleanup**: Deleted 213 old ReplicaSets and 15 completed jobs
+- 📅 **Second Worker Node Delay**: Updated from December 2025 to January 2026
+- 📋 **Commits**: 9ab43ff, 401b62d, 6fea5cb, 5d5d615
+- 🎯 **Final Kyverno Status**: 0 disallow-latest-tag, 0 require-non-root (after exclusions), 48 require-resource-limits (audit mode)
+
+### 2025-12-06 (Trivy Operator Removal) 🗑️
+- ❌ **Trivy Operator Removed**: Vulnerability scanning operator removed from homelab ⭐
+- 🎯 **Reason**: Limited actionable value with Renovate-managed updates
+- 🔧 **Technical Details**:
+  - **Analysis**: 67 vulnerability reports analyzed - most vulnerabilities (70%+) have no fix available
+  - **Categories**:
+    - OS-level vulnerabilities (zlib, sqlite, curl): No fix available, embedded in upstream images
+    - Application dependencies: Require upstream maintainer to rebuild images
+    - Go stdlib CVEs: Require upstream Go version updates
+  - **Alternative Strategy**: Renovate already handles automatic updates to latest versions
+  - **Benefit**: Removes informational noise, simplifies infrastructure
+  - **Kyverno Cleanup**: Removed trivy-system namespace exceptions from 4 policies
+- 📋 **Files Removed**:
+  - `infrastructure/controllers/base/trivy-operator/` (4 files: kustomization, namespace, release, repository)
+  - `infrastructure/configs/staging/resource-governance/small-tier/trivy-system.yaml`
+- 🔒 **Security Impact**: None - vulnerabilities identified were informational only (no actionable fixes)
+
+### 2025-12-06 (Prometheus Memory Limit Increase) 📊
+- ✅ **Prometheus Memory Limit Increased**: 1.1Gi → 1.3Gi due to observed peak of 913Mi ⭐
+- 🎯 **Impact**: Resolved ContainerMemoryNearLimit alerts (was firing at 80%+)
+- 🔧 **Technical Details**:
+  - **Observed Peak**: 913Mi (7d), previously 777Mi when limit was set to 1.1Gi
+  - **Old Configuration**: 800Mi request / 1100Mi limit (peak was 83% of limit)
+  - **New Configuration**: 900Mi request / 1300Mi limit (peak now 70% of limit)
+  - **Headroom**: Increased from 17% to 42% above observed peak
+  - **Alert Threshold**: 80% (1040Mi) - well above 913Mi peak
+- 📋 **Commit**: 2af6339
+
+### 2025-12-05 (Prometheus Memory Optimization & PriceBuddy Deployment) 📊
+- ✅ **Prometheus Memory Limit Reduced**: 2Gi → 1.1Gi based on 72-hour monitoring ⭐ (Later increased to 1.3Gi on 2025-12-06)
+- ✅ **PriceBuddy Deployed**: New price tracking application (replaces Discount Bandit)
+- 🎯 **Impact**: 900Mi memory savings, dedicated Telegram notifications for price alerts
+- 🔧 **Technical Details**:
+  - **Prometheus Monitoring** (72 hours, 23 data points):
+    - Peak usage: 777Mi (70.6% of new 1.1Gi limit)
+    - Range: 622Mi - 777Mi (stable)
+    - Headroom: 323Mi (29.4% above peak)
+    - Memory savings: 900Mi (2Gi → 1.1Gi)
+  - **PriceBuddy Stack**:
+    - Main app: jez500/pricebuddy:v1.0.40
+    - Scraper sidecar: jez500/seleniumbase-scrapper:latest
+    - Notifications: Apprise sidecar (caronc/apprise:1.2.6)
+    - Database: MariaDB (shared cluster)
+    - Telegram: Dedicated bot (@pricebuddyalertbot) and channel
+  - **kube-prometheus-stack**: Updated to 79.12.0
+- 📋 **Commits**: c9ee4fe (Prometheus memory), 4a3baeb (PriceBuddy Telegram)
+
+### 2025-12-05 (Discount Bandit Removal) 🗑️
+- ❌ **Application Removed**: Discount Bandit price tracking app removed from homelab
+- 🎯 **Reason**: Application required too much manual maintenance and wasn't providing enough value
+- 🔧 **Technical Details**:
+  - Removed all Kubernetes resources (deployment, service, ingress, networkpolicy, configmaps, secrets)
+  - Removed MariaDB database CRDs (database, user, grant, credentials)
+  - Removed from backup cronjob, secrets backup/restore scripts
+  - Removed from Homepage dashboard
+  - Updated resource governance and kustomization files
+- 📋 **Future Alternative**: May try [PriceBuddy](https://github.com/jez500/pricebuddy) instead
+- 🔢 **App Count**: 16 → 15 applications
+- 💾 **MariaDB Databases**: 3 → 2 (homeassistant, uptimekuma)
+
+### 2025-11-30 (Arch Linux Comprehensive Hardening) 🔒
+- ✅ **Lynis Score Improvement**: Both nodes improved from 71 → 76 (+5 points)
+- ✅ **Headless Server Hardening**: Disabled WiFi and Bluetooth on both nodes
+- ✅ **Kernel Hardening**: Additional sysctl settings (kptr_restrict, bpf_jit_harden, sysrq restrictions)
+- ✅ **SSH Hardening**: AllowTcpForwarding, AllowAgentForwarding, LogLevel VERBOSE, MaxSessions
+- ✅ **Protocol Blacklisting**: Disabled unused protocols (dccp, sctp, rds, tipc)
+- ✅ **Security Tools Installed**: rkhunter (rootkit scanner), arch-audit (vulnerability scanner)
+- ✅ **Legal Banner**: Added to /etc/issue and /etc/issue.net
+- 🎯 **Impact**: Reduced attack surface on headless K3s nodes
+- 🔧 **Technical Details**:
+  - **Control Plane** (192.168.1.127): Intel N100, Realtek WiFi blacklisted (rtw89)
+  - **Worker Node** (192.168.1.129): AMD Ryzen 9 9955HX, MediaTek WiFi blacklisted (mt7921e)
+  - **GPU Drivers Kept**: Intel i915/xe and AMD amdgpu retained for hardware transcoding
+  - **USB/Firewire**: NOT blacklisted per user requirement
+  - **Firmware Packages**: Kept for reversibility (disabled via module blacklists)
+- 📋 **Scripts Created**:
+  - `/tmp/fix-critical.sh` - fstab, /boot, locale, noatime, initramfs
+  - `/tmp/fix-security.sh` - sysctl hardening, lynis, SSH, paccache
+  - `/tmp/fix-optimize.sh` - pacman config, hostname, journal cleanup
+  - `/tmp/fix-headless.sh` - WiFi/Bluetooth module blacklisting
+  - `/tmp/fix-lynis.sh` - Additional lynis recommendations
+- 🐛 **Issues Fixed**:
+  - egrep/fgrep deprecation warnings in rkhunter (created /etc/profile.d/grep-compat.sh)
+  - FQDN missing in /etc/hosts (NAME-4404)
+  - rkhunter baseline updated on both nodes
+- ⚠️ **Pending**: Package vulnerabilities (libxml2, pam, openssl) waiting on upstream fixes
+- 📅 **Scheduled**: LTS kernel 6.18 switch on Friday, December 5th, 2025
+
+### 2025-11-25 (Prometheus Metric Optimization) 📉
+- ✅ **High-Cardinality Metric Drop**: Reduced Prometheus storage by dropping 5 high-cardinality histogram metrics
+- 🎯 **Impact**: ~18,250 fewer time series (13.5% reduction from baseline), improved memory efficiency
+- 🔧 **Technical Details**:
+  - **Metrics Dropped** (5 total, ~18,250 series):
+    1. apiserver_request_body_size_bytes_bucket: 11,136 series (bug fix - was using wrong suffix)
+    2. workqueue_work_duration_seconds_bucket: 2,258 series (90% reduced, 234 remain from operators)
+    3. workqueue_queue_duration_seconds_bucket: 2,258 series (90% reduced)
+    4. scheduler_plugin_execution_duration_seconds_bucket: 1,218 series
+    5. prober_probe_duration_seconds_bucket: 1,380 series (required probesMetricRelabelings config)
+  - **Bug Fix**: Fixed existing apiserver_request_body_size drop rule (incorrect regex pattern)
+  - **Configuration Changes**:
+    - Added 4 drop rules to kubeApiServer.serviceMonitor.metricRelabelings
+    - Added 4 drop rules to kubelet.serviceMonitor.metricRelabelings
+    - Added 1 drop rule to kubelet.serviceMonitor.probesMetricRelabelings (new section)
+  - **Version Fix**: Downgraded kube-prometheus-stack 79.8.1 → 79.8.0 (79.8.1 not in Helm repo)
+- 📊 **Current State**:
+  - Memory: 1720Mi / 2Gi (86%, increased from 81% due to pod restarts)
+  - Total series: 155,465 (up from baseline 134,809 due to new series after restart)
+  - All dropped metrics verified at 0 series
+- 🐛 **Issues Resolved**:
+  1. apiserver_request_body_size used _bytes_bucket not _seconds_bucket suffix
+  2. prober_probe metrics come from kubelet /metrics/probes endpoint (separate config needed)
+  3. Chart version 79.8.1 doesn't exist in Helm repository
+- 💡 **Lesson Learned**: Kubelet has 3 separate metrics endpoints requiring distinct metricRelabelings configs:
+  - `/metrics` → metricRelabelings
+  - `/metrics/cadvisor` → cAdvisorMetricRelabelings
+  - `/metrics/probes` → probesMetricRelabelings
+- 💪 **Benefits**: Reduced storage overhead for unused histogram buckets, cleaner metrics
+- 📋 **File Modified**: `monitoring/controllers/base/kube-prometheus-stack/release.yaml`
+- Commits: a9b3a72 (initial drops + bug fix), c2e4718 (prober_probe fix), bd787a0 (version fix)
+
+### 2025-11-24 (MariaDB Introduction & SQLite Migration Complete) 🗄️
+- ✅ **MariaDB Galera Cluster Deployed**: 2-replica high-availability cluster with mariadb-operator v0.37.1
+- ✅ **3 Apps Migrated from SQLite to MariaDB**: Home Assistant, Discount Bandit, Uptime Kuma
+- 🎯 **Impact**: Eliminated SQLite from homelab, all apps now use production-grade databases (PostgreSQL or MariaDB)
+- 🔧 **Technical Details**:
+  - **Cluster Type**: Galera multi-master synchronous replication (2 replicas)
+  - **Version**: MariaDB 12.1
+  - **Architecture**: Aligned with PostgreSQL pattern (base = infrastructure, staging = app-specific)
+  - **Databases Created**: homeassistant, discountbandit, uptimekuma (3 databases, 3 users, 3 grants)
+  - **Migration Approaches**:
+    - Home Assistant: Fresh start - 42 tables auto-created by application
+    - Discount Bandit: Fresh start - Laravel migrations created schema
+    - Uptime Kuma: Custom Python migration script - 22 tables migrated (selective), 5 tables excluded (heartbeat history)
+  - **Backup Strategy**: Daily automated backups at 3:15 AM with 30-day retention (matches PostgreSQL)
+  - **NetworkPolicy**: Restricts access to app namespaces + monitoring
+  - **Storage**: 10Gi per replica on local-path PVCs
+  - **Connection Pattern**: Direct to primary (no pooler needed for Galera multi-master)
+- 📚 **Documentation**: MARIADB_MIGRATION.md (archived, see git history)
+- 🔒 **Security**: All 4 MariaDB secrets added to cluster-wide backup/restore scripts
+- 💪 **Benefits**: Multi-master replication, automatic failover, production-grade database for all apps
+- 📋 **Verification**: All 3 apps running successfully with MariaDB, zero data loss
+- Commits: Multiple (backup job, architecture alignment, migration cleanup)
+
+### 2025-11-22 (K3s Cluster Upgrade) 🚀
+- ✅ **K3s Upgrade Complete**: Upgraded both nodes from v1.34.1+k3s1 to v1.34.2+k3s1
+- ✅ **Control-Plane Node**: Successfully upgraded to v1.34.2+k3s1 (192.168.1.127)
+- ✅ **Worker Node**: Successfully upgraded to v1.34.2+k3s1 (192.168.1.129)
+- 🎯 **Impact**: Latest Kubernetes v1.34.2 with updated components (Containerd 2.1.5-k3s1, Traefik 3.5.1, CoreDNS 1.13.1)
+- 🔧 **Technical Details**:
+  - **Upgrade Method**: curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.34.2+k3s1 sh -
+  - **Worker Node Issue**: Installation script cleared K3S_URL/K3S_TOKEN from service.env, required re-installation with token
+  - **Cluster Health**: All 63 pods running, PostgreSQL cluster healthy (2/2 ready)
+  - **Downtime**: ~2 minutes worker node restart, all pods recovered automatically
+  - **Component Updates**: Containerd 2.1.4-k3s2 → 2.1.5-k3s1, Runc v1.3.3, Traefik v3.5.1
+- 💪 **Benefits**: Bug fixes, security patches, updated container runtime
+- 📋 **Verification**: Both nodes Ready, all HelmReleases healthy, Flux reconciliation successful
+
+### 2025-11-22 (Discount Bandit Memory Fix) 🛍️
+- ✅ **OOM Kill Prevention**: Increased memory limits to prevent Out of Memory kills
+- 🎯 **Impact**: Pod stability restored after OOM incident at 82.8% memory usage
+- 🔧 **Technical Details**:
+  - **Root Cause**: Memory usage grew 33% in 6 days (477Mi → 636Mi peak)
+  - **OOM Incident**: Pod killed at 82.8% of 768Mi limit (~636Mi)
+  - **Fix**: Increased memory request 512Mi → 650Mi, limit 768Mi → 1Gi
+  - **Current Usage**: 405Mi (39.5% of new 1Gi limit)
+  - **Headroom**: 61% above previous peak (388Mi buffer)
+- 📊 **Memory Growth Pattern**:
+  - 2025-11-16: 477Mi (62% of 768Mi) ✅
+  - 2025-11-22: 636Mi (82.8% of 768Mi) ❌ OOM killed
+  - Post-fix: 405Mi (39.5% of 1Gi) ✅
+- 💪 **Benefits**: Prevents future OOM kills, accommodates continued memory growth
+- 📋 **Status**: Pod running healthy with 0 restarts, alert will clear on next Prometheus evaluation
+- Commit: 6f094f8
+
+### 2025-11-19 (Documentation Update) 📋
+- ✅ **CSP Enforcement Status Update**: Updated executive summary to reflect CSP enforcement completion (deployed 2025-10-31, 19 days in production)
+- ✅ **Review Dates Updated**: Set next general review to 2025-12-15, HSTS final rollout scheduled 2025-11-30
+- ✅ **Shell Configuration**: Disabled "Last login" and "You have mail" messages via .hushlogin and MAILCHECK unset
+- 🎯 **Impact**: Resolved documentation inconsistencies, cleaned up overdue review items
+- Commits: chezmoi b3d3528 (dotfiles)
+
+### 2025-11-18 (Prometheus Memory Monitoring Complete) 📊
+- ✅ **68-Hour Monitoring Window Complete**: Extended observation of Prometheus memory consumption (Sat 15 Nov 23:10 - Tue 18 Nov 19:00 GMT)
+- ✅ **Decision**: KEEP current 1.5Gi limit - No changes needed ⭐
+- 🎯 **Impact**: Confirmed Prometheus memory allocation is appropriate with 29.2% headroom above peak usage
+- 🔧 **Technical Details**:
+  - **Actual Current Limit**: 1.5Gi (1536Mi) - Documentation previously stated 2.5Gi incorrectly
+  - **Peak Usage**: 1088Mi (70.8% of 1.5Gi limit) observed on Mon 17 Nov 20:08 GMT
+  - **Current Headroom**: 448Mi (29.2% above peak) - Adequate for metric spikes
+  - **Data Collection**:
+    - Attempted 18 automated measurements (every 3 hours)
+    - Only 3 successful data points collected (83% failure rate)
+    - Root cause: metrics-server intermittent availability (2 restarts during monitoring period)
+  - **Automated Analysis**:
+    - Formula: Peak × 1.3 = 1088Mi × 1.3 = 1414Mi (~1.4Gi)
+    - Recommendation: Reduce from 1.5Gi → 1.4Gi (save 102Mi)
+    - Decision: Rejected due to limited dataset and minimal savings (6.8% reduction)
+- 📊 **Rationale for Keeping 1.5Gi**:
+  - Current headroom (29.2%) adequate for metric spikes during incidents
+  - Only 3 of 18 data points captured - incomplete dataset
+  - Savings minimal (102Mi) not worth risk
+  - Limit already optimized through previous reductions (3Gi → 2.5Gi → 1.5Gi)
+- 🗑️ **Cleanup**:
+  - Removed all prometheus-memory monitoring cron jobs
+  - Archived scripts, logs, and analysis to `.monitoring-archive/prometheus-memory-monitoring-2025-11/`
+  - Updated documentation: `PROMETHEUS_MEMORY_MONITORING.md`, `prometheus-memory-automation.md`
+- 💪 **Benefits**: Validated current resource allocation, automated monitoring/analysis system proven effective
+- 📋 **Archive**: All monitoring artifacts preserved in `.monitoring-archive/prometheus-memory-monitoring-2025-11/` with comprehensive README
+
+### 2025-11-16 (Security Hardening Reviews Complete) ✅
+- ✅ **HSTS Step 2 Deployment**: Increased HSTS max-age from 1 month to 6 months (Step 2/3) ⭐
+- ✅ **CSP Enforcement Validation**: Confirmed CSP already in enforcement mode since 2025-10-31 (16 days, zero violations)
+- ✅ **Discount Bandit Memory Evaluation**: Reviewed resource allocation, no changes needed (477Mi usage, 38% headroom)
+- 🎯 **Impact**: All 3 overdue security hardening reviews addressed
+- 🔧 **Technical Details**:
+  - **HSTS Step 2 (Completed 2025-11-16)**:
+    - Updated both security-headers middleware files
+    - Changed HSTS max-age from 2628000s (1 month) → 15768000s (6 months)
+    - Files: `infrastructure/controllers/base/traefik/security-headers-middleware.yaml`, `monitoring/configs/staging/kube-prometheus-stack/security-headers-middleware.yaml`
+    - Deployment: GitOps via Flux reconciliation (both kustomizations succeeded)
+    - Next step: Final increase to 1 year (31536000s) on 2026-01-15
+  - **CSP Enforcement (Already Complete)**:
+    - Enforcement mode deployed: 2025-10-31 (Commit 04df8a4)
+    - Production uptime: 16 days with zero violations
+    - Testing: 85 automated tests across 17 apps (100% pass rate)
+    - Both middleware files use `Content-Security-Policy` header (not report-only)
+    - No code changes needed, documentation updated to reflect completion
+  - **Discount Bandit Memory (No Changes Needed)**:
+    - Current allocation: 512Mi request / 768Mi limit
+    - Current usage: 477Mi (62% of limit, 38% headroom)
+    - Analysis: Memory allocation appropriate for workload
+    - Conclusion: No adjustment required, healthy buffer maintained
+- 📊 **Gradual HSTS Rollout Progress**:
+  - ✅ Step 1 (1 month): Deployed 2025-10-31
+  - ✅ Step 2 (6 months): Deployed 2025-11-16
+  - ⏰ Step 3 (1 year): Target 2026-01-15 (final step)
+- 💪 **Benefits**: Progressive HSTS deployment reduces risk, CSP enforcement validated with production uptime
+- 📋 **Documentation**: Updated HOMELAB_ANALYSIS.md with completion status for all 3 reviews
+- Commits: 793a247 (HSTS Step 2)
+
+### 2025-11-15 (VictoriaMetrics Migration Aborted) ⚠️
+- ❌ **VictoriaMetrics Migration Failed**: Aborted migration from Prometheus to VictoriaMetrics
+- 🎯 **Impact**: Kept Prometheus as monitoring solution, removed all VictoriaMetrics components
+- 🔧 **Technical Details**:
+  - **Goal**: Reduce memory usage by switching to VictoriaMetrics (touted as more efficient)
+  - **Issue Discovered**: VictoriaMetrics metricRelabelConfigs not functioning despite correct configuration
+  - **Evidence**:
+    - VictoriaMetrics collected 231,189 series vs Prometheus 155,749 series (+48% more)
+    - API server histogram metrics NOT dropped despite proper VMNodeScrape configuration
+    - Configuration showed "ConfigParsedAndApplied" status but drops didn't work
+    - Prometheus successfully dropped same metrics with identical configuration
+  - **Root Cause**: VictoriaMetrics operator or VMAgent bug/limitation in processing metric drops
+  - **Decision**: Aborted migration - VictoriaMetrics more memory hungry than Prometheus (defeating purpose)
+- 🗑️ **Cleanup Actions**:
+  - Removed VictoriaMetrics HelmRelease and operator
+  - Deleted all VictoriaMetrics CRDs (VMAgent, VMAlert, VMSingle, VMNodeScrape)
+  - Removed VictoriaMetrics datasource from Grafana
+  - Deleted migration backup documentation
+  - Updated monitoring kustomization to remove VictoriaMetrics references
+- 📊 **Prometheus Optimization**:
+  - Current memory: 905Mi / 2.5Gi (36% utilization)
+  - Series count: 188,301
+  - Already optimized: 7d retention, 30s kubelet scrape, API server metric drops working
+  - Conclusion: No further optimization needed, current configuration appropriate
+- 💪 **Lesson Learned**: VictoriaMetrics metric drops don't work correctly - Prometheus remains superior choice
+- Commits: 270aef1, 2d0bb7d, c8f68f5
 
 ### 2025-11-06 (Discount Bandit Installation) 🛍️
 - ✅ **New Application Deployed**: Added Discount Bandit price tracking application (app #17)
