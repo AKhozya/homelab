@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2026-02-20)
+**Assessment Date**: 2025-10-18 (Updated: 2026-02-22)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -124,7 +124,7 @@
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Nodes** | ✅ 3/3 Ready | K3s v1.35.0, Kernel 6.18.7-arch1-1 |
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.1, Kernel 6.18.9-arch1-2 |
 | **Control Plane** | ✅ Healthy | 15% CPU, 19% memory |
 | **worker-node** | ✅ Healthy | 19% CPU, 26% memory (rebuilderd active) |
 | **worker-node-2** | ✅ Healthy | 8% CPU, 18% memory |
@@ -133,7 +133,7 @@
 | **MySQL** | ✅ 2/2 Ready | Async replication, HAProxy active |
 | **CouchDB** | ✅ 2/2 Running | StatefulSet in databases namespace |
 | **Redis** | ✅ 1/1 Running | v8.6.0 (upgraded from 8.2.2, 2026-02-20) |
-| **Prometheus** | ✅ 71% memory | 111k series, 924Mi/1300Mi (improved from 244k/87%) |
+| **Prometheus** | ✅ 72% memory | 121k series, 941Mi/1300Mi (improved from 244k/87%) |
 | **Alerts** | ✅ None firing | Clean alert state |
 | **Backups** | ✅ All successful | NAS + worker-node-2 replication working |
 | **Certificates** | ✅ All Ready | 36-86 days until expiration |
@@ -184,7 +184,7 @@
 | Remove worker-node-2 replication step | ~May 20, 2026 | P2 |
 | ~~Migrate Promtail to Grafana Alloy~~ | ~~Before March 2, 2026~~ | ✅ Done |
 | Re-evaluate VictoriaMetrics | Feb 2026 | P3 |
-| LTS kernel 6.18 | TBD (Arch `linux-lts` still at 6.12.68) | P2 |
+| LTS kernel 6.18 | TBD (Arch `linux-lts` still at 6.12.74) | P2 |
 | n8n PgBouncer `statement_timeout` fix — check [#25705](https://github.com/n8n-io/n8n/issues/25705) | March 2026 | P3 |
 | n8n PgBouncer `statement_timeout` fix — re-check [#25705](https://github.com/n8n-io/n8n/issues/25705), remove workaround if fixed upstream | May 2026 | P3 |
 | ~~Home Assistant: audit legacy template entities~~ | ~~Before June 2026~~ | ✅ Verified compliant (no legacy templates in config) |
@@ -210,7 +210,7 @@
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Nodes** | ✅ 3/3 Ready | K3s v1.35.0, Kernel 6.18.7-arch1-1 |
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.1, Kernel 6.18.9-arch1-2 |
 | **Control Plane** | ✅ Healthy | 14% CPU, 17% memory |
 | **worker-node** | ✅ Healthy | 20% CPU, 24% memory (rebuilderd active) |
 | **worker-node-2** | ✅ Healthy | 22% CPU, 40% memory (tensorflow building) |
@@ -616,8 +616,8 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      - **Hostname**: worker-node-2 (192.168.1.126)
      - **User**: z3us
      - **Hardware**: 30GB RAM, 1TB NVMe (system) + 3.6TB NVMe (k8s-storage)
-     - **Kernel**: 6.18.7-arch1-1
-     - **K3s**: v1.35.0+k3s1
+     - **Kernel**: 6.18.9-arch1-2
+     - **K3s**: v1.35.1+k3s1
    - **Storage**: 3.6TB LVM (`k8s-storage` VG) - 1% used
    - **Current Workloads** (31 pods):
      - PostgreSQL replica (main-postgres-11)
@@ -640,8 +640,8 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
    - **Status**: ⏸️ Running mainline 6.18.6, waiting for Arch to package 6.18 LTS
    - **Priority**: P2-MEDIUM (stability improvement)
    - **Target Date**: ~~End of January 2026~~ → TBD (Arch hasn't switched yet)
-   - **Current State**: All 3 nodes have mainline kernel **6.18.7-arch1-1** installed (not LTS)
-   - **Blocker**: Arch `linux-lts` still at 6.12.68 (checked 2026-02-07)
+   - **Current State**: All 3 nodes have mainline kernel **6.18.9-arch1-2** installed (not LTS)
+   - **Blocker**: Arch `linux-lts` still at 6.12.74 (checked 2026-02-07)
      - Linux 6.18 released upstream: Nov 30, 2025 (confirmed LTS, supported until Dec 2027)
      - Arch taking longer than typical 4-8 weeks to transition LTS kernel series
      - Expected availability: Unknown - check https://archlinux.org/packages/core/x86_64/linux-lts/
@@ -684,7 +684,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
      - ~2-5x RAM reduction
      - ~7x disk reduction (zstd compression)
      - Native downsampling for long retention
-   - **Current Mitigation**: Prometheus retention at 90d, 71% memory (924Mi/1300Mi), 111k series
+   - **Current Mitigation**: Prometheus retention at 90d, 72% memory (941Mi/1300Mi), 121k series
    - **Note**: DO NOT NAG UNTIL FEBRUARY 2026
 
 ---
@@ -1145,6 +1145,29 @@ ingress:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
+### 2026-02-22 (Health Check & Cleanup) 🔍
+- ✅ **Comprehensive Health Check**: All systems healthy, no critical issues ⭐
+  - **K3s**: v1.35.1+k3s1 (latest stable), Kernel 6.18.9-arch1-2
+  - **Pods**: 81 Running, 0 CrashLoop, 0 alerts firing (Watchdog only)
+  - **Databases**: PostgreSQL 2/2 healthy, MySQL 2/2 (lag 0s), CouchDB 2/2, Redis running
+  - **Prometheus**: 121k series, 941Mi/1300Mi (72%)
+  - **Certificates**: All valid, closest expiry Mar 25 (adguard-home, 31 days)
+  - **Backups**: All passed (SHA256 + tar + size + age), NAS + worker-node-2 replication OK
+  - **Helm Charts**: All 10 at latest versions, no open Renovate PRs
+  - **Kyverno**: 0 violations
+- ✅ **Linkwarden Cache Path Fixed**: `/app/.next/cache` → `/data/apps/web/.next/cache` ⭐
+  - App runs from `/data/apps/web/`, emptyDir was mounted at wrong path
+  - Caused `ENOENT: no such file or directory, mkdir '/data/apps/web/.next/cache'` errors
+- ✅ **Cleanup**: 7 stale ReplicaSets deleted, `separated/` audio processing dir removed
+- ✅ **mcp-memory-service Updated**: 10.17.0 → 10.17.14 (14 patch versions)
+- ✅ **Docs Updated**: K3s v1.35.0→v1.35.1, Kernel 6.18.7→6.18.9, linux-lts 6.12.68→6.12.74, Prometheus 111k→121k, Alloy v1.12.1→v1.13.0
+- ⚠️ **Authentik Warning**: "No providers assigned to this outpost" every 5 min — needs admin UI config
+- ℹ️ **Cosmetic Issues** (no fix needed):
+  - Audiobookshelf: Internal init check logs "already has root user" every ~6 min
+  - Stirling PDF: ResourceMonitor oscillates OK↔CRITICAL (Java GC CPU spikes, memory fine at 22%)
+  - HA Met.no: Transient DNS errors, self-resolved
+  - CF Tunnel CouchDB: Long-poll `_changes` stream cancellations (normal for Obsidian sync)
+
 ### 2026-02-21 (Rebuilderd OOM → MySQL Crash Fix) 🔧
 - ✅ **Root Cause Found**: Rebuilderd DPDK build OOM killed MySQL pods on worker-node-2 ⭐
   - `lto1-ltrans` (GCC LTO linker) exceeded 18GB memory limit in nspawn container
@@ -1287,7 +1310,7 @@ ingress:
   - Commit: 54f1e2b
 - ✅ **CLAUDE.md Updated**: Fixed MySQL secret name, CouchDB namespace, added parallel tool call docs
 - ✅ **Uptime Kuma**: 28 monitors verified current, NAS Zettlab monitor active
-- 📋 **LTS Kernel**: Arch `linux-lts` still at 6.12.68 (not 6.18), continue waiting
+- 📋 **LTS Kernel**: Arch `linux-lts` still at 6.12.74 (not 6.18), continue waiting
 
 ### 2026-02-06 (Automated Backup Validation) 💾
 - ✅ **Automated Backup Validation**: Daily integrity checks integrated into replication CronJob ⭐

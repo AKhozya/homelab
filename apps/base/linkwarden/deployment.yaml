@@ -173,7 +173,7 @@ spec:
             - name: tmp
               mountPath: /tmp
             - name: next-cache
-              mountPath: /app/.next/cache
+              mountPath: /data/apps/web/.next/cache
             - name: playwright-cache
               mountPath: /home/node/.cache
       volumes:
