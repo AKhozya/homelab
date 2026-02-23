@@ -27,7 +27,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: wait-for-database
-          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
+          image: ghcr.io/cloudnative-pg/postgresql:18.2-standard-trixie
           command:
             - sh
             - -c

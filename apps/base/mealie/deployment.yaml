@@ -24,7 +24,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: wait-for-database-crd
-          image: ghcr.io/cloudnative-pg/postgresql:18-minimal-trixie
+          image: ghcr.io/cloudnative-pg/postgresql:18.2-standard-trixie
           envFrom:
             - secretRef:
                 name: mealie-env

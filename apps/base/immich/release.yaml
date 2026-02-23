@@ -181,7 +181,7 @@ spec:
             wait-for-database:
               image:
                 repository: ghcr.io/cloudnative-pg/postgresql
-                tag: 18-minimal-trixie
+                tag: 18.2-standard-trixie
                 pullPolicy: IfNotPresent
               command:
                 - sh
@@ -256,7 +256,7 @@ spec:
             proxy:
               image:
                 repository: nginx
-                tag: 1.29-alpine
+                tag: 1.29.5-alpine
                 pullPolicy: IfNotPresent
               command:
                 - /bin/sh
