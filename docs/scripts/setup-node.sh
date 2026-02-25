@@ -312,6 +312,12 @@ node-label:
 kubelet-arg:
   - "config=/etc/rancher/k3s/kubelet.yaml"
 
+# Clean up terminated (Failed/Succeeded) pods faster
+# Default 12500 is too high for homelab — eviction leftovers linger after reboots
+# 20 allows ~10 normal Job pods + headroom, GC reaps bulk eviction pods quickly
+kube-controller-manager-arg:
+  - "terminated-pod-gc-threshold=20"
+
 # Secrets encrypted at rest (AES-CBC)
 # After first deploy, run: k3s secrets-encrypt enable → restart → rotate-keys → restart
 secrets-encryption: true
