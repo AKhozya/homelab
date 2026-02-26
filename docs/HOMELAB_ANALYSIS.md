@@ -185,6 +185,7 @@
 | ~~Migrate Promtail to Grafana Alloy~~ | ~~Before March 2, 2026~~ | ✅ Done |
 | Re-evaluate VictoriaMetrics | Feb 2026 | P3 |
 | LTS kernel 6.18 | TBD (Arch `linux-lts` still at 6.12.74) | P2 |
+| Authentik worker memory fix — check if [#20537](https://github.com/goauthentik/authentik/issues/20537) landed in 2026.2.x, reduce worker limit 1500Mi→800Mi | March 8, 2026 | P2 |
 | n8n PgBouncer `statement_timeout` fix — check [#25705](https://github.com/n8n-io/n8n/issues/25705) | March 2026 | P3 |
 | n8n PgBouncer `statement_timeout` fix — re-check [#25705](https://github.com/n8n-io/n8n/issues/25705), remove workaround if fixed upstream | May 2026 | P3 |
 | ~~Home Assistant: audit legacy template entities~~ | ~~Before June 2026~~ | ✅ Verified compliant (no legacy templates in config) |
