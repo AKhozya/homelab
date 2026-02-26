@@ -88,7 +88,7 @@ if [ -f "$CONFIG" ]; then
         sed -i 's/^timeout.*/timeout = 172800/' "$CONFIG"
     else
         echo "" >> "$CONFIG"
-        echo "# Build timeout in seconds (48 hours for large packages like python-aotriton)" >> "$CONFIG"
+        echo "# Build timeout in seconds (48 hours for large packages like chromium)" >> "$CONFIG"
         echo "timeout = 172800" >> "$CONFIG"
     fi
     echo "Configured 48-hour build timeout"
