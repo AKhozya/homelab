@@ -13,6 +13,13 @@
       "depNameTemplate": "n8n-io/n8n",
       "extractVersionTemplate": "n8n@(?<version>.*)",
       "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "description": "CNPG Cluster imageName (CRD field not detected by kubernetes manager)",
+      "managerFilePatterns": ["/cluster\\.yaml$/"],
+      "matchStrings": ["imageName:\\s*(?<depName>[^:]+):(?<currentValue>[^\\s]+)"],
+      "datasourceTemplate": "docker"
     }
   ],
   "commitMessagePrefix": "chore(deps): ",
