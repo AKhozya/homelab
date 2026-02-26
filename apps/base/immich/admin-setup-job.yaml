@@ -22,7 +22,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: wait-for-migrations
-          image: ghcr.io/cloudnative-pg/postgresql:18.2-standard-trixie
+          image: ghcr.io/cloudnative-pg/postgresql:18.3-standard-trixie
           command:
             - /bin/sh
             - -c
