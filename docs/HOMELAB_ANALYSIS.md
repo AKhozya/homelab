@@ -46,11 +46,11 @@
 - CloudNativePG for managed PostgreSQL (2-node HA) with PgBouncer pooler
 - **🆕 Percona MySQL Operator** for MySQL (2-node async replication) with HAProxy ⭐
 - **🆕 3-Node Cluster** - worker-node-2 added (2025-12-15) ⭐
-- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2026-01-26)
+- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2026-02-26)
   - Reproducible build verification for Arch Linux packages
-  - worker-node: 1 worker, 6 CPU (600%), 32GB RAM, **09:00-23:00 daily (14h)**
+  - worker-node: 1 worker, 6 CPU (600%), 32GB RAM, **24/7**
   - worker-node-2: 1 worker, 4 CPU (400%), 14GB RAM, **24/7**
-  - Build timeout: 48 hours (for large packages like python-aotriton)
+  - Build timeout: 48 hours (for large packages like chromium)
   - LVM-backed storage for builds
   - CPU/RAM quota fix: archlinux-repro passes limits to nspawn containers (upstream [PR #143](https://github.com/archlinux/archlinux-repro/pull/143) merged)
   - Kernel watchdog: nmi_watchdog + softlockup/hardlockup panic enabled for crash detection
@@ -124,7 +124,7 @@
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Nodes** | ✅ 3/3 Ready | K3s v1.35.1, Kernel 6.18.9-arch1-2 |
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.1, Kernel 6.18.13-arch1-1 |
 | **Control Plane** | ✅ Healthy | 15% CPU, 19% memory |
 | **worker-node** | ✅ Healthy | 19% CPU, 26% memory (rebuilderd active) |
 | **worker-node-2** | ✅ Healthy | 8% CPU, 18% memory |
@@ -210,7 +210,7 @@
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Nodes** | ✅ 3/3 Ready | K3s v1.35.1, Kernel 6.18.9-arch1-2 |
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.1, Kernel 6.18.13-arch1-1 |
 | **Control Plane** | ✅ Healthy | 14% CPU, 17% memory |
 | **worker-node** | ✅ Healthy | 20% CPU, 24% memory (rebuilderd active) |
 | **worker-node-2** | ✅ Healthy | 22% CPU, 40% memory (tensorflow building) |
@@ -564,7 +564,7 @@
      - **Hostname**: worker-node-2 (192.168.1.126)
      - **User**: z3us
      - **Hardware**: 30GB RAM, 1TB NVMe (system) + 3.6TB NVMe (k8s-storage)
-     - **Kernel**: 6.18.9-arch1-2
+     - **Kernel**: 6.18.13-arch1-1
      - **K3s**: v1.35.1+k3s1
    - **Storage**: 3.6TB LVM (`k8s-storage` VG) - 1% used
    - **Current Workloads** (31 pods):
@@ -588,7 +588,7 @@
    - **Status**: ⏸️ Running mainline 6.18.6, waiting for Arch to package 6.18 LTS
    - **Priority**: P2-MEDIUM (stability improvement)
    - **Target Date**: ~~End of January 2026~~ → TBD (Arch hasn't switched yet)
-   - **Current State**: All 3 nodes have mainline kernel **6.18.9-arch1-2** installed (not LTS)
+   - **Current State**: All 3 nodes have mainline kernel **6.18.13-arch1-1** installed (not LTS)
    - **Blocker**: Arch `linux-lts` still at 6.12.74 (checked 2026-02-07)
      - Linux 6.18 released upstream: Nov 30, 2025 (confirmed LTS, supported until Dec 2027)
      - Arch taking longer than typical 4-8 weeks to transition LTS kernel series
@@ -1084,7 +1084,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2026-02-20
+**Last Updated**: 2026-02-26
 **Next Review**: 2026-03-07
 
 ---
@@ -1093,9 +1093,19 @@ ingress:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
+### 2026-02-26 (Kernel Update & Rebuilderd 24/7) 🐧
+- ✅ **Kernel Updated**: 6.18.9-arch1-2 → **6.18.13-arch1-1** on all 3 nodes ⭐
+  - Rolling reboot: worker-2 → worker-1 → control-plane
+  - All nodes Ready, 0 alerts after reboot, 7 stale RS cleaned
+- ✅ **Rebuilderd worker-node switched to 24/7**: Removed 09:00-23:00 schedule ⭐
+  - Both workers now run 24/7 with boot timer (10 min after reboot)
+  - Fixed build timeout: was default 24h (config from Aug 2025 predated change), now 48h
+  - Chromium build (145.0.7632.116) timed out at 24h (84% complete, 46376/55332 steps)
+- 📋 **Commits**: 4baebd4d, 56bd4cb7
+
 ### 2026-02-22 (Health Check & Cleanup) 🔍
 - ✅ **Comprehensive Health Check**: All systems healthy, no critical issues ⭐
-  - **K3s**: v1.35.1+k3s1 (latest stable), Kernel 6.18.9-arch1-2
+  - **K3s**: v1.35.1+k3s1 (latest stable), Kernel 6.18.13-arch1-1
   - **Pods**: 81 Running, 0 CrashLoop, 0 alerts firing (Watchdog only)
   - **Databases**: PostgreSQL 2/2 healthy, MySQL 2/2 (lag 0s), CouchDB 2/2, Redis running
   - **Prometheus**: 121k series, 941Mi/1300Mi (72%)
@@ -1296,7 +1306,7 @@ ingress:
 - ✅ **worker-node-2 Schedule Changed**: 09:00-23:00 → 24/7 ⭐
   - **Reason**: Dedicated to rebuilderd, no need for schedule
   - **Implementation**: Removed start/stop timers, boot timer starts service 10 min after reboot
-  - **worker-node**: Stays on 09:00-23:00 schedule (shared with k8s workloads)
+  - **worker-node**: Also switched to 24/7 (2026-02-26)
 - 📋 **Scripts Updated**: `setup-rebuilderd-worker-1.sh`, `setup-rebuilderd-worker-2.sh`
 
 ### 2026-01-06 (Rebuilderd Schedule Change) 🕐
