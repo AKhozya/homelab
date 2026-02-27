@@ -82,16 +82,26 @@ EOF
 echo "Created resource limits (400% CPU, 14GB RAM)"
 
 # Configure 48-hour build timeout in rebuilderd-worker.conf
+# IMPORTANT: timeout must be inside [build] section per rebuilderd-worker.conf(5)
 CONFIG="/etc/rebuilderd-worker.conf"
 if [ -f "$CONFIG" ]; then
-    if grep -q "^timeout" "$CONFIG"; then
-        sed -i 's/^timeout.*/timeout = 172800/' "$CONFIG"
+    # Remove any misplaced timeout lines (outside [build] section)
+    sed -i '/^# Build timeout in seconds/d' "$CONFIG"
+    sed -i '/^timeout = 172800$/d' "$CONFIG"
+    # Ensure [build] section exists and has timeout
+    if grep -q '^\[build\]' "$CONFIG"; then
+        # Remove old timeout inside [build] if present, then re-add
+        sed -i '/^\[build\]/,/^\[/{/^timeout/d}' "$CONFIG"
+        sed -i '/^\[build\]/a timeout = 172800  # 48 hours for large packages' "$CONFIG"
     else
-        echo "" >> "$CONFIG"
-        echo "# Build timeout in seconds (48 hours for large packages like chromium)" >> "$CONFIG"
-        echo "timeout = 172800" >> "$CONFIG"
+        # Add [build] section before [diffoscope] if it exists, else at end
+        if grep -q '^\[diffoscope\]' "$CONFIG"; then
+            sed -i '/^\[diffoscope\]/i [build]\ntimeout = 172800  # 48 hours for large packages\n' "$CONFIG"
+        else
+            printf '\n[build]\ntimeout = 172800  # 48 hours for large packages\n' >> "$CONFIG"
+        fi
     fi
-    echo "Configured 48-hour build timeout"
+    echo "Configured 48-hour build timeout (inside [build] section)"
 fi
 
 # Remove old scheduled timers
