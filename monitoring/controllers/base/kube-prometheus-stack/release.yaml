@@ -341,6 +341,14 @@ spec:
           memory: 256Mi
     
     prometheus-node-exporter:
+      extraArgs:
+        - --collector.textfile.directory=/var/lib/node_exporter/textfile
+      extraHostVolumeMounts:
+        - name: textfile
+          mountPath: /var/lib/node_exporter/textfile
+          hostPath: /var/lib/node_exporter/textfile
+          type: DirectoryOrCreate
+          readOnly: true
       resources:
         requests:
           cpu: 100m

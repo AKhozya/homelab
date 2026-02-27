@@ -32,10 +32,12 @@ fi
 # Install firmware packages (suppresses mkinitcpio warnings)
 echo "Installing firmware packages..."
 pacman -S --noconfirm --needed amd-ucode linux-firmware linux-firmware-whence
-sudo -u akhozya yay -S --noconfirm --needed aic94xx-firmware ast-firmware wd719x-firmware upd72020x-fw
+sudo -u akhozya yay -S --noconfirm --needed aic94xx-firmware ast-firmware wd719x-firmware upd72020x-fw \
+    || echo "AUR firmware packages skipped (already installed or BUILDDIR issue)"
 
-# Create systemd override directory
+# Create directories
 mkdir -p /etc/systemd/system/rebuilderd-worker@.service.d
+mkdir -p /var/lib/node_exporter/textfile
 
 # Configure resource limits per worker
 cat > /etc/systemd/system/rebuilderd-worker@.service.d/resources.conf << 'EOF'
@@ -129,11 +131,84 @@ EOF
 
 echo "Created boot timer (10 min delay after reboot)"
 
+# --- Metrics exporter for node-exporter textfile collector ---
+
+cat > /usr/local/bin/rebuilderd-metrics.sh << 'SCRIPT'
+#!/bin/bash
+# Rebuilderd metrics exporter for node-exporter textfile collector
+set -euo pipefail
+
+OUTDIR="/var/lib/node_exporter/textfile"
+OUTFILE="${OUTDIR}/rebuilderd.prom"
+TMPFILE="${OUTFILE}.tmp"
+NODE="$(cat /etc/hostname)"
+
+if systemctl is-active --quiet 'rebuilderd-worker@*.service' 2>/dev/null; then
+    ACTIVE=1
+else
+    ACTIVE=0
+fi
+
+GOOD=$(journalctl -u 'rebuilderd-worker@*' --since '1 hour ago' --no-pager 2>/dev/null \
+    | grep -c 'marking as GOOD' || true)
+BAD=$(journalctl -u 'rebuilderd-worker@*' --since '1 hour ago' --no-pager 2>/dev/null \
+    | grep -c 'marking as BAD' || true)
+TOTAL=$((GOOD + BAD))
+
+cat > "${TMPFILE}" << EOF
+# HELP rebuilderd_worker_active Whether a rebuilderd worker is running (1=active, 0=inactive)
+# TYPE rebuilderd_worker_active gauge
+rebuilderd_worker_active{node="${NODE}"} ${ACTIVE}
+# HELP rebuilderd_builds_good_total GOOD (reproducible) builds in the last hour
+# TYPE rebuilderd_builds_good_total gauge
+rebuilderd_builds_good_total{node="${NODE}"} ${GOOD}
+# HELP rebuilderd_builds_bad_total BAD (non-reproducible) builds in the last hour
+# TYPE rebuilderd_builds_bad_total gauge
+rebuilderd_builds_bad_total{node="${NODE}"} ${BAD}
+# HELP rebuilderd_builds_total Total builds completed in the last hour
+# TYPE rebuilderd_builds_total gauge
+rebuilderd_builds_total{node="${NODE}"} ${TOTAL}
+EOF
+
+mv "${TMPFILE}" "${OUTFILE}"
+SCRIPT
+
+chmod 755 /usr/local/bin/rebuilderd-metrics.sh
+
+cat > /etc/systemd/system/rebuilderd-metrics.service << 'EOF'
+[Unit]
+Description=Export rebuilderd metrics for node-exporter
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rebuilderd-metrics.sh
+EOF
+
+cat > /etc/systemd/system/rebuilderd-metrics.timer << 'EOF'
+[Unit]
+Description=Run rebuilderd metrics exporter every 5 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+EOF
+
+echo "Installed rebuilderd metrics exporter (5-min timer)"
+
 # Reload systemd
 systemctl daemon-reload
 
 # Enable boot timer for automatic start after reboot
 systemctl enable rebuilderd-worker-boot.timer
+
+# Enable metrics timer
+systemctl enable --now rebuilderd-metrics.timer
+
+# Run metrics once to populate initial values
+/usr/local/bin/rebuilderd-metrics.sh
 
 # Start worker now (don't wait for timer on first setup)
 systemctl start rebuilderd-worker@1
@@ -149,6 +224,7 @@ echo "  RAM: 32GB (hard limit, passed to nspawn)"
 echo "  Build timeout: 48 hours"
 echo ""
 echo "Schedule: 24/7 (starts 10 min after boot)"
+echo "Metrics: /var/lib/node_exporter/textfile/rebuilderd.prom (every 5 min)"
 echo ""
 echo "=== Worker Status ==="
 systemctl status rebuilderd-worker@1 --no-pager 2>/dev/null | head -10 || echo "Worker starting..."
@@ -160,5 +236,6 @@ echo "Stop:    sudo systemctl stop rebuilderd-worker@1"
 echo "Restart: sudo systemctl restart rebuilderd-worker@1"
 echo "Status:  systemctl status rebuilderd-worker@1"
 echo "Logs:    journalctl -u rebuilderd-worker@1 -f"
+echo "Metrics: cat /var/lib/node_exporter/textfile/rebuilderd.prom"
 echo ""
 echo "Done!"
