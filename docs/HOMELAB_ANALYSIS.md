@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2026-02-22)
+**Assessment Date**: 2025-10-18 (Updated: 2026-02-27)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -46,12 +46,13 @@
 - CloudNativePG for managed PostgreSQL (2-node HA) with PgBouncer pooler
 - **🆕 Percona MySQL Operator** for MySQL (2-node async replication) with HAProxy ⭐
 - **🆕 3-Node Cluster** - worker-node-2 added (2025-12-15) ⭐
-- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2026-02-26)
+- **🆕 Rebuilderd - Arch Linux Contribution** ⭐ (2025-12-24, Updated: 2026-02-27)
   - Reproducible build verification for Arch Linux packages
   - worker-node: 1 worker, 6 CPU (600%), 32GB RAM, **24/7**
   - worker-node-2: 1 worker, 4 CPU (400%), 14GB RAM, **24/7**
   - Build timeout: 48 hours (for large packages like chromium)
   - LVM-backed storage for builds
+  - **Monitoring**: Node-exporter textfile collector, 5-min metrics update, 2 Prometheus alerts ⭐
   - CPU/RAM quota fix: archlinux-repro passes limits to nspawn containers (upstream [PR #143](https://github.com/archlinux/archlinux-repro/pull/143) merged)
   - Kernel watchdog: nmi_watchdog + softlockup/hardlockup panic enabled for crash detection
 - Default credential elimination on all apps
@@ -129,7 +130,7 @@
 | **worker-node** | ✅ Healthy | 19% CPU, 26% memory (rebuilderd active) |
 | **worker-node-2** | ✅ Healthy | 8% CPU, 18% memory |
 | **Pods** | ✅ 81 Running | 0 CrashLoop, 15 Completed jobs |
-| **PostgreSQL** | ✅ 2/2 Ready | v18.2 (upgraded from 18.1, 2026-02-20) |
+| **PostgreSQL** | ✅ 2/2 Ready | v18.3 (upgraded from 18.2, 2026-02-26) |
 | **MySQL** | ✅ 2/2 Ready | Async replication, HAProxy active |
 | **CouchDB** | ✅ 2/2 Running | StatefulSet in databases namespace |
 | **Redis** | ✅ 1/1 Running | v8.6.0 (upgraded from 8.2.2, 2026-02-20) |
@@ -918,7 +919,7 @@ ingress:
 **Cluster Configuration:**
 - **Name**: main-postgres
 - **Replicas**: 2 (HA configuration) ⭐
-- **Version**: PostgreSQL 18.2
+- **Version**: PostgreSQL 18.3
 - **Namespace**: databases
 - **HA Validation**: ✅ Proven during WAL corruption incident (2025-10-26)
   - Lost 1 replica (main-postgres-1) to checkpoint corruption
@@ -1085,7 +1086,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2026-02-26
+**Last Updated**: 2026-02-27
 **Next Review**: 2026-03-07
 
 ---
@@ -1093,6 +1094,16 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-02-27 (Rebuilderd Monitoring Alerts) 📊
+- ✅ **Rebuilderd monitoring via node-exporter textfile collector** ⭐
+  - **Metrics**: `rebuilderd_worker_active`, `rebuilderd_builds_good_total`, `rebuilderd_builds_bad_total`, `rebuilderd_builds_total`
+  - **Collection**: systemd timer every 5 minutes, parses journalctl for last hour
+  - **Alerts**: `RebuilderdWorkerDown` (10m critical), `RebuilderdHighFailureRate` (>70% BAD with ≥10 builds, 30m warning)
+  - **Motivation**: Worker-node crash-looped 18 hours (21,935 restarts) due to TOML config error, completely unnoticed
+  - **Node-exporter**: textfile collector enabled with `DirectoryOrCreate` hostPath mount
+  - **Scripts**: Metrics exporter integrated into `setup-rebuilderd-worker-*.sh` (not a separate file)
+- 📋 **Commits**: 38925637
 
 ### 2026-02-26 (Kernel Update & Rebuilderd 24/7) 🐧
 - ✅ **Kernel Updated**: 6.18.9-arch1-2 → **6.18.13-arch1-1** on all 3 nodes ⭐
@@ -1102,7 +1113,20 @@ ingress:
   - Both workers now run 24/7 with boot timer (10 min after reboot)
   - Fixed build timeout: was default 24h (config from Aug 2025 predated change), now 48h
   - Chromium build (145.0.7632.116) timed out at 24h (84% complete, 46376/55332 steps)
-- 📋 **Commits**: 4baebd4d, 56bd4cb7
+- ✅ **PostgreSQL Upgrade**: 18.2 → **18.3** (CNPG rolling update, zero downtime) ⭐
+  - Replica updated first, then primary in-place restart
+  - Replication lag: 0 bytes after completion
+- ✅ **Renovate CNPG Fix**: Added custom regex manager for `imageName` field ⭐
+  - Kubernetes manager doesn't detect CRD-specific fields like CNPG's `imageName`
+  - Custom regex manager now tracks `ghcr.io/cloudnative-pg/postgresql` versions
+  - Future PostgreSQL updates will get proper Renovate PRs
+- ✅ **Full Database Maintenance**: All 3 engines optimized ⭐
+  - **PostgreSQL**: VACUUM ANALYZE + VACUUM FULL + REINDEX on all 9 databases
+  - **MySQL**: ANALYZE + OPTIMIZE on all 3 databases (69 tables total)
+  - **CouchDB**: Compaction on both databases (obsidian-personal 33.9%→0.7% fragmentation)
+  - Authentik + Paperless rollout-restarted (stale PgBouncer connections after PG upgrade)
+  - 6 stale ReplicaSets + 8 completed pods cleaned
+- 📋 **Commits**: 4baebd4d, 56bd4cb7, 858447f9
 
 ### 2026-02-22 (Health Check & Cleanup) 🔍
 - ✅ **Comprehensive Health Check**: All systems healthy, no critical issues ⭐
