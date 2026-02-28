@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2026-02-27)
+**Assessment Date**: 2025-10-18 (Updated: 2026-02-28)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
@@ -1086,7 +1086,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2026-02-27
+**Last Updated**: 2026-02-28
 **Next Review**: 2026-03-07
 
 ---
@@ -1094,6 +1094,17 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-02-28 (Traefik Alert Fixes) 🔔
+- ✅ **Fixed all Traefik & rate-limit alerts using wrong `service` label** ⭐
+  - **Root cause**: Prometheus renames app-exported `service` label to `exported_service` (collision with scrape target label). All alerts used `service` (always `traefik-metrics`) instead of `exported_service` (actual backend name)
+  - **Impact**: TraefikHighLatency showed generic "traefik-metrics" instead of backend name; 6 rate-limit alerts could **never match** specific services (Authentik, CouchDB, N8N, Immich)
+  - **Fixed alerts (8)**: TraefikHighLatency, TraefikHighErrorRate, RateLimitHighRejectionRate, RateLimitPossibleBruteForce, RateLimitCouchDBSyncBlocked, RateLimitAPIClientsBlocked, RateLimitPersistentRejections, RateLimitSuddenSpike
+  - **WebSocket exclusion**: TraefikHighLatency now filters `code=~"[1-5].."` (excludes code=0 WebSocket connections which are long-lived by design)
+  - **Removed dead alert**: TraefikBackendDown (`traefik_service_server_up` metric not exposed by Traefik)
+  - **Alert trigger**: CouchDB Obsidian long-poll (`_changes` feed) + transient Grafana 502s pushed p99 >2s
+- ✅ **Deferred VictoriaMetrics re-evaluation**: Feb 2026 → April 2026
+- 📋 **Commits**: e9881a50, 90e55ace
 
 ### 2026-02-27 (Rebuilderd Monitoring Alerts) 📊
 - ✅ **Rebuilderd monitoring via node-exporter textfile collector** ⭐
