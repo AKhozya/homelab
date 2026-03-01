@@ -35,6 +35,10 @@ spec:
               cp /tmp/config/AdGuardHome.yaml /opt/adguardhome/conf/AdGuardHome.yaml
               chmod 600 /opt/adguardhome/conf/AdGuardHome.yaml
               echo "Config copied successfully"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           volumeMounts:
             - name: config
               mountPath: /tmp/config
