@@ -1103,12 +1103,12 @@ spec:
         description: "Rebuilderd worker on {{ $labels.node }} has been inactive for more than 10 minutes. Check systemd service: ssh <node> systemctl status rebuilderd-worker@1"
 
     - alert: RebuilderdHighFailureRate
-      expr: (rebuilderd_builds_bad_total / rebuilderd_builds_total) > 0.7 and rebuilderd_builds_total >= 10
+      expr: (rebuilderd_builds_bad_total / rebuilderd_builds_total) > 0.8 and rebuilderd_builds_total >= 10
       for: 30m
       labels:
         severity: warning
       annotations:
         summary: "High rebuilderd failure rate on {{ $labels.node }}"
-        description: "{{ $labels.node }} has >70% BAD builds in the last hour ({{ $value | humanizePercentage }}). {{ $labels.node }} may have build environment issues."
+        description: "{{ $labels.node }} has >80% BAD builds in the last hour ({{ $value | humanizePercentage }}). {{ $labels.node }} may have build environment issues."
 
   # NOTE: No etcd alerts needed - K3s single-master uses embedded SQLite, not etcd

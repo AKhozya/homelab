@@ -1110,7 +1110,7 @@ ingress:
 - ✅ **Rebuilderd monitoring via node-exporter textfile collector** ⭐
   - **Metrics**: `rebuilderd_worker_active`, `rebuilderd_builds_good_total`, `rebuilderd_builds_bad_total`, `rebuilderd_builds_total`
   - **Collection**: systemd timer every 5 minutes, parses journalctl for last hour
-  - **Alerts**: `RebuilderdWorkerDown` (10m critical), `RebuilderdHighFailureRate` (>70% BAD with ≥10 builds, 30m warning)
+  - **Alerts**: `RebuilderdWorkerDown` (10m critical), `RebuilderdHighFailureRate` (>80% BAD with ≥10 builds, 30m warning)
   - **Motivation**: Worker-node crash-looped 18 hours (21,935 restarts) due to TOML config error, completely unnoticed
   - **Node-exporter**: textfile collector enabled with `DirectoryOrCreate` hostPath mount
   - **Scripts**: Metrics exporter integrated into `setup-rebuilderd-worker-*.sh` (not a separate file)
