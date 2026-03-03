@@ -46,6 +46,15 @@ spec:
                   app.kubernetes.io/instance: traefik-traefik
               topologyKey: kubernetes.io/hostname
 
+    # Use Kubernetes Service ClusterIP for routing instead of direct pod IPs.
+    # Prevents stale endpoint 502s during pod churn (Traefik default bypasses
+    # kube-proxy and tracks pod IPs itself, which can go stale).
+    providers:
+      kubernetesCRD:
+        nativeLBByDefault: true
+      kubernetesIngress:
+        nativeLBByDefault: true
+
     # Service settings
     service:
       type: LoadBalancer
