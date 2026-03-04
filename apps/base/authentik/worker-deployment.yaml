@@ -94,10 +94,10 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "1Gi"
+              memory: "600Mi"
             limits:
               cpu: "500m"
-              memory: "1200Mi"
+              memory: "800Mi"
           volumeMounts:
             - name: media
               mountPath: /data/media
