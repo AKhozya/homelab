@@ -159,6 +159,11 @@ spec:
       innodb_redo_log_capacity=64M
       # Binlog retention - 7 days sufficient for homelab with daily backups
       binlog_expire_logs_seconds=604800
+      # Prevent stale replication threads after node restart (operator bug workaround)
+      # Without this, the primary retains replica config from PVC and starts SQL thread,
+      # causing HAProxy health check to reject it as primary (<NOSRV>)
+      # Orchestrator handles START REPLICA on the actual replica
+      skip-replica-start
 
   # HAProxy for connection routing (required for async replication)
   proxy:

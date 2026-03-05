@@ -30,6 +30,8 @@ spec:
           env:
             - name: HOME
               value: "/tmp"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=50"
           envFrom:
             - secretRef:
                 name: stirling-pdf-env
