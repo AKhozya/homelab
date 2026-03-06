@@ -10,4 +10,4 @@ spec:
       # Policy validated with automated testing: 0 violations across 17 apps (85 tests)
       # Violations are sent to csp-reporter service and logged to Loki
       # report-uri remains active for continued monitoring
-      Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' blob:; worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://authentik.h0melab.work; report-uri http://csp-reporter.csp-reporter.svc.cluster.local/report"
+      Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://authentik.h0melab.work; report-uri http://csp-reporter.csp-reporter.svc.cluster.local/report"
