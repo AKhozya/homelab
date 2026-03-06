@@ -8,6 +8,5 @@ resources:
   - deployment.yaml
   - service.yaml
   - networkpolicy.yaml
-  - csp-middleware.yaml
   - ingress.yaml
   - certificate.yaml
