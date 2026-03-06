@@ -30,8 +30,8 @@ spec:
           env:
             - name: HOME
               value: "/tmp"
-            - name: JAVA_TOOL_OPTIONS
-              value: "-XX:MaxRAMPercentage=50"
+            - name: JAVA_BASE_OPTS
+              value: "-XX:+ExitOnOutOfMemoryError -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:G1HeapRegionSize=4m -XX:G1PeriodicGCInterval=60000 -XX:+UseStringDeduplication -XX:+ExplicitGCInvokesConcurrent -Dspring.threads.virtual.enabled=true -XX:InitialRAMPercentage=20 -XX:MaxRAMPercentage=55 -XX:MaxMetaspaceSize=192m"
           envFrom:
             - secretRef:
                 name: stirling-pdf-env
