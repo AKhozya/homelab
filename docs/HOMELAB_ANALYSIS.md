@@ -125,7 +125,7 @@
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Nodes** | ✅ 3/3 Ready | K3s v1.35.1, Kernel 6.18.13-arch1-1 |
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.2, Kernel 6.18.16-lts |
 | **Control Plane** | ✅ Healthy | 15% CPU, 19% memory |
 | **worker-node** | ✅ Healthy | 19% CPU, 26% memory (rebuilderd active) |
 | **worker-node-2** | ✅ Healthy | 8% CPU, 18% memory |
@@ -185,8 +185,8 @@
 | Remove worker-node-2 replication step | ~May 20, 2026 | P2 |
 | ~~Migrate Promtail to Grafana Alloy~~ | ~~Before March 2, 2026~~ | ✅ Done |
 | Re-evaluate VictoriaMetrics | April 2026 | P3 |
-| LTS kernel 6.18 | TBD (Arch `linux-lts` still at 6.12.74) | P2 |
-| Authentik worker memory fix — check if [#20537](https://github.com/goauthentik/authentik/issues/20537) landed in 2026.2.x, reduce worker limit 1500Mi→800Mi | March 8, 2026 | P2 |
+| ~~LTS kernel 6.18~~ | ~~TBD~~ | ✅ Done (6.18.16-lts on all 3 nodes) |
+| ~~Authentik worker memory fix — check if [#20537](https://github.com/goauthentik/authentik/issues/20537) landed in 2026.2.x, reduce worker limit 1500Mi→800Mi~~ | ~~March 8, 2026~~ | ✅ Done (v2026.2.1 fixed, reverted to 1200Mi) |
 | n8n PgBouncer `statement_timeout` fix — check [#25705](https://github.com/n8n-io/n8n/issues/25705) | March 2026 | P3 |
 | n8n PgBouncer `statement_timeout` fix — re-check [#25705](https://github.com/n8n-io/n8n/issues/25705), remove workaround if fixed upstream | May 2026 | P3 |
 | ~~Home Assistant: audit legacy template entities~~ | ~~Before June 2026~~ | ✅ Verified compliant (no legacy templates in config) |
@@ -212,7 +212,7 @@
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Nodes** | ✅ 3/3 Ready | K3s v1.35.1, Kernel 6.18.13-arch1-1 |
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.2, Kernel 6.18.16-lts |
 | **Control Plane** | ✅ Healthy | 14% CPU, 17% memory |
 | **worker-node** | ✅ Healthy | 20% CPU, 24% memory (rebuilderd active) |
 | **worker-node-2** | ✅ Healthy | 22% CPU, 40% memory (tensorflow building) |
@@ -566,8 +566,8 @@
      - **Hostname**: worker-node-2 (192.168.1.126)
      - **User**: z3us
      - **Hardware**: 30GB RAM, 1TB NVMe (system) + 3.6TB NVMe (k8s-storage)
-     - **Kernel**: 6.18.13-arch1-1
-     - **K3s**: v1.35.1+k3s1
+     - **Kernel**: 6.18.16-1-lts
+     - **K3s**: v1.35.2+k3s1
    - **Storage**: 3.6TB LVM (`k8s-storage` VG) - 1% used
    - **Current Workloads** (31 pods):
      - PostgreSQL replica (main-postgres-11)
@@ -586,32 +586,14 @@
      - ✅ **AdGuard Home DNS** - Added 192.168.1.126 to DNS rewrites
    - **Documentation**: SECOND_WORKER_NODE_SETUP.md (archived, see git history)
 
-#### 39. **Switch to LTS Kernel 6.18** 🐧 WAITING ON ARCH
-   - **Status**: ⏸️ Running mainline 6.18.6, waiting for Arch to package 6.18 LTS
-   - **Priority**: P2-MEDIUM (stability improvement)
-   - **Target Date**: ~~End of January 2026~~ → TBD (Arch hasn't switched yet)
-   - **Current State**: All 3 nodes have mainline kernel **6.18.13-arch1-1** installed (not LTS)
-   - **Blocker**: Arch `linux-lts` still at 6.12.74 (checked 2026-02-07)
-     - Linux 6.18 released upstream: Nov 30, 2025 (confirmed LTS, supported until Dec 2027)
-     - Arch taking longer than typical 4-8 weeks to transition LTS kernel series
-     - Expected availability: Unknown - check https://archlinux.org/packages/core/x86_64/linux-lts/
-   - **Scope**: All 3 nodes (control-plane, worker-node, worker-node-2)
-   - **Hardware Compatibility**: ✅ Verified
-     - Intel N100 (Alder Lake-N): Supported since 6.1+
-     - AMD Ryzen 9 9955HX (Zen 5): Supported since 6.10+ (included in 6.18)
-     - Intel I226-V (igc): Driver fixes in 6.6+
-     - AMD Radeon integrated (amdgpu): Mature by 6.12+
-   - **Procedure**:
-     1. Check 6.18 LTS availability: `pacman -Si linux-lts | grep Version`
-     2. Wait ~1 week after 6.18 appears for initial patches (6.18.1, 6.18.2)
-     3. Install on control plane first: `sudo pacman -S linux-lts linux-lts-headers`
-     4. Update bootloader: `sudo bootctl update`
-     5. Reboot and verify: `uname -r`
-     6. Repeat on worker node
-     7. Keep mainline kernel installed for rollback option
-   - **Benefit**: Long-term stability, 2+ year support (until Dec 2027), security backports
-   - **Rollback**: Boot into mainline kernel from bootloader menu if issues
-   - **Note**: Check weekly until end of January 2026
+#### 39. **Switch to LTS Kernel 6.18** 🐧 ✅ COMPLETED
+   - **Status**: ✅ COMPLETED - 2026-03-06
+   - **Priority**: ~~P2-MEDIUM~~ COMPLETED
+   - **Result**: All 3 nodes switched from mainline `linux` (6.19.6) to `linux-lts` (6.18.16)
+   - **K3s**: Upgraded v1.35.1 → v1.35.2 simultaneously
+   - **Procedure Used**: Two-phase approach (install LTS → reboot → verify → remove mainline)
+   - **Boot Entries**: systemd-boot entries created from existing ones, fallback initramfs enabled
+   - **Benefit**: Long-term stability, security backports until Dec 2027
 
 #### 40. **Re-evaluate VictoriaMetrics** 📊 DEFERRED
    - **Status**: DEFERRED - Bug closed without fix, workaround available
@@ -715,7 +697,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 **Overall Grade**: A+ (97/100) ⬆️
 - **Critical Issues**: 0 P0 issues ✅
 - **High Priority**: 0 P1 active ✅
-- **Active P2**: Remove worker-node-2 replication (~May 20), LTS kernel (waiting on Arch)
+- **Active P2**: Remove worker-node-2 replication (~May 20)
 - **Active P3**: VictoriaMetrics re-evaluation, config-reloader resource limits
 
 **Security Achievements** ✅:
@@ -1086,7 +1068,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2026-02-28
+**Last Updated**: 2026-03-06
 **Next Review**: 2026-03-07
 
 ---
@@ -1094,6 +1076,19 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-03-06 (LTS Kernel + K3s Upgrade) 🐧
+- ✅ **Kernel: mainline 6.19.6 → LTS 6.18.16** on all 3 nodes ⭐
+  - Two-phase approach: install LTS alongside mainline → reboot → verify → remove mainline
+  - Rolling order: worker-node-2 → worker-node → control-plane
+  - Fallback initramfs enabled on all nodes (mkinitcpio preset updated)
+  - Boot entries created from existing ones (preserves per-node kernel params)
+  - Mainline `linux` package fully removed after LTS confirmed working
+  - Benefit: LTS stability, security backports until Dec 2027
+- ✅ **K3s: v1.35.1 → v1.35.2** on all 3 nodes ⭐
+  - Control-plane upgraded first (API server before agents)
+  - Agent upgrade script auto-reads URL/token from service env file
+- ✅ **All pods healthy, 0 alerts firing after upgrade**
 
 ### 2026-02-28 (Traefik Alert Fixes) 🔔
 - ✅ **Fixed all Traefik & rate-limit alerts using wrong `service` label** ⭐
