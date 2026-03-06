@@ -111,9 +111,76 @@
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-**Last Updated**: 2026-02-07 (Monthly Review)
+**Last Updated**: 2026-03-06 (Monthly Review)
 **Source**: HOMELAB_REVIEW_2025_12_17 (archived, see git history)
 **Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
+
+### 🔍 March 2026 Monthly Review
+
+**Review Date**: 2026-03-06
+**Reviewer**: Staff DevOps/SRE + Staff Software Developer
+**Overall Status**: ✅ **HEALTHY** - All systems nominal
+
+#### Infrastructure Health (Staff DevOps/SRE Perspective)
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.2, Kernel 6.18.16-lts |
+| **Control Plane** | ✅ Healthy | 23% CPU, 13% memory |
+| **worker-node** | ✅ Healthy | 20% CPU, 33% memory (rebuilderd active) |
+| **worker-node-2** | ✅ Healthy | 31% CPU, 38% memory (rebuilderd active) |
+| **Pods** | ✅ 82 Running | 0 CrashLoop, 7 Completed jobs |
+| **PostgreSQL** | ✅ 2/2 Ready | v18.3 |
+| **MySQL** | ✅ 2/2 Ready | Async replication, no lag |
+| **CouchDB** | ✅ 2/2 Running | StatefulSet in databases namespace |
+| **Redis** | ✅ 1/1 Running | v8.6.1 |
+| **Prometheus** | ✅ 70-79% memory | 90k active series, 905Mi+1025Mi/1300Mi |
+| **Alerts** | ✅ None firing | Clean alert state |
+| **Backups** | ✅ All successful | NAS + worker-node-2 replication working |
+| **Certificates** | ✅ 19/19 Ready | 71+ days until expiration |
+| **Flux/GitOps** | ✅ All healthy | All 6 kustomizations reconciled |
+| **Scrape Targets** | ✅ 49 active | 0 down |
+| **Kyverno** | ✅ 0 violations | Clean |
+| **Stale ReplicaSets** | ✅ 0 | Cleaned 4 stale RS this session |
+
+#### Prometheus
+
+- **TSDB Head**: 278k series (includes stale series from kernel reboots + Traefik restarts)
+- **Active Series by Job**: ~90k (healthy, down from Feb's 111k)
+- **Memory**: 905Mi + 1025Mi / 1300Mi each (70-79%)
+- **Top Cardinality**: kubelet 35k (39%), apiserver 17k (19%), kube-state-metrics 10k (11%)
+- **Scrape Targets**: 49 active, 0 down
+
+#### Storage
+
+| Location | Used | Total | Usage |
+|----------|------|-------|-------|
+| worker-node `/mnt/k8s-storage` | 413GB | 4.2TB | 11% |
+| worker-node-2 `/mnt/extra-storage` | 319GB | 863GB | 39% |
+
+#### n8n PgBouncer statement_timeout (#25705)
+
+- **Status**: Still **OPEN** upstream (triage:pending, Linear GHC-6809)
+- **Last activity**: 2026-02-18 (5 comments, no n8n team fix planned)
+- **Our workaround**: `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` in deployment — still needed
+- **Re-check**: May 2026
+
+#### CSP Policy Update (2026-03-06)
+
+- Added `worker-src blob: 'self'`, `connect-src blob: data:`, `img-src blob:` to global CSP
+- **Reason**: Stirling PDF v2.6.0 uses PDF.js web workers, OpenCV.js WASM, canvas blob thumbnails
+- **Scope**: Global (all 17 apps), minimal security risk (blob:/data: are locally-generated)
+- **Traefik quirk**: Middleware CRD header changes require `rollout restart` to take effect
+
+#### Pending Scheduled Items
+
+| Item | Target Date | Priority |
+|------|-------------|----------|
+| Remove worker-node-2 replication step | ~May 20, 2026 | P2 |
+| n8n PgBouncer `statement_timeout` fix — re-check [#25705](https://github.com/n8n-io/n8n/issues/25705) | May 2026 | P3 |
+| Re-evaluate VictoriaMetrics | April 2026 | P3 |
+
+**Next Review**: 2026-04-06 (Monthly)
 
 ### 🔍 February 2026 Monthly Review
 
@@ -187,7 +254,7 @@
 | Re-evaluate VictoriaMetrics | April 2026 | P3 |
 | ~~LTS kernel 6.18~~ | ~~TBD~~ | ✅ Done (6.18.16-lts on all 3 nodes) |
 | ~~Authentik worker memory fix — check if [#20537](https://github.com/goauthentik/authentik/issues/20537) landed in 2026.2.x, reduce worker limit 1500Mi→800Mi~~ | ~~March 8, 2026~~ | ✅ Done (v2026.2.1 fixed, reverted to 1200Mi) |
-| n8n PgBouncer `statement_timeout` fix — check [#25705](https://github.com/n8n-io/n8n/issues/25705) | March 2026 | P3 |
+| ~~n8n PgBouncer `statement_timeout` fix — check [#25705](https://github.com/n8n-io/n8n/issues/25705)~~ | ~~March 2026~~ | ✅ Checked (still open, workaround stays) |
 | n8n PgBouncer `statement_timeout` fix — re-check [#25705](https://github.com/n8n-io/n8n/issues/25705), remove workaround if fixed upstream | May 2026 | P3 |
 | ~~Home Assistant: audit legacy template entities~~ | ~~Before June 2026~~ | ✅ Verified compliant (no legacy templates in config) |
 | ~~Authentik: update `/media` mount to `/data/media`~~ | ~~Next Authentik upgrade~~ | ✅ Done |
@@ -198,7 +265,7 @@
 - [x] ~~Helm chart deprecation audit~~ ✅ Completed (2026-02-07) - 2 commits, Kyverno + CouchDB fixes
 - [x] ~~Promtail EOL migration status~~ ✅ Migrated to Alloy (2026-02-07)
 
-**Next Review**: 2026-03-07 (Monthly)
+**Next Review**: 2026-04-06 (Monthly)
 
 ---
 
