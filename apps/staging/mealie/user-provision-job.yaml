@@ -4,7 +4,6 @@ metadata:
   name: mealie-user-provision
   namespace: mealie
 spec:
-  ttlSecondsAfterFinished: 300
   backoffLimit: 3
   template:
     spec:

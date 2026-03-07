@@ -4,7 +4,6 @@ metadata:
   name: audiobookshelf-init
   namespace: audiobookshelf
 spec:
-  ttlSecondsAfterFinished: 300
   template:
     metadata:
       labels:

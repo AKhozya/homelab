@@ -4,7 +4,6 @@ metadata:
   name: home-assistant-admin-setup
   namespace: home-assistant
 spec:
-  ttlSecondsAfterFinished: 300
   template:
     metadata:
       labels:
@@ -26,7 +25,22 @@ spec:
               set -e
 
               echo "Waiting for Home Assistant to be ready..."
-              sleep 15
+              max_attempts=30
+              attempt=0
+              while [ $attempt -lt $max_attempts ]; do
+                attempt=$((attempt + 1))
+                if curl -sf -m 5 -o /dev/null "http://home-assistant.home-assistant.svc.cluster.local:8123/"; then
+                  echo "Home Assistant is ready."
+                  break
+                fi
+                echo "Attempt $attempt/$max_attempts: not ready, retrying in 2s..."
+                sleep 2
+              done
+
+              if [ $attempt -ge $max_attempts ]; then
+                echo "Home Assistant not ready after $max_attempts attempts"
+                exit 1
+              fi
 
               echo "Attempting to create admin user..."
 

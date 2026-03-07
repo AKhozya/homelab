@@ -4,7 +4,6 @@ metadata:
   name: uptime-kuma-setup
   namespace: uptime-kuma
 spec:
-  ttlSecondsAfterFinished: 300
   template:
     metadata:
       labels:
@@ -31,18 +30,41 @@ spec:
               echo "Installing uptime-kuma-api..."
               pip install --quiet --user uptime-kuma-api
 
-              echo "Waiting 10 seconds for Uptime Kuma to be ready..."
-              sleep 10
+              echo "Waiting for Uptime Kuma to be ready..."
+              max_attempts=30
+              attempt=0
+              while [ $attempt -lt $max_attempts ]; do
+                attempt=$((attempt + 1))
+                if python3 -c "import urllib.request; urllib.request.urlopen('http://uptime-kuma.uptime-kuma.svc.cluster.local:3001', timeout=5)" 2>/dev/null; then
+                  echo "Uptime Kuma is ready."
+                  break
+                fi
+                echo "Attempt $attempt/$max_attempts: not ready, retrying in 2s..."
+                sleep 2
+              done
+
+              if [ $attempt -ge $max_attempts ]; then
+                echo "Uptime Kuma not ready after $max_attempts attempts"
+                exit 1
+              fi
 
               echo "Setting up admin user..."
 
               python3 << 'PYEOF'
               from uptime_kuma_api import UptimeKumaApi
-              import os
+              import os, time
 
-              api = UptimeKumaApi('http://uptime-kuma.uptime-kuma.svc.cluster.local:3001')
+              max_retries = 5
+              for i in range(max_retries):
+                  try:
+                      api = UptimeKumaApi('http://uptime-kuma.uptime-kuma.svc.cluster.local:3001')
+                      break
+                  except Exception as e:
+                      if i == max_retries - 1:
+                          raise
+                      print(f"WebSocket connect attempt {i+1}/{max_retries} failed: {e}, retrying in 3s...")
+                      time.sleep(3)
 
-              # Check if setup is needed
               if api.need_setup():
                   print("Setting up admin user...")
                   api.setup(
