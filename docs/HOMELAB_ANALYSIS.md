@@ -598,13 +598,14 @@
 
 ### 📋 P3-LOW (Active Items Only)
 
-| Pending Item | Priority |
-|--------------|----------|
-| Prometheus/Alertmanager config-reloader resource limits | P3 |
-| Re-evaluate VictoriaMetrics (workaround available) | P3 |
-| Backup alert grouping to Telegram thread | P3 |
-| Grafana dashboards for app metrics | P3 |
-| PrometheusRules for custom app metrics | P3 |
+| Pending Item | Priority | Status |
+|--------------|----------|--------|
+| Re-evaluate VictoriaMetrics (workaround available) | P3 | ⏸️ April 2026 |
+| n8n PgBouncer `statement_timeout` re-check | P3 | ⏸️ May 2026 |
+| ~~Prometheus/Alertmanager config-reloader resource limits~~ | ~~P3~~ | ❌ Won't do (chart-managed sidecars, <10Mi RAM) |
+| ~~Backup alert grouping to Telegram thread~~ | ~~P3~~ | ❌ Won't do (~1 alert/month, not worth complexity) |
+| ~~Grafana dashboards for app metrics~~ | ~~P3~~ | ❌ Won't do (apps don't expose custom metrics) |
+| ~~PrometheusRules for custom app metrics~~ | ~~P3~~ | ❌ Won't do (no custom app metrics exist) |
 
 ### ✅ Completed P3-LOW Items (Summary)
 
@@ -786,7 +787,7 @@ Applies CPU governor, kernel tuning for K8s, and network optimizations.
 - **Critical Issues**: 0 P0 issues ✅
 - **High Priority**: 0 P1 active ✅
 - **Active P2**: Remove worker-node-2 replication (~May 20)
-- **Active P3**: VictoriaMetrics re-evaluation, config-reloader resource limits
+- **Active P3**: VictoriaMetrics re-evaluation (April 2026), n8n statement_timeout (May 2026)
 
 **Security Achievements** ✅:
 - **100% Pod Security Standards** (Apps: 11 restricted, 4 baseline, 1 privileged | Jobs: 5 restricted, 1 baseline)
