@@ -765,15 +765,6 @@ spec:
         summary: "Alertmanager configuration is invalid"
         description: "Alertmanager failed to reload its configuration. Alerts may not be sent! Check configuration syntax."
     
-    - alert: AlertmanagerNotificationsFailing
-      expr: rate(alertmanager_notifications_failed_total[5m]) > 0
-      for: 5m
-      labels:
-        severity: warning
-      annotations:
-        summary: "Alertmanager notifications failing to {{ $labels.integration }}"
-        description: "Alertmanager cannot send notifications to {{ $labels.integration }}. Check Telegram bot token and network connectivity."
-
   - name: alertmanager-overrides
     interval: 60s
     rules:

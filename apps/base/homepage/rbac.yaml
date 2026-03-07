@@ -4,6 +4,10 @@ metadata:
   name: homepage
   labels:
     app.kubernetes.io/name: homepage
+# ACCEPTED RISK: Cluster-wide read access (including secrets) required for Homepage
+# Kubernetes service discovery and widget configuration. Scoping to namespace-level
+# Roles would require one Role per namespace (16+), adding significant complexity.
+# Mitigations: NetworkPolicy, non-root, readOnlyRootFilesystem, no write access.
 rules:
   - apiGroups:
       - ""

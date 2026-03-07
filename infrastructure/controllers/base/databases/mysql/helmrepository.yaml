@@ -4,5 +4,5 @@ metadata:
   name: percona
   namespace: percona-mysql
 spec:
-  interval: 24h
+  interval: 6h
   url: https://percona.github.io/percona-helm-charts/

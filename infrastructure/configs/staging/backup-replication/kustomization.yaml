@@ -8,4 +8,5 @@ resources:
   - nas-rsync-secret.yaml
   - backup-telegram-secret.yaml
   - ssh-known-hosts-configmap.yaml
+  - networkpolicy.yaml
   - cronjob.yaml

@@ -1,0 +1,46 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: backup-replication-network-policy
+  namespace: backup-replication
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  # No ingress needed - CronJob is outbound only
+  ingress: []
+  egress:
+    # DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # SSH to worker-node-2 for backup replication
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.126/32
+      ports:
+        - protocol: TCP
+          port: 65300
+    # rsync to NAS for backup replication
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.136/32
+      ports:
+        - protocol: TCP
+          port: 50555
+    # Telegram API for failure notifications
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443

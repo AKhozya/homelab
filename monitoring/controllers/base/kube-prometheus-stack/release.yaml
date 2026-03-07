@@ -179,6 +179,24 @@ spec:
             receiver: 'telegram-backup'
             continue: false
           # K3s component alerts disabled in defaultRules (embedded architecture)
+        inhibit_rules:
+          # Suppress pod/container alerts when their node is down
+          - source_matchers:
+              - alertname = NodeDown
+            target_matchers:
+              - severity =~ "warning|info"
+            equal: [instance]
+          # Suppress warning alerts when a critical alert fires for same namespace/pod
+          - source_matchers:
+              - severity = critical
+            target_matchers:
+              - severity = warning
+            equal: [namespace, alertname]
+          # Suppress info alerts when warning or critical fires
+          - source_matchers:
+              - alertname = InfoInhibitor
+            target_matchers:
+              - severity = info
         receivers:
         - name: 'null'
         - name: 'telegram'

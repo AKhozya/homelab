@@ -1,0 +1,46 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kyverno-network-policy
+  namespace: kyverno
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Webhook admission requests from API server (all nodes)
+    - from:
+        - ipBlock:
+            cidr: 192.168.1.127/32
+        - ipBlock:
+            cidr: 192.168.1.129/32
+        - ipBlock:
+            cidr: 192.168.1.126/32
+      ports:
+        - protocol: TCP
+          port: 443
+    # Prometheus scraping metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Kubernetes API server
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.127/32
+      ports:
+        - protocol: TCP
+          port: 6443

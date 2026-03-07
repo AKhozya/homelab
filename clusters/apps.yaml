@@ -7,7 +7,6 @@ spec:
   interval: 1m0s
   retryInterval: 2m
   wait: false
-  force: true
   timeout: 45s
   dependsOn:
     - name: infrastructure-configs
