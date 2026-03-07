@@ -1,11 +1,11 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2026-02-28)
+**Assessment Date**: 2025-10-18 (Updated: 2026-03-07)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
-**Code Review**: 2026-02-20 - Full codebase analysis (93/100, A) — previous: 2025-12-23 (89/100, A-)
+**Code Review**: 2026-03-07 - Full codebase analysis (94/100, A) — previous: 2026-02-20 (93/100, A)
 **Historical Archive**: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) - Completed tasks & changelog (Oct-Dec 2025)
 
 ---
@@ -362,20 +362,40 @@
 
 ---
 
-### 🔍 Code Review Findings (2026-02-20)
+### 🔍 Code Review Findings (2026-03-07)
 
-**Overall Score**: 93/100 (A) — up from 89/100 in December 2025
+**Overall Score**: 94/100 (A) — up from 93/100 in February 2026
 
 | Category | Score | Change | Notes |
 |----------|-------|--------|-------|
 | Project Structure | 95/100 | = | Clean GitOps, base/staging pattern |
-| Kubernetes Patterns | 92/100 | +4 | CF tunnel GitOps sync, HA cloudflared |
+| Kubernetes Patterns | 93/100 | +1 | Flux healthChecks, removed force:true |
 | Database Infrastructure | 92/100 | = | PG+MySQL HA, pooler, managed roles |
-| Monitoring Stack | 90/100 | +5 | Series optimization, Alloy migration |
-| Security Implementation | 94/100 | = | Node hardening, secrets-at-rest |
+| Monitoring Stack | 90/100 | = | Inhibit rules added, duplicate alert removed |
+| Security Implementation | 96/100 | +2 | 4 new NetworkPolicies, 100% namespace coverage |
 | Backup & DR | 96/100 | = | NAS replication, validation pipeline |
-| Code Quality (DRY) | 78/100 | +6 | Metric relabeling duplication accepted |
-| Documentation | 90/100 | -3 | Fixed PG instance count discrepancy |
+| Code Quality (DRY) | 78/100 | = | DRY violations accepted for homelab simplicity |
+| Documentation | 91/100 | +1 | Analysis doc kept current |
+
+#### Findings Implemented (March 2026)
+
+| # | Finding | Severity | Status |
+|---|---------|----------|--------|
+| 1 | Missing NetworkPolicy for cert-manager, kyverno, percona-mysql, backup-replication | P1 | ✅ Fixed (4 policies, pod CIDR + container ports) |
+| 2 | No Alertmanager inhibit rules (alert storms) | P1 | ✅ Fixed (3 rules: NodeDown, severity, InfoInhibitor) |
+| 3 | Duplicate AlertmanagerNotificationsFailing alert | P1 | ✅ Fixed (removed, kept percentage-based) |
+| 4 | Missing Flux healthChecks on infrastructure-controllers | P1 | ✅ Fixed (cert-manager-webhook, kyverno-admission-controller) |
+| 5 | `force: true` on apps Kustomization | P1 | ✅ Fixed (removed) |
+| 6 | Percona HelmRepository 24h refresh interval | P1 | ✅ Fixed (24h -> 6h) |
+| 7 | cert-manager floating chart version 1.19.x | P1 | ✅ Fixed (pinned to 1.19.4) |
+| 8 | Homepage ClusterRole reads all secrets cluster-wide | P1 | ⚠️ Accepted (required for K8s service discovery, documented) |
+| 9 | No runbook_url on 112 custom alerts | P2 | ⏸️ Deferred (start with top 20) |
+| 10 | 5 PVCs missing storageClassName: local-path | P2 | ⏸️ Deferred |
+| 11 | CPUThrottlingHigh uses hardcoded worker IPs | P2 | ⏸️ Deferred |
+| 12 | Backup cleanup runs inside backup jobs | P2 | ⏸️ Deferred |
+| 13 | DRY violations (security contexts, probes, annotations) | P3 | ❌ Accepted (homelab simplicity) |
+
+#### Previous Review Findings (2026-02-20)
 
 #### Findings Implemented
 
@@ -1143,6 +1163,25 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-03-07 (March 2026 Code Review - 94/100, A) 📋
+- **Full Codebase Review**: Score improved 93/100 -> 94/100 (+1 point) via 6 parallel agents
+- **NetworkPolicy**: Added for cert-manager, kyverno, percona-mysql, backup-replication (4 namespaces)
+  - Key learning: K3s API server connects to webhooks via pod CIDR (10.42.0.0/16), not node IPs
+  - Container ports (kyverno 9443, cert-manager 10250), NOT Service ports (443)
+- **Alertmanager**: Added inhibit rules to suppress alert storms during node outages
+  - NodeDown suppresses warning/info severity alerts on same instance
+  - Critical severity suppresses warning for same namespace/alertname
+  - InfoInhibitor suppresses info severity
+- **Alertmanager**: Removed duplicate AlertmanagerNotificationsFailing (kept percentage-based AlertmanagerFailedToSendAlerts)
+- **Flux**: Added healthChecks to infrastructure-controllers (cert-manager-webhook, kyverno-admission-controller)
+- **Flux**: Increased infrastructure-controllers timeout 45s -> 5m (webhook startup tolerance)
+- **Flux**: Removed force: true from apps Kustomization (prevents operator field conflicts)
+- **Helm**: Pinned cert-manager chart 1.19.x -> 1.19.4 (prevent silent drift, enable Renovate tracking)
+- **Helm**: Standardized Percona HelmRepository interval 24h -> 6h (consistent with all other repos)
+- **Security**: Documented Homepage ClusterRole secrets access as accepted risk
+- **Findings**: 8 P1, 12 P2, 10 P3 - all P1 fixed, P2/P3 deferred
+- Commits: cd27a2e9, 21cb1e48
 
 ### 2026-03-06 (LTS Kernel + K3s Upgrade) 🐧
 - ✅ **Kernel: mainline 6.19.6 → LTS 6.18.16** on all 3 nodes ⭐
