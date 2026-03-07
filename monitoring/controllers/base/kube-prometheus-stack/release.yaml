@@ -285,13 +285,13 @@ spec:
                 expr: |
                   sum without (id, metrics_path, name, image, endpoint, job, node) (
                     topk by (cluster, namespace, pod, container, instance) (1,
-                      increase(container_cpu_cfs_throttled_periods_total{container!="", job="kubelet", metrics_path="/metrics/cadvisor", instance!~"192.168.1.12(9|6):10250"}[5m])
+                      increase(container_cpu_cfs_throttled_periods_total{container!="", job="kubelet", metrics_path="/metrics/cadvisor", node!~"worker-node|worker-node-2"}[5m])
                     )
                   )
                   / on (cluster, namespace, pod, container, instance) group_left
                   sum without (id, metrics_path, name, image, endpoint, job, node) (
                     topk by (cluster, namespace, pod, container, instance) (1,
-                      increase(container_cpu_cfs_periods_total{job="kubelet", metrics_path="/metrics/cadvisor", instance!~"192.168.1.12(9|6):10250"}[5m])
+                      increase(container_cpu_cfs_periods_total{job="kubelet", metrics_path="/metrics/cadvisor", node!~"worker-node|worker-node-2"}[5m])
                     )
                   )
                   > ( 25 / 100 )
@@ -305,8 +305,13 @@ spec:
                   runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/cputhrottlinghigh
               # Override: exclude rebuilderd worker nodes (swap spillover causes expected page faults)
               # Only alert on control-plane where page faults indicate real memory pressure
+              # node-exporter lacks 'node' label, so join with node_uname_info to filter by hostname
               - alert: NodeMemoryMajorPagesFaults
-                expr: rate(node_vmstat_pgmajfault{job="node-exporter", instance!~"192.168.1.12(9|6):9100"}[5m]) > 500
+                expr: |
+                  rate(node_vmstat_pgmajfault{job="node-exporter"}[5m])
+                    * on(instance) group_left()
+                    node_uname_info{nodename!~"worker-node|worker-node2"}
+                  > 500
                 for: 30m
                 labels:
                   severity: warning

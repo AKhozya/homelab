@@ -3,6 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: audiobookshelf-config
 spec:
+  storageClassName: local-path
   accessModes:
     - ReadWriteOnce
   resources:
@@ -14,6 +15,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: audiobookshelf-metadata
 spec:
+  storageClassName: local-path
   accessModes:
     - ReadWriteOnce
   resources:
@@ -25,6 +27,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: audiobookshelf-audiobooks
 spec:
+  storageClassName: local-path
   accessModes:
     - ReadWriteOnce
   resources:
@@ -36,6 +39,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: audiobookshelf-podcasts
 spec:
+  storageClassName: local-path
   accessModes:
     - ReadWriteOnce
   resources:

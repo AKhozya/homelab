@@ -4,6 +4,7 @@ metadata:
   name: adguard-home-data-pvc
   namespace: adguard-home
 spec:
+  storageClassName: local-path
   accessModes:
     - ReadWriteOnce
   resources:

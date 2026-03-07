@@ -389,10 +389,10 @@
 | 6 | Percona HelmRepository 24h refresh interval | P1 | ✅ Fixed (24h -> 6h) |
 | 7 | cert-manager floating chart version 1.19.x | P1 | ✅ Fixed (pinned to 1.19.4) |
 | 8 | Homepage ClusterRole reads all secrets cluster-wide | P1 | ⚠️ Accepted (required for K8s service discovery, documented) |
-| 9 | No runbook_url on 112 custom alerts | P2 | ⏸️ Deferred (start with top 20) |
-| 10 | 5 PVCs missing storageClassName: local-path | P2 | ⏸️ Deferred |
-| 11 | CPUThrottlingHigh uses hardcoded worker IPs | P2 | ⏸️ Deferred |
-| 12 | Backup cleanup runs inside backup jobs | P2 | ⏸️ Deferred |
+| 9 | No runbook_url on 111 custom alerts | P2 | ❌ Won't do (no runbooks exist, URLs would point nowhere) |
+| 10 | 9 PVCs missing storageClassName: local-path | P2 | ✅ Fixed (9 PVCs + immich storageClass→storageClassName typo) |
+| 11 | CPUThrottlingHigh uses hardcoded worker IPs | P2 | ✅ Fixed (cadvisor: node label, node-exporter: node_uname_info join) |
+| 12 | Backup cleanup runs inside backup jobs | P2 | ❌ Accepted (low risk for homelab, cleanup is fast) |
 | 13 | DRY violations (security contexts, probes, annotations) | P3 | ❌ Accepted (homelab simplicity) |
 
 #### Previous Review Findings (2026-02-20)
@@ -580,6 +580,7 @@
 
 | Item | Date | Status |
 |------|------|--------|
+| PVC storageClassName + alert hardcoded IPs | 2026-03-07 | ✅ 9 PVCs fixed, immich typo fixed, CPUThrottlingHigh/NodeMemoryMajorPagesFaults use hostnames |
 | ReadOnlyRootFilesystem Phase 1-3 | 2025-12-23 | ✅ 10 apps hardened (paperless, authentik×2, csp-reporter, homepage, homehub, uptime-kuma, linkwarden, immich-ml, immich-proxy) |
 | Backup Integrity Checks (SHA256) | 2025-10-31 | ✅ All backups generate checksums |
 | GPG Secrets Encryption | 2025-10-31 | ✅ AES256 with interactive passphrase |
@@ -1180,7 +1181,12 @@ ingress:
 - **Helm**: Pinned cert-manager chart 1.19.x -> 1.19.4 (prevent silent drift, enable Renovate tracking)
 - **Helm**: Standardized Percona HelmRepository interval 24h -> 6h (consistent with all other repos)
 - **Security**: Documented Homepage ClusterRole secrets access as accepted risk
-- **Findings**: 8 P1, 12 P2, 10 P3 - all P1 fixed, P2/P3 deferred
+- **Findings**: 8 P1, 12 P2, 10 P3 - all P1 fixed, 2 P2 fixed, 2 P2 accepted/won't do, rest deferred
+- **P2 Fixes**:
+  - 9 PVCs missing `storageClassName: local-path` (pricebuddy, adguard, paperless, uptime-kuma, mealie, audiobookshelf×4) + immich `storageClass`→`storageClassName` typo
+  - CPUThrottlingHigh: replaced hardcoded IPs with `node` label filter (`node!~"worker-node|worker-node-2"`)
+  - NodeMemoryMajorPagesFaults: replaced hardcoded IPs with `node_uname_info` hostname join
+  - runbook_url: won't do (no runbooks exist); backup cleanup: accepted (low risk)
 - Commits: cd27a2e9, 21cb1e48
 
 ### 2026-03-06 (LTS Kernel + K3s Upgrade) 🐧

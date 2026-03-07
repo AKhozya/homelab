@@ -4,6 +4,7 @@ metadata:
   name: pricebuddy-storage
   namespace: pricebuddy
 spec:
+  storageClassName: local-path
   accessModes:
     - ReadWriteOnce
   resources:
