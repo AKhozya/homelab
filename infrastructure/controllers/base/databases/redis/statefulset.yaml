@@ -108,7 +108,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: redis-exporter
-          image: oliver006/redis_exporter:v1.81.0-alpine
+          image: oliver006/redis_exporter:v1.82.0-alpine
           args:
             - --redis.addr=redis://localhost:6379
             - --redis.user=admin
