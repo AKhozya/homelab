@@ -3,10 +3,11 @@
 # Run with: sudo bash setup-node.sh
 #
 # This script configures a K3s node with:
-# 1. Firmware (auto-detects Intel/AMD)
-# 2. Power/Performance optimization (powersave governor for noise/heat reduction, balance_power EPP, SSD no-sleep, BBR)
-# 3. K3s config (control-plane or worker, auto-detected)
-# 4. Graceful shutdown (kubelet config)
+# 1. Packages & firmware (auto-detects Intel/AMD)
+# 2. Power/Performance optimization (powersave governor, balance_power EPP, SSD no-sleep, BBR)
+# 3. Security hardening (kernel, filesystem, network, SSH, watchdog)
+# 4. K3s config (control-plane or worker, auto-detected)
+# 5. Graceful shutdown & system services (kubelet, journald, timers)
 #
 # Works for both control-plane and worker nodes (auto-detected)
 
@@ -57,11 +58,15 @@ echo "K3s service: $K3S_SERVICE"
 echo ""
 
 #######################################
-# 1. FIRMWARE
+# 1. PACKAGES & FIRMWARE
 #######################################
 echo "=============================================="
-echo "[1/4] Firmware Setup"
+echo "[1/5] Packages & Firmware"
 echo "=============================================="
+
+# Install essential packages
+echo "Installing essential packages..."
+pacman -S --noconfirm --needed smartmontools inetutils 2>/dev/null || true
 
 # Install required firmware
 echo "Installing firmware packages..."
@@ -105,7 +110,7 @@ echo ""
 # 2. PERFORMANCE OPTIMIZATION
 #######################################
 echo "=============================================="
-echo "[2/4] Performance Optimization"
+echo "[2/5] Performance Optimization"
 echo "=============================================="
 
 # CPU Governor (powersave with balance_power EPP)
@@ -127,6 +132,7 @@ for epp in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; d
 done
 
 # Make CPU settings persistent (boost remains enabled for burst performance)
+rm -f /etc/tmpfiles.d/cpu-governor.conf  # Clean up old naming
 cat > /etc/tmpfiles.d/cpu-power-settings.conf << 'EOF'
 # K3s Node CPU Power Settings
 # Governor: powersave (efficient baseline, boost available when needed)
@@ -172,25 +178,80 @@ vm.dirty_background_ratio = 5
 EOF
 sysctl -p /etc/sysctl.d/99-k8s-performance.conf >/dev/null 2>&1
 
-# Security hardening sysctls
-echo "Applying security hardening sysctls..."
-cat > /etc/sysctl.d/99-security-hardening.conf << 'EOF'
-# Security Hardening (February 2026)
+# Clean up legacy sysctl files (superseded by unified-hardening)
+rm -f /etc/sysctl.d/51-kptr-restrict.conf
+rm -f /etc/sysctl.d/99-security-hardening.conf
 
-# Disable ICMP secure redirects (prevent MITM route injection)
+echo "  Done: Performance optimizations applied"
+echo ""
+
+#######################################
+# 3. SECURITY HARDENING
+#######################################
+echo "=============================================="
+echo "[3/5] Security Hardening"
+echo "=============================================="
+
+# Unified security hardening sysctls
+echo "Applying unified security hardening sysctls..."
+cat > /etc/sysctl.d/99-unified-hardening.conf << 'EOF'
+# Unified K8s Node Hardening - sysctl settings
+# Deployed by setup-node.sh
+
+# ===== KERNEL HARDENING =====
+kernel.kptr_restrict = 2
+kernel.dmesg_restrict = 1
+kernel.perf_event_paranoid = 4
+kernel.unprivileged_bpf_disabled = 1
+net.core.bpf_jit_harden = 2
+kernel.yama.ptrace_scope = 1
+kernel.core_pattern = |/bin/false
+kernel.printk = 3 4 1 3
+kernel.sysrq = 176
+vm.unprivileged_userfaultfd = 0
+dev.tty.ldisc_autoload = 0
+
+# ===== FILESYSTEM HARDENING =====
+fs.protected_fifos = 2
+fs.protected_regular = 2
+fs.suid_dumpable = 0
+
+# ===== NETWORK HARDENING =====
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv6.conf.all.accept_redirects = 0
+net.ipv6.conf.default.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv6.conf.all.accept_source_route = 0
+net.ipv6.conf.default.accept_source_route = 0
 net.ipv4.conf.all.secure_redirects = 0
 net.ipv4.conf.default.secure_redirects = 0
-
-# Log martian packets (spoofed source addresses)
 net.ipv4.conf.all.log_martians = 1
 net.ipv4.conf.default.log_martians = 1
-
-# BPF hardening: Arch kernel uses BPF_JIT_ALWAYS_ON + BPF_UNPRIV_DEFAULT_OFF
-# which is superior to bpf_jit_harden (no interpreter fallback, unprivileged blocked)
-# Ensure unprivileged BPF stays disabled (defense in depth)
-kernel.unprivileged_bpf_disabled = 1
+net.ipv4.tcp_syncookies = 1
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 1
 EOF
-sysctl -p /etc/sysctl.d/99-security-hardening.conf >/dev/null 2>&1
+sysctl -p /etc/sysctl.d/99-unified-hardening.conf >/dev/null 2>&1
+
+# Kernel watchdog (auto-reboot on lockup)
+echo "Configuring kernel watchdog..."
+cat > /etc/sysctl.d/99-watchdog.conf << 'EOF'
+# Enable NMI watchdog for hard lockup detection
+kernel.nmi_watchdog=1
+# Panic on soft lockup (logs before crash)
+kernel.softlockup_panic=1
+# Panic on hard lockup (triggers reboot)
+kernel.hardlockup_panic=1
+# Log all lockups
+kernel.softlockup_all_cpu_backtrace=1
+EOF
+sysctl -p /etc/sysctl.d/99-watchdog.conf >/dev/null 2>&1
 
 # SSH hardening (post-quantum kex, strong ciphers only)
 echo "Applying SSH hardening..."
@@ -215,6 +276,27 @@ if sshd -t 2>/dev/null; then
 else
     echo "  ERROR: SSH config invalid, reverting"
     rm -f /etc/ssh/sshd_config.d/99-hardening.conf
+fi
+
+# Ensure PermitEmptyPasswords is set in main sshd_config
+if ! grep -q "^PermitEmptyPasswords" /etc/ssh/sshd_config; then
+    if grep -q "^PasswordAuthentication" /etc/ssh/sshd_config; then
+        sed -i '/^PasswordAuthentication/a PermitEmptyPasswords no' /etc/ssh/sshd_config
+    else
+        echo "PermitEmptyPasswords no" >> /etc/ssh/sshd_config
+    fi
+    echo "  Added PermitEmptyPasswords no"
+fi
+
+# AMD P-state: add amd_pstate=active to boot entries for AMD CPUs
+if [ "$CPU_TYPE" = "AMD" ]; then
+    echo "Adding amd_pstate=active to boot entries..."
+    for conf in /boot/loader/entries/*.conf; do
+        if [ -f "$conf" ] && ! grep -q "amd_pstate=active" "$conf"; then
+            sed -i '/^options / s/$/ amd_pstate=active/' "$conf"
+            echo "  Added amd_pstate=active to $(basename "$conf")"
+        fi
+    done
 fi
 
 # Enable SSD TRIM
@@ -271,14 +353,14 @@ for host in /sys/class/scsi_host/host*/link_power_management_policy; do
     echo max_performance > "$host" 2>/dev/null || true
 done
 
-echo "  Done: Performance optimizations applied"
+echo "  Done: SSD/NVMe power saving disabled"
 echo ""
 
 #######################################
-# 3. K3S CONFIG
+# 4. K3S CONFIG
 #######################################
 echo "=============================================="
-echo "[3/4] K3s Configuration"
+echo "[4/5] K3s Configuration"
 echo "=============================================="
 
 mkdir -p /etc/rancher/k3s/
@@ -346,19 +428,32 @@ echo "  Done: K3s config deployed to /etc/rancher/k3s/config.yaml"
 echo ""
 
 #######################################
-# 4. GRACEFUL SHUTDOWN
+# 5. GRACEFUL SHUTDOWN & SYSTEM SERVICES
 #######################################
 echo "=============================================="
-echo "[4/4] Graceful Shutdown Configuration"
+echo "[5/5] Graceful Shutdown & System Services"
 echo "=============================================="
+
+# Journald size limits (prevent unbounded growth)
+echo "Configuring journald size limits..."
+mkdir -p /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/00-journal-size.conf << 'EOF'
+[Journal]
+SystemMaxUse=500M
+MaxRetentionSec=2weeks
+Compress=yes
+EOF
+systemctl restart systemd-journald
 
 # Update systemd timeouts
 echo "Configuring systemd timeouts..."
-if grep -q "^DefaultTimeoutStopSec=" /etc/systemd/system.conf; then
-    sed -i 's/^DefaultTimeoutStopSec=.*/DefaultTimeoutStopSec=120s/' /etc/systemd/system.conf
-else
-    echo "DefaultTimeoutStopSec=120s" >> /etc/systemd/system.conf
-fi
+for timeout_key in DefaultTimeoutStartSec DefaultTimeoutStopSec; do
+    if grep -q "^${timeout_key}=" /etc/systemd/system.conf; then
+        sed -i "s/^${timeout_key}=.*/${timeout_key}=120s/" /etc/systemd/system.conf
+    else
+        echo "${timeout_key}=120s" >> /etc/systemd/system.conf
+    fi
+done
 
 # Create kubelet config (referenced by K3s config from step 3)
 echo "Creating kubelet config..."
@@ -401,6 +496,13 @@ cat > /etc/systemd/system/${K3S_SERVICE}.service.d/conntrack-fix.conf << 'EOF'
 ExecStartPost=/sbin/sysctl -w net.netfilter.nf_conntrack_max=1048576
 EOF
 
+# Re-apply network hardening after K3s creates flannel/cni interfaces
+# (systemd-sysctl runs before K3s, so network sysctls get reset by new interface creation)
+cat > /etc/systemd/system/${K3S_SERVICE}.service.d/network-hardening.conf << 'EOF'
+[Service]
+ExecStartPost=/sbin/sysctl -w net.ipv4.conf.all.log_martians=1 net.ipv4.conf.default.log_martians=1 net.ipv4.conf.all.secure_redirects=0 net.ipv4.conf.default.secure_redirects=0
+EOF
+
 # Reload systemd
 systemctl daemon-reload
 
@@ -415,31 +517,25 @@ echo "       Setup Complete"
 echo "=============================================="
 echo ""
 echo "Applied:"
-echo "  - Firmware: $UCODE_PKG, linux-firmware"
-echo "  - CPU governor: powersave (noise/heat reduction, EPP: balance_power, boost enabled)"
-echo "  - TCP congestion: BBR"
+echo "  - Packages: smartmontools, inetutils, $UCODE_PKG, linux-firmware"
+echo "  - CPU governor: powersave (EPP: balance_power, boost enabled)"
+echo "  - TCP congestion: BBR, inotify 8192/1M, conntrack 1M"
 echo "  - SSD power saving: disabled (NVMe APST, PCIe ASPM, SATA ALPM)"
-echo "  - inotify limits: 8192 instances, 1M watches"
-echo "  - Conntrack max: 1048576"
-echo "  - SSH: post-quantum kex, strong ciphers/MACs only"
-echo "  - Kernel: secure_redirects off, log_martians, unprivileged_bpf_disabled"
+echo "  - Security: unified kernel/fs/network hardening (50+ settings)"
+echo "  - Watchdog: panic on soft/hard lockup (auto-reboot)"
+echo "  - SSH: post-quantum kex, strong ciphers/MACs, PermitEmptyPasswords no"
+echo "  - Journald: 500MB max, 2 weeks retention"
 echo "  - K3s config: $NODE_TYPE (node-name: $HOSTNAME)"
-echo "  - Eviction: hard 10%, soft 15% (1m grace)"
-echo "  - Container logs: 50Mi × 5 files"
-echo "  - Kubelet streaming timeout: 5m"
 echo "  - Graceful shutdown: 120s (30s critical)"
 echo ""
-echo "Files created/modified:"
-echo "  - /etc/tmpfiles.d/cpu-power-settings.conf"
-echo "  - /etc/tmpfiles.d/nvme-no-pm.conf"
+echo "Key files:"
+echo "  - /etc/sysctl.d/99-unified-hardening.conf"
+echo "  - /etc/sysctl.d/99-watchdog.conf"
 echo "  - /etc/sysctl.d/99-k8s-performance.conf"
-echo "  - /etc/modprobe.d/nvme-no-apst.conf"
-echo "  - /etc/udev/rules.d/60-nvme-no-pm.rules"
-echo "  - /etc/udev/rules.d/60-sata-no-alpm.rules"
-echo "  - /boot/loader/entries/*.conf (pcie_aspm=off)"
+echo "  - /etc/ssh/sshd_config.d/99-hardening.conf"
+echo "  - /etc/systemd/journald.conf.d/00-journal-size.conf"
 echo "  - /etc/rancher/k3s/config.yaml"
 echo "  - /etc/rancher/k3s/kubelet.yaml"
-echo "  - /etc/systemd/system/${K3S_SERVICE}.service.d/shutdown-timeout.conf"
 echo ""
 if [ "$NODE_TYPE" = "control-plane" ]; then
     UFW_SCRIPT="setup-ufw-k3s-control-plane.sh"

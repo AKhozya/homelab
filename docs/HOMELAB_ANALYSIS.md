@@ -56,12 +56,15 @@
   - CPU/RAM quota fix: archlinux-repro passes limits to nspawn containers (upstream [PR #143](https://github.com/archlinux/archlinux-repro/pull/143) merged)
   - Kernel watchdog: nmi_watchdog + softlockup/hardlockup panic enabled for crash detection
 - Default credential elimination on all apps
-- **🆕 Node-Level Security Hardening** ⭐ (2026-02-12)
+- **🆕 Node-Level Security Hardening** ⭐ (2026-02-12, Updated: 2026-03-09)
   - **SSH**: Post-quantum kex (mlkem768x25519), strong ciphers (chacha20/aes-gcm), ETM MACs only
   - **Kernel**: secure_redirects=0, log_martians=1, unprivileged_bpf_disabled=1
   - **Kubelet**: streamingConnectionIdleTimeout=5m (CIS benchmark)
   - **K3s Secrets-at-Rest**: AES-CBC encryption enabled (control-plane)
-  - **Coverage**: All 3 nodes hardened
+  - **K3s ExecStartPost**: Re-applies log_martians + secure_redirects after flannel/cni interface creation
+  - **Watchdog**: softlockup_panic + hardlockup_panic for auto-reboot on lockup
+  - **NVMe/SSD**: APST disabled, PCIe ASPM off, SATA ALPM max_performance
+  - **Coverage**: All 3 nodes hardened, unified setup-node.sh for rebuilds
 - **🆕 Comprehensive Security Headers & Protections** ⭐ (2025-10-30)
   - **Phase 1 (Completed)**: Safe security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy)
   - **Phase 2 (Completed)**: HSTS deployment - Dual layer (Cloudflare edge: 1 month, Traefik origin: 1 week)
@@ -111,7 +114,7 @@
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-**Last Updated**: 2026-03-06 (Monthly Review)
+**Last Updated**: 2026-03-09 (Monthly Review)
 **Source**: HOMELAB_REVIEW_2025_12_17 (archived, see git history)
 **Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
 
@@ -714,52 +717,40 @@
 
 Scripts for node-level configuration stored in `docs/scripts/`. Run manually when needed.
 
-### Graceful Node Shutdown Configuration
-Configures K3s kubelet for proper pod eviction during node reboots/shutdowns.
+### Unified Node Setup (`setup-node.sh`)
 
-| Script | Node | Run Command |
-|--------|------|-------------|
-| `graceful-shutdown-master.sh` | gmk-k3s-control-plane | `sudo bash /tmp/graceful-shutdown-master.sh` |
-| `graceful-shutdown-worker-1.sh` | worker-node | `sudo bash /tmp/graceful-shutdown-worker-1.sh` |
-| `graceful-shutdown-worker-2.sh` | worker-node-2 | `sudo bash /tmp/graceful-shutdown-worker-2.sh` |
+**Single script for all node types** — auto-detects control-plane vs worker, Intel vs AMD.
 
-**What they configure:**
-- `/etc/rancher/k3s/kubelet.yaml`: KubeletConfiguration with `shutdownGracePeriod: 120s`
-- `/etc/rancher/k3s/config.yaml`: References kubelet config file
-- `/etc/systemd/system.conf`: `DefaultTimeoutStopSec=120s`
-- systemd service override: `TimeoutStopSec=150s` (120s + buffer)
+| Run Command | Any Node |
+|-------------|----------|
+| `sudo bash setup-node.sh` | Auto-detects node type and CPU |
 
-**Status** (2025-12-20):
-- ✅ Control-plane: Configured (`shutdownGracePeriod: 2m0s`)
-- ✅ Worker-1: Configured (`shutdownGracePeriod: 2m0s`)
-- ✅ Worker-2: Configured (`shutdownGracePeriod: 2m0s`)
+**What it configures (5 sections):**
 
-### Firmware Management
-Installs required firmware packages.
+1. **Packages & Firmware**: smartmontools, inetutils, intel-ucode/amd-ucode, linux-firmware, AUR firmware
+2. **Performance**: CPU governor (powersave + balance_power EPP), BBR, TCP tuning, conntrack, SSD no-sleep
+3. **Security**: Unified kernel/fs/network hardening (50+ sysctls), watchdog, SSH post-quantum kex, NVMe APST off
+4. **K3s Config**: config.yaml + kubelet.yaml (auto control-plane vs worker)
+5. **System Services**: Graceful shutdown (120s), journald (500MB/2wk), systemd timeouts, K3s ExecStartPost overrides
 
-| Script | Node | Hardware |
-|--------|------|----------|
-| `firmware-master.sh` | gmk-k3s-control-plane | Intel N100, Intel UHD, Realtek WiFi, Intel I226-V |
-| `firmware-worker-1.sh` | worker-node | AMD Ryzen 9 9955HX, AMD Radeon, MediaTek WiFi, Intel NICs |
-| `firmware-worker-2.sh` | worker-node-2 | AMD Ryzen 7 8745H, AMD Radeon 780M, MediaTek WiFi |
+**Key files deployed:**
+- `/etc/sysctl.d/99-unified-hardening.conf` — kernel, filesystem, network hardening
+- `/etc/sysctl.d/99-watchdog.conf` — soft/hard lockup panic
+- `/etc/sysctl.d/99-k8s-performance.conf` — BBR, conntrack, inotify, TCP buffers
+- `/etc/ssh/sshd_config.d/99-hardening.conf` — post-quantum kex, strong ciphers/MACs
+- `/etc/rancher/k3s/config.yaml` — K3s node config
+- `/etc/rancher/k3s/kubelet.yaml` — kubelet shutdown, eviction, log rotation
+- `/etc/systemd/system/${K3S_SERVICE}.service.d/network-hardening.conf` — re-apply sysctls after K3s interface creation
+- `/etc/systemd/system/${K3S_SERVICE}.service.d/conntrack-fix.conf` — override kube-proxy conntrack
+- `/etc/tmpfiles.d/cpu-power-settings.conf` — persistent CPU governor + EPP
 
-**What they do:**
-- Install required: `intel-ucode`/`amd-ucode`, `linux-firmware`, `linux-firmware-whence`
-- Install optional AUR firmware (suppresses mkinitcpio warnings): `aic94xx-firmware`, `ast-firmware`, `upd72020x-fw`, `wd719x-firmware`
-
-**Status** (2026-02-07): ✅ All 3 nodes have required + optional firmware installed
+**Status** (2026-03-09): ✅ All 3 nodes configured, verified post-reboot
 
 ### Performance Optimization
-Applies CPU governor, kernel tuning for K8s, and network optimizations.
-
-| Script | Node | Run Command |
-|--------|------|-------------|
-| `optimize-master.sh` | gmk-k3s-control-plane | `sudo bash /tmp/optimize-master.sh` |
-| `optimize-worker-1.sh` | worker-node | `sudo bash /tmp/optimize-worker-1.sh` |
-| `optimize-worker-2.sh` | worker-node-2 | `sudo bash /tmp/optimize-worker-2.sh` |
+Now unified into `setup-node.sh` (auto-detects node type and CPU vendor).
 
 **What they configure:**
-- CPU governor → `performance` (consistent low latency, persists via tmpfiles.d)
+- CPU governor → `powersave` (efficient baseline, EPP balance_power, boost enabled, persists via tmpfiles.d)
 - `fs.inotify.max_user_instances` → 8192 (more containers)
 - `fs.inotify.max_user_watches` → 1048576 (more file watches)
 - TCP congestion → BBR (better throughput)
@@ -1157,14 +1148,31 @@ ingress:
 
 ---
 
-**Last Updated**: 2026-03-06
-**Next Review**: 2026-03-07
+**Last Updated**: 2026-03-09
+**Next Review**: 2026-04-06 (Monthly)
 
 ---
 
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-03-09 (Comprehensive Node Audit & Hardening) 🔒
+- ✅ **Full Arch Linux audit across all 3 nodes** — 18 findings identified and fixed ⭐
+- ✅ **Unified setup-node.sh**: Single script replaces per-node scripts (auto-detects CP/worker, Intel/AMD)
+  - Added: smartmontools, inetutils, journald config, PermitEmptyPasswords, amd_pstate boot param
+  - Added: SSD/NVMe power saving disabled (APST, ASPM, ALPM)
+  - Added: Watchdog config (softlockup_panic, hardlockup_panic)
+  - Added: K3s ExecStartPost for network hardening re-apply
+  - Cleaned: Old cpu-governor.conf, 51-kptr-restrict.conf, 99-security-hardening.conf
+- ✅ **Sysctl hardening fix**: secure_redirects=0 added to unified-hardening.conf (was missing after old file removal)
+- ✅ **K3s ExecStartPost**: log_martians + secure_redirects re-applied after flannel/cni interface creation
+  - Root cause: systemd-sysctl runs before K3s, new interfaces reset network sysctls
+- ✅ **Worker-node-2 fixes**: hostname (worker-node2→worker-node-2), pacman (ParallelDownloads 10), fstab (noatime)
+- ✅ **Worker-node fixes**: networkd-wait-online interface (enp3s0→enp4s0), stale tmpfiles cleanup
+- ✅ **Control-plane fixes**: stale 51-kptr-restrict.conf removed, cpu tmpfiles renamed
+- ✅ **Rolling reboot**: W2 → W1 → CP, all verified post-reboot
+- ✅ **Cluster health**: 3/3 nodes Ready, 81 running pods, 0 alerts, 0 stale RS after cleanup
 
 ### 2026-03-07 (March 2026 Code Review - 94/100, A) 📋
 - **Full Codebase Review**: Score improved 93/100 -> 94/100 (+1 point) via 6 parallel agents
