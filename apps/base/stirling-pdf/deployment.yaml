@@ -31,7 +31,7 @@ spec:
             - name: HOME
               value: "/tmp"
             - name: JAVA_CUSTOM_OPTS
-              value: "-XX:MaxRAMPercentage=50"
+              value: "-XX:MaxRAMPercentage=45"
           envFrom:
             - secretRef:
                 name: stirling-pdf-env
@@ -69,10 +69,10 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "1.5Gi"
+              memory: "1Gi"
             limits:
               cpu: "1000m"
-              memory: "3Gi"
+              memory: "2Gi"
           volumeMounts:
             - name: temp-dir
               mountPath: /tmp
