@@ -256,7 +256,7 @@ spec:
             proxy:
               image:
                 repository: nginx
-                tag: 1.29.5-alpine
+                tag: 1.29.6-alpine
                 pullPolicy: IfNotPresent
               command:
                 - /bin/sh
