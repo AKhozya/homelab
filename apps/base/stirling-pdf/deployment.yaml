@@ -30,8 +30,8 @@ spec:
           env:
             - name: HOME
               value: "/tmp"
-            - name: JAVA_BASE_OPTS
-              value: "-XX:+ExitOnOutOfMemoryError -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:G1HeapRegionSize=4m -XX:G1PeriodicGCInterval=60000 -XX:+UseStringDeduplication -XX:+ExplicitGCInvokesConcurrent -Dspring.threads.virtual.enabled=true -XX:InitialRAMPercentage=20 -XX:MaxRAMPercentage=55 -XX:MaxMetaspaceSize=192m"
+            - name: JAVA_CUSTOM_OPTS
+              value: "-XX:MaxRAMPercentage=50"
           envFrom:
             - secretRef:
                 name: stirling-pdf-env
@@ -69,10 +69,10 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "1Gi"
+              memory: "1.5Gi"
             limits:
               cpu: "1000m"
-              memory: "2Gi"
+              memory: "3Gi"
           volumeMounts:
             - name: temp-dir
               mountPath: /tmp
