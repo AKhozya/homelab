@@ -85,6 +85,14 @@ spec:
           port: 7946
         - protocol: TCP
           port: 9095
+    # Allow loki-sc-rules sidecar to access Kubernetes API for secret sync
+    # API server endpoint: 192.168.1.127:6443 (control plane node)
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.127/32
+      ports:
+        - protocol: TCP
+          port: 6443
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
