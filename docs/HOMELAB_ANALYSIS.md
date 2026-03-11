@@ -1158,6 +1158,23 @@ ingress:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
+### 2026-03-11 (NetworkPolicy K8s API Egress Audit) 🔒
+- ✅ **Loki crash-loop fixed**: `loki-sc-rules` sidecar (kiwigrid/k8s-sidecar) couldn't reach K8s API ⭐
+  - Root cause: loki NetworkPolicy (added Jan 9) missing K8s API egress (192.168.1.127:6443)
+  - Went undetected because pod wasn't restarted since before policy was applied
+  - Exposed by Renovate Loki chart update to v6.54.0 which recreated the pod
+- ✅ **Traefik NetworkPolicy fixed**: Missing K8s API egress (ticking time bomb) ⭐
+  - Traefik was working via stale HTTP/2 watch connections from startup race window
+  - `wget` from inside pod confirmed "Connection refused" on 10.43.0.1:443
+  - If API watch dropped (API restart, network hiccup), ALL routing would break
+- ✅ **Homepage NetworkPolicy fixed**: Removed stale `component: apiserver` pod selector ⭐
+  - Old rule had `port: 443` to `namespaceSelector: {}` — doesn't match after kube-proxy DNAT (port becomes 6443)
+  - Replaced with explicit `192.168.1.127:6443` rule
+- ✅ **Full audit**: 40 NetworkPolicies across all namespaces checked, all other policies confirmed correct
+  - cert-manager, kyverno, percona-mysql, databases, monitoring, flux-system — all have proper API egress
+- ℹ️ **Key learning**: Existing TCP connections survive NetworkPolicy changes (conntrack ESTABLISHED). Always restart pods after adding/modifying NetworkPolicies to verify.
+- 📋 **Commits**: acea8f23, e84b2705
+
 ### 2026-03-09 (Comprehensive Node Audit & Hardening) 🔒
 - ✅ **Full Arch Linux audit across all 3 nodes** — 18 findings identified and fixed ⭐
 - ✅ **Unified setup-node.sh**: Single script replaces per-node scripts (auto-detects CP/worker, Intel/AMD)
