@@ -3,6 +3,7 @@
 
 **Assessment Date**: 2025-10-18 (Updated: 2026-03-07)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
+**Node IPs** (static DHCP, router-assigned by MAC): gmk-k3s-control-plane=192.168.1.127, worker-node=192.168.1.129, worker-node-2=192.168.1.126
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
 **Code Review**: 2026-03-07 - Full codebase analysis (94/100, A) — previous: 2026-02-20 (93/100, A)
