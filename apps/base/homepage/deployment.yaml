@@ -15,7 +15,7 @@ spec:
         app: homepage
     spec:
       serviceAccountName: homepage
-      automountServiceAccountToken: false
+      automountServiceAccountToken: true
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
