@@ -36,6 +36,14 @@ spec:
       ports:
         - protocol: UDP
           port: 53
+    # Allow Kubernetes API access for IngressRoute/Ingress CRD watching
+    # API server endpoint: 192.168.1.127:6443 (control plane node)
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.127/32
+      ports:
+        - protocol: TCP
+          port: 6443
     # Allow access to Authentik
     - to:
         - namespaceSelector:

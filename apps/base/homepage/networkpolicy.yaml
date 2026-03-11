@@ -37,15 +37,14 @@ spec:
         - protocol: UDP
           port: 53
     # Allow Kubernetes API access for service discovery (cluster mode)
+    # API server endpoint: 192.168.1.127:6443 (control plane node)
     - to:
-        - namespaceSelector: {}
-          podSelector:
-            matchLabels:
-              component: apiserver
+        - ipBlock:
+            cidr: 192.168.1.127/32
       ports:
         - protocol: TCP
-          port: 443
-    # Allow access to metrics server and other cluster services
+          port: 6443
+    # Allow access to app services for status checks (port 443)
     - to:
         - namespaceSelector: {}
       ports:
