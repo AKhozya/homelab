@@ -59,36 +59,42 @@ data:
             description: Bookmark manager & read-it-later (2-in-1)
             namespace: linkwarden
             app: linkwarden
+            podSelector: "app=linkwarden"
         - Mealie:
             icon: mealie.png
             href: https://mealie.h0melab.work
             description: Recipe manager
             namespace: mealie
             app: mealie
+            podSelector: "app=mealie"
         - Paperless-NGX:
             icon: paperless.png
             href: https://paperless.h0melab.work
             description: Document management
             namespace: paperless-ngx
             app: paperless-ngx
+            podSelector: "app=paperless-ngx"
         - Immich:
             icon: immich.png
             href: https://immich.h0melab.work
             description: Photo management
             namespace: immich
             app: immich-server
+            podSelector: "app.kubernetes.io/instance=immich,app.kubernetes.io/name=server"
         - Stirling PDF:
             icon: si-adobeacrobatreader
             href: https://stirling.h0melab.work
             description: PDF toolkit with OIDC
             namespace: stirling-pdf
             app: stirling-pdf
+            podSelector: "app=stirling-pdf"
         - PriceBuddy:
             icon: si-amazon
             href: https://pricebuddy.h0melab.work
             description: Price tracking & comparison
             namespace: pricebuddy
             app: pricebuddy
+            podSelector: "app=pricebuddy"
 
     - Media & Automation:
         - Audiobookshelf:
@@ -97,12 +103,14 @@ data:
             description: Audiobook & podcast server
             namespace: audiobookshelf
             app: audiobookshelf
+            podSelector: "app=audiobookshelf"
         - N8N:
             icon: n8n.png
             href: https://n8n.h0melab.work
             description: Workflow automation
             namespace: n8n
             app: n8n
+            podSelector: "app=n8n"
 
     - Infrastructure:
         - Home Assistant:
@@ -111,24 +119,28 @@ data:
             description: Home automation
             namespace: home-assistant
             app: home-assistant
+            podSelector: "app=home-assistant"
         - Authentik:
             icon: authentik.png
             href: https://authentik.h0melab.work
             description: Identity provider & SSO
             namespace: authentik
             app: authentik
+            podSelector: "app=authentik,component=server"
         - AdGuard Home:
             icon: adguard-home.png
             href: https://adguard.h0melab.work
             description: Network-wide ad blocking & DNS
             namespace: adguard-home
             app: adguard-home
+            podSelector: "app=adguard-home"
         - Uptime Kuma:
             icon: uptime-kuma.png
             href: https://uptime.h0melab.work
             description: Uptime monitoring
             namespace: uptime-kuma
             app: uptime-kuma
+            podSelector: "app=uptime-kuma"
         - Grafana:
             icon: grafana.png
             href: https://grafana.h0melab.work
@@ -147,6 +159,7 @@ data:
             description: Family utility dashboard (local only)
             namespace: homehub
             app: homehub
+            podSelector: "app=homehub"
 
   widgets.yaml: |
     # NOTE: Kubernetes widget disabled due to "NaN undefined undefined" errors in v1.5.0
