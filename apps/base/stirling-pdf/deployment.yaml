@@ -69,10 +69,10 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "1Gi"
+              memory: "768Mi"
             limits:
               cpu: "1000m"
-              memory: "2Gi"
+              memory: "1280Mi"
           volumeMounts:
             - name: temp-dir
               mountPath: /tmp
