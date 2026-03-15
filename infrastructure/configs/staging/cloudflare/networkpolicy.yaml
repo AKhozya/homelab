@@ -102,7 +102,7 @@ spec:
               kubernetes.io/metadata.name: immich
       ports:
         - protocol: TCP
-          port: 8080
+          port: 2283
     # Allow access to N8N
     - to:
         - namespaceSelector:
