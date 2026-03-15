@@ -916,7 +916,7 @@ Now unified into `setup-node.sh` (auto-detects node type and CPU vendor).
 5. stirling-pdf.h0melab.work → Stirling PDF (port 8080)
 6. mealie.h0melab.work → Mealie (port 9000)
 7. paperless.h0melab.work → Paperless-NGX (port 8000)
-8. immich.h0melab.work → Immich (port 8080)
+8. immich.h0melab.work → Immich (port 2283)
 9. n8n.h0melab.work → N8N (port 5678) ⭐ NEW
 
 **Configuration Details:**

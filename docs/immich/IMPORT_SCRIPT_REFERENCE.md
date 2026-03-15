@@ -119,7 +119,7 @@ immich-import-ios-photos.sh [EXPORT_DIR] [API_KEY_FILE]
 
 **Command:**
 ```bash
-kubectl port-forward -n immich svc/immich-server 2283:8080 > /dev/null 2>&1 &
+kubectl port-forward -n immich svc/immich-server 2283:2283 > /dev/null 2>&1 &
 ```
 
 **Cleanup Trap:**

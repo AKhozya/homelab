@@ -282,7 +282,7 @@ USE_LOCAL=false immich-import-ios-photos.sh
 Or check kubectl connection:
 
 ```bash
-kubectl port-forward -n immich svc/immich-server 2283:8080
+kubectl port-forward -n immich svc/immich-server 2283:2283
 # In another terminal:
 curl http://localhost:2283/api/server-info/ping
 ```
