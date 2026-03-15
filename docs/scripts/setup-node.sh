@@ -309,6 +309,17 @@ if [ "$CPU_TYPE" = "AMD" ]; then
     done
 fi
 
+# Disable LLMNR (port 5355) - unnecessary with AdGuard Home for DNS
+# LLMNR is a legacy local-network name resolution fallback; reduces attack surface
+echo "Disabling LLMNR..."
+mkdir -p /etc/systemd/resolved.conf.d
+cat > /etc/systemd/resolved.conf.d/no-llmnr.conf << 'EOF'
+[Resolve]
+LLMNR=no
+EOF
+systemctl restart systemd-resolved
+echo "  Done: LLMNR disabled (port 5355 closed)"
+
 # Enable SSD TRIM
 systemctl enable --now fstrim.timer 2>/dev/null || true
 
