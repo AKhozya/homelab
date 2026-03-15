@@ -71,7 +71,9 @@ spec:
         - protocol: TCP
           port: 8000        # Paperless-NGX
         - protocol: TCP
-          port: 8080        # Various apps (Immich, Stirling PDF)
+          port: 2283        # Immich
+        - protocol: TCP
+          port: 8080        # Stirling PDF
         - protocol: TCP
           port: 8123        # Home Assistant
         - protocol: TCP
