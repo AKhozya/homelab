@@ -6,7 +6,7 @@
 #   - CPU: 400% (4 cores of 16)
 #   - RAM: 14GB (reduced from 18GB after DPDK OOM killed K8s pods)
 #   - Schedule: 24/7 (starts 10 min after boot)
-#   - Build timeout: 48 hours
+#   - Build timeout: 72 hours
 #
 # Run as root: sudo bash setup-rebuilderd-worker-2.sh
 #
@@ -94,13 +94,13 @@ if [ -f "$CONFIG" ]; then
     if grep -q '^\[build\]' "$CONFIG"; then
         # Remove old timeout inside [build] if present, then re-add
         sed -i '/^\[build\]/,/^\[/{/^timeout/d}' "$CONFIG"
-        sed -i '/^\[build\]/a timeout = 172800  # 48 hours for large packages' "$CONFIG"
+        sed -i '/^\[build\]/a timeout = 259200  # 72 hours for large packages' "$CONFIG"
     else
         # Add [build] section before [diffoscope] if it exists, else at end
         if grep -q '^\[diffoscope\]' "$CONFIG"; then
-            sed -i '/^\[diffoscope\]/i [build]\ntimeout = 172800  # 48 hours for large packages\n' "$CONFIG"
+            sed -i '/^\[diffoscope\]/i [build]\ntimeout = 259200  # 72 hours for large packages\n' "$CONFIG"
         else
-            printf '\n[build]\ntimeout = 172800  # 48 hours for large packages\n' >> "$CONFIG"
+            printf '\n[build]\ntimeout = 259200  # 72 hours for large packages\n' >> "$CONFIG"
         fi
     fi
     echo "Configured 48-hour build timeout (inside [build] section)"
@@ -221,7 +221,7 @@ echo ""
 echo "Per Worker:"
 echo "  CPU: 400% (4 cores)"
 echo "  RAM: 14GB (hard limit, passed to nspawn)"
-echo "  Build timeout: 48 hours"
+echo "  Build timeout: 72 hours"
 echo ""
 echo "Schedule: 24/7 (starts 10 min after boot)"
 echo "Metrics: /var/lib/node_exporter/textfile/rebuilderd.prom (every 5 min)"

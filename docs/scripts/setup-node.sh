@@ -256,7 +256,7 @@ sysctl -p /etc/sysctl.d/99-watchdog.conf >/dev/null 2>&1
 # SSH hardening (post-quantum kex, strong ciphers only)
 echo "Applying SSH hardening..."
 cat > /etc/ssh/sshd_config.d/99-hardening.conf << 'EOF'
-# Security hardening - February 2026
+# Security hardening - March 2026
 # Post-quantum key exchange (OpenSSH 10.x)
 KexAlgorithms mlkem768x25519-sha256,curve25519-sha256,curve25519-sha256@libssh.org
 
@@ -269,6 +269,16 @@ MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
 # Modern host key algorithms only (no DSA, no ECDSA NIST curves)
 HostKeyAlgorithms ssh-ed25519,rsa-sha2-512,rsa-sha2-256
 PubkeyAcceptedAlgorithms ssh-ed25519,rsa-sha2-512,rsa-sha2-256
+
+# Brute force mitigation (default 6 is too generous)
+MaxAuthTries 3
+
+# Free connection slots faster (default 120s)
+LoginGraceTime 30
+
+# Kill stale sessions after 10 min (300s × 2 = 600s)
+ClientAliveInterval 300
+ClientAliveCountMax 2
 EOF
 if sshd -t 2>/dev/null; then
     systemctl reload sshd
