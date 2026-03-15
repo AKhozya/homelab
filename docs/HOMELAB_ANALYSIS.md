@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2026-03-07)
+**Assessment Date**: 2025-10-18 (Updated: 2026-03-15)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Node IPs** (static DHCP, router-assigned by MAC): gmk-k3s-control-plane=192.168.1.127, worker-node=192.168.1.129, worker-node-2=192.168.1.126
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
@@ -115,7 +115,7 @@
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-**Last Updated**: 2026-03-09 (Monthly Review)
+**Last Updated**: 2026-03-15 (Monthly Review)
 **Source**: HOMELAB_REVIEW_2025_12_17 (archived, see git history)
 **Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
 
@@ -546,9 +546,9 @@
 |-----|-----------|---------|--------|
 | **linkwarden** | main | Already had emptyDirs for /tmp, /app/.next/cache, /home/node/.cache | 3d4d533 |
 | **immich-ml** | main | Added /tmp emptyDir via persistence section | 3d4d533 |
-| **immich-proxy** | nginx | Added /tmp emptyDir via postRenderer patch (advancedMounts doesn't work) | 3d4d533 |
+| ~~**immich-proxy**~~ | ~~nginx~~ | ~~Removed 2026-03-15 (sidecar was unnecessary)~~ | 7d377a9a |
 
-**Verification**: All 3 apps tested - linkwarden SSO works, immich API responds, nginx proxy /tmp writable
+**Verification**: All 3 apps tested - linkwarden SSO works, immich API responds
 
 ##### ❌ **Tier 4: Not Feasible**
 
@@ -573,7 +573,7 @@
 - Commits: 48ba5fc, 9e04864, d8da2a0, 2034718
 
 **Phase 3** (Tier 3 - Medium Risk): ✅ **COMPLETED 2025-12-23**
-- Enabled on linkwarden, immich-ml, immich-proxy (nginx sidecar)
+- Enabled on linkwarden, immich-ml (immich-proxy removed 2026-03-15)
 - Key finding: Immich HOST env var bug - nginx proxy sidecar required
 - Key finding: bjw-s chart advancedMounts doesn't work - used postRenderer instead
 - Commits: 3d4d533
@@ -586,7 +586,7 @@
 | Item | Date | Status |
 |------|------|--------|
 | PVC storageClassName + alert hardcoded IPs | 2026-03-07 | ✅ 9 PVCs fixed, immich typo fixed, CPUThrottlingHigh/NodeMemoryMajorPagesFaults use hostnames |
-| ReadOnlyRootFilesystem Phase 1-3 | 2025-12-23 | ✅ 10 apps hardened (paperless, authentik×2, csp-reporter, homepage, homehub, uptime-kuma, linkwarden, immich-ml, immich-proxy) |
+| ReadOnlyRootFilesystem Phase 1-3 | 2025-12-23 | ✅ 9 apps hardened (paperless, authentik×2, csp-reporter, homepage, homehub, uptime-kuma, linkwarden, immich-ml; immich-proxy removed 2026-03-15) |
 | Backup Integrity Checks (SHA256) | 2025-10-31 | ✅ All backups generate checksums |
 | GPG Secrets Encryption | 2025-10-31 | ✅ AES256 with interactive passphrase |
 | Rate Limiting Middleware | 2025-10-31 | ✅ 100% coverage (17 ingresses) |
@@ -1150,7 +1150,7 @@ ingress:
 
 ---
 
-**Last Updated**: 2026-03-09
+**Last Updated**: 2026-03-15
 **Next Review**: 2026-04-06 (Monthly)
 
 ---
@@ -1158,6 +1158,21 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-03-15 (Remove Immich Nginx Proxy Sidecar) 🧹
+- ✅ **Nginx proxy sidecar removed from Immich** — unnecessary since v1.88.0 (Nov 2023) ⭐
+  - **Root cause**: Sidecar was added due to misleading NestJS log (`[::1]:2283`), but server actually binds to `::` (all interfaces)
+  - **Evidence**: `/proc/net/tcp6` confirmed `:::2283 LISTEN`, `wget` to pod IP returned `{"res":"pong"}`
+  - **Source code**: `app.listen(port)` without host → INADDR_ANY. `IMMICH_HOST` unset = all interfaces.
+  - **Official Helm chart**: No proxy since v1.88.0, targets port 2283 directly
+  - **Resources freed**: 50m→500m CPU, 64Mi→256Mi RAM (nginx:1.29.6-alpine container)
+  - Pod: 2/2 → 1/1 containers
+- ✅ **NetworkPolicy port updates**: Traefik + Cloudflare tunnel egress policies 8080→2283
+  - Same class of bug as March 11 audit — port change requires updating ALL source egress policies
+- ✅ **Cloudflare tunnel config synced**: SOPS secret updated, init container PUT to CF API (HTTP 200)
+- ✅ **Docs updated**: port-forward commands, HOMELAB_ANALYSIS CF tunnel section
+- ℹ️ **Gotcha**: Immutable Job spec blocked Flux reconciliation — had to delete completed `immich-admin-setup` Job before Flux could apply new port
+- 📋 **Commits**: 7d377a9a, c1f212f7
 
 ### 2026-03-11 (NetworkPolicy K8s API Egress Audit) 🔒
 - ✅ **Loki crash-loop fixed**: `loki-sc-rules` sidecar (kiwigrid/k8s-sidecar) couldn't reach K8s API ⭐
