@@ -221,13 +221,9 @@ Add SearXNG route to the tunnel SOPS config:
   service: http://searxng.searxng.svc.cluster.local:8080
   originRequest:
     noTLSVerify: true
-    access:
-      teamName: h0melab
-      audTag:
-        - <searxng-access-app-aud>
 ```
 
-The `access` block enforces Authentik authentication for external requests. Create an Authentik application + provider for SearXNG, configure in CF Zero Trust dashboard.
+Authentik access enforcement is configured in the Cloudflare Zero Trust dashboard (Access → Applications), not in the tunnel config YAML. Create an Authentik application + provider for SearXNG, then add a CF Access policy for `search.h0melab.work`.
 
 ## DNS
 
