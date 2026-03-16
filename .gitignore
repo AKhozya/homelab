@@ -13,7 +13,10 @@ vendor/
 .env
 .env.local
 
-# Secrets and keys
+# Secrets and keys (override global gitignore - all secrets here are SOPS-encrypted)
+!secret.yaml
+!*-secret.yaml
+!*-secrets.yaml
 *.agekey
 age.agekey*
 *.key
