@@ -801,7 +801,7 @@ Now unified into `setup-node.sh` (auto-detects node type and CPU vendor).
 
 ---
 
-## 📱 CURRENT APPS (16 total)
+## 📱 CURRENT APPS (17 total)
 
 | App | Status | Security | OIDC/SSO | Notes |
 |-----|--------|----------|----------|-------|
@@ -821,11 +821,12 @@ Now unified into `setup-node.sh` (auto-detects node type and CPU vendor).
 | Audiobookshelf | ✅ Running | ✅ NetworkPolicy | ✅ OIDC | Web UI config ⭐ |
 | Obsidian | ✅ Running | ✅ NetworkPolicy | - | CouchDB sync |
 | **PriceBuddy** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Price tracking** - MariaDB, Apprise Telegram notifications ⭐ |
+| **SearXNG** 🆕 | ✅ Running | ✅ NetworkPolicy | - | **Privacy search engine** - JSON API for n8n/HA ⭐ |
 
-**Security Coverage: 15/15 apps (100%)** ✅
+**Security Coverage: 16/16 apps (100%)** ✅
 **SSO Coverage: 8/8 applicable apps (100%)** ⭐
 - **8 apps with OIDC**: Grafana, Immich, Paperless-NGX, Home Assistant, Mealie, LinkWarden, Audiobookshelf, Stirling PDF
-- **6 apps local-only/monitoring**: Homepage, Uptime Kuma, AdGuard Home, HomeHub, Obsidian, N8N*
+- **7 apps local-only/monitoring**: Homepage, Uptime Kuma, AdGuard Home, HomeHub, Obsidian, N8N*, SearXNG
 - **1 app (N8N)**: Requires Enterprise plan for SSO
 - **Note**: Authentik is the SSO provider (not counted as consumer)
 
@@ -908,7 +909,7 @@ Now unified into `setup-node.sh` (auto-detects node type and CPU vendor).
 - **Management**: Cloudflare Dashboard/API (NOT ConfigMap-based)
 - **Namespace**: cloudflare-tunnel
 
-**Active Services (9):**
+**Active Services (10):**
 1. authentik.h0melab.work → Authentik (port 9000)
 2. couchdb.h0melab.work → CouchDB (port 5984)
 3. audiobooks.h0melab.work → Audiobookshelf (port 3005)
@@ -918,6 +919,7 @@ Now unified into `setup-node.sh` (auto-detects node type and CPU vendor).
 7. paperless.h0melab.work → Paperless-NGX (port 8000)
 8. immich.h0melab.work → Immich (port 2283)
 9. n8n.h0melab.work → N8N (port 5678) ⭐ NEW
+10. search.h0melab.work → SearXNG (port 8080) ⭐ NEW
 
 **Configuration Details:**
 - **Deployment**: infrastructure/configs/staging/cloudflare/cloudflared.yaml
@@ -1158,6 +1160,16 @@ ingress:
 ## 📝 CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
+
+### 2026-03-16 (SearXNG Deployment) 🔍
+- ✅ **SearXNG deployed**: Privacy-respecting metasearch engine ⭐
+  - Image: `searxng/searxng:2026.3.13-3c1f68c59`
+  - Internal: `search.h0melab.work` via Traefik (no auth)
+  - External: Cloudflare Tunnel with Authentik SSO
+  - JSON API: `/search?q=...&format=json` for n8n/HA automations
+  - Security: restricted PSS, readOnlyRootFilesystem, drop ALL
+  - NetworkPolicy: dual-access + n8n/HA API consumer rules
+  - Renovate: custom regex manager for date+hash image tags
 
 ### 2026-03-15 (Remove Immich Nginx Proxy Sidecar) 🧹
 - ✅ **Nginx proxy sidecar removed from Immich** — unnecessary since v1.88.0 (Nov 2023) ⭐
