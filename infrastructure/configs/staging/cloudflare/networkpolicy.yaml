@@ -111,6 +111,14 @@ spec:
       ports:
         - protocol: TCP
           port: 5678
+    # Allow access to SearXNG
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: searxng
+      ports:
+        - protocol: TCP
+          port: 8080
     # Allow access to CouchDB (for Obsidian sync)
     - to:
         - namespaceSelector:
