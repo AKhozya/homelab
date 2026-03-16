@@ -1170,6 +1170,11 @@ ingress:
   - Security: restricted PSS, readOnlyRootFilesystem, drop ALL
   - NetworkPolicy: dual-access + n8n/HA API consumer rules
   - Renovate: custom regex manager for date+hash image tags
+- ✅ **Authentik ↔ Cloudflare Access IdP integration** ⭐
+  - Authentik configured as OpenID Connect identity provider in CF Zero Trust
+  - Reusable for any future CF Access-protected app
+- ✅ **cert-manager NetworkPolicy fix**: Added external DNS egress (UDP/TCP 53) for DNS-01 challenges
+- ✅ **`.gitignore` fix**: Added `!secret.yaml` override for SOPS-encrypted secrets (was blocked by global gitignore)
 
 ### 2026-03-15 (Remove Immich Nginx Proxy Sidecar) 🧹
 - ✅ **Nginx proxy sidecar removed from Immich** — unnecessary since v1.88.0 (Nov 2023) ⭐
