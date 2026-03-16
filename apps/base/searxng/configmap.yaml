@@ -6,13 +6,78 @@ metadata:
 data:
   settings.yml: |
     use_default_settings: true
+
+    general:
+      instance_name: "SearXNG"
+      enable_metrics: true
+
     server:
       secret_key: ""  # Overridden by SEARXNG_SECRET env var at runtime
       bind_address: "0.0.0.0"
       port: 8080
       base_url: "https://search.h0melab.work"
       image_proxy: true
+      limiter: false
+      public_instance: false
+
+    ui:
+      infinite_scroll: true
+      query_in_title: false
+      simple_style: auto
+      center_alignment: true
+      url_formatting: pretty
+
     search:
+      safe_search: 0
+      autocomplete: "google"
+      autocomplete_min: 3
       formats:
         - html
         - json
+
+    outgoing:
+      request_timeout: 3.0
+      enable_http2: true
+
+    enabled_plugins:
+      - "Calculator"
+      - "Hash plugin"
+      - "Self Information"
+      - "Unit converter"
+      - "Ahmia blacklist"
+      - "Hostnames plugin"
+      - "Tracker URL remover"
+      - "Timezone plugin"
+      - "Infinite scroll"
+
+    engines:
+      # Enable high-value engines disabled by default
+      - name: bing
+        disabled: false
+        weight: 0.8
+      - name: mojeek
+        disabled: false
+        weight: 0.5
+      - name: reddit
+        disabled: false
+        weight: 0.7
+      - name: npm
+        disabled: false
+      - name: crates.io
+        disabled: false
+      - name: pkg.go.dev
+        disabled: false
+      - name: lib.rs
+        disabled: false
+      - name: peertube
+        disabled: false
+        weight: 0.4
+      # Boost best-quality engines
+      - name: google
+        weight: 1.2
+      - name: wikipedia
+        weight: 1.1
+      - name: duckduckgo
+        weight: 0.9
+      - name: startpage
+        weight: 0.8
