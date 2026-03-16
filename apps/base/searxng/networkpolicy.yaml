@@ -1,0 +1,70 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: searxng-network-policy
+  namespace: searxng
+spec:
+  podSelector:
+    matchLabels:
+      app: searxng
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from traefik namespace for internal access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow ingress from cloudflare-tunnel namespace for external access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflare-tunnel
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow ingress from uptime-kuma namespace for monitoring
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow ingress from n8n namespace for API access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: n8n
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow ingress from home-assistant namespace for API access
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: home-assistant
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow HTTPS to external search engines
+    - ports:
+        - protocol: TCP
+          port: 443
+    # Allow HTTP to external search engines (some APIs use plain HTTP)
+    - ports:
+        - protocol: TCP
+          port: 80

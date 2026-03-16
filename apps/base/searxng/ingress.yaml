@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: searxng
+  namespace: searxng
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-standard@kubernetescrd,traefik-csp@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - search.h0melab.work
+      secretName: searxng-tls
+  rules:
+    - host: search.h0melab.work
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: searxng
+                port:
+                  number: 8080

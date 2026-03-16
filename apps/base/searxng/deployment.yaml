@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: searxng
+  namespace: searxng
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: searxng
+  template:
+    metadata:
+      labels:
+        app: searxng
+    spec:
+      serviceAccountName: searxng
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 977
+        runAsUser: 977
+        runAsGroup: 977
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        - name: setup-config
+          image: busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              cp /tmp/config/settings.yml /etc/searxng/settings.yml
+              echo "Config copied to /etc/searxng/"
+          volumeMounts:
+            - name: config-template
+              mountPath: /tmp/config
+            - name: searxng-config
+              mountPath: /etc/searxng
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+      containers:
+        - name: searxng
+          image: docker.io/searxng/searxng:2026.3.13-3c1f68c59
+          ports:
+            - containerPort: 8080
+          env:
+            - name: SEARXNG_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: searxng-secret
+                  key: SEARXNG_SECRET
+            - name: SEARXNG_BASE_URL
+              value: "https://search.h0melab.work"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          volumeMounts:
+            - name: searxng-config
+              mountPath: /etc/searxng
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: config-template
+          configMap:
+            name: searxng-config
+        - name: searxng-config
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
