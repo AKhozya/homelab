@@ -56,7 +56,7 @@ CPUQuota=400%
 # of pressuring the whole system.
 MemoryMax=14G
 MemoryHigh=13G
-MemorySwapMax=8G
+MemorySwapMax=16G
 
 # IO: Low priority to not interfere with k8s workloads
 IOWeight=50
