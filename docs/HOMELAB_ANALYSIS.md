@@ -181,7 +181,7 @@
 | Item | Target Date | Priority |
 |------|-------------|----------|
 | Remove worker-node-2 replication step | ~May 20, 2026 | P2 |
-| ECC session regex fix — [PR #408](https://github.com/affaan-m/everything-claude-code/pull/408) merged, verify included in next ECC release, remove local patch + memory entry if fixed | April 14, 2026 | P3 |
+| ~~ECC session regex fix~~ | ~~April 14, 2026~~ | ✅ Fixed (confirmed in v1.8.0 cache, 2026-03-18) |
 | n8n PgBouncer `statement_timeout` fix — re-check [#25705](https://github.com/n8n-io/n8n/issues/25705) | May 2026 | P3 |
 | Re-evaluate VictoriaMetrics | April 2026 | P3 |
 
