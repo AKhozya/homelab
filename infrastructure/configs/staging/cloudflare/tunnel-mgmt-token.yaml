@@ -5,19 +5,19 @@ metadata:
     namespace: cloudflare-tunnel
 type: Opaque
 stringData:
-    api-token: ENC[AES256_GCM,data:ri+SwuFpmo92XYYCS8NYCqVvtwFmjqVxrF3UFOc0EaUYYQSWrj1sXw==,iv:bSrpS79oos6KlYkBs7IX9urTVodyTYLojv/0yPpi4D0=,tag:wXYifOkj5VdpRORO3hUzIg==,type:str]
+    api-token: ENC[AES256_GCM,data:gjASyq5JC12aBilWxrFvnemMkU5wK9DEQE6bVmj06pAFV/aMqe9/dDFpwcgMZbRvGbV9lnE=,iv:/gVWyQfnkk9Ea5h2zlDBKRGZilvG2J057RIqoRl0lTk=,tag:du/QG7xD3MZdaNl+YmtfbQ==,type:str]
 sops:
     age:
         - recipient: age1jwjtfrp625gh24xd8rds9zcz7arsgmqf8y3nn4j9redfcvfvcuhs4fv3sc
           enc: |
             -----BEGIN AGE ENCRYPTED FILE-----
-            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBCb01OZTY4eERMRWNOSkI2
-            MEw5ak5NdGdMbHJWSkZ2MmxLL3B5L3pkdTJBCnlMLzZhZEoxMXZQbnhuY0EyYVNi
-            WGl3NjdqREZwNEVEcFlkMDNVc1dSL3MKLS0tIGVva1B2Q1dFZWRkYlhWdWVHT1VT
-            K0ZETTlKdmlJU1Exbyt1a2hBdHZPWHMKxxjogm5LTAwTwXMCrI0LES556pJIvjVY
-            /etkj8RP+rSslEaHWiAqwypboEA+YGV+2bnMZcNTdRv5BEoVs5qXQQ==
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBvMW0wU2N1ZnFLMWN1YkNY
+            Y2VGa0hxVlQ3ZmJlR3VPd2MvWHR3R0ZrV1g0CmxNUTJxSC9zYzU4YXhxNmtTdXNr
+            ZTcvUlM5b1dZckhIUVh1MThteEhMN2MKLS0tIDd3YVJWMGU5TkdxU2x1MURDWHlW
+            aUM0NUhGcEQzOE1UV0hGai94c3ppSUkKY0ba9vs7pF2iWIEqC025k9V4BLvRB8VY
+            lzEwYaYJIoFJOB0KbopAitCCwiwZntRpv2f3Fb5AkOcMei4wlRfQTg==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2026-02-19T22:52:59Z"
-    mac: ENC[AES256_GCM,data:hjFhErR26YP8H2Zl0TGnRR0Q/KZlBcq8hv+T+3pbhEUO2BK6lDwan0rCpSoYJWlctvrWas0iBAjZbloUqH7Yrd+hJSsQFN3WGnEF5E+ODLMX83zVoMUOqx0Tob44PrnThyG/dvbArL8+GwQJ4FDoP0D3xSAVCd7Isi/y211XxaI=,iv:Fm/3QA5ZvpY2mhWMoz9oVTG9IDDcPmlQ5kSz2j1vwcA=,tag:OkR57MJPyq3jmqymTZCdDg==,type:str]
+    lastmodified: "2026-03-20T20:03:09Z"
+    mac: ENC[AES256_GCM,data:brI75z6MeRC9+oNciNyCbKl9FwzOL0wKNkt2MN0u1x0kq2m8MRCOZegy6q5pZhGgZbcURwS60iWhKnE2HxFsk2dEWFRyBtyvTohjrAe8z1EkD9i2u69zmVrKsDJmHeHmss3OrF6uWCf/jnFUSi5yAlylTr+hVZRAGj2+S5qDFL8=,iv:BNEQ+vSwqwU3TL9211ntKd54Cbo4y+gmsVUvCg7huME=,tag:jBB9+tg5Wpwoo4PbgmfZkw==,type:str]
     encrypted_regex: ^(data|stringData)$
-    version: 3.11.0
+    version: 3.12.2
