@@ -13,6 +13,7 @@ spec:
         kind: HelmRepository
         name: immich
         namespace: immich
+  timeout: 10m
   install:
     remediation:
       retries: 3
