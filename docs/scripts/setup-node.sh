@@ -250,8 +250,38 @@ kernel.softlockup_panic=1
 kernel.hardlockup_panic=1
 # Log all lockups
 kernel.softlockup_all_cpu_backtrace=1
+# Auto-reboot 10 seconds after kernel panic
+kernel.panic=10
 EOF
 sysctl -p /etc/sysctl.d/99-watchdog.conf >/dev/null 2>&1
+
+# Hardware watchdog via systemd (forces reboot if PID 1 freezes)
+echo "Enabling hardware watchdog via systemd..."
+mkdir -p /etc/systemd/system.conf.d
+cat > /etc/systemd/system.conf.d/watchdog.conf << 'EOF'
+# Hardware watchdog - systemd kicks the watchdog periodically.
+# If PID 1 freezes (kernel hang, deadlock), hardware forces reboot.
+[Manager]
+RuntimeWatchdogSec=30
+RebootWatchdogSec=10min
+EOF
+
+# Crash logging: EFI pstore + printk dump
+echo "Enabling crash logging (EFI pstore, printk dump)..."
+CRASH_PARAMS="efi_pstore.pstore_disable=0 printk.always_kmsg_dump=Y panic=10"
+for entry in /boot/loader/entries/*lts*.conf; do
+    [[ -f "$entry" ]] || continue
+    current_options=$(grep "^options " "$entry")
+    new_options=$(echo "$current_options" | sed \
+        -e 's/ efi_pstore\.pstore_disable=[^ ]*//g' \
+        -e 's/ printk\.always_kmsg_dump=[^ ]*//g' \
+        -e 's/ panic=[^ ]*//g')
+    new_options="${new_options} ${CRASH_PARAMS}"
+    sed -i "s|^options .*|${new_options}|" "$entry"
+    echo "  Updated $(basename "$entry")"
+done
+# Enable printk dump at runtime
+[[ -f /sys/module/printk/parameters/always_kmsg_dump ]] && echo Y > /sys/module/printk/parameters/always_kmsg_dump
 
 # SSH hardening (post-quantum kex, strong ciphers only)
 echo "Applying SSH hardening..."
@@ -543,7 +573,8 @@ echo "  - CPU governor: powersave (EPP: balance_power, boost enabled)"
 echo "  - TCP congestion: BBR, inotify 8192/1M, conntrack 1M"
 echo "  - SSD power saving: disabled (NVMe APST, PCIe ASPM, SATA ALPM)"
 echo "  - Security: unified kernel/fs/network hardening (50+ settings)"
-echo "  - Watchdog: panic on soft/hard lockup (auto-reboot)"
+echo "  - Watchdog: panic on soft/hard lockup, hardware watchdog (30s systemd kick)"
+echo "  - Crash logging: EFI pstore, printk dump, panic=10 auto-reboot"
 echo "  - SSH: post-quantum kex, strong ciphers/MACs, PermitEmptyPasswords no"
 echo "  - Journald: 500MB max, 2 weeks retention"
 echo "  - K3s config: $NODE_TYPE (node-name: $HOSTNAME)"
