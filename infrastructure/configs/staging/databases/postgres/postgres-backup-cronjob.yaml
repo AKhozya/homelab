@@ -4,7 +4,8 @@ metadata:
   name: postgres-backup
   namespace: databases
 spec:
-  schedule: "0 3 * * *"  # 3:00 AM daily
+  schedule: "0 3 * * *"  # 3:00 AM UTC daily
+  timeZone: "UTC"
   successfulJobsHistoryLimit: 7
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid  # Don't run concurrent backups

@@ -4,7 +4,8 @@ metadata:
   name: popeye
   namespace: popeye
 spec:
-  schedule: "0 6 * * 0"  # Weekly on Sunday at 6 AM
+  schedule: "0 6 * * 0"  # Weekly on Sunday at 6 AM UTC
+  timeZone: "UTC"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
