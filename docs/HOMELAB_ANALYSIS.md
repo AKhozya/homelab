@@ -1139,10 +1139,7 @@ ingress:
   - See [MYSQL_OPERATOR_ANALYSIS.md](./MYSQL_OPERATOR_ANALYSIS.md) for detailed runbook
   - Common issues: clone.lock cleanup, stale IPs, read_only state, errant GTIDs
   - Alternative considered: MOCO operator (evaluate if incidents >1/month)
-- **Known Issue**: PriceBuddy start-app.sh uses `nc` without `-z` flag causing startup hang
-  - **Workaround**: ConfigMap override with fixed script
-  - **Upstream**: [Issue #101](https://github.com/jez500/pricebuddy/issues/101) / [PR #102](https://github.com/jez500/pricebuddy/pull/102)
-  - **TODO**: Remove workaround when PR #102 merged
+- ~~**Known Issue**: PriceBuddy start-app.sh `nc` without `-z` flag~~ — ✅ Fixed upstream (PR #102 merged Dec 2025, included in v1.0.46+)
 
 **Summary**:
 - **Critical data (PostgreSQL)**: 2 replicas, HA, zero downtime
