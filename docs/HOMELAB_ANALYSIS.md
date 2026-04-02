@@ -1,12 +1,12 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2026-03-15)
+**Assessment Date**: 2025-10-18 (Updated: 2026-04-02)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Node IPs** (static DHCP, router-assigned by MAC): gmk-k3s-control-plane=192.168.1.127, worker-node=192.168.1.129, worker-node-2=192.168.1.126
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
 **Responsibility Level**: ⚠️ **CRITICAL** - Production-equivalent personal infrastructure
-**Code Review**: 2026-03-07 - Full codebase analysis (94/100, A) — previous: 2026-02-20 (93/100, A)
+**Code Review**: 2026-04-02 - Full codebase analysis (94/100, A) — previous: 2026-03-07 (94/100, A)
 **Historical Archive**: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) - Completed tasks & changelog (Oct-Dec 2025)
 
 ---
@@ -115,9 +115,77 @@
 
 ## 🎯 CRITICAL ACTION ITEMS
 
-**Last Updated**: 2026-03-15 (Monthly Review)
+**Last Updated**: 2026-04-02 (Monthly Review)
 **Source**: HOMELAB_REVIEW_2025_12_17 (archived, see git history)
 **Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
+
+### 🔍 April 2026 Monthly Review
+
+**Review Date**: 2026-04-02
+**Reviewer**: Staff DevOps/SRE + Staff Software Developer (7-agent parallel audit)
+**Overall Status**: ✅ **HEALTHY** - All systems nominal, secrets rotation completed
+
+#### Infrastructure Health
+
+| Component | Status | Details |
+|-----------|--------|---------|
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.2, Kernel 6.18.20-1-lts, max 25% memory |
+| **Control Plane** | ✅ Healthy | 19% CPU, 19% memory |
+| **worker-node** | ✅ Healthy | 21% CPU, 25% memory |
+| **worker-node-2** | ✅ Healthy | 16% CPU, 19% memory |
+| **Pods** | ✅ All Running | 0 CrashLoop, 42 deployments at target |
+| **PostgreSQL** | ✅ 2/2 Ready | Zero replication lag, >99% cache hit |
+| **MySQL** | ✅ 2/2 Ready | Async replication |
+| **CouchDB** | ✅ 2/2 Running | Full cluster membership |
+| **Redis** | ✅ 1/1 Running | 8.83MB used |
+| **Prometheus** | ✅ HA (2 replicas) | 93k active series, 819Mi+734Mi |
+| **Alerts** | ✅ None firing | Only Watchdog (expected) |
+| **Backups** | ✅ All successful | 12h replication cycle, <10s completion |
+| **Certificates** | ✅ 20/20 Ready | Nearest expiry 32 days |
+| **Flux/GitOps** | ✅ All healthy | 6/6 kustomizations, 10/10 HelmReleases |
+| **Kyverno** | ✅ 0 violations | 10 policies (7 enforce, 3 audit) |
+| **NetworkPolicies** | ✅ 40 policies | All app namespaces covered |
+| **SOPS Secrets** | ✅ 51/51 encrypted | Zero plaintext in git |
+| **PVCs** | ✅ 28/28 Bound | All healthy |
+
+#### Code Review Score: 94/100 (A) — Maintained
+
+| Category | Score |
+|----------|-------|
+| YAML Quality | 9/10 |
+| Security Posture | 9/10 |
+| Resource Management | 10/10 |
+| GitOps Best Practices | 10/10 |
+| Monitoring | 9/10 |
+| High Availability | 9/10 |
+| Image Management | 9/10 |
+| Documentation | 9/10 |
+| Backup & DR | 10/10 |
+| Policy Enforcement | 10/10 |
+
+#### Actions Completed This Review
+
+- ✅ **Secrets rotation**: 6 PostgreSQL + 3 MySQL + 2 Redis passwords rotated (was 77 days overdue)
+- ✅ **n8n NetworkPolicy**: Fixed AND/OR logic bug in database egress selector
+- ✅ **README.md**: Corrected PostgreSQL replica count (3→2) and audit grade (A- 92→A 94)
+- ✅ **PSS labels**: Added Pod Security Standards to 10 infrastructure namespaces
+- ✅ **SECRETS_ROTATION.md**: Updated rotation dates and Q3 schedule
+
+#### Pending Scheduled Items
+
+| Item | Target Date | Priority |
+|------|-------------|----------|
+| OIDC client secret rotation (7 apps) | 2026-04-18 | P2 |
+| Authentik secret key rotation | 2026-04-16 | P2 |
+| CouchDB admin password rotation | 2026-04-21 | P2 |
+| AdGuard Home password rotation | 2026-04-23 | P2 |
+| VictoriaMetrics re-evaluation | April 2026 | P3 |
+| Remove worker-node-2 replication step | ~May 20, 2026 | P2 |
+| n8n PgBouncer `statement_timeout` fix — re-check [#25705](https://github.com/n8n-io/n8n/issues/25705) | May 2026 | P3 |
+| Investigate Mealie PG rollbacks (163K, 43% rate) | April 2026 | P3 |
+| Add PodDisruptionBudgets for HA workloads | Backlog | P3 |
+
+**Next Review**: 2026-05-04 (Monthly)
 
 ### 🔍 March 2026 Monthly Review
 

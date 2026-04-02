@@ -1,7 +1,7 @@
 # 🔐 Secrets Rotation Playbook
 
 **Cluster**: K3s Homelab (single-master, SQLite backend)
-**Last Updated**: 2025-12-23
+**Last Updated**: 2026-04-02
 **Audit Trail**: All rotation dates are tracked in git commit history with detailed commit messages
 
 ---
@@ -14,12 +14,12 @@
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
-| `immich-db-password` | Immich | PostgreSQL | 2025-10-19 | 2026-01-17 | High |
-| `linkwarden-db-password` | Linkwarden | PostgreSQL | 2025-11-24 | 2026-02-22 | Medium |
-| `mealie-db-password` | Mealie | PostgreSQL | 2025-10-23 | 2026-01-21 | Medium |
-| `n8n-db-password` | N8N | PostgreSQL | 2025-10-23 | 2026-01-21 | High |
-| `paperless-db-password` | Paperless-NGX | PostgreSQL | 2025-10-19 | 2026-01-17 | Medium |
-| `authentik-db-password` | Authentik | PostgreSQL | 2025-10-18 | 2026-01-16 | Critical |
+| `immich-db-password` | Immich | PostgreSQL | 2026-04-02 | 2026-07-01 | High |
+| `linkwarden-db-password` | Linkwarden | PostgreSQL | 2026-04-02 | 2026-07-01 | Medium |
+| `mealie-db-password` | Mealie | PostgreSQL | 2026-04-02 | 2026-07-01 | Medium |
+| `n8n-db-password` | N8N | PostgreSQL | 2026-04-02 | 2026-07-01 | High |
+| `paperless-db-password` | Paperless-NGX | PostgreSQL | 2026-04-02 | 2026-07-01 | Medium |
+| `authentik-db-password` | Authentik | PostgreSQL | 2026-04-02 | 2026-07-01 | Critical |
 | `grafana-db-password` | Grafana | PostgreSQL | 2025-10-18 | 2026-01-16 | High |
 | `audiobookshelf-db-password` | Audiobookshelf | PostgreSQL | 2025-10-23 | 2026-01-21 | Medium |
 
@@ -27,9 +27,9 @@
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
-| `home-assistant-mysql` | Home Assistant | MySQL | 2025-12-16 | 2026-03-16 | High |
-| `uptime-kuma-mysql` | Uptime Kuma | MySQL | 2025-12-16 | 2026-03-16 | Medium |
-| `pricebuddy-mysql` | PriceBuddy | MySQL | 2025-12-16 | 2026-03-16 | Medium |
+| `home-assistant-mysql` | Home Assistant | MySQL | 2026-04-02 | 2026-07-01 | High |
+| `uptime-kuma-mysql` | Uptime Kuma | MySQL | 2026-04-02 | 2026-07-01 | Medium |
+| `pricebuddy-mysql` | PriceBuddy | MySQL | 2026-04-02 | 2026-07-01 | Medium |
 
 #### CouchDB
 
@@ -42,9 +42,9 @@
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
 | `authentik-redis-password` | Authentik | Redis | N/A (Removed 2025-10-29) | N/A | N/A |
-| `immich-redis-password` | Immich | Redis | 2025-10-18 | 2026-01-16 | High |
-| `paperless-redis-password` | Paperless-NGX | Redis | 2025-10-18 | 2026-01-16 | Medium |
-| `wallabag-redis-password` | Wallabag | Redis | 2025-10-18 | 2026-01-16 | Medium |
+| `immich-redis-password` | Immich | Redis | 2026-04-02 | 2026-07-01 | High |
+| `paperless-redis-password` | Paperless-NGX | Redis | 2026-04-02 | 2026-07-01 | Medium |
+| `wallabag-redis-password` | Wallabag | Redis | N/A (Removed - app decommissioned) | N/A | N/A |
 
 ### Application Credentials
 
@@ -411,23 +411,25 @@ If a secret is compromised:
   - SSH key for backup replication to worker-node-2
 
 ### 2026 Q1 (Jan-Mar)
-- [ ] 2026-01-16: Redis password rotation (90-day cycle)
-  - Immich, Paperless-NGX Redis passwords
-- [ ] 2026-01-17: High-priority PostgreSQL password rotation (90-day cycle)
-  - Immich, Paperless-NGX, Authentik database passwords
-- [ ] 2026-01-21: Medium-priority PostgreSQL password rotation (90-day cycle)
-  - Mealie, N8N, Audiobookshelf database passwords
-- [ ] 2026-01-24: HomeHub password rotation (90-day cycle)
-- [ ] 2026-02-22: Linkwarden database password rotation (90-day cycle)
-- [ ] 2026-03-16: MySQL password rotation (90-day cycle)
-  - Home Assistant, Uptime Kuma, PriceBuddy MySQL passwords
+- *Skipped — all rotations consolidated into Q2 batch*
 
 ### 2026 Q2 (Apr-Jun)
+- [x] 2026-04-02: Batch PostgreSQL password rotation (6 databases)
+  - Authentik, Immich, Paperless, Mealie, N8N, Linkwarden database passwords
+- [x] 2026-04-02: MySQL password rotation (3 databases)
+  - Home Assistant, Uptime Kuma, PriceBuddy MySQL passwords
+- [x] 2026-04-02: Redis password rotation (2 services)
+  - Immich, Paperless-NGX Redis passwords
 - [ ] 2026-04-16: Authentik secret key rotation (180-day cycle)
 - [ ] 2026-04-18: OIDC client secret rotation (180-day cycle)
-  - 8 Authentik-integrated apps (Grafana, Immich, Paperless, Mealie, Linkwarden, Audiobookshelf, Home Assistant, Stirling PDF)
+  - 7 Authentik-integrated apps (Grafana, Immich, Paperless, Mealie, Audiobookshelf, Home Assistant, Stirling PDF)
 - [ ] 2026-04-21: CouchDB admin password rotation (180-day cycle)
 - [ ] 2026-04-23: AdGuard Home password rotation (180-day cycle)
+
+### 2026 Q3 (Jul-Sep)
+- [ ] 2026-07-01: PostgreSQL password rotation (90-day cycle, 6 databases)
+- [ ] 2026-07-01: MySQL password rotation (90-day cycle, 3 databases)
+- [ ] 2026-07-01: Redis password rotation (90-day cycle, 2 services)
 
 ---
 
