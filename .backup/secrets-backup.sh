@@ -140,16 +140,14 @@ kubectl get secret cloudflare-tunnel-mgmt-token -n cloudflare-tunnel -o json > "
 # =============================================================================
 echo "📦 Backing up OIDC integration secrets..."
 
-# Application OIDC configurations
-kubectl get secret audiobookshelf-oidc -n audiobookshelf -o json > "${BACKUP_DIR}/secrets/audiobookshelf-oidc.json" 2>/dev/null || echo "   ⚠️  No audiobookshelf/audiobookshelf-oidc"
+# Only grafana-oidc is a standalone K8s secret — all other apps store OIDC config in:
+#   - env secrets (paperless, mealie)
+#   - embedded secrets.yaml (home-assistant)
+#   - internal DB via web UI (immich, audiobookshelf)
+#   - stirling-pdf-custom-settings Secret (stirling-pdf)
+#   - main app secret (linkwarden)
+# These are already backed up in their respective app secret sections above.
 kubectl get secret grafana-oidc -n monitoring -o json > "${BACKUP_DIR}/secrets/grafana-oidc.json" 2>/dev/null || echo "   ⚠️  No monitoring/grafana-oidc"
-kubectl get secret home-assistant-oidc -n home-assistant -o json > "${BACKUP_DIR}/secrets/home-assistant-oidc.json" 2>/dev/null || echo "   ⚠️  No home-assistant/home-assistant-oidc"
-kubectl get secret immich-oidc -n immich -o json > "${BACKUP_DIR}/secrets/immich-oidc.json" 2>/dev/null || echo "   ⚠️  No immich/immich-oidc"
-kubectl get secret mealie-oidc -n mealie -o json > "${BACKUP_DIR}/secrets/mealie-oidc.json" 2>/dev/null || echo "   ⚠️  No mealie/mealie-oidc"
-kubectl get secret paperless-oidc -n paperless-ngx -o json > "${BACKUP_DIR}/secrets/paperless-oidc.json" 2>/dev/null || echo "   ⚠️  No paperless-ngx/paperless-oidc"
-# Note: n8n doesn't support OIDC in free version (removed 2026-04-02)
-# Note: stirling-pdf OIDC is in stirling-pdf-custom-settings Secret (backed up below)
-# Note: linkwarden uses main 'linkwarden' secret for OIDC config (already backed up above)
 
 # =============================================================================
 # Extract important plaintext values for easy reference

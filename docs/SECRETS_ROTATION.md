@@ -59,16 +59,18 @@
 
 ### OIDC/OAuth Secrets
 
-| Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
-|-------------|-----|------|--------------|---------------|----------|
-| `grafana-oidc` | Grafana | OIDC Client Secret | 2026-04-02 | 2026-10-01 | High |
-| `immich-oidc` | Immich | OIDC Client Secret | 2026-04-02 | 2026-10-01 | High |
-| `paperless-oidc` | Paperless-NGX | OIDC Client Secret | 2026-04-02 | 2026-10-01 | High |
-| `mealie-oidc` | Mealie | OIDC Client Secret | 2026-04-02 | 2026-10-01 | Medium |
-| `linkwarden-oidc` | Linkwarden | OIDC Client Secret | 2026-04-02 | 2026-10-01 | Medium |
-| `audiobookshelf-oidc` | Audiobookshelf | OIDC Client Secret | 2026-04-02 | 2026-10-01 | Medium |
-| `home-assistant-oidc` | Home Assistant | OIDC Client Secret | 2026-04-02 | 2026-10-01 | High |
-| `stirling-pdf-oidc` | Stirling PDF | OIDC Client Secret | 2026-04-02 | 2026-10-01 | Medium |
+| App | Where OIDC Secret Lives | Last Rotated | Next Rotation | Priority |
+|-----|------------------------|--------------|---------------|----------|
+| Grafana | `grafana-oidc` K8s Secret (mounted volume) | 2026-04-02 | 2026-10-01 | High |
+| Immich | Internal DB (web UI config) + Authentik API | 2026-04-02 | 2026-10-01 | High |
+| Paperless-NGX | `paperless-env-secret.yaml` (PAPERLESS_SOCIALACCOUNT_PROVIDERS env) | 2026-04-02 | 2026-10-01 | High |
+| Mealie | `mealie-env-secret.yaml` (OIDC_CLIENT_SECRET env) | 2026-04-02 | 2026-10-01 | Medium |
+| Linkwarden | `linkwarden-secret.yaml` (DATABASE_URL + OIDC combined) | 2026-04-02 | 2026-10-01 | Medium |
+| Audiobookshelf | Internal SQLite DB (web UI config) + Authentik API | 2026-04-02 | 2026-10-01 | Medium |
+| Home Assistant | `secrets.yaml` (embedded oidc_client_secret) | 2026-04-02 | 2026-10-01 | High |
+| Stirling PDF | `custom-settings-configmap.yaml` (SOPS Secret) | 2026-04-02 | 2026-10-01 | Medium |
+
+**IMPORTANT**: For immich and audiobookshelf, rotating the Authentik provider secret alone is NOT enough — you must also update the secret in their web UI settings. All other apps read from K8s secrets/env vars and pick up changes on pod restart.
 
 ### Infrastructure Credentials
 

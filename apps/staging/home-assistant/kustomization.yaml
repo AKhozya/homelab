@@ -4,4 +4,4 @@ resources:
   - ../../base/home-assistant
   - certificate.yaml
   - secrets.yaml
-  - home-assistant-oidc-secret.yaml
+  # OIDC config is embedded in secrets.yaml (oidc_client_secret key)

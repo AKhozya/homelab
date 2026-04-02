@@ -255,28 +255,13 @@ fi
 # =============================================================================
 echo "📦 Restoring OIDC integration secrets..."
 
-# Restore OIDC secrets for each application
-if [ -f "${BACKUP_DIR}/secrets/audiobookshelf-oidc.json" ]; then
-    kubectl apply -f "${BACKUP_DIR}/secrets/audiobookshelf-oidc.json"
-fi
+# Only grafana-oidc is a standalone secret — all other OIDC configs are in
+# their app secrets (already restored above). After restore, you must also:
+#   - Re-configure OIDC in immich and audiobookshelf web UIs (stored in internal DB)
+#   - All other apps get OIDC from env vars / mounted secrets (automatic via Flux)
 if [ -f "${BACKUP_DIR}/secrets/grafana-oidc.json" ]; then
     kubectl apply -f "${BACKUP_DIR}/secrets/grafana-oidc.json"
 fi
-if [ -f "${BACKUP_DIR}/secrets/home-assistant-oidc.json" ]; then
-    kubectl apply -f "${BACKUP_DIR}/secrets/home-assistant-oidc.json"
-fi
-if [ -f "${BACKUP_DIR}/secrets/immich-oidc.json" ]; then
-    kubectl apply -f "${BACKUP_DIR}/secrets/immich-oidc.json"
-fi
-if [ -f "${BACKUP_DIR}/secrets/mealie-oidc.json" ]; then
-    kubectl apply -f "${BACKUP_DIR}/secrets/mealie-oidc.json"
-fi
-if [ -f "${BACKUP_DIR}/secrets/paperless-oidc.json" ]; then
-    kubectl apply -f "${BACKUP_DIR}/secrets/paperless-oidc.json"
-fi
-# Note: n8n doesn't support OIDC in free version (removed 2026-04-02)
-# Note: stirling-pdf OIDC is in stirling-pdf-custom-settings Secret (restored below)
-# Note: linkwarden OIDC config is in main 'linkwarden' secret (already restored above)
 echo "   ✅ OIDC integration secrets restored"
 
 # =============================================================================

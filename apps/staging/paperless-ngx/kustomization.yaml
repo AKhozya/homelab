@@ -4,4 +4,5 @@ namespace: paperless-ngx
 resources:
   - ../../base/paperless-ngx
   - paperless-env-secret.yaml
-  - paperless-oidc-secret.yaml  # Authentik OIDC integration
+  # OIDC config is embedded in paperless-env-secret.yaml (PAPERLESS_SOCIALACCOUNT_PROVIDERS)
+  # No separate OIDC secret needed — paperless reads it from env vars only

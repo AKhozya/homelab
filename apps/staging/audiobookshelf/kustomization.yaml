@@ -4,4 +4,5 @@ namespace: audiobookshelf
 resources:
   - ../../base/audiobookshelf/
   - secret.yaml
-  - audiobookshelf-oidc-secret.yaml  # Authentik OIDC integration
+  # OIDC config is stored in audiobookshelf's SQLite DB (configured via web UI)
+  # No K8s secret needed — app doesn't read OIDC from env or mounted secrets
