@@ -86,3 +86,12 @@ spec:
         createdb: true
         passwordSecret:
           name: immich-db-user
+      - name: linkwarden
+        ensure: present
+        comment: Linkwarden application user
+        login: true
+        createdb: true
+        connectionLimit: -1
+        inherit: true
+        passwordSecret:
+          name: linkwarden-db-app-user
