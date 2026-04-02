@@ -15,10 +15,10 @@
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
 | `immich-db-password` | Immich | PostgreSQL | 2026-04-02 | 2026-07-01 | High |
-| `linkwarden-db-password` | Linkwarden | PostgreSQL | 2026-04-02 | 2026-07-01 | Medium |
-| `mealie-db-password` | Mealie | PostgreSQL | 2026-04-02 | 2026-07-01 | Medium |
+| `linkwarden-db-password` | Linkwarden | PostgreSQL | 2026-04-02 | 2026-10-01 | Medium |
+| `mealie-db-password` | Mealie | PostgreSQL | 2026-04-02 | 2026-10-01 | Medium |
 | `n8n-db-password` | N8N | PostgreSQL | 2026-04-02 | 2026-07-01 | High |
-| `paperless-db-password` | Paperless-NGX | PostgreSQL | 2026-04-02 | 2026-07-01 | Medium |
+| `paperless-db-password` | Paperless-NGX | PostgreSQL | 2026-04-02 | 2026-10-01 | Medium |
 | `authentik-db-password` | Authentik | PostgreSQL | 2026-04-02 | 2026-07-01 | Critical |
 | `grafana-db-password` | Grafana | PostgreSQL | 2025-10-18 | 2026-01-16 | High |
 | `audiobookshelf-db-password` | Audiobookshelf | PostgreSQL | 2025-10-23 | 2026-01-21 | Medium |
@@ -28,14 +28,14 @@
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
 | `home-assistant-mysql` | Home Assistant | MySQL | 2026-04-02 | 2026-07-01 | High |
-| `uptime-kuma-mysql` | Uptime Kuma | MySQL | 2026-04-02 | 2026-07-01 | Medium |
-| `pricebuddy-mysql` | PriceBuddy | MySQL | 2026-04-02 | 2026-07-01 | Medium |
+| `uptime-kuma-mysql` | Uptime Kuma | MySQL | 2026-04-02 | 2026-10-01 | Medium |
+| `pricebuddy-mysql` | PriceBuddy | MySQL | 2026-04-02 | 2026-10-01 | Medium |
 
 #### CouchDB
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
-| `couchdb-admin-credentials` | Obsidian Sync | CouchDB Admin | 2025-10-23 | 2026-04-21 | Medium |
+| `couchdb-admin-credentials` | Obsidian Sync | CouchDB Admin | 2026-04-02 | 2026-10-01 | Medium |
 
 ### Redis Credentials
 
@@ -43,7 +43,7 @@
 |-------------|-----|------|--------------|---------------|----------|
 | `authentik-redis-password` | Authentik | Redis | N/A (Removed 2025-10-29) | N/A | N/A |
 | `immich-redis-password` | Immich | Redis | 2026-04-02 | 2026-07-01 | High |
-| `paperless-redis-password` | Paperless-NGX | Redis | 2026-04-02 | 2026-07-01 | Medium |
+| `paperless-redis-password` | Paperless-NGX | Redis | 2026-04-02 | 2026-10-01 | Medium |
 | `wallabag-redis-password` | Wallabag | Redis | N/A (Removed - app decommissioned) | N/A | N/A |
 
 ### Application Credentials
@@ -423,13 +423,19 @@ If a secret is compromised:
 - [ ] 2026-04-16: Authentik secret key rotation (180-day cycle)
 - [ ] 2026-04-18: OIDC client secret rotation (180-day cycle)
   - 7 Authentik-integrated apps (Grafana, Immich, Paperless, Mealie, Audiobookshelf, Home Assistant, Stirling PDF)
-- [ ] 2026-04-21: CouchDB admin password rotation (180-day cycle)
+- [x] 2026-04-02: CouchDB admin password rotation (180-day cycle)
 - [ ] 2026-04-23: AdGuard Home password rotation (180-day cycle)
 
 ### 2026 Q3 (Jul-Sep)
-- [ ] 2026-07-01: PostgreSQL password rotation (90-day cycle, 6 databases)
-- [ ] 2026-07-01: MySQL password rotation (90-day cycle, 3 databases)
-- [ ] 2026-07-01: Redis password rotation (90-day cycle, 2 services)
+- [ ] 2026-07-01: High-priority PostgreSQL rotation (90-day: authentik, immich, n8n)
+- [ ] 2026-07-01: High-priority MySQL rotation (90-day: home-assistant)
+- [ ] 2026-07-01: High-priority Redis rotation (90-day: immich)
+
+### 2026 Q4 (Oct-Dec)
+- [ ] 2026-10-01: Medium-priority PostgreSQL rotation (180-day: mealie, paperless, linkwarden)
+- [ ] 2026-10-01: Medium-priority MySQL rotation (180-day: uptime-kuma, pricebuddy)
+- [ ] 2026-10-01: Medium-priority Redis rotation (180-day: paperless)
+- [ ] 2026-10-01: CouchDB admin password rotation (180-day)
 
 ---
 
