@@ -117,68 +117,9 @@ spec:
             capabilities:
               drop:
                 - ALL
-        - name: oidc-auth-install
-          image: alpine:3.23.3
-          command:
-            - /bin/sh
-            - -c
-            - |
-              set -e
-
-              HACS_DIR="/config/custom_components/hacs"
-              OIDC_DIR="/config/custom_components/auth_oidc"
-
-              # Check if auth_oidc is already installed
-              if [ -d "$OIDC_DIR" ]; then
-                echo "✓ OIDC Auth already installed at $OIDC_DIR"
-                exit 0
-              fi
-
-              # Verify HACS is installed first (dependency check)
-              echo "Checking for HACS installation..."
-
-              # Wait a moment for filesystem sync
-              sleep 2
-
-              if [ ! -d "$HACS_DIR" ]; then
-                echo "❌ ERROR: HACS must be installed before hass-oidc-auth"
-                echo "   HACS directory not found at $HACS_DIR"
-                ls -la /config/custom_components/ || true
-                exit 1
-              fi
-              echo "✓ HACS found at $HACS_DIR"
-
-              echo "Installing hass-oidc-auth integration..."
-
-              # Install required packages
-              apk add --no-cache git
-
-              # Create custom_components directory
-              mkdir -p /config/custom_components
-
-              # Clone the repository to a temp location
-              echo "Cloning hass-oidc-auth repository..."
-              git clone --depth 1 https://github.com/christiaangoossens/hass-oidc-auth.git /tmp/hass-oidc-auth
-
-              # Copy only the custom_components/auth_oidc directory
-              echo "Installing auth_oidc component..."
-              cp -r /tmp/hass-oidc-auth/custom_components/auth_oidc "$OIDC_DIR"
-
-              # Cleanup
-              rm -rf /tmp/hass-oidc-auth
-
-              echo "✓ OIDC Auth installed successfully at $OIDC_DIR"
-              echo "  OIDC authentication is now available in Home Assistant"
-          volumeMounts:
-            - name: home-assistant-data
-              mountPath: /config
-          securityContext:
-            runAsUser: 0
-            runAsGroup: 0
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop:
-                - ALL
+        # OIDC init container removed — hass-oidc-auth incompatible with HA 2026.4.0
+        # Re-add when upstream fixes the login flow issue
+        # https://github.com/christiaangoossens/hass-oidc-auth
       containers:
         - name: home-assistant
           image: ghcr.io/home-assistant/home-assistant:2026.4.0
