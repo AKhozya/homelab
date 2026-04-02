@@ -46,38 +46,48 @@
 | `paperless-redis-password` | Paperless-NGX | Redis | 2026-04-02 | 2026-10-01 | Medium |
 | `wallabag-redis-password` | Wallabag | Redis | N/A (Removed - app decommissioned) | N/A | N/A |
 
-### Application Credentials
+### Application Secrets (service-to-service, rotated automatically)
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
 | `authentik-secret-key` | Authentik | Django Secret | 2026-04-02 | 2026-10-01 | High |
 | `n8n-encryption-key` | N8N | Encryption Key | Never* | N/A | Critical |
-| `homehub-password` | HomeHub | Bcrypt Password | 2026-04-02 | 2026-10-01 | Medium |
-| `adguard-home-config` | AdGuard Home | Bcrypt Password | 2026-04-02 | 2026-10-01 | Medium |
 
 \* **IMPORTANT**: N8N encryption key should NEVER be rotated as it encrypts workflow credentials
+
+### User Login Passwords (NOT rotated — only change if user requests)
+
+| Secret Name | App | Type | Notes |
+|-------------|-----|------|-------|
+| `homehub-password` | HomeHub | Bcrypt Password | User login — do NOT rotate without user consent |
+| `adguard-home-config` | AdGuard Home | Bcrypt Password | User login — do NOT rotate without user consent |
+| `grafana-admin-secret` | Grafana | Admin Password | User login — do NOT rotate without user consent |
+| `audiobookshelf-admin` | Audiobookshelf | Admin Password | User login — do NOT rotate without user consent |
 
 ### OIDC/OAuth Secrets
 
 | App | Where OIDC Secret Lives | Last Rotated | Next Rotation | Priority |
 |-----|------------------------|--------------|---------------|----------|
 | Grafana | `grafana-oidc` K8s Secret (mounted volume) | 2026-04-02 | 2026-10-01 | High |
-| Immich | Internal DB (web UI config) + Authentik API | 2026-04-02 | 2026-10-01 | High |
+| Immich | PostgreSQL `system_metadata` table (`oauth.clientSecret` jsonb path) + Authentik API | 2026-04-02 | 2026-10-01 | High |
 | Paperless-NGX | `paperless-env-secret.yaml` (PAPERLESS_SOCIALACCOUNT_PROVIDERS env) | 2026-04-02 | 2026-10-01 | High |
 | Mealie | `mealie-env-secret.yaml` (OIDC_CLIENT_SECRET env) | 2026-04-02 | 2026-10-01 | Medium |
 | Linkwarden | `linkwarden-secret.yaml` (DATABASE_URL + OIDC combined) | 2026-04-02 | 2026-10-01 | Medium |
 | Audiobookshelf | Internal SQLite DB (web UI config) + Authentik API | 2026-04-02 | 2026-10-01 | Medium |
-| Home Assistant | `secrets.yaml` (embedded oidc_client_secret) | 2026-04-02 | 2026-10-01 | High |
+| Home Assistant | OIDC disabled (hass-oidc-auth incompatible with HA 2026.4.0) | N/A | N/A | N/A |
 | Stirling PDF | `custom-settings-configmap.yaml` (SOPS Secret) | 2026-04-02 | 2026-10-01 | Medium |
 
-**IMPORTANT**: For immich and audiobookshelf, rotating the Authentik provider secret alone is NOT enough — you must also update the secret in their web UI settings. All other apps read from K8s secrets/env vars and pick up changes on pod restart.
+**IMPORTANT — OIDC rotation gotchas:**
+- **Immich**: Must update in Authentik API AND in PostgreSQL DB: `UPDATE system_metadata SET value = jsonb_set(value::jsonb, '{oauth,clientSecret}', '"NEW_SECRET"') WHERE key = 'system-config';` then restart pod
+- **Audiobookshelf**: Must update in Authentik API AND via the Audiobookshelf web UI (Settings → Authentication → OpenID). Cannot be done via CLI — stored in SQLite on PVC
+- **Paperless-NGX**: Secret lives in `PAPERLESS_SOCIALACCOUNT_PROVIDERS` JSON inside `paperless-env-secret.yaml` (NOT a standalone secret file)
+- **All others**: Update Authentik API + SOPS file + restart pod
 
 ### Infrastructure Credentials
 
 | Secret Name | Component | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----------|------|--------------|---------------|----------|
 | `tunnel-credentials` | Cloudflare Tunnel | Tunnel Token | 2025-10-18 | Never* | Critical |
-| `grafana-admin-secret` | Grafana | Admin Password | 2026-04-02 | 2026-10-01 | High |
 | `pricebuddy-telegram` | PriceBuddy | Telegram Bot Token | 2025-12-05 | Never* | Medium |
 | `backup-replication-ssh` | Backup Jobs | SSH Private Key | 2025-12-18 | 2026-12-18 | High |
 | `cloudflare-tunnel-mgmt-token` | CF Tunnel Mgmt | API Token | 2026-02-19 | 2026-12-31 | Medium |
@@ -97,19 +107,23 @@
 ## 🔄 ROTATION SCHEDULES
 
 ### High Priority (Every 90 Days)
-- Database passwords for apps with sensitive data (Immich, Authentik, N8N)
-- Redis passwords for authentication services
+- Database passwords for apps with sensitive data (Immich, Authentik, N8N, Home Assistant)
+- Redis passwords (Immich)
 
 ### Medium Priority (Every 180 Days)
-- OIDC client secrets
-- Application passwords (AdGuard Home, HomeHub)
-- Database passwords for less critical apps
-
-### Low Priority (Annually)
-- Non-critical application credentials
-- Development/testing credentials
+- OIDC client secrets (Authentik provider + app-side)
+- Database passwords for less critical apps (Mealie, Paperless, Linkwarden, Uptime Kuma, PriceBuddy)
+- Redis passwords (Paperless)
+- CouchDB admin password
+- Authentik Django secret key
 
 ### Never Rotate
+- User login passwords (AdGuard, HomeHub, Grafana admin, Audiobookshelf admin) — only change if user requests
+- N8N encryption key — rotating breaks all encrypted workflow credentials
+- Cloudflare tunnel token — only rotate if compromised
+- Age key for SOPS encryption — only rotate if compromised
+
+### Low Priority (Annually)
 - ⚠️ **N8N Encryption Key** - Rotating this will break all encrypted workflow credentials
 - Age key for SOPS encryption - Only rotate if compromised
 
@@ -422,16 +436,17 @@ If a secret is compromised:
 
 ### 2026 Q2 (Apr-Jun)
 - [x] 2026-04-02: Batch PostgreSQL password rotation (6 databases)
-  - Authentik, Immich, Paperless, Mealie, N8N, Linkwarden database passwords
+  - Authentik, Immich, Paperless, Mealie, N8N, Linkwarden
 - [x] 2026-04-02: MySQL password rotation (3 databases)
-  - Home Assistant, Uptime Kuma, PriceBuddy MySQL passwords
+  - Home Assistant, Uptime Kuma, PriceBuddy
 - [x] 2026-04-02: Redis password rotation (2 services)
-  - Immich, Paperless-NGX Redis passwords
-- [ ] 2026-04-16: Authentik secret key rotation (180-day cycle)
-- [ ] 2026-04-18: OIDC client secret rotation (180-day cycle)
-  - 7 Authentik-integrated apps (Grafana, Immich, Paperless, Mealie, Audiobookshelf, Home Assistant, Stirling PDF)
-- [x] 2026-04-02: CouchDB admin password rotation (180-day cycle)
-- [ ] 2026-04-23: AdGuard Home password rotation (180-day cycle)
+  - Immich, Paperless-NGX
+- [x] 2026-04-02: CouchDB admin password rotation
+- [x] 2026-04-02: OIDC client secret rotation (6 apps via Authentik API)
+  - Grafana, Immich (DB update), Paperless (env), Mealie (env), Stirling PDF (SOPS Secret)
+  - Audiobookshelf reverted (reads from SQLite DB, must update via web UI)
+  - Home Assistant skipped (hass-oidc-auth disabled, incompatible with HA 2026.4.0)
+- [x] 2026-04-02: Authentik Django secret key rotation
 
 ### 2026 Q3 (Jul-Sep)
 - [ ] 2026-07-01: High-priority PostgreSQL rotation (90-day: authentik, immich, n8n)
@@ -443,6 +458,8 @@ If a secret is compromised:
 - [ ] 2026-10-01: Medium-priority MySQL rotation (180-day: uptime-kuma, pricebuddy)
 - [ ] 2026-10-01: Medium-priority Redis rotation (180-day: paperless)
 - [ ] 2026-10-01: CouchDB admin password rotation (180-day)
+- [ ] 2026-10-01: OIDC client secret rotation (180-day: grafana, immich, paperless, mealie, stirling-pdf)
+- [ ] 2026-10-01: Authentik Django secret key rotation (180-day)
 
 ---
 

@@ -165,24 +165,26 @@
 
 #### Actions Completed This Review
 
-- ✅ **Secrets rotation**: 6 PostgreSQL + 3 MySQL + 2 Redis passwords rotated (was 77 days overdue)
-- ✅ **n8n NetworkPolicy**: Fixed AND/OR logic bug in database egress selector
+- ✅ **Full secrets rotation**: 6 PG + 3 MySQL + 2 Redis + 1 CouchDB + 6 OIDC + 1 Authentik secret key
+- ✅ **NetworkPolicy**: Fixed AND/OR logic bug in n8n, linkwarden, mealie (3 files)
 - ✅ **README.md**: Corrected PostgreSQL replica count (3→2) and audit grade (A- 92→A 94)
 - ✅ **PSS labels**: Added Pod Security Standards to 10 infrastructure namespaces
-- ✅ **SECRETS_ROTATION.md**: Updated rotation dates and Q3 schedule
+- ✅ **Stirling PDF**: Moved plaintext OIDC secret from ConfigMap to SOPS-encrypted Secret
+- ✅ **Linkwarden**: Added to CNPG managed roles (prevents password loss on PG restart)
+- ✅ **Cleanup**: Removed 5 redundant OIDC secret files, removed n8n OIDC (unsupported), removed wallabag references
+- ✅ **HA OIDC**: Disabled hass-oidc-auth (incompatible with HA 2026.4.0)
+- ✅ **Backup scripts**: Fixed missing secrets, wrong names/namespaces, updated for OIDC cleanup
+- ✅ **SECRETS_ROTATION.md**: Full rewrite — separated service secrets from user passwords, documented OIDC locations per app
 
 #### Pending Scheduled Items
 
 | Item | Target Date | Priority |
 |------|-------------|----------|
-| OIDC client secret rotation (7 apps) | 2026-04-18 | P2 |
-| Authentik secret key rotation | 2026-04-16 | P2 |
-| CouchDB admin password rotation | 2026-04-21 | P2 |
-| AdGuard Home password rotation | 2026-04-23 | P2 |
 | VictoriaMetrics re-evaluation | April 2026 | P3 |
 | Remove worker-node-2 replication step | ~May 20, 2026 | P2 |
 | n8n PgBouncer `statement_timeout` fix — re-check [#25705](https://github.com/n8n-io/n8n/issues/25705) | May 2026 | P3 |
-| Investigate Mealie PG rollbacks (163K, 43% rate) | April 2026 | P3 |
+| High-priority secret rotation (PG: authentik/immich/n8n, MySQL: HA, Redis: immich) | 2026-07-01 | P1 |
+| Re-evaluate HA OIDC when hass-oidc-auth releases stable version | Backlog | P3 |
 | Add PodDisruptionBudgets for HA workloads | Backlog | P3 |
 
 **Next Review**: 2026-05-04 (Monthly)
