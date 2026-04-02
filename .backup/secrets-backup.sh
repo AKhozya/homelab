@@ -102,9 +102,16 @@ kubectl get secret uptime-kuma-admin -n uptime-kuma -o json > "${BACKUP_DIR}/sec
 
 # Stirling PDF
 kubectl get secret stirling-pdf-env -n stirling-pdf -o json > "${BACKUP_DIR}/secrets/stirling-pdf-env.json"
+kubectl get secret stirling-pdf-custom-settings -n stirling-pdf -o json > "${BACKUP_DIR}/secrets/stirling-pdf-custom-settings.json"
 
 # HomeHub
 kubectl get secret homehub-password -n homehub -o json > "${BACKUP_DIR}/secrets/homehub-password.json"
+
+# AdGuard Home
+kubectl get secret adguard-home-config -n adguard-home -o json > "${BACKUP_DIR}/secrets/adguard-home-config.json"
+
+# SearXNG
+kubectl get secret searxng-secret -n searxng -o json > "${BACKUP_DIR}/secrets/searxng-secret.json"
 
 # PriceBuddy
 kubectl get secret pricebuddy-secrets -n pricebuddy -o json > "${BACKUP_DIR}/secrets/pricebuddy-secrets.json"
@@ -140,8 +147,8 @@ kubectl get secret home-assistant-oidc -n home-assistant -o json > "${BACKUP_DIR
 kubectl get secret immich-oidc -n immich -o json > "${BACKUP_DIR}/secrets/immich-oidc.json" 2>/dev/null || echo "   ⚠️  No immich/immich-oidc"
 kubectl get secret mealie-oidc -n mealie -o json > "${BACKUP_DIR}/secrets/mealie-oidc.json" 2>/dev/null || echo "   ⚠️  No mealie/mealie-oidc"
 kubectl get secret paperless-oidc -n paperless-ngx -o json > "${BACKUP_DIR}/secrets/paperless-oidc.json" 2>/dev/null || echo "   ⚠️  No paperless-ngx/paperless-oidc"
-kubectl get secret n8n-oidc -n n8n -o json > "${BACKUP_DIR}/secrets/n8n-oidc.json" 2>/dev/null || echo "   ⚠️  No n8n/n8n-oidc"
-# Note: stirling-pdf uses stirling-pdf-env for OIDC config (already backed up above)
+# Note: n8n doesn't support OIDC in free version (removed 2026-04-02)
+# Note: stirling-pdf OIDC is in stirling-pdf-custom-settings Secret (backed up below)
 # Note: linkwarden uses main 'linkwarden' secret for OIDC config (already backed up above)
 
 # =============================================================================
@@ -160,6 +167,14 @@ kubectl get secret alertmanager-telegram -n monitoring -o jsonpath='{.data.bot_t
 
 # Redis password
 kubectl get secret redis-passwords -n databases -o jsonpath='{.data.immich-password}' | base64 -d > "${BACKUP_DIR}/secrets/redis-password-immich.txt" 2>/dev/null
+
+# =============================================================================
+# Clean up JSON exports (strip cluster-specific metadata for portability)
+# =============================================================================
+echo "🧹 Cleaning up JSON exports..."
+for f in "${BACKUP_DIR}/secrets/"*.json; do
+  jq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.managedFields)' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+done
 
 # =============================================================================
 # Encrypt backup with GPG
