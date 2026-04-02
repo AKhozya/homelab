@@ -180,12 +180,29 @@ echo "   ✅ Uptime Kuma"
 # Stirling PDF
 kubectl create namespace stirling-pdf --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/stirling-pdf-env.json"
+if [ -f "${BACKUP_DIR}/secrets/stirling-pdf-custom-settings.json" ]; then
+    kubectl apply -f "${BACKUP_DIR}/secrets/stirling-pdf-custom-settings.json"
+fi
 echo "   ✅ Stirling PDF"
 
 # HomeHub
 kubectl create namespace homehub --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/homehub-password.json"
 echo "   ✅ HomeHub"
+
+# AdGuard Home
+if [ -f "${BACKUP_DIR}/secrets/adguard-home-config.json" ]; then
+    kubectl create namespace adguard-home --dry-run=client -o yaml | kubectl apply -f -
+    kubectl apply -f "${BACKUP_DIR}/secrets/adguard-home-config.json"
+    echo "   ✅ AdGuard Home"
+fi
+
+# SearXNG
+if [ -f "${BACKUP_DIR}/secrets/searxng-secret.json" ]; then
+    kubectl create namespace searxng --dry-run=client -o yaml | kubectl apply -f -
+    kubectl apply -f "${BACKUP_DIR}/secrets/searxng-secret.json"
+    echo "   ✅ SearXNG"
+fi
 
 # PriceBuddy
 kubectl create namespace pricebuddy --dry-run=client -o yaml | kubectl apply -f -
@@ -257,10 +274,9 @@ fi
 if [ -f "${BACKUP_DIR}/secrets/paperless-oidc.json" ]; then
     kubectl apply -f "${BACKUP_DIR}/secrets/paperless-oidc.json"
 fi
-if [ -f "${BACKUP_DIR}/secrets/n8n-oidc.json" ]; then
-    kubectl apply -f "${BACKUP_DIR}/secrets/n8n-oidc.json"
-fi
-# Note: stirling-pdf and linkwarden OIDC configs are in their main secrets (already restored above)
+# Note: n8n doesn't support OIDC in free version (removed 2026-04-02)
+# Note: stirling-pdf OIDC is in stirling-pdf-custom-settings Secret (restored below)
+# Note: linkwarden OIDC config is in main 'linkwarden' secret (already restored above)
 echo "   ✅ OIDC integration secrets restored"
 
 # =============================================================================

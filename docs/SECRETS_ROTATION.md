@@ -125,40 +125,37 @@
 #### Steps
 
 ```bash
-# 1. Generate new password (32 characters, alphanumeric only for URL safety)
-NEW_PASSWORD=$(openssl rand -base64 24 | tr -d '+/=' | head -c 32)
+# 1. Generate new password (64-char hex for URL safety)
+NEW_PASSWORD=$(openssl rand -hex 32)
 
-# 2. Update the Database User password via CRD
-# Example for Immich:
-kubectl patch database immich -n databases --type=merge -p '{"spec":{"user":{"password":"'$NEW_PASSWORD'"}}}'
+# 2. Update CNPG db-user secret (CNPG operator watches this and syncs to PostgreSQL)
+# All users are in managed.roles in the Cluster CRD — CNPG auto-updates the DB password
+sops --ignore-mac --set "[\"stringData\"][\"password\"] \"${NEW_PASSWORD}\"" \
+  infrastructure/configs/staging/databases/postgres/<app>-db-user.yaml
 
-# Wait for CloudNativePG operator to update the password
-kubectl wait --for=condition=Ready database/immich -n databases --timeout=60s
-
-# 3. Update SOPS-encrypted secret
-cd /Users/akhozya/source-code/homelab
-sops apps/base/immich/secret.yaml
-
-# Update the password value in the YAML file
-# Save and exit (SOPS will re-encrypt automatically)
+# 3. Update app-side SOPS secret (so the app uses the new password)
+# Key name varies by app — check the file first with: sops --ignore-mac -d <file>
+sops --ignore-mac --set '["stringData"]["<PASSWORD_KEY>"] "'${NEW_PASSWORD}'"' \
+  apps/staging/<app>/<secret-file>.yaml
 
 # 4. Commit and push
-git add apps/base/immich/secret.yaml
-git commit -m "Rotate Immich database password"
+git add infrastructure/configs/staging/databases/postgres/<app>-db-user.yaml \
+      apps/staging/<app>/<secret-file>.yaml
+git commit -m "Rotate <app> database password"
 git push
 
 # 5. Force Flux to reconcile
-flux reconcile source git flux-system --timeout 45s
-flux reconcile kustomization apps --timeout 45s --force
+flux reconcile source git flux-system --timeout 60s
+flux reconcile kustomization infrastructure-configs --timeout 60s
+flux reconcile kustomization apps --timeout 60s
 
 # 6. Restart affected pods to pick up new secret
-kubectl rollout restart deployment/immich-server -n immich
+kubectl rollout restart deployment/<app> -n <app>
 
 # 7. Verify connectivity
-kubectl logs -n immich deployment/immich-server --tail=20 | grep -i "database\|error"
+kubectl logs -n <app> deployment/<app> --tail=20 | grep -i "database\|error"
 
-# 8. Update rotation tracking
-# Update "Last Rotated" date in this document
+# 8. Update rotation tracking in this document
 ```
 
 **Rollback Procedure** (if issues occur):
@@ -167,12 +164,11 @@ kubectl logs -n immich deployment/immich-server --tail=20 | grep -i "database\|e
 git revert HEAD
 git push
 
-# 2. Restore database password to previous value
-kubectl patch database immich -n databases --type=merge -p '{"spec":{"user":{"password":"OLD_PASSWORD"}}}'
-
-# 3. Force reconcile and restart
-flux reconcile kustomization apps --timeout 45s --force
-kubectl rollout restart deployment/immich-server -n immich
+# 2. Force reconcile and restart (CNPG will revert the DB password from the reverted secret)
+flux reconcile source git flux-system --timeout 60s
+flux reconcile kustomization infrastructure-configs --timeout 60s
+flux reconcile kustomization apps --timeout 60s
+kubectl rollout restart deployment/<app> -n <app>
 ```
 
 ---
@@ -251,32 +247,41 @@ are stored in the `databases` namespace and referenced by the PerconaServerMySQL
 #### Steps
 
 ```bash
-# 1. Generate new OIDC client secret
+# 1. Generate new OIDC client secret (64-char hex)
 NEW_SECRET=$(openssl rand -hex 32)
 
-# 2. Update in Authentik UI
-# - Login to https://authentik.h0melab.work
-# - Navigate to Applications > Providers > [App Provider]
-# - Update Client Secret
-# - Save
+# 2. Update in Authentik via API (no UI needed)
+AUTHENTIK_TOKEN=$(kubectl get secret -n authentik authentik -o jsonpath='{.data.AUTHENTIK_BOOTSTRAP_TOKEN}' | base64 -d)
+# Get provider PK: 1=Grafana, 3=Immich, 5=Paperless, 11=Mealie, 13=Audiobookshelf, 14=HA, 16=Stirling
+kubectl exec -n authentik deploy/authentik-server -- curl -s -X PATCH \
+  -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
+  -H "Content-Type: application/json" \
+  -d "{\"client_secret\": \"${NEW_SECRET}\"}" \
+  "http://localhost:9000/api/v3/providers/oauth2/<PROVIDER_PK>/"
 
 # 3. Update SOPS-encrypted secret for the app
-# Example for Grafana:
-sops apps/base/grafana/secret.yaml
-# Update GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
+# Key name varies: "client-secret" for most apps, check with: sops --ignore-mac -d <file>
+sops --ignore-mac --set '["stringData"]["client-secret"] "'${NEW_SECRET}'"' \
+  apps/staging/<app>/<oidc-secret-file>.yaml
 
 # 4. Commit and push
-git add apps/base/grafana/secret.yaml
-git commit -m "Rotate Grafana OIDC client secret"
+git add apps/staging/<app>/<oidc-secret-file>.yaml
+git commit -m "Rotate <app> OIDC client secret"
 git push
 
 # 5. Reconcile and restart
-flux reconcile kustomization apps --timeout 45s --force
-kubectl rollout restart deployment/grafana -n grafana
+flux reconcile source git flux-system --timeout 60s
+flux reconcile kustomization apps --timeout 60s
+kubectl rollout restart deployment/<app> -n <app>
 
 # 6. Test SSO login
-# Visit https://grafana.h0melab.work and test login
+# Visit https://<app>.h0melab.work and test login
 ```
+
+**Provider PK Reference** (use `curl .../api/v3/providers/oauth2/` to list):
+- 1: Grafana, 3: Immich, 5: Paperless-NGX, 11: Mealie
+- 13: Audiobookshelf, 14: Home Assistant, 16: Stirling PDF
+- Note: n8n doesn't support OIDC in free version (no provider configured)
 
 ---
 
@@ -494,4 +499,4 @@ git show <commit-hash> -- apps/base/immich/secret.yaml
 
 **Document Owner**: DevOps Team
 **Review Schedule**: Quarterly
-**Next Review**: 2026-01-26
+**Next Review**: 2026-07-01

@@ -207,7 +207,7 @@ sha256sum -c /mnt/k8s-storage/backups/mysql/mysql_YYYYMMDD_HHMMSS.tar.gz.sha256
 tar -xzf /mnt/k8s-storage/backups/mysql/mysql_YYYYMMDD_HHMMSS.tar.gz -C /tmp
 
 # Get root password
-MYSQL_ROOT_PWD=$(kubectl get secret -n databases main-mysql-secrets -o jsonpath='{.data.root}' | base64 -d)
+MYSQL_ROOT_PWD=$(kubectl get secret -n databases mysql-cluster-secrets -o jsonpath='{.data.root}' | base64 -d)
 
 # Restore specific database
 kubectl exec -n databases main-mysql-mysql-0 -- \
@@ -482,7 +482,7 @@ done
 LATEST_MYSQL=$(ls -t /mnt/k8s-storage/backups/mysql/mysql_*.tar.gz | head -1)
 tar -xzf $LATEST_MYSQL -C /tmp
 
-MYSQL_ROOT_PWD=$(kubectl get secret -n databases main-mysql-secrets -o jsonpath='{.data.root}' | base64 -d)
+MYSQL_ROOT_PWD=$(kubectl get secret -n databases mysql-cluster-secrets -o jsonpath='{.data.root}' | base64 -d)
 
 for DB in homeassistant uptimekuma pricebuddy; do
   echo "Restoring $DB..."
@@ -498,7 +498,7 @@ LATEST_COUCHDB=$(ls -t /mnt/k8s-storage/backups/couchdb/couchdb_*.tar.gz | head 
 tar -xzf $LATEST_COUCHDB -C /tmp
 
 cat /tmp/*/obsidian-personal.couchbackup | \
-  kubectl exec -i -n couchdb couchdb-couchdb-0 -- \
+  kubectl exec -i -n databases couchdb-couchdb-0 -- \
   couchrestore --url http://admin:PASSWORD@localhost:5984 --db obsidian-personal
 ```
 
@@ -543,7 +543,7 @@ kubectl get jobs -A | grep backup
 
 # View logs
 kubectl logs -n databases job/postgres-backup-XXXXX
-kubectl logs -n couchdb job/couchdb-backup-XXXXX
+kubectl logs -n databases job/couchdb-backup-XXXXX
 kubectl logs -n kube-system job/pvc-backup-XXXXX
 kubectl logs -n databases job/mysql-backup-XXXXX
 kubectl logs -n backup-replication job/backup-replication-XXXXX
