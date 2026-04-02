@@ -6,7 +6,7 @@ Personal Kubernetes homelab running on K3s with GitOps automation, monitoring, a
 
 **Infrastructure:**
 - FluxCD for GitOps (everything in Git)
-- CloudNativePG for PostgreSQL (3-replica HA)
+- CloudNativePG for PostgreSQL (2-node HA)
 - Traefik + Cloudflare Tunnel for ingress
 - Prometheus, Grafana, Loki for monitoring
 - Renovate for automated dependency updates
@@ -30,7 +30,7 @@ flux reconcile kustomization apps monitoring-controllers monitoring-configs
 
 ## Documentation
 
-- **[HOMELAB_ANALYSIS.md](docs/HOMELAB_ANALYSIS.md)** - Complete infrastructure overview, security posture, metrics (A- grade, 92/100)
+- **[HOMELAB_ANALYSIS.md](docs/HOMELAB_ANALYSIS.md)** - Complete infrastructure overview, security posture, metrics (A grade, 94/100)
 - **[BACKUP_STRATEGY.md](docs/BACKUP_STRATEGY.md)** - Daily backups, retention policies, restore procedures
 - **[SECRETS_ROTATION.md](docs/SECRETS_ROTATION.md)** - Credential rotation schedules and playbooks
 - **[COMPREHENSIVE_CODEBASE_REVIEW.md](docs/COMPREHENSIVE_CODEBASE_REVIEW.md)** - Full security audit findings
