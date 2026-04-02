@@ -55,7 +55,7 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: databases
-        - podSelector:
+          podSelector:
             matchLabels:
               cnpg.io/cluster: main-postgres
       ports:
