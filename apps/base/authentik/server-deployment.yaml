@@ -99,7 +99,7 @@ spec:
               memory: "800Mi"
             limits:
               cpu: "1000m"
-              memory: "1200Mi"
+              memory: "1500Mi"
           volumeMounts:
             - name: media
               mountPath: /data/media
