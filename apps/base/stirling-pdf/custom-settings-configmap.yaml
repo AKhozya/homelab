@@ -1,24 +1,23 @@
 apiVersion: v1
-kind: ConfigMap
+kind: Secret
 metadata:
-  name: stirling-pdf-custom-settings
-  namespace: stirling-pdf
-data:
-  custom_settings.yml: |
-    security:
-      enableLogin: true
-      loginMethod: oauth2
-      oauth2:
-        enabled: true
-        issuer: https://authentik.h0melab.work/application/o/stirling-pdf/
-        clientId: stirling-pdf-client
-        clientSecret: Q8zP0jOKB7Xb17lfbVtdmYb5rP8MlQvkKlBlLLBhLlWRzpbyqXYXmFrxdIig8II8PF2CrLQIkqrWNhOEORqizpRKkCIyy9HHQNziCnz510K4cT3hKqJFCuKKD5daTpjc
-        scopes: openid, profile, email
-        useAsUsername: email
-        autoCreateUser: true
-        blockRegistration: false
-        provider: oidc
-    premium:
-      enabled: true
-      proFeatures:
-        SSOAutoLogin: false
+    name: stirling-pdf-custom-settings
+    namespace: stirling-pdf
+type: Opaque
+stringData:
+    custom_settings.yml: ENC[AES256_GCM,data:MQptcVzLO0wIGUTTsXVM2PRX2O7C9jcOHHREz/3m4Byzeb1s8oZF1b6km4sCKuj1grSto2LOGfAKZvyebCMZzYrgUAbBVwv4T3i5c82VFA/2u6ubkFDelk5NR0k5YPDcpMQeZYTyoszrm4T7orrqURUMAwrtmvMsQ1plfx2qC5IDyNOyC6/Pr0faNk7O8aW8e/Irbu6O6YQtISPbuytuQSK1yyqGFBESSjLbSbjlULsfWzRxu6TY/yfMZu1NdB39MptE8U9ITDBhMr2KwM4lW64ToQ+7l9HpbAoTtqR0/GzrlL8cuM8hvyWfMFX+CNJso9NFf8dmFkP7DslY6pelgohl2WZRCrp39xhNT3c7gAQjo96LFfb/v4xcT2JMQAefTxrIlXI08sbzbfKfWVNO0YFq52avKVCTWxUOHeG/hs7KJyXRpGbZhCvBoHt3UqnnwcXSx2enLLh2WoGsJN9JoVz7wvD680TAND33cHmr5UUV2xscZv4PxfXJtPA6hvNsbQX4dO9YlwREpJl9GL3LRBtiIe4sPfrLo/5bQo+LSCn4h4g9FPJDVbagdEUvVpXDIdEumusgMwVkV5anlpQwwQZd8QuHIACvOkwX+VZLQmdQ,iv:FV5mhARuM9XO9NtFkjFgb7ZX5vTvX4mIjEoOPWPV3uE=,tag:JXCMTx6tXO4OgP+q5m4WxQ==,type:str]
+sops:
+    age:
+        - recipient: age1jwjtfrp625gh24xd8rds9zcz7arsgmqf8y3nn4j9redfcvfvcuhs4fv3sc
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBUMGt4OGRpelRmV3pTRDUz
+            SWpGeFp2VkNRemtpTER1ajVlMTZOYmJreGhnCkM4dDIxOHd2bWtMaWFvOXZIZE93
+            MnM0SkZBUlFwdDZTYkV0VmlHU3BWdUEKLS0tIGtUcHVTU1g3UTJneENyM0FkSDBJ
+            blZ2bkJDWndpU2lGUEpEYk8ybUFIZ1EKhvAdaWps2etLCpr2vmLK5A9eBSObQcO4
+            X3FEGFExnqhdgCh1WQS8EUhkc8DprRZLXWWnGKA+OYUV7cIf/cfJPQ==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-04-02T17:45:41Z"
+    mac: ENC[AES256_GCM,data:aKUyYSwQoFVYrCMZwErGawrSD8H89jG3Hwnp01wpQ+ptE/bb3bfWmEBYPOfQH4OYMVITs8cqGIFUscqNz3h8Ki4Jb3FI/vHY7eB9DpNJv9LbDbe5ljZSI6FGw8SVAITZAzyNObVmuobt7UD4J2qZAR2QplHaWMmngutXonhyXqg=,iv:1MM/PavoswelYjjzsgVmOJvQ2MFfuSthewjZNqZ0DNg=,tag:8Z91A/p/lZ29lKsn7x9u8g==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.12.2

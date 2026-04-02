@@ -118,5 +118,5 @@ spec:
         - name: nginx-tmp-dir
           emptyDir: {}
         - name: custom-settings
-          configMap:
-            name: stirling-pdf-custom-settings
+          secret:
+            secretName: stirling-pdf-custom-settings

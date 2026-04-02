@@ -20,8 +20,8 @@
 | `n8n-db-password` | N8N | PostgreSQL | 2026-04-02 | 2026-07-01 | High |
 | `paperless-db-password` | Paperless-NGX | PostgreSQL | 2026-04-02 | 2026-10-01 | Medium |
 | `authentik-db-password` | Authentik | PostgreSQL | 2026-04-02 | 2026-07-01 | Critical |
-| `grafana-db-password` | Grafana | PostgreSQL | 2025-10-18 | 2026-01-16 | High |
-| `audiobookshelf-db-password` | Audiobookshelf | PostgreSQL | 2025-10-23 | 2026-01-21 | Medium |
+| `grafana-db-password` | Grafana | PostgreSQL | N/A (Uses embedded SQLite) | N/A | N/A |
+| `audiobookshelf-db-password` | Audiobookshelf | PostgreSQL | N/A (Uses embedded SQLite) | N/A | N/A |
 
 #### MySQL (Percona Operator)
 
@@ -50,10 +50,10 @@
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
-| `authentik-secret-key` | Authentik | Django Secret | 2025-10-18 | 2026-04-16 | High |
+| `authentik-secret-key` | Authentik | Django Secret | 2026-04-02 | 2026-10-01 | High |
 | `n8n-encryption-key` | N8N | Encryption Key | Never* | N/A | Critical |
-| `homehub-password` | HomeHub | Bcrypt Password | 2025-10-26 | 2026-01-24 | Medium |
-| `adguard-home-config` | AdGuard Home | Bcrypt Password | 2025-10-25 | 2026-04-23 | Medium |
+| `homehub-password` | HomeHub | Bcrypt Password | 2026-04-02 | 2026-10-01 | Medium |
+| `adguard-home-config` | AdGuard Home | Bcrypt Password | 2026-04-02 | 2026-10-01 | Medium |
 
 \* **IMPORTANT**: N8N encryption key should NEVER be rotated as it encrypts workflow credentials
 
@@ -61,21 +61,21 @@
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
-| `grafana-oidc` | Grafana | OIDC Client Secret | 2025-10-20 | 2026-04-18 | High |
-| `immich-oidc` | Immich | OIDC Client Secret | 2025-10-20 | 2026-04-18 | High |
-| `paperless-oidc` | Paperless-NGX | OIDC Client Secret | 2025-10-20 | 2026-04-18 | High |
-| `mealie-oidc` | Mealie | OIDC Client Secret | 2025-10-20 | 2026-04-18 | Medium |
-| `linkwarden-oidc` | Linkwarden | OIDC Client Secret | 2025-11-24 | 2026-05-22 | Medium |
-| `audiobookshelf-oidc` | Audiobookshelf | OIDC Client Secret | 2025-10-20 | 2026-04-18 | Medium |
-| `home-assistant-oidc` | Home Assistant | OIDC Client Secret | 2025-10-20 | 2026-04-18 | High |
-| `stirling-pdf-oidc` | Stirling PDF | OIDC Client Secret | 2025-10-25 | 2026-04-23 | Medium |
+| `grafana-oidc` | Grafana | OIDC Client Secret | 2026-04-02 | 2026-10-01 | High |
+| `immich-oidc` | Immich | OIDC Client Secret | 2026-04-02 | 2026-10-01 | High |
+| `paperless-oidc` | Paperless-NGX | OIDC Client Secret | 2026-04-02 | 2026-10-01 | High |
+| `mealie-oidc` | Mealie | OIDC Client Secret | 2026-04-02 | 2026-10-01 | Medium |
+| `linkwarden-oidc` | Linkwarden | OIDC Client Secret | 2026-04-02 | 2026-10-01 | Medium |
+| `audiobookshelf-oidc` | Audiobookshelf | OIDC Client Secret | 2026-04-02 | 2026-10-01 | Medium |
+| `home-assistant-oidc` | Home Assistant | OIDC Client Secret | 2026-04-02 | 2026-10-01 | High |
+| `stirling-pdf-oidc` | Stirling PDF | OIDC Client Secret | 2026-04-02 | 2026-10-01 | Medium |
 
 ### Infrastructure Credentials
 
 | Secret Name | Component | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----------|------|--------------|---------------|----------|
 | `tunnel-credentials` | Cloudflare Tunnel | Tunnel Token | 2025-10-18 | Never* | Critical |
-| `grafana-admin-secret` | Grafana | Admin Password | 2025-10-18 | 2026-04-16 | High |
+| `grafana-admin-secret` | Grafana | Admin Password | 2026-04-02 | 2026-10-01 | High |
 | `pricebuddy-telegram` | PriceBuddy | Telegram Bot Token | 2025-12-05 | Never* | Medium |
 | `backup-replication-ssh` | Backup Jobs | SSH Private Key | 2025-12-18 | 2026-12-18 | High |
 | `cloudflare-tunnel-mgmt-token` | CF Tunnel Mgmt | API Token | 2026-02-19 | 2026-12-31 | Medium |
