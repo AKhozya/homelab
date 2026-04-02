@@ -10,7 +10,7 @@ metadata:
 type: kubernetes.io/basic-auth
 stringData:
     username: ENC[AES256_GCM,data:2ry/,iv:qNOR3oANYC0f1B/Gt1O0EYzwWLz8A5Uks1yGOzSexJ4=,tag:KzjUo1DrKVzcqxl0x0gLiw==,type:str]
-    password: ENC[AES256_GCM,data:MVJjaR8+FlqpMv/RQMYfIqs6BD1Zrd/JUSJwoyNN03F08bfQPbIvffaQ6OelF68NYALpcZExSJL3cCyrqaYxfQ==,iv:nykYE0VSF4XZbE+F4VFk18za12QF9/8Nh67eIb1BgEM=,tag:7BmAjtIn6QHn2ND6PzX86A==,type:str]
+    password: ENC[AES256_GCM,data:4RSisZomRSwouzC1y/O4zESoXyYHWAr3aF3mrplCN6nfbmLduSLiOC8IZJqCWIVV806c/t7gPt7etcCyOJCcsg==,iv:Tzw1uHoW0QogZJIwXZ4ex+O84aPS2K7taw9+09GM1oE=,tag:E0uXT97vvUKbIkDuImcr/w==,type:str]
 sops:
     age:
         - recipient: age1jwjtfrp625gh24xd8rds9zcz7arsgmqf8y3nn4j9redfcvfvcuhs4fv3sc
@@ -22,7 +22,7 @@ sops:
             aW54Y3pCNlNFazJWbDIzLzhLeVRrSjgK5vp0uSrR7tQfz3d2FL2T06d+Q+nwaKk6
             SR5K3mEMzTI+GkwXhPRABEO28dGl+dgrFDLtJ0/iwxGTWGUojeY09A==
             -----END AGE ENCRYPTED FILE-----
-    lastmodified: "2025-10-23T13:17:03Z"
-    mac: ENC[AES256_GCM,data:Iha1tPDk/BFKiY1CUUUxAQBCGb2UTs7XGTdfu/bpI6GWPjhc7/U1VY+XdGbTleM2sIys/qhTQKcIlEea7TigHOnHrm6edEJy4jYUc0eG1lmhMUl45TjxprOj7NqRUndEmoT4OnUWE9w/ach2ZXNJ35W4LGBwqzcaPYeZ8OxyT+0=,iv:VjDc72jVqZLKcTEc0pYsjLI7fDFqasI7LUNXpi8R1IE=,tag:FT2eJTWi42FUbsH1mDbjag==,type:str]
+    lastmodified: "2026-04-02T16:41:18Z"
+    mac: ENC[AES256_GCM,data:cI9cBb39fn7Cv6pmW2N0dvHALRpC3TSmBWJYGs/ry6tw0Y1IpcdTjGy6OVrxQSjqtjOtigbZOXTuAInesQjo6Xc274yly23vp44fUV+JVNsW71VOpT92WHPZTFJ/0f+TmLBHrFtGfcvhss8BtI05IX9G+dS1CFG6Hei99AdzndE=,iv:y6uJrbaJ+SupYzRtkx4MD9GHoTHHXdzImwxX233Sn/I=,tag:NI4nNt/E1TXZyN6w2dBuCg==,type:str]
     encrypted_regex: ^(data|stringData)$
     version: 3.11.0
