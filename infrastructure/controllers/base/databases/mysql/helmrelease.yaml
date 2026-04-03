@@ -17,6 +17,7 @@ spec:
     crds: CreateReplace
     remediation:
       retries: 3
+  maxHistory: 3
   upgrade:
     crds: CreateReplace
     remediation:
