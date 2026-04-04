@@ -66,7 +66,7 @@ echo "=============================================="
 
 # Install essential packages
 echo "Installing essential packages..."
-pacman -S --noconfirm --needed smartmontools inetutils 2>/dev/null || true
+pacman -S --noconfirm --needed smartmontools inetutils jq yq 2>/dev/null || true
 
 # Install required firmware
 echo "Installing firmware packages..."
@@ -577,7 +577,7 @@ echo "       Setup Complete"
 echo "=============================================="
 echo ""
 echo "Applied:"
-echo "  - Packages: smartmontools, inetutils, $UCODE_PKG, linux-firmware, AUR firmware"
+echo "  - Packages: smartmontools, inetutils, jq, yq, $UCODE_PKG, linux-firmware, AUR firmware"
 echo "  - User makepkg.conf: BUILDDIR/SRCDEST/PKGDEST override for rebuilderd nodes"
 echo "  - CPU governor: powersave (EPP: balance_power, boost enabled)"
 echo "  - TCP congestion: BBR, inotify 8192/1M, conntrack 1M"
