@@ -117,14 +117,14 @@ spec:
                     --exclude='.*.swp' \
                     --port=50555 \
                     /source-backups/ \
-                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/"
+                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/"
 
                   # Step 3: Verify NAS
                   CURRENT_STEP="Step 3: Verifying NAS"
                   echo ""
                   echo "=== Step 3: Verifying NAS ==="
                   RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
-                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/" 2>/dev/null \
+                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/" 2>/dev/null \
                     | head -20 || echo "NAS verification failed"
 
                   # Step 4: Validate backups
@@ -241,7 +241,7 @@ spec:
                   echo ""
                   echo "=== Step 6: Checking NAS storage ==="
                   NAS_SIZE_GB=$(RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
-                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya/backups/homelab/" 2>/dev/null \
+                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/" 2>/dev/null \
                     | awk '/^-/{sum+=$2} END{printf "%d", sum/1073741824}')
                   echo "NAS backup size: ~${NAS_SIZE_GB}GB / 500GB limit"
 
