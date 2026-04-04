@@ -75,29 +75,38 @@ pacman -S --noconfirm --needed $UCODE_PKG linux-firmware linux-firmware-whence 2
 # Install optional firmware to suppress mkinitcpio warnings
 echo "Installing optional firmware (AUR)..."
 AUR_PKGS="aic94xx-firmware ast-firmware wd719x-firmware upd72020x-fw"
+AUR_HELPER=""
 if command -v yay &>/dev/null; then
-    sudo -u nobody true 2>/dev/null || true  # Test if we can drop privs
-    # Find a non-root user to run yay
-    SUDO_USER=${SUDO_USER:-$(who | head -1 | awk '{print $1}')}
-    if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
-        for pkg in $AUR_PKGS; do
-            if ! pacman -Qi "$pkg" &>/dev/null; then
-                sudo -u "$SUDO_USER" yay -S --noconfirm --needed "$pkg" 2>/dev/null && echo "  Installed: $pkg" || true
-            fi
-        done
-    else
-        echo "  Skipped: Cannot run yay as root, install manually"
-    fi
+    AUR_HELPER="yay"
 elif command -v paru &>/dev/null; then
+    AUR_HELPER="paru"
+fi
+if [ -n "$AUR_HELPER" ]; then
     SUDO_USER=${SUDO_USER:-$(who | head -1 | awk '{print $1}')}
     if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+        # Create user makepkg.conf to override system BUILDDIR/SRCDEST/PKGDEST
+        # (rebuilderd nodes set these to root-owned dirs in /etc/makepkg.conf.d/storage.conf,
+        # which breaks AUR builds as a regular user)
+        USER_HOME=$(eval echo "~$SUDO_USER")
+        USER_MAKEPKG="$USER_HOME/.makepkg.conf"
+        if [ ! -f "$USER_MAKEPKG" ]; then
+            echo "  Creating $USER_MAKEPKG (override rebuilderd BUILDDIR)..."
+            cat > "$USER_MAKEPKG" << MKEOF
+# Override /etc/makepkg.conf.d/storage.conf which points to rebuilderd root-owned dirs
+BUILDDIR="\$HOME/.cache/makepkg/build"
+SRCDEST="\$HOME/.cache/makepkg/sources"
+PKGDEST="\$HOME/.cache/makepkg/packages"
+MKEOF
+            chown "$SUDO_USER:$SUDO_USER" "$USER_MAKEPKG"
+            sudo -u "$SUDO_USER" mkdir -p "$USER_HOME/.cache/makepkg"/{build,sources,packages}
+        fi
         for pkg in $AUR_PKGS; do
             if ! pacman -Qi "$pkg" &>/dev/null; then
-                sudo -u "$SUDO_USER" paru -S --noconfirm --needed "$pkg" 2>/dev/null && echo "  Installed: $pkg" || true
+                sudo -u "$SUDO_USER" $AUR_HELPER -S --noconfirm --needed "$pkg" 2>/dev/null && echo "  Installed: $pkg" || true
             fi
         done
     else
-        echo "  Skipped: Cannot run paru as root, install manually"
+        echo "  Skipped: Cannot run $AUR_HELPER as root, install manually"
     fi
 else
     echo "  Skipped: No AUR helper (yay/paru) found"
@@ -568,7 +577,8 @@ echo "       Setup Complete"
 echo "=============================================="
 echo ""
 echo "Applied:"
-echo "  - Packages: smartmontools, inetutils, $UCODE_PKG, linux-firmware"
+echo "  - Packages: smartmontools, inetutils, $UCODE_PKG, linux-firmware, AUR firmware"
+echo "  - User makepkg.conf: BUILDDIR/SRCDEST/PKGDEST override for rebuilderd nodes"
 echo "  - CPU governor: powersave (EPP: balance_power, boost enabled)"
 echo "  - TCP congestion: BBR, inotify 8192/1M, conntrack 1M"
 echo "  - SSD power saving: disabled (NVMe APST, PCIe ASPM, SATA ALPM)"
