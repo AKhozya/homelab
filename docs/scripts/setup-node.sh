@@ -66,7 +66,28 @@ echo "=============================================="
 
 # Install essential packages
 echo "Installing essential packages..."
-pacman -S --noconfirm --needed smartmontools inetutils jq yq 2>/dev/null || true
+ESSENTIAL_PKGS="base-devel bash-completion btop efibootmgr ethtool fail2ban fwupd fzf git go
+    inetutils jq linux-lts linux-lts-headers lvm2 lynis nvme-cli openssh pacman-contrib
+    reflector rkhunter rsync smartmontools sysstat tree ufw ufw-extras vim yay yq"
+pacman -S --noconfirm --needed $ESSENTIAL_PKGS 2>/dev/null || true
+
+# Worker-only packages: rebuilderd for reproducible builds
+if [ "$NODE_TYPE" = "worker" ]; then
+    echo "Installing worker-specific packages (rebuilderd)..."
+    pacman -S --noconfirm --needed rebuilderd archlinux-repro 2>/dev/null || true
+fi
+
+# GPU packages: mesa + vulkan (auto-detect GPU presence)
+if lspci 2>/dev/null | grep -qi 'VGA\|3D\|Display'; then
+    echo "Installing GPU packages (mesa, vulkan)..."
+    GPU_PKGS="mesa vulkan-tools vulkan-mesa-implicit-layers"
+    if [ "$CPU_TYPE" = "AMD" ]; then
+        GPU_PKGS="$GPU_PKGS vulkan-radeon"
+    elif [ "$CPU_TYPE" = "Intel" ]; then
+        GPU_PKGS="$GPU_PKGS vulkan-intel"
+    fi
+    pacman -S --noconfirm --needed $GPU_PKGS 2>/dev/null || true
+fi
 
 # Install required firmware
 echo "Installing firmware packages..."
@@ -577,7 +598,9 @@ echo "       Setup Complete"
 echo "=============================================="
 echo ""
 echo "Applied:"
-echo "  - Packages: smartmontools, inetutils, jq, yq, $UCODE_PKG, linux-firmware, AUR firmware"
+echo "  - Packages: base-devel, btop, fail2ban, fwupd, git, go, jq, yq, rsync, etc."
+echo "  - Workers: rebuilderd, archlinux-repro"
+echo "  - GPU: mesa, vulkan (auto-detected)"
 echo "  - User makepkg.conf: BUILDDIR/SRCDEST/PKGDEST override for rebuilderd nodes"
 echo "  - CPU governor: powersave (EPP: balance_power, boost enabled)"
 echo "  - TCP congestion: BBR, inotify 8192/1M, conntrack 1M"
