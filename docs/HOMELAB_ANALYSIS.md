@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2026-04-02)
+**Assessment Date**: 2025-10-18 (Updated: 2026-04-05)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Node IPs** (static DHCP, router-assigned by MAC): gmk-k3s-control-plane=192.168.1.127, worker-node=192.168.1.129, worker-node-2=192.168.1.126
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
@@ -129,7 +129,7 @@
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Nodes** | ✅ 3/3 Ready | K3s v1.35.2, Kernel 6.18.20-1-lts, max 25% memory |
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.3, Kernel 6.18.20-1-lts, max 25% memory |
 | **Control Plane** | ✅ Healthy | 19% CPU, 19% memory |
 | **worker-node** | ✅ Healthy | 21% CPU, 25% memory |
 | **worker-node-2** | ✅ Healthy | 16% CPU, 19% memory |
@@ -199,7 +199,7 @@
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Nodes** | ✅ 3/3 Ready | K3s v1.35.2, Kernel 6.18.16-lts |
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.3, Kernel 6.18.16-lts |
 | **Control Plane** | ✅ Healthy | 23% CPU, 13% memory |
 | **worker-node** | ✅ Healthy | 20% CPU, 33% memory (rebuilderd active) |
 | **worker-node-2** | ✅ Healthy | 31% CPU, 38% memory (rebuilderd active) |
@@ -267,7 +267,7 @@
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Nodes** | ✅ 3/3 Ready | K3s v1.35.2, Kernel 6.18.16-lts |
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.3, Kernel 6.18.16-lts |
 | **Control Plane** | ✅ Healthy | 15% CPU, 19% memory |
 | **worker-node** | ✅ Healthy | 19% CPU, 26% memory (rebuilderd active) |
 | **worker-node-2** | ✅ Healthy | 8% CPU, 18% memory |
@@ -354,7 +354,7 @@
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Nodes** | ✅ 3/3 Ready | K3s v1.35.2, Kernel 6.18.16-lts |
+| **Nodes** | ✅ 3/3 Ready | K3s v1.35.3, Kernel 6.18.16-lts |
 | **Control Plane** | ✅ Healthy | 14% CPU, 17% memory |
 | **worker-node** | ✅ Healthy | 20% CPU, 24% memory (rebuilderd active) |
 | **worker-node-2** | ✅ Healthy | 22% CPU, 40% memory (tensorflow building) |
@@ -731,7 +731,7 @@
      - **User**: z3us
      - **Hardware**: 30GB RAM, 1TB NVMe (system) + 3.6TB NVMe (k8s-storage)
      - **Kernel**: 6.18.16-1-lts
-     - **K3s**: v1.35.2+k3s1
+     - **K3s**: v1.35.3+k3s1
    - **Storage**: 3.6TB LVM (`k8s-storage` VG) - 1% used
    - **Current Workloads** (31 pods):
      - PostgreSQL replica (main-postgres-11)
@@ -754,7 +754,7 @@
    - **Status**: ✅ COMPLETED - 2026-03-06
    - **Priority**: ~~P2-MEDIUM~~ COMPLETED
    - **Result**: All 3 nodes switched from mainline `linux` (6.19.6) to `linux-lts` (6.18.16)
-   - **K3s**: Upgraded v1.35.1 → v1.35.2 simultaneously
+   - **K3s**: Upgraded v1.35.1 → v1.35.3 simultaneously
    - **Procedure Used**: Two-phase approach (install LTS → reboot → verify → remove mainline)
    - **Boot Entries**: systemd-boot entries created from existing ones, fallback initramfs enabled
    - **Benefit**: Long-term stability, security backports until Dec 2027
@@ -1324,7 +1324,7 @@ ingress:
   - Boot entries created from existing ones (preserves per-node kernel params)
   - Mainline `linux` package fully removed after LTS confirmed working
   - Benefit: LTS stability, security backports until Dec 2027
-- ✅ **K3s: v1.35.1 → v1.35.2** on all 3 nodes ⭐
+- ✅ **K3s: v1.35.1 → v1.35.3** on all 3 nodes ⭐
   - Control-plane upgraded first (API server before agents)
   - Agent upgrade script auto-reads URL/token from service env file
 - ✅ **All pods healthy, 0 alerts firing after upgrade**

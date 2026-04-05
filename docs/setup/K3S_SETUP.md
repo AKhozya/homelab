@@ -86,10 +86,10 @@ The setup script (`docs/scripts/setup-node.sh`) auto-detects node type and appli
 
 ```bash
 # Control plane
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.35.2+k3s1 sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.35.3+k3s1 sh -
 
 # Worker nodes (need URL + token)
-curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<token> INSTALL_K3S_VERSION=v1.35.2+k3s1 sh -
+curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<token> INSTALL_K3S_VERSION=v1.35.3+k3s1 sh -
 ```
 
 ## Verification
