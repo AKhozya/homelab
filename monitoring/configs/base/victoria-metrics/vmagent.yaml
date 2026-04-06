@@ -1,0 +1,37 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMAgent
+metadata:
+  name: vmagent
+  namespace: victoria-metrics
+spec:
+  serviceScrapeSelector:
+    matchLabels:
+      managed-by: vm-comparison
+  podScrapeSelector:
+    matchLabels:
+      managed-by: vm-comparison
+  nodeScrapeSelector:
+    matchLabels:
+      managed-by: vm-comparison
+  remoteWrite:
+    - url: http://vmsingle-vmsingle.victoria-metrics.svc:8429/api/v1/write
+  scrapeInterval: "60s"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+  extraArgs:
+    promscrape.dropOriginalLabels: "false"

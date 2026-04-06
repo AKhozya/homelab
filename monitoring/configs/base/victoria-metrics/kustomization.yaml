@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: victoria-metrics
+resources:
+  - vmsingle.yaml
+  - vmagent.yaml
+  - scrape-kubelet.yaml
+  - scrape-kubelet-cadvisor.yaml
+  - scrape-kubelet-probes.yaml
+  - scrape-apiserver.yaml
+  - scrape-coredns.yaml
+  - scrape-node-exporter.yaml
+  - scrape-kube-state-metrics.yaml
+  - scrape-monitoring-stack.yaml
+  - scrape-databases.yaml
+  - scrape-apps.yaml
+  - scrape-kyverno.yaml
+  - scrape-cnpg-operator.yaml
+  - scrape-vmagent.yaml
+  - networkpolicy.yaml

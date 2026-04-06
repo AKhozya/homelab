@@ -4,3 +4,4 @@ resources:
   - kube-prometheus-stack
   - grafana-dashboards
   - flux-notifications.yaml
+  - victoria-metrics
