@@ -247,6 +247,9 @@ spec:
       backoffLimit: 1
       ttlSecondsAfterFinished: 345600
       template:
+        metadata:
+          labels:
+            app: vm-comparison
         spec:
           serviceAccountName: vm-comparison
           restartPolicy: Never

@@ -156,7 +156,7 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      job-name: vm-comparison
+      app: vm-comparison
   policyTypes:
     - Egress
   egress:
@@ -183,7 +183,9 @@ spec:
       ports:
         - protocol: TCP
           port: 6443
-    # Telegram API (HTTPS)
+    # HTTPS: Telegram API + Alpine APK repos
     - ports:
         - protocol: TCP
           port: 443
+        - protocol: TCP
+          port: 80
