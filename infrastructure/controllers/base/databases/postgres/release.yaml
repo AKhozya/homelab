@@ -57,6 +57,8 @@ spec:
     # Enable monitoring
     monitoring:
       podMonitorEnabled: true
+      podMonitorAdditionalLabels:
+        release: kube-prometheus-stack
 
     # Webhook configuration
     webhook:

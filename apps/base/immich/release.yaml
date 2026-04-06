@@ -156,6 +156,10 @@ spec:
     # Immich Server component
     server:
       enabled: true
+      serviceMonitor:
+        main:
+          labels:
+            release: kube-prometheus-stack
       controllers:
         main:
           pod:

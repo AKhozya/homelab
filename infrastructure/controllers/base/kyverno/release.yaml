@@ -86,6 +86,8 @@ spec:
       serviceMonitor:
         enabled: true
         interval: 60s
+        additionalLabels:
+          release: kube-prometheus-stack
 
     # Background controller for policy reports
     backgroundController:
@@ -117,6 +119,8 @@ spec:
       serviceMonitor:
         enabled: true
         interval: 60s
+        additionalLabels:
+          release: kube-prometheus-stack
 
     # Cleanup controller
     cleanupController:
@@ -149,6 +153,8 @@ spec:
       serviceMonitor:
         enabled: true
         interval: 60s
+        additionalLabels:
+          release: kube-prometheus-stack
 
     # Reports controller
     reportsController:
@@ -181,6 +187,8 @@ spec:
       serviceMonitor:
         enabled: true
         interval: 60s
+        additionalLabels:
+          release: kube-prometheus-stack
 
     # Feature flags
     features:
