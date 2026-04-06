@@ -261,7 +261,10 @@ spec:
                 - |
                   # Wait for NetworkPolicy to be synced by kube-router
                   sleep 5
-                  apk add --no-cache jq >/dev/null 2>&1
+                  # Download static jq binary (no apk needed)
+                  wget -qO /tmp/jq https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64
+                  chmod +x /tmp/jq
+                  export PATH="/tmp:$PATH"
                   sh /scripts/compare.sh
               resources:
                 requests:
@@ -277,11 +280,13 @@ spec:
                 - name: telegram
                   mountPath: /etc/telegram
                   readOnly: true
+                - name: tmp
+                  mountPath: /tmp
               securityContext:
                 runAsNonRoot: true
                 runAsUser: 65534
                 allowPrivilegeEscalation: false
-                readOnlyRootFilesystem: false
+                readOnlyRootFilesystem: true
                 capabilities:
                   drop:
                     - ALL
@@ -294,3 +299,6 @@ spec:
             - name: telegram
               secret:
                 secretName: alertmanager-telegram
+            - name: tmp
+              emptyDir:
+                sizeLimit: 10Mi
