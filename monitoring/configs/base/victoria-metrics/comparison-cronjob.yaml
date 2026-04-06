@@ -35,7 +35,7 @@ metadata:
 data:
   compare.sh: |
     #!/bin/sh
-    set -e
+    # No set -e: we want partial results even if some queries fail
 
     PROM="http://kube-prometheus-stack-prometheus.monitoring.svc:9090"
     VM="http://vmsingle-vmsingle.monitoring.svc:8429"
@@ -43,8 +43,8 @@ data:
     TG_TOKEN=$(cat /etc/telegram/bot_token)
     TG_CHAT="113452686"
     TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
-    # Calculate hours since epoch-start (Apr 6 21:00 UTC)
-    START_EPOCH=1775775600
+    # Calculate hours since epoch-start (Apr 6 21:00 UTC = 2026-04-06T21:00:00Z)
+    START_EPOCH=1775505600
     NOW_EPOCH=$(date +%s)
     HOURS_ELAPSED=$(( (NOW_EPOCH - START_EPOCH) / 3600 ))
 
@@ -75,9 +75,8 @@ data:
     TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
     CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
 
-    METRICS_JSON=$(wget -qO- --header="Authorization: Bearer $TOKEN" \
-      --ca-certificate="$CA" \
-      "$K8S/apis/metrics.k8s.io/v1beta1/namespaces/monitoring/pods" 2>/dev/null)
+    METRICS_JSON=$(curl -sf --cacert "$CA" -H "Authorization: Bearer $TOKEN" \
+      "$K8S/apis/metrics.k8s.io/v1beta1/namespaces/monitoring/pods" 2>/dev/null || echo "{}")
 
     # Prometheus pods RAM
     PROM0_RAM=$(echo "$METRICS_JSON" | jq -r '[.items[] | select(.metadata.name | startswith("prometheus-kube-prometheus-stack-prometheus-0")) | .containers[] | select(.name == "prometheus") | .usage.memory | gsub("Ki";"") | tonumber] | add // 0' 2>/dev/null)
@@ -224,10 +223,10 @@ data:
     <b>Targets</b>
     Prom: ${PROM_UP} up | VM: ${VM_UP} up${DOWN_NOTE}"
 
-    # Send to Telegram (escape special chars for URL encoding)
-    wget -qO- --post-data="chat_id=${TG_CHAT}&parse_mode=HTML&text=${MSG}" \
-      "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" >/dev/null 2>&1 || \
-      echo "WARNING: Failed to send Telegram message"
+    # Send to Telegram
+    curl -sf -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+      -d "chat_id=${TG_CHAT}" -d "parse_mode=HTML" -d "text=${MSG}" \
+      >/dev/null 2>&1 || echo "WARNING: Failed to send Telegram message"
 
     echo ""
     echo "Telegram summary sent."
