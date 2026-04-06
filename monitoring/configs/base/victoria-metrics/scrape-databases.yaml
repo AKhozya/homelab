@@ -1,0 +1,104 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: mysql-exporter
+  namespace: victoria-metrics
+  labels:
+    managed-by: vm-comparison
+spec:
+  namespaceSelector:
+    matchNames:
+      - databases
+  selector:
+    matchLabels:
+      app: mysql-exporter
+  endpoints:
+    - port: metrics
+      interval: "60s"
+      path: /metrics
+      scrapeTimeout: "10s"
+      metricRelabelConfigs:
+        - sourceLabels: [__name__]
+          regex: 'mysql_info_schema_innodb_cmp.*'
+          action: drop
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: redis
+  namespace: victoria-metrics
+  labels:
+    managed-by: vm-comparison
+spec:
+  namespaceSelector:
+    matchNames:
+      - databases
+  selector:
+    matchLabels:
+      app: redis
+  endpoints:
+    - port: metrics
+      interval: "60s"
+      path: /metrics
+      scrapeTimeout: "10s"
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: couchdb
+  namespace: victoria-metrics
+  labels:
+    managed-by: vm-comparison
+spec:
+  namespaceSelector:
+    matchNames:
+      - databases
+  selector:
+    matchLabels:
+      app: couchdb
+  endpoints:
+    - port: couchdb
+      interval: "60s"
+      path: /_node/_local/_prometheus
+      scrapeTimeout: "10s"
+      basicAuth:
+        username:
+          name: couchdb-couchdb
+          key: adminUsername
+        password:
+          name: couchdb-couchdb
+          key: adminPassword
+      metricRelabelConfigs:
+        - sourceLabels: [__name__]
+          regex: 'couchdb_erlang_message_queue_size'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'couchdb_dreyfus_.*'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'couchdb_nouveau_.*'
+          action: drop
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: postgres
+  namespace: victoria-metrics
+  labels:
+    managed-by: vm-comparison
+spec:
+  namespaceSelector:
+    matchNames:
+      - databases
+  selector:
+    matchLabels:
+      cnpg.io/cluster: main-postgres
+      cnpg.io/podRole: instance
+  podMetricsEndpoints:
+    - port: metrics
+      interval: "60s"
+      scrapeTimeout: "10s"
+      metricRelabelConfigs:
+        - sourceLabels: [__name__]
+          regex: 'cnpg_pg_settings_setting'
+          action: drop

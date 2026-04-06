@@ -1,0 +1,17 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: vmagent
+  namespace: victoria-metrics
+  labels:
+    managed-by: vm-comparison
+spec:
+  namespaceSelector:
+    matchNames:
+      - victoria-metrics
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vmagent
+  endpoints:
+    - port: http
+      interval: "60s"

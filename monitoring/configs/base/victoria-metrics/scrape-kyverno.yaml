@@ -1,0 +1,75 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: kyverno-admission-controller
+  namespace: victoria-metrics
+  labels:
+    managed-by: vm-comparison
+spec:
+  namespaceSelector:
+    matchNames:
+      - kyverno
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: admission-controller
+      app.kubernetes.io/instance: kyverno
+  endpoints:
+    - port: metrics-port
+      interval: "60s"
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: kyverno-background-controller
+  namespace: victoria-metrics
+  labels:
+    managed-by: vm-comparison
+spec:
+  namespaceSelector:
+    matchNames:
+      - kyverno
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: background-controller
+      app.kubernetes.io/instance: kyverno
+  endpoints:
+    - port: metrics-port
+      interval: "60s"
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: kyverno-cleanup-controller
+  namespace: victoria-metrics
+  labels:
+    managed-by: vm-comparison
+spec:
+  namespaceSelector:
+    matchNames:
+      - kyverno
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: cleanup-controller
+      app.kubernetes.io/instance: kyverno
+  endpoints:
+    - port: metrics-port
+      interval: "60s"
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: kyverno-reports-controller
+  namespace: victoria-metrics
+  labels:
+    managed-by: vm-comparison
+spec:
+  namespaceSelector:
+    matchNames:
+      - kyverno
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: reports-controller
+      app.kubernetes.io/instance: kyverno
+  endpoints:
+    - port: metrics-port
+      interval: "60s"

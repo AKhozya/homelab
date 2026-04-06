@@ -1,0 +1,36 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: kubelet-cadvisor
+  namespace: victoria-metrics
+  labels:
+    managed-by: vm-comparison
+spec:
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kubelet
+  endpoints:
+    - port: https-metrics
+      interval: "60s"
+      path: /metrics/cadvisor
+      scheme: https
+      tlsConfig:
+        insecureSkipVerify: true
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      honorLabels: true
+      metricRelabelConfigs:
+        - sourceLabels: [name]
+          targetLabel: container
+        - sourceLabels: [__name__]
+          regex: 'container_tasks_state'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'container_memory_failures_total'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'container_blkio_device_usage_total'
+          action: drop

@@ -1,0 +1,75 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: apiserver
+  namespace: victoria-metrics
+  labels:
+    managed-by: vm-comparison
+spec:
+  namespaceSelector:
+    matchNames:
+      - default
+  selector:
+    matchLabels:
+      component: apiserver
+      provider: kubernetes
+  endpoints:
+    - port: https
+      interval: "60s"
+      scheme: https
+      tlsConfig:
+        insecureSkipVerify: true
+        caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+      bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      metricRelabelConfigs:
+        - sourceLabels: [__name__]
+          regex: 'apiserver_request_(duration|sli_duration)_seconds_bucket'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'apiserver_request_body_size_bytes_bucket'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'apiserver_response_sizes_bucket'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'etcd_request_duration_seconds_bucket'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'apiserver_watch_(cache_read_wait_seconds|events_sizes)_bucket'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'workqueue_(work|queue)_duration_seconds_bucket'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'scheduler_plugin_execution_duration_seconds_bucket'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'storage_operation_duration_seconds_bucket'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'kubernetes_feature_enabled'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'apiserver_admission_controller_admission_duration_seconds_bucket'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'rest_client_(request_duration|request_size|response_size)_bytes?_bucket'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'apiserver_request_sli_duration_seconds_(count|sum)'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'apiserver_response_sizes_(count|sum)'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'etcd_request_duration_seconds_(count|sum)'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'workqueue_(work|queue)_duration_seconds_(count|sum)'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'go_(gc_heap_|sched_).*_bucket'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'go_gc_pauses_seconds_bucket'
+          action: drop
