@@ -258,7 +258,11 @@ spec:
               image: alpine:3.22
               command: ["/bin/sh", "-c"]
               args:
-                - apk add --no-cache jq >/dev/null 2>&1 && sh /scripts/compare.sh
+                - |
+                  # Wait for NetworkPolicy to be synced by kube-router
+                  sleep 5
+                  apk add --no-cache jq >/dev/null 2>&1
+                  sh /scripts/compare.sh
               resources:
                 requests:
                   cpu: 50m
