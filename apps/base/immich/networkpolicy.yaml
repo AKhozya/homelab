@@ -32,6 +32,16 @@ spec:
       ports:
         - protocol: TCP
           port: 2283
+    # Allow Prometheus/VMAgent metrics scraping
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8081
+        - protocol: TCP
+          port: 8082
     - from:
         - podSelector:
             matchLabels:
