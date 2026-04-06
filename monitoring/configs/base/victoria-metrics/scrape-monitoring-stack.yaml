@@ -2,7 +2,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: prometheus
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -22,7 +22,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: alertmanager
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -42,7 +42,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: prometheus-operator
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -65,7 +65,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: grafana
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:

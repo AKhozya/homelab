@@ -2,7 +2,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: cloudflared
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -21,7 +21,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: traefik
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -40,7 +40,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: cert-manager
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -75,7 +75,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: alloy
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -93,7 +93,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: loki
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -111,7 +111,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: immich
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:

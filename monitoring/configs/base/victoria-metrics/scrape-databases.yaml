@@ -2,7 +2,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: mysql-exporter
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -26,7 +26,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: redis
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -46,7 +46,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: couchdb
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -83,7 +83,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMPodScrape
 metadata:
   name: postgres
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:

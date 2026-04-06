@@ -2,13 +2,13 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: vmagent
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
-      - victoria-metrics
+      - monitoring
   selector:
     matchLabels:
       app.kubernetes.io/name: vmagent

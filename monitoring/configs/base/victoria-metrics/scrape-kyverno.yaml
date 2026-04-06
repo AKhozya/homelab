@@ -2,7 +2,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: kyverno-admission-controller
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -21,7 +21,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: kyverno-background-controller
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -40,7 +40,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: kyverno-cleanup-controller
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:
@@ -59,7 +59,7 @@ apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape
 metadata:
   name: kyverno-reports-controller
-  namespace: victoria-metrics
+  namespace: monitoring
   labels:
     managed-by: vm-comparison
 spec:

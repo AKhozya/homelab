@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: vmsingle-network-policy
-  namespace: victoria-metrics
+  namespace: monitoring
 spec:
   podSelector:
     matchLabels:
@@ -58,7 +58,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: vmagent-network-policy
-  namespace: victoria-metrics
+  namespace: monitoring
 spec:
   podSelector:
     matchLabels:
@@ -114,7 +114,7 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: vmoperator-network-policy
-  namespace: victoria-metrics
+  namespace: monitoring
 spec:
   podSelector:
     matchLabels:

@@ -2,7 +2,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: victoria-metrics-operator
-  namespace: victoria-metrics
+  namespace: monitoring
 spec:
   interval: 6h
   chart:
@@ -12,7 +12,7 @@ spec:
       sourceRef:
         kind: HelmRepository
         name: victoriametrics
-        namespace: victoria-metrics
+        namespace: monitoring
       interval: 12h
   install:
     crds: Create
