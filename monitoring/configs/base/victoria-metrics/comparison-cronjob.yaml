@@ -245,7 +245,7 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 1
-      ttlSecondsAfterFinished: 345600
+      ttlSecondsAfterFinished: 604800
       template:
         metadata:
           labels:
@@ -255,16 +255,11 @@ spec:
           restartPolicy: Never
           containers:
             - name: compare
-              image: alpine:3.22
+              image: nicolaka/netshoot:v0.13
               command: ["/bin/sh", "-c"]
               args:
                 - |
-                  # Wait for NetworkPolicy to be synced by kube-router
                   sleep 5
-                  # Download static jq binary (no apk needed)
-                  wget -qO /tmp/jq https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-amd64
-                  chmod +x /tmp/jq
-                  export PATH="/tmp:$PATH"
                   sh /scripts/compare.sh
               resources:
                 requests:
