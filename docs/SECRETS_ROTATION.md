@@ -35,7 +35,7 @@
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
-| `couchdb-admin-credentials` | Obsidian Sync | CouchDB Admin | **MOVED** — see User Login Passwords section |
+| `couchdb-admin-credentials` | Obsidian Sync | CouchDB Admin | 2026-04-02 | 2026-10-01 | Medium |
 
 ### Redis Credentials
 
@@ -63,7 +63,6 @@
 | `adguard-home-config` | AdGuard Home | Bcrypt Password | User login — do NOT rotate without user consent |
 | `grafana-admin-secret` | Grafana | Admin Password | User login — do NOT rotate without user consent |
 | `audiobookshelf-admin` | Audiobookshelf | Admin Password | User login — do NOT rotate without user consent |
-| `couchdb-admin-credentials` | Obsidian Sync | CouchDB Admin | Client-facing — Obsidian LiveSync connects directly; do NOT rotate |
 
 ### OIDC/OAuth Secrets
 
