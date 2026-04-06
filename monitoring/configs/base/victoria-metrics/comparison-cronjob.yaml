@@ -1,0 +1,289 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vm-comparison
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vm-comparison-metrics-reader
+rules:
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vm-comparison-metrics-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vm-comparison-metrics-reader
+subjects:
+  - kind: ServiceAccount
+    name: vm-comparison
+    namespace: monitoring
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vm-comparison-script
+  namespace: monitoring
+data:
+  compare.sh: |
+    #!/bin/sh
+    set -e
+
+    PROM="http://kube-prometheus-stack-prometheus.monitoring.svc:9090"
+    VM="http://vmsingle-vmsingle.monitoring.svc:8429"
+    AGENT="http://vmagent-vmagent.monitoring.svc:8429"
+    TG_TOKEN=$(cat /etc/telegram/bot_token)
+    TG_CHAT="113452686"
+    TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M UTC")
+    # Calculate hours since epoch-start (Apr 6 21:00 UTC)
+    START_EPOCH=1775775600
+    NOW_EPOCH=$(date +%s)
+    HOURS_ELAPSED=$(( (NOW_EPOCH - START_EPOCH) / 3600 ))
+
+    echo "========================================"
+    echo "VM vs Prometheus Comparison Report"
+    echo "Timestamp: $TIMESTAMP (T+${HOURS_ELAPSED}h)"
+    echo "========================================"
+
+    #--- Series Counts ---
+    echo ""
+    echo "=== SERIES COUNTS ==="
+    PROM_TSDB=$(wget -qO- "$PROM/api/v1/status/tsdb" 2>/dev/null)
+    VM_TSDB=$(wget -qO- "$VM/api/v1/status/tsdb" 2>/dev/null)
+
+    PROM_SERIES=$(echo "$PROM_TSDB" | jq -r '.data.headStats.numSeries // 0')
+    VM_SERIES=$(echo "$VM_TSDB" | jq -r '.data.totalSeries // 0')
+    echo "Prometheus: $PROM_SERIES"
+    echo "VictoriaMetrics: $VM_SERIES"
+    if [ "$PROM_SERIES" -gt 0 ] 2>/dev/null; then
+      SERIES_DIFF=$(( (VM_SERIES - PROM_SERIES) * 100 / PROM_SERIES ))
+      echo "Difference: ${SERIES_DIFF}%"
+    fi
+
+    #--- RAM from Kubernetes Metrics API ---
+    echo ""
+    echo "=== RAM USAGE ==="
+    K8S="https://kubernetes.default.svc"
+    TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+    CA=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+
+    METRICS_JSON=$(wget -qO- --header="Authorization: Bearer $TOKEN" \
+      --ca-certificate="$CA" \
+      "$K8S/apis/metrics.k8s.io/v1beta1/namespaces/monitoring/pods" 2>/dev/null)
+
+    # Prometheus pods RAM
+    PROM0_RAM=$(echo "$METRICS_JSON" | jq -r '[.items[] | select(.metadata.name | startswith("prometheus-kube-prometheus-stack-prometheus-0")) | .containers[] | select(.name == "prometheus") | .usage.memory | gsub("Ki";"") | tonumber] | add // 0' 2>/dev/null)
+    PROM1_RAM=$(echo "$METRICS_JSON" | jq -r '[.items[] | select(.metadata.name | startswith("prometheus-kube-prometheus-stack-prometheus-1")) | .containers[] | select(.name == "prometheus") | .usage.memory | gsub("Ki";"") | tonumber] | add // 0' 2>/dev/null)
+    PROM0_MI=$((PROM0_RAM / 1024))
+    PROM1_MI=$((PROM1_RAM / 1024))
+    PROM_TOTAL_MI=$((PROM0_MI + PROM1_MI))
+
+    # VM pods RAM (all containers)
+    VMSINGLE_RAM=$(echo "$METRICS_JSON" | jq -r '[.items[] | select(.metadata.name | startswith("vmsingle-")) | .containers[].usage.memory | gsub("Ki";"") | tonumber] | add // 0' 2>/dev/null)
+    VMAGENT_RAM=$(echo "$METRICS_JSON" | jq -r '[.items[] | select(.metadata.name | startswith("vmagent-")) | .containers[].usage.memory | gsub("Ki";"") | tonumber] | add // 0' 2>/dev/null)
+    VMOP_RAM=$(echo "$METRICS_JSON" | jq -r '[.items[] | select(.metadata.name | startswith("victoria-metrics-operator-")) | .containers[].usage.memory | gsub("Ki";"") | tonumber] | add // 0' 2>/dev/null)
+    VMSINGLE_MI=$((VMSINGLE_RAM / 1024))
+    VMAGENT_MI=$((VMAGENT_RAM / 1024))
+    VMOP_MI=$((VMOP_RAM / 1024))
+    VM_TOTAL_MI=$((VMSINGLE_MI + VMAGENT_MI + VMOP_MI))
+
+    echo "Prometheus pod-0: ${PROM0_MI}Mi"
+    echo "Prometheus pod-1: ${PROM1_MI}Mi"
+    echo "Prometheus total: ${PROM_TOTAL_MI}Mi"
+    echo ""
+    echo "VMSingle: ${VMSINGLE_MI}Mi"
+    echo "VMAgent: ${VMAGENT_MI}Mi"
+    echo "VMOperator: ${VMOP_MI}Mi"
+    echo "VM total: ${VM_TOTAL_MI}Mi"
+
+    if [ "$PROM_TOTAL_MI" -gt 0 ] 2>/dev/null; then
+      RAM_SAVINGS=$((100 - (VM_TOTAL_MI * 100 / PROM_TOTAL_MI)))
+      echo "RAM savings: ${RAM_SAVINGS}%"
+    fi
+
+    #--- CPU from Kubernetes Metrics API ---
+    echo ""
+    echo "=== CPU USAGE ==="
+    PROM0_CPU=$(echo "$METRICS_JSON" | jq -r '[.items[] | select(.metadata.name | startswith("prometheus-kube-prometheus-stack-prometheus-0")) | .containers[] | select(.name == "prometheus") | .usage.cpu | gsub("n";"") | tonumber] | add // 0' 2>/dev/null)
+    PROM1_CPU=$(echo "$METRICS_JSON" | jq -r '[.items[] | select(.metadata.name | startswith("prometheus-kube-prometheus-stack-prometheus-1")) | .containers[] | select(.name == "prometheus") | .usage.cpu | gsub("n";"") | tonumber] | add // 0' 2>/dev/null)
+    VMSINGLE_CPU=$(echo "$METRICS_JSON" | jq -r '[.items[] | select(.metadata.name | startswith("vmsingle-")) | .containers[].usage.cpu | gsub("n";"") | tonumber] | add // 0' 2>/dev/null)
+    VMAGENT_CPU=$(echo "$METRICS_JSON" | jq -r '[.items[] | select(.metadata.name | startswith("vmagent-")) | .containers[].usage.cpu | gsub("n";"") | tonumber] | add // 0' 2>/dev/null)
+    echo "Prometheus pod-0: $((PROM0_CPU / 1000000))m"
+    echo "Prometheus pod-1: $((PROM1_CPU / 1000000))m"
+    echo "VMSingle: $((VMSINGLE_CPU / 1000000))m"
+    echo "VMAgent: $((VMAGENT_CPU / 1000000))m"
+
+    #--- Target Health ---
+    echo ""
+    echo "=== TARGET HEALTH ==="
+    PROM_TARGETS=$(wget -qO- "$PROM/api/v1/targets" 2>/dev/null)
+    VM_TARGETS=$(wget -qO- "$AGENT/api/v1/targets" 2>/dev/null)
+
+    PROM_UP=$(echo "$PROM_TARGETS" | jq '[.data.activeTargets[] | select(.health == "up")] | length')
+    PROM_DOWN=$(echo "$PROM_TARGETS" | jq '[.data.activeTargets[] | select(.health == "down")] | length')
+    VM_UP=$(echo "$VM_TARGETS" | jq '[.data.activeTargets[] | select(.health == "up")] | length')
+    VM_DOWN=$(echo "$VM_TARGETS" | jq '[.data.activeTargets[] | select(.health == "down")] | length')
+
+    echo "Prometheus: ${PROM_UP} up, ${PROM_DOWN} down"
+    echo "VMAgent: ${VM_UP} up, ${VM_DOWN} down"
+
+    # List any down targets
+    PROM_DOWN_LIST=$(echo "$PROM_TARGETS" | jq -r '.data.activeTargets[] | select(.health == "down") | "  - \(.scrapePool): \(.lastError | split("\n")[0] | .[0:80])"')
+    VM_DOWN_LIST=$(echo "$VM_TARGETS" | jq -r '.data.activeTargets[] | select(.health == "down") | "  - \(.scrapePool): \(.lastError | split("\n")[0] | .[0:80])"')
+    if [ -n "$PROM_DOWN_LIST" ]; then
+      echo "Prometheus down targets:"
+      echo "$PROM_DOWN_LIST"
+    fi
+    if [ -n "$VM_DOWN_LIST" ]; then
+      echo "VMAgent down targets:"
+      echo "$VM_DOWN_LIST"
+    fi
+
+    #--- Disk Usage ---
+    echo ""
+    echo "=== DISK USAGE ==="
+    # Query via Prometheus (kubelet_volume_stats)
+    PROM_DISK=$(wget -qO- "$PROM/api/v1/query?query=kubelet_volume_stats_used_bytes{namespace=\"monitoring\",persistentvolumeclaim=~\"prometheus-.*\"}" 2>/dev/null)
+    VM_DISK=$(wget -qO- "$PROM/api/v1/query?query=kubelet_volume_stats_used_bytes{namespace=\"monitoring\",persistentvolumeclaim=~\"vmsingle-.*\"}" 2>/dev/null)
+
+    echo "Prometheus PVC usage:"
+    echo "$PROM_DISK" | jq -r '.data.result[] | "  \(.metric.persistentvolumeclaim): \((.value[1] | tonumber / 1073741824 * 10 | round / 10))Gi"' 2>/dev/null
+    echo "VMSingle PVC usage:"
+    echo "$VM_DISK" | jq -r '.data.result[] | "  \(.metric.persistentvolumeclaim): \((.value[1] | tonumber / 1073741824 * 10 | round / 10))Gi"' 2>/dev/null
+
+    #--- Top 10 Metrics by Cardinality ---
+    echo ""
+    echo "=== TOP 10 METRICS BY CARDINALITY ==="
+    echo "Prometheus:"
+    echo "$PROM_TSDB" | jq -r '.data.seriesCountByMetricName[:10][] | "  \(.name): \(.count)"' 2>/dev/null || \
+      wget -qO- "$PROM/api/v1/status/tsdb" 2>/dev/null | jq -r '[.data.seriesCountByMetricName[] | {name, count}] | sort_by(-.count) | .[:10][] | "  \(.name): \(.count)"' 2>/dev/null
+    echo "VictoriaMetrics:"
+    echo "$VM_TSDB" | jq -r '.data.seriesCountByMetricName[:10][] | "  \(.name): \(.value)"' 2>/dev/null
+
+    #--- Metric Name Diff (unique to each) ---
+    echo ""
+    echo "=== METRIC NAME DIFFERENCES ==="
+    PROM_NAMES=$(wget -qO- "$PROM/api/v1/label/__name__/values" 2>/dev/null | jq -r '.data[]' | sort)
+    VM_NAMES=$(wget -qO- "$VM/api/v1/label/__name__/values" 2>/dev/null | jq -r '.data[]' | sort)
+    PROM_COUNT=$(echo "$PROM_NAMES" | wc -l | tr -d ' ')
+    VM_COUNT=$(echo "$VM_NAMES" | wc -l | tr -d ' ')
+    echo "Prometheus unique metric names: $PROM_COUNT"
+    echo "VictoriaMetrics unique metric names: $VM_COUNT"
+
+    ONLY_PROM=$(comm -23 <(echo "$PROM_NAMES") <(echo "$VM_NAMES") | head -20)
+    ONLY_VM=$(comm -13 <(echo "$PROM_NAMES") <(echo "$VM_NAMES") | head -20)
+    if [ -n "$ONLY_PROM" ]; then
+      echo "In Prometheus only (first 20):"
+      echo "$ONLY_PROM" | sed 's/^/  /'
+    fi
+    if [ -n "$ONLY_VM" ]; then
+      echo "In VictoriaMetrics only (first 20):"
+      echo "$ONLY_VM" | sed 's/^/  /'
+    fi
+
+    echo ""
+    echo "========================================"
+    echo "END OF DETAILED REPORT"
+    echo "========================================"
+
+    #--- Send compact Telegram summary ---
+    DOWN_NOTE=""
+    if [ "$PROM_DOWN" -gt 0 ] || [ "$VM_DOWN" -gt 0 ]; then
+      DOWN_NOTE="
+    <b>Down targets:</b> Prom=${PROM_DOWN}, VM=${VM_DOWN}"
+    fi
+
+    # Get disk values compactly
+    PROM_DISK_VAL=$(echo "$PROM_DISK" | jq -r '[.data.result[].value[1] | tonumber] | add // 0 | . / 1073741824 * 10 | round / 10' 2>/dev/null)
+    VM_DISK_VAL=$(echo "$VM_DISK" | jq -r '[.data.result[].value[1] | tonumber] | add // 0 | . / 1073741824 * 10 | round / 10' 2>/dev/null)
+
+    MSG="<b>VM vs Prometheus T+${HOURS_ELAPSED}h</b>
+    <code>$TIMESTAMP</code>
+
+    <b>Series</b>
+    Prom: $(printf "%'d" $PROM_SERIES 2>/dev/null || echo $PROM_SERIES)
+    VM:   $(printf "%'d" $VM_SERIES 2>/dev/null || echo $VM_SERIES)
+
+    <b>RAM</b>
+    Prom: ${PROM0_MI}+${PROM1_MI} = <b>${PROM_TOTAL_MI}Mi</b>
+    VM:   ${VMSINGLE_MI}+${VMAGENT_MI}+${VMOP_MI} = <b>${VM_TOTAL_MI}Mi</b>
+    Saved: <b>${RAM_SAVINGS}%</b>
+
+    <b>Disk</b>
+    Prom: ${PROM_DISK_VAL}Gi (2 PVCs)
+    VM:   ${VM_DISK_VAL}Gi
+
+    <b>Targets</b>
+    Prom: ${PROM_UP} up | VM: ${VM_UP} up${DOWN_NOTE}"
+
+    # Send to Telegram (escape special chars for URL encoding)
+    wget -qO- --post-data="chat_id=${TG_CHAT}&parse_mode=HTML&text=${MSG}" \
+      "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" >/dev/null 2>&1 || \
+      echo "WARNING: Failed to send Telegram message"
+
+    echo ""
+    echo "Telegram summary sent."
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: vm-comparison
+  namespace: monitoring
+spec:
+  schedule: "0 21 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 345600
+      template:
+        spec:
+          serviceAccountName: vm-comparison
+          restartPolicy: Never
+          containers:
+            - name: compare
+              image: alpine:3.22
+              command: ["/bin/sh", "-c"]
+              args:
+                - apk add --no-cache jq >/dev/null 2>&1 && sh /scripts/compare.sh
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+                - name: telegram
+                  mountPath: /etc/telegram
+                  readOnly: true
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65534
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
+                capabilities:
+                  drop:
+                    - ALL
+                seccompProfile:
+                  type: RuntimeDefault
+          volumes:
+            - name: script
+              configMap:
+                name: vm-comparison-script
+            - name: telegram
+              secret:
+                secretName: alertmanager-telegram

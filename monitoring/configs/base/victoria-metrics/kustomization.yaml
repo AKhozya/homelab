@@ -18,3 +18,4 @@ resources:
   - scrape-cnpg-operator.yaml
   - scrape-vmagent.yaml
   - networkpolicy.yaml
+  - comparison-cronjob.yaml
