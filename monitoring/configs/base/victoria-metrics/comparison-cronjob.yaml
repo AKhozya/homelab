@@ -254,7 +254,7 @@ spec:
           restartPolicy: Never
           containers:
             - name: compare
-              image: nicolaka/netshoot:v0.13
+              image: nicolaka/netshoot:v0.15
               command: ["/bin/sh", "-c"]
               args:
                 - |
