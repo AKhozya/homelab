@@ -80,7 +80,7 @@ spec:
           editable: false
         - name: VictoriaMetrics
           type: prometheus
-          url: http://vmsingle-vmsingle.victoria-metrics.svc:8429
+          url: http://vmsingle-vmsingle.monitoring.svc:8429
           access: proxy
           isDefault: false
           editable: false
