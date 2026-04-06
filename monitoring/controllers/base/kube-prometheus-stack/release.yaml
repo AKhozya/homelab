@@ -78,6 +78,14 @@ spec:
                 url: "$${__value.raw}"
           isDefault: false
           editable: false
+        - name: VictoriaMetrics
+          type: prometheus
+          url: http://vmsingle-vmsingle.victoria-metrics.svc:8429
+          access: proxy
+          isDefault: false
+          editable: false
+          jsonData:
+            timeInterval: "60s"
       admin:
         existingSecret: grafana-admin-secret
         userKey: admin-user
