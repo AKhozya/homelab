@@ -1,0 +1,148 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vmsingle-network-policy
+  namespace: victoria-metrics
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vmsingle
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # VMAgent remote write
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vmagent
+      ports:
+        - protocol: TCP
+          port: 8429
+    # Grafana queries
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: grafana
+      ports:
+        - protocol: TCP
+          port: 8429
+    # Uptime Kuma health checks
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
+      ports:
+        - protocol: TCP
+          port: 8429
+    # Cluster-wide querying
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8429
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vmagent-network-policy
+  namespace: victoria-metrics
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vmagent
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Prometheus scraping VMAgent metrics
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8429
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # Remote write to VMSingle
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vmsingle
+      ports:
+        - protocol: TCP
+          port: 8429
+    # Scraping all namespaces
+    - to:
+        - namespaceSelector: {}
+    # K8s API and node IPs (kubelet, node-exporter)
+    - ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+        - protocol: TCP
+          port: 9100
+        - protocol: TCP
+          port: 10250
+        - protocol: TCP
+          port: 10255
+        - protocol: TCP
+          port: 4194
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vmoperator-network-policy
+  namespace: victoria-metrics
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: victoria-metrics-operator
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Webhook from API server (pod CIDR for K3s flannel)
+    - from:
+        - ipBlock:
+            cidr: 10.42.0.0/16
+      ports:
+        - protocol: TCP
+          port: 9443
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # K8s API server
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.127/32
+      ports:
+        - protocol: TCP
+          port: 6443
