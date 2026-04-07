@@ -13,7 +13,7 @@ spec:
         kind: HelmRepository
         name: immich
         namespace: immich
-  timeout: 10m
+  timeout: 15m
   install:
     remediation:
       retries: 3
@@ -21,10 +21,8 @@ spec:
   upgrade:
     remediation:
       retries: 3
-      remediateLastFailure: true
-  rollback:
-    recreate: true
-    cleanupOnFail: true
+      # NEVER rollback immich — migrations are irreversible, rollback corrupts DB
+      remediateLastFailure: false
   # Post-renderer to patch service accounts (Helm chart doesn't support per-component serviceAccount)
   postRenderers:
     - kustomize:
