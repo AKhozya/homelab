@@ -3,6 +3,8 @@ kind: Job
 metadata:
   name: couchdb-init
   namespace: obsidian
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
 spec:
   template:
     spec:

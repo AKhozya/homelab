@@ -3,6 +3,8 @@ kind: Job
 metadata:
   name: mealie-user-provision
   namespace: mealie
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
 spec:
   backoffLimit: 3
   template:

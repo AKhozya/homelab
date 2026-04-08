@@ -3,6 +3,8 @@ kind: Job
 metadata:
   name: n8n-user-provision
   namespace: n8n
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
 spec:
   backoffLimit: 3
   template:

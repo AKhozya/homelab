@@ -3,6 +3,8 @@ kind: Job
 metadata:
   name: audiobookshelf-init
   namespace: audiobookshelf
+  annotations:
+    kustomize.toolkit.fluxcd.io/force: enabled
 spec:
   template:
     metadata:
