@@ -21,7 +21,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: user-provision
-          image: python:3.14.3-slim
+          image: python:3.14.4-slim
           command: ["/bin/bash", "/scripts/provision-user.sh"]
           resources:
             requests:
