@@ -1,7 +1,7 @@
 # 🏗️ HOMELAB COMPREHENSIVE ANALYSIS
 ## Staff DevOps Engineer Assessment
 
-**Assessment Date**: 2025-10-18 (Updated: 2026-04-05)
+**Assessment Date**: 2025-10-18 (Updated: 2026-04-09)
 **Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
 **Node IPs** (static DHCP, router-assigned by MAC): gmk-k3s-control-plane=192.168.1.127, worker-node=192.168.1.129, worker-node-2=192.168.1.126
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
@@ -17,7 +17,7 @@
 
 **Strengths** ✅
 - Solid GitOps foundation with Flux
-- Comprehensive monitoring (Prometheus, Grafana, Loki, Alertmanager) - **HA enabled** (2 replicas with anti-affinity) ⭐
+- Comprehensive monitoring (VictoriaMetrics, Grafana, Loki, Alertmanager) - **71% RAM savings** vs Prometheus ⭐
 - **🆕 Popeye - Cluster health monitoring (A grade, 100/100 score)** ⭐ (2025-10-27, Updated: 2026-01-09)
   - **Weekly CronJob**: Sunday 6 AM automated health scans ⬆️
   - **Score**: 100/100 after orphaned RBAC cleanup
@@ -138,7 +138,7 @@
 | **MySQL** | ✅ 2/2 Ready | Async replication |
 | **CouchDB** | ✅ 2/2 Running | Full cluster membership |
 | **Redis** | ✅ 1/1 Running | 8.83MB used |
-| **Prometheus** | ✅ HA (2 replicas) | 93k active series, 819Mi+734Mi |
+| **VictoriaMetrics** | ✅ VMSingle+VMAgent+VMOperator | ~113k series, ~487Mi total |
 | **Alerts** | ✅ None firing | Only Watchdog (expected) |
 | **Backups** | ✅ All successful | 12h replication cycle, <10s completion |
 | **Certificates** | ✅ 20/20 Ready | Nearest expiry 32 days |
@@ -180,7 +180,7 @@
 
 | Item | Target Date | Priority |
 |------|-------------|----------|
-| VictoriaMetrics re-evaluation | April 2026 | P3 |
+| ~~VictoriaMetrics re-evaluation~~ | ~~April 2026~~ | ✅ Done (migrated 2026-04-09, 71% RAM savings) |
 | Remove worker-node-2 replication step | ~May 20, 2026 | P2 |
 | n8n PgBouncer `statement_timeout` fix — re-check [#25705](https://github.com/n8n-io/n8n/issues/25705) | May 2026 | P3 |
 | High-priority secret rotation (PG: authentik/immich/n8n, MySQL: HA, Redis: immich) | 2026-07-01 | P1 |
@@ -208,7 +208,7 @@
 | **MySQL** | ✅ 2/2 Ready | Async replication, no lag |
 | **CouchDB** | ✅ 2/2 Running | StatefulSet in databases namespace |
 | **Redis** | ✅ 1/1 Running | v8.6.1 |
-| **Prometheus** | ✅ 70-79% memory | 90k active series, 905Mi+1025Mi/1300Mi |
+| **Metrics** | ✅ Prometheus (now VictoriaMetrics) | 90k active series (at time of review) |
 | **Alerts** | ✅ None firing | Clean alert state |
 | **Backups** | ✅ All successful | NAS + worker-node-2 replication working |
 | **Certificates** | ✅ 19/19 Ready | 71+ days until expiration |
@@ -217,13 +217,14 @@
 | **Kyverno** | ✅ 0 violations | Clean |
 | **Stale ReplicaSets** | ✅ 0 | Cleaned 4 stale RS this session |
 
-#### Prometheus
+#### Prometheus (at time of review, now replaced by VictoriaMetrics)
 
 - **TSDB Head**: 278k series (includes stale series from kernel reboots + Traefik restarts)
 - **Active Series by Job**: ~90k (healthy, down from Feb's 111k)
 - **Memory**: 905Mi + 1025Mi / 1300Mi each (70-79%)
 - **Top Cardinality**: kubelet 35k (39%), apiserver 17k (19%), kube-state-metrics 10k (11%)
 - **Scrape Targets**: 49 active, 0 down
+- **Note**: Replaced by VictoriaMetrics on 2026-04-09 (~487Mi total, 71% RAM savings)
 
 #### Storage
 
@@ -276,7 +277,7 @@
 | **MySQL** | ✅ 2/2 Ready | Async replication, HAProxy active |
 | **CouchDB** | ✅ 2/2 Running | StatefulSet in databases namespace |
 | **Redis** | ✅ 1/1 Running | v8.6.0 (upgraded from 8.2.2, 2026-02-20) |
-| **Prometheus** | ✅ 72% memory | 121k series, 941Mi/1300Mi (improved from 244k/87%) |
+| **Prometheus** | ✅ 72% memory | 121k series, 941Mi/1300Mi (at time of review, now VictoriaMetrics) |
 | **Alerts** | ✅ None firing | Clean alert state |
 | **Backups** | ✅ All successful | NAS + worker-node-2 replication working |
 | **Certificates** | ✅ All Ready | 36-86 days until expiration |
@@ -284,12 +285,13 @@
 | **Resource Governance** | ✅ Complete | 27 quotas, 26 limitranges |
 | **Stale ReplicaSets** | ✅ 0 | Cleaned 87 stale RS this session |
 
-#### Prometheus Improvement
+#### Prometheus Improvement (at time of review, now replaced by VictoriaMetrics)
 
 - **Series Count**: 111k (↓ 54% from 244k in Jan review)
 - **Memory**: 924Mi / 1300Mi (71%, ↓ from 87%)
 - **Replicas**: 2 HA (924Mi + 775Mi)
 - **Scrape Targets**: 49
+- **Note**: Replaced by VictoriaMetrics on 2026-04-09 (~487Mi total, 71% RAM savings)
 
 #### Popeye Health Scan
 
@@ -326,7 +328,7 @@
 |------|-------------|----------|
 | Remove worker-node-2 replication step | ~May 20, 2026 | P2 |
 | ~~Migrate Promtail to Grafana Alloy~~ | ~~Before March 2, 2026~~ | ✅ Done |
-| Re-evaluate VictoriaMetrics | April 2026 | P3 |
+| ~~Re-evaluate VictoriaMetrics~~ | ~~April 2026~~ | ✅ Done (migrated 2026-04-09) |
 | ~~LTS kernel 6.18~~ | ~~TBD~~ | ✅ Done (6.18.16-lts on all 3 nodes) |
 | ~~Authentik worker memory fix — check if [#20537](https://github.com/goauthentik/authentik/issues/20537) landed in 2026.2.x, reduce worker limit 1500Mi→800Mi~~ | ~~March 8, 2026~~ | ✅ Done (v2026.2.1 fixed, reverted to 1200Mi) |
 | ~~n8n PgBouncer `statement_timeout` fix — check [#25705](https://github.com/n8n-io/n8n/issues/25705)~~ | ~~March 2026~~ | ✅ Checked (still open, workaround stays) |
@@ -363,7 +365,7 @@
 | **MySQL** | ✅ 2/2 Ready | Async replication, HAProxy active |
 | **CouchDB** | ✅ 2/2 Running | StatefulSet in databases namespace |
 | **Redis** | ✅ 1/1 Running | Cache healthy |
-| **Prometheus** | ⚠️ 87% memory | 244k series, 1125Mi/1300Mi |
+| **Prometheus** | ⚠️ 87% memory | 244k series, 1125Mi/1300Mi (at time of review, now VictoriaMetrics) |
 | **Alerts** | ✅ None firing | Clean alert state |
 | **Backups** | ✅ All successful | Replication to worker-node-2 working |
 | **Certificates** | ✅ All Ready | 60+ days until expiration |
@@ -479,7 +481,7 @@
 | 1 | Alertmanager `chat_id` in plain YAML | P1 | ⚠️ Accepted (no `chat_id_file` in Alertmanager, commented) |
 | 2 | `StrictHostKeyChecking=no` in backup SSH | P1 | ✅ Fixed (ConfigMap known hosts, `StrictHostKeyChecking=yes`) |
 | 3 | PVC backup `hostNetwork: true` unnecessary | P1 | ✅ Fixed (removed) |
-| 5 | Duplicated Prometheus metric relabelings | P2 | ✅ Documented (cross-reference comment) |
+| 5 | Duplicated Prometheus metric relabelings | P2 | ✅ Documented (now VictoriaMetrics relabelConfigs) |
 | 6 | Redis `readOnlyRootFilesystem: false` | P2 | ✅ Fixed (enabled + emptyDir /tmp) |
 | 7 | Alertmanager `group_interval: 10s` too aggressive | P2 | ✅ Fixed (10s → 5m) |
 | 8 | Telegram truncation missing count | P2 | ✅ Fixed (shows hidden alert count) |
@@ -675,7 +677,7 @@
 
 | Pending Item | Priority | Status |
 |--------------|----------|--------|
-| Re-evaluate VictoriaMetrics (workaround available) | P3 | ⏸️ April 2026 |
+| ~~Re-evaluate VictoriaMetrics~~ | ~~P3~~ | ✅ Completed (2026-04-09, 71% RAM savings) |
 | n8n PgBouncer `statement_timeout` re-check | P3 | ⏸️ May 2026 |
 | ~~Prometheus/Alertmanager config-reloader resource limits~~ | ~~P3~~ | ❌ Won't do (chart-managed sidecars, <10Mi RAM) |
 | ~~Backup alert grouping to Telegram thread~~ | ~~P3~~ | ❌ Won't do (~1 alert/month, not worth complexity) |
@@ -745,7 +747,7 @@
      - Swap: 16GB (new LV)
      - Extra: 863GB at /mnt/extra-storage
    - **Remaining Tasks**: ✅ All completed (2025-12-18)
-     - ✅ **Monitoring HA enabled** - Prometheus/Alertmanager 2 replicas with anti-affinity
+     - ✅ **Monitoring HA enabled** - Alertmanager 2 replicas with anti-affinity (Prometheus replaced by VictoriaMetrics 2026-04-09)
      - ✅ **Uptime Kuma monitors** - Already configured (SSH + kubelet monitors)
      - ✅ **AdGuard Home DNS** - Added 192.168.1.126 to DNS rewrites
    - **Documentation**: SECOND_WORKER_NODE_SETUP.md (archived, see git history)
@@ -759,29 +761,18 @@
    - **Boot Entries**: systemd-boot entries created from existing ones, fallback initramfs enabled
    - **Benefit**: Long-term stability, security backports until Dec 2027
 
-#### 40. **Re-evaluate VictoriaMetrics** 📊 DEFERRED
-   - **Status**: DEFERRED - Bug closed without fix, workaround available
-   - **Priority**: P3-LOW (optimization opportunity)
-   - **Target Date**: April 2026
+#### 40. **VictoriaMetrics Migration** 📊 ✅ COMPLETED
+   - **Status**: ✅ COMPLETED - 2026-04-09
+   - **Priority**: ~~P3-LOW~~ COMPLETED
+   - **Result**: Prometheus server replaced by VictoriaMetrics (VMSingle + VMAgent + VMAlert)
+   - **RAM Savings**: 71% (~1,553Mi Prometheus HA → ~487Mi VMSingle+VMAgent+VMOperator)
+   - **Series**: ~113k active series
+   - **Stack**: VMSingle (storage), VMAgent (scraping), VMAlert (alerting rules), VMOperator, Alertmanager (notifications), Grafana (dashboards), kube-state-metrics, node-exporter
+   - **kube-prometheus-stack**: Still deployed with `prometheus.enabled: false` and `defaultRules.create: false` (provides Alertmanager, Grafana, kube-state-metrics, node-exporter)
    - **Background**:
-     - Attempted migration on 2025-11-15, aborted due to bug
-     - Issue: `metricRelabelConfigs` not functioning in VMNodeScrape/VMServiceScrape
-     - Result: VictoriaMetrics collected 48% MORE series than Prometheus (defeating purpose)
-   - **Bug Tracking**:
-     - GitHub Issue: [#9951](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/9951) - **CLOSED** (2026-01-05, inactivity - not fixed)
-     - Maintainer requested VMAgent CR + VMServiceScrape config, reporter never provided
-     - **Workaround confirmed by reporter**: Use BOTH `relabelConfig` + `metricRelabelConfig` together
-   - **Action in April 2026**:
-     1. Test workaround: configure both relabelConfig + metricRelabelConfig for metric drops
-     2. Deploy VictoriaMetrics in test namespace
-     3. Compare series count vs Prometheus
-     4. If workaround works, plan migration
-   - **Expected Benefits** (if workaround works):
-     - ~2-5x RAM reduction
-     - ~7x disk reduction (zstd compression)
-     - Native downsampling for long retention
-   - **Current Mitigation**: Prometheus retention at 90d, 72% memory (941Mi/1300Mi), 121k series
-   - **Note**: DO NOT NAG UNTIL APRIL 2026
+     - First attempt 2025-11-15, aborted due to `metricRelabelConfigs` bug ([#9951](https://github.com/VictoriaMetrics/VictoriaMetrics/issues/9951))
+     - Workaround confirmed: Use BOTH `relabelConfig` + `metricRelabelConfig` together
+     - Successfully migrated April 2026
 
 ---
 
@@ -844,13 +835,13 @@ Now unified into `setup-node.sh` (auto-detects node type and CPU vendor).
 - **Infrastructure**: 88/100 (A-) ✅ - Flux/Traefik solid, all controllers healthy
 - **Maintainability**: 95/100 (A) ✅ - Excellent docs, GitOps-driven
 - **Best Practices**: 92/100 (A) ✅ - Popeye scheduled, Kyverno enforced, resource governance
-- **Performance**: 94/100 (A) ✅ - Prometheus series 244k→111k, memory 87%→71%
+- **Performance**: 94/100 (A) ✅ - VictoriaMetrics ~113k series, ~487Mi total (71% RAM savings vs Prometheus)
 
 **Overall Grade**: A+ (97/100) ⬆️
 - **Critical Issues**: 0 P0 issues ✅
 - **High Priority**: 0 P1 active ✅
 - **Active P2**: Remove worker-node-2 replication (~May 20)
-- **Active P3**: VictoriaMetrics re-evaluation (April 2026), n8n statement_timeout (May 2026)
+- **Active P3**: n8n statement_timeout (May 2026)
 
 **Security Achievements** ✅:
 - **100% Pod Security Standards** (Apps: 11 restricted, 4 baseline, 1 privileged | Jobs: 5 restricted, 1 baseline)
@@ -1117,7 +1108,7 @@ ingress:
 - **NetworkPolicy**: Allows monitoring namespace access on port 9121
 
 **CouchDB:**
-- **Method**: ServiceMonitor with built-in Prometheus endpoint
+- **Method**: ServiceMonitor (converted to VMServiceScrape by VMOperator) with built-in metrics endpoint
 - **Namespace**: couchdb
 - **Endpoint**: /_node/_local/_prometheus (port 5984)
 - **Authentication**: Basic auth via couchdb-couchdb secret
@@ -1132,8 +1123,8 @@ ingress:
 - **Additional Alerts**: <1GB free (critical), >85% inodes (warning)
 
 **Alert Discovery:**
-- **PrometheusRule**: homelab-alerts (monitoring namespace)
-- **Required Label**: release: kube-prometheus-stack
+- **VMRule/PrometheusRule**: homelab-alerts (monitoring namespace) — VMOperator converts PrometheusRule CRDs to VMRules
+- **Required Label**: release: kube-prometheus-stack (historical, retained for compatibility)
 - **Alert Groups**: database-alerts, redis-alerts, couchdb-alerts
 - **Total Alerts**: 16 database-specific alerts
 

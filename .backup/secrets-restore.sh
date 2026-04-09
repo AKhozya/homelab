@@ -98,6 +98,11 @@ echo "📦 Restoring monitoring secrets..."
 kubectl create namespace monitoring --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/grafana-admin-secret.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/alertmanager-telegram.json"
+if [ -f "${BACKUP_DIR}/secrets/couchdb-couchdb-monitoring.json" ]; then
+  kubectl apply -f "${BACKUP_DIR}/secrets/couchdb-couchdb-monitoring.json"
+else
+  echo "   ⚠️  No CouchDB auth mirror for VMAgent (will be created by Flux from SOPS)"
+fi
 echo "   ✅ Monitoring secrets restored"
 
 # =============================================================================

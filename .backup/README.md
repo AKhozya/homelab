@@ -335,7 +335,7 @@ kubectl get ingress -A
 - ✅ All Kubernetes manifests (deployments, services, ingresses)
 - ✅ All Helm releases (monitoring, databases, applications)
 - ✅ NetworkPolicies, RBAC, ConfigMaps
-- ✅ Prometheus alerts and recording rules
+- ✅ VMAlert rules (VMRules) for alerting
 - ✅ Grafana dashboards (via ConfigMaps)
 - ✅ Loki and Alloy log aggregation
 

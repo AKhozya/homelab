@@ -115,7 +115,7 @@
 - OIDC client secrets (Authentik provider + app-side)
 - Database passwords for less critical apps (Mealie, Paperless, Linkwarden, Uptime Kuma, PriceBuddy)
 - Redis passwords (Paperless)
-- CouchDB admin password
+- CouchDB admin password (also update mirror in `monitoring/configs/base/victoria-metrics/couchdb-auth-secret.yaml` for VMAgent scraping)
 - Authentik Django secret key
 
 ### Never Rotate

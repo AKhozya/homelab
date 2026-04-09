@@ -39,6 +39,7 @@ kubectl get secret flux-system -n flux-system -o json > "${BACKUP_DIR}/secrets/f
 echo "📦 Backing up monitoring secrets..."
 kubectl get secret grafana-admin-secret -n monitoring -o json > "${BACKUP_DIR}/secrets/grafana-admin-secret.json"
 kubectl get secret alertmanager-telegram -n monitoring -o json > "${BACKUP_DIR}/secrets/alertmanager-telegram.json"
+kubectl get secret couchdb-couchdb -n monitoring -o json > "${BACKUP_DIR}/secrets/couchdb-couchdb-monitoring.json" 2>/dev/null || echo "   ⚠️  No monitoring/couchdb-couchdb (VMAgent CouchDB auth mirror)"
 
 # =============================================================================
 # Database Secrets

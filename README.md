@@ -8,7 +8,7 @@ Personal Kubernetes homelab running on K3s with GitOps automation, monitoring, a
 - FluxCD for GitOps (everything in Git)
 - CloudNativePG for PostgreSQL (2-node HA)
 - Traefik + Cloudflare Tunnel for ingress
-- Prometheus, Grafana, Loki for monitoring
+- VictoriaMetrics, Grafana, Loki for monitoring
 - Renovate for automated dependency updates
 
 **Applications:** Authentik (SSO), Home Assistant, Immich (photos), Paperless-NGX (documents), Obsidian sync, and [11 more](docs/HOMELAB_ANALYSIS.md#-current-apps-16-total).
@@ -37,7 +37,7 @@ flux reconcile kustomization apps monitoring-controllers monitoring-configs
 
 ## Monitoring
 
-Prometheus → Alertmanager → Telegram for alerts. Custom rules for app failures, backup job status, and resource exhaustion.
+VMAlert → Alertmanager → Telegram for alerts. Custom VMRules for app failures, backup job status, and resource exhaustion.
 
 **Check cluster health:**
 ```bash
