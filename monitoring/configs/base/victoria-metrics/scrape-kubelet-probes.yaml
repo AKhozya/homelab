@@ -3,8 +3,6 @@ kind: VMServiceScrape
 metadata:
   name: kubelet-probes
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:

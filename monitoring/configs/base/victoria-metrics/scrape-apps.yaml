@@ -3,8 +3,6 @@ kind: VMServiceScrape
 metadata:
   name: cloudflared
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -22,8 +20,6 @@ kind: VMServiceScrape
 metadata:
   name: traefik
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -41,8 +37,6 @@ kind: VMServiceScrape
 metadata:
   name: cert-manager
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -76,8 +70,6 @@ kind: VMServiceScrape
 metadata:
   name: alloy
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -94,8 +86,6 @@ kind: VMServiceScrape
 metadata:
   name: loki
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -118,8 +108,6 @@ kind: VMServiceScrape
 metadata:
   name: immich
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:

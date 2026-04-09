@@ -3,8 +3,6 @@ kind: VMServiceScrape
 metadata:
   name: prometheus
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -23,8 +21,6 @@ kind: VMServiceScrape
 metadata:
   name: alertmanager
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -43,8 +39,6 @@ kind: VMServiceScrape
 metadata:
   name: prometheus-operator
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -66,8 +60,6 @@ kind: VMServiceScrape
 metadata:
   name: grafana
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:

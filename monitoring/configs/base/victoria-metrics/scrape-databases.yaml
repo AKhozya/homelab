@@ -3,8 +3,6 @@ kind: VMServiceScrape
 metadata:
   name: mysql-exporter
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -27,8 +25,6 @@ kind: VMServiceScrape
 metadata:
   name: redis
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -47,8 +43,6 @@ kind: VMServiceScrape
 metadata:
   name: couchdb
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -84,8 +78,6 @@ kind: VMPodScrape
 metadata:
   name: postgres
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:

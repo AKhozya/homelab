@@ -4,15 +4,9 @@ metadata:
   name: vmagent
   namespace: monitoring
 spec:
-  serviceScrapeSelector:
-    matchLabels:
-      managed-by: vm-comparison
-  podScrapeSelector:
-    matchLabels:
-      managed-by: vm-comparison
-  nodeScrapeSelector:
-    matchLabels:
-      managed-by: vm-comparison
+  serviceScrapeSelector: {}
+  podScrapeSelector: {}
+  nodeScrapeSelector: {}
   remoteWrite:
     - url: http://vmsingle-vmsingle.monitoring.svc:8429/api/v1/write
   scrapeInterval: "60s"

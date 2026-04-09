@@ -17,8 +17,5 @@ resources:
   - scrape-apps.yaml
   - scrape-kyverno.yaml
   - scrape-cnpg-operator.yaml
-  - scrape-vmagent.yaml
-  - scrape-vmsingle.yaml
   - scrape-vmoperator.yaml
   - networkpolicy.yaml
-  - comparison-cronjob.yaml

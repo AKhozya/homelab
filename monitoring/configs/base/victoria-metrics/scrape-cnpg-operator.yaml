@@ -3,8 +3,6 @@ kind: VMPodScrape
 metadata:
   name: cnpg-operator
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:

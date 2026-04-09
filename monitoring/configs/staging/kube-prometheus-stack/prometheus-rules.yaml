@@ -389,7 +389,7 @@ spec:
         description: "Job has failed. Check logs: kubectl logs -n {{ $labels.namespace }} job/{{ $labels.job_name }}"
     
     - alert: CronJobNotScheduled
-      expr: time() - kube_cronjob_next_schedule_time{cronjob!="vm-comparison"} > 600
+      expr: time() - kube_cronjob_next_schedule_time > 600
       for: 5m
       labels:
         severity: warning

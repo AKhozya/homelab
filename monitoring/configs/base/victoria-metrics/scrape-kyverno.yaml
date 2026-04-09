@@ -3,8 +3,6 @@ kind: VMServiceScrape
 metadata:
   name: kyverno-admission-controller
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -22,8 +20,6 @@ kind: VMServiceScrape
 metadata:
   name: kyverno-background-controller
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -41,8 +37,6 @@ kind: VMServiceScrape
 metadata:
   name: kyverno-cleanup-controller
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
@@ -60,8 +54,6 @@ kind: VMServiceScrape
 metadata:
   name: kyverno-reports-controller
   namespace: monitoring
-  labels:
-    managed-by: vm-comparison
 spec:
   namespaceSelector:
     matchNames:
