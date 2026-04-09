@@ -59,9 +59,7 @@ spec:
           enabled: true
         datasources:
           enabled: true
-      # Disable auto-created Prometheus datasource (Prometheus server disabled)
-      sidecar:
-        datasources:
+          # Disable auto-created Prometheus datasource (Prometheus server disabled)
           defaultDatasourceEnabled: false
       # Datasources: VictoriaMetrics (default) + Loki
       additionalDataSources:
