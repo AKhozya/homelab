@@ -18,4 +18,6 @@ resources:
   - scrape-kyverno.yaml
   - scrape-cnpg-operator.yaml
   - scrape-vmoperator.yaml
+  - vmalert.yaml
+  - vmrules.yaml
   - networkpolicy.yaml

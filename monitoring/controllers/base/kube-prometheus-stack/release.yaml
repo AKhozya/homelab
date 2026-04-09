@@ -29,11 +29,6 @@ spec:
     cleanupOnFail: true
   driftDetection:
     mode: enabled
-    ignore:
-      # Ignore "validated" annotation which is not inserted during install
-      - paths: ["/metadata/annotations/prometheus-operator-validated"]
-        target:
-          kind: PrometheusRule
   values:
     grafana:
       replicas: 1
@@ -64,28 +59,32 @@ spec:
           enabled: true
         datasources:
           enabled: true
-      # Additional datasources
+      # Disable auto-created Prometheus datasource (Prometheus server disabled)
+      sidecar:
+        datasources:
+          defaultDatasourceEnabled: false
+      # Datasources: VictoriaMetrics (default) + Loki
       additionalDataSources:
+        - name: VictoriaMetrics
+          type: prometheus
+          url: http://vmsingle-vmsingle.monitoring.svc:8429
+          access: proxy
+          isDefault: true
+          editable: false
+          jsonData:
+            timeInterval: "60s"
         - name: Loki
           type: loki
           url: http://loki.loki.svc.cluster.local:3100
           jsonData:
             maxLines: 1000
             derivedFields:
-              - datasourceUid: prometheus
+              - datasourceUid: VictoriaMetrics
                 matcherRegex: "traceID=(\\w+)"
                 name: TraceID
                 url: "$${__value.raw}"
           isDefault: false
           editable: false
-        - name: VictoriaMetrics
-          type: prometheus
-          url: http://vmsingle-vmsingle.monitoring.svc:8429
-          access: proxy
-          isDefault: false
-          editable: false
-          jsonData:
-            timeInterval: "60s"
       admin:
         existingSecret: grafana-admin-secret
         userKey: admin-user
@@ -132,30 +131,9 @@ spec:
             hosts:
             - grafana.h0melab.work
     
+    # Prometheus server disabled — replaced by VictoriaMetrics (VMSingle + VMAgent + VMAlert)
     prometheus:
-      prometheusSpec:
-        # HA configuration - 2 replicas with anti-affinity
-        replicas: 2
-        podAntiAffinity: "hard"
-        # Global scrape interval increased from 30s to 60s for memory optimization
-        scrapeInterval: 60s
-        # Retention increased to 90 days for historical analysis
-        retention: 90d
-        retentionSize: 50GB
-        resources:
-          requests:
-            cpu: 200m
-            memory: 1000Mi
-          limits:
-            cpu: 500m
-            memory: 1500Mi
-        storageSpec:
-          volumeClaimTemplate:
-            spec:
-              accessModes: ["ReadWriteOnce"]
-              resources:
-                requests:
-                  storage: 50Gi
+      enabled: false
     
     alertmanager:
       config:
@@ -266,82 +244,9 @@ spec:
           limits:
             cpu: 200m
             memory: 128Mi
-    # Disable K3s-specific component alerts (embedded architecture)
-    # Disable CPU overcommit alert (homelab - intentional overcommit for burst capacity)
-    # Disable API server error budget alerts (homelab - SLI/SLO tracking not needed)
+    # Default PrometheusRules disabled — all alerting rules are VMRules evaluated by VMAlert
     defaultRules:
-      # Disable specific alerts that we override with custom thresholds
-      disabled:
-        NodeMemoryMajorPagesFaults: true  # Overridden below with 30m duration
-        NodeDiskIOSaturation: true  # Overridden below with 1h duration
-        CPUThrottlingHigh: true  # Overridden below to exclude rebuilderd worker nodes
-      rules:
-        kubeProxy: false
-        kubeSchedulerAlerting: false
-        kubeControllerManager: false
-        kubeScheduler: false  # Disable all scheduler rules
-        kubeCPUOvercommit: false  # Disable CPU overcommit warning (homelab uses intentional overcommit)
-        kubeAPIServer: false  # Disable API error budget burn alerts (overkill for homelab)
-
-    # Override default alerts with adjusted thresholds for homelab workloads
-    additionalPrometheusRulesMap:
-      node-memory-override:
-        groups:
-          - name: node-memory-override
-            rules:
-              # Override: exclude rebuilderd worker nodes where CPU contention is expected
-              - alert: CPUThrottlingHigh
-                expr: |
-                  sum without (id, metrics_path, name, image, endpoint, job, node) (
-                    topk by (cluster, namespace, pod, container, instance) (1,
-                      increase(container_cpu_cfs_throttled_periods_total{container!="", job="kubelet", metrics_path="/metrics/cadvisor", node!~"worker-node|worker-node-2"}[5m])
-                    )
-                  )
-                  / on (cluster, namespace, pod, container, instance) group_left
-                  sum without (id, metrics_path, name, image, endpoint, job, node) (
-                    topk by (cluster, namespace, pod, container, instance) (1,
-                      increase(container_cpu_cfs_periods_total{job="kubelet", metrics_path="/metrics/cadvisor", node!~"worker-node|worker-node-2"}[5m])
-                    )
-                  )
-                  > ( 25 / 100 )
-                for: 15m
-                labels:
-                  severity: info
-                annotations:
-                  summary: Processes experience elevated CPU throttling.
-                  description: >-
-                    {{ $value | humanizePercentage }} throttling of CPU in namespace {{ $labels.namespace }} for container {{ $labels.container }} in pod {{ $labels.pod }}.
-                  runbook_url: https://runbooks.prometheus-operator.dev/runbooks/kubernetes/cputhrottlinghigh
-              # Override: exclude rebuilderd worker nodes (swap spillover causes expected page faults)
-              # Only alert on control-plane where page faults indicate real memory pressure
-              # node-exporter lacks 'node' label, so join with node_uname_info to filter by hostname
-              - alert: NodeMemoryMajorPagesFaults
-                expr: |
-                  rate(node_vmstat_pgmajfault{job="node-exporter"}[5m])
-                    * on(instance) group_left()
-                    node_uname_info{nodename!~"worker-node|worker-node2"}
-                  > 500
-                for: 30m
-                labels:
-                  severity: warning
-                annotations:
-                  summary: Memory major page faults are occurring at very high rate.
-                  description: |
-                    Memory major pages are occurring at very high rate at {{ $labels.instance }}, 500 major page faults per second for the last 30 minutes, is currently at {{ printf "%.2f" $value }}.
-                    Please check that there is enough memory available at this instance.
-                  runbook_url: https://runbooks.prometheus-operator.dev/runbooks/node/nodememorymajorpagesfaults
-              # Override: increase threshold from 10 to 20 and duration from 30m to 1h for rebuilderd compilation workloads
-              - alert: NodeDiskIOSaturation
-                expr: rate(node_disk_io_time_weighted_seconds_total{job="node-exporter", device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"}[5m]) > 20
-                for: 1h
-                labels:
-                  severity: warning
-                annotations:
-                  summary: Disk IO queue is high.
-                  description: |
-                    Disk IO queue (aqu-sq) is high on {{ $labels.device }} at {{ $labels.instance }}, has been above 20 for the last 1 hour, is currently at {{ printf "%.2f" $value }}.
-                    This symptom might indicate disk saturation.
-                  runbook_url: https://runbooks.prometheus-operator.dev/runbooks/node/nodediskiosaturation
+      create: false
 
     prometheusOperator:
       revisionHistoryLimit: 2
@@ -389,167 +294,5 @@ spec:
           cpu: 500m
           memory: 128Mi
 
-    # Drop high-cardinality histogram metrics and low-utility container metrics
-    # Reduces ~21k series (apiserver_request_* + workqueue_* + scheduler_plugin_* + prober_probe_* + container_* + kubelet_* buckets)
-    # NOTE: kubeApiServer and kubelet metricRelabelings are intentionally duplicated —
-    # Helm values don't support YAML anchors across different chart paths.
-    # When adding new drop rules, update BOTH sections.
-    kubeApiServer:
-      serviceMonitor:
-        metricRelabelings:
-          - sourceLabels: [__name__]
-            regex: 'apiserver_request_(duration|sli_duration)_seconds_bucket'
-            action: drop
-          # Fixed: apiserver_request_body_size uses _bytes_bucket not _seconds_bucket (11k series)
-          - sourceLabels: [__name__]
-            regex: 'apiserver_request_body_size_bytes_bucket'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'apiserver_response_sizes_bucket'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'etcd_request_duration_seconds_bucket'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'apiserver_watch_(cache_read_wait_seconds|events_sizes)_bucket'
-            action: drop
-          # Drop workqueue metrics from apiserver (4.5k series)
-          - sourceLabels: [__name__]
-            regex: 'workqueue_(work|queue)_duration_seconds_bucket'
-            action: drop
-          # Drop scheduler plugin metrics from apiserver (1.2k series)
-          - sourceLabels: [__name__]
-            regex: 'scheduler_plugin_execution_duration_seconds_bucket'
-            action: drop
-          # Drop storage operation histograms (980 series)
-          - sourceLabels: [__name__]
-            regex: 'storage_operation_duration_seconds_bucket'
-            action: drop
-          # Drop kubernetes feature flags (832 series, informational only)
-          - sourceLabels: [__name__]
-            regex: 'kubernetes_feature_enabled'
-            action: drop
-          # Drop admission controller histograms (756 series)
-          - sourceLabels: [__name__]
-            regex: 'apiserver_admission_controller_admission_duration_seconds_bucket'
-            action: drop
-          # Drop rest client histograms (1.4k series total)
-          - sourceLabels: [__name__]
-            regex: 'rest_client_(request_duration|request_size|response_size)_bytes?_bucket'
-            action: drop
-          # Drop histogram count/sum for already-dropped buckets (~4.6k series cumulative)
-          - sourceLabels: [__name__]
-            regex: 'apiserver_request_sli_duration_seconds_(count|sum)'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'apiserver_response_sizes_(count|sum)'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'etcd_request_duration_seconds_(count|sum)'
-            action: drop
-          # Drop workqueue histogram count/sum (768 series - buckets already dropped)
-          - sourceLabels: [__name__]
-            regex: 'workqueue_(work|queue)_duration_seconds_(count|sum)'
-            action: drop
-          # Drop Go runtime histogram buckets (~1.3k series - internal GC/scheduler timing)
-          - sourceLabels: [__name__]
-            regex: 'go_(gc_heap_|sched_).*_bucket'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'go_gc_pauses_seconds_bucket'
-            action: drop
-
-    # K3s-specific fix for cadvisor metrics
-    # K3s exports container='' (empty) with actual name in 'name' label
-    # Copy 'name' → 'container' for dashboard compatibility
-    kubelet:
-      serviceMonitor:
-        # Reduce scrape interval from 10s to 60s for memory optimization
-        # Reduces kubelet/cadvisor series by 83% (134k → 22k series)
-        interval: 60s
-        # Drop high-cardinality API server histogram metrics from kubelet scrapes
-        # Kubelet exposes apiserver metrics which create ~95k series
-        metricRelabelings:
-          - sourceLabels: [__name__]
-            regex: 'apiserver_request_(duration|sli_duration)_seconds_bucket'
-            action: drop
-          # Fixed: apiserver_request_body_size uses _bytes_bucket not _seconds_bucket (11k series)
-          - sourceLabels: [__name__]
-            regex: 'apiserver_request_body_size_bytes_bucket'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'apiserver_response_sizes_bucket'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'etcd_request_duration_seconds_bucket'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'apiserver_watch_(cache_read_wait_seconds|events_sizes)_bucket'
-            action: drop
-          # Drop workqueue metrics from kubelet (4.5k series)
-          - sourceLabels: [__name__]
-            regex: 'workqueue_(work|queue)_duration_seconds_bucket'
-            action: drop
-          # Drop scheduler plugin metrics from kubelet (1.2k series)
-          - sourceLabels: [__name__]
-            regex: 'scheduler_plugin_execution_duration_seconds_bucket'
-            action: drop
-          # Drop storage operation histograms (980 series)
-          - sourceLabels: [__name__]
-            regex: 'storage_operation_duration_seconds_bucket'
-            action: drop
-          # Drop kubernetes feature flags (832 series, informational only)
-          - sourceLabels: [__name__]
-            regex: 'kubernetes_feature_enabled'
-            action: drop
-          # Drop admission controller histograms (756 series)
-          - sourceLabels: [__name__]
-            regex: 'apiserver_admission_controller_admission_duration_seconds_bucket'
-            action: drop
-          # Drop rest client histograms (1.4k series total)
-          - sourceLabels: [__name__]
-            regex: 'rest_client_(request_duration|request_size|response_size)_bytes?_bucket'
-            action: drop
-          # Drop all kubelet histogram buckets (~1.5k series - internal timing not useful)
-          - sourceLabels: [__name__]
-            regex: 'kubelet_.*_bucket'
-            action: drop
-          # Drop histogram count/sum for already-dropped buckets (~4.6k series cumulative)
-          - sourceLabels: [__name__]
-            regex: 'apiserver_request_sli_duration_seconds_(count|sum)'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'apiserver_response_sizes_(count|sum)'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'etcd_request_duration_seconds_(count|sum)'
-            action: drop
-          # Drop workqueue histogram count/sum (768 series - buckets already dropped)
-          - sourceLabels: [__name__]
-            regex: 'workqueue_(work|queue)_duration_seconds_(count|sum)'
-            action: drop
-          # Drop Go runtime histogram buckets (~1.3k series - internal GC/scheduler timing)
-          - sourceLabels: [__name__]
-            regex: 'go_(gc_heap_|sched_).*_bucket'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'go_gc_pauses_seconds_bucket'
-            action: drop
-        cAdvisorMetricRelabelings:
-          - sourceLabels: [name]
-            targetLabel: container
-          # Drop low-utility container metrics (2.2k series reduction)
-          - sourceLabels: [__name__]
-            regex: 'container_tasks_state'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'container_memory_failures_total'
-            action: drop
-          - sourceLabels: [__name__]
-            regex: 'container_blkio_device_usage_total'
-            action: drop
-        probesMetricRelabelings:
-          # Drop prober probe duration buckets from kubelet /metrics/probes endpoint (1.4k series)
-          - sourceLabels: [__name__]
-            regex: 'prober_probe_duration_seconds_bucket'
-            action: drop
+    # kubeApiServer and kubelet metricRelabelings removed — VMAgent handles scraping
+    # with equivalent metric drops in VMServiceScrape configs
