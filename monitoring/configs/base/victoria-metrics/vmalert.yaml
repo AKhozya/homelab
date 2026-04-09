@@ -7,6 +7,9 @@ spec:
   # Query metrics from VMSingle
   datasource:
     url: "http://vmsingle-vmsingle.monitoring.svc:8429"
+  # Write recording rule results to VMSingle
+  remoteWrite:
+    url: "http://vmsingle-vmsingle.monitoring.svc:8429"
   # Send alerts to existing Alertmanager
   notifier:
     url: "http://alertmanager-operated.monitoring.svc:9093"
