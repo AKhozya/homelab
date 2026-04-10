@@ -10,6 +10,15 @@ spec:
   remoteWrite:
     - url: http://vmsingle-vmsingle.monitoring.svc:8429/api/v1/write
   scrapeInterval: "60s"
+  containers:
+    - name: config-reloader
+      resources:
+        requests:
+          cpu: 10m
+          memory: 25Mi
+        limits:
+          cpu: 50m
+          memory: 64Mi
   resources:
     requests:
       cpu: 100m
