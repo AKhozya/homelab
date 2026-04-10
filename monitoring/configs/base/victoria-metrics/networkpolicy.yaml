@@ -138,6 +138,14 @@ spec:
       ports:
         - protocol: TCP
           port: 9443
+    # Metrics scraping
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8080
   egress:
     # DNS
     - to:
