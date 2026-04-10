@@ -1,145 +1,132 @@
-# 🔐 Secrets Rotation Playbook
+# Secrets Rotation Playbook
 
-**Cluster**: K3s Homelab (single-master, SQLite backend)
-**Last Updated**: 2026-04-02
-**Audit Trail**: All rotation dates are tracked in git commit history with detailed commit messages
+**Cluster**: K3s Homelab | **Last Updated**: 2026-04-02
+**Audit Trail**: Rotation dates tracked in git commit history
 
 ---
 
-## 📋 SECRETS INVENTORY
+## SECRETS INVENTORY
 
 ### Database Credentials
 
 #### PostgreSQL (CloudNativePG)
 
-| Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
-|-------------|-----|------|--------------|---------------|----------|
-| `immich-db-password` | Immich | PostgreSQL | 2026-04-02 | 2026-07-01 | High |
-| `linkwarden-db-password` | Linkwarden | PostgreSQL | 2026-04-02 | 2026-10-01 | Medium |
-| `mealie-db-password` | Mealie | PostgreSQL | 2026-04-02 | 2026-10-01 | Medium |
-| `n8n-db-password` | N8N | PostgreSQL | 2026-04-02 | 2026-07-01 | High |
-| `paperless-db-password` | Paperless-NGX | PostgreSQL | 2026-04-02 | 2026-10-01 | Medium |
-| `authentik-db-password` | Authentik | PostgreSQL | 2026-04-02 | 2026-07-01 | Critical |
-| `grafana-db-password` | Grafana | PostgreSQL | N/A (Uses embedded SQLite) | N/A | N/A |
-| `audiobookshelf-db-password` | Audiobookshelf | PostgreSQL | N/A (Uses embedded SQLite) | N/A | N/A |
+| Secret Name | App | Last Rotated | Next Rotation | Priority |
+|-------------|-----|--------------|---------------|----------|
+| `immich-db-password` | Immich | 2026-04-02 | 2026-07-01 | High |
+| `linkwarden-db-password` | Linkwarden | 2026-04-02 | 2026-10-01 | Medium |
+| `mealie-db-password` | Mealie | 2026-04-02 | 2026-10-01 | Medium |
+| `n8n-db-password` | N8N | 2026-04-02 | 2026-07-01 | High |
+| `paperless-db-password` | Paperless-NGX | 2026-04-02 | 2026-10-01 | Medium |
+| `authentik-db-password` | Authentik | 2026-04-02 | 2026-07-01 | Critical |
+| `grafana-db-password` | Grafana | N/A (SQLite) | N/A | N/A |
+| `audiobookshelf-db-password` | Audiobookshelf | N/A (SQLite) | N/A | N/A |
 
-#### MySQL (Percona Operator)
+#### MySQL (Percona)
 
-| Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
-|-------------|-----|------|--------------|---------------|----------|
-| `home-assistant-mysql` | Home Assistant | MySQL | 2026-04-02 | 2026-07-01 | High |
-| `uptime-kuma-mysql` | Uptime Kuma | MySQL | 2026-04-02 | 2026-10-01 | Medium |
-| `pricebuddy-mysql` | PriceBuddy | MySQL | 2026-04-02 | 2026-10-01 | Medium |
+| Secret Name | App | Last Rotated | Next Rotation | Priority |
+|-------------|-----|--------------|---------------|----------|
+| `home-assistant-mysql` | Home Assistant | 2026-04-02 | 2026-07-01 | High |
+| `uptime-kuma-mysql` | Uptime Kuma | 2026-04-02 | 2026-10-01 | Medium |
+| `pricebuddy-mysql` | PriceBuddy | 2026-04-02 | 2026-10-01 | Medium |
 
 #### CouchDB
 
-| Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
-|-------------|-----|------|--------------|---------------|----------|
-| `couchdb-admin-credentials` | Obsidian Sync | CouchDB Admin | **MOVED** — see User Login Passwords section |
+| Secret Name | App | Notes |
+|-------------|-----|-------|
+| `couchdb-admin-credentials` | Obsidian Sync | **MOVED** — see User Login Passwords |
 
-### Redis Credentials
+### Redis
 
-| Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
-|-------------|-----|------|--------------|---------------|----------|
-| `authentik-redis-password` | Authentik | Redis | N/A (Removed 2025-10-29) | N/A | N/A |
-| `immich-redis-password` | Immich | Redis | 2026-04-02 | 2026-07-01 | High |
-| `paperless-redis-password` | Paperless-NGX | Redis | 2026-04-02 | 2026-10-01 | Medium |
-| `wallabag-redis-password` | Wallabag | Redis | N/A (Removed - app decommissioned) | N/A | N/A |
+| Secret Name | App | Last Rotated | Next Rotation | Priority |
+|-------------|-----|--------------|---------------|----------|
+| `authentik-redis-password` | Authentik | N/A (Removed 2025-10-29) | N/A | N/A |
+| `immich-redis-password` | Immich | 2026-04-02 | 2026-07-01 | High |
+| `paperless-redis-password` | Paperless-NGX | 2026-04-02 | 2026-10-01 | Medium |
+| `wallabag-redis-password` | Wallabag | N/A (Decommissioned) | N/A | N/A |
 
-### Application Secrets (service-to-service, rotated automatically)
+### Application Secrets
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
 | `authentik-secret-key` | Authentik | Django Secret | 2026-04-02 | 2026-10-01 | High |
 | `n8n-encryption-key` | N8N | Encryption Key | Never* | N/A | Critical |
 
-\* **IMPORTANT**: N8N encryption key should NEVER be rotated as it encrypts workflow credentials
+\* **N8N encryption key NEVER rotated** — encrypts all workflow credentials
 
-### User Login Passwords (NOT rotated — only change if user requests)
+### User Login Passwords (NOT rotated)
 
-| Secret Name | App | Type | Notes |
-|-------------|-----|------|-------|
-| `homehub-password` | HomeHub | Bcrypt Password | User login — do NOT rotate without user consent |
-| `adguard-home-config` | AdGuard Home | Bcrypt Password | User login — do NOT rotate without user consent |
-| `grafana-admin-secret` | Grafana | Admin Password | User login — do NOT rotate without user consent |
-| `audiobookshelf-admin` | Audiobookshelf | Admin Password | User login — do NOT rotate without user consent |
-| `couchdb-admin-credentials` | Obsidian Sync | CouchDB Admin | Client-facing — Obsidian LiveSync connects directly; do NOT rotate |
+| Secret Name | App | Notes |
+|-------------|-----|-------|
+| `homehub-password` | HomeHub | User login — NO auto-rotate |
+| `adguard-home-config` | AdGuard Home | User login — NO auto-rotate |
+| `grafana-admin-secret` | Grafana | User login — NO auto-rotate |
+| `audiobookshelf-admin` | Audiobookshelf | User login — NO auto-rotate |
+| `couchdb-admin-credentials` | Obsidian Sync | Client-facing (LiveSync connects directly) — NO rotate |
 
 ### OIDC/OAuth Secrets
 
-| App | Where OIDC Secret Lives | Last Rotated | Next Rotation | Priority |
-|-----|------------------------|--------------|---------------|----------|
-| Grafana | `grafana-oidc` K8s Secret (mounted volume) | 2026-04-02 | 2026-10-01 | High |
-| Immich | PostgreSQL `system_metadata` table (`oauth.clientSecret` jsonb path) + Authentik API | 2026-04-02 | 2026-10-01 | High |
+| App | Where Secret Lives | Last Rotated | Next Rotation | Priority |
+|-----|-------------------|--------------|---------------|----------|
+| Grafana | `grafana-oidc` K8s Secret (volume mount) | 2026-04-02 | 2026-10-01 | High |
+| Immich | PostgreSQL `system_metadata` table (`oauth.clientSecret` jsonb) + Authentik API | 2026-04-02 | 2026-10-01 | High |
 | Paperless-NGX | `paperless-env-secret.yaml` (PAPERLESS_SOCIALACCOUNT_PROVIDERS env) | 2026-04-02 | 2026-10-01 | High |
 | Mealie | `mealie-env-secret.yaml` (OIDC_CLIENT_SECRET env) | 2026-04-02 | 2026-10-01 | Medium |
 | Linkwarden | `linkwarden-secret.yaml` (DATABASE_URL + OIDC combined) | 2026-04-02 | 2026-10-01 | Medium |
-| Audiobookshelf | Internal SQLite DB (web UI config) + Authentik API | 2026-04-02 | 2026-10-01 | Medium |
+| Audiobookshelf | SQLite on PVC (web UI config) + Authentik API | 2026-04-02 | 2026-10-01 | Medium |
 | Home Assistant | OIDC disabled (hass-oidc-auth incompatible with HA 2026.4.0) | N/A | N/A | N/A |
 | Stirling PDF | `custom-settings-configmap.yaml` (SOPS Secret) | 2026-04-02 | 2026-10-01 | Medium |
 
-**IMPORTANT — OIDC rotation gotchas:**
-- **Immich**: Must update in Authentik API AND in PostgreSQL DB: `UPDATE system_metadata SET value = jsonb_set(value::jsonb, '{oauth,clientSecret}', '"NEW_SECRET"') WHERE key = 'system-config';` then restart pod
-- **Audiobookshelf**: Must update in Authentik API AND via the Audiobookshelf web UI (Settings → Authentication → OpenID). Cannot be done via CLI — stored in SQLite on PVC
-- **Paperless-NGX**: Secret lives in `PAPERLESS_SOCIALACCOUNT_PROVIDERS` JSON inside `paperless-env-secret.yaml` (NOT a standalone secret file)
+**OIDC rotation gotchas:**
+- **Immich**: Update Authentik API AND PostgreSQL: `UPDATE system_metadata SET value = jsonb_set(value::jsonb, '{oauth,clientSecret}', '"NEW_SECRET"') WHERE key = 'system-config';` then restart
+- **Audiobookshelf**: Update Authentik API AND web UI (Settings → Auth → OpenID). Can't do via CLI (SQLite on PVC)
+- **Paperless-NGX**: Secret in `PAPERLESS_SOCIALACCOUNT_PROVIDERS` JSON inside env secret (NOT standalone file)
 - **All others**: Update Authentik API + SOPS file + restart pod
 
 ### Infrastructure Credentials
 
-| Secret Name | Component | Type | Last Rotated | Next Rotation | Priority |
-|-------------|-----------|------|--------------|---------------|----------|
-| `tunnel-credentials` | Cloudflare Tunnel | Tunnel Token | 2025-10-18 | Never* | Critical |
-| `pricebuddy-telegram` | PriceBuddy | Telegram Bot Token | 2025-12-05 | Never* | Medium |
-| `backup-replication-ssh` | Backup Jobs | SSH Private Key | 2025-12-18 | 2026-12-18 | High |
-| `cloudflare-tunnel-mgmt-token` | CF Tunnel Mgmt | API Token | 2026-02-19 | 2026-12-31 | Medium |
+| Secret Name | Component | Last Rotated | Next Rotation | Priority |
+|-------------|-----------|--------------|---------------|----------|
+| `tunnel-credentials` | Cloudflare Tunnel | 2025-10-18 | Never* | Critical |
+| `pricebuddy-telegram` | PriceBuddy | 2025-12-05 | Never* | Medium |
+| `backup-replication-ssh` | Backup Jobs | 2025-12-18 | 2026-12-18 | High |
+| `cloudflare-tunnel-mgmt-token` | CF Tunnel Mgmt | 2026-02-19 | 2026-12-31 | Medium |
 
-\* **Tunnel/API tokens**: Only rotate if compromised; regeneration requires reconfiguration
-\* **CF Tunnel Mgmt Token**: Permissions: Tunnel Edit + DNS Edit + Zone Read. Refresh before expiry (Dec 31, 2026)
+\* Only rotate if compromised
 
 ### TLS Certificates
 
-| Certificate | Issuer | Type | Renewal | Priority |
-|-------------|--------|------|---------|----------|
-| `*.h0melab.work` | Let's Encrypt | Wildcard | Automatic (cert-manager) | High |
-| Individual app certs | Let's Encrypt | Single domain | Automatic (cert-manager) | High |
+| Certificate | Renewal |
+|-------------|---------|
+| `*.h0melab.work` | Automatic (cert-manager, Let's Encrypt) |
+| Individual app certs | Automatic (cert-manager) |
 
 ---
 
-## 🔄 ROTATION SCHEDULES
+## ROTATION SCHEDULES
 
-### High Priority (Every 90 Days)
-- Database passwords for apps with sensitive data (Immich, Authentik, N8N, Home Assistant)
-- Redis passwords (Immich)
+### High Priority (90 Days)
+- DB passwords: Immich, Authentik, N8N, Home Assistant
+- Redis: Immich
 
-### Medium Priority (Every 180 Days)
+### Medium Priority (180 Days)
 - OIDC client secrets (Authentik provider + app-side)
-- Database passwords for less critical apps (Mealie, Paperless, Linkwarden, Uptime Kuma, PriceBuddy)
-- Redis passwords (Paperless)
-- CouchDB admin password (also update mirror in `monitoring/configs/base/victoria-metrics/couchdb-auth-secret.yaml` for VMAgent scraping)
+- DB passwords: Mealie, Paperless, Linkwarden, Uptime Kuma, PriceBuddy
+- Redis: Paperless
+- CouchDB admin (also update `monitoring/configs/base/victoria-metrics/couchdb-auth-secret.yaml` for VMAgent)
 - Authentik Django secret key
 
 ### Never Rotate
-- User login passwords (AdGuard, HomeHub, Grafana admin, Audiobookshelf admin) — only change if user requests
-- N8N encryption key — rotating breaks all encrypted workflow credentials
-- Cloudflare tunnel token — only rotate if compromised
-- Age key for SOPS encryption — only rotate if compromised
-
-### Low Priority (Annually)
-- ⚠️ **N8N Encryption Key** - Rotating this will break all encrypted workflow credentials
-- Age key for SOPS encryption - Only rotate if compromised
+- User login passwords (AdGuard, HomeHub, Grafana admin, Audiobookshelf admin)
+- N8N encryption key (breaks encrypted workflow credentials)
+- Cloudflare tunnel token (only if compromised)
+- Age key for SOPS (only if compromised)
 
 ---
 
-## 📝 ROTATION PROCEDURES
+## ROTATION PROCEDURES
 
-### 1. Database Password Rotation (PostgreSQL)
-
-#### Prerequisites
-- kubectl access to cluster
-- SOPS key configured
-- Git repository access
-
-#### Steps
+### 1. PostgreSQL Password (CNPG)
 
 ```bash
 # 1. Generate new password (64-char hex for URL safety)
@@ -175,7 +162,7 @@ kubectl logs -n <app> deployment/<app> --tail=20 | grep -i "database\|error"
 # 8. Update rotation tracking in this document
 ```
 
-**Rollback Procedure** (if issues occur):
+**Rollback:**
 ```bash
 # 1. Revert git commit
 git revert HEAD
@@ -190,9 +177,7 @@ kubectl rollout restart deployment/<app> -n <app>
 
 ---
 
-### 2. Redis Password Rotation
-
-#### Steps
+### 2. Redis Password
 
 ```bash
 # 1. Generate new password
@@ -223,12 +208,10 @@ kubectl logs -n authentik deployment/authentik-server --tail=20 | grep -i "redis
 
 ---
 
-### 3. MySQL Password Rotation (Percona)
-
-#### Steps
+### 3. MySQL Password (Percona)
 
 ```bash
-# 1. Generate new password (32 characters, alphanumeric only)
+# 1. Generate new password (32 chars, alphanumeric only)
 NEW_PASSWORD=$(openssl rand -base64 24 | tr -d '+/=' | head -c 32)
 
 # 2. Update MySQL user password via Percona operator
@@ -254,14 +237,11 @@ kubectl rollout restart deployment/home-assistant -n home-assistant
 kubectl logs -n home-assistant deployment/home-assistant --tail=20 | grep -i "mysql\|database\|error"
 ```
 
-**Note**: Percona MySQL operator handles password updates through its CRDs. The user secrets
-are stored in the `databases` namespace and referenced by the PerconaServerMySQL resource.
+**Note**: Percona operator handles password updates through CRDs. User secrets in `databases` namespace, referenced by PerconaServerMySQL resource.
 
 ---
 
-### 4. OIDC Client Secret Rotation
-
-#### Steps
+### 4. OIDC Client Secret
 
 ```bash
 # 1. Generate new OIDC client secret (64-char hex)
@@ -295,215 +275,118 @@ kubectl rollout restart deployment/<app> -n <app>
 # Visit https://<app>.h0melab.work and test login
 ```
 
-**Provider PK Reference** (use `curl .../api/v3/providers/oauth2/` to list):
+**Provider PK Reference**:
 - 1: Grafana, 3: Immich, 5: Paperless-NGX, 11: Mealie
 - 13: Audiobookshelf, 14: Home Assistant, 16: Stirling PDF
-- Note: n8n doesn't support OIDC in free version (no provider configured)
+- n8n: no OIDC in free version
 
 ---
 
-### 5. Application Password Rotation (HomeHub, AdGuard Home)
+### 5. User Login Passwords (HomeHub, AdGuard)
 
-#### HomeHub Password Rotation
-
+#### HomeHub
 ```bash
-# 1. Generate new bcrypt password hash
-# Option A: Use Python
+# 1. Generate bcrypt hash
 python3 -c "import bcrypt; print(bcrypt.hashpw(b'YOUR_NEW_PASSWORD', bcrypt.gensalt(rounds=12)).decode())"
 
-# Option B: Use online bcrypt generator (less secure)
-# https://bcrypt-generator.com/ (rounds: 12)
-
-# 2. Update SOPS-encrypted secret
+# 2. Update SOPS secret
 sops apps/base/homehub/secret.yaml
 # Update HOMEHUB_PASSWORD with bcrypt hash
 
-# 3. Commit and push
+# 3. Commit, push, reconcile, restart
 git add apps/base/homehub/secret.yaml
 git commit -m "Rotate HomeHub password"
 git push
-
-# 4. Reconcile and restart
 flux reconcile kustomization apps --timeout 45s --force
 kubectl rollout restart deployment/homehub -n homehub
-
-# 5. Test login
-# Visit https://homehub.h0melab.work and test with new password
 ```
 
-#### AdGuard Home Password Rotation
-
+#### AdGuard Home
 ```bash
-# 1. Generate new bcrypt hash (same as HomeHub)
-
-# 2. Update AdGuard Home config
-sops apps/base/adguard-home/secret.yaml
-# Update the password field under users section
-
-# 3. Commit and push
-git add apps/base/adguard-home/secret.yaml
-git commit -m "Rotate AdGuard Home password"
-git push
-
-# 4. Reconcile and restart
-flux reconcile kustomization apps --timeout 45s --force
-kubectl rollout restart deployment/adguard-home -n adguard-home
-
-# 5. Test login
-# Visit https://adguard.h0melab.work and test with new password
+# 1. Generate bcrypt hash (same as HomeHub)
+# 2. Update: sops apps/base/adguard-home/secret.yaml
+# 3. Commit, push, reconcile, restart
 ```
 
 ---
 
-## 🔍 VERIFICATION CHECKLIST
+## VERIFICATION CHECKLIST
 
-After rotating any secret, verify:
-
-- [ ] Git commit pushed successfully
-- [ ] Flux reconciliation completed without errors
-- [ ] Affected pods restarted successfully
-- [ ] Application logs show no authentication errors
-- [ ] Application is accessible via web UI (if applicable)
-- [ ] Dependent services can still connect (check logs)
-- [ ] Monitoring shows no alerts
-- [ ] Update "Last Rotated" date in this document
-- [ ] Commit documentation update
-
----
-
-## 🚨 EMERGENCY ROTATION
-
-If a secret is compromised:
-
-1. **Immediate Actions**:
-   - Rotate the compromised secret immediately (within 1 hour)
-   - Check logs for unauthorized access
-   - Review audit logs if available
-
-2. **Investigation**:
-   - Determine scope of compromise
-   - Identify affected systems
-   - Check for lateral movement
-
-3. **Remediation**:
-   - Rotate all related secrets
-   - Review and tighten NetworkPolicies
-   - Update firewall rules if needed
-   - Consider rotating SOPS age key if secret encryption compromised
-
-4. **Post-Mortem**:
-   - Document incident
-   - Update security procedures
-   - Review access controls
+After rotating any secret:
+- [ ] Git commit pushed
+- [ ] Flux reconciliation completed
+- [ ] Pods restarted successfully
+- [ ] No auth errors in logs
+- [ ] App accessible via web UI
+- [ ] Dependent services connected
+- [ ] No monitoring alerts
+- [ ] "Last Rotated" updated in this doc
+- [ ] Doc update committed
 
 ---
 
-## 📊 ROTATION TRACKING
+## EMERGENCY ROTATION
+
+If compromised:
+1. **Immediate**: Rotate within 1h, check logs for unauthorized access
+2. **Investigate**: Scope, affected systems, lateral movement
+3. **Remediate**: Rotate all related secrets, tighten NetworkPolicies, update firewall
+4. **Post-mortem**: Document, update procedures, review access controls
+
+---
+
+## ROTATION TRACKING
 
 ### 2025 Q4 (Oct-Dec)
-- [x] 2025-10-18: Initial deployment with secure credentials
-  - Authentik database password
-  - Authentik Django secret key
-  - Redis passwords (Immich, Paperless-NGX, Wallabag)
-- [x] 2025-10-19: Database password rotations
-  - Immich database password (64-char hex)
-  - Paperless-NGX database password
-- [x] 2025-10-20: OIDC secrets deployment
-  - Added OIDC client secrets for 7 apps (Authentik SSO integration)
-- [x] 2025-10-23: Database password standardization
-  - Linkding, Mealie, N8N, Wallabag database passwords (hex-only)
-  - CouchDB admin password updated
-- [x] 2025-10-25: Application credential deployment
-  - AdGuard Home bcrypt password
-  - Stirling PDF OAuth2 client secret
-- [x] 2025-10-26: Security incident response
-  - HomeHub password rotated (exposed password remediation)
-- [x] 2025-10-29: Architecture change
-  - Removed Redis from Authentik (no longer applicable)
-- [x] 2025-11-24: Linkwarden deployment (replaced Linkding)
-  - Linkwarden database password (PostgreSQL)
-  - Linkwarden OIDC client secret
-- [x] 2025-12-05: PriceBuddy deployment
-  - PriceBuddy Telegram bot token
-- [x] 2025-12-16: MySQL migration (MariaDB → Percona MySQL)
-  - Home Assistant MySQL credentials
-  - Uptime Kuma MySQL credentials
-  - PriceBuddy MySQL credentials
-- [x] 2025-12-18: Backup replication setup
-  - SSH key for backup replication to worker-node-2
+- [x] 2025-10-18: Initial deployment (Authentik DB + Django, Redis x3)
+- [x] 2025-10-19: Immich + Paperless DB passwords
+- [x] 2025-10-20: OIDC secrets for 7 apps
+- [x] 2025-10-23: Linkding, Mealie, N8N, Wallabag, CouchDB passwords
+- [x] 2025-10-25: AdGuard + Stirling PDF credentials
+- [x] 2025-10-26: HomeHub password (exposed password incident)
+- [x] 2025-10-29: Removed Authentik Redis
+- [x] 2025-11-24: Linkwarden deployment (DB + OIDC)
+- [x] 2025-12-05: PriceBuddy Telegram token
+- [x] 2025-12-16: MySQL migration (HA, Uptime Kuma, PriceBuddy)
+- [x] 2025-12-18: Backup replication SSH key
 
 ### 2026 Q1 (Jan-Mar)
-- *Skipped — all rotations consolidated into Q2 batch*
+- *Skipped — consolidated into Q2 batch*
 
 ### 2026 Q2 (Apr-Jun)
-- [x] 2026-04-02: Batch PostgreSQL password rotation (6 databases)
-  - Authentik, Immich, Paperless, Mealie, N8N, Linkwarden
-- [x] 2026-04-02: MySQL password rotation (3 databases)
-  - Home Assistant, Uptime Kuma, PriceBuddy
-- [x] 2026-04-02: Redis password rotation (2 services)
-  - Immich, Paperless-NGX
-- [x] 2026-04-02: CouchDB admin password rotation
-- [x] 2026-04-02: OIDC client secret rotation (6 apps via Authentik API)
-  - Grafana, Immich (DB update), Paperless (env), Mealie (env), Stirling PDF (SOPS Secret)
-  - Audiobookshelf reverted (reads from SQLite DB, must update via web UI)
-  - Home Assistant skipped (hass-oidc-auth disabled, incompatible with HA 2026.4.0)
-- [x] 2026-04-02: Authentik Django secret key rotation
+- [x] 2026-04-02: Full batch rotation
+  - PostgreSQL (6): Authentik, Immich, Paperless, Mealie, N8N, Linkwarden
+  - MySQL (3): Home Assistant, Uptime Kuma, PriceBuddy
+  - Redis (2): Immich, Paperless-NGX
+  - CouchDB admin
+  - OIDC (6): Grafana, Immich (DB), Paperless (env), Mealie (env), Stirling PDF (SOPS)
+    - Audiobookshelf reverted (SQLite, must use web UI)
+    - HA skipped (hass-oidc-auth disabled)
+  - Authentik Django secret key
 
 ### 2026 Q3 (Jul-Sep)
-- [ ] 2026-07-01: High-priority PostgreSQL rotation (90-day: authentik, immich, n8n)
-- [ ] 2026-07-01: High-priority MySQL rotation (90-day: home-assistant)
-- [ ] 2026-07-01: High-priority Redis rotation (90-day: immich)
+- [ ] 2026-07-01: High-priority 90-day rotation (PG: authentik/immich/n8n, MySQL: HA, Redis: immich)
 
 ### 2026 Q4 (Oct-Dec)
-- [ ] 2026-10-01: Medium-priority PostgreSQL rotation (180-day: mealie, paperless, linkwarden)
-- [ ] 2026-10-01: Medium-priority MySQL rotation (180-day: uptime-kuma, pricebuddy)
-- [ ] 2026-10-01: Medium-priority Redis rotation (180-day: paperless)
-- [ ] 2026-10-01: CouchDB admin password rotation (180-day)
-- [ ] 2026-10-01: OIDC client secret rotation (180-day: grafana, immich, paperless, mealie, stirling-pdf)
-- [ ] 2026-10-01: Authentik Django secret key rotation (180-day)
+- [ ] 2026-10-01: Medium-priority 180-day rotation (all remaining PG, MySQL, Redis, CouchDB, OIDC, Django key)
 
 ---
 
-## 🛡️ BEST PRACTICES
+## BEST PRACTICES
 
-1. **Password Generation**:
-   - Use cryptographically secure random generation
-   - Minimum 32 characters for database/Redis passwords
-   - Minimum 64 characters for OIDC secrets
-   - Avoid special characters in database passwords (URL encoding issues)
-
-2. **Testing**:
-   - Always test rotation in staging first (if available)
-   - Verify all dependent services after rotation
-   - Keep previous password available for 24h in case of rollback
-
-3. **Documentation**:
-   - Update this document immediately after rotation
-   - Commit documentation changes to git
-   - Include rotation date in git commit message
-
-4. **Monitoring**:
-   - Watch for authentication errors after rotation
-   - Monitor application logs for 15 minutes after rotation
-   - Check Grafana dashboards for anomalies
-
-5. **Backup**:
-   - Ensure secrets backup is current before rotation
-   - Verify `.backup/secrets-backup.sh` runs successfully
-   - Store backup encryption key separately
+1. **Password gen**: Cryptographically secure, 32+ chars for DB/Redis, 64+ for OIDC. Avoid special chars (URL encoding issues).
+2. **Testing**: Verify all dependent services. Keep prev password 24h for rollback.
+3. **Docs**: Update this doc + commit immediately after rotation.
+4. **Monitoring**: Watch auth errors 15 min post-rotation. Check Grafana.
+5. **Backup**: Ensure secrets backup current before rotation.
 
 ---
 
-## 📚 RELATED DOCUMENTATION
+## RELATED
 
-- [Security Documentation](./SECURITY.md) - Security policies and incident response
-- [Performance & Security Audit](./PERFORMANCE_SECURITY_AUDIT.md) - Latest audit findings
-- [Homelab Analysis](./HOMELAB_ANALYSIS.md) - Infrastructure overview
+- [Security](./SECURITY.md) | [Homelab Analysis](./HOMELAB_ANALYSIS.md)
 
 ### Git Audit Trail
-
-To verify secret rotation history and exact dates, use git commit history:
-
 ```bash
 # View all secret rotation commits with dates
 git log --all --date=short --format="%ad %s" --grep="secret\|password\|rotate" -- apps/
@@ -517,6 +400,4 @@ git show <commit-hash> -- apps/base/immich/secret.yaml
 
 ---
 
-**Document Owner**: DevOps Team
-**Review Schedule**: Quarterly
-**Next Review**: 2026-07-01
+**Review Schedule**: Quarterly | **Next Review**: 2026-07-01
