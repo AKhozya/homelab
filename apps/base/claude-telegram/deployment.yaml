@@ -33,7 +33,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: chezmoi-init
-          image: ghcr.io/akhozya/claude-telegram-bot:1.2
+          image: ghcr.io/akhozya/claude-telegram-bot:1.3
           command:
             - /bin/bash
             - -c
@@ -119,7 +119,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: claude-telegram
-          image: ghcr.io/akhozya/claude-telegram-bot:1.2
+          image: ghcr.io/akhozya/claude-telegram-bot:1.3
           env:
             - name: HOME
               value: /home/akhozya
@@ -141,6 +141,8 @@ spec:
             - name: AUDIT_LOG_PATH
               value: /home/akhozya/data/audit.log
             - name: CLAUDE_MODEL
+              value: "claude-opus-4-6"
+            - name: CLAUDE_CODE_DEFAULT_MODEL
               value: "claude-opus-4-6"
             - name: CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
               value: "1"
@@ -169,7 +171,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync
-          image: ghcr.io/akhozya/claude-telegram-bot:1.2
+          image: ghcr.io/akhozya/claude-telegram-bot:1.3
           command:
             - /bin/bash
             - -c
