@@ -23,6 +23,21 @@ for tool in claude kubectl flux gh git ssh bun chezmoi; do
   fi
 done
 
+# Background config sync (every 30 min)
+(
+  while true; do
+    sleep 1800
+    echo "$(date): Syncing config..."
+    git -C "$HOME/.local/share/chezmoi" pull --quiet 2>/dev/null && \
+      chezmoi apply --force --no-tty 2>/dev/null && \
+      echo "$(date): Dotfiles synced" || \
+      echo "$(date): Dotfiles sync failed (non-fatal)"
+    git -C "$HOME/source-code/homelab" pull --quiet 2>/dev/null && \
+      echo "$(date): Homelab repo synced" || \
+      echo "$(date): Homelab sync failed (non-fatal)"
+  done
+) &
+
 cd "$HOME/source-code/homelab"
 
 # Restart loop — Channels can exit on network issues
