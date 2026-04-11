@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Image version tag (e.g., 1.0.1)'
+        description: 'Image version tag (e.g., 1.5). Leave empty to auto-increment.'
         required: false
         default: ''
 
@@ -20,17 +20,20 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@v3
 
       - name: Login to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -42,8 +45,17 @@ jobs:
           if [ -n "${{ github.event.inputs.version }}" ]; then
             echo "tag=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           else
-            echo "tag=1.0.0-$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+            # Auto-increment: find latest claude-telegram-v1.* tag
+            LATEST=$(git tag -l 'claude-telegram-v1.*' --sort=-v:refname | head -1)
+            if [ -z "$LATEST" ]; then
+              NEXT="1.0"
+            else
+              MINOR=$(echo "$LATEST" | sed 's/claude-telegram-v1\.//')
+              NEXT="1.$((MINOR + 1))"
+            fi
+            echo "tag=${NEXT}" >> $GITHUB_OUTPUT
           fi
+          echo "Version: $(cat $GITHUB_OUTPUT | grep tag)"
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -53,6 +65,12 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Tag git
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag "claude-telegram-v${{ steps.version.outputs.tag }}"
+          git push origin "claude-telegram-v${{ steps.version.outputs.tag }}"
