@@ -41,6 +41,18 @@ spec:
               set -e
               export HOME=/home/akhozya
 
+              # Copy SSH keys from Secret staging mount to writable PVC
+              # (Secret mounts are read-only; SSH needs writable known_hosts)
+              mkdir -p ~/.ssh
+              cp /etc/ssh-keys/* ~/.ssh/
+              chmod 700 ~/.ssh
+              chmod 600 ~/.ssh/id_ed25519 ~/.ssh/config
+              chmod 644 ~/.ssh/id_ed25519.pub ~/.ssh/known_hosts 2>/dev/null || true
+
+              # Scan node SSH fingerprints into writable known_hosts
+              echo "Scanning node SSH fingerprints..."
+              ssh-keyscan -p 65300 gmk-k3s-control-plane worker-node worker-node-2 >> ~/.ssh/known_hosts 2>/dev/null || true
+
               # Setup chezmoi config
               mkdir -p ~/.config/chezmoi
               cp /etc/chezmoi-config/chezmoi.toml ~/.config/chezmoi/chezmoi.toml
@@ -54,7 +66,7 @@ spec:
                 git clone git@github.com:AKhozya/dotfiles.git ~/.local/share/chezmoi
               fi
 
-              # Apply chezmoi — skip .ssh (read-only K8s Secret) and macOS-only scripts
+              # Apply chezmoi — skip .ssh (managed above) and macOS-only scripts
               echo -e '.ssh/**\nrun_once_*' >> ~/.local/share/chezmoi/.chezmoiignore
               chezmoi apply --force --no-tty || true
 
@@ -84,8 +96,6 @@ spec:
           env:
             - name: HOME
               value: /home/akhozya
-            - name: GIT_SSH_COMMAND
-              value: "ssh -o StrictHostKeyChecking=accept-new"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -101,7 +111,7 @@ spec:
             - name: home
               mountPath: /home/akhozya
             - name: ssh-keys
-              mountPath: /home/akhozya/.ssh
+              mountPath: /etc/ssh-keys
               readOnly: true
             - name: chezmoi-config
               mountPath: /etc/chezmoi-config
@@ -158,9 +168,6 @@ spec:
           volumeMounts:
             - name: home
               mountPath: /home/akhozya
-            - name: ssh-keys
-              mountPath: /home/akhozya/.ssh
-              readOnly: true
             - name: tmp
               mountPath: /tmp
       volumes:
