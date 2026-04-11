@@ -73,5 +73,5 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git tag "claude-telegram-v${{ steps.version.outputs.tag }}"
-          git push origin "claude-telegram-v${{ steps.version.outputs.tag }}"
+          git tag -f "claude-telegram-v${{ steps.version.outputs.tag }}"
+          git push origin "claude-telegram-v${{ steps.version.outputs.tag }}" --force
