@@ -170,6 +170,41 @@ spec:
               mountPath: /home/akhozya
             - name: tmp
               mountPath: /tmp
+        - name: sync
+          image: ghcr.io/akhozya/claude-telegram-bot:1.0
+          command:
+            - /bin/bash
+            - -c
+            - |
+              export HOME=/home/akhozya
+              echo "Sync sidecar started (1h interval)"
+              while true; do
+                sleep 3600
+                echo "--- Sync $(date -Iseconds) ---"
+                git -C ~/.local/share/chezmoi pull --quiet 2>&1 || true
+                echo -e '.ssh/**\nrun_once_*' >> ~/.local/share/chezmoi/.chezmoiignore
+                chezmoi apply --force --no-tty 2>&1 || true
+                find ~/.claude -name "*.json" -exec sed -i 's|/Users/akhozya|/home/akhozya|g' {} \; 2>/dev/null || true
+                git -C ~/source-code/homelab pull --quiet 2>&1 || true
+                echo "Sync done"
+              done
+          env:
+            - name: HOME
+              value: /home/akhozya
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: home
+              mountPath: /home/akhozya
       volumes:
         - name: home
           persistentVolumeClaim:
