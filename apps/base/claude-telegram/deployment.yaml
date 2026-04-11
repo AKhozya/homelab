@@ -93,7 +93,9 @@ spec:
                 .projects["/home/akhozya/source-code/homelab"] = (.projects["/home/akhozya/source-code/homelab"] // {}) +
                   {"hasTrustDialogAccepted": true, "projectOnboardingSeenCount": 99, "allowedTools": [], "mcpServers": {}} |
                 .lastOnboardingVersion = $v |
-                .hasCompletedOnboarding = true
+                .hasCompletedOnboarding = true |
+                .cachedGrowthBookFeatures.tengu_harbor = true |
+                .cachedGrowthBookFeatures.tengu_harbor_ledger = ["telegram","discord","fakechat","imessage"]
               ' ~/.claude/.claude.json > /tmp/claude.json.tmp && mv /tmp/claude.json.tmp ~/.claude/.claude.json
               echo "Patched .claude.json (version=$CLAUDE_VERSION)"
 
