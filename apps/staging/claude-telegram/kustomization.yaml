@@ -5,3 +5,4 @@ resources:
   - ../../base/claude-telegram
   - claude-telegram-env-secret.yaml
   - claude-telegram-ssh-secret.yaml
+  - claude-telegram-chezmoi-secret.yaml
