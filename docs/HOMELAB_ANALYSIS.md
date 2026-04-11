@@ -25,7 +25,7 @@
 
 ---
 
-## APPS (17 total)
+## APPS (18 total)
 
 | App | OIDC/SSO | Notes |
 |-----|----------|-------|
@@ -46,6 +46,7 @@
 | Obsidian | - | CouchDB sync |
 | PriceBuddy | - | Price tracking, MariaDB |
 | SearXNG | - | Privacy search engine |
+| Claude Telegram | - | AI assistant bot (Agent SDK), Telegram DM only |
 
 ---
 
@@ -122,6 +123,7 @@
 *For monthly reviews, detailed changelog, and completed items see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) and `git log --all -- docs/HOMELAB_ANALYSIS.md`*
 
 **Recent highlights** (2026):
+- 2026-04-11: Claude Telegram bot deployed (Agent SDK, fork of linuz90/claude-telegram-bot)
 - 2026-04-09: VictoriaMetrics migration (71% RAM savings)
 - 2026-04-02: April monthly review, full secrets rotation
 - 2026-03-16: SearXNG deployment, Authentik-CF Access IdP integration
