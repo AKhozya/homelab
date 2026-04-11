@@ -1,0 +1,58 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: claude-telegram-ops
+  labels:
+    app: claude-telegram
+# ACCEPTED RISK: Cluster-wide read access + limited write (flux patch, pod exec,
+# rollout restart, job create). Required for ops via Telegram. Destructive operations
+# (delete namespace, modify RBAC/secrets/NetworkPolicies) are NOT permitted — those
+# go through GitOps. Mitigations: Telegram allowlist, safety hook, permission relay.
+rules:
+  # Read all core resources
+  - apiGroups: ["", "apps", "batch", "networking.k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  # Flux operations (reconcile = patch)
+  - apiGroups: ["kustomize.toolkit.fluxcd.io", "helm.toolkit.fluxcd.io", "source.toolkit.fluxcd.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch", "patch"]
+  # Pod logs
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # Pod exec (kubectl exec diagnostics)
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+  # Rollout restart (patch deployments/statefulsets/daemonsets)
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["patch"]
+  # Jobs (manual Popeye scans, backup triggers)
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "delete"]
+  # CNPG + Percona (database status)
+  - apiGroups: ["postgresql.cnpg.io", "pxc.percona.com"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  # Kyverno reports
+  - apiGroups: ["wgpolicyk8s.io"]
+    resources: ["policyreports", "clusterpolicyreports"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: claude-telegram-ops
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-ops
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
