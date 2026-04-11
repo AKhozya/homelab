@@ -68,21 +68,38 @@ spec:
                 git clone git@github.com:AKhozya/homelab.git ~/source-code/homelab
               fi
 
-              # Remove chezmoi artifact (.claude.json inside .claude/ dir — wrong location)
-              rm -f ~/.claude/.claude.json 2>/dev/null || true
+              # Fix Mac paths → container paths in all config JSON files
+              echo "Fixing Mac paths..."
+              find ~/.claude -name "*.json" -exec sed -i 's|/Users/akhozya|/home/akhozya|g' {} \; 2>/dev/null || true
+
+              # Fix telegram plugin dot-files (chezmoi strips dot_ prefix)
+              PLUGIN_DIR=~/.claude/plugins/cache/claude-plugins-official/telegram/0.0.5
+              if [ -d "$PLUGIN_DIR" ] && [ ! -f "$PLUGIN_DIR/.mcp.json" ]; then
+                echo "Fixing telegram plugin dot-files..."
+                mkdir -p "$PLUGIN_DIR/.claude-plugin"
+                echo '{"name":"telegram","version":"0.0.5","description":"Connect Claude Code to Telegram"}' > "$PLUGIN_DIR/.claude-plugin/plugin.json"
+                echo '{"mcpServers":{"telegram":{"command":"bun","args":["run","--cwd","${CLAUDE_PLUGIN_ROOT}","--shell=bun","--silent","start"]}}}' > "$PLUGIN_DIR/.mcp.json"
+                echo 'registry=https://registry.npmjs.org/' > "$PLUGIN_DIR/.npmrc"
+              fi
+
+              # Copy .claude.json into CLAUDE_CONFIG_DIR (Claude reads from there)
+              cp ~/.claude.json ~/.claude/.claude.json 2>/dev/null || true
 
               # Patch .claude.json for headless container environment
-              if [ -f ~/.claude.json ]; then
-                CONTAINER_PATH="/home/akhozya/source-code/homelab"
-                CLAUDE_VERSION=$(claude --version 2>/dev/null | head -1 | awk '{print $1}')
-                jq --arg p "$CONTAINER_PATH" --arg v "$CLAUDE_VERSION" '
-                  .projects[$p] = (.projects[$p] // {"allowedTools": [], "mcpServers": {}}) +
-                    {"hasTrustDialogAccepted": true, "projectOnboardingSeenCount": 99} |
-                  .lastOnboardingVersion = $v |
-                  .hasCompletedOnboarding = true
-                ' ~/.claude.json > /tmp/claude.json.tmp && mv /tmp/claude.json.tmp ~/.claude.json
-                echo "Patched .claude.json (version=$CLAUDE_VERSION, path=$CONTAINER_PATH)"
-              fi
+              CLAUDE_VERSION=$(claude --version 2>/dev/null | head -1 | awk '{print $1}')
+              jq --arg v "$CLAUDE_VERSION" '
+                .projects["/home/akhozya"] = (.projects["/home/akhozya"] // {}) +
+                  {"hasTrustDialogAccepted": true, "projectOnboardingSeenCount": 99, "allowedTools": [], "mcpServers": {}} |
+                .projects["/home/akhozya/source-code/homelab"] = (.projects["/home/akhozya/source-code/homelab"] // {}) +
+                  {"hasTrustDialogAccepted": true, "projectOnboardingSeenCount": 99, "allowedTools": [], "mcpServers": {}} |
+                .lastOnboardingVersion = $v |
+                .hasCompletedOnboarding = true
+              ' ~/.claude/.claude.json > /tmp/claude.json.tmp && mv /tmp/claude.json.tmp ~/.claude/.claude.json
+              echo "Patched .claude.json (version=$CLAUDE_VERSION)"
+
+              # Setup telegram access control
+              mkdir -p ~/.claude/channels/telegram
+              echo '{"dmPolicy":"allowlist","allowFrom":["113452686"],"groups":{},"pending":{}}' > ~/.claude/channels/telegram/access.json
 
               echo "Init complete."
           env:
