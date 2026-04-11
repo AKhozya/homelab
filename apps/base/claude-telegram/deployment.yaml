@@ -135,8 +135,8 @@ spec:
               value: "1"
             - name: DISABLE_AUTO_UPDATES
               value: "1"
-            - name: TERM
-              value: "dumb"
+            - name: CLAUDE_CODE_SKIP_ONBOARDING
+              value: "1"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
