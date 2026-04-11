@@ -66,8 +66,8 @@ spec:
                 git clone git@github.com:AKhozya/dotfiles.git ~/.local/share/chezmoi
               fi
 
-              # Apply chezmoi — skip .ssh (managed above) and macOS-only scripts
-              echo -e '.ssh/**\nrun_once_*' >> ~/.local/share/chezmoi/.chezmoiignore
+              # Apply chezmoi — skip .ssh (managed above via Secret copy)
+              grep -q '.ssh/\*\*' ~/.local/share/chezmoi/.chezmoiignore 2>/dev/null || echo '.ssh/**' >> ~/.local/share/chezmoi/.chezmoiignore
               chezmoi apply --force --no-tty || true
 
               # Clone or update homelab repo
@@ -178,7 +178,7 @@ spec:
                 sleep 3600
                 echo "--- Sync $(date -Iseconds) ---"
                 git -C ~/.local/share/chezmoi pull --quiet 2>&1 || true
-                echo -e '.ssh/**\nrun_once_*' >> ~/.local/share/chezmoi/.chezmoiignore
+                grep -q '.ssh/\*\*' ~/.local/share/chezmoi/.chezmoiignore 2>/dev/null || echo '.ssh/**' >> ~/.local/share/chezmoi/.chezmoiignore
                 chezmoi apply --force --no-tty 2>&1 || true
                 git -C ~/source-code/homelab pull --quiet 2>&1 || true
                 echo "Sync done"
