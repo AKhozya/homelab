@@ -68,6 +68,9 @@ spec:
                 git clone git@github.com:AKhozya/homelab.git ~/source-code/homelab
               fi
 
+              # Remove chezmoi artifact (.claude.json inside .claude/ dir — wrong location)
+              rm -f ~/.claude/.claude.json 2>/dev/null || true
+
               # Patch .claude.json for headless container environment
               if [ -f ~/.claude.json ]; then
                 CONTAINER_PATH="/home/akhozya/source-code/homelab"
