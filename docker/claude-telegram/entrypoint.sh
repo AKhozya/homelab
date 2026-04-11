@@ -43,18 +43,19 @@ cd "$HOME/source-code/homelab"
 # Restart loop — Channels can exit on network issues
 while true; do
   echo "$(date): Starting Claude Code with Telegram Channels..."
-  # Use expect to auto-select theme (Enter = accept default "Dark mode")
-  # then keep session alive for channels
+  # expect spawns a real PTY (required by --channels)
+  # Send Enter after delays to auto-dismiss onboarding prompts (theme, syntax theme)
+  # Pattern matching uses wildcards to handle ANSI escape sequences in TUI output
   expect -c '
     set timeout -1
     spawn claude --channels plugin:telegram@claude-plugins-official --permission-mode acceptEdits
     expect {
-      "Choose the text style" {
-        sleep 1
+      -re ".*heme.*" {
+        sleep 2
         send "\r"
         exp_continue
       }
-      "Syntax theme" {
+      -re ".*yntax.*" {
         sleep 1
         send "\r"
         exp_continue
