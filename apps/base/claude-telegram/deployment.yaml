@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: claude-telegram
-          image: ghcr.io/akhozya/claude-telegram:1.0.0
+          image: ghcr.io/akhozya/claude-telegram:latest
           env:
             - name: HOME
               value: /home/akhozya
