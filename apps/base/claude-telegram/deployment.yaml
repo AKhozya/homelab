@@ -68,6 +68,10 @@ spec:
                 git clone git@github.com:AKhozya/homelab.git ~/source-code/homelab
               fi
 
+              # Copy OAuth credentials into PVC (full OAuth, not setup-token)
+              cp /etc/oauth-credentials/credentials.json ~/.claude/.credentials.json
+              chmod 600 ~/.claude/.credentials.json
+
               # Fix Mac paths → container paths in all config JSON files
               echo "Fixing Mac paths..."
               find ~/.claude -name "*.json" -exec sed -i 's|/Users/akhozya|/home/akhozya|g' {} \; 2>/dev/null || true
@@ -129,6 +133,9 @@ spec:
             - name: chezmoi-config
               mountPath: /etc/chezmoi-config
               readOnly: true
+            - name: oauth-credentials
+              mountPath: /etc/oauth-credentials
+              readOnly: true
             - name: tmp
               mountPath: /tmp
       containers:
@@ -139,8 +146,8 @@ spec:
               value: /home/akhozya
             - name: CLAUDE_CONFIG_DIR
               value: /home/akhozya/.claude
-            # OAuth credentials come from PVC (claude auth login), not env var
-            # CLAUDE_CODE_OAUTH_TOKEN (setup-token) doesn't support Channels
+            # Full OAuth credentials from K8s Secret (mounted as file by init container)
+            # CLAUDE_CODE_OAUTH_TOKEN (setup-token) doesn't support Channels — need full OAuth
             - name: TELEGRAM_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -204,6 +211,9 @@ spec:
         - name: chezmoi-config
           secret:
             secretName: claude-telegram-chezmoi
+        - name: oauth-credentials
+          secret:
+            secretName: claude-telegram-oauth
         - name: telegram-access
           configMap:
             name: claude-telegram-access
