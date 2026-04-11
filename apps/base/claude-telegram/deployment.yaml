@@ -43,9 +43,9 @@ spec:
 
               # Copy SSH keys from Secret staging mount to writable PVC
               # (Secret mounts are read-only; SSH needs writable known_hosts)
-              mkdir -p ~/.ssh
+              rm -rf ~/.ssh
+              install -d -m 700 ~/.ssh
               cp /etc/ssh-keys/* ~/.ssh/
-              chmod 700 ~/.ssh
               chmod 600 ~/.ssh/id_ed25519 ~/.ssh/config
               chmod 644 ~/.ssh/id_ed25519.pub ~/.ssh/known_hosts 2>/dev/null || true
 
