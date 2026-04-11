@@ -33,6 +33,13 @@ rules:
   - apiGroups: ["batch"]
     resources: ["jobs"]
     verbs: ["create", "delete"]
+  # Cleanup completed pods and stale replicasets
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["delete"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["delete"]
   # CNPG + Percona (database status)
   - apiGroups: ["postgresql.cnpg.io", "pxc.percona.com"]
     resources: ["*"]
