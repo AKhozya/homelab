@@ -3,6 +3,9 @@ kind: Namespace
 metadata:
   name: claude-telegram
   labels:
-    pod-security.kubernetes.io/enforce: baseline
+    # ACCEPTED RISK: privileged PSS required for hostPath mounts
+    # (~/.claude, ~/source-code, ~/.gitconfig, ~/.config/gh, ~/.local/share/chezmoi)
+    # Mitigations: single-user namespace, Telegram allowlist, RBAC-scoped SA, NetworkPolicy
+    pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/audit: baseline
     pod-security.kubernetes.io/warn: baseline
