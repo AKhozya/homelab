@@ -33,7 +33,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: chezmoi-init
-          image: ghcr.io/akhozya/claude-telegram:1.7
+          image: ghcr.io/akhozya/claude-telegram-bot:1.0
           command:
             - /bin/bash
             - -c
@@ -41,7 +41,7 @@ spec:
               set -e
               export HOME=/home/akhozya
 
-              # Setup chezmoi config (template data for SSH config)
+              # Setup chezmoi config
               mkdir -p ~/.config/chezmoi
               cp /etc/chezmoi-config/chezmoi.toml ~/.config/chezmoi/chezmoi.toml
 
@@ -68,44 +68,17 @@ spec:
                 git clone git@github.com:AKhozya/homelab.git ~/source-code/homelab
               fi
 
-              # Copy OAuth credentials into PVC (full OAuth, not setup-token)
+              # Copy OAuth credentials for Claude Code CLI (Agent SDK subprocess)
+              mkdir -p ~/.claude
               cp /etc/oauth-credentials/credentials.json ~/.claude/.credentials.json
               chmod 600 ~/.claude/.credentials.json
 
-              # Fix Mac paths → container paths in all config JSON files
+              # Fix Mac paths in chezmoi-applied config files
               echo "Fixing Mac paths..."
               find ~/.claude -name "*.json" -exec sed -i 's|/Users/akhozya|/home/akhozya|g' {} \; 2>/dev/null || true
 
-              # Fix telegram plugin dot-files (chezmoi strips dot_ prefix)
-              PLUGIN_DIR=~/.claude/plugins/cache/claude-plugins-official/telegram/0.0.5
-              if [ -d "$PLUGIN_DIR" ] && [ ! -f "$PLUGIN_DIR/.mcp.json" ]; then
-                echo "Fixing telegram plugin dot-files..."
-                mkdir -p "$PLUGIN_DIR/.claude-plugin"
-                echo '{"name":"telegram","version":"0.0.5","description":"Connect Claude Code to Telegram"}' > "$PLUGIN_DIR/.claude-plugin/plugin.json"
-                echo '{"mcpServers":{"telegram":{"command":"bun","args":["run","--cwd","${CLAUDE_PLUGIN_ROOT}","--shell=bun","--silent","start"]}}}' > "$PLUGIN_DIR/.mcp.json"
-                echo 'registry=https://registry.npmjs.org/' > "$PLUGIN_DIR/.npmrc"
-              fi
-
-              # Copy .claude.json into CLAUDE_CONFIG_DIR (Claude reads from there)
-              cp ~/.claude.json ~/.claude/.claude.json 2>/dev/null || true
-
-              # Patch .claude.json for headless container environment
-              CLAUDE_VERSION=$(claude --version 2>/dev/null | head -1 | awk '{print $1}')
-              jq --arg v "$CLAUDE_VERSION" '
-                .projects["/home/akhozya"] = (.projects["/home/akhozya"] // {}) +
-                  {"hasTrustDialogAccepted": true, "projectOnboardingSeenCount": 99, "allowedTools": [], "mcpServers": {}} |
-                .projects["/home/akhozya/source-code/homelab"] = (.projects["/home/akhozya/source-code/homelab"] // {}) +
-                  {"hasTrustDialogAccepted": true, "projectOnboardingSeenCount": 99, "allowedTools": [], "mcpServers": {}} |
-                .lastOnboardingVersion = $v |
-                .hasCompletedOnboarding = true |
-                .cachedGrowthBookFeatures.tengu_harbor = true |
-                .cachedGrowthBookFeatures.tengu_harbor_ledger = ["telegram","discord","fakechat","imessage"]
-              ' ~/.claude/.claude.json > /tmp/claude.json.tmp && mv /tmp/claude.json.tmp ~/.claude/.claude.json
-              echo "Patched .claude.json (version=$CLAUDE_VERSION)"
-
-              # Setup telegram access control
-              mkdir -p ~/.claude/channels/telegram
-              echo '{"dmPolicy":"allowlist","allowFrom":["113452686"],"groups":{},"pending":{}}' > ~/.claude/channels/telegram/access.json
+              # Create data dir for session persistence
+              mkdir -p ~/data
 
               echo "Init complete."
           env:
@@ -140,46 +113,40 @@ spec:
               mountPath: /tmp
       containers:
         - name: claude-telegram
-          image: ghcr.io/akhozya/claude-telegram:1.7
+          image: ghcr.io/akhozya/claude-telegram-bot:1.0
           env:
             - name: HOME
               value: /home/akhozya
-            - name: CLAUDE_CONFIG_DIR
-              value: /home/akhozya/.claude
-            # Full OAuth credentials from K8s Secret (mounted as file by init container)
-            # CLAUDE_CODE_OAUTH_TOKEN (setup-token) doesn't support Channels — need full OAuth
             - name: TELEGRAM_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: claude-telegram-env
                   key: telegram-bot-token
-            - name: TELEGRAM_ACCESS_MODE
-              value: "static"
-            - name: TELEGRAM_STATE_DIR
-              value: /home/akhozya/.claude/channels/telegram
+            - name: TELEGRAM_ALLOWED_USERS
+              value: "113452686"
+            - name: CLAUDE_WORKING_DIR
+              value: /home/akhozya/source-code/homelab
+            - name: ALLOWED_PATHS
+              value: "/home/akhozya"
+            - name: SESSION_FILE_PATH
+              value: /home/akhozya/data/session.json
+            - name: RESTART_FILE_PATH
+              value: /home/akhozya/data/restart.json
+            - name: AUDIT_LOG_PATH
+              value: /home/akhozya/data/audit.log
             - name: CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
               value: "1"
             - name: DISABLE_AUTO_UPDATES
               value: "1"
-            - name: TERM
-              value: "xterm-256color"
-            - name: COLORTERM
-              value: "truecolor"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
           livenessProbe:
             exec:
-              command: ["pgrep", "-f", "claude"]
-            initialDelaySeconds: 60
-            periodSeconds: 30
-            failureThreshold: 3
-          readinessProbe:
-            exec:
-              command: ["pgrep", "-f", "claude"]
+              command: ["pgrep", "-f", "bun"]
             initialDelaySeconds: 30
-            periodSeconds: 10
+            periodSeconds: 30
             failureThreshold: 3
           resources:
             requests:
@@ -193,10 +160,6 @@ spec:
               mountPath: /home/akhozya
             - name: ssh-keys
               mountPath: /home/akhozya/.ssh
-              readOnly: true
-            - name: telegram-access
-              mountPath: /home/akhozya/.claude/channels/telegram/access.json
-              subPath: access.json
               readOnly: true
             - name: tmp
               mountPath: /tmp
@@ -214,8 +177,5 @@ spec:
         - name: oauth-credentials
           secret:
             secretName: claude-telegram-oauth
-        - name: telegram-access
-          configMap:
-            name: claude-telegram-access
         - name: tmp
           emptyDir: {}

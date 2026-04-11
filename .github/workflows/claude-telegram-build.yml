@@ -1,20 +1,16 @@
 name: Build Claude Telegram Image
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'docker/claude-telegram/**'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Image version tag (e.g., 1.5). Leave empty to auto-increment.'
+        description: 'Image version tag (e.g., 1.0). Leave empty to auto-increment.'
         required: false
         default: ''
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: akhozya/claude-telegram
+  IMAGE_NAME: akhozya/claude-telegram-bot
 
 jobs:
   build:
@@ -23,11 +19,17 @@ jobs:
       contents: write
       packages: write
     steps:
-      - name: Checkout
+      - name: Checkout homelab (for git tags)
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
           fetch-tags: true
+
+      - name: Checkout bot repo
+        uses: actions/checkout@v6
+        with:
+          repository: AKhozya/claude-telegram-bot
+          path: bot
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -45,7 +47,6 @@ jobs:
           if [ -n "${{ github.event.inputs.version }}" ]; then
             echo "tag=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           else
-            # Auto-increment: find latest claude-telegram-v1.* tag
             LATEST=$(git tag -l 'claude-telegram-v1.*' --sort=-v:refname | head -1)
             if [ -z "$LATEST" ]; then
               NEXT="1.0"
@@ -60,7 +61,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
-          context: docker/claude-telegram
+          context: bot
           platforms: linux/amd64
           push: true
           tags: |

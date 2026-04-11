@@ -4,7 +4,6 @@ resources:
   - namespace.yaml
   - serviceaccount.yaml
   - rbac.yaml
-  - configmap.yaml
   - storage.yaml
   - deployment.yaml
   - networkpolicy.yaml
