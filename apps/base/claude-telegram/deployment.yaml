@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claude-telegram
+  namespace: claude-telegram
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: claude-telegram
+  template:
+    metadata:
+      labels:
+        app: claude-telegram
+    spec:
+      serviceAccountName: claude-telegram
+      automountServiceAccountToken: true
+      nodeSelector:
+        kubernetes.io/hostname: worker-node
+      hostAliases:
+        - ip: "192.168.1.127"
+          hostnames: ["gmk-k3s-control-plane", "master-node"]
+        - ip: "192.168.1.129"
+          hostnames: ["worker-node"]
+        - ip: "192.168.1.126"
+          hostnames: ["worker-node-2"]
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: claude-telegram
+          image: ghcr.io/akhozya/claude-telegram:1.0.0
+          env:
+            - name: HOME
+              value: /home/akhozya
+            - name: CLAUDE_CONFIG_DIR
+              value: /home/akhozya/.claude
+            - name: CLAUDE_CODE_OAUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: claude-telegram-env
+                  key: oauth-token
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: claude-telegram-env
+                  key: telegram-bot-token
+            - name: TELEGRAM_ACCESS_MODE
+              value: "static"
+            - name: TELEGRAM_STATE_DIR
+              value: /home/akhozya/.claude/channels/telegram
+            - name: CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
+              value: "1"
+            - name: DISABLE_AUTO_UPDATES
+              value: "1"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            exec:
+              command: ["pgrep", "-f", "claude"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["pgrep", "-f", "claude"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          volumeMounts:
+            - name: claude-config
+              mountPath: /home/akhozya/.claude
+            - name: ssh-keys
+              mountPath: /home/akhozya/.ssh
+              readOnly: true
+            - name: source-code
+              mountPath: /home/akhozya/source-code
+            - name: gitconfig
+              mountPath: /home/akhozya/.gitconfig
+              subPath: .gitconfig
+              readOnly: true
+            - name: gh-config
+              mountPath: /home/akhozya/.config/gh
+              readOnly: true
+            - name: chezmoi
+              mountPath: /home/akhozya/.local/share/chezmoi
+            - name: telegram-access
+              mountPath: /home/akhozya/.claude/channels/telegram/access.json
+              subPath: access.json
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: claude-config
+          hostPath:
+            path: /home/akhozya/.claude
+            type: Directory
+        - name: ssh-keys
+          secret:
+            secretName: claude-telegram-ssh
+            defaultMode: 0600
+        - name: source-code
+          hostPath:
+            path: /home/akhozya/source-code
+            type: Directory
+        - name: gitconfig
+          hostPath:
+            path: /home/akhozya/.gitconfig
+            type: File
+        - name: gh-config
+          hostPath:
+            path: /home/akhozya/.config/gh
+            type: Directory
+        - name: chezmoi
+          hostPath:
+            path: /home/akhozya/.local/share/chezmoi
+            type: Directory
+        - name: telegram-access
+          configMap:
+            name: claude-telegram-access
+        - name: tmp
+          emptyDir: {}
