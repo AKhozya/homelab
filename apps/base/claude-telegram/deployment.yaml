@@ -140,11 +140,8 @@ spec:
               value: /home/akhozya/data/restart.json
             - name: AUDIT_LOG_PATH
               value: /home/akhozya/data/audit.log
-            - name: CLAUDE_CODE_OAUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: claude-telegram-env
-                  key: oauth-token
+            - name: CLAUDE_CODE_DEFAULT_MODEL
+              value: "claude-opus-4-6"
             - name: CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
               value: "1"
             - name: DISABLE_AUTO_UPDATES
