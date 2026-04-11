@@ -135,8 +135,10 @@ spec:
               value: "1"
             - name: DISABLE_AUTO_UPDATES
               value: "1"
-            - name: CLAUDE_CODE_SKIP_ONBOARDING
-              value: "1"
+            - name: TERM
+              value: "xterm-256color"
+            - name: COLORTERM
+              value: "truecolor"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
