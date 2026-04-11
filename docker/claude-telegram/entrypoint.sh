@@ -43,8 +43,9 @@ cd "$HOME/source-code/homelab"
 # Restart loop — Channels can exit on network issues
 while true; do
   echo "$(date): Starting Claude Code with Telegram Channels..."
-  claude --channels plugin:telegram@claude-plugins-official \
-    --permission-mode acceptEdits || true
+  # script -qec fakes a PTY — required by --channels (interactive mode)
+  script -qec "claude --channels plugin:telegram@claude-plugins-official \
+    --permission-mode acceptEdits" /dev/null || true
   echo "$(date): Claude exited with code $?. Restarting in 5s..."
   sleep 5
 done
