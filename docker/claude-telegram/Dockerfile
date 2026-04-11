@@ -35,9 +35,9 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     > /etc/apt/sources.list.d/github-cli.list && \
     apt-get update && apt-get install -y gh && rm -rf /var/lib/apt/lists/*
 
-# Create user matching worker-node UID
-RUN groupadd -g 1000 akhozya && \
-    useradd -u 1000 -g 1000 -m -s /bin/bash akhozya
+# Create user matching worker-node UID (node:24-slim already has gid 1000 as 'node')
+RUN usermod -l akhozya -d /home/akhozya -m node && \
+    groupmod -n akhozya node
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
