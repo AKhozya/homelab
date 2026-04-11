@@ -139,11 +139,8 @@ spec:
               value: /home/akhozya
             - name: CLAUDE_CONFIG_DIR
               value: /home/akhozya/.claude
-            - name: CLAUDE_CODE_OAUTH_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: claude-telegram-env
-                  key: oauth-token
+            # OAuth credentials come from PVC (claude auth login), not env var
+            # CLAUDE_CODE_OAUTH_TOKEN (setup-token) doesn't support Channels
             - name: TELEGRAM_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
