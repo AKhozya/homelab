@@ -23,6 +23,11 @@ for tool in claude kubectl flux gh git ssh bun chezmoi; do
   fi
 done
 
+# Pre-warm: run a quick non-interactive command to complete any first-run setup
+echo "Pre-warming Claude Code (completing first-run setup)..."
+claude -p "echo hello" --max-turns 1 --allowedTools "" 2>/dev/null || true
+echo "Pre-warm complete."
+
 # Background config sync (every 30 min)
 (
   while true; do
@@ -43,25 +48,11 @@ cd "$HOME/source-code/homelab"
 # Restart loop — Channels can exit on network issues
 while true; do
   echo "$(date): Starting Claude Code with Telegram Channels..."
-  # expect spawns a real PTY (required by --channels)
-  # Send Enter after delays to auto-dismiss onboarding prompts (theme, syntax theme)
-  # Pattern matching uses wildcards to handle ANSI escape sequences in TUI output
+  # expect provides a PTY (required by --channels interactive mode)
   expect -c '
     set timeout -1
     spawn claude --channels plugin:telegram@claude-plugins-official --permission-mode acceptEdits
-    expect {
-      -re ".*heme.*" {
-        sleep 2
-        send "\r"
-        exp_continue
-      }
-      -re ".*yntax.*" {
-        sleep 1
-        send "\r"
-        exp_continue
-      }
-      eof
-    }
+    expect eof
   ' || true
   echo "$(date): Claude exited. Restarting in 5s..."
   sleep 5
