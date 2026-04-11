@@ -68,6 +68,17 @@ spec:
                 git clone git@github.com:AKhozya/homelab.git ~/source-code/homelab
               fi
 
+              # Ensure project trust for container path (avoids re-onboarding)
+              if [ -f ~/.claude.json ]; then
+                CONTAINER_PATH="/home/akhozya/source-code/homelab"
+                if ! jq -e ".projects[\"$CONTAINER_PATH\"]" ~/.claude.json >/dev/null 2>&1; then
+                  jq --arg p "$CONTAINER_PATH" '.projects[$p] = {"hasTrustDialogAccepted": true, "allowedTools": [], "mcpServers": {}, "projectOnboardingSeenCount": 99}' ~/.claude.json > /tmp/claude.json.tmp && mv /tmp/claude.json.tmp ~/.claude.json
+                  echo "Added container project path to .claude.json"
+                else
+                  echo "Container project path already in .claude.json"
+                fi
+              fi
+
               echo "Init complete."
           env:
             - name: HOME
