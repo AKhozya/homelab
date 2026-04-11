@@ -43,9 +43,25 @@ cd "$HOME/source-code/homelab"
 # Restart loop — Channels can exit on network issues
 while true; do
   echo "$(date): Starting Claude Code with Telegram Channels..."
-  # script -qec fakes a PTY — required by --channels (interactive mode)
-  script -qec "claude --channels plugin:telegram@claude-plugins-official \
-    --permission-mode acceptEdits" /dev/null || true
-  echo "$(date): Claude exited with code $?. Restarting in 5s..."
+  # Use expect to auto-select theme (Enter = accept default "Dark mode")
+  # then keep session alive for channels
+  expect -c '
+    set timeout -1
+    spawn claude --channels plugin:telegram@claude-plugins-official --permission-mode acceptEdits
+    expect {
+      "Choose the text style" {
+        sleep 1
+        send "\r"
+        exp_continue
+      }
+      "Syntax theme" {
+        sleep 1
+        send "\r"
+        exp_continue
+      }
+      eof
+    }
+  ' || true
+  echo "$(date): Claude exited. Restarting in 5s..."
   sleep 5
 done

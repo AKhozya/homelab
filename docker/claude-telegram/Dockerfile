@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     jq \
     procps \
+    expect \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
