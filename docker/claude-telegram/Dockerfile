@@ -26,7 +26,7 @@ RUN curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release
     -o /usr/local/bin/kubectl && chmod +x /usr/local/bin/kubectl
 
 # flux CLI
-RUN curl -fsSL https://fluxcd.io/install.sh | FLUX_VERSION=2.x bash
+RUN curl -fsSL https://fluxcd.io/install.sh | bash
 
 # gh CLI
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
