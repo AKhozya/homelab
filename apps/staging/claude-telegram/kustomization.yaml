@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: claude-telegram
+resources:
+  - ../../base/claude-telegram
+  - claude-telegram-env-secret.yaml
+  - claude-telegram-ssh-secret.yaml

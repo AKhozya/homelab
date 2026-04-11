@@ -11,6 +11,7 @@ resources:
   - homepage
   - uptime-kuma
   - authentik
+  - claude-telegram
   - paperless-ngx
   - immich
   - stirling-pdf
