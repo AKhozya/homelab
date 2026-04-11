@@ -135,6 +135,8 @@ spec:
               value: "1"
             - name: DISABLE_AUTO_UPDATES
               value: "1"
+            - name: TERM
+              value: "dumb"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
