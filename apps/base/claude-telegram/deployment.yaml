@@ -54,7 +54,8 @@ spec:
                 git clone git@github.com:AKhozya/dotfiles.git ~/.local/share/chezmoi
               fi
 
-              # Apply chezmoi (--force skips prompts, --no-tty for headless)
+              # Apply chezmoi — skip .ssh (read-only K8s Secret) and macOS-only scripts
+              echo -e '.ssh/**\nrun_once_*' >> ~/.local/share/chezmoi/.chezmoiignore
               chezmoi apply --force --no-tty || true
 
               # Clone or update homelab repo

@@ -28,6 +28,10 @@ spec:
     - ports:
         - protocol: TCP
           port: 80
+    # SSH to GitHub (git clone via SSH)
+    - ports:
+        - protocol: TCP
+          port: 22
     # SSH to homelab nodes (port 65300)
     - to:
         - ipBlock:
