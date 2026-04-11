@@ -44,7 +44,8 @@ cd "$HOME/source-code/homelab"
 while true; do
   echo "$(date): Starting Claude Code with Telegram Channels..."
   # script -qec fakes a PTY — required by --channels (interactive mode)
-  script -qec "claude --channels plugin:telegram@claude-plugins-official \
+  # Pipe Enter keystrokes to auto-dismiss onboarding prompts (theme selector, etc.)
+  (sleep 5; echo; sleep 2; echo; sleep 2; echo) | script -qec "claude --channels plugin:telegram@claude-plugins-official \
     --permission-mode acceptEdits" /dev/null || true
   echo "$(date): Claude exited with code $?. Restarting in 5s..."
   sleep 5
