@@ -18,8 +18,6 @@ spec:
     spec:
       serviceAccountName: claude-telegram
       automountServiceAccountToken: true
-      nodeSelector:
-        kubernetes.io/hostname: worker-node
       hostAliases:
         - ip: "192.168.1.127"
           hostnames: ["gmk-k3s-control-plane", "master-node"]
@@ -33,6 +31,70 @@ spec:
         fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: chezmoi-init
+          image: ghcr.io/akhozya/claude-telegram:1.0
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              export HOME=/home/akhozya
+
+              # Setup chezmoi config (template data for SSH config)
+              mkdir -p ~/.config/chezmoi
+              cp /etc/chezmoi-config/chezmoi.toml ~/.config/chezmoi/chezmoi.toml
+
+              # Clone or update dotfiles
+              if [ -d ~/.local/share/chezmoi/.git ]; then
+                echo "Dotfiles exist, pulling latest..."
+                git -C ~/.local/share/chezmoi pull --quiet || true
+              else
+                echo "Cloning dotfiles..."
+                git clone git@github.com:AKhozya/dotfiles.git ~/.local/share/chezmoi
+              fi
+
+              # Apply chezmoi (--force skips prompts, --no-tty for headless)
+              chezmoi apply --force --no-tty || true
+
+              # Clone or update homelab repo
+              if [ -d ~/source-code/homelab/.git ]; then
+                echo "Homelab repo exists, pulling latest..."
+                git -C ~/source-code/homelab pull --quiet || true
+              else
+                echo "Cloning homelab repo..."
+                mkdir -p ~/source-code
+                git clone git@github.com:AKhozya/homelab.git ~/source-code/homelab
+              fi
+
+              echo "Init complete."
+          env:
+            - name: HOME
+              value: /home/akhozya
+            - name: GIT_SSH_COMMAND
+              value: "ssh -o StrictHostKeyChecking=accept-new"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: home
+              mountPath: /home/akhozya
+            - name: ssh-keys
+              mountPath: /home/akhozya/.ssh
+              readOnly: true
+            - name: chezmoi-config
+              mountPath: /etc/chezmoi-config
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
       containers:
         - name: claude-telegram
           image: ghcr.io/akhozya/claude-telegram:1.0
@@ -66,13 +128,13 @@ spec:
           livenessProbe:
             exec:
               command: ["pgrep", "-f", "claude"]
-            initialDelaySeconds: 30
+            initialDelaySeconds: 60
             periodSeconds: 30
             failureThreshold: 3
           readinessProbe:
             exec:
               command: ["pgrep", "-f", "claude"]
-            initialDelaySeconds: 10
+            initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
           resources:
@@ -83,22 +145,11 @@ spec:
               cpu: 2000m
               memory: 2Gi
           volumeMounts:
-            - name: claude-config
-              mountPath: /home/akhozya/.claude
+            - name: home
+              mountPath: /home/akhozya
             - name: ssh-keys
               mountPath: /home/akhozya/.ssh
               readOnly: true
-            - name: source-code
-              mountPath: /home/akhozya/source-code
-            - name: gitconfig
-              mountPath: /home/akhozya/.gitconfig
-              subPath: .gitconfig
-              readOnly: true
-            - name: gh-config
-              mountPath: /home/akhozya/.config/gh
-              readOnly: true
-            - name: chezmoi
-              mountPath: /home/akhozya/.local/share/chezmoi
             - name: telegram-access
               mountPath: /home/akhozya/.claude/channels/telegram/access.json
               subPath: access.json
@@ -106,30 +157,16 @@ spec:
             - name: tmp
               mountPath: /tmp
       volumes:
-        - name: claude-config
-          hostPath:
-            path: /home/akhozya/.claude
-            type: Directory
+        - name: home
+          persistentVolumeClaim:
+            claimName: claude-telegram-home-pvc
         - name: ssh-keys
           secret:
             secretName: claude-telegram-ssh
             defaultMode: 0600
-        - name: source-code
-          hostPath:
-            path: /home/akhozya/source-code
-            type: Directory
-        - name: gitconfig
-          hostPath:
-            path: /home/akhozya/.gitconfig
-            type: File
-        - name: gh-config
-          hostPath:
-            path: /home/akhozya/.config/gh
-            type: Directory
-        - name: chezmoi
-          hostPath:
-            path: /home/akhozya/.local/share/chezmoi
-            type: Directory
+        - name: chezmoi-config
+          secret:
+            secretName: claude-telegram-chezmoi
         - name: telegram-access
           configMap:
             name: claude-telegram-access
