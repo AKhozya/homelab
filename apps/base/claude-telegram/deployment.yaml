@@ -115,11 +115,11 @@ spec:
           env:
             - name: HOME
               value: /home/akhozya
-            - name: ANTHROPIC_API_KEY
+            - name: CLAUDE_CODE_OAUTH_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: claude-telegram-env
-                  key: anthropic-api-key
+                  key: claude-oauth-token
             - name: TELEGRAM_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
