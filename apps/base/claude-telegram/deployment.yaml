@@ -175,15 +175,88 @@ spec:
             - -c
             - |
               export HOME=/home/akhozya
-              echo "Sync sidecar started (1h interval)"
+              CREDS="$HOME/.claude/.credentials.json"
+              CLIENT_ID="9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+              TOKEN_URL="https://platform.claude.com/v1/oauth/token"
+
+              refresh_oauth() {
+                if [ ! -f "$CREDS" ]; then
+                  echo "  No credentials file, skipping refresh"
+                  return
+                fi
+
+                EXPIRES_AT=$(python3 -c "import json; d=json.load(open('$CREDS')); print(d.get('claudeAiOauth',{}).get('expiresAt',0))" 2>/dev/null || echo 0)
+                NOW_MS=$(python3 -c "import time; print(int(time.time()*1000))")
+                # Refresh if token expires within 30 minutes
+                THRESHOLD=$((NOW_MS + 1800000))
+
+                if [ "$EXPIRES_AT" -gt "$THRESHOLD" ] 2>/dev/null; then
+                  echo "  Token valid for >30min, skipping refresh"
+                  return
+                fi
+
+                echo "  Token expired or expiring soon, refreshing..."
+                REFRESH_TOKEN=$(python3 -c "import json; print(json.load(open('$CREDS'))['claudeAiOauth']['refreshToken'])" 2>/dev/null)
+                if [ -z "$REFRESH_TOKEN" ]; then
+                  echo "  ERROR: No refresh token found"
+                  return
+                fi
+
+                RESPONSE=$(curl -s -m 15 -X POST "$TOKEN_URL" \
+                  -H 'Content-Type: application/json' \
+                  -d "{
+                    \"grant_type\": \"refresh_token\",
+                    \"refresh_token\": \"$REFRESH_TOKEN\",
+                    \"client_id\": \"$CLIENT_ID\",
+                    \"scope\": \"user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload\"
+                  }" 2>/dev/null)
+
+                NEW_ACCESS=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null)
+                if [ -z "$NEW_ACCESS" ]; then
+                  echo "  ERROR: Refresh failed: $RESPONSE"
+                  return
+                fi
+
+                # Update credentials.json with new tokens
+                python3 -c "
+              import json, sys
+              resp = json.loads('''$RESPONSE''')
+              with open('$CREDS') as f:
+                  creds = json.load(f)
+              oauth = creds.get('claudeAiOauth', {})
+              oauth['accessToken'] = resp['access_token']
+              if 'refresh_token' in resp:
+                  oauth['refreshToken'] = resp['refresh_token']
+              if 'expires_in' in resp:
+                  import time
+                  oauth['expiresAt'] = int(time.time() * 1000) + resp['expires_in'] * 1000
+              creds['claudeAiOauth'] = oauth
+              with open('$CREDS', 'w') as f:
+                  json.dump(creds, f)
+              print('  Token refreshed, new expiry:', oauth.get('expiresAt'))
+              " 2>/dev/null || echo "  ERROR: Failed to write credentials"
+              }
+
+              echo "Sync sidecar started (30min interval)"
+              # Refresh immediately on startup
+              echo "--- Initial token refresh ---"
+              refresh_oauth
+              SYNC_COUNTER=0
               while true; do
-                sleep 3600
-                echo "--- Sync $(date -Iseconds) ---"
-                git -C ~/.local/share/chezmoi pull --quiet 2>&1 || true
-                grep -q '.ssh/\*\*' ~/.local/share/chezmoi/.chezmoiignore 2>/dev/null || echo '.ssh/**' >> ~/.local/share/chezmoi/.chezmoiignore
-                chezmoi apply --force --no-tty 2>&1 || true
-                git -C ~/source-code/homelab pull --quiet 2>&1 || true
-                echo "Sync done"
+                sleep 1800
+                SYNC_COUNTER=$((SYNC_COUNTER + 1))
+                echo "--- Tick $SYNC_COUNTER $(date -Iseconds) ---"
+                echo "OAuth refresh:"
+                refresh_oauth
+                # Full git sync every other tick (1h)
+                if [ $((SYNC_COUNTER % 2)) -eq 0 ]; then
+                  echo "Git sync:"
+                  git -C ~/.local/share/chezmoi pull --quiet 2>&1 || true
+                  grep -q '.ssh/\*\*' ~/.local/share/chezmoi/.chezmoiignore 2>/dev/null || echo '.ssh/**' >> ~/.local/share/chezmoi/.chezmoiignore
+                  chezmoi apply --force --no-tty 2>&1 || true
+                  git -C ~/source-code/homelab pull --quiet 2>&1 || true
+                  echo "Git sync done"
+                fi
               done
           env:
             - name: HOME
