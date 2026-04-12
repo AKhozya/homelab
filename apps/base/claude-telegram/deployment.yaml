@@ -185,9 +185,9 @@ spec:
                   return
                 fi
 
-                EXPIRES_AT=$(python3 -c "import json; d=json.load(open('$CREDS')); print(d.get('claudeAiOauth',{}).get('expiresAt',0))" 2>/dev/null || echo 0)
-                NOW_MS=$(python3 -c "import time; print(int(time.time()*1000))")
-                # Refresh if token expires within 30 minutes
+                EXPIRES_AT=$(jq -r '.claudeAiOauth.expiresAt // 0' "$CREDS" 2>/dev/null || echo 0)
+                NOW_MS=$(date +%s%3N)
+                # Refresh if token expires within 30 minutes (1800000ms)
                 THRESHOLD=$((NOW_MS + 1800000))
 
                 if [ "$EXPIRES_AT" -gt "$THRESHOLD" ] 2>/dev/null; then
@@ -196,7 +196,7 @@ spec:
                 fi
 
                 echo "  Token expired or expiring soon, refreshing..."
-                REFRESH_TOKEN=$(python3 -c "import json; print(json.load(open('$CREDS'))['claudeAiOauth']['refreshToken'])" 2>/dev/null)
+                REFRESH_TOKEN=$(jq -r '.claudeAiOauth.refreshToken // empty' "$CREDS" 2>/dev/null)
                 if [ -z "$REFRESH_TOKEN" ]; then
                   echo "  ERROR: No refresh token found"
                   return
@@ -211,30 +211,24 @@ spec:
                     \"scope\": \"user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload\"
                   }" 2>/dev/null)
 
-                NEW_ACCESS=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null)
+                NEW_ACCESS=$(echo "$RESPONSE" | jq -r '.access_token // empty' 2>/dev/null)
                 if [ -z "$NEW_ACCESS" ]; then
-                  echo "  ERROR: Refresh failed: $RESPONSE"
+                  echo "  ERROR: Refresh failed: $(echo "$RESPONSE" | jq -r '.error // .message // "unknown"' 2>/dev/null)"
                   return
                 fi
 
-                # Update credentials.json with new tokens
-                python3 -c "
-              import json, sys
-              resp = json.loads('''$RESPONSE''')
-              with open('$CREDS') as f:
-                  creds = json.load(f)
-              oauth = creds.get('claudeAiOauth', {})
-              oauth['accessToken'] = resp['access_token']
-              if 'refresh_token' in resp:
-                  oauth['refreshToken'] = resp['refresh_token']
-              if 'expires_in' in resp:
-                  import time
-                  oauth['expiresAt'] = int(time.time() * 1000) + resp['expires_in'] * 1000
-              creds['claudeAiOauth'] = oauth
-              with open('$CREDS', 'w') as f:
-                  json.dump(creds, f)
-              print('  Token refreshed, new expiry:', oauth.get('expiresAt'))
-              " 2>/dev/null || echo "  ERROR: Failed to write credentials"
+                # Build updated credentials with jq
+                NEW_REFRESH=$(echo "$RESPONSE" | jq -r '.refresh_token // empty' 2>/dev/null)
+                EXPIRES_IN=$(echo "$RESPONSE" | jq -r '.expires_in // empty' 2>/dev/null)
+                NEW_EXPIRY=$((NOW_MS + ${EXPIRES_IN:-3600} * 1000))
+
+                jq --arg at "$NEW_ACCESS" \
+                   --arg rt "${NEW_REFRESH:-$REFRESH_TOKEN}" \
+                   --argjson exp "$NEW_EXPIRY" \
+                   '.claudeAiOauth.accessToken = $at | .claudeAiOauth.refreshToken = $rt | .claudeAiOauth.expiresAt = $exp' \
+                   "$CREDS" > "${CREDS}.tmp" && mv -f "${CREDS}.tmp" "$CREDS"
+
+                echo "  Token refreshed, expires at $NEW_EXPIRY (in ${EXPIRES_IN:-3600}s)"
               }
 
               echo "Sync sidecar started (30min interval)"
