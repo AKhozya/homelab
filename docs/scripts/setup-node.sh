@@ -75,6 +75,65 @@ pacman -S --noconfirm --needed $ESSENTIAL_PKGS 2>/dev/null || true
 if [ "$NODE_TYPE" = "worker" ]; then
     echo "Installing worker-specific packages (rebuilderd)..."
     pacman -S --noconfirm --needed rebuilderd archlinux-repro 2>/dev/null || true
+
+    # Watchdog: auto-restart rebuilderd when builds get stuck in spin loops
+    # Some packages (e.g. owl-lisp) have test suites that enter infinite
+    # wait loops inside nspawn, spamming journald at ~24M msgs/30s
+    echo "Installing rebuilderd stuck-build watchdog..."
+    cat > /usr/local/bin/rebuilderd-watchdog.sh << 'WATCHDOG'
+#!/bin/bash
+SERVICE="rebuilderd-worker@1.service"
+
+if ! systemctl is-active --quiet "$SERVICE"; then
+    exit 0
+fi
+
+SPAM_COUNT=$(journalctl -u "$SERVICE" --since "5 min ago" --no-pager -q 2>/dev/null \
+    | grep -c "Suppressed" || true)
+
+if [ "$SPAM_COUNT" -gt 10 ]; then
+    REAL_LINES=$(journalctl -u "$SERVICE" --since "20 min ago" --no-pager -q 2>/dev/null \
+        | grep -v "wait: pid" \
+        | grep -v "Suppressed" \
+        | grep -v '^\.\c$' \
+        | grep -v "^$" \
+        | wc -l)
+
+    if [ "$REAL_LINES" -lt 5 ]; then
+        echo "$(date -Iseconds) Stuck build detected. Restarting."
+        systemctl restart "$SERVICE"
+        logger -t rebuilderd-watchdog "Restarted $SERVICE due to stuck build"
+    fi
+fi
+WATCHDOG
+    chmod +x /usr/local/bin/rebuilderd-watchdog.sh
+
+    cat > /etc/systemd/system/rebuilderd-watchdog.service << 'EOF'
+[Unit]
+Description=Rebuilderd stuck build watchdog
+After=rebuilderd-worker@1.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rebuilderd-watchdog.sh
+EOF
+
+    cat > /etc/systemd/system/rebuilderd-watchdog.timer << 'EOF'
+[Unit]
+Description=Run rebuilderd watchdog every 10 minutes
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+    systemctl daemon-reload
+    systemctl enable --now rebuilderd-watchdog.timer
+    echo "  Watchdog timer enabled (every 10min)"
 fi
 
 # GPU packages: mesa + vulkan (auto-detect GPU presence)
