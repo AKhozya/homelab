@@ -186,11 +186,13 @@ spec:
                 fi
 
                 EXPIRES_AT=$(jq -r '.claudeAiOauth.expiresAt // 0' "$CREDS" 2>/dev/null || echo 0)
-                NOW_MS=$(date +%s%3N)
-                # Refresh if token expires within 30 minutes (1800000ms)
-                THRESHOLD=$((NOW_MS + 1800000))
+                NOW_S=$(date +%s)
+                # Convert expiresAt from ms to seconds for comparison
+                EXPIRES_AT_S=$((EXPIRES_AT / 1000))
+                # Refresh if token expires within 30 minutes
+                THRESHOLD=$((NOW_S + 1800))
 
-                if [ "$EXPIRES_AT" -gt "$THRESHOLD" ] 2>/dev/null; then
+                if [ "$EXPIRES_AT_S" -gt "$THRESHOLD" ] 2>/dev/null; then
                   echo "  Token valid for >30min, skipping refresh"
                   return
                 fi
@@ -220,7 +222,7 @@ spec:
                 # Build updated credentials with jq
                 NEW_REFRESH=$(echo "$RESPONSE" | jq -r '.refresh_token // empty' 2>/dev/null)
                 EXPIRES_IN=$(echo "$RESPONSE" | jq -r '.expires_in // empty' 2>/dev/null)
-                NEW_EXPIRY=$((NOW_MS + ${EXPIRES_IN:-3600} * 1000))
+                NEW_EXPIRY=$((NOW_S * 1000 + ${EXPIRES_IN:-3600} * 1000))
 
                 jq --arg at "$NEW_ACCESS" \
                    --arg rt "${NEW_REFRESH:-$REFRESH_TOKEN}" \
