@@ -204,18 +204,34 @@ spec:
                   return
                 fi
 
-                RESPONSE=$(curl -s -m 15 -X POST "$TOKEN_URL" \
-                  -H 'Content-Type: application/json' \
-                  -d "{
-                    \"grant_type\": \"refresh_token\",
-                    \"refresh_token\": \"$REFRESH_TOKEN\",
-                    \"client_id\": \"$CLIENT_ID\",
-                    \"scope\": \"user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload\"
-                  }" 2>/dev/null)
+                # Retry with backoff (rate limits clear after ~60s)
+                for ATTEMPT in 1 2 3; do
+                  RESPONSE=$(curl -s -m 15 -X POST "$TOKEN_URL" \
+                    -H 'Content-Type: application/json' \
+                    -d "{
+                      \"grant_type\": \"refresh_token\",
+                      \"refresh_token\": \"$REFRESH_TOKEN\",
+                      \"client_id\": \"$CLIENT_ID\",
+                      \"scope\": \"user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload\"
+                    }" 2>/dev/null)
 
-                NEW_ACCESS=$(echo "$RESPONSE" | jq -r '.access_token // empty' 2>/dev/null)
+                  NEW_ACCESS=$(echo "$RESPONSE" | jq -r '.access_token // empty' 2>/dev/null)
+                  if [ -n "$NEW_ACCESS" ]; then
+                    break
+                  fi
+
+                  ERR_TYPE=$(echo "$RESPONSE" | jq -r '.error.type // .type // "unknown"' 2>/dev/null)
+                  if [ "$ERR_TYPE" = "rate_limit_error" ] && [ "$ATTEMPT" -lt 3 ]; then
+                    echo "  Rate limited, retry $((ATTEMPT+1))/3 in 60s..."
+                    sleep 60
+                  else
+                    echo "  ERROR: Refresh failed (attempt $ATTEMPT): $(echo "$RESPONSE" | jq -c '.error // .' 2>/dev/null)"
+                    return
+                  fi
+                done
+
                 if [ -z "$NEW_ACCESS" ]; then
-                  echo "  ERROR: Refresh failed: $(echo "$RESPONSE" | jq -r '.error // .message // "unknown"' 2>/dev/null)"
+                  echo "  ERROR: All refresh attempts failed"
                   return
                 fi
 
