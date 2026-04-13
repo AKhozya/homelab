@@ -21,7 +21,7 @@
 | Database | 90/100 |
 | Infrastructure | 88/100 |
 
-**Key facts**: 0 P0/P1 issues. 40 NetworkPolicies. 51 SOPS secrets. 10 Kyverno policies (7 enforce, 3 audit, 0 violations). 100% PSS, NetworkPolicy, HSTS, SSO, image pinning coverage.
+**Key facts**: 0 P0/P1. 40 NetworkPolicies. 51 SOPS secrets. 10 Kyverno policies (7 enforce, 3 audit, 0 violations). 100% PSS, NetworkPolicy, HSTS, SSO, image pinning coverage.
 
 ---
 
@@ -41,7 +41,7 @@
 | Home Assistant | OIDC | Smart home, MariaDB |
 | LinkWarden | OIDC | Bookmark manager + Meilisearch |
 | Mealie | OIDC | Recipe manager |
-| N8N | Enterprise | Automation (SSO requires Enterprise) |
+| N8N | Enterprise | Automation (SSO needs Enterprise) |
 | Audiobookshelf | OIDC | Audiobook library |
 | Obsidian | - | CouchDB sync |
 | PriceBuddy | - | Price tracking, MariaDB |
@@ -63,9 +63,9 @@
 
 ## BACKUPS
 
-- PostgreSQL daily 3:00 AM, CouchDB 3:05 AM, PVC 3:10 AM, MySQL 3:15 AM (all 30-day retention)
-- Replication 3:30 AM: worker-node-2 (SSH) then NAS (rsync daemon, 500GB limit)
-- Automated validation: SHA256 + tar integrity + size + age, Telegram failure-only alerts
+- PG daily 3:00 AM, CouchDB 3:05 AM, PVC 3:10 AM, MySQL 3:15 AM (30-day retention)
+- Replication 3:30 AM: worker-node-2 (SSH) → NAS (rsync daemon, 500GB limit)
+- Validation: SHA256 + tar integrity + size + age, Telegram failure-only alerts
 
 ---
 
@@ -83,7 +83,7 @@
 ## EXTERNAL ACCESS
 
 **Cloudflare Tunnel** (10 services): authentik, couchdb, audiobooks, linkwarden, stirling-pdf, mealie, paperless, immich, n8n, search
-**Internal**: AdGuard Home for local DNS, Traefik Ingress
+**Internal**: AdGuard Home local DNS, Traefik Ingress
 **Domain**: h0melab.work
 
 ---
@@ -111,7 +111,7 @@
 | Remove worker-node-2 replication step | ~May 20, 2026 | P2 |
 | n8n PgBouncer `statement_timeout` fix — re-check #25705 | May 2026 | P3 |
 | High-priority secret rotation (PG: authentik/immich/n8n, MySQL: HA, Redis: immich) | 2026-07-01 | P1 |
-| Re-evaluate HA OIDC when hass-oidc-auth releases stable version | Backlog | P3 |
+| Re-evaluate HA OIDC when hass-oidc-auth stable releases | Backlog | P3 |
 | Add PodDisruptionBudgets for HA workloads | Backlog | P3 |
 
 **Next Review**: 2026-05-04 (Monthly)
@@ -120,9 +120,10 @@
 
 ## CHANGELOG
 
-*For monthly reviews, detailed changelog, and completed items see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) and `git log --all -- docs/HOMELAB_ANALYSIS.md`*
+*Monthly reviews, detailed changelog, completed items: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) and `git log --all -- docs/HOMELAB_ANALYSIS.md`*
 
 **Recent highlights** (2026):
+- 2026-04-13: All 3 nodes → zsh + chezmoi dotfiles (portable .zshrc template, modern CLI tools)
 - 2026-04-11: Claude Telegram bot deployed (Agent SDK, fork of linuz90/claude-telegram-bot)
 - 2026-04-09: VictoriaMetrics migration (71% RAM savings)
 - 2026-04-02: April monthly review, full secrets rotation
