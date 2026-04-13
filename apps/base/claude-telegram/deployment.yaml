@@ -66,9 +66,15 @@ spec:
                 git clone git@github.com:AKhozya/dotfiles.git ~/.local/share/chezmoi
               fi
 
-              # Apply chezmoi — skip .ssh (managed above via Secret copy)
-              grep -q '.ssh/\*\*' ~/.local/share/chezmoi/.chezmoiignore 2>/dev/null || echo '.ssh/**' >> ~/.local/share/chezmoi/.chezmoiignore
+              # Apply chezmoi (.chezmoiignore handles .ssh exclusion)
               chezmoi apply --force --no-tty || true
+
+              # Fix CLAUDE_PLUGIN_ROOT paths for this environment
+              for f in ~/.claude/plugins/cache/*/*/hooks/hooks.json; do
+                [ -f "$f" ] || continue
+                plugin_root="$(cd "$(dirname "$f")/.." && pwd)"
+                sed -i "s|\${CLAUDE_PLUGIN_ROOT}|$plugin_root|g" "$f" 2>/dev/null
+              done
 
               # Clone or update homelab repo
               if [ -d ~/source-code/homelab/.git ]; then
@@ -177,8 +183,13 @@ spec:
                 sleep 3600
                 echo "--- Sync $(date -Iseconds) ---"
                 git -C ~/.local/share/chezmoi pull --quiet 2>&1 || true
-                grep -q '.ssh/\*\*' ~/.local/share/chezmoi/.chezmoiignore 2>/dev/null || echo '.ssh/**' >> ~/.local/share/chezmoi/.chezmoiignore
                 chezmoi apply --force --no-tty 2>&1 || true
+                # Fix CLAUDE_PLUGIN_ROOT paths for this environment
+                for f in ~/.claude/plugins/cache/*/*/hooks/hooks.json; do
+                  [ -f "$f" ] || continue
+                  plugin_root="$(cd "$(dirname "$f")/.." && pwd)"
+                  sed -i "s|\${CLAUDE_PLUGIN_ROOT}|$plugin_root|g" "$f" 2>/dev/null
+                done
                 git -C ~/source-code/homelab pull --quiet 2>&1 || true
                 echo "Sync done"
               done
