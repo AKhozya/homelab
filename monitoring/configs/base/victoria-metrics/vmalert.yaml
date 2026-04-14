@@ -4,9 +4,6 @@ metadata:
   name: vmalert
   namespace: monitoring
 spec:
-  image:
-    repository: victoriametrics/vmalert
-    tag: v1.140.0
   # Query metrics from VMSingle
   datasource:
     url: "http://vmsingle-vmsingle.monitoring.svc:8429"
