@@ -4,6 +4,9 @@ metadata:
   name: vmsingle
   namespace: monitoring
 spec:
+  image:
+    repository: victoriametrics/victoria-metrics
+    tag: v1.136.4
   retentionPeriod: "90d"
   storage:
     accessModes:

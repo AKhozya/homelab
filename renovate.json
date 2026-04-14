@@ -23,6 +23,15 @@
     },
     {
       "customType": "regex",
+      "description": "VictoriaMetrics CRD image.tag (operator bundles older default, track LTS patches)",
+      "managerFilePatterns": ["/^monitoring\\/configs\\/base\\/victoria-metrics\\/vm(single|agent|alert)\\.yaml$/"],
+      "matchStrings": [
+        "repository:\\s*(?<depName>victoriametrics\\/[a-z-]+)\\s+tag:\\s*(?<currentValue>v[^\\s]+)"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
       "description": "SearXNG date+hash Docker tags",
       "managerFilePatterns": ["/^apps\\/base\\/searxng\\/deployment\\.yaml$/"],
       "matchStrings": ["image:\\s*docker\\.io/searxng/searxng:(?<currentValue>[^\\s]+)"],
@@ -71,6 +80,15 @@
         "/grafana/",
         "/alertmanager/",
         "/loki/"
+      ]
+    },
+    {
+      "description": "Group VictoriaMetrics component updates into one PR",
+      "groupName": "VictoriaMetrics",
+      "matchPackageNames": [
+        "victoriametrics/victoria-metrics",
+        "victoriametrics/vmagent",
+        "victoriametrics/vmalert"
       ]
     },
     {

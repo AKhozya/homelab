@@ -4,6 +4,9 @@ metadata:
   name: vmagent
   namespace: monitoring
 spec:
+  image:
+    repository: victoriametrics/vmagent
+    tag: v1.136.4
   serviceScrapeSelector: {}
   podScrapeSelector: {}
   nodeScrapeSelector: {}
