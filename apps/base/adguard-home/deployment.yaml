@@ -47,7 +47,7 @@ spec:
               subPath: conf
       containers:
         - name: adguard-home
-          image: adguard/adguardhome:v0.107.73
+          image: adguard/adguardhome:v0.107.74
           ports:
             - containerPort: 53
               name: dns-tcp
