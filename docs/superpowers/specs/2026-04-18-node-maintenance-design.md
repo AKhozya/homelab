@@ -44,9 +44,9 @@ Automate weekly Arch Linux package updates (official repos + AUR via `yay`) acro
 | D8 | AUR strategy = **A (full `yay -Syu --noconfirm --answerdiff=None --answerclean=None`)** | 8 AUR pkgs all trusted (firmware, flux-bin, yay, viddy, zsh-you-should-use); low attack surface. |
 | D9 | Failure — update fail = **retry once, then abort**; reboot hang = **abort + alert**; crashloop = **continue (self-heal)** | Balanced safety. |
 | D10 | Reboot = **always** (not conditional) | Homelab simplicity > reboot-save complexity. |
-| D11 | Notifications = **Start + Success + Failure** via `backup-replication` Telegram bot secret (reused) | Consistent with backup pattern. |
+| D11 | Notifications = **Start + Success + Failure** via `backup-replication/backup-telegram` secret keys `bot_token` + `chat_id` (reused). `install.sh` fetches via `kubectl get secret` → writes to `/etc/node-maintenance/telegram-{token,chat-id}` (0400 root). Rotation coupling: re-run `install.sh` when backup-telegram rotates. | Single bot for infra ops flows. |
 | D12 | Fix alerts = **silence transients 30min + report lingering post-run** (no auto-remediation) | Safe — no risky auto-fix loops. |
-| D13 | Cleanup = **pacman cache (`paccache -rk2`) + orphans + `crictl rmi --prune` + Failed pods + stale ReplicaSets (>14d) + Flux source GC** | Matches scope; RS 14-day safety window preserves rollback. |
+| D13 | Cleanup = **pacman cache (`paccache -rk2`) + orphans + `crictl rmi --prune` + Failed pods + Flux source GC** | Scope matches discussion. ReplicaSet cleanup dropped — Deployment controller auto-prunes via `revisionHistoryLimit`; cluster orphan RS count = 0 (YAGNI). |
 | D14 | Dedicated user = **`node-maintenance`** (system account on all 3 nodes) | Single consistent identity; scoped sudoers; clean audit trail; future-proofs cleanup job ownership. |
 | D15 | SSH key = **option B (SOPS-encrypted in repo, decrypted by install.sh to disk)** | Matches existing 51-SOPS-secret pattern; encrypted-at-rest in git; plain on CP disk during runtime (same tier as `/etc/rancher/k3s/k3s.yaml`). |
 | D16 | Log filename = `phaseN-DD-MM-YYYY.log` with **UTC date** | Consistent with backup naming. |
@@ -214,7 +214,7 @@ Runs on control-plane, `connection: local`, `become: true`.
    - Assert SSH reachability to both worker IPs via `node-maintenance` key
 2. **Notify Telegram — run starting**.
 3. **Silence transient alerts** via Alertmanager API (POST `/api/v2/silences`, 30min):
-   - Matchers: `alertname =~ "KubePodCrashLooping|KubeNodeNotReady|TargetDown|KubePodNotReady|KubeletDown"`
+   - Matchers: `alertname =~ "KubeletDown|KubernetesAPIServerDown|DeploymentReplicasMismatch|StatefulSetReplicasMismatch|CloudflareTunnelDown|CloudflareTunnelPodNotRunning|CloudflareTunnelNoConnections|CouchDBDown|CouchDBPodNotRunning|FluxReconciliationFailure|FluxSourceNotReady|KyvernoAdmissionControllerDown|LokiDown|LokiCompactorNotRunning|MySQLDown|MySQLHAProxyNotRunning|MySQLOrchestratorNotRunning|RedisDown|RedisPodNotRunning|AlertmanagerFailedToSendAlerts|AlloyDown|AlloyLogDeliveryFailing|DaemonSetNotScheduled|TraefikDown|RebuilderdWorkerDown|PrometheusTargetDown|KubePodCrashLooping|KubePodNotReady|TargetDown|TooManyPodsPending|JobFailed"` (derived from live cluster `kubectl get prometheusrule` at spec time — omits real-issue alerts like Certificate*, ContainerOOMKilled, HighErrorRate, ClusterCPU/MemoryExhaustion, PVCUsage*)
    - Persist `silenceID` to `/var/lib/node-maintenance/silence-id`.
 4. **Upgrade**:
    ```yaml
@@ -357,15 +357,6 @@ Runs on control-plane after boot. Two plays:
 - name: Cleanup — Failed/Evicted pods
   ansible.builtin.shell: |
     kubectl delete pod -A --field-selector=status.phase=Failed --ignore-not-found
-  changed_when: false
-
-- name: Cleanup — stale ReplicaSets (>14 days, 0/0)
-  ansible.builtin.shell: |
-    CUTOFF=$(date -u -d '14 days ago' +%Y-%m-%dT%H:%M:%SZ)
-    kubectl get rs -A -o json | jq -r --arg c "$CUTOFF" '
-      .items[] | select(.spec.replicas==0 and .status.replicas==0 and .metadata.creationTimestamp < $c)
-      | "-n \(.metadata.namespace) \(.metadata.name)"' |
-    while read args; do kubectl delete rs $args; done
   changed_when: false
 
 - name: Cleanup — Flux source GC trigger
@@ -512,30 +503,106 @@ Overrides upstream `TimeoutStopUSec=2h` so reboot flow doesn't hang.
 
 ---
 
-## 11. Install Script Outline (`install.sh`)
+## 11. Install Scripts
 
-Runs as root on CP. Idempotent.
+Two scripts: `install.sh` (runs on CP, idempotent) + `install-worker.sh` (runs on each worker once).
 
-1. Preconditions: running as root; `ansible --version` works; `kubectl` on PATH; `/etc/rancher/k3s/k3s.yaml` readable; SOPS + age key available for decryption.
-2. `useradd -r -s /usr/bin/nologin -m -d /var/lib/node-maintenance node-maintenance` (if not exists)
-3. `ansible-galaxy collection install -r requirements.yml`
-4. `rsync -a --delete docs/scripts/node-maintenance/ansible/ /etc/node-maintenance/ansible/`
-5. Decrypt SOPS artifacts:
-   - `secrets/id_ed25519.enc` → `/var/lib/node-maintenance/.ssh/id_ed25519` (0600 node-maintenance)
-   - Telegram token + chat-id (decrypted from existing `backup-replication` secret or dedicated new SOPS file) → `/etc/node-maintenance/telegram-*` (0400 root)
-6. Copy `known_hosts` to `/etc/node-maintenance/known_hosts` (0644 root)
-7. Install `telegram-notify.sh` → `/usr/local/sbin/` (0750 root)
-8. Install systemd unit files → `/etc/systemd/system/`
-9. `systemctl daemon-reload`
-10. `systemctl enable --now node-maintenance.timer`
-11. `systemctl enable node-maintenance-phase2.service` (not `--now` — only boot-trigger)
-12. Print bootstrap instructions for workers (user runs manually):
-    - Create `node-maintenance` user
-    - Append pub key to `/var/lib/node-maintenance/.ssh/authorized_keys`
-    - Install sudoers file
-    - Install `rebuilderd-worker-override.conf`
-    - `systemctl daemon-reload`
-13. Print next scheduled run time.
+### `install.sh` (CP, as root)
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+[ "$(id -u)" = "0" ] || { echo "Run as root"; exit 1; }
+command -v ansible-playbook >/dev/null || pacman -S --noconfirm ansible
+command -v sops >/dev/null || pacman -S --noconfirm sops
+command -v kubectl >/dev/null || { echo "kubectl required"; exit 1; }
+
+REPO_DIR="$(dirname "$(realpath "$0")")"
+
+# ── user ──
+id node-maintenance >/dev/null 2>&1 || \
+  useradd -r -s /usr/bin/nologin -m -d /var/lib/node-maintenance node-maintenance
+
+install -d -m 0750 -o root -g root /etc/node-maintenance
+install -d -m 0750 -o root -g adm  /var/log/node-maintenance
+install -d -m 0700 -o node-maintenance -g node-maintenance /var/lib/node-maintenance/.ssh
+
+# ── ansible playbooks + collections ──
+rsync -a --delete "$REPO_DIR/ansible/" /etc/node-maintenance/ansible/
+chmod 0600 /etc/node-maintenance/ansible/inventory.yml
+ansible-galaxy collection install -r /etc/node-maintenance/ansible/requirements.yml --force
+
+# ── SSH key (SOPS → disk) ──
+export SOPS_AGE_KEY_FILE=/root/.config/sops/age/keys.txt
+sops --decrypt "$REPO_DIR/secrets/id_ed25519.enc" > /var/lib/node-maintenance/.ssh/id_ed25519
+chown node-maintenance:node-maintenance /var/lib/node-maintenance/.ssh/id_ed25519
+chmod 0600 /var/lib/node-maintenance/.ssh/id_ed25519
+install -m 0644 "$REPO_DIR/lib/known_hosts" /etc/node-maintenance/known_hosts
+
+# ── telegram creds (reuse backup-replication/backup-telegram) ──
+KC="/etc/rancher/k3s/k3s.yaml"
+kubectl --kubeconfig="$KC" get secret -n backup-replication backup-telegram \
+  -o jsonpath='{.data.bot_token}' | base64 -d > /etc/node-maintenance/telegram-token
+chmod 0400 /etc/node-maintenance/telegram-token
+kubectl --kubeconfig="$KC" get secret -n backup-replication backup-telegram \
+  -o jsonpath='{.data.chat_id}' | base64 -d > /etc/node-maintenance/telegram-chat-id
+chmod 0400 /etc/node-maintenance/telegram-chat-id
+
+# ── notify helper + systemd units ──
+install -m 0750 "$REPO_DIR/lib/telegram-notify.sh" /usr/local/sbin/telegram-notify.sh
+install -m 0644 "$REPO_DIR/systemd/node-maintenance.timer"          /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase1.service" /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase2.service" /etc/systemd/system/
+
+systemctl daemon-reload
+systemctl enable --now node-maintenance.timer
+systemctl enable node-maintenance-phase2.service   # boot-trigger only, not --now
+
+# ── next-run summary + worker bootstrap hint ──
+echo "Next scheduled run: $(systemctl list-timers node-maintenance.timer --no-pager | awk 'NR==2{print $1,$2,$3}')"
+echo "Worker bootstrap: scp install-worker.sh to each worker + 'sudo bash install-worker.sh'"
+echo "Public key to add:"
+cat /var/lib/node-maintenance/.ssh/id_ed25519.pub 2>/dev/null || \
+  ssh-keygen -y -f /var/lib/node-maintenance/.ssh/id_ed25519
+```
+
+### `install-worker.sh` (each worker, as root via `sudo bash`)
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Pub key baked at install.sh time via sed-replace before scp. Placeholder here:
+PUB_KEY="__REPLACE_WITH_ACTUAL_PUBKEY__"
+
+id node-maintenance >/dev/null 2>&1 || \
+  useradd -r -s /usr/bin/nologin -m -d /var/lib/node-maintenance node-maintenance
+
+install -d -m 0700 -o node-maintenance -g node-maintenance /var/lib/node-maintenance/.ssh
+AK=/var/lib/node-maintenance/.ssh/authorized_keys
+touch "$AK"
+grep -qxF "$PUB_KEY" "$AK" || echo "$PUB_KEY" >> "$AK"
+chown node-maintenance:node-maintenance "$AK"
+chmod 0600 "$AK"
+
+cat > /etc/sudoers.d/node-maintenance <<'EOF'
+node-maintenance ALL=(root) NOPASSWD: /usr/bin/pacman, /usr/bin/paccache, /usr/bin/systemctl reboot, /usr/bin/systemctl stop rebuilderd-worker@1.service, /usr/bin/crictl
+EOF
+chmod 0440 /etc/sudoers.d/node-maintenance
+visudo -c -f /etc/sudoers.d/node-maintenance
+
+install -d -m 0755 /etc/systemd/system/rebuilderd-worker@.service.d
+cat > /etc/systemd/system/rebuilderd-worker@.service.d/override.conf <<'EOF'
+[Service]
+TimeoutStopSec=60s
+EOF
+systemctl daemon-reload
+
+echo "Worker bootstrap complete on $(hostname)."
+```
+
+`install.sh` auto-embeds the pub key into a temporary copy of `install-worker.sh` before scp to each worker — script shown above is the template.
 
 ---
 
@@ -646,11 +713,10 @@ ssh -p 65300 node-maintenance@<node> 'sudo pacman -U /var/cache/pacman/pkg/<pkg>
 ## 17. Acknowledged Limitations
 
 1. `yay --removemake` may leave orphan deps — covered by cleanup step but imperfect.
-2. ReplicaSet 14-day cleanup heuristic is arbitrary; won't match Deployment `revisionHistoryLimit` for low-change apps.
-3. Silence alert list (5 names) may miss cluster-specific alerts — refine after first runs.
-4. 90min `TimeoutStartSec` is estimate; adjust after observed P95.
-5. Ansible-playbook hang risks 90min silence before `ExecStopPost` alert — acceptable.
-6. Existing node cleanup jobs not enumerated — deferred to F1.
+2. 90min `TimeoutStartSec` estimate verified adequate (P50 ~52min); adjust if observed P95 >70min.
+3. Ansible-playbook hang risks 90min silence before `ExecStopPost` alert — acceptable.
+4. Existing node cleanup jobs not enumerated — deferred to F1.
+5. rebuilderd build killed mid-flight by 60s stop override — accepted (retries next sync cycle; state preserved).
 
 ---
 
