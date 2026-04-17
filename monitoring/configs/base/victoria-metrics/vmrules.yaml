@@ -198,12 +198,12 @@ spec:
     
     - alert: ContainerCPUThrottling
       expr: rate(container_cpu_cfs_throttled_seconds_total[5m]) * 100 > 25
-      for: 10m
+      for: 15m
       labels:
         severity: warning
       annotations:
         summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} is being CPU throttled"
-        description: "Container is being CPU throttled {{ printf \"%.1f\" $value }}% of the time for over 10 minutes. Performance may be degraded. Consider increasing CPU limits."
+        description: "Container is being CPU throttled {{ printf \"%.1f\" $value }}% of the time for over 15 minutes. Performance may be degraded. Consider increasing CPU limits."
 
     - alert: ContainerCPUNearLimit
       expr: (rate(container_cpu_usage_seconds_total{container!=""}[5m]) / container_spec_cpu_limit{container!=""}) * 100 > 80 and container_spec_cpu_limit{container!=""} > 0
