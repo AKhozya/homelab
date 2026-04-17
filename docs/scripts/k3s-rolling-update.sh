@@ -1,25 +1,21 @@
 #!/usr/bin/env bash
 # k3s-rolling-update.sh — Weekly rolling OS update for K3s homelab cluster
 #
-# Runs from control-plane. Updates nodes one at a time:
-#   worker-node-2 → worker-node → gmk-k3s-control-plane
+# Runs from control-plane. Updates + reboots nodes sequentially:
+#   1. gmk-k3s-control-plane (self — two-phase: reboot, then resume)
+#   2. worker-node
+#   3. worker-node-2
+#
+# Per node: checkupdates → pacman -Syu → reboot → 3min reboot → 3min stabilize
+# After all: 5min settle → reconcile Flux → fix alerts → cleanup stale
 #
 # No drain/uncordon — kubelet graceful shutdown (120s) handles pod termination.
-# See /etc/rancher/k3s/kubelet.yaml: shutdownGracePeriod: 120s
-#
-# Features:
-#   - checkupdates → skip if 0
-#   - pacman -Syu → reboot → wait Ready → wait pods healthy
-#   - Rebuilderd auto-starts 10min after boot (rebuilderd-worker-boot.timer)
-#   - Alertmanager silence (auto-create/remove)
-#   - Telegram notifications (start, per-node, summary)
-#   - Two-phase execution: control-plane reboots itself, resume service finishes
+# Rebuilderd auto-starts 10min after boot (rebuilderd-worker-boot.timer).
 #
 # Usage:
 #   sudo /usr/local/bin/k3s-rolling-update.sh [--dry-run] [--resume]
 #
-# Requires: kubectl, jq, curl, ssh, pacman, checkupdates (pacman-contrib)
-# Deploy:   sudo bash docs/scripts/setup-rolling-update.sh
+# Deploy: sudo bash docs/scripts/setup-rolling-update.sh
 
 set -euo pipefail
 
@@ -37,16 +33,18 @@ SSH_PORT=65300
 SSH_OPTS="-o ConnectTimeout=10 -o StrictHostKeyChecking=yes -o BatchMode=yes -p ${SSH_PORT}"
 
 # Node definitions: name|ip|ssh_user
+# Order: control-plane first (reboots self), then workers
 NODES=(
-    "worker-node-2|192.168.1.126|z3us"
-    "worker-node|192.168.1.129|akhozya"
     "gmk-k3s-control-plane|192.168.1.127|akhozya"
+    "worker-node|192.168.1.129|akhozya"
+    "worker-node-2|192.168.1.126|z3us"
 )
 
 # Timeouts (seconds)
-REBOOT_WAIT_TIMEOUT=600
-POST_REBOOT_SETTLE=300
-HEALTH_CHECK_INTERVAL=15
+REBOOT_WAIT=180           # 3 minutes for node to reboot and become Ready
+NODE_STABILIZE=180        # 3 minutes post-Ready stabilization per node
+FINAL_STABILIZE=300       # 5 minutes after all nodes rebooted
+HEALTH_CHECK_INTERVAL=15  # Poll interval for node Ready check
 
 # Alertmanager silence duration (3 hours, generous buffer)
 SILENCE_DURATION_HOURS=3
@@ -65,7 +63,6 @@ PF_PID=""
 UPDATE_START=""
 UPDATED_NODES=()
 SKIPPED_NODES=()
-FAILED_NODE=""
 TOTAL_PACKAGES=0
 
 # ========================== Logging ==========================
@@ -296,89 +293,114 @@ reboot_node() {
 }
 
 wait_for_ready() {
-    log "  Waiting for ${NODE_NAME} to become Ready..."
+    log "  Waiting up to ${REBOOT_WAIT}s for ${NODE_NAME} to reboot and become Ready..."
     if ${DRY_RUN}; then
         log "  [DRY-RUN] Would wait for node Ready"
         return 0
     fi
 
     local elapsed=0
-    # Wait for node to actually go down first
+    # Brief pause for node to actually go down
     sleep 15
 
-    while (( elapsed < REBOOT_WAIT_TIMEOUT )); do
+    while (( elapsed < REBOOT_WAIT )); do
         local status
         status=$(kubectl get node "${NODE_NAME}" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
         if [[ "${status}" == "True" ]]; then
-            log "  ${NODE_NAME} is Ready (waited ${elapsed}s)"
+            log "  ${NODE_NAME} is Ready (took ${elapsed}s)"
             return 0
         fi
         sleep "${HEALTH_CHECK_INTERVAL}"
         elapsed=$(( elapsed + HEALTH_CHECK_INTERVAL ))
     done
 
-    log_error "  ${NODE_NAME} did not become Ready within ${REBOOT_WAIT_TIMEOUT}s"
+    log_error "  ${NODE_NAME} did not become Ready within ${REBOOT_WAIT}s"
     return 1
 }
 
-post_reboot_stabilize() {
-    log "  Post-reboot stabilization for ${NODE_NAME}..."
+node_stabilize() {
+    log "  Waiting ${NODE_STABILIZE}s for ${NODE_NAME} to stabilize..."
     if ${DRY_RUN}; then
-        log "  [DRY-RUN] Would wait 5min, reconcile Flux, cleanup stale resources"
+        log "  [DRY-RUN] Would wait ${NODE_STABILIZE}s"
+        return 0
+    fi
+    sleep "${NODE_STABILIZE}"
+    log "  ${NODE_NAME} stabilization complete"
+}
+
+# ========================== Post-All-Nodes Finalization ==========================
+
+final_stabilize() {
+    log ""
+    log "=== All nodes rebooted — final stabilization ==="
+
+    if ${DRY_RUN}; then
+        log "[DRY-RUN] Would wait 5min, reconcile Flux, fix alerts, cleanup stale"
         return 0
     fi
 
-    # 1. Wait 5 minutes for pods/DBs/operators to fully stabilize
-    log "  Waiting ${POST_REBOOT_SETTLE}s for cluster to stabilize..."
-    sleep "${POST_REBOOT_SETTLE}"
+    # 1. Wait 5 minutes for everything to fully settle
+    log "Waiting ${FINAL_STABILIZE}s for full cluster stabilization..."
+    sleep "${FINAL_STABILIZE}"
 
-    # 2. Force reconcile Flux kustomizations (often get stuck after reboot)
-    log "  Reconciling Flux kustomizations..."
+    # 2. Reconcile Flux kustomizations
+    log "Reconciling Flux kustomizations..."
     for ks in flux-system infrastructure-controllers infrastructure-configs apps monitoring-controllers monitoring-configs; do
         flux reconcile kustomization "${ks}" --timeout=60s &>/dev/null || \
             log "  Warning: Failed to reconcile ${ks}"
     done
+    local flux_not_ready
+    flux_not_ready=$(flux get kustomizations 2>/dev/null | grep -c "False" || true)
+    if (( flux_not_ready > 0 )); then
+        log "  Warning: ${flux_not_ready} Flux kustomizations not ready"
+    else
+        log "  All Flux kustomizations reconciled ✓"
+    fi
 
-    # 3. Cleanup completed pods
+    # 3. Fix alerts — remove silence so Alertmanager re-evaluates cleanly
+    delete_silence "${SILENCE_ID}"
+
+    # 4. Check database health
+    log "Checking database health..."
+    local pg_status mysql_status redis_status
+    pg_status=$(kubectl get cluster main-postgres -n databases -o jsonpath='{.status.phase}' 2>/dev/null || echo "unknown")
+    mysql_status=$(kubectl get ps main-mysql -n databases -o jsonpath='{.status.state}' 2>/dev/null || echo "unknown")
+    redis_status=$(kubectl get pods -n databases -l app=redis -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "unknown")
+    log "  PostgreSQL: ${pg_status}"
+    log "  MySQL: ${mysql_status}"
+    log "  Redis: ${redis_status}"
+
+    # 5. Cleanup completed pods
     local completed
     completed=$(kubectl get pods -A --field-selector='status.phase=Succeeded' --no-headers 2>/dev/null | wc -l || echo 0)
     if (( completed > 0 )); then
         kubectl delete pods -A --field-selector='status.phase=Succeeded' &>/dev/null || true
-        log "  Cleaned ${completed} completed pods"
+        log "Cleaned ${completed} completed pods"
     fi
 
-    # 4. Cleanup orphaned ReplicaSets (0/0/0 replicas)
+    # 6. Cleanup orphaned ReplicaSets (0/0/0 replicas)
     local orphaned_rs=0
     while IFS=' ' read -r ns name; do
         kubectl delete rs "${name}" -n "${ns}" &>/dev/null || true
         orphaned_rs=$(( orphaned_rs + 1 ))
     done < <(kubectl get rs -A --no-headers 2>/dev/null | awk '$3==0 && $4==0 && $5==0 {print $1, $2}')
     if (( orphaned_rs > 0 )); then
-        log "  Cleaned ${orphaned_rs} orphaned ReplicaSets"
+        log "Cleaned ${orphaned_rs} orphaned ReplicaSets"
     fi
 
-    # 5. Check for non-running pods
+    # 7. Final pod health check
     local bad_pods
     bad_pods=$(kubectl get pods -A --no-headers 2>/dev/null | \
         grep -v "Running\|Completed\|Succeeded" | \
         grep -v "^$" || true)
-
     if [[ -n "${bad_pods}" ]]; then
-        log "  Warning: Some pods not Running after stabilization:"
+        log "Warning: Some pods not Running after stabilization:"
         echo "${bad_pods}" | head -10 | tee -a "${LOG_FILE}"
-        log "  (Continuing — may be pre-existing issues)"
     else
-        log "  All pods healthy"
+        log "All pods healthy ✓"
     fi
 
-    # 6. Verify Flux health
-    local flux_not_ready
-    flux_not_ready=$(flux get kustomizations 2>/dev/null | grep -c "False" || true)
-    if (( flux_not_ready > 0 )); then
-        log "  Warning: ${flux_not_ready} Flux kustomizations not ready"
-    else
-        log "  All Flux kustomizations reconciled"
-    fi
+    log "=== Final stabilization complete ==="
 }
 
 # ========================== Cluster Health ==========================
@@ -403,22 +425,6 @@ check_cluster_health() {
     fi
 
     log "All nodes Ready"
-}
-
-check_db_health() {
-    log "  Checking database health..."
-
-    local pg_status
-    pg_status=$(kubectl get cluster main-postgres -n databases -o jsonpath='{.status.phase}' 2>/dev/null || echo "unknown")
-    log "    PostgreSQL: ${pg_status}"
-
-    local mysql_status
-    mysql_status=$(kubectl get ps main-mysql -n databases -o jsonpath='{.status.state}' 2>/dev/null || echo "unknown")
-    log "    MySQL: ${mysql_status}"
-
-    local redis_status
-    redis_status=$(kubectl get pods -n databases -l app=redis -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "unknown")
-    log "    Redis: ${redis_status}"
 }
 
 # ========================== State Management ==========================
@@ -486,10 +492,10 @@ run_phase1() {
     send_telegram "🔄 <b>Rolling OS Update Started</b>
 
 🕐 $(date '+%H:%M %Z')
-📋 Order: worker-node-2 → worker-node → control-plane
+📋 Order: control-plane → worker-node → worker-node-2
 🔇 Alertmanager silenced for ${SILENCE_DURATION_HOURS}h"
 
-    # Process each node
+    # Process each node sequentially
     for node_def in "${NODES[@]}"; do
         parse_node "${node_def}"
         log ""
@@ -508,32 +514,16 @@ run_phase1() {
         log "  ${NODE_NAME}: ${update_count} updates available"
         log "  Packages: $(echo "${updates}" | head -5 | tr '\n' ', ')..."
 
-        # Pre-node health check (skip for first node)
-        if [[ ${#UPDATED_NODES[@]} -gt 0 ]]; then
-            check_cluster_health || {
-                FAILED_NODE="${NODE_NAME}"
-                send_telegram "❌ <b>Rolling Update Aborted</b>
-
-Node: <code>${NODE_NAME}</code>
-Reason: Cluster not healthy before starting this node
-✅ Updated: ${UPDATED_NODES[*]:-none}
-⏭ Skipped: ${SKIPPED_NODES[*]:-none}"
-                return 1
-            }
-        fi
-
-        # Control-plane: save state, update, reboot (Phase 2 finishes)
+        # Control-plane is first — save state, update, reboot self (Phase 2 continues)
         if is_control_plane; then
             TOTAL_PACKAGES=$(( TOTAL_PACKAGES + update_count ))
             save_state
 
             run_update || {
-                FAILED_NODE="${NODE_NAME}"
                 send_telegram "❌ <b>Rolling Update Failed</b>
 
 Node: <code>${NODE_NAME}</code>
-Stage: pacman -Syu
-✅ Updated: ${UPDATED_NODES[*]:-none}"
+Stage: pacman -Syu"
                 return 1
             }
 
@@ -546,9 +536,8 @@ Phase 2 will resume after reboot."
             return 0
         fi
 
-        # Worker node flow: update → reboot → wait Ready → wait pods healthy
+        # Worker node: update → reboot → 3min reboot → 3min stabilize
         run_update || {
-            FAILED_NODE="${NODE_NAME}"
             send_telegram "❌ <b>Rolling Update Failed</b>
 
 Node: <code>${NODE_NAME}</code>
@@ -560,37 +549,31 @@ Stage: pacman -Syu
         reboot_node
 
         wait_for_ready || {
-            FAILED_NODE="${NODE_NAME}"
             send_telegram "❌ <b>Rolling Update Failed</b>
 
 Node: <code>${NODE_NAME}</code>
-Stage: reboot (did not come back within ${REBOOT_WAIT_TIMEOUT}s)
+Stage: reboot (did not come back within ${REBOOT_WAIT}s)
 ✅ Updated: ${UPDATED_NODES[*]:-none}
 
 ⚠️ Node may need manual intervention"
             return 1
         }
 
-        post_reboot_stabilize
-
-        # Database health check after worker-node (has DB primaries)
-        if [[ "${NODE_NAME}" == "worker-node" ]]; then
-            check_db_health
-        fi
+        node_stabilize
 
         UPDATED_NODES+=("${NODE_NAME}:${update_count}")
         TOTAL_PACKAGES=$(( TOTAL_PACKAGES + update_count ))
 
         send_telegram "✅ <b>${NODE_NAME}</b>: Updated ${update_count} packages, back online"
-
         log "  ${NODE_NAME} completed successfully"
     done
 
-    # If we reach here, all nodes were skipped or control-plane had 0 updates
-    finalize
+    # All nodes done (or skipped) — final stabilization
+    final_stabilize
+    send_summary
 }
 
-# ========================== Main: Phase 2 (Resume) ==========================
+# ========================== Main: Phase 2 (Resume after control-plane reboot) ===========
 
 run_phase2() {
     log "=========================================="
@@ -623,14 +606,16 @@ Manual intervention needed."
         exit 1
     fi
 
-    # Wait for this node to be Ready
+    # Wait for control-plane to be Ready (3min reboot window)
+    log "Waiting up to ${REBOOT_WAIT}s for control-plane to become Ready..."
     local cp_ready=false
     elapsed=0
-    while (( elapsed < REBOOT_WAIT_TIMEOUT )); do
+    while (( elapsed < REBOOT_WAIT )); do
         local status
         status=$(kubectl get node gmk-k3s-control-plane -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "Unknown")
         if [[ "${status}" == "True" ]]; then
             cp_ready=true
+            log "Control-plane is Ready (took ${elapsed}s)"
             break
         fi
         sleep "${HEALTH_CHECK_INTERVAL}"
@@ -638,33 +623,94 @@ Manual intervention needed."
     done
 
     if ! ${cp_ready}; then
-        log_error "Control-plane not Ready after ${REBOOT_WAIT_TIMEOUT}s"
+        log_error "Control-plane not Ready after ${REBOOT_WAIT}s"
         send_telegram "❌ <b>Rolling Update Failed</b>
 
-Control-plane rebooted but node not Ready after ${REBOOT_WAIT_TIMEOUT}s.
+Control-plane rebooted but node not Ready after ${REBOOT_WAIT}s.
 Manual intervention needed."
         rm -f "${STATE_FILE}"
         exit 1
     fi
 
-    # Stabilize: wait 5min, reconcile Flux, cleanup stale resources
-    NODE_NAME="gmk-k3s-control-plane"
-    post_reboot_stabilize
+    # 3min stabilization for control-plane
+    log "Waiting ${NODE_STABILIZE}s for control-plane to stabilize..."
+    sleep "${NODE_STABILIZE}"
 
     UPDATED_NODES+=("gmk-k3s-control-plane")
+    send_telegram "✅ <b>gmk-k3s-control-plane</b>: Rebooted and stable"
 
-    # Remove Alertmanager silence
-    delete_silence "${SILENCE_ID}"
+    # Continue with remaining worker nodes
+    log ""
+    log "--- Continuing with worker nodes ---"
 
-    finalize
+    for node_def in "${NODES[@]}"; do
+        parse_node "${node_def}"
+
+        # Skip control-plane (already done)
+        if is_control_plane; then
+            continue
+        fi
+
+        log ""
+        log "--- Processing ${NODE_NAME} ---"
+
+        # Check for updates
+        local updates update_count
+        updates=$(check_updates)
+        update_count=$(echo "${updates}" | grep -c "." || true)
+        if [[ -z "${updates}" || "${update_count}" -eq 0 ]]; then
+            log "  ${NODE_NAME}: 0 updates, skipping"
+            SKIPPED_NODES+=("${NODE_NAME}")
+            continue
+        fi
+
+        log "  ${NODE_NAME}: ${update_count} updates available"
+        log "  Packages: $(echo "${updates}" | head -5 | tr '\n' ', ')..."
+
+        run_update || {
+            send_telegram "❌ <b>Rolling Update Failed</b>
+
+Node: <code>${NODE_NAME}</code>
+Stage: pacman -Syu
+✅ Updated: ${UPDATED_NODES[*]:-none}"
+            rm -f "${STATE_FILE}"
+            return 1
+        }
+
+        reboot_node
+
+        wait_for_ready || {
+            send_telegram "❌ <b>Rolling Update Failed</b>
+
+Node: <code>${NODE_NAME}</code>
+Stage: reboot (did not come back within ${REBOOT_WAIT}s)
+✅ Updated: ${UPDATED_NODES[*]:-none}
+
+⚠️ Node may need manual intervention"
+            rm -f "${STATE_FILE}"
+            return 1
+        }
+
+        node_stabilize
+
+        UPDATED_NODES+=("${NODE_NAME}:${update_count}")
+        TOTAL_PACKAGES=$(( TOTAL_PACKAGES + update_count ))
+
+        send_telegram "✅ <b>${NODE_NAME}</b>: Updated ${update_count} packages, back online"
+        log "  ${NODE_NAME} completed successfully"
+    done
+
+    # All nodes done — final stabilization
+    final_stabilize
+    send_summary
 
     rm -f "${STATE_FILE}"
     log "Phase 2 complete, state cleaned up"
 }
 
-# ========================== Finalize ==========================
+# ========================== Summary ==========================
 
-finalize() {
+send_summary() {
     local duration=""
     if [[ -n "${UPDATE_START}" ]]; then
         local start_epoch end_epoch
