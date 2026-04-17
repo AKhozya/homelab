@@ -45,8 +45,7 @@ NODES=(
 
 # Timeouts (seconds)
 REBOOT_WAIT_TIMEOUT=600
-POD_SETTLE_TIME=120
-POD_SETTLE_TIME_DB_NODE=180
+POST_REBOOT_SETTLE=300
 HEALTH_CHECK_INTERVAL=15
 
 # Alertmanager silence duration (3 hours, generous buffer)
@@ -322,33 +321,63 @@ wait_for_ready() {
     return 1
 }
 
-wait_pods_healthy() {
-    local settle_time="${POD_SETTLE_TIME}"
-    # Extra time for worker-node (database primary, PVCs)
-    if [[ "${NODE_NAME}" == "worker-node" ]]; then
-        settle_time="${POD_SETTLE_TIME_DB_NODE}"
-    fi
-
-    log "  Waiting ${settle_time}s for pods to settle on ${NODE_NAME}..."
+post_reboot_stabilize() {
+    log "  Post-reboot stabilization for ${NODE_NAME}..."
     if ${DRY_RUN}; then
-        log "  [DRY-RUN] Would wait for pods"
+        log "  [DRY-RUN] Would wait 5min, reconcile Flux, cleanup stale resources"
         return 0
     fi
 
-    sleep "${settle_time}"
+    # 1. Wait 5 minutes for pods/DBs/operators to fully stabilize
+    log "  Waiting ${POST_REBOOT_SETTLE}s for cluster to stabilize..."
+    sleep "${POST_REBOOT_SETTLE}"
 
-    # Check for non-running pods (excluding completed jobs)
+    # 2. Force reconcile Flux kustomizations (often get stuck after reboot)
+    log "  Reconciling Flux kustomizations..."
+    for ks in flux-system infrastructure-controllers infrastructure-configs apps monitoring-controllers monitoring-configs; do
+        flux reconcile kustomization "${ks}" --timeout=60s &>/dev/null || \
+            log "  Warning: Failed to reconcile ${ks}"
+    done
+
+    # 3. Cleanup completed pods
+    local completed
+    completed=$(kubectl get pods -A --field-selector='status.phase=Succeeded' --no-headers 2>/dev/null | wc -l || echo 0)
+    if (( completed > 0 )); then
+        kubectl delete pods -A --field-selector='status.phase=Succeeded' &>/dev/null || true
+        log "  Cleaned ${completed} completed pods"
+    fi
+
+    # 4. Cleanup orphaned ReplicaSets (0/0/0 replicas)
+    local orphaned_rs=0
+    while IFS=' ' read -r ns name; do
+        kubectl delete rs "${name}" -n "${ns}" &>/dev/null || true
+        orphaned_rs=$(( orphaned_rs + 1 ))
+    done < <(kubectl get rs -A --no-headers 2>/dev/null | awk '$3==0 && $4==0 && $5==0 {print $1, $2}')
+    if (( orphaned_rs > 0 )); then
+        log "  Cleaned ${orphaned_rs} orphaned ReplicaSets"
+    fi
+
+    # 5. Check for non-running pods
     local bad_pods
     bad_pods=$(kubectl get pods -A --no-headers 2>/dev/null | \
         grep -v "Running\|Completed\|Succeeded" | \
         grep -v "^$" || true)
 
     if [[ -n "${bad_pods}" ]]; then
-        log "  Warning: Some pods not Running after settle:"
+        log "  Warning: Some pods not Running after stabilization:"
         echo "${bad_pods}" | head -10 | tee -a "${LOG_FILE}"
         log "  (Continuing — may be pre-existing issues)"
     else
         log "  All pods healthy"
+    fi
+
+    # 6. Verify Flux health
+    local flux_not_ready
+    flux_not_ready=$(flux get kustomizations 2>/dev/null | grep -c "False" || true)
+    if (( flux_not_ready > 0 )); then
+        log "  Warning: ${flux_not_ready} Flux kustomizations not ready"
+    else
+        log "  All Flux kustomizations reconciled"
     fi
 }
 
@@ -542,7 +571,7 @@ Stage: reboot (did not come back within ${REBOOT_WAIT_TIMEOUT}s)
             return 1
         }
 
-        wait_pods_healthy
+        post_reboot_stabilize
 
         # Database health check after worker-node (has DB primaries)
         if [[ "${NODE_NAME}" == "worker-node" ]]; then
@@ -618,21 +647,9 @@ Manual intervention needed."
         exit 1
     fi
 
-    # Wait for pods to settle
-    log "Waiting ${POD_SETTLE_TIME}s for pods to settle..."
-    sleep "${POD_SETTLE_TIME}"
-
-    # Check health
-    local bad_pods
-    bad_pods=$(kubectl get pods -A --no-headers 2>/dev/null | \
-        grep -v "Running\|Completed\|Succeeded" | \
-        grep -v "^$" || true)
-    if [[ -n "${bad_pods}" ]]; then
-        log "Warning: Some pods not Running:"
-        echo "${bad_pods}" | head -10 | tee -a "${LOG_FILE}"
-    else
-        log "All pods healthy"
-    fi
+    # Stabilize: wait 5min, reconcile Flux, cleanup stale resources
+    NODE_NAME="gmk-k3s-control-plane"
+    post_reboot_stabilize
 
     UPDATED_NODES+=("gmk-k3s-control-plane")
 
