@@ -9,8 +9,8 @@
 #
 # Features:
 #   - checkupdates → skip if 0
-#   - Stop rebuilderd (workers only)
 #   - pacman -Syu → reboot → wait Ready → wait pods healthy
+#   - Rebuilderd auto-starts 10min after boot (rebuilderd-worker-boot.timer)
 #   - Alertmanager silence (auto-create/remove)
 #   - Telegram notifications (start, per-node, summary)
 #   - Two-phase execution: control-plane reboots itself, resume service finishes
@@ -36,16 +36,15 @@ LOG_FILE="/var/log/k3s-rolling-update.log"
 SSH_PORT=65300
 SSH_OPTS="-o ConnectTimeout=10 -o StrictHostKeyChecking=yes -o BatchMode=yes -p ${SSH_PORT}"
 
-# Node definitions: name|ip|ssh_user|has_rebuilderd
+# Node definitions: name|ip|ssh_user
 NODES=(
-    "worker-node-2|192.168.1.126|z3us|yes"
-    "worker-node|192.168.1.129|akhozya|yes"
-    "gmk-k3s-control-plane|192.168.1.127|akhozya|no"
+    "worker-node-2|192.168.1.126|z3us"
+    "worker-node|192.168.1.129|akhozya"
+    "gmk-k3s-control-plane|192.168.1.127|akhozya"
 )
 
 # Timeouts (seconds)
 REBOOT_WAIT_TIMEOUT=600
-REBUILDERD_STOP_TIMEOUT=120
 POD_SETTLE_TIME=120
 POD_SETTLE_TIME_DB_NODE=180
 HEALTH_CHECK_INTERVAL=15
@@ -242,7 +241,6 @@ parse_node() {
     NODE_NAME=$(echo "${node_def}" | cut -d'|' -f1)
     NODE_IP=$(echo "${node_def}" | cut -d'|' -f2)
     NODE_USER=$(echo "${node_def}" | cut -d'|' -f3)
-    NODE_HAS_REBUILDERD=$(echo "${node_def}" | cut -d'|' -f4)
 }
 
 is_control_plane() {
@@ -257,39 +255,6 @@ check_updates() {
         updates=$(ssh_cmd "${NODE_USER}" "${NODE_IP}" "checkupdates 2>/dev/null" || true)
     fi
     echo "${updates}"
-}
-
-stop_rebuilderd() {
-    if [[ "${NODE_HAS_REBUILDERD}" != "yes" ]]; then
-        return 0
-    fi
-
-    log "  Stopping rebuilderd on ${NODE_NAME}..."
-    if ${DRY_RUN}; then
-        log "  [DRY-RUN] Would stop rebuilderd-worker@1.service"
-        return 0
-    fi
-
-    # Stop with timeout — don't wait forever for a 48h build
-    timeout "${REBUILDERD_STOP_TIMEOUT}" \
-        ssh_cmd_sudo "${NODE_USER}" "${NODE_IP}" "systemctl stop rebuilderd-worker@1.service" 2>/dev/null || {
-        log "  Rebuilderd stop timed out after ${REBUILDERD_STOP_TIMEOUT}s, proceeding (reboot will kill it)"
-    }
-}
-
-start_rebuilderd() {
-    if [[ "${NODE_HAS_REBUILDERD}" != "yes" ]]; then
-        return 0
-    fi
-
-    log "  Starting rebuilderd on ${NODE_NAME}..."
-    if ${DRY_RUN}; then
-        log "  [DRY-RUN] Would start rebuilderd-worker@1.service"
-        return 0
-    fi
-
-    ssh_cmd_sudo "${NODE_USER}" "${NODE_IP}" "systemctl start rebuilderd-worker@1.service" 2>/dev/null || \
-        log "  Warning: Failed to start rebuilderd on ${NODE_NAME}"
 }
 
 run_update() {
@@ -552,9 +517,7 @@ Phase 2 will resume after reboot."
             return 0
         fi
 
-        # Worker node flow: stop rebuilderd → update → reboot → wait → healthy → start rebuilderd
-        stop_rebuilderd
-
+        # Worker node flow: update → reboot → wait Ready → wait pods healthy
         run_update || {
             FAILED_NODE="${NODE_NAME}"
             send_telegram "❌ <b>Rolling Update Failed</b>
@@ -562,7 +525,6 @@ Phase 2 will resume after reboot."
 Node: <code>${NODE_NAME}</code>
 Stage: pacman -Syu
 ✅ Updated: ${UPDATED_NODES[*]:-none}"
-            start_rebuilderd
             return 1
         }
 
@@ -586,8 +548,6 @@ Stage: reboot (did not come back within ${REBOOT_WAIT_TIMEOUT}s)
         if [[ "${NODE_NAME}" == "worker-node" ]]; then
             check_db_health
         fi
-
-        start_rebuilderd
 
         UPDATED_NODES+=("${NODE_NAME}:${update_count}")
         TOTAL_PACKAGES=$(( TOTAL_PACKAGES + update_count ))

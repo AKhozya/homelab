@@ -42,9 +42,6 @@ if [[ "${NODE_TYPE}" == "worker" ]]; then
 # Allow rolling update script (from control-plane) to run specific commands
 # without password. Scoped to exact commands needed.
 ${REAL_USER} ALL=(root) NOPASSWD: /usr/bin/pacman -Syu --noconfirm
-${REAL_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl stop rebuilderd-worker@1.service
-${REAL_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl start rebuilderd-worker@1.service
-${REAL_USER} ALL=(root) NOPASSWD: /usr/bin/systemctl kill rebuilderd-worker@1.service
 ${REAL_USER} ALL=(root) NOPASSWD: /sbin/reboot
 EOF
     chmod 440 /etc/sudoers.d/90-rolling-update
