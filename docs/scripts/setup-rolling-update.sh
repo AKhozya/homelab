@@ -39,9 +39,9 @@ if [[ "${NODE_TYPE}" == "worker" ]]; then
     echo "--- Setting up sudoers for rolling update ---"
 
     cat > /etc/sudoers.d/90-rolling-update <<EOF
-# Allow rolling update script (from control-plane) to run specific commands
-# without password. Scoped to exact commands needed.
-${REAL_USER} ALL=(root) NOPASSWD: /usr/bin/pacman -Syu --noconfirm
+# Allow rolling update script (from control-plane) to run yay (which calls
+# sudo pacman internally). Scoped to pacman and reboot only.
+${REAL_USER} ALL=(root) NOPASSWD: /usr/bin/pacman *
 ${REAL_USER} ALL=(root) NOPASSWD: /sbin/reboot
 EOF
     chmod 440 /etc/sudoers.d/90-rolling-update
@@ -76,9 +76,9 @@ echo "  Created /var/lib/k3s-rolling-update/"
 echo ""
 echo "--- Setting up sudoers ---"
 cat > /etc/sudoers.d/90-rolling-update <<EOF
-# Control-plane: allow rolling update to run pacman and reboot
-# The systemd service runs as root, but just in case
-${REAL_USER} ALL=(root) NOPASSWD: /usr/bin/pacman -Syu --noconfirm
+# Control-plane: allow rolling update user to run pacman and reboot
+# yay runs as user and calls sudo pacman internally
+${REAL_USER} ALL=(root) NOPASSWD: /usr/bin/pacman *
 ${REAL_USER} ALL=(root) NOPASSWD: /sbin/reboot
 EOF
 chmod 440 /etc/sudoers.d/90-rolling-update

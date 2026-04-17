@@ -6,8 +6,12 @@
 #   2. worker-node
 #   3. worker-node-2
 #
-# Per node: checkupdates → pacman -Syu → reboot → 3min reboot → 3min stabilize
+# Per node: check updates → yay -Syyu → reboot → 3min reboot → 3min stabilize
 # After all: 5min settle → reconcile Flux → fix alerts → cleanup stale
+#
+# Uses yay (not pacman) to include AUR packages.
+# yay refuses root, so on control-plane we drop to REAL_USER via sudo -u.
+# On workers, SSH connects as the regular user; yay calls sudo pacman internally.
 #
 # No drain/uncordon — kubelet graceful shutdown (120s) handles pod termination.
 # Rebuilderd auto-starts 10min after boot (rebuilderd-worker-boot.timer).
@@ -39,6 +43,9 @@ NODES=(
     "worker-node|192.168.1.129|akhozya"
     "worker-node-2|192.168.1.126|z3us"
 )
+
+# Control-plane user (for dropping root → user when running yay)
+CP_USER="akhozya"
 
 # Timeouts (seconds)
 REBOOT_WAIT=180           # 3 minutes for node to reboot and become Ready
@@ -244,30 +251,36 @@ is_control_plane() {
 }
 
 check_updates() {
-    local updates
+    local official aur updates
     if is_control_plane; then
-        updates=$(checkupdates 2>/dev/null || true)
+        official=$(checkupdates 2>/dev/null || true)
+        aur=$(sudo -u "${CP_USER}" yay -Qua 2>/dev/null || true)
     else
-        updates=$(ssh_cmd "${NODE_USER}" "${NODE_IP}" "checkupdates 2>/dev/null" || true)
+        official=$(ssh_cmd "${NODE_USER}" "${NODE_IP}" "checkupdates 2>/dev/null" || true)
+        aur=$(ssh_cmd "${NODE_USER}" "${NODE_IP}" "yay -Qua 2>/dev/null" || true)
     fi
+    # Combine official + AUR updates
+    updates=$(printf '%s\n%s' "${official}" "${aur}" | grep -v '^$' || true)
     echo "${updates}"
 }
 
 run_update() {
-    log "  Running pacman -Syu on ${NODE_NAME}..."
+    log "  Running yay -Syyu on ${NODE_NAME}..."
     if ${DRY_RUN}; then
-        log "  [DRY-RUN] Would run pacman -Syu --noconfirm"
+        log "  [DRY-RUN] Would run yay -Syyu --noconfirm"
         return 0
     fi
 
     if is_control_plane; then
-        pacman -Syu --noconfirm 2>&1 | tail -20 | tee -a "${LOG_FILE}" || {
-            log_error "  pacman -Syu failed on ${NODE_NAME}"
+        # yay refuses root — drop to regular user (yay calls sudo pacman internally)
+        sudo -u "${CP_USER}" yay -Syyu --noconfirm 2>&1 | tail -20 | tee -a "${LOG_FILE}" || {
+            log_error "  yay -Syyu failed on ${NODE_NAME}"
             return 1
         }
     else
-        ssh_cmd_sudo "${NODE_USER}" "${NODE_IP}" "pacman -Syu --noconfirm" 2>&1 | tail -20 | tee -a "${LOG_FILE}" || {
-            log_error "  pacman -Syu failed on ${NODE_NAME}"
+        # SSH connects as regular user, yay calls sudo pacman internally (sudoers allows it)
+        ssh_cmd "${NODE_USER}" "${NODE_IP}" "yay -Syyu --noconfirm" 2>&1 | tail -20 | tee -a "${LOG_FILE}" || {
+            log_error "  yay -Syyu failed on ${NODE_NAME}"
             return 1
         }
     fi
@@ -477,7 +490,7 @@ run_phase1() {
     log "=========================================="
 
     # Prerequisites
-    for cmd in kubectl jq curl ssh checkupdates pacman; do
+    for cmd in kubectl jq curl ssh checkupdates yay; do
         if ! command -v "${cmd}" &>/dev/null; then
             log_error "Missing required command: ${cmd}"
             exit 1
@@ -523,7 +536,7 @@ run_phase1() {
                 send_telegram "❌ <b>Rolling Update Failed</b>
 
 Node: <code>${NODE_NAME}</code>
-Stage: pacman -Syu"
+Stage: yay -Syyu"
                 return 1
             }
 
@@ -541,7 +554,7 @@ Phase 2 will resume after reboot."
             send_telegram "❌ <b>Rolling Update Failed</b>
 
 Node: <code>${NODE_NAME}</code>
-Stage: pacman -Syu
+Stage: yay -Syyu
 ✅ Updated: ${UPDATED_NODES[*]:-none}"
             return 1
         }
@@ -671,7 +684,7 @@ Manual intervention needed."
             send_telegram "❌ <b>Rolling Update Failed</b>
 
 Node: <code>${NODE_NAME}</code>
-Stage: pacman -Syu
+Stage: yay -Syyu
 ✅ Updated: ${UPDATED_NODES[*]:-none}"
             rm -f "${STATE_FILE}"
             return 1
