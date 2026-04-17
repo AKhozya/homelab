@@ -113,6 +113,7 @@
 | High-priority secret rotation (PG: authentik/immich/n8n, MySQL: HA, Redis: immich) | 2026-07-01 | P1 |
 | Re-evaluate HA OIDC when hass-oidc-auth stable releases | Backlog | P3 |
 | Add PodDisruptionBudgets for HA workloads | Backlog | P3 |
+| Migrate existing node cleanup cron/timer jobs to `node-maintenance` user ownership (after node auto-update PR merges) | Backlog | P3 |
 
 **Next Review**: 2026-05-04 (Monthly)
 

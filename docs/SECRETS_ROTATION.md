@@ -1,6 +1,6 @@
 # Secrets Rotation Playbook
 
-**Cluster**: K3s Homelab | **Last Updated**: 2026-04-02
+**Cluster**: K3s Homelab | **Last Updated**: 2026-04-17
 **Audit Trail**: Rotation dates tracked in git commit history
 
 ---
@@ -91,6 +91,7 @@
 | `pricebuddy-telegram` | PriceBuddy | 2025-12-05 | Never* | Medium |
 | `backup-replication-ssh` | Backup Jobs | 2025-12-18 | 2026-12-18 | High |
 | `cloudflare-tunnel-mgmt-token` | CF Tunnel Mgmt | 2026-02-19 | 2026-12-31 | Medium |
+| `node-maintenance-ssh` | Node Auto-Update (CP → workers) | 2026-04-17 | 2027-04-17 | High |
 
 \* Only rotate if compromised
 
