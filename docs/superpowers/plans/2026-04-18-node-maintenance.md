@@ -1114,7 +1114,7 @@ Expected: no output (identical).
 - [ ] **Step 6: Shred temp files**
 
 ```bash
-shred -u /tmp/node-maint-key /tmp/node-maint-secret.yaml /tmp/key-roundtrip
+gshred -u /tmp/node-maint-key /tmp/node-maint-secret.yaml /tmp/key-roundtrip
 # Keep /tmp/node-maint-key.pub temporarily for Task 16 reference (not secret)
 ```
 
@@ -1318,7 +1318,7 @@ Tracked in `docs/SECRETS_ROTATION.md` under `node-maintenance-ssh`.
 6. Verify: `sudo -u node-maintenance ssh ... node-maintenance@<worker> true`.
 7. Remove old pub from workers' `authorized_keys`.
 8. Update `docs/SECRETS_ROTATION.md` with new rotation date.
-9. `shred -u /tmp/new_key /tmp/new_key.pub`.
+9. `gshred -u /tmp/new_key /tmp/new_key.pub`.
 ```
 
 - [ ] **Step 2: Commit**
