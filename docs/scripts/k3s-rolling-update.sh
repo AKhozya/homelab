@@ -4,10 +4,13 @@
 # Runs from control-plane. Updates nodes one at a time:
 #   worker-node-2 → worker-node → gmk-k3s-control-plane
 #
+# No drain/uncordon — kubelet graceful shutdown (120s) handles pod termination.
+# See /etc/rancher/k3s/kubelet.yaml: shutdownGracePeriod: 120s
+#
 # Features:
 #   - checkupdates → skip if 0
 #   - Stop rebuilderd (workers only)
-#   - kubectl drain → pacman -Syu → reboot → wait Ready → uncordon
+#   - pacman -Syu → reboot → wait Ready → wait pods healthy
 #   - Alertmanager silence (auto-create/remove)
 #   - Telegram notifications (start, per-node, summary)
 #   - Two-phase execution: control-plane reboots itself, resume service finishes
@@ -16,7 +19,7 @@
 #   sudo /usr/local/bin/k3s-rolling-update.sh [--dry-run] [--resume]
 #
 # Requires: kubectl, jq, curl, ssh, pacman, checkupdates (pacman-contrib)
-# Sudoers: see docs/scripts/k3s-rolling-update-sudoers
+# Deploy:   sudo bash docs/scripts/setup-rolling-update.sh
 
 set -euo pipefail
 
@@ -41,12 +44,10 @@ NODES=(
 )
 
 # Timeouts (seconds)
-DRAIN_TIMEOUT=300
 REBOOT_WAIT_TIMEOUT=600
 REBUILDERD_STOP_TIMEOUT=120
 POD_SETTLE_TIME=120
 POD_SETTLE_TIME_DB_NODE=180
-HEALTH_CHECK_RETRIES=10
 HEALTH_CHECK_INTERVAL=15
 
 # Alertmanager silence duration (3 hours, generous buffer)
@@ -133,7 +134,6 @@ acquire_lock() {
 }
 
 cleanup() {
-    # Kill port-forward if running
     if [[ -n "${PF_PID}" ]]; then
         kill "${PF_PID}" 2>/dev/null || true
         wait "${PF_PID}" 2>/dev/null || true
@@ -163,7 +163,6 @@ start_port_forward() {
     kubectl port-forward svc/kube-prometheus-stack-alertmanager -n monitoring 19093:9093 &>/dev/null &
     PF_PID=$!
     sleep 3
-    # Verify port-forward is running
     if ! kill -0 "${PF_PID}" 2>/dev/null; then
         log_error "Port-forward to Alertmanager failed"
         PF_PID=""
@@ -293,24 +292,6 @@ start_rebuilderd() {
         log "  Warning: Failed to start rebuilderd on ${NODE_NAME}"
 }
 
-drain_node() {
-    log "  Draining ${NODE_NAME}..."
-    if ${DRY_RUN}; then
-        log "  [DRY-RUN] Would drain ${NODE_NAME}"
-        return 0
-    fi
-
-    if ! kubectl drain "${NODE_NAME}" \
-        --ignore-daemonsets \
-        --delete-emptydir-data \
-        --force \
-        --timeout="${DRAIN_TIMEOUT}s" 2>&1 | tee -a "${LOG_FILE}"; then
-        log_error "  Drain failed for ${NODE_NAME}"
-        return 1
-    fi
-    log "  Drained ${NODE_NAME}"
-}
-
 run_update() {
     log "  Running pacman -Syu on ${NODE_NAME}..."
     if ${DRY_RUN}; then
@@ -340,11 +321,9 @@ reboot_node() {
     fi
 
     if is_control_plane; then
-        # Control-plane reboots itself — handled by Phase 2
+        # Control-plane reboots itself — Phase 2 handles the rest
         reboot &
-        # Give reboot a moment
         sleep 2
-        # We won't reach here after reboot
         exit 0
     else
         # SSH reboot — connection will drop, that's expected
@@ -360,7 +339,7 @@ wait_for_ready() {
     fi
 
     local elapsed=0
-    # Wait a few seconds for node to actually go down
+    # Wait for node to actually go down first
     sleep 15
 
     while (( elapsed < REBOOT_WAIT_TIMEOUT )); do
@@ -378,17 +357,6 @@ wait_for_ready() {
     return 1
 }
 
-uncordon_node() {
-    log "  Uncordoning ${NODE_NAME}..."
-    if ${DRY_RUN}; then
-        log "  [DRY-RUN] Would uncordon ${NODE_NAME}"
-        return 0
-    fi
-
-    kubectl uncordon "${NODE_NAME}" 2>&1 | tee -a "${LOG_FILE}"
-    log "  Uncordoned ${NODE_NAME}"
-}
-
 wait_pods_healthy() {
     local settle_time="${POD_SETTLE_TIME}"
     # Extra time for worker-node (database primary, PVCs)
@@ -396,7 +364,7 @@ wait_pods_healthy() {
         settle_time="${POD_SETTLE_TIME_DB_NODE}"
     fi
 
-    log "  Waiting ${settle_time}s for pods to settle..."
+    log "  Waiting ${settle_time}s for pods to settle on ${NODE_NAME}..."
     if ${DRY_RUN}; then
         log "  [DRY-RUN] Would wait for pods"
         return 0
@@ -446,17 +414,14 @@ check_cluster_health() {
 check_db_health() {
     log "  Checking database health..."
 
-    # CNPG PostgreSQL
     local pg_status
     pg_status=$(kubectl get cluster main-postgres -n databases -o jsonpath='{.status.phase}' 2>/dev/null || echo "unknown")
     log "    PostgreSQL: ${pg_status}"
 
-    # Percona MySQL
     local mysql_status
     mysql_status=$(kubectl get ps main-mysql -n databases -o jsonpath='{.status.state}' 2>/dev/null || echo "unknown")
     log "    MySQL: ${mysql_status}"
 
-    # Redis
     local redis_status
     redis_status=$(kubectl get pods -n databases -l app=redis -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "unknown")
     log "    Redis: ${redis_status}"
@@ -495,7 +460,6 @@ load_state() {
     # shellcheck disable=SC1090
     source "${STATE_FILE}"
 
-    # Restore arrays
     # shellcheck disable=SC2206
     UPDATED_NODES=(${UPDATED_NODES:-})
     # shellcheck disable=SC2206
@@ -523,7 +487,6 @@ run_phase1() {
     load_telegram_credentials
     check_cluster_health
 
-    # Create Alertmanager silence
     create_silence
 
     send_telegram "🔄 <b>Rolling OS Update Started</b>
@@ -542,7 +505,6 @@ run_phase1() {
         local updates update_count
         updates=$(check_updates)
         update_count=$(echo "${updates}" | grep -c "." || true)
-        # checkupdates outputs empty string if no updates
         if [[ -z "${updates}" || "${update_count}" -eq 0 ]]; then
             log "  ${NODE_NAME}: 0 updates, skipping"
             SKIPPED_NODES+=("${NODE_NAME}")
@@ -566,23 +528,10 @@ Reason: Cluster not healthy before starting this node
             }
         fi
 
-        # Control-plane is special — save state and reboot (Phase 2 finishes)
+        # Control-plane: save state, update, reboot (Phase 2 finishes)
         if is_control_plane; then
-            # Store control-plane package count before saving state
             TOTAL_PACKAGES=$(( TOTAL_PACKAGES + update_count ))
             save_state
-
-            stop_rebuilderd  # no-op for control-plane
-            drain_node || {
-                FAILED_NODE="${NODE_NAME}"
-                send_telegram "❌ <b>Rolling Update Failed</b>
-
-Node: <code>${NODE_NAME}</code>
-Stage: drain
-✅ Updated: ${UPDATED_NODES[*]:-none}"
-                kubectl uncordon "${NODE_NAME}" 2>/dev/null || true
-                return 1
-            }
 
             run_update || {
                 FAILED_NODE="${NODE_NAME}"
@@ -591,7 +540,6 @@ Stage: drain
 Node: <code>${NODE_NAME}</code>
 Stage: pacman -Syu
 ✅ Updated: ${UPDATED_NODES[*]:-none}"
-                kubectl uncordon "${NODE_NAME}" 2>/dev/null || true
                 return 1
             }
 
@@ -601,24 +549,11 @@ Phase 2 will resume after reboot."
 
             # This calls reboot and exits
             reboot_node
-            # Never reached
             return 0
         fi
 
-        # Worker node flow
+        # Worker node flow: stop rebuilderd → update → reboot → wait → healthy → start rebuilderd
         stop_rebuilderd
-
-        drain_node || {
-            FAILED_NODE="${NODE_NAME}"
-            send_telegram "❌ <b>Rolling Update Failed</b>
-
-Node: <code>${NODE_NAME}</code>
-Stage: drain
-✅ Updated: ${UPDATED_NODES[*]:-none}"
-            kubectl uncordon "${NODE_NAME}" 2>/dev/null || true
-            start_rebuilderd
-            return 1
-        }
 
         run_update || {
             FAILED_NODE="${NODE_NAME}"
@@ -627,7 +562,6 @@ Stage: drain
 Node: <code>${NODE_NAME}</code>
 Stage: pacman -Syu
 ✅ Updated: ${UPDATED_NODES[*]:-none}"
-            kubectl uncordon "${NODE_NAME}" 2>/dev/null || true
             start_rebuilderd
             return 1
         }
@@ -646,7 +580,6 @@ Stage: reboot (did not come back within ${REBOOT_WAIT_TIMEOUT}s)
             return 1
         }
 
-        uncordon_node
         wait_pods_healthy
 
         # Database health check after worker-node (has DB primaries)
@@ -680,7 +613,7 @@ run_phase2() {
         exit 1
     }
 
-    # Wait for K3s to be fully ready
+    # Wait for K3s API
     log "Waiting for K3s API server..."
     local elapsed=0
     while (( elapsed < 120 )); do
@@ -725,11 +658,7 @@ Manual intervention needed."
         exit 1
     fi
 
-    # Uncordon
-    log "Uncordoning gmk-k3s-control-plane..."
-    kubectl uncordon gmk-k3s-control-plane 2>&1 | tee -a "${LOG_FILE}"
-
-    # Wait for pods
+    # Wait for pods to settle
     log "Waiting ${POD_SETTLE_TIME}s for pods to settle..."
     sleep "${POD_SETTLE_TIME}"
 
@@ -752,7 +681,6 @@ Manual intervention needed."
 
     finalize
 
-    # Cleanup state
     rm -f "${STATE_FILE}"
     log "Phase 2 complete, state cleaned up"
 }
@@ -814,7 +742,6 @@ ${skipped_str}"
 # ========================== Entrypoint ==========================
 
 main() {
-    # Parse arguments
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --dry-run)
@@ -839,7 +766,6 @@ main() {
         esac
     done
 
-    # Ensure running as root
     if [[ $EUID -ne 0 ]]; then
         log_error "Must run as root"
         exit 1
