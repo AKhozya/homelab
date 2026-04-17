@@ -116,9 +116,11 @@ git commit -m "Scaffold node-maintenance directory structure"
 Content:
 ```yaml
 ---
+# kubernetes.core 6.x is current latest (6.3.0, 2026). Requires ansible-core >= 2.16.
+# Arch `ansible` 13.5.0-1 provides ansible-core 2.20+ so safely compatible.
 collections:
   - name: kubernetes.core
-    version: ">=3.0.0,<4.0.0"
+    version: ">=6.0.0,<7.0.0"
 ```
 
 - [ ] **Step 2: Verify YAML syntax**
@@ -547,7 +549,17 @@ Content:
       register: flux_results
       changed_when: false
 
-    - name: Per-node cleanup (pacman cache, orphans, crictl image prune)
+    - name: Cleanup — local CP (runs as root; no SSH needed)
+      ansible.builtin.shell: |
+        paccache -rk2
+        paccache -ruk0
+        ORPHANS=$(pacman -Qtdq || true)
+        [ -n "$ORPHANS" ] && pacman -Rns --noconfirm $ORPHANS || true
+        crictl rmi --prune || true
+      changed_when: false
+      failed_when: false
+
+    - name: Cleanup — remote workers via SSH
       ansible.builtin.shell: |
         ssh -p 65300 -i {{ state_dir }}/.ssh/id_ed25519 \
             -o UserKnownHostsFile=/etc/node-maintenance/known_hosts \
@@ -560,7 +572,6 @@ Content:
           sudo crictl rmi --prune || true
         '
       loop:
-        - 127.0.0.1
         - 192.168.1.129
         - 192.168.1.126
       changed_when: false
@@ -940,6 +951,9 @@ KUBECONFIG_PATH="/etc/rancher/k3s/k3s.yaml"
 # ── Preconditions ──
 command -v ansible-playbook >/dev/null 2>&1 || pacman -S --noconfirm ansible
 command -v sops >/dev/null 2>&1 || pacman -S --noconfirm sops
+command -v jq >/dev/null 2>&1 || pacman -S --noconfirm jq
+command -v age >/dev/null 2>&1 || pacman -S --noconfirm age
+command -v rsync >/dev/null 2>&1 || pacman -S --noconfirm rsync
 command -v kubectl >/dev/null 2>&1 || { echo "kubectl required" >&2; exit 1; }
 command -v flux >/dev/null 2>&1 || { echo "flux required" >&2; exit 1; }
 [ -r "$KUBECONFIG_PATH" ] || { echo "$KUBECONFIG_PATH not readable" >&2; exit 1; }
@@ -959,8 +973,9 @@ rsync -a --delete "$REPO_DIR/ansible/" /etc/node-maintenance/ansible/
 chmod 0600 /etc/node-maintenance/ansible/inventory.yml
 ansible-galaxy collection install -r /etc/node-maintenance/ansible/requirements.yml --force
 
-# ── SSH key (SOPS → disk) ──
-sops --decrypt "$REPO_DIR/secrets/id_ed25519.enc" > /var/lib/node-maintenance/.ssh/id_ed25519
+# ── SSH key (SOPS Secret YAML → disk, extract stringData.ssh-private-key) ──
+sops --decrypt --extract '["stringData"]["ssh-private-key"]' \
+  "$REPO_DIR/secrets/ssh-key.sops.yaml" > /var/lib/node-maintenance/.ssh/id_ed25519
 chown node-maintenance:node-maintenance /var/lib/node-maintenance/.ssh/id_ed25519
 chmod 0600 /var/lib/node-maintenance/.ssh/id_ed25519
 
@@ -1038,10 +1053,12 @@ git commit -m "Add install.sh: CP-side bootstrap with SOPS decrypt + systemd ena
 
 ## Phase E — Secrets
 
-### Task 15: Generate SSH keypair + SOPS encrypt
+### Task 15: Generate SSH keypair + SOPS encrypt (k8s Secret YAML wrapper — matches existing pattern)
 
 **Files:**
-- Create: `docs/scripts/node-maintenance/secrets/id_ed25519.enc` (SOPS-encrypted)
+- Create: `docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml` (SOPS-encrypted k8s Secret YAML; same pattern as `infrastructure/configs/staging/backup-replication/ssh-key-secret.yaml`)
+
+**Why YAML wrapper?** Existing `.sops.yaml` rule encrypts fields matching `^(data|stringData)$`. Wrapping as k8s Secret YAML with `stringData.ssh-private-key` lets the existing rule handle encryption without editing `.sops.yaml`. install.sh extracts via `sops --decrypt --extract`.
 
 - [ ] **Step 1: Generate keypair (off-repo)**
 
@@ -1050,49 +1067,62 @@ ssh-keygen -t ed25519 -f /tmp/node-maint-key -N "" -C "node-maintenance@gmk-k3s-
 ```
 Expected: `/tmp/node-maint-key` (private) + `/tmp/node-maint-key.pub`.
 
-- [ ] **Step 2: Verify `.sops.yaml` exists + has age key**
+- [ ] **Step 2: Verify `.sops.yaml` has matching rule**
 
-Run: `cat .sops.yaml | head -20`
-Expected: age public key entry. If missing, follow existing repo SOPS pattern (see how other secrets are encrypted, e.g., `infrastructure/configs/staging/backup-replication/ssh-key-secret.yaml`).
+Run: `cat .sops.yaml`
+Expected:
+```yaml
+creation_rules:
+  - encrypted_regex: '^(data|stringData)$'
+    age: age1jwjtfrp625gh24xd8rds9zcz7arsgmqf8y3nn4j9redfcvfvcuhs4fv3sc
+```
+Existing rule matches `stringData` fields — no `.sops.yaml` edit needed.
 
-- [ ] **Step 3: SOPS encrypt private key**
+- [ ] **Step 3: Write unencrypted Secret YAML to temp file**
 
 ```bash
-sops --encrypt --input-type binary --output-type binary \
-  /tmp/node-maint-key \
-  > docs/scripts/node-maintenance/secrets/id_ed25519.enc
+cat > /tmp/node-maint-secret.yaml <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+    name: node-maintenance-ssh
+    namespace: node-maintenance-not-deployed
+type: Opaque
+stringData:
+    ssh-private-key: |
+$(sed 's/^/        /' /tmp/node-maint-key)
+EOF
+```
+(Namespace field is decorative — this Secret YAML is NEVER applied to cluster, only used as SOPS container. install.sh reads it via `sops --decrypt --extract` and writes raw key to host disk.)
+
+- [ ] **Step 4: SOPS encrypt**
+
+```bash
+sops --encrypt /tmp/node-maint-secret.yaml \
+  > docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml
 ```
 
-- [ ] **Step 4: Verify decrypt round-trip**
+- [ ] **Step 5: Verify decrypt round-trip + extract**
 
 ```bash
-sops --decrypt docs/scripts/node-maintenance/secrets/id_ed25519.enc \
-  | diff - /tmp/node-maint-key
+sops --decrypt --extract '["stringData"]["ssh-private-key"]' \
+  docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml > /tmp/key-roundtrip
+diff /tmp/key-roundtrip /tmp/node-maint-key
 ```
 Expected: no output (identical).
 
-- [ ] **Step 5: Save pub key to repo (for known_hosts reference — will bake into install-worker.sh via install.sh)**
+- [ ] **Step 6: Shred temp files**
 
 ```bash
-# Pub key is derivable from private at runtime (install.sh does this).
-# Capture pub for changelog + visibility:
-cat /tmp/node-maint-key.pub
-# Output example: ssh-ed25519 AAAAC3... node-maintenance@gmk-k3s-control-plane
-# Save to a scratch file for Task 16:
-cp /tmp/node-maint-key.pub /tmp/node-maint-key.pub.tmp
+shred -u /tmp/node-maint-key /tmp/node-maint-secret.yaml /tmp/key-roundtrip
+# Keep /tmp/node-maint-key.pub temporarily for Task 16 reference (not secret)
 ```
 
-- [ ] **Step 6: Securely delete private from /tmp**
+- [ ] **Step 7: Commit encrypted Secret**
 
 ```bash
-shred -u /tmp/node-maint-key
-```
-
-- [ ] **Step 7: Commit encrypted key**
-
-```bash
-git add docs/scripts/node-maintenance/secrets/id_ed25519.enc
-git commit -m "Add SOPS-encrypted SSH private key for node-maintenance"
+git add docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml
+git commit -m "Add SOPS-encrypted node-maintenance SSH key"
 ```
 
 ---
@@ -1368,7 +1398,28 @@ gh pr merge --squash --delete-branch
 
 **Files:** (no changes — verification only)
 
-- [ ] **Step 1: SSH to CP, pull latest main**
+- [ ] **Step 1a: Verify CP has repo cloned**
+
+```bash
+ssh -p 65300 akhozya@gmk-k3s-control-plane "test -d ~/source-code/homelab && cd ~/source-code/homelab && git rev-parse HEAD && git status --short"
+```
+Expected: commit SHA + clean working tree. If repo missing, clone it first: `git clone git@github.com:AKhozya/homelab.git ~/source-code/homelab`.
+
+- [ ] **Step 1b: Verify SOPS age key on CP**
+
+```bash
+ssh -p 65300 akhozya@gmk-k3s-control-plane "sudo test -r /root/.config/sops/age/keys.txt && echo 'OK: age key readable by root'"
+```
+Expected: `OK: age key readable by root`. If missing, copy it from your Mac to CP `/root/.config/sops/age/keys.txt` (chmod 0600, owned by root). Without it, install.sh aborts at SOPS precondition.
+
+- [ ] **Step 1c: Verify flux + kubectl on CP PATH (for root)**
+
+```bash
+ssh -p 65300 akhozya@gmk-k3s-control-plane "sudo bash -c 'command -v flux && command -v kubectl'"
+```
+Expected: paths to both binaries.
+
+- [ ] **Step 1d: Pull latest main on CP**
 
 ```bash
 ssh -p 65300 akhozya@gmk-k3s-control-plane "cd ~/source-code/homelab && git pull"

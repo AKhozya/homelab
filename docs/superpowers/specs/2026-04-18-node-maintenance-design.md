@@ -106,7 +106,7 @@ docs/scripts/node-maintenance/
 │   ├── telegram-notify.sh                  # Bash helper (used by systemd ExecStopPost)
 │   └── known_hosts                         # Baked SSH host keys for workers
 ├── secrets/
-│   └── id_ed25519.enc                      # SOPS-encrypted SSH private key
+│   └── ssh-key.sops.yaml                   # SOPS-encrypted k8s Secret YAML (stringData.ssh-private-key) — reuses existing .sops.yaml rule
 └── install.sh                              # Bootstrap script (root on CP)
 ```
 
@@ -516,7 +516,11 @@ set -euo pipefail
 [ "$(id -u)" = "0" ] || { echo "Run as root"; exit 1; }
 command -v ansible-playbook >/dev/null || pacman -S --noconfirm ansible
 command -v sops >/dev/null || pacman -S --noconfirm sops
+command -v jq  >/dev/null || pacman -S --noconfirm jq
+command -v age >/dev/null || pacman -S --noconfirm age
+command -v rsync >/dev/null || pacman -S --noconfirm rsync
 command -v kubectl >/dev/null || { echo "kubectl required"; exit 1; }
+command -v flux >/dev/null || { echo "flux required"; exit 1; }
 
 REPO_DIR="$(dirname "$(realpath "$0")")"
 
@@ -535,7 +539,8 @@ ansible-galaxy collection install -r /etc/node-maintenance/ansible/requirements.
 
 # ── SSH key (SOPS → disk) ──
 export SOPS_AGE_KEY_FILE=/root/.config/sops/age/keys.txt
-sops --decrypt "$REPO_DIR/secrets/id_ed25519.enc" > /var/lib/node-maintenance/.ssh/id_ed25519
+sops --decrypt --extract '["stringData"]["ssh-private-key"]' \
+  "$REPO_DIR/secrets/ssh-key.sops.yaml" > /var/lib/node-maintenance/.ssh/id_ed25519
 chown node-maintenance:node-maintenance /var/lib/node-maintenance/.ssh/id_ed25519
 chmod 0600 /var/lib/node-maintenance/.ssh/id_ed25519
 install -m 0644 "$REPO_DIR/lib/known_hosts" /etc/node-maintenance/known_hosts
@@ -687,7 +692,16 @@ ssh -p 65300 node-maintenance@<node> 'sudo pacman -U /var/cache/pacman/pkg/<pkg>
 
 # SSH key rotation (annual; update docs/SECRETS_ROTATION.md)
 # 1. ssh-keygen -t ed25519 -f /tmp/new_key -N ""
-# 2. sops encrypt --age <age-public-key> /tmp/new_key > docs/scripts/node-maintenance/secrets/id_ed25519.enc
+# 2. Wrap new private key in k8s Secret YAML: cat > /tmp/s.yaml <<EOF
+#    apiVersion: v1
+#    kind: Secret
+#    metadata: { name: node-maintenance-ssh, namespace: node-maintenance-not-deployed }
+#    type: Opaque
+#    stringData:
+#      ssh-private-key: |
+#        <indented private key>
+#    EOF
+#    sops --encrypt /tmp/s.yaml > docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml
 # 3. Append new pub to authorized_keys on all workers
 # 4. Run install.sh on CP
 # 5. Test: sudo -u node-maintenance ssh -p 65300 node-maintenance@worker-node true
