@@ -32,6 +32,15 @@ spec:
       tolerations:
         - effect: NoSchedule
           operator: Exists
+      # hostPath for node-maintenance systemd journal (F2 follow-up)
+      extraVolumes:
+        - name: journal
+          hostPath:
+            path: /var/log/journal
+        - name: machine-id
+          hostPath:
+            path: /etc/machine-id
+            type: File
 
     alloy:
       # Resource limits
@@ -45,9 +54,20 @@ spec:
           cpu: 200m
           memory: 512Mi
 
+      # hostPath mounts for node-maintenance systemd journal (F2 follow-up from
+      # docs/superpowers/specs/2026-04-18-node-maintenance-design.md). Read-only.
+      # Mount-only — blast radius limited by loki.source.journal matches below.
+      extraVolumeMounts:
+        - name: journal
+          mountPath: /var/log/journal
+          readOnly: true
+        - name: machine-id
+          mountPath: /etc/machine-id
+          readOnly: true
+
       # Alloy configuration (River/HCL syntax)
-      # Uses loki.source.kubernetes which tails logs via K8s API
-      # (no hostPath mounts needed, automatic pod metadata labels)
+      # loki.source.kubernetes tails pod logs via K8s API (no hostPath).
+      # loki.source.journal tails host systemd journal for node-maintenance services only.
       configMap:
         create: true
         content: |
@@ -102,6 +122,31 @@ spec:
               }
             }
 
+            forward_to = [loki.write.default.receiver]
+          }
+
+          // ── node-maintenance host journal tail ──
+          // Only node-maintenance* units surface; other journal entries dropped.
+          loki.relabel "nodemaint_journal" {
+            forward_to = []
+            rule {
+              source_labels = ["__journal__systemd_unit"]
+              target_label  = "unit"
+            }
+            rule {
+              source_labels = ["__journal__hostname"]
+              target_label  = "node_name"
+            }
+          }
+
+          loki.source.journal "nodemaint" {
+            max_age       = "12h"
+            path          = "/var/log/journal"
+            matches       = "_SYSTEMD_UNIT=node-maintenance-phase1.service _SYSTEMD_UNIT=node-maintenance-phase2.service _SYSTEMD_UNIT=node-maintenance-sync.service _SYSTEMD_UNIT=node-maintenance-kubectl-proxy.service _SYSTEMD_UNIT=node-maintenance.timer _SYSTEMD_UNIT=node-maintenance-sync.timer"
+            relabel_rules = loki.relabel.nodemaint_journal.rules
+            labels = {
+              job = "node-maintenance",
+            }
             forward_to = [loki.write.default.receiver]
           }
 

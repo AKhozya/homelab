@@ -1,0 +1,245 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node-maintenance-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  node-maintenance-dashboard.json: |-
+    {
+      "annotations": {
+        "list": [
+          {
+            "datasource": {"type": "loki", "uid": "loki"},
+            "enable": true,
+            "expr": "{job=\"node-maintenance\",unit=\"node-maintenance-phase1.service\"} |= \"Starting Node maintenance\"",
+            "iconColor": "blue",
+            "name": "Phase1 starts",
+            "target": {"limit": 100, "matchAny": false, "tags": [], "type": "dashboard"},
+            "titleFormat": "Phase 1 start"
+          },
+          {
+            "datasource": {"type": "loki", "uid": "loki"},
+            "enable": true,
+            "expr": "{job=\"node-maintenance\",unit=\"node-maintenance-phase2.service\"} |= \"Finished Node maintenance\"",
+            "iconColor": "green",
+            "name": "Phase2 end",
+            "titleFormat": "Phase 2 end"
+          }
+        ]
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": null},
+                  {"color": "yellow", "value": 604800},
+                  {"color": "red", "value": 691200}
+                ]
+              },
+              "unit": "dtdurations"
+            },
+            "overrides": []
+          },
+          "gridPos": {"h": 5, "w": 8, "x": 0, "y": 0},
+          "id": 1,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+            "textMode": "auto"
+          },
+          "pluginVersion": "11.0.0",
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "time() - node_maintenance_last_run_unixtime",
+              "legendFormat": "Since last run",
+              "refId": "A"
+            }
+          ],
+          "title": "Time Since Last Successful Run",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]},
+              "unit": "dateTimeFromNow"
+            }
+          },
+          "gridPos": {"h": 5, "w": 8, "x": 8, "y": 0},
+          "id": 2,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+            "textMode": "auto"
+          },
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "node_maintenance_last_run_unixtime * 1000",
+              "legendFormat": "Last run",
+              "refId": "A"
+            }
+          ],
+          "title": "Last Successful Run (timestamp)",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "fieldConfig": {
+            "defaults": {
+              "color": {"mode": "thresholds"},
+              "mappings": [
+                {"options": {"0": {"color": "green", "index": 0, "text": "Fresh (<7d)"}}, "type": "value"},
+                {"options": {"1": {"color": "red", "index": 1, "text": "STALE (>8d)"}}, "type": "value"}
+              ],
+              "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}
+            }
+          },
+          "gridPos": {"h": 5, "w": 8, "x": 16, "y": 0},
+          "id": 3,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "none",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+            "textMode": "value"
+          },
+          "targets": [
+            {
+              "datasource": {"type": "prometheus", "uid": "prometheus"},
+              "expr": "(time() - node_maintenance_last_run_unixtime > 8 * 86400) or on() vector(0)",
+              "legendFormat": "Status",
+              "refId": "A"
+            }
+          ],
+          "title": "Run Health",
+          "type": "stat"
+        },
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"custom": {"align": "auto"}}, "overrides": []},
+          "gridPos": {"h": 6, "w": 24, "x": 0, "y": 5},
+          "id": 4,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": false,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": true
+          },
+          "targets": [
+            {
+              "datasource": {"type": "loki", "uid": "loki"},
+              "expr": "{job=\"node-maintenance\"} |~ \"(?i)(starting|finished|failed|error|deactivated|✅|❌|🔧)\"",
+              "refId": "A"
+            }
+          ],
+          "title": "Run History (Loki) — start/finish/errors",
+          "type": "logs"
+        },
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"custom": {"align": "auto"}}, "overrides": []},
+          "gridPos": {"h": 12, "w": 24, "x": 0, "y": 11},
+          "id": 5,
+          "options": {
+            "dedupStrategy": "none",
+            "enableLogDetails": true,
+            "prettifyLogMessage": false,
+            "showCommonLabels": false,
+            "showLabels": true,
+            "showTime": true,
+            "sortOrder": "Descending",
+            "wrapLogMessage": true
+          },
+          "targets": [
+            {
+              "datasource": {"type": "loki", "uid": "loki"},
+              "expr": "{job=\"node-maintenance\"}",
+              "refId": "A"
+            }
+          ],
+          "title": "Full Logs (all units)",
+          "type": "logs"
+        },
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"custom": {"lineWidth": 1, "fillOpacity": 10}}, "overrides": []},
+          "gridPos": {"h": 7, "w": 12, "x": 0, "y": 23},
+          "id": 6,
+          "options": {
+            "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+            "tooltip": {"mode": "multi", "sort": "desc"}
+          },
+          "targets": [
+            {
+              "datasource": {"type": "loki", "uid": "loki"},
+              "expr": "sum by (unit) (count_over_time({job=\"node-maintenance\"}[1h]))",
+              "legendFormat": "{{unit}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Log volume per unit (1h rate)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {"type": "loki", "uid": "loki"},
+          "fieldConfig": {"defaults": {"custom": {"lineWidth": 1, "fillOpacity": 10}}, "overrides": []},
+          "gridPos": {"h": 7, "w": 12, "x": 12, "y": 23},
+          "id": 7,
+          "options": {
+            "legend": {"calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": true},
+            "tooltip": {"mode": "multi", "sort": "desc"}
+          },
+          "targets": [
+            {
+              "datasource": {"type": "loki", "uid": "loki"},
+              "expr": "sum by (unit) (count_over_time({job=\"node-maintenance\"} |~ \"(?i)(error|fatal|fail)\" [1h]))",
+              "legendFormat": "{{unit}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Errors per unit (1h rate)",
+          "type": "timeseries"
+        }
+      ],
+      "refresh": "30s",
+      "schemaVersion": 39,
+      "tags": ["node-maintenance", "homelab"],
+      "templating": {"list": []},
+      "time": {"from": "now-30d", "to": "now"},
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Node Maintenance",
+      "uid": "node-maintenance",
+      "version": 1,
+      "weekStart": ""
+    }

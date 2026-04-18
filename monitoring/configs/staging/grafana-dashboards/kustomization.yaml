@@ -7,3 +7,4 @@ resources:
   - loki-stack-dashboard.yaml
   - cert-manager-dashboard.yaml
   - backup-monitoring-dashboard.yaml
+  - node-maintenance-dashboard.yaml

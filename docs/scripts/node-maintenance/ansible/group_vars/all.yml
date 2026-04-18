@@ -14,10 +14,10 @@ telegram_chat_id_file: /etc/node-maintenance/telegram-chat-id
 # Kubernetes
 kubeconfig_path: /etc/rancher/k3s/k3s.yaml
 
-# Alertmanager — accessed via `kubectl proxy` (host can't reach svc.cluster.local)
-# Started/stopped around API calls in phase1 + phase2 (see alertmanager block).
-alertmanager_url: "http://127.0.0.1:8001/api/v1/namespaces/monitoring/services/kube-prometheus-stack-alertmanager:9093/proxy"
-kubectl_proxy_pid_file: "/run/node-maintenance-kubectl-proxy.pid"
+# Alertmanager — accessed via `kubectl exec` + amtool in the alertmanager pod.
+# (CP host can't reach pod CIDR; API-server-proxy 502's on pod dial. Earlier
+# approach used kubectl proxy + wget, now obsolete — kubectl-proxy.service kept
+# installed for potential rollback but not used by playbooks.)
 silence_duration_seconds: 5400   # 90 minutes (covers phase1 + CP reboot + phase2 typical runtime)
 silence_alertnames: "KubeletDown|KubernetesAPIServerDown|DeploymentReplicasMismatch|StatefulSetReplicasMismatch|CloudflareTunnelDown|CloudflareTunnelPodNotRunning|CloudflareTunnelNoConnections|CouchDBDown|CouchDBPodNotRunning|FluxReconciliationFailure|FluxSourceNotReady|KyvernoAdmissionControllerDown|LokiDown|LokiCompactorNotRunning|MySQLDown|MySQLHAProxyNotRunning|MySQLOrchestratorNotRunning|RedisDown|RedisPodNotRunning|AlertmanagerFailedToSendAlerts|AlloyDown|AlloyLogDeliveryFailing|DaemonSetNotScheduled|TraefikDown|RebuilderdWorkerDown|PrometheusTargetDown|KubePodCrashLooping|KubePodNotReady|TargetDown|TooManyPodsPending|JobFailed"
 
