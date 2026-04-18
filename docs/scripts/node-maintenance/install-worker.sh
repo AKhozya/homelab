@@ -12,8 +12,13 @@ esac
 [ "$(id -u)" = "0" ] || { echo "Run as root" >&2; exit 1; }
 
 # ── node-maintenance user ──
-id node-maintenance >/dev/null 2>&1 || \
-  useradd -r -s /usr/bin/nologin -m -d /var/lib/node-maintenance node-maintenance
+# Shell = /bin/bash required for SSH command execution (ansible).
+# Security: SSH key auth + sudoers; no password set.
+if id node-maintenance >/dev/null 2>&1; then
+  usermod -s /bin/bash node-maintenance
+else
+  useradd -r -s /bin/bash -m -d /var/lib/node-maintenance node-maintenance
+fi
 
 install -d -m 0700 -o node-maintenance -g node-maintenance /var/lib/node-maintenance/.ssh
 

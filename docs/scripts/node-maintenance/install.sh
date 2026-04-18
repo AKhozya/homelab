@@ -36,10 +36,17 @@ ERR
 }
 
 # ── user + dirs ──
-id node-maintenance >/dev/null 2>&1 || \
-  useradd -r -s /usr/bin/nologin -m -d /var/lib/node-maintenance node-maintenance
+# Shell = /bin/bash required for SSH command execution (ansible tasks).
+# Security: SSH key auth + sudoers; login via password disabled (no password set).
+if id node-maintenance >/dev/null 2>&1; then
+  usermod -s /bin/bash node-maintenance
+else
+  useradd -r -s /bin/bash -m -d /var/lib/node-maintenance node-maintenance
+fi
 
-install -d -m 0750 -o root             -g root            /etc/node-maintenance
+# /etc/node-maintenance: 0755 so node-maintenance user can traverse
+# (known_hosts file itself is public info; token/chat-id files are 0400 root-only)
+install -d -m 0755 -o root             -g root            /etc/node-maintenance
 install -d -m 0750 -o root             -g adm             /var/log/node-maintenance
 install -d -m 0700 -o node-maintenance -g node-maintenance /var/lib/node-maintenance/.ssh
 
