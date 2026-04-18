@@ -19,17 +19,24 @@
       changed_when: false
       failed_when: (active_backups.stdout | int) > 0
 
-    - name: Preflight — root free space
-      ansible.builtin.assert:
-        that:
-          - (ansible_mounts | selectattr('mount','equalto','/') | list | first).size_available > (min_free_root_gb * 1073741824)
-        fail_msg: "Free space on / below {{ min_free_root_gb }} GB"
+    - name: Preflight — collect / and /var disk space (df-based, avoids ansible_mounts conditional quirks)
+      ansible.builtin.shell: |
+        set -o pipefail
+        root_gb=$(df -BG --output=avail / | tail -1 | tr -dc '0-9')
+        var_mount=$(df --output=target /var 2>/dev/null | tail -1)
+        var_gb=$(df -BG --output=avail /var 2>/dev/null | tail -1 | tr -dc '0-9')
+        echo "root_gb=$root_gb var_gb=${var_gb:-$root_gb} var_mount=$var_mount"
+      args:
+        executable: /bin/bash
+      register: disk_check
+      changed_when: false
 
-    - name: Preflight — /var free space
+    - name: Preflight — assert disk space thresholds
       ansible.builtin.assert:
         that:
-          - (ansible_mounts | selectattr('mount','equalto','/var') | list | first | default({'size_available': 9999999999999})).size_available > (min_free_var_gb * 1073741824)
-        fail_msg: "Free space on /var below {{ min_free_var_gb }} GB"
+          - "(disk_check.stdout | regex_search('root_gb=(\\d+)', '\\\\1') | first | int) >= (min_free_root_gb | int)"
+          - "(disk_check.stdout | regex_search('var_gb=(\\d+)', '\\\\1') | first | int) >= (min_free_var_gb | int)"
+        fail_msg: "Disk preflight failed: {{ disk_check.stdout }}"
 
     - name: Preflight — Flux kustomizations all Ready
       ansible.builtin.shell: |
