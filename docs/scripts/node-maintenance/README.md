@@ -24,6 +24,18 @@ Automated weekly Arch Linux updates across all 3 K3s nodes.
      node-maintenance@192.168.1.129 true
    ```
 
+## Sync changes (after editing playbooks / systemd units)
+
+From Mac, after `git push`:
+
+```bash
+bash docs/scripts/node-maintenance/sync-node-maintenance.sh
+```
+
+Pulls latest on CP (auto-clones if missing), runs `install.sh --sync-only` (skips user/sudoers/SSH-key/Telegram-creds; syncs `/etc/node-maintenance/ansible/`, systemd units, telegram-notify.sh, `daemon-reload`). Idempotent.
+
+Overrides via env: `NODE_MAINT_CP_HOST`, `NODE_MAINT_CP_USER`, `NODE_MAINT_CP_PORT`, `NODE_MAINT_REPO_URL`, `NODE_MAINT_BRANCH`, `NODE_MAINT_REPO_DIR`.
+
 ## Day-to-day ops
 
 ```bash
