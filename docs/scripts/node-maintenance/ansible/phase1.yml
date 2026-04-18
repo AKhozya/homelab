@@ -17,19 +17,20 @@
         executable: /bin/bash
       register: active_backups
       changed_when: false
+      check_mode: false
       failed_when: (active_backups.stdout | int) > 0
 
     - name: Preflight — collect / and /var disk space (df-based, avoids ansible_mounts conditional quirks)
       ansible.builtin.shell: |
         set -o pipefail
         root_gb=$(df -BG --output=avail / | tail -1 | tr -dc '0-9')
-        var_mount=$(df --output=target /var 2>/dev/null | tail -1)
         var_gb=$(df -BG --output=avail /var 2>/dev/null | tail -1 | tr -dc '0-9')
-        echo "root_gb=$root_gb var_gb=${var_gb:-$root_gb} var_mount=$var_mount"
+        echo "root_gb=$root_gb var_gb=${var_gb:-$root_gb}"
       args:
         executable: /bin/bash
       register: disk_check
       changed_when: false
+      check_mode: false
 
     - name: Preflight — assert disk space thresholds
       ansible.builtin.assert:
@@ -46,6 +47,7 @@
       args:
         executable: /bin/bash
       changed_when: false
+      check_mode: false
 
     - name: Preflight — workers reachable
       ansible.builtin.command: >-
@@ -57,6 +59,7 @@
         - 192.168.1.129
         - 192.168.1.126
       changed_when: false
+      check_mode: false
 
     # ── NOTIFY START ──────────────────────────────────────────
     - name: Telegram — run starting
