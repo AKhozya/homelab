@@ -1,0 +1,86 @@
+---
+# firewall — UFW policies, rules, route rules, enable.
+# Applies to: all hosts. Idempotent — community.general.ufw skips rules already
+# present (matched by src/dst/port/proto, ignoring comment).
+#
+# Safety: UFW is already active on all 3 nodes with a working rule set.
+# This role is declarative-additive: it will not delete rules not in the list.
+# To remove a rule, edit live state manually + the var, then re-run.
+# Never `ufw reset` here — lockout risk.
+
+- name: Ensure ufw package is installed
+  ansible.builtin.package:
+    name: ufw
+    state: present
+  tags: [firewall]
+
+# SSH rule first — guarantees lockout-safety if policies applied before rules
+# ever produce an inconsistent state (should not happen in steady state, but
+# cheap insurance).
+- name: Ensure SSH rule (lockout-safety, applied before policies)
+  community.general.ufw:
+    rule: allow
+    from_ip: 192.168.1.0/24
+    to_port: "65300"
+    proto: tcp
+    comment: "SSH from LAN"
+  tags: [firewall]
+
+- name: Set UFW default incoming policy + logging
+  community.general.ufw:
+    default: "{{ ufw_policy_incoming }}"
+    direction: incoming
+    logging: "{{ ufw_logging }}"
+  tags: [firewall]
+
+- name: Set UFW default outgoing policy
+  community.general.ufw:
+    default: "{{ ufw_policy_outgoing }}"
+    direction: outgoing
+  tags: [firewall]
+
+- name: Set UFW default routed policy
+  community.general.ufw:
+    default: "{{ ufw_policy_routed }}"
+    direction: routed
+  tags: [firewall]
+
+- name: Apply UFW rules (base + group + host)
+  community.general.ufw:
+    rule: "{{ item.rule }}"
+    from_ip: "{{ item.from_ip | default(omit) }}"
+    to_ip: "{{ item.to_ip | default(omit) }}"
+    from_port: "{{ item.from_port | default(omit) }}"
+    to_port: "{{ item.to_port | default(omit) }}"
+    proto: "{{ item.proto | default(omit) }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ ufw_rules_base + ufw_rules_group + ufw_rules_host }}"
+  loop_control:
+    label: "{{ item.comment | default('rule') }} / {{ item.rule }} from={{ item.from_ip | default('any') }} to={{ item.to_port | default('any') }}/{{ item.proto | default('any') }}"
+  tags: [firewall]
+
+- name: Apply UFW route rules (base + group + host)
+  community.general.ufw:
+    rule: "{{ item.rule }}"
+    route: true
+    from_ip: "{{ item.from_ip | default(omit) }}"
+    to_ip: "{{ item.to_ip | default(omit) }}"
+    from_port: "{{ item.from_port | default(omit) }}"
+    to_port: "{{ item.to_port | default(omit) }}"
+    proto: "{{ item.proto | default(omit) }}"
+    comment: "{{ item.comment | default(omit) }}"
+  loop: "{{ ufw_route_rules_base + ufw_route_rules_group + ufw_route_rules_host }}"
+  loop_control:
+    label: "{{ item.comment | default('route') }} / {{ item.rule }} {{ item.from_ip | default('any') }} -> {{ item.to_ip | default('any') }}"
+  tags: [firewall]
+
+- name: Enable UFW (no-op if already enabled)
+  community.general.ufw:
+    state: enabled
+  tags: [firewall]
+
+- name: Ensure ufw.service enabled at boot
+  ansible.builtin.systemd_service:
+    name: ufw.service
+    enabled: true
+  tags: [firewall]

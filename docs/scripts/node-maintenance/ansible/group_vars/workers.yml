@@ -1,0 +1,5 @@
+---
+# workers group overrides (worker-node, worker-node-2).
+# Currently no shared extras — both workers diverge on pod-to-node route
+# comment (W2: "to nodes", W1: "(API server)") + W2 broad routes + 8472 LAN.
+# All per-worker rules live in host_vars/.

@@ -44,3 +44,39 @@ flux_kustomizations:
 
 # yay command (used in both phases)
 yay_cmd: "sudo -u node-maintenance yay -Syu --noconfirm --answerdiff=None --answerclean=None --removemake"
+
+# ---- UFW firewall (Phase C) ----
+# Policies: default-deny incoming/routed, allow outgoing. Logging low = user.log noise-free.
+ufw_policy_incoming: deny
+ufw_policy_outgoing: allow
+ufw_policy_routed: deny
+ufw_logging: low
+
+# Base rules common to all 3 nodes (captured from live state 2026-04-18).
+# Order preserved as UFW orders rules internally by insertion; module idempotency
+# compares rule match (not comment), so minor comment drift is tolerated as no-op.
+# Duplicate-looking entries (e.g. port 80 vs 80/tcp) are intentional — UFW treats
+# them as distinct rules and live state has both.
+ufw_rules_base:
+  - { comment: "SSH from LAN",          rule: allow, from_ip: 192.168.1.0/24, to_port: 65300, proto: tcp }
+  - { comment: "K3s control-plane",     rule: allow, from_ip: 192.168.1.127 }
+  - { comment: "K3s worker-node",       rule: allow, from_ip: 192.168.1.129 }
+  - { comment: "K3s worker-node-2",     rule: allow, from_ip: 192.168.1.126 }
+  - { rule: allow, from_ip: 192.168.1.0/24, to_port: 80 }
+  - { comment: "K3s pod network",       rule: allow, from_ip: 10.42.0.0/16 }
+  - { comment: "K3s service network",   rule: allow, from_ip: 10.43.0.0/16 }
+  - { comment: "Flannel VXLAN overlay", rule: allow, to_port: 8472,  proto: udp }
+  - { comment: "Kubelet API",           rule: allow, to_port: 10250, proto: tcp }
+  - { comment: "HTTP from LAN",         rule: allow, from_ip: 192.168.1.0/24, to_port: 80,  proto: tcp }
+  - { comment: "HTTPS from LAN",        rule: allow, from_ip: 192.168.1.0/24, to_port: 443, proto: tcp }
+  - { rule: allow, from_ip: 10.42.0.0/16, to_port: 8000, proto: tcp }
+
+# Base route rules common to all 3 nodes.
+ufw_route_rules_base:
+  - { comment: "K3s pod-to-pod traffic", rule: allow, from_ip: 10.42.0.0/16, to_ip: 10.42.0.0/16 }
+
+# Per-group / per-host overrides (fill ufw_rules_group/host + ufw_route_rules_group/host).
+ufw_rules_group: []
+ufw_rules_host: []
+ufw_route_rules_group: []
+ufw_route_rules_host: []

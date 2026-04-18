@@ -11,3 +11,17 @@ rebuilderd_mem_comment: |
   # triggered OOM killer, and killed MySQL pods on the same node (2026-02-21).
   # 14GB leaves ~16GB for K8s pods; large builds fail inside cgroup instead
   # of pressuring the whole system. Swap increased 8G->16G so large LTO builds survive.
+
+# ---- UFW firewall (Phase C) ----
+# W2-specific rules (captured live 2026-04-18).
+# Extras vs base: 8472/udp from LAN (narrow dup of anywhere rule — preserved).
+ufw_rules_host:
+  - { comment: "Flannel VXLAN", rule: allow, from_ip: 192.168.1.0/24, to_port: 8472, proto: udp }
+
+# W2 route rules: pod-to-node (diff comment vs CP/W1) + 2 legacy broad forwards.
+# Broad routes are supersets of pod-to-pod but left in place to match live state;
+# cleanup tracked as followup.
+ufw_route_rules_host:
+  - { comment: "K3s pod to nodes", rule: allow, from_ip: 10.42.0.0/16, to_ip: 192.168.1.0/24 }
+  - { rule: allow, from_ip: 10.42.0.0/16 }
+  - { rule: allow, to_ip: 10.42.0.0/16 }

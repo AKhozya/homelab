@@ -12,3 +12,14 @@ rebuilderd_mem_comment: |
   # openvdb ~34GB) to complete. K8s actual usage is ~13.5GB of 61GB total,
   # so 32GB leaves ~29GB headroom for pods. OOM kills at 24GB were contained
   # in rebuilderd cgroup (no K8s impact) but caused build failures (2026-02-21).
+
+# ---- UFW firewall (Phase C) ----
+# W1-specific rules (captured live 2026-04-18).
+# Extras vs base: 10.42.2.0/24 (W2 pod subnet — redundant vs 10.42.0.0/16 but preserved).
+ufw_rules_host:
+  - { comment: "K8s pod network worker-node-2", rule: allow, from_ip: 10.42.2.0/24 }
+
+# W1 route rules: pod-to-node + node-to-pod (same as CP).
+ufw_route_rules_host:
+  - { comment: "K3s pod-to-node traffic (API server)", rule: allow, from_ip: 10.42.0.0/16, to_ip: 192.168.1.0/24 }
+  - { comment: "K3s node-to-pod traffic", rule: allow, from_ip: 192.168.1.0/24, to_ip: 10.42.0.0/16 }

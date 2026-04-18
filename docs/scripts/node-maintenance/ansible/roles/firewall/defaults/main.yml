@@ -1,0 +1,14 @@
+---
+# firewall role defaults. Overridden via group_vars/host_vars.
+ufw_policy_incoming: deny
+ufw_policy_outgoing: allow
+ufw_policy_routed: deny
+ufw_logging: low
+
+ufw_rules_base: []
+ufw_rules_group: []
+ufw_rules_host: []
+
+ufw_route_rules_base: []
+ufw_route_rules_group: []
+ufw_route_rules_host: []

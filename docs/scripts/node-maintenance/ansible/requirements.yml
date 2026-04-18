@@ -1,6 +1,9 @@
 ---
 # kubernetes.core 6.x is current latest (6.3.0, 2026). Requires ansible-core >= 2.16.
 # Arch `ansible` 13.5.0-1 provides ansible-core 2.20+ so safely compatible.
+# community.general provides the ufw module used by Phase C (firewall) role.
 collections:
   - name: kubernetes.core
     version: ">=6.0.0,<7.0.0"
+  - name: community.general
+    version: ">=9.0.0,<14.0.0"
