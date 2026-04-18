@@ -112,6 +112,7 @@
 | n8n PgBouncer `statement_timeout` fix — re-check #25705 | May 2026 | P3 |
 | High-pri secret rotation (PG: authentik/immich/n8n, MySQL: HA, Redis: immich) | 2026-07-01 | P1 |
 | Re-check HA OIDC when hass-oidc-auth stable lands | Backlog | P3 |
+| Node config → ansible (5-phase: base/rebuilderd/UFW/hardening/ad-hoc) — plan: `docs/superpowers/plans/2026-04-18-node-config-ansible.md` | Backlog | P3 |
 
 **Next Review**: 2026-05-04 (Monthly)
 
