@@ -98,6 +98,7 @@
         mode: '0600'
         owner: root
         group: root
+      when: silence_response.json is defined and silence_response.json.silenceID is defined
 
     - name: Stop kubectl proxy
       ansible.builtin.shell: |
