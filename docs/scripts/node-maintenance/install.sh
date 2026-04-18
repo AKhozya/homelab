@@ -65,10 +65,10 @@ ERR
     useradd -r -s /bin/bash -m -d /var/lib/node-maintenance node-maintenance
   fi
 
-  # ── sudoers ──
+  # ── sudoers bootstrap ──
   # yay (run as node-maintenance) internally calls `sudo pacman` — needs NOPASSWD.
-  # Same pattern as workers (install-worker.sh). Trust surface = user account
-  # (SSH login disabled: no password set, /etc/ssh/sshd_config omits node-maintenance).
+  # Ansible node-config playbook owns this file going forward; bootstrap write here
+  # is only for the first-install window before ansible has run.
   cat > /etc/sudoers.d/node-maintenance <<'EOF'
 node-maintenance ALL=(ALL) NOPASSWD: ALL
 EOF
@@ -127,6 +127,8 @@ install -m 0644 "$REPO_DIR/systemd/node-maintenance-sync.service"              /
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-sync.timer"                /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-security-scan.service"     /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-security-scan.timer"       /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance-config.service"            /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance-config.timer"              /etc/systemd/system/
 
 # ── github known_hosts (for deploy-key-based git sync) ──
 # Baked once; rotation = delete + re-run install.sh (ssh-keyscan re-fetches).
@@ -135,25 +137,21 @@ if [ ! -s /etc/node-maintenance/github_known_hosts ]; then
   chmod 0644 /etc/node-maintenance/github_known_hosts
 fi
 
-# ── logrotate configs (CP: pacman + node-maintenance + security-tools) ──
-install -m 0644 "$REPO_DIR/logrotate/pacman"             /etc/logrotate.d/pacman
-install -m 0644 "$REPO_DIR/logrotate/node-maintenance"   /etc/logrotate.d/node-maintenance
-install -m 0644 "$REPO_DIR/logrotate/security-tools"     /etc/logrotate.d/security-tools
-logrotate --debug /etc/logrotate.conf >/dev/null 2>&1 || true   # syntax smoke-check
-
-# ── journald caps (500M max, 30d retention) ──
-install -d -m 0755 /etc/systemd/journald.conf.d
-install -m 0644 "$REPO_DIR/systemd/journald.conf.d/99-caps.conf" /etc/systemd/journald.conf.d/99-caps.conf
-# Remove stale duplicate from earlier attempt (if present)
-rm -f /etc/systemd/journald.conf.d/00-caps.conf
-
 systemctl daemon-reload
-systemctl restart systemd-journald.service
-# Enable distro logrotate.timer (Arch ships it, not enabled by default)
-systemctl enable --now logrotate.timer
 
-# Enable security-scan timer always (idempotent) so existing nodes pick it up on sync.
+# Enable security-scan + node-config drift-heal timers always (idempotent).
 systemctl enable --now node-maintenance-security-scan.timer
+systemctl enable --now node-maintenance-config.timer
+
+# ── run initial node-config drift-heal (ansible owns logrotate/journald/sudoers/user) ──
+# Synchronous — fails install.sh if ansible fails, surfaces issue immediately.
+if [ -x /usr/bin/ansible-playbook ] && [ -f /etc/node-maintenance/ansible/node-config.yml ]; then
+  echo "==> Running initial node-config drift-heal"
+  systemctl start --wait node-maintenance-config.service || {
+    echo "ERROR: initial node-config run failed; see journalctl -u node-maintenance-config.service" >&2
+    exit 1
+  }
+fi
 
 if [ "$SYNC_ONLY" -eq 0 ]; then
   systemctl enable --now node-maintenance-kubectl-proxy.service
