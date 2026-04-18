@@ -6,6 +6,38 @@ Automated weekly Arch Linux updates across all 3 K3s nodes.
 **Flow:** CP phase1 (update + reboot) → CP phase2 on boot (worker rolling update + cleanup)
 **Notifications:** Telegram (reuses `backup-replication/backup-telegram` bot)
 
+## Node Config Drift-Heal (ansible)
+
+Declarative config managed by `ansible/node-config.yml` (Phase A scope: logrotate, journald caps, sudoers, node-maintenance user, rebuilderd-worker override). Runs from CP, targets all 3 nodes.
+
+**Schedule:** daily 03:00 UTC (`node-maintenance-config.timer`)
+**Also runs:** after `node-maintenance-sync.service` pulls new `main` HEAD (post-pull drift apply)
+**Log:** `/var/log/node-maintenance/config-latest.log` (truncated each run; archived via logrotate)
+**Telegram:** fires if `changed>0` or run fails (alert includes counts; silent when idempotent)
+
+Manual trigger:
+```bash
+sudo systemctl start node-maintenance-config.service
+# Check last run
+journalctl -u node-maintenance-config.service -n 80 --no-pager
+# Dry-run (no changes):
+sudo ansible-playbook --check -D -i /etc/node-maintenance/ansible/inventory.yml \
+  /etc/node-maintenance/ansible/node-config.yml
+```
+
+Tag-scoped run (debug):
+```bash
+sudo ansible-playbook --tags logrotate -D \
+  -i /etc/node-maintenance/ansible/inventory.yml \
+  /etc/node-maintenance/ansible/node-config.yml
+```
+
+**Edit workflow:** modify file in `ansible/roles/base_config/files/` or template → `git push` → CP sync timer pulls → `install.sh --sync-only` runs → `node-maintenance-config.service` re-applies → Telegram alert on `changed>0`.
+
+**Migration phases (in plan `docs/superpowers/plans/2026-04-18-node-config-ansible.md`):** A (this) / B (k3s-image-gc + rebuilderd ancillary) / C (UFW) / D (SSH/sysctl/kubelet) / E (ad-hoc tagged).
+
+---
+
 ## Monthly Security Scan
 
 Parallel pipeline, runs on **each node locally** (no orchestration).
