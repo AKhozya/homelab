@@ -179,16 +179,23 @@
         return_content: true
       register: firing_alerts
 
-    - name: Read silence ID
+    - name: Read silence ID (if present)
       ansible.builtin.slurp:
         src: "{{ silence_id_file }}"
       register: silence_id_b64
+      failed_when: false
 
-    - name: Delete auto-silence
+    - name: Delete auto-silence (if ID persisted)
       ansible.builtin.uri:
         url: "{{ alertmanager_url }}/api/v2/silence/{{ silence_id_b64.content | b64decode | trim }}"
         method: DELETE
         status_code: [200, 404]
+      when: silence_id_b64.content is defined
+
+    - name: Remove silence-id file
+      ansible.builtin.file:
+        path: "{{ silence_id_file }}"
+        state: absent
 
     - name: Emit node_exporter textfile metric
       ansible.builtin.copy:

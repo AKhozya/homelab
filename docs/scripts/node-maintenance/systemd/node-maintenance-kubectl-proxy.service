@@ -6,7 +6,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml proxy --port=8001 --address=127.0.0.1 --accept-hosts=^127\\.0\\.0\\.1$
+ExecStart=/usr/local/bin/kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml proxy --port=8001 --address=127.0.0.1 --accept-hosts=.*
 Restart=on-failure
 RestartSec=10
 # Localhost-only binding; admin kubeconfig — same trust tier as /etc/rancher/k3s/k3s.yaml
