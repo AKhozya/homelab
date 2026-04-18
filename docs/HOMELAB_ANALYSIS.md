@@ -125,6 +125,7 @@
 
 **Recent highlights** (2026):
 - 2026-04-18: Automated weekly node updates deployed — Sat 04:30 UTC, Ansible-driven, dedicated node-maintenance user, SOPS-encrypted SSH key, Telegram notifications. Live-tested full run (all 3 nodes); next fire 2026-04-25
+- 2026-04-18: Node-maintenance auto-sync online — systemd timer on CP (`*:0/10`), pulls `main` via read-only GitHub deploy key (`/root/.ssh/homelab-deploy`), conditional `install.sh --sync-only` if HEAD changed, Telegram alert on failure. Manual trigger: `sync-node-maintenance.sh`
 - 2026-04-13: All 3 nodes → zsh + chezmoi dotfiles (portable .zshrc template, modern CLI tools)
 - 2026-04-11: Claude Telegram bot deployed (Agent SDK, fork of linuz90/claude-telegram-bot)
 - 2026-04-09: VictoriaMetrics migration (71% RAM savings)
