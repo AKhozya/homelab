@@ -89,16 +89,54 @@ spec:
               # Create data dir for session persistence
               mkdir -p ~/data
 
+              # Save pre-update versions
+              OLD_CLI=$(npx @anthropic-ai/claude-code --version 2>/dev/null || echo "unknown")
+              OLD_SDK=$(node -e "console.log(require('/app/node_modules/@anthropic-ai/claude-agent-sdk/package.json').version)" 2>/dev/null || echo "unknown")
+
               # Update Claude Code CLI + Agent SDK on every restart
               echo "Updating Claude Code CLI..."
               npm update -g @anthropic-ai/claude-code 2>&1 || true
               echo "Updating Agent SDK..."
               cd /app && bun update @anthropic-ai/claude-agent-sdk 2>&1 || true
 
+              # Get post-update versions
+              NEW_CLI=$(npx @anthropic-ai/claude-code --version 2>/dev/null || echo "unknown")
+              NEW_SDK=$(node -e "console.log(require('/app/node_modules/@anthropic-ai/claude-agent-sdk/package.json').version)" 2>/dev/null || echo "unknown")
+
+              # Notify via Telegram on version changes
+              if [ "$OLD_CLI" != "$NEW_CLI" ] || [ "$OLD_SDK" != "$NEW_SDK" ]; then
+                MSG="🤖 <b>Claude Bot Restarted — Updates Applied</b>
+
+              CLI: <code>${OLD_CLI}</code> → <code>${NEW_CLI}</code>
+              SDK: <code>${OLD_SDK}</code> → <code>${NEW_SDK}</code>"
+              else
+                MSG="🤖 <b>Claude Bot Restarted</b>
+
+              CLI: <code>${NEW_CLI}</code>
+              SDK: <code>${NEW_SDK}</code>
+              No version changes."
+              fi
+
+              if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+                curl -s -X POST \
+                  "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+                  -d chat_id="${TELEGRAM_CHAT_ID}" \
+                  -d parse_mode=HTML \
+                  --data-urlencode "text=${MSG}" \
+                  -o /dev/null 2>/dev/null || true
+              fi
+
               echo "Init complete."
           env:
             - name: HOME
               value: /home/akhozya
+            - name: TELEGRAM_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: claude-telegram-env
+                  key: telegram-bot-token
+            - name: TELEGRAM_CHAT_ID
+              value: "113452686"
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
