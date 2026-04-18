@@ -10,15 +10,30 @@ KUBECONFIG_PATH="/etc/rancher/k3s/k3s.yaml"
 
 # ── Preconditions ──
 command -v ansible-playbook >/dev/null 2>&1 || pacman -S --noconfirm ansible
-command -v sops >/dev/null 2>&1 || pacman -S --noconfirm sops
 command -v jq >/dev/null 2>&1 || pacman -S --noconfirm jq
-command -v age >/dev/null 2>&1 || pacman -S --noconfirm age
 command -v rsync >/dev/null 2>&1 || pacman -S --noconfirm rsync
 command -v kubectl >/dev/null 2>&1 || { echo "kubectl required" >&2; exit 1; }
 command -v flux >/dev/null 2>&1 || { echo "flux required" >&2; exit 1; }
 [ -r "$KUBECONFIG_PATH" ] || { echo "$KUBECONFIG_PATH not readable" >&2; exit 1; }
-[ -n "${SOPS_AGE_KEY_FILE:-}" ] || export SOPS_AGE_KEY_FILE=/root/.config/sops/age/keys.txt
-[ -r "$SOPS_AGE_KEY_FILE" ] || { echo "SOPS age key missing: $SOPS_AGE_KEY_FILE" >&2; exit 1; }
+
+# ── SSH key source (expect plain decrypted key from Mac) ──
+KEY_SRC="${NODE_MAINT_KEY_SRC:-/tmp/node-maintenance-ssh-key}"
+[ -r "$KEY_SRC" ] || {
+  cat >&2 <<ERR
+SSH private key not found at: $KEY_SRC
+
+Expected workflow — run ONCE on Mac before install.sh:
+
+  sops --decrypt --extract '["stringData"]["ssh-private-key"]' \\
+    docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml \\
+    | ssh -p 65300 akhozya@gmk-k3s-control-plane \\
+        'cat > $KEY_SRC && chmod 600 $KEY_SRC'
+
+Then re-run this script. install.sh will copy + chmod + shred the temp file.
+Override path via env: NODE_MAINT_KEY_SRC=/custom/path sudo bash install.sh
+ERR
+  exit 1
+}
 
 # ── user + dirs ──
 id node-maintenance >/dev/null 2>&1 || \
@@ -33,11 +48,10 @@ rsync -a --delete "$REPO_DIR/ansible/" /etc/node-maintenance/ansible/
 chmod 0600 /etc/node-maintenance/ansible/inventory.yml
 ansible-galaxy collection install -r /etc/node-maintenance/ansible/requirements.yml --force
 
-# ── SSH key (SOPS Secret YAML → disk, extract stringData.ssh-private-key) ──
-sops --decrypt --extract '["stringData"]["ssh-private-key"]' \
-  "$REPO_DIR/secrets/ssh-key.sops.yaml" > /var/lib/node-maintenance/.ssh/id_ed25519
-chown node-maintenance:node-maintenance /var/lib/node-maintenance/.ssh/id_ed25519
-chmod 0600 /var/lib/node-maintenance/.ssh/id_ed25519
+# ── SSH key (copy from pre-decrypted path, shred source) ──
+install -m 0600 -o node-maintenance -g node-maintenance \
+  "$KEY_SRC" /var/lib/node-maintenance/.ssh/id_ed25519
+shred -u "$KEY_SRC" 2>/dev/null || rm -f "$KEY_SRC"
 
 # Derive pub key from private (no separate storage)
 ssh-keygen -y -f /var/lib/node-maintenance/.ssh/id_ed25519 \

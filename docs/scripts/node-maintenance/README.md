@@ -72,17 +72,75 @@ sudo rm /var/lib/node-maintenance/phase2-pending
 ssh -p 65300 <worker> 'sudo pacman -U /var/cache/pacman/pkg/<pkg>-<prev-version>.pkg.tar.zst'
 ```
 
-## SSH key rotation (annual)
+## Install / SSH key rotation (Mac-driven — no age key on CP)
+
+All SOPS decryption happens on Mac. Plain key transits to CP via SSH pipe, lives in `/tmp` only long enough for `install.sh` to copy+shred.
 
 Tracked in `docs/SECRETS_ROTATION.md` under `node-maintenance-ssh`.
 
-1. Generate new keypair: `ssh-keygen -t ed25519 -f /tmp/new_key -N ""`
-2. Wrap in k8s Secret YAML (see spec §15 for exact template), then:
-   `sops --encrypt /tmp/new_secret.yaml > docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml`
-3. Commit + push.
-4. On each worker: append new pub to `/var/lib/node-maintenance/.ssh/authorized_keys`.
-5. Run `install.sh` on CP (re-decrypts new key).
-6. Verify: `sudo -u node-maintenance ssh ... node-maintenance@<worker> true`.
-7. Remove old pub from workers' `authorized_keys`.
-8. Update `docs/SECRETS_ROTATION.md` with new rotation date.
-9. `shred -u /tmp/new_key /tmp/new_key.pub`.
+### Initial install
+
+```bash
+# On Mac: decrypt SSH key → stream to CP
+sops --decrypt --extract '["stringData"]["ssh-private-key"]' \
+  docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml \
+  | ssh -p 65300 akhozya@gmk-k3s-control-plane \
+      'cat > /tmp/node-maintenance-ssh-key && chmod 600 /tmp/node-maintenance-ssh-key'
+
+# Copy install folder to CP (if not already)
+scp -P 65300 -r docs/scripts/node-maintenance akhozya@gmk-k3s-control-plane:
+
+# On CP: run install
+ssh -p 65300 akhozya@gmk-k3s-control-plane
+sudo bash ~/node-maintenance/install.sh
+# Follow printed instructions to scp + run install-worker.sh on both workers
+```
+
+`install.sh` shreds `/tmp/node-maintenance-ssh-key` after copying it into `/var/lib/node-maintenance/.ssh/id_ed25519`.
+
+### Rotation (annual)
+
+```bash
+# 1. On Mac: generate fresh keypair
+ssh-keygen -t ed25519 -f /tmp/new_key -N "" -C "node-maintenance@gmk-k3s-control-plane"
+
+# 2. Wrap as SOPS Secret YAML (same as spec §15):
+cat > /tmp/new-secret.yaml <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+    name: node-maintenance-ssh
+    namespace: node-maintenance-not-deployed
+type: Opaque
+stringData:
+    ssh-private-key: |
+$(sed 's/^/        /' /tmp/new_key)
+EOF
+
+# 3. Encrypt + commit new key version
+sops --encrypt /tmp/new-secret.yaml > docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml
+git add docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml
+git commit -m "Rotate node-maintenance-ssh (YYYY-MM-DD)"
+git push
+
+# 4. Capture pub key for worker-side
+cat /tmp/new_key.pub
+# Copy to each worker's authorized_keys (as node-maintenance user or root):
+ssh -p 65300 akhozya@worker-node "echo '<PASTE_PUB_KEY>' | sudo tee -a /var/lib/node-maintenance/.ssh/authorized_keys"
+ssh -p 65300 z3us@worker-node-2 "echo '<PASTE_PUB_KEY>' | sudo tee -a /var/lib/node-maintenance/.ssh/authorized_keys"
+
+# 5. Stream new private to CP + re-run install.sh
+cat /tmp/new_key | ssh -p 65300 akhozya@gmk-k3s-control-plane \
+  'cat > /tmp/node-maintenance-ssh-key && chmod 600 /tmp/node-maintenance-ssh-key'
+ssh -p 65300 akhozya@gmk-k3s-control-plane "sudo bash ~/node-maintenance/install.sh"
+
+# 6. Verify CP → workers as node-maintenance
+ssh -p 65300 akhozya@gmk-k3s-control-plane "sudo -u node-maintenance ssh -p 65300 -i /var/lib/node-maintenance/.ssh/id_ed25519 -o UserKnownHostsFile=/etc/node-maintenance/known_hosts node-maintenance@192.168.1.129 true"
+
+# 7. Remove OLD pub from workers' authorized_keys (manual edit)
+
+# 8. Shred temp files on Mac
+gshred -u /tmp/new_key /tmp/new_key.pub /tmp/new-secret.yaml
+
+# 9. Update docs/SECRETS_ROTATION.md with new rotation date
+```
