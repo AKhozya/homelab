@@ -1,6 +1,6 @@
-# Node maintenance phase1/phase2 ansible logs (CP only).
+# Node maintenance phase1/phase2 + config drift-heal ansible logs (CP only).
 # File names include DD-MM-YYYY, so re-runs on same day append (hence maxsize).
-/var/log/node-maintenance/phase1-*.log /var/log/node-maintenance/phase2-*.log {
+/var/log/node-maintenance/phase1-*.log /var/log/node-maintenance/phase2-*.log /var/log/node-maintenance/config-*.log {
     weekly
     rotate 8
     maxsize 10M

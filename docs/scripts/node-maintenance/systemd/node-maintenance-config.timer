@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily node-config drift-heal (ansible)
+Documentation=file:///etc/node-maintenance/README.md
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+Unit=node-maintenance-config.service
+
+[Install]
+WantedBy=timers.target
