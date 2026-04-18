@@ -162,22 +162,31 @@
       environment:
         KUBECONFIG: "{{ kubeconfig_path }}"
 
-    # ── Alertmanager interactions (via persistent kubectl proxy on 127.0.0.1:8001) ──
-    - name: Verify kubectl proxy responsive
-      ansible.builtin.uri:
-        url: "http://127.0.0.1:8001/api"
-        method: GET
-        status_code: 200
-      register: proxy_probe
-      retries: 3
-      delay: 2
-      until: proxy_probe.status == 200
+    # ── Alertmanager interactions (via kubectl exec into alertmanager pod) ──
+    - name: Find alertmanager pod
+      ansible.builtin.shell: |
+        kubectl --kubeconfig={{ kubeconfig_path }} -n monitoring \
+          get pods -l app.kubernetes.io/name=alertmanager \
+          -o jsonpath='{.items[0].metadata.name}'
+      args:
+        executable: /bin/bash
+      register: am_pod
+      changed_when: false
+      check_mode: false
 
     - name: Re-check firing alerts
-      ansible.builtin.uri:
-        url: "{{ alertmanager_url }}/api/v2/alerts?filter=alertstate%3Dfiring"
-        return_content: true
-      register: firing_alerts
+      ansible.builtin.shell: |
+        kubectl --kubeconfig={{ kubeconfig_path }} -n monitoring exec "{{ am_pod.stdout }}" -c alertmanager -- \
+          wget -qO- 'http://localhost:9093/api/v2/alerts?filter=alertstate%3Dfiring'
+      args:
+        executable: /bin/bash
+      register: firing_alerts_raw
+      changed_when: false
+      failed_when: false
+
+    - name: Parse firing alerts count
+      ansible.builtin.set_fact:
+        firing_alerts_count: "{{ (firing_alerts_raw.stdout | default('[]') | from_json | length) if (firing_alerts_raw.stdout | default('') | length > 0) else 0 }}"
 
     - name: Read silence ID (if present)
       ansible.builtin.slurp:
@@ -186,10 +195,14 @@
       failed_when: false
 
     - name: Delete auto-silence (if ID persisted)
-      ansible.builtin.uri:
-        url: "{{ alertmanager_url }}/api/v2/silence/{{ silence_id_b64.content | b64decode | trim }}"
-        method: DELETE
-        status_code: [200, 404]
+      ansible.builtin.shell: |
+        SILID="{{ silence_id_b64.content | b64decode | trim }}"
+        kubectl --kubeconfig={{ kubeconfig_path }} -n monitoring exec "{{ am_pod.stdout }}" -c alertmanager -- \
+          wget -qO- --method=DELETE "http://localhost:9093/api/v2/silence/$SILID"
+      args:
+        executable: /bin/bash
+      changed_when: false
+      failed_when: false
       when: silence_id_b64.content is defined
 
     - name: Remove silence-id file
@@ -217,7 +230,7 @@
         tg_summary: |
           ✅ *Node maintenance complete*
           Nodes: CP, worker-node, worker-node-2
-          Alerts still firing: {{ (firing_alerts.json | default([])) | length }}
+          Alerts still firing: {{ firing_alerts_count | default(0) }}
           Log: /var/log/node-maintenance/phase2-{{ '%d-%m-%Y' | strftime(ansible_date_time.epoch | int) }}.log
 
     - name: Telegram — success summary

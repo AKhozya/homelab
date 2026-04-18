@@ -67,40 +67,40 @@
       vars:
         tg_message: "🔧 Node maintenance phase 1 starting on {{ ansible_hostname }}. Log: /var/log/node-maintenance/phase1-{{ '%d-%m-%Y' | strftime(ansible_date_time.epoch | int) }}.log"
 
-    # ── SILENCE TRANSIENT ALERTS (via persistent kubectl proxy on 127.0.0.1:8001) ──
-    - name: Verify kubectl proxy responsive
-      ansible.builtin.uri:
-        url: "http://127.0.0.1:8001/api"
-        method: GET
-        status_code: 200
-      register: proxy_probe
-      retries: 3
-      delay: 2
-      until: proxy_probe.status == 200
+    # ── SILENCE TRANSIENT ALERTS (via kubectl exec into alertmanager pod — bypasses host→pod routing issues) ──
+    - name: Find alertmanager pod
+      ansible.builtin.shell: |
+        kubectl --kubeconfig={{ kubeconfig_path }} -n monitoring \
+          get pods -l app.kubernetes.io/name=alertmanager \
+          -o jsonpath='{.items[0].metadata.name}'
+      args:
+        executable: /bin/bash
+      register: am_pod
+      changed_when: false
+      check_mode: false
 
     - name: "Silence transient alerts, duration minutes: {{ silence_duration_seconds // 60 }}"
-      ansible.builtin.uri:
-        url: "{{ alertmanager_url }}/api/v2/silences"
-        method: POST
-        body_format: json
-        body:
-          matchers:
-            - { name: "alertname", value: "{{ silence_alertnames }}", isRegex: true }
-          startsAt: "{{ '%Y-%m-%dT%H:%M:%SZ' | strftime(ansible_date_time.epoch | int) }}"
-          endsAt: "{{ '%Y-%m-%dT%H:%M:%SZ' | strftime((ansible_date_time.epoch | int) + silence_duration_seconds) }}"
-          createdBy: "node-maintenance"
-          comment: "Auto-silence during scheduled node update run"
-        status_code: 200
+      ansible.builtin.shell: |
+        BODY=$(cat <<'JSON'
+        {"matchers":[{"name":"alertname","value":"{{ silence_alertnames }}","isRegex":true}],"startsAt":"{{ '%Y-%m-%dT%H:%M:%SZ' | strftime(ansible_date_time.epoch | int) }}","endsAt":"{{ '%Y-%m-%dT%H:%M:%SZ' | strftime((ansible_date_time.epoch | int) + silence_duration_seconds) }}","createdBy":"node-maintenance","comment":"Auto-silence during scheduled node update run"}
+        JSON
+        )
+        kubectl --kubeconfig={{ kubeconfig_path }} -n monitoring exec "{{ am_pod.stdout }}" -c alertmanager -- \
+          wget -qO- --header='Content-Type: application/json' --post-data="$BODY" \
+            http://localhost:9093/api/v2/silences
+      args:
+        executable: /bin/bash
       register: silence_response
+      changed_when: false
 
     - name: Persist silence ID
       ansible.builtin.copy:
         dest: "{{ silence_id_file }}"
-        content: "{{ silence_response.json.silenceID }}"
+        content: "{{ (silence_response.stdout | from_json).silenceID }}"
         mode: '0600'
         owner: root
         group: root
-      when: silence_response.json is defined and silence_response.json.silenceID is defined
+      when: silence_response.stdout | length > 0
 
     # ── UPGRADE ───────────────────────────────────────────────
     - name: Upgrade via yay (pacman + AUR)
