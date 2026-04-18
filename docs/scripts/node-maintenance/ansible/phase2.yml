@@ -163,9 +163,14 @@
         KUBECONFIG: "{{ kubeconfig_path }}"
 
     # ── Alertmanager interactions (via kubectl proxy) ─────────
+    - name: Stop any prior kubectl proxy instance
+      ansible.builtin.systemd_service:
+        name: node-maintenance-kubectl-proxy.service
+        state: stopped
+      failed_when: false
+
     - name: Start kubectl proxy via systemd-run (transient unit, survives ansible task exit)
       ansible.builtin.shell: |
-        systemctl stop node-maintenance-kubectl-proxy 2>/dev/null || true
         pkill -f 'kubectl.*proxy.*--port=8001' 2>/dev/null || true
         systemd-run --unit=node-maintenance-kubectl-proxy --quiet \
           kubectl --kubeconfig={{ kubeconfig_path }} proxy --port=8001
