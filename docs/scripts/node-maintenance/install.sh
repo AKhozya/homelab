@@ -140,7 +140,9 @@ logrotate --debug /etc/logrotate.conf >/dev/null 2>&1 || true   # syntax smoke-c
 
 # ── journald caps (500M max, 30d retention) ──
 install -d -m 0755 /etc/systemd/journald.conf.d
-install -m 0644 "$REPO_DIR/systemd/journald.conf.d/00-caps.conf" /etc/systemd/journald.conf.d/00-caps.conf
+install -m 0644 "$REPO_DIR/systemd/journald.conf.d/99-caps.conf" /etc/systemd/journald.conf.d/99-caps.conf
+# Remove stale duplicate from earlier attempt (if present)
+rm -f /etc/systemd/journald.conf.d/00-caps.conf
 
 systemctl daemon-reload
 systemctl restart systemd-journald.service

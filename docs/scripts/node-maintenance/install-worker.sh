@@ -66,7 +66,9 @@ chmod 0644 /etc/logrotate.d/pacman
 
 # ── journald caps (500M max, 30d retention) ──
 install -d -m 0755 /etc/systemd/journald.conf.d
-cat > /etc/systemd/journald.conf.d/00-caps.conf <<'EOF'
+# Filename ordered after any pre-existing drop-in (e.g. size-limit.conf, 00-journal-size.conf)
+# so this wins on conflicting keys (systemd reads drop-ins lexically, later overrides earlier).
+cat > /etc/systemd/journald.conf.d/99-caps.conf <<'EOF'
 [Journal]
 SystemMaxUse=500M
 SystemKeepFree=2G
@@ -74,7 +76,8 @@ MaxRetentionSec=30d
 MaxFileSec=1week
 Compress=yes
 EOF
-chmod 0644 /etc/systemd/journald.conf.d/00-caps.conf
+chmod 0644 /etc/systemd/journald.conf.d/99-caps.conf
+rm -f /etc/systemd/journald.conf.d/00-caps.conf
 
 systemctl daemon-reload
 systemctl restart systemd-journald.service
