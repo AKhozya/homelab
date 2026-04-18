@@ -114,12 +114,22 @@ if [ "$SYNC_ONLY" -eq 0 ]; then
   chmod 0400 /etc/node-maintenance/telegram-chat-id
 fi
 
-# ── notify helper + systemd units ──
+# ── notify helper + sync helper + systemd units ──
 install -m 0750 -o root -g root "$REPO_DIR/lib/telegram-notify.sh" /usr/local/sbin/telegram-notify.sh
+install -m 0750 -o root -g root "$REPO_DIR/lib/sync-from-git.sh"   /usr/local/sbin/node-maintenance-sync-from-git.sh
 install -m 0644 "$REPO_DIR/systemd/node-maintenance.timer"                     /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase1.service"            /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase2.service"            /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-kubectl-proxy.service"     /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance-sync.service"              /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance-sync.timer"                /etc/systemd/system/
+
+# ── github known_hosts (for deploy-key-based git sync) ──
+# Baked once; rotation = delete + re-run install.sh (ssh-keyscan re-fetches).
+if [ ! -s /etc/node-maintenance/github_known_hosts ]; then
+  ssh-keyscan -t rsa,ecdsa,ed25519 github.com 2>/dev/null > /etc/node-maintenance/github_known_hosts
+  chmod 0644 /etc/node-maintenance/github_known_hosts
+fi
 
 systemctl daemon-reload
 
@@ -127,6 +137,16 @@ if [ "$SYNC_ONLY" -eq 0 ]; then
   systemctl enable --now node-maintenance-kubectl-proxy.service
   systemctl enable --now node-maintenance.timer
   systemctl enable node-maintenance-phase2.service
+
+  # Sync timer: only enable if deploy key present (first-install may precede key setup).
+  if [ -r /root/.ssh/homelab-deploy ]; then
+    systemctl enable --now node-maintenance-sync.timer
+    echo "==> node-maintenance-sync.timer enabled (every 10min)"
+  else
+    echo "==> WARN: /root/.ssh/homelab-deploy missing — sync timer NOT enabled."
+    echo "    Generate key: ssh-keygen -t ed25519 -f /root/.ssh/homelab-deploy -N '' -C 'homelab-deploy@\$(hostname)'"
+    echo "    Add pubkey as GitHub deploy key (read-only), then: systemctl enable --now node-maintenance-sync.timer"
+  fi
 
   # Verify kubectl proxy reachable
   for i in {1..10}; do

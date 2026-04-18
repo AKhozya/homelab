@@ -1,0 +1,17 @@
+[Unit]
+Description=Node maintenance — git sync + install.sh --sync-only
+Documentation=file:///etc/node-maintenance/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/node-maintenance-sync-from-git.sh
+ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance-sync failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). Log: journalctl -u node-maintenance-sync.service -n 50" || true'
+TimeoutStartSec=5min
+Nice=15
+IOSchedulingClass=idle
+
+[Install]
+WantedBy=multi-user.target

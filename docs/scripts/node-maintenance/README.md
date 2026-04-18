@@ -26,15 +26,44 @@ Automated weekly Arch Linux updates across all 3 K3s nodes.
 
 ## Sync changes (after editing playbooks / systemd units)
 
-From Mac, after `git push`:
+### Automatic (every 10 min)
+
+`node-maintenance-sync.timer` on CP runs every 10 min:
+- `git fetch` + `reset --hard origin/main` in `/var/lib/node-maintenance/homelab`
+- If HEAD changed → `install.sh --sync-only` (systemd daemon-reload + file perms)
+- Telegram on failure (`ExecStopPost`)
+
+Check: `systemctl list-timers node-maintenance-sync.timer` · `journalctl -u node-maintenance-sync.service`
+
+### Manual (urgent)
 
 ```bash
-bash docs/scripts/node-maintenance/sync-node-maintenance.sh
+bash docs/scripts/node-maintenance/sync-node-maintenance.sh   # triggers same unit now
 ```
 
-Pulls latest on CP (auto-clones if missing), runs `install.sh --sync-only` (skips user/sudoers/SSH-key/Telegram-creds; syncs `/etc/node-maintenance/ansible/`, systemd units, telegram-notify.sh, `daemon-reload`). Idempotent.
+Overrides via env: `NODE_MAINT_CP_HOST`, `NODE_MAINT_CP_USER`, `NODE_MAINT_CP_PORT`.
 
-Overrides via env: `NODE_MAINT_CP_HOST`, `NODE_MAINT_CP_USER`, `NODE_MAINT_CP_PORT`, `NODE_MAINT_REPO_URL`, `NODE_MAINT_BRANCH`, `NODE_MAINT_REPO_DIR`.
+### Deploy key (one-time setup — enables auto-sync)
+
+Auto-sync uses a dedicated read-only GitHub deploy key at `/root/.ssh/homelab-deploy`. Setup:
+
+```bash
+# 1. Generate key on CP
+ssh -p 65300 -t akhozya@gmk-k3s-control-plane \
+  "sudo ssh-keygen -t ed25519 -f /root/.ssh/homelab-deploy -N '' -C 'homelab-deploy@gmk-k3s-control-plane' \
+   && sudo cat /root/.ssh/homelab-deploy.pub"
+
+# 2. GitHub repo Settings → Deploy keys → Add deploy key
+#    - Title: "gmk-k3s-control-plane sync"
+#    - Paste pubkey
+#    - Leave "Allow write access" UNCHECKED (read-only)
+
+# 3. Enable timer
+ssh -p 65300 -t akhozya@gmk-k3s-control-plane \
+  "sudo systemctl enable --now node-maintenance-sync.timer && sudo systemctl start node-maintenance-sync.service"
+```
+
+Rotation tracked in `docs/SECRETS_ROTATION.md` as `homelab-deploy`.
 
 ## Day-to-day ops
 

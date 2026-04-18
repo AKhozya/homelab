@@ -1,0 +1,13 @@
+[Unit]
+Description=Node maintenance — sync from git timer (every 10 min)
+Documentation=file:///etc/node-maintenance/README.md
+
+[Timer]
+# Every 10 min, offset by 30s jitter to avoid exact-boundary load spikes
+OnCalendar=*:0/10
+RandomizedDelaySec=30
+Persistent=true
+Unit=node-maintenance-sync.service
+
+[Install]
+WantedBy=timers.target
