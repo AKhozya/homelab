@@ -65,7 +65,7 @@
     - name: Telegram — run starting
       ansible.builtin.include_tasks: tasks/telegram.yml
       vars:
-        tg_message: "🔧 Node maintenance phase 1 starting on {{ ansible_hostname }}. Log: /var/log/node-maintenance/phase1-{{ '%d-%m-%Y' | strftime(ansible_date_time.epoch | int) }}.log"
+        tg_message: "🔧 Node maintenance phase 1 starting on {{ ansible_facts['hostname'] }}. Log: /var/log/node-maintenance/phase1-{{ '%d-%m-%Y' | strftime(ansible_facts['date_time'].epoch | int) }}.log"
 
     # ── SILENCE TRANSIENT ALERTS (via kubectl exec into alertmanager pod — bypasses host→pod routing issues) ──
     - name: Find alertmanager pod
@@ -82,7 +82,7 @@
     - name: "Silence transient alerts, duration minutes: {{ silence_duration_seconds // 60 }}"
       ansible.builtin.shell: |
         BODY=$(cat <<'JSON'
-        {"matchers":[{"name":"alertname","value":"{{ silence_alertnames }}","isRegex":true}],"startsAt":"{{ '%Y-%m-%dT%H:%M:%SZ' | strftime(ansible_date_time.epoch | int) }}","endsAt":"{{ '%Y-%m-%dT%H:%M:%SZ' | strftime((ansible_date_time.epoch | int) + silence_duration_seconds) }}","createdBy":"node-maintenance","comment":"Auto-silence during scheduled node update run"}
+        {"matchers":[{"name":"alertname","value":"{{ silence_alertnames }}","isRegex":true}],"startsAt":"{{ '%Y-%m-%dT%H:%M:%SZ' | strftime(ansible_facts['date_time'].epoch | int) }}","endsAt":"{{ '%Y-%m-%dT%H:%M:%SZ' | strftime((ansible_facts['date_time'].epoch | int) + silence_duration_seconds) }}","createdBy":"node-maintenance","comment":"Auto-silence during scheduled node update run"}
         JSON
         )
         kubectl --kubeconfig={{ kubeconfig_path }} -n monitoring exec "{{ am_pod.stdout }}" -c alertmanager -- \

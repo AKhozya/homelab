@@ -217,7 +217,7 @@
         content: |
           # HELP node_maintenance_last_run_unixtime Unix time of last successful run
           # TYPE node_maintenance_last_run_unixtime gauge
-          node_maintenance_last_run_unixtime {{ ansible_date_time.epoch }}
+          node_maintenance_last_run_unixtime {{ ansible_facts['date_time'].epoch }}
 
     - name: Read updated packages summary
       ansible.builtin.slurp:
@@ -231,7 +231,7 @@
           ✅ *Node maintenance complete*
           Nodes: CP, worker-node, worker-node-2
           Alerts still firing: {{ firing_alerts_count | default(0) }}
-          Log: /var/log/node-maintenance/phase2-{{ '%d-%m-%Y' | strftime(ansible_date_time.epoch | int) }}.log
+          Log: /var/log/node-maintenance/phase2-{{ '%d-%m-%Y' | strftime(ansible_facts['date_time'].epoch | int) }}.log
 
     - name: Telegram — success summary
       ansible.builtin.include_tasks: tasks/telegram.yml
