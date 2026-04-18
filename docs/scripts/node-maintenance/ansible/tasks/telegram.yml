@@ -1,0 +1,15 @@
+---
+# Shared include. Callers must set `tg_message` in `vars:`.
+- name: Send Telegram notification
+  ansible.builtin.uri:
+    url: "https://api.telegram.org/bot{{ lookup('file', telegram_token_file) | trim }}/sendMessage"
+    method: POST
+    body_format: json
+    body:
+      chat_id: "{{ lookup('file', telegram_chat_id_file) | trim }}"
+      text: "{{ tg_message }}"
+      parse_mode: Markdown
+    status_code: [200]
+  no_log: true
+  register: telegram_result
+  failed_when: false   # never fail the playbook because Telegram API hiccuped

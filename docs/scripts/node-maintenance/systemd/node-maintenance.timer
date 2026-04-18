@@ -1,0 +1,12 @@
+[Unit]
+Description=Node maintenance — weekly trigger
+Documentation=file:///etc/node-maintenance/README.md
+
+[Timer]
+OnCalendar=Sat *-*-* 04:30:00 UTC
+Persistent=true
+RandomizedDelaySec=60
+Unit=node-maintenance-phase1.service
+
+[Install]
+WantedBy=timers.target

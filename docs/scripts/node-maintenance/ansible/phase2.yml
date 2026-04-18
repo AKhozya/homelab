@@ -1,0 +1,228 @@
+---
+# ──────────────────────────────────────────────────────────────
+# PLAY 1: Per-worker rolling update (serial: 1)
+# ──────────────────────────────────────────────────────────────
+- name: Node maintenance — Phase 2 (worker rolling update)
+  hosts: workers
+  serial: 1
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Verify SSH reachable before start
+      ansible.builtin.wait_for_connection:
+        timeout: 120
+
+    - name: Stop rebuilderd-worker (boot timer re-enables at +10min)
+      ansible.builtin.systemd_service:
+        name: rebuilderd-worker@1.service
+        state: stopped
+      failed_when: false   # tolerate "not running"
+
+    - name: Cordon node
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig_path }}"
+        state: patched
+        kind: Node
+        name: "{{ inventory_hostname }}"
+        definition:
+          spec:
+            unschedulable: true
+      delegate_to: localhost
+      become: false
+
+    - name: Upgrade via yay (retry once on failure)
+      block:
+        - name: First attempt
+          ansible.builtin.shell: "{{ yay_cmd }}"
+          register: yay_result
+          changed_when: "'there is nothing to do' not in yay_result.stdout"
+      rescue:
+        - name: Pause 30s before retry
+          ansible.builtin.pause:
+            seconds: 30
+        - name: Retry attempt
+          ansible.builtin.shell: "{{ yay_cmd }}"
+          register: yay_result_retry
+          changed_when: "'there is nothing to do' not in yay_result_retry.stdout"
+
+    - name: Reboot node (graceful — shutdownGracePeriod 2min handles pods)
+      ansible.builtin.reboot:
+        reboot_timeout: "{{ reboot_timeout_sec }}"
+        post_reboot_delay: "{{ post_reboot_delay_sec }}"
+        test_command: "systemctl is-active {{ k3s_service }}"
+
+    - name: Wait for node Ready in k8s API
+      kubernetes.core.k8s_info:
+        kubeconfig: "{{ kubeconfig_path }}"
+        kind: Node
+        name: "{{ inventory_hostname }}"
+      register: node_info
+      until: >
+        node_info.resources | length > 0
+        and (node_info.resources[0].status.conditions
+             | selectattr('type','equalto','Ready')
+             | selectattr('status','equalto','True')
+             | list | length) > 0
+      retries: "{{ node_ready_retries }}"
+      delay: "{{ node_ready_delay_sec }}"
+      delegate_to: localhost
+      become: false
+
+    - name: Uncordon node
+      kubernetes.core.k8s:
+        kubeconfig: "{{ kubeconfig_path }}"
+        state: patched
+        kind: Node
+        name: "{{ inventory_hostname }}"
+        definition:
+          spec:
+            unschedulable: false
+      delegate_to: localhost
+      become: false
+
+    - name: Stabilize pause
+      ansible.builtin.pause:
+        minutes: "{{ per_node_stabilize_minutes }}"
+
+    - name: Observe crashloops (report-only; decision - continue, self-heal)
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl --kubeconfig={{ kubeconfig_path }} get pods -A -o json \
+          | jq -r '.items[] | select(.status.containerStatuses[]?.state.waiting.reason=="CrashLoopBackOff")
+                  | "\(.metadata.namespace)/\(.metadata.name)"'
+      args:
+        executable: /bin/bash
+      register: crashloops
+      changed_when: false
+      failed_when: false
+      delegate_to: localhost
+      become: false
+
+# ──────────────────────────────────────────────────────────────
+# PLAY 2: Cluster-level post-tasks (cleanup + alerts + notify)
+# ──────────────────────────────────────────────────────────────
+- name: Node maintenance — Phase 2 (post-tasks)
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Final 5-minute stabilize
+      ansible.builtin.pause:
+        minutes: "{{ final_stabilize_minutes }}"
+
+    - name: Flux reconcile kustomizations
+      ansible.builtin.shell: |
+        flux reconcile kustomization {{ item }} --timeout=60s || echo "FAILED: {{ item }}"
+      loop: "{{ flux_kustomizations }}"
+      register: flux_results
+      changed_when: false
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    - name: Cleanup — local CP (runs as root; no SSH needed)
+      ansible.builtin.shell: |
+        paccache -rk2
+        paccache -ruk0
+        ORPHANS=$(pacman -Qtdq || true)
+        [ -n "$ORPHANS" ] && pacman -Rns --noconfirm $ORPHANS || true
+        crictl rmi --prune || true
+      changed_when: false
+      failed_when: false
+
+    - name: Cleanup — remote workers via SSH
+      ansible.builtin.shell: |
+        ssh -p 65300 -i {{ state_dir }}/.ssh/id_ed25519 \
+            -o UserKnownHostsFile=/etc/node-maintenance/known_hosts \
+            -o StrictHostKeyChecking=yes \
+            node-maintenance@{{ item }} '
+          sudo paccache -rk2
+          sudo paccache -ruk0
+          ORPHANS=$(pacman -Qtdq || true)
+          [ -n "$ORPHANS" ] && sudo pacman -Rns --noconfirm $ORPHANS || true
+          sudo crictl rmi --prune || true
+        '
+      loop:
+        - 192.168.1.129
+        - 192.168.1.126
+      changed_when: false
+      failed_when: false
+
+    - name: Delete Failed/Evicted pods cluster-wide
+      ansible.builtin.shell: |
+        kubectl --kubeconfig={{ kubeconfig_path }} delete pod -A \
+          --field-selector=status.phase=Failed --ignore-not-found
+      changed_when: false
+
+    - name: Trigger Flux source GC
+      ansible.builtin.command: flux reconcile source git flux-system --timeout=60s
+      changed_when: false
+      environment:
+        KUBECONFIG: "{{ kubeconfig_path }}"
+
+    # ── Alertmanager interactions (via kubectl proxy) ─────────
+    - name: Start kubectl proxy
+      ansible.builtin.shell: |
+        pkill -f 'kubectl.*proxy.*--port=8001' 2>/dev/null || true
+        kubectl --kubeconfig={{ kubeconfig_path }} proxy --port=8001 >/dev/null 2>&1 &
+        echo $! > {{ kubectl_proxy_pid_file }}
+        sleep 2
+      changed_when: false
+
+    - name: Re-check firing alerts
+      ansible.builtin.uri:
+        url: "{{ alertmanager_url }}/api/v2/alerts?filter=alertstate%3Dfiring"
+        return_content: true
+      register: firing_alerts
+
+    - name: Read silence ID
+      ansible.builtin.slurp:
+        src: "{{ silence_id_file }}"
+      register: silence_id_b64
+
+    - name: Delete auto-silence
+      ansible.builtin.uri:
+        url: "{{ alertmanager_url }}/api/v2/silence/{{ silence_id_b64.content | b64decode | trim }}"
+        method: DELETE
+        status_code: [200, 404]
+
+    - name: Stop kubectl proxy
+      ansible.builtin.shell: |
+        kill "$(cat {{ kubectl_proxy_pid_file }})" 2>/dev/null || true
+        rm -f {{ kubectl_proxy_pid_file }}
+      changed_when: false
+
+    - name: Emit node_exporter textfile metric
+      ansible.builtin.copy:
+        dest: "{{ metrics_file }}"
+        mode: '0644'
+        content: |
+          # HELP node_maintenance_last_run_unixtime Unix time of last successful run
+          # TYPE node_maintenance_last_run_unixtime gauge
+          node_maintenance_last_run_unixtime {{ ansible_date_time.epoch }}
+
+    - name: Read updated packages summary
+      ansible.builtin.slurp:
+        src: "{{ updated_packages_log }}"
+      register: pkg_log_b64
+      failed_when: false
+
+    - name: Build Telegram summary message
+      ansible.builtin.set_fact:
+        tg_summary: |
+          ✅ *Node maintenance complete*
+          Nodes: CP, worker-node, worker-node-2
+          Alerts still firing: {{ (firing_alerts.json | default([])) | length }}
+          Log: /var/log/node-maintenance/phase2-{{ '%d-%m-%Y' | strftime(ansible_date_time.epoch | int) }}.log
+
+    - name: Telegram — success summary
+      ansible.builtin.include_tasks: tasks/telegram.yml
+      vars:
+        tg_message: "{{ tg_summary }}"
+
+    - name: Remove phase2-pending flag (success)
+      ansible.builtin.file:
+        path: "{{ flag_file }}"
+        state: absent

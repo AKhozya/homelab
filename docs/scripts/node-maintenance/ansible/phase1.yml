@@ -1,0 +1,119 @@
+---
+- name: Node maintenance — Phase 1 (control-plane self-update)
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+
+  tasks:
+
+    # ── PREFLIGHT ──────────────────────────────────────────────
+    - name: Preflight — no active backup/replication job
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl --kubeconfig={{ kubeconfig_path }} get jobs -A -o json \
+          | jq -r '[.items[] | select(.metadata.name | test("backup|replication")) | select(.status.active == 1)] | length'
+      args:
+        executable: /bin/bash
+      register: active_backups
+      changed_when: false
+      failed_when: (active_backups.stdout | int) > 0
+
+    - name: Preflight — root free space
+      ansible.builtin.assert:
+        that:
+          - (ansible_mounts | selectattr('mount','equalto','/') | list | first).size_available > (min_free_root_gb * 1073741824)
+        fail_msg: "Free space on / below {{ min_free_root_gb }} GB"
+
+    - name: Preflight — /var free space
+      ansible.builtin.assert:
+        that:
+          - (ansible_mounts | selectattr('mount','equalto','/var') | list | first | default({'size_available': 9999999999999})).size_available > (min_free_var_gb * 1073741824)
+        fail_msg: "Free space on /var below {{ min_free_var_gb }} GB"
+
+    - name: Preflight — Flux kustomizations all Ready
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl --kubeconfig={{ kubeconfig_path }} get kustomization -n flux-system -o json \
+          | jq -e '[.items[] | select(.status.conditions[]? | select(.type=="Ready") | .status != "True")] | length == 0'
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Preflight — workers reachable
+      ansible.builtin.command: >-
+        ssh -o ConnectTimeout=5 -o BatchMode=yes -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile=/etc/node-maintenance/known_hosts
+            -p 65300 -i {{ state_dir }}/.ssh/id_ed25519
+            node-maintenance@{{ item }} true
+      loop:
+        - 192.168.1.129
+        - 192.168.1.126
+      changed_when: false
+
+    # ── NOTIFY START ──────────────────────────────────────────
+    - name: Telegram — run starting
+      ansible.builtin.include_tasks: tasks/telegram.yml
+      vars:
+        tg_message: "🔧 Node maintenance phase 1 starting on {{ ansible_hostname }}. Log: /var/log/node-maintenance/phase1-{{ '%d-%m-%Y' | strftime(ansible_date_time.epoch | int) }}.log"
+
+    # ── SILENCE TRANSIENT ALERTS (via kubectl proxy) ──────────
+    - name: Start kubectl proxy (host can't reach svc.cluster.local directly)
+      ansible.builtin.shell: |
+        pkill -f 'kubectl.*proxy.*--port=8001' 2>/dev/null || true
+        kubectl --kubeconfig={{ kubeconfig_path }} proxy --port=8001 >/dev/null 2>&1 &
+        echo $! > {{ kubectl_proxy_pid_file }}
+        sleep 2
+      changed_when: false
+
+    - name: "Silence transient alerts, duration minutes: {{ silence_duration_seconds // 60 }}"
+      ansible.builtin.uri:
+        url: "{{ alertmanager_url }}/api/v2/silences"
+        method: POST
+        body_format: json
+        body:
+          matchers:
+            - { name: "alertname", value: "{{ silence_alertnames }}", isRegex: true }
+          startsAt: "{{ '%Y-%m-%dT%H:%M:%SZ' | strftime(ansible_date_time.epoch | int) }}"
+          endsAt: "{{ '%Y-%m-%dT%H:%M:%SZ' | strftime((ansible_date_time.epoch | int) + silence_duration_seconds) }}"
+          createdBy: "node-maintenance"
+          comment: "Auto-silence during scheduled node update run"
+        status_code: 200
+      register: silence_response
+
+    - name: Persist silence ID
+      ansible.builtin.copy:
+        dest: "{{ silence_id_file }}"
+        content: "{{ silence_response.json.silenceID }}"
+        mode: '0600'
+        owner: root
+        group: root
+
+    - name: Stop kubectl proxy
+      ansible.builtin.shell: |
+        kill "$(cat {{ kubectl_proxy_pid_file }})" 2>/dev/null || true
+        rm -f {{ kubectl_proxy_pid_file }}
+      changed_when: false
+
+    # ── UPGRADE ───────────────────────────────────────────────
+    - name: Upgrade via yay (pacman + AUR)
+      ansible.builtin.shell: "{{ yay_cmd }}"
+      register: yay_result
+      changed_when: "'there is nothing to do' not in yay_result.stdout"
+
+    - name: Persist package update log
+      ansible.builtin.copy:
+        dest: "{{ updated_packages_log }}"
+        content: "{{ yay_result.stdout }}"
+        mode: '0644'
+        owner: root
+        group: root
+
+    # ── STAGE PHASE 2 ─────────────────────────────────────────
+    - name: Create phase2-pending flag
+      ansible.builtin.file:
+        path: "{{ flag_file }}"
+        state: touch
+        mode: '0600'
+        owner: root
+        group: root

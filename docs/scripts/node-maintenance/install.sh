@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# install.sh — CP-side bootstrap. Idempotent.
+# Run as root on gmk-k3s-control-plane.
+set -euo pipefail
+
+[ "$(id -u)" = "0" ] || { echo "Run as root" >&2; exit 1; }
+
+REPO_DIR="$(dirname "$(realpath "$0")")"
+KUBECONFIG_PATH="/etc/rancher/k3s/k3s.yaml"
+
+# ── Preconditions ──
+command -v ansible-playbook >/dev/null 2>&1 || pacman -S --noconfirm ansible
+command -v sops >/dev/null 2>&1 || pacman -S --noconfirm sops
+command -v jq >/dev/null 2>&1 || pacman -S --noconfirm jq
+command -v age >/dev/null 2>&1 || pacman -S --noconfirm age
+command -v rsync >/dev/null 2>&1 || pacman -S --noconfirm rsync
+command -v kubectl >/dev/null 2>&1 || { echo "kubectl required" >&2; exit 1; }
+command -v flux >/dev/null 2>&1 || { echo "flux required" >&2; exit 1; }
+[ -r "$KUBECONFIG_PATH" ] || { echo "$KUBECONFIG_PATH not readable" >&2; exit 1; }
+[ -n "${SOPS_AGE_KEY_FILE:-}" ] || export SOPS_AGE_KEY_FILE=/root/.config/sops/age/keys.txt
+[ -r "$SOPS_AGE_KEY_FILE" ] || { echo "SOPS age key missing: $SOPS_AGE_KEY_FILE" >&2; exit 1; }
+
+# ── user + dirs ──
+id node-maintenance >/dev/null 2>&1 || \
+  useradd -r -s /usr/bin/nologin -m -d /var/lib/node-maintenance node-maintenance
+
+install -d -m 0750 -o root             -g root            /etc/node-maintenance
+install -d -m 0750 -o root             -g adm             /var/log/node-maintenance
+install -d -m 0700 -o node-maintenance -g node-maintenance /var/lib/node-maintenance/.ssh
+
+# ── ansible playbooks + collections ──
+rsync -a --delete "$REPO_DIR/ansible/" /etc/node-maintenance/ansible/
+chmod 0600 /etc/node-maintenance/ansible/inventory.yml
+ansible-galaxy collection install -r /etc/node-maintenance/ansible/requirements.yml --force
+
+# ── SSH key (SOPS Secret YAML → disk, extract stringData.ssh-private-key) ──
+sops --decrypt --extract '["stringData"]["ssh-private-key"]' \
+  "$REPO_DIR/secrets/ssh-key.sops.yaml" > /var/lib/node-maintenance/.ssh/id_ed25519
+chown node-maintenance:node-maintenance /var/lib/node-maintenance/.ssh/id_ed25519
+chmod 0600 /var/lib/node-maintenance/.ssh/id_ed25519
+
+# Derive pub key from private (no separate storage)
+ssh-keygen -y -f /var/lib/node-maintenance/.ssh/id_ed25519 \
+  > /var/lib/node-maintenance/.ssh/id_ed25519.pub
+chown node-maintenance:node-maintenance /var/lib/node-maintenance/.ssh/id_ed25519.pub
+chmod 0644 /var/lib/node-maintenance/.ssh/id_ed25519.pub
+
+# ── known_hosts ──
+install -m 0644 "$REPO_DIR/lib/known_hosts" /etc/node-maintenance/known_hosts
+
+# ── Telegram creds (reuse backup-replication/backup-telegram) ──
+kubectl --kubeconfig="$KUBECONFIG_PATH" get secret -n backup-replication backup-telegram \
+  -o jsonpath='{.data.bot_token}' | base64 -d > /etc/node-maintenance/telegram-token
+chmod 0400 /etc/node-maintenance/telegram-token
+kubectl --kubeconfig="$KUBECONFIG_PATH" get secret -n backup-replication backup-telegram \
+  -o jsonpath='{.data.chat_id}' | base64 -d > /etc/node-maintenance/telegram-chat-id
+chmod 0400 /etc/node-maintenance/telegram-chat-id
+
+# ── notify helper + systemd units ──
+install -m 0750 -o root -g root "$REPO_DIR/lib/telegram-notify.sh" /usr/local/sbin/telegram-notify.sh
+install -m 0644 "$REPO_DIR/systemd/node-maintenance.timer"          /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase1.service" /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase2.service" /etc/systemd/system/
+
+systemctl daemon-reload
+systemctl enable --now node-maintenance.timer
+systemctl enable node-maintenance-phase2.service
+
+# ── generate worker install scripts with pubkey substituted ──
+PUB_KEY="$(cat /var/lib/node-maintenance/.ssh/id_ed25519.pub)"
+WORKER_SCRIPT_OUT="/tmp/install-worker-ready.sh"
+sed "s|__REPLACE_WITH_ACTUAL_PUBKEY__|${PUB_KEY}|" \
+  "$REPO_DIR/install-worker.sh" > "$WORKER_SCRIPT_OUT"
+chmod +x "$WORKER_SCRIPT_OUT"
+
+cat <<EOF
+
+╔═══════════════════════════════════════════════════════════════════╗
+║  CP bootstrap complete.                                           ║
+║  Next run: $(systemctl list-timers node-maintenance.timer --no-pager 2>/dev/null | awk 'NR==2{print $1,$2,$3}')
+║                                                                   ║
+║  Worker bootstrap (run from CP):                                  ║
+║    scp -P 65300 $WORKER_SCRIPT_OUT akhozya@worker-node:/tmp/      ║
+║    ssh -p 65300 akhozya@worker-node 'sudo bash /tmp/install-worker-ready.sh && rm /tmp/install-worker-ready.sh'
+║                                                                   ║
+║    scp -P 65300 $WORKER_SCRIPT_OUT z3us@worker-node-2:/tmp/       ║
+║    ssh -p 65300 z3us@worker-node-2 'sudo bash /tmp/install-worker-ready.sh && rm /tmp/install-worker-ready.sh'
+║                                                                   ║
+║  After both workers bootstrapped, verify:                         ║
+║    sudo -u node-maintenance ssh -p 65300 -i /var/lib/node-maintenance/.ssh/id_ed25519 -o UserKnownHostsFile=/etc/node-maintenance/known_hosts node-maintenance@192.168.1.129 true
+║    sudo -u node-maintenance ssh -p 65300 -i /var/lib/node-maintenance/.ssh/id_ed25519 -o UserKnownHostsFile=/etc/node-maintenance/known_hosts node-maintenance@192.168.1.126 true
+╚═══════════════════════════════════════════════════════════════════╝
+EOF

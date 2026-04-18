@@ -1,0 +1,17 @@
+---
+all:
+  vars:
+    ansible_ssh_common_args: '-o UserKnownHostsFile=/etc/node-maintenance/known_hosts -o StrictHostKeyChecking=yes -o ConnectTimeout=10'
+    ansible_ssh_private_key_file: /var/lib/node-maintenance/.ssh/id_ed25519
+    ansible_user: node-maintenance
+    ansible_port: 65300
+    ansible_python_interpreter: /usr/bin/python3
+  children:
+    workers:
+      hosts:
+        worker-node:
+          ansible_host: 192.168.1.129
+          k3s_service: k3s-agent.service
+        worker-node-2:
+          ansible_host: 192.168.1.126
+          k3s_service: k3s-agent.service

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# install-worker.sh — idempotent per-worker bootstrap.
+# Run as root on each worker (worker-node, worker-node-2).
+# install.sh on CP substitutes PUB_KEY placeholder before scp to worker.
+set -euo pipefail
+
+PUB_KEY="__REPLACE_WITH_ACTUAL_PUBKEY__"
+[ "$PUB_KEY" = "__REPLACE_WITH_ACTUAL_PUBKEY__" ] && { echo "PUB_KEY not substituted" >&2; exit 1; }
+[ "$(id -u)" = "0" ] || { echo "Run as root" >&2; exit 1; }
+
+# ── node-maintenance user ──
+id node-maintenance >/dev/null 2>&1 || \
+  useradd -r -s /usr/bin/nologin -m -d /var/lib/node-maintenance node-maintenance
+
+install -d -m 0700 -o node-maintenance -g node-maintenance /var/lib/node-maintenance/.ssh
+
+AK=/var/lib/node-maintenance/.ssh/authorized_keys
+touch "$AK"
+grep -qxF "$PUB_KEY" "$AK" || echo "$PUB_KEY" >> "$AK"
+chown node-maintenance:node-maintenance "$AK"
+chmod 0600 "$AK"
+
+# ── sudoers ──
+# Ansible's `become: true` invokes `sudo -H -n -u root /bin/sh -c ...`
+# for ALL tasks. Restricting to specific binaries breaks ansible_builtin
+# modules (systemd_service, reboot, etc.). Broad NOPASSWD is the standard
+# ansible-managed-host pattern — trust surface = SSH key + user account.
+# shellcheck disable=SC2016
+cat > /etc/sudoers.d/node-maintenance <<'EOF'
+node-maintenance ALL=(ALL) NOPASSWD: ALL
+EOF
+chmod 0440 /etc/sudoers.d/node-maintenance
+visudo -c -f /etc/sudoers.d/node-maintenance
+
+# ── rebuilderd-worker systemd override (60s stop) ──
+install -d -m 0755 /etc/systemd/system/rebuilderd-worker@.service.d
+cat > /etc/systemd/system/rebuilderd-worker@.service.d/override.conf <<'EOF'
+[Service]
+TimeoutStopSec=60s
+EOF
+systemctl daemon-reload
+
+echo "Worker bootstrap complete on $(hostname)."

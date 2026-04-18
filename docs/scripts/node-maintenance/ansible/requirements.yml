@@ -1,0 +1,6 @@
+---
+# kubernetes.core 6.x is current latest (6.3.0, 2026). Requires ansible-core >= 2.16.
+# Arch `ansible` 13.5.0-1 provides ansible-core 2.20+ so safely compatible.
+collections:
+  - name: kubernetes.core
+    version: ">=6.0.0,<7.0.0"

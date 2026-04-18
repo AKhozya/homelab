@@ -124,6 +124,7 @@
 *Monthly reviews, detailed changelog, completed items: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) and `git log --all -- docs/HOMELAB_ANALYSIS.md`*
 
 **Recent highlights** (2026):
+- 2026-04-18: Automated weekly node updates deployed — Sat 04:30 UTC, Ansible-driven, dedicated node-maintenance user, SOPS-encrypted SSH key, Telegram notifications
 - 2026-04-13: All 3 nodes → zsh + chezmoi dotfiles (portable .zshrc template, modern CLI tools)
 - 2026-04-11: Claude Telegram bot deployed (Agent SDK, fork of linuz90/claude-telegram-bot)
 - 2026-04-09: VictoriaMetrics migration (71% RAM savings)
