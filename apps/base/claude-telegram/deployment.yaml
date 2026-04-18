@@ -89,9 +89,11 @@ spec:
               # Create data dir for session persistence
               mkdir -p ~/data
 
-              # Update Claude Code CLI to latest on every restart
+              # Update Claude Code CLI + Agent SDK on every restart
               echo "Updating Claude Code CLI..."
               npm update -g @anthropic-ai/claude-code 2>&1 || true
+              echo "Updating Agent SDK..."
+              cd /app && bun update @anthropic-ai/claude-agent-sdk 2>&1 || true
 
               echo "Init complete."
           env:
