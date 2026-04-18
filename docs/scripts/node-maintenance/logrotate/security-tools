@@ -1,0 +1,10 @@
+# Security-scanner logs (CP runs lynis + rkhunter via existing cron/timer).
+/var/log/lynis.log /var/log/rkhunter.log {
+    monthly
+    rotate 6
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 root root
+}

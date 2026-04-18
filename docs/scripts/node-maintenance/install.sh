@@ -131,7 +131,20 @@ if [ ! -s /etc/node-maintenance/github_known_hosts ]; then
   chmod 0644 /etc/node-maintenance/github_known_hosts
 fi
 
+# ── logrotate configs (CP: pacman + node-maintenance + security-tools) ──
+install -m 0644 "$REPO_DIR/logrotate/pacman"             /etc/logrotate.d/pacman
+install -m 0644 "$REPO_DIR/logrotate/node-maintenance"   /etc/logrotate.d/node-maintenance
+install -m 0644 "$REPO_DIR/logrotate/security-tools"     /etc/logrotate.d/security-tools
+logrotate --debug /etc/logrotate.conf >/dev/null 2>&1 || true   # syntax smoke-check
+
+# ── journald caps (500M max, 30d retention) ──
+install -d -m 0755 /etc/systemd/journald.conf.d
+install -m 0644 "$REPO_DIR/systemd/journald.conf.d/00-caps.conf" /etc/systemd/journald.conf.d/00-caps.conf
+
 systemctl daemon-reload
+systemctl restart systemd-journald.service
+# Enable distro logrotate.timer (Arch ships it, not enabled by default)
+systemctl enable --now logrotate.timer
 
 if [ "$SYNC_ONLY" -eq 0 ]; then
   systemctl enable --now node-maintenance-kubectl-proxy.service

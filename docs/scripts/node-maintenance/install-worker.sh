@@ -46,6 +46,35 @@ cat > /etc/systemd/system/rebuilderd-worker@.service.d/override.conf <<'EOF'
 [Service]
 TimeoutStopSec=60s
 EOF
+
+# ── logrotate: pacman log (Arch default has none) ──
+cat > /etc/logrotate.d/pacman <<'EOF'
+/var/log/pacman.log {
+    monthly
+    rotate 12
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0644 root root
+}
+EOF
+chmod 0644 /etc/logrotate.d/pacman
+
+# ── journald caps (500M max, 30d retention) ──
+install -d -m 0755 /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/00-caps.conf <<'EOF'
+[Journal]
+SystemMaxUse=500M
+SystemKeepFree=2G
+MaxRetentionSec=30d
+MaxFileSec=1week
+Compress=yes
+EOF
+chmod 0644 /etc/systemd/journald.conf.d/00-caps.conf
+
 systemctl daemon-reload
+systemctl restart systemd-journald.service
+systemctl enable --now logrotate.timer
 
 echo "Worker bootstrap complete on ${HOSTNAME:-$(cat /etc/hostname 2>/dev/null || echo unknown)}."
