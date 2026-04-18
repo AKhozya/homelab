@@ -7,6 +7,13 @@ all:
     ansible_port: 65300
     ansible_python_interpreter: /usr/bin/python3
   children:
+    control_plane:
+      hosts:
+        gmk-k3s-control-plane:
+          ansible_connection: local
+          ansible_host: 127.0.0.1
+          ansible_user: root
+          k3s_service: k3s.service
     workers:
       hosts:
         worker-node:
