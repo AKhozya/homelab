@@ -10,3 +10,4 @@ resources:
   - rate-limit-high-frequency-middleware.yaml
   - csp-middleware.yaml
   - networkpolicy.yaml
+  - pdb.yaml

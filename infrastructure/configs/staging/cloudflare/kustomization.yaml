@@ -8,3 +8,4 @@ resources:
   - cloudflared-config-secret.yaml
   - tunnel-mgmt-token.yaml
   - networkpolicy.yaml
+  - pdb.yaml

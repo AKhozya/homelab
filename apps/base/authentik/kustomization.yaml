@@ -8,3 +8,4 @@ resources:
   - service.yaml
   - networkpolicy.yaml
   - ingress.yaml
+  - pdb.yaml

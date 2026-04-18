@@ -1,0 +1,27 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: main-mysql-haproxy
+  namespace: databases
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: proxy
+      app.kubernetes.io/instance: main-mysql
+      app.kubernetes.io/name: haproxy
+      app.kubernetes.io/part-of: percona-server
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: main-mysql-orc
+  namespace: databases
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: orchestrator
+      app.kubernetes.io/instance: main-mysql
+      app.kubernetes.io/name: orchestrator
+      app.kubernetes.io/part-of: percona-server

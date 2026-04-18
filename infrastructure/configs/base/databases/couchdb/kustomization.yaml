@@ -6,3 +6,4 @@ resources:
   - ingress.yaml
   - certificate.yaml
   - servicemonitor.yaml
+  - pdb.yaml

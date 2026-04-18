@@ -6,3 +6,4 @@ resources:
   - networkpolicy.yaml
   - podmonitor.yaml
   - postgres-admin-user.yaml
+  - pdb.yaml
