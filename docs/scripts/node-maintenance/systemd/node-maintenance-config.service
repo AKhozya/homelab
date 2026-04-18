@@ -11,14 +11,7 @@ WorkingDirectory=/etc/node-maintenance/ansible
 Environment=ANSIBLE_CONFIG=/etc/node-maintenance/ansible/ansible.cfg
 ExecStartPre=/bin/sh -c 'install -d -m 0750 -o root -g adm /var/log/node-maintenance && echo "=== start: $(date -u -Iseconds) ===" > /var/log/node-maintenance/config-latest.log'
 ExecStart=/usr/bin/ansible-playbook -D /etc/node-maintenance/ansible/node-config.yml -i /etc/node-maintenance/ansible/inventory.yml
-ExecStopPost=/bin/sh -c '\
-CHANGED=$(grep -oE "changed=[0-9]+" /var/log/node-maintenance/config-latest.log 2>/dev/null | tail -3 | awk -F= "{s+=\$2} END{print s+0}"); \
-FAILED=$(grep -oE "failed=[0-9]+" /var/log/node-maintenance/config-latest.log 2>/dev/null | tail -3 | awk -F= "{s+=\$2} END{print s+0}"); \
-if [ "$SERVICE_RESULT" != "success" ] || [ "$FAILED" -gt 0 ]; then \
-  /usr/local/sbin/telegram-notify.sh "❌ node-config drift-heal FAILED (result=$SERVICE_RESULT changed=$CHANGED failed=$FAILED). journalctl -u node-maintenance-config.service -n 80"; \
-elif [ "$CHANGED" -gt 0 ]; then \
-  /usr/local/sbin/telegram-notify.sh "⚙️ node-config drift-heal applied $CHANGED change(s). journalctl -u node-maintenance-config.service -n 80"; \
-fi'
+ExecStopPost=/usr/local/sbin/node-maintenance-config-notify.sh ${SERVICE_RESULT}
 StandardOutput=append:/var/log/node-maintenance/config-latest.log
 StandardError=append:/var/log/node-maintenance/config-latest.log
 TimeoutStartSec=15min

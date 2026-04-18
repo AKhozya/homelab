@@ -118,6 +118,7 @@ fi
 # ── notify helper + sync helper + systemd units ──
 install -m 0750 -o root -g root "$REPO_DIR/lib/telegram-notify.sh" /usr/local/sbin/telegram-notify.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/sync-from-git.sh"   /usr/local/sbin/node-maintenance-sync-from-git.sh
+install -m 0750 -o root -g root "$REPO_DIR/lib/node-config-notify.sh" /usr/local/sbin/node-maintenance-config-notify.sh
 install -m 0750 -o root -g root "$REPO_DIR/bin/security-scan.sh"   /usr/local/sbin/node-maintenance-security-scan.sh
 install -m 0644 "$REPO_DIR/systemd/node-maintenance.timer"                     /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase1.service"            /etc/systemd/system/
