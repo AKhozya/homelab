@@ -713,7 +713,6 @@ spec:
         description: "Buffer pool hit rate is {{ printf \"%.1f\" $value }}%. Consider increasing innodb_buffer_pool_size."
 
   # service-alerts group - ServiceDown alert removed, replaced by Uptime Kuma
-  # See docs/UPTIME_KUMA_TELEGRAM_REPORT.md for details
   - name: service-alerts
     interval: 60s
     rules:
