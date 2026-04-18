@@ -114,7 +114,6 @@
 | Re-check HA OIDC when hass-oidc-auth stable lands | Backlog | P3 |
 | Add PodDisruptionBudgets for HA workloads | Backlog | P3 |
 | Move node cleanup cron/timer jobs to `node-maintenance` user (after node auto-update PR merge) | Backlog | P3 |
-| Audit + add logrotate configs where missing: `/var/log/node-maintenance/phase{1,2}-*.log`, rebuilderd, other node-local logs (Arch uses systemd-journald for most; file-based logs leak) | Backlog | P3 |
 
 **Next Review**: 2026-05-04 (Monthly)
 
@@ -125,6 +124,9 @@
 *Monthly reviews, full changelog, done items: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) and `git log --all -- docs/HOMELAB_ANALYSIS.md`*
 
 **Recent highlights** (2026):
+- 2026-04-18: Logrotate + journald caps rollout (all 3 nodes) — `logrotate` pkg installed, `logrotate.timer` enabled, `/var/log/pacman.log` + `/var/log/node-maintenance/*` + `/var/log/security-tools/*` rotated monthly/weekly, journald drop-in `99-caps.conf` (SystemMaxUse=500M, MaxRetentionSec=30d, Compress=yes)
+- 2026-04-18: Node-maintenance observability (F2/F3/F4) — Alloy `loki.source.journal` ingests `node-maintenance-phase{1,2}.service` + sync.service logs (Loki hostPath /run/log/journal + /etc/machine-id, loki ns PSS enforce=privileged); Grafana dashboard (7 panels, VM + Loki); `NodeMaintenanceMissedRun` VMRule alert (>8d threshold)
+- 2026-04-18: Node-maintenance E2E stabilized — silence add/expire via `amtool` (bundled in Alertmanager pod, busybox wget lacked `--method=DELETE`); ExecStopPost fixed ($SERVICE_RESULT != "success" vs broken $EXIT_STATUS); `ansible_facts['*']` swap (ansible-core 2.24 prep); ansible.cfg enforces `inject_facts_as_vars=False`
 - 2026-04-18: Weekly node auto-updates live — Sat 04:30 UTC, Ansible-driven, dedicated node-maintenance user, SOPS-encrypted SSH key, Telegram alerts. Live-tested full run (all 3 nodes); next fire 2026-04-25
 - 2026-04-18: Node-maintenance auto-sync online — systemd timer on CP (`*:0/10`), pulls `main` via read-only GitHub deploy key (`/root/.ssh/homelab-deploy`), runs `install.sh --sync-only` if HEAD changed, Telegram alert on fail. Manual trigger: `sync-node-maintenance.sh`
 - 2026-04-13: All 3 nodes → zsh + chezmoi dotfiles (portable .zshrc template, modern CLI tools)
