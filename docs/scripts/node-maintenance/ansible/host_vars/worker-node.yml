@@ -1,0 +1,14 @@
+---
+# worker-node (192.168.1.129) — 8c/32G, heavy lifter for LTO builds.
+rebuilderd_cpu_quota: "600%"
+rebuilderd_mem_max: "32G"
+rebuilderd_mem_high: "31G"
+rebuilderd_mem_swap_max: "16G"
+rebuilderd_repro_dir: "/mnt/k8s-storage/repro"
+# Reason note embedded verbatim in resources.conf template (preserves 2026-02-21 incident context).
+rebuilderd_mem_comment: |
+  # RAM: 32GB (hard limit)
+  # Increased from 24GB to allow heavy LTO builds (python-triton ~40GB,
+  # openvdb ~34GB) to complete. K8s actual usage is ~13.5GB of 61GB total,
+  # so 32GB leaves ~29GB headroom for pods. OOM kills at 24GB were contained
+  # in rebuilderd cgroup (no K8s impact) but caused build failures (2026-02-21).

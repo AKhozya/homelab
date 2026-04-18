@@ -1,0 +1,6 @@
+[Unit]
+Description=Export rebuilderd metrics for node-exporter
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rebuilderd-metrics.sh

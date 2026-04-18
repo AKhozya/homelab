@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly K3s container image garbage collection
+
+[Timer]
+OnCalendar=Mon *-*-* 04:00:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,7 @@
+[Unit]
+Description=K3s container image garbage collection
+After=k3s.service k3s-agent.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/crictl rmi --prune

@@ -1,0 +1,7 @@
+[Unit]
+Description=Rebuilderd stuck build watchdog
+After=rebuilderd-worker@1.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/rebuilderd-watchdog.sh

@@ -1,0 +1,9 @@
+[Unit]
+Description=Start rebuilderd worker 10 minutes after boot
+
+[Timer]
+OnBootSec=10min
+Unit=rebuilderd-worker@1.service
+
+[Install]
+WantedBy=timers.target

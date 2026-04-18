@@ -1,0 +1,9 @@
+[Unit]
+Description=Weekly cleanup of stale repro containers
+
+[Timer]
+OnCalendar=Sun 08:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,13 @@
+---
+# worker-node-2 (192.168.1.126) — 4c/16G, lower cap after DPDK OOM incident.
+rebuilderd_cpu_quota: "400%"
+rebuilderd_mem_max: "14G"
+rebuilderd_mem_high: "13G"
+rebuilderd_mem_swap_max: "16G"
+rebuilderd_repro_dir: "/mnt/extra-storage/repro"
+rebuilderd_mem_comment: |
+  # RAM: 14GB (hard limit)
+  # Reduced from 18GB after DPDK LTO build (lto1-ltrans) exceeded 18GB,
+  # triggered OOM killer, and killed MySQL pods on the same node (2026-02-21).
+  # 14GB leaves ~16GB for K8s pods; large builds fail inside cgroup instead
+  # of pressuring the whole system. Swap increased 8G->16G so large LTO builds survive.
