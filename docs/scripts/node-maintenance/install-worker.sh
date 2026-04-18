@@ -140,7 +140,7 @@ trap 'rm -f "$RKHUNTER_TMP"' EXIT
     rkhunter --version 2>/dev/null | head -1 || true
     echo
     rkhunter --update --quiet >/dev/null 2>&1 || true
-    rkhunter --check --sk --rwo --nocolors >"$RKHUNTER_TMP" 2>&1 || true
+    rkhunter --check --sk --rwo --nocolors 2>&1 | grep -v '^egrep: warning: egrep is obsolescent' >"$RKHUNTER_TMP" || true
     echo "# Warnings:"
     if [ -s "$RKHUNTER_TMP" ]; then
       cat "$RKHUNTER_TMP"

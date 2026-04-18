@@ -66,7 +66,10 @@ trap 'rm -f "$RKHUNTER_TMP"' EXIT
     rkhunter --update --quiet >/dev/null 2>&1 || true
 
     # --sk: skip keypress. --rwo: report warnings only (skip OK lines).
-    rkhunter --check --sk --rwo --nocolors >"$RKHUNTER_TMP" 2>&1 || true
+    # Filter "egrep: warning: egrep is obsolescent" noise — rkhunter still spawns egrep
+    # internally and Arch's grep emits a deprecation banner per call. Harmless but drowns
+    # out real warnings.
+    rkhunter --check --sk --rwo --nocolors 2>&1 | grep -v '^egrep: warning: egrep is obsolescent' >"$RKHUNTER_TMP" || true
     echo "# Warnings:"
     if [ -s "$RKHUNTER_TMP" ]; then
       cat "$RKHUNTER_TMP"
