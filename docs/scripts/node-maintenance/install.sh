@@ -83,7 +83,7 @@ systemctl enable node-maintenance-phase2.service
 # ── generate worker install scripts with pubkey substituted ──
 PUB_KEY="$(cat /var/lib/node-maintenance/.ssh/id_ed25519.pub)"
 WORKER_SCRIPT_OUT="/tmp/install-worker-ready.sh"
-sed "0,/__REPLACE_WITH_ACTUAL_PUBKEY__/s|__REPLACE_WITH_ACTUAL_PUBKEY__|${PUB_KEY}|" \
+sed "s|__REPLACE_WITH_ACTUAL_PUBKEY__|${PUB_KEY}|" \
   "$REPO_DIR/install-worker.sh" > "$WORKER_SCRIPT_OUT"
 chmod +x "$WORKER_SCRIPT_OUT"
 
