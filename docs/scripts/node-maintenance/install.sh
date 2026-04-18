@@ -12,6 +12,8 @@ KUBECONFIG_PATH="/etc/rancher/k3s/k3s.yaml"
 command -v ansible-playbook >/dev/null 2>&1 || pacman -S --noconfirm ansible
 command -v jq >/dev/null 2>&1 || pacman -S --noconfirm jq
 command -v rsync >/dev/null 2>&1 || pacman -S --noconfirm rsync
+# python-kubernetes required by kubernetes.core.k8s / k8s_info modules
+pacman -Q python-kubernetes >/dev/null 2>&1 || pacman -S --noconfirm python-kubernetes
 command -v kubectl >/dev/null 2>&1 || { echo "kubectl required" >&2; exit 1; }
 command -v flux >/dev/null 2>&1 || { echo "flux required" >&2; exit 1; }
 [ -r "$KUBECONFIG_PATH" ] || { echo "$KUBECONFIG_PATH not readable" >&2; exit 1; }
