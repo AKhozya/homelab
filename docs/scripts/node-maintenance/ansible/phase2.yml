@@ -174,10 +174,10 @@
       changed_when: false
       check_mode: false
 
-    - name: Re-check firing alerts
+    - name: Re-check firing alerts (amtool)
       ansible.builtin.shell: |
         kubectl --kubeconfig={{ kubeconfig_path }} -n monitoring exec "{{ am_pod.stdout }}" -c alertmanager -- \
-          wget -qO- 'http://localhost:9093/api/v2/alerts?filter=alertstate%3Dfiring'
+          amtool --alertmanager.url=http://localhost:9093 alert query --active --output=json
       args:
         executable: /bin/bash
       register: firing_alerts_raw
@@ -194,11 +194,11 @@
       register: silence_id_b64
       failed_when: false
 
-    - name: Delete auto-silence (if ID persisted)
+    - name: Expire auto-silence (amtool)
       ansible.builtin.shell: |
         SILID="{{ silence_id_b64.content | b64decode | trim }}"
         kubectl --kubeconfig={{ kubeconfig_path }} -n monitoring exec "{{ am_pod.stdout }}" -c alertmanager -- \
-          wget -qO- --method=DELETE "http://localhost:9093/api/v2/silence/$SILID"
+          amtool --alertmanager.url=http://localhost:9093 silence expire "$SILID"
       args:
         executable: /bin/bash
       changed_when: false

@@ -67,7 +67,9 @@
       vars:
         tg_message: "🔧 Node maintenance phase 1 starting on {{ ansible_facts['hostname'] }}. Log: /var/log/node-maintenance/phase1-{{ '%d-%m-%Y' | strftime(ansible_facts['date_time'].epoch | int) }}.log"
 
-    # ── SILENCE TRANSIENT ALERTS (via kubectl exec into alertmanager pod — bypasses host→pod routing issues) ──
+    # ── SILENCE TRANSIENT ALERTS (via kubectl exec + amtool in alertmanager pod) ──
+    # amtool is bundled in the alertmanager image; busybox wget lacks --method=DELETE
+    # which the silences DELETE endpoint requires, so we use amtool for both add+expire.
     - name: Find alertmanager pod
       ansible.builtin.shell: |
         kubectl --kubeconfig={{ kubeconfig_path }} -n monitoring \
@@ -81,13 +83,11 @@
 
     - name: "Silence transient alerts, duration minutes: {{ silence_duration_seconds // 60 }}"
       ansible.builtin.shell: |
-        BODY=$(cat <<'JSON'
-        {"matchers":[{"name":"alertname","value":"{{ silence_alertnames }}","isRegex":true}],"startsAt":"{{ '%Y-%m-%dT%H:%M:%SZ' | strftime(ansible_facts['date_time'].epoch | int) }}","endsAt":"{{ '%Y-%m-%dT%H:%M:%SZ' | strftime((ansible_facts['date_time'].epoch | int) + silence_duration_seconds) }}","createdBy":"node-maintenance","comment":"Auto-silence during scheduled node update run"}
-        JSON
-        )
         kubectl --kubeconfig={{ kubeconfig_path }} -n monitoring exec "{{ am_pod.stdout }}" -c alertmanager -- \
-          wget -qO- --header='Content-Type: application/json' --post-data="$BODY" \
-            http://localhost:9093/api/v2/silences
+          amtool --alertmanager.url=http://localhost:9093 silence add \
+            --duration={{ silence_duration_seconds }}s \
+            --comment="Auto-silence during scheduled node update run" \
+            'alertname=~"{{ silence_alertnames }}"'
       args:
         executable: /bin/bash
       register: silence_response
@@ -96,7 +96,7 @@
     - name: Persist silence ID
       ansible.builtin.copy:
         dest: "{{ silence_id_file }}"
-        content: "{{ (silence_response.stdout | from_json).silenceID }}"
+        content: "{{ silence_response.stdout | trim }}"
         mode: '0600'
         owner: root
         group: root
