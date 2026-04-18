@@ -1,0 +1,187 @@
+---
+# hardening — SSH, sysctls, kubelet, systemd drop-ins, resolved, udev, tmpfiles
+# Applies to: all hosts (CP + workers). Codifies live state from setup-node.sh.
+#
+# Safety notes:
+# - SSH drop-in: validate with `sshd -t` after copy, reload (not restart) — keeps active sessions.
+# - sysctls: apply via `sysctl --system` (non-disruptive).
+# - kubelet.yaml: no handler — applies on next k3s restart (drift-heal only).
+# - k3s service drop-ins: notify daemon-reload; next k3s restart picks up.
+# - udev: reload rules + trigger (safe, no disruption to existing devices).
+
+# ---------- SSH ----------
+- name: Deploy sshd hardening drop-in
+  ansible.builtin.copy:
+    src: sshd-99-hardening.conf
+    dest: /etc/ssh/sshd_config.d/99-hardening.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: sshd_dropin
+  tags: [hardening, ssh]
+
+- name: Validate sshd config (after drop-in change)
+  ansible.builtin.command: /usr/sbin/sshd -t
+  when: sshd_dropin.changed
+  changed_when: false
+  tags: [hardening, ssh]
+
+- name: Reload sshd
+  ansible.builtin.systemd_service:
+    name: sshd
+    state: reloaded
+  when: sshd_dropin.changed
+  tags: [hardening, ssh]
+
+# ---------- sysctls ----------
+- name: Deploy sysctl drop-ins
+  ansible.builtin.copy:
+    src: "sysctl-{{ item }}"
+    dest: "/etc/sysctl.d/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - 99-unified-hardening.conf
+    - 99-k8s-performance.conf
+    - 99-watchdog.conf
+  notify: Apply sysctls
+  tags: [hardening, sysctl]
+
+- name: Remove legacy sysctl files (superseded by unified-hardening)
+  ansible.builtin.file:
+    path: "/etc/sysctl.d/{{ item }}"
+    state: absent
+  loop:
+    - 51-kptr-restrict.conf
+    - 99-security-hardening.conf
+  notify: Apply sysctls
+  tags: [hardening, sysctl]
+
+# ---------- systemd manager + k3s drop-ins ----------
+- name: Ensure /etc/systemd/system.conf.d exists
+  ansible.builtin.file:
+    path: /etc/systemd/system.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [hardening, systemd]
+
+- name: Deploy systemd hardware watchdog drop-in
+  ansible.builtin.copy:
+    src: systemd-watchdog.conf
+    dest: /etc/systemd/system.conf.d/watchdog.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [hardening, systemd]
+
+- name: Ensure systemd default timeouts (main system.conf)
+  ansible.builtin.lineinfile:
+    path: /etc/systemd/system.conf
+    regexp: "^{{ item.key }}="
+    line: "{{ item.key }}={{ item.value }}"
+    state: present
+  loop:
+    - { key: DefaultTimeoutStartSec, value: 120s }
+    - { key: DefaultTimeoutStopSec,  value: 120s }
+  notify: Reload systemd
+  tags: [hardening, systemd]
+
+- name: Ensure /etc/systemd/system/{{ k3s_service | regex_replace('\\.service$','') }}.service.d exists
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ k3s_service }}.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [hardening, k3s-service]
+
+- name: Deploy k3s service drop-ins
+  ansible.builtin.copy:
+    src: "k3s-{{ item }}"
+    dest: "/etc/systemd/system/{{ k3s_service }}.d/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - shutdown-timeout.conf
+    - conntrack-fix.conf
+    - network-hardening.conf
+  notify: Reload systemd
+  tags: [hardening, k3s-service]
+
+# ---------- resolved (LLMNR disable) ----------
+- name: Ensure /etc/systemd/resolved.conf.d exists
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [hardening, resolved]
+
+- name: Deploy resolved LLMNR disable drop-in
+  ansible.builtin.copy:
+    src: resolved-no-llmnr.conf
+    dest: /etc/systemd/resolved.conf.d/no-llmnr.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart systemd-resolved
+  tags: [hardening, resolved]
+
+# ---------- kubelet ----------
+- name: Deploy kubelet config (applies on next k3s restart)
+  ansible.builtin.copy:
+    src: k3s-kubelet.yaml
+    dest: /etc/rancher/k3s/kubelet.yaml
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [hardening, kubelet]
+
+# ---------- modprobe / udev / tmpfiles (power) ----------
+- name: Deploy NVMe APST disable modprobe conf
+  ansible.builtin.copy:
+    src: modprobe-nvme-no-apst.conf
+    dest: /etc/modprobe.d/nvme-no-apst.conf
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [hardening, power]
+
+- name: Deploy udev rules (NVMe + SATA no power-mgmt)
+  ansible.builtin.copy:
+    src: "udev-{{ item }}"
+    dest: "/etc/udev/rules.d/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - 60-nvme-no-pm.rules
+    - 60-sata-no-alpm.rules
+  notify: Reload udev rules
+  tags: [hardening, power]
+
+- name: Deploy tmpfiles.d entries (CPU power + NVMe no-PM)
+  ansible.builtin.copy:
+    src: "tmpfiles-{{ item }}"
+    dest: "/etc/tmpfiles.d/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - cpu-power-settings.conf
+    - nvme-no-pm.conf
+  notify: Apply tmpfiles
+  tags: [hardening, power]
+
+- name: Remove legacy cpu-governor tmpfile (superseded by cpu-power-settings)
+  ansible.builtin.file:
+    path: /etc/tmpfiles.d/cpu-governor.conf
+    state: absent
+  notify: Apply tmpfiles
+  tags: [hardening, power]

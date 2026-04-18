@@ -1,10 +1,10 @@
 ---
 # node-config.yml — idempotent node config drift-heal
 # Invoke from CP: ansible-playbook -D /etc/node-maintenance/ansible/node-config.yml -i /etc/node-maintenance/ansible/inventory.yml
-# Phases live: A (base_config, k3s_image_gc, rebuilderd), C (firewall).
-#   Later phases add: SSH/sysctl (D), ad-hoc (E).
+# Phases live: A (base_config, k3s_image_gc, rebuilderd), C (firewall), D (hardening).
+#   Later phases add: ad-hoc (E).
 
-- name: Node config drift-heal — base + k3s-image-gc + firewall (all hosts)
+- name: Node config drift-heal — base + k3s-image-gc + firewall + hardening (all hosts)
   hosts: all
   become: true
   gather_facts: true
@@ -12,6 +12,7 @@
     - role: base_config
     - role: k3s_image_gc
     - role: firewall
+    - role: hardening
 
 - name: Node config drift-heal — rebuilderd (workers only)
   hosts: workers
