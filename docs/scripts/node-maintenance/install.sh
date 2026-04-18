@@ -52,6 +52,16 @@ install -d -m 0755 -o root             -g root            /etc/node-maintenance
 install -d -m 0750 -o root             -g adm             /var/log/node-maintenance
 install -d -m 0700 -o node-maintenance -g node-maintenance /var/lib/node-maintenance/.ssh
 
+# ── sudoers ──
+# yay (run as node-maintenance) internally calls `sudo pacman` — needs NOPASSWD.
+# Same pattern as workers (install-worker.sh). Trust surface = user account
+# (SSH login disabled: no password set, /etc/ssh/sshd_config omits node-maintenance).
+cat > /etc/sudoers.d/node-maintenance <<'EOF'
+node-maintenance ALL=(ALL) NOPASSWD: ALL
+EOF
+chmod 0440 /etc/sudoers.d/node-maintenance
+visudo -c -f /etc/sudoers.d/node-maintenance
+
 # ── ansible playbooks + collections ──
 rsync -a --delete "$REPO_DIR/ansible/" /etc/node-maintenance/ansible/
 chmod 0600 /etc/node-maintenance/ansible/inventory.yml
