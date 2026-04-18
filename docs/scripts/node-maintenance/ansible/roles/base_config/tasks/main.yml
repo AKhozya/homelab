@@ -1,0 +1,89 @@
+---
+# base-config — logrotate, journald caps, sudoers, node-maintenance user
+# Applies to: all hosts (CP + workers); CP-only tasks tagged cp-only via when:
+
+- name: Ensure logrotate installed
+  ansible.builtin.package:
+    name: logrotate
+    state: present
+  tags: [base-config, logrotate]
+
+- name: Deploy /etc/logrotate.d/pacman
+  ansible.builtin.copy:
+    src: logrotate-pacman
+    dest: /etc/logrotate.d/pacman
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [base-config, logrotate]
+
+- name: Deploy CP-only logrotate configs
+  ansible.builtin.copy:
+    src: "logrotate-{{ item }}"
+    dest: "/etc/logrotate.d/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - node-maintenance
+    - security-tools
+  when: "'control_plane' in group_names"
+  tags: [base-config, logrotate]
+
+- name: Ensure logrotate.timer enabled + started
+  ansible.builtin.systemd_service:
+    name: logrotate.timer
+    enabled: true
+    state: started
+  tags: [base-config, logrotate]
+
+- name: Ensure /etc/systemd/journald.conf.d exists
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [base-config, journald]
+
+- name: Deploy journald 99-caps.conf
+  ansible.builtin.copy:
+    src: journald-99-caps.conf
+    dest: /etc/systemd/journald.conf.d/99-caps.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart journald
+  tags: [base-config, journald]
+
+- name: Remove stale journald 00-caps.conf (pre-2026-04-18 filename)
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d/00-caps.conf
+    state: absent
+  notify: Restart journald
+  tags: [base-config, journald]
+
+- name: Deploy sudoers for node-maintenance
+  ansible.builtin.copy:
+    src: sudoers-node-maintenance
+    dest: /etc/sudoers.d/node-maintenance
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -c -f %s
+  tags: [base-config, sudoers]
+
+- name: Ensure node-maintenance user shell is /bin/bash
+  ansible.builtin.user:
+    name: node-maintenance
+    shell: /bin/bash
+  tags: [base-config, user]
+
+- name: Ensure /var/lib/node-maintenance/.ssh perms
+  ansible.builtin.file:
+    path: /var/lib/node-maintenance/.ssh
+    state: directory
+    owner: node-maintenance
+    group: node-maintenance
+    mode: "0700"
+  tags: [base-config, user]

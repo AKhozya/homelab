@@ -1,0 +1,12 @@
+---
+# node-config.yml — idempotent node config drift-heal
+# Invoke from CP: ansible-playbook -D /etc/node-maintenance/ansible/node-config.yml -i /etc/node-maintenance/ansible/inventory.yml
+# Scope: logrotate, journald, sudoers, node-maintenance user, rebuilderd-worker override (Phase A).
+#   Later phases add: k3s-image-gc + rebuilderd (B), UFW (C), SSH/sysctl (D), ad-hoc (E).
+
+- name: Node config drift-heal (all hosts)
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - role: base_config
