@@ -115,6 +115,22 @@
 
 **Next Review**: 2026-05-04 (Monthly)
 
+### Monthly Review Checklist
+
+Pull latest security-scan summaries from all 3 nodes, diff vs prior month, document deltas in review commit.
+
+```bash
+for node in "akhozya@gmk-k3s-control-plane" "akhozya@worker-node" "z3us@worker-node-2"; do
+  echo "=== $node ==="
+  ssh -p 65300 "$node" "sudo cat /var/log/node-maintenance/security-scan-$(date -u +%Y-%m).log 2>/dev/null | tail -120"
+done
+```
+
+Source of truth:
+- `/var/log/node-maintenance/security-scan-YYYY-MM.log` (compact summary per node, 12mo retention)
+- `/var/log/lynis-report.dat`, `/var/log/rkhunter.log` (full output, 6mo retention via logrotate)
+- Timer: `node-maintenance-security-scan.timer` — 1st of month 04:00 UTC, all 3 nodes
+
 ---
 
 ## CHANGELOG
@@ -122,6 +138,7 @@
 *Monthly reviews, full changelog, done items: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) and `git log --all -- docs/HOMELAB_ANALYSIS.md`*
 
 **Recent highlights** (2026):
+- 2026-04-18: Monthly security scan live — `node-maintenance-security-scan.timer` on all 3 nodes (1st of month 04:00 UTC, ±1h jitter). Runs `lynis audit system --quick` + `rkhunter --check --sk --rwo`; writes compact summary to `/var/log/node-maintenance/security-scan-YYYY-MM.log` (12mo retention, logrotate/security-tools). No Telegram — reviewed during monthly HOMELAB_ANALYSIS cadence. First run: 2026-05-01; first review: 2026-05-04
 - 2026-04-18: PodDisruptionBudgets added for 9 HA workloads (authentik server/worker, traefik, cloudflared, main-postgres-rw-pooler, main-mysql-haproxy, main-mysql-orc, couchdb, alertmanager). `minAvailable: 1` for 2-replica; `maxUnavailable: 1` for 3-replica (orc). CNPG/Percona/Kyverno operator-managed PDBs already covered primary pods
 - 2026-04-18: Node cron/timer audit — no migration candidates. k3s-image-gc (crictl/CRI socket), logrotate (root-owned paths), repro-cleanup (rebuilderd nspawn data) all genuinely need root; rebuilderd-* already run as rebuilderd user. No plain cron anywhere. P3 item closed
 - 2026-04-18: Logrotate + journald caps rollout (all 3 nodes) — `logrotate` pkg installed, `logrotate.timer` enabled, `/var/log/pacman.log` + `/var/log/node-maintenance/*` + `/var/log/security-tools/*` rotated monthly/weekly, journald drop-in `99-caps.conf` (SystemMaxUse=500M, MaxRetentionSec=30d, Compress=yes)

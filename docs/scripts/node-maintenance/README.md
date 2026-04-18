@@ -6,6 +6,29 @@ Automated weekly Arch Linux updates across all 3 K3s nodes.
 **Flow:** CP phase1 (update + reboot) → CP phase2 on boot (worker rolling update + cleanup)
 **Notifications:** Telegram (reuses `backup-replication/backup-telegram` bot)
 
+## Monthly Security Scan
+
+Parallel pipeline, runs on **each node locally** (no orchestration).
+
+**Schedule:** 1st of month 04:00 UTC, ±1h jitter (RandomizedDelaySec=3600)
+**Unit:** `node-maintenance-security-scan.timer` → `node-maintenance-security-scan.service`
+**Script:** `/usr/local/sbin/node-maintenance-security-scan.sh` (canonical: `bin/security-scan.sh`)
+**Tools:** `lynis audit system --quick` + `rkhunter --check --sk --rwo --nocolors`
+**Summary log:** `/var/log/node-maintenance/security-scan-YYYY-MM.log` (12mo retention, root:adm 0640)
+**Full logs:** `/var/log/lynis.log` + `/var/log/lynis-report.dat` + `/var/log/rkhunter.log` (6mo retention)
+**No Telegram alerts** — reviewed during monthly HOMELAB_ANALYSIS.md cadence.
+
+Manual trigger (off-schedule):
+```bash
+sudo systemctl start node-maintenance-security-scan.service
+# Watch progress
+journalctl -fu node-maintenance-security-scan.service
+# Read latest summary
+sudo cat /var/log/node-maintenance/security-scan-$(date -u +%Y-%m).log
+```
+
+When `security-scan.sh` changes: CP auto-syncs (sync timer). **Workers require manual re-run of `install-worker.sh`** (script body inlined to avoid worker→git dependency).
+
 **Spec:** `docs/superpowers/specs/2026-04-18-node-maintenance-design.md`
 
 ---

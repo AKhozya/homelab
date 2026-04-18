@@ -1,0 +1,13 @@
+[Unit]
+Description=Node maintenance — monthly lynis + rkhunter security scan
+Documentation=file:///etc/node-maintenance/README.md
+ConditionPathExists=/usr/local/sbin/node-maintenance-security-scan.sh
+
+[Service]
+Type=oneshot
+User=root
+Nice=15
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+ExecStart=/usr/local/sbin/node-maintenance-security-scan.sh
+TimeoutStartSec=45min

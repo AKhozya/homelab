@@ -118,12 +118,15 @@ fi
 # ── notify helper + sync helper + systemd units ──
 install -m 0750 -o root -g root "$REPO_DIR/lib/telegram-notify.sh" /usr/local/sbin/telegram-notify.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/sync-from-git.sh"   /usr/local/sbin/node-maintenance-sync-from-git.sh
+install -m 0750 -o root -g root "$REPO_DIR/bin/security-scan.sh"   /usr/local/sbin/node-maintenance-security-scan.sh
 install -m 0644 "$REPO_DIR/systemd/node-maintenance.timer"                     /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase1.service"            /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase2.service"            /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-kubectl-proxy.service"     /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-sync.service"              /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-sync.timer"                /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance-security-scan.service"     /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance-security-scan.timer"       /etc/systemd/system/
 
 # ── github known_hosts (for deploy-key-based git sync) ──
 # Baked once; rotation = delete + re-run install.sh (ssh-keyscan re-fetches).
@@ -148,6 +151,9 @@ systemctl daemon-reload
 systemctl restart systemd-journald.service
 # Enable distro logrotate.timer (Arch ships it, not enabled by default)
 systemctl enable --now logrotate.timer
+
+# Enable security-scan timer always (idempotent) so existing nodes pick it up on sync.
+systemctl enable --now node-maintenance-security-scan.timer
 
 if [ "$SYNC_ONLY" -eq 0 ]; then
   systemctl enable --now node-maintenance-kubectl-proxy.service
