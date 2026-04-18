@@ -683,11 +683,6 @@ echo "  - /etc/rancher/k3s/config.yaml"
 echo "  - /etc/rancher/k3s/kubelet.yaml"
 echo ""
 if [ "$NODE_TYPE" = "control-plane" ]; then
-    UFW_SCRIPT="setup-ufw-k3s-control-plane.sh"
-else
-    UFW_SCRIPT="setup-ufw-k3s-worker.sh"
-fi
-if [ "$NODE_TYPE" = "control-plane" ]; then
     echo "Next steps:"
     echo "  1. Restart K3s: sudo systemctl restart $K3S_SERVICE"
     echo "  2. Enable secrets encryption (control-plane only):"
@@ -697,10 +692,12 @@ if [ "$NODE_TYPE" = "control-plane" ]; then
     echo "       sudo k3s secrets-encrypt rotate-keys"
     echo "       sudo systemctl restart k3s"
     echo "       sudo k3s secrets-encrypt status  # Expect: Enabled + reencrypt_finished"
-    echo "  3. Setup UFW (if needed): sudo bash /tmp/$UFW_SCRIPT"
+    echo "  3. Install node-maintenance (owns UFW via ansible firewall role):"
+    echo "       sudo bash docs/scripts/node-maintenance/install.sh"
 else
     echo "Next steps:"
     echo "  1. Restart K3s: sudo systemctl restart $K3S_SERVICE"
-    echo "  2. Setup UFW (if needed): sudo bash /tmp/$UFW_SCRIPT"
+    echo "  2. Install node-maintenance worker bits (UFW rules applied from CP via ansible):"
+    echo "       sudo bash docs/scripts/node-maintenance/install-worker.sh"
 fi
 echo ""

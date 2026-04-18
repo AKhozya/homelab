@@ -8,7 +8,7 @@ Automated weekly Arch Linux updates across all 3 K3s nodes.
 
 ## Node Config Drift-Heal (ansible)
 
-Declarative config managed by `ansible/node-config.yml`. Roles live: `base_config` (logrotate, journald caps, sudoers, node-maintenance user, rebuilderd-worker override), `k3s_image_gc` (weekly `crictl rmi --prune`), `rebuilderd` (workers: resources.conf drop-in, metrics + watchdog + boot-timer + repro-cleanup units/scripts). Runs from CP, targets all 3 nodes (rebuilderd workers-only).
+Declarative config managed by `ansible/node-config.yml`. Roles live: `base_config` (logrotate, journald caps, sudoers, node-maintenance user, rebuilderd-worker override), `k3s_image_gc` (weekly `crictl rmi --prune`), `rebuilderd` (workers: resources.conf drop-in, metrics + watchdog + boot-timer + repro-cleanup units/scripts), `firewall` (UFW rules: policies + base/group/host rules + route rules; idempotent-additive, never resets). Runs from CP, targets all 3 nodes (rebuilderd workers-only).
 
 **Schedule:** daily 03:00 UTC (`node-maintenance-config.timer`)
 **Also runs:** after `node-maintenance-sync.service` pulls new `main` HEAD (post-pull drift apply)
@@ -34,7 +34,7 @@ sudo ansible-playbook --tags logrotate -D \
 
 **Edit workflow:** modify file in `ansible/roles/base_config/files/` or template → `git push` → CP sync timer pulls → `install.sh --sync-only` runs → `node-maintenance-config.service` re-applies → Telegram alert on `changed>0`.
 
-**Migration phases (in plan `docs/superpowers/plans/2026-04-18-node-config-ansible.md`):** A done / B done / C (UFW) / D (SSH/sysctl/kubelet) / E (ad-hoc tagged).
+**Migration phases (in plan `docs/superpowers/plans/2026-04-18-node-config-ansible.md`):** A done / B done / C done / D (SSH/sysctl/kubelet) / E (ad-hoc tagged).
 
 ---
 

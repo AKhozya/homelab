@@ -24,7 +24,7 @@
 |-------|-------|--------|------|--------|
 | **A** | Base config: logrotate, journald, sudoers, rebuilderd-worker override, node-maintenance user | ~2h | Low (already deployed via bash; ansible should emit `changed=0`) | ✅ Done 2026-04-18 (HEAD=7b7d249d) — 2nd run `changed=0` on all 3 hosts, TG alert verified |
 | **B** | k3s-image-gc + rebuilderd ancillary (metrics, watchdog, repro-cleanup, reenable-stop, worker-boot) + scripts in `/usr/local/bin/` | ~3h | Medium (active rebuilderd — don't disrupt current build) | Pending |
-| **C** | UFW firewall rules | ~2h | Medium (mis-rule = SSH lockout; test via console fallback) | Pending |
+| **C** | UFW firewall rules | ~2h | Medium (mis-rule = SSH lockout; test via console fallback) | ✅ Done 2026-04-18 — live state codified, role applied node-by-node (CP → W1 → W2), final baseline `changed=0` on all 3 |
 | **D** | Kernel/network hardening: SSH sshd_config, sysctls, kubelet timeout | ~4h | High (SSH misconfig = lockout) | Pending |
 | **E** | Ad-hoc one-shots: `update-firmware`, `enable-crash-logging`, `setup-claude-telegram` → tagged tasks | ~1h | Low (tag-gated, run on-demand) | Pending |
 

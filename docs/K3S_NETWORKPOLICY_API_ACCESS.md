@@ -93,7 +93,7 @@ ufw route allow from 10.42.0.0/16 to 192.168.1.0/24 comment "K3s pod-to-node"
 ufw route allow from 192.168.1.0/24 to 10.42.0.0/16 comment "K3s node-to-pod"
 ```
 
-See `docs/scripts/setup-ufw-k3s-*.sh` for complete UFW setup scripts.
+UFW rules are now managed declaratively via ansible — see `docs/scripts/node-maintenance/ansible/roles/firewall/` and rule sets in `ansible/group_vars/` + `ansible/host_vars/`.
 
 ## Incident Timeline (2025-12-29)
 
