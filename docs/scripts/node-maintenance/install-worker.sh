@@ -5,7 +5,10 @@
 set -euo pipefail
 
 PUB_KEY="__REPLACE_WITH_ACTUAL_PUBKEY__"
-[ "$PUB_KEY" = "__REPLACE_WITH_ACTUAL_PUBKEY__" ] && { echo "PUB_KEY not substituted" >&2; exit 1; }
+case "$PUB_KEY" in
+  ssh-ed25519\ *|ssh-rsa\ *|ecdsa-*\ *) ;;
+  *) echo "PUB_KEY not substituted or invalid format" >&2; exit 1 ;;
+esac
 [ "$(id -u)" = "0" ] || { echo "Run as root" >&2; exit 1; }
 
 # ── node-maintenance user ──
