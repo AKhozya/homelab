@@ -11,6 +11,9 @@ case "$PUB_KEY" in
 esac
 [ "$(id -u)" = "0" ] || { echo "Run as root" >&2; exit 1; }
 
+# ── Preconditions ──
+command -v logrotate >/dev/null 2>&1 || pacman -S --noconfirm logrotate
+
 # ── node-maintenance user ──
 # Shell = /bin/bash required for SSH command execution (ansible).
 # Security: SSH key auth + sudoers; no password set.

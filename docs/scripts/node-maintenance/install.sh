@@ -28,6 +28,7 @@ SSH_KEY_PATH="/var/lib/node-maintenance/.ssh/id_ed25519"
 command -v ansible-playbook >/dev/null 2>&1 || pacman -S --noconfirm ansible
 command -v jq >/dev/null 2>&1 || pacman -S --noconfirm jq
 command -v rsync >/dev/null 2>&1 || pacman -S --noconfirm rsync
+command -v logrotate >/dev/null 2>&1 || pacman -S --noconfirm logrotate
 # python-kubernetes required by kubernetes.core.k8s / k8s_info modules
 pacman -Q python-kubernetes >/dev/null 2>&1 || pacman -S --noconfirm python-kubernetes
 command -v kubectl >/dev/null 2>&1 || { echo "kubectl required" >&2; exit 1; }
