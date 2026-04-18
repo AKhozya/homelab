@@ -57,7 +57,7 @@
 | PostgreSQL (CNPG) | 2 | Streaming repl | PgBouncer | Authentik, Immich, Paperless, Grafana, N8N, Mealie, LinkWarden, Audiobookshelf |
 | MySQL (Percona) | 2 | Async repl | HAProxy | Home Assistant, Uptime Kuma, PriceBuddy |
 | Redis | 1 | No (cache) | - | Authentik, Paperless, Immich |
-| CouchDB | 1 | No (single user) | - | Obsidian sync |
+| CouchDB | 2 | Active-active cluster | - | Obsidian sync |
 
 ---
 
