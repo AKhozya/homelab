@@ -16,7 +16,7 @@ Successfully configured Telegram notifications for all 15 Uptime Kuma monitors v
 
 ### Telegram Bot Configuration
 
-**Bot Token**: `***REMOVED-TELEGRAM-TOKEN***`
+**Bot Token**: `[REDACTED - rotated]`
 **Chat ID**: `113452686` (same as Alertmanager and Flux)
 **Notification Channel Name**: "Telegram - Homelab Monitoring"
 **Default Notification**: Yes (applied to all monitors)
@@ -175,7 +175,7 @@ notification_id = api.add_notification(
     name='Telegram - Homelab Monitoring',
     isDefault=True,
     applyExisting=True,
-    telegramBotToken='***REMOVED-TELEGRAM-TOKEN***',
+    telegramBotToken='[REDACTED - rotated]',
     telegramChatID='113452686'
 )
 
