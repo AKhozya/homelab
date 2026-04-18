@@ -33,14 +33,15 @@ spec:
         - effect: NoSchedule
           operator: Exists
       # hostPath for node-maintenance systemd journal (F2 follow-up)
-      extraVolumes:
-        - name: journal
-          hostPath:
-            path: /var/log/journal
-        - name: machine-id
-          hostPath:
-            path: /etc/machine-id
-            type: File
+      volumes:
+        extra:
+          - name: journal
+            hostPath:
+              path: /var/log/journal
+          - name: machine-id
+            hostPath:
+              path: /etc/machine-id
+              type: File
 
     alloy:
       # Resource limits
@@ -57,13 +58,14 @@ spec:
       # hostPath mounts for node-maintenance systemd journal (F2 follow-up from
       # docs/superpowers/specs/2026-04-18-node-maintenance-design.md). Read-only.
       # Mount-only — blast radius limited by loki.source.journal matches below.
-      extraVolumeMounts:
-        - name: journal
-          mountPath: /var/log/journal
-          readOnly: true
-        - name: machine-id
-          mountPath: /etc/machine-id
-          readOnly: true
+      mounts:
+        extra:
+          - name: journal
+            mountPath: /var/log/journal
+            readOnly: true
+          - name: machine-id
+            mountPath: /etc/machine-id
+            readOnly: true
 
       # Alloy configuration (River/HCL syntax)
       # loki.source.kubernetes tails pod logs via K8s API (no hostPath).
