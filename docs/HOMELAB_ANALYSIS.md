@@ -114,6 +114,7 @@
 | Re-check HA OIDC when hass-oidc-auth stable lands | Backlog | P3 |
 | Add PodDisruptionBudgets for HA workloads | Backlog | P3 |
 | Move node cleanup cron/timer jobs to `node-maintenance` user (after node auto-update PR merge) | Backlog | P3 |
+| Audit + add logrotate configs where missing: `/var/log/node-maintenance/phase{1,2}-*.log`, rebuilderd, other node-local logs (Arch uses systemd-journald for most; file-based logs leak) | Backlog | P3 |
 
 **Next Review**: 2026-05-04 (Monthly)
 
