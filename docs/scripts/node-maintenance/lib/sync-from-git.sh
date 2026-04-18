@@ -41,3 +41,14 @@ else
 fi
 bash "$REPO_DIR/docs/scripts/node-maintenance/install.sh" --sync-only
 echo "==> Sync applied: ${POST_SHA:0:10}"
+
+# ── node-config drift-heal (ansible) ──
+# Re-apply declarative config after pull. Idempotent (changed=0 if nothing drifted).
+# Runs synchronously; failure = sync.service fails = TG alert via existing ExecStopPost.
+if [ -x /usr/bin/ansible-playbook ] && [ -f /etc/node-maintenance/ansible/node-config.yml ]; then
+  echo "==> Running node-config playbook"
+  systemctl start --wait node-maintenance-config.service
+  echo "==> node-config playbook done"
+else
+  echo "==> node-config.yml or ansible-playbook missing; skipping drift-heal"
+fi
