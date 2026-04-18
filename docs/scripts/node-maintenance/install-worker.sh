@@ -43,4 +43,4 @@ TimeoutStopSec=60s
 EOF
 systemctl daemon-reload
 
-echo "Worker bootstrap complete on $(hostname)."
+echo "Worker bootstrap complete on ${HOSTNAME:-$(cat /etc/hostname 2>/dev/null || echo unknown)}."
