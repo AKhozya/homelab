@@ -112,7 +112,7 @@
 | n8n PgBouncer `statement_timeout` fix — re-check #25705 | May 2026 | P3 |
 | High-pri secret rotation (PG: authentik/immich/n8n, MySQL: HA, Redis: immich) | 2026-07-01 | P1 |
 | Re-check HA OIDC when hass-oidc-auth stable lands | Backlog | P3 |
-| Node config → ansible Phase B-E (rebuilderd/UFW/hardening/ad-hoc) — Phase A done 2026-04-18; plan: `docs/superpowers/plans/2026-04-18-node-config-ansible.md` | Backlog | P3 |
+| Node config → ansible Phase C-E (UFW/hardening/ad-hoc) — Phases A+B done 2026-04-18; plan: `docs/superpowers/plans/2026-04-18-node-config-ansible.md` | Backlog | P3 |
 
 **Next Review**: 2026-05-04 (Monthly)
 
@@ -139,6 +139,7 @@ Source of truth:
 *Monthly reviews, full changelog, done items: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) and `git log --all -- docs/HOMELAB_ANALYSIS.md`*
 
 **Recent highlights** (2026):
+- 2026-04-18: Node config → ansible Phase B live — `roles/rebuilderd` (workers) owns resources.conf drop-in (host_vars/per-worker CPU/mem/repro-dir), rebuilderd-metrics + watchdog + worker-boot + repro-cleanup units + scripts. `roles/k3s_image_gc` (all 3 nodes). Orphan units removed: `rebuilderd-reenable-stop.*` (W1), `rebuilderd-worker-scheduled.service` (W2). Retired `setup-rebuilderd-worker-{1,2}.sh`. Live rebuilderd builds (qemu/scribus) uninterrupted — resources.conf byte-identical
 - 2026-04-18: Node config → ansible Phase A live — `roles/base_config` owns logrotate (pacman + node-maintenance + security-tools), journald 99-caps.conf, sudoers, node-maintenance user, rebuilderd-worker TimeoutStopSec override. New `node-maintenance-config.timer` (daily 03:00 UTC) self-heals drift; also runs post-pull via `sync-from-git.sh`. Telegram alert on `changed>0` or failure. `install.sh` / `install-worker.sh` stripped of migrated heredocs (49 lines cut from worker). Plan: `docs/superpowers/plans/2026-04-18-node-config-ansible.md` (phases B-E pending)
 - 2026-04-18: Monthly security scan live — `node-maintenance-security-scan.timer` on all 3 nodes (1st of month 04:00 UTC, ±1h jitter). Runs `lynis audit system --quick` + `rkhunter --check --sk --rwo`; writes compact summary to `/var/log/node-maintenance/security-scan-YYYY-MM.log` (12mo retention, logrotate/security-tools). No Telegram — reviewed during monthly HOMELAB_ANALYSIS cadence. First run: 2026-05-01; first review: 2026-05-04
 - 2026-04-18: PodDisruptionBudgets added for 9 HA workloads (authentik server/worker, traefik, cloudflared, main-postgres-rw-pooler, main-mysql-haproxy, main-mysql-orc, couchdb, alertmanager). `minAvailable: 1` for 2-replica; `maxUnavailable: 1` for 3-replica (orc). CNPG/Percona/Kyverno operator-managed PDBs already covered primary pods
