@@ -112,8 +112,6 @@
 | n8n PgBouncer `statement_timeout` fix — re-check #25705 | May 2026 | P3 |
 | High-pri secret rotation (PG: authentik/immich/n8n, MySQL: HA, Redis: immich) | 2026-07-01 | P1 |
 | Re-check HA OIDC when hass-oidc-auth stable lands | Backlog | P3 |
-| Add PodDisruptionBudgets for HA workloads | Backlog | P3 |
-| Move node cleanup cron/timer jobs to `node-maintenance` user (after node auto-update PR merge) | Backlog | P3 |
 
 **Next Review**: 2026-05-04 (Monthly)
 
@@ -124,6 +122,8 @@
 *Monthly reviews, full changelog, done items: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) and `git log --all -- docs/HOMELAB_ANALYSIS.md`*
 
 **Recent highlights** (2026):
+- 2026-04-18: PodDisruptionBudgets added for 9 HA workloads (authentik server/worker, traefik, cloudflared, main-postgres-rw-pooler, main-mysql-haproxy, main-mysql-orc, couchdb, alertmanager). `minAvailable: 1` for 2-replica; `maxUnavailable: 1` for 3-replica (orc). CNPG/Percona/Kyverno operator-managed PDBs already covered primary pods
+- 2026-04-18: Node cron/timer audit — no migration candidates. k3s-image-gc (crictl/CRI socket), logrotate (root-owned paths), repro-cleanup (rebuilderd nspawn data) all genuinely need root; rebuilderd-* already run as rebuilderd user. No plain cron anywhere. P3 item closed
 - 2026-04-18: Logrotate + journald caps rollout (all 3 nodes) — `logrotate` pkg installed, `logrotate.timer` enabled, `/var/log/pacman.log` + `/var/log/node-maintenance/*` + `/var/log/security-tools/*` rotated monthly/weekly, journald drop-in `99-caps.conf` (SystemMaxUse=500M, MaxRetentionSec=30d, Compress=yes)
 - 2026-04-18: Node-maintenance observability (F2/F3/F4) — Alloy `loki.source.journal` ingests `node-maintenance-phase{1,2}.service` + sync.service logs (Loki hostPath /run/log/journal + /etc/machine-id, loki ns PSS enforce=privileged); Grafana dashboard (7 panels, VM + Loki); `NodeMaintenanceMissedRun` VMRule alert (>8d threshold)
 - 2026-04-18: Node-maintenance E2E stabilized — silence add/expire via `amtool` (bundled in Alertmanager pod, busybox wget lacked `--method=DELETE`); ExecStopPost fixed ($SERVICE_RESULT != "success" vs broken $EXIT_STATUS); `ansible_facts['*']` swap (ansible-core 2.24 prep); ansible.cfg enforces `inject_facts_as_vars=False`
