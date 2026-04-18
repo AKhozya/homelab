@@ -81,13 +81,23 @@ chmod 0400 /etc/node-maintenance/telegram-chat-id
 
 # ── notify helper + systemd units ──
 install -m 0750 -o root -g root "$REPO_DIR/lib/telegram-notify.sh" /usr/local/sbin/telegram-notify.sh
-install -m 0644 "$REPO_DIR/systemd/node-maintenance.timer"          /etc/systemd/system/
-install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase1.service" /etc/systemd/system/
-install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase2.service" /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance.timer"                     /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase1.service"            /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase2.service"            /etc/systemd/system/
+install -m 0644 "$REPO_DIR/systemd/node-maintenance-kubectl-proxy.service"     /etc/systemd/system/
 
 systemctl daemon-reload
+systemctl enable --now node-maintenance-kubectl-proxy.service
 systemctl enable --now node-maintenance.timer
 systemctl enable node-maintenance-phase2.service
+
+# Verify kubectl proxy reachable
+for i in {1..10}; do
+  curl -sf -m 2 http://127.0.0.1:8001/api > /dev/null && break
+  [ "$i" = "10" ] && { echo "ERROR: kubectl proxy not reachable after 10s" >&2; exit 1; }
+  sleep 1
+done
+echo "kubectl proxy ready on 127.0.0.1:8001"
 
 # ── generate worker install scripts with pubkey substituted ──
 PUB_KEY="$(cat /var/lib/node-maintenance/.ssh/id_ed25519.pub)"

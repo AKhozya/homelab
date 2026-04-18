@@ -1,0 +1,19 @@
+[Unit]
+Description=Node maintenance kubectl proxy (localhost-only API proxy for Alertmanager access)
+Documentation=file:///etc/node-maintenance/README.md
+After=network-online.target k3s.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml proxy --port=8001 --address=127.0.0.1 --accept-hosts=^127\\.0\\.0\\.1$
+Restart=on-failure
+RestartSec=10
+# Localhost-only binding; admin kubeconfig — same trust tier as /etc/rancher/k3s/k3s.yaml
+User=root
+ProtectSystem=strict
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

@@ -162,27 +162,16 @@
       environment:
         KUBECONFIG: "{{ kubeconfig_path }}"
 
-    # ── Alertmanager interactions (via kubectl proxy) ─────────
-    - name: Stop any prior kubectl proxy instance
-      ansible.builtin.systemd_service:
-        name: node-maintenance-kubectl-proxy.service
-        state: stopped
-      failed_when: false
-
-    - name: Start kubectl proxy via systemd-run (transient unit, survives ansible task exit)
-      ansible.builtin.shell: |
-        pkill -f 'kubectl.*proxy.*--port=8001' 2>/dev/null || true
-        systemd-run --unit=node-maintenance-kubectl-proxy --quiet \
-          kubectl --kubeconfig={{ kubeconfig_path }} proxy --port=8001
-        for i in {1..10}; do
-          curl -sf -m 2 http://127.0.0.1:8001/api > /dev/null && exit 0
-          sleep 1
-        done
-        echo "kubectl proxy did not come up" >&2
-        exit 1
-      args:
-        executable: /bin/bash
-      changed_when: false
+    # ── Alertmanager interactions (via persistent kubectl proxy on 127.0.0.1:8001) ──
+    - name: Verify kubectl proxy responsive
+      ansible.builtin.uri:
+        url: "http://127.0.0.1:8001/api"
+        method: GET
+        status_code: 200
+      register: proxy_probe
+      retries: 3
+      delay: 2
+      until: proxy_probe.status == 200
 
     - name: Re-check firing alerts
       ansible.builtin.uri:
@@ -200,12 +189,6 @@
         url: "{{ alertmanager_url }}/api/v2/silence/{{ silence_id_b64.content | b64decode | trim }}"
         method: DELETE
         status_code: [200, 404]
-
-    - name: Stop kubectl proxy (systemd-managed)
-      ansible.builtin.systemd_service:
-        name: node-maintenance-kubectl-proxy.service
-        state: stopped
-      failed_when: false
 
     - name: Emit node_exporter textfile metric
       ansible.builtin.copy:
