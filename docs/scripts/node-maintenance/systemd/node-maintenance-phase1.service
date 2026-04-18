@@ -13,7 +13,7 @@ ExecStartPre=/bin/sh -c 'install -d -m 0750 -o root -g adm /var/log/node-mainten
 EnvironmentFile=-/run/node-maintenance.env
 ExecStart=/usr/bin/ansible-playbook -i inventory.yml phase1.yml
 ExecStartPost=/bin/sh -c 'systemctl reboot'
-ExecStopPost=/bin/sh -c '[ "$EXIT_STATUS" != "0/SUCCESS" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance phase1 failed (exit $EXIT_STATUS). No reboot. Log: /var/log/node-maintenance/phase1-$(date -u +%%d-%%m-%%Y).log" || true'
+ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance phase1 failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). No reboot. Log: /var/log/node-maintenance/phase1-$(date -u +%%d-%%m-%%Y).log" || true'
 TimeoutStartSec=30min
 Nice=10
 IOSchedulingClass=best-effort

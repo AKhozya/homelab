@@ -14,7 +14,7 @@ EnvironmentFile=-/run/node-maintenance.env
 ExecStartPre=/bin/bash -c 'for i in {1..60}; do kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml get --raw /readyz 2>/dev/null | grep -q ok && exit 0; sleep 5; done; exit 1'
 ExecStart=/usr/bin/ansible-playbook -i inventory.yml phase2.yml
 ExecStartPost=/bin/rm -f /var/lib/node-maintenance/phase2-pending
-ExecStopPost=/bin/sh -c '[ "$EXIT_STATUS" != "0/SUCCESS" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance phase2 failed (exit $EXIT_STATUS). Flag retained. Log: /var/log/node-maintenance/phase2-$(date -u +%%d-%%m-%%Y).log" || true'
+ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance phase2 failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). Flag retained. Log: /var/log/node-maintenance/phase2-$(date -u +%%d-%%m-%%Y).log" || true'
 TimeoutStartSec=90min
 Nice=10
 
