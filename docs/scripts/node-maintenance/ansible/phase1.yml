@@ -109,9 +109,10 @@
       when: silence_response.json is defined and silence_response.json.silenceID is defined
 
     - name: Stop kubectl proxy (systemd-managed)
-      ansible.builtin.shell: |
-        systemctl stop node-maintenance-kubectl-proxy 2>/dev/null || true
-      changed_when: false
+      ansible.builtin.systemd_service:
+        name: node-maintenance-kubectl-proxy.service
+        state: stopped
+      failed_when: false
 
     # ── UPGRADE ───────────────────────────────────────────────
     - name: Upgrade via yay (pacman + AUR)

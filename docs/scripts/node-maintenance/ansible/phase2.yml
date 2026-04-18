@@ -197,9 +197,10 @@
         status_code: [200, 404]
 
     - name: Stop kubectl proxy (systemd-managed)
-      ansible.builtin.shell: |
-        systemctl stop node-maintenance-kubectl-proxy 2>/dev/null || true
-      changed_when: false
+      ansible.builtin.systemd_service:
+        name: node-maintenance-kubectl-proxy.service
+        state: stopped
+      failed_when: false
 
     - name: Emit node_exporter textfile metric
       ansible.builtin.copy:
