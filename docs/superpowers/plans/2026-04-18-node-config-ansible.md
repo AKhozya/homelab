@@ -27,8 +27,9 @@
 | **C** | UFW firewall rules | ~2h | Medium (mis-rule = SSH lockout; test via console fallback) | ✅ Done 2026-04-18 — live state codified, role applied node-by-node (CP → W1 → W2), final baseline `changed=0` on all 3 |
 | **D** | Kernel/network hardening: SSH sshd_config, sysctls, kubelet timeout | ~4h | High (SSH misconfig = lockout) | ✅ Done 2026-04-19 — live state codified, full apply `changed=0` on all 3 nodes, SSH W1/W2 verified intact |
 | **E** | Ad-hoc one-shots: `update-firmware`, `enable-crash-logging`, `setup-claude-telegram` → tagged tasks | ~1h | Low (tag-gated, run on-demand) | ✅ Done 2026-04-19 — pragmatic scope: firmware→ansible `ad_hoc` role (tag-gated `never`), enable-crash-logging retired (Phase D subsumed all content), setup-claude-telegram left as Mac-side one-shot (not drift-heal target). Default daily run skips ad_hoc (`skipped=4/5/5`); `-t firmware` verified live on W1. |
+| **F** | Consolidation: `packages` role (pacman-native list, host ucode/GPU), `k3s_config` role (templated config.yaml, drift-alert no handler), `security_scan` role (kill install-worker.sh 100-line heredoc), `PermitEmptyPasswords` → drop-in, `fstrim/paccache` → base_config. install-worker.sh shrink 182→50 lines. | ~3h | Low-Medium (k3s_config = live-state capture incl. W2 data-dir + W1 symlink standardize; mistype = K3s misconfig on next restart) | ✅ Done 2026-04-19 — packages role catches real drift (CP missing ufw-extras/mesa/vulkan-intel, W2 missing ethtool/go/mesa stack). k3s_config with W2 `k3s_data_dir` host_var + W1 explicit `data-dir: /mnt/k8s-storage/rancher/k3s` (replaces symlink, same physical path). security_scan role moved from `bin/`+`systemd/` into role `files/`. |
 
-Total: ~12h across sessions.
+Total: ~15h across sessions.
 
 ---
 

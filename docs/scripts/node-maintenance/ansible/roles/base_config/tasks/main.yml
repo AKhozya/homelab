@@ -37,6 +37,16 @@
     state: started
   tags: [base-config, logrotate]
 
+- name: Ensure fstrim + paccache timers enabled + started
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop:
+    - fstrim.timer
+    - paccache.timer
+  tags: [base-config, timers]
+
 - name: Ensure /etc/systemd/journald.conf.d exists
   ansible.builtin.file:
     path: /etc/systemd/journald.conf.d

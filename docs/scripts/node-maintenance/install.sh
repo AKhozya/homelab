@@ -25,14 +25,15 @@ KUBECONFIG_PATH="/etc/rancher/k3s/k3s.yaml"
 SSH_KEY_PATH="/var/lib/node-maintenance/.ssh/id_ed25519"
 
 # ── Preconditions ──
-command -v ansible-playbook >/dev/null 2>&1 || pacman -S --noconfirm ansible
-command -v jq >/dev/null 2>&1 || pacman -S --noconfirm jq
-command -v rsync >/dev/null 2>&1 || pacman -S --noconfirm rsync
-command -v logrotate >/dev/null 2>&1 || pacman -S --noconfirm logrotate
-# python-kubernetes required by kubernetes.core.k8s / k8s_info modules
-pacman -Q python-kubernetes >/dev/null 2>&1 || pacman -S --noconfirm python-kubernetes
-command -v kubectl >/dev/null 2>&1 || { echo "kubectl required" >&2; exit 1; }
-command -v flux >/dev/null 2>&1 || { echo "flux required" >&2; exit 1; }
+# ansible / jq / rsync / logrotate / python-kubernetes bootstrapped by
+# setup-node.sh (CP-only section). Re-check here as safety net — if anything
+# missing, stop with actionable error instead of obscure failure mid-run.
+for bin in ansible-playbook jq rsync logrotate kubectl flux; do
+  command -v "$bin" >/dev/null 2>&1 \
+    || { echo "$bin missing — run setup-node.sh first" >&2; exit 1; }
+done
+pacman -Q python-kubernetes >/dev/null 2>&1 \
+  || { echo "python-kubernetes missing — run setup-node.sh first" >&2; exit 1; }
 [ -r "$KUBECONFIG_PATH" ] || { echo "$KUBECONFIG_PATH not readable" >&2; exit 1; }
 
 if [ "$SYNC_ONLY" -eq 0 ]; then
@@ -119,17 +120,15 @@ fi
 install -m 0750 -o root -g root "$REPO_DIR/lib/telegram-notify.sh" /usr/local/sbin/telegram-notify.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/sync-from-git.sh"   /usr/local/sbin/node-maintenance-sync-from-git.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/node-config-notify.sh" /usr/local/sbin/node-maintenance-config-notify.sh
-install -m 0750 -o root -g root "$REPO_DIR/bin/security-scan.sh"   /usr/local/sbin/node-maintenance-security-scan.sh
 install -m 0644 "$REPO_DIR/systemd/node-maintenance.timer"                     /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase1.service"            /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase2.service"            /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-kubectl-proxy.service"     /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-sync.service"              /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-sync.timer"                /etc/systemd/system/
-install -m 0644 "$REPO_DIR/systemd/node-maintenance-security-scan.service"     /etc/systemd/system/
-install -m 0644 "$REPO_DIR/systemd/node-maintenance-security-scan.timer"       /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-config.service"            /etc/systemd/system/
 install -m 0644 "$REPO_DIR/systemd/node-maintenance-config.timer"              /etc/systemd/system/
+# security-scan.sh + .service + .timer now owned by ansible roles/security_scan (all hosts).
 
 # ── github known_hosts (for deploy-key-based git sync) ──
 # Baked once; rotation = delete + re-run install.sh (ssh-keyscan re-fetches).
@@ -140,8 +139,7 @@ fi
 
 systemctl daemon-reload
 
-# Enable security-scan + node-config drift-heal timers always (idempotent).
-systemctl enable --now node-maintenance-security-scan.timer
+# Enable node-config drift-heal timer (security-scan timer enabled by ansible security_scan role).
 systemctl enable --now node-maintenance-config.timer
 
 # ── run initial node-config drift-heal (ansible owns logrotate/journald/sudoers/user) ──

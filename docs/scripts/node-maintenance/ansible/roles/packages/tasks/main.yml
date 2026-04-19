@@ -1,0 +1,61 @@
+---
+# packages — declarative pacman package state.
+# Applies to: all hosts. Role ordered FIRST in node-config.yml so later roles
+# (firewall, base_config, hardening) can assume their runtime deps are present.
+#
+# AUR packages intentionally out of scope — see setup-node.sh Section 1.
+# Microcode + GPU vendor resolved via per-host `ucode_pkg` / `gpu_vendor` in host_vars.
+
+- name: Install base packages (pacman)
+  ansible.builtin.package:
+    name: "{{ pacman_packages_base }}"
+    state: present
+  tags: [packages, base]
+
+- name: Install CPU microcode ({{ ucode_pkg | default('unset') }})
+  ansible.builtin.package:
+    name: "{{ ucode_pkg }}"
+    state: present
+  when: ucode_pkg is defined
+  tags: [packages, microcode]
+
+- name: Install linux-firmware (universal)
+  ansible.builtin.package:
+    name:
+      - linux-firmware
+      - linux-firmware-whence
+    state: present
+  tags: [packages, firmware]
+
+- name: Install GPU base stack (mesa + vulkan tools + implicit layers)
+  ansible.builtin.package:
+    name:
+      - mesa
+      - vulkan-tools
+      - vulkan-mesa-implicit-layers
+    state: present
+  when: gpu_vendor is defined
+  tags: [packages, gpu]
+
+- name: Install AMD vulkan driver
+  ansible.builtin.package:
+    name: vulkan-radeon
+    state: present
+  when: gpu_vendor | default('') == 'amd'
+  tags: [packages, gpu]
+
+- name: Install Intel vulkan driver
+  ansible.builtin.package:
+    name: vulkan-intel
+    state: present
+  when: gpu_vendor | default('') == 'intel'
+  tags: [packages, gpu]
+
+- name: Install worker-only packages (rebuilderd stack)
+  ansible.builtin.package:
+    name: "{{ pacman_packages_worker }}"
+    state: present
+  when:
+    - "'workers' in group_names"
+    - pacman_packages_worker is defined
+  tags: [packages, worker]

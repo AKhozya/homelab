@@ -1,5 +1,16 @@
 ---
-# worker-node-2 (192.168.1.126) — 4c/16G, lower cap after DPDK OOM incident.
+# worker-node-2 (192.168.1.126) — 4c/16G AMD HawkPoint + Radeon iGPU, lower cap after DPDK OOM incident.
+
+# ---- Packages ----
+ucode_pkg: amd-ucode
+gpu_vendor: amd
+
+# ---- K3s config (per-host override) ----
+# W2 uses LVM /mnt/k8s-storage for k3s data (containerd, images, state).
+# Live state drift caught during Step 5 design (setup-node.sh heredoc never had this).
+k3s_data_dir: /mnt/k8s-storage/k3s
+
+# ---- Rebuilderd ----
 rebuilderd_cpu_quota: "400%"
 rebuilderd_mem_max: "14G"
 rebuilderd_mem_high: "13G"

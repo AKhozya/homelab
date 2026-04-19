@@ -1,6 +1,20 @@
 ---
 # control_plane group overrides (CP = gmk-k3s-control-plane, 192.168.1.127).
 
+# ---- K3s config (Step 5 — §A) ----
+# Drift-alert only, no auto-restart. Restart via: sudo systemctl restart k3s.
+k3s_default_storage_path: /mnt/k8s-storage
+k3s_disable_helm_controller: true
+k3s_disable:
+  - traefik
+k3s_node_taints:
+  - "node-role.kubernetes.io/control-plane:NoSchedule"
+k3s_node_labels:
+  - "svccontroller.k3s.cattle.io/enablelb=false"
+k3s_terminated_pod_gc_threshold: 20
+k3s_secrets_encryption: true
+
+
 # UFW rules specific to CP (captured live 2026-04-18).
 # Extras vs base: 6443 LAN dup, 9090 LAN (legacy Prometheus), 6443 anywhere
 # (Kubernetes API server), 10.42.2.0/24 (W2 pod subnet — redundant vs base

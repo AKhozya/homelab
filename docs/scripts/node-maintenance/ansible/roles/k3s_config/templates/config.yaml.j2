@@ -1,0 +1,63 @@
+{% set is_cp = inventory_hostname in groups['control_plane'] -%}
+# K3s {{ 'Control Plane' if is_cp else 'Worker' }} Configuration
+# Deployed by ansible roles/k3s_config — drift-healed daily by node-maintenance-config.timer.
+# Edit group_vars/control_plane.yml, group_vars/workers.yml, or host_vars/*.yml to change.
+# Applies on next K3s restart (no auto-restart — manual control over API/pod disruption).
+{% if is_cp and k3s_default_storage_path is defined %}
+
+# Storage: LVM on worker node for all PVCs
+default-local-storage-path: {{ k3s_default_storage_path }}
+{% endif %}
+{% if k3s_data_dir is defined %}
+
+# Per-host K3s data-dir override (containerd, images, state)
+data-dir: {{ k3s_data_dir }}
+{% endif %}
+{% if is_cp and k3s_disable_helm_controller | default(false) %}
+
+# Disable Helm controller (Flux manages everything)
+disable-helm-controller: true
+{% endif %}
+{% if is_cp and k3s_disable is defined and k3s_disable | length > 0 %}
+
+# Disable K3s bundled components (managed externally)
+disable:
+{% for item in k3s_disable %}
+  - {{ item }}
+{% endfor %}
+{% endif %}
+
+node-name: {{ inventory_hostname }}
+{% if k3s_node_taints is defined and k3s_node_taints | length > 0 %}
+
+# No workloads on control plane
+node-taint:
+{% for t in k3s_node_taints %}
+  - "{{ t }}"
+{% endfor %}
+{% endif %}
+
+{% if k3s_node_labels is defined and k3s_node_labels | length > 0 %}
+
+# Node labels
+node-label:
+{% for l in k3s_node_labels %}
+  - "{{ l }}"
+{% endfor %}
+{% endif %}
+
+kubelet-arg:
+  - "config=/etc/rancher/k3s/kubelet.yaml"
+{% if is_cp and k3s_terminated_pod_gc_threshold is defined %}
+
+# Clean up terminated (Failed/Succeeded) pods faster. Default 12500 too high for homelab —
+# eviction leftovers linger after reboots. 20 allows ~10 normal Job pods + headroom.
+kube-controller-manager-arg:
+  - "terminated-pod-gc-threshold={{ k3s_terminated_pod_gc_threshold }}"
+{% endif %}
+{% if is_cp and k3s_secrets_encryption | default(false) %}
+
+# Secrets encrypted at rest (AES-CBC). Enable flow:
+#   k3s secrets-encrypt enable → restart → rotate-keys → restart → verify `status`.
+secrets-encryption: true
+{% endif %}

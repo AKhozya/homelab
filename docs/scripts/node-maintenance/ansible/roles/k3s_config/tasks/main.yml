@@ -1,0 +1,26 @@
+---
+# k3s_config — declarative /etc/rancher/k3s/config.yaml.
+# Applies to: all hosts. Per-group/host shape via group_vars + host_vars.
+#
+# NO HANDLER by design. Mirrors kubelet.yaml pattern (hardening role):
+# config drift = detected + logged + Telegram-alerted, human restarts K3s
+# deliberately. Rationale: K3s restart = API gap (CP) or pod disruption (workers).
+# Deliberate human gate avoids automatic production disturbance.
+
+- name: Ensure /etc/rancher/k3s exists
+  ansible.builtin.file:
+    path: /etc/rancher/k3s
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [k3s-config]
+
+- name: Template /etc/rancher/k3s/config.yaml (drift-alert only; no auto-restart)
+  ansible.builtin.template:
+    src: config.yaml.j2
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    group: root
+    mode: "0600"
+  tags: [k3s-config]

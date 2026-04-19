@@ -8,7 +8,7 @@ Automated weekly Arch Linux updates across all 3 K3s nodes.
 
 ## Node Config Drift-Heal (ansible)
 
-Declarative config managed by `ansible/node-config.yml`. Roles live: `base_config` (logrotate, journald caps, sudoers, node-maintenance user, rebuilderd-worker override), `k3s_image_gc` (weekly `crictl rmi --prune`), `rebuilderd` (workers: resources.conf drop-in, metrics + watchdog + boot-timer + repro-cleanup units/scripts), `firewall` (UFW rules: policies + base/group/host rules + route rules; idempotent-additive, never resets), `hardening` (sshd drop-in, sysctls, kubelet.yaml, systemd watchdog + timeouts, k3s service.d drop-ins, resolved LLMNR, NVMe/SATA udev+modprobe, CPU/NVMe tmpfiles), `ad_hoc` (on-demand tag-gated: firmware). Runs from CP, targets all 3 nodes (rebuilderd workers-only).
+Declarative config managed by `ansible/node-config.yml`. Roles live (in apply order): `packages` (pacman-native base + per-host ucode + per-host GPU stack + worker-only `rebuilderd`/`archlinux-repro`), `base_config` (logrotate, journald caps, sudoers, node-maintenance user, rebuilderd-worker override, fstrim/paccache timers), `k3s_config` (`/etc/rancher/k3s/config.yaml` templated per group/host; drift-alert only, no auto-restart), `k3s_image_gc` (weekly `crictl rmi --prune`), `firewall` (UFW rules: policies + base/group/host rules + route rules; idempotent-additive, never resets), `hardening` (sshd drop-in incl. `PermitEmptyPasswords no`, sysctls, kubelet.yaml, systemd watchdog + timeouts, k3s service.d drop-ins, resolved LLMNR, NVMe/SATA udev+modprobe, CPU/NVMe tmpfiles), `security_scan` (monthly lynis+rkhunter timer + script), `rebuilderd` (workers: resources.conf drop-in, metrics + watchdog + boot-timer + repro-cleanup units/scripts), `ad_hoc` (on-demand tag-gated: firmware). Runs from CP, targets all 3 nodes (rebuilderd workers-only).
 
 **Schedule:** daily 03:00 UTC (`node-maintenance-config.timer`)
 **Also runs:** after `node-maintenance-sync.service` pulls new `main` HEAD (post-pull drift apply)
@@ -34,7 +34,7 @@ sudo ansible-playbook --tags logrotate -D \
 
 **Edit workflow:** modify file in `ansible/roles/base_config/files/` or template → `git push` → CP sync timer pulls → `install.sh --sync-only` runs → `node-maintenance-config.service` re-applies → Telegram alert on `changed>0`.
 
-**Migration phases (in plan `docs/superpowers/plans/2026-04-18-node-config-ansible.md`):** A done / B done / C done / D done (2026-04-19) / E done (2026-04-19).
+**Migration phases (in plan `docs/superpowers/plans/2026-04-18-node-config-ansible.md`):** A done / B done / C done / D done (2026-04-19) / E done (2026-04-19) / F done (2026-04-19 — packages, k3s_config, security_scan, PermitEmptyPasswords drop-in, fstrim/paccache timers).
 
 ### Tag catalog (ad-hoc / on-demand)
 
@@ -64,7 +64,7 @@ Parallel pipeline, runs on **each node locally** (no orchestration).
 
 **Schedule:** 1st of month 04:00 UTC, ±1h jitter (RandomizedDelaySec=3600)
 **Unit:** `node-maintenance-security-scan.timer` → `node-maintenance-security-scan.service`
-**Script:** `/usr/local/sbin/node-maintenance-security-scan.sh` (canonical: `bin/security-scan.sh`)
+**Script:** `/usr/local/sbin/node-maintenance-security-scan.sh` (canonical: `ansible/roles/security_scan/files/security-scan.sh`)
 **Tools:** `lynis audit system --quick` + `rkhunter --check --sk --rwo --nocolors`
 **Summary log:** `/var/log/node-maintenance/security-scan-YYYY-MM.log` (12mo retention, root:adm 0640)
 **Full logs:** `/var/log/lynis.log` + `/var/log/lynis-report.dat` + `/var/log/rkhunter.log` (6mo retention)
@@ -79,7 +79,7 @@ journalctl -fu node-maintenance-security-scan.service
 sudo cat /var/log/node-maintenance/security-scan-$(date -u +%Y-%m).log
 ```
 
-When `security-scan.sh` changes: CP auto-syncs (sync timer). **Workers require manual re-run of `install-worker.sh`** (script body inlined to avoid worker→git dependency).
+When `security-scan.sh` changes: CP auto-syncs (sync timer), then ansible `security_scan` role deploys to all 3 nodes on next `node-maintenance-config.service` run (daily, or manually via `sudo systemctl start node-maintenance-config.service`).
 
 **Spec:** `docs/superpowers/specs/2026-04-18-node-maintenance-design.md`
 

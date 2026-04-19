@@ -1,0 +1,28 @@
+---
+# Cleanup W1 stale /var/lib/rancher symlink (Phase F follow-up).
+# W1 originally redirected K3s data via symlink /var/lib/rancher -> /mnt/k8s-storage/rancher.
+# Phase F standardized to explicit k3s_config data-dir (same physical path). Symlink
+# becomes no-op dead code once K3s restart picks up explicit data-dir from config.yaml.
+# Tag: cleanup-w1-symlink. Run only after W1 K3s restart + `sudo systemctl status k3s-agent` green.
+#
+# Invoke (from CP):
+#   sudo ansible-playbook -t cleanup-w1-symlink \
+#     -i /etc/node-maintenance/ansible/inventory.yml \
+#     /etc/node-maintenance/ansible/node-config.yml --limit worker-node
+
+- name: Stat /var/lib/rancher on W1
+  ansible.builtin.stat:
+    path: /var/lib/rancher
+  register: ad_hoc_rancher_path
+  when: inventory_hostname == 'worker-node'
+  tags: [never, cleanup-w1-symlink, ad-hoc]
+
+- name: Remove /var/lib/rancher symlink on W1 (only if it's still a symlink)
+  ansible.builtin.file:
+    path: /var/lib/rancher
+    state: absent
+  when:
+    - inventory_hostname == 'worker-node'
+    - ad_hoc_rancher_path.stat is defined
+    - ad_hoc_rancher_path.stat.islnk | default(false)
+  tags: [never, cleanup-w1-symlink, ad-hoc]

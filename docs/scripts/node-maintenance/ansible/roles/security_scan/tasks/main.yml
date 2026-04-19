@@ -1,0 +1,43 @@
+---
+# security_scan — monthly lynis + rkhunter scan. Applies to all hosts.
+# Deploys canonical script (was duplicated between CP bin/ and 100-line heredoc in install-worker.sh)
+# plus systemd service + timer. Preconditions (lynis + rkhunter pkgs) installed by `packages` role.
+
+- name: Ensure /var/log/node-maintenance exists (owner root:adm 0750)
+  ansible.builtin.file:
+    path: /var/log/node-maintenance
+    state: directory
+    owner: root
+    group: adm
+    mode: "0750"
+  tags: [security-scan]
+
+- name: Deploy security-scan.sh
+  ansible.builtin.copy:
+    src: security-scan.sh
+    dest: /usr/local/sbin/node-maintenance-security-scan.sh
+    owner: root
+    group: root
+    mode: "0750"
+  tags: [security-scan]
+
+- name: Deploy security-scan systemd units
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - node-maintenance-security-scan.service
+    - node-maintenance-security-scan.timer
+  notify: Reload systemd
+  tags: [security-scan]
+
+- name: Enable + start security-scan timer
+  ansible.builtin.systemd_service:
+    name: node-maintenance-security-scan.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [security-scan]

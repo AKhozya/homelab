@@ -52,6 +52,41 @@ ufw_policy_outgoing: allow
 ufw_policy_routed: deny
 ufw_logging: low
 
+# ---- Packages ----
+# Applied by `packages` role. AUR pkgs out of scope (setup-node.sh bootstrap).
+pacman_packages_base:
+  - base-devel
+  - bash-completion
+  - btop
+  - efibootmgr
+  - ethtool
+  - fail2ban
+  - fwupd
+  - fzf
+  - git
+  - go
+  - inetutils
+  - jq
+  - linux-lts
+  - linux-lts-headers
+  - lvm2
+  - lynis
+  - nvme-cli
+  - openssh
+  - pacman-contrib
+  - reflector
+  - rkhunter
+  - rsync
+  - smartmontools
+  - sysstat
+  - tree
+  - ufw
+  - ufw-extras
+  - vim
+  - yq
+# Note: `yay` deliberately NOT here — AUR-only, pacman cannot install it.
+# Bootstrapped manually once per node (makepkg). setup-node.sh Section 1 uses it for firmware AUR pkgs.
+
 # Base rules common to all 3 nodes (captured from live state 2026-04-18).
 # Order preserved as UFW orders rules internally by insertion; module idempotency
 # compares rule match (not comment), so minor comment drift is tolerated as no-op.
