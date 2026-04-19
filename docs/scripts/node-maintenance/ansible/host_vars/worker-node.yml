@@ -5,6 +5,9 @@
 ucode_pkg: amd-ucode
 gpu_vendor: amd
 
+# ---- Admin user ----
+admin_user: akhozya
+
 # ---- K3s config ----
 # K3s data (containerd, images, state) on LVM. Path includes /rancher/
 # intermediate for historical reasons (previously a /var/lib/rancher symlink).

@@ -98,6 +98,14 @@
     mode: "0700"
   tags: [base-config, user]
 
+- name: Add admin_user to adm group (read /var/log/node-maintenance without sudo)
+  ansible.builtin.user:
+    name: "{{ admin_user }}"
+    groups: adm
+    append: true
+  when: admin_user is defined
+  tags: [base-config, user]
+
 - name: Ensure rebuilderd-worker@.service.d exists (workers)
   ansible.builtin.file:
     path: /etc/systemd/system/rebuilderd-worker@.service.d

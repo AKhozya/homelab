@@ -4,3 +4,8 @@
 # ---- Packages ----
 ucode_pkg: intel-ucode
 gpu_vendor: intel
+
+# ---- Admin user ----
+# Granted `adm` group membership so interactive reads of
+# /var/log/node-maintenance/ work without sudo.
+admin_user: akhozya
