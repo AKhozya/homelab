@@ -22,5 +22,7 @@
     dest: /etc/rancher/k3s/config.yaml
     owner: root
     group: root
-    mode: "0600"
+    # 0644: K3s early-boot subprocess reads this before fully elevating; 0600 triggers
+    # "permission denied" WARN and falls back to defaults. Historical live state was 0644.
+    mode: "0644"
   tags: [k3s-config]
