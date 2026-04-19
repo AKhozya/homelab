@@ -26,7 +26,7 @@
 | **B** | k3s-image-gc + rebuilderd ancillary (metrics, watchdog, repro-cleanup, reenable-stop, worker-boot) + scripts in `/usr/local/bin/` | ~3h | Medium (active rebuilderd — don't disrupt current build) | Pending |
 | **C** | UFW firewall rules | ~2h | Medium (mis-rule = SSH lockout; test via console fallback) | ✅ Done 2026-04-18 — live state codified, role applied node-by-node (CP → W1 → W2), final baseline `changed=0` on all 3 |
 | **D** | Kernel/network hardening: SSH sshd_config, sysctls, kubelet timeout | ~4h | High (SSH misconfig = lockout) | ✅ Done 2026-04-19 — live state codified, full apply `changed=0` on all 3 nodes, SSH W1/W2 verified intact |
-| **E** | Ad-hoc one-shots: `update-firmware`, `enable-crash-logging`, `setup-claude-telegram` → tagged tasks | ~1h | Low (tag-gated, run on-demand) | Pending |
+| **E** | Ad-hoc one-shots: `update-firmware`, `enable-crash-logging`, `setup-claude-telegram` → tagged tasks | ~1h | Low (tag-gated, run on-demand) | ✅ Done 2026-04-19 — pragmatic scope: firmware→ansible `ad_hoc` role (tag-gated `never`), enable-crash-logging retired (Phase D subsumed all content), setup-claude-telegram left as Mac-side one-shot (not drift-heal target). Default daily run skips ad_hoc (`skipped=4/5/5`); `-t firmware` verified live on W1. |
 
 Total: ~12h across sessions.
 
