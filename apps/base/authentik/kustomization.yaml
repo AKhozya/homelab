@@ -9,3 +9,12 @@ resources:
   - networkpolicy.yaml
   - ingress.yaml
   - pdb.yaml
+
+configMapGenerator:
+  - name: authentik-blueprints-custom
+    namespace: authentik
+    files:
+      - blueprints/00-noop.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true

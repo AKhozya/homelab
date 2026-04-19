@@ -1,0 +1,6 @@
+version: 1
+metadata:
+  name: homelab-noop-pipeline-test
+  labels:
+    blueprints.goauthentik.io/description: "No-op blueprint validating custom ConfigMap mount + Authentik blueprint runner pickup."
+entries: []

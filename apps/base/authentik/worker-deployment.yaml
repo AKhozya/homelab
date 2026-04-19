@@ -105,6 +105,9 @@ spec:
               mountPath: /tmp
             - name: certs
               mountPath: /certs
+            - name: blueprints-custom
+              mountPath: /blueprints/custom
+              readOnly: true
       volumes:
         - name: media
           emptyDir: {}
@@ -112,3 +115,6 @@ spec:
           emptyDir: {}
         - name: certs
           emptyDir: {}
+        - name: blueprints-custom
+          configMap:
+            name: authentik-blueprints-custom

@@ -105,8 +105,14 @@ spec:
               mountPath: /data/media
             - name: tmp
               mountPath: /tmp
+            - name: blueprints-custom
+              mountPath: /blueprints/custom
+              readOnly: true
       volumes:
         - name: media
           emptyDir: {}
         - name: tmp
           emptyDir: {}
+        - name: blueprints-custom
+          configMap:
+            name: authentik-blueprints-custom
