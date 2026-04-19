@@ -15,6 +15,7 @@ configMapGenerator:
     namespace: authentik
     files:
       - blueprints/00-noop.yaml
+      - blueprints/10-voluntary-enrollment.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
