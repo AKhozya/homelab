@@ -1,0 +1,41 @@
+---
+# Firmware update via fwupd. Tag: firmware.
+# Apply-mode (install updates, may reboot): -e ad_hoc_firmware_apply=true
+# Check-only (default): only refresh metadata + list pending updates.
+
+- name: Ensure fwupd installed
+  ansible.builtin.package:
+    name: fwupd
+    state: present
+  tags: [never, firmware, ad-hoc]
+
+- name: Refresh fwupd metadata
+  ansible.builtin.command: fwupdmgr refresh --force
+  changed_when: false
+  failed_when: false
+  tags: [never, firmware, ad-hoc]
+
+- name: List available firmware updates
+  ansible.builtin.command: fwupdmgr get-updates --no-unreported-check
+  register: fwupd_updates
+  changed_when: false
+  failed_when: false
+  tags: [never, firmware, ad-hoc]
+
+- name: Show available updates
+  ansible.builtin.debug:
+    var: fwupd_updates.stdout_lines
+  tags: [never, firmware, ad-hoc]
+
+- name: Apply firmware updates (only when ad_hoc_firmware_apply=true)
+  ansible.builtin.command: fwupdmgr update --no-unreported-check --assume-yes
+  when: ad_hoc_firmware_apply | bool
+  register: fwupd_apply
+  changed_when: fwupd_apply.rc == 0 and 'No updatable devices' not in (fwupd_apply.stdout | default(''))
+  tags: [never, firmware, ad-hoc]
+
+- name: Show apply result
+  ansible.builtin.debug:
+    var: fwupd_apply.stdout_lines
+  when: ad_hoc_firmware_apply | bool and fwupd_apply is defined
+  tags: [never, firmware, ad-hoc]

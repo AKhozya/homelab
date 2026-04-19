@@ -1,0 +1,10 @@
+---
+# ad_hoc — on-demand tasks. All tasks tagged `never` so daily drift-heal skips them.
+# Invoke explicitly: ansible-playbook -t <tag> node-config.yml --limit <host>
+#
+# Available tags:
+#   - firmware: fwupd refresh + update (set -e ad_hoc_firmware_apply=true to actually apply)
+
+- name: Import firmware task
+  ansible.builtin.import_tasks: firmware.yml
+  tags: [never, firmware, ad-hoc]
