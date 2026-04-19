@@ -94,12 +94,19 @@ entries:
       policy_engine_mode: any
 
   # 7. Patch default-authentication-identification with webauthn_stage + passwordless_flow.
-  # state: present is partial — user_fields, case_insensitive_matching, show_matched_user,
-  # pretend_user_exists, sources, recovery_flow are all left as-is.
+  # state: present is partial — case_insensitive_matching, show_matched_user,
+  # pretend_user_exists, recovery_flow are left as-is. user_fields + sources MUST be
+  # included because IdentificationStageSerializer.validate() requires "user_fields OR
+  # sources" non-empty regardless of partial-update mode (validator runs against the
+  # supplied data only, not the merged DB+patch state).
   - model: authentik_stages_identification.identificationstage
     state: present
     identifiers:
       name: default-authentication-identification
     attrs:
+      user_fields:
+        - email
+        - username
+      sources: []
       passwordless_flow: !KeyOf homelab-passwordless-flow
       webauthn_stage: !KeyOf homelab-validate
