@@ -16,6 +16,7 @@ configMapGenerator:
     files:
       - blueprints/00-noop.yaml
       - blueprints/10-voluntary-enrollment.yaml
+      - blueprints/20-passkey-first.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
