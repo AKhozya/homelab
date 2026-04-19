@@ -1,11 +1,11 @@
 ---
-# node-config.yml — idempotent node config drift-heal
+# node-config.yml — idempotent node config drift-heal.
 # Invoke from CP: ansible-playbook -D /etc/node-maintenance/ansible/node-config.yml -i /etc/node-maintenance/ansible/inventory.yml
-# Phases live: A (base_config, k3s_image_gc, rebuilderd), C (firewall), D (hardening), E (ad_hoc), F (packages).
-# ad_hoc tasks are tagged `never` — skipped by default daily timer, invoked explicitly via `-t <tag>`.
-# Role order matters: `packages` first (so ufw/logrotate/etc. exist before firewall/base_config configure them).
+# Role order: `packages` first so pkgs (ufw, logrotate, etc.) exist before config
+# roles reference them. `ad_hoc` tasks tagged `never` — skipped by default daily
+# timer, invoked explicitly via `-t <tag>`.
 
-- name: Node config drift-heal — packages + base + k3s-image-gc + firewall + hardening + ad-hoc (all hosts)
+- name: Node config drift-heal (all hosts)
   hosts: all
   become: true
   gather_facts: true
@@ -19,7 +19,7 @@
     - role: security_scan
     - role: ad_hoc
 
-- name: Node config drift-heal — rebuilderd (workers only)
+- name: Node config drift-heal (workers only)
   hosts: workers
   become: true
   gather_facts: false

@@ -5,9 +5,8 @@
 ucode_pkg: amd-ucode
 gpu_vendor: amd
 
-# ---- K3s config (per-host override) ----
-# W2 uses LVM /mnt/k8s-storage for k3s data (containerd, images, state).
-# Live state drift caught during Step 5 design (setup-node.sh heredoc never had this).
+# ---- K3s config ----
+# K3s data (containerd, images, state) lives on LVM, not root FS.
 k3s_data_dir: /mnt/k8s-storage/k3s
 
 # ---- Rebuilderd ----
@@ -23,9 +22,9 @@ rebuilderd_mem_comment: |
   # 14GB leaves ~16GB for K8s pods; large builds fail inside cgroup instead
   # of pressuring the whole system. Swap increased 8G->16G so large LTO builds survive.
 
-# ---- UFW firewall (Phase C) ----
-# W2-specific rules (captured live 2026-04-18).
-# Extras vs base: 8472/udp from LAN (narrow dup of anywhere rule — preserved).
+# ---- UFW firewall ----
+# W2-specific rules. Extras vs base: 8472/udp from LAN (narrow dup of
+# anywhere rule — preserved to match live state).
 ufw_rules_host:
   - { comment: "Flannel VXLAN", rule: allow, from_ip: 192.168.1.0/24, to_port: 8472, proto: udp }
 

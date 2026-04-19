@@ -7,12 +7,9 @@
 #   - node-maintenance user + SSH authorized_keys (needs CP-provided pubkey substitution)
 #   - sudoers bootstrap (ansible owns going forward; first-run needs it to connect)
 #
-# Previously here, now ansible-managed (deployed from CP on first node-config.yml run):
-#   - logrotate pkg install + /etc/logrotate.d/* configs
-#   - /etc/systemd/journald.conf.d/99-caps.conf
-#   - /etc/systemd/system/rebuilderd-worker@.service.d/override.conf
-#   - logrotate.timer enable + systemd-journald restart
-#   - security-scan script + systemd service/timer (Phase F — ~130 lines removed)
+# Non-bootstrap config (logrotate, journald, rebuilderd-worker override, security-scan
+# script + service/timer, sudoers, user shell) is deployed by ansible from CP on first
+# node-config.yml run against this worker.
 set -euo pipefail
 
 PUB_KEY="__REPLACE_WITH_ACTUAL_PUBKEY__"

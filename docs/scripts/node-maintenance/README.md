@@ -32,9 +32,7 @@ sudo ansible-playbook --tags logrotate -D \
   /etc/node-maintenance/ansible/node-config.yml
 ```
 
-**Edit workflow:** modify file in `ansible/roles/base_config/files/` or template → `git push` → CP sync timer pulls → `install.sh --sync-only` runs → `node-maintenance-config.service` re-applies → Telegram alert on `changed>0`.
-
-**Migration phases (in plan `docs/superpowers/plans/2026-04-18-node-config-ansible.md`):** A done / B done / C done / D done (2026-04-19) / E done (2026-04-19) / F done (2026-04-19 — packages, k3s_config, security_scan, PermitEmptyPasswords drop-in, fstrim/paccache timers).
+**Edit workflow:** modify file in `ansible/roles/<role>/files/` or template → `git push` → CP sync timer pulls → `install.sh --sync-only` runs → `node-maintenance-config.service` re-applies → Telegram alert on `changed>0`.
 
 ### Tag catalog (ad-hoc / on-demand)
 

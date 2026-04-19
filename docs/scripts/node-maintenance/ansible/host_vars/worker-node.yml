@@ -5,12 +5,9 @@
 ucode_pkg: amd-ucode
 gpu_vendor: amd
 
-# ---- K3s config (per-host override) ----
-# W1 uses LVM /mnt/k8s-storage/rancher/k3s for K3s data (historically via
-# /var/lib/rancher → /mnt/k8s-storage/rancher symlink). Standardized 2026-04-19:
-# explicit data-dir field matches W2 pattern. Zero data movement — path identical
-# to symlink target. Stale /var/lib/rancher symlink becomes no-op, remove after
-# K3s restart confirms explicit path works.
+# ---- K3s config ----
+# K3s data (containerd, images, state) on LVM. Path includes /rancher/
+# intermediate for historical reasons (previously a /var/lib/rancher symlink).
 k3s_data_dir: /mnt/k8s-storage/rancher/k3s
 
 # ---- Rebuilderd ----
@@ -19,7 +16,7 @@ rebuilderd_mem_max: "32G"
 rebuilderd_mem_high: "31G"
 rebuilderd_mem_swap_max: "16G"
 rebuilderd_repro_dir: "/mnt/k8s-storage/repro"
-# Reason note embedded verbatim in resources.conf template (preserves 2026-02-21 incident context).
+# Reason note embedded verbatim in resources.conf — preserves OOM incident context.
 rebuilderd_mem_comment: |
   # RAM: 32GB (hard limit)
   # Increased from 24GB to allow heavy LTO builds (python-triton ~40GB,
@@ -27,9 +24,9 @@ rebuilderd_mem_comment: |
   # so 32GB leaves ~29GB headroom for pods. OOM kills at 24GB were contained
   # in rebuilderd cgroup (no K8s impact) but caused build failures (2026-02-21).
 
-# ---- UFW firewall (Phase C) ----
-# W1-specific rules (captured live 2026-04-18).
-# Extras vs base: 10.42.2.0/24 (W2 pod subnet — redundant vs 10.42.0.0/16 but preserved).
+# ---- UFW firewall ----
+# W1-specific rules. Extras vs base: 10.42.2.0/24 (W2 pod subnet — redundant
+# vs 10.42.0.0/16 but preserved to match live state).
 ufw_rules_host:
   - { comment: "K8s pod network worker-node-2", rule: allow, from_ip: 10.42.2.0/24 }
 

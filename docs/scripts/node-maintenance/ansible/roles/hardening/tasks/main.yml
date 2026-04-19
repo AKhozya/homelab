@@ -1,13 +1,12 @@
 ---
-# hardening — SSH, sysctls, kubelet, systemd drop-ins, resolved, udev, tmpfiles
-# Applies to: all hosts (CP + workers). Codifies live state from setup-node.sh.
+# hardening — SSH, sysctls, kubelet, systemd drop-ins, resolved, udev, tmpfiles.
+# Applies to all hosts.
 #
-# Safety notes:
-# - SSH drop-in: validate with `sshd -t` after copy, reload (not restart) — keeps active sessions.
-# - sysctls: apply via `sysctl --system` (non-disruptive).
-# - kubelet.yaml: no handler — applies on next k3s restart (drift-heal only).
-# - k3s service drop-ins: notify daemon-reload; next k3s restart picks up.
-# - udev: reload rules + trigger (safe, no disruption to existing devices).
+# Safety:
+# - SSH drop-in: `sshd -t` validate after copy, reload (not restart) preserves sessions.
+# - sysctls: `sysctl --system` handler, non-disruptive.
+# - kubelet.yaml + k3s service.d drop-ins: no restart handler — apply on next k3s restart.
+# - udev: reload + trigger handler, safe for existing devices.
 
 # ---------- SSH ----------
 - name: Deploy sshd hardening drop-in
@@ -20,13 +19,16 @@
   register: sshd_dropin
   tags: [hardening, ssh]
 
-- name: Validate sshd config (after drop-in change)
+- name: Validate sshd config (after drop-in change)  # noqa: no-handler
+  # In-task guard (not handler): validate must fire IMMEDIATELY after copy so a
+  # bad config blocks subsequent reload. Handler fires end-of-play — too late.
   ansible.builtin.command: /usr/sbin/sshd -t
   when: sshd_dropin.changed
   changed_when: false
   tags: [hardening, ssh]
 
-- name: Reload sshd
+- name: Reload sshd  # noqa: no-handler
+  # Paired with validate above — reload ONLY if validate passed (same play).
   ansible.builtin.systemd_service:
     name: sshd
     state: reloaded
@@ -86,11 +88,11 @@
     state: present
   loop:
     - { key: DefaultTimeoutStartSec, value: 120s }
-    - { key: DefaultTimeoutStopSec,  value: 120s }
+    - { key: DefaultTimeoutStopSec, value: 120s }
   notify: Reload systemd
   tags: [hardening, systemd]
 
-- name: Ensure /etc/systemd/system/{{ k3s_service | regex_replace('\\.service$','') }}.service.d exists
+- name: Ensure k3s service.d drop-in directory exists
   ansible.builtin.file:
     path: "/etc/systemd/system/{{ k3s_service }}.d"
     state: directory

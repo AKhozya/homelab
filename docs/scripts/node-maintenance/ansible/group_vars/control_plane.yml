@@ -15,7 +15,7 @@ k3s_terminated_pod_gc_threshold: 20
 k3s_secrets_encryption: true
 
 
-# UFW rules specific to CP (captured live 2026-04-18).
+# UFW rules specific to CP.
 # Extras vs base: 6443 LAN dup, 9090 LAN (legacy Prometheus), 6443 anywhere
 # (Kubernetes API server), 10.42.2.0/24 (W2 pod subnet — redundant vs base
 # 10.42.0.0/16 but preserved as live state).

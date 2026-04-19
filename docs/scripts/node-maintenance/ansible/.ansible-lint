@@ -6,8 +6,11 @@ exclude_paths:
   - .github
 
 skip_list:
-  - yaml[line-length]          # long alertname regex + URLs in tg_message deliberate
-  - command-instead-of-shell   # yay_cmd needs shell expansion (sudo -u ... yay -Syu ...)
+  - yaml[line-length]           # long alertname regex + URLs in tg_message deliberate
+  - command-instead-of-shell    # yay_cmd needs shell expansion (sudo -u ... yay -Syu ...)
+  - var-naming[no-role-prefix]  # vars are domain-scoped (k3s_*, ufw_*, rebuilderd_*) —
+                                # shared across roles, group_vars, host_vars. Role-prefix
+                                # renaming would inflate 30+ refs with zero clarity gain.
 
 # Declare collections explicitly — avoids false "unknown module" for kubernetes.core
 # when ansible-lint runs in isolated env. Requires `ansible-galaxy collection install`

@@ -4,12 +4,7 @@
 #
 # Available tags:
 #   - firmware: fwupd refresh + update (set -e ad_hoc_firmware_apply=true to actually apply)
-#   - cleanup-w1-symlink: remove stale /var/lib/rancher symlink on W1 (post k3s_config standardization)
 
 - name: Import firmware task
   ansible.builtin.import_tasks: firmware.yml
   tags: [never, firmware, ad-hoc]
-
-- name: Import W1 rancher symlink cleanup task
-  ansible.builtin.import_tasks: cleanup-w1-rancher-symlink.yml
-  tags: [never, cleanup-w1-symlink, ad-hoc]

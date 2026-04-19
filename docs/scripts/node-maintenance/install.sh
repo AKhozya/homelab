@@ -120,15 +120,18 @@ fi
 install -m 0750 -o root -g root "$REPO_DIR/lib/telegram-notify.sh" /usr/local/sbin/telegram-notify.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/sync-from-git.sh"   /usr/local/sbin/node-maintenance-sync-from-git.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/node-config-notify.sh" /usr/local/sbin/node-maintenance-config-notify.sh
-install -m 0644 "$REPO_DIR/systemd/node-maintenance.timer"                     /etc/systemd/system/
-install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase1.service"            /etc/systemd/system/
-install -m 0644 "$REPO_DIR/systemd/node-maintenance-phase2.service"            /etc/systemd/system/
-install -m 0644 "$REPO_DIR/systemd/node-maintenance-kubectl-proxy.service"     /etc/systemd/system/
-install -m 0644 "$REPO_DIR/systemd/node-maintenance-sync.service"              /etc/systemd/system/
-install -m 0644 "$REPO_DIR/systemd/node-maintenance-sync.timer"                /etc/systemd/system/
-install -m 0644 "$REPO_DIR/systemd/node-maintenance-config.service"            /etc/systemd/system/
-install -m 0644 "$REPO_DIR/systemd/node-maintenance-config.timer"              /etc/systemd/system/
-# security-scan.sh + .service + .timer now owned by ansible roles/security_scan (all hosts).
+for unit in \
+    node-maintenance.timer \
+    node-maintenance-phase1.service \
+    node-maintenance-phase2.service \
+    node-maintenance-kubectl-proxy.service \
+    node-maintenance-sync.service \
+    node-maintenance-sync.timer \
+    node-maintenance-config.service \
+    node-maintenance-config.timer; do
+  install -m 0644 "$REPO_DIR/systemd/$unit" /etc/systemd/system/
+done
+# security-scan units owned by ansible roles/security_scan (all hosts).
 
 # ── github known_hosts (for deploy-key-based git sync) ──
 # Baked once; rotation = delete + re-run install.sh (ssh-keyscan re-fetches).
