@@ -1,19 +1,19 @@
 # Node Maintenance
 
-Automated weekly Arch Linux updates across all 3 K3s nodes.
+Automated weekly Arch Linux updates across 3 K3s nodes.
 
-**Schedule:** Saturday 04:30 UTC (via systemd timer on control-plane)
-**Flow:** CP phase1 (update + reboot) → CP phase2 on boot (worker rolling update + cleanup)
-**Notifications:** Telegram (reuses `backup-replication/backup-telegram` bot)
+**Schedule**: Saturday 04:30 UTC (systemd timer on CP)
+**Flow**: CP phase1 (update + reboot) → CP phase2 on boot (worker rolling update + cleanup)
+**Notifications**: Telegram (reuses `backup-replication/backup-telegram` bot)
 
 ## Node Config Drift-Heal (ansible)
 
-Declarative config managed by `ansible/node-config.yml`. Roles live (in apply order): `packages` (pacman-native base + per-host ucode + per-host GPU stack + worker-only `rebuilderd`/`archlinux-repro`), `base_config` (logrotate, journald caps, sudoers, node-maintenance user, rebuilderd-worker override, fstrim/paccache timers), `k3s_config` (`/etc/rancher/k3s/config.yaml` templated per group/host; drift-alert only, no auto-restart), `k3s_image_gc` (weekly `crictl rmi --prune`), `firewall` (UFW rules: policies + base/group/host rules + route rules; idempotent-additive, never resets), `hardening` (sshd drop-in incl. `PermitEmptyPasswords no`, sysctls, kubelet.yaml, systemd watchdog + timeouts, k3s service.d drop-ins, resolved LLMNR, NVMe/SATA udev+modprobe, CPU/NVMe tmpfiles), `security_scan` (monthly lynis+rkhunter timer + script), `rebuilderd` (workers: resources.conf drop-in, metrics + watchdog + boot-timer + repro-cleanup units/scripts), `ad_hoc` (on-demand tag-gated: firmware). Runs from CP, targets all 3 nodes (rebuilderd workers-only).
+Declarative config managed by `ansible/node-config.yml`. Roles (apply order): `packages` (pacman-native base + per-host ucode + per-host GPU stack + worker-only `rebuilderd`/`archlinux-repro`), `base_config` (logrotate, journald caps, sudoers, node-maintenance user, rebuilderd-worker override, fstrim/paccache timers), `k3s_config` (`/etc/rancher/k3s/config.yaml` templated per group/host; drift-alert only, no auto-restart), `k3s_image_gc` (weekly `crictl rmi --prune`), `firewall` (UFW rules: policies + base/group/host rules + route rules; idempotent-additive, never resets), `hardening` (sshd drop-in incl. `PermitEmptyPasswords no`, sysctls, kubelet.yaml, systemd watchdog + timeouts, k3s service.d drop-ins, resolved LLMNR, NVMe/SATA udev+modprobe, CPU/NVMe tmpfiles), `security_scan` (monthly lynis+rkhunter timer + script), `rebuilderd` (workers: resources.conf drop-in, metrics + watchdog + boot-timer + repro-cleanup units/scripts), `ad_hoc` (on-demand tag-gated: firmware). Runs from CP, targets 3 nodes (rebuilderd workers-only).
 
-**Schedule:** daily 03:00 UTC (`node-maintenance-config.timer`)
-**Also runs:** after `node-maintenance-sync.service` pulls new `main` HEAD (post-pull drift apply)
-**Log:** `/var/log/node-maintenance/config-latest.log` (truncated each run; archived via logrotate)
-**Telegram:** fires if `changed>0` or run fails (alert includes counts; silent when idempotent)
+**Schedule**: daily 03:00 UTC (`node-maintenance-config.timer`)
+**Also runs**: after `node-maintenance-sync.service` pulls new `main` HEAD (post-pull drift apply)
+**Log**: `/var/log/node-maintenance/config-latest.log` (truncated each run; archived via logrotate)
+**Telegram**: fires if `changed>0` or run fails (alert includes counts; silent when idempotent)
 
 Manual trigger:
 ```bash
@@ -32,11 +32,11 @@ sudo ansible-playbook --tags logrotate -D \
   /etc/node-maintenance/ansible/node-config.yml
 ```
 
-**Edit workflow:** modify file in `ansible/roles/<role>/files/` or template → `git push` → CP sync timer pulls → `install.sh --sync-only` runs → `node-maintenance-config.service` re-applies → Telegram alert on `changed>0`.
+**Edit workflow**: modify file in `ansible/roles/<role>/files/` or template → `git push` → CP sync timer pulls → `install.sh --sync-only` runs → `node-maintenance-config.service` re-applies → Telegram alert on `changed>0`.
 
 ### Tag catalog (ad-hoc / on-demand)
 
-All `ad_hoc` tasks are tagged `never` — daily timer skips them. Invoke explicitly with `-t <tag>`:
+All `ad_hoc` tasks tagged `never` — daily timer skips. Invoke explicitly with `-t <tag>`:
 
 ```bash
 # List pending firmware updates (metadata refresh + get-updates, no apply)
@@ -60,12 +60,12 @@ sudo ansible-playbook -t firmware -e ad_hoc_firmware_apply=true \
 
 Parallel pipeline, runs on **each node locally** (no orchestration).
 
-**Schedule:** 1st of month 04:00 UTC, ±1h jitter (RandomizedDelaySec=3600)
-**Unit:** `node-maintenance-security-scan.timer` → `node-maintenance-security-scan.service`
-**Script:** `/usr/local/sbin/node-maintenance-security-scan.sh` (canonical: `ansible/roles/security_scan/files/security-scan.sh`)
-**Tools:** `lynis audit system --quick` + `rkhunter --check --sk --rwo --nocolors`
-**Summary log:** `/var/log/node-maintenance/security-scan-YYYY-MM.log` (12mo retention, root:adm 0640)
-**Full logs:** `/var/log/lynis.log` + `/var/log/lynis-report.dat` + `/var/log/rkhunter.log` (6mo retention)
+**Schedule**: 1st of month 04:00 UTC, ±1h jitter (RandomizedDelaySec=3600)
+**Unit**: `node-maintenance-security-scan.timer` → `node-maintenance-security-scan.service`
+**Script**: `/usr/local/sbin/node-maintenance-security-scan.sh` (canonical: `ansible/roles/security_scan/files/security-scan.sh`)
+**Tools**: `lynis audit system --quick` + `rkhunter --check --sk --rwo --nocolors`
+**Summary log**: `/var/log/node-maintenance/security-scan-YYYY-MM.log` (12mo retention, root:adm 0640)
+**Full logs**: `/var/log/lynis.log` + `/var/log/lynis-report.dat` + `/var/log/rkhunter.log` (6mo retention)
 **No Telegram alerts** — reviewed during monthly HOMELAB_ANALYSIS.md cadence.
 
 Manual trigger (off-schedule):
@@ -77,19 +77,19 @@ journalctl -fu node-maintenance-security-scan.service
 sudo cat /var/log/node-maintenance/security-scan-$(date -u +%Y-%m).log
 ```
 
-When `security-scan.sh` changes: CP auto-syncs (sync timer), then ansible `security_scan` role deploys to all 3 nodes on next `node-maintenance-config.service` run (daily, or manually via `sudo systemctl start node-maintenance-config.service`).
+When `security-scan.sh` changes: CP auto-syncs (sync timer), then ansible `security_scan` role deploys to 3 nodes on next `node-maintenance-config.service` run (daily, or `sudo systemctl start node-maintenance-config.service`).
 
-**Spec:** `docs/superpowers/specs/2026-04-18-node-maintenance-design.md`
+**Spec**: `docs/superpowers/specs/2026-04-18-node-maintenance-design.md`
 
 ---
 
 ## Install (one-time)
 
-1. On control-plane:
+1. On CP:
    ```bash
    sudo bash /path/to/repo/docs/scripts/node-maintenance/install.sh
    ```
-2. Follow the printed instructions to scp + run `install-worker-ready.sh` on each worker.
+2. Follow printed instructions — scp + run `install-worker-ready.sh` on each worker.
 3. Verify:
    ```bash
    sudo -u node-maintenance ssh -p 65300 -i /var/lib/node-maintenance/.ssh/id_ed25519 \
@@ -103,7 +103,7 @@ When `security-scan.sh` changes: CP auto-syncs (sync timer), then ansible `secur
 
 `node-maintenance-sync.timer` on CP runs every 10 min:
 - `git fetch` + `reset --hard origin/main` in `/var/lib/node-maintenance/homelab`
-- If HEAD changed → `install.sh --sync-only` (systemd daemon-reload + file perms)
+- HEAD changed → `install.sh --sync-only` (systemd daemon-reload + file perms)
 - Telegram on failure (`ExecStopPost`)
 
 Check: `systemctl list-timers node-maintenance-sync.timer` · `journalctl -u node-maintenance-sync.service`
@@ -118,7 +118,7 @@ Overrides via env: `NODE_MAINT_CP_HOST`, `NODE_MAINT_CP_USER`, `NODE_MAINT_CP_PO
 
 ### Deploy key (one-time setup — enables auto-sync)
 
-Auto-sync uses a dedicated read-only GitHub deploy key at `/root/.ssh/homelab-deploy`. Setup:
+Auto-sync uses dedicated read-only GitHub deploy key at `/root/.ssh/homelab-deploy`. Setup:
 
 ```bash
 # 1. Generate key on CP
@@ -188,7 +188,7 @@ ssh -p 65300 <worker> 'sudo pacman -U /var/cache/pacman/pkg/<pkg>-<prev-version>
 
 ## Install / SSH key rotation (Mac-driven — no age key on CP)
 
-All SOPS decryption happens on Mac. Plain key transits to CP via SSH pipe, lives in `/tmp` only long enough for `install.sh` to copy+shred.
+All SOPS decryption on Mac. Plain key transits to CP via SSH pipe, lives in `/tmp` only long enough for `install.sh` to copy+shred.
 
 Tracked in `docs/SECRETS_ROTATION.md` under `node-maintenance-ssh`.
 
@@ -210,7 +210,7 @@ sudo bash ~/node-maintenance/install.sh
 # Follow printed instructions to scp + run install-worker.sh on both workers
 ```
 
-`install.sh` shreds `/tmp/node-maintenance-ssh-key` after copying it into `/var/lib/node-maintenance/.ssh/id_ed25519`.
+`install.sh` shreds `/tmp/node-maintenance-ssh-key` after copying to `/var/lib/node-maintenance/.ssh/id_ed25519`.
 
 ### Rotation (annual)
 

@@ -1,13 +1,13 @@
 # Firewall Security Configuration
 
 ## Overview
-This document describes the UFW firewall configuration for the homelab cluster to ensure services are not exposed to the internet.
+UFW firewall config for homelab cluster — services not exposed to internet.
 
 ## Security Principles
-- **Default Deny**: Only explicitly allowed traffic is permitted
-- **Local Network Only**: Most services restricted to 192.168.1.0/24
-- **Pod Network Isolation**: Internal pod traffic on 10.42.0.0/16
-- **Public Access**: Only via Cloudflare Tunnel (encrypted, authenticated)
+- **Default Deny**: only explicit allow permitted
+- **Local Network Only**: most services → 192.168.1.0/24
+- **Pod Network Isolation**: internal pod traffic → 10.42.0.0/16
+- **Public Access**: Cloudflare Tunnel only (encrypted, authenticated)
 
 ## Control-Plane Node (192.168.1.127)
 
@@ -101,24 +101,24 @@ sudo ufw enable
 
 ## Blocked Services (Not Exposed)
 
-These services are **only** accessible via Cloudflare Tunnel or local network:
+Services **only** via Cloudflare Tunnel or local network:
 
 ### Management & Monitoring
-- **Kubernetes API (6443)**: Local network only
-- **Kubelet API (10250)**: Localhost only
-- **etcd (2379-2380)**: Localhost only (control-plane)
-- **Prometheus (9090)**: Local network only
-- **Alertmanager (9093)**: Internal only
-- **Grafana (3000)**: Via Cloudflare Tunnel only
+- **Kubernetes API (6443)**: local only
+- **Kubelet API (10250)**: localhost only
+- **etcd (2379-2380)**: localhost only (control-plane)
+- **Prometheus (9090)**: local only
+- **Alertmanager (9093)**: internal only
+- **Grafana (3000)**: Cloudflare Tunnel only
 
 ### Databases
-- **PostgreSQL (5432)**: Pod network only
-- **Redis (6379)**: Pod network only
-- **CouchDB (5984)**: Pod network only
-- **CNPG Status (8000)**: Pod network only
+- **PostgreSQL (5432)**: pod network only
+- **Redis (6379)**: pod network only
+- **CouchDB (5984)**: pod network only
+- **CNPG Status (8000)**: pod network only
 
 ### Applications
-All apps accessible **only** via Cloudflare Tunnel:
+All apps **only** via Cloudflare Tunnel:
 - Authentik
 - Immich
 - Paperless-NGX
@@ -146,7 +146,7 @@ Traefik Ingress Controller
 Application Services
 ```
 
-**No ports are directly exposed to the internet.**
+**No ports directly exposed to internet.**
 
 ## Security Incidents
 
@@ -162,8 +162,8 @@ Application Services
 ```
 
 **Impact**:
-- Kubernetes API (6443) exposed to entire internet
-- Anyone could attempt authentication attacks
+- K8s API (6443) exposed to entire internet
+- Auth attacks possible
 - SSH exposed on IPv6
 - Prometheus metrics exposed on IPv6
 
@@ -175,16 +175,16 @@ sudo ufw delete 8    # Removed: 9090/tcp (v6) from Anywhere
 ```
 
 **Timeline**:
-- Vulnerability existed since initial cluster setup
-- Discovered: 2025-10-30 during firewall audit
+- Vuln existed since initial cluster setup
+- Discovered: 2025-10-30 (firewall audit)
 - Fixed: 2025-10-30 (immediate)
-- Risk: Medium (Kubernetes API has authentication, but exposure unnecessary)
+- Risk: Medium (K8s API has auth, but exposure unnecessary)
 
 **Post-Fix Verification**:
-- ✅ Cluster fully functional
-- ✅ All services accessible locally
-- ✅ Apps accessible via Cloudflare Tunnel
-- ✅ No internet-facing ports (except Cloudflare Tunnel)
+- Cluster fully functional
+- All services accessible locally
+- Apps accessible via Cloudflare Tunnel
+- No internet-facing ports (except CF Tunnel)
 
 ## Verification
 
@@ -219,14 +219,14 @@ curl http://192.168.1.127:9090      # Prometheus - should work
 ## Maintenance
 
 ### Adding New Services
-When adding services that need external access:
-1. **Never** expose directly to internet
+New services needing external access:
+1. **Never** expose direct to internet
 2. Create Cloudflare Tunnel ingress
 3. Use NetworkPolicies for pod-to-pod access
-4. Document in this file
+4. Document here
 
 ### Regular Audits
-Run firewall audit quarterly:
+Quarterly audit:
 ```bash
 # On each node
 sudo ufw status numbered
@@ -234,6 +234,6 @@ sudo ss -tulpn | grep LISTEN
 ```
 
 ## References
-- UFW Documentation: https://help.ubuntu.com/community/UFW
-- Kubernetes Network Policies: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+- UFW Docs: https://help.ubuntu.com/community/UFW
+- K8s Network Policies: https://kubernetes.io/docs/concepts/services-networking/network-policies/
 - Cloudflare Tunnel: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/

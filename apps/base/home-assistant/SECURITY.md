@@ -2,9 +2,9 @@
 
 ## Pod Security Standards Classification
 
-**Policy Level**: `baseline`
+**Policy Level:** `baseline`
 
-Home Assistant requires elevated privileges and therefore uses the Kubernetes **baseline** Pod Security Standard policy, rather than the more restrictive **restricted** policy applied to most applications in this homelab.
+HA needs elevated privileges → uses K8s **baseline** PSS policy, not stricter **restricted** used for most apps.
 
 ## Security Context Configuration
 
@@ -37,63 +37,63 @@ securityContext:
       - DAC_OVERRIDE
 ```
 
-## Why Root Access is Required
+## Why Root Access Required
 
-Home Assistant **officially requires root access** due to its architecture and integration requirements. This is a known limitation of the Home Assistant container image and is documented by the Home Assistant development team.
+HA **officially requires root access** — architecture + integration requirements. Known container image limitation, documented by HA dev team.
 
 ### Required Capabilities Explained
 
 1. **NET_BIND_SERVICE**
-   - **Purpose**: Allows binding to privileged ports (< 1024)
-   - **Use Case**: Home Assistant binds to standard ports for various protocols
-   - **Security Impact**: Low - limited to port binding only
+   - **Purpose:** Bind to privileged ports (< 1024)
+   - **Use:** HA binds standard ports for various protocols
+   - **Impact:** Low — port binding only
 
 2. **NET_RAW**
-   - **Purpose**: Enables raw socket access
-   - **Use Cases**:
-     - **Ping Integration**: Network device discovery and monitoring via ICMP
-     - **Bluetooth**: Low-level Bluetooth device communication
-   - **Security Impact**: Medium - allows packet sniffing, but isolated to pod network namespace
+   - **Purpose:** Raw socket access
+   - **Uses:**
+     - **Ping Integration:** network device discovery/monitoring via ICMP
+     - **Bluetooth:** low-level BT device comms
+   - **Impact:** Medium — packet sniffing, isolated to pod net namespace
 
 3. **NET_ADMIN**
-   - **Purpose**: Network administration capabilities
-   - **Use Cases**:
-     - **Bluetooth**: BLE device pairing and management
-     - **Device Discovery**: mDNS/Zeroconf service discovery on local network
-     - **Network Configuration**: Dynamic network interface management
-   - **Security Impact**: Medium - limited by pod network namespace isolation
+   - **Purpose:** Network admin capabilities
+   - **Uses:**
+     - **Bluetooth:** BLE pairing + management
+     - **Device Discovery:** mDNS/Zeroconf on local net
+     - **Network Config:** dynamic interface management
+   - **Impact:** Medium — limited by pod net namespace
 
 4. **CHOWN**
-   - **Purpose**: Change file and directory ownership
-   - **Use Case**: Managing `/config` directory permissions for proper file access
-   - **Security Impact**: Low - limited to pod filesystem, PVC isolated
+   - **Purpose:** Change file/dir ownership
+   - **Use:** Manage `/config` permissions for file access
+   - **Impact:** Low — pod filesystem, PVC isolated
 
 5. **SETGID / SETUID**
-   - **Purpose**: Set group/user ID for processes
-   - **Use Case**: Internal Home Assistant process management (spawning worker processes)
-   - **Security Impact**: Medium - contained within pod security boundaries
+   - **Purpose:** Set group/user ID for processes
+   - **Use:** HA process management (spawning workers)
+   - **Impact:** Medium — contained within pod
 
 6. **DAC_OVERRIDE**
-   - **Purpose**: Bypass file read/write/execute permission checks
-   - **Use Case**: Reading and writing configuration files with varied ownership in `/config`
-   - **Security Impact**: Low - limited to pod filesystem, PVC isolated
+   - **Purpose:** Bypass file r/w/x permission checks
+   - **Use:** R/w config files with varied ownership in `/config`
+   - **Impact:** Low — pod filesystem, PVC isolated
 
 ## Security Mitigations
 
-Despite running as root with elevated capabilities, the following security controls are in place:
+Despite root + elevated caps, controls in place:
 
 ### 1. Disabled Privilege Escalation
 ```yaml
 allowPrivilegeEscalation: false
 ```
-Even though the container runs as root, it **cannot gain additional privileges** beyond those explicitly granted.
+Root container **cannot gain additional privileges** beyond granted.
 
 ### 2. Seccomp Profile
 ```yaml
 seccompProfile:
   type: RuntimeDefault
 ```
-The **runtime default seccomp profile** restricts dangerous system calls, preventing exploitation even with root access.
+**Runtime default seccomp** restricts dangerous syscalls, prevents exploitation even with root.
 
 ### 3. Capability Dropping
 ```yaml
@@ -102,71 +102,72 @@ capabilities:
     - ALL
   add: [only required capabilities]
 ```
-All capabilities are dropped first, then only the **minimum required set** is granted. This follows the principle of least privilege.
+Drop all first, grant only **minimum required**. Principle of least privilege.
 
 ### 4. Network Isolation
-- **NetworkPolicy** enforcement restricts network access to authorized services only
-- Pod network namespace provides isolation from host network
-- No `hostNetwork: true` (pod cannot access host network interfaces)
+- **NetworkPolicy** restricts net access to authorized services
+- Pod net namespace isolates from host net
+- No `hostNetwork: true` (pod can't access host net interfaces)
 
 ### 5. Filesystem Isolation
-- **No host path mounts** (no access to node filesystem)
-- PVC storage is isolated to `/config` directory
-- `readOnlyRootFilesystem` not enabled due to Home Assistant's requirement to write to `/tmp` and runtime directories
+- **No host path mounts** (no node filesystem access)
+- PVC storage isolated to `/config`
+- `readOnlyRootFilesystem` not enabled — HA needs write to `/tmp` + runtime dirs
 
 ### 6. No Host Access
-The deployment explicitly **avoids** the following dangerous configurations:
-- ❌ `hostNetwork: false` (default) - Cannot access host network
-- ❌ `hostPID: false` (default) - Cannot see host processes
-- ❌ `hostIPC: false` (default) - Cannot access host IPC
-- ❌ No `hostPath` volumes - Cannot access node filesystem
-- ❌ `privileged: false` (default) - Not a privileged container
+
+Deployment avoids:
+- `hostNetwork: false` (default) — no host net access
+- `hostPID: false` (default) — no host processes
+- `hostIPC: false` (default) — no host IPC
+- No `hostPath` volumes — no node filesystem
+- `privileged: false` (default) — not privileged
 
 ## Risk Assessment
 
 ### Risk Level: **MEDIUM**
 
-**Justification**:
-- Root access is **architecturally required** by Home Assistant
-- Elevated capabilities are **functionally necessary** for integrations
+**Justification:**
+- Root **architecturally required** by HA
+- Elevated caps **functionally necessary** for integrations
 - Security controls **significantly reduce** attack surface
-- Blast radius is **contained** to pod scope (no host access)
-- Home Assistant is a **smart home controller** requiring hardware-level access
+- Blast radius **contained** to pod scope (no host access)
+- HA = **smart home controller** needing hardware-level access
 
 ### Attack Vectors Mitigated
 
-1. **Container Escape**:
-   - Mitigated by: seccomp profile, no hostPath mounts, allowPrivilegeEscalation: false
+1. **Container Escape:**
+   - Mitigated: seccomp profile, no hostPath mounts, allowPrivilegeEscalation: false
    - Residual Risk: Low
 
-2. **Privilege Escalation**:
-   - Mitigated by: allowPrivilegeEscalation: false, capability dropping
+2. **Privilege Escalation:**
+   - Mitigated: allowPrivilegeEscalation: false, cap dropping
    - Residual Risk: Low
 
-3. **Network Attacks**:
-   - Mitigated by: NetworkPolicy, pod network namespace isolation
+3. **Network Attacks:**
+   - Mitigated: NetworkPolicy, pod net namespace isolation
    - Residual Risk: Low
 
-4. **Filesystem Access**:
-   - Mitigated by: No hostPath mounts, PVC isolation, seccomp filtering
+4. **Filesystem Access:**
+   - Mitigated: no hostPath mounts, PVC isolation, seccomp filtering
    - Residual Risk: Low
 
 ### Accepted Risks
 
-1. **Root Execution**:
-   - **Reason**: Home Assistant architectural requirement
-   - **Acceptance**: Required for smart home functionality
-   - **Mitigation**: Seccomp, capability dropping, filesystem isolation
+1. **Root Execution:**
+   - **Reason:** HA architectural requirement
+   - **Acceptance:** Required for smart home functionality
+   - **Mitigation:** Seccomp, cap dropping, filesystem isolation
 
-2. **NET_ADMIN Capability**:
-   - **Reason**: Bluetooth and device discovery require network administration
-   - **Acceptance**: Essential for HomeKit, Bluetooth, and Zeroconf integrations
-   - **Mitigation**: Pod network namespace isolation (cannot affect host network)
+2. **NET_ADMIN Capability:**
+   - **Reason:** BT + device discovery need net admin
+   - **Acceptance:** Essential for HomeKit, BT, Zeroconf
+   - **Mitigation:** Pod net namespace isolation (can't affect host net)
 
-3. **DAC_OVERRIDE Capability**:
-   - **Reason**: Config file management with varied permissions
-   - **Acceptance**: Required for reliable configuration persistence
-   - **Mitigation**: Limited to pod filesystem, no host access
+3. **DAC_OVERRIDE Capability:**
+   - **Reason:** Config file mgmt with varied permissions
+   - **Acceptance:** Required for reliable config persistence
+   - **Mitigation:** Pod filesystem only, no host access
 
 ## Comparison to Other Applications
 
@@ -179,30 +180,30 @@ The deployment explicitly **avoids** the following dangerous configurations:
 | **Immich** | restricted | 1000 | None | Standard web app |
 | **Paperless-NGX** | restricted | 1000 | None | Standard web app |
 
-Home Assistant has the **most elevated privileges** among all homelab applications, but this is **justified by its unique role** as a smart home controller requiring direct hardware and network access.
+HA has **most elevated privileges** among homelab apps — **justified by unique role** as smart home controller needing direct hardware + net access.
 
 ## Security Recommendations
 
-### Current Implementation: ✅ APPROVED
+### Current Implementation: APPROVED
 
-The current security configuration is **appropriate and necessary** for Home Assistant's functionality while implementing **maximum possible security controls** given the architectural constraints.
+Current config **appropriate + necessary** for HA functionality while implementing **max possible security** given architectural constraints.
 
 ### Future Improvements
 
-1. **Monitor for Rootless Home Assistant**
-   - Track Home Assistant development for official rootless container support
-   - Migrate to non-root execution when officially supported
-   - **Status**: Not currently available (2025-10-26)
+1. **Monitor for Rootless HA**
+   - Track HA dev for official rootless container support
+   - Migrate to non-root when officially supported
+   - **Status:** Not available (2025-10-26)
 
 2. **Capability Audit**
-   - Periodically review required capabilities as Home Assistant evolves
-   - Remove capabilities if integrations are disabled (e.g., remove NET_RAW if Ping integration unused)
-   - **Frequency**: Quarterly review
+   - Periodic review of required caps as HA evolves
+   - Remove caps if integrations disabled (e.g., NET_RAW if Ping unused)
+   - **Frequency:** Quarterly
 
 3. **Runtime Monitoring**
-   - Monitor for unexpected privilege usage via runtime security tools
-   - Alert on anomalous behavior (unexpected network connections, file access patterns)
-   - **Status**: Planned (future Falco/Tetragon integration)
+   - Monitor unexpected privilege usage via runtime security tools
+   - Alert on anomalous behavior (unexpected connections, file access)
+   - **Status:** Planned (Falco/Tetragon)
 
 ## References
 
@@ -213,9 +214,9 @@ The current security configuration is **appropriate and necessary** for Home Ass
 
 ## Approval
 
-**Security Review**: ✅ APPROVED
-**Reviewed By**: Staff DevOps Engineer
-**Date**: 2025-10-26
-**Next Review**: 2026-01-26 (Quarterly)
+**Security Review:** APPROVED
+**Reviewed By:** Staff DevOps Engineer
+**Date:** 2025-10-26
+**Next Review:** 2026-01-26 (Quarterly)
 
-**Conclusion**: Home Assistant's elevated privilege requirements are **architecturally necessary and appropriately secured** with defense-in-depth controls. The baseline Pod Security Standard policy is the correct classification for this workload.
+**Conclusion:** HA elevated privilege requirements **architecturally necessary + appropriately secured** with defense-in-depth. Baseline PSS = correct classification.

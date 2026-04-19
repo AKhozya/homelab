@@ -1,6 +1,6 @@
 # Authentik SSO Integration Plan
 
-Complete guide for integrating Authentik SSO with all homelab applications.
+Guide for integrating Authentik SSO with all homelab apps.
 
 ## Table of Contents
 
@@ -17,18 +17,18 @@ Complete guide for integrating Authentik SSO with all homelab applications.
 
 ## Overview
 
-This plan integrates Authentik (https://authentik.h0melab.work) as the central SSO provider for all homelab applications using OpenID Connect (OIDC).
+Plan integrates Authentik (https://authentik.h0melab.work) as central SSO provider for all homelab apps via OIDC.
 
 **Goals:**
-- Single sign-on across all applications
-- Centralized user management
+- SSO across all apps
+- Centralized user mgmt
 - Group-based access control
 - Reduced password fatigue
-- Improved security posture
+- Better security
 
-**Automation Level:** 60-70% automated via Kubernetes manifests, Helm, and scripts
+**Automation Level:** 60-70% automated via K8s manifests, Helm, scripts
 
-**Estimated Time:** 4-7 hours total implementation
+**Estimated Time:** 4-7h total
 
 ---
 
@@ -52,7 +52,7 @@ This plan integrates Authentik (https://authentik.h0melab.work) as the central S
 
 **Legend:**
 - ✅ Native OIDC support
-- ❌ No native support (requires proxy)
+- ❌ No native support (needs proxy)
 - ⚠️ Partial support (community addon)
 
 ---
@@ -60,11 +60,11 @@ This plan integrates Authentik (https://authentik.h0melab.work) as the central S
 ## Integration Phases
 
 ### Phase 1: Native OIDC Apps (Priority: High)
-**Duration:** 2-3 hours
+**Duration:** 2-3h
 **Automation:** 80%
 
-Applications with built-in OIDC support:
-1. Grafana (monitoring - most critical)
+Apps with built-in OIDC:
+1. Grafana (monitoring — most critical)
 2. Immich (high usage)
 3. Paperless-NGX (high usage)
 4. N8N (automation)
@@ -73,20 +73,20 @@ Applications with built-in OIDC support:
 7. Audiobookshelf (media)
 
 **Process:**
-1. Create OIDC provider in Authentik (manual UI or Terraform)
+1. Create OIDC provider in Authentik (UI or Terraform)
 2. Generate client credentials
-3. Update app configuration via Kubernetes secrets
+3. Update app config via K8s secrets
 4. Deploy via Flux
 5. Test login flow
 
 ### Phase 2: Authentik Proxy Apps (Priority: Medium)
-**Duration:** 1-2 hours
+**Duration:** 1-2h
 **Automation:** 50%
 
-Applications requiring reverse proxy authentication:
-1. Wallabag (no OIDC support)
-2. Uptime Kuma (no OIDC support)
-3. Home Assistant (optional - has HACS addon alternative)
+Apps needing reverse proxy auth:
+1. Wallabag (no OIDC)
+2. Uptime Kuma (no OIDC)
+3. Home Assistant (optional — HACS addon alt)
 
 **Process:**
 1. Deploy Authentik Proxy Outpost
@@ -95,14 +95,14 @@ Applications requiring reverse proxy authentication:
 4. Configure bypass rules for APIs
 
 ### Phase 3: Testing & Documentation (Priority: High)
-**Duration:** 1-2 hours
+**Duration:** 1-2h
 **Automation:** 20%
 
-1. Test login flows for all apps
-2. Verify group-based access control
+1. Test login flows all apps
+2. Verify group-based access
 3. Test logout behavior
-4. Validate mobile app compatibility
-5. Document recovery procedures
+4. Validate mobile app compat
+5. Document recovery
 6. Create runbooks
 
 ---
@@ -112,16 +112,16 @@ Applications requiring reverse proxy authentication:
 Location: `/Users/akhozya/.local/bin/authentik-*`
 
 ### 1. Provider Creation Script
-`authentik-create-providers.sh` - Batch create OIDC providers
+`authentik-create-providers.sh` — batch create OIDC providers
 
 ### 2. Secret Generator
-`authentik-generate-secrets.sh` - Generate Kubernetes secrets for OIDC credentials
+`authentik-generate-secrets.sh` — generate K8s secrets for OIDC creds
 
 ### 3. Helm Values Updater
-`authentik-update-helm-values.sh` - Update Helm values with OIDC configuration
+`authentik-update-helm-values.sh` — update Helm values with OIDC config
 
 ### 4. Test Suite
-`authentik-test-sso.sh` - Validate SSO integration for all apps
+`authentik-test-sso.sh` — validate SSO integration all apps
 
 ---
 
@@ -129,10 +129,10 @@ Location: `/Users/akhozya/.local/bin/authentik-*`
 
 ### Prerequisites
 
-**1. Authentik Setup** (Already deployed ✅)
+**1. Authentik Setup** (Already deployed)
 - URL: https://authentik.h0melab.work
 - Admin access required
-- PostgreSQL database: `authentik` in main-postgres cluster
+- PostgreSQL DB: `authentik` in main-postgres cluster
 
 **2. Create User Groups**
 
@@ -163,9 +163,9 @@ cd .backup && ./secrets-backup.sh
 
 ### Phase 1A: Grafana Integration
 
-**Authentik Configuration** (Manual in UI):
+**Authentik Configuration** (Manual UI):
 
-1. Go to Applications → Providers → Create
+1. Applications → Providers → Create
 2. Select "OAuth2/OpenID Provider"
 3. Configure:
    ```
@@ -175,9 +175,9 @@ cd .backup && ./secrets-backup.sh
    Signing Key: authentik Self-signed Certificate
    Scopes: openid, profile, email, groups
    ```
-4. Save and note Client ID & Client Secret
+4. Save + note Client ID & Client Secret
 
-5. Go to Applications → Applications → Create
+5. Applications → Applications → Create
    ```
    Name: Grafana
    Slug: grafana
@@ -219,7 +219,7 @@ grafana:
     GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP: "true"
 ```
 
-Commit and let Flux reconcile:
+Commit + let Flux reconcile:
 ```bash
 git add monitoring/controllers/base/kube-prometheus-stack/release.yaml
 git commit -m "Add Authentik OIDC integration for Grafana"
@@ -228,11 +228,11 @@ flux reconcile kustomization monitoring --timeout=2m
 ```
 
 **Testing:**
-1. Navigate to https://grafana.h0melab.work
+1. Navigate https://grafana.h0melab.work
 2. Click "Sign in with Authentik"
 3. Verify redirect to Authentik login
-4. Login and verify redirect back to Grafana
-5. Check user is assigned correct role (Admin/Viewer)
+4. Login + verify redirect back to Grafana
+5. Check user assigned correct role (Admin/Viewer)
 
 ---
 
@@ -259,7 +259,7 @@ flux reconcile kustomization monitoring --timeout=2m
 **Immich Configuration** (Via UI):
 
 1. Login as admin: https://immich.h0melab.work
-2. Go to Administration → Settings → OAuth
+2. Administration → Settings → OAuth
 3. Configure:
    ```
    Enable: Yes
@@ -274,10 +274,10 @@ flux reconcile kustomization monitoring --timeout=2m
 4. Save
 
 **Testing:**
-1. Logout of Immich
+1. Logout Immich
 2. See "Login with Authentik" button
 3. Test SSO login
-4. Verify existing users can still login with password
+4. Verify existing users still login w/ password
 5. Test mobile app login (uses OAuth callback)
 
 ---
@@ -342,19 +342,19 @@ Update `apps/base/paperless-ngx/deployment.yaml` env vars:
 
 ### Phase 1D-G: Remaining Native OIDC Apps
 
-Follow similar pattern for:
+Similar pattern for:
 - N8N (Settings → SSO)
-- Linkding (via environment variables)
+- Linkding (env vars)
 - Mealie (Settings → Authentication)
 - Audiobookshelf (Settings → Authentication)
 
-Refer to automation scripts for batch configuration.
+Refer to automation scripts for batch config.
 
 ---
 
 ### Phase 2: Authentik Proxy Setup
 
-**For apps without native OIDC:** Wallabag, Uptime Kuma, (optional) Home Assistant
+**Apps without native OIDC:** Wallabag, Uptime Kuma, (optional) Home Assistant
 
 **1. Deploy Authentik Proxy Outpost:**
 
@@ -406,7 +406,7 @@ spec:
 **2. Create Proxy Providers in Authentik:**
 
 For each app (Wallabag, Uptime Kuma):
-1. Go to Applications → Providers → Create
+1. Applications → Providers → Create
 2. Select "Proxy Provider"
 3. Configure:
    ```
@@ -439,7 +439,7 @@ spec:
 
 **4. Update App Ingresses:**
 
-Example for Wallabag (`apps/base/wallabag/ingress.yaml`):
+Example Wallabag (`apps/base/wallabag/ingress.yaml`):
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -468,14 +468,14 @@ spec:
 
 ### Login Flow Testing
 
-For each application, verify:
+For each app, verify:
 1. **SSO Login Works**
    - Navigate to app URL
    - Click SSO/Authentik button
-   - Redirected to Authentik
-   - Login with credentials
-   - Redirected back to app
-   - Successfully authenticated
+   - Redirect to Authentik
+   - Login with creds
+   - Redirect back to app
+   - Authenticated
 
 2. **Group Mapping Works**
    - Admin users get admin role
@@ -494,7 +494,7 @@ For each application, verify:
 
 ### Mobile App Testing
 
-For apps with mobile clients (Immich, Audiobookshelf):
+Apps with mobile clients (Immich, Audiobookshelf):
 1. Configure OAuth callback URL
 2. Test login from mobile app
 3. Verify token refresh works
@@ -502,8 +502,8 @@ For apps with mobile clients (Immich, Audiobookshelf):
 
 ### API Access Testing
 
-For apps with APIs (N8N, Immich, Paperless):
-1. Verify API token generation still works
+Apps with APIs (N8N, Immich, Paperless):
+1. Verify API token gen still works
 2. Test API access with bearer token
 3. Ensure SSO doesn't break API access
 
@@ -513,44 +513,44 @@ For apps with APIs (N8N, Immich, Paperless):
 
 ### Issue: Redirect Loop
 
-**Symptoms:** Browser keeps redirecting between app and Authentik
+**Symptoms:** Browser redirects between app + Authentik
 
 **Causes:**
 - Incorrect redirect URI in Authentik
 - Cookie/session issues
-- Proxy misconfiguration
+- Proxy misconfig
 
 **Solutions:**
-1. Verify redirect URI matches exactly (case-sensitive)
+1. Verify redirect URI matches exact (case-sensitive)
 2. Clear browser cookies
-3. Check Authentik provider configuration
-4. Verify proxy middleware configuration
+3. Check Authentik provider config
+4. Verify proxy middleware config
 
 ### Issue: "Invalid Client" Error
 
-**Symptoms:** Error message from Authentik about invalid client
+**Symptoms:** Authentik error about invalid client
 
 **Causes:**
-- Wrong client ID in app configuration
+- Wrong client ID in app config
 - Client secret mismatch
 - Provider not linked to application in Authentik
 
 **Solutions:**
-1. Verify client ID matches between app and Authentik
+1. Verify client ID matches between app + Authentik
 2. Regenerate client secret if needed
-3. Check provider is linked to application in Authentik UI
+3. Check provider linked to application in Authentik UI
 
 ### Issue: User Not Assigned Correct Role
 
-**Symptoms:** User logs in but doesn't have expected permissions
+**Symptoms:** User logs in but no expected perms
 
 **Causes:**
-- Incorrect group mapping in app configuration
+- Wrong group mapping in app config
 - User not in correct Authentik group
 - App-specific role mapping not configured
 
 **Solutions:**
-1. Check user's group membership in Authentik
+1. Check user group membership in Authentik
 2. Verify group mapping logic in app config
 3. Review app-specific role attribute path
 
@@ -561,11 +561,11 @@ For apps with APIs (N8N, Immich, Paperless):
 **Causes:**
 - `DISABLE_REGULAR_LOGIN` enabled too early
 - Password hash corruption
-- Database user mismatch
+- DB user mismatch
 
 **Solutions:**
 1. Set `DISABLE_REGULAR_LOGIN=false`
-2. Verify user exists in app database
+2. Verify user exists in app DB
 3. Reset password via app CLI if needed
 
 ---
@@ -584,20 +584,20 @@ For apps with APIs (N8N, Immich, Paperless):
 
 **Recovery:**
 1. Fix Authentik deployment
-2. Verify database connectivity
+2. Verify DB connectivity
 3. Check pod logs: `kubectl logs -n authentik deployment/authentik-server`
 4. Restart Authentik pods if needed
 
 ### If User Locked Out
 
 **Admin Access via Password:**
-1. Ensure admin accounts always have password fallback enabled
+1. Ensure admin accounts always have password fallback
 2. Login with admin password
 3. Investigate SSO issue
 4. Temporary bypass: disable SSO redirect for that app
 
 **CLI Recovery:**
-For apps with CLI access:
+Apps with CLI access:
 ```bash
 # Immich
 kubectl exec -n immich deployment/immich-server -- immich user reset-password <email>
@@ -641,7 +641,7 @@ flux reconcile kustomization apps --timeout=5m
 
 2. **Use Strong Client Secrets**
    - Generate with `openssl rand -hex 32`
-   - Store in Kubernetes secrets
+   - Store in K8s secrets
    - Rotate periodically
 
 3. **Limit Redirect URIs**
@@ -652,7 +652,7 @@ flux reconcile kustomization apps --timeout=5m
 4. **Configure Session Timeouts**
    - Set in Authentik provider settings
    - Balance security vs convenience
-   - Consider per-app requirements
+   - Per-app requirements
 
 5. **Monitor SSO Logs**
    - Check Authentik audit logs regularly
@@ -685,31 +685,31 @@ grafana-admins
 **Monthly:**
 - Review Authentik audit logs
 - Verify all SSO logins working
-- Check for failed authentication attempts
+- Check failed auth attempts
 - Update user group memberships
 
 **Quarterly:**
 - Rotate OIDC client secrets
-- Review and remove unused applications
-- Test disaster recovery procedures
-- Update documentation
+- Review + remove unused apps
+- Test disaster recovery
+- Update docs
 
 **Annually:**
 - Full SSO security audit
-- Review and update access control policies
+- Review + update access control policies
 - Validate mobile app integrations
-- Performance optimization
+- Perf optimization
 
 ### Monitoring
 
 **Prometheus Metrics:**
 - Authentik login success/failure rates
-- OAuth token generation rates
+- OAuth token gen rates
 - Session duration metrics
-- Error rates per application
+- Error rates per app
 
 **Grafana Dashboards:**
-- Create dashboard for SSO metrics
+- Dashboard for SSO metrics
 - Track login patterns
 - Alert on anomalies
 
@@ -719,13 +719,13 @@ grafana-admins
 
 ### Documentation
 - Authentik Official Docs: https://docs.goauthentik.io/
-- OIDC Specification: https://openid.net/specs/openid-connect-core-1_0.html
+- OIDC Spec: https://openid.net/specs/openid-connect-core-1_0.html
 - Authentik Integration Guides: https://docs.goauthentik.io/integrations/
 
 ### Automation Scripts
 - Location: `/Users/akhozya/.local/bin/authentik-*`
 - Terraform modules: `/Users/akhozya/source-code/homelab/terraform/authentik/`
-- Kubernetes manifests: `/Users/akhozya/source-code/homelab/apps/base/authentik/`
+- K8s manifests: `/Users/akhozya/source-code/homelab/apps/base/authentik/`
 
 ### Support
 - Authentik GitHub: https://github.com/goauthentik/authentik
@@ -739,14 +739,14 @@ grafana-admins
 
 **Standard OIDC Claims:**
 - `sub`: User ID (unique identifier)
-- `email`: User email address
+- `email`: User email
 - `name`: User's full name
 - `preferred_username`: Username
 - `groups`: User's group memberships
 
 **Authentik-Specific:**
 - `X-authentik-username`: Username header
-- `X-authentik-groups`: Groups header (for proxy)
+- `X-authentik-groups`: Groups header (proxy)
 - `X-authentik-email`: Email header
 - `X-authentik-uid`: User ID header
 
@@ -764,22 +764,22 @@ grafana-admins
 
 **Paperless-NGX:**
 - Uses django-allauth for OIDC
-- Requires PAPERLESS_APPS environment variable
+- Requires PAPERLESS_APPS env var
 - Can disable regular login after testing
 
 **N8N:**
-- OIDC only in self-hosted instances
+- OIDC only in self-hosted
 - Requires instance owner to enable
 - No PKCE support (yet)
 
 **Linkding:**
-- Simple OIDC configuration via env vars
+- Simple OIDC config via env vars
 - Auto-creates users on first login
-- Supports authentication proxy as alternative
+- Supports auth proxy as alt
 
 ### C. Terraform Module Example
 
-See `terraform/authentik/` directory for:
+See `terraform/authentik/` for:
 - Provider creation module
 - Application creation module
 - Group management module

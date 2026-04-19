@@ -6,81 +6,81 @@
 
 ## Overview
 
-Cloudflare Gateway provides DNS-level filtering for ad blocking, malware protection, and privacy enhancement across your entire homelab network.
+Cloudflare Gateway = DNS-level filtering for ad block, malware protection, privacy across homelab network.
 
 ## DNS Location: Homelab
 
 **Location ID:** `55e39ccecdf04717ba7a3363e5838da4`
 **Created:** 2025-10-25T14:33:37Z
 **Updated:** 2025-10-25T14:36:56Z
-**ECS Support:** ✅ Enabled (routes to nearest Cloudflare datacenter for optimal performance)
+**ECS Support:** Enabled (routes to nearest CF datacenter)
 
 ### DNS Server Addresses
 
-Configure your router or devices to use these DNS servers:
+Configure router/devices to use these DNS servers:
 
 **IPv4 DNS Servers (Network-Authenticated):**
 - Primary: `172.64.36.1`
 - Secondary: `172.64.36.2`
-- ⚠️ **Authentication Required:** Only works from authorized network `89.36.71.24/32`
-- If your home IP changes, update the network list in Cloudflare Gateway settings
+- **Authentication Required:** only works from authorized network `89.36.71.24/32`
+- Home IP changes → update network list in CF Gateway settings
 
 **IPv6 DNS Server:**
 - `2a06:98c1:54::20:4351`
 
 **DNS-over-HTTPS (DoH) (Recommended for Router):**
 - URL: `https://nvkj3k9t7f.cloudflare-gateway.com/dns-query`
-- ✅ Works from any network (uses unique subdomain authentication)
+- Works from any network (unique subdomain auth)
 - More secure than plain IPv4 DNS
 
 ### Understanding Endpoint Authentication
 
-**Why IPv4 DNS Requires Authentication:**
-- IPv4 addresses (172.64.36.x) are **shared** across Cloudflare Gateway customers
-- Cloudflare requires source network verification to prevent unauthorized use
+**Why IPv4 DNS needs auth:**
+- IPv4 (172.64.36.x) **shared** across CF Gateway customers
+- CF requires source network verification
 - Your authorized network: `89.36.71.24/32`
 
 **Why Other Endpoints Don't:**
-- DoH URL uses your **unique subdomain**: `nvkj3k9t7f`
-- DoT hostname is also unique to your account
-- IPv6 address is unique to your location
-- These don't need source IP checks - the unique identifier is the authentication
+- DoH URL = **unique subdomain** `nvkj3k9t7f`
+- DoT hostname unique to account
+- IPv6 address unique to location
+- No source IP checks — unique identifier = auth
 
-**In the Cloudflare UI:**
-- IPv4 DNS may show as "requires network authentication" or similar
-- This is normal and expected behavior
-- The endpoint is working correctly if your home IP matches the authorized network
+**In CF UI:**
+- IPv4 DNS may show "requires network authentication"
+- Normal + expected
+- Working correctly if home IP matches authorized network
 
 ## Active Filtering Policies
 
 ### Priority: Allow Essential Services
 
-These rules have the highest precedence to ensure critical services work correctly:
+Highest precedence — ensure critical services work:
 
 #### 1. Allow Apple Essential Services (Precedence: 15000)
 **Rule ID:** `ccc8d24d-9eef-40a4-b07a-017562883d3e`
 **Created:** 2025-10-25T15:14:17Z
 
 Allows:
-- `*.apple.com` - Core Apple services
-- `*.mzstatic.com` - App Store CDN
-- `*.apple-dns.net` - Apple DNS infrastructure
-- `*.cdn-apple.com` - Apple content delivery
-- `*.icloud.com` - iCloud services
+- `*.apple.com` — core Apple services
+- `*.mzstatic.com` — App Store CDN
+- `*.apple-dns.net` — Apple DNS
+- `*.cdn-apple.com` — Apple content delivery
+- `*.icloud.com` — iCloud
 
-**Why:** Required for Apple Maps, App Store, and iOS core functionality
+**Why:** Required for Apple Maps, App Store, iOS core
 
 #### 2. Allow Microsoft Essential Services (Precedence: 14900)
 **Rule ID:** `b8160349-b855-4440-ac8a-33c66c7f90f8`
 **Created:** 2025-10-25T15:14:24Z
 
 Allows:
-- `*.bing.com` - Bing search and rewards
-- `*.microsoft.com` - Microsoft services
-- `*.msn.com` - MSN services
-- `*.live.com` - Microsoft Live services
+- `*.bing.com` — Bing search/rewards
+- `*.microsoft.com` — MS services
+- `*.msn.com` — MSN
+- `*.live.com` — MS Live
 
-**Why:** Required for Bing Rewards, Office, and Microsoft functionality
+**Why:** Required for Bing Rewards, Office, MS functionality
 
 ### Blocking Policies
 
@@ -91,7 +91,7 @@ Allows:
 Blocks:
 - Malware (category 117)
 - Phishing (category 68)
-- Command & Control servers (category 80)
+- C&C servers (category 80)
 - Cryptomining (category 83)
 - DNS Tunneling (category 176)
 - Newly Registered Domains (category 175)
@@ -118,58 +118,58 @@ Blocks:
 **List ID:** `7d5b0733-d1eb-406e-a920-ae3dcb61a7eb`
 **Created:** 2025-10-25T14:34:36Z
 
-Blocks specific major tracking platforms:
+Blocks major tracking platforms:
 - Google Analytics (`google-analytics.com`, `googletagmanager.com`, `doubleclick.net`)
 - Facebook Pixel (`facebook.com`, `connect.facebook.net`, `facebook.net`, `fbcdn.net`)
 - Twitter/X tracking (`analytics.twitter.com`, `ads-twitter.com`)
 - TikTok tracking (`analytics.tiktok.com`, `ads.tiktok.com`)
 - Pinterest tracking (`analytics.pinterest.com`, `ads.pinterest.com`)
 - LinkedIn tracking (`analytics.linkedin.com`, `ads.linkedin.com`)
-- Session replay tools (`hotjar.com`, `mouseflow.com`, `luckyorange.com`, `fullstory.com`, `logrocket.com`, `smartlook.com`, `crazyegg.com`)
+- Session replay (`hotjar.com`, `mouseflow.com`, `luckyorange.com`, `fullstory.com`, `logrocket.com`, `smartlook.com`, `crazyegg.com`)
 - Analytics platforms (`segment.com`, `segment.io`, `mixpanel.com`, `amplitude.com`, `heap.io`)
-- A/B testing tools (`optimizely.com`, `vwo.com`)
+- A/B testing (`optimizely.com`, `vwo.com`)
 
 ## Configuration Steps
 
 ### Option 1: Router-Level Configuration (Recommended)
 
-Configure your router's DHCP server to provide Cloudflare Gateway DNS:
+Configure router DHCP to provide CF Gateway DNS:
 
-**If your router supports DNS-over-HTTPS (Best Option):**
-1. Access your router's admin panel
-2. Navigate to DNS settings
-3. Enable DoH and set URL: `https://nvkj3k9t7f.cloudflare-gateway.com/dns-query`
-4. Save and reboot router
+**Router supports DoH (Best):**
+1. Access router admin
+2. DNS settings
+3. Enable DoH, set URL: `https://nvkj3k9t7f.cloudflare-gateway.com/dns-query`
+4. Save + reboot
 
-**If your router only supports traditional DNS:**
-1. Access your router's admin panel
-2. Navigate to DHCP/DNS settings
-3. Set Primary DNS: `172.64.36.1`
-4. Set Secondary DNS: `172.64.36.2`
-5. Save and reboot router
-6. ⚠️ **Important:** This only works if your home IP is `89.36.71.24`
-7. If your home IP changes, update the network list in Cloudflare Gateway
+**Router only supports traditional DNS:**
+1. Access router admin
+2. DHCP/DNS settings
+3. Primary DNS: `172.64.36.1`
+4. Secondary DNS: `172.64.36.2`
+5. Save + reboot
+6. **Important:** only works if home IP = `89.36.71.24`
+7. Home IP changes → update network list in CF Gateway
 
 **Benefits:**
-- Protects all devices on your network automatically
-- No per-device configuration needed
-- Works for IoT devices, smartphones, smart TVs, etc.
+- Protects all devices automatically
+- No per-device config
+- Works for IoT, phones, smart TVs
 
 ### Option 2: Per-Device Configuration
 
-For individual devices, configure DNS in network settings:
+Individual devices — DNS in network settings:
 
 **macOS:**
-1. System Settings → Network → [Your Connection] → Details → DNS
-2. Add DNS servers: `172.64.36.1` and `172.64.36.2`
+1. System Settings → Network → [Connection] → Details → DNS
+2. Add: `172.64.36.1` + `172.64.36.2`
 
 **iOS:**
-1. Settings → Wi-Fi → [Your Network] → Configure DNS → Manual
-2. Add servers: `172.64.36.1` and `172.64.36.2`
+1. Settings → Wi-Fi → [Network] → Configure DNS → Manual
+2. Add: `172.64.36.1` + `172.64.36.2`
 
 **Windows:**
 1. Network Settings → Adapter Settings → Properties → IPv4
-2. Set DNS servers: `172.64.36.1` and `172.64.36.2`
+2. DNS: `172.64.36.1` + `172.64.36.2`
 
 **Linux:**
 ```bash
@@ -180,40 +180,40 @@ nameserver 172.64.36.2
 
 ### Option 3: Mobile Devices Protection
 
-**⚠️ Mobile DNS Profiles Not Recommended**
+**Mobile DNS Profiles Not Recommended**
 
-DNS-over-HTTPS profiles for iOS/Android were tested but cause issues with essential services (Apple Maps, App Store, Microsoft services) even with allow rules configured. While third-party ads and trackers are blocked, the aggressive filtering breaks too many legitimate services.
+DoH profiles for iOS/Android tested → issues with essential services (Apple Maps, App Store, MS) even with allow rules. 3rd party ads/trackers blocked, but aggressive filtering breaks legitimate services.
 
-**Recommended Approach for Mobile Protection:**
+**Recommended Mobile Protection:**
 
-Your home WiFi already provides full protection via router DNS. For protection on cellular (4G/5G) networks:
+Home WiFi = full protection via router DNS. For cellular (4G/5G):
 
-**Option A: VPN Back to Home (Best Solution)**
-1. Enable VPN server on your home router (WireGuard or OpenVPN)
-2. Configure VPN on your iPhone/iPad
-3. Connect to home VPN when on cellular
-4. All DNS queries route through home router → Gateway DNS
-5. ✅ Full protection + everything works
+**Option A: VPN Back Home (Best)**
+1. Enable VPN server on home router (WireGuard/OpenVPN)
+2. Configure VPN on iPhone/iPad
+3. Connect to home VPN on cellular
+4. All DNS routes through home router → Gateway DNS
+5. Full protection + everything works
 
 **Option B: Accept Trade-off**
-- ✅ **At home:** Full protection via router DNS
-- ❌ **On cellular:** No ad/tracker blocking, but all services work
-- Most of your browsing is likely at home anyway
+- **Home:** full protection via router DNS
+- **Cellular:** no ad/tracker block, all services work
+- Most browsing at home anyway
 
 **Option C: Per-Network DNS (Wi-Fi Only)**
-For additional WiFi networks (office, friends' homes):
+Additional WiFi (office, friends):
 - **iOS:** Settings → Wi-Fi → [Network] → Configure DNS → Manual
-  - Add: `172.64.36.1` and `172.64.36.2`
+  - Add: `172.64.36.1` + `172.64.36.2`
 - **Android:** Settings → Wi-Fi → [Network] → Advanced → DNS
-  - Add: `172.64.36.1` and `172.64.36.2`
+  - Add: `172.64.36.1` + `172.64.36.2`
 
 ### Option 4: DNS-over-HTTPS (Browsers)
 
-For browsers or systems supporting DoH:
+Browsers supporting DoH:
 
 **Firefox:**
 1. Settings → Privacy & Security → DNS over HTTPS
-2. Use custom provider: `https://nvkj3k9t7f.cloudflare-gateway.com/dns-query`
+2. Custom provider: `https://nvkj3k9t7f.cloudflare-gateway.com/dns-query`
 
 **Chrome/Edge:**
 1. Settings → Privacy and security → Security → Use secure DNS
@@ -221,7 +221,7 @@ For browsers or systems supporting DoH:
 
 ## Verification
 
-Test that filtering is working:
+Test filtering works:
 
 ```bash
 # Should be blocked (ad domain)
@@ -234,7 +234,7 @@ nslookup google-analytics.com 172.64.36.1
 nslookup github.com 172.64.36.1
 ```
 
-Blocked domains will return a Cloudflare Gateway block page IP.
+Blocked domains return CF Gateway block page IP.
 
 ## Management
 
@@ -243,18 +243,18 @@ Visit: https://one.dash.cloudflare.com/ → Analytics → Gateway
 
 ### Modify Rules
 1. Dashboard: https://one.dash.cloudflare.com/
-2. Navigate to Gateway → Firewall Policies → DNS
-3. Edit rules or add exceptions
+2. Gateway → Firewall Policies → DNS
+3. Edit rules / add exceptions
 
-### Update Authorized Network (If Your Home IP Changes)
+### Update Authorized Network (If Home IP Changes)
 
-If your home IP changes and IPv4 DNS stops working:
+Home IP changes → IPv4 DNS stops working:
 
 **Via Dashboard:**
-1. Go to: https://one.dash.cloudflare.com/
-2. Navigate to Gateway → Locations
-3. Click on "Homelab" location
-4. Update the network IP to your new public IP
+1. https://one.dash.cloudflare.com/
+2. Gateway → Locations
+3. Click "Homelab" location
+4. Update network IP to new public IP
 
 **Via API:**
 ```bash
@@ -267,14 +267,14 @@ curl -X PUT https://api.cloudflare.com/client/v4/accounts/***REMOVED-CF-ACCOUNT-
   }'
 ```
 
-**Find your current public IP:**
+**Find current public IP:**
 ```bash
 curl ifconfig.me
 ```
 
 ### Add Exceptions (Allow specific domains)
 
-If a site breaks due to blocking, create an allow rule:
+Site breaks due to blocking → create allow rule:
 
 ```bash
 curl -X POST https://api.cloudflare.com/client/v4/accounts/***REMOVED-CF-ACCOUNT-ID***/gateway/rules \
@@ -290,24 +290,24 @@ curl -X POST https://api.cloudflare.com/client/v4/accounts/***REMOVED-CF-ACCOUNT
   }'
 ```
 
-Higher precedence = evaluated first, so use 20000+ for allow rules.
+Higher precedence = evaluated first → use 20000+ for allow rules.
 
 ## Security Considerations
 
-✅ **Protected:**
-- All DNS queries encrypted between you and Cloudflare
-- Malware/phishing sites blocked automatically
-- Ad trackers cannot profile your browsing
-- No local blocklist maintenance needed
+**Protected:**
+- All DNS queries encrypted between you + CF
+- Malware/phishing blocked auto
+- Ad trackers can't profile browsing
+- No local blocklist maintenance
 
-⚠️ **Limitations:**
-- Only blocks DNS-level requests (IP-based tracking still works)
-- Some sites may break if they require blocked trackers
-- Cloudflare can see your DNS queries (trade-off for convenience)
+**Limitations:**
+- Only blocks DNS-level (IP-based tracking still works)
+- Some sites may break if require blocked trackers
+- CF sees your DNS queries (trade-off for convenience)
 
 ## Backup/Restore
 
-Configuration is stored in Cloudflare account. To back up:
+Config stored in CF account. Backup:
 
 ```bash
 # Export rules
@@ -321,15 +321,15 @@ curl https://api.cloudflare.com/client/v4/accounts/***REMOVED-CF-ACCOUNT-ID***/g
 
 ## Monitoring
 
-Check query logs and blocked requests:
+Query logs + blocked requests:
 - Dashboard: https://one.dash.cloudflare.com/ → Logs → Gateway
 
-Set up alerts for suspicious activity:
+Alerts for suspicious activity:
 - Dashboard: https://one.dash.cloudflare.com/ → Notifications
 
 ## Next Steps
 
-1. ✅ Configure router DNS (recommended first step)
-2. ⏳ Monitor analytics for 24-48 hours to see blocking effectiveness
-3. ⏳ Add allow rules for any broken legitimate sites
-4. ⏳ Consider enabling browser-based DoH for extra privacy on public WiFi
+1. Configure router DNS (recommended first)
+2. Monitor analytics 24-48h → blocking effectiveness
+3. Add allow rules for broken legit sites
+4. Consider browser DoH for extra privacy on public WiFi

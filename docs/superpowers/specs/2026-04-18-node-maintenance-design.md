@@ -11,22 +11,22 @@
 
 ## 1. Purpose
 
-Automate weekly Arch Linux package updates (official repos + AUR via `yay`) across all 3 K3s nodes with sequential reboots, failure-safe orchestration, and observability.
+Automate weekly Arch Linux package updates (official repos + AUR via `yay`) across all 3 K3s nodes. Sequential reboots, failure-safe orchestration, observability.
 
-**Goals**:
-- Hands-off weekly `yay -Syu` on control-plane (CP), worker-node (W1), worker-node-2 (W2).
-- Strict ordering: CP → W1 → W2 (per user spec).
+**Goals:**
+- Hands-off weekly `yay -Syu` on CP, W1, W2.
+- Strict order: CP → W1 → W2.
 - Per-node stabilize + 5min final stabilize.
 - `flux reconcile` post-update.
-- Fix alerts (silence transients + report lingering post-run).
+- Fix alerts (silence transients + report lingering).
 - Cleanup stale artifacts.
-- Telegram notifications: start + success + failure.
+- Telegram: start + success + failure.
 
-**Non-goals** (deferred follow-ups):
-- K3s version upgrades (use `system-upgrade-controller` separately).
-- Migration of existing cleanup cron/timers to `node-maintenance` user ownership.
+**Non-goals (deferred):**
+- K3s version upgrades (use `system-upgrade-controller`).
+- Migration of existing cleanup cron/timers to `node-maintenance` ownership.
 - Grafana dashboard + `NodeMaintenanceMissedRun` alert rule.
-- Conditional reboot (only if kernel/glibc/systemd changed) — reconsider after 6 months ops data.
+- Conditional reboot (only if kernel/glibc/systemd changed) — reconsider after 6mo.
 
 ---
 
@@ -37,20 +37,20 @@ Automate weekly Arch Linux package updates (official repos + AUR via `yay`) acro
 | D1 | Orchestrator = **control-plane** (two-phase systemd) | CP idle (load 0.28), always-on, natural phase break at reboot. |
 | D2 | Tooling = **Ansible** end-to-end (`phase1.yml` + `phase2.yml`) | Industry standard for homelab k8s rolling updates; cleaner than bash; good error semantics. |
 | D3 | Skip `kubectl drain`, rely on **K3s graceful shutdown** (`shutdownGracePeriod: 2m0s`) | All 19 PVCs on worker-node local LVM → local-path PV pins pods → drain can't reschedule anyway. Graceful shutdown sufficient. |
-| D4 | **Cordon** workers before reboot (no drain) | Cheap; prevents new pods landing during reboot window. |
+| D4 | **Cordon** workers before reboot (no drain) | Cheap; prevents new pods landing during reboot. |
 | D5 | Frequency = **Weekly** | Arch rolling = small diffs; failures surface fast. |
 | D6 | Schedule = **Saturday 04:30 UTC** | Post-backup (replication done ~04:00 UTC), pre-Sunday Popeye/rebuilderd-cleanup. |
-| D7 | Pause rebuilderd pre-reboot; auto-resume via existing `rebuilderd-worker-boot.timer` (+10min) | Preserves graceful abort; no explicit resume step needed. |
-| D8 | AUR strategy = **A (full `yay -Syu --noconfirm --answerdiff=None --answerclean=None`)** | 8 AUR pkgs all trusted (firmware, flux-bin, yay, viddy, zsh-you-should-use); low attack surface. |
-| D9 | Failure — update fail = **retry once, then abort**; reboot hang = **abort + alert**; crashloop = **continue (self-heal)** | Balanced safety. |
+| D7 | Pause rebuilderd pre-reboot; auto-resume via existing `rebuilderd-worker-boot.timer` (+10min) | Preserves graceful abort; no explicit resume needed. |
+| D8 | AUR = **A (full `yay -Syu --noconfirm --answerdiff=None --answerclean=None`)** | 8 AUR pkgs all trusted (firmware, flux-bin, yay, viddy, zsh-you-should-use); low attack surface. |
+| D9 | Failure — update fail = **retry once, abort**; reboot hang = **abort + alert**; crashloop = **continue (self-heal)** | Balanced safety. |
 | D10 | Reboot = **always** (not conditional) | Homelab simplicity > reboot-save complexity. |
-| D11 | Notifications = **Start + Success + Failure** via `backup-replication/backup-telegram` secret keys `bot_token` + `chat_id` (reused). `install.sh` fetches via `kubectl get secret` → writes to `/etc/node-maintenance/telegram-{token,chat-id}` (0400 root). Rotation coupling: re-run `install.sh` when backup-telegram rotates. | Single bot for infra ops flows. |
+| D11 | Notifications = **Start + Success + Failure** via `backup-replication/backup-telegram` secret keys `bot_token` + `chat_id` (reused). `install.sh` fetches via `kubectl get secret` → writes `/etc/node-maintenance/telegram-{token,chat-id}` (0400 root). Rotation coupling: re-run `install.sh` when backup-telegram rotates. | Single bot for infra ops. |
 | D12 | Fix alerts = **silence transients 30min + report lingering post-run** (no auto-remediation) | Safe — no risky auto-fix loops. |
-| D13 | Cleanup = **pacman cache (`paccache -rk2`) + orphans + `crictl rmi --prune` + Failed pods + Flux source GC** | Scope matches discussion. ReplicaSet cleanup dropped — Deployment controller auto-prunes via `revisionHistoryLimit`; cluster orphan RS count = 0 (YAGNI). |
-| D14 | Dedicated user = **`node-maintenance`** (system account on all 3 nodes) | Single consistent identity; scoped sudoers; clean audit trail; future-proofs cleanup job ownership. |
+| D13 | Cleanup = **pacman cache (`paccache -rk2`) + orphans + `crictl rmi --prune` + Failed pods + Flux source GC** | Scope matches discussion. ReplicaSet cleanup dropped — Deployment auto-prunes via `revisionHistoryLimit`; orphan RS count = 0 (YAGNI). |
+| D14 | Dedicated user = **`node-maintenance`** (system account on all 3 nodes) | Consistent identity; scoped sudoers; clean audit; future-proofs cleanup job ownership. |
 | D15 | SSH key = **option B (SOPS-encrypted in repo, decrypted by install.sh to disk)** | Matches existing 51-SOPS-secret pattern; encrypted-at-rest in git; plain on CP disk during runtime (same tier as `/etc/rancher/k3s/k3s.yaml`). |
 | D16 | Log filename = `phaseN-DD-MM-YYYY.log` with **UTC date** | Consistent with backup naming. |
-| D17 | Repo path = `docs/scripts/node-maintenance/` | Matches existing `docs/scripts/` pattern (folder rename to `scripts/` deferred). |
+| D17 | Repo path = `docs/scripts/node-maintenance/` | Matches existing `docs/scripts/` pattern (folder rename deferred). |
 
 ---
 
@@ -198,7 +198,7 @@ all:
           k3s_service: k3s-agent.service
 ```
 
-CP is not in inventory — phase1 runs `connection: local` on CP itself.
+CP not in inventory — phase1 runs `connection: local` on CP itself.
 
 ---
 
@@ -206,17 +206,17 @@ CP is not in inventory — phase1 runs `connection: local` on CP itself.
 
 Runs on control-plane, `connection: local`, `become: true`.
 
-**Tasks**:
-1. **Preflight**:
+**Tasks:**
+1. **Preflight:**
    - Assert no active backup job (`kubectl get jobs -A | jq ...`)
    - Assert `/` free ≥ 5 GB, `/var` free ≥ 3 GB
    - Assert Flux kustomizations all `Ready=True`
    - Assert SSH reachability to both worker IPs via `node-maintenance` key
-2. **Notify Telegram — run starting**.
+2. **Notify Telegram — run starting.**
 3. **Silence transient alerts** via Alertmanager API (POST `/api/v2/silences`, 30min):
    - Matchers: `alertname =~ "KubeletDown|KubernetesAPIServerDown|DeploymentReplicasMismatch|StatefulSetReplicasMismatch|CloudflareTunnelDown|CloudflareTunnelPodNotRunning|CloudflareTunnelNoConnections|CouchDBDown|CouchDBPodNotRunning|FluxReconciliationFailure|FluxSourceNotReady|KyvernoAdmissionControllerDown|LokiDown|LokiCompactorNotRunning|MySQLDown|MySQLHAProxyNotRunning|MySQLOrchestratorNotRunning|RedisDown|RedisPodNotRunning|AlertmanagerFailedToSendAlerts|AlloyDown|AlloyLogDeliveryFailing|DaemonSetNotScheduled|TraefikDown|RebuilderdWorkerDown|PrometheusTargetDown|KubePodCrashLooping|KubePodNotReady|TargetDown|TooManyPodsPending|JobFailed"` (derived from live cluster `kubectl get prometheusrule` at spec time — omits real-issue alerts like Certificate*, ContainerOOMKilled, HighErrorRate, ClusterCPU/MemoryExhaustion, PVCUsage*)
    - Persist `silenceID` to `/var/lib/node-maintenance/silence-id`.
-4. **Upgrade**:
+4. **Upgrade:**
    ```yaml
    - name: Upgrade via yay (pacman + AUR)
      ansible.builtin.shell: |
@@ -224,12 +224,12 @@ Runs on control-plane, `connection: local`, `become: true`.
      register: yay_result
      changed_when: "'there is nothing to do' not in yay_result.stdout"
    ```
-5. **Stage phase 2**:
+5. **Stage phase 2:**
    - Write `yay_result.stdout` to `/var/lib/node-maintenance/updated-packages.log`
    - `touch /var/lib/node-maintenance/phase2-pending` (mode 0600, root)
 6. **Exit 0** → systemd `ExecStartPost=systemctl reboot` triggers reboot.
 
-**On failure** (any task): playbook exits non-zero → systemd skips `ExecStartPost` (no reboot) → `ExecStopPost` sends Telegram failure alert → cluster remains healthy → operator intervenes.
+**On failure** (any task): playbook exits non-zero → systemd skips `ExecStartPost` (no reboot) → `ExecStopPost` sends Telegram failure alert → cluster healthy → operator intervenes.
 
 ---
 
@@ -499,13 +499,13 @@ WantedBy=multi-user.target
 TimeoutStopSec=60s
 ```
 
-Overrides upstream `TimeoutStopUSec=2h` so reboot flow doesn't hang.
+Overrides upstream `TimeoutStopUSec=2h` — reboot flow won't hang.
 
 ---
 
 ## 11. Install Scripts
 
-Two scripts: `install.sh` (runs on CP, idempotent) + `install-worker.sh` (runs on each worker once).
+Two scripts: `install.sh` (CP, idempotent) + `install-worker.sh` (each worker once).
 
 ### `install.sh` (CP, as root)
 
@@ -607,7 +607,7 @@ systemctl daemon-reload
 echo "Worker bootstrap complete on $(hostname)."
 ```
 
-`install.sh` auto-embeds the pub key into a temporary copy of `install-worker.sh` before scp to each worker — script shown above is the template.
+`install.sh` auto-embeds pub key into temp copy of `install-worker.sh` before scp to each worker — script above is template.
 
 ---
 
@@ -616,7 +616,7 @@ echo "Worker bootstrap complete on $(hostname)."
 ### Logs
 - systemd journald: `journalctl -u node-maintenance-phase{1,2}.service`
 - Ansible file: `/var/log/node-maintenance/phaseN-DD-MM-YYYY.log` (UTC)
-- Alloy DaemonSet collects journald → Loki (existing — no change required for base visibility).
+- Alloy DaemonSet collects journald → Loki (existing — no change for base visibility).
 
 ### Metrics
 - `node_exporter --collector.textfile.directory=/var/lib/node_exporter/textfile` (already configured).
@@ -624,10 +624,10 @@ echo "Worker bootstrap complete on $(hostname)."
 - Follow-up PR: add `NodeMaintenanceMissedRun` alert (>10d since last success).
 
 ### Notifications
-- **Start**: "🔧 Node maintenance starting on {{ hostname }} (phase 1)"
-- **Success**: summary with packages updated, crashloops observed, lingering alerts, log path
-- **Failure**: systemd `ExecStopPost` handler sends specific phase failure + log path
-- Channel: `backup-replication-telegram-secret` (or dedicated — decide at implementation)
+- **Start:** "🔧 Node maintenance starting on {{ hostname }} (phase 1)"
+- **Success:** summary with packages updated, crashloops observed, lingering alerts, log path
+- **Failure:** systemd `ExecStopPost` handler sends specific phase failure + log path
+- Channel: `backup-replication-telegram-secret` (or dedicated — decide at impl)
 
 ---
 
@@ -720,13 +720,13 @@ ssh -p 65300 node-maintenance@<node> 'sudo pacman -U /var/cache/pacman/pkg/<pkg>
 | F3 | Grafana dashboard (last run, duration trend, pkg count, logs panel) | P3 |
 | F4 | `NodeMaintenanceMissedRun` alert rule | P3 |
 | F5 | Fix stale flux kustomization list in `CLAUDE.md` | P3 |
-| F6 | Revisit conditional-reboot policy after 6 months of ops data | P4 |
+| F6 | Revisit conditional-reboot policy after 6 months ops data | P4 |
 
 ---
 
 ## 17. Acknowledged Limitations
 
-1. `yay --removemake` may leave orphan deps — covered by cleanup step but imperfect.
+1. `yay --removemake` may leave orphan deps — cleanup step covers but imperfect.
 2. 90min `TimeoutStartSec` estimate verified adequate (P50 ~52min); adjust if observed P95 >70min.
 3. Ansible-playbook hang risks 90min silence before `ExecStopPost` alert — acceptable.
 4. Existing node cleanup jobs not enumerated — deferred to F1.

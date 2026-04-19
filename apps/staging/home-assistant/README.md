@@ -1,19 +1,19 @@
-# Home Assistant - Internal Network Access
+# Home Assistant — Internal Network Access
 
-Home Assistant is configured for **internal network access only** for security.
+Home Assistant = **internal-only** for security.
 
 ## DNS Configuration (Cloudflare)
 
-To access Home Assistant via `ha.h0melab.work` on your internal network:
+Access via `ha.h0melab.work` on internal network:
 
-1. **Create an A record in Cloudflare DNS:**
+1. **Create A record in Cloudflare DNS:**
    - Name: `ha`
    - Type: `A`
    - Content: `192.168.1.127` (or `192.168.1.129`)
    - Proxy status: **DNS only** (gray cloud, NOT orange)
    - TTL: Auto
 
-2. **Alternative: Create two A records for redundancy:**
+2. **Alternative: two A records for redundancy:**
    ```
    ha.h0melab.work -> 192.168.1.127
    ha.h0melab.work -> 192.168.1.129
@@ -21,45 +21,45 @@ To access Home Assistant via `ha.h0melab.work` on your internal network:
 
 ## Accessing Home Assistant
 
-### Via Internal DNS (Recommended)
+### Via Internal DNS (recommended)
 
-Once DNS is configured, access Home Assistant at:
+Once DNS configured:
 ```
 https://ha.h0melab.work
 ```
 
-This works from any device on your home network (192.168.1.x).
+Works from any device on home net (192.168.1.x).
 
-### Via kubectl port-forward (Alternative)
+### Via kubectl port-forward (alt)
 
 ```bash
 kubectl port-forward -n home-assistant svc/home-assistant 8123:8123
 # Access at: http://localhost:8123
 ```
 
-## Remote Access (When Away from Home)
+## Remote Access (Away from Home)
 
-If you need to access Home Assistant when away from home, consider these secure options:
+Secure options:
 
-1. **VPN** (Most Secure)
-   - Set up WireGuard or Tailscale to access your home network
-   - Access Home Assistant through the VPN as if you were home
+1. **VPN** (most secure)
+   - WireGuard or Tailscale to home net
+   - Access HA via VPN
 
 2. **Home Assistant Cloud (Nabu Casa)**
-   - Official paid service ($6.50/month)
-   - Supports Home Assistant development
-   - Includes secure remote access, Alexa/Google Assistant integration
+   - Official paid ($6.50/month)
+   - Supports HA development
+   - Secure remote + Alexa/Google Assistant
 
-3. **Cloudflare Tunnel** (If you must)
-   - Only enable if really needed
-   - Creates external exposure which increases attack surface
-   - Contact admin to set this up with proper security measures
+3. **Cloudflare Tunnel** (if must)
+   - Only if truly needed
+   - Creates external exposure — attack surface up
+   - Contact admin for proper security setup
 
 ## Security Features
 
-- ✅ Network Policy restricts all external access
-- ✅ Internal cluster access allowed
-- ✅ Egress allowed for updates and integrations
-- ✅ Local network access for IoT device discovery
-- ✅ Pod runs with minimal required capabilities
-- ✅ Seccomp profile enabled
+- NetworkPolicy restricts external access
+- Internal cluster access allowed
+- Egress for updates + integrations
+- Local network access for IoT discovery
+- Pod runs with minimal capabilities
+- Seccomp profile enabled

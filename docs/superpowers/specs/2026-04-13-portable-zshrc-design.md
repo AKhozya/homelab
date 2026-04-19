@@ -1,14 +1,14 @@
 # Portable .zshrc with Chezmoi Templates
 
 **Date:** 2026-04-13
-**Goal:** Make .zshrc portable across macOS and Arch Linux (homelab nodes) using chezmoi templates, with a one-time setup function for package installation.
+**Goal:** Make .zshrc portable across macOS + Arch Linux (homelab nodes) via chezmoi templates. One-time setup function for package install.
 
 ## Context
 
-- 3 homelab nodes run Arch Linux, currently using bash
-- User SSHes into nodes from Mac — no local console access
-- Chezmoi already manages dotfiles across Mac and a pod (claude-telegram-bot)
-- `.zshrc` is currently a plain file (`dot_zshrc`), needs conversion to template (`dot_zshrc.tmpl`)
+- 3 homelab nodes run Arch Linux, currently bash
+- User SSHes into nodes from Mac — no local console
+- Chezmoi already manages dotfiles across Mac + pod (claude-telegram-bot)
+- `.zshrc` = plain file (`dot_zshrc`), needs conversion to template (`dot_zshrc.tmpl`)
 
 ## Design
 
@@ -30,7 +30,7 @@
 
 ### zsh_setup() Function
 
-Runs once manually. Installs all required packages and plugins.
+Runs once manually. Installs all required packages + plugins.
 
 **macOS (Homebrew):**
 ```bash
@@ -66,9 +66,9 @@ yay -S --needed --noconfirm flux-bin zsh-you-should-use viddy duf dust
 
 | Section | Reason |
 |---------|--------|
-| starship init | Prompt renders remote-side; nodes accessed via SSH only — simple `%m%#` prompt sufficient |
+| starship init | Prompt remote-side; nodes SSH-only — simple `%m%#` prompt sufficient |
 | HOMEBREW_* env vars | No Homebrew on Arch |
-| Android SDK, Java JDK, Ruby paths | Dev tools, not needed on servers |
+| Android SDK, Java JDK, Ruby paths | Dev tools, not on servers |
 | fnm, pyenv, direnv init | Dev version managers |
 | `sw_update()` | Homebrew/mas updater |
 | `claude_update_plugins()` | Claude Code not on nodes |
@@ -84,7 +84,7 @@ yay -S --needed --noconfirm flux-bin zsh-you-should-use viddy duf dust
 ### Linux-Only Sections
 | Section | Reason |
 |---------|--------|
-| Simple zsh prompt (`%m%#`) | No starship — SSH access only |
+| Simple zsh prompt (`%m%#`) | No starship — SSH-only |
 | `localip` via `ip route` | Linux network tools |
 | `xclip` in fzf binding | Linux clipboard |
 
@@ -101,7 +101,7 @@ yay -S --needed --noconfirm flux-bin zsh-you-should-use viddy duf dust
 
 ### Template Strategy
 
-Use chezmoi `{{ if }}` blocks. For sections with only 1-2 line differences (like localip), use inline conditionals. For larger blocks (sw_update, plugin paths), use block conditionals.
+Chezmoi `{{ if }}` blocks. Sections with 1-2 line differences (like localip) = inline conditionals. Larger blocks (sw_update, plugin paths) = block conditionals.
 
 ```
 {{ if eq .chezmoi.os "darwin" -}}
@@ -118,4 +118,4 @@ After conversion, `chezmoi diff` on Mac must show zero changes — output identi
 ## Out of Scope
 - Node provisioning (user installs chezmoi + runs `chezmoi init` separately)
 - Chezmoi config (`chezmoi.toml`) per node — reuse existing SSH data section
-- Claude-telegram pod .zshrc — pod has its own lifecycle, gets whatever chezmoi produces for Linux
+- Claude-telegram pod .zshrc — pod has own lifecycle, gets whatever chezmoi produces for Linux

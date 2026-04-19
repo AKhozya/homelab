@@ -1,7 +1,7 @@
 # Secrets Rotation Playbook
 
 **Cluster**: K3s Homelab | **Last Updated**: 2026-04-17
-**Audit Trail**: Rotation dates tracked in git commit history
+**Audit Trail**: rotation dates in git commit history
 
 ---
 
@@ -62,7 +62,7 @@
 | `adguard-home-config` | AdGuard Home | User login — NO auto-rotate |
 | `grafana-admin-secret` | Grafana | User login — NO auto-rotate |
 | `audiobookshelf-admin` | Audiobookshelf | User login — NO auto-rotate |
-| `couchdb-admin-credentials` | Obsidian Sync | Client-facing (LiveSync connects directly) — NO rotate |
+| `couchdb-admin-credentials` | Obsidian Sync | Client-facing (LiveSync direct) — NO rotate |
 
 ### OIDC/OAuth Secrets
 
@@ -78,10 +78,10 @@
 | Stirling PDF | `custom-settings-configmap.yaml` (SOPS Secret) | 2026-04-02 | 2026-10-01 | Medium |
 
 **OIDC rotation gotchas:**
-- **Immich**: Update Authentik API AND PostgreSQL: `UPDATE system_metadata SET value = jsonb_set(value::jsonb, '{oauth,clientSecret}', '"NEW_SECRET"') WHERE key = 'system-config';` then restart
-- **Audiobookshelf**: Update Authentik API AND web UI (Settings → Auth → OpenID). Can't do via CLI (SQLite on PVC)
-- **Paperless-NGX**: Secret in `PAPERLESS_SOCIALACCOUNT_PROVIDERS` JSON inside env secret (NOT standalone file)
-- **All others**: Update Authentik API + SOPS file + restart pod
+- **Immich**: update Authentik API AND PostgreSQL: `UPDATE system_metadata SET value = jsonb_set(value::jsonb, '{oauth,clientSecret}', '"NEW_SECRET"') WHERE key = 'system-config';` then restart
+- **Audiobookshelf**: update Authentik API AND web UI (Settings → Auth → OpenID). No CLI (SQLite on PVC)
+- **Paperless-NGX**: secret in `PAPERLESS_SOCIALACCOUNT_PROVIDERS` JSON inside env secret (NOT standalone file)
+- **All others**: update Authentik API + SOPS file + restart pod
 
 ### Infrastructure Credentials
 
@@ -94,14 +94,14 @@
 | `node-maintenance-ssh` | Node Auto-Update (CP → workers) | 2026-04-17 | 2027-04-17 | High |
 | `homelab-deploy` (GitHub deploy key) | Node-Maintenance git sync (CP `/root/.ssh/homelab-deploy`, read-only) | 2026-04-18 | 2027-04-18 | Medium |
 
-\* Only rotate if compromised
+\* Rotate only if compromised
 
 ### TLS Certificates
 
 | Certificate | Renewal |
 |-------------|---------|
-| `*.h0melab.work` | Automatic (cert-manager, Let's Encrypt) |
-| Individual app certs | Automatic (cert-manager) |
+| `*.h0melab.work` | Auto (cert-manager, Let's Encrypt) |
+| Individual app certs | Auto (cert-manager) |
 
 ---
 
@@ -316,8 +316,8 @@ kubectl rollout restart deployment/homehub -n homehub
 
 After rotating any secret:
 - [ ] Git commit pushed
-- [ ] Flux reconciliation completed
-- [ ] Pods restarted successfully
+- [ ] Flux reconciliation done
+- [ ] Pods restarted
 - [ ] No auth errors in logs
 - [ ] App accessible via web UI
 - [ ] Dependent services connected
@@ -330,10 +330,10 @@ After rotating any secret:
 ## EMERGENCY ROTATION
 
 If compromised:
-1. **Immediate**: Rotate within 1h, check logs for unauthorized access
-2. **Investigate**: Scope, affected systems, lateral movement
-3. **Remediate**: Rotate all related secrets, tighten NetworkPolicies, update firewall
-4. **Post-mortem**: Document, update procedures, review access controls
+1. **Immediate**: rotate within 1h, check logs for unauthorized access
+2. **Investigate**: scope, affected systems, lateral movement
+3. **Remediate**: rotate all related secrets, tighten NetworkPolicies, update firewall
+4. **Post-mortem**: document, update procedures, review access controls
 
 ---
 
@@ -376,11 +376,11 @@ If compromised:
 
 ## BEST PRACTICES
 
-1. **Password gen**: Cryptographically secure, 32+ chars for DB/Redis, 64+ for OIDC. Avoid special chars (URL encoding issues).
-2. **Testing**: Verify all dependent services. Keep prev password 24h for rollback.
-3. **Docs**: Update this doc + commit immediately after rotation.
-4. **Monitoring**: Watch auth errors 15 min post-rotation. Check Grafana.
-5. **Backup**: Ensure secrets backup current before rotation.
+1. **Password gen**: cryptographically secure, 32+ chars DB/Redis, 64+ OIDC. Avoid special chars (URL encoding).
+2. **Testing**: verify dependent services. Keep prev password 24h for rollback.
+3. **Docs**: update this doc + commit immediately after rotation.
+4. **Monitoring**: watch auth errors 15 min post-rotation. Check Grafana.
+5. **Backup**: ensure secrets backup current before rotation.
 
 ---
 

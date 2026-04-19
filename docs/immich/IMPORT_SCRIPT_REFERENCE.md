@@ -1,6 +1,6 @@
 # Immich Import Script Technical Reference
 
-Technical documentation for `immich-import-ios-photos.sh` script.
+Technical docs for `immich-import-ios-photos.sh`.
 
 ## Script Location
 
@@ -18,17 +18,17 @@ immich-import-ios-photos.sh [EXPORT_DIR] [API_KEY_FILE]
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `EXPORT_DIR` | `$HOME/ios-photos-export` | Directory for exported photos |
-| `API_KEY_FILE` | `$HOME/.config/immich/api_key.txt` | File containing Immich API key |
+| `EXPORT_DIR` | `$HOME/ios-photos-export` | Export dir |
+| `API_KEY_FILE` | `$HOME/.config/immich/api_key.txt` | API key file |
 
 ## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `USE_LOCAL` | `true` | Use local port-forward instead of public URL |
-| `IMMICH_PUBLIC_URL` | `https://immich.h0melab.work` | Public Immich URL (when USE_LOCAL=false) |
-| `IMMICH_LOCAL_URL` | `http://localhost:2283` | Local Immich URL (when USE_LOCAL=true) |
-| `IMMICH_LOCAL_PORT` | `2283` | Local port for port-forward |
+| `USE_LOCAL` | `true` | Local port-forward vs public URL |
+| `IMMICH_PUBLIC_URL` | `https://immich.h0melab.work` | Public URL (USE_LOCAL=false) |
+| `IMMICH_LOCAL_URL` | `http://localhost:2283` | Local URL (USE_LOCAL=true) |
+| `IMMICH_LOCAL_PORT` | `2283` | Local port |
 
 ## Architecture
 
@@ -97,25 +97,25 @@ immich-import-ios-photos.sh [EXPORT_DIR] [API_KEY_FILE]
 
 **Actions:**
 1. Validate API key file exists
-2. Check for `osxphotos` binary
-3. Check for `immich` CLI binary
-4. Offer to install missing tools
+2. Check `osxphotos` binary
+3. Check `immich` CLI binary
+4. Offer to install missing
 
-**Installation Methods:**
-- `osxphotos`: `pipx install osxphotos` (after ensuring pipx via Homebrew)
+**Install Methods:**
+- `osxphotos`: `pipx install osxphotos` (pipx via Homebrew)
 - `immich`: `npm install -g @immich/cli`
 
 **Exit Conditions:**
-- API key file not found → Error with instructions
-- User declines tool installation → Exit
+- API key file not found → error with instructions
+- User declines install → exit
 
 ### Phase 1: Port-Forward Setup (if USE_LOCAL=true)
 
 **Actions:**
 1. Start kubectl port-forward in background
 2. Store PID for cleanup
-3. Wait 3 seconds for establishment
-4. Verify process still running
+3. Wait 3s for establishment
+4. Verify process running
 
 **Command:**
 ```bash
@@ -131,16 +131,16 @@ cleanup() {
 ```
 
 **Error Handling:**
-- Port-forward fails to start → Suggest using public URL
-- Process dies immediately → Check kubectl connection
+- Port-forward fails → suggest public URL
+- Process dies → check kubectl connection
 
 ### Phase 2: Export from Photos
 
 **Actions:**
-1. Prompt user to proceed with export
-2. Create export directory
+1. Prompt user — proceed export
+2. Create export dir
 3. Run osxphotos export with template
-4. Verify export directory has content
+4. Verify content
 
 **Export Command:**
 ```bash
@@ -152,34 +152,34 @@ osxphotos export "$EXPORT_DIR" \
   --skip-original-if-edited
 ```
 
-**Options Explained:**
+**Options:**
 
 | Option | Purpose |
 |--------|---------|
-| `--directory "{album,Not-in-Album}"` | Template: use album name if exists, else "Not-in-Album" |
-| `--download-missing` | Download from iCloud if not stored locally |
-| `--update` | Only export new/changed photos (incremental) |
-| `--verbose` | Show progress and details |
-| `--skip-original-if-edited` | Export edited version instead of original |
+| `--directory "{album,Not-in-Album}"` | Template: album name if exists, else "Not-in-Album" |
+| `--download-missing` | Download from iCloud if not local |
+| `--update` | Only new/changed photos (incremental) |
+| `--verbose` | Show progress |
+| `--skip-original-if-edited` | Export edited version vs original |
 
 **Template Syntax:**
-- `{album}`: Album name
-- `{album,DEFAULT}`: Album name with fallback to DEFAULT if no album
+- `{album}`: album name
+- `{album,DEFAULT}`: album name with fallback DEFAULT if no album
 
 **Database:**
 - Location: `$EXPORT_DIR/.osxphotos_export.db`
 - Tracks: filename, size, mtime, signature
-- Used by: `--update` for incremental exports
+- Used by `--update` for incremental
 
 **Skip Option:**
-- User can skip export and use existing files
-- Useful for re-upload after failed upload
+- User can skip export + use existing files
+- For re-upload after failed upload
 
 ### Phase 3: Upload to Immich
 
 **Actions:**
 1. Configure Immich CLI with API key
-2. Prompt user to proceed with upload
+2. Prompt user — proceed upload
 3. Run recursive upload
 4. Report completion
 
@@ -194,38 +194,38 @@ immich upload "$EXPORT_DIR" --recursive
 ```
 
 **Upload Process (per file):**
-1. Calculate file hash (SHA-256)
-2. Send check request: `GET /api/asset/check?fileHash=...`
-3. If duplicate → Skip, log "already uploaded"
-4. If new → Upload: `POST /api/asset/upload`
+1. Calculate SHA-256 hash
+2. Send check: `GET /api/asset/check?fileHash=...`
+3. If duplicate → skip, log "already uploaded"
+4. If new → upload: `POST /api/asset/upload`
 
 **Performance:**
 - Default concurrency: 4 files at once
-- Can be increased: `IMMICH_UPLOAD_CONCURRENCY=8 immich upload ...`
+- Can boost: `IMMICH_UPLOAD_CONCURRENCY=8 immich upload ...`
 
 ### Phase 4: Album Creation (Manual)
 
 **Current State:**
 - Script does NOT auto-create albums
 - CLI uploads don't support album association
-- User must create albums manually OR use external library
+- User creates albums manually OR uses external library
 
 **Manual Process:**
 1. Open Immich web UI
 2. Select photos from folder
 3. Create album
-4. Add photos to album
+4. Add photos
 
 **Future Enhancement:**
-- Could use Immich API to create albums based on folder names
-- Would require additional API calls after upload
-- See: `immich-create-albums.sh` for reference implementation
+- Use Immich API to create albums from folder names
+- Needs additional API calls post-upload
+- See: `immich-create-albums.sh` for reference
 
 ## Duplicate Detection
 
 ### Export Side (osxphotos)
 
-**Database Schema:**
+**DB Schema:**
 ```sql
 -- Simplified representation
 CREATE TABLE exported_files (
@@ -250,12 +250,12 @@ else:
     export()
 ```
 
-**Signature Calculation:**
+**Signature:**
 - Size (bytes)
-- Modification time (timestamp)
+- mtime (timestamp)
 - Filename
 
-**Note:** Does NOT compare file content or hashes (for performance)
+**Note**: does NOT compare content/hashes (for perf)
 
 ### Upload Side (Immich CLI)
 
@@ -289,8 +289,8 @@ Content-Type: application/json
 ```
 
 **Upload Decision:**
-- `isDuplicate: true` → Skip upload
-- `isDuplicate: false` → Proceed with upload
+- `isDuplicate: true` → skip
+- `isDuplicate: false` → upload
 
 ## Network Topology
 
@@ -319,15 +319,15 @@ Content-Type: application/json
 └──────────────────┘
 ```
 
-**Advantages:**
-- Fast: ~100MB/s (limited by disk I/O)
-- Direct connection to pod
-- No internet bandwidth usage
+**Pros:**
+- Fast: ~100MB/s (disk I/O bound)
+- Direct pod connection
+- No internet bandwidth
 - No Cloudflare rate limits
 
-**Disadvantages:**
-- Requires kubectl access
-- Port-forward can be unstable for long transfers
+**Cons:**
+- Needs kubectl access
+- Port-forward unstable for long transfers
 
 ### Public Mode (USE_LOCAL=false)
 
@@ -356,37 +356,37 @@ Content-Type: application/json
 └─────────────┘
 ```
 
-**Advantages:**
+**Pros:**
 - Works from anywhere
 - Stable connection
-- No kubectl required
+- No kubectl needed
 
-**Disadvantages:**
-- Slower: ~10MB/s (internet upload speed)
+**Cons:**
+- Slower: ~10MB/s (internet upload)
 - Uses internet bandwidth
-- Goes through multiple proxies
+- Multiple proxies
 
 ## Error Handling
 
-### Automatic Retries
+### Auto Retries
 
 **osxphotos:**
-- iCloud download failures: Retries with exponential backoff
-- File system errors: Reports and continues with next file
+- iCloud download fails: retries with exponential backoff
+- FS errors: reports + continues with next file
 
 **Immich CLI:**
-- Network errors: Retries up to 3 times per file
-- Upload failures: Reports and continues with next file
+- Network errors: retries up to 3x per file
+- Upload fails: reports + continues
 
 ### User Intervention Required
 
 | Error | Cause | Solution |
 |-------|-------|----------|
 | "API key file not found" | Missing API key | Create API key, save to file |
-| "Port-forward failed" | kubectl not connected | Check `kubectl get pods`, or use public URL |
-| "Photos library not found" | Photos app not set up | Open Photos app, set up library |
-| "Waiting for iCloud download..." (stuck) | Manual prompt in Photos | Open Photos app, click download |
-| "Permission denied" | API key lacks permissions | Recreate API key with ALL permissions |
+| "Port-forward failed" | kubectl not connected | `kubectl get pods` or use public URL |
+| "Photos library not found" | Photos app not setup | Open Photos, setup library |
+| "Waiting for iCloud download..." (stuck) | Manual prompt in Photos | Open Photos, click download |
+| "Permission denied" | API key lacks perms | Recreate with ALL permissions |
 
 ### Exit Codes
 
@@ -404,27 +404,27 @@ Content-Type: application/json
 
 **macOS (during export):**
 - CPU: 10-30% (1 core, osxphotos)
-- Memory: ~500MB
-- Disk I/O: Read from Photos library, write to export dir
+- Mem: ~500MB
+- Disk I/O: read Photos lib, write export dir
 - Network: iCloud downloads if needed
 
 **macOS (during upload):**
 - CPU: 5-15% (Immich CLI hashing)
-- Memory: ~200MB
-- Disk I/O: Read from export dir
-- Network: Upload bandwidth saturated
+- Mem: ~200MB
+- Disk I/O: read export dir
+- Network: upload bandwidth saturated
 
 **Immich Server (during upload):**
-- CPU: 200m-3000m (currently boosted for bulk import)
-- Memory: 512Mi-6Gi (currently boosted)
-- Disk I/O: Write to storage
-- Network: Receive uploads
+- CPU: 200m-3000m (boosted for bulk import)
+- Mem: 512Mi-6Gi (boosted)
+- Disk I/O: write to storage
+- Network: receive uploads
 
 **Immich ML (background processing):**
-- CPU: 200m-4000m (currently boosted)
-- Memory: 2Gi-8Gi (currently boosted)
+- CPU: 200m-4000m (boosted)
+- Mem: 2Gi-8Gi (boosted)
 - GPU: AMD ROCm for face detection
-- Disk I/O: Read photos, write embeddings to DB
+- Disk I/O: read photos, write embeddings to DB
 
 ### Timing Estimates
 
@@ -450,43 +450,43 @@ Content-Type: application/json
 
 **Tested:**
 - Up to 5000 photos
-- Up to 40GB total size
-- Mixed photos and videos
+- Up to 40GB total
+- Mixed photos + videos
 
 **Expected limits:**
-- osxphotos: Can handle 100k+ photos (limited by Photos app)
-- Immich CLI: Can handle unlimited files (uploads serially)
-- Immich Server: Depends on cluster resources
+- osxphotos: 100k+ photos (Photos app bound)
+- Immich CLI: unlimited files (uploads serially)
+- Immich Server: cluster resources
 
 **Bottlenecks:**
 1. First export: iCloud download speed
-2. Local upload: Disk I/O on export directory
-3. Public upload: Internet upload bandwidth
-4. Background processing: ML model inference time
+2. Local upload: disk I/O export dir
+3. Public upload: internet upload bandwidth
+4. Background: ML inference time
 
 ## Security Considerations
 
 ### API Key Storage
 
 **Current:**
-- Stored in plaintext: `~/.config/immich/api_key.txt`
+- Plaintext: `~/.config/immich/api_key.txt`
 - Permissions: `600` (owner read/write only)
 
 **Risks:**
-- Accessible to any process running as user
-- Visible in process list during script execution
+- Accessible to any user-process
+- Visible in process list during execution
 
 **Mitigations:**
-- API key has scope limited to current user
-- Can be revoked in Immich web UI
+- API key scope limited to current user
+- Revokable in Immich web UI
 - Should use short-lived tokens (not implemented)
 
 ### Network Security
 
 **Local Mode:**
-- kubectl uses cluster credentials (`~/.kube/config`)
-- Port-forward creates localhost-only tunnel
-- No external network exposure
+- kubectl uses cluster creds (`~/.kube/config`)
+- Port-forward = localhost-only tunnel
+- No external exposure
 
 **Public Mode:**
 - HTTPS with TLS 1.3
@@ -496,28 +496,28 @@ Content-Type: application/json
 ### File System Security
 
 **Export Directory:**
-- Default permissions: User's umask (typically 755)
-- Contains all exported photos (potentially sensitive)
+- Default perms: user umask (typically 755)
+- Contains all exported photos (sensitive)
 - No encryption at rest (relies on FileVault)
 
 **osxphotos Database:**
-- Contains file paths and metadata
+- Contains file paths + metadata
 - No photo content
-- Permissions: Same as export directory
+- Perms: same as export dir
 
 ## Monitoring and Logging
 
 ### Script Output
 
 **Progress Indicators:**
-- osxphotos: Per-file progress with verbose mode
-- Immich CLI: Progress bar + file count
-- Color-coded messages (green=success, red=error, yellow=warning)
+- osxphotos: per-file progress with verbose
+- Immich CLI: progress bar + file count
+- Color-coded (green=success, red=error, yellow=warning)
 
 **Log Locations:**
-- osxphotos: Stderr (shown in terminal)
-- Immich CLI: Stdout (shown in terminal)
-- No persistent logs (user must redirect if needed)
+- osxphotos: stderr (terminal)
+- Immich CLI: stdout (terminal)
+- No persistent logs (redirect if needed)
 
 ### Immich Server Logs
 
@@ -540,7 +540,7 @@ kubectl logs -n immich deployment/immich-server -c main | grep -i error
 
 ### Script Configuration
 
-**Location:** `~/.local/bin/immich-import-ios-photos.sh`
+**Location**: `~/.local/bin/immich-import-ios-photos.sh`
 
 **Customizable Variables (top of script):**
 ```bash
@@ -552,7 +552,7 @@ IMMICH_LOCAL_PORT="2283"
 
 ### osxphotos Configuration
 
-**No config file** - all options via CLI arguments
+**No config file** — all options via CLI args
 
 **Template Customization:**
 ```bash
@@ -566,7 +566,7 @@ IMMICH_LOCAL_PORT="2283"
 
 ### Immich CLI Configuration
 
-**Location:** `~/.config/immich/auth.yml` (auto-created)
+**Location**: `~/.config/immich/auth.yml` (auto-created)
 
 **Content:**
 ```yaml
@@ -574,7 +574,7 @@ instanceUrl: http://localhost:2283/api
 apiKey: <YOUR_API_KEY>
 ```
 
-**Note:** Overwritten each time script runs (login-key command)
+**Note**: overwritten each run (login-key command)
 
 ## Dependencies
 
@@ -583,8 +583,8 @@ apiKey: <YOUR_API_KEY>
 | Dependency | Min Version | Used For |
 |------------|-------------|----------|
 | macOS | 10.15+ | Photos app |
-| Photos app | Any | Source of photos |
-| Python | 3.8+ | osxphotos (installed by pipx) |
+| Photos app | Any | Photo source |
+| Python | 3.8+ | osxphotos (via pipx) |
 | Node.js | 14+ | Immich CLI (npm) |
 | kubectl | 1.20+ | Port-forward (optional) |
 
@@ -612,13 +612,13 @@ apiKey: <YOUR_API_KEY>
 
 ### Debug Mode
 
-**Enable verbose output:**
+**Enable verbose:**
 ```bash
 set -x
 # ... rest of script
 ```
 
-**Check osxphotos database:**
+**Check osxphotos DB:**
 ```bash
 sqlite3 ~/ios-photos-export/.osxphotos_export.db "SELECT COUNT(*) FROM exported_files;"
 ```
@@ -635,16 +635,16 @@ immich server-info
 ```
 WARNING: This module has only been tested with macOS versions [...]
 ```
-- Not an error, just a warning
-- osxphotos developers haven't tested on your macOS version yet
-- Usually works fine, ignore unless you see actual errors
+- Not error, warning
+- osxphotos devs haven't tested your macOS version
+- Usually works, ignore unless actual errors
 
 **"No such option: --add-missing-albums":**
 - Old error from previous script version
-- Fixed by using correct options
-- Update script if you see this
+- Fixed by correct options
+- Update script if seen
 
-**Export database corruption:**
+**Export DB corruption:**
 ```bash
 # Delete and re-export (slow but fixes issues)
 rm ~/ios-photos-export/.osxphotos_export.db
@@ -656,9 +656,9 @@ immich-import-ios-photos.sh
 ### Potential Improvements
 
 1. **Auto-create albums via API**
-   - Use Immich API to create albums
+   - Use Immich API
    - Match folder names to album names
-   - Requires additional API calls after upload
+   - Needs additional API calls post-upload
 
 2. **Scheduled sync**
    - cron job for daily imports
@@ -666,37 +666,37 @@ immich-import-ios-photos.sh
    - Notification on completion
 
 3. **Selective sync**
-   - Command-line options for date ranges
+   - CLI options for date ranges
    - Album filtering
    - Exclude patterns
 
 4. **Progress persistence**
    - Save upload state
-   - Resume from interruption
-   - Skip already-uploaded files more efficiently
+   - Resume from interrupt
+   - Skip uploaded files efficiently
 
 5. **Encryption**
-   - Encrypt export directory
+   - Encrypt export dir
    - Encrypted API key storage
-   - Use macOS Keychain for secrets
+   - macOS Keychain for secrets
 
 ## Related Scripts
 
 ### `immich-create-albums.sh`
 
-**Location:** `~/.local/bin/immich-create-albums.sh`
+**Location**: `~/.local/bin/immich-create-albums.sh`
 
-**Purpose:** Create albums from folder structure (requires external library)
+**Purpose**: create albums from folder structure (needs external library)
 
-**Limitation:** Only works with external libraries, not CLI uploads
+**Limitation**: only works with external libraries, not CLI uploads
 
 ### `immich-import-with-albums.sh`
 
-**Location:** `~/.local/bin/immich-import-with-albums.sh`
+**Location**: `~/.local/bin/immich-import-with-albums.sh`
 
-**Purpose:** Alternative workflow using external library + album creator
+**Purpose**: alternative workflow — external library + album creator
 
-**Complexity:** More complex setup (requires pod access, external library config)
+**Complexity**: more setup (pod access, external library config)
 
 ## References
 

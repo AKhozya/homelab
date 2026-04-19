@@ -1,4 +1,4 @@
-# 🔒 HOMELAB SECURITY DOCUMENTATION
+# HOMELAB SECURITY DOCUMENTATION
 
 **Last Updated:** 2025-10-22
 **Security Officer:** Alexander Khozya
@@ -6,7 +6,7 @@
 
 ---
 
-## 📋 TABLE OF CONTENTS
+## TABLE OF CONTENTS
 
 1. [Current Security Posture](#current-security-posture)
 2. [Authentication & Access Control](#authentication--access-control)
@@ -17,35 +17,35 @@
 
 ---
 
-## 🎯 CURRENT SECURITY POSTURE
+## CURRENT SECURITY POSTURE
 
 ### Overall Assessment: **Strong (A-)**
 
 **Strengths:**
-- ✅ Centralized SSO with Authentik (7/13 apps)
-- ✅ Admin user has 2FA enabled (TOTP)
-- ✅ OIDC-only authentication (passwords disabled on most apps)
-- ✅ All apps have NetworkPolicy (100% coverage)
-- ✅ Secrets encrypted with SOPS/age
-- ✅ TLS on all ingresses
-- ✅ Emergency admin accounts for critical apps
+- Centralized SSO with Authentik (7/13 apps)
+- Admin user 2FA enabled (TOTP)
+- OIDC-only (passwords disabled most apps)
+- NetworkPolicy 100% coverage
+- Secrets SOPS/age encrypted
+- TLS on all ingresses
+- Emergency admin accounts for critical apps
 
 **Current Risk Acceptance:**
-- ⚠️ Apps accessible from local network (not public internet)
-- ⚠️ Authentik admin interface accessible without VPN
-- ⚠️ Single authentication layer (OIDC + 2FA, no network layer)
+- Apps accessible local network (not public internet)
+- Authentik admin accessible without VPN
+- Single auth layer (OIDC + 2FA, no network layer)
 
 ---
 
-## 🔐 AUTHENTICATION & ACCESS CONTROL
+## AUTHENTICATION & ACCESS CONTROL
 
 ### Authentik SSO Configuration
 
 **Admin User:**
 - Username: `akadmin`
-- 2FA: ✅ Enabled (TOTP)
-- Access: Full admin access to Authentik
-- **Current Decision:** Public access allowed with 2FA protection
+- 2FA: Enabled (TOTP)
+- Access: full admin to Authentik
+- **Decision**: public access allowed with 2FA protection
 
 **Security Model:**
 ```
@@ -55,12 +55,12 @@ Internet/LAN → Authentik Login → 2FA → Application Access
 └─ Layer 3: ✅ Application RBAC
 ```
 
-**Rationale for Current Setup:**
-- 2FA provides strong protection against credential compromise
-- Personal homelab with limited users (not enterprise)
-- Authentik kept updated with security patches
+**Rationale:**
+- 2FA strong protection vs credential compromise
+- Personal homelab, limited users (not enterprise)
+- Authentik kept updated
 - No evidence of targeted attacks
-- **Trade-off:** Convenience vs. defense-in-depth
+- **Trade-off**: convenience vs defense-in-depth
 
 ### OIDC-Integrated Applications (7/13)
 
@@ -77,133 +77,131 @@ Internet/LAN → Authentik Login → 2FA → Application Access
 ### Emergency Access Strategy
 
 **Home Assistant:**
-- OIDC User: Primary admin (daily use)
+- OIDC User: primary admin (daily)
 - Local User: `akhozya` (emergency backup)
-- Password: Complex, stored in 1Password
-- **Rationale:** Physical device control requires backup access if OIDC fails
+- Password: complex, stored in 1Password
+- **Rationale**: physical device control needs backup if OIDC fails
 
 ---
 
-## 🌐 NETWORK SECURITY
+## NETWORK SECURITY
 
 ### Current Network Exposure
 
 **Internal Only (*.h0melab.work):**
-- All applications accessible on local network only
+- All apps accessible local network only
 - Not exposed via Cloudflare tunnel
-- Traefik ingress with TLS certificates
-- NetworkPolicy enforcement on all pods
+- Traefik ingress + TLS certs
+- NetworkPolicy on all pods
 
 **No VPN Layer:**
-- Applications accessible without VPN from LAN
-- Admin interfaces accessible without additional network restriction
-- **Decision:** Accepted risk for personal homelab use
+- Apps accessible without VPN from LAN
+- Admin interfaces no extra network restriction
+- **Decision**: accepted risk for personal use
 
 ### NetworkPolicy Coverage
 
-**Status:** 100% coverage (13/13 apps)
+**Status**: 100% coverage (13/13)
 
-All applications have egress and ingress rules:
-- DNS resolution allowed
+All apps have egress + ingress rules:
+- DNS allowed
 - Monitoring endpoints allowed (Prometheus)
-- Application-specific rules (database, cache, etc.)
-- Default deny all other traffic
+- App-specific rules (DB, cache)
+- Default deny other traffic
 
 ---
 
-## 👤 ADMIN ACCESS STRATEGY
+## ADMIN ACCESS STRATEGY
 
-### Current Approach: **2FA Without Network Restriction**
+### Current: **2FA Without Network Restriction**
 
-**Decision Date:** 2025-10-22
-**Decision:** Keep Authentik admin accessible from LAN with 2FA protection
+**Decision Date**: 2025-10-22
+**Decision**: keep Authentik admin accessible from LAN with 2FA
 
 ### Security Layers
 
 **Current Protection:**
-1. ✅ Strong password (unique, complex)
-2. ✅ TOTP 2FA (time-based one-time password)
-3. ✅ Session management (Authentik)
-4. ✅ Regular updates (via Renovate)
+1. Strong password (unique, complex)
+2. TOTP 2FA (time-based)
+3. Session management (Authentik)
+4. Updates (via Renovate)
 
 **Not Implemented:**
-- ❌ IP-based restrictions (no Tailscale requirement)
-- ❌ Separate admin domain
-- ❌ Network-layer protection
+- IP-based restrictions (no Tailscale)
+- Separate admin domain
+- Network-layer protection
 
 ### Risk Analysis
 
 **Threats Mitigated:**
-- ✅ Brute force attacks (2FA required)
-- ✅ Credential stuffing (2FA required)
-- ✅ Password leaks (2FA protects)
-- ✅ Weak passwords (enforced strong password)
+- Brute force (2FA required)
+- Credential stuffing (2FA required)
+- Password leaks (2FA protects)
+- Weak passwords (enforced strong)
 
 **Remaining Attack Vectors:**
-- ⚠️ Authentik 0-day vulnerabilities (mitigated by updates)
-- ⚠️ Phishing attacks (harder with 2FA but possible)
-- ⚠️ Session hijacking (mitigated by secure sessions)
-- ⚠️ Social engineering (user awareness required)
+- Authentik 0-day (mitigated by updates)
+- Phishing (harder with 2FA)
+- Session hijacking (mitigated by secure sessions)
+- Social engineering (user awareness)
 
-**Likelihood Assessment:**
+**Likelihood:**
 - Personal homelab (not high-value target)
-- Not publicly exposed to internet
-- Limited user base (single admin)
-- **Overall Risk:** Low to Medium
+- Not publicly exposed
+- Single admin
+- **Overall Risk**: Low to Medium
 
 ---
 
-## 🔄 WHEN TO REVISIT SECURITY DECISIONS
+## WHEN TO REVISIT SECURITY DECISIONS
 
-### Triggers for Adding VPN Layer (Tailscale)
+### Triggers for VPN Layer (Tailscale)
 
-**IMMEDIATE - Revisit if:**
-1. ❌ Apps are exposed to public internet (Cloudflare tunnel)
-2. ❌ Authentik shows suspicious login attempts
-3. ❌ You store highly sensitive data (financial, medical records)
-4. ❌ Multiple users access the homelab
-5. ❌ Compliance requirements change
+**IMMEDIATE — Revisit if:**
+1. Apps exposed to public internet (Cloudflare tunnel)
+2. Authentik shows suspicious logins
+3. Store highly sensitive data (financial, medical)
+4. Multiple users access homelab
+5. Compliance requirements change
 
-**CONSIDER - Revisit if:**
-1. ⚠️ You become uncomfortable with current risk
-2. ⚠️ Authentik has a major security vulnerability
-3. ⚠️ You want to access remotely (away from home network)
-4. ⚠️ You add more critical applications
-5. ⚠️ Threat model changes (targeted attacks)
+**CONSIDER — Revisit if:**
+1. Uncomfortable with current risk
+2. Authentik major vuln
+3. Want remote access (off home network)
+4. Add more critical apps
+5. Threat model changes (targeted attacks)
 
 **PROBABLY NOT NEEDED if:**
-1. ✅ Apps remain on local network only
-2. ✅ 2FA remains enabled
-3. ✅ Regular security updates applied
-4. ✅ No suspicious activity
-5. ✅ Current risk tolerance maintained
+1. Apps stay local network only
+2. 2FA stays enabled
+3. Security updates applied
+4. No suspicious activity
+5. Risk tolerance maintained
 
-### Monitoring & Review Schedule
+### Monitoring & Review
 
 **Monthly:**
-- Check Authentik access logs for suspicious activity
-- Verify 2FA is still enabled on admin account
-- Review failed login attempts
+- Authentik access logs — suspicious activity
+- Verify 2FA still on admin
+- Review failed logins
 
 **Quarterly:**
 - Re-assess threat model
-- Review this security document
-- Evaluate new security features in Authentik
-- Check for security advisories
+- Review this doc
+- Evaluate new Authentik features
+- Check security advisories
 
 **Annually:**
 - Full security audit
-- Penetration testing consideration
+- Pen testing consideration
 - Update risk assessment
 - Review emergency access procedures
 
 ---
 
-## 🚀 FUTURE ENHANCEMENTS
+## FUTURE ENHANCEMENTS
 
 ### When to Implement Tailscale + IP Policies
-
-If you decide to add network-layer protection in the future, here's how:
 
 #### Step 1: Install Tailscale on K3s Cluster
 
@@ -239,19 +237,19 @@ spec:
 #### Step 2: Create Authentik IP Reputation Policy
 
 1. **In Authentik Admin:**
-   - Navigate to: **Policies → Create → Reputation Policy**
+   - Navigate: **Policies → Create → Reputation Policy**
    - Name: `Admin Tailscale Only`
-   - **IP Allowlist:** `100.64.0.0/10` (Tailscale range)
+   - **IP Allowlist**: `100.64.0.0/10` (Tailscale range)
    - Check: "Check IP"
    - Save
 
 2. **Create Admin Group:**
-   - Navigate to: **Directory → Groups → Create**
+   - Navigate: **Directory → Groups → Create**
    - Name: `Authentik Admins`
-   - Add `akadmin` to group
+   - Add `akadmin`
 
 3. **Bind Policy to Admin Flow:**
-   - Navigate to: **Flows & Stages → Flows**
+   - Navigate: **Flows & Stages → Flows**
    - Edit: `default-authentication-flow`
    - Add Stage: **Reputation Policy: Admin Tailscale Only**
    - Bind to: Group "Authentik Admins"
@@ -268,12 +266,12 @@ curl -I https://authentik.h0melab.work/if/admin
 ```
 
 **Result:**
-- Regular users: Can log in from anywhere
-- Admin users: Must connect via Tailscale first
+- Regular users: log in from anywhere
+- Admin users: must connect via Tailscale first
 
 ### Alternative: Separate Admin Domain
 
-If you prefer domain-based separation:
+Domain-based separation:
 
 ```yaml
 # Separate ingress for admin interface
@@ -299,81 +297,81 @@ spec:
 
 ---
 
-## 📊 SECURITY METRICS
+## SECURITY METRICS
 
 **Current Scores:**
-- Authentication: ✅ Strong (2FA enabled)
-- Network Security: ⚠️ Moderate (LAN-only, no VPN)
-- Access Control: ✅ Strong (OIDC, RBAC)
-- Secrets Management: ✅ Strong (SOPS encryption)
-- Update Cadence: ✅ Excellent (Renovate automation)
+- Authentication: Strong (2FA)
+- Network Security: Moderate (LAN-only, no VPN)
+- Access Control: Strong (OIDC, RBAC)
+- Secrets: Strong (SOPS)
+- Updates: Excellent (Renovate)
 
-**Overall Security Grade: A- (Strong)**
+**Overall Grade: A- (Strong)**
 
-**Target Grade: A+ (Requires VPN layer or justified risk acceptance)**
+**Target Grade: A+ (needs VPN layer or justified risk acceptance)**
 
 ---
 
-## 📝 DECISION LOG
+## DECISION LOG
 
 ### 2025-10-22: Admin Access Without VPN
 
-**Decision:** Keep Authentik admin accessible from LAN with 2FA protection (no Tailscale requirement)
+**Decision**: Keep Authentik admin accessible from LAN with 2FA protection (no Tailscale requirement)
 
 **Rationale:**
-- 2FA provides strong protection against most attacks
-- Personal homelab (not enterprise or high-value target)
-- Apps not exposed to public internet
-- Convenience vs. security trade-off justified
+- 2FA strong protection vs most attacks
+- Personal homelab (not enterprise/high-value)
+- Apps not publicly exposed
+- Convenience vs security trade-off justified
 - Can revisit if threat model changes
 
 **Accepted Risks:**
-- Authentik vulnerabilities (mitigated by updates)
+- Authentik vulns (mitigated by updates)
 - No network-layer defense in depth
-- Single authentication factor type (something you know + have)
+- Single auth factor type (know + have)
 
-**Review Date:** 2025-11-22 (1 month)
+**Review Date**: 2025-11-22 (1 month)
 
-**Signed:** Alexander Khozya (akadmin)
+**Signed**: Alexander Khozya (akadmin)
 
 ---
 
-## 🆘 INCIDENT RESPONSE
+## INCIDENT RESPONSE
 
-### If Admin Account is Compromised
+### If Admin Account Compromised
 
 1. **Immediate:**
    - Access Authentik from trusted device
-   - Change admin password immediately
-   - Regenerate 2FA (new TOTP secret)
+   - Change admin password
+   - Regenerate 2FA (new TOTP)
    - Revoke all sessions
-   - Review audit logs for unauthorized changes
+   - Review audit logs
 
 2. **Investigation:**
    - Check Authentik access logs
-   - Review recent configuration changes
-   - Check all application access logs
+   - Review recent config changes
+   - Check all app access logs
    - Identify breach source
 
 3. **Recovery:**
-   - Rotate all OIDC client secrets
-   - Force re-authentication on all apps
-   - Review all user accounts for unauthorized additions
-   - Consider implementing VPN layer post-incident
+   - Rotate OIDC client secrets
+   - Force re-auth on all apps
+   - Review user accounts for unauthorized adds
+   - Consider VPN layer post-incident
 
 ### Emergency Access
 
-**If Authentik is Down:**
-- Home Assistant: Use local admin account (`akhozya`)
-- Other apps: Restore from backup or redeploy
+**If Authentik Down:**
+- Home Assistant: local admin (`akhozya`)
+- Other apps: restore from backup or redeploy
 
 **Backup Admin Credentials:**
 - Stored in: 1Password vault
-- Emergency access: Available offline
+- Emergency access: available offline
 
 ---
 
-## 📚 REFERENCES
+## REFERENCES
 
 - [Authentik Security Best Practices](https://goauthentik.io/docs/security/)
 - [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
@@ -382,6 +380,6 @@ spec:
 
 ---
 
-**Document Owner:** Alexander Khozya
-**Next Review:** 2025-11-22
-**Classification:** Internal Use Only
+**Owner**: Alexander Khozya
+**Next Review**: 2025-11-22
+**Classification**: Internal Use Only

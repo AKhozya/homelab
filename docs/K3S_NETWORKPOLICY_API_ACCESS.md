@@ -2,10 +2,10 @@
 
 ## Problem
 
-Pods with restrictive NetworkPolicies cannot reach the Kubernetes API server (10.43.0.1:443).
+Pods with restrictive NetworkPolicies can't reach K8s API server (10.43.0.1:443).
 
 **Symptoms:**
-- Pods crash-loop with "connection refused" to 10.43.0.1:443
+- Pods crash-loop, "connection refused" to 10.43.0.1:443
 - Operators (CNPG, Percona, etc.) fail to watch CRDs
 - Error: `dial tcp 10.43.0.1:443: connect: connection refused`
 
@@ -13,7 +13,7 @@ Pods with restrictive NetworkPolicies cannot reach the Kubernetes API server (10
 
 **NetworkPolicy `namespaceSelector` does NOT work for API server access.**
 
-The Kubernetes API server runs on the control-plane node (192.168.1.127:6443), not as a pod. When you use:
+API server runs on control-plane node (192.168.1.127:6443), not as pod. This rule:
 
 ```yaml
 egress:
@@ -25,11 +25,11 @@ egress:
       - port: 443
 ```
 
-This rule matches **pods in the default namespace**, but the API server is not a pod. Traffic to `10.43.0.1:443` gets DNATed to `192.168.1.127:6443` (node IP), which doesn't match any pod selector.
+matches **pods in default ns**. API server != pod. Traffic to `10.43.0.1:443` DNATs to `192.168.1.127:6443` (node IP) — matches no pod selector.
 
 ## Solution
 
-Use `ipBlock` to allow traffic to the control-plane node directly:
+Use `ipBlock` to allow traffic to control-plane node directly:
 
 ```yaml
 egress:
@@ -45,17 +45,17 @@ egress:
 
 ## Affected Components
 
-Any pod that needs to communicate with the Kubernetes API server:
+Pods needing K8s API:
 
 1. **Operators**: CNPG, Percona MySQL, cert-manager, etc.
-2. **Database pods**: PostgreSQL pods that fetch cluster configuration
-3. **Controllers**: Any custom controller watching CRDs
-4. **Service mesh**: Components that need API server access
+2. **DB pods**: PostgreSQL pods fetch cluster config
+3. **Controllers**: custom controllers watch CRDs
+4. **Service mesh**: components need API access
 
 ## Files Changed (2025-12-29)
 
-- `infrastructure/controllers/base/databases/postgres/networkpolicy.yaml` - CNPG operator
-- `infrastructure/configs/base/databases/postgres/networkpolicy.yaml` - PostgreSQL pods
+- `infrastructure/controllers/base/databases/postgres/networkpolicy.yaml` — CNPG operator
+- `infrastructure/configs/base/databases/postgres/networkpolicy.yaml` — PostgreSQL pods
 
 ## Cluster Details
 
@@ -69,7 +69,7 @@ Any pod that needs to communicate with the Kubernetes API server:
 
 ## Testing
 
-To verify a pod can reach the API server:
+Verify pod reach API server:
 
 ```bash
 # From inside a pod
@@ -81,7 +81,7 @@ kubectl exec -it <pod> -- wget -qO- --timeout=5 https://kubernetes.default.svc/h
 
 ## Related: UFW Configuration
 
-If UFW is enabled on nodes, ensure these rules exist:
+UFW enabled on nodes → ensure rules exist:
 
 ```bash
 # INPUT chain - allow traffic from pod/service networks
@@ -93,14 +93,14 @@ ufw route allow from 10.42.0.0/16 to 192.168.1.0/24 comment "K3s pod-to-node"
 ufw route allow from 192.168.1.0/24 to 10.42.0.0/16 comment "K3s node-to-pod"
 ```
 
-UFW rules are now managed declaratively via ansible — see `docs/scripts/node-maintenance/ansible/roles/firewall/` and rule sets in `ansible/group_vars/` + `ansible/host_vars/`.
+UFW now ansible-managed — see `docs/scripts/node-maintenance/ansible/roles/firewall/` + rule sets in `ansible/group_vars/` + `ansible/host_vars/`.
 
 ## Incident Timeline (2025-12-29)
 
-1. **00:00 UTC (Dec 28)**: Pods started crash-looping after kube-prometheus-stack upgrade
-2. **11:30 UTC**: Investigation began - identified API server connectivity issue
-3. **11:45 UTC**: Fixed NetworkPolicy with `ipBlock` instead of `namespaceSelector`
+1. **00:00 UTC (Dec 28)**: Pods crash-loop after kube-prometheus-stack upgrade
+2. **11:30 UTC**: Investigation — API server connectivity issue
+3. **11:45 UTC**: Fixed NetworkPolicy, `ipBlock` replace `namespaceSelector`
 4. **11:50 UTC**: All pods recovered
 5. **12:20 UTC**: All alerts cleared
 
-**Lesson learned**: Always use `ipBlock` for API server access in NetworkPolicies, never `namespaceSelector`.
+**Lesson**: Use `ipBlock` for API server access, never `namespaceSelector`.

@@ -1,67 +1,66 @@
 # iOS Photos Import to Immich
 
-Complete guide for importing photos from macOS Photos app (synced from iOS via iCloud) to Immich.
+Guide for importing photos from macOS Photos app (iCloud-synced from iOS) to Immich.
 
 ## Overview
 
-This import process uses two powerful tools:
-- **osxphotos**: Exports photos from macOS Photos library with advanced filtering
-- **Immich CLI**: Uploads photos to Immich server with duplicate detection
+Uses two tools:
+- **osxphotos**: exports from macOS Photos library with filtering
+- **Immich CLI**: uploads to Immich with duplicate detection
 
-The script handles the complete workflow automatically, including:
-- Exporting photos organized by album
-- Downloading from iCloud if needed
-- Uploading via fast local network connection
-- Skipping duplicates on re-runs
+Script handles workflow:
+- Export by album
+- Download from iCloud if needed
+- Upload via local network
+- Skip duplicates on re-runs
 
-## What It Can Do
+## What It Does
 
 ### Photo Export
-- Export **all photos** from macOS Photos library
-- Export **photos in albums** (organized in folders)
-- Export **photos NOT in any album** (in "Not-in-Album" folder)
-- Export **edited versions** of photos (cropped, filtered, etc.) instead of originals
-- Export **videos** (.MOV, .MP4, etc.) alongside photos
-- Download from **iCloud** automatically if photos not stored locally
-- **Incremental exports** - only export new/changed photos on re-runs
+- Export **all photos** from macOS Photos
+- Export **photos in albums** (organized folders)
+- Export **photos NOT in any album** ("Not-in-Album" folder)
+- Export **edited versions** (cropped, filtered) instead of originals
+- Export **videos** (.MOV, .MP4) alongside photos
+- Download from **iCloud** auto if not local
+- **Incremental exports** — only new/changed on re-runs
 
 ### Upload Features
-- Upload to Immich via **local network** (10-100x faster than public internet)
-- **Automatic duplicate detection** - skip files already in Immich
-- Support for **photos and videos** (all formats Immich supports)
+- Upload via **local network** (10-100x faster than public internet)
+- **Auto duplicate detection** — skip files in Immich
+- **Photos + videos** (all Immich formats)
 - **Progress tracking** during upload
-- **Resumable** - can be re-run safely if interrupted
+- **Resumable** — re-run safely after interrupt
 
 ### Album Organization
-- Photos organized by album in export directory
-- Albums can be created manually in Immich after upload
-- Note: Automatic album creation requires external library setup (advanced)
+- Photos organized by album in export dir
+- Albums created manually in Immich after upload
+- Note: auto album creation needs external library setup (advanced)
 
-## What It Can't Do
+## Limitations
 
-### Limitations
-- **Cannot preserve Live Photos** as Live Photos (exports as separate photo + video)
-- **Cannot auto-create albums** from CLI uploads (requires manual creation or external library)
-- **Cannot sync deletions** - deleted photos in Photos app remain in Immich
-- **Cannot preserve edits separately** - only exports final edited version OR original, not both
-- **Cannot selective export by date range** (exports all or uses manual filtering)
-- **Requires macOS** - only works on Mac with Photos app
+- Cannot preserve Live Photos as Live Photos (exports separate photo + video)
+- Cannot auto-create albums from CLI uploads (manual OR external library)
+- Cannot sync deletions — deleted photos in app stay in Immich
+- Cannot preserve edits separately — final edited version OR original, not both
+- Cannot select by date range via script (use manual osxphotos filtering)
+- Requires macOS
 
 ### Workarounds
-- **Albums**: Create manually in Immich web UI after upload
-- **Live Photos**: Both photo and video are uploaded, can be viewed separately
-- **Deletions**: Manual cleanup in Immich or use external library with sync
-- **Date filtering**: Use osxphotos advanced query options (see osxphotos docs)
+- **Albums**: create manually in Immich web UI after upload
+- **Live Photos**: both photo + video uploaded, viewable separately
+- **Deletions**: manual cleanup in Immich or external library sync
+- **Date filtering**: use osxphotos advanced query options (see osxphotos docs)
 
 ## Prerequisites
 
 ### Required
 1. **macOS** with Photos app
-2. **iCloud Photos** enabled and synced
-3. **kubectl** access to homelab cluster
-4. **Immich API key** (created in Immich web UI)
+2. **iCloud Photos** enabled + synced
+3. **kubectl** access to cluster
+4. **Immich API key** (from Immich web UI)
 
-### Installed Automatically (if missing)
+### Auto-Installed (if missing)
 - pipx (via Homebrew)
 - osxphotos (via pipx)
 - Immich CLI (via npm)
@@ -72,10 +71,10 @@ The script handles the complete workflow automatically, including:
 
 1. Go to: https://immich.h0melab.work/user-settings?isOpen=api-keys
 2. Click "Create API Key"
-3. Give it a name (e.g., "iOS Import")
+3. Name (e.g., "iOS Import")
 4. Grant **ALL permissions**
-5. Copy the API key
-6. Save it:
+5. Copy key
+6. Save:
    ```bash
    mkdir -p ~/.config/immich
    echo 'your-api-key-here' > ~/.config/immich/api_key.txt
@@ -88,11 +87,11 @@ The script handles the complete workflow automatically, including:
 immich-import-ios-photos.sh
 ```
 
-The script will:
-1. Check for required tools (install if needed)
+Script will:
+1. Check required tools (install if needed)
 2. Export photos from Photos app
 3. Upload to Immich via local network
-4. Show progress and summary
+4. Show progress + summary
 
 ### 3. Customize (Optional)
 
@@ -116,19 +115,19 @@ Photos App → osxphotos → Export Directory
 ```
 
 **What happens:**
-1. osxphotos reads your Photos library database
+1. osxphotos reads Photos library DB
 2. For each photo:
-   - If in iCloud: Downloads using AppleScript
-   - If edited: Exports edited version (not original)
-   - If in album: Saves to `{album-name}/` folder
-   - If not in album: Saves to `Not-in-Album/` folder
-3. Creates `.osxphotos_export.db` to track what's been exported
+   - If in iCloud: downloads via AppleScript
+   - If edited: exports edited version (not original)
+   - If in album: saves to `{album-name}/`
+   - If not in album: saves to `Not-in-Album/`
+3. Creates `.osxphotos_export.db` — tracks exported
 
 **On re-runs:**
-- Checks export database
-- Only exports NEW or CHANGED photos
-- Skips everything else
-- **Result:** 5000 photos → ~30 min first time, ~1 min for 3 new photos
+- Checks export DB
+- Only exports NEW or CHANGED
+- Skips rest
+- **Result**: 5000 photos → ~30 min first time, ~1 min for 3 new
 
 ### Phase 2: Upload to Immich
 
@@ -139,13 +138,13 @@ Export Directory → kubectl port-forward → Immich Server
 **What happens:**
 1. Script creates `kubectl port-forward` to Immich pod (localhost:2283)
 2. Immich CLI:
-   - Walks through export directory recursively
+   - Walks export dir recursively
    - For each file:
-     - Calculates SHA-256 hash
-     - Sends hash to Immich: "Do you have this?"
-     - If yes: Skips (reports "already uploaded")
-     - If no: Uploads file
-3. Immich processes uploads in background (thumbnails, ML, etc.)
+     - Calculate SHA-256 hash
+     - Send hash to Immich: "Do you have this?"
+     - If yes: skip ("already uploaded")
+     - If no: upload
+3. Immich processes in background (thumbnails, ML)
 
 **Network Path:**
 - **Local (default)**: Mac → LAN → kubectl → Pod (fast, ~100MB/s)
@@ -157,33 +156,33 @@ Export Directory → kubectl port-forward → Immich Server
 Immich Server → ML Pod (ROCm GPU)
 ```
 
-After upload, Immich automatically:
-1. Generates thumbnails (VAAPI hardware accelerated)
-2. Extracts metadata (EXIF, date, location, etc.)
-3. Runs machine learning:
-   - Face detection (ROCm GPU accelerated)
+After upload, Immich auto:
+1. Generates thumbnails (VAAPI hw accel)
+2. Extracts metadata (EXIF, date, location)
+3. Runs ML:
+   - Face detection (ROCm GPU)
    - Object recognition
    - CLIP embeddings for smart search
-4. Processes videos (VAAPI hardware transcoding if needed)
+4. Processes videos (VAAPI hw transcoding if needed)
 
-**Performance with increased resources:**
-- ~5000 photos: 30-60 minutes total processing
-- ML pod has 4 CPU cores + 8GB RAM during bulk import
-- AMD GPU acceleration via ROCm for face detection
+**Performance with boosted resources:**
+- ~5000 photos: 30-60 min total
+- ML pod: 4 CPU + 8GB RAM during bulk import
+- AMD GPU accel via ROCm for face detection
 
 ## Duplicate Handling
 
 ### Two-Layer Protection
 
 #### Layer 1: osxphotos (Export Side)
-- Maintains `.osxphotos_export.db` in export directory
-- Tracks: filename, size, modification time
-- On re-export: Only exports new/changed files
+- Maintains `.osxphotos_export.db` in export dir
+- Tracks: filename, size, mtime
+- Re-export: only new/changed files
 
 #### Layer 2: Immich CLI (Upload Side)
-- Calculates hash for each file before upload
-- Checks server: "Do you already have this hash?"
-- Skips upload if duplicate found
+- Hash each file before upload
+- Check server: "Already have this hash?"
+- Skip if duplicate
 
 ### Example Scenario
 
@@ -203,18 +202,18 @@ Total: ~40 seconds
 
 ### Safe to Re-Run
 
-You can run the script as often as you want:
-- **Daily**: Sync new photos automatically
-- **After edits**: Re-export edited photos
-- **After interruption**: Resume where it left off
+Run as often as you want:
+- **Daily**: sync new photos auto
+- **After edits**: re-export edited
+- **After interrupt**: resume
 
-**Important:** Don't delete `.osxphotos_export.db` - it's what makes re-runs fast!
+**Important**: don't delete `.osxphotos_export.db` — makes re-runs fast.
 
 ## Troubleshooting
 
 ### "osxphotos not found" / pip externally-managed-environment
 
-The script auto-installs via pipx. If it fails:
+Script auto-installs via pipx. If fails:
 
 ```bash
 brew install pipx
@@ -224,7 +223,7 @@ pipx install osxphotos
 
 ### "Immich CLI not found"
 
-The script auto-installs via npm. If it fails:
+Script auto-installs via npm. If fails:
 
 ```bash
 npm install -g @immich/cli
@@ -232,15 +231,15 @@ npm install -g @immich/cli
 
 ### "Failed to connect: 401 Invalid API key"
 
-Your API key is invalid or missing:
+API key invalid/missing:
 
 1. Create new API key in Immich web UI
-2. Save it: `echo 'your-key' > ~/.config/immich/api_key.txt`
+2. Save: `echo 'your-key' > ~/.config/immich/api_key.txt`
 3. Re-run script
 
 ### "Port-forward failed to start"
 
-kubectl can't connect to cluster:
+kubectl can't connect:
 
 ```bash
 # Check cluster connection
@@ -252,24 +251,24 @@ USE_LOCAL=false immich-import-ios-photos.sh
 
 ### "Waiting for iCloud download..." (stuck)
 
-Photos app needs manual intervention:
+Photos app needs manual help:
 
 1. Open Photos app
-2. Click on the stuck photo
-3. Photos will start downloading
-4. Wait for download to complete
-5. Script will continue automatically
+2. Click stuck photo
+3. Photos starts downloading
+4. Wait for complete
+5. Script continues auto
 
-### Export is slow / Taking forever
+### Export slow / Taking forever
 
-**Normal behavior:**
-- First export with iCloud downloads: 30-60 minutes for 5000 photos
-- Subsequent exports: <1 minute for new photos only
+**Normal:**
+- First export with iCloud: 30-60 min for 5000 photos
+- Subsequent: <1 min for new photos only
 
 **If stuck:**
-- Check Photos app for iCloud download prompts
-- Check internet connection (iCloud needs good bandwidth)
-- Consider using `--skip-edited` if you only want originals (faster)
+- Check Photos for iCloud download prompts
+- Check internet (iCloud needs bandwidth)
+- Consider `--skip-edited` if only originals wanted (faster)
 
 ### Upload fails with connection errors
 
@@ -279,7 +278,7 @@ Switch to public URL:
 USE_LOCAL=false immich-import-ios-photos.sh
 ```
 
-Or check kubectl connection:
+Or check kubectl:
 
 ```bash
 kubectl port-forward -n immich svc/immich-server 2283:2283
@@ -291,7 +290,7 @@ curl http://localhost:2283/api/server-info/ping
 
 ### Export Only New Photos
 
-The script automatically does this via `--update`:
+Script auto does this via `--update`:
 
 ```bash
 # First run: exports all
@@ -315,7 +314,7 @@ immich-import-ios-photos.sh ~/ios-photos ~/.config/immich/different-key.txt
 
 ### Skip Export, Only Upload
 
-If you already have photos exported:
+If photos already exported:
 
 ```bash
 immich-import-ios-photos.sh
@@ -359,7 +358,7 @@ immich upload ~/export --recursive --dry-run
 
 ## Related Documentation
 
-- [Immich Import Script Reference](./IMPORT_SCRIPT_REFERENCE.md) - Technical details
-- [osxphotos Documentation](https://github.com/RhetTbull/osxphotos) - Full feature list
-- [Immich CLI Documentation](https://immich.app/docs/features/command-line-interface) - CLI reference
-- Script location: `~/.local/bin/immich-import-ios-photos.sh`
+- [Immich Import Script Reference](./IMPORT_SCRIPT_REFERENCE.md) — technical details
+- [osxphotos Documentation](https://github.com/RhetTbull/osxphotos) — full feature list
+- [Immich CLI Documentation](https://immich.app/docs/features/command-line-interface) — CLI reference
+- Script: `~/.local/bin/immich-import-ios-photos.sh`

@@ -1,19 +1,19 @@
-# Monitoring Stack - Internal Network Access
+# Monitoring Stack — Internal Network Access
 
-The monitoring stack (Grafana, Prometheus, Alertmanager) is configured for **internal network access only** for security.
+Grafana, Prometheus, Alertmanager = **internal-only** for security.
 
 ## DNS Configuration (Cloudflare)
 
-To access Grafana via `grafana.h0melab.work` on your internal network:
+Access Grafana via `grafana.h0melab.work` on internal network:
 
-1. **Create an A record in Cloudflare DNS:**
+1. **Create A record in Cloudflare DNS:**
    - Name: `grafana`
    - Type: `A`
    - Content: `192.168.1.127` (or `192.168.1.129`)
    - Proxy status: **DNS only** (gray cloud, NOT orange)
    - TTL: Auto
 
-2. **Alternative: Create two A records for redundancy:**
+2. **Alternative: two A records for redundancy:**
    ```
    grafana.h0melab.work -> 192.168.1.127
    grafana.h0melab.work -> 192.168.1.129
@@ -21,42 +21,42 @@ To access Grafana via `grafana.h0melab.work` on your internal network:
 
 ## Security Configuration
 
-✅ **Network Policies Applied:**
-- Grafana: Only accessible from within Kubernetes cluster
-- Prometheus: Only accessible from within Kubernetes cluster
-- Alertmanager: Only accessible from within Kubernetes cluster
+**NetworkPolicies Applied:**
+- Grafana: cluster-only access
+- Prometheus: cluster-only access
+- Alertmanager: cluster-only access
 
-✅ **Ingress Enabled (Internal DNS Only):**
-- Grafana accessible via internal DNS at grafana.h0melab.work
+**Ingress Enabled (Internal DNS Only):**
+- Grafana via internal DNS at grafana.h0melab.work
 - DNS points to internal IPs (192.168.1.127, 192.168.1.129)
-- NOT exposed to the internet (DNS only, no proxy)
+- NOT exposed to internet (DNS only, no proxy)
 
-✅ **Egress Restricted:**
+**Egress Restricted:**
 - DNS resolution allowed
-- Inter-component communication allowed
-- Internet access for plugins/updates (Grafana)
+- Inter-component comms allowed
+- Internet for plugins/updates (Grafana)
 - Telegram API for alerts (Alertmanager)
 
-## Accessing the Monitoring Stack
+## Accessing Monitoring Stack
 
 ### Grafana
 
-**Via Internal DNS (Recommended):**
+**Via Internal DNS (recommended):**
 ```
 https://grafana.h0melab.work
 ```
 
-**Via kubectl port-forward (Alternative):**
+**Via kubectl port-forward (alt):**
 ```bash
 kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
 # Access at: http://localhost:3000
 ```
 
 **Default credentials:**
-- Username: Stored in secret `grafana-admin-secret`
-- Password: Stored in secret `grafana-admin-secret`
+- Username: secret `grafana-admin-secret`
+- Password: secret `grafana-admin-secret`
 
-To retrieve credentials:
+Retrieve creds:
 ```bash
 kubectl get secret -n monitoring grafana-admin-secret -o jsonpath='{.data.admin-user}' | base64 -d
 kubectl get secret -n monitoring grafana-admin-secret -o jsonpath='{.data.admin-password}' | base64 -d
@@ -78,39 +78,39 @@ kubectl port-forward -n monitoring svc/kube-prometheus-stack-alertmanager 9093:9
 # Access at: http://localhost:9093
 ```
 
-## Remote Access (When Away from Home)
+## Remote Access (Away from Home)
 
-If you need to access the monitoring stack when away from home, consider these secure options:
+Secure options:
 
-1. **VPN** (Most Secure)
-   - Set up WireGuard or Tailscale to access your home network
-   - Access monitoring through the VPN as if you were home
+1. **VPN** (most secure)
+   - WireGuard or Tailscale to home net
+   - Access as if home
 
 2. **SSH Tunnel**
-   - SSH into your homelab machine
-   - Set up port forwarding through SSH
+   - SSH to homelab machine
+   - Port forwarding via SSH
 
 3. **Bastion Host**
-   - Access through a secure jump host
+   - Secure jump host
 
-**Do NOT expose Grafana/Prometheus/Alertmanager directly to the internet!**
+**WARNING: Do NOT expose Grafana/Prometheus/Alertmanager directly to internet!**
 
 ## What Changed
 
-- ❌ Removed external Ingress for Grafana (was: `grafana.h0melab.work`)
-- ❌ Removed external Ingress for Alertmanager (was: `am.h0melab.work`)
-- ✅ Added NetworkPolicy for Grafana
-- ✅ Added NetworkPolicy for Prometheus
-- ✅ Added NetworkPolicy for Alertmanager
-- ✅ All certificates remain in place (can be re-enabled if needed)
+- Removed external Ingress for Grafana (was: `grafana.h0melab.work`)
+- Removed external Ingress for Alertmanager (was: `am.h0melab.work`)
+- Added NetworkPolicy for Grafana
+- Added NetworkPolicy for Prometheus
+- Added NetworkPolicy for Alertmanager
+- Certificates remain (can re-enable)
 
 ## Re-enabling External Access (Not Recommended)
 
-If you absolutely need external access, you can:
+If external access truly needed:
 
 1. Edit `monitoring/controllers/base/kube-prometheus-stack/release.yaml`
 2. Set `grafana.ingress.enabled: true` and/or `alertmanager.ingress.enabled: true`
-3. The TLS certificates are still configured and will work
-4. **However, this increases your attack surface significantly**
+3. TLS certs still configured, will work
+4. **WARNING: increases attack surface significantly**
 
-Better approach: Use a VPN or create a Cloudflare tunnel with proper authentication middleware.
+Better: VPN or Cloudflare tunnel with auth middleware.

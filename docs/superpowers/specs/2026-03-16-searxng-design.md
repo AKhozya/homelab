@@ -5,7 +5,7 @@
 
 ## Overview
 
-Deploy SearXNG as a privacy-respecting metasearch engine in the homelab cluster. Serves as a daily-driver search engine (internal + external access) and provides a JSON API for n8n/Home Assistant automations.
+Deploy SearXNG as privacy-respecting metasearch engine in homelab cluster. Daily-driver search (internal + external access) + JSON API for n8n/Home Assistant automations.
 
 ## Architecture
 
@@ -26,7 +26,7 @@ Raw manifest deployment (Pattern A — like homehub/stirling-pdf). Single contai
 | `secret.yaml` | SOPS-encrypted `SEARXNG_SECRET` |
 | `kustomization.yaml` | Resource list |
 
-No PVC — SearXNG is stateless. Configuration via ConfigMap, secret key via env var.
+No PVC — SearXNG stateless. Config via ConfigMap, secret key via env var.
 
 ### Image
 
@@ -44,7 +44,7 @@ Date+hash versioning. Renovate custom regex manager required (see Renovate secti
 Browser → AdGuard DNS → Traefik Ingress → SearXNG :8080
 ```
 
-No Authentik middleware on Ingress. Fast, frictionless search.
+No Authentik middleware on Ingress. Fast, frictionless.
 
 ### External (Authentik SSO)
 
@@ -52,7 +52,7 @@ No Authentik middleware on Ingress. Fast, frictionless search.
 Browser → Cloudflare DNS → CF Tunnel → Authentik forward-auth → SearXNG :8080
 ```
 
-Cloudflare Tunnel route configured with Authentik access policy. External users must authenticate via SSO before reaching SearXNG.
+Cloudflare Tunnel route with Authentik access policy. External users auth via SSO before reaching SearXNG.
 
 ### API
 
@@ -60,7 +60,7 @@ Cloudflare Tunnel route configured with Authentik access policy. External users 
 GET /search?q=query&format=json
 ```
 
-Available from both internal and external paths. n8n/HA can call internally via `searxng.searxng.svc.cluster.local:8080`.
+Available internal + external. n8n/HA can call internally via `searxng.searxng.svc.cluster.local:8080`.
 
 ## Deployment Details
 
@@ -84,16 +84,16 @@ securityContext:
     drop: ["ALL"]
 ```
 
-SearXNG's Dockerfile uses UID/GID 977 (`searxng` user). EmptyDir volumes for `/tmp` and `/etc/searxng` (runtime config rendering).
+SearXNG Dockerfile uses UID/GID 977 (`searxng` user). EmptyDir volumes for `/tmp` + `/etc/searxng` (runtime config render).
 
 ### Volumes
 
 | Mount | Type | Purpose |
 |-------|------|---------|
-| `/etc/searxng` | emptyDir | Runtime config directory (SearXNG writes `uwsgi.ini` etc. at startup) |
+| `/etc/searxng` | emptyDir | Runtime config dir (SearXNG writes `uwsgi.ini` etc. at startup) |
 | `/tmp` | emptyDir | Temp files |
 
-Init container copies `settings.yml` from ConfigMap into the `/etc/searxng` emptyDir before the main container starts (same pattern as homehub's `setup-config`). SearXNG needs write access to `/etc/searxng/` for runtime files.
+Init container copies `settings.yml` from ConfigMap → `/etc/searxng` emptyDir before main container starts (homehub `setup-config` pattern). SearXNG needs write access to `/etc/searxng/` for runtime files.
 
 ### Environment Variables
 
@@ -114,11 +114,11 @@ resources:
     memory: 512Mi
 ```
 
-Search engine with external HTTP calls — moderate CPU for request fanout, modest memory.
+Search engine + external HTTP calls — moderate CPU for request fanout, modest memory.
 
 ### Deployment Settings
 
-- `revisionHistoryLimit: 2` (consistent with all other apps)
+- `revisionHistoryLimit: 2` (consistent with other apps)
 - `strategy: RollingUpdate` (default)
 
 ### Probes
@@ -186,11 +186,11 @@ spec:
                   number: 8080
 ```
 
-No Authentik middleware — internal access is unauthenticated.
+No Authentik middleware — internal access unauthenticated.
 
 ## ConfigMap (settings.yml)
 
-Default SearXNG configuration with:
+Default SearXNG config with:
 - JSON API enabled (`formats: ["html", "json"]`)
 - Instance name: "SearXNG"
 - Default engines: SearXNG defaults (DuckDuckGo, Google, Bing, Wikipedia, etc.)
@@ -210,11 +210,11 @@ search:
     - json
 ```
 
-`use_default_settings: true` inherits all default engines and settings, allowing minimal config.
+`use_default_settings: true` inherits all default engines + settings — minimal config.
 
 ## Cloudflare Tunnel
 
-Add SearXNG route to the tunnel SOPS config:
+Add SearXNG route to tunnel SOPS config:
 
 ```yaml
 - hostname: search.h0melab.work
@@ -223,12 +223,12 @@ Add SearXNG route to the tunnel SOPS config:
     noTLSVerify: true
 ```
 
-Authentik access enforcement is configured in the Cloudflare Zero Trust dashboard (Access → Applications), not in the tunnel config YAML. Create an Authentik application + provider for SearXNG, then add a CF Access policy for `search.h0melab.work`.
+Authentik access enforcement configured in Cloudflare Zero Trust dashboard (Access → Applications), not tunnel config YAML. Create Authentik application + provider for SearXNG, add CF Access policy for `search.h0melab.work`.
 
 ## DNS
 
-- **Cloudflare**: CNAME `search.h0melab.work` → tunnel (for external access)
-- **AdGuard Home**: DNS rewrite `search.h0melab.work` → Traefik LB IP (for internal access)
+- **Cloudflare:** CNAME `search.h0melab.work` → tunnel (external access)
+- **AdGuard Home:** DNS rewrite `search.h0melab.work` → Traefik LB IP (internal access)
 
 ## Renovate
 
@@ -249,7 +249,7 @@ Custom regex manager for date+hash tags:
 }
 ```
 
-This allows Renovate to detect new tags and create PRs.
+Renovate detects new tags + creates PRs.
 
 ## Uptime Kuma
 
@@ -282,8 +282,8 @@ Add `searxng` to `apps/staging/kustomization.yaml` resources list.
 
 ## Out of Scope
 
-- No database needed (stateless)
-- No PVC (settings in ConfigMap, no persistent preferences)
-- No Redis (SearXNG has optional Redis for rate limiting/caching, not needed at homelab scale)
+- No DB (stateless)
+- No PVC (settings in ConfigMap, no persistent prefs)
+- No Redis (optional for rate limiting/caching, not needed at homelab scale)
 - No HA (single replica sufficient for personal use)
-- Engine customization deferred to post-deployment tuning
+- Engine customization deferred to post-deploy tuning

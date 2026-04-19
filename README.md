@@ -1,19 +1,19 @@
 # Homelab
 
-Personal Kubernetes homelab running on K3s with GitOps automation, monitoring, and 16 self-hosted applications.
+Personal K8s homelab on K3s. GitOps, monitoring, 16 self-hosted apps.
 
 ## What's Inside
 
-**Infrastructure:**
-- FluxCD for GitOps (everything in Git)
-- CloudNativePG for PostgreSQL (2-node HA)
-- Traefik + Cloudflare Tunnel for ingress
-- VictoriaMetrics, Grafana, Loki for monitoring
-- Renovate for automated dependency updates
+**Infra:**
+- FluxCD GitOps (all in Git)
+- CloudNativePG PostgreSQL (2-node HA)
+- Traefik + Cloudflare Tunnel ingress
+- VictoriaMetrics, Grafana, Loki monitoring
+- Renovate auto-updates
 
-**Applications:** Authentik (SSO), Home Assistant, Immich (photos), Paperless-NGX (documents), Obsidian sync, and [11 more](docs/HOMELAB_ANALYSIS.md#-current-apps-16-total).
+**Apps:** Authentik (SSO), Home Assistant, Immich (photos), Paperless-NGX (docs), Obsidian sync, [11 more](docs/HOMELAB_ANALYSIS.md#-current-apps-16-total).
 
-**Security:** 100% Pod Security Standards compliance, NetworkPolicies everywhere, SOPS-encrypted secrets, daily backups.
+**Security:** 100% PSS compliance, NetworkPolicies everywhere, SOPS-encrypted secrets, daily backups.
 
 ## Quick Start
 
@@ -24,22 +24,22 @@ flux reconcile kustomization infrastructure-controllers infrastructure-configs
 flux reconcile kustomization apps monitoring-controllers monitoring-configs
 ```
 
-**Force Renovate run:** Check the Dependency Dashboard issue on GitHub.
+**Force Renovate run:** Check Dependency Dashboard issue on GitHub.
 
-**Disaster recovery:** See [.backup/README.md](.backup/README.md) for full restore procedures.
+**Disaster recovery:** [.backup/README.md](.backup/README.md) — full restore.
 
-## Documentation
+## Docs
 
-- **[HOMELAB_ANALYSIS.md](docs/HOMELAB_ANALYSIS.md)** - Complete infrastructure overview, security posture, metrics (A grade, 94/100)
-- **[BACKUP_STRATEGY.md](docs/BACKUP_STRATEGY.md)** - Daily backups, retention policies, restore procedures
-- **[SECRETS_ROTATION.md](docs/SECRETS_ROTATION.md)** - Credential rotation schedules and playbooks
-- **[COMPREHENSIVE_CODEBASE_REVIEW.md](docs/COMPREHENSIVE_CODEBASE_REVIEW.md)** - Full security audit findings
+- **[HOMELAB_ANALYSIS.md](docs/HOMELAB_ANALYSIS.md)** — infra overview, security, metrics (A grade, 94/100)
+- **[BACKUP_STRATEGY.md](docs/BACKUP_STRATEGY.md)** — daily backups, retention, restore
+- **[SECRETS_ROTATION.md](docs/SECRETS_ROTATION.md)** — credential rotation schedules
+- **[COMPREHENSIVE_CODEBASE_REVIEW.md](docs/COMPREHENSIVE_CODEBASE_REVIEW.md)** — security audit
 
 ## Monitoring
 
-VMAlert → Alertmanager → Telegram for alerts. Custom VMRules for app failures, backup job status, and resource exhaustion.
+VMAlert → Alertmanager → Telegram. VMRules for app failures, backup status, resource exhaustion.
 
-**Check cluster health:**
+**Health check:**
 ```bash
 kubectl get helmrelease -A
 flux get kustomizations
@@ -47,19 +47,19 @@ flux get kustomizations
 
 ## Secrets
 
-All secrets encrypted with SOPS + age before commit. Never commit plaintext secrets.
+SOPS + age encrypt before commit. Never commit plaintext.
 
-**Decrypt a secret:**
+**Decrypt:**
 ```bash
 sops -d infrastructure/configs/staging/databases/postgres/admin-secret.yaml
 ```
 
 ## Troubleshooting
 
-- **Flux reconciliation failed?** Check `flux logs` and Telegram notifications
-- **Pod stuck?** Likely NetworkPolicy blocking - check with `kubectl describe pod`
-- **Backup issues?** See disaster recovery docs in `.backup/`
+- **Flux fail?** `flux logs` + Telegram
+- **Pod stuck?** NetworkPolicy block — `kubectl describe pod`
+- **Backup fail?** `.backup/` docs
 
 ## Notes
 
-This is a personal homelab, not production infrastructure. Some choices prioritize simplicity over enterprise HA (e.g., single Redis instance, accepted risk for certain CVEs).
+Personal homelab, not production. Some choices prioritize simplicity (single Redis, accepted CVEs).

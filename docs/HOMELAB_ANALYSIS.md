@@ -1,9 +1,9 @@
 # HOMELAB COMPREHENSIVE ANALYSIS
 
-**Cluster**: K3s (staging) - **3 nodes** (1 control-plane, 2 workers)
+**Cluster**: K3s (staging) — **3 nodes** (1 control-plane, 2 workers)
 **Node IPs** (static DHCP): gmk-k3s-control-plane=192.168.1.127, worker-node=192.168.1.129, worker-node-2=192.168.1.126
 **Infrastructure**: GitOps (Flux), CloudNativePG, Percona MySQL, Monitoring Stack, SSO (Authentik), Cloudflare Tunnel
-**Code Review**: 2026-04-02 - Full codebase scan (94/100, A)
+**Code Review**: 2026-04-02 — full codebase scan (94/100, A)
 
 ---
 
@@ -38,13 +38,13 @@
 | Grafana | OIDC | Monitoring dashboard |
 | Immich | OIDC | Photo mgmt |
 | Paperless-NGX | OIDC | Doc mgmt |
-| Home Assistant | OIDC | Smart home, MariaDB |
+| Home Assistant | OIDC | Smart home, MySQL |
 | LinkWarden | OIDC | Bookmarks + Meilisearch |
 | Mealie | OIDC | Recipes |
 | N8N | Enterprise | Automation (SSO needs Enterprise) |
 | Audiobookshelf | OIDC | Audiobook library |
 | Obsidian | - | CouchDB sync |
-| PriceBuddy | - | Price track, MariaDB |
+| PriceBuddy | - | Price track, MySQL |
 | SearXNG | - | Privacy search |
 | Claude Telegram | - | AI bot (Agent SDK), Telegram DM only |
 
@@ -72,11 +72,11 @@
 ## MONITORING
 
 - **VictoriaMetrics**: VMSingle + VMAgent + VMOperator, ~113k series, ~487Mi total (71% RAM save vs Prometheus)
-- **Grafana**: Dashboards + OIDC
-- **Loki + Alloy**: Log aggregation (DaemonSet)
+- **Grafana**: dashboards + OIDC
+- **Loki + Alloy**: log aggregation (DaemonSet)
 - **Alertmanager**: Telegram alerts
-- **Popeye**: Weekly CronJob (Sun 6 AM), score 100/100
-- **Kyverno**: Daily violation summaries
+- **Popeye**: weekly CronJob (Sun 6 AM), score 100/100
+- **Kyverno**: daily violation summaries
 
 ---
 

@@ -1,8 +1,10 @@
 # Node Maintenance Implementation Plan
 
+> **Status:** DONE — all phases live. Weekly timer (`node-maintenance.timer`, Sat 04:30 UTC) + daily drift-heal (`node-maintenance-config.timer`, 03:00 UTC).
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Automate weekly Arch Linux node updates (official repos + AUR via `yay`) across 3 K3s nodes with sequential reboots, failure-safe orchestration, and observability.
+**Goal:** Automate weekly Arch Linux node updates (official repos + AUR via `yay`) across 3 K3s nodes. Sequential reboots, failure-safe orchestration, observability.
 
 **Architecture:** Two-phase systemd-driven Ansible flow on control-plane. Phase 1 = CP self-update + reboot. Phase 2 = worker loop (SSH, cordon, `yay -Syu`, reboot, wait-Ready, uncordon) + cleanup + Telegram notify. Saturday 04:30 UTC weekly. Dedicated `node-maintenance` system user on all 3 nodes.
 
@@ -44,17 +46,17 @@ docs/scripts/node-maintenance/
 
 | File | Responsibility |
 |------|----------------|
-| `ansible/phase1.yml` | CP preflight, alert silencing, `yay -Syu` on CP, flag file creation |
-| `ansible/phase2.yml` | Per-worker update loop (`serial: 1`) + cluster-level cleanup |
+| `ansible/phase1.yml` | CP preflight, alert silence, `yay -Syu` on CP, flag file |
+| `ansible/phase2.yml` | Per-worker update loop (`serial: 1`) + cluster cleanup |
 | `ansible/tasks/telegram.yml` | Reusable Telegram API POST task |
 | `ansible/inventory.yml` | Worker IP + user + port + SSH key path |
 | `ansible/group_vars/all.yml` | Cross-playbook vars (alertmanager URL, timeouts) |
 | `systemd/*.{timer,service}` | Scheduling + failure alerting glue |
-| `systemd/rebuilderd-worker-override.conf` | Drop-in to cap rebuilderd stop timeout at 60s |
-| `lib/telegram-notify.sh` | CLI helper invoked by systemd `ExecStopPost` |
+| `systemd/rebuilderd-worker-override.conf` | Drop-in capping rebuilderd stop timeout at 60s |
+| `lib/telegram-notify.sh` | CLI helper for systemd `ExecStopPost` |
 | `install.sh` | CP-side idempotent bootstrap (user, dirs, SOPS decrypt, systemd enable) |
 | `install-worker.sh` | Per-worker idempotent bootstrap (user, sudoers, override) |
-| `secrets/id_ed25519.enc` | SOPS-encrypted SSH private key for `node-maintenance@CP` → `node-maintenance@workers` |
+| `secrets/id_ed25519.enc` | SOPS-encrypted SSH key for `node-maintenance@CP` → `node-maintenance@workers` |
 
 ---
 
@@ -91,7 +93,7 @@ docs/scripts/node-maintenance/secrets
 docs/scripts/node-maintenance/systemd
 ```
 
-- [ ] **Step 3: Add .gitkeep files (empty dirs don't commit otherwise)**
+- [ ] **Step 3: Add .gitkeep files (empty dirs won't commit)**
 
 ```bash
 touch docs/scripts/node-maintenance/secrets/.gitkeep

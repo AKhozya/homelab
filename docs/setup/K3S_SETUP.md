@@ -3,8 +3,8 @@
 ## Cluster Architecture
 
 - **Control Plane**: `gmk-k3s-control-plane` (192.168.1.127)
-- **Worker Node 1**: `worker-node` (192.168.1.129) - 4.2TB LVM storage
-- **Worker Node 2**: `worker-node-2` (192.168.1.126) - 863GB LVM storage
+- **Worker Node 1**: `worker-node` (192.168.1.129) — 4.2TB LVM storage
+- **Worker Node 2**: `worker-node-2` (192.168.1.126) — 863GB LVM storage
 
 ## Control Plane Setup
 
@@ -61,26 +61,26 @@ sudo systemctl restart k3s-agent
 
 ## What setup-node.sh Configures
 
-The setup script (`docs/scripts/setup-node.sh`) auto-detects node type and applies:
+Script (`docs/scripts/setup-node.sh`) auto-detects node type + applies:
 
 1. **Firmware**: Intel/AMD microcode, linux-firmware, optional AUR firmware
-2. **Performance**: CPU governor, BBR, inotify limits, conntrack, SSD power management
+2. **Performance**: CPU governor, BBR, inotify limits, conntrack, SSD power mgmt
 3. **Security**: SSH hardening (post-quantum kex), kernel sysctls, streaming timeout
-4. **K3s config**: Writes `/etc/rancher/k3s/config.yaml` (control-plane or worker, auto-detected)
-   - Control plane: disables Helm controller + bundled Traefik, taints node, secrets encryption flag
+4. **K3s config**: writes `/etc/rancher/k3s/config.yaml` (CP or worker, auto-detect)
+   - CP: disables Helm controller + bundled Traefik, taints node, secrets encryption flag
    - Worker: sets node-name from hostname, enables ServiceLB
 5. **Graceful shutdown**: kubelet config (120s grace), systemd timeouts, conntrack fix
 
 ## Node Scheduling
 
-- **Control Plane**: Tainted `NoSchedule` — only system pods (kube-system, flux-system, cert-manager)
-- **Workers**: All application workloads, ServiceLB enabled
+- **CP**: tainted `NoSchedule` — system pods only (kube-system, flux-system, cert-manager)
+- **Workers**: all app workloads, ServiceLB enabled
 
 ## ServiceLB
 
-- Control plane: `svccontroller.k3s.cattle.io/enablelb=false`
+- CP: `svccontroller.k3s.cattle.io/enablelb=false`
 - Workers: `svccontroller.k3s.cattle.io/enablelb=true`
-- Traefik EXTERNAL-IP should show worker node IPs only
+- Traefik EXTERNAL-IP = worker node IPs only
 
 ## Updating K3s
 

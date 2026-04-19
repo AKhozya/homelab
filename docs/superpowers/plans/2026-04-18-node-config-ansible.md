@@ -1,6 +1,6 @@
 # Node Config → Ansible: Full Migration Plan
 
-**Goal:** Migrate all hand-cranked node-level config (systemd units, scripts, sudoers, kernel tuning, firewall rules, rebuilderd setup) from one-shot bash scripts into an idempotent ansible playbook that self-heals drift on a schedule. End state: `setup-node.sh`, `setup-rebuilderd-worker-{1,2}.sh`, `setup-ufw-*.sh`, `install.sh` heredocs all retired or reduced to bootstrap-only.
+**Goal:** Migrate all hand-cranked node-level config (systemd units, scripts, sudoers, kernel tuning, firewall rules, rebuilderd setup) from one-shot bash scripts → idempotent ansible playbook that self-heals drift on schedule. End state: `setup-node.sh`, `setup-rebuilderd-worker-{1,2}.sh`, `setup-ufw-*.sh`, `install.sh` heredocs all retired or reduced to bootstrap-only.
 
 **Architecture:**
 - Ansible playbook `ansible/node-config.yml` (multi-play: `control_plane`, `workers`, `all`).
@@ -12,9 +12,9 @@
 
 **Tech Stack:** ansible-core 2.20, `ansible.builtin.*`, `ansible.posix.*`, `community.general.ufw`, systemd timers.
 
-**Phase order + independence:** Phases A→E are sequential (later phases import helper tasks from A). Each phase is committed in isolation, independently deployable + rollback-safe.
+**Phase order + independence:** Phases A→E sequential (later phases import helper tasks from A). Each phase committed in isolation, independently deployable + rollback-safe.
 
-**Out of scope:** K3s encryption-config (too risky, leave as bash in `setup-node.sh`). K3s install itself (one-shot, doesn't drift).
+**Out of scope:** K3s encryption-config (too risky, leave as bash in `setup-node.sh`). K3s install itself (one-shot, no drift).
 
 ---
 
@@ -86,7 +86,7 @@ docs/scripts/
 **A.3** — Migrate rebuilderd-worker@.service.d/override.conf (workers) as part of base-config (coupled to rebuilderd).
 **A.4** — Add `node-maintenance-config.service` + `.timer` (daily 03:00 UTC).
 **A.5** — Hook ansible call into `sync-from-git.sh` post-pull.
-**A.6** — Strip migrated heredocs from `install.sh` + `install-worker.sh`. Keep bootstrap-minimal: user creation + SSH key + sudoers (first-run) + logrotate pkg install.
+**A.6** — Strip migrated heredocs from `install.sh` + `install-worker.sh`. Keep bootstrap-minimal: user + SSH key + sudoers (first-run) + logrotate pkg install.
 **A.7** — Docs: README section, delete `/tmp/apply-worker-logrotate.sh`, HOMELAB changelog.
 
 ### Success criteria
@@ -127,7 +127,7 @@ docs/scripts/
 **B.3** — Scaffold `roles/k3s-image-gc/` (tiny — 2 units, applies to `all`).
 **B.4** — Dry-run on workers, compare `/etc/systemd/system/*.service` against templates (expect `changed=0` after bootstrap).
 **B.5** — Apply + verify rebuilderd build still healthy (`systemctl status rebuilderd-worker@1`, build job still running if any).
-**B.6** — Retire `setup-rebuilderd-worker-{1,2}.sh` → delete with symlink `RETIRED.md` pointing to ansible role.
+**B.6** — Retire `setup-rebuilderd-worker-{1,2}.sh` → delete with symlink `RETIRED.md` → ansible role.
 **B.7** — HOMELAB changelog + README.
 
 ### Success criteria
@@ -137,7 +137,7 @@ docs/scripts/
 - `setup-rebuilderd-worker-*.sh` files retired
 
 ### Rollback
-- Revert role commits; units were placed identically to originals, so no state reset needed.
+- Revert role commits; units placed identically to originals, no state reset needed.
 
 ---
 
@@ -156,18 +156,18 @@ docs/scripts/
 **C.3** — Scaffold `roles/firewall/`:
   - `tasks/main.yml` — use `community.general.ufw` module (needs `community.general` collection — add to `requirements.yml`)
   - `defaults/main.yml` — default deny incoming, allow outgoing, policy/logging/reset
-**C.4** — Pre-test: from Mac, verify SSH can still reach node under new rule set via ansible check mode.
+**C.4** — Pre-test: from Mac, verify SSH still reaches node under new rule set via ansible check mode.
 **C.5** — Add **critical safety:** `ansible.builtin.command: ufw --force enable` only AFTER SSH rule deployed. Emergency recovery via homelab console if locked out.
 **C.6** — Apply one node at a time; verify SSH survives after each; rollback via `ufw reset` + re-apply bash if ansible breaks.
 **C.7** — Retire `setup-ufw-*.sh`.
 
 ### Success criteria
 - `ufw status` matches template output on all 3 nodes
-- SSH still works from Mac + between nodes
+- SSH works from Mac + between nodes
 - Ansible re-run → `changed=0`
 
 ### Rollback
-- Console access: `ufw reset && bash setup-ufw-k3s-<role>.sh` from local fs (keep a copy during migration).
+- Console access: `ufw reset && bash setup-ufw-k3s-<role>.sh` from local fs (keep copy during migration).
 
 ---
 
@@ -194,7 +194,7 @@ docs/scripts/
   - `templates/sysctl-99-homelab.conf.j2`
   - `templates/kubelet.yaml.j2`
   - `handlers/main.yml` — reload sshd, sysctl -p, restart k3s / k3s-agent
-**D.3** — SSH handling: **deploy drop-in in `/etc/ssh/sshd_config.d/99-homelab.conf`** (doesn't touch main sshd_config), validate with `sshd -t` before reload, have second SSH session open as safety net during first apply.
+**D.3** — SSH handling: **deploy drop-in in `/etc/ssh/sshd_config.d/99-homelab.conf`** (doesn't touch main sshd_config), validate with `sshd -t` before reload, keep second SSH session open as safety net during first apply.
 **D.4** — Test per-node: CP first (least risky — no rebuilderd), then workers.
 **D.5** — Shrink `setup-node.sh` to bootstrap-critical only: K3s install, encryption-config (still bash), user groups, initial kubeconfig.
 
@@ -238,11 +238,11 @@ docs/scripts/
 
 ## Global Rollout Order
 
-1. **Session 1**: Phase A (commit, test 3-day drift-heal cycle).
-2. **Session 2**: Phase B (rebuilderd — land when no active build OR after Sat weekly update).
-3. **Session 3**: Phase C (UFW — highest lockout risk, schedule when Mac is physically near nodes).
-4. **Session 4**: Phase D (SSH/sysctl — second-highest risk, console access ready).
-5. **Session 5**: Phase E (cleanup, no risk).
+1. **Session 1:** Phase A (commit, test 3-day drift-heal cycle).
+2. **Session 2:** Phase B (rebuilderd — land when no active build OR after Sat weekly update).
+3. **Session 3:** Phase C (UFW — highest lockout risk, schedule when Mac physically near nodes).
+4. **Session 4:** Phase D (SSH/sysctl — second-highest risk, console access ready).
+5. **Session 5:** Phase E (cleanup, no risk).
 
 ---
 
@@ -250,7 +250,7 @@ docs/scripts/
 
 - `node-maintenance-config.service` runs `ansible-playbook -D node-config.yml`, appends to `/var/log/node-maintenance/config.log`
 - `ExecStopPost=telegram-notify.sh config "${SERVICE_RESULT}"` — parses last `changed=N failed=M` line; alerts if `changed>0` OR `failed>0`
-- Alloy `loki.source.journal` already ingests `node-maintenance-config.service` (no extra work needed — unit name prefix match)
+- Alloy `loki.source.journal` already ingests `node-maintenance-config.service` (no extra work — unit name prefix match)
 - VMRule `NodeConfigDrift` (new, optional): alerts if >N changes per week
 
 ---
@@ -260,5 +260,5 @@ docs/scripts/
 - [ ] All 5 phases land, `ansible-playbook node-config.yml` → `changed=0` cluster-wide
 - [ ] `setup-node.sh` ≤ 250 lines, `setup-rebuilderd-worker-*.sh` retired, `setup-ufw-*.sh` retired
 - [ ] Timer fires daily, any drift → Telegram alert
-- [ ] Single re-clone + install.sh → bootstraps a fresh node end-to-end (bootstrap remains bash; config remains ansible)
+- [ ] Single re-clone + install.sh → bootstraps fresh node end-to-end (bootstrap bash; config ansible)
 - [ ] Git log: each phase as 5-8 small commits; revert path clear

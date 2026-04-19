@@ -2,38 +2,38 @@
 
 ## Configuration Changes (2025-10-29)
 
-Auto-merge has been **disabled** for all updates. All minor, patch, and major updates now require manual review and approval.
+Auto-merge **disabled**. All minor/patch/major updates need manual review + approval.
 
-**Configuration file**: `renovate.json`
-**Changes**: Removed `automerge: true` and `automergeType: "branch"` settings
+**File**: `renovate.json`
+**Changes**: removed `automerge: true` + `automergeType: "branch"`
 
 ---
 
-## 🤖 Automated Version Change Detection
+## Automated Version Change Detection
 
 **GitHub Action**: `.github/workflows/renovate-analysis.yaml`
 
 Every Renovate PR gets **automatic version change analysis** (NOT code review):
 
-**What it detects:**
-- 📦 What changed: Docker image, Helm chart, or Flux component
-- 📊 Version change: old → new
-- 🎯 Update type: major/minor/patch
-- 🚨 Package-specific breaking changes to review
-- 📝 Links to release notes
+**Detects:**
+- What changed: Docker image, Helm chart, Flux component
+- Version: old → new
+- Type: major/minor/patch
+- Package-specific breaking changes
+- Links to release notes
 
-**What it does NOT do:**
-- ❌ Code quality review
-- ❌ Syntax checking
-- ❌ Application logic analysis
+**Does NOT do:**
+- Code quality review
+- Syntax check
+- App logic analysis
 
-**Manual analysis** is also available:
+**Manual analysis**:
 ```bash
 ./scripts/analyze-update.sh <PR_NUMBER>
 ./scripts/analyze-update-gh.sh <PR_NUMBER>  # GitHub-formatted
 ```
 
-See [Workflow Documentation](../.github/workflows/README.md) for details.
+See [Workflow Documentation](../.github/workflows/README.md).
 
 ---
 
@@ -41,52 +41,52 @@ See [Workflow Documentation](../.github/workflows/README.md) for details.
 
 ### Update Types & Review Guidelines
 
-#### 🟢 Patch Updates (Low Risk)
+#### Patch Updates (Low Risk)
 **Example**: n8n v1.118.0 → v1.118.1
 
-**Review Process**:
-- ✅ Check PR description for bug fixes or security patches
-- ✅ Review changed files (usually just version number)
-- ✅ Verify deployment has readiness probes configured
-- ✅ Monitor application logs after deployment
+**Review**:
+- Check PR description — bug fixes/security patches
+- Review changed files (usually version number)
+- Verify readiness probes configured
+- Monitor logs post-deploy
 
-**Action Required**: Generally safe to merge after quick review
+**Action**: safe to merge after quick review
 
 ---
 
-#### 🟡 Minor Updates (Medium Risk)
+#### Minor Updates (Medium Risk)
 **Examples**:
 - Authentik v2025.8.4 → v2025.10.0
 - busybox v1.36 → v1.37
 
-**Review Process**:
-- ⚠️ Review release notes for new features and breaking changes
-- ⚠️ Check for configuration changes required
-- ⚠️ Test in staging if available
-- ⚠️ Verify all integrations still work
-- ⚠️ Check application-specific documentation for migration steps
+**Review**:
+- Review release notes — features + breaking changes
+- Check config changes required
+- Test in staging if available
+- Verify integrations
+- Check app docs for migration steps
 
-**Action Required**:
-1. **Authentik**: Review authentication flows and provider configurations
-2. **Check logs** for deprecated features or warnings
-3. **Test login flows** after deployment
-4. **Monitor metrics** for authentication errors
+**Action**:
+1. **Authentik**: review auth flows + provider configs
+2. **Check logs** for deprecated features/warnings
+3. **Test login flows** post-deploy
+4. **Monitor metrics** for auth errors
 
 ---
 
-#### 🔴 Major Updates (High Risk)
+#### Major Updates (High Risk)
 **Examples**:
 - Node.js v22 → v24
 - kube-prometheus-stack v78 → v79
 
-**Review Process**:
-- 🚨 **CRITICAL**: Read full changelog and migration guide
-- 🚨 Review breaking changes carefully
-- 🚨 Test thoroughly before applying to production
-- 🚨 Have rollback plan ready
-- 🚨 Check for deprecated APIs or features
+**Review**:
+- **CRITICAL**: read full changelog + migration guide
+- Review breaking changes carefully
+- Test thoroughly before prod
+- Rollback plan ready
+- Check deprecated APIs/features
 
-**Action Required**:
+**Action**:
 
 ##### Node.js v22 → v24
 - Review Node.js 24 [release notes](https://nodejs.org/en/blog/release/v24.9.0)
@@ -94,18 +94,18 @@ See [Workflow Documentation](../.github/workflows/README.md) for details.
   - util.getCallSite removed (SEMVER-MINOR breaking)
   - New SQLite authorization API
   - HTTP upgrade callback support
-- **Impact**: Applications using removed APIs need updates
-- **Testing**: Run full test suite before deployment
+- **Impact**: apps using removed APIs need updates
+- **Testing**: full test suite before deploy
 
 ##### kube-prometheus-stack v78 → v79
-- **SECURITY FIX**: Fixes insecure default password in Grafana
-- **Action**: Update Grafana password immediately after applying
-- **Review**: Check if custom Grafana configurations are affected
-- **Testing**: Verify all dashboards and alerts work after upgrade
+- **SECURITY FIX**: fixes insecure default password in Grafana
+- **Action**: update Grafana password immediately after applying
+- **Review**: check custom Grafana configs affected
+- **Testing**: verify dashboards + alerts post-upgrade
 
 ---
 
-#### 🔧 Infrastructure Updates (Critical)
+#### Infrastructure Updates (Critical)
 **Example**: Flux v2.7.2 → v2.7.3
 
 **Components Updated**:
@@ -114,43 +114,43 @@ See [Workflow Documentation](../.github/workflows/README.md) for details.
 - notification-controller v1.7.3 → v1.7.4
 - source-controller v1.7.2 → v1.7.3
 
-**Review Process**:
-- 🛠️ Review all controller changelogs
-- 🛠️ Check for reconciliation behavior changes
-- 🛠️ Monitor Flux system namespace after update
-- 🛠️ Verify all GitOps reconciliations succeed
+**Review**:
+- Review all controller changelogs
+- Check reconciliation behavior changes
+- Monitor flux-system ns post-update
+- Verify all GitOps reconciliations succeed
 
-**Action Required**:
-1. Apply update during maintenance window
-2. Monitor with: `flux get all --all-namespaces`
-3. Check controller logs: `kubectl logs -n flux-system -l app=<controller>`
+**Action**:
+1. Apply during maintenance window
+2. Monitor: `flux get all --all-namespaces`
+3. Controller logs: `kubectl logs -n flux-system -l app=<controller>`
 4. Verify reconciliation status for all apps
 
 ---
 
 ## GitHub PR Review Workflow
 
-### Manual Review Process
+### Manual Review
 1. **Open PR in GitHub**
-2. **Review Changes**: Check files changed and PR description
-3. **Check CI/CD**: Ensure all checks pass
-4. **Merge PR**: Use "Squash and merge" or "Rebase and merge"
-5. **Monitor Deployment**: Watch Flux reconcile the changes
+2. **Review**: files changed + PR description
+3. **CI/CD**: checks pass
+4. **Merge**: "Squash and merge" or "Rebase and merge"
+5. **Monitor**: Flux reconciles
 
-### Using GitHub PR Override (Bypass Reviews)
+### GitHub PR Override (Bypass Reviews)
 
-⚠️ **Note**: Repository administrators can bypass branch protection rules
+**Note**: Repo admins can bypass branch protection
 
-**To enable PR merge without reviews**:
-1. Go to repository **Settings** → **Branches**
-2. Edit branch protection rule for `main`
-3. Under "Require approvals", set to **0** approvals
-4. Or check "Allow specified actors to bypass required pull requests"
-5. Add your username to bypass list
+**Enable PR merge without reviews**:
+1. Repo **Settings** → **Branches**
+2. Edit branch protection for `main`
+3. "Require approvals" → **0**
+4. Or "Allow specified actors to bypass required pull requests"
+5. Add username to bypass list
 
-**Current Setup**: Reviews are required for quality control
+**Current**: reviews required for quality control
 
-**Alternative**: Use GitHub CLI to merge without reviews:
+**Alternative**: GitHub CLI merge without reviews:
 ```bash
 # Merge a PR directly (requires admin permissions)
 gh pr merge <number> --squash --auto
@@ -160,7 +160,7 @@ gh pr merge <number> --squash --auto
 
 ## Quick Merge Commands
 
-### Review and Merge a Renovate PR
+### Review + Merge Renovate PR
 ```bash
 # View PR details
 gh pr view <number>
@@ -201,26 +201,26 @@ fi
 
 ## Update Priority Guidelines
 
-### High Priority (Apply ASAP)
+### High (Apply ASAP)
 - Security patches
 - Critical bug fixes
-- Flux/infrastructure updates
+- Flux/infra updates
 
-### Medium Priority (Review within 3 days)
+### Medium (Review within 3 days)
 - Minor version updates
 - Feature releases
 - Dependency updates
 
-### Low Priority (Review weekly)
+### Low (Review weekly)
 - Patch updates
-- Documentation updates
+- Docs updates
 - Dev dependency updates
 
 ---
 
 ## Rollback Procedure
 
-If an update causes issues:
+If update causes issues:
 
 ```bash
 # 1. Suspend Flux reconciliation
@@ -242,7 +242,7 @@ kubectl get pods -n <namespace>
 
 ## Monitoring After Updates
 
-### Check Application Health
+### App Health
 ```bash
 # Check pod status
 kubectl get pods -n <namespace>
@@ -254,20 +254,20 @@ kubectl logs -n <namespace> -l app=<app-name> --tail=100
 kubectl get pods -n <namespace> -o wide
 ```
 
-### Check Metrics
+### Metrics
 - Monitor Grafana dashboards
 - Check Prometheus alerts
-- Review application-specific metrics
+- Review app-specific metrics
 
 ---
 
 ## Next Steps
 
-1. ✅ Auto-merge disabled
-2. ⏳ Review open Renovate PRs using this guide
-3. ⏳ Merge safe updates (patches) first
-4. ⏳ Test major updates in staging
-5. ⏳ Document any issues found
+1. Auto-merge disabled
+2. Review open Renovate PRs
+3. Merge safe updates (patches) first
+4. Test major updates in staging
+5. Document issues found
 
 ---
 

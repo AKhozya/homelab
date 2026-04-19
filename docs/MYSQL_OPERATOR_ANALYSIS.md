@@ -9,13 +9,13 @@
 
 ## Executive Summary
 
-The Percona Operator for MySQL has shown recurring brittleness in recovery scenarios. While it successfully manages day-to-day operations, manual intervention is often required during:
+Percona Operator for MySQL shows recurring brittleness in recovery scenarios. Manages day-to-day OK, but manual intervention often needed during:
 - Pod restarts
 - Node failures
 - Clone operations
 - Replication topology changes
 
-**Recommendation**: Keep current setup with documented manual recovery procedures. Consider MOCO operator for future evaluation if issues persist.
+**Recommendation**: Keep current setup + documented manual recovery. Consider MOCO operator if issues persist.
 
 ---
 
@@ -23,11 +23,11 @@ The Percona Operator for MySQL has shown recurring brittleness in recovery scena
 
 ### 1. Clone Lock File Not Cleaned Up
 
-**Symptom**: After clone completes, `pt-heartbeat` sidecar remains stuck waiting.
+**Symptom**: After clone completes, `pt-heartbeat` sidecar stuck waiting.
 
-**Root Cause**: Clone operation creates `/var/lib/mysql/clone.lock` but doesn't always remove it after completion.
+**Root Cause**: Clone creates `/var/lib/mysql/clone.lock` but doesn't always remove after completion.
 
-**Impact**: pt-heartbeat sidecar never starts, which affects replication lag monitoring.
+**Impact**: pt-heartbeat never starts → replication lag monitoring broken.
 
 **Manual Fix**:
 ```bash
@@ -35,36 +35,36 @@ kubectl exec -n databases main-mysql-mysql-X -c mysql -- rm -f /var/lib/mysql/cl
 kubectl delete pod -n databases main-mysql-mysql-X  # Restart to pick up changes
 ```
 
-**Operator Fix Needed**: Auto-cleanup of clone.lock when MySQL is healthy and replicating.
+**Operator Fix Needed**: auto-cleanup clone.lock when MySQL healthy + replicating.
 
 ---
 
 ### 2. Stale IP Addresses in Operator Cache
 
-**Symptom**: Operator logs show `dial tcp 10.42.X.X:33062: connect: connection refused` for old pod IPs.
+**Symptom**: Operator logs `dial tcp 10.42.X.X:33062: connect: connection refused` for old pod IPs.
 
-**Root Cause**: When pods are recreated, they get new IPs, but the operator caches old IPs.
+**Root Cause**: Pods recreated → new IPs. Operator caches old IPs.
 
-**Impact**: Operator cannot communicate with MySQL pods, status updates fail.
+**Impact**: Operator can't communicate with MySQL pods → status updates fail.
 
 **Manual Fix**:
 ```bash
 kubectl rollout restart deployment -n databases percona-server-mysql-operator
 ```
 
-**Operator Fix Needed**: Better pod IP tracking and cache invalidation on pod recreation.
+**Operator Fix Needed**: better pod IP tracking + cache invalidation on pod recreation.
 
 ---
 
 ### 3. Read-Only State Not Automatically Set
 
-**Symptom**: After recovery, both MySQL nodes may be writable or both read-only.
+**Symptom**: After recovery, both MySQL nodes writable OR both read-only.
 
-**Root Cause**: MySQL defaults to `read_only=ON` on restart for safety, but operator/Orchestrator doesn't always correct this.
+**Root Cause**: MySQL defaults `read_only=ON` on restart for safety. Operator/Orchestrator doesn't always correct.
 
 **Impact**:
-- Primary may be stuck in read-only (applications fail)
-- Replica may be writable (split-brain risk)
+- Primary stuck read-only → apps fail
+- Replica writable → split-brain risk
 
 **Manual Fix**:
 ```bash
@@ -75,17 +75,17 @@ SET GLOBAL read_only=0; SET GLOBAL super_read_only=0;
 SET GLOBAL read_only=1; SET GLOBAL super_read_only=1;
 ```
 
-**Operator Fix Needed**: Orchestrator should enforce read_only state based on topology.
+**Operator Fix Needed**: Orchestrator should enforce read_only based on topology.
 
 ---
 
 ### 4. Errant GTID Transactions
 
-**Symptom**: Replica has transactions not present on primary.
+**Symptom**: Replica has transactions not on primary.
 
-**Root Cause**: Replica was briefly writable (before read_only was set) and accepted writes.
+**Root Cause**: Replica briefly writable (before read_only set) + accepted writes.
 
-**Impact**: Replication breaks - replica cannot be in sync with primary.
+**Impact**: Replication breaks → replica can't sync.
 
 **Manual Fix**:
 ```bash
@@ -96,7 +96,7 @@ kubectl delete pod -n databases main-mysql-mysql-1
 # Not recommended for production
 ```
 
-**Prevention**: Ensure replicas are always read_only before applications connect.
+**Prevention**: Ensure replicas always read_only before apps connect.
 
 ---
 
@@ -106,26 +106,26 @@ kubectl delete pod -n databases main-mysql-mysql-1
 
 **Root Cause**: Operator may not update HAProxy config after pod recreation.
 
-**Impact**: Load balancing broken, connections may fail.
+**Impact**: Load balancing broken → connections fail.
 
 **Manual Fix**:
 ```bash
 kubectl delete pod -n databases main-mysql-haproxy-0 main-mysql-haproxy-1
 ```
 
-**Operator Fix Needed**: HAProxy config should be reconciled when topology changes.
+**Operator Fix Needed**: HAProxy config reconciled on topology change.
 
 ---
 
 ### 6. Orchestrator Not Recognizing Topology
 
-**Symptom**: Orchestrator shows "IsCoMaster": true for both nodes (circular replication).
+**Symptom**: Orchestrator shows `"IsCoMaster": true` both nodes (circular replication).
 
-**Root Cause**: After failures, Orchestrator may detect incorrect topology.
+**Root Cause**: After failures, Orchestrator detects wrong topology.
 
 **Impact**: Failover decisions may be incorrect.
 
-**Manual Fix**: Usually resolves after pods are healthy and replication is established.
+**Manual Fix**: Usually resolves after pods healthy + replication established.
 
 ---
 
@@ -133,14 +133,14 @@ kubectl delete pod -n databases main-mysql-haproxy-0 main-mysql-haproxy-1
 
 ### Issue #1099: Readiness Probe Causes Infinite Restart Loop
 - **Status**: Open
-- **Description**: During recovery, MySQL reports status as `RECOVERING`, which the readiness probe treats as unhealthy, causing restarts.
-- **Impact**: Cluster cannot recover from certain failure modes.
-- **Workaround**: None available (requires operator fix).
+- **Desc**: During recovery, MySQL status = `RECOVERING`. Readiness probe treats as unhealthy → restart.
+- **Impact**: Cluster can't recover from certain failures.
+- **Workaround**: None (needs operator fix).
 
 ### Issue #1097: Endless Status Update Failures
 - **Status**: Open
-- **Description**: Operator repeatedly fails to update CR status.
-- **Impact**: Stale status in kubectl, potential reconciliation issues.
+- **Desc**: Operator repeatedly fails to update CR status.
+- **Impact**: Stale status in kubectl, reconciliation issues.
 - **Workaround**: Restart operator deployment.
 
 ---
@@ -190,24 +190,24 @@ proxy:
 
 | Setting | Default | New Value | Reason |
 |---------|---------|-----------|--------|
-| BOOTSTRAP_CLONE_TIMEOUT | 3600s | 7200s | Prevent clone timeouts on large data |
-| readinessProbe.failureThreshold | 3 | 6 | More tolerance during recovery |
+| BOOTSTRAP_CLONE_TIMEOUT | 3600s | 7200s | Prevent clone timeouts, large data |
+| readinessProbe.failureThreshold | 3 | 6 | Tolerance during recovery |
 | livenessProbe.failureThreshold | 3 | 6 | Prevent premature pod kills |
-| livenessProbe.initialDelaySeconds | 15 | 300 | Allow time for recovery |
+| livenessProbe.initialDelaySeconds | 15 | 300 | Time for recovery |
 
 ### Known Limitations
 
-1. **orchestrator.configuration field** - Exists in CRD but NOT implemented by operator v1.0.0
-   - Custom Orchestrator settings (RecoveryPeriodBlockSeconds, etc.) cannot be applied
+1. **orchestrator.configuration field** — in CRD but NOT implemented by operator v1.0.0
+   - Custom Orchestrator settings (RecoveryPeriodBlockSeconds, etc.) can't be applied
    - Feature request: https://github.com/percona/percona-server-mysql-operator/issues
 
-2. **Monitoring alerts** - Recommend adding:
-   - Replication lag > 30 seconds
+2. **Monitoring alerts** — recommend adding:
+   - Replication lag > 30s
    - Both nodes read_only or writable
-   - Clone operations taking > 10 minutes
+   - Clone ops > 10 min
    - pt-heartbeat container not running
 
-3. **Daily backup verification** - Backups are your safety net
+3. **Daily backup verification** — backups = safety net
 
 ---
 
@@ -215,32 +215,32 @@ proxy:
 
 ### 1. MOCO (Cybozu)
 - **Pros**:
-  - Most CloudNativePG-like experience
-  - Single CRD, simpler architecture
-  - Active development
+  - Most CloudNativePG-like
+  - Single CRD, simpler
+  - Active dev
 - **Cons**:
   - Less mature than Percona
   - Smaller community
-- **Verdict**: Best alternative if Percona issues persist
+- **Verdict**: Best alt if Percona issues persist
 
 ### 2. Oracle MySQL Operator
 - **Pros**:
   - Official Oracle support
-  - Group Replication (synchronous)
+  - Group Replication (sync)
 - **Cons**:
-  - Previous experience showed brittleness with GR
-  - Complex RBAC requirements
-  - Already migrated away from this
-- **Verdict**: Not recommended based on past experience
+  - Past brittleness with GR
+  - Complex RBAC
+  - Already migrated away
+- **Verdict**: Not recommended (past experience)
 
 ### 3. Bitpoke MySQL Operator
 - **Pros**:
   - Simple async replication
   - Lightweight
 - **Cons**:
-  - Less actively maintained
+  - Less maintained
   - Fewer features
-- **Verdict**: Possible fallback option
+- **Verdict**: Possible fallback
 
 ---
 
@@ -263,12 +263,12 @@ proxy:
    kubectl logs -n databases deployment/percona-server-mysql-operator --tail=100
    ```
 
-4. **If operator shows stale IPs**:
+4. **Stale IPs**:
    ```bash
    kubectl rollout restart deployment -n databases percona-server-mysql-operator
    ```
 
-5. **If MySQL pods stuck in clone**:
+5. **MySQL pods stuck in clone**:
    ```bash
    kubectl exec -n databases main-mysql-mysql-X -c mysql -- rm -f /var/lib/mysql/clone.lock
    kubectl delete pod -n databases main-mysql-mysql-X
@@ -283,7 +283,7 @@ proxy:
    kubectl exec -n databases main-mysql-mysql-1 -c mysql -- mysql -uroot -p... -e "SELECT @@read_only"
    ```
 
-7. **Fix read_only if needed**:
+7. **Fix read_only**:
    ```bash
    # On PRIMARY:
    SET GLOBAL read_only=0; SET GLOBAL super_read_only=0;
@@ -296,14 +296,14 @@ proxy:
 
 ## Conclusion
 
-The Percona Operator for MySQL is functional but requires manual intervention in failure scenarios. For a homelab with:
+Percona Operator for MySQL functional but needs manual intervention in failures. Homelab with:
 - Daily backups (3:15 AM, 30-day retention)
 - Low write frequency
-- Acceptable downtime (minutes to hours)
+- Acceptable downtime (min-hours)
 
-The current setup is adequate. Keep this runbook handy for recovery scenarios.
+Current setup adequate. Keep runbook handy.
 
-**Future Consideration**: If manual interventions become too frequent (>1/month), evaluate migrating to MOCO operator for a simpler experience.
+**Future**: If manual interventions > 1/month → evaluate MOCO operator.
 
 ---
 
