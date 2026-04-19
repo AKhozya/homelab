@@ -2,12 +2,17 @@
 # K3s Node Setup Script
 # Run with: sudo bash setup-node.sh
 #
-# This script configures a K3s node with:
+# This script bootstraps a K3s node. Only one-shot, boot-time, or hardware-level
+# setup lives here; drift-prone config (sysctls, sshd, kubelet, systemd drop-ins,
+# udev, tmpfiles, journald, logrotate) is owned by ansible roles in
+# docs/scripts/node-maintenance/ansible/roles/ and applied daily by timer.
+#
+# Sections:
 # 1. Packages & firmware (auto-detects Intel/AMD)
-# 2. Power/Performance optimization (powersave governor, balance_power EPP, SSD no-sleep, BBR)
-# 3. Security hardening (kernel, filesystem, network, SSH, watchdog)
+# 2. Power/performance runtime knobs (cpupower, EPP, NVMe/SATA one-shots)
+# 3. Bootloader + non-drift security (boot params, PermitEmptyPasswords, timers)
 # 4. K3s config (control-plane or worker, auto-detected)
-# 5. Graceful shutdown & system services (kubelet, journald, timers)
+# 5. systemd reload (drop-ins placed by ansible)
 #
 # Works for both control-plane and worker nodes (auto-detected)
 
@@ -75,66 +80,7 @@ pacman -S --noconfirm --needed $ESSENTIAL_PKGS 2>/dev/null || true
 if [ "$NODE_TYPE" = "worker" ]; then
     echo "Installing worker-specific packages (rebuilderd)..."
     pacman -S --noconfirm --needed rebuilderd archlinux-repro 2>/dev/null || true
-
-    # Watchdog: auto-restart rebuilderd when builds get stuck in spin loops
-    # Some packages (e.g. owl-lisp) have test suites that enter infinite
-    # wait loops inside nspawn, spamming journald at ~24M msgs/30s
-    echo "Installing rebuilderd stuck-build watchdog..."
-    cat > /usr/local/bin/rebuilderd-watchdog.sh << 'WATCHDOG'
-#!/bin/bash
-SERVICE="rebuilderd-worker@1.service"
-
-if ! systemctl is-active --quiet "$SERVICE"; then
-    exit 0
-fi
-
-# Count spin indicators: "Suppressed" msgs OR "wait: pid" lines in last 5min
-SPIN_COUNT=$(journalctl -u "$SERVICE" --since "5 min ago" --no-pager -q 2>/dev/null \
-    | grep -cE "Suppressed|wait: pid" || true)
-
-if [ "$SPIN_COUNT" -ge 5 ]; then
-    REAL_LINES=$(journalctl -u "$SERVICE" --since "20 min ago" --no-pager -q 2>/dev/null \
-        | grep -v "wait: pid" \
-        | grep -v "Suppressed" \
-        | grep -v '^\.\c$' \
-        | grep -v "^$" \
-        | wc -l)
-
-    if [ "$REAL_LINES" -lt 5 ]; then
-        echo "$(date -Iseconds) Stuck build detected (${SPIN_COUNT} spin lines, ${REAL_LINES} real). Restarting."
-        systemctl restart "$SERVICE"
-        logger -t rebuilderd-watchdog "Restarted $SERVICE due to stuck build"
-    fi
-fi
-WATCHDOG
-    chmod +x /usr/local/bin/rebuilderd-watchdog.sh
-
-    cat > /etc/systemd/system/rebuilderd-watchdog.service << 'EOF'
-[Unit]
-Description=Rebuilderd stuck build watchdog
-After=rebuilderd-worker@1.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/rebuilderd-watchdog.sh
-EOF
-
-    cat > /etc/systemd/system/rebuilderd-watchdog.timer << 'EOF'
-[Unit]
-Description=Run rebuilderd watchdog every 10 minutes
-
-[Timer]
-OnBootSec=10min
-OnUnitActiveSec=10min
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-EOF
-
-    systemctl daemon-reload
-    systemctl enable --now rebuilderd-watchdog.timer
-    echo "  Watchdog timer enabled (every 10min)"
+    # rebuilderd-watchdog + watchdog.timer + all units: owned by ansible roles/rebuilderd (Phase B)
 fi
 
 # GPU packages: mesa + vulkan (auto-detect GPU presence)
@@ -200,7 +146,7 @@ echo ""
 # 2. PERFORMANCE OPTIMIZATION
 #######################################
 echo "=============================================="
-echo "[2/5] Performance Optimization"
+echo "[2/5] Performance Runtime Knobs"
 echo "=============================================="
 
 # CPU Governor (powersave with balance_power EPP)
@@ -221,140 +167,21 @@ for epp in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; d
     echo balance_power > "$epp" 2>/dev/null || true
 done
 
-# Make CPU settings persistent (boost remains enabled for burst performance)
-rm -f /etc/tmpfiles.d/cpu-governor.conf  # Clean up old naming
-cat > /etc/tmpfiles.d/cpu-power-settings.conf << 'EOF'
-# K3s Node CPU Power Settings
-# Governor: powersave (efficient baseline, boost available when needed)
-w /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor - - - - powersave
-# EPP: balance_power (prioritize efficiency, but allow boost for bursts)
-w /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference - - - - balance_power
-EOF
+# tmpfiles.d/cpu-power-settings.conf + sysctl.d/99-k8s-performance.conf: owned by ansible roles/hardening (Phase D)
+# Legacy cleanup (51-kptr-restrict.conf, 99-security-hardening.conf, cpu-governor.conf): also ansible-owned.
 
-# Kernel tuning
-echo "Applying kernel tuning..."
-cat > /etc/sysctl.d/99-k8s-performance.conf << 'EOF'
-# K8s Performance Tuning
-
-# Container support
-fs.inotify.max_user_instances = 8192
-fs.inotify.max_user_watches = 1048576
-
-# Network performance
-net.core.somaxconn = 32768
-net.core.netdev_max_backlog = 16384
-net.ipv4.tcp_max_syn_backlog = 8192
-net.ipv4.ip_local_port_range = 1024 65535
-
-# TCP optimizations (BBR)
-net.core.default_qdisc = fq
-net.ipv4.tcp_congestion_control = bbr
-net.ipv4.tcp_slow_start_after_idle = 0
-net.ipv4.tcp_tw_reuse = 1
-
-# TCP buffer sizes
-net.core.rmem_max = 16777216
-net.core.wmem_max = 16777216
-net.ipv4.tcp_rmem = 4096 87380 16777216
-net.ipv4.tcp_wmem = 4096 65536 16777216
-
-# Connection tracking for K8s
-net.netfilter.nf_conntrack_max = 1048576
-
-# Memory management
-vm.swappiness = 10
-vm.dirty_ratio = 10
-vm.dirty_background_ratio = 5
-EOF
-sysctl -p /etc/sysctl.d/99-k8s-performance.conf >/dev/null 2>&1
-
-# Clean up legacy sysctl files (superseded by unified-hardening)
-rm -f /etc/sysctl.d/51-kptr-restrict.conf
-rm -f /etc/sysctl.d/99-security-hardening.conf
-
-echo "  Done: Performance optimizations applied"
+echo "  Done: Performance runtime knobs applied (config files managed by ansible)"
 echo ""
 
 #######################################
 # 3. SECURITY HARDENING
 #######################################
 echo "=============================================="
-echo "[3/5] Security Hardening"
+echo "[3/5] Bootloader + Non-Drift Security"
 echo "=============================================="
 
-# Unified security hardening sysctls
-echo "Applying unified security hardening sysctls..."
-cat > /etc/sysctl.d/99-unified-hardening.conf << 'EOF'
-# Unified K8s Node Hardening - sysctl settings
-# Deployed by setup-node.sh
-
-# ===== KERNEL HARDENING =====
-kernel.kptr_restrict = 2
-kernel.dmesg_restrict = 1
-kernel.perf_event_paranoid = 4
-kernel.unprivileged_bpf_disabled = 1
-net.core.bpf_jit_harden = 2
-kernel.yama.ptrace_scope = 1
-kernel.core_pattern = |/bin/false
-kernel.printk = 3 4 1 3
-kernel.sysrq = 176
-vm.unprivileged_userfaultfd = 0
-dev.tty.ldisc_autoload = 0
-
-# ===== FILESYSTEM HARDENING =====
-fs.protected_fifos = 2
-fs.protected_regular = 2
-fs.suid_dumpable = 0
-
-# ===== NETWORK HARDENING =====
-net.ipv4.conf.all.rp_filter = 1
-net.ipv4.conf.default.rp_filter = 1
-net.ipv4.conf.all.accept_redirects = 0
-net.ipv4.conf.default.accept_redirects = 0
-net.ipv6.conf.all.accept_redirects = 0
-net.ipv6.conf.default.accept_redirects = 0
-net.ipv4.conf.all.send_redirects = 0
-net.ipv4.conf.default.send_redirects = 0
-net.ipv4.conf.all.accept_source_route = 0
-net.ipv4.conf.default.accept_source_route = 0
-net.ipv6.conf.all.accept_source_route = 0
-net.ipv6.conf.default.accept_source_route = 0
-net.ipv4.conf.all.secure_redirects = 0
-net.ipv4.conf.default.secure_redirects = 0
-net.ipv4.conf.all.log_martians = 1
-net.ipv4.conf.default.log_martians = 1
-net.ipv4.tcp_syncookies = 1
-net.ipv4.icmp_echo_ignore_broadcasts = 1
-net.ipv4.icmp_ignore_bogus_error_responses = 1
-EOF
-sysctl -p /etc/sysctl.d/99-unified-hardening.conf >/dev/null 2>&1
-
-# Kernel watchdog (auto-reboot on lockup)
-echo "Configuring kernel watchdog..."
-cat > /etc/sysctl.d/99-watchdog.conf << 'EOF'
-# Enable NMI watchdog for hard lockup detection
-kernel.nmi_watchdog=1
-# Panic on soft lockup (logs before crash)
-kernel.softlockup_panic=1
-# Panic on hard lockup (triggers reboot)
-kernel.hardlockup_panic=1
-# Log all lockups
-kernel.softlockup_all_cpu_backtrace=1
-# Auto-reboot 10 seconds after kernel panic
-kernel.panic=10
-EOF
-sysctl -p /etc/sysctl.d/99-watchdog.conf >/dev/null 2>&1
-
-# Hardware watchdog via systemd (forces reboot if PID 1 freezes)
-echo "Enabling hardware watchdog via systemd..."
-mkdir -p /etc/systemd/system.conf.d
-cat > /etc/systemd/system.conf.d/watchdog.conf << 'EOF'
-# Hardware watchdog - systemd kicks the watchdog periodically.
-# If PID 1 freezes (kernel hang, deadlock), hardware forces reboot.
-[Manager]
-RuntimeWatchdogSec=30
-RebootWatchdogSec=10min
-EOF
+# sysctl.d/99-unified-hardening.conf + 99-watchdog.conf + systemd/system.conf.d/watchdog.conf:
+# owned by ansible roles/hardening (Phase D). Bootstrap only applies runtime one-shots below.
 
 # Crash logging: EFI pstore + printk dump
 echo "Enabling crash logging (EFI pstore, printk dump)..."
@@ -373,40 +200,7 @@ done
 # Enable printk dump at runtime
 [[ -f /sys/module/printk/parameters/always_kmsg_dump ]] && echo Y > /sys/module/printk/parameters/always_kmsg_dump
 
-# SSH hardening (post-quantum kex, strong ciphers only)
-echo "Applying SSH hardening..."
-cat > /etc/ssh/sshd_config.d/99-hardening.conf << 'EOF'
-# Security hardening - March 2026
-# Post-quantum key exchange (OpenSSH 10.x)
-KexAlgorithms mlkem768x25519-sha256,curve25519-sha256,curve25519-sha256@libssh.org
-
-# Strong ciphers only (no CBC, no 3DES)
-Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
-
-# ETM MACs only (no MD5, no SHA1, no non-ETM)
-MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
-
-# Modern host key algorithms only (no DSA, no ECDSA NIST curves)
-HostKeyAlgorithms ssh-ed25519,rsa-sha2-512,rsa-sha2-256
-PubkeyAcceptedAlgorithms ssh-ed25519,rsa-sha2-512,rsa-sha2-256
-
-# Brute force mitigation (default 6 is too generous)
-MaxAuthTries 3
-
-# Free connection slots faster (default 120s)
-LoginGraceTime 30
-
-# Kill stale sessions after 10 min (300s × 2 = 600s)
-ClientAliveInterval 300
-ClientAliveCountMax 2
-EOF
-if sshd -t 2>/dev/null; then
-    systemctl reload sshd
-    echo "  Done: SSH hardened and reloaded"
-else
-    echo "  ERROR: SSH config invalid, reverting"
-    rm -f /etc/ssh/sshd_config.d/99-hardening.conf
-fi
+# sshd_config.d/99-hardening.conf: owned by ansible roles/hardening (Phase D)
 
 # Ensure PermitEmptyPasswords is set in main sshd_config
 if ! grep -q "^PermitEmptyPasswords" /etc/ssh/sshd_config; then
@@ -429,16 +223,7 @@ if [ "$CPU_TYPE" = "AMD" ]; then
     done
 fi
 
-# Disable LLMNR (port 5355) - unnecessary with AdGuard Home for DNS
-# LLMNR is a legacy local-network name resolution fallback; reduces attack surface
-echo "Disabling LLMNR..."
-mkdir -p /etc/systemd/resolved.conf.d
-cat > /etc/systemd/resolved.conf.d/no-llmnr.conf << 'EOF'
-[Resolve]
-LLMNR=no
-EOF
-systemctl restart systemd-resolved
-echo "  Done: LLMNR disabled (port 5355 closed)"
+# resolved.conf.d/no-llmnr.conf: owned by ansible roles/hardening (Phase D)
 
 # Enable SSD TRIM
 systemctl enable --now fstrim.timer 2>/dev/null || true
@@ -446,29 +231,13 @@ systemctl enable --now fstrim.timer 2>/dev/null || true
 # Enable pacman cache cleanup (keeps last 2 versions)
 systemctl enable --now paccache.timer 2>/dev/null || true
 
-# Disable SSD/NVMe power saving
-echo "Disabling SSD/NVMe power saving..."
+# Disable SSD/NVMe power saving (runtime one-shots; config files managed by ansible roles/hardening)
+echo "Applying NVMe/SATA power runtime knobs..."
 
-# NVMe: Disable APST via modprobe (survives reboots)
-cat > /etc/modprobe.d/nvme-no-apst.conf << 'EOF'
-options nvme_core default_ps_max_latency_us=0
-EOF
+# NVMe: Apply APST disable at runtime (persistent config in modprobe.d, ansible-owned)
 echo 0 > /sys/module/nvme_core/parameters/default_ps_max_latency_us 2>/dev/null || true
 
-# NVMe: Disable PCI runtime power management via udev (for new devices)
-cat > /etc/udev/rules.d/60-nvme-no-pm.rules << 'EOF'
-# Disable runtime PM for NVMe devices
-ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x010802", ATTR{power/control}="on"
-ACTION=="add", SUBSYSTEM=="block", KERNEL=="nvme*", RUN+="/bin/sh -c 'echo on > /sys$devpath/device/power/control 2>/dev/null || true'"
-EOF
-
-# NVMe: Also use tmpfiles.d for reliability at boot (udev timing can be inconsistent)
-cat > /etc/tmpfiles.d/nvme-no-pm.conf << 'EOF'
-# Disable NVMe runtime power management at boot
-w /sys/block/nvme*/device/power/control - - - - on
-EOF
-
-# Apply immediately to existing NVMe devices
+# NVMe: Apply power/control=on at runtime to existing devices
 for d in /sys/block/nvme*/device/power/control; do
     echo on > "$d" 2>/dev/null || true
 done
@@ -485,11 +254,7 @@ done
 udevadm control --reload-rules 2>/dev/null || true
 udevadm trigger --subsystem-match=pci --attr-match=class=0x010802 2>/dev/null || true
 
-# SATA: Set ALPM to max_performance
-cat > /etc/udev/rules.d/60-sata-no-alpm.rules << 'EOF'
-# Disable SATA Link Power Management (ALPM)
-ACTION=="add", SUBSYSTEM=="scsi_host", KERNEL=="host*", ATTR{link_power_management_policy}="max_performance"
-EOF
+# SATA: Apply ALPM runtime (persistent udev rule in /etc/udev/rules.d/60-sata-no-alpm.rules, ansible-owned)
 for host in /sys/class/scsi_host/host*/link_power_management_policy; do
     echo max_performance > "$host" 2>/dev/null || true
 done
@@ -569,85 +334,20 @@ echo "  Done: K3s config deployed to /etc/rancher/k3s/config.yaml"
 echo ""
 
 #######################################
-# 5. GRACEFUL SHUTDOWN & SYSTEM SERVICES
+# 5. SYSTEM SERVICES (ansible-managed config)
 #######################################
 echo "=============================================="
-echo "[5/5] Graceful Shutdown & System Services"
+echo "[5/5] System Services"
 echo "=============================================="
-
-# Journald size limits (prevent unbounded growth)
-echo "Configuring journald size limits..."
-mkdir -p /etc/systemd/journald.conf.d
-cat > /etc/systemd/journald.conf.d/00-journal-size.conf << 'EOF'
-[Journal]
-SystemMaxUse=500M
-MaxRetentionSec=2weeks
-Compress=yes
-EOF
-systemctl restart systemd-journald
-
-# Update systemd timeouts
-echo "Configuring systemd timeouts..."
-for timeout_key in DefaultTimeoutStartSec DefaultTimeoutStopSec; do
-    if grep -q "^${timeout_key}=" /etc/systemd/system.conf; then
-        sed -i "s/^${timeout_key}=.*/${timeout_key}=120s/" /etc/systemd/system.conf
-    else
-        echo "${timeout_key}=120s" >> /etc/systemd/system.conf
-    fi
-done
-
-# Create kubelet config (referenced by K3s config from step 3)
-echo "Creating kubelet config..."
-cat > /etc/rancher/k3s/kubelet.yaml << 'EOF'
-apiVersion: kubelet.config.k8s.io/v1beta1
-kind: KubeletConfiguration
-shutdownGracePeriod: 120s
-shutdownGracePeriodCriticalPods: 30s
-# Eviction: hard threshold at 10%, soft at 15% with 1m grace
-evictionHard:
-  imagefs.available: "10%"
-  nodefs.available: "10%"
-  memory.available: "100Mi"
-evictionSoft:
-  imagefs.available: "15%"
-  nodefs.available: "15%"
-  memory.available: "200Mi"
-evictionSoftGracePeriod:
-  imagefs.available: "1m"
-  nodefs.available: "1m"
-  memory.available: "1m"
-# Log rotation
-containerLogMaxSize: "50Mi"
-containerLogMaxFiles: 5
-# Streaming connection security (CIS benchmark, default 4h is excessive)
-streamingConnectionIdleTimeout: 5m
-EOF
-
-# Create systemd overrides for K3s service
-mkdir -p /etc/systemd/system/${K3S_SERVICE}.service.d/
-cat > /etc/systemd/system/${K3S_SERVICE}.service.d/shutdown-timeout.conf << EOF
-[Service]
-TimeoutStopSec=150
-EOF
-
-# K3s kube-proxy recalculates conntrack on startup (cores × 32768)
-# Override it after K3s starts to ensure our value sticks
-cat > /etc/systemd/system/${K3S_SERVICE}.service.d/conntrack-fix.conf << 'EOF'
-[Service]
-ExecStartPost=/sbin/sysctl -w net.netfilter.nf_conntrack_max=1048576
-EOF
-
-# Re-apply network hardening after K3s creates flannel/cni interfaces
-# (systemd-sysctl runs before K3s, so network sysctls get reset by new interface creation)
-cat > /etc/systemd/system/${K3S_SERVICE}.service.d/network-hardening.conf << 'EOF'
-[Service]
-ExecStartPost=/sbin/sysctl -w net.ipv4.conf.all.log_martians=1 net.ipv4.conf.default.log_martians=1 net.ipv4.conf.all.secure_redirects=0 net.ipv4.conf.default.secure_redirects=0
-EOF
-
-# Reload systemd
+# Config files now managed by ansible roles (applied after node-maintenance install):
+#   - base_config (Phase A): /etc/systemd/journald.conf.d/99-caps.conf, logrotate, sudoers
+#   - hardening  (Phase D): kubelet.yaml, systemd/system.conf.d/watchdog.conf,
+#                           system.conf DefaultTimeout{Start,Stop}Sec,
+#                           k3s(-agent).service.d/{shutdown-timeout,conntrack-fix,network-hardening}.conf
+# Bootstrap only reloads systemd so any pre-existing drop-ins are recognized.
 systemctl daemon-reload
 
-echo "  Done: Graceful shutdown configured"
+echo "  Done: systemd reloaded (drop-ins + kubelet.yaml will be placed by ansible)"
 echo ""
 
 #######################################
@@ -657,30 +357,27 @@ echo "=============================================="
 echo "       Setup Complete"
 echo "=============================================="
 echo ""
-echo "Applied:"
+echo "Applied by bootstrap:"
 echo "  - Packages: base-devel, btop, fail2ban, fwupd, git, go, jq, yq, rsync, etc."
-echo "  - Workers: rebuilderd, archlinux-repro"
+echo "  - Workers: rebuilderd, archlinux-repro (units via ansible roles/rebuilderd)"
 echo "  - GPU: mesa, vulkan (auto-detected)"
 echo "  - User makepkg.conf: BUILDDIR/SRCDEST/PKGDEST override for rebuilderd nodes"
-echo "  - CPU governor: powersave (EPP: balance_power, boost enabled)"
-echo "  - TCP congestion: BBR, inotify 8192/1M, conntrack 1M"
-echo "  - SSD power saving: disabled (NVMe APST, PCIe ASPM, SATA ALPM)"
-echo "  - Security: unified kernel/fs/network hardening (50+ settings)"
-echo "  - Watchdog: panic on soft/hard lockup, hardware watchdog (30s systemd kick)"
-echo "  - Crash logging: EFI pstore, printk dump, panic=10 auto-reboot"
-echo "  - SSH: post-quantum kex, strong ciphers/MACs, PermitEmptyPasswords no"
-echo "  - Journald: 500MB max, 2 weeks retention"
+echo "  - CPU runtime: powersave governor, balance_power EPP"
+echo "  - NVMe/SATA: APST disabled, power/control=on, SATA max_performance"
+echo "  - Bootloader: efi_pstore, printk dump, panic=10, pcie_aspm=off" \
+     "(AMD: amd_pstate=active)"
+echo "  - SSH: PermitEmptyPasswords no (main sshd_config)"
+echo "  - Timers: fstrim.timer, paccache.timer"
 echo "  - K3s config: $NODE_TYPE (node-name: $HOSTNAME)"
-echo "  - Graceful shutdown: 120s (30s critical)"
 echo ""
-echo "Key files:"
-echo "  - /etc/sysctl.d/99-unified-hardening.conf"
-echo "  - /etc/sysctl.d/99-watchdog.conf"
-echo "  - /etc/sysctl.d/99-k8s-performance.conf"
-echo "  - /etc/ssh/sshd_config.d/99-hardening.conf"
-echo "  - /etc/systemd/journald.conf.d/00-journal-size.conf"
-echo "  - /etc/rancher/k3s/config.yaml"
-echo "  - /etc/rancher/k3s/kubelet.yaml"
+echo "Owned by ansible roles (applied after install.sh; drift-healed daily):"
+echo "  - hardening: sysctls (unified/k8s-performance/watchdog), sshd drop-in,"
+echo "               kubelet.yaml, systemd watchdog + timeouts, k3s service.d drop-ins,"
+echo "               resolved LLMNR, NVMe/SATA udev+modprobe, CPU/NVMe tmpfiles"
+echo "  - base_config: journald caps, logrotate, sudoers"
+echo "  - firewall: UFW rules"
+echo "  - rebuilderd (workers): watchdog, metrics, repro-cleanup"
+echo "  - k3s_image_gc: weekly crictl rmi --prune"
 echo ""
 if [ "$NODE_TYPE" = "control-plane" ]; then
     echo "Next steps:"
