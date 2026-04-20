@@ -107,6 +107,24 @@ kubectl exec -n authentik deploy/authentik-server -- curl -s -H "Authorization: 
 # Expected: device_classes includes all 6, not_configured_action: skip
 ```
 
+## Cache caveat
+
+Authentik server pods cache stage state in-memory. After a blueprint that mutates a stage applies (`status: successful`), the API may serve stale values from one or both replicas. If `device_classes` etc. don't reflect the new blueprint, restart server:
+
+```bash
+kubectl rollout restart deploy/authentik-server -n authentik
+kubectl rollout status deploy/authentik-server -n authentik --timeout=300s
+```
+
+DB is the source of truth — verify directly:
+```bash
+kubectl exec -n authentik deploy/authentik-worker -- ak shell -c "
+from authentik.stages.authenticator_validate.models import AuthenticatorValidateStage
+v = AuthenticatorValidateStage.objects.get(name='default-authentication-mfa-validation')
+print(v.device_classes, v.not_configured_action)
+"
+```
+
 ## Lockout recovery (worst case — cannot log in at all)
 
 1. Shell into worker, force-reset target stages via Django ORM:
