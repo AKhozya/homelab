@@ -4,8 +4,8 @@
 # ──────────────────────────────────────────────────────────────
 # ExecStartPre gates on /readyz only (apiserver reachable); CP workloads
 # (scheduler, controller-manager, flux controllers, coredns, traefik) may
-# still churn. Wait for Flux kustomizations Ready + short pause so CNI/DNS
-# settle before cordoning workers.
+# still churn. Sequence of checks + pause so CNI/DNS/controllers settle
+# before cordoning workers.
 - name: Node maintenance — Phase 2 (CP stabilize)
   hosts: localhost
   connection: local
@@ -13,6 +13,77 @@
   become: false
 
   tasks:
+    - name: CP stabilize — wait CP Node Ready
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl --kubeconfig={{ kubeconfig_path }} get node -l node-role.kubernetes.io/control-plane -o json \
+          | jq -e '[.items[] | select(.status.conditions[]? | select(.type=="Ready") | .status != "True")] | length == 0'
+      args:
+        executable: /bin/bash
+      register: cp_node_ready
+      until: cp_node_ready.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: CP stabilize — wait kube-system critical pods Ready (coredns + metrics-server)
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl --kubeconfig={{ kubeconfig_path }} -n kube-system get pods \
+          -l 'k8s-app in (kube-dns,metrics-server)' -o json \
+          | jq -e '
+              [.items[]
+                | select(.status.phase != "Succeeded")
+                | select(.status.conditions[]? | select(.type=="Ready") | .status != "True")
+              ] | length == 0
+            '
+      args:
+        executable: /bin/bash
+      register: kube_system_ready
+      until: kube_system_ready.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: CP stabilize — wait traefik ingress Ready
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl --kubeconfig={{ kubeconfig_path }} -n traefik get pods \
+          -l 'app.kubernetes.io/name=traefik' -o json \
+          | jq -e '
+              (.items | length) > 0
+              and ([.items[]
+                     | select(.status.phase != "Succeeded")
+                     | select(.status.conditions[]? | select(.type=="Ready") | .status != "True")
+                   ] | length == 0)
+            '
+      args:
+        executable: /bin/bash
+      register: traefik_ready
+      until: traefik_ready.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: CP stabilize — wait flux-system controllers Ready
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl --kubeconfig={{ kubeconfig_path }} -n flux-system get pods \
+          -l 'app in (source-controller,kustomize-controller,helm-controller,notification-controller)' -o json \
+          | jq -e '
+              [.items[]
+                | select(.status.phase != "Succeeded")
+                | select(.status.conditions[]? | select(.type=="Ready") | .status != "True")
+              ] | length == 0
+            '
+      args:
+        executable: /bin/bash
+      register: flux_ctrl_ready
+      until: flux_ctrl_ready.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+
     - name: CP stabilize — wait Flux kustomizations Ready
       ansible.builtin.shell: |
         set -o pipefail
