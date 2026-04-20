@@ -1153,3 +1153,24 @@ git push
 - Pre-flight snapshot saved as forensic recovery option (no scheduled CNPG backups are configured on `main-postgres` per live audit; manual `kubectl cnpg backup` could be added as additional safety net before each PR but kept out of plan to avoid scope creep).
 - Plan uses literal `flux reconcile` invocations (the zsh `fr` function is not callable from `bash -c`).
 - API queries use `pk` (the actual primary key field name).
+
+---
+
+## Plan closed: 2026-04-20
+
+All 4 phases applied. 4 custom blueprints `successful`. Smoke tests 6a (Conditional UI autofill) + 6b (passwordless button) + 6c (password+MFA step-up fallback) + 6d (OIDC delegation via audiobookshelf) all pass on Brave (incognito, 1Password unlocked).
+
+### Execution deviations from plan
+1. **Zombie existing credential**: akadmin's 2025-10-21 1Password WebAuthn device had `rp_id: null` and was never assertion-tested (`sign_count: null`). First Phase 2 smoke surfaced this — 1Password had no locally-saved credential for the RPID. Fix: re-enrolled via Phase 1's User Settings binding (fresh pk=34, working). Deleted zombie pk=1 via API (`DELETE /api/v3/authenticators/admin/webauthn/1/`, HTTP 204) because UI checkbox was hit by #18232 (selecting WebAuthn pk=1 also selected TOTP pk=1).
+2. **Phase 2 first apply errored**: `IdentificationStageSerializer.validate()` rejected the partial patch with "When no user fields are selected, at least one source must be selected". Root cause: validator runs against supplied data only, not merged state, even with `partial=True`. Fix: include `user_fields: [email, username]` + `sources: []` explicitly in the identification patch attrs. Updated in commit 468da0ba.
+3. **Blueprint API path**: plan referenced `/api/v3/blueprints/instances/` — actual path is `/api/v3/managed/blueprints/` (paginated default 20, use `?page_size=100`). Runbook corrected.
+4. **Known harmless quirk**: fresh WebAuthn device pk=34 also returns `rp_id: null` via API. Credential works regardless — `rp_id` appears to be a display-only field populated after first assertion in 2026.2.x. Documented in runbook.
+5. **Rebase required before Phase 3 push**: upstream renovate commits (n8n + audiobookshelf image updates) merged between Phase 2 + Phase 3; `git pull --rebase origin main && git push` cleanly resolved.
+
+### Final state
+- `default-authentication-identification`: `webauthn_stage`=UUID, `passwordless_flow`=UUID, `password_stage`=null, `user_fields`=[email, username], `pretend_user_exists`=true
+- `default-authentication-mfa-validation`: `device_classes`=[webauthn], `not_configured_action`=configure, `webauthn_user_verification`=required, `configuration_stages`=[default-authenticator-webauthn-setup UUID], `last_auth_threshold`=seconds=0
+- `default-authenticator-webauthn-setup`: `resident_key_requirement`=required, `user_verification`=required, `configure_flow`=preserved (UUID)
+- `default-user-settings-flow`: bindings at orders 20 (prompt), 30 (webauthn setup, NEW), 100 (user-write)
+- 3 new homelab-* entities: `homelab-passwordless-webauthn-validate` stage, `homelab-authentication-webauthn-passwordless` flow, `homelab-passkey-setup-flow`
+- akadmin: 1 active WebAuthn device (1Password, pk=34, `sign_count` incremented after smoke) + 1 TOTP device (unused by tightened MFA validate, pending optional delete)
