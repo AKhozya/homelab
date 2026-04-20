@@ -14,6 +14,24 @@
     state: present
   tags: [firewall]
 
+# Pre-heal: ip6tables state drifts at runtime (suspected K3s/flannel + kube-proxy
+# iptables-restore races with UFW's ip6tables-save on `ufw status verbose`). When
+# this happens, every community.general.ufw task fails with "ERROR: problem
+# running ip6tables". `ufw reload` rebuilds chains from rules files and
+# normalizes state → subsequent module invocations succeed. changed_when: false
+# keeps this out of the drift count. Boot-time heal via ufw-reload-after-k3s.service
+# covers post-boot window; this covers mid-lifetime drift between drift-heal runs.
+- name: Pre-heal — reload UFW to normalize ip6tables state
+  ansible.builtin.command:
+    cmd: ufw reload
+  register: ufw_preheal
+  changed_when: false
+  failed_when: >-
+    ufw_preheal.rc != 0 and
+    'inactive' not in (ufw_preheal.stderr | default('')) and
+    'not enabled' not in (ufw_preheal.stderr | default(''))
+  tags: [firewall]
+
 # SSH rule first — guarantees lockout-safety if policies applied before rules
 # ever produce an inconsistent state (should not happen in steady state, but
 # cheap insurance).
