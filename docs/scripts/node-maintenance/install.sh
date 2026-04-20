@@ -86,7 +86,17 @@ install -d -m 0700 -o node-maintenance -g node-maintenance /var/lib/node-mainten
 # ── ansible playbooks + collections ──
 rsync -a --delete "$REPO_DIR/ansible/" /etc/node-maintenance/ansible/
 chmod 0600 /etc/node-maintenance/ansible/inventory.yml
-ansible-galaxy collection install -r /etc/node-maintenance/ansible/requirements.yml --force
+# Galaxy install gated on requirements.yml hash — saves ~2-3min per sync when
+# requirements unchanged (collection download dominates). Delete stamp file
+# to force refresh: `rm /etc/node-maintenance/.galaxy-requirements.sha256`.
+GALAXY_STAMP=/etc/node-maintenance/.galaxy-requirements.sha256
+GALAXY_REQ=/etc/node-maintenance/ansible/requirements.yml
+GALAXY_NEW_HASH=$(sha256sum "$GALAXY_REQ" | awk '{print $1}')
+if [ "$(cat "$GALAXY_STAMP" 2>/dev/null)" != "$GALAXY_NEW_HASH" ]; then
+  ansible-galaxy collection install -r "$GALAXY_REQ" --force
+  printf '%s\n' "$GALAXY_NEW_HASH" > "$GALAXY_STAMP"
+  chmod 0644 "$GALAXY_STAMP"
+fi
 
 if [ "$SYNC_ONLY" -eq 0 ]; then
   # ── SSH key (copy from pre-decrypted path, shred source) ──
