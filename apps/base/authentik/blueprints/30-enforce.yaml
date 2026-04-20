@@ -1,0 +1,21 @@
+version: 1
+metadata:
+  name: homelab-enforce-passkey-mfa
+  labels:
+    blueprints.goauthentik.io/description: "Tighten default-authentication-mfa-validation: device_classes=[webauthn] only, not_configured_action=configure (force inline enrollment), webauthn_user_verification=required. Bind the existing default-authenticator-webauthn-setup stage as configuration_stages[0] so users without a WebAuthn device enroll inline during login. Preventive — guards future user additions."
+entries:
+  - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
+    state: present
+    identifiers:
+      name: default-authentication-mfa-validation
+    attrs:
+      not_configured_action: configure
+      device_classes:
+        - webauthn
+      webauthn_user_verification: required
+      last_auth_threshold: "seconds=0"
+      configuration_stages:
+        - !Find [
+            authentik_stages_authenticator_webauthn.authenticatorwebauthnstage,
+            [name, default-authenticator-webauthn-setup],
+          ]
