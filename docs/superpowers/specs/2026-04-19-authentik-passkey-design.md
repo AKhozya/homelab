@@ -43,7 +43,7 @@ Passkey-first via blueprints. Three orthogonal Authentik mechanisms compose the 
 
 1. **Conditional UI / autofill** — `IdentificationStage.webauthn_stage` references an `AuthenticatorValidateStage` (WebAuthn class). When set and the browser supports `mediation: conditional`, the username field surfaces stored passkeys in the autocomplete dropdown. User picks passkey → authenticated → done. (Available since 2025.12.)
 2. **Explicit passwordless button** — `IdentificationStage.passwordless_flow` references a flow that runs WebAuthn validation alone. Renders a "Use a passkey" link below the username field. Belt-and-braces fallback for browsers without Conditional UI.
-3. **Voluntary enrollment + forced enrollment for new users** — bind `default-authenticator-webauthn-setup` to `default-user-settings-flow` (voluntary path), and switch `default-authentication-mfa-validation.not_configured_action` from `skip` to `configure` with `device_classes=[webauthn]` (force any new user without a passkey to enroll on first login).
+3. **Voluntary enrollment + forced enrollment for new users** — bind `default-authenticator-webauthn-setup` to `default-user-settings-flow` (voluntary path), and switch `default-authentication-mfa-validation.not_configured_action` from `skip` to `configure` with `device_classes=[webauthn, totp]` (TOTP retained as recovery 2FA method for device-loss scenarios; `configuration_stages` binds only WebAuthn setup so new users without any device still forced to enroll passkey, not TOTP).
 
 Password stage remains bound at order 20 in the main flow as a recovery path. Email-based password recovery flow stays as last resort. Existing passkey for akadmin is preserved (RPID matches, no widening of cookie domain).
 

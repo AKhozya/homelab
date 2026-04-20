@@ -1166,10 +1166,11 @@ All 4 phases applied. 4 custom blueprints `successful`. Smoke tests 6a (Conditio
 3. **Blueprint API path**: plan referenced `/api/v3/blueprints/instances/` — actual path is `/api/v3/managed/blueprints/` (paginated default 20, use `?page_size=100`). Runbook corrected.
 4. **Known harmless quirk**: fresh WebAuthn device pk=34 also returns `rp_id: null` via API. Credential works regardless — `rp_id` appears to be a display-only field populated after first assertion in 2026.2.x. Documented in runbook.
 5. **Rebase required before Phase 3 push**: upstream renovate commits (n8n + audiobookshelf image updates) merged between Phase 2 + Phase 3; `git pull --rebase origin main && git push` cleanly resolved.
+6. **TOTP added back as fallback 2FA (post-closure adjustment, commit cbac7ecc)**: original Phase 3 narrowed `device_classes=[webauthn]`. User raised lockout concern — TOTP device on akadmin became unreachable, removing one recovery layer. Relaxed to `[webauthn, totp]`. `configuration_stages` unchanged (still WebAuthn-only) so new-user enrollment forcing is preserved. Required `kubectl rollout restart deploy/authentik-server` to clear in-memory stage cache (DB updated immediately, API served stale until restart). Cache caveat added to runbook + memory file.
 
 ### Final state
 - `default-authentication-identification`: `webauthn_stage`=UUID, `passwordless_flow`=UUID, `password_stage`=null, `user_fields`=[email, username], `pretend_user_exists`=true
-- `default-authentication-mfa-validation`: `device_classes`=[webauthn], `not_configured_action`=configure, `webauthn_user_verification`=required, `configuration_stages`=[default-authenticator-webauthn-setup UUID], `last_auth_threshold`=seconds=0
+- `default-authentication-mfa-validation`: `device_classes`=[webauthn, totp] (TOTP retained as recovery; post-rollout adjustment 2026-04-20), `not_configured_action`=configure, `webauthn_user_verification`=required, `configuration_stages`=[default-authenticator-webauthn-setup UUID — passkey-only inline enrollment for new users], `last_auth_threshold`=seconds=0
 - `default-authenticator-webauthn-setup`: `resident_key_requirement`=required, `user_verification`=required, `configure_flow`=preserved (UUID)
 - `default-user-settings-flow`: bindings at orders 20 (prompt), 30 (webauthn setup, NEW), 100 (user-write)
 - 3 new homelab-* entities: `homelab-passwordless-webauthn-validate` stage, `homelab-authentication-webauthn-passwordless` flow, `homelab-passkey-setup-flow`
