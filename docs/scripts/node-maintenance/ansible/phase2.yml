@@ -1,5 +1,36 @@
 ---
 # ──────────────────────────────────────────────────────────────
+# PLAY 0: CP stabilize (post-reboot settle before worker rollout)
+# ──────────────────────────────────────────────────────────────
+# ExecStartPre gates on /readyz only (apiserver reachable); CP workloads
+# (scheduler, controller-manager, flux controllers, coredns, traefik) may
+# still churn. Wait for Flux kustomizations Ready + short pause so CNI/DNS
+# settle before cordoning workers.
+- name: Node maintenance — Phase 2 (CP stabilize)
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+
+  tasks:
+    - name: CP stabilize — wait Flux kustomizations Ready
+      ansible.builtin.shell: |
+        set -o pipefail
+        kubectl --kubeconfig={{ kubeconfig_path }} get kustomization -n flux-system -o json \
+          | jq -e '[.items[] | select(.status.conditions[]? | select(.type=="Ready") | .status != "True")] | length == 0'
+      args:
+        executable: /bin/bash
+      register: flux_ready_check
+      until: flux_ready_check.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+
+    - name: CP stabilize pause
+      ansible.builtin.pause:
+        minutes: "{{ cp_stabilize_minutes }}"
+
+# ──────────────────────────────────────────────────────────────
 # PLAY 1: Per-worker rolling update (serial: 1)
 # ──────────────────────────────────────────────────────────────
 - name: Node maintenance — Phase 2 (worker rolling update)

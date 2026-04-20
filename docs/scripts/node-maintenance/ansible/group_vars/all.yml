@@ -30,6 +30,7 @@ reboot_timeout_sec: 400
 post_reboot_delay_sec: 30
 node_ready_retries: 40
 node_ready_delay_sec: 10
+cp_stabilize_minutes: 3
 per_node_stabilize_minutes: 3
 final_stabilize_minutes: 5
 
