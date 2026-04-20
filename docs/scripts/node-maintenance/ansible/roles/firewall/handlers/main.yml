@@ -1,3 +1,7 @@
 ---
-# No handlers needed — community.general.ufw reloads per-rule on change.
-# Kept for consistency with other roles and future-proofing.
+# community.general.ufw reloads per-rule on change. Extra handler below is
+# only invoked by the ufw-reload-after-k3s unit deploy task.
+
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true

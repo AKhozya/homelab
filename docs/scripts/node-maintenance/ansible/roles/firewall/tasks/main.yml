@@ -84,3 +84,40 @@
     name: ufw.service
     enabled: true
   tags: [firewall]
+
+# Post-boot heal: K3s/flannel populates ip6tables after ufw.service starts.
+# On subsequent ufw invocations (e.g. `ufw status verbose` from ansible
+# drift-heal), ufw's ip6tables-save parse can fail with "ERROR: problem
+# running ip6tables" until a full ufw reload normalizes chain state.
+# This unit runs `ufw reload` once at boot after k3s is up, self-healing
+# the state before any scheduled drift-heal or operator invocation.
+# First seen: 2026-04-20 W1 post-reboot (see memory/gotcha_ufw_ip6tables_post_reboot.md).
+- name: Deploy ufw-reload-after-k3s.service (heals post-reboot ip6tables state)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/ufw-reload-after-k3s.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Reload UFW after K3s populates ip6tables (heals post-reboot drift)
+      After=k3s.service k3s-agent.service ufw.service network-online.target
+      Wants=ufw.service
+      ConditionPathExists=/usr/sbin/ufw
+
+      [Service]
+      Type=oneshot
+      ExecStartPre=/bin/sleep 15
+      ExecStart=/usr/sbin/ufw reload
+      RemainAfterExit=no
+
+      [Install]
+      WantedBy=multi-user.target
+  notify: Reload systemd
+  tags: [firewall]
+
+- name: Enable ufw-reload-after-k3s.service at boot
+  ansible.builtin.systemd_service:
+    name: ufw-reload-after-k3s.service
+    enabled: true
+  tags: [firewall]
