@@ -2,7 +2,7 @@ version: 1
 metadata:
   name: homelab-enforce-passkey-mfa
   labels:
-    blueprints.goauthentik.io/description: "Tighten default-authentication-mfa-validation: device_classes=[webauthn] only, not_configured_action=configure (force inline enrollment), webauthn_user_verification=required. Bind the existing default-authenticator-webauthn-setup stage as configuration_stages[0] so users without a WebAuthn device enroll inline during login. Preventive — guards future user additions."
+    blueprints.goauthentik.io/description: "Tighten default-authentication-mfa-validation: device_classes=[webauthn, totp] (passkey-first with TOTP as fallback 2FA method for device-loss recovery), not_configured_action=configure (force inline enrollment of WebAuthn only — configuration_stages binds only the WebAuthn setup stage, so new users still enroll passkey). webauthn_user_verification=required."
 entries:
   - model: authentik_stages_authenticator_validate.authenticatorvalidatestage
     state: present
@@ -12,6 +12,7 @@ entries:
       not_configured_action: configure
       device_classes:
         - webauthn
+        - totp
       webauthn_user_verification: required
       last_auth_threshold: "seconds=0"
       configuration_stages:
