@@ -12,6 +12,10 @@
   ansible.builtin.package:
     name: ufw
     state: present
+  register: pkg_ufw
+  until: pkg_ufw is not failed
+  retries: 3
+  delay: 30
   tags: [firewall]
 
 # Pre-heal: ip6tables state drifts at runtime when K3s/kube-router + fail2ban

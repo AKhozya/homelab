@@ -6,6 +6,10 @@
   ansible.builtin.package:
     name: logrotate
     state: present
+  register: pkg_logrotate
+  until: pkg_logrotate is not failed
+  retries: 3
+  delay: 30
   tags: [base-config, logrotate]
 
 - name: Deploy /etc/logrotate.d/pacman

@@ -162,6 +162,64 @@ ls /var/log/node-maintenance/
 less /var/log/node-maintenance/phase2-18-04-2026.log
 ```
 
+## Resilience — retry policy
+
+All tasks sensitive to transient external failures (pacman mirrors, LVFS
+firmware metadata, ip6tables kernel races with kube-router/fail2ban, UFW
+`ufw status verbose` returning "ERROR: problem running ip6tables") carry
+`until/retries/delay` so drift-heal survives flakes without manual re-runs.
+
+| Task class | Retries | Delay | Why |
+|------------|---------|-------|-----|
+| `ansible.builtin.package` (pacman) | 3 | 30s | Mirror 5xx/DNS, `/var/lib/pacman/db.lck`, GPG timeout |
+| `community.general.ufw` | 5 | 10s | Transient ip6tables races with kube-router + fail2ban |
+| `fwupdmgr update` (firmware apply) | 3 | 20s | LVFS server 5xx during fetch/verify |
+| `systemd-resolved` restart handler | 2 | 5s | DNS churn during CP reboots |
+
+Intentionally **not retried** (fail-loud):
+- `sshd -t` config validate — must catch real config errors.
+- Preflight checks (`/readyz`, Flux kustomization Ready, backup active).
+- Local `copy`/`file`/`lineinfile` — atomic writes, failure = real bug.
+
+### Drift-heal timeouts (systemd `TimeoutStartSec`)
+
+| Unit | Limit | Rationale |
+|------|-------|-----------|
+| `node-maintenance-sync.service` | 20min | Wraps config playbook (max 15min) + git sync + install.sh |
+| `node-maintenance-config.service` | 15min | Playbook ceiling incl. worst-case retries across all roles |
+| `node-maintenance-phase1.service` | 30min | CP yay+reboot staging |
+| `node-maintenance-phase2.service` | 90min | 3 workers serial yay+reboot + stabilize pauses |
+
+### UFW boot-time healer (`ufw-heal-post-k3s.service`)
+
+On every boot, `/usr/local/sbin/ufw-heal-post-k3s.sh` runs once:
+
+1. **Phase A** — poll for kube-router quiescence (`KUBE-ROUTER-INPUT` chain exists + ip6tables-save line count stable across 2 samples 5s apart), 120s cap, continue on timeout.
+2. **Phase B** — `ufw reload` ×3 with 10s gap.
+3. **Phase C** — per-chain repair: parse `:<chain>` declarations from UFW rules files, `ip6tables -N` any missing (race-free, atomic per syscall).
+4. **Phase D** — verify probe set: `ufw-logging-deny`, `ufw6-logging-deny`, `ufw-user-input`, `ufw6-user-input` all exist.
+5. **Phase E** — final `ufw reload` once.
+6. **Phase F** — `ufw status verbose` returns `Status: active` (or inactive if `ENABLED=no`, also accepted). Exits non-zero only on real failure.
+
+Logs: `journalctl -t ufw-heal` (per-phase markers).
+
+Replaces prior `ufw-reload-after-k3s.service` (bare `sleep 15 + ufw reload`, too fragile — ran before kube-router was done mutating kernel state).
+
+### UFW health metrics (`ufw-state-metric.service.timer`)
+
+Emits 3 gauges every 60s via node-exporter textfile collector
+(`/var/lib/node_exporter/textfile/ufw_state.prom`):
+
+- `ufw_enabled{node}` — config `ENABLED=yes` (1) or `no` (0)
+- `ufw_service_active{node}` — `systemctl is-active ufw.service`
+- `ufw_chains_healthy{node}` — canary probe set present in kernel
+
+Alerts (`firewall-alerts` group, VMRule `homelab-alerts`):
+
+- `UfwDisabled` (critical, 5m) — config flipped off
+- `UfwServiceInactive` (critical, 5m) — systemd unit stopped
+- `UfwChainsUnhealthy` (critical, 5m) — partial ip6tables load detected; heal should catch within 10min via drift-heal pre-heal
+
 ## Recovery
 
 ### Phase 2 failed, flag retained

@@ -6,10 +6,18 @@
 # AUR packages intentionally out of scope — see setup-node.sh Section 1.
 # Microcode + GPU vendor resolved via per-host `ucode_pkg` / `gpu_vendor` in host_vars.
 
+# All pacman tasks: retries=3, delay=30 protect against transient failures —
+# mirror 5xx/DNS flake, /var/lib/pacman/db.lck held by concurrent process,
+# GPG keyserver timeout. retries=3 catches transient; more would mask real bugs.
+
 - name: Install base packages (pacman)
   ansible.builtin.package:
     name: "{{ pacman_packages_base }}"
     state: present
+  register: pkg_base
+  until: pkg_base is not failed
+  retries: 3
+  delay: 30
   tags: [packages, base]
 
 - name: Install CPU microcode ({{ ucode_pkg | default('unset') }})
@@ -17,6 +25,10 @@
     name: "{{ ucode_pkg }}"
     state: present
   when: ucode_pkg is defined
+  register: pkg_ucode
+  until: pkg_ucode is not failed
+  retries: 3
+  delay: 30
   tags: [packages, microcode]
 
 - name: Install linux-firmware (universal)
@@ -25,6 +37,10 @@
       - linux-firmware
       - linux-firmware-whence
     state: present
+  register: pkg_fw
+  until: pkg_fw is not failed
+  retries: 3
+  delay: 30
   tags: [packages, firmware]
 
 - name: Install GPU base stack (mesa + vulkan tools + implicit layers)
@@ -35,6 +51,10 @@
       - vulkan-mesa-implicit-layers
     state: present
   when: gpu_vendor is defined
+  register: pkg_gpu_base
+  until: pkg_gpu_base is not failed
+  retries: 3
+  delay: 30
   tags: [packages, gpu]
 
 - name: Install AMD vulkan driver
@@ -42,6 +62,10 @@
     name: vulkan-radeon
     state: present
   when: gpu_vendor | default('') == 'amd'
+  register: pkg_gpu_amd
+  until: pkg_gpu_amd is not failed
+  retries: 3
+  delay: 30
   tags: [packages, gpu]
 
 - name: Install Intel vulkan driver
@@ -49,6 +73,10 @@
     name: vulkan-intel
     state: present
   when: gpu_vendor | default('') == 'intel'
+  register: pkg_gpu_intel
+  until: pkg_gpu_intel is not failed
+  retries: 3
+  delay: 30
   tags: [packages, gpu]
 
 - name: Install worker-only packages (rebuilderd stack)
@@ -58,4 +86,8 @@
   when:
     - "'workers' in group_names"
     - pacman_packages_worker is defined
+  register: pkg_worker
+  until: pkg_worker is not failed
+  retries: 3
+  delay: 30
   tags: [packages, worker]

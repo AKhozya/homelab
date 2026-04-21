@@ -7,6 +7,10 @@
   ansible.builtin.package:
     name: rebuilderd
     state: present
+  register: pkg_rebuilderd
+  until: pkg_rebuilderd is not failed
+  retries: 3
+  delay: 30
   tags: [rebuilderd, pkg]
 
 - name: Ensure node-exporter textfile dir

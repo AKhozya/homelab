@@ -7,8 +7,15 @@
   ansible.builtin.package:
     name: fwupd
     state: present
+  register: pkg_fwupd
+  until: pkg_fwupd is not failed
+  retries: 3
+  delay: 30
   tags: [never, firmware, ad-hoc]
 
+# refresh/get-updates intentionally keep failed_when: false — LVFS 5xx is
+# tolerated (check-mode, next run catches up). retry would add latency without
+# behaviour change since the play never fails regardless.
 - name: Refresh fwupd metadata
   ansible.builtin.command: fwupdmgr refresh --force
   changed_when: false
@@ -31,6 +38,9 @@
   ansible.builtin.command: fwupdmgr update --no-unreported-check --assume-yes
   when: ad_hoc_firmware_apply | bool
   register: fwupd_apply
+  until: fwupd_apply is not failed
+  retries: 3
+  delay: 20
   changed_when: fwupd_apply.rc == 0 and 'No updatable devices' not in (fwupd_apply.stdout | default(''))
   tags: [never, firmware, ad-hoc]
 

@@ -11,6 +11,10 @@
   ansible.builtin.systemd_service:
     name: systemd-resolved
     state: restarted
+  register: resolved_restart
+  until: resolved_restart is not failed
+  retries: 2
+  delay: 5
 
 - name: Reload udev rules
   ansible.builtin.shell: |
