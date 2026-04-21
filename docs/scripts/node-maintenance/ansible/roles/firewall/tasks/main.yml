@@ -14,22 +14,69 @@
     state: present
   tags: [firewall]
 
-# Pre-heal: ip6tables state drifts at runtime (suspected K3s/flannel + kube-proxy
-# iptables-restore races with UFW's ip6tables-save on `ufw status verbose`). When
-# this happens, every community.general.ufw task fails with "ERROR: problem
-# running ip6tables". `ufw reload` rebuilds chains from rules files and
-# normalizes state → subsequent module invocations succeed. changed_when: false
-# keeps this out of the drift count. Boot-time heal via ufw-reload-after-k3s.service
-# covers post-boot window; this covers mid-lifetime drift between drift-heal runs.
-- name: Pre-heal — reload UFW to normalize ip6tables state
-  ansible.builtin.command:
-    cmd: ufw reload
+# Pre-heal: ip6tables state drifts at runtime when K3s/kube-router + fail2ban
+# race-mutate kernel nft state against UFW's ip6tables-restore (silent partial
+# load). Symptom: `ufw status verbose` returns "ERROR: problem running ip6tables";
+# community.general.ufw tasks then fail.
+#
+# Strategy: try `ufw reload`, on failure do per-chain repair (idempotent
+# ip6tables -N for any chain declared in UFW rules files but missing from
+# kernel). Repair is race-free because each -N is a single syscall; no atomic
+# restore to collide with.
+#
+# Related boot-time heal: ufw-heal-post-k3s.service (deployed below).
+# Refs: UFW #1987227, #1294544; K3s #1280.
+- name: Pre-heal — ufw reload with retry + per-chain repair
+  ansible.builtin.shell: |
+    set +e
+    reload_ok=0
+    for attempt in 1 2 3; do
+      if /usr/sbin/ufw reload >/dev/null 2>&1; then
+        reload_ok=1
+        break
+      fi
+      sleep 5
+    done
+    if [ "$reload_ok" = "1" ]; then
+      echo "RELOAD_OK"
+      exit 0
+    fi
+    # Fallback: check if ufw is simply inactive (benign)
+    status=$(/usr/sbin/ufw status 2>&1 || true)
+    if echo "$status" | grep -qiE "inactive|not enabled"; then
+      echo "UFW_INACTIVE"
+      exit 0
+    fi
+    # Per-chain repair (race-free)
+    repaired=0
+    for rules_file in /etc/ufw/before.rules /etc/ufw/after.rules /etc/ufw/user.rules; do
+      [ -f "$rules_file" ] || continue
+      for chain in $(grep -E '^:[a-zA-Z0-9_-]+' "$rules_file" | awk -F'[: ]' '{print $2}'); do
+        if ! /usr/sbin/iptables -L "$chain" -n >/dev/null 2>&1; then
+          /usr/sbin/iptables -N "$chain" 2>/dev/null && repaired=$((repaired + 1))
+        fi
+      done
+    done
+    for rules_file in /etc/ufw/before6.rules /etc/ufw/after6.rules /etc/ufw/user6.rules; do
+      [ -f "$rules_file" ] || continue
+      for chain in $(grep -E '^:[a-zA-Z0-9_-]+' "$rules_file" | awk -F'[: ]' '{print $2}'); do
+        if ! /usr/sbin/ip6tables -L "$chain" -n >/dev/null 2>&1; then
+          /usr/sbin/ip6tables -N "$chain" 2>/dev/null && repaired=$((repaired + 1))
+        fi
+      done
+    done
+    # Retry reload once after repair
+    if /usr/sbin/ufw reload >/dev/null 2>&1; then
+      echo "RELOAD_OK_AFTER_REPAIR repaired=$repaired"
+      exit 0
+    fi
+    echo "PREHEAL_FAILED repaired=$repaired"
+    exit 1
+  args:
+    executable: /bin/bash
   register: ufw_preheal
   changed_when: false
-  failed_when: >-
-    ufw_preheal.rc != 0 and
-    'inactive' not in (ufw_preheal.stderr | default('')) and
-    'not enabled' not in (ufw_preheal.stderr | default(''))
+  failed_when: ufw_preheal.rc != 0
   tags: [firewall]
 
 # SSH rule first — guarantees lockout-safety if policies applied before rules
@@ -103,39 +150,96 @@
     enabled: true
   tags: [firewall]
 
-# Post-boot heal: K3s/flannel populates ip6tables after ufw.service starts.
-# On subsequent ufw invocations (e.g. `ufw status verbose` from ansible
-# drift-heal), ufw's ip6tables-save parse can fail with "ERROR: problem
-# running ip6tables" until a full ufw reload normalizes chain state.
-# This unit runs `ufw reload` once at boot after k3s is up, self-healing
-# the state before any scheduled drift-heal or operator invocation.
+# Post-boot heal: K3s/kube-router + fail2ban race-mutate ip6tables after
+# ufw.service starts; UFW's ip6tables-restore partially loads, leaving chains
+# missing. Healer script does settle-wait + reload + per-chain repair + verify.
 # First seen: 2026-04-20 W1 post-reboot (see memory/gotcha_ufw_ip6tables_post_reboot.md).
-- name: Deploy ufw-reload-after-k3s.service (heals post-reboot ip6tables state)
+# Replaces prior ufw-reload-after-k3s.service (bare `ufw reload`, too fragile).
+- name: Deploy ufw-heal-post-k3s.sh (boot-time healer)
   ansible.builtin.copy:
-    dest: /etc/systemd/system/ufw-reload-after-k3s.service
+    src: ufw-heal-post-k3s.sh
+    dest: /usr/local/sbin/ufw-heal-post-k3s.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [firewall]
+
+- name: Deploy ufw-heal-post-k3s.service
+  ansible.builtin.copy:
+    src: ufw-heal-post-k3s.service
+    dest: /etc/systemd/system/ufw-heal-post-k3s.service
     owner: root
     group: root
     mode: "0644"
-    content: |
-      [Unit]
-      Description=Reload UFW after K3s populates ip6tables (heals post-reboot drift)
-      After=k3s.service k3s-agent.service ufw.service network-online.target
-      Wants=ufw.service
-      ConditionPathExists=/usr/sbin/ufw
-
-      [Service]
-      Type=oneshot
-      ExecStartPre=/bin/sleep 15
-      ExecStart=/usr/sbin/ufw reload
-      RemainAfterExit=no
-
-      [Install]
-      WantedBy=multi-user.target
   notify: Reload systemd
   tags: [firewall]
 
-- name: Enable ufw-reload-after-k3s.service at boot
+- name: Enable ufw-heal-post-k3s.service at boot
   ansible.builtin.systemd_service:
-    name: ufw-reload-after-k3s.service
+    name: ufw-heal-post-k3s.service
     enabled: true
   tags: [firewall]
+
+# Retire old service (safe — unit file no longer referenced, disable + remove).
+- name: Disable legacy ufw-reload-after-k3s.service
+  ansible.builtin.systemd_service:
+    name: ufw-reload-after-k3s.service
+    enabled: false
+    state: stopped
+  failed_when: false
+  tags: [firewall]
+
+- name: Remove legacy ufw-reload-after-k3s.service unit file
+  ansible.builtin.file:
+    path: /etc/systemd/system/ufw-reload-after-k3s.service
+    state: absent
+  notify: Reload systemd
+  tags: [firewall]
+
+# ──────────────────────────────────────────────────────────────
+# L3: UFW state metric for node-exporter textfile collector
+# ──────────────────────────────────────────────────────────────
+- name: Ensure node-exporter textfile dir exists
+  ansible.builtin.file:
+    path: /var/lib/node_exporter/textfile
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [firewall, metrics]
+
+- name: Deploy ufw-state-metric.sh
+  ansible.builtin.copy:
+    src: ufw-state-metric.sh
+    dest: /usr/local/sbin/ufw-state-metric.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [firewall, metrics]
+
+- name: Deploy ufw-state-metric.service
+  ansible.builtin.copy:
+    src: ufw-state-metric.service
+    dest: /etc/systemd/system/ufw-state-metric.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [firewall, metrics]
+
+- name: Deploy ufw-state-metric.timer
+  ansible.builtin.copy:
+    src: ufw-state-metric.timer
+    dest: /etc/systemd/system/ufw-state-metric.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [firewall, metrics]
+
+- name: Enable + start ufw-state-metric.timer
+  ansible.builtin.systemd_service:
+    name: ufw-state-metric.timer
+    enabled: true
+    state: started
+  tags: [firewall, metrics]

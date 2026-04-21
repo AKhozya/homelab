@@ -1,0 +1,18 @@
+[Unit]
+Description=Heal UFW after K3s + fail2ban fully populate ip6tables chains
+Documentation=https://bugs.launchpad.net/ufw/+bug/1987227
+After=k3s.service k3s-agent.service ufw.service fail2ban.service network-online.target
+Wants=ufw.service
+ConditionPathExists=/usr/sbin/ufw
+ConditionPathExists=/usr/local/sbin/ufw-heal-post-k3s.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ufw-heal-post-k3s.sh
+TimeoutStartSec=5min
+RemainAfterExit=no
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

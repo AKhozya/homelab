@@ -1,0 +1,10 @@
+[Unit]
+Description=Emit UFW state metrics for node-exporter textfile collector
+ConditionPathExists=/usr/local/sbin/ufw-state-metric.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ufw-state-metric.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
