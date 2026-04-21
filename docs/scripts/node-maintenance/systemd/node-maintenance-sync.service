@@ -9,7 +9,7 @@ Type=oneshot
 User=root
 ExecStart=/usr/local/sbin/node-maintenance-sync-from-git.sh
 ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance-sync failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). Log: journalctl -u node-maintenance-sync.service -n 50" || true'
-TimeoutStartSec=5min
+TimeoutStartSec=20min
 Nice=15
 IOSchedulingClass=idle
 
