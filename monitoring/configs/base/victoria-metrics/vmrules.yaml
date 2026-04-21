@@ -1089,6 +1089,41 @@ spec:
         summary: "High rebuilderd failure rate on {{ $labels.node }}"
         description: "{{ $labels.node }} has >80% BAD builds in the last 2 hours ({{ $value | humanizePercentage }}). {{ $labels.node }} may have build environment issues."
 
+  # ==========================================================================
+  # FIREWALL ALERTS - UFW health per node
+  # Metrics from /usr/local/sbin/ufw-state-metric.sh via ufw-state-metric.timer
+  # (60s cadence, node-exporter textfile collector)
+  # ==========================================================================
+  - name: firewall-alerts
+    interval: 60s
+    rules:
+    - alert: UfwDisabled
+      expr: ufw_enabled == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "UFW disabled on {{ $labels.node }}"
+        description: "UFW config ENABLED=no for >5 minutes on {{ $labels.node }}. Node-level firewall is effectively open. Re-enable with: sudo ufw --force enable"
+
+    - alert: UfwServiceInactive
+      expr: ufw_service_active == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "UFW service inactive on {{ $labels.node }}"
+        description: "systemctl ufw.service inactive for >5 minutes on {{ $labels.node }}. Restart with: sudo systemctl restart ufw.service"
+
+    - alert: UfwChainsUnhealthy
+      expr: ufw_chains_healthy == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "UFW primary chains missing on {{ $labels.node }}"
+        description: "UFW canary chains (ufw-logging-deny, ufw-user-input, v6 equivalents) absent on {{ $labels.node }}. Indicates partial ip6tables-restore load. ufw-heal-post-k3s.service should repair; drift-heal pre-heal also catches within 10 min."
+
   # NOTE: No etcd alerts needed - K3s single-master uses embedded SQLite, not etcd
 
   # ==========================================================================
