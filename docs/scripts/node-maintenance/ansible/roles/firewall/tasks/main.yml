@@ -82,6 +82,10 @@
 # SSH rule first — guarantees lockout-safety if policies applied before rules
 # ever produce an inconsistent state (should not happen in steady state, but
 # cheap insurance).
+# All community.general.ufw tasks below: until/retries protect against
+# transient ip6tables races during module execution (kube-router/fail2ban can
+# briefly hold ip6tables locks between our pre-heal and the module's
+# internal `ufw status verbose` call). 5 retries × 10s = 50s per-task ceiling.
 - name: Ensure SSH rule (lockout-safety, applied before policies)
   community.general.ufw:
     rule: allow
@@ -89,6 +93,10 @@
     to_port: "65300"
     proto: tcp
     comment: "SSH from LAN"
+  register: ufw_ssh
+  until: ufw_ssh is not failed
+  retries: 5
+  delay: 10
   tags: [firewall]
 
 - name: Set UFW default incoming policy + logging
@@ -96,18 +104,30 @@
     default: "{{ ufw_policy_incoming }}"
     direction: incoming
     logging: "{{ ufw_logging }}"
+  register: ufw_default_in
+  until: ufw_default_in is not failed
+  retries: 5
+  delay: 10
   tags: [firewall]
 
 - name: Set UFW default outgoing policy
   community.general.ufw:
     default: "{{ ufw_policy_outgoing }}"
     direction: outgoing
+  register: ufw_default_out
+  until: ufw_default_out is not failed
+  retries: 5
+  delay: 10
   tags: [firewall]
 
 - name: Set UFW default routed policy
   community.general.ufw:
     default: "{{ ufw_policy_routed }}"
     direction: routed
+  register: ufw_default_routed
+  until: ufw_default_routed is not failed
+  retries: 5
+  delay: 10
   tags: [firewall]
 
 - name: Apply UFW rules (base + group + host)
@@ -122,6 +142,10 @@
   loop: "{{ ufw_rules_base + ufw_rules_group + ufw_rules_host }}"
   loop_control:
     label: "{{ item.comment | default('rule') }} / {{ item.rule }} from={{ item.from_ip | default('any') }} to={{ item.to_port | default('any') }}/{{ item.proto | default('any') }}"
+  register: ufw_rules_apply
+  until: ufw_rules_apply is not failed
+  retries: 5
+  delay: 10
   tags: [firewall]
 
 - name: Apply UFW route rules (base + group + host)
@@ -137,11 +161,19 @@
   loop: "{{ ufw_route_rules_base + ufw_route_rules_group + ufw_route_rules_host }}"
   loop_control:
     label: "{{ item.comment | default('route') }} / {{ item.rule }} {{ item.from_ip | default('any') }} -> {{ item.to_ip | default('any') }}"
+  register: ufw_routes_apply
+  until: ufw_routes_apply is not failed
+  retries: 5
+  delay: 10
   tags: [firewall]
 
 - name: Enable UFW (no-op if already enabled)
   community.general.ufw:
     state: enabled
+  register: ufw_enable
+  until: ufw_enable is not failed
+  retries: 5
+  delay: 10
   tags: [firewall]
 
 - name: Ensure ufw.service enabled at boot
