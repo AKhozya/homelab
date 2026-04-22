@@ -102,6 +102,27 @@
         minutes: "{{ cp_stabilize_minutes }}"
 
 # ──────────────────────────────────────────────────────────────
+# PLAY 0.5: Pause rebuilderd fleet-wide
+# ──────────────────────────────────────────────────────────────
+# Fires only after CP is confirmed healthy. Stops rebuilderd on BOTH
+# workers in parallel so the non-rebooting worker is idle during the
+# other's reschedule window (evicted pods land on a quiet node —
+# avoids cold image pulls competing with 13x rebuilderd builders for
+# disk/network). rebuilderd-worker-boot.timer re-arms each worker at
+# +10min post-its-own-reboot, so no explicit restart needed.
+- name: Node maintenance — Phase 2 (pause rebuilderd fleet-wide)
+  hosts: workers
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Stop rebuilderd-worker on all workers (fleet-wide pause)
+      ansible.builtin.systemd_service:
+        name: rebuilderd-worker@1.service
+        state: stopped
+      failed_when: false  # tolerate "not running"
+
+# ──────────────────────────────────────────────────────────────
 # PLAY 1: Per-worker rolling update (serial: 1)
 # ──────────────────────────────────────────────────────────────
 - name: Node maintenance — Phase 2 (worker rolling update)
