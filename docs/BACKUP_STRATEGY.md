@@ -1,21 +1,21 @@
 # HOMELAB BACKUP STRATEGY
 
 **Last Updated:** 2026-02-06
-**Status:** **FULLY OPERATIONAL** (with NAS replication)
-**Priority:** **P0 - CRITICAL** (Implemented and tested)
+**Status:** **FULLY OPERATIONAL** (NAS replication)
+**Priority:** **P0 - CRITICAL** (implemented + tested)
 
 ---
 
 ## BACKUP OBJECTIVES
 
-**RPO:** 24h (daily automated backups)
+**RPO:** 24h (daily auto backups)
 **RTO:** ~30 min (restore from NAS or worker-node-2)
 
 **Protection Tiers:**
 1. **CRITICAL**: Authentik DB (all OIDC configs + user data)
-2. **CRITICAL**: SOPS age encryption key (decrypts all other secrets)
-3. **HIGH**: App databases (Immich, Paperless, Grafana, etc.)
-4. **HIGH**: User data (documents, configs)
+2. **CRITICAL**: SOPS age key (decrypts all other secrets)
+3. **HIGH**: App DBs (Immich, Paperless, Grafana, etc.)
+4. **HIGH**: User data (docs, configs)
 5. **MEDIUM**: App state (Home Assistant, CouchDB)
 
 ---
@@ -48,38 +48,38 @@
          Step 5: Check NAS storage (500GB limit)
 ```
 
-### What's Protected (GitOps + Automated Backups)
+### What's Protected (GitOps + Auto Backups)
 
-**In Git (Infrastructure as Code):**
+**In Git (IaC):**
 - K8s manifests (deployments, services, ingress)
-- ConfigMaps (Home Assistant configuration.yaml, etc.)
-- Secrets (SOPS-encrypted with age)
+- ConfigMaps (HA configuration.yaml, etc.)
+- Secrets (SOPS-encrypted, age)
 - NetworkPolicies, RBAC
 - OIDC env var configs
 
-**Automated Daily Backups:**
+**Auto Daily Backups:**
 - **PostgreSQL DBs** (authentik, immich, paperless, grafana, linkwarden, mealie, audiobookshelf, n8n, app)
 - **MySQL DBs** (homeassistant, uptimekuma, pricebuddy)
 - **CouchDB DBs** (obsidian-personal)
 - **Critical PVCs:**
   - `home-assistant-data-pvc` — HA config
-  - `paperless-data-pvc` — document files
+  - `paperless-data-pvc` — doc files
   - `couchdb-storage` — Obsidian sync data
   - `audiobookshelf-audiobooks` + `audiobookshelf-podcasts`
   - Note: Immich photos excluded (re-uploadable from source devices, DB in PostgreSQL)
 
 **Backup Replication (3 copies):**
-- **NAS** (Zettlab 6 Ultra, 192.168.1.136): Full backup history, rsync daemon port 50555
-- **worker-node-2** (192.168.1.126): Today's backup only (temp safety net until ~Feb 13, 2026)
-- Source on worker-node cleaned after successful replication
+- **NAS** (Zettlab 6 Ultra, 192.168.1.136): full history, rsync daemon port 50555
+- **worker-node-2** (192.168.1.126): today's backup only (temp safety net until ~Feb 13, 2026)
+- Source on worker-node cleaned after replication success
 
-**Manual Secret Backups (Scripts in `.backup/`):**
-- SOPS age encryption key (CRITICAL)
+**Manual Secret Backups (Scripts `.backup/`):**
+- SOPS age key (CRITICAL)
 - Cloudflare API tokens
-- DB credentials (PostgreSQL admin, Redis, MySQL cluster, all app DB users)
-- App secrets (admin credentials, API keys, env vars)
+- DB creds (PostgreSQL admin, Redis, MySQL cluster, all app DB users)
+- App secrets (admin creds, API keys, env vars)
 - OIDC integration secrets (8 apps)
-- Backup replication credentials (SSH key, NAS rsync)
+- Backup replication creds (SSH key, NAS rsync)
 
 ---
 
@@ -93,7 +93,7 @@
 - CronJob daily 3:00 AM
 - `pg_dump -F c` (custom format) per DB
 - Auto-discovers DBs (excludes system DBs)
-- Compresses entire backup dir with `tar -czf` (gzip)
+- Compresses entire backup dir `tar -czf` (gzip)
 - **Generates SHA256 checksum** for integrity verify
 - Stores `/mnt/k8s-storage/backups/postgres/` on worker node
 
@@ -221,7 +221,7 @@ kubectl exec -n databases main-mysql-mysql-0 -- \
 **File:** `infrastructure/configs/staging/backup-replication/cronjob.yaml`
 
 **Implementation:**
-- CronJob daily 3:30 AM (after all backups complete by ~3:16 AM)
+- CronJob daily 3:30 AM (after all backups done ~3:16 AM)
 - Step 1: rsync → NAS (no `--delete`, accumulates full history)
 - Step 2: rsync → worker-node-2 (`--delete`, current backup only as safety net)
 - Step 3: Verify NAS data via rsync list
@@ -265,20 +265,20 @@ rsync -avz -e "ssh -p 65300" \
 **Files:** `.backup/secrets-backup.sh` and `.backup/secrets-restore.sh`
 
 **What's backed up:**
-- **CRITICAL:** SOPS age encryption key (Flux decrypts everything)
-- Cloudflare API token, tunnel credentials + tunnel config
+- **CRITICAL:** SOPS age key (Flux decrypts everything)
+- Cloudflare API token, tunnel creds + tunnel config
 - Grafana admin secret
 - Telegram bot tokens (Alertmanager, backup-replication, PriceBuddy)
 - PostgreSQL admin user + all app DB users
-- MySQL cluster secrets + app credentials
+- MySQL cluster secrets + app creds
 - Redis passwords
 - All app secrets (13 apps)
 - OIDC integration secrets (audiobookshelf, grafana, home-assistant, immich, mealie, n8n, paperless-ngx, stirling-pdf)
-- Backup replication credentials (SSH key, NAS rsync, Telegram)
+- Backup replication creds (SSH key, NAS rsync, Telegram)
 
-**What's NOT backed up (already stored securely):**
-- **SSH keys**: already in 1Password
-- **Local SOPS age key**: already in 1Password
+**What's NOT backed up (stored securely elsewhere):**
+- **SSH keys**: in 1Password
+- **Local SOPS age key**: in 1Password
 
 **Encryption:** GPG AES256 with interactive passphrase
 
@@ -318,7 +318,7 @@ flux bootstrap github --owner=AKhozya --repository=homelab --path=clusters/stagi
 | **NAS (accumulated)** | ~2.6 GB | unlimited | **~500 GB limit** |
 
 **Local storage:** 4.2 TB on `/mnt/k8s-storage` — backups use <1%
-**NAS storage:** 500 GB limit — ~190 days before pruning at current rate
+**NAS storage:** 500 GB limit — ~190 days before prune at current rate
 
 ---
 
@@ -327,10 +327,10 @@ flux bootstrap github --owner=AKhozya --repository=homelab --path=clusters/stagi
 ### Scenario 1: Complete Cluster Loss
 
 **Without Backups:**
-1. Lose all Authentik OIDC configs → reconfigure 8 apps manually
+1. Lose all Authentik OIDC configs → reconfig 8 apps manually
 2. Lose all app DBs → Immich metadata, Paperless doc index
 3. Lose all HA automations/history
-4. Lose SOPS age key → can't decrypt any secrets, full reconfig
+4. Lose SOPS age key → cannot decrypt secrets, full reconfig
 
 **Recovery Time:** 16-24h manual reconfig
 
@@ -338,7 +338,7 @@ flux bootstrap github --owner=AKhozya --repository=homelab --path=clusters/stagi
 1. Restore SOPS age key → Flux decrypts all secrets
 2. Pull backups from NAS → all DBs + PVC data
 3. Restore PostgreSQL + MySQL → all OIDC configs + DBs
-4. Restore PVCs → all user data (documents, configs)
+4. Restore PVCs → all user data (docs, configs)
 5. GitOps redeploys infra → all apps running
 
 **Recovery Time:** ~30 min (mostly rsync from NAS + restore time)
@@ -348,7 +348,7 @@ flux bootstrap github --owner=AKhozya --repository=homelab --path=clusters/stagi
 **worker-node failure:**
 - Backups on NAS (full history) + worker-node-2 (today's backup)
 - Rebuild node, rejoin cluster, restore from NAS
-- DB replicas on worker-node-2 continue serving reads
+- DB replicas on worker-node-2 keep serving reads
 
 **worker-node-2 failure:**
 - Safety net only — NAS has full history
@@ -358,7 +358,7 @@ flux bootstrap github --owner=AKhozya --repository=homelab --path=clusters/stagi
 
 **With Backups:**
 - Restore from last good backup on NAS (< 24h old)
-- Minimal data loss (max 24h)
+- Min data loss (max 24h)
 - All OIDC configs preserved
 
 ### Scenario 4: Accidental Deletion
@@ -375,7 +375,7 @@ flux bootstrap github --owner=AKhozya --repository=homelab --path=clusters/stagi
 ### Full Cluster Rebuild from Scratch
 
 **Prerequisites:**
-- NAS accessible at 192.168.1.136 (or worker-node-2 at 192.168.1.126)
+- NAS reachable at 192.168.1.136 (or worker-node-2 at 192.168.1.126)
 - Secret backups in `.backup/` (encrypted GPG archive)
 - Git repo with infra code
 - SOPS age key backup (in `.backup/` or 1Password)
@@ -425,12 +425,12 @@ cd .backup
 ```
 
 Restores:
-- SOPS age encryption key (CRITICAL — needed by Flux)
+- SOPS age key (CRITICAL — Flux needs)
 - All infra secrets (Cloudflare, Grafana, Telegram)
-- All DB credentials (PostgreSQL, MySQL, Redis)
+- All DB creds (PostgreSQL, MySQL, Redis)
 - All app secrets
 - All OIDC integration secrets
-- Backup replication credentials (SSH key + NAS rsync)
+- Backup replication creds (SSH key + NAS rsync)
 
 #### 4. Bootstrap Flux
 
@@ -598,22 +598,22 @@ cd .backup
 ## VERIFICATION CHECKLIST
 
 **Daily (automated):**
-- PostgreSQL backup job completes
-- CouchDB backup job completes
-- PVC backup job completes
-- MySQL backup job completes
-- Backup replication to NAS + worker-node-2 completes
-- Backup storage utilization < 70%
+- PostgreSQL backup job done
+- CouchDB backup job done
+- PVC backup job done
+- MySQL backup job done
+- Backup replication to NAS + worker-node-2 done
+- Backup storage use < 70%
 
 **Monthly (manual):**
 - Run secrets backup script
 - Store secrets backup securely (1Password, encrypted USB)
 - Test restore of one DB (verify backups valid)
 - Review backup logs for errors
-- Check NAS storage usage (warn 400GB, critical 450GB)
+- Check NAS storage use (warn 400GB, critical 450GB)
 
 **Quarterly (validation):**
-- Full disaster recovery test in staging
+- Full DR test in staging
 - Verify all apps restore correctly
 - Update DR docs if needed
 
@@ -625,8 +625,8 @@ cd .backup
 
 - Rsync backups to NAS daily 3:30 AM
 - NAS accumulates full history (no `--delete`)
-- 500GB storage allocation (~190 days at current rate)
-- Manual pruning via NAS web UI
+- 500GB storage alloc (~190 days at current rate)
+- Manual prune via NAS web UI
 - worker-node-2 as temp safety net
 
 ### Remaining Enhancements
@@ -638,7 +638,7 @@ cd .backup
    - Target: February 2026
 
 2. **Monitoring Integration (P2):**
-   - Prometheus metrics for backup job success/failure
+   - Prometheus metrics for backup job success/fail
    - Grafana dashboard for backup monitoring (partially done)
    - Alertmanager alerts if backup jobs fail
 
@@ -647,43 +647,43 @@ cd .backup
 ## CHANGELOG
 
 ### 2026-02-06: NAS Backup Replication
-- Added NAS (Zettlab 6 Ultra) as primary backup destination
+- Added NAS (Zettlab 6 Ultra) as primary backup dest
 - Added worker-node-2 as temp safety net (until ~Feb 13, 2026)
 - Backup replication CronJob at 3:30 AM daily
 - NAS accumulates full history, worker-node-2 mirrors today only
-- Source cleaned after successful replication
+- Source cleaned after replication success
 - NAS storage monitoring (warn 400GB, critical 450GB)
 - Updated DR procedures with NAS/worker-2 restore paths
 - Added nas-rsync-credentials to secrets backup/restore scripts
-- Reduced RTO 2-4h → ~30 min
+- Cut RTO 2-4h → ~30 min
 
 ### 2025-12-18: MySQL Backups and Immich Exclusion
-- Added MySQL automated backups (3:15 AM, homeassistant/uptimekuma/pricebuddy)
+- Added MySQL auto backups (3:15 AM, homeassistant/uptimekuma/pricebuddy)
 - Excluded Immich from PVC backups (photos re-uploadable, DB in PostgreSQL)
-- Storage reduced ~323GB → ~5GB per retention cycle
+- Storage cut ~323GB → ~5GB per retention cycle
 - Updated backup schedule times (3:00/3:05/3:10/3:15 AM)
 
 ### 2025-10-31: SHA256 Checksums and Documentation Updates
 - Added SHA256 checksum gen to PVC backup script
-- All 3 backup systems now generate SHA256 checksums
+- All 3 backup systems now gen SHA256 checksums
 - Documented SSH keys + SOPS age key in 1Password
-- Updated restore procedures to include SHA256 verification
+- Updated restore procedures to include SHA256 verify
 - Verified GPG encryption with interactive passphrase
 
 ### 2025-10-23: Backups Fully Operational
-- PostgreSQL automated backups implemented + tested
-- CouchDB automated backups implemented + tested
-- PVC automated backups implemented + tested
+- PostgreSQL auto backups done + tested
+- CouchDB auto backups done + tested
+- PVC auto backups done + tested
 - Simplified zstd ultra → gzip
 - Added 8 OIDC secrets to backup scripts
 
 ### 2025-10-22: Initial Assessment
 - No backups configured
-- 4.2TB storage available but unused
-- Risk: complete data loss if cluster fails
+- 4.2TB storage free but unused
+- Risk: full data loss if cluster fails
 
 ---
 
 **Document Owner:** Alexander Khozya
 **Next Review:** 2026-02-09 (monthly review cycle)
-**Status:** FULLY OPERATIONAL — All P0 requirements met, NAS replication active
+**Status:** FULLY OPERATIONAL — all P0 reqs met, NAS replication active

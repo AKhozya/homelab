@@ -1,10 +1,10 @@
 # Firewall Security Configuration
 
 ## Overview
-UFW firewall config for homelab cluster — services not exposed to internet.
+UFW firewall config homelab cluster — services not exposed to internet.
 
 ## Security Principles
-- **Default Deny**: only explicit allow permitted
+- **Default Deny**: explicit allow only
 - **Local Network Only**: most services → 192.168.1.0/24
 - **Pod Network Isolation**: internal pod traffic → 10.42.0.0/16
 - **Public Access**: Cloudflare Tunnel only (encrypted, authenticated)
@@ -101,7 +101,7 @@ sudo ufw enable
 
 ## Blocked Services (Not Exposed)
 
-Services **only** via Cloudflare Tunnel or local network:
+Services via Cloudflare Tunnel or local network **only**:
 
 ### Management & Monitoring
 - **Kubernetes API (6443)**: local only
@@ -118,7 +118,7 @@ Services **only** via Cloudflare Tunnel or local network:
 - **CNPG Status (8000)**: pod network only
 
 ### Applications
-All apps **only** via Cloudflare Tunnel:
+Apps via Cloudflare Tunnel **only**:
 - Authentik
 - Immich
 - Paperless-NGX
@@ -152,7 +152,7 @@ Application Services
 
 ### 2025-10-30: Critical Vulnerability Discovered & Fixed
 
-**Issue**: Kubernetes API exposed to internet via UFW misconfiguration
+**Issue**: K8s API exposed to internet via UFW misconfig
 
 **Vulnerable Rules**:
 ```bash
@@ -162,10 +162,10 @@ Application Services
 ```
 
 **Impact**:
-- K8s API (6443) exposed to entire internet
+- K8s API (6443) exposed entire internet
 - Auth attacks possible
-- SSH exposed on IPv6
-- Prometheus metrics exposed on IPv6
+- SSH exposed IPv6
+- Prometheus metrics exposed IPv6
 
 **Resolution**:
 ```bash
@@ -178,11 +178,11 @@ sudo ufw delete 8    # Removed: 9090/tcp (v6) from Anywhere
 - Vuln existed since initial cluster setup
 - Discovered: 2025-10-30 (firewall audit)
 - Fixed: 2025-10-30 (immediate)
-- Risk: Medium (K8s API has auth, but exposure unnecessary)
+- Risk: Medium (K8s API has auth, exposure unnecessary)
 
 **Post-Fix Verification**:
 - Cluster fully functional
-- All services accessible locally
+- Services accessible locally
 - Apps accessible via Cloudflare Tunnel
 - No internet-facing ports (except CF Tunnel)
 

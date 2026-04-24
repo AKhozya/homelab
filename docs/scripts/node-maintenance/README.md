@@ -1,6 +1,6 @@
 # Node Maintenance
 
-Automated weekly Arch Linux updates across 3 K3s nodes.
+Weekly Arch Linux updates across 3 K3s nodes.
 
 **Schedule**: Saturday 04:30 UTC (systemd timer on CP)
 **Flow**: CP phase1 (update + reboot) → CP phase2 on boot (worker rolling update + cleanup)
@@ -8,7 +8,7 @@ Automated weekly Arch Linux updates across 3 K3s nodes.
 
 ## Node Config Drift-Heal (ansible)
 
-Declarative config managed by `ansible/node-config.yml`. Roles (apply order): `packages` (pacman-native base + per-host ucode + per-host GPU stack + worker-only `rebuilderd`/`archlinux-repro`), `base_config` (logrotate, journald caps, sudoers, node-maintenance user, rebuilderd-worker override, fstrim/paccache timers), `k3s_config` (`/etc/rancher/k3s/config.yaml` templated per group/host; drift-alert only, no auto-restart), `k3s_image_gc` (weekly `crictl rmi --prune`), `firewall` (UFW rules: policies + base/group/host rules + route rules; idempotent-additive, never resets), `hardening` (sshd drop-in incl. `PermitEmptyPasswords no`, sysctls, kubelet.yaml, systemd watchdog + timeouts, k3s service.d drop-ins, resolved LLMNR, NVMe/SATA udev+modprobe, CPU/NVMe tmpfiles), `security_scan` (monthly lynis+rkhunter timer + script), `rebuilderd` (workers: resources.conf drop-in, metrics + watchdog + boot-timer + repro-cleanup units/scripts), `ad_hoc` (on-demand tag-gated: firmware). Runs from CP, targets 3 nodes (rebuilderd workers-only).
+Declarative config via `ansible/node-config.yml`. Roles (apply order): `packages` (pacman-native base + per-host ucode + per-host GPU stack + worker-only `rebuilderd`/`archlinux-repro`), `base_config` (logrotate, journald caps, sudoers, node-maintenance user, rebuilderd-worker override, fstrim/paccache timers), `k3s_config` (`/etc/rancher/k3s/config.yaml` templated per group/host; drift-alert only, no auto-restart), `k3s_image_gc` (weekly `crictl rmi --prune`), `firewall` (UFW rules: policies + base/group/host rules + route rules; idempotent-additive, never resets), `hardening` (sshd drop-in incl. `PermitEmptyPasswords no`, sysctls, kubelet.yaml, systemd watchdog + timeouts, k3s service.d drop-ins, resolved LLMNR, NVMe/SATA udev+modprobe, CPU/NVMe tmpfiles), `security_scan` (monthly lynis+rkhunter timer + script), `rebuilderd` (workers: resources.conf drop-in, metrics + watchdog + boot-timer + repro-cleanup units/scripts), `ad_hoc` (on-demand tag-gated: firmware). Runs from CP, targets 3 nodes (rebuilderd workers-only).
 
 **Schedule**: daily 03:00 UTC (`node-maintenance-config.timer`)
 **Also runs**: after `node-maintenance-sync.service` pulls new `main` HEAD (post-pull drift apply)
@@ -36,7 +36,7 @@ sudo ansible-playbook --tags logrotate -D \
 
 ### Tag catalog (ad-hoc / on-demand)
 
-All `ad_hoc` tasks tagged `never` — daily timer skips. Invoke explicitly with `-t <tag>`:
+All `ad_hoc` tasks tagged `never` — daily timer skips. Invoke with `-t <tag>`:
 
 ```bash
 # List pending firmware updates (metadata refresh + get-updates, no apply)
@@ -51,14 +51,14 @@ sudo ansible-playbook -t firmware -e ad_hoc_firmware_apply=true \
 
 ### Out-of-scope one-shots (not ansible)
 
-- **`docs/scripts/setup-claude-telegram.sh`** — Mac-side bootstrap for Claude Telegram bot on worker-node. Installs chezmoi/Node/Claude CLI as user `akhozya`, interactive GH token read. Run once per deploy; not drift-heal territory.
-- **`docs/scripts/update-firmware.sh`** — superseded by ad_hoc `firmware` tag above. Kept for interactive Mac-less fallback.
+- **`docs/scripts/setup-claude-telegram.sh`** — Mac-side bootstrap for Claude Telegram bot on worker-node. Installs chezmoi/Node/Claude CLI as user `akhozya`, interactive GH token read. Run once per deploy; not drift-heal.
+- **`docs/scripts/update-firmware.sh`** — superseded by ad_hoc `firmware` tag. Kept for interactive Mac-less fallback.
 
 ---
 
 ## Monthly Security Scan
 
-Parallel pipeline, runs on **each node locally** (no orchestration).
+Parallel pipeline, runs **each node locally** (no orchestration).
 
 **Schedule**: 1st of month 04:00 UTC, ±1h jitter (RandomizedDelaySec=3600)
 **Unit**: `node-maintenance-security-scan.timer` → `node-maintenance-security-scan.service`
@@ -77,7 +77,7 @@ journalctl -fu node-maintenance-security-scan.service
 sudo cat /var/log/node-maintenance/security-scan-$(date -u +%Y-%m).log
 ```
 
-When `security-scan.sh` changes: CP auto-syncs (sync timer), then ansible `security_scan` role deploys to 3 nodes on next `node-maintenance-config.service` run (daily, or `sudo systemctl start node-maintenance-config.service`).
+When `security-scan.sh` changes: CP auto-syncs (sync timer), ansible `security_scan` role deploys to 3 nodes on next `node-maintenance-config.service` run (daily, or `sudo systemctl start node-maintenance-config.service`).
 
 **Spec**: `docs/superpowers/specs/2026-04-18-node-maintenance-design.md`
 
@@ -164,10 +164,7 @@ less /var/log/node-maintenance/phase2-18-04-2026.log
 
 ## Resilience — retry policy
 
-All tasks sensitive to transient external failures (pacman mirrors, LVFS
-firmware metadata, ip6tables kernel races with kube-router/fail2ban, UFW
-`ufw status verbose` returning "ERROR: problem running ip6tables") carry
-`until/retries/delay` so drift-heal survives flakes without manual re-runs.
+Tasks sensitive to transient external failures (pacman mirrors, LVFS firmware metadata, ip6tables kernel races with kube-router/fail2ban, UFW `ufw status verbose` returning "ERROR: problem running ip6tables") carry `until/retries/delay` so drift-heal survives flakes without manual re-runs.
 
 | Task class | Retries | Delay | Why |
 |------------|---------|-------|-----|
@@ -176,7 +173,7 @@ firmware metadata, ip6tables kernel races with kube-router/fail2ban, UFW
 | `fwupdmgr update` (firmware apply) | 3 | 20s | LVFS server 5xx during fetch/verify |
 | `systemd-resolved` restart handler | 2 | 5s | DNS churn during CP reboots |
 
-Intentionally **not retried** (fail-loud):
+**Not retried** (fail-loud):
 - `sshd -t` config validate — must catch real config errors.
 - Preflight checks (`/readyz`, Flux kustomization Ready, backup active).
 - Local `copy`/`file`/`lineinfile` — atomic writes, failure = real bug.
@@ -192,7 +189,7 @@ Intentionally **not retried** (fail-loud):
 
 ### UFW boot-time healer (`ufw-heal-post-k3s.service`)
 
-On every boot, `/usr/local/sbin/ufw-heal-post-k3s.sh` runs once:
+Every boot, `/usr/local/sbin/ufw-heal-post-k3s.sh` runs once:
 
 1. **Phase A** — poll for kube-router quiescence (`KUBE-ROUTER-INPUT` chain exists + ip6tables-save line count stable across 2 samples 5s apart), 120s cap, continue on timeout.
 2. **Phase B** — `ufw reload` ×3 with 10s gap.
@@ -203,12 +200,11 @@ On every boot, `/usr/local/sbin/ufw-heal-post-k3s.sh` runs once:
 
 Logs: `journalctl -t ufw-heal` (per-phase markers).
 
-Replaces prior `ufw-reload-after-k3s.service` (bare `sleep 15 + ufw reload`, too fragile — ran before kube-router was done mutating kernel state).
+Replaces prior `ufw-reload-after-k3s.service` (bare `sleep 15 + ufw reload`, too fragile — ran before kube-router done mutating kernel state).
 
 ### UFW health metrics (`ufw-state-metric.service.timer`)
 
-Emits 3 gauges every 60s via node-exporter textfile collector
-(`/var/lib/node_exporter/textfile/ufw_state.prom`):
+Emits 3 gauges every 60s via node-exporter textfile collector (`/var/lib/node_exporter/textfile/ufw_state.prom`):
 
 - `ufw_enabled{node}` — config `ENABLED=yes` (1) or `no` (0)
 - `ufw_service_active{node}` — `systemctl is-active ufw.service`
@@ -218,7 +214,7 @@ Alerts (`firewall-alerts` group, VMRule `homelab-alerts`):
 
 - `UfwDisabled` (critical, 5m) — config flipped off
 - `UfwServiceInactive` (critical, 5m) — systemd unit stopped
-- `UfwChainsUnhealthy` (critical, 5m) — partial ip6tables load detected; heal should catch within 10min via drift-heal pre-heal
+- `UfwChainsUnhealthy` (critical, 5m) — partial ip6tables load; heal catch within 10min via drift-heal pre-heal
 
 ## Recovery
 

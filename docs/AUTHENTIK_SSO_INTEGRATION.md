@@ -17,16 +17,16 @@ Guide for integrating Authentik SSO with all homelab apps.
 
 ## Overview
 
-Plan integrates Authentik (https://authentik.h0melab.work) as central SSO provider for all homelab apps via OIDC.
+Integrate Authentik (https://authentik.h0melab.work) as central SSO provider for all homelab apps via OIDC.
 
 **Goals:**
 - SSO across all apps
-- Centralized user mgmt
+- Central user mgmt
 - Group-based access control
-- Reduced password fatigue
+- Less password fatigue
 - Better security
 
-**Automation Level:** 60-70% automated via K8s manifests, Helm, scripts
+**Automation Level:** 60-70% via K8s manifests, Helm, scripts
 
 **Estimated Time:** 4-7h total
 
@@ -51,9 +51,9 @@ Plan integrates Authentik (https://authentik.h0melab.work) as central SSO provid
 | **Alertmanager** | am.h0melab.work | ✅ | Native OIDC | Low | 15 min |
 
 **Legend:**
-- ✅ Native OIDC support
-- ❌ No native support (needs proxy)
-- ⚠️ Partial support (community addon)
+- ✅ Native OIDC
+- ❌ No native (need proxy)
+- ⚠️ Partial (community addon)
 
 ---
 
@@ -74,7 +74,7 @@ Apps with built-in OIDC:
 
 **Process:**
 1. Create OIDC provider in Authentik (UI or Terraform)
-2. Generate client credentials
+2. Generate client creds
 3. Update app config via K8s secrets
 4. Deploy via Flux
 5. Test login flow
@@ -83,7 +83,7 @@ Apps with built-in OIDC:
 **Duration:** 1-2h
 **Automation:** 50%
 
-Apps needing reverse proxy auth:
+Apps need reverse proxy auth:
 1. Wallabag (no OIDC)
 2. Uptime Kuma (no OIDC)
 3. Home Assistant (optional — HACS addon alt)
@@ -154,7 +154,7 @@ Group: homelab-readonly
 
 **3. Backup Current Credentials**
 
-Run before starting:
+Run before start:
 ```bash
 cd .backup && ./secrets-backup.sh
 ```
@@ -232,7 +232,7 @@ flux reconcile kustomization monitoring --timeout=2m
 2. Click "Sign in with Authentik"
 3. Verify redirect to Authentik login
 4. Login + verify redirect back to Grafana
-5. Check user assigned correct role (Admin/Viewer)
+5. Check user got correct role (Admin/Viewer)
 
 ---
 
@@ -342,13 +342,13 @@ Update `apps/base/paperless-ngx/deployment.yaml` env vars:
 
 ### Phase 1D-G: Remaining Native OIDC Apps
 
-Similar pattern for:
+Same pattern for:
 - N8N (Settings → SSO)
 - Linkding (env vars)
 - Mealie (Settings → Authentication)
 - Audiobookshelf (Settings → Authentication)
 
-Refer to automation scripts for batch config.
+See automation scripts for batch config.
 
 ---
 
@@ -439,7 +439,7 @@ spec:
 
 **4. Update App Ingresses:**
 
-Example Wallabag (`apps/base/wallabag/ingress.yaml`):
+Wallabag example (`apps/base/wallabag/ingress.yaml`):
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -513,15 +513,15 @@ Apps with APIs (N8N, Immich, Paperless):
 
 ### Issue: Redirect Loop
 
-**Symptoms:** Browser redirects between app + Authentik
+**Symptoms:** Browser bounces between app + Authentik
 
 **Causes:**
-- Incorrect redirect URI in Authentik
+- Wrong redirect URI in Authentik
 - Cookie/session issues
 - Proxy misconfig
 
 **Solutions:**
-1. Verify redirect URI matches exact (case-sensitive)
+1. Verify redirect URI exact match (case-sensitive)
 2. Clear browser cookies
 3. Check Authentik provider config
 4. Verify proxy middleware config
@@ -576,7 +576,7 @@ Apps with APIs (N8N, Immich, Paperless):
 
 **Immediate Actions:**
 1. Check password login still works for critical apps (Grafana, Immich)
-2. If needed, temporarily disable SSO redirect:
+2. If needed, temp disable SSO redirect:
    ```bash
    # For Paperless
    kubectl set env deployment/paperless -n paperless-ngx PAPERLESS_REDIRECT_LOGIN_TO_SSO=false
@@ -591,10 +591,10 @@ Apps with APIs (N8N, Immich, Paperless):
 ### If User Locked Out
 
 **Admin Access via Password:**
-1. Ensure admin accounts always have password fallback
+1. Admin accounts always need password fallback
 2. Login with admin password
 3. Investigate SSO issue
-4. Temporary bypass: disable SSO redirect for that app
+4. Temp bypass: disable SSO redirect for that app
 
 **CLI Recovery:**
 Apps with CLI access:
@@ -754,28 +754,28 @@ grafana-admins
 
 **Grafana:**
 - Role mapping via `GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH`
-- Supports auto-provisioning users
+- Auto-provisioning users supported
 - Can sync teams from groups
 
 **Immich:**
-- Mobile app requires `app.immich:///oauth-callback`
+- Mobile app needs `app.immich:///oauth-callback`
 - Auto-register creates users on first login
 - Email must match for existing users
 
 **Paperless-NGX:**
 - Uses django-allauth for OIDC
-- Requires PAPERLESS_APPS env var
+- Needs PAPERLESS_APPS env var
 - Can disable regular login after testing
 
 **N8N:**
 - OIDC only in self-hosted
-- Requires instance owner to enable
+- Needs instance owner to enable
 - No PKCE support (yet)
 
 **Linkding:**
 - Simple OIDC config via env vars
 - Auto-creates users on first login
-- Supports auth proxy as alt
+- Auth proxy as alt
 
 ### C. Terraform Module Example
 

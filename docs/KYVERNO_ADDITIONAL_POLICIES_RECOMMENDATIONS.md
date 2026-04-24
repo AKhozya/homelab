@@ -8,16 +8,16 @@
 
 ## Executive Summary
 
-After cluster analysis, **5 high-value policies** identified — improve security + ops:
+Cluster analysis found **5 high-value policies** — boost security + ops:
 
 **Priority 1 (High Value, Low Risk):**
 1. **Require non-default service accounts** — 23 pods at risk
-2. **Require seccomp RuntimeDefault** — 23 pods without profile
-3. **Disallow hostPID/hostIPC/hostNetwork** — prevent dangerous configs
+2. **Require seccomp RuntimeDefault** — 23 pods no profile
+3. **Disallow hostPID/hostIPC/hostNetwork** — block dangerous configs
 
 **Priority 2 (Medium Value, Low Risk):**
-4. **Require readOnlyRootFilesystem** — 21 pods writable (needs testing)
-5. **Restrict volume types** — enforce safe volume types only
+4. **Require readOnlyRootFilesystem** — 21 pods writable (need test)
+5. **Restrict volume types** — safe types only
 
 ---
 
@@ -36,7 +36,7 @@ Custom SA:      51 pods (69%) ✅ GOOD
 - mealie, n8n, paperless-ngx, stirling-pdf
 - more...
 
-**Risk:** Default SA has unnecessary cluster access
+**Risk:** Default SA = unnecessary cluster access
 
 ---
 
@@ -56,7 +56,7 @@ RuntimeDefault:  45 pods (66%) ✅ GOOD
 None:            23 pods (34%) ⚠️ RISK
 ```
 
-**Impact:** Missing seccomp → no syscall filtering → larger attack surface
+**Impact:** No seccomp → no syscall filter → bigger attack surface
 
 ---
 
@@ -67,7 +67,7 @@ hostPID:     0 pods ✅ EXCELLENT
 hostIPC:     0 pods ✅ EXCELLENT
 ```
 
-**Status:** Already compliant. Policy prevents future misconfig.
+**Status:** Compliant. Policy block future misconfig.
 
 ---
 
@@ -80,7 +80,7 @@ configMap:             Multiple (safe)
 secret:                Multiple (safe)
 ```
 
-**Status:** All hostPath usage legitimate + already excluded.
+**Status:** All hostPath legit + excluded.
 
 ---
 
@@ -94,9 +94,9 @@ secret:                Multiple (safe)
 **Effort:** 2-3h
 
 **Why:**
-- Default SA has cluster-wide perms
-- Principle of least privilege
-- Required by PSS (Restricted)
+- Default SA = cluster-wide perms
+- Least privilege
+- PSS Restricted requires
 - Industry best practice
 
 **Blocks:**
@@ -126,9 +126,9 @@ spec:
 ```
 
 **Recommendation:** **IMPLEMENT IN AUDIT MODE**
-- Audit → identify all violations
+- Audit → find violations
 - Fix over 1-2 weeks
-- Switch to Enforce when fixed
+- Switch Enforce when done
 
 ---
 
@@ -140,10 +140,10 @@ spec:
 **Effort:** 1-2h
 
 **Why:**
-- Seccomp filters dangerous syscalls
-- Prevents kernel exploits
-- Required by PSS (Restricted)
-- Minimal perf impact
+- Seccomp filter dangerous syscalls
+- Block kernel exploits
+- PSS Restricted requires
+- Tiny perf hit
 
 **Blocks:**
 ```yaml
@@ -172,9 +172,9 @@ spec:
 ```
 
 **Recommendation:** **IMPLEMENT IN AUDIT MODE**
-- Very low risk (seccomp rarely breaks apps)
-- Enforce quick after testing
-- Significant security benefit
+- Tiny risk (seccomp rare break apps)
+- Enforce fast after test
+- Big security win
 
 ---
 
@@ -182,13 +182,13 @@ spec:
 
 **Priority:** **P2-MEDIUM**
 **Compliance:** 100% (0 violations)
-**Risk Level:** ZERO (already compliant)
+**Risk Level:** ZERO (compliant)
 **Effort:** 0h (preventive)
 
 **Why:**
-- Host namespaces allow container escape
-- Required by PSS (Baseline)
-- Currently compliant — policy prevents regression
+- Host namespaces = container escape
+- PSS Baseline requires
+- Compliant now — policy block regression
 
 **Blocks:**
 ```yaml
@@ -198,12 +198,12 @@ spec:
   hostIPC: true      # ❌ BLOCKED
 ```
 
-**Remediation:** None — already compliant.
+**Remediation:** None — compliant.
 
 **Recommendation:** **IMPLEMENT IN ENFORCE MODE IMMEDIATELY**
 - Zero violations = zero risk
-- Prevents future misconfigs
-- Industry standard control
+- Block future misconfig
+- Industry standard
 
 ---
 
@@ -212,11 +212,11 @@ spec:
 **Priority:** **P3-LOW**
 **Compliance:** 72% (21 violations)
 **Risk Level:** MEDIUM (may break apps)
-**Effort:** 3-4h (testing required)
+**Effort:** 3-4h (test required)
 
 **Why:**
-- Prevents malware persistence
-- Immutable infra best practice
+- Block malware persistence
+- Immutable infra
 - PSS recommended
 
 **Requires:**
@@ -225,12 +225,12 @@ securityContext:
   readOnlyRootFilesystem: true  # ✅ REQUIRED
 ```
 
-**Violations (apps may need writable FS):**
-- Apps with local caching
-- Apps writing temp files
-- Legacy apps not designed for immutability
+**Violations (apps need writable FS):**
+- Local cache apps
+- Temp file writers
+- Legacy apps
 
-**Workaround for apps needing writes:**
+**Workaround for write-needing apps:**
 ```yaml
 volumeMounts:
   - name: tmp
@@ -246,9 +246,9 @@ volumes:
 
 **Recommendation:** **OPTIONAL — REQUIRES TESTING**
 - Start Audit
-- Test each violating app
-- May need emptyDir volumes for /tmp, /cache
-- Only enforce if willing to invest effort
+- Test each violator
+- May need emptyDir for /tmp, /cache
+- Enforce only if effort worth
 
 ---
 
@@ -260,9 +260,9 @@ volumes:
 **Effort:** 1h
 
 **Why:**
-- Prevents dangerous volume types
-- hostPath already restricted
-- Enforce safe volume types only
+- Block dangerous volume types
+- hostPath restricted already
+- Safe types only
 
 **Allowed:**
 - persistentVolumeClaim
@@ -273,14 +273,14 @@ volumes:
 - downwardAPI
 
 **Blocked:**
-- hostPath (already restricted)
+- hostPath (restricted already)
 - gcePersistentDisk
 - awsElasticBlockStore
 - nfs (unless needed)
 
 **Recommendation:** **OPTIONAL**
-- Already covered by disallow-host-path
-- Marginal additional value
+- disallow-host-path covers this
+- Marginal extra value
 - Consider if cloud providers
 
 ---
@@ -294,7 +294,7 @@ volumes:
 
 **Effort:** 5 min
 **Risk:** Zero
-**Action:** Deploy policy, monitor 24h
+**Action:** Deploy policy, watch 24h
 
 ---
 
@@ -305,9 +305,9 @@ volumes:
 2. require-seccomp-runtimedefault (23 violations)
 
 **Remediation Tasks:**
-- Create dedicated SA per namespace
+- Make dedicated SA per namespace
 - Add seccompProfile to all deployments
-- Test apps after changes
+- Test apps after
 
 **Effort:** 2-3h
 **Risk:** Low (tested configs)
@@ -316,22 +316,22 @@ volumes:
 
 ### Phase 3: Medium-term (2-4 Weeks)
 
-**After Phase 2 fixes, switch to Enforce:**
+**After Phase 2 done, switch Enforce:**
 1. require-non-default-service-accounts
 2. require-seccomp-runtimedefault
 
-**Target:** 5 enforced policies (current 3 + 2 new)
+**Target:** 5 enforced policies (3 current + 2 new)
 
 ---
 
 ### Phase 4: Optional (As Needed)
 
-**Consider if beneficial:**
+**Consider if worth:**
 1. require-readonly-root-filesystem
 2. restrict-volume-types
 
 **Effort:** 3-5h
-**Decision:** Based on security posture
+**Decision:** Based security posture
 
 ---
 
@@ -459,7 +459,7 @@ spec:
 ### After Phase 3
 - [ ] 85% PSS Restricted compliance
 - [ ] 100% PSS Baseline compliance
-- [ ] Comprehensive security posture
+- [ ] Full security posture
 
 ---
 
@@ -468,7 +468,7 @@ spec:
 ### Implement Now (Phase 1)
 1. **disallow-host-namespaces** — Enforce mode
    - 0 violations = zero risk
-   - Prevents container escape
+   - Block container escape
    - 5 min
 
 ### Implement Soon (Phase 2)
@@ -479,40 +479,40 @@ spec:
 
 3. **require-seccomp-runtimedefault** — Audit mode
    - 23 violations
-   - Significant security benefit
+   - Big security win
    - 1-2h
 
 ### Consider Later (Phase 4)
 4. **require-readonly-root-filesystem** — Optional
    - May break apps
-   - Significant testing needed
+   - Heavy test needed
    - 3-4h
 
 5. **restrict-volume-types** — Optional
    - Marginal value
-   - Already covered by hostPath policy
+   - hostPath policy covers
 
 ---
 
 ## Next Actions
 
 ### Immediate
-1. Review this doc
+1. Review doc
 2. Decide Phase 1 (disallow-host-namespaces)
 3. Plan Phase 2 remediation timeline
 
 ### This Week
-1. Implement disallow-host-namespaces (Enforce)
-2. Implement require-non-default-sa (Audit)
-3. Implement require-seccomp (Audit)
+1. Deploy disallow-host-namespaces (Enforce)
+2. Deploy require-non-default-sa (Audit)
+3. Deploy require-seccomp (Audit)
 
 ### Next 2 Weeks
-1. Create SAs for all apps
+1. Make SAs for all apps
 2. Add seccomp profiles to deployments
 3. Test all changes
 
 ### Month 1
-1. Switch Phase 2 policies to Enforce
+1. Switch Phase 2 policies Enforce
 2. 6/7+ policies enforcing
 3. 95%+ PSS compliance
 
@@ -520,15 +520,15 @@ spec:
 
 ## Conclusion
 
-Homelab well-positioned to adopt **3 high-value policies**:
-- **1 enforce immediately** (0 violations)
-- **2 need minor fixes** (23 violations each, easy remediation)
-- **2 optional** (based on security requirements)
+Homelab ready adopt **3 high-value policies**:
+- **1 enforce now** (0 violations)
+- **2 need minor fix** (23 violations each, easy)
+- **2 optional** (security needs)
 
-Phase 1-2 provides:
-- Container escape prevention
-- Principle of least privilege (SAs)
-- Syscall filtering (seccomp)
+Phase 1-2 give:
+- Container escape block
+- Least privilege (SAs)
+- Syscall filter (seccomp)
 - 95% PSS compliance
 
-**Recommended Action:** Proceed Phase 1 (disallow-host-namespaces) immediately.
+**Recommended Action:** Do Phase 1 (disallow-host-namespaces) now.

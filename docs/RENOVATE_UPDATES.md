@@ -2,7 +2,7 @@
 
 ## Configuration Changes (2025-10-29)
 
-Auto-merge **disabled**. All minor/patch/major updates need manual review + approval.
+Auto-merge **disabled**. Minor/patch/major updates need manual review + approval.
 
 **File**: `renovate.json`
 **Changes**: removed `automerge: true` + `automergeType: "branch"`
@@ -20,7 +20,7 @@ Every Renovate PR gets **automatic version change analysis** (NOT code review):
 - Version: old → new
 - Type: major/minor/patch
 - Package-specific breaking changes
-- Links to release notes
+- Release notes links
 
 **Does NOT do:**
 - Code quality review
@@ -60,11 +60,11 @@ See [Workflow Documentation](../.github/workflows/README.md).
 - busybox v1.36 → v1.37
 
 **Review**:
-- Review release notes — features + breaking changes
-- Check config changes required
+- Release notes — features + breaking changes
+- Config changes required
 - Test in staging if available
 - Verify integrations
-- Check app docs for migration steps
+- App docs for migration steps
 
 **Action**:
 1. **Authentik**: review auth flows + provider configs
@@ -81,15 +81,15 @@ See [Workflow Documentation](../.github/workflows/README.md).
 
 **Review**:
 - **CRITICAL**: read full changelog + migration guide
-- Review breaking changes carefully
-- Test thoroughly before prod
+- Breaking changes carefully
+- Test before prod
 - Rollback plan ready
-- Check deprecated APIs/features
+- Deprecated APIs/features
 
 **Action**:
 
 ##### Node.js v22 → v24
-- Review Node.js 24 [release notes](https://nodejs.org/en/blog/release/v24.9.0)
+- Node.js 24 [release notes](https://nodejs.org/en/blog/release/v24.9.0)
 - Notable changes:
   - util.getCallSite removed (SEMVER-MINOR breaking)
   - New SQLite authorization API
@@ -98,9 +98,9 @@ See [Workflow Documentation](../.github/workflows/README.md).
 - **Testing**: full test suite before deploy
 
 ##### kube-prometheus-stack v78 → v79
-- **SECURITY FIX**: fixes insecure default password in Grafana
-- **Action**: update Grafana password immediately after applying
-- **Review**: check custom Grafana configs affected
+- **SECURITY FIX**: insecure default password in Grafana
+- **Action**: update Grafana password immediately after apply
+- **Review**: custom Grafana configs affected
 - **Testing**: verify dashboards + alerts post-upgrade
 
 ---
@@ -115,8 +115,8 @@ See [Workflow Documentation](../.github/workflows/README.md).
 - source-controller v1.7.2 → v1.7.3
 
 **Review**:
-- Review all controller changelogs
-- Check reconciliation behavior changes
+- All controller changelogs
+- Reconciliation behavior changes
 - Monitor flux-system ns post-update
 - Verify all GitOps reconciliations succeed
 
@@ -220,7 +220,7 @@ fi
 
 ## Rollback Procedure
 
-If update causes issues:
+Update cause issues:
 
 ```bash
 # 1. Suspend Flux reconciliation

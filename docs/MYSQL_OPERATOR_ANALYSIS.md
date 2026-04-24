@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-Percona Operator for MySQL shows recurring brittleness in recovery scenarios. Manages day-to-day OK, but manual intervention often needed during:
+Percona Operator for MySQL brittle in recovery. Day-to-day OK. Manual intervention often needed during:
 - Pod restarts
 - Node failures
 - Clone operations
@@ -23,11 +23,11 @@ Percona Operator for MySQL shows recurring brittleness in recovery scenarios. Ma
 
 ### 1. Clone Lock File Not Cleaned Up
 
-**Symptom**: After clone completes, `pt-heartbeat` sidecar stuck waiting.
+**Symptom**: After clone done, `pt-heartbeat` sidecar stuck waiting.
 
-**Root Cause**: Clone creates `/var/lib/mysql/clone.lock` but doesn't always remove after completion.
+**Root Cause**: Clone make `/var/lib/mysql/clone.lock` but not always remove after done.
 
-**Impact**: pt-heartbeat never starts → replication lag monitoring broken.
+**Impact**: pt-heartbeat never start → replication lag monitoring broken.
 
 **Manual Fix**:
 ```bash
@@ -43,9 +43,9 @@ kubectl delete pod -n databases main-mysql-mysql-X  # Restart to pick up changes
 
 **Symptom**: Operator logs `dial tcp 10.42.X.X:33062: connect: connection refused` for old pod IPs.
 
-**Root Cause**: Pods recreated → new IPs. Operator caches old IPs.
+**Root Cause**: Pods recreated → new IPs. Operator cache old IPs.
 
-**Impact**: Operator can't communicate with MySQL pods → status updates fail.
+**Impact**: Operator can't talk to MySQL pods → status updates fail.
 
 **Manual Fix**:
 ```bash
@@ -60,7 +60,7 @@ kubectl rollout restart deployment -n databases percona-server-mysql-operator
 
 **Symptom**: After recovery, both MySQL nodes writable OR both read-only.
 
-**Root Cause**: MySQL defaults `read_only=ON` on restart for safety. Operator/Orchestrator doesn't always correct.
+**Root Cause**: MySQL default `read_only=ON` on restart for safety. Operator/Orchestrator not always correct.
 
 **Impact**:
 - Primary stuck read-only → apps fail
@@ -75,7 +75,7 @@ SET GLOBAL read_only=0; SET GLOBAL super_read_only=0;
 SET GLOBAL read_only=1; SET GLOBAL super_read_only=1;
 ```
 
-**Operator Fix Needed**: Orchestrator should enforce read_only based on topology.
+**Operator Fix Needed**: Orchestrator enforce read_only based on topology.
 
 ---
 
@@ -83,7 +83,7 @@ SET GLOBAL read_only=1; SET GLOBAL super_read_only=1;
 
 **Symptom**: Replica has transactions not on primary.
 
-**Root Cause**: Replica briefly writable (before read_only set) + accepted writes.
+**Root Cause**: Replica briefly writable (before read_only set) + accept writes.
 
 **Impact**: Replication breaks → replica can't sync.
 
@@ -96,7 +96,7 @@ kubectl delete pod -n databases main-mysql-mysql-1
 # Not recommended for production
 ```
 
-**Prevention**: Ensure replicas always read_only before apps connect.
+**Prevention**: Replicas always read_only before apps connect.
 
 ---
 
@@ -121,9 +121,9 @@ kubectl delete pod -n databases main-mysql-haproxy-0 main-mysql-haproxy-1
 
 **Symptom**: Orchestrator shows `"IsCoMaster": true` both nodes (circular replication).
 
-**Root Cause**: After failures, Orchestrator detects wrong topology.
+**Root Cause**: After failures, Orchestrator detect wrong topology.
 
-**Impact**: Failover decisions may be incorrect.
+**Impact**: Failover decisions may be wrong.
 
 **Manual Fix**: Usually resolves after pods healthy + replication established.
 
@@ -133,7 +133,7 @@ kubectl delete pod -n databases main-mysql-haproxy-0 main-mysql-haproxy-1
 
 ### Issue #1099: Readiness Probe Causes Infinite Restart Loop
 - **Status**: Open
-- **Desc**: During recovery, MySQL status = `RECOVERING`. Readiness probe treats as unhealthy → restart.
+- **Desc**: During recovery, MySQL status = `RECOVERING`. Readiness probe treat as unhealthy → restart.
 - **Impact**: Cluster can't recover from certain failures.
 - **Workaround**: None (needs operator fix).
 
@@ -201,7 +201,7 @@ proxy:
    - Custom Orchestrator settings (RecoveryPeriodBlockSeconds, etc.) can't be applied
    - Feature request: https://github.com/percona/percona-server-mysql-operator/issues
 
-2. **Monitoring alerts** — recommend adding:
+2. **Monitoring alerts** — recommend add:
    - Replication lag > 30s
    - Both nodes read_only or writable
    - Clone ops > 10 min

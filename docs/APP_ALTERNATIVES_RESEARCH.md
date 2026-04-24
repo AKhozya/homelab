@@ -1,20 +1,20 @@
 # Homelab App Alternatives Research
 **Date**: 2025-10-26
-**Purpose**: Research alternatives to current self-hosted apps
+**Purpose**: Research alts to current self-hosted apps
 **Current Apps**: 16 total
 
 ---
 
 ## EXECUTIVE SUMMARY
 
-### Overall Assessment: Current stack excellent — minimal changes recommended
+### Overall Assessment: Stack excellent — minimal changes
 
 **Key Findings:**
 - **13 apps**: best-in-class / top 3 (keep)
-- **2 apps**: consider alternatives for specific use cases
-- **1 app**: emerging competitor worth watching
+- **2 apps**: consider alts for specific cases
+- **1 app**: emerging competitor worth watch
 
-**Recommendation**: No immediate changes. Current stack = best balance of features, stability, community support for homelab.
+**Recommendation**: No immediate changes. Stack = best balance features/stability/community for homelab.
 
 ---
 
@@ -29,8 +29,8 @@
 #### Alternatives Researched:
 | Alternative | Pros | Cons | Verdict |
 |-------------|------|------|---------|
-| **PhotoPrism** | Mature, SQLite option, stable | Slower AI, weaker facial recognition | Immich wins AI/ML |
-| **Ente Photos** | E2E encrypted, privacy | Less features, mobile-centric | Immich better homelab |
+| **PhotoPrism** | Mature, SQLite option, stable | Slower AI, weaker face recog | Immich win AI/ML |
+| **Ente Photos** | E2E encrypted, privacy | Fewer features, mobile-centric | Immich better homelab |
 | **Nextcloud Photos** | All-in-one | Slower, heavier, less focused | Immich more specialized |
 | **LibrePhotos** | Good AI | Less polished, smaller community | Immich more active |
 
@@ -46,37 +46,37 @@
 **Status**: Best in class — Keep
 
 **Current Version**: latest stable
-**Primary Use**: document scanning, OCR, archiving
+**Primary Use**: doc scan, OCR, archive
 
 #### Alternatives Researched:
 | Alternative | Pros | Cons | Verdict |
 |-------------|------|------|---------|
-| **Papra** | Minimalist UI | No sharing, limited auto-tag, no mobile | Less features |
-| **Docspell** | Easier, email archive | Smaller community | Consider for email focus |
-| **Mayan EDMS** | Enterprise-ready | Heavier, complex | Overkill homelab |
-| **Papermerge DMS** | Good scanning | Less mature | Paperless-NGX wins |
+| **Papra** | Minimal UI | No share, limited auto-tag, no mobile | Fewer features |
+| **Docspell** | Easier, email archive | Smaller community | Consider email focus |
+| **Mayan EDMS** | Enterprise-ready | Heavy, complex | Overkill homelab |
+| **Papermerge DMS** | Good scan | Less mature | Paperless-NGX win |
 
 **Recommendation**: **KEEP PAPERLESS-NGX**
-- Industry leader self-hosted doc mgmt
-- Excellent OCR, tagging, search
+- Leader self-hosted doc mgmt
+- Excellent OCR, tag, search
 - Active dev + community
 - Balance features/simplicity
 
-**Note**: Consider **Docspell** if heavy email archiving needed
+**Note**: Consider **Docspell** if heavy email archive need
 
 ---
 
 ### 3. **N8N** (Workflow Automation)
-**Status**: Consider alternatives for specific use cases
+**Status**: Consider alts for specific cases
 
 **Current Version**: Community Edition
 **Primary Use**: workflow automation
-**Limitation**: SSO requires Enterprise
+**Limitation**: SSO need Enterprise
 
 #### Alternatives Researched:
 | Alternative | Pros | Cons | Verdict |
 |-------------|------|------|---------|
-| **Windmill** | Lighter (287MB vs 516MB), Rust, code-first, faster | Dev learning curve | **Strong alternative** |
+| **Windmill** | Lighter (287MB vs 516MB), Rust, code-first, fast | Dev learn curve | **Strong alt** |
 | **Temporal** | Mission-critical, durable exec | SDK-based, Go-focused | Too enterprise |
 | **Activepieces** | Open-source, visual | Less mature | Watch space |
 | **Automatisch** | N8N clone | Smaller community | N8N more established |
@@ -86,17 +86,17 @@
 
 **Why switch?**
 - **Performance**: 44% less memory (287MB vs 516MB)
-- **Speed**: Rust scheduler destroys competition
+- **Speed**: Rust scheduler destroy competition
 - **Reliability**: auto-retry checkpoints, <5s recovery
 - **Dev-friendly**: existing Python/TS/Go/Bash scripts
-- **Lighter**: fits homelab constraints
+- **Lighter**: fit homelab constraints
 
 **Why stay N8N?**
 - **User-friendly**: visual editor accessible
 - **Mature**: more integrations/community
 - **Current investment**: already configured
 
-**Decision**: **Trial Windmill parallel**. Migrate if perf gains significant. N8N fine for current workloads.
+**Decision**: **Trial Windmill parallel**. Migrate if perf gain big. N8N fine current workloads.
 
 ---
 
@@ -111,29 +111,29 @@
 |-------------|------|------|---------|
 | **Keycloak** | Enterprise standard, Red Hat, mature | Heavy (Java), complex UI | Overkill homelab |
 | **Zitadel** | Modern, API-first, event-sourced | License AGPL-3.0 v3 | Watch license |
-| **Authelia** | Lightweight, simple | Forward auth only, not full IdP | Less features |
+| **Authelia** | Light, simple | Forward auth only, not full IdP | Fewer features |
 | **FreeIPA** | Enterprise LDAP | Complex, legacy | Too enterprise |
 
 **Recommendation**: **KEEP AUTHENTIK**
 - Balance for small-med homelab
 - Clean UI, flow system custom auth
 - Active community
-- Integrated with 8 apps
+- Integrate 8 apps
 
-**Note**: If homelab grows 50+ apps or multi-tenant → consider **Keycloak**
+**Note**: If homelab grow 50+ apps or multi-tenant → consider **Keycloak**
 
 ---
 
 ### 5. **AdGuard Home** (DNS Filtering)
 **Status**: Best in class — Keep
 
-**Current Version**: `:latest` (needs pinning)
+**Current Version**: `:latest` (need pin)
 **Primary Use**: network-wide ad block, DNS mgmt
 
 #### Alternatives Researched:
 | Alternative | Pros | Cons | Verdict |
 |-------------|------|------|---------|
-| **Pi-hole** | Popular, huge community, bulk blocklists | No DoH/DoT default, older UI | AdGuard more modern |
+| **Pi-hole** | Popular, huge community, bulk blocklists | No DoH/DoT default, old UI | AdGuard more modern |
 | **Blocky** | DevOps-friendly, K8s-native | Less UI | Consider K8s-only |
 | **Technitium** | Feature-rich, built-in DHCP | Less community | AdGuard more popular |
 
@@ -145,7 +145,7 @@
 
 **Action Required**: Pin specific version (not `:latest`)
 
-**Alt Worth Watching**: **Blocky** if pure K8s-native YAML config desired
+**Alt Worth Watching**: **Blocky** if pure K8s-native YAML config want
 
 ---
 
@@ -153,29 +153,29 @@
 **Status**: Best for homelab — Keep
 
 **Current Version**: 2.0.2-slim-rootless
-**Primary Use**: service uptime monitoring
+**Primary Use**: service uptime monitor
 
 #### Alternatives Researched:
 | Alternative | Pros | Cons | Verdict |
 |-------------|------|------|---------|
-| **Gatus** | Lightweight, YAML config, no DB | Less polished, smaller (8.8K vs 76K stars) | Consider config-as-code |
-| **Statping-ng** | Beautiful graphs, simple | Original abandoned (ng = fork) | Less maintained |
-| **HertzBeat** | Feature-rich, advanced | Heavier, complex | Overkill |
+| **Gatus** | Light, YAML config, no DB | Less polished, smaller (8.8K vs 76K stars) | Consider config-as-code |
+| **Statping-ng** | Pretty graphs, simple | Original abandoned (ng = fork) | Less maintained |
+| **HertzBeat** | Feature-rich, advanced | Heavy, complex | Overkill |
 | **Checkmk** | Enterprise-grade | Complex, heavy | Too enterprise |
 
 **Recommendation**: **KEEP UPTIME KUMA**
-- Industry leader self-hosted uptime
+- Leader self-hosted uptime
 - 76K+ stars (8.6x Gatus)
-- Beautiful UI, easy setup
+- Pretty UI, easy setup
 - Homelab scale
 
-**Alt Worth Watching**: **Gatus** if config-as-code (YAML) over DB preferred
+**Alt Worth Watching**: **Gatus** if config-as-code (YAML) over DB prefer
 
 ---
 
 ### 7. **Other Apps Analysis**
 
-#### Keep all — best in class / no better alternatives:
+#### Keep all — best in class / no better alts:
 
 | App | Status | Reasoning |
 |-----|--------|-----------|
@@ -208,14 +208,14 @@
    - Deploy Windmill separate ns
    - Migrate 1-2 workflows
    - Compare perf + usability
-   - Decision: keep whichever fits
+   - Decision: keep whichever fit
 
 ### Long Term (3 Months)
 
 3. **Monitor emerging projects**:
-   - **Windmill**: may replace N8N if perf gains significant
+   - **Windmill**: may replace N8N if perf gain big
    - **Blocky**: K8s-native alt to AdGuard
-   - **Gatus**: lightweight alt to Uptime Kuma
+   - **Gatus**: light alt to Uptime Kuma
    - **Zitadel v3**: watch license (AGPL-3.0)
 
 ---
@@ -231,7 +231,7 @@
 | AdGuard Home | 120Mi | Pi-hole | 138Mi | -15% (worse) |
 | Authentik | 1080Mi total | Keycloak | ~2Gi+ | -50% (worse) |
 
-**Conclusion**: Only **Windmill** + **Gatus** offer perf gains, both trade features for perf.
+**Conclusion**: Only **Windmill** + **Gatus** give perf gain, both trade features for perf.
 
 ### Feature Comparison
 
@@ -258,7 +258,7 @@
 - Python/TypeScript/Go/Bash/SQL
 
 **Cons**:
-- Learning curve visual → code
+- Learn curve visual → code
 - Fewer pre-built integrations
 - Smaller community (growing)
 - Migration effort
@@ -270,7 +270,7 @@
 3. Test 2 weeks
 4. Decide on experience
 
-**Verdict**: **Worth evaluating** if comfortable with code-first + want better perf.
+**Verdict**: **Worth evaluate** if OK with code-first + want better perf.
 
 ---
 
@@ -308,7 +308,7 @@
 2. Optionally trial Windmill (2-4h)
 
 ### Overall Verdict:
-**Current app stack excellent**. Only N8N has potentially better alt (Windmill), depends on workflow prefs. No urgent changes.
+**Stack excellent**. Only N8N have potentially better alt (Windmill), depend on workflow pref. No urgent changes.
 
 ---
 

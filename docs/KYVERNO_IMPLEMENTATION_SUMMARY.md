@@ -8,7 +8,7 @@
 
 ## Implementation Overview
 
-Kyverno deployed to homelab with **phased enforcement strategy** — safety + zero downtime.
+Kyverno deployed homelab — **phased enforcement** = safety + zero downtime.
 
 ### Deployment Architecture
 
@@ -76,7 +76,7 @@ resource Pod was blocked due to the following policies
 disallow-privilege-escalation: validation error
 ```
 
-**Impact:** Prevents elevated privileges → blocks container escape.
+**Impact:** Block elevated privileges → block container escape.
 
 ---
 
@@ -94,7 +94,7 @@ securityContext:
       - ALL  # ✅ REQUIRED
 ```
 
-**Impact:** Forces all containers drop Linux capabilities → reduces attack surface.
+**Impact:** Force all containers drop Linux capabilities → shrink attack surface.
 
 ---
 
@@ -113,7 +113,7 @@ metadata:
     app.kubernetes.io/name: myapp  # ✅ REQUIRED
 ```
 
-**Impact:** All pods have labels for filtering, tooling, org.
+**Impact:** All pods labeled for filter, tool, org.
 
 ---
 
@@ -197,7 +197,7 @@ kubectl get policyreports -A
 | Restricted | require-non-root | AUDITING (24 violations) |
 | Baseline | disallow-host-path | AUDITING (4 violations) |
 
-**Current PSS Compliance:** Baseline enforced, Restricted partially enforced
+**Current PSS Compliance:** Baseline enforced, Restricted partial.
 
 ---
 
@@ -226,8 +226,8 @@ kubectl get policyreports -A
 **Target:** 105 → <30 violations
 
 ### Week 4 (P1-HIGH Enforcement)
-- [ ] Switch require-non-root → Enforce (after fixes)
-- [ ] Switch require-resource-limits → Enforce (after fixes)
+- [ ] Switch require-non-root → Enforce (post-fix)
+- [ ] Switch require-resource-limits → Enforce (post-fix)
 
 **Target:** 5/7 policies enforcing (71%)
 
@@ -241,7 +241,7 @@ kubectl get policyreports -A
 
 ## Rollback Procedure
 
-Enforcement causes issues:
+Enforcement break stuff:
 
 ```bash
 # 1. Quick rollback (change policy to Audit)
@@ -280,14 +280,14 @@ kubectl get clusterpolicy <policy-name> -o jsonpath='{.spec.validationFailureAct
 ## Lessons Learned
 
 ### What Worked
-- **Phased Enforcement** — starting 0-violation policies = zero risk
-- **Daily Alerts** — reduced notification fatigue, maintained visibility
-- **Comprehensive Analysis** — understanding violations before enforcement = no issues
-- **GitOps Integration** — Flux made deploy + rollback seamless
+- **Phased Enforcement** — start 0-violation policies = zero risk
+- **Daily Alerts** — cut notification fatigue, kept visibility
+- **Comprehensive Analysis** — understand violations pre-enforce = no issues
+- **GitOps Integration** — Flux = seamless deploy + rollback
 
 ### What to Improve
 - **Resource Limits** — many workloads missing (64 violations)
-- **Non-Root** — some apps unnecessarily root (24 violations)
+- **Non-Root** — some apps root without need (24 violations)
 - **Image Tags** — several init containers use `latest` (13 violations)
 
 ---
@@ -298,7 +298,7 @@ kubectl get clusterpolicy <policy-name> -o jsonpath='{.spec.validationFailureAct
 - [x] 3 policies in Enforce
 - [x] Zero deployment failures
 - [x] Zero new violations
-- [x] Daily alerts functioning
+- [x] Daily alerts work
 - [x] Enforcement tested + working
 
 ### Phase 2 (Week 2-3) — IN PROGRESS
@@ -310,7 +310,7 @@ kubectl get clusterpolicy <policy-name> -o jsonpath='{.spec.validationFailureAct
 ### Phase 3 (Month 1) — PLANNED
 - [ ] 5-6 policies in Enforce
 - [ ] <10 total violations
-- [ ] Comprehensive compliance
+- [ ] Full compliance
 - [ ] Automated enforcement
 
 ---
@@ -354,20 +354,20 @@ kubectl get clusterpolicy <policy-name> -o jsonpath='{.spec.validationFailureAct
 ### Medium-term (Next Month)
 1. Enforce require-non-root policy
 2. Enforce require-resource-limits policy
-3. Comprehensive compliance review
-4. Consider additional policies (network, storage)
+3. Full compliance review
+4. Consider more policies (network, storage)
 
 ---
 
 ## Conclusion
 
-Kyverno deployed to homelab:
+Kyverno deployed homelab:
 - **Zero downtime** during implementation
 - **Zero breaking changes** Phase 1
-- **Active enforcement** of 3 critical security policies
-- **Daily monitoring** without alert fatigue
+- **Active enforcement** 3 critical security policies
+- **Daily monitoring** no alert fatigue
 - **Clear remediation path** for remaining violations
 
-Phased approach = safety while improving security + compliance. Homelab now has **automated policy enforcement** with flexibility to adjust.
+Phased approach = safety + improved security/compliance. Homelab now has **automated policy enforcement** with adjust flexibility.
 
 **Status:** **PRODUCTION READY — Phase 1 Complete**

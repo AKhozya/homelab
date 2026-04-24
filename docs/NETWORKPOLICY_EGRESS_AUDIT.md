@@ -34,7 +34,7 @@
 - DNS (53)
 - PostgreSQL (5432, databases ns)
 - Redis (6379, databases ns)
-- NO internet needed
+- No internet
 
 **Fix**:
 ```yaml
@@ -82,11 +82,11 @@ egress:
 **Current**: 80/443/587 no dest restriction
 **Needs**:
 - DNS (53) — restricted
-- PostgreSQL (5432) — restricted to databases ns
+- PostgreSQL (5432) — restricted databases ns
 - HTTPS external OAuth (GitHub, Google) — UNRESTRICTED
 - SMTP 587 — UNRESTRICTED
 
-**Assessment**: NEEDS UNRESTRICTED — SSO + external OAuth providers, IPs unpredictable
+**Assessment**: NEEDS UNRESTRICTED — SSO + external OAuth, IPs unpredictable
 
 **Action**: Accept — Authentik role needs external OAuth
 
@@ -96,7 +96,7 @@ egress:
 **Current**: 80/443 no dest restriction
 **Needs**:
 - DNS (53) — restricted
-- PostgreSQL (5432) — restricted to databases ns
+- PostgreSQL (5432) — restricted databases ns
 - HTTPS webhooks + external integrations — UNRESTRICTED
 
 **Assessment**: NEEDS UNRESTRICTED — workflow automation hits arbitrary APIs (Slack, Discord, webhooks)
@@ -141,7 +141,7 @@ egress:
 - PostgreSQL (5432) — restricted
 - HTTPS bookmark metadata — UNRESTRICTED
 
-**Assessment**: NEEDS UNRESTRICTED — bookmark manager fetches from user-submitted URLs
+**Assessment**: NEEDS UNRESTRICTED — bookmark manager fetches user-submitted URLs
 
 **Action**: Accept — Linkding purpose requires user-URL access
 
@@ -215,7 +215,7 @@ egress:
 
 **Fix**: remove HTTPS egress or restrict to specific update server
 
-**Action**: P2-MEDIUM — verify HTTPS egress actually used, remove if not
+**Action**: P2-MEDIUM — verify HTTPS egress used, remove if not
 
 ---
 
@@ -223,10 +223,10 @@ egress:
 **Current**: 443 no dest restriction
 **Needs**:
 - DNS (53) — restricted
-- Authentik OIDC (9000) — restricted to authentik ns
+- Authentik OIDC (9000) — restricted authentik ns
 - HTTPS "general internet access if needed" — UNRESTRICTED
 
-**Assessment**: CAN RESTRICT — PDF processor no internet needed
+**Assessment**: CAN RESTRICT — PDF processor no internet
 
 **Fix**: remove HTTPS egress entirely
 
@@ -239,7 +239,7 @@ egress:
 **Needs**:
 - DNS (53) — restricted
 - HTTPS external monitoring — UNRESTRICTED
-- Cluster service monitoring — restricted to cluster ns
+- Cluster service monitoring — restricted cluster ns
 
 **Assessment**: NEEDS UNRESTRICTED — monitoring hits arbitrary external services
 
@@ -250,7 +250,7 @@ egress:
 ### Category C: Well-Restricted Egress (Cluster-Only)
 
 #### 14. **Homepage** (apps/base/homepage/networkpolicy.yaml)
-**Status**: SECURE — DNS + K8s API (443 to cluster ns)
+**Status**: SECURE — DNS + K8s API (443 cluster ns)
 **Action**: No change
 
 ---
@@ -290,7 +290,7 @@ egress:
 6. **Wallabag** — article fetching user URLs
 7. **Uptime Kuma** — monitoring arbitrary external
 
-**Justification**: legitimate business need for unrestricted internet
+**Justification**: legitimate need for unrestricted internet
 
 ### Apps That Can Be Restricted:
 1. **Immich** (CRITICAL) — internal services only (PG, Redis)
