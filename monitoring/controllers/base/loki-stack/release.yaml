@@ -8,7 +8,7 @@ spec:
   chart:
     spec:
       chart: loki
-      version: 6.55.0  # Renovate-managed; 6.45.x bug (bucketNames) was fixed in 6.46+
+      version: 7.0.0  # Renovate-managed
       sourceRef:
         kind: HelmRepository
         name: grafana
@@ -68,9 +68,8 @@ spec:
         retention_enabled: true
         retention_delete_delay: 2h
         retention_delete_worker_count: 150
-        delete_request_store: filesystem
     
-    # Single binary mode for simplicity (v6.x chart format)
+    # Single binary mode for simplicity
     deploymentMode: SingleBinary
     
     # Disable simple scalable mode components
