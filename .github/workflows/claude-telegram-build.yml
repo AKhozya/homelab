@@ -7,6 +7,9 @@ on:
         description: 'Image version tag (e.g., 1.0). Leave empty to auto-increment.'
         required: false
         default: ''
+  schedule:
+    # Bi-weekly rebuild — Mon + Thu @ 23:00 UTC. Picks up SDK/CLI/base-image bumps.
+    - cron: '0 23 * * 1,4'
 
 env:
   REGISTRY: ghcr.io
@@ -66,6 +69,9 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.tag }}
+          # Cache-bust deps layer so caret ranges resolve to latest each rebuild.
+          build-args: |
+            BUILD_TS=${{ github.run_id }}-${{ github.run_attempt }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

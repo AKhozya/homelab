@@ -89,33 +89,16 @@ spec:
               # Create data dir for session persistence
               mkdir -p ~/data
 
-              # Save pre-update versions
-              OLD_CLI=$(npx @anthropic-ai/claude-code --version 2>/dev/null || echo "unknown")
-              OLD_SDK=$(node -e "console.log(require('/app/node_modules/@anthropic-ai/claude-agent-sdk/package.json').version)" 2>/dev/null || echo "unknown")
+              # CLI + SDK pinned at image build (bi-weekly GHA rebuild Mon+Thu 23:00 UTC).
+              # Runtime self-update removed — /app is image-baked, updates didn't persist
+              # to main container. Renovate bumps image tag in deployment.yaml.
+              CLI=$(npx @anthropic-ai/claude-code --version 2>/dev/null || echo "unknown")
+              SDK=$(node -e "console.log(require('/app/node_modules/@anthropic-ai/claude-agent-sdk/package.json').version)" 2>/dev/null || echo "unknown")
 
-              # Update Claude Code CLI + Agent SDK on every restart
-              echo "Updating Claude Code CLI..."
-              npm update -g @anthropic-ai/claude-code 2>&1 || true
-              echo "Updating Agent SDK..."
-              cd /app && bun update @anthropic-ai/claude-agent-sdk 2>&1 || true
+              MSG="🤖 <b>Claude Bot Restarted</b>
 
-              # Get post-update versions
-              NEW_CLI=$(npx @anthropic-ai/claude-code --version 2>/dev/null || echo "unknown")
-              NEW_SDK=$(node -e "console.log(require('/app/node_modules/@anthropic-ai/claude-agent-sdk/package.json').version)" 2>/dev/null || echo "unknown")
-
-              # Notify via Telegram on version changes
-              if [ "$OLD_CLI" != "$NEW_CLI" ] || [ "$OLD_SDK" != "$NEW_SDK" ]; then
-                MSG="🤖 <b>Claude Bot Restarted — Updates Applied</b>
-
-              CLI: <code>${OLD_CLI}</code> → <code>${NEW_CLI}</code>
-              SDK: <code>${OLD_SDK}</code> → <code>${NEW_SDK}</code>"
-              else
-                MSG="🤖 <b>Claude Bot Restarted</b>
-
-              CLI: <code>${NEW_CLI}</code>
-              SDK: <code>${NEW_SDK}</code>
-              No version changes."
-              fi
+              CLI: <code>${CLI}</code>
+              SDK: <code>${SDK}</code>"
 
               if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
                 curl -s -X POST \
