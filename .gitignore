@@ -4,6 +4,7 @@
 .idea/
 .claude/
 .*mcp*
+*.original.md
 
 # Common package manager directories
 node_modules/
