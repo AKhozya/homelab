@@ -32,7 +32,7 @@
 | Homepage | - | Dashboard |
 | Uptime Kuma | - | Uptime monitor, MySQL |
 | Authentik | Provider | SSO, PostgreSQL + Redis, passkey-first via Conditional UI (password fallback retained) |
-| AdGuard Home | - | DNS filter |
+| AdGuard Home | - | DNS filter, **HA: 2 pods (W1+W2), per-instance LB IPs 192.168.1.129/126** |
 | Stirling PDF | OIDC | PDF toolkit |
 | HomeHub | - | Family dashboard, local only |
 | Grafana | OIDC | Monitoring dashboard |
