@@ -102,6 +102,54 @@
     mode: "0700"
   tags: [base-config, user]
 
+# Workers carry rebuilderd's /etc/makepkg.conf.d/storage.conf which sets BUILDDIR/SRCDEST/PKGDEST
+# to LVM paths owned by rebuilderd. yay run by node-maintenance during phase2 AUR upgrade hits
+# "Failed to create the directory $BUILDDIR" because those paths aren't writable by the user.
+# User-scope override (~/.config/pacman/makepkg.conf) wins over /etc/makepkg.conf.d/ for this user
+# without disturbing rebuilderd-worker (which still reads system-wide config).
+- name: Ensure node-maintenance user pacman config dir
+  ansible.builtin.file:
+    path: /var/lib/node-maintenance/.config/pacman
+    state: directory
+    owner: node-maintenance
+    group: node-maintenance
+    mode: "0755"
+  when: "'workers' in group_names"
+  tags: [base-config, user, makepkg]
+
+- name: Deploy node-maintenance user-scoped makepkg.conf (BUILDDIR override for AUR yay runs)
+  ansible.builtin.copy:
+    dest: /var/lib/node-maintenance/.config/pacman/makepkg.conf
+    owner: node-maintenance
+    group: node-maintenance
+    mode: "0644"
+    content: |
+      # Override system-wide /etc/makepkg.conf.d/storage.conf which points
+      # BUILDDIR/SRCDEST/PKGDEST at rebuilderd-only LVM paths. yay (run by
+      # node-maintenance during phase2 AUR upgrade) needs writable dirs.
+      BUILDDIR=/tmp/makepkg-node-maintenance
+      SRCDEST=/var/lib/node-maintenance/.cache/makepkg/sources
+      PKGDEST=/var/lib/node-maintenance/.cache/makepkg/packages
+      SRCPKGDEST=/var/lib/node-maintenance/.cache/makepkg/srcpackages
+      LOGDEST=/var/lib/node-maintenance/.cache/makepkg/logs
+  when: "'workers' in group_names"
+  tags: [base-config, user, makepkg]
+
+- name: Ensure node-maintenance makepkg cache dirs exist
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: node-maintenance
+    group: node-maintenance
+    mode: "0755"
+  loop:
+    - /var/lib/node-maintenance/.cache/makepkg/sources
+    - /var/lib/node-maintenance/.cache/makepkg/packages
+    - /var/lib/node-maintenance/.cache/makepkg/srcpackages
+    - /var/lib/node-maintenance/.cache/makepkg/logs
+  when: "'workers' in group_names"
+  tags: [base-config, user, makepkg]
+
 - name: Add admin_user to adm group (read /var/log/node-maintenance without sudo)
   ansible.builtin.user:
     name: "{{ admin_user }}"
