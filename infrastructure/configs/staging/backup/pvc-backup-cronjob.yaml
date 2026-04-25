@@ -88,6 +88,7 @@ spec:
                   linkwarden/linkwarden-data/*linkwarden-data*
                   linkwarden/meilisearch-data/*meilisearch-data*
                   pricebuddy/pricebuddy-storage/*pricebuddy-storage*
+                  adguard-home/adguard-home-data-pvc/*adguard-home-data-pvc*
                   "
 
                   # PVCs containing already-compressed media files (audio)
