@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: adguard-home
+  name: adguard-home-w2
   namespace: adguard-home
 spec:
   replicas: 1
@@ -11,13 +11,24 @@ spec:
   selector:
     matchLabels:
       app: adguard-home
+      instance: w2
   template:
     metadata:
       labels:
         app: adguard-home
+        instance: w2
     spec:
       serviceAccountName: adguard-home
       automountServiceAccountToken: false
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - worker-node-2
       securityContext:
         runAsUser: 0
         runAsGroup: 0
@@ -39,6 +50,13 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
           volumeMounts:
             - name: config
               mountPath: /tmp/config
@@ -98,7 +116,7 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: adguard-home-data-pvc
+            claimName: adguard-home-data-w2-pvc
         - name: config
           secret:
             secretName: adguard-home-config

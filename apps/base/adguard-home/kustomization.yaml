@@ -4,9 +4,14 @@ resources:
   - namespace.yaml
   - serviceaccount.yaml
   - storage.yaml
+  - storage-w2.yaml
   - secret.yaml
-  - deployment.yaml
+  - deployment-w1.yaml
+  - deployment-w2.yaml
   - service-dns.yaml
   - service-web.yaml
+  - service-web-w1.yaml
+  - service-web-w2.yaml
   - ingress.yaml
+  - ingress-w2.yaml
   - networkpolicy.yaml

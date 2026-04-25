@@ -34,13 +34,16 @@ spec:
         - protocol: UDP
           port: 53
   egress:
-    # Allow DNS resolution to trusted upstream servers only
-    # Cloudflare DNS (1.1.1.1, 1.0.0.1)
+    # Cloudflare malware-blocking DNS (1.1.1.2 / 1.0.0.2 + IPv6)
     - to:
         - ipBlock:
-            cidr: 1.1.1.1/32
+            cidr: 1.1.1.2/32
         - ipBlock:
-            cidr: 1.0.0.1/32
+            cidr: 1.0.0.2/32
+        - ipBlock:
+            cidr: 2606:4700:4700::1112/128
+        - ipBlock:
+            cidr: 2606:4700:4700::1002/128
       ports:
         - protocol: UDP
           port: 53
@@ -48,23 +51,16 @@ spec:
           port: 53
         - protocol: TCP
           port: 853  # DoT
-    # Google DNS (8.8.8.8, 8.8.4.4)
-    - to:
-        - ipBlock:
-            cidr: 8.8.8.8/32
-        - ipBlock:
-            cidr: 8.8.4.4/32
-      ports:
-        - protocol: UDP
-          port: 53
-        - protocol: TCP
-          port: 53
-        - protocol: TCP
-          port: 853  # DoT
-    # Quad9 DNS (9.9.9.9)
+    # Quad9 DNS (9.9.9.9 / 149.112.112.112 + IPv6)
     - to:
         - ipBlock:
             cidr: 9.9.9.9/32
+        - ipBlock:
+            cidr: 149.112.112.112/32
+        - ipBlock:
+            cidr: 2620:fe::fe/128
+        - ipBlock:
+            cidr: 2620:fe::9/128
       ports:
         - protocol: UDP
           port: 53
@@ -72,9 +68,24 @@ spec:
           port: 53
         - protocol: TCP
           port: 853  # DoT
-    # Allow HTTPS for blocklist updates (GitHub, community lists, etc.)
-    # Modern blocklists use HTTPS (2024-2025): GitHub-hosted, HaGeZi, OISD
-    # Legacy HTTP sources (someonewhocares.org, pgl.yoyo.org) have HTTPS support
+    # In-cluster CoreDNS for *.cluster.local split DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow HTTPS for DoH upstreams + blocklist updates (GitHub, HaGeZi, OISD)
+    # DoH uses port 443 to security.cloudflare-dns.com / dns.quad9.net
+    # Also covers HTTP/3 (QUIC) on UDP 443
     - ports:
         - protocol: TCP
+          port: 443
+        - protocol: UDP
           port: 443
