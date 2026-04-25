@@ -81,7 +81,7 @@
 
 ## EXTERNAL ACCESS
 
-**Cloudflare Tunnel** (10 svcs): authentik, couchdb, audiobooks, linkwarden, stirling-pdf, mealie, paperless, immich, n8n, search
+**Cloudflare Tunnel** (9 svcs): authentik, couchdb, audiobooks, linkwarden, stirling-pdf, mealie, paperless, immich, n8n
 **Internal**: AdGuard local DNS, Traefik Ingress
 **Domain**: h0melab.work
 
