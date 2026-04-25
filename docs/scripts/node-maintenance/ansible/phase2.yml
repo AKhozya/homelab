@@ -154,7 +154,7 @@
       delegate_to: localhost
       become: false
 
-    - name: Upgrade via yay (retry once on failure)
+    - name: Upgrade via yay (best-effort — transient AUR failures must not block reboot)
       block:
         - name: First attempt
           ansible.builtin.shell: "{{ yay_cmd }}"
@@ -164,10 +164,11 @@
         - name: Pause 30s before retry
           ansible.builtin.pause:
             seconds: 30
-        - name: Retry attempt
+        - name: Retry attempt (non-fatal — proceed to reboot regardless)
           ansible.builtin.shell: "{{ yay_cmd }}"
           register: yay_result_retry
           changed_when: "'there is nothing to do' not in yay_result_retry.stdout"
+          failed_when: false
 
     - name: Reboot node (graceful — shutdownGracePeriod 2min handles pods)
       ansible.builtin.reboot:
@@ -207,6 +208,12 @@
     - name: Stabilize pause
       ansible.builtin.pause:
         minutes: "{{ per_node_stabilize_minutes }}"
+
+    - name: Start rebuilderd-worker (explicit — boot timer only fires on reboot, yay-fail path may skip it)
+      ansible.builtin.systemd_service:
+        name: rebuilderd-worker@1.service
+        state: started
+      failed_when: false
 
     - name: Observe crashloops (report-only; decision - continue, self-heal)
       ansible.builtin.shell: |
