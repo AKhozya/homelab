@@ -9,4 +9,5 @@ resources:
   - databases/couchdb
   - databases/redis
   - databases/redis-operator
+  - databases/redis-ha
   - databases/mysql
