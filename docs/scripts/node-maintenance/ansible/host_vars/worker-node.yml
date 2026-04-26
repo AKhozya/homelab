@@ -15,17 +15,18 @@ k3s_data_dir: /mnt/k8s-storage/rancher/k3s
 
 # ---- Rebuilderd ----
 rebuilderd_cpu_quota: "600%"
-rebuilderd_mem_max: "32G"
-rebuilderd_mem_high: "31G"
+rebuilderd_mem_max: "18G"
+rebuilderd_mem_high: "17G"
 rebuilderd_mem_swap_max: "16G"
 rebuilderd_repro_dir: "/mnt/k8s-storage/repro"
 # Reason note embedded verbatim in resources.conf — preserves OOM incident context.
 rebuilderd_mem_comment: |
-  # RAM: 32GB (hard limit)
-  # Increased from 24GB to allow heavy LTO builds (python-triton ~40GB,
-  # openvdb ~34GB) to complete. K8s actual usage is ~13.5GB of 61GB total,
-  # so 32GB leaves ~29GB headroom for pods. OOM kills at 24GB were contained
-  # in rebuilderd cgroup (no K8s impact) but caused build failures (2026-02-21).
+  # RAM: 18GB (hard limit)
+  # Reduced from 32GB after node-level OOM on W1 (2026-04-26): rebuilderd
+  # pressure spilled past cgroup and triggered host OOM-kills on K8s pods.
+  # Trade-off: heavy LTO builds (python-triton ~40GB, openvdb ~34GB) will
+  # OOM-kill inside the rebuilderd cgroup again — accepted to preserve K8s
+  # stability. Earlier 24G→32G bump (2026-02-21) is reverted further.
 
 # ---- UFW firewall ----
 # W1-specific rules. Extras vs base: 10.42.2.0/24 (W2 pod subnet — redundant
