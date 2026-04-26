@@ -205,19 +205,39 @@ spec:
             - -c
             - |
               export HOME=/home/akhozya
-              echo "Sync sidecar started (1h interval)"
+              echo "Sync sidecar started (30m interval)"
+
+              run_pull() {
+                local label="$1" dir="$2"
+                local before after out rc
+                before=$(git -C "$dir" rev-parse HEAD 2>/dev/null || echo "?")
+                out=$(git -C "$dir" pull --ff-only 2>&1)
+                rc=$?
+                after=$(git -C "$dir" rev-parse HEAD 2>/dev/null || echo "?")
+                if [ $rc -ne 0 ]; then
+                  echo "[$label] PULL FAILED rc=$rc"
+                  echo "$out" | sed 's/^/  /'
+                  return 1
+                fi
+                if [ "$before" != "$after" ]; then
+                  echo "[$label] updated $before -> $after"
+                else
+                  echo "[$label] up-to-date $after"
+                fi
+                return 0
+              }
+
               while true; do
-                sleep 3600
+                sleep 1800
                 echo "--- Sync $(date -Iseconds) ---"
-                git -C ~/.local/share/chezmoi pull --quiet 2>&1 || true
-                chezmoi apply --force --no-tty 2>&1 || true
-                # Fix CLAUDE_PLUGIN_ROOT paths for this environment
+                run_pull chezmoi ~/.local/share/chezmoi || true
+                chezmoi apply --force --no-tty 2>&1 || echo "[chezmoi] apply FAILED"
                 for f in ~/.claude/plugins/cache/*/*/hooks/hooks.json; do
                   [ -f "$f" ] || continue
                   plugin_root="$(cd "$(dirname "$f")/.." && pwd)"
                   sed -i "s|\${CLAUDE_PLUGIN_ROOT}|$plugin_root|g" "$f" 2>/dev/null
                 done
-                git -C ~/source-code/homelab pull --quiet 2>&1 || true
+                run_pull homelab ~/source-code/homelab || true
                 echo "Sync done"
               done
           env:
