@@ -8,4 +8,5 @@ resources:
   - databases/postgres
   - databases/couchdb
   - databases/redis
+  - databases/redis-operator
   - databases/mysql
