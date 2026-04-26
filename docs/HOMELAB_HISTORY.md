@@ -452,6 +452,73 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 - ⚙️ **AdGuard pruned**: ns + manifests deleted by Flux (cutover commit removes `apps/staging/kustomization.yaml` adguard entry); resource-governance adguard-home.yaml entry also removed
 - 🔮 **Open**: Uptime Kuma DNS probes for both Blocky IPs (manual UI step, scheduled 2026-05-04); Phase 1 redis-ha alerts also need VMRule conversion (separate task, P2)
 
+### 2026-04-26 (Phase 2 Hardening + Stale Cleanup) 🧹
+Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
+
+**Blocky config tuning** (research-driven, per upstream best practices):
+- Dropped `multi.txt` (subsumed by pro.plus) and `big.oisd.nl` (heavy overlap) → ~40% fewer entries to load
+- `connectIPVersion: dual` → `v4` (K3s podCIDR is v4-only; v6 attempts wasted latency)
+- Added `clientLookup.upstream: 10.43.0.10` for PTR-based hostname enrichment in query log
+- Caching: `minTime: 60s` → `5m`, `maxTime: 0` → `12h`, explicit `cacheTimeNegative: 30m`
+- Bootstrap DNS trimmed 8 → 2 entries (1.1.1.2 + 9.9.9.9)
+- `redis.required: false` → `true` (surface failures rather than silent fallback)
+- `loading.downloads.timeout: 5m` + `attempts: 5` (tif.txt parse-timeout fix)
+- Pivot ConfigMap → SOPS Secret with passwords inlined (queryLog.target doesn't env-substitute)
+
+**Monitoring stack fix**:
+- Discovered `vm-operator` has `VM_ENABLEDPROMETHEUSCONVERTER_*=false` → all `PrometheusRule` resources silently dead (vmalert reads only `VMRule`)
+- Migrated redis-ha 7-alert group from `prometheus-rules.yaml` to `vmrules.yaml`
+- Deleted `monitoring/configs/staging/kube-prometheus-stack/prometheus-rules.yaml` (1183 lines of dead duplicate; all groups already in vmrules.yaml except redis-ha)
+- vmalert now loads 25 groups including blocky + redis-ha
+
+**Blocky LB consolidation**:
+- 2 LoadBalancer Services on port 53 created K3s servicelb host-port conflict → 2 svclb pods Pending 86min
+- Collapsed to single `blocky-dns` Service (servicelb auto-assigns 1 LB IP per worker via ETP=Local) — exposes both 192.168.1.129 + 192.168.1.126
+
+**Uptime Kuma cleanup** (via direct MySQL):
+- Deleted: AdGuard, Prometheus, Redis (single-pod), SearXNG (4 stale monitors, FK CASCADE cleaned heartbeats/stats)
+- Added: Blocky DNS, Redis HA Master, Redis HA Sentinel, VictoriaMetrics
+- Pivoted Blocky probes to ClusterIP DNS name (LB IP not routable from cluster pods due to ETP=Local)
+- All 5 new monitors GREEN
+
+**NetworkPolicy fixes**:
+- uptime-kuma egress: added 26379 (Sentinel) + 8429 (vmsingle HTTP) + DNS 53 UDP/TCP
+- redis-ha ingress: added uptime-kuma ns to Sentinel 26379 allowlist
+
+**igc NIC drop fix** (CP `enp3s0` Intel I225-V):
+- Created ansible role `nic_tuning` with systemd unit `igc-tune@.service`
+- Forces 1Gbps full duplex + disables Energy Efficient Ethernet (EEE)
+- Applied via `node-maintenance-config.service` → confirmed `Speed: 1000Mb/s`, `EEE: disabled`
+- Persists across reboots
+
+**CNPG schema fix**:
+- Plan T2 missed: `blocky` role must be in `cluster.yaml` `managed.roles` block (CNPG does NOT auto-create roles from labeled Secrets)
+- Added; Database CR reconciled successfully
+
+**Backup/restore script refresh**:
+- Removed: AdGuard, SearXNG (decommissioned)
+- Added: blocky-config (SOPS), blocky-db-user (CNPG), redis-acl-secret, immich-redis-url, claude-telegram (3 secrets)
+- DB backup CronJobs unchanged (auto-discover via `\l`/`SHOW DATABASES`/`_all_dbs` — picks up `blocky` PG db automatically)
+- Manual PVC backup test: ✅ 10/10 PVCs successful, 0 failed, 55MB total
+
+**Stale resource cleanup**:
+- Removed `adguard-home` line from `pvc-backup-cronjob.yaml` CRITICAL_PVCS
+- Deleted orphan Prometheus PVCs (~100Gi storage recovered): `prometheus-kube-prometheus-stack-prometheus-db-prometheus-kube-prometheus-stack-prometheus-{0,1}` (no consumer; we use vmsingle)
+- Updated homepage widget AdGuard → Blocky
+- Mac resolver script + chezmoi sync (AdGuard → Blocky text refs)
+
+**CP node incident** (2026-04-26 21:05-21:10):
+- `enp3s0` NIC link DOWN events × 4 → CP isolated until physical reboot
+- Recovered after `sudo reboot`; Flux source/helm/notification controllers crashlooped post-recovery, fixed via pod delete
+- Root cause: igc driver behavior at 2.5G with EEE — fixed via `nic_tuning` role above
+
+**IPv6 audit**:
+- All 3 nodes have global IPv6 (RA + ULA)
+- Pods are IPv4-only (K3s clusterCIDR v4-only) — flagged as Backlog dual-stack consideration
+- Old PENDING "W2 missing IPv6" was outdated (node-level OK; pod-level limitation is K3s scope)
+
+**Files touched in this batch**: 23 changes across apps/, infrastructure/, monitoring/, docs/, .backup/, scripts/macos/, dot files (chezmoi)
+
 ### 2025-12-31 (K3s Upgrade to v1.35.0) 🚀
 - ✅ **K3s Cluster Upgrade**: All 3 nodes upgraded to v1.35.0+k3s1 ⭐
   - **gmk-k3s-control-plane**: v1.34.2+k3s1 → v1.35.0+k3s1

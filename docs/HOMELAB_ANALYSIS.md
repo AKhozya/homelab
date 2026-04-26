@@ -120,7 +120,8 @@
 | Uptime Kuma — replace old Redis monitor with HA Master + HA Sentinel TCP probes + add Blocky DNS probes (192.168.1.129/126) | 2026-05-04 | P2 |
 | K3s dual-stack pod networking (currently v4-only podCIDR; node-level IPv6 working on all 3 nodes). Blocky uses `connectIPVersion: v4` as workaround | Backlog | P3 |
 | Blocky 1-week soak observation: peak RSS, log_entries growth, 0 fired alerts, query latency p95 | 2026-05-03 | P2 |
-| CP node `enp3s0` (Intel I225-V/igc) NIC link drops fix — apply ansible role `nic_tuning` (1Gbps + EEE off via igc-tune@enp3s0.service); incident 2026-04-26 21:05-21:10 isolated CP | 2026-04-27 | P1 |
+| Redis HA failover smoke test (re-verify Sentinel-driven master promotion + app reconnect, post-Phase-1 stability check) | 2026-05-26 | P2 |
+| Audit: are there other zombie helm releases (e.g. kube-prometheus-stack still installed but Prometheus subchart unused — vmsingle replaces) | 2026-05-04 | P3 |
 
 **Next Review**: 2026-05-04 (monthly)
 
