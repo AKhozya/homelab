@@ -15,7 +15,7 @@ spec:
       type: RuntimeDefault
   securityContext:
     allowPrivilegeEscalation: false
-    readOnlyRootFilesystem: true
+    readOnlyRootFilesystem: false
     runAsNonRoot: true
     capabilities:
       drop: ["ALL"]
