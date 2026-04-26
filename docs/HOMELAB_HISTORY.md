@@ -416,6 +416,20 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (October-December 2025)
 
+### 2026-04-26 (Redis HA Migration — Phase 1) ⚡
+- ✅ **OT-CONTAINER-KIT redis-operator v0.24.0** deployed via Flux HelmRelease
+- ✅ **RedisReplication CR**: 1 master (W2) + 1 replica (W1), hard pod anti-affinity, image `quay.io/opstree/redis:v8.6.2` (bumped from v7.4.8 by Renovate during cutover; researched, no breaking changes)
+- ✅ **RedisSentinel CR**: 3 sentinels spread across CP/W1/W2 (CP toleration added), quorum 2 of 3, parallelSyncs 1, downAfterMilliseconds 5000
+- ✅ **ACL secret** with literal users (admin, paperless, immich, blocky), `default on nopass` for liveness probes (NetworkPolicy restricts namespace access)
+- ✅ **Mixed client model**: Immich uses Sentinel via `REDIS_URL=ioredis://<base64-json>`; Paperless uses static `redis-replication-master` Service (Paperless does not support Sentinel)
+- ✅ **Cutover successful**: Immich 76 conns + Paperless 8 conns on new cluster, old redis-0 0 app conns
+- ✅ **Failover tested**: master pod delete → Sentinel promoted replica → endpoint moved → apps reconnected (HTTP 200/302)
+- ✅ **Old redis-0 StatefulSet decommissioned**, PVC `data-redis-0` (5Gi) deleted, all legacy `redis/` dirs removed from git
+- ✅ **PrometheusRule `redis-ha` group**: 7 alerts (RedisHADown, RedisHAAllDown, RedisHASentinelQuorumLost, RedisHAReplicationBroken, RedisHAReplicationLag, RedisHAMemoryHigh, RedisHAClientReconnectStorm)
+- ⚙️ **Quota bumps**: databases ns `limits.cpu` 17→20, `limits.memory` 18→20Gi, `services` 20→50 (OT operator creates 6 svcs/replication + 3 svcs/sentinel)
+- ⚙️ **Plan-vs-actual drift fixed during execution**: OT v1beta2 schema (`serviceType` removed; `secretKeyRef` for sentinel password); Sentinel pod label is `app=redis-sentinel-sentinel` (NP + anti-affinity selectors corrected); `readOnlyRootFilesystem: true` incompatible with OT entrypoint writing `/etc/redis/redis.conf` — set `false`; `protected-mode no` required for nopass default user
+- 🔮 **Phase 2 unblocked**: Blocky DNS migration ready (separate plan `docs/superpowers/plans/2026-04-26-blocky-migration.md`)
+
 ### 2025-12-31 (K3s Upgrade to v1.35.0) 🚀
 - ✅ **K3s Cluster Upgrade**: All 3 nodes upgraded to v1.35.0+k3s1 ⭐
   - **gmk-k3s-control-plane**: v1.34.2+k3s1 → v1.35.0+k3s1

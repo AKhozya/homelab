@@ -31,7 +31,7 @@
 |-----|----------|-------|
 | Homepage | - | Dashboard |
 | Uptime Kuma | - | Uptime monitor, MySQL |
-| Authentik | Provider | SSO, PostgreSQL + Redis, passkey-first via Conditional UI (password fallback retained) |
+| Authentik | Provider | SSO, PostgreSQL (no Redis — in-memory cache), passkey-first via Conditional UI (password fallback retained) |
 | AdGuard Home | - | DNS filter, **HA: 2 pods (W1+W2), per-instance LB IPs 192.168.1.129/126** |
 | Stirling PDF | OIDC | PDF toolkit |
 | HomeHub | - | Family dashboard, local only |
@@ -55,7 +55,7 @@
 |--------|----------|-----|-------|----------|
 | PostgreSQL (CNPG) | 2 | Streaming repl | PgBouncer | Authentik, Immich, Paperless, Grafana, N8N, Mealie, LinkWarden, Audiobookshelf |
 | MySQL (Percona) | 2 | Async repl | HAProxy | Home Assistant, Uptime Kuma, PriceBuddy |
-| Redis | 1 | No (cache) | - | Authentik, Paperless, Immich |
+| Redis (OT-operator v0.24.0) | 1 master + 1 replica + 3 Sentinels | Sentinel quorum (2 of 3) | Sentinel (Immich) / static master Service (Paperless) | Paperless, Immich, Blocky (planned). Authentik does NOT use Redis. |
 | CouchDB | 2 | Active-active | - | Obsidian sync |
 
 ---
@@ -116,7 +116,8 @@
 | Watch Authentik #19580 (multi-passkey wrong-pick) — relevant if enrolling 2nd passkey | Backlog | P3 |
 | Consider removing default-authentication-password binding once 1+ month clean passkey ops | 2026-06 | P3 |
 | Blocky memory-limit review — peak RSS observation, scale 512Mi -> 256Mi if efficient | 2026-05-26 | P3 |
-| Redis K8s-native operator health check (Phase 1 follow-up after Blocky migration) | 2026-05-26 | P3 |
+| Redis HA operator health check (master/replica/sentinel quorum, alerts firing only on real outages) | 2026-05-26 | P3 |
+| Uptime Kuma — replace old Redis monitor with HA Master + HA Sentinel TCP probes (manual UI step) | 2026-05-04 | P2 |
 | Worker-node-2 IPv6 connectivity fix (missing global IPv6, currently mitigated by Blocky `connectIPVersion: dual`) | Backlog | P3 |
 
 **Next Review**: 2026-05-04 (monthly)
