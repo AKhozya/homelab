@@ -519,6 +519,18 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 **Files touched in this batch**: 23 changes across apps/, infrastructure/, monitoring/, docs/, .backup/, scripts/macos/, dot files (chezmoi)
 
+**Same-day Redis HA failover smoke test** (Sunday-reboot prep):
+- Pre-state: r0 master (10.42.2.164/W2), r1 slave; Sentinel quorum agrees
+- Action: `kubectl delete pod redis-replication-0`
+- t+15s: Sentinel promoted r1 to master (10.42.1.162/W1) — quorum cleanly elected
+- t+30s: K8s `redis-replication-master` Service endpoint moved to new master
+- r0 recovered (~30s): **OT operator forcibly demoted r1 back to slave + restored r0 as master** (operator-driven topology overrides Sentinel)
+- Sentinel kept stale view of r1 as master for ~5 min until manual `SENTINEL reset` + STS rollout restart
+- K8s Services followed operator's view (correct)
+- **Implication**: apps using static `redis-replication-master` Service (Paperless, Blocky) ALWAYS see correct master via K8s endpoints. Apps using Sentinel discovery (Immich `REDIS_URL=ioredis://sentinels[]...`) may briefly target a slave during operator/Sentinel divergence — ioredis client retries and rediscovers via Sentinel HELLO.
+- Immich healthcheck during test: HTTP 200 throughout
+- **Sunday-reboot readiness**: ✅ failover works automatically. Manual Sentinel reset only needed if operator's master-restore creates app reconnect storms (none observed in test).
+
 ### 2025-12-31 (K3s Upgrade to v1.35.0) 🚀
 - ✅ **K3s Cluster Upgrade**: All 3 nodes upgraded to v1.35.0+k3s1 ⭐
   - **gmk-k3s-control-plane**: v1.34.2+k3s1 → v1.35.0+k3s1
