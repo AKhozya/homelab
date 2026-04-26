@@ -242,7 +242,7 @@ spec:
                   echo "=== Step 6: Checking NAS storage ==="
                   NAS_SIZE_GB=$(RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
                     "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/" 2>/dev/null \
-                    | awk '/^-/{sum+=$2} END{printf "%d", sum/1073741824}')
+                    | awk '/^-/{gsub(",", "", $2); sum+=$2} END{printf "%d", sum/1073741824}')
                   echo "NAS backup size: ~${NAS_SIZE_GB}GB / 500GB limit"
 
                   NAS_STATUS="NAS: ${NAS_SIZE_GB}GB / 500GB"
