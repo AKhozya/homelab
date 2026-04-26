@@ -6,7 +6,6 @@ resources:
   - serviceaccount.yaml
   - configmap.yaml
   - deployment.yaml
-  - service-dns-w1.yaml
-  - service-dns-w2.yaml
+  - service-dns.yaml
   - service-metrics.yaml
   - networkpolicy.yaml
