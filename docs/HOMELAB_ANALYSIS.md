@@ -115,6 +115,9 @@
 | Watch Authentik #18232 (TOTP/WebAuthn pk collision in MFA Devices UI) | Backlog | P3 |
 | Watch Authentik #19580 (multi-passkey wrong-pick) — relevant if enrolling 2nd passkey | Backlog | P3 |
 | Consider removing default-authentication-password binding once 1+ month clean passkey ops | 2026-06 | P3 |
+| Blocky memory-limit review — peak RSS observation, scale 512Mi -> 256Mi if efficient | 2026-05-26 | P3 |
+| Redis K8s-native operator health check (Phase 1 follow-up after Blocky migration) | 2026-05-26 | P3 |
+| Worker-node-2 IPv6 connectivity fix (missing global IPv6, currently mitigated by Blocky `connectIPVersion: dual`) | Backlog | P3 |
 
 **Next Review**: 2026-05-04 (monthly)
 
