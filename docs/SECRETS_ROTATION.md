@@ -41,8 +41,11 @@
 | Secret Name | App | Last Rotated | Next Rotation | Priority |
 |-------------|-----|--------------|---------------|----------|
 | `authentik-redis-password` | Authentik | N/A (Removed 2025-10-29) | N/A | N/A |
-| `immich-redis-password` | Immich | 2026-04-02 | 2026-07-01 | High |
-| `paperless-redis-password` | Paperless-NGX | 2026-04-02 | 2026-10-01 | Medium |
+| `redis-passwords.immich-password` | Immich (Sentinel via REDIS_URL) | 2026-04-02 | 2026-07-01 | High |
+| `redis-passwords.paperless-password` | Paperless-NGX (static master Service) | 2026-04-02 | 2026-10-01 | Medium |
+| `redis-passwords.blocky-password` | Blocky DNS (static master Service, db 1) | 2026-04-26 | 2026-10-26 | Medium |
+| `redis-passwords.admin-password` | Redis HA admin | 2026-04-26 | 2026-07-01 | High |
+| `redis-acl-secret` | Redis ACL (literal user list, mounted /etc/redis/user.acl) | 2026-04-26 | rotate WITH redis-passwords | High |
 | `wallabag-redis-password` | Wallabag | N/A (Decommissioned) | N/A | N/A |
 
 ### Application Secrets
@@ -59,7 +62,6 @@
 | Secret Name | App | Notes |
 |-------------|-----|-------|
 | `homehub-password` | HomeHub | User login — NO auto-rotate |
-| `adguard-home-config` | AdGuard Home | User login — NO auto-rotate |
 | `grafana-admin-secret` | Grafana | User login — NO auto-rotate |
 | `audiobookshelf-admin` | Audiobookshelf | User login — NO auto-rotate |
 | `couchdb-admin-credentials` | Obsidian Sync | Client-facing (LiveSync direct) — NO rotate |
@@ -303,11 +305,36 @@ flux reconcile kustomization apps --timeout 45s --force
 kubectl rollout restart deployment/homehub -n homehub
 ```
 
-#### AdGuard Home
+#### Blocky DNS (Redis password coordinated rotation)
 ```bash
-# 1. Generate bcrypt hash (same as HomeHub)
-# 2. Update: sops apps/base/adguard-home/secret.yaml
-# 3. Commit, push, reconcile, restart
+# 1. Generate new password
+NEW=$(openssl rand -base64 32 | tr -d '\n=/+' | head -c 40)
+
+# 2. Update redis-passwords (databases ns)
+sops infrastructure/controllers/base/databases/redis-ha/passwords-secret.yaml
+# Replace blocky-password value with $NEW
+
+# 3. Update redis-acl-secret (databases ns) — replace blocky line `>${OLD}` with `>${NEW}`
+sops infrastructure/controllers/base/databases/redis-ha/acl-secret.yaml
+
+# 4. Update Blocky's inlined config Secret
+sops apps/base/blocky/configmap.yaml
+# Find redis.password: <OLD> → replace with <NEW>
+
+# 5. Commit, push, reconcile, restart
+git add infrastructure/controllers/base/databases/redis-ha/passwords-secret.yaml \
+        infrastructure/controllers/base/databases/redis-ha/acl-secret.yaml \
+        apps/base/blocky/configmap.yaml
+git commit -m "Rotate blocky redis password"
+git push
+flux reconcile source git flux-system --timeout 45s
+flux reconcile kustomization infrastructure-controllers --timeout 60s
+flux reconcile kustomization apps --timeout 60s
+kubectl rollout restart statefulset -n databases redis-replication redis-sentinel-sentinel
+kubectl rollout restart deploy -n blocky blocky
+
+# 6. Verify
+kubectl logs -n blocky -l app=blocky --tail=20 | grep -iE "redis|error"
 ```
 
 ---
