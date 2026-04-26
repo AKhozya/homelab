@@ -1,0 +1,11 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: blocky
+  namespace: databases
+spec:
+  cluster:
+    name: main-postgres
+  name: blocky
+  owner: blocky
+  ensure: present

@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: blocky
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - blocky
+  selector:
+    matchLabels:
+      app: blocky
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s

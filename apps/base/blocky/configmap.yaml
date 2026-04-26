@@ -1,0 +1,94 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: blocky-config
+  namespace: blocky
+data:
+  config.yml: |
+    ports:
+      dns: 53
+      http: 4000
+
+    connectIPVersion: dual
+
+    upstreams:
+      init:
+        strategy: blocking
+      groups:
+        default:
+          - https://security.cloudflare-dns.com/dns-query
+          - https://dns.quad9.net/dns-query
+
+    bootstrapDns:
+      - upstream: 1.1.1.2
+      - upstream: 1.0.0.2
+      - upstream: 9.9.9.9
+      - upstream: 149.112.112.112
+      - upstream: 2606:4700:4700::1112
+      - upstream: 2606:4700:4700::1002
+      - upstream: 2620:fe::fe
+      - upstream: 2620:fe::9
+
+    conditional:
+      mapping:
+        cluster.local: 10.43.0.10
+
+    customDNS:
+      customTTL: 1h
+      filterUnmappedTypes: true
+      mapping:
+        h0melab.work: 192.168.1.129,192.168.1.126
+
+    blocking:
+      denylists:
+        default:
+          - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/multi.txt
+          - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.plus.txt
+          - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.txt
+          - https://big.oisd.nl/
+      clientGroupsBlock:
+        default:
+          - default
+      blockType: zeroIp
+      blockTTL: 30s
+      loading:
+        refreshPeriod: 24h
+
+    caching:
+      minTime: 60s
+      maxTime: 0
+      prefetching: true
+      prefetchExpires: 2h
+      prefetchThreshold: 5
+
+    redis:
+      address: redis-replication-master.databases.svc.cluster.local:6379
+      username: blocky
+      password: ${REDIS_PASSWORD}
+      database: 1
+      required: false
+      connectionAttempts: 5
+      connectionCooldown: 3s
+
+    queryLog:
+      type: postgresql
+      target: postgres://blocky:${PG_PASSWORD}@main-postgres-rw.databases.svc.cluster.local:5432/blocky?sslmode=require
+      logRetentionDays: 7
+      flushInterval: 30s
+      fields:
+        - clientIP
+        - clientName
+        - responseReason
+        - responseAnswer
+        - question
+        - duration
+
+    prometheus:
+      enable: true
+      path: /metrics
+
+    log:
+      level: info
+      format: json
+
+    minTlsServeVersion: "1.3"

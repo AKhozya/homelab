@@ -1,0 +1,73 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: blocky-network-policy
+  namespace: blocky
+spec:
+  podSelector:
+    matchLabels:
+      app: blocky
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # DNS from anywhere (LAN clients via servicelb)
+    - ports:
+        - { protocol: TCP, port: 53 }
+        - { protocol: UDP, port: 53 }
+    # Prometheus scrape from monitoring ns
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - { protocol: TCP, port: 4000 }
+  egress:
+    # CoreDNS for cluster.local
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+    # Redis (databases ns)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+          podSelector:
+            matchLabels:
+              app: redis-replication
+      ports:
+        - { protocol: TCP, port: 6379 }
+    # CNPG primary (direct, not via pooler)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+          podSelector:
+            matchLabels:
+              cnpg.io/cluster: main-postgres
+      ports:
+        - { protocol: TCP, port: 5432 }
+    # Public DNS resolvers - DoT 853 + plain bootstrap 53
+    - to:
+        - { ipBlock: { cidr: 1.1.1.2/32 } }
+        - { ipBlock: { cidr: 1.0.0.2/32 } }
+        - { ipBlock: { cidr: 9.9.9.9/32 } }
+        - { ipBlock: { cidr: 149.112.112.112/32 } }
+        - { ipBlock: { cidr: 2606:4700:4700::1112/128 } }
+        - { ipBlock: { cidr: 2606:4700:4700::1002/128 } }
+        - { ipBlock: { cidr: 2620:fe::fe/128 } }
+        - { ipBlock: { cidr: 2620:fe::9/128 } }
+      ports:
+        - { protocol: UDP, port: 53 }
+        - { protocol: TCP, port: 53 }
+        - { protocol: TCP, port: 853 }
+    # HTTPS for DoH + blocklist downloads (CDNs cannot be IP-pinned)
+    - ports:
+        - { protocol: TCP, port: 443 }
