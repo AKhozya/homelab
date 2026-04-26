@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Configure macOS per-domain resolver so *.h0melab.work always resolves
-# via LAN AdGuard instances (W1 + W2), bypassing VPN-pushed public DNS.
+# via LAN Blocky instances (W1 + W2), bypassing VPN-pushed public DNS.
 #
 # Symptom this fixes:
-#   `dig adguard.h0melab.work` works (returns 192.168.1.129/126)
+#   `dig grafana.h0melab.work` works (returns 192.168.1.129/126)
 #   but browsers / `curl` / `getaddrinfo()` fail with NXDOMAIN.
 #
 # Root cause:
@@ -14,7 +14,7 @@
 #
 # Fix:
 #   /etc/resolver/h0melab.work tells macOS to send all *.h0melab.work
-#   queries ONLY to LAN AdGuard instances, regardless of VPN config.
+#   queries ONLY to LAN Blocky instances, regardless of VPN config.
 #
 # Usage:
 #   ./setup-h0melab-resolver.sh        (auto-elevates with sudo)
@@ -64,7 +64,7 @@ dscacheutil -flushcache
 echo
 echo "==> Verifying resolution via libc (getaddrinfo)"
 sleep 1
-for HOST in adguard.${DOMAIN} adguard-w2.${DOMAIN} grafana.${DOMAIN}; do
+for HOST in grafana.${DOMAIN} home.${DOMAIN} authentik.${DOMAIN}; do
   printf "%-32s " "${HOST}"
   if RESULT=$(python3 -c "import socket; r=socket.getaddrinfo('${HOST}', 443, socket.AF_INET); print(','.join(sorted(set(x[4][0] for x in r))))" 2>/dev/null); then
     echo "OK -> ${RESULT}"
