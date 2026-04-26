@@ -95,3 +95,10 @@ spec:
         inherit: true
         passwordSecret:
           name: linkwarden-db-app-user
+      - name: blocky
+        ensure: present
+        comment: Blocky DNS query log
+        login: true
+        createdb: true
+        passwordSecret:
+          name: blocky-db-user
