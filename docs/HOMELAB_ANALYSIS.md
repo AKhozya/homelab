@@ -97,7 +97,7 @@
 
 ## REBUILDERD (Arch contribution)
 
-- worker-node: 6 CPU, 32GB RAM cap, 24/7
+- worker-node: 6 CPU, 18GB RAM cap, 24/7 (reduced from 32G after host OOM 2026-04-26)
 - worker-node-2: 4 CPU, 14GB RAM cap, 24/7
 - Build timeout 48h, Sun 08:00 cleanup timer
 
@@ -144,6 +144,7 @@ Source of truth:
 *Monthly reviews, full changelog, done items: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) + `git log --all -- docs/HOMELAB_ANALYSIS.md`*
 
 **Recent highlights** (2026):
+- 2026-04-26: **W1 rebuilderd memory cap 32G→18G**. Host-level OOM on W1 — rebuilderd cgroup pressure spilled past `MemoryMax=32G`/`MemoryHigh=31G` and triggered host OOM-kills on K8s pods. Reduced to `MemoryMax=18G`/`MemoryHigh=17G` (+`MAX_MEMORY=18G` env for nspawn). Trade-off accepted: heavy LTO builds (python-triton ~40GB, openvdb ~34GB) will OOM inside rebuilderd cgroup again — same failures as pre-2026-02-21 — but K8s stability preserved. Updated via ansible (`roles/rebuilderd/files/resources-worker-node.conf` + `host_vars/worker-node.yml`), drift-applied to W1 live, verified `MemoryMax=19327352832` (=18*1024^3).
 - 2026-04-22: **W1 canary reboot + phase2 rebuilderd fleet-wide pause**. Canary-rebooted W1 to validate L1 `ufw-heal-post-k3s.service` under real kube-router race — healer fired at 18:52:19, phase-a hit 120s cap (settle timeout fallback), phase-b reload attempt 1 success, phase-c chain repair clean, phase-e final reload success, probe set healthy, UFW active post-heal. `ufw_state.prom` → 1/1/1. L1 validated end-to-end. Blast radius: zero (2 authentik pods evicted from W1 rescheduled to W2, cold image pull took 7m51s on busy rebuilderd box). Root cause of slow pull: W2's `rebuilderd-worker@1.service` was running 13x python3 build fan-out at ~330% CPU + mem tight (1.1G free, 3.6G swap in use) — disk/network contention. **Fix**: added PLAY 0.5 to `ansible/phase2.yml` (fires post-CP-stabilize, mass-stops `rebuilderd-worker@1.service` on all workers in parallel). `rebuilderd-worker-boot.timer` re-arms each worker at +10min post-its-own-reboot — no explicit restart needed. Per-node stop in PLAY 1 kept as belt-and-suspenders no-op.
 - 2026-04-21: **UFW resilience overhaul + drift-heal retry policy**.
   - **Weekly cluster update** ran successfully (phase1 CP + phase2 rolling workers, 0 failures, 16min total). Added CP stabilize pause (4min, Flux + kube-system + traefik + flux-controllers readiness gates) to phase2 PLAY 0 before worker rollout. Bumped CP + per-node stabilize to 4min for DB (CNPG + Percona) failover safety.
