@@ -23,7 +23,6 @@ resources:
   - small-tier/homehub.yaml
   - small-tier/homepage.yaml
   - small-tier/mealie.yaml
-  - small-tier/adguard-home.yaml
   - small-tier/audiobookshelf.yaml
   - small-tier/csp-reporter.yaml
 
