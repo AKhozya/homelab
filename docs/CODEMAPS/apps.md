@@ -16,7 +16,7 @@
 | **home-assistant** | home-assistant | PVC | MySQL | OIDC | both | Smart home |
 | **linkwarden** | linkwarden | PVC + Meilisearch PVC | PostgreSQL | OIDC | both | Bookmarks |
 | **mealie** | mealie | PVC | PostgreSQL | OIDC | both | Recipes |
-| **n8n** | n8n | PVC | PostgreSQL | Enterprise OIDC | both | Workflow automation |
+| **n8n** | n8n | PVC | PostgreSQL | — (native user mgmt) | both | Workflow automation (community edition; no SSO — Enterprise-only feature) |
 | **audiobookshelf** | audiobookshelf | 2 PVCs | sqlite | OIDC | both | Audio library |
 | **obsidian** | obsidian | — | CouchDB (`databases` ns) | — | both | LiveSync (LAN-only client cert) |
 | **pricebuddy** | pricebuddy | PVC | MySQL | — | int | Price tracking |

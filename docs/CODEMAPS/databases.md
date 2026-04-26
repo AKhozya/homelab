@@ -5,10 +5,10 @@ All in `databases` namespace except CouchDB extras in `obsidian` (client side).
 ## PostgreSQL — CloudNativePG (CNPG)
 - **Cluster**: `main-postgres` (1 primary + 1 replica on workers, no CP scheduling)
 - **Pods**: `main-postgres-{N}` (sequential numbering, current 11+12 after upgrades)
-- **Storage**: 50Gi PVC per instance
+- **Storage**: 10Gi PVC per instance
 - **Connection pooler**: PgBouncer Deployment `main-postgres-rw-pooler` (2 replicas)
 - **Backup**: WAL streaming + daily logical pg_dump CronJob (auto-discovers DBs via `\l`)
-- **Versioning**: pinned `18.2-standard-trixie` (helpers float `18-*-trixie`)
+- **Versioning**: pinned `18.3-standard-trixie` (helpers float `18-*-trixie`)
 - **Managed roles** (in `cluster.yaml` `spec.managed.roles`):
   - `postgres-admin` (superuser)
   - `n8n`, `mealie`, `authentik`, `paperless`, `immich`, `linkwarden`, `blocky`
@@ -56,6 +56,7 @@ All in `databases` namespace except CouchDB extras in `obsidian` (client side).
 
 ## Database resource sizing
 - **databases ns quota**: 20 CPU lim, 20Gi mem lim, 50 services (bumped Phase 1 for OT operator's 6+3 svc per CR)
-- **PG**: 4Gi req / 8Gi lim per primary
+- **PG**: 250m/512Mi req, 1000m/2Gi lim per instance
 - **MySQL**: 2Gi req / 4Gi lim per node
 - **Redis HA**: 128Mi req / 512Mi lim per pod (8 pods total = ~4Gi)
+- ⚠️ **Tier quotas may block rolling updates** (need 2x during rollout). Temp increase quota if a rolling update stalls on `exceeded quota`.

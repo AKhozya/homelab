@@ -34,6 +34,11 @@
 3. Cluster pods → CoreDNS (`10.43.0.10`) → upstreams via host network
 4. Mac per-domain resolver `/etc/resolver/h0melab.work` forces `*.h0melab.work` to LAN IPs (bypasses VPN-pushed public DNS)
 
+**Blocky `connectIPVersion: v4` is permanent** — K3s podCIDR is v4-only, dual-stack decided NOT-WORTH-IT (2026-04-26). Blocky on pods can't initiate v6 connections; v4-only DoH upstreams (Cloudflare/Quad9) cover all needs.
+
+## UFW firewall (post-reboot drift gotcha)
+Workers use `ufw-heal-post-k3s.service` (oneshot, after k3s.service) to re-apply ip6tables rules that K3s flannel CNI clobbers on boot. Phase C rule split (`community.general.ufw` module) preserves order. Verification metric: `ufw_chains_healthy` (textfile collector). If alert fires: `sudo systemctl start ufw-heal-post-k3s.service` + `sudo systemctl start ufw-state-metric.service`.
+
 ## TLS / Certs
 - **cert-manager** with Cloudflare DNS-01 challenge
 - Wildcard cert `*.h0melab.work` for Traefik

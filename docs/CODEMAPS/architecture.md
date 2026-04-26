@@ -5,9 +5,11 @@
 ## Nodes
 | Hostname | IP | Role | OS |
 |----------|-----|------|-----|
-| `gmk-k3s-control-plane` | 192.168.1.127 | CP, etcd | Arch + zsh |
-| `worker-node` (W1) | 192.168.1.129 | Worker, AdGuard-inherited apps | Arch + zsh |
-| `worker-node-2` (W2) | 192.168.1.126 | Worker, Immich-pinned (mtime) | Arch + zsh |
+| `gmk-k3s-control-plane` | 192.168.1.127 | CP, etcd | Arch + zsh, SSH user `akhozya` |
+| `worker-node` (W1) | 192.168.1.129 | Worker | Arch + zsh, SSH user `akhozya` |
+| `worker-node-2` (W2) | 192.168.1.126 | Worker, Immich-pinned (mtime) | Arch + zsh, **SSH user `z3us`** (different!) |
+
+SSH port for all nodes: `65300`. Aliases: `ssh_master_node`, `ssh_worker_node`, `ssh_worker_node2`. Claude has NO sudo over SSH (pam_faillock lockout risk).
 
 CP NIC: Intel I225-V (`enp3s0`), forced 1Gbps + EEE off via `igc-tune@.service` (ansible role `nic_tuning`).
 
@@ -23,9 +25,17 @@ flux-system
 ```
 
 ## Encryption
-- **SOPS + age** (~55 SOPS-encrypted Secrets in git)
+- **SOPS + age** (55 SOPS-encrypted Secrets in git)
 - Bootstrap key: `sops-age` Secret in `flux-system` ns
 - Cloudflare Tunnel config also SOPS-encrypted
+- **Edit pattern**: `sops <file>` opens decrypted in `$EDITOR`, re-encrypts on save. Or `sops -e -i <file>` to encrypt-in-place after manual write.
+
+## ⚠️ GitOps invariants
+- **Never** `kubectl apply -f` without `--dry-run=server` (hook blocks). Commit to git → Flux reconciles in ≤60s.
+- **Never** force-delete DB pods. Use CRDs (CNPG/Percona) + `kubectl rollout restart`.
+- **Always** pin images `major.minor.patch-variant`. Floating tags drift silently (Kyverno only catches `:latest`/no-tag).
+- **`readOnlyRootFilesystem: true`** requires `/tmp` emptyDir volume mount.
+- **Every ingress → NetworkPolicy.** Dual access (internal + Cloudflare Tunnel) needs 2 ingress rules but 1 NP.
 
 ## Storage
 - `local-path-provisioner` (default StorageClass)
@@ -34,7 +44,8 @@ flux-system
 
 ## Identity / Auth
 - **Authentik** = OIDC provider (PostgreSQL, no Redis — in-memory cache, passkey-first via Conditional UI)
-- 11 apps integrated: Stirling PDF, Grafana, Immich, Paperless, HA, LinkWarden, Mealie, N8N (Enterprise), Audiobookshelf
+- 8 apps integrated: Stirling PDF, Grafana, Immich, Paperless, HA, LinkWarden, Mealie, Audiobookshelf
+- N8N uses native user mgmt (no OIDC — Enterprise-plan-only feature)
 
 ## External access
 - **Cloudflare Tunnel** (9 svcs): authentik, couchdb, audiobooks, linkwarden, stirling-pdf, mealie, paperless, immich, n8n

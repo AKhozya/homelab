@@ -21,7 +21,7 @@
 | Database | 90/100 |
 | Infrastructure | 88/100 |
 
-**Key facts**: 0 P0/P1. 40 NetworkPolicies. 51 SOPS secrets. 10 Kyverno policies (7 enforce, 3 audit, 0 violations). 100% PSS, NetworkPolicy, HSTS, SSO, image-pin coverage.
+**Key facts**: 0 P0/P1. 44 NetworkPolicies. 55 SOPS secrets. 10 Kyverno policies (7 enforce, 3 audit, 0 violations). 100% PSS, NetworkPolicy, HSTS, SSO, image-pin coverage.
 
 ---
 
@@ -41,7 +41,7 @@
 | Home Assistant | OIDC | Smart home, MySQL |
 | LinkWarden | OIDC | Bookmarks + Meilisearch |
 | Mealie | OIDC | Recipes |
-| N8N | Enterprise | Automation (SSO = Enterprise) |
+| N8N | OIDC | Automation (community edition) |
 | Audiobookshelf | OIDC | Audiobook library |
 | Obsidian | - | CouchDB sync |
 | PriceBuddy | - | Price track, MySQL |
