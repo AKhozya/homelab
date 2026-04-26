@@ -24,7 +24,7 @@ Deploy **OT-CONTAINER-KIT redis-operator** via Flux HelmRelease. Create `RedisRe
 - **Soak window**: explicitly removed at user direction. Single migration window, no multi-day soak (cache + queue workloads tolerate restart).
 - **Persistence upgrade (AOF)**: keep RDB-only with `save 60 1` to match current behavior.
 
-## Out of Decision (locked early in brainstorm)
+## Decisions Locked During Brainstorm
 
 - Operator: **OT-CONTAINER-KIT** (chosen over Spotahome due to fresher releases — OT v0.24.0 March 2026 vs Spotahome v1.2.4 Dec 2022 stable / v1.3.0-rc1 Aug 2024 RC; better multi-user ACL support via `acl.secret.secretName`).
 - Topology: 1 master + 1 replica + 3 Sentinels (lightweight quorum without bloating data pod count).
@@ -577,6 +577,7 @@ This unblocks Phase 2.
 | Paperless static master Service stale on failover | Low | OT operator updates pod role label on Sentinel-driven failover, Service endpoints refresh automatically. ~10-30s reconnect. Cache+Celery tolerates. |
 | `redis-replication-master` Service does not exist (operator naming differs) | Low | Verified in OT `internal/k8sutils/redis-replication.go`: `cr.MasterService()` creates a per-master ClusterIP Service. Plan task verifies after deploy. |
 | Operator pod creates child pods with default SA | Low | CR spec `serviceAccountName` field verified in OT v1beta2 source. Explicit SAs created in Phase 1b. |
+| `readOnlyRootFilesystem: true` requires writable `/tmp` mount; OT CR may not auto-add | Medium | OT CR exposes `volumeMount` + `sidecars[].volumeMount` extension fields. If operator does not auto-add `/tmp` emptyDir under readOnlyRootFilesystem, plan task adds via CR's `volumeMount` field or via Kustomize patch on the operator-generated StatefulSet. Verify on first `kubectl get pod -n databases redis-replication-0 -o yaml` after Phase 1b deploy. |
 | Redis 7.4.0 image availability / tag drift | Low | `quay.io/opstree/redis:v7.4.0` listed in operator examples. Plan task verifies tag exists at impl. |
 | ResourceQuota in `databases` ns rejects new pods | Medium | Plan task `kubectl describe resourcequota -n databases` before cutover; bump if needed in same commit. |
 | Old `data-redis-0` PVC lingers after StatefulSet delete | Low | StatefulSet PVC retention is `retain` by default. Plan documents manual delete step. |
