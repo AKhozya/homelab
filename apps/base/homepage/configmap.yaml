@@ -127,13 +127,13 @@ data:
             namespace: authentik
             app: authentik
             podSelector: "app=authentik,component=server"
-        - AdGuard Home:
-            icon: adguard-home.png
-            href: https://adguard.h0melab.work
+        - Blocky:
+            icon: mdi-dns
+            href: https://grafana.h0melab.work/d/blocky
             description: Network-wide ad blocking & DNS
-            namespace: adguard-home
-            app: adguard-home
-            podSelector: "app=adguard-home"
+            namespace: blocky
+            app: blocky
+            podSelector: "app=blocky"
         - Uptime Kuma:
             icon: uptime-kuma.png
             href: https://uptime.h0melab.work

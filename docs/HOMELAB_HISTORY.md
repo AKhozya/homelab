@@ -430,6 +430,28 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 - ⚙️ **Plan-vs-actual drift fixed during execution**: OT v1beta2 schema (`serviceType` removed; `secretKeyRef` for sentinel password); Sentinel pod label is `app=redis-sentinel-sentinel` (NP + anti-affinity selectors corrected); `readOnlyRootFilesystem: true` incompatible with OT entrypoint writing `/etc/redis/redis.conf` — set `false`; `protected-mode no` required for nopass default user
 - 🔮 **Phase 2 unblocked**: Blocky DNS migration ready (separate plan `docs/superpowers/plans/2026-04-26-blocky-migration.md`)
 
+### 2026-04-26 (Blocky DNS Migration — Phase 2) 🛡️
+- ✅ **Replaced AdGuard Home** (2 node-pinned Deployments) with **Blocky v0.29.0** (single Deployment, 2 replicas, hard pod anti-affinity W1+W2, native rolling updates)
+- ✅ **Shared Redis HA cache** (database 1) for cross-pod state sync via Phase 1 redis-replication-master
+- ✅ **CNPG Postgres query log** — `blocky` database + role added to `cluster.yaml` `managed.roles`, 7-day retention via Blocky native pruning
+- ✅ **LAN-facing IPs preserved**: 192.168.1.129 + 192.168.1.126 (K3s servicelb LoadBalancer + externalTrafficPolicy: Local + 2 Services for per-node binding)
+- ✅ **HagezI multi/pro.plus/tif + OISD blocklists** active, blocked queries return `0.0.0.0`
+- ✅ **DoH upstreams**: Cloudflare Security + Quad9, with Cloudflare/Quad9 IP+IPv6 bootstrap DNS
+- ✅ **Custom DNS rewrite** for `*.h0melab.work` → both worker IPs (no manual A records needed for new ingresses)
+- ✅ **VMServiceScrape + VMRule** (5 alerts: BlockyDown, BlockyAllReplicasDown, BlockyHighErrorRate, BlockyBlocklistRefreshFailing, BlockyHighLatency); Grafana dashboard ID 13768 deployed as ConfigMap
+- ✅ **Mac resolver script** (`scripts/macos/setup-h0melab-resolver.sh`) updated AdGuard → Blocky, synced via chezmoi
+- ✅ **Homepage widget** updated AdGuard → Blocky
+- ⚙️ **Plan-vs-actual drift fixed during execution**:
+  - Plan referenced old `redis.databases.svc.cluster.local` — corrected to `redis-replication-master.databases.svc.cluster.local` (post-Phase 1 svc)
+  - NetworkPolicy podSelector `app: redis` → `app: redis-replication`
+  - Plan missed `blocky` role addition to CNPG `cluster.yaml` `managed.roles` — added (CNPG does NOT auto-create roles from labeled Secrets)
+  - Plan used ServiceMonitor + PrometheusRule, but cluster vm-operator has `VM_ENABLEDPROMETHEUSCONVERTER_*=false` — converted to native VMServiceScrape + VMRule
+  - Blocky `queryLog.target` doesn't env-substitute `${PG_PASSWORD}` (Redis password field works) — pivoted from ConfigMap+env-vars to SOPS-encrypted Secret with passwords inlined into config.yml
+  - GitOps bootstrap paradox: `apps` depends on `infrastructure-configs`, but resource-governance entry needed `blocky` ns first — split into 2 commits (cutover with deferred governance, re-enable governance post-ns-create)
+- 💥 **CP node `enp3s0` NIC link drops** during execution (Intel I225-V/igc): 4 link-down events 21:05-21:10, CP fully isolated from LAN, recovered after physical reboot. Flux source/helm/notification controllers crashlooped post-recovery, fixed by pod delete. Added to PENDING ITEMS as P1.
+- ⚙️ **AdGuard pruned**: ns + manifests deleted by Flux (cutover commit removes `apps/staging/kustomization.yaml` adguard entry); resource-governance adguard-home.yaml entry also removed
+- 🔮 **Open**: Uptime Kuma DNS probes for both Blocky IPs (manual UI step, scheduled 2026-05-04); Phase 1 redis-ha alerts also need VMRule conversion (separate task, P2)
+
 ### 2025-12-31 (K3s Upgrade to v1.35.0) 🚀
 - ✅ **K3s Cluster Upgrade**: All 3 nodes upgraded to v1.35.0+k3s1 ⭐
   - **gmk-k3s-control-plane**: v1.34.2+k3s1 → v1.35.0+k3s1

@@ -32,7 +32,7 @@
 | Homepage | - | Dashboard |
 | Uptime Kuma | - | Uptime monitor, MySQL |
 | Authentik | Provider | SSO, PostgreSQL (no Redis — in-memory cache), passkey-first via Conditional UI (password fallback retained) |
-| AdGuard Home | - | DNS filter, **HA: 2 pods (W1+W2), per-instance LB IPs 192.168.1.129/126** |
+| Blocky | - | DNS filter + ad blocking, **HA: 2 replicas (W1+W2), single Deployment, native rolling, Redis cache sync, CNPG Postgres query log** |
 | Stirling PDF | OIDC | PDF toolkit |
 | HomeHub | - | Family dashboard, local only |
 | Grafana | OIDC | Monitoring dashboard |
@@ -82,7 +82,7 @@
 ## EXTERNAL ACCESS
 
 **Cloudflare Tunnel** (9 svcs): authentik, couchdb, audiobooks, linkwarden, stirling-pdf, mealie, paperless, immich, n8n
-**Internal**: AdGuard local DNS, Traefik Ingress
+**Internal**: Blocky local DNS, Traefik Ingress
 **Domain**: h0melab.work
 
 ---
@@ -117,8 +117,10 @@
 | Consider removing default-authentication-password binding once 1+ month clean passkey ops | 2026-06 | P3 |
 | Blocky memory-limit review — peak RSS observation, scale 512Mi -> 256Mi if efficient | 2026-05-26 | P3 |
 | Redis HA operator health check (master/replica/sentinel quorum, alerts firing only on real outages) | 2026-05-26 | P3 |
-| Uptime Kuma — replace old Redis monitor with HA Master + HA Sentinel TCP probes (manual UI step) | 2026-05-04 | P2 |
+| Uptime Kuma — replace old Redis monitor with HA Master + HA Sentinel TCP probes + add Blocky DNS probes (192.168.1.129/126) | 2026-05-04 | P2 |
 | Worker-node-2 IPv6 connectivity fix (missing global IPv6, currently mitigated by Blocky `connectIPVersion: dual`) | Backlog | P3 |
+| CP node `enp3s0` (Intel I225-V/igc) NIC link drops — force 1Gbps + disable EEE; observed 4 link-down events 2026-04-26 21:05-21:10 → CP isolated until reboot | 2026-05-04 | P1 |
+| Phase 1 Redis HA monitoring also broken by VM converter disabled — convert PrometheusRule → VMRule for redis-ha (8 alerts) | 2026-04-30 | P2 |
 
 **Next Review**: 2026-05-04 (monthly)
 
