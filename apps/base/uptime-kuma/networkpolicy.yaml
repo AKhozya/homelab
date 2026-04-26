@@ -69,6 +69,12 @@ spec:
         - protocol: TCP
           port: 6379        # Redis
         - protocol: TCP
+          port: 26379       # Redis Sentinel HA
+        - protocol: TCP
+          port: 53          # DNS TCP (Blocky probes)
+        - protocol: UDP
+          port: 53          # DNS UDP (Blocky probes)
+        - protocol: TCP
           port: 8000        # Paperless-NGX
         - protocol: TCP
           port: 2283        # Immich
@@ -79,7 +85,9 @@ spec:
         - protocol: TCP
           port: 9000        # Mealie, Authentik
         - protocol: TCP
-          port: 8428        # VictoriaMetrics VMSingle
+          port: 8428        # VictoriaMetrics VMSingle (insert)
+        - protocol: TCP
+          port: 8429        # VictoriaMetrics VMSingle (HTTP API + /health)
         - protocol: TCP
           port: 9090        # Prometheus, Linkding
         - protocol: TCP
