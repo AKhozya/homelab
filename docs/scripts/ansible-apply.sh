@@ -29,11 +29,11 @@ sudo journalctl -u node-maintenance-config.service -n 40 --no-pager
 case "${1:-}" in
   worker-node-2)
     echo "==> Verify rebuilderd resources on worker-node-2"
-    ssh -p 65300 z3us@worker-node-2 "sudo systemctl cat 'rebuilderd-worker@*' 2>/dev/null | grep -E 'MemoryMax|MemoryHigh|MemorySwapMax|MAX_MEMORY|CPUQuota' | sort -u"
+    ssh -p 65300 z3us@worker-node-2 "systemctl cat 'rebuilderd-worker@*' 2>/dev/null | grep -E 'MemoryMax|MemoryHigh|MemorySwapMax|MAX_MEMORY|CPUQuota' | sort -u"
     ;;
   worker-node)
     echo "==> Verify rebuilderd resources on worker-node"
-    ssh -p 65300 akhozya@worker-node "sudo systemctl cat 'rebuilderd-worker@*' 2>/dev/null | grep -E 'MemoryMax|MemoryHigh|MemorySwapMax|MAX_MEMORY|CPUQuota' | sort -u"
+    ssh -p 65300 akhozya@worker-node "systemctl cat 'rebuilderd-worker@*' 2>/dev/null | grep -E 'MemoryMax|MemoryHigh|MemorySwapMax|MAX_MEMORY|CPUQuota' | sort -u"
     ;;
 esac
 
