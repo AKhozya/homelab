@@ -1,13 +1,12 @@
-apiVersion: monitoring.coreos.com/v1
-kind: PrometheusRule
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
 metadata:
   name: blocky-alerts
   namespace: monitoring
-  labels:
-    release: kube-prometheus-stack
 spec:
   groups:
     - name: blocky
+      interval: 60s
       rules:
         - alert: BlockyDown
           expr: up{job="blocky-metrics"} == 0
