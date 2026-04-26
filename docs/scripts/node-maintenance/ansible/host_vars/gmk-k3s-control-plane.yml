@@ -9,3 +9,8 @@ gpu_vendor: intel
 # Granted `adm` group membership so interactive reads of
 # /var/log/node-maintenance/ work without sudo.
 admin_user: akhozya
+
+# ---- NIC tuning (Intel I225-V igc workaround) ----
+# Force 1Gbps + EEE off on enp3s0 to prevent link drops.
+# Reference: 2026-04-26 21:05-21:10 NIC link-down isolation incident.
+nic_tuning_iface: enp3s0

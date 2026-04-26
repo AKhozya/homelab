@@ -1,0 +1,18 @@
+[Unit]
+Description=Force igc NIC to 1Gbps + disable EEE (workaround for Intel I225-V link drops)
+Wants=network.target
+After=network.target sys-subsystem-net-devices-%i.device
+Requires=sys-subsystem-net-devices-%i.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Force 1Gbps full duplex with autoneg ON (required for Gigabit per IEEE 802.3 Clause 28)
+ExecStart=/usr/bin/ethtool -s %i autoneg on speed 1000 duplex full
+# Disable Energy Efficient Ethernet (igc bug: incorrect wake transitions cause link drops)
+ExecStart=/usr/bin/ethtool --set-eee %i eee off
+# Verify
+ExecStart=/usr/bin/sh -c '/usr/bin/ethtool %i | grep -E "Speed|Duplex|Auto-negotiation"'
+
+[Install]
+WantedBy=multi-user.target

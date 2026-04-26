@@ -1,0 +1,37 @@
+---
+# nic_tuning — Mitigate Intel I225-V (igc driver) link drops via 1Gbps + EEE off.
+# Applied only when host_var `nic_tuning_iface` is set.
+#
+# Background: Intel 2.5GbE I225-V chipsets exhibit intermittent NIC link drops
+# under specific firmware/kernel/EEE combinations. Forcing 1Gbps + disabling
+# Energy Efficient Ethernet (EEE) is the documented workaround.
+#
+# Reference incident: 2026-04-26 21:05-21:10 — gmk-k3s-control-plane enp3s0
+# logged 4 link-down events, isolated CP from LAN until physical reboot.
+
+- name: Ensure ethtool installed
+  ansible.builtin.package:
+    name: ethtool
+    state: present
+  when: nic_tuning_iface is defined and nic_tuning_iface | length > 0
+  tags: [nic-tuning]
+
+- name: Deploy igc-tune@.service template
+  ansible.builtin.copy:
+    src: igc-tune.service
+    dest: /etc/systemd/system/igc-tune@.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: nic_tuning_iface is defined and nic_tuning_iface | length > 0
+  notify: reload systemd
+  tags: [nic-tuning]
+
+- name: Enable igc-tune for configured interface
+  ansible.builtin.systemd_service:
+    name: "igc-tune@{{ nic_tuning_iface }}.service"
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: nic_tuning_iface is defined and nic_tuning_iface | length > 0
+  tags: [nic-tuning]

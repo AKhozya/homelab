@@ -11,5 +11,4 @@ resources:
   - csp-middleware.yaml
   - alertmanager-telegram-secret.yaml
   - alertmanager-certificate.yaml
-  - prometheus-rules.yaml
   - cloudflared-servicemonitor.yaml

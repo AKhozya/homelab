@@ -111,6 +111,7 @@ echo "   ✅ Monitoring secrets restored"
 echo "📦 Restoring database secrets..."
 kubectl create namespace databases --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/redis-passwords.json"
+[ -f "${BACKUP_DIR}/secrets/redis-acl-secret.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/redis-acl-secret.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/postgres-admin-user.json"
 
 # PostgreSQL database users
@@ -120,6 +121,7 @@ kubectl apply -f "${BACKUP_DIR}/secrets/linkwarden-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/mealie-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/n8n-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/paperless-db-user.json"
+[ -f "${BACKUP_DIR}/secrets/blocky-db-user.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/blocky-db-user.json"
 
 # MySQL secrets (Percona cluster - contains root, replication, xtrabackup, etc.)
 kubectl apply -f "${BACKUP_DIR}/secrets/mysql-cluster-secrets.json"
@@ -139,7 +141,7 @@ echo "   ✅ Authentik"
 kubectl create namespace immich --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/immich-admin-credentials.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/immich-db-password.json"
-kubectl apply -f "${BACKUP_DIR}/secrets/immich-redis-password.json"
+[ -f "${BACKUP_DIR}/secrets/immich-redis-url.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/immich-redis-url.json"
 echo "   ✅ Immich"
 
 # Home Assistant
@@ -195,18 +197,20 @@ kubectl create namespace homehub --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/homehub-password.json"
 echo "   ✅ HomeHub"
 
-# AdGuard Home
-if [ -f "${BACKUP_DIR}/secrets/adguard-home-config.json" ]; then
-    kubectl create namespace adguard-home --dry-run=client -o yaml | kubectl apply -f -
-    kubectl apply -f "${BACKUP_DIR}/secrets/adguard-home-config.json"
-    echo "   ✅ AdGuard Home"
+# Blocky DNS
+if [ -f "${BACKUP_DIR}/secrets/blocky-config.json" ]; then
+    kubectl create namespace blocky --dry-run=client -o yaml | kubectl apply -f -
+    kubectl apply -f "${BACKUP_DIR}/secrets/blocky-config.json"
+    echo "   ✅ Blocky"
 fi
 
-# SearXNG
-if [ -f "${BACKUP_DIR}/secrets/searxng-secret.json" ]; then
-    kubectl create namespace searxng --dry-run=client -o yaml | kubectl apply -f -
-    kubectl apply -f "${BACKUP_DIR}/secrets/searxng-secret.json"
-    echo "   ✅ SearXNG"
+# Claude Telegram bot
+if [ -f "${BACKUP_DIR}/secrets/claude-telegram-env.json" ]; then
+    kubectl create namespace claude-telegram --dry-run=client -o yaml | kubectl apply -f -
+    kubectl apply -f "${BACKUP_DIR}/secrets/claude-telegram-env.json"
+    [ -f "${BACKUP_DIR}/secrets/claude-telegram-ssh.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/claude-telegram-ssh.json"
+    [ -f "${BACKUP_DIR}/secrets/claude-telegram-chezmoi.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/claude-telegram-chezmoi.json"
+    echo "   ✅ Claude Telegram"
 fi
 
 # PriceBuddy

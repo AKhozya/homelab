@@ -46,6 +46,7 @@ kubectl get secret couchdb-couchdb -n monitoring -o json > "${BACKUP_DIR}/secret
 # =============================================================================
 echo "📦 Backing up database secrets..."
 kubectl get secret redis-passwords -n databases -o json > "${BACKUP_DIR}/secrets/redis-passwords.json"
+kubectl get secret redis-acl-secret -n databases -o json > "${BACKUP_DIR}/secrets/redis-acl-secret.json" 2>/dev/null || echo "   ⚠️  No databases/redis-acl-secret (Phase 1 redis HA)"
 kubectl get secret postgres-admin-user -n databases -o json > "${BACKUP_DIR}/secrets/postgres-admin-user.json"
 
 # PostgreSQL database users (CloudNativePG auto-generates these, but backup for safety)
@@ -55,6 +56,7 @@ kubectl get secret linkwarden-db-app-user -n databases -o json > "${BACKUP_DIR}/
 kubectl get secret mealie-db-user -n databases -o json > "${BACKUP_DIR}/secrets/mealie-db-user.json"
 kubectl get secret n8n-db-user -n databases -o json > "${BACKUP_DIR}/secrets/n8n-db-user.json"
 kubectl get secret paperless-db-user -n databases -o json > "${BACKUP_DIR}/secrets/paperless-db-user.json"
+kubectl get secret blocky-db-user -n databases -o json > "${BACKUP_DIR}/secrets/blocky-db-user.json" 2>/dev/null || echo "   ⚠️  No databases/blocky-db-user"
 
 # MySQL secrets (Percona cluster - contains root, replication, xtrabackup, etc.)
 kubectl get secret mysql-cluster-secrets -n databases -o json > "${BACKUP_DIR}/secrets/mysql-cluster-secrets.json"
@@ -74,7 +76,7 @@ kubectl get secret authentik -n authentik -o json > "${BACKUP_DIR}/secrets/authe
 # Immich
 kubectl get secret immich-admin-credentials -n immich -o json > "${BACKUP_DIR}/secrets/immich-admin-credentials.json"
 kubectl get secret immich-db-password -n immich -o json > "${BACKUP_DIR}/secrets/immich-db-password.json"
-kubectl get secret immich-redis-password -n immich -o json > "${BACKUP_DIR}/secrets/immich-redis-password.json"
+kubectl get secret immich-redis-url -n immich -o json > "${BACKUP_DIR}/secrets/immich-redis-url.json" 2>/dev/null || echo "   ⚠️  No immich/immich-redis-url (Phase 1 Sentinel SOPS)"
 
 # Home Assistant
 kubectl get secret home-assistant-admin-credentials -n home-assistant -o json > "${BACKUP_DIR}/secrets/home-assistant-admin-credentials.json"
@@ -108,11 +110,13 @@ kubectl get secret stirling-pdf-custom-settings -n stirling-pdf -o json > "${BAC
 # HomeHub
 kubectl get secret homehub-password -n homehub -o json > "${BACKUP_DIR}/secrets/homehub-password.json"
 
-# AdGuard Home
-kubectl get secret adguard-home-config -n adguard-home -o json > "${BACKUP_DIR}/secrets/adguard-home-config.json"
+# Blocky DNS
+kubectl get secret blocky-config -n blocky -o json > "${BACKUP_DIR}/secrets/blocky-config.json" 2>/dev/null || echo "   ⚠️  No blocky/blocky-config"
 
-# SearXNG
-kubectl get secret searxng-secret -n searxng -o json > "${BACKUP_DIR}/secrets/searxng-secret.json"
+# Claude Telegram bot
+kubectl get secret claude-telegram-env -n claude-telegram -o json > "${BACKUP_DIR}/secrets/claude-telegram-env.json" 2>/dev/null || echo "   ⚠️  No claude-telegram/claude-telegram-env"
+kubectl get secret claude-telegram-ssh -n claude-telegram -o json > "${BACKUP_DIR}/secrets/claude-telegram-ssh.json" 2>/dev/null || echo "   ⚠️  No claude-telegram/claude-telegram-ssh"
+kubectl get secret claude-telegram-chezmoi -n claude-telegram -o json > "${BACKUP_DIR}/secrets/claude-telegram-chezmoi.json" 2>/dev/null || echo "   ⚠️  No claude-telegram/claude-telegram-chezmoi"
 
 # PriceBuddy
 kubectl get secret pricebuddy-secrets -n pricebuddy -o json > "${BACKUP_DIR}/secrets/pricebuddy-secrets.json"
@@ -164,8 +168,9 @@ kubectl get secret grafana-admin-secret -n monitoring -o jsonpath='{.data.admin-
 # Telegram bot token
 kubectl get secret alertmanager-telegram -n monitoring -o jsonpath='{.data.bot_token}' | base64 -d > "${BACKUP_DIR}/secrets/telegram-bot-token.txt" 2>/dev/null
 
-# Redis password
+# Redis passwords (immich + blocky)
 kubectl get secret redis-passwords -n databases -o jsonpath='{.data.immich-password}' | base64 -d > "${BACKUP_DIR}/secrets/redis-password-immich.txt" 2>/dev/null
+kubectl get secret redis-passwords -n databases -o jsonpath='{.data.blocky-password}' | base64 -d > "${BACKUP_DIR}/secrets/redis-password-blocky.txt" 2>/dev/null
 
 # =============================================================================
 # Clean up JSON exports (strip cluster-specific metadata for portability)
@@ -256,14 +261,16 @@ echo "   🔑 SOPS age encryption key (CRITICAL)"
 echo "   🌐 Cloudflare API token, tunnel credentials & management token"
 echo "   📊 Grafana & Telegram (monitoring)"
 echo "   🗄️  Databases:"
-echo "      - Redis passwords"
-echo "      - PostgreSQL admin & app users (6 apps)"
+echo "      - Redis passwords (admin/immich/paperless/blocky) + ACL secret (HA)"
+echo "      - PostgreSQL admin & app users (7 apps incl. blocky)"
 echo "      - MySQL root & app credentials (3 apps)"
 echo "   📱 All application secrets:"
-echo "      - Authentik, Immich, Home Assistant"
+echo "      - Authentik, Immich (incl. Sentinel REDIS_URL), Home Assistant"
 echo "      - N8N, Mealie, Paperless-NGX"
 echo "      - Audiobookshelf, Uptime Kuma, Stirling PDF"
 echo "      - HomeHub, LinkWarden, PriceBuddy, CouchDB (Obsidian)"
+echo "      - Blocky (config + DB user)"
+echo "      - Claude Telegram (env + ssh + chezmoi)"
 echo "   💾 Backup replication (SSH key, NAS creds, Telegram)"
 echo "   ☁️  Cloudflare tunnel config"
 echo "   🔐 OIDC: Grafana (standalone secret only — others embedded in app secrets above)"

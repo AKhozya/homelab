@@ -16,6 +16,7 @@
     - role: k3s_image_gc
     - role: firewall
     - role: hardening
+    - role: nic_tuning
     - role: security_scan
     - role: ad_hoc
 

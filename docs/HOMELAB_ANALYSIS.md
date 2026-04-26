@@ -118,9 +118,9 @@
 | Blocky memory-limit review — peak RSS observation, scale 512Mi -> 256Mi if efficient | 2026-05-26 | P3 |
 | Redis HA operator health check (master/replica/sentinel quorum, alerts firing only on real outages) | 2026-05-26 | P3 |
 | Uptime Kuma — replace old Redis monitor with HA Master + HA Sentinel TCP probes + add Blocky DNS probes (192.168.1.129/126) | 2026-05-04 | P2 |
-| Worker-node-2 IPv6 connectivity fix (missing global IPv6, currently mitigated by Blocky `connectIPVersion: dual`) | Backlog | P3 |
-| CP node `enp3s0` (Intel I225-V/igc) NIC link drops — force 1Gbps + disable EEE; observed 4 link-down events 2026-04-26 21:05-21:10 → CP isolated until reboot | 2026-05-04 | P1 |
-| Phase 1 Redis HA monitoring also broken by VM converter disabled — convert PrometheusRule → VMRule for redis-ha (8 alerts) | 2026-04-30 | P2 |
+| K3s dual-stack pod networking (currently v4-only podCIDR; node-level IPv6 working on all 3 nodes). Blocky uses `connectIPVersion: v4` as workaround | Backlog | P3 |
+| Blocky 1-week soak observation: peak RSS, log_entries growth, 0 fired alerts, query latency p95 | 2026-05-03 | P2 |
+| CP node `enp3s0` (Intel I225-V/igc) NIC link drops fix — apply ansible role `nic_tuning` (1Gbps + EEE off via igc-tune@enp3s0.service); incident 2026-04-26 21:05-21:10 isolated CP | 2026-04-27 | P1 |
 
 **Next Review**: 2026-05-04 (monthly)
 
