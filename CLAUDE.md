@@ -5,6 +5,10 @@ K3s staging, 3 nodes, Flux GitOps, 18 apps. Follow global `~/.claude/CLAUDE.md` 
 ## SSH / sudo
 - Claude has NO sudo. For any sudo over SSH, give user the command with `ssh -p 65300 -t` (TTY for password prompt). Never run sudo via SSH directly.
 - Ansible playbooks live on CP under `node-maintenance` user. Trigger via systemd: `sudo systemctl start node-maintenance-sync.service` (git pull) → `sudo systemctl start node-maintenance-config.service` (drift-heal apply).
+- **Per-node SSH** (no sudo, OK for Claude direct runs):
+  - CP: `ssh -p 65300 akhozya@gmk-k3s-control-plane` (alias `ssh_master_node`)
+  - W1: `ssh -p 65300 akhozya@worker-node` (alias `ssh_worker_node`)
+  - W2: `ssh -p 65300 z3us@worker-node-2` (alias `ssh_worker_node2` — **no dash before 2**)
 
 ## Docs (read before acting)
 - `docs/HOMELAB_ANALYSIS.md` — state tracker. Update after meaningful infra/app change (enforced via PostToolUse hook).
