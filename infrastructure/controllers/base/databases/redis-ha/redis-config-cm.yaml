@@ -9,3 +9,4 @@ data:
     maxmemory 480mb
     maxmemory-policy noeviction
     loglevel warning
+    protected-mode no
