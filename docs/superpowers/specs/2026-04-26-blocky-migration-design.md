@@ -102,7 +102,9 @@ monitoring/configs/staging/blocky/
 ```
 apps/staging/kustomization.yaml                              # add blocky/, remove adguard-home/
 infrastructure/configs/staging/resource-governance/kustomization.yaml  # add small-tier/blocky.yaml, remove small-tier/adguard-home.yaml
-infrastructure/configs/staging/databases/redis-network-policy.yaml  # add ingress from blocky ns
+infrastructure/configs/base/databases/redis/networkpolicy.yaml  # add ingress from blocky ns
+infrastructure/configs/base/databases/redis/acl-configmap.yaml  # add `blocky` ACL user
+infrastructure/configs/base/databases/redis/secret.yaml  # add `blocky-password` SOPS-encrypted (Phase 1 may already do this)
 scripts/macos/setup-h0melab-resolver.sh                      # update header comment AdGuard -> Blocky
 scripts/macos/README.md                                      # update doc
 docs/HOMELAB_ANALYSIS.md                                     # apps table row, HA section
@@ -238,7 +240,7 @@ spec:
               labelSelector: {matchLabels: {app: blocky}}
       containers:
         - name: blocky
-          image: spx01/blocky:v0.26.2     # pin to latest stable at implementation time
+          image: spx01/blocky:v0.29.0     # latest stable as of 2026-04-26 (verify before commit)
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
@@ -354,7 +356,7 @@ ResourceQuota:
 | Policy | Mode | Design satisfies | How |
 |---|---|---|---|
 | `require-labels` | Enforce | yes | Pod template carries `app: blocky` |
-| `disallow-latest-tag` | Enforce | yes | Image pinned to `spx01/blocky:v0.26.2` (verify exact latest stable at implementation) |
+| `disallow-latest-tag` | Enforce | yes | Image pinned to `spx01/blocky:v0.29.0` (verify exact latest stable at implementation) |
 | `disallow-privilege-escalation` | Enforce | yes | `allowPrivilegeEscalation: false` on container |
 | `require-drop-all-capabilities` | Enforce | yes | `capabilities.drop: [ALL]`. Adding `NET_BIND_SERVICE` does not violate (policy only validates `drop` contains `ALL`) |
 | `require-non-default-serviceaccount` | Enforce | yes | Dedicated `blocky` ServiceAccount, `automountServiceAccountToken: false` |
