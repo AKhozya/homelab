@@ -18,40 +18,29 @@
   delay: 30
   tags: [firewall]
 
-# Pre-heal: ip6tables state drifts at runtime when K3s/kube-router + fail2ban
-# race-mutate kernel nft state against UFW's ip6tables-restore (silent partial
-# load). Symptom: `ufw status verbose` returns "ERROR: problem running ip6tables";
-# community.general.ufw tasks then fail.
+# Pre-heal: kernel netfilter state drifts at runtime when K3s (kube-proxy +
+# flannel) + fail2ban race-mutate against UFW's iptables-restore (silent
+# partial load). Symptom: `ufw status verbose` returns "ERROR: problem running
+# ip6tables"; community.general.ufw tasks then fail.
 #
-# Strategy: try `ufw reload`, on failure do per-chain repair (idempotent
-# ip6tables -N for any chain declared in UFW rules files but missing from
-# kernel). Repair is race-free because each -N is a single syscall; no atomic
-# restore to collide with.
+# Strategy (revised 2026-04-26, see Q5 research):
+#   1. Per-chain repair FIRST — race-free single-syscall `iptables -N`. Gives
+#      reload a clean skeleton to restore over.
+#   2. ufw reload (3 attempts). Now likelier to succeed because chains exist.
 #
-# Related boot-time heal: ufw-heal-post-k3s.service (deployed below).
+# Related boot-time + periodic heal: ufw-heal-post-k3s.service +
+# ufw-heal-probe.timer (deployed below).
 # Refs: UFW #1987227, #1294544; K3s #1280.
-- name: Pre-heal — ufw reload with retry + per-chain repair
+- name: Pre-heal — per-chain repair then ufw reload
   ansible.builtin.shell: |
     set +e
-    reload_ok=0
-    for attempt in 1 2 3; do
-      if /usr/sbin/ufw reload >/dev/null 2>&1; then
-        reload_ok=1
-        break
-      fi
-      sleep 5
-    done
-    if [ "$reload_ok" = "1" ]; then
-      echo "RELOAD_OK"
-      exit 0
-    fi
-    # Fallback: check if ufw is simply inactive (benign)
+    # Skip if ufw simply inactive (benign)
     status=$(/usr/sbin/ufw status 2>&1 || true)
     if echo "$status" | grep -qiE "inactive|not enabled"; then
       echo "UFW_INACTIVE"
       exit 0
     fi
-    # Per-chain repair (race-free)
+    # Step 1: per-chain repair (race-free, idempotent)
     repaired=0
     for rules_file in /etc/ufw/before.rules /etc/ufw/after.rules /etc/ufw/user.rules; do
       [ -f "$rules_file" ] || continue
@@ -69,11 +58,14 @@
         fi
       done
     done
-    # Retry reload once after repair
-    if /usr/sbin/ufw reload >/dev/null 2>&1; then
-      echo "RELOAD_OK_AFTER_REPAIR repaired=$repaired"
-      exit 0
-    fi
+    # Step 2: ufw reload with retries
+    for attempt in 1 2 3; do
+      if /usr/sbin/ufw reload >/dev/null 2>&1; then
+        echo "RELOAD_OK repaired=$repaired attempt=$attempt"
+        exit 0
+      fi
+      sleep 5
+    done
     echo "PREHEAL_FAILED repaired=$repaired"
     exit 1
   args:
@@ -279,3 +271,53 @@
     enabled: true
     state: started
   tags: [firewall, metrics]
+
+# ──────────────────────────────────────────────────────────────
+# L4: kernel module persistence + ordering
+# Today's W2 incident (2026-04-26): ip6_tables module unloaded mid-runtime.
+# Without modules pre-loaded, ufw status verbose returns ip6tables errors.
+# ──────────────────────────────────────────────────────────────
+- name: Deploy modules-load.d entry for UFW netfilter modules
+  ansible.builtin.copy:
+    src: modules-load-ufw.conf
+    dest: /etc/modules-load.d/ufw-iptables.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: modules_load_ufw
+  tags: [firewall, modules]
+
+- name: Load netfilter modules now (idempotent)
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - ip6_tables
+    - ip6table_filter
+    - iptable_filter
+  tags: [firewall, modules]
+
+- name: Ensure ufw.service.d drop-in dir
+  ansible.builtin.file:
+    path: /etc/systemd/system/ufw.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [firewall, modules]
+
+- name: Deploy ufw.service drop-in to depend on systemd-modules-load.service
+  ansible.builtin.copy:
+    src: ufw-modules.conf
+    dest: /etc/systemd/system/ufw.service.d/modules.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [firewall, modules]
+
+# Periodic UFW heal handled via node-maintenance-config.timer (2x/day drift-heal,
+# 03:00 + 15:00 UTC). Pre-heal task above does per-chain repair before reload.
+# Worst-case drift window ≤12h. Probe-based hourly heal evaluated 2026-04-26
+# and rejected to keep one source of drift remediation (avoid double-heal,
+# pacman/rebuilderd lock contention risk).

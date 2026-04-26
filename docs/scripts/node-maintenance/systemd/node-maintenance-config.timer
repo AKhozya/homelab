@@ -1,9 +1,10 @@
 [Unit]
-Description=Daily node-config drift-heal (ansible)
+Description=node-config drift-heal (ansible) — 2x/day
 Documentation=file:///etc/node-maintenance/README.md
 
 [Timer]
 OnCalendar=*-*-* 03:00:00 UTC
+OnCalendar=*-*-* 15:00:00 UTC
 RandomizedDelaySec=300
 Persistent=true
 Unit=node-maintenance-config.service

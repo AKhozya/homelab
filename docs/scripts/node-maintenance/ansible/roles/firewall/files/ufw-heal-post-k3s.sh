@@ -1,23 +1,27 @@
 #!/bin/bash
 # ufw-heal-post-k3s.sh
-# Heals UFW state after K3s (+ kube-router + fail2ban) race-mutates ip6tables at boot.
+# Heals UFW state when K3s (kube-proxy + flannel) + fail2ban race-mutate
+# kernel netfilter state against UFW's iptables-restore.
 #
-# Context: on Arch + iptables-nft, ufw-init's ip6tables-restore can silently
-# partial-load when another process (kube-router, fail2ban) concurrently mutates
-# kernel nft state. Result: some ufw chains (ufw6-logging-deny, ufw6-user-*)
-# missing → subsequent `ufw status verbose` returns "ERROR: problem running
-# ip6tables" → UFW wedged in half-state.
+# Context: on Arch + iptables-nft, UFW's reload calls iptables-restore which
+# loads tables sequentially. Concurrent netlink writes from kube-proxy/flannel
+# can interrupt the restore, leaving some UFW chains (typically
+# ufw6-logging-deny, ufw6-user-*) missing in kernel even though declared in
+# /etc/ufw/before6.rules / user6.rules. Symptom: `ufw status verbose` returns
+# "ERROR: problem running ip6tables" → wedged half-state.
 #
-# Sequence:
-#   A. Wait for kube-router quiescence (chain exists + line count stable)
+# Sequence (revised 2026-04-26, see Q5 research):
+#   A. Wait for netfilter quiescence (nft monitor, max 60s)
+#   C. Per-chain repair FIRST — single-syscall `iptables -N` is race-free,
+#      gives reload a clean skeleton to restore over
 #   B. ufw reload (up to 3 attempts, 10s gap)
-#   C. Per-chain repair (idempotent ip6tables -N for missing chains)
-#   D. Verify probe set — v4 + v6 canary chains
 #   E. Final reload
-#   F. Status check
+#   D. Verify probe set — v4 + v6 canary chains
+#   F. Status check (authoritative)
 #
 # Never exits non-zero from Phase A timeout — boot must proceed.
-# Exits non-zero only from Phase F status-check fail → systemd marks service failed → alerts fire.
+# Exits non-zero only from Phase F status-check fail → systemd marks service
+# failed → alerts fire.
 
 set -uo pipefail
 
@@ -25,6 +29,7 @@ LOG_TAG="ufw-heal"
 UFW_BIN="/usr/sbin/ufw"
 IPTABLES="/usr/sbin/iptables"
 IP6TABLES="/usr/sbin/ip6tables"
+NFT_BIN="/usr/sbin/nft"
 
 PROBE_CHAINS_V4=(ufw-logging-deny ufw-user-input)
 PROBE_CHAINS_V6=(ufw6-logging-deny ufw6-user-input)
@@ -55,51 +60,34 @@ ensure_chain() {
     return 1
 }
 
-# Phase A — wait for kube-router quiescence (best-effort, never blocks boot)
+# Phase A — wait for netfilter quiescence via nft monitor.
+# Window-based: 5s window with zero netlink events = quiet enough to repair.
+# Falls through on timeout — never blocks heal.
 phase_a_settle() {
-    local deadline=$(( $(date +%s) + 120 ))
-    local prev_count=-1
-    local stable_samples=0
+    log "phase-a: waiting for netfilter quiescence (max 60s, 5s windows)"
 
-    log "phase-a: waiting for kube-router quiescence (max 120s)"
+    if ! "$NFT_BIN" list ruleset >/dev/null 2>&1; then
+        log "phase-a: nft unavailable, skipping settle"
+        return 0
+    fi
 
+    local deadline=$(( $(date +%s) + 60 ))
     while [ "$(date +%s)" -lt "$deadline" ]; do
-        if "$IP6TABLES" -L KUBE-ROUTER-INPUT -n >/dev/null 2>&1; then
-            local count
-            count=$("$IP6TABLES"-save 2>/dev/null | wc -l || echo 0)
-            if [ "$count" = "$prev_count" ] && [ "$count" -gt 0 ]; then
-                stable_samples=$((stable_samples + 1))
-                if [ "$stable_samples" -ge 2 ]; then
-                    log "phase-a: settled (line_count=$count stable)"
-                    return 0
-                fi
-            else
-                stable_samples=0
-            fi
-            prev_count=$count
+        local events
+        events=$(timeout 5 "$NFT_BIN" monitor 2>/dev/null | wc -l)
+        if [ "$events" -eq 0 ]; then
+            log "phase-a: settled (0 netfilter events in 5s window)"
+            return 0
         fi
-        sleep 5
+        log "phase-a: $events events in 5s window — still active"
     done
 
-    log "phase-a: timeout — continuing anyway"
+    log "phase-a: timeout — proceeding anyway"
     return 0
 }
 
-# Phase B — ufw reload with retries
-phase_b_reload() {
-    for attempt in 1 2 3; do
-        log "phase-b: ufw reload attempt $attempt/3"
-        if "$UFW_BIN" reload >/dev/null 2>&1; then
-            log "phase-b: reload succeeded (attempt $attempt)"
-            return 0
-        fi
-        sleep 10
-    done
-    log "phase-b: all reload attempts failed"
-    return 1
-}
-
-# Phase C — per-chain repair (race-free: individual ip6tables -N calls)
+# Phase C — per-chain repair (race-free: individual iptables -N calls).
+# Run BEFORE ufw reload so iptables-restore has all declared chains pre-created.
 phase_c_repair() {
     log "phase-c: per-chain repair starting"
 
@@ -125,6 +113,31 @@ phase_c_repair() {
     log "phase-c: repair complete"
 }
 
+# Phase B — ufw reload with retries (after chains pre-created)
+phase_b_reload() {
+    for attempt in 1 2 3; do
+        log "phase-b: ufw reload attempt $attempt/3"
+        if "$UFW_BIN" reload >/dev/null 2>&1; then
+            log "phase-b: reload succeeded (attempt $attempt)"
+            return 0
+        fi
+        sleep 10
+    done
+    log "phase-b: all reload attempts failed"
+    return 1
+}
+
+# Phase E — final reload attempt
+phase_e_final_reload() {
+    log "phase-e: final ufw reload"
+    if "$UFW_BIN" reload >/dev/null 2>&1; then
+        log "phase-e: final reload succeeded"
+        return 0
+    fi
+    log "phase-e: final reload failed"
+    return 1
+}
+
 # Phase D — verify probe set
 phase_d_verify() {
     local missing=()
@@ -140,17 +153,6 @@ phase_d_verify() {
     fi
     log "phase-d: probe-set healthy"
     return 0
-}
-
-# Phase E — final reload attempt after repair
-phase_e_final_reload() {
-    log "phase-e: final ufw reload"
-    if "$UFW_BIN" reload >/dev/null 2>&1; then
-        log "phase-e: final reload succeeded"
-        return 0
-    fi
-    log "phase-e: final reload failed"
-    return 1
 }
 
 # Phase F — status check (authoritative)
@@ -173,8 +175,8 @@ main() {
     log "starting heal sequence (pid=$$)"
 
     phase_a_settle
-    phase_b_reload || true
     phase_c_repair
+    phase_b_reload || true
     phase_e_final_reload || true
     phase_d_verify || log "WARN: probe set still unhealthy after repair"
     phase_f_status
