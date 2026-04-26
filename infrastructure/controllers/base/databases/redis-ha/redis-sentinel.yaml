@@ -19,13 +19,17 @@ spec:
     runAsNonRoot: true
     capabilities:
       drop: ["ALL"]
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      operator: Exists
+      effect: NoSchedule
   affinity:
     podAntiAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         - topologyKey: kubernetes.io/hostname
           labelSelector:
             matchLabels:
-              app: redis-sentinel
+              app: redis-sentinel-sentinel
   pdb:
     enabled: true
     minAvailable: 2

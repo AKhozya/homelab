@@ -10,7 +10,7 @@ spec:
         operator: In
         values:
           - redis-replication
-          - redis-sentinel
+          - redis-sentinel-sentinel
   policyTypes:
     - Ingress
     - Egress
@@ -48,7 +48,7 @@ spec:
                 operator: In
                 values:
                   - redis-replication
-                  - redis-sentinel
+                  - redis-sentinel-sentinel
       ports:
         - { protocol: TCP, port: 6379 }
         - { protocol: TCP, port: 26379 }
@@ -76,7 +76,7 @@ spec:
                 operator: In
                 values:
                   - redis-replication
-                  - redis-sentinel
+                  - redis-sentinel-sentinel
       ports:
         - { protocol: TCP, port: 6379 }
         - { protocol: TCP, port: 26379 }
