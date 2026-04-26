@@ -12,6 +12,8 @@ K3s staging, 3 nodes, Flux GitOps, 18 apps. Follow global `~/.claude/CLAUDE.md` 
 
 ## Docs (read before acting)
 - `docs/HOMELAB_ANALYSIS.md` — state tracker. Update after meaningful infra/app change (enforced via PostToolUse hook).
+- `docs/HOMELAB_HISTORY.md` — historical changelog (append entries, don't rewrite).
+- `docs/CODEMAPS/` — token-lean structural snapshots: [architecture](docs/CODEMAPS/architecture.md), [apps](docs/CODEMAPS/apps.md), [networking](docs/CODEMAPS/networking.md), [databases](docs/CODEMAPS/databases.md), [monitoring](docs/CODEMAPS/monitoring.md), [backup-restore](docs/CODEMAPS/backup-restore.md). Refresh on major changes.
 - `.backup/README.md` — DR runbook.
 - `docs/SECRETS_ROTATION.md` — rotation schedule.
 

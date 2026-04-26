@@ -118,7 +118,7 @@
 | Blocky memory-limit review — peak RSS observation, scale 512Mi -> 256Mi if efficient | 2026-05-26 | P3 |
 | Redis HA operator health check (master/replica/sentinel quorum, alerts firing only on real outages) | 2026-05-26 | P3 |
 | Uptime Kuma — replace old Redis monitor with HA Master + HA Sentinel TCP probes + add Blocky DNS probes (192.168.1.129/126) | 2026-05-04 | P2 |
-| K3s dual-stack pod networking (currently v4-only podCIDR; node-level IPv6 working on all 3 nodes). Blocky uses `connectIPVersion: v4` as workaround | Backlog | P3 |
+| ~~K3s dual-stack pod networking~~ — DECIDED 2026-04-26: NOT WORTH IT. No app needs v6-only targets (all DoH/CDNs reachable via v4). Migration cost (NP rewrites, CIDR change, breakage risk) >> benefit. Stays v4-only. Blocky uses `connectIPVersion: v4` permanently. | n/a | n/a |
 | Blocky 1-week soak observation: peak RSS, log_entries growth, 0 fired alerts, query latency p95 | 2026-05-03 | P2 |
 | Redis HA failover smoke test (re-verify Sentinel-driven master promotion + app reconnect, post-Phase-1 stability check) | 2026-05-26 | P2 |
 | Audit: are there other zombie helm releases (e.g. kube-prometheus-stack still installed but Prometheus subchart unused — vmsingle replaces) | 2026-05-04 | P3 |
