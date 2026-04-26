@@ -63,14 +63,14 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
-    # Allow Redis access
+    # Allow Redis HA master access (Paperless uses static master Service, no Sentinel)
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: databases
           podSelector:
             matchLabels:
-              app: redis
+              app: redis-replication
       ports:
         - protocol: TCP
           port: 6379

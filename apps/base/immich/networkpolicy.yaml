@@ -78,17 +78,23 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
-    # Allow Redis access
+    # Allow Redis HA access (master + sentinel)
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: databases
           podSelector:
-            matchLabels:
-              app: redis
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - redis-replication
+                  - redis-sentinel-sentinel
       ports:
         - protocol: TCP
           port: 6379
+        - protocol: TCP
+          port: 26379
     # Allow inter-pod communication (ML <-> Server)
     - to:
         - podSelector:
