@@ -61,17 +61,6 @@ spec:
             - { containerPort: 53, name: dns-tcp, protocol: TCP }
             - { containerPort: 53, name: dns-udp, protocol: UDP }
             - { containerPort: 4000, name: http, protocol: TCP }
-          env:
-            - name: REDIS_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: blocky-secrets
-                  key: redis-password
-            - name: PG_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: blocky-secrets
-                  key: pg-password
           resources:
             requests:
               cpu: "50m"
@@ -100,5 +89,5 @@ spec:
       volumes:
         - { name: tmp, emptyDir: { sizeLimit: 64Mi } }
         - name: config
-          configMap:
-            name: blocky-config
+          secret:
+            secretName: blocky-config

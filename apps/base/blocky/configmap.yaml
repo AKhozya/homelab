@@ -1,94 +1,23 @@
 apiVersion: v1
-kind: ConfigMap
+kind: Secret
 metadata:
-  name: blocky-config
-  namespace: blocky
-data:
-  config.yml: |
-    ports:
-      dns: 53
-      http: 4000
-
-    connectIPVersion: dual
-
-    upstreams:
-      init:
-        strategy: blocking
-      groups:
-        default:
-          - https://security.cloudflare-dns.com/dns-query
-          - https://dns.quad9.net/dns-query
-
-    bootstrapDns:
-      - upstream: 1.1.1.2
-      - upstream: 1.0.0.2
-      - upstream: 9.9.9.9
-      - upstream: 149.112.112.112
-      - upstream: 2606:4700:4700::1112
-      - upstream: 2606:4700:4700::1002
-      - upstream: 2620:fe::fe
-      - upstream: 2620:fe::9
-
-    conditional:
-      mapping:
-        cluster.local: 10.43.0.10
-
-    customDNS:
-      customTTL: 1h
-      filterUnmappedTypes: true
-      mapping:
-        h0melab.work: 192.168.1.129,192.168.1.126
-
-    blocking:
-      denylists:
-        default:
-          - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/multi.txt
-          - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.plus.txt
-          - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.txt
-          - https://big.oisd.nl/
-      clientGroupsBlock:
-        default:
-          - default
-      blockType: zeroIp
-      blockTTL: 30s
-      loading:
-        refreshPeriod: 24h
-
-    caching:
-      minTime: 60s
-      maxTime: 0
-      prefetching: true
-      prefetchExpires: 2h
-      prefetchThreshold: 5
-
-    redis:
-      address: redis-replication-master.databases.svc.cluster.local:6379
-      username: blocky
-      password: ${REDIS_PASSWORD}
-      database: 1
-      required: false
-      connectionAttempts: 5
-      connectionCooldown: 3s
-
-    queryLog:
-      type: postgresql
-      target: postgres://blocky:${PG_PASSWORD}@main-postgres-rw.databases.svc.cluster.local:5432/blocky?sslmode=require
-      logRetentionDays: 7
-      flushInterval: 30s
-      fields:
-        - clientIP
-        - clientName
-        - responseReason
-        - responseAnswer
-        - question
-        - duration
-
-    prometheus:
-      enable: true
-      path: /metrics
-
-    log:
-      level: info
-      format: json
-
-    minTlsServeVersion: "1.3"
+    name: blocky-config
+    namespace: blocky
+type: Opaque
+stringData:
+    config.yml: ENC[AES256_GCM,data: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,iv:l/X5kAtLXZDv4RCAqhKfsMc5AxNqlu55M7TGeSl27oI=,tag:vHG50NytgWBulxuzaOG2YQ==,type:str]
+sops:
+    age:
+        - recipient: age1jwjtfrp625gh24xd8rds9zcz7arsgmqf8y3nn4j9redfcvfvcuhs4fv3sc
+          enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBrRTZYcHE2K29JZGxVbXhT
+            Q0FLaGdMU0V2eFJ2R3FWWWVtdXNWcFV4cEZZCkt3S0xhR1kwTTExeUQwTnA3MDhr
+            WU5xcUhtZnNZRGF1SUxUaFNsN1ZVeGsKLS0tIFJrS3h3UllEcVlsbGJTaVd5UXNu
+            RFhrWDJRZWFiMmwva1RuRVRkTlhTQ1EKLKNjK8PWjCQybeA08wZm3U/5h+TFhYCO
+            P8sq/SXo7DeFVnTV5Xmg6g7dk3FXK9PEEdn0ey1vpVTdMig794RqiQ==
+            -----END AGE ENCRYPTED FILE-----
+    lastmodified: "2026-04-26T20:00:39Z"
+    mac: ENC[AES256_GCM,data:PEIU/BJCJHIeRdrVl+MB7r164TxxI2Rm+a5qlG7M8PrDl8LY55woOTP4KAcKgfO4w2egznoEXcalScwhCY6D6xxRquzzqv+jlMjLnSOf36SV37ZssjeYEPy/qlTqy/CMV0KgtC0S55MwhmqPnp7jJrsCCLqyKptjeS+YaXRuH5w=,iv:b4PMb7ySOjZgdYJJDSlwUD1Ss+gCkvT9LG8Z6EdcUiE=,tag:2Q4SuHwktpl8o11UsO5Egw==,type:str]
+    encrypted_regex: ^(data|stringData)$
+    version: 3.12.2
