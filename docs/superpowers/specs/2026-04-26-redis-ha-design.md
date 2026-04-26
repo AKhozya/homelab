@@ -154,7 +154,7 @@ spec:
   chart:
     spec:
       chart: redis-operator
-      version: "0.20.x"      # latest stable as of 2026-04-26 - verify exact version at impl
+      version: "0.24.0"      # latest stable as of 2026-04-26 - verify exact version at impl
       sourceRef:
         kind: HelmRepository
         name: ot-helm
@@ -201,7 +201,7 @@ spec:
         - topologyKey: kubernetes.io/hostname
           labelSelector: {matchLabels: {app: redis-replication}}
   kubernetesConfig:
-    image: quay.io/opstree/redis:v7.4.0    # verify latest stable v7.x at impl
+    image: quay.io/opstree/redis:v7.4.8    # verify latest stable v7.x at impl
     imagePullPolicy: IfNotPresent
     serviceType: ClusterIP
     resources:
@@ -273,7 +273,7 @@ spec:
       secretName: redis-passwords
       key: admin-password
   kubernetesConfig:
-    image: quay.io/opstree/redis-sentinel:v7.4.0
+    image: quay.io/opstree/redis-sentinel:v7.4.8
     imagePullPolicy: IfNotPresent
     resources:
       requests: {cpu: 10m, memory: 32Mi}
@@ -405,7 +405,7 @@ spec:
 | Policy | Mode | Design satisfies | Mechanism |
 |---|---|---|---|
 | `require-labels` | Enforce | yes | OT operator sets `app: redis-replication` / `app: redis-sentinel` labels |
-| `disallow-latest-tag` | Enforce | yes | Pin `quay.io/opstree/redis:v7.4.0`, `quay.io/opstree/redis-sentinel:v7.4.0`, `quay.io/opstree/redis-exporter:v1.82.0`, operator chart version `0.20.x` |
+| `disallow-latest-tag` | Enforce | yes | Pin `quay.io/opstree/redis:v7.4.8`, `quay.io/opstree/redis-sentinel:v7.4.8`, `quay.io/opstree/redis-exporter:v1.82.0`, operator chart version `0.20.x` |
 | `disallow-privilege-escalation` | Enforce | yes | `securityContext.allowPrivilegeEscalation: false` |
 | `require-drop-all-capabilities` | Enforce | yes | `capabilities.drop: [ALL]` |
 | `require-non-default-serviceaccount` | Enforce | yes | Explicit `serviceAccountName: redis-replication` and `redis-sentinel` per CR. Field verified in OT `api/redisreplication/v1beta2/redisreplication_types.go` and `redissentinel_types.go` |
@@ -578,7 +578,7 @@ This unblocks Phase 2.
 | `redis-replication-master` Service does not exist (operator naming differs) | Low | Verified in OT `internal/k8sutils/redis-replication.go`: `cr.MasterService()` creates a per-master ClusterIP Service. Plan task verifies after deploy. |
 | Operator pod creates child pods with default SA | Low | CR spec `serviceAccountName` field verified in OT v1beta2 source. Explicit SAs created in Phase 1b. |
 | `readOnlyRootFilesystem: true` requires writable `/tmp` mount; OT CR may not auto-add | Medium | OT CR exposes `volumeMount` + `sidecars[].volumeMount` extension fields. If operator does not auto-add `/tmp` emptyDir under readOnlyRootFilesystem, plan task adds via CR's `volumeMount` field or via Kustomize patch on the operator-generated StatefulSet. Verify on first `kubectl get pod -n databases redis-replication-0 -o yaml` after Phase 1b deploy. |
-| Redis 7.4.0 image availability / tag drift | Low | `quay.io/opstree/redis:v7.4.0` listed in operator examples. Plan task verifies tag exists at impl. |
+| Redis 7.4.0 image availability / tag drift | Low | `quay.io/opstree/redis:v7.4.8` listed in operator examples. Plan task verifies tag exists at impl. |
 | ResourceQuota in `databases` ns rejects new pods | Medium | Plan task `kubectl describe resourcequota -n databases` before cutover; bump if needed in same commit. |
 | Old `data-redis-0` PVC lingers after StatefulSet delete | Low | StatefulSet PVC retention is `retain` by default. Plan documents manual delete step. |
 | Blocky ACL user accidentally added before Phase 2 deploys Blocky | None — by design | Phase 1e is the last commit. Pre-creates the user so Phase 2 starts cleanly. |
