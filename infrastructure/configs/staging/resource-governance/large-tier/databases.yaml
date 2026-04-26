@@ -35,5 +35,5 @@ spec:
     limits.cpu: "20"
     limits.memory: 20Gi
     pods: "50"
-    services: "20"
+    services: "25"
     persistentvolumeclaims: "20"
