@@ -1137,3 +1137,69 @@ spec:
         description: "One or more UFW canary chains (ufw-logging-deny, ufw-user-input, v6 equivalents) absent from kernel on {{ $labels.node }}. Indicates partial ip6tables-restore load. ufw-heal-post-k3s.service should repair; drift-heal pre-heal also catches within 10 min."
 
   # NOTE: No etcd alerts needed - K3s single-master uses embedded SQLite, not etcd
+
+  - name: redis-ha
+    interval: 60s
+    rules:
+    - alert: RedisHADown
+      expr: redis_up{namespace="databases"} == 0
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Redis pod down on {{ $labels.instance }} - replication degraded"
+        description: "A redis-replication or redis-sentinel pod is unreachable. HA is degraded but failover may still work depending on which pod."
+
+    - alert: RedisHAAllDown
+      expr: count(redis_up{namespace="databases", job=~".*redis-replication.*"} == 1) == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "All Redis replication pods down - full cache outage"
+        description: "Both redis-replication-0 and redis-replication-1 are unreachable. Immich and Paperless will be impacted."
+
+    - alert: RedisHASentinelQuorumLost
+      expr: count(redis_up{namespace="databases", job=~".*sentinel.*"} == 1) < 2
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Sentinel quorum lost - failover broken"
+        description: "Less than 2 Sentinel pods reachable. Master failover will not happen. Quorum is set to 2 of 3."
+
+    - alert: RedisHAReplicationBroken
+      expr: redis_connected_slaves{namespace="databases"} < 1
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Redis master has no connected replica - HA degraded"
+        description: "Master {{ $labels.instance }} reports 0 connected slaves. Replication broken; failover will not preserve recent writes."
+
+    - alert: RedisHAReplicationLag
+      expr: redis_master_last_io_seconds_ago{namespace="databases"} > 10
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Redis replication lag >10s on {{ $labels.instance }}"
+        description: "Replica is more than 10 seconds behind master. Investigate network or replica load."
+
+    - alert: RedisHAMemoryHigh
+      expr: redis_memory_used_bytes{namespace="databases"} / redis_memory_max_bytes{namespace="databases"} > 0.85
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Redis memory >85% on {{ $labels.instance }} - consider raising maxmemory"
+        description: "Redis is approaching maxmemory (480Mi). With noeviction policy, writes will start failing once full. Bump maxmemory in redis-additional.conf or scale memory limit."
+
+    - alert: RedisHAClientReconnectStorm
+      expr: rate(redis_connected_clients{namespace="databases"}[5m]) > 50
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Redis client reconnect storm on {{ $labels.instance }}"
+        description: "Connected clients changing >50/sec. Likely client-side instability or repeated failovers."
