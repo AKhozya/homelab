@@ -4,6 +4,7 @@ namespace: databases
 resources:
   - serviceaccount.yaml
   - redis-config-cm.yaml
+  - passwords-secret.yaml
   - acl-secret.yaml
   - redis-replication.yaml
   - redis-sentinel.yaml
