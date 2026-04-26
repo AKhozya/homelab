@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-ha-config
+  namespace: databases
+data:
+  redis-additional.conf: |
+    save 60 1
+    maxmemory 480mb
+    maxmemory-policy noeviction
+    loglevel warning
