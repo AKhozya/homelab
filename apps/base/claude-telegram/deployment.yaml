@@ -33,7 +33,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: chezmoi-init
-          image: ghcr.io/akhozya/claude-telegram-bot:1.11
+          image: ghcr.io/akhozya/claude-telegram-bot:1.12
           command:
             - /bin/bash
             - -c
@@ -144,7 +144,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: claude-telegram
-          image: ghcr.io/akhozya/claude-telegram-bot:1.11
+          image: ghcr.io/akhozya/claude-telegram-bot:1.12
           env:
             - name: HOME
               value: /home/akhozya
@@ -176,6 +176,19 @@ spec:
               value: "1"
             - name: DISABLE_AUTO_UPDATES
               value: "1"
+            - name: TRIGGER_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: claude-telegram-env
+                  key: trigger-secret
+            - name: TRIGGER_HOST
+              value: "127.0.0.1"
+            - name: TRIGGER_PORT
+              value: "8080"
+          ports:
+            - name: trigger
+              containerPort: 8080
+              protocol: TCP
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
@@ -199,7 +212,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync
-          image: ghcr.io/akhozya/claude-telegram-bot:1.11
+          image: ghcr.io/akhozya/claude-telegram-bot:1.12
           command:
             - /bin/bash
             - -c
