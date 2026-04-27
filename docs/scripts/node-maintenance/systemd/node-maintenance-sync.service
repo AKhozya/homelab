@@ -3,6 +3,10 @@ Description=Node maintenance — git sync + install.sh --sync-only
 Documentation=file:///etc/node-maintenance/README.md
 After=network-online.target
 Wants=network-online.target
+# Skip while phase1/phase2 weekly maintenance is in flight — sync auto-runs
+# config.service on git change, and config touches workers via SSH which
+# fails when phase2 is mid-reboot. Flag set by phase1, cleared by phase2.
+ConditionPathExists=!/var/lib/node-maintenance/phase2-pending
 
 [Service]
 Type=oneshot

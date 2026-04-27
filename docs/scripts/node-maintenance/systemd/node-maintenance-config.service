@@ -3,6 +3,12 @@ Description=Node config drift-heal (ansible node-config.yml)
 Documentation=file:///etc/node-maintenance/README.md
 After=network-online.target node-maintenance-kubectl-proxy.service
 Wants=network-online.target
+# Skip drift-heal during weekly maintenance window. Phase1 sets the flag
+# before reboot; phase2 clears it after successful worker rollout. Drift-
+# heal targets workers via SSH, which fails when phase2 is mid-reboot.
+# If phase2 fails the flag is retained on purpose — block drift-heal
+# until a human investigates rather than have config.service mask it.
+ConditionPathExists=!/var/lib/node-maintenance/phase2-pending
 
 [Service]
 Type=oneshot
