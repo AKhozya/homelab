@@ -33,8 +33,9 @@ Kustomization dep order: `flux-system` → `infrastructure-controllers` → `inf
 - `docs/SECRETS_ROTATION.md` — rotation schedule.
 
 ## Skills
+- `/gitops-workflow` — flow + reconcile (`fr`) + teardown
+- `/app-scaffold` — new app conventions: ingress middlewares, rate limits, ns prefix, dual ingress, NetworkPolicy, SOPS, Kyverno checklist, 2-commit bootstrap
 - `/k8s-diagnostics` — cluster health
-- `/gitops-workflow` — deploy flow
 - `/db-operations` — DB queries, backups, replication
 - `/monitoring-check` — VictoriaMetrics, Grafana, Loki, Alertmanager, Popeye, Kyverno
 - `/networkpolicy-helper` — NetworkPolicy generation
@@ -43,34 +44,13 @@ Kustomization dep order: `flux-system` → `infrastructure-controllers` → `inf
 - `/gitops-verify` — 7-point cluster verify
 - `/checkpoint` — infra state snapshots
 
-## GitOps
-Flow: `investigate → plan → fix → commit → push → reconcile → verify`. Validate YAML: `kubectl apply -f <file> --dry-run=server`.
-
-**Reconcile**: `fr` zsh function = full-stack reconcile (helm repos + git source + 6 kustomizations in dep order). Granular:
-```bash
-flux reconcile kustomization <name> --timeout=60s
-flux reconcile helmrelease <name> -n <namespace> --timeout=60s
-flux reconcile source git flux-system --timeout=60s
-```
-
-**Teardown**:
-```bash
-flux suspend kustomization <name>
-kubectl delete -f <file.yaml>
-git rm <files> && git commit -m "Remove: <resource>" && git push
-flux resume kustomization <name>
-flux reconcile kustomization <name> --timeout=60s
-```
-
-## App Conventions
-- **Ingress middlewares**: `traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd`
-- **Rate limits**: 200/min default, 500/min heavy (n8n/immich/HA), none on authentik.
-- **Namespace prefix**: `traefik-*` (apps) | `monitoring-*` (monitoring).
+## GitOps (one-line)
+Flow: `investigate → plan → fix → commit → push → reconcile → verify`. Validate: `kubectl apply -f <file> --dry-run=server`. Reconcile: `fr` zsh function. Detail in `/gitops-workflow`.
 
 ## DB Proxies
 - Postgres: `main-postgres-rw-pooler.databases.svc.cluster.local:5432` (PgBouncer)
 - MySQL: `main-mysql-haproxy.databases.svc.cluster.local:3306` (HAProxy)
-- Deep query patterns: `/db-operations` skill.
+- Query patterns → `/db-operations`.
 
 ## Monitoring
-TSDB = VictoriaMetrics (`vmsingle`/`vmagent`/`vmalert`). kube-prometheus-stack chart kept only operator + grafana + alertmanager + kube-state-metrics + node-exporter — no `kube-prometheus-stack-prometheus` pod. Query patterns: `/monitoring-check` skill.
+TSDB = VictoriaMetrics (`vmsingle`/`vmagent`/`vmalert`). kube-prometheus-stack chart trimmed to operator + grafana + alertmanager + kube-state-metrics + node-exporter — no Prometheus pod. Query patterns → `/monitoring-check`.
