@@ -109,8 +109,8 @@
   tags: [rebuilderd, repro-cleanup]
 
 - name: Deploy cleanup-stale-repro.sh (per-host repro path)
-  ansible.builtin.copy:
-    src: "cleanup-stale-repro-{{ inventory_hostname }}.sh"
+  ansible.builtin.template:
+    src: cleanup-stale-repro.sh.j2
     dest: /usr/local/bin/cleanup-stale-repro.sh
     owner: root
     group: root

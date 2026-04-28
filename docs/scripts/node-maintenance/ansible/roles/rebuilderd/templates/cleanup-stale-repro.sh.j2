@@ -1,5 +1,6 @@
 #!/bin/bash
-REPRO_DIR=/mnt/extra-storage/repro
+# Managed by ansible (rebuilderd role). Per-host repro_dir from host_vars.
+REPRO_DIR={{ rebuilderd_repro_dir }}
 
 # Get active build container (if any)
 ACTIVE=$(ps aux | grep -E 'nspawn.*repro' | grep -v grep | sed 's/.*-D \/var\/lib\/repro\///' | cut -d' ' -f1 || true)

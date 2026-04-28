@@ -40,20 +40,21 @@
 
 ## Triage
 
-### NOW (~2h, this session)
-- **#1** `authorized_keys` template — `base_config` task, deploy from `group_vars/all.yml` keys, mode 0600.
-- **#3** timesyncd assert + skew metric — small role or `base_config` extension. Assert `enabled+active`. Textfile metric: `timedatectl show -p NTPSynchronized,TimeUSec` → `node_maintenance_clock_synced` gauge.
-- **#7** K3s `tls-san` — extend `config.yaml.j2`, list IPs+hostnames in `group_vars/control_plane.yml`. Drift-alert auto-fires on template change.
-- **#8** K3s data-dir perms check — `k3s_config` task: `stat -c %a /var/lib/rancher/k3s`, fail if not `0700`.
-- **#14** Phase2 Failed-pod GC — restrict `--field-selector` to system + ops namespaces, leave user namespaces alone.
+### NOW — ✅ DONE 2026-04-28 (commits `0cd01203` → `820d1c2b` → `04ec29be`)
+- ✅ **#1** `authorized_keys` template — `base_config` slurps CP pubkey via `delegate_to+run_once`, deploys to workers (mode 0600, exclusive). **Bug caught:** `when:` on slurp + `run_once` traps task into skip when first batch host fails condition (memory: `gotchas.md#ansible-when-runonce-trap`).
+- ✅ **#3** timesyncd assert + skew metric — `base_config` ensures enabled+active. `timesyncd-metric.{sh,service,timer}` emits `node_time_sync_synchronized`, `node_time_sync_active`, `node_time_sync_drift_seconds` to `/var/lib/node_exporter/textfile/time_sync.prom` every 60s. **Verified live**: all 3 nodes synchronized=1, CP drift ≈15ms.
+- ✅ **#7** K3s `tls-san` — block added to `config.yaml.j2`, var `k3s_tls_san` in `group_vars/control_plane.yml` (127.0.0.1, localhost, gmk-k3s-control-plane, 192.168.1.127). Drift-alert auto-fires on template change. K3s restart needed to regenerate cert.
+- ❌ **#8** K3s data-dir perms — DROPPED. K3s sets `<data-dir>` AND all top-level subdirs (`server/`, `agent/`, `server/cred/`, `server/db/`) to 0755 by design. Real secrets live in individual files (mode 0600), K3s manages those. Directory-level audit = false positives. Memory: `gotchas.md#k3s-subdir-0755`.
+- ✅ **#14** Phase2 Failed-pod GC — restricted via `phase2_pod_gc_namespaces` list (system+infra ns only: kube-system, flux-system, kyverno, monitoring, traefik, cert-manager, databases, cloudflare-tunnel, backup-replication, node-maintenance). User-app ns (immich, paperless, n8n, mealie, etc.) skipped.
 
 ### 1–2 DAYS (next session)
 - **#2** `/etc/hosts` blockinfile from inventory loop.
 - **#5** SSH host key fingerprint capture + diff alerting (read-only).
 - **#9** systemd-resolved upstream DNS pinning.
-- **#12** sysctl handler — surface real changes.
+- ~~**#9** systemd-resolved upstream DNS pinning.~~ DROPPED: home design intent = router DHCP → Blocky (W1+W2) → upstream fallback. Pinning Quad9 at node level bypasses Blocky for node-side traffic (image pulls, pacman). Verified live: `/etc/resolv.conf` already shows `nameserver 192.168.1.129 192.168.1.126 fe80::1%2` (Blocky chain via systemd-networkd DHCP). `resolvectl status` "Current DNS Server: 9.9.9.9" is GLOBAL fallback (cosmetic), not what apps use — per-link DNS dominates.
+- ~~**#12** sysctl handler — surface real changes.~~ DROPPED on review: `changed_when: false` on a handler is correct semantics — handler running means upstream task already reported `changed=1` (notify trigger). `command:` module still fails on non-zero rc, so invalid sysctl propagates as failure → telegram alert. Original critique was overcooked.
 - **#15** rebuilderd cleanup — single template with `inventory_hostname`.
-- **#17** role `meta/main.yml` dependencies declared.
+- ~~**#17** role `meta/main.yml` dependencies declared.~~ DROPPED on review: `dependencies:` forces dep role to run on EVERY invocation (slow + noisy when packages already ran via playbook). Playbook role list already enforces correct order. `.ansible-lint` passes production profile without meta files — no lint pressure. Real protection (someone deletes `packages` from playbook) requires intentional action, not accidental drift.
 
 ### LATER (when scaling / scheduled)
 - **#4** pacman_config role (mirror migration trigger).

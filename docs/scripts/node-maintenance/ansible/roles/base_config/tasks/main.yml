@@ -240,6 +240,54 @@
   when: admin_user is defined
   tags: [base-config, user]
 
+# SSH host key fingerprint baseline. Capture current pubkey fingerprints to
+# state dir; alert on diff (drift = MITM, unauthorized rotation, reprovision).
+# Read-only — no rotation, no auto-fix. Operator investigates on alert.
+- name: Capture SSH host key fingerprints baseline
+  ansible.builtin.shell: |
+    set -e
+    out="{{ state_dir }}/ssh-host-fingerprints.txt"
+    new=$(mktemp)
+    for k in /etc/ssh/ssh_host_*_key.pub; do
+      [ -r "$k" ] || continue
+      ssh-keygen -lf "$k" >> "$new"
+    done
+    sort -o "$new" "$new"
+    if [ ! -f "$out" ]; then
+      install -m 0644 -o root -g root "$new" "$out"
+      rm -f "$new"
+      echo "BASELINE-CREATED"
+      exit 0
+    fi
+    if ! diff -q "$out" "$new" >/dev/null 2>&1; then
+      diff "$out" "$new" >&2 || true
+      rm -f "$new"
+      echo "FINGERPRINT-DRIFT"
+      exit 1
+    fi
+    rm -f "$new"
+    echo "OK"
+  register: ssh_fp_check
+  changed_when: ssh_fp_check.stdout == "BASELINE-CREATED"
+  failed_when: ssh_fp_check.stdout == "FINGERPRINT-DRIFT"
+  tags: [base-config, ssh-fingerprints]
+
+# /etc/hosts — declarative cluster node entries. Inventory is source of truth;
+# any drift gets reconciled. Block markers preserve other entries (e.g. user
+# customizations, virt managers). LAN-only — DNS via Blocky for everything else.
+- name: Manage /etc/hosts cluster block
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} ANSIBLE MANAGED — homelab cluster nodes"
+    block: |
+      {% for host in groups['all'] %}
+      {{ hostvars[host].node_ip | default(hostvars[host].ansible_host) }} {{ host }}
+      {% endfor %}
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [base-config, hosts]
+
 - name: Ensure rebuilderd-worker@.service.d exists (workers)
   ansible.builtin.file:
     path: /etc/systemd/system/rebuilderd-worker@.service.d
