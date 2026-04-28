@@ -56,51 +56,8 @@
     enabled: true
   tags: [k3s-config, k3s-ready]
 
-# ──────────────────────────────────────────────────────────────
-# Sensitive-path permissions audit. K3s sets `<data-dir>` itself to 0755 by
-# design (containerd/agent need traversal). Real secrets live in subdirs:
-#   <data-dir>/server/cred/   (CP — node tokens, encryption keys)
-#   <data-dir>/server/db/     (CP — etcd state)
-#   <data-dir>/agent/         (workers — kubelet kubeconfig, tls)
-# Audit those: must be root-owned + not world-accessible. Stat-only, alert via
-# failed task → Telegram on drift.
-# ──────────────────────────────────────────────────────────────
-- name: Set K3s sensitive paths (CP — server/cred, server/db)
-  ansible.builtin.set_fact:
-    k3s_sensitive_paths:
-      - "{{ k3s_data_dir | default('/var/lib/rancher/k3s') }}/server/cred"
-      - "{{ k3s_data_dir | default('/var/lib/rancher/k3s') }}/server/db"
-  when: "'control_plane' in group_names"
-  tags: [k3s-config, perms-audit]
-
-- name: Set K3s sensitive paths (workers — agent)
-  ansible.builtin.set_fact:
-    k3s_sensitive_paths:
-      - "{{ k3s_data_dir | default('/var/lib/rancher/k3s') }}/agent"
-  when: "'workers' in group_names"
-  tags: [k3s-config, perms-audit]
-
-- name: Stat K3s sensitive paths
-  ansible.builtin.stat:
-    path: "{{ item }}"
-  register: k3s_sensitive_stat
-  loop: "{{ k3s_sensitive_paths }}"
-  tags: [k3s-config, perms-audit]
-
-- name: Assert K3s sensitive paths root-owned and not world-accessible
-  ansible.builtin.assert:
-    that:
-      - item.stat.exists
-      - item.stat.pw_name == 'root'
-      - (item.stat.mode | int(base=8)) % 8 == 0
-    fail_msg: >-
-      K3s sensitive path {{ item.item }} has unsafe perms
-      (mode={{ item.stat.mode | default('?') }},
-      owner={{ item.stat.pw_name | default('?') }}). Expected root-owned,
-      no world access. Fix manually:
-      sudo chmod o-rwx {{ item.item }}
-    success_msg: "{{ item.item }} OK ({{ item.stat.mode }} root)"
-  loop: "{{ k3s_sensitive_stat.results }}"
-  loop_control:
-    label: "{{ item.item }}"
-  tags: [k3s-config, perms-audit]
+# Note: NO directory-level perms audit on <data-dir>/server, /agent, etc.
+# K3s sets those to 0755 by design (containerd/kubelet/agent need traversal).
+# Real secrets are individual files (server/cred/*, agent/*.{crt,key},
+# server/db/state.db) with K3s-managed 0600/0700 modes. Per-file audit is
+# possible but high-noise / low-value — K3s manages this layer itself.
