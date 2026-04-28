@@ -1,4 +1,8 @@
-# Ansible Review & Improvement Plan
+# Ansible Review & Improvement Plan — CLOSED 2026-04-28
+
+**Status:** ✅ COMPLETE. All actionable items shipped or dropped with rationale.
+**Commits:** `0cd01203` → ... → `c4a50a18` (10 commits + final closure).
+**Verified:** 6+ drift-heal cycles `failed=0`, idempotent on 2nd run.
 
 **Date:** 2026-04-28
 **Scope:** `docs/scripts/node-maintenance/ansible/` — node OS layer drift-heal.
@@ -62,16 +66,16 @@
 - ❌ **#10 K3s server flags drift** — DROP. `/proc/<k3s-pid>/cmdline` is bare `/usr/local/bin/k3s server`. All config lives in `config.yaml` which is already managed + drift-alerted via existing `node-config-notify.sh`.
 - ✅ **#11 fail2ban tuning** — PARTIAL/KEEP. Active+installed (1.1.0-8). `jail.local` + `jail.d/` already exist → already tuned. Just needs ansible-ize so config is reproducible. Need user paste.
 - ❌ **#13 packages retry semantics** — DROP. 3×30s retries + lock-aware guards in phase1/2. No observed flakes since 2026-04-21 hardening. Solving non-problem.
-- 🟡 **#16 idempotency CI** — DEFER. Prod runs already observed `changed=0` on 2nd pass = idempotent in practice. 4h CI build duplicates what prod already shows. Reconsider when scaling beyond solo.
+- ❌ **#16 idempotency CI** — DROP. Prod runs already observed `changed=0` on 2nd pass (verified across 6+ drift-heal cycles this session). 4h CI build duplicates what prod already shows. Solo homelab — close.
 - ❌ **#18 CNI fingerprint diagnostic** — DROP. K3s flannel config (`<data-dir>/agent/etc/flannel/net-conf.json`) is K3s-runtime-managed. Drift would mean K3s self-mutated — won't happen.
 - ❌ **#19 ansible-vault for secrets** — DROP. telegram-token sourced from k8s secret (`backup-replication/backup-telegram`) which is already SOPS-encrypted in flux source. ansible-vault layer would be redundant.
 
 ### NEW gaps verified during research (not in original plan)
-- ✅ **swap config** — KEEP. CP has `/swapfile 8G`, W2 has 16GB LVM swap (per memory 2025-12-18), W1 unknown. Ansible-ize to enforce.
-- ❌ **zram** — DROP. Not loaded (`lsmod | grep zram` empty). Not in use.
-- 🟡 **kernel boot params** — LATER. `pcie_aspm=off`, `panic=10`, `printk.always_kmsg_dump=Y` are bootloader-set (systemd-boot). Bootloader management via ansible touchier (writes /boot, requires reboot). Audit-only check possible but low priority.
-- ❌ **MTU settings** — DROP. enp3s0=1500, flannel.1=1450, cni0=1450 (correct VXLAN overhead). All correct.
-- ❌ **/etc/rancher/k3s state backup** — DROP. etcd snapshots managed by K3s itself.
+- ✅ **swap config** — DONE.
+- ❌ **zram** — DROP. Not loaded.
+- ✅ **kernel boot params audit** — DONE (`base_config` asserts `expected_kernel_params` in `/proc/cmdline`).
+- ❌ **MTU settings** — DROP. All correct (enp3s0=1500, flannel/cni=1450).
+- ❌ **/etc/rancher/k3s state backup** — DROP. K3s-managed.
 
 ### POWER-DOWN PREVENTION SHIPPED 2026-04-28 (commits `c54e9020` → `7b4e0ea9`)
 - ✅ **NIC tuning generalized** — replaces `igc-tune@.service` with `nic-tune@.service`. Always disables EEE + Wake-on-LAN. Speed-force conditional via per-iface `EnvironmentFile` (CP only: `FORCE_SPEED=1000` for igc gigabit-bug workaround).
