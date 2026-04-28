@@ -156,7 +156,7 @@
     mode: "0644"
   tags: [hardening, power]
 
-- name: Deploy udev rules (NVMe + SATA no power-mgmt)
+- name: Deploy udev rules (PCI runtime PM + SATA ALPM)
   ansible.builtin.copy:
     src: "udev-{{ item }}"
     dest: "/etc/udev/rules.d/{{ item }}"
@@ -164,8 +164,15 @@
     group: root
     mode: "0644"
   loop:
-    - 60-nvme-no-pm.rules
+    - 60-pci-no-runtime-pm.rules
     - 60-sata-no-alpm.rules
+  notify: Reload udev rules
+  tags: [hardening, power]
+
+- name: Remove legacy 60-nvme-no-pm.rules (superseded by 60-pci-no-runtime-pm.rules)
+  ansible.builtin.file:
+    path: /etc/udev/rules.d/60-nvme-no-pm.rules
+    state: absent
   notify: Reload udev rules
   tags: [hardening, power]
 

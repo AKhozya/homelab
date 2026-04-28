@@ -1,0 +1,16 @@
+# Disable runtime PM for storage + network PCIe controllers.
+# Class codes (lspci -nn):
+#   0x010601 = SATA controller (AHCI)
+#   0x010802 = NVMe controller
+#   0x020000 = Ethernet controller
+# Setting power/control=on prevents the kernel from auto-suspending the
+# device, which has been observed to cause spurious link drops (igc/r8169)
+# and SSD latency spikes (NVMe APST). Belt-and-suspenders alongside
+# `pcie_aspm=off` kernel cmdline (which disables ASPM link-level only).
+ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x010601", ATTR{power/control}="on"
+ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x010802", ATTR{power/control}="on"
+ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x020000", ATTR{power/control}="on"
+
+# Block-device runtime PM for NVMe (covers cases where SUBSYSTEM=="pci" rule
+# doesn't fire due to driver bind ordering).
+ACTION=="add", SUBSYSTEM=="block", KERNEL=="nvme*", RUN+="/bin/sh -c 'echo on > /sys$devpath/device/power/control 2>/dev/null || true'"

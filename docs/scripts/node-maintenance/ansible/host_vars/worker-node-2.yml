@@ -4,6 +4,12 @@
 # Cluster LAN IP for /etc/hosts block (mirrors ansible_host but explicit).
 node_ip: 192.168.1.126
 
+# ---- NIC tuning (Realtek 8125 r8169 EEE-off; no speed-force) ----
+# Primary NIC = enp2s0 (r8169 driver, 2.5GbE). EEE was enabled-active 2026-04-28
+# audit — flipped off via nic-tune@enp2s0.service. Same wake-transition class
+# of bugs as igc; preventive measure even without observed link drops yet.
+nic_tuning_iface: enp2s0
+
 # Swap config — 16G LVM logical volume, mounted via LV path in fstab.
 swap_kind: lvm
 swap_path: /dev/ArchinstallVg/swap

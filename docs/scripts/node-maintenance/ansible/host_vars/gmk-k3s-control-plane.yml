@@ -23,3 +23,4 @@ admin_user: akhozya
 # Force 1Gbps + EEE off on enp3s0 to prevent link drops.
 # Reference: 2026-04-26 21:05-21:10 NIC link-down isolation incident.
 nic_tuning_iface: enp3s0
+nic_tuning_force_speed: 1000

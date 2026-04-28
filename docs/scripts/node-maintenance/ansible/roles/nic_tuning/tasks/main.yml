@@ -1,10 +1,11 @@
 ---
-# nic_tuning — Mitigate Intel I225-V (igc driver) link drops via 1Gbps + EEE off.
-# Applied only when host_var `nic_tuning_iface` is set.
+# nic_tuning — disable EEE + Wake-on-LAN on primary NIC; optionally force speed.
+# Applied per-host when `nic_tuning_iface` set in host_vars.
 #
-# Background: Intel 2.5GbE I225-V chipsets exhibit intermittent NIC link drops
-# under specific firmware/kernel/EEE combinations. Forcing 1Gbps + disabling
-# Energy Efficient Ethernet (EEE) is the documented workaround.
+# Background: Intel I225-V (igc) + Realtek 8125 (r8169) family — both 2.5GbE
+# chipsets — exhibit intermittent link drops / wake-transition glitches when
+# Energy Efficient Ethernet is enabled. Disabling EEE is the documented
+# workaround across both drivers. Speed-force is CP-only (igc bug at gigabit).
 #
 # Reference incident: 2026-04-26 21:05-21:10 — gmk-k3s-control-plane enp3s0
 # logged 4 link-down events, isolated CP from LAN until physical reboot.
@@ -16,10 +17,34 @@
   when: nic_tuning_iface is defined and nic_tuning_iface | length > 0
   tags: [nic-tuning]
 
-- name: Deploy igc-tune@.service template
+- name: Ensure /etc/nic-tune exists
+  ansible.builtin.file:
+    path: /etc/nic-tune
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: nic_tuning_iface is defined and nic_tuning_iface | length > 0
+  tags: [nic-tuning]
+
+- name: Deploy nic-tune EnvironmentFile (per-iface FORCE_SPEED if any)
   ansible.builtin.copy:
-    src: igc-tune.service
-    dest: /etc/systemd/system/igc-tune@.service
+    dest: "/etc/nic-tune/{{ nic_tuning_iface }}.env"
+    content: |
+      {% if nic_tuning_force_speed | default('') | string | length > 0 %}
+      FORCE_SPEED={{ nic_tuning_force_speed }}
+      {% endif %}
+    owner: root
+    group: root
+    mode: "0644"
+  when: nic_tuning_iface is defined and nic_tuning_iface | length > 0
+  notify: Restart nic-tune
+  tags: [nic-tuning]
+
+- name: Deploy nic-tune@.service template (replaces igc-tune@.service)
+  ansible.builtin.copy:
+    src: nic-tune.service
+    dest: /etc/systemd/system/nic-tune@.service
     owner: root
     group: root
     mode: "0644"
@@ -27,9 +52,25 @@
   notify: Reload systemd
   tags: [nic-tuning]
 
-- name: Enable igc-tune for configured interface
+- name: Stop + disable legacy igc-tune@.service unit (replaced by nic-tune@)
   ansible.builtin.systemd_service:
     name: "igc-tune@{{ nic_tuning_iface }}.service"
+    enabled: false
+    state: stopped
+  when: nic_tuning_iface is defined and nic_tuning_iface | length > 0
+  failed_when: false
+  tags: [nic-tuning]
+
+- name: Remove legacy igc-tune@.service file (replaced)
+  ansible.builtin.file:
+    path: /etc/systemd/system/igc-tune@.service
+    state: absent
+  notify: Reload systemd
+  tags: [nic-tuning]
+
+- name: Enable nic-tune for configured interface
+  ansible.builtin.systemd_service:
+    name: "nic-tune@{{ nic_tuning_iface }}.service"
     enabled: true
     state: started
     daemon_reload: true

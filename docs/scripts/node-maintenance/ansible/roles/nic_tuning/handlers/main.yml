@@ -2,3 +2,8 @@
 - name: Reload systemd
   ansible.builtin.systemd_service:
     daemon_reload: true
+
+- name: Restart nic-tune
+  ansible.builtin.systemd_service:
+    name: "nic-tune@{{ nic_tuning_iface }}.service"
+    state: restarted

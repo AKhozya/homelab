@@ -1,0 +1,22 @@
+[Unit]
+Description=Tune NIC %i — disable EEE, optionally force speed (no-power-down policy)
+Wants=network.target
+After=network.target sys-subsystem-net-devices-%i.device
+Requires=sys-subsystem-net-devices-%i.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=-/etc/nic-tune/%i.env
+# Force speed only if FORCE_SPEED is set in EnvironmentFile (CP igc bug workaround,
+# 1Gbps required per IEEE 802.3 Clause 28). Workers omit FORCE_SPEED → no-op `true`.
+ExecStart=/bin/sh -c '[ -n "${FORCE_SPEED:-}" ] && /usr/bin/ethtool -s %i autoneg on speed "$FORCE_SPEED" duplex full || true'
+# Always disable EEE — affects igc + r8169 alike (link-drop / wake-transition class bugs).
+ExecStart=/usr/bin/ethtool --set-eee %i eee off
+# Disable Wake-on-LAN (defensive — eliminates magic-packet wake path).
+ExecStart=/bin/sh -c '/usr/bin/ethtool -s %i wol d || true'
+# Verify
+ExecStart=/usr/bin/sh -c '/usr/bin/ethtool %i | grep -E "Speed|Duplex|Auto-negotiation|Wake-on"'
+
+[Install]
+WantedBy=multi-user.target

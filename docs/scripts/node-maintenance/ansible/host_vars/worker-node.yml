@@ -4,6 +4,11 @@
 # Cluster LAN IP for /etc/hosts block (mirrors ansible_host but explicit).
 node_ip: 192.168.1.129
 
+# ---- NIC tuning (igc/r8169 EEE-off; no speed-force on workers) ----
+# Primary NIC = enp4s0 (igc). 2.5GbE active. EEE off declarative; matches
+# observed live state. No FORCE_SPEED → operates at link-negotiated speed.
+nic_tuning_iface: enp4s0
+
 # Swap config — 32G partition, UUID-mounted in fstab.
 swap_kind: partition
 swap_path: /dev/nvme1n1p3
