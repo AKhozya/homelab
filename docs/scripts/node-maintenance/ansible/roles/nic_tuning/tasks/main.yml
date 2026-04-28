@@ -27,17 +27,28 @@
   when: nic_tuning_iface is defined and nic_tuning_iface | length > 0
   tags: [nic-tuning]
 
-- name: Deploy nic-tune EnvironmentFile (per-iface FORCE_SPEED if any)
+- name: Deploy nic-tune EnvironmentFile (only when FORCE_SPEED needed)
   ansible.builtin.copy:
     dest: "/etc/nic-tune/{{ nic_tuning_iface }}.env"
-    content: |
-      {% if nic_tuning_force_speed | default('') | string | length > 0 %}
-      FORCE_SPEED={{ nic_tuning_force_speed }}
-      {% endif %}
+    content: "FORCE_SPEED={{ nic_tuning_force_speed }}\n"
     owner: root
     group: root
     mode: "0644"
-  when: nic_tuning_iface is defined and nic_tuning_iface | length > 0
+  when:
+    - nic_tuning_iface is defined
+    - nic_tuning_iface | length > 0
+    - nic_tuning_force_speed | default('') | string | length > 0
+  notify: Restart nic-tune
+  tags: [nic-tuning]
+
+- name: Remove nic-tune EnvironmentFile when FORCE_SPEED not set (workers)
+  ansible.builtin.file:
+    path: "/etc/nic-tune/{{ nic_tuning_iface }}.env"
+    state: absent
+  when:
+    - nic_tuning_iface is defined
+    - nic_tuning_iface | length > 0
+    - nic_tuning_force_speed | default('') | string | length == 0
   notify: Restart nic-tune
   tags: [nic-tuning]
 
