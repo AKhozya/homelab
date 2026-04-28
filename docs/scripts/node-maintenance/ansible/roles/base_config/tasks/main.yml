@@ -271,7 +271,11 @@
 - name: Verify swap active (path={{ swap_path | default('?') }})
   ansible.builtin.shell: |
     set -o pipefail
-    swapon --show=NAME --noheadings | grep -qxF '{{ swap_path }}'
+    # readlink -f resolves LVM LV symlinks to backing /dev/dm-N device.
+    # swapon --show prints whatever was activated: dm path for LVM,
+    # block device for partitions, absolute path for files.
+    real=$(readlink -f '{{ swap_path }}')
+    swapon --show=NAME --noheadings | grep -qxF "$real"
   args:
     executable: /bin/bash
   register: swap_check
