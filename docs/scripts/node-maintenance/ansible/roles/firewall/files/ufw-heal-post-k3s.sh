@@ -68,27 +68,26 @@ ensure_chain() {
     return 1
 }
 
-# Compute combined v4 + v6 iptables-save sha256.
-# Used for stability detection — identical hash across windows = no churn.
-iptables_hash() {
+# Compute hash of UFW-managed chains only (ignore kube-router/kube-proxy churn).
+# UFW chains start with `ufw-` or `ufw6-` — both chain declarations (`:ufw-...`)
+# and rules (`-A ufw-...`). Workers always churn iptables for pod network
+# reconciliation, so full-ruleset hash never stabilises; ufw-only hash does.
+ufw_chains_hash() {
     {
-        "$IPTABLES_SAVE" 2>/dev/null || true
-        "$IP6TABLES_SAVE" 2>/dev/null || true
+        "$IPTABLES_SAVE" 2>/dev/null | grep -E '^:ufw-|^-A ufw-' || true
+        "$IP6TABLES_SAVE" 2>/dev/null | grep -E '^:ufw6-|^-A ufw6-' || true
     } | sha256sum | awk '{print $1}'
 }
 
-# Phase A — wait for netfilter settle via TWO signals:
-#   1. nft monitor: 5s window with zero netlink events
-#   2. iptables-save sha256 stability: identical hash across N consecutive 5s windows
-# Both must agree (or nft unavailable). Belt-and-braces: nft catches in-flight
-# netlink, hash catches "just settled but rules still in flux at restore time".
+# Phase A — wait for UFW chain stability across N consecutive windows.
+# nft monitor logged for diagnostics but NOT gating (kube-* always churns it).
+# Hash gate is on ufw chains only: rules we control + chains UFW manages.
 # Falls through on timeout — never blocks heal.
 phase_a_settle() {
-    log "phase-a: waiting for netfilter settle (max ${SETTLE_MAX_SEC}s, ${SETTLE_WINDOW_SEC}s windows, ${SETTLE_STABLE_WINDOWS}× stability)"
+    log "phase-a: waiting for ufw-chain stability (max ${SETTLE_MAX_SEC}s, ${SETTLE_WINDOW_SEC}s windows, ${SETTLE_STABLE_WINDOWS}× stable)"
 
     local nft_available=1
     if ! "$NFT_BIN" list ruleset >/dev/null 2>&1; then
-        log "phase-a: nft unavailable, using hash-stability only"
         nft_available=0
     fi
 
@@ -105,19 +104,16 @@ phase_a_settle() {
         fi
 
         local curr_hash
-        curr_hash=$(iptables_hash)
+        curr_hash=$(ufw_chains_hash)
 
-        if [ "$events" -eq 0 ] && [ -n "$curr_hash" ] && [ "$curr_hash" = "$prev_hash" ]; then
+        if [ -n "$curr_hash" ] && [ "$curr_hash" = "$prev_hash" ]; then
             stable=$((stable + 1))
-            log "phase-a: stable window ${stable}/${SETTLE_STABLE_WINDOWS} (events=0, hash=${curr_hash:0:12})"
+            log "phase-a: stable ${stable}/${SETTLE_STABLE_WINDOWS} (nft_events=$events, ufw_hash=${curr_hash:0:12})"
             if [ "$stable" -ge "$SETTLE_STABLE_WINDOWS" ]; then
                 log "phase-a: settled"
                 return 0
             fi
         else
-            if [ "$stable" -gt 0 ]; then
-                log "phase-a: stability reset (events=$events, hash_changed=$([ "$curr_hash" != "$prev_hash" ] && echo yes || echo no))"
-            fi
             stable=0
             prev_hash="$curr_hash"
         fi

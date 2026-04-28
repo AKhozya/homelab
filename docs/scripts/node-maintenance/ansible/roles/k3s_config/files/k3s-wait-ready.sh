@@ -89,19 +89,29 @@ wait_critical_pods() {
     return 1
 }
 
-# Phase 3 — wait for iptables-save hash stability (3× 5s windows of identical hash)
-# Catches kube-proxy/kube-router rule churn after API ready but before settle.
+# Hash UFW-managed chains only — workers always churn kube-* chains, full-ruleset
+# hash never stabilises (kube-router/kube-proxy reconcile pod routes continuously).
+# UFW chains we control => bounded drift => meaningful stability signal.
+ufw_chains_hash() {
+    {
+        "$IPTABLES_SAVE" 2>/dev/null | grep -E '^:ufw-|^-A ufw-' || true
+        "$IP6TABLES_SAVE" 2>/dev/null | grep -E '^:ufw6-|^-A ufw6-' || true
+    } | sha256sum | awk '{print $1}'
+}
+
+# Phase 3 — wait for ufw-chain hash stability (3× 5s windows of identical hash).
+# Means ufw rules quiesced; kube-* churn ignored (out of our control).
 wait_iptables_stable() {
     local deadline=$1
     local prev=""
     local stable=0
-    log "iptables: waiting for hash stability"
+    log "iptables: waiting for ufw-chain stability"
     while [ "$(date +%s)" -lt "$deadline" ]; do
         local h
-        h=$( { "$IPTABLES_SAVE" 2>/dev/null; "$IP6TABLES_SAVE" 2>/dev/null; } | sha256sum | awk '{print $1}' )
+        h=$(ufw_chains_hash)
         if [ -n "$h" ] && [ "$h" = "$prev" ]; then
             stable=$((stable + 1))
-            log "iptables: stable ${stable}/3 (hash=${h:0:12})"
+            log "iptables: stable ${stable}/3 (ufw_hash=${h:0:12})"
             if [ "$stable" -ge 3 ]; then
                 log "iptables: settled"
                 return 0

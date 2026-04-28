@@ -49,13 +49,21 @@ log() {
     echo "[$LOG_TAG] $*" >&2
 }
 
-# Phase 1: settle wait
+# Hash UFW-managed chains only — workers always churn kube-* chains, full-ruleset
+# hash never stabilises. UFW chains we control => bounded drift.
+ufw_chains_hash() {
+    {
+        "$IPTABLES_SAVE" 2>/dev/null | grep -E '^:ufw-|^-A ufw-' || true
+        "$IP6TABLES_SAVE" 2>/dev/null | grep -E '^:ufw6-|^-A ufw6-' || true
+    } | sha256sum | awk '{print $1}'
+}
+
+# Phase 1: settle wait — gate on ufw chain stability, log nft events for diag
 phase_settle() {
     log "settle: max=${SETTLE_MAX_SEC}s window=${SETTLE_WINDOW_SEC}s stable=${SETTLE_STABLE_WINDOWS}"
     local nft_available=1
     if ! "$NFT_BIN" list ruleset >/dev/null 2>&1; then
         nft_available=0
-        log "settle: nft unavailable, hash-only mode"
     fi
     local deadline=$(( $(date +%s) + SETTLE_MAX_SEC ))
     local prev=""
@@ -68,11 +76,11 @@ phase_settle() {
             sleep "$SETTLE_WINDOW_SEC"
         fi
         local h
-        h=$( { "$IPTABLES_SAVE" 2>/dev/null; "$IP6TABLES_SAVE" 2>/dev/null; } | sha256sum | awk '{print $1}' )
-        if [ "$events" -eq 0 ] && [ -n "$h" ] && [ "$h" = "$prev" ]; then
+        h=$(ufw_chains_hash)
+        if [ -n "$h" ] && [ "$h" = "$prev" ]; then
             stable=$((stable + 1))
             if [ "$stable" -ge "$SETTLE_STABLE_WINDOWS" ]; then
-                log "settle: ok"
+                log "settle: ok (nft_events=$events ufw_hash=${h:0:12})"
                 return 0
             fi
         else
