@@ -162,13 +162,16 @@
 # below ensures any added/removed keys are reconciled. Source-of-truth = CP's
 # /var/lib/node-maintenance/.ssh/id_ed25519.pub (derived once at install via
 # `ssh-keygen -y` from SOPS-decrypted private key).
+#
+# NOTE: slurp runs unconditionally (run_once + delegate_to). Adding `when` here
+# skips the task if the chosen run_once host fails the condition, leaving the
+# registered var unset for every host — drift-heal then fails on workers.
 - name: Read CP node-maintenance public key (source of truth)
   ansible.builtin.slurp:
     src: /var/lib/node-maintenance/.ssh/id_ed25519.pub
   register: cp_node_maintenance_pubkey
   delegate_to: "{{ groups['control_plane'][0] }}"
   run_once: true
-  when: "'workers' in group_names"
   tags: [base-config, user, authorized-keys]
 
 - name: Deploy node-maintenance authorized_keys (workers — CP pubkey only, exclusive)
