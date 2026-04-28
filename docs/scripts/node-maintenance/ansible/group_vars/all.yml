@@ -46,6 +46,22 @@ flux_kustomizations:
 # yay command (used in both phases)
 yay_cmd: "sudo -u node-maintenance yay -Syu --noconfirm --answerdiff=None --answerclean=None --removemake"
 
+# Phase2 post-rollout Failed-pod GC scope. Limited to system + infra namespaces;
+# user-app namespaces (immich, paperless, n8n, mealie, etc.) are skipped so
+# operator-investigated Failed pods aren't silently nuked. Add new infra ns here.
+phase2_pod_gc_namespaces:
+  - kube-system
+  - kube-public
+  - flux-system
+  - kyverno
+  - monitoring
+  - traefik
+  - cert-manager
+  - databases
+  - cloudflare-tunnel
+  - backup-replication
+  - node-maintenance
+
 # ---- UFW firewall ----
 # Policies: default-deny incoming/routed, allow outgoing. Logging low = user.log noise-free.
 ufw_policy_incoming: deny

@@ -14,6 +14,15 @@ k3s_node_labels:
 k3s_terminated_pod_gc_threshold: 20
 k3s_secrets_encryption: true
 
+# API-server cert SANs. Restart K3s after change to regenerate cert.
+# Cert lifetime: K3s rotates internally, but SAN list is set once at install.
+# This block makes SANs declarative; drift-heal alerts on diff.
+k3s_tls_san:
+  - 127.0.0.1
+  - localhost
+  - gmk-k3s-control-plane
+  - 192.168.1.127
+
 
 # UFW rules specific to CP.
 # Extras vs base: 6443 LAN dup, 9090 LAN (legacy Prometheus), 6443 anywhere

@@ -55,3 +55,29 @@
     name: k3s-wait-ready.service
     enabled: true
   tags: [k3s-config, k3s-ready]
+
+# ──────────────────────────────────────────────────────────────
+# Data-dir permissions audit. K3s defaults `<data-dir>` to 0700 (root). World-
+# readable = secrets exposure (etcd snapshots, server tokens, kubelet kubeconfig
+# all live under here). Stat only — no mutation, alert via failed task → Telegram.
+# ──────────────────────────────────────────────────────────────
+- name: Stat K3s data-dir
+  ansible.builtin.stat:
+    path: "{{ k3s_data_dir | default('/var/lib/rancher/k3s') }}"
+  register: k3s_data_dir_stat
+  tags: [k3s-config, perms-audit]
+
+- name: Assert K3s data-dir is owned by root and not world-accessible
+  ansible.builtin.assert:
+    that:
+      - k3s_data_dir_stat.stat.exists
+      - k3s_data_dir_stat.stat.pw_name == 'root'
+      - (k3s_data_dir_stat.stat.mode | int(base=8)) % 8 == 0
+    fail_msg: >-
+      K3s data-dir {{ k3s_data_dir | default('/var/lib/rancher/k3s') }}
+      has unsafe perms (mode={{ k3s_data_dir_stat.stat.mode | default('?') }},
+      owner={{ k3s_data_dir_stat.stat.pw_name | default('?') }}). Expected
+      root-owned, no world access. Fix manually:
+      sudo chown root:root <path> && sudo chmod 0700 <path>.
+    success_msg: "K3s data-dir perms OK ({{ k3s_data_dir_stat.stat.mode }} root)"
+  tags: [k3s-config, perms-audit]

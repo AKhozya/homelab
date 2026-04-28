@@ -1,0 +1,10 @@
+[Unit]
+Description=Emit time-sync health metrics for node-exporter
+After=systemd-timesyncd.service
+Documentation=file:///etc/node-maintenance/README.md
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/timesyncd-metric.sh
+Nice=15
+IOSchedulingClass=idle

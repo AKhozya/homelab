@@ -51,6 +51,61 @@
     - paccache.timer
   tags: [base-config, timers]
 
+# systemd-timesyncd: assert enabled + active. Single source of clock truth
+# for all 3 nodes. K3s etcd tolerates ≤2s skew; timesyncd holds ≪100ms in
+# practice. Drift surfaced via textfile metric below.
+- name: Ensure systemd-timesyncd enabled + active
+  ansible.builtin.systemd_service:
+    name: systemd-timesyncd.service
+    enabled: true
+    state: started
+  tags: [base-config, time-sync]
+
+- name: Ensure /var/lib/node_exporter/textfile exists
+  ansible.builtin.file:
+    path: /var/lib/node_exporter/textfile
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [base-config, time-sync, metrics]
+
+- name: Deploy timesyncd-metric.sh
+  ansible.builtin.copy:
+    src: timesyncd-metric.sh
+    dest: /usr/local/sbin/timesyncd-metric.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [base-config, time-sync, metrics]
+
+- name: Deploy timesyncd-metric.service
+  ansible.builtin.copy:
+    src: timesyncd-metric.service
+    dest: /etc/systemd/system/timesyncd-metric.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [base-config, time-sync, metrics]
+
+- name: Deploy timesyncd-metric.timer
+  ansible.builtin.copy:
+    src: timesyncd-metric.timer
+    dest: /etc/systemd/system/timesyncd-metric.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [base-config, time-sync, metrics]
+
+- name: Enable + start timesyncd-metric.timer
+  ansible.builtin.systemd_service:
+    name: timesyncd-metric.timer
+    enabled: true
+    state: started
+  tags: [base-config, time-sync, metrics]
+
 - name: Ensure /etc/systemd/journald.conf.d exists
   ansible.builtin.file:
     path: /etc/systemd/journald.conf.d
@@ -101,6 +156,30 @@
     group: node-maintenance
     mode: "0700"
   tags: [base-config, user]
+
+# Workers' authorized_keys = CP's node-maintenance pubkey ONLY (exclusive).
+# Bootstrap path: install-worker.sh seeds via PUB_KEY substitution. Drift-heal
+# below ensures any added/removed keys are reconciled. Source-of-truth = CP's
+# /var/lib/node-maintenance/.ssh/id_ed25519.pub (derived once at install via
+# `ssh-keygen -y` from SOPS-decrypted private key).
+- name: Read CP node-maintenance public key (source of truth)
+  ansible.builtin.slurp:
+    src: /var/lib/node-maintenance/.ssh/id_ed25519.pub
+  register: cp_node_maintenance_pubkey
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  run_once: true
+  when: "'workers' in group_names"
+  tags: [base-config, user, authorized-keys]
+
+- name: Deploy node-maintenance authorized_keys (workers — CP pubkey only, exclusive)
+  ansible.builtin.copy:
+    dest: /var/lib/node-maintenance/.ssh/authorized_keys
+    content: "{{ cp_node_maintenance_pubkey.content | b64decode | trim }}\n"
+    owner: node-maintenance
+    group: node-maintenance
+    mode: "0600"
+  when: "'workers' in group_names"
+  tags: [base-config, user, authorized-keys]
 
 # Workers carry rebuilderd's /etc/makepkg.conf.d/storage.conf which sets BUILDDIR/SRCDEST/PKGDEST
 # to LVM paths owned by rebuilderd. yay run by node-maintenance during phase2 AUR upgrade hits

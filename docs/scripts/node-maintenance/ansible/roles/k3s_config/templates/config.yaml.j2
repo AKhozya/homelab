@@ -61,3 +61,12 @@ kube-controller-manager-arg:
 #   k3s secrets-encrypt enable → restart → rotate-keys → restart → verify `status`.
 secrets-encryption: true
 {% endif %}
+{% if is_cp and k3s_tls_san is defined and k3s_tls_san | length > 0 %}
+
+# Additional API-server cert SANs. Drift here = template change → telegram alert.
+# Restart K3s to regenerate cert: sudo systemctl restart k3s
+tls-san:
+{% for s in k3s_tls_san %}
+  - "{{ s }}"
+{% endfor %}
+{% endif %}

@@ -416,6 +416,15 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (October-December 2025)
 
+### 2026-04-28 (Ansible Review Plan) 📋
+- ✅ **Full audit** of `docs/scripts/node-maintenance/ansible/` — 11 roles, 3 playbooks (`phase1`/`phase2`/`node-config`)
+- ✅ **Verified baseline**: drift-alerting wired (`ExecStopPost=/usr/local/sbin/node-maintenance-config-notify.sh` → Telegram on `failed>0` OR `changed>0`); sudoers `visudo -c -f` validated; journald caps already 500M/30d/1week; `firewall_preflight` + firewall pre-heal split is intentional (defense-in-depth, documented in `firewall-preflight.sh` header)
+- ✅ **Plan saved**: `docs/scripts/node-maintenance/ANSIBLE_REVIEW_PLAN.md` (20 confirmed gaps, triaged NOW/1-2 days/later/never)
+- 🔧 **NOW bucket** (~2h): #1 `authorized_keys` template (base_config), #3 timesyncd assert+skew metric (replaces overengineered chrony rec), #7 K3s `tls-san` in template, #8 K3s data-dir perms check, #14 phase2 pod-GC namespace filter
+- 📋 **1-2 days bucket**: #2 `/etc/hosts` blockinfile, #5 SSH host key fingerprint audit, #9 systemd-resolved upstream DNS pinning, #12 hardening sysctl handler audit-trail, #15 rebuilderd cleanup template DRY, #17 role meta dependencies
+- 🗓️ **Later**: pacman_config role, admin sudoers, fail2ban tuning, K3s server flags drift detection, idempotency CI, ansible-vault for secrets
+- ❌ **Never**: logrotate.conf system-wide tuning (per-app sufficient), K3s cert SAN auto-renewal (K3s handles internally), firewall+preflight consolidation (split intentional)
+
 ### 2026-04-26 (Redis HA Migration — Phase 1) ⚡
 - ✅ **OT-CONTAINER-KIT redis-operator v0.24.0** deployed via Flux HelmRelease
 - ✅ **RedisReplication CR**: 1 master (W2) + 1 replica (W1), hard pod anti-affinity, image `quay.io/opstree/redis:v8.6.2` (bumped from v7.4.8 by Renovate during cutover; researched, no breaking changes)

@@ -280,10 +280,15 @@
       changed_when: false
       failed_when: false
 
-    - name: Delete Failed/Evicted pods cluster-wide
+    # Restricted to system/infra namespaces. User-app namespaces (immich,
+    # paperless, n8n, mealie, etc.) excluded so a Failed pod the user is
+    # investigating isn't silently nuked. Eviction artifacts in app ns get
+    # GC'd by their controllers (Deployment/StatefulSet) on next sync.
+    - name: Delete Failed/Evicted pods (system + infra namespaces only)
       ansible.builtin.shell: |
-        kubectl --kubeconfig={{ kubeconfig_path }} delete pod -A \
+        kubectl --kubeconfig={{ kubeconfig_path }} -n {{ item }} delete pod \
           --field-selector=status.phase=Failed --ignore-not-found
+      loop: "{{ phase2_pod_gc_namespaces }}"
       changed_when: false
 
     - name: Trigger Flux source GC
