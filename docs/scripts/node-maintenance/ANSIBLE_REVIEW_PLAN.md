@@ -73,10 +73,12 @@
 - ❌ **MTU settings** — DROP. enp3s0=1500, flannel.1=1450, cni0=1450 (correct VXLAN overhead). All correct.
 - ❌ **/etc/rancher/k3s state backup** — DROP. etcd snapshots managed by K3s itself.
 
-### ACTIVE NEXT BATCH (post-research)
-1. **#6 admin sudoers** — pending user paste of `/etc/sudoers.d/*` content.
-2. **swap config** — pending swap state verification on all 3 nodes.
-3. **#11 fail2ban** — pending `jail.local` + `jail.d/*.conf` paste.
+### LATER BUCKET LANDED 2026-04-28 (commits `ade9894f` → `49ecf545` → next)
+- ✅ **#6 admin sudoers** — `base_config` deploys `00_<admin_user>` via `admin_user` host_var (akhozya/akhozya/z3us), content `<user> ALL=(ALL) ALL`, validate via visudo, mode 0440. Live state matches → idempotent.
+- ✅ **swap config** — `base_config` asserts host-specific fstab entry (lineinfile) + active swap path (resolves symlinks for LVM LV → dm-N before grep against `swapon --show`). Vars: `swap_kind/path/fstab_entry` per host_var.
+- ✅ **#11 fail2ban** — `hardening` deploys `jail.local` (LAN whitelist 192.168.1.0/24, bantime 1h, sshd jail port 65300 maxretry 3, **systemd backend**). W2 had stray `logpath = /var/log/auth.log` — drift-heal removed.
+- ✅ **kernel cmdline audit** (NEW): `base_config` asserts `expected_kernel_params` present in `/proc/cmdline`. Universal subset in `group_vars/all.yml` (4 params), workers add 2 AMD-specific in `group_vars/workers.yml`. Read-only — failed task = telegram alert. Operator fixes via `/boot/loader/entries/*.conf` edit + reboot.
+- ✅ **K3s secrets-encryption runtime verification** (NEW): `k3s_config` asserts `k3s secrets-encrypt status` shows `Encryption Status: Enabled`. CP-only, gated on `k3s_secrets_encryption: true`. Catches silent encryption-disable post-restart.
 
 ### NEVER
 - **#20** logrotate.conf system-wide tuning.

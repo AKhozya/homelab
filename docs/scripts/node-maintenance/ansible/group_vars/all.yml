@@ -49,6 +49,17 @@ yay_cmd: "sudo -u node-maintenance yay -Syu --noconfirm --answerdiff=None --answ
 # Phase2 post-rollout Failed-pod GC scope. Limited to system + infra namespaces;
 # user-app namespaces (immich, paperless, n8n, mealie, etc.) are skipped so
 # operator-investigated Failed pods aren't silently nuked. Add new infra ns here.
+# Expected kernel cmdline params, universal across all nodes. Set by
+# bootloader (systemd-boot) at install via setup-node.sh — bootstrap-only,
+# never re-applied. base_config asserts presence in /proc/cmdline; drift =
+# missing param → fail task → telegram alert. Reading is read-only — operator
+# investigates by editing /boot/loader/entries/*.conf and rebooting.
+expected_kernel_params:
+  - pcie_aspm=off
+  - efi_pstore.pstore_disable=0
+  - printk.always_kmsg_dump=Y
+  - panic=10
+
 phase2_pod_gc_namespaces:
   - kube-system
   - kube-public

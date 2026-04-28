@@ -254,6 +254,31 @@
   when: admin_user is defined
   tags: [base-config, user]
 
+# Kernel cmdline drift detection. Bootloader (systemd-boot) sets these once at
+# install via setup-node.sh, never re-applied. Read-only assert; missing param
+# = task fail = telegram alert. Operator fixes by editing
+# /boot/loader/entries/*.conf and rebooting.
+- name: Verify expected kernel boot params present
+  ansible.builtin.shell: |
+    set -o pipefail
+    missing=""
+    for p in {{ expected_kernel_params | join(' ') }}; do
+      grep -qFw "$p" /proc/cmdline || missing="$missing $p"
+    done
+    if [ -n "$missing" ]; then
+      echo "missing kernel params:$missing" >&2
+      echo "current /proc/cmdline:" >&2
+      cat /proc/cmdline >&2
+      exit 1
+    fi
+  args:
+    executable: /bin/bash
+  register: cmdline_check
+  changed_when: false
+  failed_when: cmdline_check.rc != 0
+  when: expected_kernel_params is defined
+  tags: [base-config, kernel-cmdline]
+
 # Swap state assertion. Each host has different mechanism (CP=swapfile,
 # W1=partition, W2=LVM-LV) → host_vars carry path + fstab entry. We DO NOT
 # create swap (init-time concern); we only assert active + fstab entry present

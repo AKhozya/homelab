@@ -12,3 +12,14 @@ pacman_packages_worker:
 # Drift-alert only, no auto-restart. Restart via: sudo systemctl restart k3s-agent.
 k3s_node_labels:
   - "svccontroller.k3s.cattle.io/enablelb=true"
+
+# Workers extend universal kernel cmdline assertions with AMD-specific tuning.
+# amd_pstate=active enables EPP power profile. nvme_core.default_ps_max_latency_us=0
+# disables NVMe APST for SSD stability (paired with hardening role's NVMe APST modprobe).
+expected_kernel_params:
+  - pcie_aspm=off
+  - efi_pstore.pstore_disable=0
+  - printk.always_kmsg_dump=Y
+  - panic=10
+  - amd_pstate=active
+  - nvme_core.default_ps_max_latency_us=0

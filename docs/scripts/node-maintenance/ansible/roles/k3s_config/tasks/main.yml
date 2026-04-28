@@ -61,3 +61,21 @@
 # Real secrets are individual files (server/cred/*, agent/*.{crt,key},
 # server/db/state.db) with K3s-managed 0600/0700 modes. Per-file audit is
 # possible but high-noise / low-value — K3s manages this layer itself.
+
+# Runtime verification: secrets-encryption is actually active on the API server.
+# config.yaml says `secrets-encryption: true` but K3s could have failed to
+# enable it silently (wrong perms, missing plugin dir). Read-only check via
+# `k3s secrets-encrypt status`. CP only — workers have no k3s-server.
+- name: Verify K3s secrets-encryption active (CP)
+  ansible.builtin.shell: |
+    set -o pipefail
+    /usr/local/bin/k3s secrets-encrypt status | grep -q '^Encryption Status: Enabled$'
+  args:
+    executable: /bin/bash
+  register: k3s_secrets_enc_check
+  changed_when: false
+  failed_when: k3s_secrets_enc_check.rc != 0
+  when:
+    - "'control_plane' in group_names"
+    - k3s_secrets_encryption | default(false)
+  tags: [k3s-config, secrets-encryption]
