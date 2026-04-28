@@ -10,8 +10,9 @@
 # /etc/ufw/before6.rules / user6.rules. Symptom: `ufw status verbose` returns
 # "ERROR: problem running ip6tables" → wedged half-state.
 #
-# Sequence (revised 2026-04-26, see Q5 research):
-#   A. Wait for netfilter quiescence (nft monitor, max 60s)
+# Sequence (revised 2026-04-28):
+#   A. Settle wait — nft monitor + iptables-save sha256 stability (3x 5s
+#      consecutive identical windows). Max 90s.
 #   C. Per-chain repair FIRST — single-syscall `iptables -N` is race-free,
 #      gives reload a clean skeleton to restore over
 #   B. ufw reload (up to 3 attempts, 10s gap)
@@ -29,10 +30,17 @@ LOG_TAG="ufw-heal"
 UFW_BIN="/usr/sbin/ufw"
 IPTABLES="/usr/sbin/iptables"
 IP6TABLES="/usr/sbin/ip6tables"
+IPTABLES_SAVE="/usr/sbin/iptables-save"
+IP6TABLES_SAVE="/usr/sbin/ip6tables-save"
 NFT_BIN="/usr/sbin/nft"
 
 PROBE_CHAINS_V4=(ufw-logging-deny ufw-user-input)
 PROBE_CHAINS_V6=(ufw6-logging-deny ufw6-user-input)
+
+# Phase A tunables
+SETTLE_MAX_SEC=90
+SETTLE_WINDOW_SEC=5
+SETTLE_STABLE_WINDOWS=3
 
 log() {
     logger -t "$LOG_TAG" -- "$*"
@@ -60,29 +68,62 @@ ensure_chain() {
     return 1
 }
 
-# Phase A — wait for netfilter quiescence via nft monitor.
-# Window-based: 5s window with zero netlink events = quiet enough to repair.
+# Compute combined v4 + v6 iptables-save sha256.
+# Used for stability detection — identical hash across windows = no churn.
+iptables_hash() {
+    {
+        "$IPTABLES_SAVE" 2>/dev/null || true
+        "$IP6TABLES_SAVE" 2>/dev/null || true
+    } | sha256sum | awk '{print $1}'
+}
+
+# Phase A — wait for netfilter settle via TWO signals:
+#   1. nft monitor: 5s window with zero netlink events
+#   2. iptables-save sha256 stability: identical hash across N consecutive 5s windows
+# Both must agree (or nft unavailable). Belt-and-braces: nft catches in-flight
+# netlink, hash catches "just settled but rules still in flux at restore time".
 # Falls through on timeout — never blocks heal.
 phase_a_settle() {
-    log "phase-a: waiting for netfilter quiescence (max 60s, 5s windows)"
+    log "phase-a: waiting for netfilter settle (max ${SETTLE_MAX_SEC}s, ${SETTLE_WINDOW_SEC}s windows, ${SETTLE_STABLE_WINDOWS}× stability)"
 
+    local nft_available=1
     if ! "$NFT_BIN" list ruleset >/dev/null 2>&1; then
-        log "phase-a: nft unavailable, skipping settle"
-        return 0
+        log "phase-a: nft unavailable, using hash-stability only"
+        nft_available=0
     fi
 
-    local deadline=$(( $(date +%s) + 60 ))
+    local deadline=$(( $(date +%s) + SETTLE_MAX_SEC ))
+    local prev_hash=""
+    local stable=0
+
     while [ "$(date +%s)" -lt "$deadline" ]; do
-        local events
-        events=$(timeout 5 "$NFT_BIN" monitor 2>/dev/null | wc -l)
-        if [ "$events" -eq 0 ]; then
-            log "phase-a: settled (0 netfilter events in 5s window)"
-            return 0
+        local events=0
+        if [ "$nft_available" -eq 1 ]; then
+            events=$(timeout "$SETTLE_WINDOW_SEC" "$NFT_BIN" monitor 2>/dev/null | wc -l)
+        else
+            sleep "$SETTLE_WINDOW_SEC"
         fi
-        log "phase-a: $events events in 5s window — still active"
+
+        local curr_hash
+        curr_hash=$(iptables_hash)
+
+        if [ "$events" -eq 0 ] && [ -n "$curr_hash" ] && [ "$curr_hash" = "$prev_hash" ]; then
+            stable=$((stable + 1))
+            log "phase-a: stable window ${stable}/${SETTLE_STABLE_WINDOWS} (events=0, hash=${curr_hash:0:12})"
+            if [ "$stable" -ge "$SETTLE_STABLE_WINDOWS" ]; then
+                log "phase-a: settled"
+                return 0
+            fi
+        else
+            if [ "$stable" -gt 0 ]; then
+                log "phase-a: stability reset (events=$events, hash_changed=$([ "$curr_hash" != "$prev_hash" ] && echo yes || echo no))"
+            fi
+            stable=0
+            prev_hash="$curr_hash"
+        fi
     done
 
-    log "phase-a: timeout — proceeding anyway"
+    log "phase-a: timeout — proceeding anyway (last_stable=$stable/$SETTLE_STABLE_WINDOWS)"
     return 0
 }
 

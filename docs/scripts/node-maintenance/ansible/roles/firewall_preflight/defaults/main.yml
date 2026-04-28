@@ -1,0 +1,4 @@
+---
+# firewall_preflight has no role-level vars yet — script tunables are exposed
+# via env vars (SETTLE_MAX_SEC, SETTLE_WINDOW_SEC, SETTLE_STABLE_WINDOWS) but
+# defaulted in-script. Placeholder file for future use.

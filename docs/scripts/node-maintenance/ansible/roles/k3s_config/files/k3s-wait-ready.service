@@ -1,0 +1,17 @@
+[Unit]
+Description=Wait until K3s is fully ready (API + critical pods + iptables settled)
+Documentation=https://github.com/AKhozya/homelab/blob/main/docs/scripts/node-maintenance/ansible/roles/k3s_config/files/k3s-wait-ready.sh
+After=k3s.service k3s-agent.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/usr/local/sbin/k3s-wait-ready.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/k3s-wait-ready.sh
+TimeoutStartSec=200s
+RemainAfterExit=yes
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

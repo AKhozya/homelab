@@ -33,6 +33,7 @@
 # Refs: UFW #1987227, #1294544; K3s #1280.
 - name: Pre-heal — per-chain repair then ufw reload
   ansible.builtin.shell: |
+    set -o pipefail
     set +e
     # Skip if ufw simply inactive (benign)
     status=$(/usr/sbin/ufw status 2>&1 || true)
@@ -294,7 +295,14 @@
   loop:
     - ip6_tables
     - ip6table_filter
+    - ip6table_nat
+    - ip6table_mangle
+    - ip6table_raw
     - iptable_filter
+    - iptable_nat
+    - iptable_mangle
+    - iptable_raw
+    - nf_conntrack
   tags: [firewall, modules]
 
 - name: Ensure ufw.service.d drop-in dir

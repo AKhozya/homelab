@@ -24,7 +24,7 @@
     group: root
     mode: "0644"
   when: nic_tuning_iface is defined and nic_tuning_iface | length > 0
-  notify: reload systemd
+  notify: Reload systemd
   tags: [nic-tuning]
 
 - name: Enable igc-tune for configured interface

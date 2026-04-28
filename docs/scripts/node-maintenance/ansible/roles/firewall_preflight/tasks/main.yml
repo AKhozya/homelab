@@ -1,0 +1,33 @@
+---
+# firewall_preflight — settle barrier + modprobe + per-chain repair, run BEFORE
+# any firewall/ufw work in node-config.yml.
+#
+# This role exists separately from `firewall` so any task (in any role) that
+# transitively invokes ufw via community.general.ufw or shells out to
+# /usr/sbin/ufw has a clean netfilter state to operate against.
+#
+# Scope: best-effort. All tasks have changed_when:false and never fail-stop the
+# play — failures surface in downstream firewall tasks.
+
+- name: Deploy firewall-preflight.sh
+  ansible.builtin.copy:
+    src: firewall-preflight.sh
+    dest: /usr/local/sbin/firewall-preflight.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [firewall, preflight]
+
+- name: Run firewall preflight (settle + modprobe + chain repair)
+  ansible.builtin.command:
+    cmd: /usr/local/sbin/firewall-preflight.sh
+  register: preflight
+  changed_when: false
+  failed_when: false
+  tags: [firewall, preflight]
+
+- name: Log preflight outcome
+  ansible.builtin.debug:
+    msg: "{{ preflight.stderr_lines | default([]) }}"
+  when: preflight.stderr_lines is defined
+  tags: [firewall, preflight]

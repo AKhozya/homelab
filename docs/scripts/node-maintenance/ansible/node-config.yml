@@ -14,6 +14,10 @@
     - role: base_config
     - role: k3s_config
     - role: k3s_image_gc
+    # firewall_preflight runs BEFORE firewall so any drift-induced ip6tables
+    # error gets healed (settle + modprobe + chain repair) before ufw tasks
+    # touch the firewall.
+    - role: firewall_preflight
     - role: firewall
     - role: hardening
     - role: nic_tuning
@@ -25,4 +29,8 @@
   become: true
   gather_facts: false
   roles:
+    # Defense: re-run preflight on workers before rebuilderd. rebuilderd does
+    # not call ufw directly today but the play boundary resets state and a
+    # cheap settle barrier guards against future role additions that might.
+    - role: firewall_preflight
     - role: rebuilderd
