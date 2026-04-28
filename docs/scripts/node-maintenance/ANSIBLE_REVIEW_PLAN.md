@@ -73,6 +73,22 @@
 - ❌ **MTU settings** — DROP. enp3s0=1500, flannel.1=1450, cni0=1450 (correct VXLAN overhead). All correct.
 - ❌ **/etc/rancher/k3s state backup** — DROP. etcd snapshots managed by K3s itself.
 
+### POWER-DOWN PREVENTION SHIPPED 2026-04-28 (commits `c54e9020` → `7b4e0ea9`)
+- ✅ **NIC tuning generalized** — replaces `igc-tune@.service` with `nic-tune@.service`. Always disables EEE + Wake-on-LAN. Speed-force conditional via per-iface `EnvironmentFile` (CP only: `FORCE_SPEED=1000` for igc gigabit-bug workaround).
+  - **CP** enp3s0 igc — was already EEE-off via legacy igc-tune. Migrated cleanly.
+  - **W1** enp4s0 igc — declarative EEE-off (was already off, now under ansible).
+  - **W2** enp2s0 r8169 — flipped `enabled-active → disabled`. Verified live.
+- ✅ **PCIe runtime PM rule** — `udev-60-pci-no-runtime-pm.rules` replaces nvme-only file. Class codes covered: `0x010601` (SATA), `0x010802` (NVMe), `0x020000` (Ethernet). Belt-and-suspenders to `pcie_aspm=off` cmdline (which only handles ASPM link level).
+- ✅ **Bug caught + saved**: `copy: content:` rejects empty/whitespace-only Jinja output. Workers without `nic_tuning_force_speed` failed first run with "src (or content) is required". Fix: gate task with `when: nic_tuning_force_speed defined` + sibling task removes file otherwise. Memory: `gotchas.md#ansible-copy-content-empty`.
+
+### Coverage now (4-layer defense)
+| Component | Layer 1 | Layer 2 | Layer 3 | Layer 4 |
+|---|---|---|---|---|
+| **NVMe SSD** | `nvme_core.default_ps_max_latency_us=0` cmdline (workers) | `modprobe-nvme-no-apst.conf` | `udev-60-pci-no-runtime-pm.rules` (class 0x010802) + `tmpfiles-nvme-no-pm.conf` | block-device runtime PM=on |
+| **SATA SSD** | `udev-60-sata-no-alpm.rules` (max_performance) | `udev-60-pci-no-runtime-pm.rules` (class 0x010601) | — | — |
+| **PCIe link** | `pcie_aspm=off` cmdline (all 3 nodes) | `udev-60-pci-no-runtime-pm.rules` (per-class runtime PM=on) | — | — |
+| **Ethernet** | `pcie_aspm=off` cmdline | `udev-60-pci-no-runtime-pm.rules` (class 0x020000) | `nic-tune@iface.service` (EEE off + WoL off) | CP: speed-force 1Gbps |
+
 ### LATER BUCKET LANDED 2026-04-28 (commits `ade9894f` → `49ecf545` → next)
 - ✅ **#6 admin sudoers** — `base_config` deploys `00_<admin_user>` via `admin_user` host_var (akhozya/akhozya/z3us), content `<user> ALL=(ALL) ALL`, validate via visudo, mode 0440. Live state matches → idempotent.
 - ✅ **swap config** — `base_config` asserts host-specific fstab entry (lineinfile) + active swap path (resolves symlinks for LVM LV → dm-N before grep against `swapon --show`). Vars: `swap_kind/path/fstab_entry` per host_var.
