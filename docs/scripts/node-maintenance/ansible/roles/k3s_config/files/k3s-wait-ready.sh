@@ -21,7 +21,7 @@
 set -uo pipefail
 
 SENTINEL=/run/k3s-ready
-TIMEOUT_SEC=${K3S_READY_TIMEOUT:-180}
+TIMEOUT_SEC=${K3S_READY_TIMEOUT:-300}
 KUBECONFIG_PATH=/etc/rancher/k3s/k3s.yaml
 K3S_BIN=/usr/local/bin/k3s
 IPTABLES_SAVE=/usr/sbin/iptables-save

@@ -8,7 +8,7 @@ ConditionPathExists=/usr/local/sbin/k3s-wait-ready.sh
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/k3s-wait-ready.sh
-TimeoutStartSec=200s
+TimeoutStartSec=320s
 RemainAfterExit=yes
 StandardOutput=journal
 StandardError=journal
