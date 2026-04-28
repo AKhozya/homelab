@@ -1,5 +1,5 @@
 ---
-# hardening — SSH, sysctls, kubelet, systemd drop-ins, resolved, udev, tmpfiles.
+# hardening — SSH, sysctls, kubelet, systemd drop-ins, resolved, udev, tmpfiles, fail2ban.
 # Applies to all hosts.
 #
 # Safety:
@@ -7,6 +7,7 @@
 # - sysctls: `sysctl --system` handler, non-disruptive.
 # - kubelet.yaml + k3s service.d drop-ins: no restart handler — apply on next k3s restart.
 # - udev: reload + trigger handler, safe for existing devices.
+# - fail2ban: jail.local drift-healed; LAN whitelisted in DEFAULT (no lockout risk).
 
 # ---------- SSH ----------
 - name: Deploy sshd hardening drop-in
@@ -187,3 +188,25 @@
     state: absent
   notify: Apply tmpfiles
   tags: [hardening, power]
+
+# ---------- fail2ban ----------
+# fail2ban package is in `pacman_packages_base` (group_vars/all.yml). Already
+# installed + active on all 3 nodes (live audit 2026-04-28). Standardize on
+# systemd backend (reads journald — Arch has no /var/log/auth.log w/o rsyslog).
+# W2 had stray `logpath = /var/log/auth.log` — drift-heal removes it.
+- name: Deploy fail2ban jail.local
+  ansible.builtin.copy:
+    src: fail2ban-jail.local
+    dest: /etc/fail2ban/jail.local
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart fail2ban
+  tags: [hardening, fail2ban]
+
+- name: Ensure fail2ban service enabled + active
+  ansible.builtin.systemd_service:
+    name: fail2ban.service
+    enabled: true
+    state: started
+  tags: [hardening, fail2ban]

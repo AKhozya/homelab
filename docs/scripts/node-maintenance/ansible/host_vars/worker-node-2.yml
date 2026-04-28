@@ -1,6 +1,14 @@
 ---
 # worker-node-2 (192.168.1.126) — 4c/16G AMD HawkPoint + Radeon iGPU, lower cap after DPDK OOM incident.
 
+# Cluster LAN IP for /etc/hosts block (mirrors ansible_host but explicit).
+node_ip: 192.168.1.126
+
+# Swap config — 16G LVM logical volume, mounted via LV path in fstab.
+swap_kind: lvm
+swap_path: /dev/ArchinstallVg/swap
+swap_fstab_entry: "/dev/ArchinstallVg/swap none swap sw 0 0"
+
 # ---- Packages ----
 ucode_pkg: amd-ucode
 gpu_vendor: amd

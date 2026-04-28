@@ -1,0 +1,14 @@
+[DEFAULT]
+# LAN whitelisted to avoid lockout from local mgmt traffic.
+ignoreip = 127.0.0.1/8 ::1 192.168.1.0/24
+bantime = 1h
+findtime = 10m
+maxretry = 5
+# systemd backend — reads journald, no /var/log/auth.log needed on Arch.
+backend = systemd
+
+[sshd]
+enabled = true
+port = 65300
+filter = sshd
+maxretry = 3

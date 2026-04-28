@@ -25,3 +25,8 @@
 - name: Apply tmpfiles
   ansible.builtin.command: /usr/bin/systemd-tmpfiles --create
   changed_when: false
+
+- name: Restart fail2ban
+  ansible.builtin.systemd_service:
+    name: fail2ban.service
+    state: restarted

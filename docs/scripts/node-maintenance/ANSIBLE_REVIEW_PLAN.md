@@ -56,15 +56,27 @@
 - **#15** rebuilderd cleanup — single template with `inventory_hostname`.
 - ~~**#17** role `meta/main.yml` dependencies declared.~~ DROPPED on review: `dependencies:` forces dep role to run on EVERY invocation (slow + noisy when packages already ran via playbook). Playbook role list already enforces correct order. `.ansible-lint` passes production profile without meta files — no lint pressure. Real protection (someone deletes `packages` from playbook) requires intentional action, not accidental drift.
 
-### LATER (when scaling / scheduled)
-- **#4** pacman_config role (mirror migration trigger).
-- **#6** admin sudoers (batch with #11).
-- **#10** K3s server flags drift detection.
-- **#11** fail2ban tuning (only if SSH brute force seen).
-- **#13** packages retry semantics (refactor when phase1 actually flakes).
-- **#16** idempotency CI (4h investment, needs lab node).
-- **#18** CNI fingerprint diagnostic.
-- **#19** ansible-vault for secrets (current 0600 plaintext acceptable solo).
+### LATER — RESEARCHED 2026-04-28, mostly DROPPED
+- ❌ **#4 pacman_config role** — DROP. `pacman.conf` is Arch default + harmless tweaks (VerbosePkgLists/Color/ParallelDownloads=10/SigLevel=Required). Mirrorlist owned by **active `reflector.timer`** (auto-regenerated, last 2026-04-27). Ansible would fight reflector.
+- ✅ **#6 admin sudoers** — KEEP. File exists+works (akhozya pwd-sudo functional). Ansible-ize once user pastes current `/etc/sudoers.d/*` content. Risk: medium (sudoers mistake = lockout); mitigated by `validate: visudo -c -f`.
+- ❌ **#10 K3s server flags drift** — DROP. `/proc/<k3s-pid>/cmdline` is bare `/usr/local/bin/k3s server`. All config lives in `config.yaml` which is already managed + drift-alerted via existing `node-config-notify.sh`.
+- ✅ **#11 fail2ban tuning** — PARTIAL/KEEP. Active+installed (1.1.0-8). `jail.local` + `jail.d/` already exist → already tuned. Just needs ansible-ize so config is reproducible. Need user paste.
+- ❌ **#13 packages retry semantics** — DROP. 3×30s retries + lock-aware guards in phase1/2. No observed flakes since 2026-04-21 hardening. Solving non-problem.
+- 🟡 **#16 idempotency CI** — DEFER. Prod runs already observed `changed=0` on 2nd pass = idempotent in practice. 4h CI build duplicates what prod already shows. Reconsider when scaling beyond solo.
+- ❌ **#18 CNI fingerprint diagnostic** — DROP. K3s flannel config (`<data-dir>/agent/etc/flannel/net-conf.json`) is K3s-runtime-managed. Drift would mean K3s self-mutated — won't happen.
+- ❌ **#19 ansible-vault for secrets** — DROP. telegram-token sourced from k8s secret (`backup-replication/backup-telegram`) which is already SOPS-encrypted in flux source. ansible-vault layer would be redundant.
+
+### NEW gaps verified during research (not in original plan)
+- ✅ **swap config** — KEEP. CP has `/swapfile 8G`, W2 has 16GB LVM swap (per memory 2025-12-18), W1 unknown. Ansible-ize to enforce.
+- ❌ **zram** — DROP. Not loaded (`lsmod | grep zram` empty). Not in use.
+- 🟡 **kernel boot params** — LATER. `pcie_aspm=off`, `panic=10`, `printk.always_kmsg_dump=Y` are bootloader-set (systemd-boot). Bootloader management via ansible touchier (writes /boot, requires reboot). Audit-only check possible but low priority.
+- ❌ **MTU settings** — DROP. enp3s0=1500, flannel.1=1450, cni0=1450 (correct VXLAN overhead). All correct.
+- ❌ **/etc/rancher/k3s state backup** — DROP. etcd snapshots managed by K3s itself.
+
+### ACTIVE NEXT BATCH (post-research)
+1. **#6 admin sudoers** — pending user paste of `/etc/sudoers.d/*` content.
+2. **swap config** — pending swap state verification on all 3 nodes.
+3. **#11 fail2ban** — pending `jail.local` + `jail.d/*.conf` paste.
 
 ### NEVER
 - **#20** logrotate.conf system-wide tuning.

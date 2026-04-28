@@ -142,6 +142,20 @@
     validate: /usr/sbin/visudo -c -f %s
   tags: [base-config, sudoers]
 
+# Admin user sudoers — pwd-required interactive sudo. File name `00_<user>`
+# matches archinstall convention (00 prefix sorts before `node-maintenance`,
+# alphabetical mostly cosmetic — sudoers.d files all read).
+- name: Deploy sudoers for admin user
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/00_{{ admin_user }}"
+    content: "{{ admin_user }} ALL=(ALL) ALL\n"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: /usr/sbin/visudo -c -f %s
+  when: admin_user is defined
+  tags: [base-config, sudoers]
+
 - name: Ensure node-maintenance user shell is /bin/bash
   ansible.builtin.user:
     name: node-maintenance
@@ -239,6 +253,32 @@
     append: true
   when: admin_user is defined
   tags: [base-config, user]
+
+# Swap state assertion. Each host has different mechanism (CP=swapfile,
+# W1=partition, W2=LVM-LV) → host_vars carry path + fstab entry. We DO NOT
+# create swap (init-time concern); we only assert active + fstab entry present
+# so reboots restore swap. Drift = no swap → fail task → telegram alert.
+- name: Assert swap fstab entry present (host-specific)
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    line: "{{ swap_fstab_entry }}"
+    state: present
+    create: false
+    backup: false
+  when: swap_fstab_entry is defined
+  tags: [base-config, swap]
+
+- name: Verify swap active (path={{ swap_path | default('?') }})
+  ansible.builtin.shell: |
+    set -o pipefail
+    swapon --show=NAME --noheadings | grep -qxF '{{ swap_path }}'
+  args:
+    executable: /bin/bash
+  register: swap_check
+  changed_when: false
+  failed_when: swap_check.rc != 0
+  when: swap_path is defined
+  tags: [base-config, swap]
 
 # SSH host key fingerprint baseline. Capture current pubkey fingerprints to
 # state dir; alert on diff (drift = MITM, unauthorized rotation, reprovision).
