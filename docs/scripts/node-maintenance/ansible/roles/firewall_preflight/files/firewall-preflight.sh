@@ -171,11 +171,53 @@ phase_chain_repair() {
     log "chain-repair: repaired=$repaired"
 }
 
+# Phase 4: probe `ufw status verbose` end-to-end (the exact call
+# community.general.ufw makes internally). Increments a persistent counter
+# on failure. Used to compare per-node failure rates over time.
+phase_probe_ufw_status() {
+    local probe_state=ok
+    if ! /usr/sbin/ufw status verbose >/dev/null 2>&1; then
+        probe_state=fail
+    fi
+    local counter_file=/var/lib/node_exporter/textfile/firewall_preflight_probe.counter
+    local total fails ts node
+    install -d -m 0755 /var/lib/node_exporter/textfile 2>/dev/null || true
+    if [ -r "$counter_file" ]; then
+        # shellcheck disable=SC1090
+        . "$counter_file" 2>/dev/null || true
+    fi
+    total=$(( ${total:-0} + 1 ))
+    fails=$(( ${fails:-0} + ($([ "$probe_state" = fail ] && echo 1 || echo 0)) ))
+    {
+        echo "total=$total"
+        echo "fails=$fails"
+    } > "${counter_file}.tmp" && mv "${counter_file}.tmp" "$counter_file"
+    ts=$(date +%s)
+    node=$(hostname)
+    {
+        echo "# HELP firewall_preflight_probe_total firewall-preflight ran ufw status verbose"
+        echo "# TYPE firewall_preflight_probe_total counter"
+        echo "firewall_preflight_probe_total{node=\"${node}\"} ${total}"
+        echo "# HELP firewall_preflight_probe_fail_total firewall-preflight ufw status verbose returned non-zero"
+        echo "# TYPE firewall_preflight_probe_fail_total counter"
+        echo "firewall_preflight_probe_fail_total{node=\"${node}\"} ${fails}"
+        echo "# HELP firewall_preflight_probe_last_state Last probe outcome (1=ok, 0=fail)"
+        echo "# TYPE firewall_preflight_probe_last_state gauge"
+        echo "firewall_preflight_probe_last_state{node=\"${node}\"} $([ "$probe_state" = ok ] && echo 1 || echo 0)"
+        echo "# HELP firewall_preflight_probe_last_ts Last probe timestamp"
+        echo "# TYPE firewall_preflight_probe_last_ts gauge"
+        echo "firewall_preflight_probe_last_ts{node=\"${node}\"} ${ts}"
+    } > /var/lib/node_exporter/textfile/firewall_preflight_probe.prom.tmp \
+      && mv /var/lib/node_exporter/textfile/firewall_preflight_probe.prom.tmp /var/lib/node_exporter/textfile/firewall_preflight_probe.prom
+    log "probe: ufw status verbose=${probe_state} (total=${total} fails=${fails})"
+}
+
 main() {
     log "starting (pid=$$)"
     phase_settle
     phase_modprobe
     phase_chain_repair
+    phase_probe_ufw_status
     log "complete"
 }
 
