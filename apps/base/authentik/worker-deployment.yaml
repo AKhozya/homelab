@@ -85,6 +85,15 @@ spec:
           envFrom:
             - secretRef:
                 name: authentik
+          # Override PgBouncer host with direct CNPG connection
+          # Worker uses server-side cursors (DECLARE CURSOR) for chunked
+          # queries like clean_expired_models. PgBouncer transaction pooling
+          # breaks these — cursor disappears between fetches, causing
+          # InvalidCursorName errors and memory growth from retries.
+          # Direct connection preserves cursors across the session.
+          env:
+            - name: AUTHENTIK_POSTGRESQL__HOST
+              value: main-postgres-rw.databases.svc.cluster.local
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
