@@ -127,7 +127,7 @@
 
 ### Monthly Review Checklist
 
-Pull security-scan summaries from 3 nodes, diff prior month, doc deltas in review commit.
+**1. Security scan rollup** — pull security-scan summaries from 3 nodes, diff prior month, doc deltas in review commit.
 
 ```bash
 for node in "akhozya@gmk-k3s-control-plane" "akhozya@worker-node" "z3us@worker-node-2"; do
@@ -140,6 +140,15 @@ Source of truth:
 - `/var/log/node-maintenance/security-scan-YYYY-MM.log` (per-node summary, 12mo retention)
 - `/var/log/lynis-report.dat`, `/var/log/rkhunter.log` (full output, 6mo via logrotate)
 - Timer: `node-maintenance-security-scan.timer` — 1st of month 04:00 UTC, all 3 nodes
+
+**2. Skill stocktake** — actualise homelab skills against current cluster state. Catches stale tool refs (e.g. removed pods), missing frontmatter, content drift vs CLAUDE.md.
+
+```
+/skill-stocktake          # quick scan if results.json present
+/skill-stocktake full     # full re-eval, 20-30 min
+```
+
+Cache: `~/.claude/skills/skill-stocktake/results.json`. Cleanup pattern: Retire/Improve/Update verdicts → user-confirmed batch fix.
 
 ---
 
