@@ -7,6 +7,15 @@
 # This role is declarative-additive: it will not delete rules not in the list.
 # To remove a rule, edit live state manually + the var, then re-run.
 # Never `ufw reset` here — lockout risk.
+#
+# Resilience layers (2026-04-29 hardening):
+#   L0  preflight role runs first (settle barrier, xtables-lock probe)
+#   L1  pre-heal task: per-chain repair + ufw reload
+#   L2  per-task retries: until/retries=10 delay=20 → 200s window/task
+#   L3  block/rescue around UFW rule set: on rescue → diag snapshot +
+#       ufw-heal-post-k3s.sh + one re-attempt of the rule batch
+#   L4  modules-load.d persistence + systemd ordering
+#   L5  boot-time healer: ufw-heal-post-k3s.service
 
 - name: Ensure ufw package is installed
   ansible.builtin.package:
@@ -18,30 +27,15 @@
   delay: 30
   tags: [firewall]
 
-# Pre-heal: kernel netfilter state drifts at runtime when K3s (kube-proxy +
-# flannel) + fail2ban race-mutate against UFW's iptables-restore (silent
-# partial load). Symptom: `ufw status verbose` returns "ERROR: problem running
-# ip6tables"; community.general.ufw tasks then fail.
-#
-# Strategy (revised 2026-04-26, see Q5 research):
-#   1. Per-chain repair FIRST — race-free single-syscall `iptables -N`. Gives
-#      reload a clean skeleton to restore over.
-#   2. ufw reload (3 attempts). Now likelier to succeed because chains exist.
-#
-# Related boot-time + periodic heal: ufw-heal-post-k3s.service +
-# ufw-heal-probe.timer (deployed below).
-# Refs: UFW #1987227, #1294544; K3s #1280.
 - name: Pre-heal — per-chain repair then ufw reload
   ansible.builtin.shell: |
     set -o pipefail
     set +e
-    # Skip if ufw simply inactive (benign)
     status=$(/usr/sbin/ufw status 2>&1 || true)
     if echo "$status" | grep -qiE "inactive|not enabled"; then
       echo "UFW_INACTIVE"
       exit 0
     fi
-    # Step 1: per-chain repair (race-free, idempotent)
     repaired=0
     for rules_file in /etc/ufw/before.rules /etc/ufw/after.rules /etc/ufw/user.rules; do
       [ -f "$rules_file" ] || continue
@@ -59,7 +53,6 @@
         fi
       done
     done
-    # Step 2: ufw reload with retries
     for attempt in 1 2 3; do
       if /usr/sbin/ufw reload >/dev/null 2>&1; then
         echo "RELOAD_OK repaired=$repaired attempt=$attempt"
@@ -76,101 +69,141 @@
   failed_when: ufw_preheal.rc != 0
   tags: [firewall]
 
-# SSH rule first — guarantees lockout-safety if policies applied before rules
-# ever produce an inconsistent state (should not happen in steady state, but
-# cheap insurance).
-# All community.general.ufw tasks below: until/retries protect against
-# transient ip6tables races during module execution (kube-router/fail2ban can
-# briefly hold ip6tables locks between our pre-heal and the module's
-# internal `ufw status verbose` call). 5 retries × 10s = 50s per-task ceiling.
-- name: Ensure SSH rule (lockout-safety, applied before policies)
-  community.general.ufw:
-    rule: allow
-    from_ip: 192.168.1.0/24
-    to_port: "65300"
-    proto: tcp
-    comment: "SSH from LAN"
-  register: ufw_ssh
-  until: ufw_ssh is not failed
-  retries: 5
-  delay: 10
-  tags: [firewall]
+# Diag snapshot script — used by rescue block AND on-demand by operator.
+- name: Deploy ufw-diag-snapshot.sh
+  ansible.builtin.copy:
+    src: ufw-diag-snapshot.sh
+    dest: /usr/local/sbin/ufw-diag-snapshot.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [firewall, diag]
 
-- name: Set UFW default incoming policy + logging
-  community.general.ufw:
-    default: "{{ ufw_policy_incoming }}"
-    direction: incoming
-    logging: "{{ ufw_logging }}"
-  register: ufw_default_in
-  until: ufw_default_in is not failed
-  retries: 5
-  delay: 10
-  tags: [firewall]
+# UFW rule application — wrapped in block/rescue for L3 resilience.
+# On rescue: diag snapshot → ufw-heal-post-k3s.sh → single re-attempt.
+# Per-task retries (L2): retries=10 delay=20 = 200s window/task. Survives
+# longer kube-proxy/flannel race bursts (50s window was insufficient
+# 2026-04-29; multiple W2 fatals at attempts=5).
+- name: UFW rules block (with rescue heal+retry)
+  block:
+    - name: Ensure SSH rule (lockout-safety, applied before policies)
+      community.general.ufw:
+        rule: allow
+        from_ip: 192.168.1.0/24
+        to_port: "65300"
+        proto: tcp
+        comment: "SSH from LAN"
+      register: ufw_ssh
+      until: ufw_ssh is not failed
+      retries: 10
+      delay: 20
 
-- name: Set UFW default outgoing policy
-  community.general.ufw:
-    default: "{{ ufw_policy_outgoing }}"
-    direction: outgoing
-  register: ufw_default_out
-  until: ufw_default_out is not failed
-  retries: 5
-  delay: 10
-  tags: [firewall]
+    - name: Set UFW default incoming policy + logging
+      community.general.ufw:
+        default: "{{ ufw_policy_incoming }}"
+        direction: incoming
+        logging: "{{ ufw_logging }}"
+      register: ufw_default_in
+      until: ufw_default_in is not failed
+      retries: 10
+      delay: 20
 
-- name: Set UFW default routed policy
-  community.general.ufw:
-    default: "{{ ufw_policy_routed }}"
-    direction: routed
-  register: ufw_default_routed
-  until: ufw_default_routed is not failed
-  retries: 5
-  delay: 10
-  tags: [firewall]
+    - name: Set UFW default outgoing policy
+      community.general.ufw:
+        default: "{{ ufw_policy_outgoing }}"
+        direction: outgoing
+      register: ufw_default_out
+      until: ufw_default_out is not failed
+      retries: 10
+      delay: 20
 
-- name: Apply UFW rules (base + group + host)
-  community.general.ufw:
-    rule: "{{ item.rule }}"
-    from_ip: "{{ item.from_ip | default(omit) }}"
-    to_ip: "{{ item.to_ip | default(omit) }}"
-    from_port: "{{ item.from_port | default(omit) }}"
-    to_port: "{{ item.to_port | default(omit) }}"
-    proto: "{{ item.proto | default(omit) }}"
-    comment: "{{ item.comment | default(omit) }}"
-  loop: "{{ ufw_rules_base + ufw_rules_group + ufw_rules_host }}"
-  loop_control:
-    label: "{{ item.comment | default('rule') }} / {{ item.rule }} from={{ item.from_ip | default('any') }} to={{ item.to_port | default('any') }}/{{ item.proto | default('any') }}"
-  register: ufw_rules_apply
-  until: ufw_rules_apply is not failed
-  retries: 5
-  delay: 10
-  tags: [firewall]
+    - name: Set UFW default routed policy
+      community.general.ufw:
+        default: "{{ ufw_policy_routed }}"
+        direction: routed
+      register: ufw_default_routed
+      until: ufw_default_routed is not failed
+      retries: 10
+      delay: 20
 
-- name: Apply UFW route rules (base + group + host)
-  community.general.ufw:
-    rule: "{{ item.rule }}"
-    route: true
-    from_ip: "{{ item.from_ip | default(omit) }}"
-    to_ip: "{{ item.to_ip | default(omit) }}"
-    from_port: "{{ item.from_port | default(omit) }}"
-    to_port: "{{ item.to_port | default(omit) }}"
-    proto: "{{ item.proto | default(omit) }}"
-    comment: "{{ item.comment | default(omit) }}"
-  loop: "{{ ufw_route_rules_base + ufw_route_rules_group + ufw_route_rules_host }}"
-  loop_control:
-    label: "{{ item.comment | default('route') }} / {{ item.rule }} {{ item.from_ip | default('any') }} -> {{ item.to_ip | default('any') }}"
-  register: ufw_routes_apply
-  until: ufw_routes_apply is not failed
-  retries: 5
-  delay: 10
-  tags: [firewall]
+    - name: Apply UFW rules (base + group + host)
+      community.general.ufw:
+        rule: "{{ item.rule }}"
+        from_ip: "{{ item.from_ip | default(omit) }}"
+        to_ip: "{{ item.to_ip | default(omit) }}"
+        from_port: "{{ item.from_port | default(omit) }}"
+        to_port: "{{ item.to_port | default(omit) }}"
+        proto: "{{ item.proto | default(omit) }}"
+        comment: "{{ item.comment | default(omit) }}"
+      loop: "{{ ufw_rules_base + ufw_rules_group + ufw_rules_host }}"
+      loop_control:
+        label: "{{ item.comment | default('rule') }} / {{ item.rule }} from={{ item.from_ip | default('any') }} to={{ item.to_port | default('any') }}/{{ item.proto | default('any') }}"
+      register: ufw_rules_apply
+      until: ufw_rules_apply is not failed
+      retries: 10
+      delay: 20
 
-- name: Enable UFW (no-op if already enabled)
-  community.general.ufw:
-    state: enabled
-  register: ufw_enable
-  until: ufw_enable is not failed
-  retries: 5
-  delay: 10
+    - name: Apply UFW route rules (base + group + host)
+      community.general.ufw:
+        rule: "{{ item.rule }}"
+        route: true
+        from_ip: "{{ item.from_ip | default(omit) }}"
+        to_ip: "{{ item.to_ip | default(omit) }}"
+        from_port: "{{ item.from_port | default(omit) }}"
+        to_port: "{{ item.to_port | default(omit) }}"
+        proto: "{{ item.proto | default(omit) }}"
+        comment: "{{ item.comment | default(omit) }}"
+      loop: "{{ ufw_route_rules_base + ufw_route_rules_group + ufw_route_rules_host }}"
+      loop_control:
+        label: "{{ item.comment | default('route') }} / {{ item.rule }} {{ item.from_ip | default('any') }} -> {{ item.to_ip | default('any') }}"
+      register: ufw_routes_apply
+      until: ufw_routes_apply is not failed
+      retries: 10
+      delay: 20
+
+    - name: Enable UFW (no-op if already enabled)
+      community.general.ufw:
+        state: enabled
+      register: ufw_enable
+      until: ufw_enable is not failed
+      retries: 10
+      delay: 20
+  rescue:
+    - name: Capture diag snapshot on UFW rule batch failure
+      ansible.builtin.command:
+        cmd: /usr/local/sbin/ufw-diag-snapshot.sh ansible-rescue
+      register: ufw_diag
+      changed_when: false
+      failed_when: false
+
+    - name: Run ufw-heal-post-k3s.sh from rescue
+      ansible.builtin.command:
+        cmd: /usr/local/sbin/ufw-heal-post-k3s.sh
+      register: ufw_rescue_heal
+      changed_when: false
+      failed_when: false
+
+    - name: Log rescue diag + heal outcome
+      ansible.builtin.debug:
+        msg: |
+          UFW rule batch failed; rescue ran:
+          diag={{ ufw_diag.stdout | default('(no path)') }}
+          heal_rc={{ ufw_rescue_heal.rc | default('?') }}
+          heal_stderr={{ (ufw_rescue_heal.stderr_lines | default([]))[-5:] }}
+
+    # Re-attempt the single most-likely-to-fail policy task. If still fails,
+    # play continues to next task (community.general.ufw rule batch is
+    # idempotent on subsequent run).
+    - name: Re-attempt UFW default incoming policy after heal
+      community.general.ufw:
+        default: "{{ ufw_policy_incoming }}"
+        direction: incoming
+        logging: "{{ ufw_logging }}"
+      register: ufw_rescue_retry
+      until: ufw_rescue_retry is not failed
+      retries: 5
+      delay: 15
+      failed_when: false
   tags: [firewall]
 
 - name: Ensure ufw.service enabled at boot
@@ -179,11 +212,6 @@
     enabled: true
   tags: [firewall]
 
-# Post-boot heal: K3s/kube-router + fail2ban race-mutate ip6tables after
-# ufw.service starts; UFW's ip6tables-restore partially loads, leaving chains
-# missing. Healer script does settle-wait + reload + per-chain repair + verify.
-# First seen: 2026-04-20 W1 post-reboot (see memory/gotcha_ufw_ip6tables_post_reboot.md).
-# Replaces prior ufw-reload-after-k3s.service (bare `ufw reload`, too fragile).
 - name: Deploy ufw-heal-post-k3s.sh (boot-time healer)
   ansible.builtin.copy:
     src: ufw-heal-post-k3s.sh
@@ -209,7 +237,6 @@
     enabled: true
   tags: [firewall]
 
-# Retire old service (safe — unit file no longer referenced, disable + remove).
 - name: Disable legacy ufw-reload-after-k3s.service
   ansible.builtin.systemd_service:
     name: ufw-reload-after-k3s.service
@@ -226,7 +253,7 @@
   tags: [firewall]
 
 # ──────────────────────────────────────────────────────────────
-# L3: UFW state metric for node-exporter textfile collector
+# UFW state metric for node-exporter textfile collector
 # ──────────────────────────────────────────────────────────────
 - name: Ensure node-exporter textfile dir exists
   ansible.builtin.file:
@@ -274,9 +301,7 @@
   tags: [firewall, metrics]
 
 # ──────────────────────────────────────────────────────────────
-# L4: kernel module persistence + ordering
-# Today's W2 incident (2026-04-26): ip6_tables module unloaded mid-runtime.
-# Without modules pre-loaded, ufw status verbose returns ip6tables errors.
+# kernel module persistence + ordering
 # ──────────────────────────────────────────────────────────────
 - name: Deploy modules-load.d entry for UFW netfilter modules
   ansible.builtin.copy:
@@ -323,9 +348,3 @@
     mode: "0644"
   notify: Reload systemd
   tags: [firewall, modules]
-
-# Periodic UFW heal handled via node-maintenance-config.timer (2x/day drift-heal,
-# 03:00 + 15:00 UTC). Pre-heal task above does per-chain repair before reload.
-# Worst-case drift window ≤12h. Probe-based hourly heal evaluated 2026-04-26
-# and rejected to keep one source of drift remediation (avoid double-heal,
-# pacman/rebuilderd lock contention risk).
