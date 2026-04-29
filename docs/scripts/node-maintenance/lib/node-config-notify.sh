@@ -90,22 +90,51 @@ if [ "$RESULT" != "success" ] || [ "${FAILED:-0}" -gt 0 ]; then
 
   LAST_FATAL=$(grep -nE '^(fatal|failed):' "$LOG" | tail -1 | cut -d: -f1 || true)
   TASK_HDR=""
-  FATAL_SUM=""
+  FATAL_MSG=""
   if [ -n "${LAST_FATAL:-}" ]; then
     TASK_HDR=$(extract_task_header "$LAST_FATAL" | tr -d '`' | head -c 200)
-    FATAL_SUM=$(extract_fatal_summary "$LAST_FATAL" | tr -d '`' | head -c 500)
+    # One-liner for TG: just the msg field + attempts. Full extraction goes
+    # to the dump file below.
+    FATAL_MSG=$(sed -n "${LAST_FATAL}p" "$LOG" \
+      | grep -oE '"msg": *"[^"]*"' | head -1 \
+      | sed -E 's/"msg": *"//; s/"$//' \
+      | tr -d '`' | head -c 200)
   fi
-  RECAP=$(extract_recap | tr -d '`' | head -c 600)
-  WIN=$(extract_journal_window | head -c 100)
 
-  BODY=$(printf '%s\n%s\n\n%s\n%s\n\n%s\n\nDiag: journalctl -u node-maintenance-config.service --no-pager -n 200\nLive log: /var/log/node-maintenance/config-latest.log' \
+  # Dump the FULL fatal context to a stable path the operator can fetch.
+  # Telegram has a 4096-char message limit + UI truncates long blocks; richer
+  # debug data lives here. Overwritten on each fatal (last-fatal pattern).
+  DUMP=/var/log/node-maintenance/last-fatal.dump
+  ARCHIVE_DIR=/var/log/node-maintenance/fatal-archive
+  install -d -m 0750 -o root -g adm "$ARCHIVE_DIR" 2>/dev/null || true
+  ARCHIVE="${ARCHIVE_DIR}/fatal-$(date -u +%Y%m%dT%H%M%SZ).dump"
+  {
+    printf '=== node-config fatal dump %s ===\n' "$(date -u -Iseconds)"
+    printf 'controller: %s\n' "$CTRL"
+    printf 'failed_hosts: %s\n' "${HOSTS:-<unattributed>}"
+    printf 'result: %s   changed: %s   failed: %s\n' "$RESULT" "$CHANGED" "$FAILED"
+    printf '\n--- Failing TASK header ---\n%s\n' "${TASK_HDR:-(missing)}"
+    printf '\n--- Full fatal line(s) ---\n'
+    grep -nE '^(fatal|failed):' "$LOG" | tail -3
+    printf '\n--- Full PLAY RECAP ---\n'
+    extract_recap
+    printf '\n--- Tail (last 100 log lines) ---\n'
+    tail -n 100 "$LOG"
+    printf '\n--- ufw-diag-snapshot listing (last 5) ---\n'
+    ls -1t /var/log/node-maintenance/ufw-diag-*.txt 2>/dev/null | head -5 || true
+  } > "$DUMP" 2>&1
+  cp -f "$DUMP" "$ARCHIVE" 2>/dev/null || true
+
+  RECAP=$(extract_recap | tr -d '`' | head -c 400)
+
+  TG_BODY=$(printf '%s\n\n%s\nmsg: %s\n\n%s' \
     "${TASK_HDR:-(task header missing)}" \
-    "${FATAL_SUM:-(fatal summary missing)}" \
-    "${RECAP:-(recap missing)}" \
-    "${WIN:-}" \
-    "")
+    "$([ -n "${LAST_FATAL:-}" ] && sed -n "${LAST_FATAL}p" "$LOG" | grep -oE '"attempts": *[0-9]+' || true)" \
+    "${FATAL_MSG:-(no msg parsed)}" \
+    "${RECAP:-(recap missing)}")
 
-  /usr/local/sbin/telegram-notify.sh "$(printf '❌ node-config drift-heal FAILED (result=%s changed=%s failed=%s)\n%s\n\n```\n%s\n```' "$RESULT" "$CHANGED" "$FAILED" "$HOSTS_LINE" "$BODY")"
+  /usr/local/sbin/telegram-notify.sh "$(printf '❌ node-config drift-heal FAILED (result=%s changed=%s failed=%s)\n%s\n\n```\n%s\n```\n📄 Full dump: %s\n📦 Archive: %s\n🔎 journalctl -u node-maintenance-config.service --no-pager -n 200\n📂 Live log: %s\n📸 ufw-diag: ls -lt /var/log/node-maintenance/ufw-diag-*.txt' \
+    "$RESULT" "$CHANGED" "$FAILED" "$HOSTS_LINE" "$TG_BODY" "$DUMP" "$ARCHIVE" "$LOG")"
 elif [ "${CHANGED:-0}" -gt 0 ]; then
   /usr/local/sbin/telegram-notify.sh "⚙️ node-config drift-heal applied $CHANGED change(s). journalctl -u node-maintenance-config.service -n 80"
 fi
