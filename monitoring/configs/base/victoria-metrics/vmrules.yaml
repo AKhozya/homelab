@@ -272,13 +272,13 @@ spec:
         description: "Cloudflare tunnel pod is in {{ $labels.phase }} state. Public access to {{ $labels.namespace }} may be down."
     
     - alert: CloudflareTunnelNoConnections
-      expr: cloudflared_tunnel_total_requests == 0
-      for: 30m
+      expr: increase(cloudflared_tunnel_total_requests[2h]) == 0
+      for: 2h
       labels:
         severity: info
       annotations:
         summary: "Cloudflare tunnel {{ $labels.namespace }} has no traffic"
-        description: "No requests received through Cloudflare tunnel in {{ $labels.namespace }} for 30 minutes. This may be normal if not actively used."
+        description: "No requests received through Cloudflare tunnel in {{ $labels.namespace }} for 4 hours. Likely benign during idle hours; investigate only if external apps unreachable."
     
     - alert: CloudflareTunnelHighLatency
       expr: histogram_quantile(0.99, rate(cloudflared_tunnel_request_duration_seconds_bucket[5m])) > 5
