@@ -150,6 +150,16 @@ Source of truth:
 
 Cache: `~/.claude/skills/skill-stocktake/results.json`. Cleanup pattern: Retire/Improve/Update verdicts → user-confirmed batch fix.
 
+### Quarterly Review (every 3 months — next: 2026-07-04)
+
+**Automation audit** — full inventory of cron/timers/CronJobs/GHA workflows/hooks/MCP servers/connectors. Finds overlap, breakage, stale automations that built up since last review.
+
+```
+ECC skill: /automation-audit-ops
+```
+
+Output: keep / merge / cut / fix-next per surface. Run quarterly OR post-incident. Monthly = noise (audit takes ~30min, value is in delta over weeks).
+
 ---
 
 ## CHANGELOG
