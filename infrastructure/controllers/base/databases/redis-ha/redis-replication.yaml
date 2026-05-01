@@ -52,7 +52,7 @@ spec:
       secretName: redis-acl-secret
   redisExporter:
     enabled: true
-    image: quay.io/opstree/redis-exporter:v1.82.0
+    image: quay.io/opstree/redis-exporter:v1.83.0
     imagePullPolicy: IfNotPresent
     resources:
       requests:
