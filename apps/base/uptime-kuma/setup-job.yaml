@@ -120,8 +120,16 @@ spec:
               ]
               desired_names = {m["name"] for m in desired}
 
-              # Names to retire (old standalone Redis probe — superseded by HA Master + Sentinel)
-              retire_names = {"Redis", "Redis Master", "redis-master", "redis"}
+              # Names to retire — stale monitors pointing at removed/decommissioned services
+              retire_names = {
+                  "Redis",          # old standalone — superseded by Redis HA Master + Sentinel
+                  "Redis Master",
+                  "redis-master",
+                  "redis",
+                  "Prometheus",     # Prometheus pod removed — VMSingle replaces (no Service exists)
+                  "AdGuard",        # AdGuard retired (Blocky DNS replaces)
+                  "Discounts",      # discount-bandit ns removed
+              }
 
               existing = {m["name"]: m for m in api.get_monitors()}
 
