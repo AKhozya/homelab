@@ -79,12 +79,67 @@
     mode: "0755"
   tags: [firewall, diag]
 
+# Drift fingerprint gate — skip rules block when live state matches last known good.
+# Cache lives at /var/lib/ufw-state/ufw-fingerprint. Each successful run
+# updates it. Daily drift-heal on a healthy node = no UFW reload, no race.
+#
+# Fingerprint inputs (sha256):
+#   - /etc/default/ufw            (default policies + logging)
+#   - `ufw status verbose`         (rules + numbered state)
+#   - sha256 of each ufw_rules_*   (var-side drift detection)
+#
+# To force re-run after manual rule edit: `rm /var/lib/ufw-state/ufw-fingerprint`
+- name: Compute current UFW fingerprint
+  ansible.builtin.shell: |
+    set -o pipefail
+    {
+      cat /etc/default/ufw 2>/dev/null
+      /usr/sbin/ufw status verbose 2>/dev/null
+      printf '%s\n' \
+        '{{ ufw_policy_incoming }}' \
+        '{{ ufw_policy_outgoing }}' \
+        '{{ ufw_policy_routed }}' \
+        '{{ ufw_logging }}'
+      printf '%s\n' {{ (ufw_rules_base + ufw_rules_group + ufw_rules_host) | to_json | quote }}
+      printf '%s\n' {{ (ufw_route_rules_base + ufw_route_rules_group + ufw_route_rules_host) | to_json | quote }}
+    } | sha256sum | awk '{print $1}'
+  args:
+    executable: /bin/bash
+  register: ufw_current_fp
+  changed_when: false
+  tags: [firewall]
+
+- name: Read cached UFW fingerprint
+  ansible.builtin.slurp:
+    src: /var/lib/ufw-state/ufw-fingerprint
+  register: ufw_cached_fp_raw
+  failed_when: false
+  changed_when: false
+  tags: [firewall]
+
+- name: Set ufw_drift_detected fact
+  ansible.builtin.set_fact:
+    ufw_drift_detected: >-
+      {{
+        ufw_cached_fp_raw.content is not defined
+        or (ufw_cached_fp_raw.content | b64decode | trim) != ufw_current_fp.stdout
+      }}
+  tags: [firewall]
+
+- name: Log drift gate decision
+  ansible.builtin.debug:
+    msg: "ufw drift gate: drift_detected={{ ufw_drift_detected }} current_fp={{ ufw_current_fp.stdout[:12] }}"
+  tags: [firewall]
+
 # UFW rule application — wrapped in block/rescue for L3 resilience.
 # On rescue: diag snapshot → ufw-heal-post-k3s.sh → single re-attempt.
 # Per-task retries (L2): retries=10 delay=20 = 200s window/task. Survives
 # longer kube-proxy/flannel race bursts (50s window was insufficient
 # 2026-04-29; multiple W2 fatals at attempts=5).
+#
+# Gated on ufw_drift_detected (above). Default-true on first run (no cache).
 - name: UFW rules block (with rescue heal+retry)
+  when: ufw_drift_detected | default(true)
   block:
     - name: Ensure SSH rule (lockout-safety, applied before policies)
       community.general.ufw:
@@ -168,6 +223,12 @@
       until: ufw_enable is not failed
       retries: 10
       delay: 20
+
+    # Marker fact: block completed without rescue. Gates fingerprint cache
+    # update — we only cache when state ended cleanly.
+    - name: Mark UFW block clean (no rescue)
+      ansible.builtin.set_fact:
+        ufw_block_clean: true
   rescue:
     - name: Capture diag snapshot on UFW rule batch failure
       ansible.builtin.command:
@@ -204,6 +265,56 @@
       retries: 5
       delay: 15
       failed_when: false
+  tags: [firewall]
+
+# Update fingerprint cache after a clean block run. Skipped if rescue ran
+# (state may be partially healed; want next run to re-evaluate, not cache
+# bad state).
+- name: Ensure UFW state cache directory
+  ansible.builtin.file:
+    path: /var/lib/ufw-state
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: ufw_drift_detected | default(true)
+  tags: [firewall]
+
+- name: Recompute UFW fingerprint after rules apply
+  ansible.builtin.shell: |
+    set -o pipefail
+    {
+      cat /etc/default/ufw 2>/dev/null
+      /usr/sbin/ufw status verbose 2>/dev/null
+      printf '%s\n' \
+        '{{ ufw_policy_incoming }}' \
+        '{{ ufw_policy_outgoing }}' \
+        '{{ ufw_policy_routed }}' \
+        '{{ ufw_logging }}'
+      printf '%s\n' {{ (ufw_rules_base + ufw_rules_group + ufw_rules_host) | to_json | quote }}
+      printf '%s\n' {{ (ufw_route_rules_base + ufw_route_rules_group + ufw_route_rules_host) | to_json | quote }}
+    } | sha256sum | awk '{print $1}'
+  args:
+    executable: /bin/bash
+  register: ufw_post_fp
+  changed_when: false
+  when:
+    - ufw_drift_detected | default(true)
+    - ufw_block_clean | default(false)
+  tags: [firewall]
+
+- name: Persist new UFW fingerprint cache
+  ansible.builtin.copy:
+    content: "{{ ufw_post_fp.stdout }}\n"
+    dest: /var/lib/ufw-state/ufw-fingerprint
+    owner: root
+    group: root
+    mode: "0644"
+  when:
+    - ufw_drift_detected | default(true)
+    - ufw_block_clean | default(false)
+    - ufw_post_fp.stdout is defined
+    - ufw_post_fp.stdout | length == 64
   tags: [firewall]
 
 - name: Ensure ufw.service enabled at boot

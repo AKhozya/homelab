@@ -20,3 +20,14 @@ containerLogMaxSize: "50Mi"
 containerLogMaxFiles: 5
 # Streaming connection security (CIS benchmark)
 streamingConnectionIdleTimeout: 5m
+# Node lease tolerance — widens window for brief network blips (UFW reload,
+# kube-proxy reconcile, transient flannel iptables churn). Default 40s grace
+# was insufficient during 2026-05-02 W2 NotReady incident triggered by
+# firewall role's UFW reload cascade. Bumped to 60s + lockstep CM grace 75s
+# in /etc/rancher/k3s/config.yaml (see k3s_config role on CP).
+# Lease renewal happens every 25% of duration (60s → ~15s renewal cadence).
+# Bare integer seconds (NOT a duration string).
+nodeLeaseDurationSeconds: 60
+# Force status post every 1m even when nothing changed (default 5m). Detects
+# silent kubelet hangs faster than the lease alone.
+nodeStatusReportFrequency: 1m

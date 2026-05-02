@@ -48,12 +48,21 @@ node-label:
 
 kubelet-arg:
   - "config=/etc/rancher/k3s/kubelet.yaml"
-{% if is_cp and k3s_terminated_pod_gc_threshold is defined %}
+{% if is_cp %}
 
-# Clean up terminated (Failed/Succeeded) pods faster. Default 12500 too high for homelab —
-# eviction leftovers linger after reboots. 20 allows ~10 normal Job pods + headroom.
+# Controller-manager flags (CP only).
+# - terminated-pod-gc-threshold: Default 12500 too high for homelab —
+#   eviction leftovers linger after reboots. 20 allows ~10 normal Job pods + headroom.
+# - node-monitor-grace-period: lockstep with kubelet nodeLeaseDurationSeconds (60s).
+#   CM marks node Unknown when (now > lease.renewTime + grace). Must be >= lease + 1
+#   renewal interval (60 + 15 = 75s minimum). Default 50s would override the lease bump.
+# - node-monitor-period: how often CM checks lease state. Default 5s, kept explicit.
 kube-controller-manager-arg:
+{% if k3s_terminated_pod_gc_threshold is defined %}
   - "terminated-pod-gc-threshold={{ k3s_terminated_pod_gc_threshold }}"
+{% endif %}
+  - "node-monitor-period={{ k3s_node_monitor_period | default('5s') }}"
+  - "node-monitor-grace-period={{ k3s_node_monitor_grace_period | default('75s') }}"
 {% endif %}
 {% if is_cp and k3s_secrets_encryption | default(false) %}
 

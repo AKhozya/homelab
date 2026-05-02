@@ -14,6 +14,15 @@ k3s_node_labels:
 k3s_terminated_pod_gc_threshold: 20
 k3s_secrets_encryption: true
 
+# kube-controller-manager node-lease tuning. Lockstep with kubelet
+# nodeLeaseDurationSeconds=60 in roles/hardening/files/k3s-kubelet.yaml.
+# Rule: grace_period >= lease_duration + one_renewal (60s + 15s = 75s).
+# Bump rationale: tolerate brief network blips (UFW reload race during
+# drift-heal, kube-proxy/flannel iptables churn). 2026-05-02 W2 NotReady
+# incident motivated the change.
+k3s_node_monitor_period: 5s
+k3s_node_monitor_grace_period: 75s
+
 # API-server cert SANs. Restart K3s after change to regenerate cert.
 # Cert lifetime: K3s rotates internally, but SAN list is set once at install.
 # This block makes SANs declarative; drift-heal alerts on diff.

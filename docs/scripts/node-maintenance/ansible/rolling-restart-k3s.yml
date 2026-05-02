@@ -1,0 +1,113 @@
+---
+# rolling-restart-k3s.yml — serial restart of k3s/k3s-agent across all nodes.
+# Picks up changes to /etc/rancher/k3s/{config,kubelet}.yaml without manual ssh.
+#
+# Invoke from CP:
+#   sudo -u node-maintenance ansible-playbook \
+#     /etc/node-maintenance/ansible/rolling-restart-k3s.yml \
+#     -i /etc/node-maintenance/ansible/inventory.yml
+#
+# CP first (CM grace-period change applies on k3s.service restart), then workers
+# serially. serial: 1 = max 1 node disrupted at a time. Quorum (2/3) preserved.
+#
+# Verifies kubelet config landed via /api/v1/nodes/<n>/proxy/configz.
+# Fails play if expected fields missing — surfaces silent K3s field-stripping
+# (see k3s issues #7578, #8340, #8266 for historical bugs).
+#
+# Override expected values via -e on CLI if config changes:
+#   ansible-playbook ... -e expected_lease_seconds=90 -e expected_report_frequency=2m0s
+
+- name: Rolling restart k3s control-plane
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  serial: 1
+  vars:
+    expected_lease_seconds: 60
+    expected_report_frequency: "1m0s"
+  tasks:
+    - name: Restart k3s.service
+      ansible.builtin.systemd_service:
+        name: k3s.service
+        state: restarted
+
+    - name: Wait for node Ready
+      ansible.builtin.shell: |
+        /usr/local/bin/k3s kubectl get node {{ inventory_hostname }} \
+          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      args:
+        executable: /bin/bash
+      register: node_ready
+      until: node_ready.stdout == "True"
+      retries: 30
+      delay: 5
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Verify kubelet configz reflects expected values
+      ansible.builtin.shell: |
+        set -o pipefail
+        /usr/local/bin/k3s kubectl get --raw "/api/v1/nodes/{{ inventory_hostname }}/proxy/configz" \
+          | jq -r '.kubeletconfig | "\(.nodeLeaseDurationSeconds) \(.nodeStatusReportFrequency)"'
+      args:
+        executable: /bin/bash
+      register: configz
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      failed_when: >-
+        configz.stdout != (expected_lease_seconds | string) + " " + expected_report_frequency
+
+    - name: Stabilize 30s before next host
+      ansible.builtin.pause:
+        seconds: 30
+
+- name: Rolling restart k3s workers
+  hosts: workers
+  become: true
+  gather_facts: false
+  serial: 1
+  vars:
+    expected_lease_seconds: 60
+    expected_report_frequency: "1m0s"
+  tasks:
+    - name: Restart k3s-agent.service
+      ansible.builtin.systemd_service:
+        name: k3s-agent.service
+        state: restarted
+
+    # Worker has no /etc/rancher/k3s/k3s.yaml admin kubeconfig — delegate to CP.
+    - name: Wait for node Ready (queried from CP)
+      ansible.builtin.shell: |
+        /usr/local/bin/k3s kubectl get node {{ inventory_hostname }} \
+          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+      args:
+        executable: /bin/bash
+      delegate_to: "{{ groups['control_plane'][0] }}"
+      register: node_ready
+      until: node_ready.stdout == "True"
+      retries: 30
+      delay: 5
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Verify kubelet configz reflects expected values (queried from CP)
+      ansible.builtin.shell: |
+        set -o pipefail
+        /usr/local/bin/k3s kubectl get --raw "/api/v1/nodes/{{ inventory_hostname }}/proxy/configz" \
+          | jq -r '.kubeletconfig | "\(.nodeLeaseDurationSeconds) \(.nodeStatusReportFrequency)"'
+      args:
+        executable: /bin/bash
+      delegate_to: "{{ groups['control_plane'][0] }}"
+      register: configz
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      failed_when: >-
+        configz.stdout != (expected_lease_seconds | string) + " " + expected_report_frequency
+
+    - name: Stabilize 30s before next host
+      ansible.builtin.pause:
+        seconds: 30

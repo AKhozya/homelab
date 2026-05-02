@@ -4,8 +4,16 @@
 # Role order: `packages` first so pkgs (ufw, logrotate, etc.) exist before config
 # roles reference them. `ad_hoc` tasks tagged `never` — skipped by default daily
 # timer, invoked explicitly via `-t <tag>`.
+#
+# Three-play split:
+#   Play 1 (parallel): non-disruptive roles (file copies, package state).
+#   Play 2 (serial:1): firewall — UFW reload races with k3s/flannel chain rebuild.
+#                      Limit blast radius to 1 node at a time. Quorum (2/3) preserved.
+#                      Coupled with firewall role's drift fingerprint gate, the
+#                      rules block runs only when actual drift is detected.
+#   Play 3 (parallel): post-firewall roles + workers-only tail.
 
-- name: Node config drift-heal (all hosts)
+- name: Node config drift-heal — non-disruptive (all hosts, parallel)
   hosts: all
   become: true
   gather_facts: true
@@ -18,7 +26,20 @@
     # error gets healed (settle + modprobe + chain repair) before ufw tasks
     # touch the firewall.
     - role: firewall_preflight
+
+- name: Node config drift-heal — firewall (serial, blast-radius limit)
+  hosts: all
+  become: true
+  gather_facts: false
+  serial: 1
+  roles:
     - role: firewall
+
+- name: Node config drift-heal — post-firewall (all hosts, parallel)
+  hosts: all
+  become: true
+  gather_facts: false
+  roles:
     - role: hardening
     - role: nic_tuning
     - role: security_scan
