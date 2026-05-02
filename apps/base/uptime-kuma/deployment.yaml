@@ -16,6 +16,16 @@ spec:
     spec:
       serviceAccountName: uptime-kuma
       automountServiceAccountToken: false
+      # Pin to control-plane so probes targeting worker nodes always traverse
+      # external networking, not pod-local loopback. Avoids "monitor blind to
+      # its own node failure" (e.g. UK on W1 → W1 SSH probe stays green
+      # while host INPUT chain drops external traffic).
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -83,8 +93,11 @@ spec:
             - name: tmp
               mountPath: /tmp
       volumes:
+        # /app/data is effectively throwaway when DB backend is MariaDB —
+        # it holds db-config.json (regenerated from env on boot), screenshots,
+        # and error.log. Real state lives in MySQL. Switching off local-path
+        # PVC frees the pod from W1-pinning required for CP-only scheduling.
         - name: data
-          persistentVolumeClaim:
-            claimName: uptime-kuma-data-pvc
+          emptyDir: {}
         - name: tmp
           emptyDir: {}
