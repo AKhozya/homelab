@@ -102,6 +102,10 @@ spec:
           port: 65300       # SSH (custom port)
         - protocol: TCP
           port: 10250       # Kubelet API
+        - protocol: TCP
+          port: 53          # Blocky DNS LB (TCP) on node IPs .129/.126
+        - protocol: UDP
+          port: 53          # Blocky DNS LB (UDP) on node IPs .129/.126
     # Allow ICMP (ping) to nodes - rule without ports allows all protocols
     - to:
         - ipBlock:

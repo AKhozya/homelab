@@ -77,6 +77,68 @@ spec:
               else:
                   print("Uptime Kuma is already set up. Skipping setup.")
 
+              # Login for monitor management
+              api.login(os.environ['UPTIME_KUMA_USERNAME'], os.environ['UPTIME_KUMA_PASSWORD'])
+
+              from uptime_kuma_api import MonitorType
+
+              # Desired monitors (name → spec). add_monitor signature varies
+              # between uptime-kuma-api versions; we pass kwargs the lib accepts.
+              desired = [
+                  {
+                      "name": "Redis HA Master",
+                      "type": MonitorType.PORT,
+                      "hostname": "redis-replication-master.databases.svc.cluster.local",
+                      "port": 6379,
+                      "interval": 60,
+                  },
+                  {
+                      "name": "Redis HA Sentinel",
+                      "type": MonitorType.PORT,
+                      "hostname": "redis-sentinel-sentinel.databases.svc.cluster.local",
+                      "port": 26379,
+                      "interval": 60,
+                  },
+                  {
+                      "name": "Blocky DNS (worker-node .129)",
+                      "type": MonitorType.DNS,
+                      "hostname": "h0melab.work",
+                      "port": 53,
+                      "dns_resolve_type": "A",
+                      "dns_resolve_server": "192.168.1.129",
+                      "interval": 60,
+                  },
+                  {
+                      "name": "Blocky DNS (worker-node-2 .126)",
+                      "type": MonitorType.DNS,
+                      "hostname": "h0melab.work",
+                      "port": 53,
+                      "dns_resolve_type": "A",
+                      "dns_resolve_server": "192.168.1.126",
+                      "interval": 60,
+                  },
+              ]
+              desired_names = {m["name"] for m in desired}
+
+              # Names to retire (old standalone Redis probe — superseded by HA Master + Sentinel)
+              retire_names = {"Redis", "Redis Master", "redis-master", "redis"}
+
+              existing = {m["name"]: m for m in api.get_monitors()}
+
+              # Delete retired monitors
+              for name in retire_names:
+                  if name in existing:
+                      print(f"Deleting retired monitor: {name}")
+                      api.delete_monitor(existing[name]["id"])
+
+              # Create missing desired monitors (idempotent on name)
+              for spec in desired:
+                  if spec["name"] in existing:
+                      print(f"Monitor exists: {spec['name']} (skipping)")
+                      continue
+                  print(f"Creating monitor: {spec['name']}")
+                  api.add_monitor(**spec)
+
               api.disconnect()
               PYEOF
 
