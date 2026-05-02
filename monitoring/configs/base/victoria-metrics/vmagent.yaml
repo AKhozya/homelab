@@ -9,6 +9,19 @@ spec:
   nodeScrapeSelector: {}
   remoteWrite:
     - url: http://vmsingle-vmsingle.monitoring.svc:8429/api/v1/write
+      inlineUrlRelabelConfig:
+        - sourceLabels: [__name__]
+          regex: 'flag|config_parameter|kube_pod_tolerations|etcd_bookmark_counts'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'apiserver_watch_list_duration_seconds_bucket|kyverno_(policy_execution|admission_review)_duration_seconds_bucket|controller_runtime_reconcile_time_seconds_bucket|workqueue_(queue|work)_duration_seconds_bucket|rest_client_request_duration_seconds_bucket|vm_promscrape_push_data_duration_seconds_bucket'
+          action: drop
+        - sourceLabels: [__name__]
+          regex: 'container_memory_(mapped_file|max_usage_bytes|swap|total_inactive_file_bytes)|container_(sockets|threads)|container_spec_cpu_(period|shares)|container_cpu_(system|user)_seconds_total'
+          action: drop
+        - sourceLabels: [__name__, device]
+          regex: '(container_fs_.+|node_filesystem_.+);loop\d+'
+          action: drop
   scrapeInterval: "60s"
   containers:
     - name: config-reloader
