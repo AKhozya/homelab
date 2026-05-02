@@ -150,14 +150,31 @@ phase_c_repair() {
     log "phase-c: repair complete"
 }
 
-# Phase B — ufw reload with retries (after chains pre-created)
+# Phase B — ufw reload with retries (after chains pre-created).
+# If reload reports "firewall not enabled, skipping reload" → ufw flipped to
+# disabled mid-runtime (e.g. post-pacman kernel-module wipe → ip6tables errors).
+# Recover via `ufw-init flush-all` (clears stale kernel chains from previous
+# session that block re-enable with "iptables-restore line 2: No chain/target")
+# + `ufw --force enable`. Pattern observed 2026-05-02 W1 incident.
 phase_b_reload() {
     for attempt in 1 2 3; do
         log "phase-b: ufw reload attempt $attempt/3"
-        if "$UFW_BIN" reload >/dev/null 2>&1; then
+        local out rc
+        out=$("$UFW_BIN" reload 2>&1)
+        rc=$?
+        if [ $rc -eq 0 ] && ! echo "$out" | grep -qi "skipping reload\|not enabled"; then
             log "phase-b: reload succeeded (attempt $attempt)"
             return 0
         fi
+        log "phase-b: reload no-op (ufw disabled) — recovering: flush-all + force-enable"
+        /lib/ufw/ufw-init flush-all >/dev/null 2>&1 || log "phase-b: flush-all errored (continuing)"
+        local enable_out
+        enable_out=$("$UFW_BIN" --force enable 2>&1)
+        if echo "$enable_out" | grep -qi "Firewall is active"; then
+            log "phase-b: recovered from disabled state (attempt $attempt)"
+            return 0
+        fi
+        log "phase-b: recovery failed: $enable_out"
         sleep 10
     done
     log "phase-b: all reload attempts failed"

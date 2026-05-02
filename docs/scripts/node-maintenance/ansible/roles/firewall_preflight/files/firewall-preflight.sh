@@ -212,10 +212,40 @@ phase_probe_ufw_status() {
     log "probe: ufw status verbose=${probe_state} (total=${total} fails=${fails})"
 }
 
+# Phase 2.5: detect ufw state mismatch (ENABLED=yes in /etc/ufw/ufw.conf but
+# `ufw status` returns inactive) and recover via flush-all + force-enable.
+# Triggers when ufw silently flipped to disabled mid-runtime (e.g. post-pacman
+# kernel-module wipe → ip6tables errors). Stale kernel chains from prior
+# session block plain `ufw enable` with "iptables-restore line 2 failed:
+# No chain/target/match"; flush-all clears them. Pattern observed 2026-05-02
+# W1 incident.
+phase_ufw_state_recover() {
+    local enabled_conf
+    enabled_conf=$(grep -E '^ENABLED=' /etc/ufw/ufw.conf 2>/dev/null | cut -d= -f2)
+    if [ "$enabled_conf" != "yes" ]; then
+        log "ufw-state: ENABLED=${enabled_conf:-unset} — skip recover"
+        return 0
+    fi
+    if /usr/sbin/ufw status 2>/dev/null | grep -qi "Status: active"; then
+        log "ufw-state: ENABLED=yes + active — ok"
+        return 0
+    fi
+    log "ufw-state: ENABLED=yes but inactive — flush-all + force-enable"
+    /lib/ufw/ufw-init flush-all >/dev/null 2>&1 || log "ufw-state: flush-all errored (continuing)"
+    local out
+    out=$(/usr/sbin/ufw --force enable 2>&1)
+    if echo "$out" | grep -qi "Firewall is active"; then
+        log "ufw-state: recovered"
+    else
+        log "ufw-state: recovery failed — $out"
+    fi
+}
+
 main() {
     log "starting (pid=$$)"
     phase_settle
     phase_modprobe
+    phase_ufw_state_recover
     phase_chain_repair
     phase_probe_ufw_status
     log "complete"
