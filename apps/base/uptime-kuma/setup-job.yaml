@@ -14,6 +14,13 @@ spec:
       serviceAccountName: uptime-kuma
       automountServiceAccountToken: false
       restartPolicy: OnFailure
+      # Co-locate with uptime-kuma Deployment (CP-only) for consistency.
+      nodeSelector:
+        node-role.kubernetes.io/control-plane: "true"
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
       securityContext:
         runAsUser: 65534
         runAsGroup: 65534
