@@ -61,6 +61,36 @@
     state: started
   tags: [base-config, time-sync]
 
+# kernel-modules-hook (AUR) keeps /usr/lib/modules/<running> populated when
+# pacman upgrades the kernel pkg. Prevents the modprobe-fails-mid-runtime
+# cascade observed 2026-05-02 (W1 yay -Syyu mid-session → ufw silent-disable
+# → INPUT chain DROP). Pkg installed by setup-node.sh's AUR_PKGS list; this
+# task just enables the cleanup service that fires at boot.
+- name: Check kernel-modules-hook installed
+  ansible.builtin.command: pacman -Q kernel-modules-hook
+  register: kernel_modules_hook_check
+  changed_when: false
+  failed_when: false
+  tags: [base-config, kernel-modules-hook]
+
+- name: Ensure linux-modules-cleanup.service enabled (boot-time stale-modules sweep)
+  ansible.builtin.systemd_service:
+    name: linux-modules-cleanup.service
+    enabled: true
+  when: kernel_modules_hook_check.rc == 0
+  tags: [base-config, kernel-modules-hook]
+
+- name: Warn if kernel-modules-hook missing
+  ansible.builtin.debug:
+    msg: |
+      kernel-modules-hook NOT installed on {{ inventory_hostname }}. Install via:
+        sudo -u akhozya yay -S --noconfirm --needed kernel-modules-hook
+        sudo systemctl enable linux-modules-cleanup.service
+      Without it, `pacman -Syu` mid-session can wipe running kernel's modules
+      dir → modprobe failures → UFW silent-disable cascade (2026-05-02 W1).
+  when: kernel_modules_hook_check.rc != 0
+  tags: [base-config, kernel-modules-hook]
+
 - name: Ensure /var/lib/node_exporter/textfile exists
   ansible.builtin.file:
     path: /var/lib/node_exporter/textfile

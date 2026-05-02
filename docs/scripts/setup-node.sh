@@ -78,7 +78,10 @@ fi
 # packages install once, never update — zero drift-heal value. yay itself
 # is AUR, chicken-egg before any AUR ansible task could run.
 echo "Installing AUR firmware..."
-AUR_PKGS="aic94xx-firmware ast-firmware wd719x-firmware upd72020x-fw"
+# kernel-modules-hook keeps `/usr/lib/modules/<running>` populated when
+# pacman upgrades the kernel pkg, preventing modprobe failures (and the
+# UFW silent-disable cascade observed 2026-05-02 W1 incident) until reboot.
+AUR_PKGS="aic94xx-firmware ast-firmware wd719x-firmware upd72020x-fw kernel-modules-hook"
 AUR_HELPER=""
 if command -v yay &>/dev/null; then
     AUR_HELPER="yay"
