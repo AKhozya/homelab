@@ -131,12 +131,19 @@ spec:
                   "Discounts",      # discount-bandit ns removed
               }
 
-              existing = {m["name"]: m for m in api.get_monitors()}
+              raw_monitors = api.get_monitors()
+              print(f"DEBUG: get_monitors returned type={type(raw_monitors).__name__} len={len(raw_monitors) if hasattr(raw_monitors, '__len__') else '?'}")
+              if isinstance(raw_monitors, dict):
+                  monitor_iter = list(raw_monitors.values())
+              else:
+                  monitor_iter = list(raw_monitors)
+              print(f"DEBUG: monitor names: {[m.get('name','?') for m in monitor_iter]}")
+              existing = {m["name"]: m for m in monitor_iter}
 
               # Delete retired monitors
               for name in retire_names:
                   if name in existing:
-                      print(f"Deleting retired monitor: {name}")
+                      print(f"Deleting retired monitor: {name} (id={existing[name]['id']})")
                       api.delete_monitor(existing[name]["id"])
 
               # Create missing desired monitors (idempotent on name)
