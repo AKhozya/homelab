@@ -138,7 +138,8 @@ for unit in \
     node-maintenance-sync.service \
     node-maintenance-sync.timer \
     node-maintenance-config.service \
-    node-maintenance-config.timer; do
+    node-maintenance-config.timer \
+    node-maintenance-rolling-restart.service; do
   install -m 0644 "$REPO_DIR/systemd/$unit" /etc/systemd/system/
 done
 # security-scan units owned by ansible roles/security_scan (all hosts).

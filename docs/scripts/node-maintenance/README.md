@@ -34,6 +34,19 @@ sudo ansible-playbook --tags logrotate -D \
 
 **Edit workflow**: modify file in `ansible/roles/<role>/files/` or template → `git push` → CP sync timer pulls → `install.sh --sync-only` runs → `node-maintenance-config.service` re-applies → Telegram alert on `changed>0`.
 
+### Rolling restart of k3s (apply config.yaml / kubelet.yaml drift)
+
+`config.yaml` and `kubelet.yaml` are drift-alert-only (no auto-restart). To apply pending kubelet/CM config changes across all 3 nodes serially, with per-node Ready + configz verification:
+
+```bash
+sudo systemctl start node-maintenance-rolling-restart.service
+journalctl -u node-maintenance-rolling-restart.service -n 80 --no-pager
+```
+
+Order: CP first (CM grace-period applies), then workers serially. `serial: 1` = max 1 node disrupted at a time. Aborts before next node if `configz` doesn't reflect expected `nodeLeaseDurationSeconds` + `nodeStatusReportFrequency` (defends against historical k3s field-stripping bugs). Telegram alert on failure.
+
+ETA ≈ 5-7 min total (3 × restart + Ready + verify + 30s pauses).
+
 ### Tag catalog (ad-hoc / on-demand)
 
 All `ad_hoc` tasks tagged `never` — daily timer skips. Invoke with `-t <tag>`:
