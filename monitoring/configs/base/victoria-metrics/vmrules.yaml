@@ -1081,13 +1081,18 @@ spec:
         description: "Rebuilderd worker on {{ $labels.node }} has been inactive for more than 10 minutes. Check systemd service: ssh <node> systemctl status rebuilderd-worker@1"
 
     - alert: RebuilderdHighFailureRate
-      expr: (rebuilderd_builds_bad_total / rebuilderd_builds_total) > 0.8 and rebuilderd_builds_total >= 20
-      for: 30m
+      # Smooth ratio + denominator over 1h to dampen flapping when 2h-window total
+      # straddles the min-sample floor (worker churns ~8-25 builds/2h).
+      expr: |
+        avg_over_time((rebuilderd_builds_bad_total / clamp_min(rebuilderd_builds_total, 1))[1h:5m]) > 0.8
+        and avg_over_time(rebuilderd_builds_total[1h:5m]) >= 50
+      for: 1h
+      keep_firing_for: 1h
       labels:
         severity: warning
       annotations:
         summary: "High rebuilderd failure rate on {{ $labels.node }}"
-        description: "{{ $labels.node }} has >80% BAD builds in the last 2 hours ({{ $value | humanizePercentage }}). {{ $labels.node }} may have build environment issues."
+        description: "{{ $labels.node }} sustained >80% BAD builds (1h avg of 2h-window ratio: {{ $value | humanizePercentage }}). Likely build environment issue."
 
   # ==========================================================================
   # FIREWALL ALERTS - UFW health per node
