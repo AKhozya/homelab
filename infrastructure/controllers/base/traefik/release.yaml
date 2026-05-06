@@ -56,9 +56,10 @@ spec:
       kubernetesIngress:
         nativeLBByDefault: true
 
-    # Service settings
+    # Service settings (v40: service.type moved into service.spec)
     service:
-      type: LoadBalancer
+      spec:
+        type: LoadBalancer
     
     # Resource limits
     resources:
