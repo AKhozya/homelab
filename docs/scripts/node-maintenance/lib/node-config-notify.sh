@@ -136,5 +136,10 @@ if [ "$RESULT" != "success" ] || [ "${FAILED:-0}" -gt 0 ]; then
   /usr/local/sbin/telegram-notify.sh "$(printf '❌ node-config drift-heal FAILED (result=%s changed=%s failed=%s)\n%s\n\n```\n%s\n```\n📄 Full dump: %s\n📦 Archive: %s\n🔎 journalctl -u node-maintenance-config.service --no-pager -n 200\n📂 Live log: %s\n📸 ufw-diag: ls -lt /var/log/node-maintenance/ufw-diag-*.txt' \
     "$RESULT" "$CHANGED" "$FAILED" "$HOSTS_LINE" "$TG_BODY" "$DUMP" "$ARCHIVE" "$LOG")"
 elif [ "${CHANGED:-0}" -gt 0 ]; then
-  /usr/local/sbin/telegram-notify.sh "⚙️ node-config drift-heal applied $CHANGED change(s). journalctl -u node-maintenance-config.service -n 80"
+  # Per-host breakdown from PLAY RECAP (e.g. "worker-node: 2, worker-node-2: 1")
+  HOSTS_DETAIL=$(grep -A5 '^PLAY RECAP' "$LOG" | tail -n +2 \
+    | grep -E 'changed=[1-9]' \
+    | sed -E 's/^([^ ]+) .* changed=([0-9]+).*/\1: \2/' \
+    | paste -sd', ' -)
+  /usr/local/sbin/telegram-notify.sh "⚙️ node-config drift-heal applied $CHANGED change(s) [${HOSTS_DETAIL:-unknown}]. journalctl -u node-maintenance-config.service -n 80"
 fi
