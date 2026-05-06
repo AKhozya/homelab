@@ -92,8 +92,9 @@ spec:
     
     - alert: NodeHighIOWait
       # Average I/O wait across all CPUs (node-wide, not per-core)
-      expr: avg by(instance) (rate(node_cpu_seconds_total{mode="iowait"}[5m])) * 100 > 10
-      for: 10m
+      # Raised from 10%/10m to 15%/15m — rebuilderd builds cause transient spikes
+      expr: avg by(instance) (rate(node_cpu_seconds_total{mode="iowait"}[5m])) * 100 > 15
+      for: 15m
       labels:
         severity: warning
       annotations:
