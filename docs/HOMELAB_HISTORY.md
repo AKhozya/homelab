@@ -3,7 +3,7 @@
 **Purpose**: Historical changelog and completed task archive for the homelab infrastructure.
 **Related**: [HOMELAB_ANALYSIS.md](./HOMELAB_ANALYSIS.md) - Current status and active tasks
 **Created**: 2025-12-13
-**Coverage**: October 2025 - April 2026
+**Coverage**: October 2025 - May 2026
 
 ---
 
@@ -415,6 +415,16 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 ---
 
 ## 📝 Historical Changelog (October-December 2025)
+
+### 2026-05-02 to 2026-05-07 (May Sprint Closures) 🧹
+Items archived from HOMELAB_ANALYSIS.md PENDING ITEMS table on 2026-05-07.
+- ✅ **Uptime Kuma rework** (2026-05-02). Replaced standalone Redis monitor with HA Master + HA Sentinel TCP probes + Blocky DNS probes (W1 192.168.1.129 / W2 192.168.1.126). Pinned UK Deployment + setup-job to control-plane (`nodeSelector` + toleration) so node-targeted probes always traverse external network — fixes monitor-blind-to-own-node-failure (W1 SSH/kubelet probes had stayed 100%/99.86% green via pod-local loopback while host INPUT was DROPing external L3). `/app/data` PVC dropped (state in MySQL; db-config.json regenerates from env, screenshots/error.log ephemeral). New monitors live (MySQL ids 42/43/45/46).
+- ✅ **W1 UFW iptables-restore line 2 fail** — kernel-upgrade regression, RESOLVED 2026-05-02 (commit `476ec535`). Root cause: stale ufw kernel chains from previous session block `ufw enable` (re-create attempt against existing chains). `/lib/ufw/ufw-init flush-all` clears stale chains. Patches in `ufw-heal-post-k3s.sh` (phase_b detects "skipping reload\|not enabled" → flush-all + `--force enable`) and `firewall-preflight.sh` (new `phase_ufw_state_recover` runs after modprobe: detects `ENABLED=yes + Status:inactive` → flush-all + force-enable). **Validation tracking**: kept as separate pending row in HOMELAB_ANALYSIS.md (next W1 reboot/kernel upgrade).
+- ✅ **UFW heal v3 silent-disable recovery** — RESOLVED 2026-05-02 (commit `476ec535`). `phase_b_reload` previously returned success on `ufw reload` exit-0 even when output said "skipping reload" (no-op when ufw disabled). Now greps for "skipping reload\|not enabled" and triggers flush-all + force-enable recovery. `phase_ufw_state_recover` provides same recovery at drift-heal time.
+- 🚫 **Ansible nic_tuning role hardcoded enp3s0** — FALSE ALARM 2026-05-02. Role uses per-host `nic_tuning_iface` host_var; `worker-node.yml` already had `enp4s0` from 2026-04-26 generalisation. Verified live: CP `nic-tune@enp3s0.service active`, W1 `nic-tune@enp4s0.service active` (enp3s0 stays NO-CARRIER), W2 `nic-tune@enp2s0.service active`.
+- 🚫 **K3s dual-stack pod networking** — DECIDED 2026-04-26: NOT WORTH IT. No app needs v6-only targets (DoH/CDNs reachable via v4). Migration cost (NP rewrites, CIDR change, breakage risk) >> benefit. v4-only permanent. Blocky pinned `connectIPVersion: v4`.
+- ✅ **Audit: zombie helm releases** — DONE 2026-05-02. 12 helm releases all active. kube-prometheus-stack already trimmed (`prometheus.enabled=false` in HelmRelease values; operator + grafana + AM + KSM + node-exporter retained — operator manages AM STS). 5 empty KPS CRDs (prometheuses/prometheusagents/thanosrulers/scrapeconfigs/probes) + 13 empty VM-operator CRDs (vlogs/vlsingles/vlclusters/vlagents, vmanomalies+vmanomalyconfigs, vmclusters/vmdistributed, vmusers/vmauths, vtclusters/vtsingles) bundled by chart — risky-to-remove for marginal benefit. No actionable cleanup.
+- ✅ **Blocky 1-week soak observation** — DONE 2026-05-07 (4d late vs 2026-05-03 target). Window 2026-04-30→2026-05-07. Peak RSS 307Mi (rqbjj/W2), 283Mi (wwzgn/W1) — 60% headroom on 512Mi limit. Avg RSS 140-156Mi. p95 latency 4.96 ms / p50 2.61 ms. log_entries 797k rows / 238 MB / ~110k/day stable (range 88k-116k/day). CPU throttle ≤0.24% (negligible). 0 active alerts. Restarts rqbjj=4 / wwzgn=1 — all on Sat 2026-05-04 weekly maintenance window, root cause `dial 10.43.191.88:6379 connect: connection refused` (Redis transient unavail during worker reboot, expected). Pods stable 3d+ since. Verdict: GREEN. Memory-limit review (2026-05-26) blocked by 307Mi peak — 256Mi unsafe; 384Mi acceptable (~25% headroom).
 
 ### 2026-04-28 (Ansible Review + NOW Bucket Landed) 📋
 - ✅ **Full audit** of `docs/scripts/node-maintenance/ansible/` — 11 roles, 3 playbooks (`phase1`/`phase2`/`node-config`)
