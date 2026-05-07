@@ -108,7 +108,7 @@
 | Item | Target | Priority |
 |------|--------|----------|
 | Drop worker-node-2 replication step | ~2026-05-20 | P2 |
-| n8n PgBouncer `statement_timeout` fix — re-check #25705 | 2026-05 | P3 |
+| n8n PgBouncer `statement_timeout` fix — re-check #25705 (verified OPEN 2026-05-07, last upstream update 2026-04-28; rescheduled to align with monthly review) | 2026-06-04 | P3 |
 | High-pri secret rotation (PG: authentik/immich/n8n, MySQL: HA, Redis: immich) | 2026-07-01 | P1 |
 | Re-check HA OIDC when hass-oidc-auth stable lands | Backlog | P3 |
 | Re-evaluate Authentik 2026.5 client hints (#20700) | 2026-06 | P3 |
