@@ -15,7 +15,8 @@ Token-lean architecture references for AI agents (and humans). Update when major
 - New app added → update `apps.md` + relevant per-domain map
 - DB / NetworkPolicy / monitoring CRD changes → update appropriate codemap
 - Architecture / GitOps / identity changes → update `architecture.md`
-- Quarterly review → diff against current cluster state, fix drift
+- **Monthly review** → diff against current cluster state, fix drift (see `HOMELAB_ANALYSIS.md` Monthly Review Checklist item 3)
+- Quarterly review → full audit pass alongside `/automation-audit-ops`
 
 ## Source of truth
 - Operational state: `docs/HOMELAB_ANALYSIS.md`

@@ -1,26 +1,33 @@
 # Networking Codemap
 
 ## Ingress
-- **Traefik** (kube-system, 1 svc) handles all `*.h0melab.work`
+- **Traefik** (traefik ns, chart v40.0.0, 1 svc) handles all `*.h0melab.work`
 - **Cloudflare Tunnel** (cloudflare-tunnel ns) — outbound-only, exposes 9 svcs externally without inbound port
-- **Blocky DNS** — single LB Service `blocky-dns` exposes 192.168.1.129 + 192.168.1.126 (servicelb ETP=Local, anti-affinity'd 2 pods)
+- **Blocky DNS** (blocky ns, image `spx01/blocky:v0.29.0`) — single LB Service `blocky-dns` exposes 192.168.1.129 (W1) + 192.168.1.126 (W2) (servicelb ETP=Local, anti-affinity'd 2 pods)
 - **NodeLocalDNS** N/A — using CoreDNS (`10.43.0.10`) cluster-internal
 
 ## Service Endpoints
 | Service | Endpoint | Used by |
 |---------|----------|---------|
-| Postgres pooler (PgBouncer) | `main-postgres-rw-pooler.databases.svc:5432` | most apps |
+| Postgres pooler (PgBouncer 1.25.1) | `main-postgres-rw-pooler.databases.svc:5432` | most apps |
 | Postgres direct | `main-postgres-rw.databases.svc:5432` | n8n, blocky (queryLog), CNPG admin |
-| MySQL HAProxy | `main-mysql-haproxy.databases.svc:3306` | uptime-kuma, HA, pricebuddy |
+| MySQL HAProxy 2.8.18 | `main-mysql-haproxy.databases.svc:3306` | uptime-kuma, HA, pricebuddy |
 | Redis HA master (static) | `redis-replication-master.databases.svc:6379` | paperless, blocky |
 | Redis HA Sentinel | `redis-sentinel-sentinel.databases.svc:26379` | immich (REDIS_URL=ioredis://...) |
 | CouchDB | `couchdb-couchdb.databases.svc:5984` | obsidian (LiveSync via Cloudflare Tunnel) |
+
+## Traefik Middlewares
+Defined in `traefik` ns (referenced as `traefik-<name>@kubernetescrd`):
+- `csp`, `rate-limit-standard`, `rate-limit-high-frequency`, `redirect-https`, `security-headers`
+
+Legacy duplicates also live in `monitoring` ns (`csp`, `rate-limit-standard`, `redirect-https`, `security-headers`) for kube-prometheus-stack ingresses.
 
 ## NetworkPolicy invariants
 - **44 NetworkPolicies** total (every ingress + every cross-ns egress)
 - Default-deny implicit per-ns where NP exists with empty ingress
 - Container port (NOT service port) used in NP `ports:`
 - Apps with both internal + Cloudflare Tunnel access need 2 IngressRoute rules (Traefik) but 1 NP (covers both via TCP port)
+- Per-ns NP counts: databases 7, monitoring 7, flux-system 3, linkwarden 2, loki 2; all other ns with NP have 1
 
 ## Cloudflare Tunnel topology
 - Account: `***REMOVED-CF-ACCOUNT-ID***`

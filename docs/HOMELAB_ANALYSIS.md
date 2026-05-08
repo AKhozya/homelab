@@ -148,6 +148,20 @@ Source of truth:
 
 Cache: `~/.claude/skills/skill-stocktake/results.json`. Cleanup pattern: Retire/Improve/Update verdicts → user-confirmed batch fix.
 
+**3. CODEMAPS refresh** — actualise `docs/CODEMAPS/*.md` against current cluster state. Snapshots drift silently (image bumps, ns moves, version pins, app add/remove, helm chart bumps). Dispatch parallel agents (one per codemap) with a pre-gathered live-cluster fact block to avoid redundant `kubectl` runs.
+
+```bash
+# Live-state snapshot to brief agents
+kubectl get nodes -o wide
+kubectl get helmrelease -A
+kubectl get clusters.postgresql.cnpg.io,redisreplication,redissentinel -A
+kubectl get cronjob,networkpolicy,clusterpolicy -A
+kubectl get pods -A -o jsonpath='{range .items[*]}{.spec.containers[*].image}{"\n"}{end}' | sort -u
+cat apps/staging/kustomization.yaml
+```
+
+Files: `architecture.md`, `apps.md`, `networking.md`, `databases.md`, `monitoring.md`, `backup-restore.md`. Each agent: read current codemap → diff against source-of-truth dirs (apps/, infrastructure/, monitoring/, .backup/) → Write updated content. Last refresh: 2026-05-08.
+
 ### Quarterly Review (every 3 months — next: 2026-07-04)
 
 **Automation audit** — full inventory of cron/timers/CronJobs/GHA workflows/hooks/MCP servers/connectors. Finds overlap, breakage, stale automations that built up since last review.

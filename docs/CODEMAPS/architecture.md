@@ -21,7 +21,7 @@ flux-system
        └─ infrastructure-configs  (cluster CRs, NetworkPolicies, ResourceQuotas, secrets, cronjobs, backup-replication)
             └─ monitoring-controllers   (kube-prometheus-stack chart, VictoriaMetrics op, Loki, Alloy)
                  └─ monitoring-configs  (VMRule, VMServiceScrape, dashboards, alertmanager templates)
-                      └─ apps           (17 application stacks)
+                      └─ apps           (16 application stacks)
 ```
 
 ## Encryption
@@ -49,10 +49,10 @@ flux-system
 
 ## External access
 - **Cloudflare Tunnel** (9 svcs): authentik, couchdb, audiobooks, linkwarden, stirling-pdf, mealie, paperless, immich, n8n
-- **Internal**: Blocky DNS (W1+W2 LB IPs) + Traefik IngressRoute on port 443
+- **Internal**: Blocky DNS (W1+W2 LB IPs) + Traefik IngressRoute on port 443 (Traefik in own `traefik` ns)
 - **Domain**: `h0melab.work` (cert-manager DNS-01 via Cloudflare API token)
 
 ## Cluster boundaries
 - 28 namespaces (excl. system: kube-*, flux-system, default)
 - 44 NetworkPolicies (every ingress + every cross-ns egress)
-- 10 Kyverno ClusterPolicies (PSS Restricted enforce, image-pin, NP-required, default-SA-disallowed, drop-all-caps, etc.)
+- 10 Kyverno ClusterPolicies — 7 Enforce (disallow-host-namespaces, disallow-latest-tag, disallow-privilege-escalation, require-drop-all-capabilities, require-labels, require-non-default-serviceaccount, require-seccomp-runtimedefault) + 3 Audit (disallow-host-path, require-non-root, require-resource-limits)
