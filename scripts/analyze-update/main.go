@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/google/go-github/v85/github"
+	"github.com/google/go-github/v86/github"
 	"golang.org/x/oauth2"
 )
 
