@@ -4,7 +4,6 @@ namespace: immich
 resources:
   - ../../base/immich
   - immich-db-password-secret.yaml
-  - immich-redis-password-secret.yaml
   - immich-redis-url-secret.yaml
   - admin-secret.yaml
   # OIDC config is stored in immich's DB (configured via admin web UI)

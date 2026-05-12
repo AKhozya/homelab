@@ -52,14 +52,6 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
-    # Allow access to AdGuard Home
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: adguard-home
-      ports:
-        - protocol: TCP
-          port: 80
     # Allow access to Audiobookshelf
     - to:
         - namespaceSelector:
