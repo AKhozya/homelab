@@ -25,7 +25,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: meilisearch
-          image: getmeili/meilisearch:v1.43.0
+          image: getmeili/meilisearch:v1.43.1
           command: ["meilisearch"]
           args:
             - "--experimental-dumpless-upgrade"
