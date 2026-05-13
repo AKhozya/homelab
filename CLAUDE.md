@@ -45,7 +45,7 @@ Kustomization dep order: `flux-system` → `infrastructure-controllers` → `inf
 - `/checkpoint` — infra state snapshots
 
 ## GitOps (one-line)
-Flow: `investigate → plan → fix → commit → push → reconcile → verify`. Validate: `kubectl apply -f <file> --dry-run=server`. Reconcile: `fr` zsh function. Detail in `/gitops-workflow`.
+Flow: `investigate → plan → fix → commit → push → reconcile → verify`. Validate plain manifest: `kubectl apply -f <file> --dry-run=server`. **SOPS-encrypted overlays** (any kustomization with `sops:` block) fail server dry-run with `strict decoding error: unknown field "sops"` — use `kubectl kustomize <path>` exit code + grep, or `flux build kustomization <name> --path <path> --kustomization-file clusters/<name>.yaml`. Reconcile: `fr` zsh function. Detail in `/gitops-workflow`.
 
 ## DB Proxies
 - Postgres: `main-postgres-rw-pooler.databases.svc.cluster.local:5432` (PgBouncer)
