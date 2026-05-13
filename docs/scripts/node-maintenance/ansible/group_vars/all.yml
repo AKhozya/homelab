@@ -85,16 +85,25 @@ ufw_logging: low
 pacman_packages_base:
   - base-devel
   - bash-completion
+  # Modern CLI viewing/diff/lint — parity with Mac dev env, useful when SSH'd in
+  - bat
   - btop
   - efibootmgr
   - ethtool
+  - eza
   - fail2ban
   - fwupd
   - fzf
   - git
+  - git-delta
   - go
+  - gron
   - inetutils
+  - jc
   - jq
+  # k8s-adjacent (most useful on control plane; small on workers)
+  - kubectx
+  - kubeconform
   - linux-lts
   - linux-lts-headers
   - lvm2
@@ -105,15 +114,22 @@ pacman_packages_base:
   - reflector
   - rkhunter
   - rsync
+  - shellcheck
+  - shfmt
   - smartmontools
+  - sops
+  - stern
   - sysstat
   - tree
   - ufw
   - ufw-extras
   - vim
+  - yamllint
   - yq
 # Note: `yay` deliberately NOT here — AUR-only, pacman cannot install it.
 # Bootstrapped manually once per node (makepkg). setup-node.sh Section 1 uses it for firmware AUR pkgs.
+# Note: `taplo` (TOML lint) intentionally not on nodes — not in extra or AUR.
+# Mac-only via Homebrew. Nodes have ~no TOML files; cost > benefit to track GH releases.
 
 # Base rules common to all 3 nodes.
 # Order preserved as UFW orders rules internally by insertion; module idempotency
