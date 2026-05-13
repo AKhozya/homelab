@@ -1,0 +1,52 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(kubectl get *)",
+      "Bash(kubectl logs *)",
+      "Bash(kubectl describe *)",
+      "Bash(kubectl rollout status *)",
+      "Bash(kubectl apply --dry-run=server *)",
+      "Bash(chezmoi diff *)",
+      "Bash(chezmoi managed *)",
+      "Bash(chezmoi status *)",
+      "Bash(chezmoi data *)",
+      "Bash(flux get *)",
+      "Bash(flux events *)",
+      "Bash(flux logs *)",
+      "Bash(flux tree *)",
+      "Bash(flux reconcile *)",
+      "Bash(flux suspend *)",
+      "Bash(flux resume *)",
+      "Bash(kubectl rollout restart *)",
+      "Bash(kubectl delete pod *)",
+      "Bash(kustomize build *)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/homelab-analysis-reminder.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/cavecrew-reviewer-pre-push.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "andrej-karpathy-skills@karpathy-skills": true
+  }
+}

@@ -2,7 +2,9 @@
 .DS_Store
 .vscode/
 .idea/
-.claude/
+.claude/*
+!.claude/hooks/
+!.claude/settings.json
 .*mcp*
 *.original.md
 
