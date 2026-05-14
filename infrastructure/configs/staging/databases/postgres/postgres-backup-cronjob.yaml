@@ -56,7 +56,7 @@ spec:
                   memory: "128Mi"
           containers:
             - name: backup
-              image: postgres:18.3-alpine
+              image: postgres:18.4-alpine
               command:
                 - /bin/bash
                 - -c
