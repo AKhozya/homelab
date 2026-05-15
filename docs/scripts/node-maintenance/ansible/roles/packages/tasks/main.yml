@@ -10,6 +10,20 @@
 # mirror 5xx/DNS flake, /var/lib/pacman/db.lck held by concurrent process,
 # GPG keyserver timeout. retries=3 catches transient; more would mask real bugs.
 
+# Refresh pacman DB before install so a stale local DB (listing package
+# versions whose .pkg.tar.zst files have rotated on mirror) self-heals
+# instead of failing the run. Force refresh (-Syy equivalent) so partial
+# fetches from an aborted prior run are redone, not trusted.
+- name: Refresh pacman package database (force)
+  community.general.pacman:
+    update_cache: true
+    force: true
+  register: pkg_cache
+  until: pkg_cache is not failed
+  retries: 3
+  delay: 30
+  tags: [packages, cache]
+
 - name: Install base packages (pacman)
   ansible.builtin.package:
     name: "{{ pacman_packages_base }}"
