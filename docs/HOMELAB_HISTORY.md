@@ -416,6 +416,11 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (October-December 2025)
 
+### 2026-05-14 to 2026-05-15 (Ansible packages parity + mirror-staleness fix) 🧰
+- ✅ **12 Mac-parity CLI tools added to `pacman_packages_base`** (commit `dac395a5`, 2026-05-14): bat, eza, git-delta, gron, jc, kubectx, kubeconform, shellcheck, shfmt, sops, stern, yamllint. Pkg count 30 → 41. Installed on all 3 nodes via daily drift-heal (`node-config.yml`). taplo intentionally NOT added — not in extra or AUR (Mac-only via Homebrew).
+- ✅ **Pacman mirror-staleness self-heal** (commit `811b67e9`, 2026-05-15): packages role gets pre-task `community.general.pacman: update_cache=true force=true` (=`pacman -Syy`) before all install tasks. First run of the 12-pkg addition hit `error: failed retrieving file 'haskell-prettyprinter-*.pkg.tar.zst' : 404` (shellcheck's transitive haskell deps had rotated on london.mirror.pkgbuild.com; local DB stale). Fix re-runs DB refresh under retries=3/delay=30. Daily 03:00/15:00 UTC config now self-heals mirror drift.
+- ✅ **Weekly `yay_cmd` bumped `-Syu` → `-Syyu`** (same commit): forces re-download of mirror DB even if cache appears fresh. Saturday 04:30 UTC phase1 + post-reboot phase2 weekly upgrades pick up next run. Covers both pacman + AUR (CP has 8 AUR pkgs: yay, viddy, zsh-you-should-use, 5 firmware blobs). Documented gotcha in memory `gotchas.md`.
+
 ### 2026-05-02 to 2026-05-07 (May Sprint Closures) 🧹
 Items archived from HOMELAB_ANALYSIS.md PENDING ITEMS table on 2026-05-07.
 - ✅ **Uptime Kuma rework** (2026-05-02). Replaced standalone Redis monitor with HA Master + HA Sentinel TCP probes + Blocky DNS probes (W1 192.168.1.129 / W2 192.168.1.126). Pinned UK Deployment + setup-job to control-plane (`nodeSelector` + toleration) so node-targeted probes always traverse external network — fixes monitor-blind-to-own-node-failure (W1 SSH/kubelet probes had stayed 100%/99.86% green via pod-local loopback while host INPUT was DROPing external L3). `/app/data` PVC dropped (state in MySQL; db-config.json regenerates from env, screenshots/error.log ephemeral). New monitors live (MySQL ids 42/43/45/46).
