@@ -47,6 +47,16 @@ Kustomization dep order: `flux-system` → `infrastructure-controllers` → `inf
 ## GitOps (one-line)
 Flow: `investigate → plan → fix → commit → push → reconcile → verify`. Validate plain manifest: `kubectl apply -f <file> --dry-run=server`. **SOPS-encrypted overlays** (any kustomization with `sops:` block) fail server dry-run with `strict decoding error: unknown field "sops"` — use `kubectl kustomize <path>` exit code + grep, or `flux build kustomization <name> --path <path> --kustomization-file clusters/<name>.yaml`. Reconcile: `fr` zsh function. Detail in `/gitops-workflow`.
 
+## Lint Before Commit (node-maintenance / ansible / shell)
+**ALWAYS** lint before committing ansible or shell changes. Tools on CP (not local):
+```bash
+# ShellCheck (shell scripts)
+cat <file.sh> | ssh -p 65300 akhozya@gmk-k3s-control-plane "cat > /tmp/lint.sh && shellcheck /tmp/lint.sh"
+# Yamllint (ansible YAML — ignore line-length warnings, pre-existing)
+cat <file.yml> | ssh -p 65300 akhozya@gmk-k3s-control-plane "cat > /tmp/lint.yml && yamllint -d '{extends: relaxed, rules: {line-length: disable}}' /tmp/lint.yml"
+```
+Run BOTH on every changed `.sh` and `.yml` under `docs/scripts/node-maintenance/`. No exceptions.
+
 ## DB Proxies
 - Postgres: `main-postgres-rw-pooler.databases.svc.cluster.local:5432` (PgBouncer)
 - MySQL: `main-mysql-haproxy.databases.svc.cluster.local:3306` (HAProxy)
