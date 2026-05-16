@@ -12,8 +12,7 @@ K3s staging, 3 nodes, Flux GitOps, 17 apps. Global base: `~/.claude/CLAUDE.md`.
 Kustomization dep order: `flux-system` → `infrastructure-controllers` → `infrastructure-configs` → `monitoring-controllers` → `monitoring-configs` → `apps`.
 
 ## SSH / sudo
-- Claude NO sudo. Sudo over SSH → give user command with `ssh -p 65300 -t` (TTY for password prompt).
-- Ansible on CP under `node-maintenance` user. Trigger via systemd: `sudo systemctl start node-maintenance-sync.service` (git pull) → `sudo systemctl start node-maintenance-config.service` (drift-heal).
+Claude no sudo. Node-side debug + fix workflow: `/homelab-node-fix` skill (SSH+TTY pattern). Persistent fixes via ansible roles at `docs/scripts/node-maintenance/`; trigger via systemd: `sudo systemctl start node-maintenance-sync.service` (git pull) → `sudo systemctl start node-maintenance-config.service` (drift-heal).
 
 ## Hard Invariants (blast radius = cluster)
 - **GitOps only.** `kubectl apply -f` no `--dry-run=server` = violation. Commit → Flux reconcile 60s. Never `kubectl edit/patch/replace`.
@@ -32,35 +31,5 @@ Kustomization dep order: `flux-system` → `infrastructure-controllers` → `inf
 - `.backup/README.md` — DR runbook.
 - `docs/SECRETS_ROTATION.md` — rotation schedule.
 
-## Skills
-- `/gitops-workflow` — flow + reconcile (`fr`) + teardown
-- `/app-scaffold` — new app conventions: ingress middlewares, rate limits, ns prefix, dual ingress, NetworkPolicy, SOPS, Kyverno checklist, 2-commit bootstrap
-- `/k8s-diagnostics` — cluster health
-- `/db-operations` — DB queries, backups, replication
-- `/monitoring-check` — VictoriaMetrics, Grafana, Loki, Alertmanager, Popeye, Kyverno
-- `/networkpolicy-helper` — NetworkPolicy generation
-- `/ha-enablement` — HA replicas
-- `/resource-sizing` — CPU/mem limits
-- `/gitops-verify` — 7-point cluster verify
-- `/checkpoint` — infra state snapshots
-
-## GitOps (one-line)
-Flow: `investigate → plan → fix → commit → push → reconcile → verify`. Validate plain manifest: `kubectl apply -f <file> --dry-run=server`. **SOPS-encrypted overlays** (any kustomization with `sops:` block) fail server dry-run with `strict decoding error: unknown field "sops"` — use `kubectl kustomize <path>` exit code + grep, or `flux build kustomization <name> --path <path> --kustomization-file clusters/<name>.yaml`. Reconcile: `fr` zsh function. Detail in `/gitops-workflow`.
-
-## Lint Before Commit (node-maintenance / ansible / shell)
-**ALWAYS** lint before committing ansible or shell changes. Tools on CP (not local):
-```bash
-# ShellCheck (shell scripts)
-cat <file.sh> | ssh -p 65300 akhozya@gmk-k3s-control-plane "cat > /tmp/lint.sh && shellcheck /tmp/lint.sh"
-# Yamllint (ansible YAML — ignore line-length warnings, pre-existing)
-cat <file.yml> | ssh -p 65300 akhozya@gmk-k3s-control-plane "cat > /tmp/lint.yml && yamllint -d '{extends: relaxed, rules: {line-length: disable}}' /tmp/lint.yml"
-```
-Run BOTH on every changed `.sh` and `.yml` under `docs/scripts/node-maintenance/`. No exceptions.
-
-## DB Proxies
-- Postgres: `main-postgres-rw-pooler.databases.svc.cluster.local:5432` (PgBouncer)
-- MySQL: `main-mysql-haproxy.databases.svc.cluster.local:3306` (HAProxy)
-- Query patterns → `/db-operations`.
-
-## Monitoring
-TSDB = VictoriaMetrics (`vmsingle`/`vmagent`/`vmalert`). kube-prometheus-stack chart trimmed to operator + grafana + alertmanager + kube-state-metrics + node-exporter — no Prometheus pod. Query patterns → `/monitoring-check`.
+## Skills + shared scripts
+Auto-discovered from `~/.claude/skills/` (each SKILL.md frontmatter advertises when it fires). Shared kubectl/flux/jq helpers live in `~/.claude/skills/_shared/` — reference these from new skills instead of inlining pipelines.
