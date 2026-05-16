@@ -6,15 +6,21 @@ Wants=network-online.target
 # Skip drift-heal during weekly maintenance window. Phase1 sets the flag
 # before reboot; phase2 clears it after successful worker rollout. Drift-
 # heal targets workers via SSH, which fails when phase2 is mid-reboot.
-# If phase2 fails the flag is retained on purpose — block drift-heal
-# until a human investigates rather than have config.service mask it.
-ConditionPathExists=!/var/lib/node-maintenance/phase2-pending
+#
+# ExecCondition replaces static ConditionPathExists (2026-05-16):
+#   - Flag absent → proceed
+#   - Flag < 2h old → skip (maintenance in progress)
+#   - Flag >= 2h + Flux healthy → auto-clear + Telegram warn + proceed
+#   - Flag >= 2h + Flux unhealthy → skip (needs investigation)
+# Prevents stale flag from blocking drift-heal all day after transient
+# phase2 failure (e.g. Flux source-controller SSH timeout post-reboot).
 
 [Service]
 Type=oneshot
 User=root
 WorkingDirectory=/etc/node-maintenance/ansible
 Environment=ANSIBLE_CONFIG=/etc/node-maintenance/ansible/ansible.cfg
+ExecCondition=/usr/local/sbin/check-phase2-flag-age.sh
 ExecStartPre=/bin/sh -c 'install -d -m 0750 -o root -g adm /var/log/node-maintenance /var/log/node-maintenance/config-archive && echo "=== start: $(date -u -Iseconds) ===" > /var/log/node-maintenance/config-latest.log'
 ExecStart=/usr/bin/ansible-playbook -D /etc/node-maintenance/ansible/node-config.yml -i /etc/node-maintenance/ansible/inventory.yml
 # Archive each run's log + retain 50 most recent. Pre-edit: only config-latest.log

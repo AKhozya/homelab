@@ -323,6 +323,15 @@
     enabled: true
   tags: [firewall]
 
+- name: Deploy check-phase2-flag-age.sh (ExecCondition for config.service)
+  ansible.builtin.copy:
+    src: check-phase2-flag-age.sh
+    dest: /usr/local/sbin/check-phase2-flag-age.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [firewall]
+
 - name: Deploy ufw-heal-post-k3s.sh (boot-time healer)
   ansible.builtin.copy:
     src: ufw-heal-post-k3s.sh

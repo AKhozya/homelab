@@ -243,11 +243,20 @@
       ansible.builtin.pause:
         minutes: "{{ final_stabilize_minutes }}"
 
+    - name: Pre-gate — verify source-controller Available before reconcile
+      ansible.builtin.command: >
+        kubectl --kubeconfig={{ kubeconfig_path }} wait deployment/source-controller
+        -n flux-system --for=condition=Available --timeout=120s
+      changed_when: false
+
     - name: Flux reconcile kustomizations
-      ansible.builtin.shell: |
-        flux reconcile kustomization {{ item }} --timeout=60s || echo "FAILED: {{ item }}"
+      ansible.builtin.command: >
+        flux reconcile kustomization {{ item }} --timeout=180s
       loop: "{{ flux_kustomizations }}"
       register: flux_results
+      until: flux_results.rc == 0
+      retries: 3
+      delay: 60
       changed_when: false
       environment:
         KUBECONFIG: "{{ kubeconfig_path }}"
@@ -292,7 +301,11 @@
       changed_when: false
 
     - name: Trigger Flux source GC
-      ansible.builtin.command: flux reconcile source git flux-system --timeout=60s
+      ansible.builtin.command: flux reconcile source git flux-system --timeout=180s
+      register: flux_source_result
+      until: flux_source_result.rc == 0
+      retries: 3
+      delay: 30
       changed_when: false
       environment:
         KUBECONFIG: "{{ kubeconfig_path }}"

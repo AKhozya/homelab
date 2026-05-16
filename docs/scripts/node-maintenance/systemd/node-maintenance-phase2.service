@@ -13,9 +13,17 @@ ExecStartPre=/bin/sh -c 'install -d -m 0750 -o root -g adm /var/log/node-mainten
 EnvironmentFile=-/run/node-maintenance.env
 ExecStartPre=/bin/bash -c 'for i in {1..60}; do kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml get --raw /readyz 2>/dev/null | grep -q ok && exit 0; sleep 5; done; exit 1'
 ExecStart=/usr/bin/ansible-playbook -i inventory.yml phase2.yml
-ExecStartPost=/bin/rm -f /var/lib/node-maintenance/phase2-pending
-ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance phase2 failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). Flag retained. Log: /var/log/node-maintenance/phase2-$(date -u +%%d-%%m-%%Y).log" || true'
+# Flag cleared by Ansible on success (phase2.yml line 376). No ExecStartPost
+# removal — keeps flag on failure so Restart= retries with flag intact.
+ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance phase2 failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). Retrying in 15min (max 3x). Log: /var/log/node-maintenance/phase2-$(date -u +%%d-%%m-%%Y).log" || true'
 ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" = "success" ] && /usr/local/sbin/telegram-notify-claude.sh "Weekly update and reboot flow finished. Review and fix all alerts, then cleanup stale stuff in the cluster." || true'
+# Retry on transient failures (Flux timeout, SSH blip). 3 attempts at 15-min
+# intervals within 2h window. After exhaustion → failed state, flag retained,
+# L3 stale-flag auto-clear in config.service takes over after 2h.
+Restart=on-failure
+RestartSec=900
+StartLimitIntervalSec=7200
+StartLimitBurst=3
 TimeoutStartSec=90min
 Nice=10
 
