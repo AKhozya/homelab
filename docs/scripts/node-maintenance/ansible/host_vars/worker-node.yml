@@ -11,7 +11,7 @@ nic_tuning_iface: enp4s0
 
 # Swap config — 32G partition, UUID-mounted in fstab.
 swap_kind: partition
-swap_path: /dev/nvme0n1p3
+swap_path: /dev/nvme1n1p3
 swap_fstab_entry: "UUID=a6b9e0ba-53f4-4335-8d9f-4d4a4e04306b\tnone\tswap\tdefaults\t0 0"
 
 # ---- Packages ----
