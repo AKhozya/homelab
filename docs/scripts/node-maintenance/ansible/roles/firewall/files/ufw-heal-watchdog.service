@@ -1,0 +1,15 @@
+[Unit]
+Description=UFW heal watchdog (periodic)
+Documentation=man:ufw(8)
+# Only run if UFW is supposed to be enabled
+ConditionPathExists=/usr/local/sbin/ufw-heal-post-k3s.sh
+ConditionPathExists=/usr/sbin/ufw
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ufw-heal-post-k3s.sh --watchdog
+TimeoutStartSec=3min
+# Don't mark failed on exit 1 — the boot-time service handles alerting.
+# Watchdog is best-effort periodic recovery.
+StandardOutput=journal
+StandardError=journal

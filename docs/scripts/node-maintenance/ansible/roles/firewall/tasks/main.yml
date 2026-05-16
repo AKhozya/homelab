@@ -348,6 +348,33 @@
     enabled: true
   tags: [firewall]
 
+- name: Deploy ufw-heal-watchdog.service
+  ansible.builtin.copy:
+    src: ufw-heal-watchdog.service
+    dest: /etc/systemd/system/ufw-heal-watchdog.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [firewall]
+
+- name: Deploy ufw-heal-watchdog.timer
+  ansible.builtin.copy:
+    src: ufw-heal-watchdog.timer
+    dest: /etc/systemd/system/ufw-heal-watchdog.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+  tags: [firewall]
+
+- name: Enable ufw-heal-watchdog.timer
+  ansible.builtin.systemd_service:
+    name: ufw-heal-watchdog.timer
+    enabled: true
+    state: started
+  tags: [firewall]
+
 - name: Disable legacy ufw-reload-after-k3s.service
   ansible.builtin.systemd_service:
     name: ufw-reload-after-k3s.service

@@ -1,0 +1,11 @@
+[Unit]
+Description=UFW heal watchdog — check every 5min, re-heal if inactive
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+# Randomize to avoid all nodes hitting at exactly the same second
+RandomizedDelaySec=30s
+
+[Install]
+WantedBy=timers.target
