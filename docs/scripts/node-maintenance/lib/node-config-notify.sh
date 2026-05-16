@@ -133,7 +133,7 @@ if [ "$RESULT" != "success" ] || [ "${FAILED:-0}" -gt 0 ]; then
     "${FATAL_MSG:-(no msg parsed)}" \
     "${RECAP:-(recap missing)}")
 
-  /usr/local/sbin/telegram-notify.sh "$(printf '❌ node-config drift-heal FAILED (result=%s changed=%s failed=%s)\n%s\n\n```\n%s\n```\n📄 Full dump: %s\n📦 Archive: %s\n🔎 journalctl -u node-maintenance-config.service --no-pager -n 200\n📂 Live log: %s\n📸 ufw-diag: ls -lt /var/log/node-maintenance/ufw-diag-*.txt' \
+  /usr/local/sbin/telegram-notify.sh "$(printf '❌ node-config drift-heal FAILED (result=%s changed=%s failed=%s)\n%s\n\n%s\n\n📄 Full dump: %s\n📦 Archive: %s\n🔎 journalctl -u node-maintenance-config.service --no-pager -n 200\n📂 Live log: %s\n📸 ufw-diag: ls -lt /var/log/node-maintenance/ufw-diag-*.txt' \
     "$RESULT" "$CHANGED" "$FAILED" "$HOSTS_LINE" "$TG_BODY" "$DUMP" "$ARCHIVE" "$LOG")"
 elif [ "${CHANGED:-0}" -gt 0 ]; then
   # Per-host breakdown from PLAY RECAP (e.g. "worker-node: 2, worker-node-2: 1")

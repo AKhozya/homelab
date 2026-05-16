@@ -19,5 +19,5 @@ curl -fsS --max-time 10 \
   -X POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
   -H "Content-Type: application/json" \
   -d "$(jq -n --arg c "$CHAT_ID" --arg t "$MESSAGE" \
-            '{chat_id: $c, text: $t, parse_mode: "Markdown"}')" \
+            '{chat_id: $c, text: $t}')" \
   > /dev/null || echo "Telegram notify failed (ignored)" >&2
