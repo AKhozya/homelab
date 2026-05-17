@@ -22,6 +22,10 @@
   until: pkg_cache is not failed
   retries: 3
   delay: 30
+  # force=true always re-downloads the DB → module always reports changed=true.
+  # Cache refresh itself is not user-visible drift; actual install/upgrade
+  # tasks below still report changed when packages change.
+  changed_when: false
   tags: [packages, cache]
 
 - name: Install base packages (pacman)
