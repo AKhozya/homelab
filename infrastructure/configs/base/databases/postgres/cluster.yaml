@@ -8,7 +8,7 @@ spec:
   inheritedMetadata:
     labels:
       release: kube-prometheus-stack
-  imageName: ghcr.io/cloudnative-pg/postgresql:18.3-standard-trixie
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie
   enableSuperuserAccess: true  # Required for operator to create pooler roles
 
   # Worker nodes only - control-plane has NoSchedule taint

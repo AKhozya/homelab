@@ -170,7 +170,7 @@ spec:
             wait-for-database:
               image:
                 repository: ghcr.io/cloudnative-pg/postgresql
-                tag: 18.3-standard-trixie
+                tag: 18.4-standard-trixie
                 pullPolicy: IfNotPresent
               command:
                 - sh
