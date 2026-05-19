@@ -60,10 +60,6 @@ spec:
         - { ipBlock: { cidr: 1.0.0.2/32 } }
         - { ipBlock: { cidr: 9.9.9.9/32 } }
         - { ipBlock: { cidr: 149.112.112.112/32 } }
-        - { ipBlock: { cidr: 2606:4700:4700::1112/128 } }
-        - { ipBlock: { cidr: 2606:4700:4700::1002/128 } }
-        - { ipBlock: { cidr: 2620:fe::fe/128 } }
-        - { ipBlock: { cidr: 2620:fe::9/128 } }
       ports:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }

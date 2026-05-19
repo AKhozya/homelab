@@ -28,6 +28,7 @@ disable:
 {% endif %}
 
 node-name: {{ inventory_hostname }}
+node-ip: {{ node_ip }}
 {% if k3s_node_taints is defined and k3s_node_taints | length > 0 %}
 
 # No workloads on control plane
