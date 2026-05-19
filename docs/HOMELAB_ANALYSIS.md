@@ -1,7 +1,7 @@
 # HOMELAB COMPREHENSIVE ANALYSIS
 
 **Cluster**: K3s (staging) — 3 nodes (1 CP, 2 workers)
-**Node IPs** (static DHCP): gmk-k3s-control-plane=192.168.1.127, worker-node=192.168.1.129, worker-node-2=192.168.1.126
+**Node IPs** (static DHCP, k3s pinned to IPv4): gmk-k3s-control-plane=192.168.1.127, worker-node=192.168.1.129, worker-node-2=192.168.1.126
 **Infra**: GitOps (Flux), CloudNativePG, Percona MySQL, monitoring stack, SSO (Authentik), Cloudflare Tunnel
 **Code Review**: 2026-04-02 — full scan (94/100, A)
 
@@ -179,6 +179,7 @@ Output: keep / merge / cut / fix-next per surface. Run quarterly OR post-inciden
 *Monthly reviews, full changelog, done items: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) + `git log --all -- docs/HOMELAB_ANALYSIS.md`*
 
 **Recent highlights** (2026):
+- 2026-05-19: IPv6 flap fix — pinned `node-ip` to IPv4 on all 3 nodes (ansible `k3s_config` role, `host_vars`). Root cause: two IPv6 addresses (ISP GUA `2a01:4b00:…` with ~1hr preferred lifetime vs eero ULA `fd00::…` permanent) fought for primary position → kubelet updated Node object ~8K times/week. Fix: `node-ip: <ipv4>` in `/etc/rancher/k3s/config.yaml` → k3s ignores IPv6 entirely. OS-level IPv6 intentionally kept (ISP provides it, no functional dependency in cluster but no reason to disable). Residual info-level "NodeIPs changed" log noise (~1/min) is harmless — kubelet sees NIC IPv6 but pin excludes it, zero API churn.
 - 2026-05-16: UFW heal v5 + phase2 resilience overhaul — 3-layer fix for stale phase2-pending flag blocking drift-heal. L1: Flux reconcile retries+180s timeout+source-controller pre-gate in phase2.yml. L2: Restart=on-failure on phase2.service (3x at 15min). L3: ExecCondition stale-flag auto-clear (>2h + Flux healthy) on config.service. Added check-phase2-flag-age.sh. Root cause: source-controller SSH hang post-reboot (#1154) + 60s CLI timeout.
 - 2026-04 → 2026-05: archived to [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md#2026-04--2026-05-detailed-changelog--archived-from-homelab_analysismd-2026-05-15-) (24 detailed entries: ansible migration, UFW heal v2-v4, drift-heal firewall race fix, kubelet lease bump, cardinality trim, UK rework, W1 incident, Blocky soak, monthly review, code review, Authentik passkey, SearXNG retire, claude-telegram bot, VM migration).
 - 2026-03-16: SearXNG deploy, Authentik-CF Access IdP integration.
