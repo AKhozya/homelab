@@ -11,8 +11,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/google/go-github/v86/github"
-	"golang.org/x/oauth2"
+	"github.com/google/go-github/v87/github"
 )
 
 const (
@@ -116,13 +115,20 @@ func initGitHub() {
 		token = os.Getenv("GITHUB_TOKEN")
 	}
 
+	var (
+		c   *github.Client
+		err error
+	)
 	if token != "" {
-		ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: token})
-		tc := oauth2.NewClient(ctx, ts)
-		client = github.NewClient(tc)
+		c, err = github.NewClient(github.WithAuthToken(token))
 	} else {
-		client = github.NewClient(nil)
+		c, err = github.NewClient()
 	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create GitHub client: %v\n", err)
+		os.Exit(1)
+	}
+	client = c
 }
 
 func analyze(prNumber int) error {

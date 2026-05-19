@@ -36,7 +36,8 @@
   "dependencyDashboard": true,
   "dependencyDashboardApproval": false,
   "postUpdateOptions": [
-    "gomodTidy"
+    "gomodTidy",
+    "gomodUpdateImportPaths"
   ],
   "kubernetes": {
     "managerFilePatterns": [
