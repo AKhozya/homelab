@@ -114,6 +114,16 @@ kubectl apply -f "${BACKUP_DIR}/secrets/redis-passwords.json"
 [ -f "${BACKUP_DIR}/secrets/redis-acl-secret.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/redis-acl-secret.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/postgres-admin-user.json"
 
+# CNPG cluster-managed credentials — apply BEFORE the Cluster CR so the
+# operator picks up originals instead of generating fresh ones (passwords in
+# pg_authid match the WAL/base backup).
+[ -f "${BACKUP_DIR}/secrets/main-postgres-app.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/main-postgres-app.json"
+[ -f "${BACKUP_DIR}/secrets/main-postgres-superuser.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/main-postgres-superuser.json"
+[ -f "${BACKUP_DIR}/secrets/main-postgres-replication.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/main-postgres-replication.json"
+[ -f "${BACKUP_DIR}/secrets/main-postgres-pooler.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/main-postgres-pooler.json"
+[ -f "${BACKUP_DIR}/secrets/main-postgres-ca.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/main-postgres-ca.json"
+[ -f "${BACKUP_DIR}/secrets/main-postgres-server.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/main-postgres-server.json"
+
 # PostgreSQL database users
 kubectl apply -f "${BACKUP_DIR}/secrets/authentik-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/immich-db-user.json"
@@ -125,6 +135,10 @@ kubectl apply -f "${BACKUP_DIR}/secrets/paperless-db-user.json"
 
 # MySQL secrets (Percona cluster - contains root, replication, xtrabackup, etc.)
 kubectl apply -f "${BACKUP_DIR}/secrets/mysql-cluster-secrets.json"
+
+# Percona operator-managed internal credentials — apply BEFORE the
+# PerconaServerMySQL CR so the operator reuses originals (matches xtrabackup/replication state).
+[ -f "${BACKUP_DIR}/secrets/internal-main-mysql.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/internal-main-mysql.json"
 echo "   ✅ Database secrets restored (PostgreSQL + MySQL)"
 
 # =============================================================================

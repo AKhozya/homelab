@@ -49,6 +49,16 @@ kubectl get secret redis-passwords -n databases -o json > "${BACKUP_DIR}/secrets
 kubectl get secret redis-acl-secret -n databases -o json > "${BACKUP_DIR}/secrets/redis-acl-secret.json" 2>/dev/null || echo "   ⚠️  No databases/redis-acl-secret (Phase 1 redis HA)"
 kubectl get secret postgres-admin-user -n databases -o json > "${BACKUP_DIR}/secrets/postgres-admin-user.json"
 
+# CNPG cluster-managed credentials (app/superuser/replication/pooler/CA/server).
+# CNPG regenerates these on cluster bootstrap; restoring the originals before
+# bootstrap ensures pg_authid passwords baked into the WAL/base backup still match.
+kubectl get secret main-postgres-app -n databases -o json > "${BACKUP_DIR}/secrets/main-postgres-app.json" 2>/dev/null || echo "   ⚠️  No databases/main-postgres-app"
+kubectl get secret main-postgres-superuser -n databases -o json > "${BACKUP_DIR}/secrets/main-postgres-superuser.json" 2>/dev/null || echo "   ⚠️  No databases/main-postgres-superuser"
+kubectl get secret main-postgres-replication -n databases -o json > "${BACKUP_DIR}/secrets/main-postgres-replication.json" 2>/dev/null || echo "   ⚠️  No databases/main-postgres-replication"
+kubectl get secret main-postgres-pooler -n databases -o json > "${BACKUP_DIR}/secrets/main-postgres-pooler.json" 2>/dev/null || echo "   ⚠️  No databases/main-postgres-pooler"
+kubectl get secret main-postgres-ca -n databases -o json > "${BACKUP_DIR}/secrets/main-postgres-ca.json" 2>/dev/null || echo "   ⚠️  No databases/main-postgres-ca"
+kubectl get secret main-postgres-server -n databases -o json > "${BACKUP_DIR}/secrets/main-postgres-server.json" 2>/dev/null || echo "   ⚠️  No databases/main-postgres-server"
+
 # PostgreSQL database users (CloudNativePG auto-generates these, but backup for safety)
 kubectl get secret authentik-db-user -n databases -o json > "${BACKUP_DIR}/secrets/authentik-db-user.json"
 kubectl get secret immich-db-user -n databases -o json > "${BACKUP_DIR}/secrets/immich-db-user.json"
@@ -61,9 +71,14 @@ kubectl get secret blocky-db-user -n databases -o json > "${BACKUP_DIR}/secrets/
 # MySQL secrets (Percona cluster - contains root, replication, xtrabackup, etc.)
 kubectl get secret mysql-cluster-secrets -n databases -o json > "${BACKUP_DIR}/secrets/mysql-cluster-secrets.json"
 
-# MySQL app credentials (in app namespaces)
-kubectl get secret uptime-kuma-mysql-credentials -n uptime-kuma -o json > "${BACKUP_DIR}/secrets/uptime-kuma-mysql-credentials.json"
-kubectl get secret pricebuddy-mysql-credentials -n pricebuddy -o json > "${BACKUP_DIR}/secrets/pricebuddy-mysql-credentials.json"
+# Percona operator-managed internal credentials (operator/monitor/orchestrator/etc.).
+# Like CNPG: operator regenerates on cluster recreate, but PXC/orchestrator data
+# baked into backup uses the originals — restore these before cluster recreate.
+kubectl get secret internal-main-mysql -n databases -o json > "${BACKUP_DIR}/secrets/internal-main-mysql.json" 2>/dev/null || echo "   ⚠️  No databases/internal-main-mysql"
+
+# MySQL app credentials live in their app namespaces — grouped with each app below
+# (uptime-kuma-mysql-credentials, pricebuddy-mysql-credentials) so backup + restore
+# share the same per-app layout.
 
 # =============================================================================
 # Application Secrets (user credentials, API keys, environment variables)
@@ -102,6 +117,7 @@ kubectl get secret audiobookshelf-admin -n audiobookshelf -o json > "${BACKUP_DI
 
 # Uptime Kuma
 kubectl get secret uptime-kuma-admin -n uptime-kuma -o json > "${BACKUP_DIR}/secrets/uptime-kuma-admin.json"
+kubectl get secret uptime-kuma-mysql-credentials -n uptime-kuma -o json > "${BACKUP_DIR}/secrets/uptime-kuma-mysql-credentials.json"
 
 # Stirling PDF
 kubectl get secret stirling-pdf-env -n stirling-pdf -o json > "${BACKUP_DIR}/secrets/stirling-pdf-env.json"
@@ -120,6 +136,7 @@ kubectl get secret claude-telegram-chezmoi -n claude-telegram -o json > "${BACKU
 
 # PriceBuddy
 kubectl get secret pricebuddy-secrets -n pricebuddy -o json > "${BACKUP_DIR}/secrets/pricebuddy-secrets.json"
+kubectl get secret pricebuddy-mysql-credentials -n pricebuddy -o json > "${BACKUP_DIR}/secrets/pricebuddy-mysql-credentials.json"
 kubectl get secret pricebuddy-telegram -n pricebuddy -o json > "${BACKUP_DIR}/secrets/pricebuddy-telegram.json"
 
 # Obsidian CouchDB
@@ -263,7 +280,9 @@ echo "   📊 Grafana & Telegram (monitoring)"
 echo "   🗄️  Databases:"
 echo "      - Redis passwords (admin/immich/paperless/blocky) + ACL secret (HA)"
 echo "      - PostgreSQL admin & app users (7 apps incl. blocky)"
+echo "      - PostgreSQL CNPG cluster-managed (main-postgres-app/-superuser/-replication/-pooler/-ca/-server)"
 echo "      - MySQL root & app credentials (3 apps)"
+echo "      - MySQL Percona internal (internal-main-mysql)"
 echo "   📱 All application secrets:"
 echo "      - Authentik, Immich (incl. Sentinel REDIS_URL), Home Assistant"
 echo "      - N8N, Mealie, Paperless-NGX"
