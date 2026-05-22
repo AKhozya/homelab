@@ -4,8 +4,10 @@ metadata:
   name: immich-backup
   namespace: kube-system
 spec:
-  schedule: "0 2 * * 0"  # Sunday 02:00 UTC — 90min headroom before backup-replication (03:30).
-                         # 63G uncompressed tar = 5-23min worst case + 2min SHA; 03:15 risked race.
+  schedule: "0 3 * * 0"  # Sunday 03:00 UTC — 30min before backup-replication (03:30).
+                         # Live test 2026-05-22 measured 63G tar+SHA at ~5min on worker-node SSD;
+                         # 30min headroom is ample, and runs parallel with 03:00 postgres-backup
+                         # (postgres is fast — ~55s — so disk contention is negligible).
   timeZone: "UTC"
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -76,25 +78,29 @@ spec:
                   echo "Size: $(du -sh "$SOURCE_DIR" | cut -f1)"
 
                   # Skip compression — immich-library is JPG/MP4/etc, already compressed.
-                  # Tar still gives single-file archive + SHA256 integrity check.
+                  # Single-pass tar + SHA256 via tee — hash computed during write, not after.
+                  # Live test 2026-05-22: 2-pass (tar then sha256sum) = 17min for 62.5G; tee fan-out
+                  # is ~tar duration (~3min) since SHA256 keeps pace with disk write.
                   BACKUP_FILE="$BACKUP_ROOT/immich-library.tar"
+                  CHECKSUM_FILE="${BACKUP_FILE}.sha256"
                   START_TIME=$(date +%s)
 
-                  echo "Creating uncompressed tar..."
-                  if tar -cf "$BACKUP_FILE" -C "$SOURCE_DIR" .; then
+                  echo "Creating tar + SHA256 in single pass..."
+                  set -o pipefail
+                  if tar -cf - -C "$SOURCE_DIR" . \
+                      | tee "$BACKUP_FILE" \
+                      | sha256sum \
+                      | awk -v f="$(basename "$BACKUP_FILE")" '{print $1"  "f}' > "$CHECKSUM_FILE"; then
                     END_TIME=$(date +%s)
                     DURATION=$((END_TIME - START_TIME))
                     BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
-
-                    echo "Generating SHA256 checksum..."
-                    (cd "$BACKUP_ROOT" && sha256sum "$(basename "$BACKUP_FILE")" > "$(basename "$BACKUP_FILE").sha256")
 
                     echo ""
                     echo "✅ Backup complete"
                     echo "   Size:     $BACKUP_SIZE"
                     echo "   Duration: ${DURATION}s ($((DURATION/60))min)"
                   else
-                    echo "❌ tar failed" >&2
+                    echo "❌ tar|tee|sha256 pipeline failed (exit=$?)" >&2
                     exit 1
                   fi
 

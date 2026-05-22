@@ -61,12 +61,34 @@
 - **PostgreSQL DBs** (authentik, immich, paperless, grafana, linkwarden, mealie, audiobookshelf, n8n, app)
 - **MySQL DBs** (homeassistant, uptimekuma, pricebuddy)
 - **CouchDB DBs** (obsidian-personal)
-- **Critical PVCs:**
-  - `home-assistant-data-pvc` — HA config
-  - `paperless-data-pvc` — doc files
-  - `couchdb-storage` — Obsidian sync data
-  - `audiobookshelf-audiobooks` + `audiobookshelf-podcasts`
-  - Note: Immich photos excluded (re-uploadable from source devices, DB in PostgreSQL)
+- **Critical PVCs** (per `pvc-backup-cronjob.yaml`):
+  - `home-assistant/home-assistant-data-pvc` — HA config
+  - `paperless-ngx/paperless-data-pvc` — doc files
+  - `audiobookshelf/audiobookshelf-audiobooks` + `-podcasts` + `-config` + `-metadata`
+  - `homehub/homehub-data-pvc`
+  - `stirling-pdf/stirling-pdf-configs-pvc`
+  - `linkwarden/linkwarden-data` + `meilisearch-data`
+  - `pricebuddy/pricebuddy-storage`
+  - `mealie/mealie-data-pvc`
+  - `n8n/n8n-data-pvc`
+
+**Auto Weekly Backups** (separate CronJob `immich-backup`, Sunday 02:00 UTC):
+- **`immich/immich-library`** — 63G photo data. Uncompressed tar (jpeg already compressed). Retention keep-2 (≈ 2 weeks).
+
+**What's NOT backed up (by design)** — 2026-05-22 audit:
+| Resource | Reason |
+|---|---|
+| `redis-replication` PVCs (DB0 + DB1) | Cache + queue/broker only. DB0 = BullMQ + Celery + Django sessions (recoverable on restart). DB1 = all-TTL'd cache. No durable user data. Redis HA (2 replicas + 3 sentinels + RDB+AOF) handles single-pod loss. |
+| `immich/immich-machine-learning` | Regenerable ML model cache. |
+| `claude-telegram/claude-telegram-home-pvc` | Session-only state. Bot self-rebuilds on restart; secrets in SOPS. |
+| `loki/storage-loki-0`, `monitoring/vmsingle-vmsingle` | Log/metric buffers, ephemeral. |
+| `stirling-pdf/stirling-pdf-pipeline-pvc`, `-tessdata-pvc` | Runtime + downloadable model data. |
+| `uptime-kuma` | Removed 2026-05-22; UK switched to emptyDir, state lives in MySQL. |
+
+**Retention policy** (set 2026-05-22):
+- W1 source: 30 days local (`find -mtime +30 -delete` in pvc-backup post-run).
+- W2 safety mirror: today's only (`rsync --delete`).
+- NAS: 30d for daily backups (postgres/mysql/couchdb/pvc) + keep-2 for immich (`backup-replication` Step 5b prune via `rsync --delete` against empty source per old dir; soft-fail if daemon refuses delete → manual NAS UI prune).
 
 **Backup Replication (3 copies):**
 - **NAS** (Zettlab 6 Ultra, 192.168.1.136): full history, rsync daemon port 50555
