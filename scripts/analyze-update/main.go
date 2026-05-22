@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/Masterminds/semver/v3"
-	"github.com/google/go-github/v87/github"
+	"github.com/google/go-github/v88/github"
 )
 
 const (
@@ -44,24 +44,24 @@ type DocumentationLinks struct {
 }
 
 type DocumentationContent struct {
-	ReleaseNotes   string
-	Changelog      string
-	UpgradeNotes   string
+	ReleaseNotes    string
+	Changelog       string
+	UpgradeNotes    string
 	BreakingChanges string
 }
 
 type BreakingChangeAnalysis struct {
-	HasBreaking      bool
-	HasMigration     bool
-	HasRemoval       bool
-	HasSecurity      bool
-	HasDeprecated    bool
-	HasConfigChange  bool
-	BreakingMatches  []string
-	SecurityMatches  []string
-	RemovalMatches   []string
+	HasBreaking        bool
+	HasMigration       bool
+	HasRemoval         bool
+	HasSecurity        bool
+	HasDeprecated      bool
+	HasConfigChange    bool
+	BreakingMatches    []string
+	SecurityMatches    []string
+	RemovalMatches     []string
 	DeprecationMatches []string
-	MigrationMatches []string
+	MigrationMatches   []string
 }
 
 type UpdateCategory string
@@ -615,7 +615,6 @@ func extractVersionSection(content, version string) string {
 	var result []string
 	capturing := false
 
-
 	for _, line := range lines {
 		if versionHeaderRe.MatchString(line) {
 			if capturing {
@@ -736,17 +735,17 @@ var (
 	}
 
 	// Pre-compiled regexes for parsing (avoid runtime compilation)
-	markdownLinkRe    = regexp.MustCompile(`\[([^\]]+)\]\([^)]+\)`)
-	titleCleanupRe    = regexp.MustCompile(` Docker tag.*| to.*| Helm release.*| for `)
-	versionExtractRe  = regexp.MustCompile(`to v?([0-9.]+)`)
-	releaseLinkRe     = regexp.MustCompile(`https://[^)\s]+/releases/tag/[^)\s]+`)
-	changelogLinkRe   = regexp.MustCompile(`(?i)https://[^)\s]+/CHANGELOG[^)\s]*`)
-	compareLinkRe     = regexp.MustCompile(`https://[^)\s]+/compare/[^)\s]+`)
-	sourceLinkRe      = regexp.MustCompile(`\[source\]\((https://[^)]+)\)`)
-	repoPathRe        = regexp.MustCompile(`github\.com/([^/]+/[^/]+)`)
-	tagExtractRe      = regexp.MustCompile(`/releases/tag/(.+)$`)
-	versionHeaderRe   = regexp.MustCompile(`^##+ *\[?v?(\d+\.\d+)`)
-	htmlTagRe         = regexp.MustCompile(`<[^>]*>`)
+	markdownLinkRe   = regexp.MustCompile(`\[([^\]]+)\]\([^)]+\)`)
+	titleCleanupRe   = regexp.MustCompile(` Docker tag.*| to.*| Helm release.*| for `)
+	versionExtractRe = regexp.MustCompile(`to v?([0-9.]+)`)
+	releaseLinkRe    = regexp.MustCompile(`https://[^)\s]+/releases/tag/[^)\s]+`)
+	changelogLinkRe  = regexp.MustCompile(`(?i)https://[^)\s]+/CHANGELOG[^)\s]*`)
+	compareLinkRe    = regexp.MustCompile(`https://[^)\s]+/compare/[^)\s]+`)
+	sourceLinkRe     = regexp.MustCompile(`\[source\]\((https://[^)]+)\)`)
+	repoPathRe       = regexp.MustCompile(`github\.com/([^/]+/[^/]+)`)
+	tagExtractRe     = regexp.MustCompile(`/releases/tag/(.+)$`)
+	versionHeaderRe  = regexp.MustCompile(`^##+ *\[?v?(\d+\.\d+)`)
+	htmlTagRe        = regexp.MustCompile(`<[^>]*>`)
 )
 
 func cleanContent(content string) string {
