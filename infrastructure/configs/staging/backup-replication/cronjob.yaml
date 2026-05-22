@@ -237,6 +237,49 @@ spec:
                   rm -rf /source-backups/postgres/* /source-backups/couchdb/* /source-backups/mysql/* /source-backups/pvc/*
                   echo "Source cleaned (data on NAS + worker-node-2)"
 
+                  # Step 5b: Enforce NAS retention (30d for daily backups, keep-2 for immich weekly).
+                  # Set 2026-05-22. rsync daemon supports push, so it should accept push of empty
+                  # tree with --delete to clear out old dirs. Soft-fail (|| true) if the module
+                  # config refuses delete — replication itself must not break on prune failure.
+                  CURRENT_STEP="Step 5b: Pruning NAS retention"
+                  echo ""
+                  echo "=== Step 5b: Pruning NAS retention (30d daily / keep-2 immich) ==="
+                  mkdir -p /tmp/empty
+
+                  prune_nas_dir() {
+                    # $1 = relative path under homelab/, e.g. "pvc/20260206_215032"
+                    local dir="$1"
+                    echo "  pruning: $dir"
+                    RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --delete \
+                      /tmp/empty/ \
+                      "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/${dir}/" \
+                      2>&1 | tail -3 || echo "  (delete refused — manual prune via NAS UI)"
+                  }
+
+                  NAS_LIST=$(RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
+                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/" 2>/dev/null)
+
+                  # 30d retention for postgres/mysql/couchdb/pvc — date parsed from YYYYMMDD prefix
+                  NOW_EPOCH=$(date +%s)
+                  THRESH=$((30*86400))
+                  echo "$NAS_LIST" | awk -v now=$NOW_EPOCH -v thr=$THRESH '
+                    $1 ~ /^d/ && $5 ~ /^(postgres|mysql|couchdb|pvc)\/[0-9]{8}(_[0-9]+)?$/ {
+                      split($5, p, "/"); d = p[2]
+                      y = substr(d,1,4); m = substr(d,5,2); dd = substr(d,7,2)
+                      ts = mktime(y" "m" "dd" 00 00 00")
+                      if (ts > 0 && (now - ts) > thr) print $5
+                    }' | while IFS= read -r dir; do
+                    [ -n "$dir" ] && prune_nas_dir "$dir"
+                  done
+
+                  # Immich: keep only 2 newest
+                  echo "$NAS_LIST" | awk '
+                    $1 ~ /^d/ && $5 ~ /^immich\/[0-9]{8}(_[0-9]+)?$/ {print $5}
+                  ' | sort -r | tail -n +3 | while IFS= read -r dir; do
+                    [ -n "$dir" ] && prune_nas_dir "$dir"
+                  done
+                  echo "Retention sweep complete"
+
                   # Step 6: Check NAS storage usage (500GB hard limit)
                   echo ""
                   echo "=== Step 6: Checking NAS storage ==="

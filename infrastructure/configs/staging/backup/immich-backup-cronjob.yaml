@@ -1,0 +1,147 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: immich-backup
+  namespace: kube-system
+spec:
+  schedule: "0 2 * * 0"  # Sunday 02:00 UTC — 90min headroom before backup-replication (03:30).
+                         # 63G uncompressed tar = 5-23min worst case + 2min SHA; 03:15 risked race.
+  timeZone: "UTC"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 86400
+      template:
+        metadata:
+          labels:
+            app: immich-backup
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            fsGroup: 0
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            - name: setup-permissions
+              image: alpine:3.23.4
+              command:
+                - sh
+                - -c
+                - |
+                  mkdir -p /backup
+                  chmod 755 /backup
+                  echo "Backup directory ready"
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                  add: ["CHOWN", "DAC_OVERRIDE"]
+              resources:
+                requests:
+                  cpu: "50m"
+                  memory: "64Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "128Mi"
+          containers:
+            - name: backup
+              image: alpine:3.23.4
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+
+                  echo "=== Immich Library Backup (weekly) ==="
+                  echo "Timestamp: $(date)"
+
+                  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  BACKUP_ROOT="/backup/$TIMESTAMP"
+                  mkdir -p "$BACKUP_ROOT"
+
+                  # Locate immich-library PVC dir on worker-node local-path
+                  SOURCE_DIR=$(find /mnt/k8s-storage -maxdepth 1 -type d -name "*immich-library*" | head -1)
+                  if [ -z "$SOURCE_DIR" ]; then
+                    echo "❌ ERROR: immich-library PVC dir not found on this node" >&2
+                    exit 1
+                  fi
+                  echo "Source: $SOURCE_DIR"
+                  echo "Size: $(du -sh "$SOURCE_DIR" | cut -f1)"
+
+                  # Skip compression — immich-library is JPG/MP4/etc, already compressed.
+                  # Tar still gives single-file archive + SHA256 integrity check.
+                  BACKUP_FILE="$BACKUP_ROOT/immich-library.tar"
+                  START_TIME=$(date +%s)
+
+                  echo "Creating uncompressed tar..."
+                  if tar -cf "$BACKUP_FILE" -C "$SOURCE_DIR" .; then
+                    END_TIME=$(date +%s)
+                    DURATION=$((END_TIME - START_TIME))
+                    BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+
+                    echo "Generating SHA256 checksum..."
+                    (cd "$BACKUP_ROOT" && sha256sum "$(basename "$BACKUP_FILE")" > "$(basename "$BACKUP_FILE").sha256")
+
+                    echo ""
+                    echo "✅ Backup complete"
+                    echo "   Size:     $BACKUP_SIZE"
+                    echo "   Duration: ${DURATION}s ($((DURATION/60))min)"
+                  else
+                    echo "❌ tar failed" >&2
+                    exit 1
+                  fi
+
+                  echo ""
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                  echo "🧹 Cleanup: Keep only last 2 backups"
+                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                  # Per 2026-05-22 policy: immich keep-2 (vs 30d for everything else).
+                  # Sort by name (ISO timestamps sort chronologically), drop newest 2, delete rest.
+                  ls -1d /backup/20* 2>/dev/null | sort | head -n -2 | while read -r old; do
+                    echo "Deleting: $old"
+                    rm -rf "$old"
+                  done
+
+                  echo ""
+                  echo "📁 Current immich backups:"
+                  ls -lh /backup/ | grep "^d" || echo "No backups found"
+                  du -sh /backup/* 2>/dev/null || true
+
+                  echo ""
+                  echo "=== Done ==="
+              volumeMounts:
+                - name: k8s-storage
+                  mountPath: /mnt/k8s-storage
+                  readOnly: true
+                - name: backup-storage
+                  mountPath: /backup
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                  add: ["DAC_READ_SEARCH", "DAC_OVERRIDE"]
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "256Mi"
+                limits:
+                  cpu: "2000m"
+                  memory: "512Mi"
+          volumes:
+            - name: k8s-storage
+              hostPath:
+                path: /mnt/k8s-storage
+                type: Directory
+            - name: backup-storage
+              hostPath:
+                path: /mnt/k8s-storage/backups/immich
+                type: DirectoryOrCreate
+          nodeSelector:
+            kubernetes.io/hostname: worker-node

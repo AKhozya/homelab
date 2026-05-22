@@ -73,21 +73,29 @@ spec:
 
                   # Define critical PVCs to backup (one per line)
                   # Format: namespace/pvc-name/source-pattern
-                  # Note: CouchDB is backed up via database backup (not PVC)
-                  # Note: Immich library excluded - 62GB/day of photos/videos
-                  # Photos can be re-uploaded from source; database (faces, albums, metadata)
-                  # is backed up via PostgreSQL daily backup
+                  # Excluded by design (do not add back without explicit reason):
+                  #   - CouchDB / PostgreSQL / MySQL data dirs — DB-native dumps (separate CronJobs)
+                  #   - immich/immich-library — weekly via immich-backup CronJob (63G, too big for daily)
+                  #   - immich/immich-machine-learning — regenerable ML cache
+                  #   - uptime-kuma — removed 2026-05-22 (UK switched to emptyDir, state lives in MySQL)
+                  #   - claude-telegram/claude-telegram-home-pvc — expendable (session-only state,
+                  #     bot self-rebuilds on restart, secrets live in SOPS)
+                  #   - loki/storage-loki-0, monitoring/vmsingle-vmsingle — log/metric buffers, ephemeral
+                  #   - stirling-pdf/stirling-pdf-{pipeline,tessdata}-pvc — regenerable runtime + downloadable model data
                   CRITICAL_PVCS="
                   home-assistant/home-assistant-data-pvc/*home-assistant-data-pvc*
                   paperless-ngx/paperless-data-pvc/*paperless-data-pvc*
                   audiobookshelf/audiobookshelf-audiobooks/*audiobookshelf-audiobooks*
                   audiobookshelf/audiobookshelf-podcasts/*audiobookshelf-podcasts*
+                  audiobookshelf/audiobookshelf-config/*audiobookshelf-config*
+                  audiobookshelf/audiobookshelf-metadata/*audiobookshelf-metadata*
                   homehub/homehub-data-pvc/*homehub-data-pvc*
                   stirling-pdf/stirling-pdf-configs-pvc/*stirling-pdf-configs-pvc*
-                  uptime-kuma/uptime-kuma-data-pvc/*uptime-kuma-data-pvc*
                   linkwarden/linkwarden-data/*linkwarden-data*
                   linkwarden/meilisearch-data/*meilisearch-data*
                   pricebuddy/pricebuddy-storage/*pricebuddy-storage*
+                  mealie/mealie-data-pvc/*mealie-data-pvc*
+                  n8n/n8n-data-pvc/*n8n-data-pvc*
                   "
 
                   # PVCs containing already-compressed media files (audio)
@@ -244,11 +252,11 @@ spec:
                   EOF
 
                   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                  echo "🧹 Cleanup: Removing backups older than 7 days"
+                  echo "🧹 Cleanup: Removing backups older than 30 days"
                   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-                  # Keep only last 7 days
-                  find /backup -maxdepth 1 -type d -name "20*" -mtime +7 -exec echo "Deleting: {}" \; -exec rm -rf {} \;
+                  # Keep only last 30 days (matches NAS retention policy 2026-05-22)
+                  find /backup -maxdepth 1 -type d -name "20*" -mtime +30 -exec echo "Deleting: {}" \; -exec rm -rf {} \;
 
                   echo ""
                   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
