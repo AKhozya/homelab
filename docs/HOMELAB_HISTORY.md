@@ -414,7 +414,16 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ---
 
-## 📝 Historical Changelog (October-December 2025)
+## 📝 Historical Changelog (October 2025 - Present)
+
+### 2026-05-22 (Drift-heal mid-flight ansible-core upgrade race) 🐛
+- ⚠️ **Incident**: drift-heal failed on all 3 nodes with `ConfigManager.get_config_value() got an unexpected keyword argument 'templar'` on `base_config : Deploy /etc/logrotate.d/pacman` (copy task). Secondary warning: `cannot import name 'VaultDecryptionContext' from 'ansible._internal._yaml._dumper'` killed `ansible.builtin.core` filter plugin.
+- 🔍 **Root cause**: manual `pacman -Syu` at 13:24:02 BST (upgrading ansible-core 2.20.5 → 2.21.0) raced the 10-min drift-heal timer fired at 13:24:16. ansible-playbook imported ConfigManager from 2.20.5 in memory; mid-run the on-disk core flipped to 2.21.0. Next action plugin reload picked up new `copy.py` (passes `templar=` kwarg) while ConfigManager singleton stayed on old import → TypeError. NOT a version bug — `get_config_value()` in on-disk 2.21.0 *does* accept `templar` (verified via `inspect.signature`). Pure timing race.
+- ✅ **Fix** (commit `3b5696d7`): two systemd guards prevent recurrence:
+  - `node-maintenance-config.service` gets second `ExecCondition=/bin/sh -c '[ ! -e /var/lib/pacman/db.lck ]'` — drift-heal skips its 10-min cycle when pacman holds the DB lock. Skip is safe; next timer cycle catches up.
+  - `node-maintenance-phase1.service` gets `ExecStartPre=/usr/bin/pacman -Sy --noconfirm --needed ansible ansible-core` — pre-upgrades ansible runtime BEFORE ansible-playbook starts. Subsequent `yay -Syu` inside phase1 then finds ansible-core current → no mid-play bump.
+- 📝 **Verification**: post-deploy drift-heal cycles green on all 3 nodes (CP `ok=100`, W1+W2 `ok=121` each, `changed=0 failed=0 unreachable=0`). systemd status confirms new ExecCondition fires + passes.
+- 📚 **Gotcha logged**: memory `gotchas.md` — "Ansible mid-play runtime upgrade race". Don't pin/downgrade — Arch rolling; fix timing instead. Pattern applies to any long-running ansible-playbook that triggers `pacman -Syu` against its own runtime.
 
 ### 2026-05-22 (Rebuilderd W2 memory limit reduction) 🔧
 - ⚠️ **Incident**: cosmic-launcher rebuilderd build on worker-node-2 peaked at 7.4G RAM, combined with concurrent ansible node-maintenance + kernel builds caused node memory pressure. 6 pods CrashLooped across both workers (cert-manager-cainjector ×2, kyverno-cleanup-controller, main-mysql-haproxy, ps-operator, +1). Control plane showed API proxy broken pipes. All self-resolved in ~10min.

@@ -70,7 +70,7 @@
 
 **Backup Replication (3 copies):**
 - **NAS** (Zettlab 6 Ultra, 192.168.1.136): full history, rsync daemon port 50555
-- **worker-node-2** (192.168.1.126): today's backup only (temp safety net until ~Feb 13, 2026)
+- **worker-node-2** (192.168.1.126): today's backup only (temp safety net until ~2026-07-22, postponed 2026-05-22 +2mo)
 - Source on worker-node cleaned after replication success
 
 **Manual Secret Backups (Scripts `.backup/`):**
@@ -240,7 +240,7 @@ kubectl exec -n databases main-mysql-mysql-0 -- \
 - **IP:** 192.168.1.126, SSH port 65300
 - **Path:** `/mnt/extra-storage/backups/`
 - **Auth:** SSH key (SOPS secret `backup-replication-ssh-key`)
-- **Temporary:** Safety net until ~Feb 13, 2026
+- **Temporary:** Safety net until ~2026-07-22 (postponed 2026-05-22 +2mo)
 
 **Recovery from NAS:**
 ```bash

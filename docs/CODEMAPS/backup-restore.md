@@ -46,7 +46,7 @@ W2 /mnt/extra-storage/backups (z3us@192.168.1.126)
 NAS Zettlab 6 Ultra (192.168.1.136, /akhozya-pool1/backups/homelab/)
   500GB hard limit (warn 400GB / crit 450GB)
 ```
-After NAS push: validate (4 types: postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then **clean source on W1**. Worker-2 still in chain — temp safety net, **remove ~2026-05-20 (still pending)**.
+After NAS push: validate (4 types: postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then **clean source on W1**. Worker-2 still in chain — temp safety net, **remove ~2026-07-22 (postponed 2026-05-22 +2mo)**.
 
 Failure handling: trap on EXIT sends Telegram failure with `CURRENT_STEP` label; success path is silent (no Telegram on OK).
 
