@@ -78,29 +78,32 @@ spec:
                   echo "Size: $(du -sh "$SOURCE_DIR" | cut -f1)"
 
                   # Skip compression — immich-library is JPG/MP4/etc, already compressed.
-                  # Single-pass tar + SHA256 via tee — hash computed during write, not after.
-                  # Live test 2026-05-22: 2-pass (tar then sha256sum) = 17min for 62.5G; tee fan-out
-                  # is ~tar duration (~3min) since SHA256 keeps pace with disk write.
+                  # 2-pass: tar then sha256sum. Live-tested 2026-05-22: ~17min for 62.5G on
+                  # worker-node (Celeron N5095). sha256 is single-thread CPU-bound (~75 MB/s);
+                  # tee+sha pipe variant only saved ~3min and added complexity — kept 2-pass.
                   BACKUP_FILE="$BACKUP_ROOT/immich-library.tar"
-                  CHECKSUM_FILE="${BACKUP_FILE}.sha256"
                   START_TIME=$(date +%s)
 
-                  echo "Creating tar + SHA256 in single pass..."
-                  set -o pipefail
-                  if tar -cf - -C "$SOURCE_DIR" . \
-                      | tee "$BACKUP_FILE" \
-                      | sha256sum \
-                      | awk -v f="$(basename "$BACKUP_FILE")" '{print $1"  "f}' > "$CHECKSUM_FILE"; then
-                    END_TIME=$(date +%s)
-                    DURATION=$((END_TIME - START_TIME))
+                  echo "Creating uncompressed tar..."
+                  if tar -cf "$BACKUP_FILE" -C "$SOURCE_DIR" .; then
+                    TAR_DONE=$(date +%s)
+                    TAR_DURATION=$((TAR_DONE - START_TIME))
                     BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+
+                    echo "Generating SHA256 checksum (single-thread CPU on $BACKUP_SIZE tarball)..."
+                    (cd "$BACKUP_ROOT" && sha256sum "$(basename "$BACKUP_FILE")" > "$(basename "$BACKUP_FILE").sha256")
+                    END_TIME=$(date +%s)
+                    SHA_DURATION=$((END_TIME - TAR_DONE))
+                    DURATION=$((END_TIME - START_TIME))
 
                     echo ""
                     echo "✅ Backup complete"
                     echo "   Size:     $BACKUP_SIZE"
-                    echo "   Duration: ${DURATION}s ($((DURATION/60))min)"
+                    echo "   Tar:      ${TAR_DURATION}s"
+                    echo "   SHA256:   ${SHA_DURATION}s"
+                    echo "   Total:    ${DURATION}s ($((DURATION/60))min)"
                   else
-                    echo "❌ tar|tee|sha256 pipeline failed (exit=$?)" >&2
+                    echo "❌ tar failed" >&2
                     exit 1
                   fi
 
