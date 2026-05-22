@@ -8,7 +8,7 @@ VictoriaMetrics primary stack. NO Prometheus pod (only operator chart kept for g
 | `vmsingle-vmsingle` | VMSingle (Deploy 1x) | TSDB, retention 90d, 50Gi PVC |
 | `vmagent-vmagent` | VMAgent (Deploy 1x) | Scraper (reads VMServiceScrape + VMPodScrape) |
 | `vmalert-vmalert` | VMAlert (Deploy 1x) | Rule evaluator (reads VMRule), evaluationInterval 60s |
-| `victoria-metrics-operator` | Deploy 1x | Reconciles VM CRDs (helm chart 0.62.1) |
+| `victoria-metrics-operator` | Deploy 1x | Reconciles VM CRDs (helm chart 0.63.1) |
 | `kube-prometheus-stack-grafana` | Deploy | UI |
 | `alertmanager-kube-prometheus-stack-alertmanager` | STS 2x | Alert routing |
 | `kube-prometheus-stack-operator` | Deploy 1x | prom-operator (manages PrometheusRule/SM CRDs but NOT consumed) |
@@ -21,21 +21,23 @@ VictoriaMetrics primary stack. NO Prometheus pod (only operator chart kept for g
 ## Helm chart versions
 | Chart | Version | Notes |
 |-------|---------|-------|
-| `kube-prometheus-stack` | 84.5.0 | `prometheus.enabled=false` — operator + grafana + alertmanager + KSM + node-exporter only |
-| `victoria-metrics-operator` | 0.62.1 | Reconciles VMSingle/VMAgent/VMAlert/VMRule/VMServiceScrape |
+| `kube-prometheus-stack` | 85.2.2 | `prometheus.enabled=false` — operator + grafana + alertmanager + KSM + node-exporter only |
+| `victoria-metrics-operator` | 0.63.1 | Reconciles VMSingle/VMAgent/VMAlert/VMRule/VMServiceScrape |
 | `loki` | 7.0.0 | Includes loki-canary 3.6.7 subchart |
 | `alloy` | 1.8.1 | Replaces Promtail |
 
 ## Image versions (pinned)
-- `victoriametrics/victoria-metrics:v1.140.0` (vmsingle)
-- `victoriametrics/vmagent:v1.140.0`
-- `victoriametrics/vmalert:v1.140.0`
-- `victoriametrics/operator:v0.69.0`
-- `grafana/grafana:13.0.1`
+- `victoriametrics/victoria-metrics:v1.143.0` (vmsingle)
+- `victoriametrics/vmagent:v1.143.0`
+- `victoriametrics/vmalert:v1.143.0`
+- `victoriametrics/operator:v0.70.1`
+- `grafana/grafana:13.0.1-security-01`
 - `quay.io/prometheus/alertmanager:v0.32.1`
 - `quay.io/prometheus-operator/prometheus-operator:v0.90.1`
-- `registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.18.0`
+- `registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.19.0`
 - `quay.io/prometheus/node-exporter:v1.11.1`
+- `docker.io/grafana/loki:3.6.7` + `grafana/loki-canary:3.6.7`
+- `docker.io/grafana/alloy:v1.16.1`
 
 ## ⚠️ Prometheus converter DISABLED
 Operator env: `VM_ENABLEDPROMETHEUSCONVERTER_*=false`. **PrometheusRule and ServiceMonitor are silently ignored.** Always use native VMRule + VMServiceScrape directly.
@@ -58,8 +60,8 @@ Drops in `vmagent.yaml`:
 - Loop-device fs metrics: `(container_fs_.+|node_filesystem_.+);loop\d+`
 
 ## Service scrapes (VMServiceScrape)
-- **26 native VMServiceScrape** + 2 VMPodScrape resources (cluster-wide, all manifests)
-- 12 scrape files in `monitoring/configs/base/victoria-metrics/scrape-*.yaml`: apiserver, apps, cnpg-operator, coredns, databases, kube-state-metrics, kubelet, kubelet-cadvisor, kubelet-probes, kyverno, monitoring-stack, node-exporter, vmoperator
+- **37 native VMServiceScrape** + 4 VMPodScrape resources (cluster-wide, all manifests)
+- 13 scrape files in `monitoring/configs/base/victoria-metrics/scrape-*.yaml`: apiserver, apps, cnpg-operator, coredns, databases, kube-state-metrics, kubelet, kubelet-cadvisor, kubelet-probes, kyverno, monitoring-stack, node-exporter, vmoperator
 - App-specific scrapes also live alongside apps (e.g. `monitoring/configs/staging/blocky/servicemonitor.yaml`)
 
 ## Dashboards

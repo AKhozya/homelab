@@ -1,9 +1,9 @@
 # Networking Codemap
 
 ## Ingress
-- **Traefik** (traefik ns, chart v40.0.0, 1 svc) handles all `*.h0melab.work`
+- **Traefik** (traefik ns, chart v40.2.0, image v3.7.1, 1 svc) handles all `*.h0melab.work` via K8s `Ingress` (class=traefik); 0 IngressRoute CRDs in use
 - **Cloudflare Tunnel** (cloudflare-tunnel ns) — outbound-only, exposes 9 svcs externally without inbound port
-- **Blocky DNS** (blocky ns, image `spx01/blocky:v0.29.0`) — single LB Service `blocky-dns` exposes 192.168.1.129 (W1) + 192.168.1.126 (W2) (servicelb ETP=Local, anti-affinity'd 2 pods)
+- **Blocky DNS** (blocky ns, image `spx01/blocky:v0.30.0`) — single LB Service `blocky-dns` exposes 192.168.1.129 (W1) + 192.168.1.126 (W2) (servicelb ETP=Local, anti-affinity'd 2 pods)
 - **NodeLocalDNS** N/A — using CoreDNS (`10.43.0.10`) cluster-internal
 
 ## Service Endpoints
@@ -26,7 +26,7 @@ Legacy duplicates also live in `monitoring` ns (`csp`, `rate-limit-standard`, `r
 - **44 NetworkPolicies** total (every ingress + every cross-ns egress)
 - Default-deny implicit per-ns where NP exists with empty ingress
 - Container port (NOT service port) used in NP `ports:`
-- Apps with both internal + Cloudflare Tunnel access need 2 IngressRoute rules (Traefik) but 1 NP (covers both via TCP port)
+- Apps with both internal + Cloudflare Tunnel access need 2 Ingress rules (Traefik) but 1 NP (covers both via TCP port)
 - Per-ns NP counts: databases 7, monitoring 7, flux-system 3, linkwarden 2, loki 2; all other ns with NP have 1
 
 ## Cloudflare Tunnel topology

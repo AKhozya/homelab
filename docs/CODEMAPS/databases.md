@@ -9,7 +9,7 @@ All in `databases` namespace except CouchDB extras in `obsidian` (client side) a
 - **Storage**: 10Gi PVC per instance (`local-path`)
 - **Connection pooler**: PgBouncer Deployment `main-postgres-rw-pooler` (2 replicas, image `ghcr.io/cloudnative-pg/pgbouncer:1.25.1`)
 - **Backup**: WAL streaming + daily logical pg_dump CronJob (auto-discovers DBs via `pg_database`)
-- **Versioning**: pinned `ghcr.io/cloudnative-pg/postgresql:18.3-standard-trixie`
+- **Versioning**: pinned `ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie`
 - **Managed roles** (in `cluster.yaml` `spec.managed.roles`, 8 total):
   - `postgres-admin` (superuser, used by backup + extension jobs)
   - `n8n`, `mealie`, `authentik`, `paperless`, `immich`, `linkwarden`, `blocky` (login + createdb)
@@ -58,6 +58,7 @@ All in `databases` namespace except CouchDB extras in `obsidian` (client side) a
 | `couchdb-backup` | databases | 03:05 daily | YES (`_all_dbs`) |
 | `pvc-backup` | kube-system | 03:10 daily | NO — explicit list in CRITICAL_PVCS |
 | `mysql-backup` | databases | 03:15 daily | YES (`SHOW DATABASES` excluding system) |
+| `immich-backup` | kube-system | Sun 03:00 weekly | NO — single PVC (62GB photos), 2-pass tar+sha256, keep-2 retention |
 | `backup-replication` | databases | 03:30 daily | NO — rsync flat /mnt/k8s-storage/backups/ |
 | `postgres-update-extensions` | databases | 06:00 weekly Sun | runs `ALTER EXTENSION ... UPDATE` |
 | `popeye` | monitoring | 06:00 weekly Sun | cluster scan |

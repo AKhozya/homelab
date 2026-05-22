@@ -5,7 +5,7 @@ Token-lean architecture references for AI agents (and humans). Update when major
 | File | Scope |
 |------|-------|
 | [`architecture.md`](architecture.md) | Cluster topology, GitOps tree, identity, external access |
-| [`apps.md`](apps.md) | 17 application stacks, ns/storage/DB/SSO mapping |
+| [`apps.md`](apps.md) | 16 application stacks, ns/storage/DB/SSO mapping |
 | [`networking.md`](networking.md) | Ingress, Services, NetworkPolicies, Cloudflare Tunnel, DNS chain, TLS |
 | [`databases.md`](databases.md) | PG (CNPG), MySQL (Percona), Redis HA (OT operator), CouchDB; backup CronJobs |
 | [`monitoring.md`](monitoring.md) | VictoriaMetrics stack, VMRule, dashboards, Loki/Alloy; Prometheus DECOMMISSIONED |

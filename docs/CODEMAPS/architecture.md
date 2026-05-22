@@ -25,7 +25,7 @@ flux-system
 ```
 
 ## Encryption
-- **SOPS + age** (55 SOPS-encrypted Secrets in git)
+- **SOPS + age** (53 SOPS-encrypted Secrets in git)
 - Bootstrap key: `sops-age` Secret in `flux-system` ns
 - Cloudflare Tunnel config also SOPS-encrypted
 - **Edit pattern**: `sops <file>` opens decrypted in `$EDITOR`, re-encrypts on save. Or `sops -e -i <file>` to encrypt-in-place after manual write.
@@ -49,10 +49,10 @@ flux-system
 
 ## External access
 - **Cloudflare Tunnel** (9 svcs): authentik, couchdb, audiobooks, linkwarden, stirling-pdf, mealie, paperless, immich, n8n
-- **Internal**: Blocky DNS (W1+W2 LB IPs) + Traefik IngressRoute on port 443 (Traefik in own `traefik` ns)
+- **Internal**: Blocky DNS (W1+W2 LB IPs) + Traefik Ingress (class=traefik) on port 443 (Traefik in own `traefik` ns)
 - **Domain**: `h0melab.work` (cert-manager DNS-01 via Cloudflare API token)
 
 ## Cluster boundaries
-- 28 namespaces (excl. system: kube-*, flux-system, default)
+- 27 namespaces (excl. system: kube-*, flux-system, default)
 - 44 NetworkPolicies (every ingress + every cross-ns egress)
 - 10 Kyverno ClusterPolicies — 7 Enforce (disallow-host-namespaces, disallow-latest-tag, disallow-privilege-escalation, require-drop-all-capabilities, require-labels, require-non-default-serviceaccount, require-seccomp-runtimedefault) + 3 Audit (disallow-host-path, require-non-root, require-resource-limits)
