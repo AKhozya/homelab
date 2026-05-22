@@ -416,6 +416,11 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (October-December 2025)
 
+### 2026-05-22 (Rebuilderd W2 memory limit reduction) 🔧
+- ⚠️ **Incident**: cosmic-launcher rebuilderd build on worker-node-2 peaked at 7.4G RAM, combined with concurrent ansible node-maintenance + kernel builds caused node memory pressure. 6 pods CrashLooped across both workers (cert-manager-cainjector ×2, kyverno-cleanup-controller, main-mysql-haproxy, ps-operator, +1). Control plane showed API proxy broken pipes. All self-resolved in ~10min.
+- ✅ **Fix**: Reduced rebuilderd systemd cgroup limits on worker-node-2: MemoryMax 12G→8G, MemoryHigh 11G→6G, MAX_MEMORY env 12G→8G. Swap unchanged at 16G (big builds spill to swap instead of pressuring K8s). Commit `f1efef99`. Applies at next drift-heal (03:00 UTC) or manual trigger.
+- 📝 **History**: W2 limits trajectory: 18G (initial) → 14G (2026-02-21 DPDK OOM) → 12G (2026-04-26 host OOM) → 8G (2026-05-22 cosmic build pressure).
+
 ### 2026-05-14 to 2026-05-15 (Ansible packages parity + mirror-staleness fix) 🧰
 - ✅ **12 Mac-parity CLI tools added to `pacman_packages_base`** (commit `dac395a5`, 2026-05-14): bat, eza, git-delta, gron, jc, kubectx, kubeconform, shellcheck, shfmt, sops, stern, yamllint. Pkg count 30 → 41. Installed on all 3 nodes via daily drift-heal (`node-config.yml`). taplo intentionally NOT added — not in extra or AUR (Mac-only via Homebrew).
 - ✅ **Pacman mirror-staleness self-heal** (commit `811b67e9`, 2026-05-15): packages role gets pre-task `community.general.pacman: update_cache=true force=true` (=`pacman -Syy`) before all install tasks. First run of the 12-pkg addition hit `error: failed retrieving file 'haskell-prettyprinter-*.pkg.tar.zst' : 404` (shellcheck's transitive haskell deps had rotated on london.mirror.pkgbuild.com; local DB stale). Fix re-runs DB refresh under retries=3/delay=30. Daily 03:00/15:00 UTC config now self-heals mirror drift.

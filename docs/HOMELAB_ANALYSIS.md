@@ -98,7 +98,7 @@
 ## REBUILDERD (Arch contribution)
 
 - worker-node: 6 CPU, 18GB RAM cap, 24/7 (reduced from 32G after host OOM 2026-04-26)
-- worker-node-2: 4 CPU, 14GB RAM cap, 24/7
+- worker-node-2: 4 CPU, 8GB RAM cap (MemoryHigh=6G), 24/7 (reduced 12G→8G after cosmic-launcher build caused 6 pod CrashLoops 2026-05-22)
 - Build timeout 48h, Sun 08:00 cleanup timer
 
 ---
