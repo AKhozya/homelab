@@ -93,8 +93,9 @@ Files saved to `.backup/secrets/` (gitignored)
 - **PostgreSQL:** Daily 3:00 AM → `/mnt/k8s-storage/backups/postgres/` (30 day retention)
 - **CouchDB:** Daily 3:05 AM → `/mnt/k8s-storage/backups/couchdb/` (30 day retention)
 - **MySQL:** Daily 3:15 AM → `/mnt/k8s-storage/backups/mysql/` (30 day retention)
-- **Critical PVCs:** Daily 3:10 AM → `/mnt/k8s-storage/backups/pvc/` (7 day retention)
-- **Backup Replication:** Daily 3:30 AM → NAS (full history) + worker-node-2 (today only)
+- **Critical PVCs:** Daily 3:10 AM → `/mnt/k8s-storage/backups/pvc/` (30 day retention, bumped from 7d on 2026-05-22)
+- **Immich library:** Weekly Sunday 3:00 AM → `/mnt/k8s-storage/backups/immich/` (keep-2 retention, ~63G uncompressed tar+sha)
+- **Backup Replication:** Daily 3:30 AM → NAS (30d daily / keep-2 immich, Step 5b prune) + worker-node-2 (today only via `--delete`)
 
 **Details:** `docs/BACKUP_STRATEGY.md`
 

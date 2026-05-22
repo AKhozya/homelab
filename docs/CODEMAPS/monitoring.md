@@ -35,7 +35,7 @@ VictoriaMetrics primary stack. NO Prometheus pod (only operator chart kept for g
 - `quay.io/prometheus/alertmanager:v0.32.1`
 - `quay.io/prometheus-operator/prometheus-operator:v0.90.1`
 - `registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.19.0`
-- `quay.io/prometheus/node-exporter:v1.11.1`
+- `quay.io/prometheus/node-exporter:v1.11.1-distroless`
 - `docker.io/grafana/loki:3.6.7` + `grafana/loki-canary:3.6.7`
 - `docker.io/grafana/alloy:v1.16.1`
 

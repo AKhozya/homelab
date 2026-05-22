@@ -21,11 +21,13 @@
 | Database | 90/100 |
 | Infrastructure | 88/100 |
 
-**Key facts**: 0 P0/P1. 44 NetworkPolicies. 55 SOPS secrets. 10 Kyverno policies (7 enforce, 3 audit, 0 violations). 100% PSS, NetworkPolicy, HSTS, SSO, image-pin coverage.
+**Key facts**: 0 P0/P1. 44 NetworkPolicies. 53 SOPS secrets. 10 Kyverno policies (7 enforce, 3 audit, 0 violations). 100% PSS, NetworkPolicy, HSTS, SSO, image-pin coverage.
 
 ---
 
-## APPS (17 total)
+## APPS (16 total)
+
+> Grafana = monitoring infra (see `docs/CODEMAPS/monitoring.md`), not an app.
 
 | App | OIDC/SSO | Notes |
 |-----|----------|-------|
@@ -35,7 +37,6 @@
 | Blocky | - | DNS filter + ad blocking, **HA: 2 replicas (W1+W2), single Deployment, native rolling, Redis cache sync, CNPG Postgres query log** |
 | Stirling PDF | OIDC | PDF toolkit |
 | HomeHub | - | Family dashboard, local only |
-| Grafana | OIDC | Monitoring dashboard |
 | Immich | OIDC | Photo mgmt |
 | Paperless-NGX | OIDC | Doc mgmt |
 | Home Assistant | OIDC | Smart home, MySQL |
@@ -160,7 +161,7 @@ kubectl get pods -A -o jsonpath='{range .items[*]}{.spec.containers[*].image}{"\
 cat apps/staging/kustomization.yaml
 ```
 
-Files: `architecture.md`, `apps.md`, `networking.md`, `databases.md`, `monitoring.md`, `backup-restore.md`. Each agent: read current codemap → diff against source-of-truth dirs (apps/, infrastructure/, monitoring/, .backup/) → Write updated content. Last refresh: 2026-05-08.
+Files: `architecture.md`, `apps.md`, `networking.md`, `databases.md`, `monitoring.md`, `backup-restore.md`. Each agent: read current codemap → diff against source-of-truth dirs (apps/, infrastructure/, monitoring/, .backup/) → Write updated content. Last refresh: 2026-05-22.
 
 ### Quarterly Review (every 3 months — next: 2026-07-04)
 

@@ -3,7 +3,7 @@
 All in `databases` namespace except CouchDB extras in `obsidian` (client side) and the `ps-operator` MySQL operator in `percona-mysql` ns.
 
 ## PostgreSQL — CloudNativePG (CNPG)
-- **Operator**: helm `cloudnative-pg` 0.28.x → controller `cnpg-controller-manager` 1.29.0 (2 replicas, anti-affinity)
+- **Operator**: helm `cloudnative-pg` 0.28.2 → controller `cnpg-operator-cloudnative-pg` image `ghcr.io/cloudnative-pg/cloudnative-pg:1.29.1` (2 replicas, anti-affinity, in `databases` ns)
 - **Cluster**: `main-postgres` (1 primary + 1 replica on workers, no CP scheduling, hard pod anti-affinity)
 - **Pods**: `main-postgres-{N}` (sequential numbering, current 11+12 after upgrades)
 - **Storage**: 10Gi PVC per instance (`local-path`)
