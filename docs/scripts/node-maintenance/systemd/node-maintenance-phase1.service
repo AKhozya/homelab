@@ -11,6 +11,11 @@ User=root
 WorkingDirectory=/etc/node-maintenance/ansible
 ExecStartPre=/bin/sh -c 'install -d -m 0750 -o root -g adm /var/log/node-maintenance; echo "ANSIBLE_LOG_PATH=/var/log/node-maintenance/phase1-$(date -u +%%d-%%m-%%Y).log" > /run/node-maintenance.env'
 EnvironmentFile=-/run/node-maintenance.env
+# Pre-upgrade ansible runtime so phase1's `yay -Syu` doesn't bump it mid-play.
+# Without this, copy/template tasks after the upgrade load action plugins from
+# the new core while ConfigManager stays on the old import → TypeError on
+# `templar=` kwarg (observed 2.20.5 → 2.21.0 transition).
+ExecStartPre=/usr/bin/pacman -Sy --noconfirm --needed ansible ansible-core
 ExecStart=/usr/bin/ansible-playbook -i inventory.yml phase1.yml
 ExecStartPost=/bin/sh -c 'systemctl reboot'
 ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance phase1 failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). No reboot. Log: /var/log/node-maintenance/phase1-$(date -u +%%d-%%m-%%Y).log" || true'
