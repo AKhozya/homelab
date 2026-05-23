@@ -12,6 +12,7 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      ttlSecondsAfterFinished: 86400  # auto-cleanup after 24h
       backoffLimit: 2
       activeDeadlineSeconds: 7200  # 2 hour timeout
       template:
