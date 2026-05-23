@@ -10,11 +10,6 @@ spec:
   timeout: 45s
   dependsOn:
     - name: infrastructure-configs
-  healthChecks:
-    - apiVersion: postgresql.cnpg.io/v1
-      kind: Cluster
-      name: main-postgres
-      namespace: databases
   sourceRef:
     kind: GitRepository
     name: flux-system
