@@ -4,6 +4,7 @@
 **Node IPs** (static DHCP, k3s pinned to IPv4): gmk-k3s-control-plane=192.168.1.127, worker-node=192.168.1.129, worker-node-2=192.168.1.126
 **Infra**: GitOps (Flux), CloudNativePG, Percona MySQL, monitoring stack, SSO (Authentik), Cloudflare Tunnel
 **Code Review**: 2026-04-02 — full scan (94/100, A)
+**Ultrareview**: 2026-05-23 — 4-agent consensus (arch/k8s/security/cruft). See [REVIEW.md](../REVIEW.md). 1 P0 (Cloudflare IDs plaintext), 11 P1, 17 P2. No operational blocker.
 
 ---
 
@@ -21,7 +22,7 @@
 | Database | 90/100 |
 | Infrastructure | 88/100 |
 
-**Key facts**: 0 P0/P1. 44 NetworkPolicies. 53 SOPS secrets. 10 Kyverno policies (7 enforce, 3 audit, 0 violations). 100% PSS, NetworkPolicy, HSTS, SSO, image-pin coverage.
+**Key facts**: 40 NetworkPolicy resources (31 files, multi-doc). 53 SOPS secrets. 10 Kyverno policies (7 Enforce, 3 Audit: `disallow-host-path`, `require-non-root`, `require-resource-limits`). 13 HelmReleases. 16 apps. PSS restricted on 14 namespaces; `immich` + `home-assistant` deliberately privileged (GPU/hardware). NetworkPolicy coverage manual (no Kyverno enforcement — see REVIEW F-5). HSTS, SSO, image-pin manually maintained — `claude-telegram:1.22` + `seleniumbase:v1.0` violate major.minor.patch (REVIEW F-23). Open findings: see [REVIEW.md](../REVIEW.md) backlog.
 
 ---
 
@@ -180,6 +181,7 @@ Output: keep / merge / cut / fix-next per surface. Run quarterly OR post-inciden
 *Monthly reviews, full changelog, done items: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) + `git log --all -- docs/HOMELAB_ANALYSIS.md`*
 
 **Recent highlights** (2026):
+- 2026-05-23: **Ultrareview** — 4-agent consensus (arch + k8s/Flux + security + cruft). See [REVIEW.md](../REVIEW.md). Findings: 1 P0 (Cloudflare ACCOUNT_ID + tunnel UUID plaintext in `cloudflared.yaml:53-54` `command:` field, SOPS does not cover commands — move to encrypted Secret env vars; no regen needed, account ID is non-secret + tunnel credentials JSON already SOPS-encrypted), 11 P1, 17 P2, 9 P3. Top P1: 3 Kyverno policies in Audit not Enforce (`disallow-host-path`, `require-non-root`, `require-resource-limits`); `require-resource-limits` skips `initContainers`; `disallow-privilege-escalation` + `require-drop-all-capabilities` use optional `=()` patterns (containers omitting fields pass); no Kyverno for NetworkPolicy presence or `readOnlyRootFilesystem`; `monitoring-*` Flux Kustomizations lack `dependsOn`+`healthChecks` (bootstrap race); `apps.yaml` `wait: false` + `healthChecks` contradict (dead config); Immich/uptime-kuma/n8n/claude-telegram egress gaps. Doc drift: 44 NPs → 40, "100% PSS" misleading. 13 .DS_Store tracked + closed-PR baselines + stale Popeye report + `docs/superpowers/` archive candidates. CI gaps: no kubeconform/yamllint/SOPS-check/shellcheck.
 - 2026-05-22: Backup overhaul — +5 PVCs (mealie, n8n, audiobookshelf-config+metadata) added to daily, stale uptime-kuma removed, claude-telegram + immich-ML + loki + vmsingle + stirling-pipeline/tessdata documented as expendable. NEW `immich-backup` weekly CronJob Sunday 03:00 UTC (uncompressed tar+sha256, 62.5G in 18m21s, keep-2). Retention enforced: W1 source 30d (`find -mtime +30`), NAS prune Step 5b for both layouts — `prune_nas_file` (rsync filter `--include=<file> --exclude='*'` against empty source) for postgres/mysql/couchdb files, `prune_nas_dir` for pvc + immich. File-vs-dir bug found mid-test + fixed (commit `73f7a611`). Redis cache+queue/broker confirmed via key inspection (BullMQ + Celery + Django sessions + TTL'd cache) — **no backup needed**, documented.
 - 2026-05-22: Drift-heal mid-flight ansible-core upgrade race — manual `pacman -Syu` (ansible-core 2.20.5→2.21.0) collided with 10-min drift-heal timer; in-memory ConfigManager stayed on old import while reloaded `copy.py` passed `templar=` kwarg → TypeError on `base_config : Deploy /etc/logrotate.d/pacman`. Fix (commit `3b5696d7`): drift-heal gets `ExecCondition='[ ! -e /var/lib/pacman/db.lck ]'` (skip cycle if pacman locked); phase1 gets `ExecStartPre=pacman -Sy --noconfirm --needed ansible ansible-core` (pre-upgrade runtime so `yay -Syu` inside playbook can't bump it mid-flight). No version pinning — Arch stays rolling.
 - 2026-05-19: IPv6 flap fix — pinned `node-ip` to IPv4 on all 3 nodes (ansible `k3s_config` role, `host_vars`). Root cause: two IPv6 addresses (ISP GUA `2a01:4b00:…` with ~1hr preferred lifetime vs eero ULA `fd00::…` permanent) fought for primary position → kubelet updated Node object ~8K times/week. Fix: `node-ip: <ipv4>` in `/etc/rancher/k3s/config.yaml` → k3s ignores IPv6 entirely. OS-level IPv6 intentionally kept (ISP provides it, no functional dependency in cluster but no reason to disable). Residual info-level "NodeIPs changed" log noise (~1/min) is harmless — kubelet sees NIC IPv6 but pin excludes it, zero API churn.
