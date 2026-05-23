@@ -20,6 +20,9 @@ spec:
           - resources:
               kinds:
                 - Pod
+      # Operator-managed init containers (we cannot edit upstream):
+      # - CNPG pooler (PgBouncer) — owned by cloudnative-pg
+      # - VMAgent — owned by victoria-metrics-operator
       exclude:
         any:
           - resources:
@@ -29,6 +32,14 @@ spec:
                 - kube-node-lease
                 - flux-system
                 - kyverno
+          - resources:
+              selector:
+                matchLabels:
+                  cnpg.io/podRole: pooler
+          - resources:
+              selector:
+                matchLabels:
+                  managed-by: vm-operator
       validate:
         message: "CPU limit is required for all containers"
         pattern:
@@ -47,6 +58,9 @@ spec:
           - resources:
               kinds:
                 - Pod
+      # Operator-managed init containers (we cannot edit upstream):
+      # - CNPG pooler (PgBouncer) — owned by cloudnative-pg
+      # - VMAgent — owned by victoria-metrics-operator
       exclude:
         any:
           - resources:
@@ -56,6 +70,14 @@ spec:
                 - kube-node-lease
                 - flux-system
                 - kyverno
+          - resources:
+              selector:
+                matchLabels:
+                  cnpg.io/podRole: pooler
+          - resources:
+              selector:
+                matchLabels:
+                  managed-by: vm-operator
       validate:
         message: "Memory limit is required for all containers"
         pattern:

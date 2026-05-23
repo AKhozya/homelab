@@ -41,6 +41,13 @@ spec:
               add: ["CHOWN", "DAC_OVERRIDE", "FOWNER"]
             seccompProfile:
               type: RuntimeDefault
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
       containers:
         - name: paperless-ngx
           image: ghcr.io/paperless-ngx/paperless-ngx:2.20.15

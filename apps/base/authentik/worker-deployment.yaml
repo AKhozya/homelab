@@ -66,6 +66,13 @@ spec:
             runAsUser: 65534
             capabilities:
               drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
