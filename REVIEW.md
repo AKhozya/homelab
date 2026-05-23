@@ -384,51 +384,154 @@ Pipe binds tighter than `||`. Logic broken on the "minor" branch. Fallback is "p
 
 ---
 
-## Action Backlog (ordered)
+## Action Backlog
 
-### Today (blocking trust)
-- [ ] **F-1** Move Cloudflare ACCOUNT + TUNNEL UUID to SOPS-encrypted Secret
-- [ ] **F-2a** Add `paperless-ngx` to `require-non-root.yaml` exclude (1 line, comment "s6-overlay /run init")
-- [ ] **F-2b** Promote `disallow-host-path`, `require-non-root`, `require-resource-limits` to Enforce
-- [x] Doc-drift fix: `HOMELAB_ANALYSIS.md` NP count + Kyverno enforcement claim (done 2026-05-23)
+### Wave 1 — Closed 2026-05-23
 
-### This week
-- [ ] **F-3** Extend `require-resource-limits` to `initContainers[*]`
-- [ ] **F-4** Replace `=()` patterns in `disallow-privilege-escalation` + `require-drop-all-capabilities` with mandatory deny
-- [ ] **F-7** Wire monitoring Flux Kustomizations `dependsOn` + `healthChecks`
-- [ ] **F-8** Resolve `apps.yaml` `wait: false` vs `healthChecks` contradiction
-- [ ] **F-9** Add RFC1918 except to Immich egress
-- [ ] **F-10/F-11/F-12** Tighten uptime-kuma + n8n + claude-telegram egress
-- [ ] **F-19** Add ResourceQuota for `claude-telegram` namespace
-- [ ] **F-27/F-28** Fix `setup-node.sh` flags and `analyze-update.sh:65` precedence
-- [ ] **F-29** Drop force-tag from claude-telegram build workflow
+- [x] **F-1** Cloudflare ACCOUNT + TUNNEL UUID → SOPS Secret env vars (no regen needed)
+- [x] **F-2a** `paperless-ngx` added to `require-non-root` exclude (s6-overlay constraint)
+- [x] **F-2b** `disallow-host-path` + `require-non-root` + `require-resource-limits` → Enforce
+- [x] **F-3** `require-resource-limits` covers `initContainers[*]`
+- [x] **F-7** `monitoring-controllers/configs` Flux `dependsOn`+`healthChecks`+SOPS parity
+- [x] **F-8** dead `healthChecks` block removed from `apps.yaml`
+- [x] **F-9** Immich egress RFC1918 except
+- [x] **F-10** uptime-kuma DB-port egress scoped to `databases` ns
+- [x] **F-11** n8n 443 RFC1918 except
+- [x] **F-12** claude-telegram port 22 dropped, port 80 RFC1918 except
+- [x] **F-19** claude-telegram ResourceQuota+LimitRange
+- [x] **F-27** `setup-node.sh` `set -euo pipefail` + grep guard
+- [x] **F-28** `analyze-update.sh:65` precedence rewrite
+- [x] **F-29** claude-telegram-build force-tag → pre-existence guard
+- [x] **F-41** init container `resources:` for authentik-worker + home-assistant (2 inits) + paperless-ngx
+- [x] **F-42** Kyverno `exclude:` for CNPG pooler + vmagent (operator-managed init)
+- [x] Doc drift: `HOMELAB_ANALYSIS.md` keyfacts + HOMELAB_HISTORY append
 
-### Next sprint
-- [ ] **F-5** Add `require-networkpolicy` Kyverno policy
-- [ ] **F-6** Add `require-readonly-rootfs` Kyverno policy
-- [ ] **F-15** Migrate 5 app DB users to app-owned location
-- [ ] **F-16** Add `driftDetection: enabled` to 12 HelmReleases
-- [ ] **F-17** Add explicit `timeout: 10m` to KPS/Loki/cert-manager/couchdb
-- [ ] **F-18** Add `rollback.cleanupOnFail` to 5 HelmReleases
-- [ ] **F-21** HSTS `includeSubDomains; preload`
-- [ ] **F-14** Collapse passthrough staging dirs
-- [ ] **R5** NetworkPolicy kustomize components
-- [ ] **R7** CI: kubeconform + yamllint + SOPS check + shellcheck
-- [ ] Cruft sweep: `.DS_Store`, `analyze-update/baselines/`, `POPEYE_CLUSTER_REPORT.txt`, archive `docs/superpowers/`
+---
 
-### Later (P3 / nice-to-have)
-- [ ] **F-22** Per-app CSP 3-tier rollout (strict/inline/permissive — see decision table). Report-only via csp-reporter, 7d observe, flip per-app
-- [ ] **F-39** claude-telegram RoRFS + PSS restricted promotion (verify bot writes only to `/home/akhozya` + `/tmp` first)
-- [ ] **F-23** Pin `claude-telegram-bot` to `major.minor.patch`
-- [ ] **F-24** pricebuddy apprise non-root variant
-- [ ] **F-25** Set `audit: baseline, warn: baseline` on privileged namespaces
-- [ ] **F-26** Renovate schedule + patch automerge
-- [ ] **F-30** Define PriorityClasses
-- [ ] **F-31** `startingDeadlineSeconds` + `backoffLimit` on backup CronJobs
-- [ ] **F-32** Pin `fluxcd/flux2/action` to tag
-- [ ] **F-37** Add Authentik forward-auth to uptime-kuma
-- [ ] **F-38** Narrow `disallow-host-namespaces` exclusions to label match
-- [ ] Rotate `HOMELAB_HISTORY.md` pre-2026 entries to `docs/archive/`
+## Wave Plan v2 (post-2026-05-23 — informed by Wave 1 learnings)
+
+### Learnings from Wave 1 that shape v2
+
+| # | Learning | Plan adjustment |
+|---|---|---|
+| L1 | Audit mode IS productive — F-3 surfaced 5 latent gaps that would have crashed Enforce. | Every new Kyverno policy ships Audit first, scan ≥24h, fix, then Enforce. Codify in Wave 8 below. |
+| L2 | Operator-managed Pods (CNPG, VM-operator, Kyverno, Percona) are second-class — we can't edit their spec. Exclude by label-selector, not by name. | Wave 8 policies (F-4/F-5/F-6) bake operator label-selector excludes upfront, not as post-hoc patches. |
+| L3 | Kyverno autogen propagates pod-level patterns to ReplicaSet/StatefulSet automatically. | Don't write controller-level rules manually; only target `kinds: [Pod]`. |
+| L4 | Init containers are hidden footguns — `hacs-install` almost slipped through scan. | Wave 7 CI gate adds explicit `yq` rule: every init must have `resources:`. |
+| L5 | Server-side `--dry-run=server` catches admission-webhook rejection; client-side dry-run does NOT. | Standard pre-push validator switches to server-side; the "conflicts" stderr is informational not failure. |
+| L6 | Multi-agent reviewer caught REAL bugs (`vm-operator` → `victoria-metrics-operator`) — not theater. | Reviewer remains mandatory for every Flux-touching commit. |
+| L7 | Flux dependsOn cascade takes ~5min for full propagation post-push. | Bake 5min sleep into post-push verification scripts; don't ssh-poll Kustomization status faster. |
+| L8 | Doc drift accumulates fast — even mid-session, `HOMELAB_ANALYSIS` needed 3 touches. | Wave 7 CI gate: `HOMELAB_ANALYSIS` keyfact line must match live `kubectl` counts (NP, SOPS, Kyverno enforce counts). |
+| L9 | Multi-file `git commit` chains break the project's pre-push hook (per-line single quoting). | Sequential per-commit shell calls only. |
+| L10 | Kyverno `=()` optional patterns silently pass when field omitted — F-4 still pending applies same root cause as F-3. | Wave 8 policy authoring rule: any field whose absence = security regression must use `deny` not `=()`. |
+| L11 | F-2b "fix-forward" worked (Audit surfaced → patch in-repo + label-exclude operator-managed → promote) better than "revert F-3". | Codify "fix-forward over revert" for Audit→Enforce promotions. |
+| L12 | The `pre-ultrareview-2026-05-23` annotated tag survived as rollback handle even after 10 commits. | Always tag before multi-commit waves. |
+
+---
+
+### Wave 7 — CI Gates (HIGHEST PREVENTATIVE ROI — do first)
+
+**Goal:** every learning from L1, L4, L5, L8 above gets a CI guard so future PRs don't re-introduce.
+
+- [ ] **CI-1** `.github/workflows/validate.yaml` — runs on every PR + push to main. Steps:
+  - `yamllint .` (config in `.yamllint.yaml`)
+  - `kubeconform -strict -kubernetes-version 1.31 -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'` per `kustomize build` output
+  - SOPS encryption check: every `*secret*.yaml` or `**/secrets/**` must contain `ENC[AES256_GCM` (regex grep)
+  - `shellcheck` on `scripts/**/*.sh` + `docs/scripts/**/*.sh`
+  - `flux build kustomization` for `apps`, `infrastructure-configs`, `infrastructure-controllers`, `monitoring-controllers`, `monitoring-configs`
+  - Init container resources check: `yq -e 'all(.spec.template.spec.initContainers[]?.resources.limits.cpu)'` per Deployment
+  - HOMELAB_ANALYSIS drift gate (optional, post-merge): warn-only check that counts in keyfact line match live `kubectl` for NP/SOPS/policies
+- [ ] **CI-2** Pre-commit hook config (`.pre-commit-config.yaml`) — same gates locally before commit
+- **Effort:** 4h. **Risk:** Low. **Payoff:** Catches L1/L4/L5/L8 issues at PR time, not in cluster.
+
+### Wave 8 — New Kyverno policies (apply L1/L2/L10 directly)
+
+Each new policy ships Audit → scan ≥24h via `kubectl get policyreport -A` → fix gaps via fix-forward (in-repo `resources:`/labels + operator label-exclude) → promote Enforce.
+
+- [ ] **F-4** Replace `=()` in `disallow-privilege-escalation` + `require-drop-all-capabilities` with mandatory `deny` (operator: `NotEquals` block). Likely surfaces more gaps in Audit — expect 5-10 silent passes to fix.
+- [ ] **F-5** New `require-networkpolicy.yaml` ClusterPolicy: assert ≥1 NP per `apps/*` namespace. Ship Audit, scan, then Enforce. Optionally add `generate:` rule for default-deny NP.
+- [ ] **F-6** New `require-readonly-rootfs.yaml`: validate `readOnlyRootFilesystem: true` on `spec.containers[*]` + `=(initContainers)`. Ship Audit, scan, fix (pricebuddy has `false` on 3 containers — investigate per-container). Then Enforce.
+- **Effort:** 1 day (split across 24h soak per policy). **Payoff:** closes 3 documented invariants currently held by manual discipline only.
+
+### Wave 9 — HelmRelease tightening (bulk low-risk)
+
+- [ ] **F-16** `driftDetection: { mode: enabled }` on 12 HelmReleases (all except KPS which already has it)
+- [ ] **F-17** Explicit `timeout: 10m` on `kube-prometheus-stack`, `loki`, `cert-manager`, `couchdb` (slow upgrades on worker disks)
+- [ ] **F-18** `rollback: { cleanupOnFail: true }` on `mysql`, `redis-operator`, `traefik`, `vm-operator`, `immich`
+- [ ] **F-20** Standardize HelmRelease `interval: 6h` (drop `30m` on mysql + redis-operator)
+- **Effort:** 2h, 1 PR. **Risk:** Low. **Payoff:** removes orphan ConfigMap accumulation referenced in `cluster-stale-cleanup` skill + catches manual `kubectl edit` drift.
+
+### Wave 10 — Simple polish (single-line / single-file edits)
+
+- [ ] **F-21** HSTS middleware: `Strict-Transport-Security: "max-age=31536000; includeSubDomains; preload"`
+- [ ] **F-25** Privileged namespaces `audit: baseline, warn: baseline` (immich, home-assistant) — surfaces drift while keeping enforce: privileged
+- [ ] **F-26** Renovate schedule outside business hours + `automerge: true` on `patch` for low-risk apps
+- [ ] **F-30** Define `PriorityClass: homelab-{critical,standard,batch}` (100/50/10) + label injection
+- [ ] **F-31** Add `startingDeadlineSeconds: 600` + explicit `backoffLimit: 2` to 5 backup CronJobs
+- [ ] **F-32** Pin `fluxcd/flux2/action@main` → `@v2.5.1` (or latest tag)
+- [ ] **F-37** Authentik forward-auth middleware on `uptime-kuma` ingress
+- [ ] **F-38** Narrow `disallow-host-namespaces` exclusions to label-match (not whole namespace)
+- [ ] **F-39** claude-telegram RoRFS + PSS restricted (verify bot writes only to `/home/akhozya` + `/tmp` — use `kubectl debug` ephemeral container first)
+- [ ] **F-44 (NEW)** Update `pre-ultrareview-2026-05-23` cleanup — tag survives as DR handle; document in `.backup/README.md` how to use it
+- **Effort:** 3h, can batch as 1-2 PRs. **Risk:** Per-item low.
+
+### Wave 11 — Structural refactor (highest blast radius — stage carefully)
+
+- [ ] **R5 / F-13 / F-14** Decision tree:
+  - **F-13** = collapse `apps/staging/<app>/` → `apps/<app>/` (single env, 16 apps). Decision: NO multi-cluster roadmap → safe to collapse.
+  - **F-14** = delete 6 dead 1-line passthroughs under `monitoring/{controllers,configs}/staging/` and `infrastructure/controllers/staging/`.
+  - **R5** = Kustomize components for NP DNS/Postgres/Redis egress (removes ~160 LOC duplication; single edit point for cluster-wide NP changes).
+  - **Order:** R5 first (additive, no breakage). Then F-14 (delete dead). Then F-13 (largest blast radius — defer or accept ongoing tax).
+- [ ] **F-15** Migrate 5 app DB users to app-owned (blocky pattern). Files: authentik, immich, linkwarden, mealie, n8n, paperless `*-db-user.yaml` + `*-database.yaml` from `infrastructure/configs/staging/databases/postgres/` → `apps/staging/<app>/`. Keep `metadata.name` + namespace identical to avoid CNPG re-creation. Pre-flight `kubectl get database -n databases -o yaml` snapshot + post-migration diff.
+- **Effort:** R5 = 2h, F-14 = 30min, F-15 = 2h, F-13 = 4h. **Risk:** F-15 medium (CNPG Database CR), F-13 high (16 dirs renamed, Flux must re-discover). **Payoff:** atomic per-app delete via `prune: true`; clean ownership.
+
+### Wave 12 — CSP 3-tier rollout (calendar-bound, 3 weeks)
+
+- [ ] **F-22** 3 middlewares + per-app ingress annotation swap. Existing csp-reporter as observability.
+  - **Day 0:** Create `csp-strict`, `csp-inline`, `csp-permissive` middlewares in `traefik` ns. Each carries `Content-Security-Policy-Report-Only: <proposed>` + retain current `Content-Security-Policy: <permissive>`.
+  - **Day 1-2:** Swap Tier A ingresses (paperless, blocky, claude-telegram, obsidian) to `csp-strict`.
+  - **Day 3-9:** Soak. Watch `{app="csp-reporter"} |= "<domain>"` in Loki.
+  - **Day 10+:** If clean, flip Report-Only → enforced for that tier; drop permissive header.
+  - **Repeat** for Tier B (8 apps) then Tier C (4 apps).
+- **Effort:** 2h actual edits, ~3 weeks calendar for soak. **Risk:** Low per-app (rollback = revert ingress annotation).
+
+### Wave 13 — Cruft + back-links (housekeeping)
+
+- [ ] `git rm --cached` 13 `.DS_Store` files (already in `.gitignore`)
+- [ ] Delete `scripts/analyze-update/baselines/pr-198..pr-208.txt` + add `baselines/` to `.gitignore`
+- [ ] Delete `docs/POPEYE_CLUSTER_REPORT.txt` (7-month stale, weekly CronJob supersedes)
+- [ ] Archive `docs/superpowers/` (14 completed-work plans/specs) → `docs/archive/superpowers/`
+- [ ] Rotate `HOMELAB_HISTORY.md` pre-2026 entries → `docs/archive/HOMELAB_HISTORY_2025.md` (cuts ~1500 lines from active file)
+- [ ] Stale docs to archive (verify completion first): `KYVERNO_ADDITIONAL_POLICIES_RECOMMENDATIONS`, `KYVERNO_IMPLEMENTATION_SUMMARY`, `NETWORKPOLICY_EGRESS_AUDIT`, `MYSQL_OPERATOR_ANALYSIS`, `APP_ALTERNATIVES_RESEARCH`, `cloudflare-gateway-setup`, `K3S_NETWORKPOLICY_API_ACCESS`, `NOTIFICATION_REVIEW`, `RENOVATE_UPDATES`, `AUTHENTIK_SSO_INTEGRATION`
+- [ ] Memory back-links: add `[[project-ultrareview-2026-05-23]]` references to `gotchas.md` (Kyverno =() footgun, fix-forward pattern) and `reference_homelab_docs.md` (REVIEW.md pointer)
+- **Effort:** 1h. **Risk:** Zero (pure cleanup).
+
+### Watch / parking lot (no immediate action)
+
+- [ ] **F-23** Pin `claude-telegram-bot:1.22` → `1.22.0`. Needs bumping the build pipeline tagging scheme; coordinate with the bot repo. Renovate manager needs updating.
+- [ ] **F-24** pricebuddy apprise non-root variant — needs upstream image investigation; not blocking
+- [ ] **F-40** `paperless-ngx` fsGroup migration to drop init — already verified NOT VIABLE (s6-overlay). Keep documented as closed.
+- [ ] **F-43** Monthly (next 2026-06-04): check https://github.com/christiaangoossens/hass-oidc-auth/releases for HA compat; enable HA OIDC if shipped.
+
+---
+
+### Findings retired
+
+| # | Reason |
+|---|---|
+| F-2a | Closed Wave 1. |
+| F-40 | Verified not viable (s6-overlay). |
+| F-44 (would-be) | Already done — tag pushed. Documenting in Wave 10 only. |
+
+### Findings reframed by Wave 1 learnings
+
+| # | Original framing | New framing |
+|---|---|---|
+| F-4 | "Replace `=()` with deny" | Apply same fix-forward as F-3: ship Audit → scan ≥24h → fix surfaced gaps in-repo + operator-label exclude → Enforce. Expect 5-10 latent gaps. |
+| F-5 | "Add require-networkpolicy" | Same. Operator namespaces (kube-system, flux-system, kyverno, monitoring) likely need exclude. |
+| F-6 | "Add require-readonly-rootfs" | Same. pricebuddy 3 containers + any uncovered init will surface. |
+| F-13 | "Maybe collapse if no prod" | DECIDED: no prod. Proceed but defer — biggest blast radius in backlog. |
+| F-22 | "Per-app CSP" | Now: 3-tier (strict/inline/permissive), report-only-first via existing csp-reporter, per-tier rollout cadence specified. |
 
 ---
 
