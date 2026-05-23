@@ -63,11 +63,20 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
+          startupProbe:
+            # Paperless init pipeline runs Django migrations + Redis/Postgres waits + tesseract checks.
+            # Observed cold-start: ~98s. failureThreshold 30 × periodSeconds 10 = 300s budget.
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           livenessProbe:
             httpGet:
               path: /
               port: 8000
-            initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
@@ -75,7 +84,6 @@ spec:
             httpGet:
               path: /
               port: 8000
-            initialDelaySeconds: 30
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
