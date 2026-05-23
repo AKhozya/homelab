@@ -25,13 +25,19 @@ spec:
         - protocol: TCP
           port: 443
     # HTTP (some package managers, MCP servers)
-    - ports:
+    # RFC1918 excluded to prevent lateral movement to cluster-internal services.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
         - protocol: TCP
           port: 80
-    # SSH to GitHub (git clone via SSH)
-    - ports:
-        - protocol: TCP
-          port: 22
+    # Port 22 egress removed: bot does not initiate SSH from inside cluster
+    # (SSH config in the bot is for outside-to-bot, not bot-to-outside).
     # SSH to homelab nodes (port 65300)
     - to:
         - ipBlock:

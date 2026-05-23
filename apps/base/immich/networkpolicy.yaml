@@ -106,7 +106,14 @@ spec:
         - protocol: TCP
           port: 2283
     # Allow HTTPS for ML model downloads (modelscope.cn, huggingface.co)
-    # No 'to' selector = allow to any destination (including internet)
-    - ports:
+    # RFC1918 excluded so ML container can't reach cluster-internal services.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
         - protocol: TCP
           port: 443

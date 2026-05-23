@@ -42,7 +42,21 @@ spec:
     - ports:
         - protocol: TCP
           port: 80
-    # Allow monitoring services in other namespaces
+    # Allow DB probes restricted to databases namespace
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+      ports:
+        - protocol: TCP
+          port: 3306        # MySQL direct
+        - protocol: TCP
+          port: 5432        # PostgreSQL
+        - protocol: TCP
+          port: 6379        # Redis
+        - protocol: TCP
+          port: 26379       # Redis Sentinel HA
+    # Allow monitoring services in other namespaces (non-DB ports)
     - to:
         - namespaceSelector: {}
       ports:
@@ -57,19 +71,11 @@ spec:
         - protocol: TCP
           port: 5000        # HomeHub
         - protocol: TCP
-          port: 3306        # MySQL direct
-        - protocol: TCP
           port: 6446        # MySQL Router
-        - protocol: TCP
-          port: 5432        # PostgreSQL
         - protocol: TCP
           port: 5678        # N8N
         - protocol: TCP
           port: 5984        # CouchDB (Obsidian)
-        - protocol: TCP
-          port: 6379        # Redis
-        - protocol: TCP
-          port: 26379       # Redis Sentinel HA
         - protocol: TCP
           port: 53          # DNS TCP (Blocky probes)
         - protocol: UDP
