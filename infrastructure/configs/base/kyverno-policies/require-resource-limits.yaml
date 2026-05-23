@@ -11,7 +11,7 @@ metadata:
       Containers should have resource limits (CPU and memory) to prevent resource
       exhaustion and ensure fair resource distribution across the cluster.
 spec:
-  validationFailureAction: Audit
+  validationFailureAction: Enforce
   background: true
   rules:
     - name: require-cpu-limit

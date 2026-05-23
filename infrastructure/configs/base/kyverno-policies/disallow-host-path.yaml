@@ -11,7 +11,7 @@ metadata:
       HostPath volumes allow pods to access the host filesystem, which can be a security
       risk. This policy disallows hostPath volumes except in system namespaces.
 spec:
-  validationFailureAction: Audit
+  validationFailureAction: Enforce
   background: true
   rules:
     - name: disallow-host-path

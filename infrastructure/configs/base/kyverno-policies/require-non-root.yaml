@@ -11,7 +11,7 @@ metadata:
       Containers should not run as root (UID 0). This reduces the impact of container
       compromise by limiting the privileges available inside the container.
 spec:
-  validationFailureAction: Audit
+  validationFailureAction: Enforce
   background: true
   rules:
     - name: require-non-root-user
