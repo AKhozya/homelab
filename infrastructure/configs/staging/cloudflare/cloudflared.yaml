@@ -43,6 +43,19 @@ spec:
       initContainers:
       - name: sync-tunnel-config
         image: curlimages/curl:8.20.0
+        env:
+        # CF_ACCOUNT_ID + CF_TUNNEL_UUID sourced from SOPS-encrypted Secret
+        # (previously hardcoded in command field, which .sops.yaml regex does not cover).
+        - name: CF_ACCOUNT_ID
+          valueFrom:
+            secretKeyRef:
+              name: cloudflare-tunnel-mgmt-token
+              key: CF_ACCOUNT_ID
+        - name: CF_TUNNEL_UUID
+          valueFrom:
+            secretKeyRef:
+              name: cloudflare-tunnel-mgmt-token
+              key: CF_TUNNEL_UUID
         command:
         - /bin/sh
         - -c
@@ -50,8 +63,8 @@ spec:
           set -e
           CONFIG="/etc/cloudflared/config/config.yaml"
           TOKEN=$(cat /etc/cloudflared/api-token/api-token)
-          ACCOUNT="***REMOVED-CF-ACCOUNT-ID***"
-          TUNNEL="***REMOVED-CF-TUNNEL-UUID***"
+          ACCOUNT="${CF_ACCOUNT_ID}"
+          TUNNEL="${CF_TUNNEL_UUID}"
           API="https://api.cloudflare.com/client/v4/accounts/${ACCOUNT}/cfd_tunnel/${TUNNEL}/configurations"
 
           # Parse ingress rules from YAML config into CF API JSON
