@@ -98,7 +98,7 @@ spec:
                   du -sh /source-backups/*/ 2>/dev/null || echo "No backups found"
 
                   # Step 1: Sync to worker-node-2 (--delete, keeps only current backup as safety net)
-                  # TODO: Remove worker-node-2 step after extended safety period (~May 20, 2026)
+                  # TODO: Remove worker-node-2 step after extended safety period (~Jul 20, 2026)
                   CURRENT_STEP="Step 1: Syncing to worker-node-2"
                   echo ""
                   echo "=== Step 1: Syncing to worker-node-2 (safety net) ==="
