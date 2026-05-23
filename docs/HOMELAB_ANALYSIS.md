@@ -22,7 +22,7 @@
 | Database | 90/100 |
 | Infrastructure | 88/100 |
 
-**Key facts**: 40 NetworkPolicy resources (31 files, multi-doc). 53 SOPS secrets. 10 Kyverno policies (7 Enforce, 3 Audit: `disallow-host-path`, `require-non-root`, `require-resource-limits`). 13 HelmReleases. 16 apps. PSS restricted on 14 namespaces; `immich` + `home-assistant` deliberately privileged (GPU/hardware). NetworkPolicy coverage manual (no Kyverno enforcement — see REVIEW F-5). HSTS, SSO, image-pin manually maintained — `claude-telegram:1.22` + `seleniumbase:v1.0` violate major.minor.patch (REVIEW F-23). Open findings: see [REVIEW.md](../REVIEW.md) backlog.
+**Key facts**: 40 NetworkPolicy resources (31 files, multi-doc). 53 SOPS secrets. **10 Kyverno policies all Enforce** (F-2b promoted 2026-05-23 after F-3/F-41/F-42 closed init container gaps; CNPG pooler + vmagent init excluded via label selectors). 13 HelmReleases. 16 apps. PSS restricted on 14 namespaces; `immich` + `home-assistant` deliberately privileged (GPU/hardware); `paperless-ngx` baseline (s6-overlay /run init). NetworkPolicy coverage manual (no Kyverno enforcement yet — see REVIEW F-5). HSTS, SSO, image-pin manually maintained — `claude-telegram:1.22` + `seleniumbase:v1.0` violate major.minor.patch (REVIEW F-23). Open findings: see [REVIEW.md](../REVIEW.md) backlog.
 
 ---
 
@@ -112,7 +112,7 @@
 | Drop worker-node-2 replication step | ~2026-07-20 | P2 |
 | n8n PgBouncer `statement_timeout` fix — re-check #25705 (verified OPEN 2026-05-07, last upstream update 2026-04-28; rescheduled to align with monthly review) | 2026-06-04 | P3 |
 | High-pri secret rotation (PG: authentik/immich/n8n, MySQL: HA, Redis: immich) | 2026-07-01 | P1 |
-| Re-check HA OIDC when hass-oidc-auth stable lands | Backlog | P3 |
+| HA OIDC — review [hass-oidc-auth releases](https://github.com/christiaangoossens/hass-oidc-auth/releases) for HA-compat fix, enable OIDC SSO on `home-assistant` if shipped (REVIEW.md F-43) | 2026-06-04 | P3 |
 | Re-evaluate Authentik 2026.5 client hints (#20700) — upstream release dependent (latest stable 2026.2.2 / RC 2026.2.3-rc1 as of 2026-05-08; ~3-4mo cadence implies 2026.5 ~mid-2026) | Backlog (watch releases) | P3 |
 | Watch Authentik #18232 (TOTP/WebAuthn pk collision in MFA Devices UI) | Backlog | P3 |
 | Watch Authentik #19580 (multi-passkey wrong-pick) — relevant if enrolling 2nd passkey | Backlog | P3 |

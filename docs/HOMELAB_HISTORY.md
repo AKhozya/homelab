@@ -416,6 +416,14 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (October 2025 - Present)
 
+### 2026-05-23 (Kyverno Audit→Enforce promotion + init container debt closure) 🛡️
+- ✅ **F-2b complete**: `disallow-host-path`, `require-non-root`, `require-resource-limits` promoted Audit→Enforce (commits c13d0403, 8383ef35). All 10 Kyverno policies now Enforce.
+- 🔍 **F-3 surfaced 5 latent init-container gaps** (Audit mode working as designed):
+  - Repo-managed (fixed via F-41): authentik-worker `wait-for-server`, home-assistant `config-setup` + `hacs-install`, paperless-ngx `fix-permissions` — all received `resources: {requests, limits}` blocks sized to workload (busybox/curl init = 10m/16Mi → 50m/32Mi; alpine + wget HACS = 50m/64Mi → 500m/256Mi).
+  - Operator-managed (fixed via F-42 exclude): CNPG `main-postgres-rw-pooler` (label `cnpg.io/podRole: pooler`), VMAgent (label `managed-by: vm-operator`).
+- 🧪 **Validation chain**: pre-promotion `kubectl get policyreport -A` = 0 fails baseline → F-41 commit → Flux apply → re-scan = 0 fails → F-2b promotion commit → Flux apply → live `kubectl get cpol -o jsonpath` = all 3 Enforce → re-scan = 0 fails → 0 admission rejections → 0 pod restarts in 5min window post-Enforce → 0 VMAlerts firing.
+- 📌 **F-2b unblocked by hotfix path**: rather than reverting F-3 (which surfaced the gaps), did "fix-forward" — added in-repo init resources (F-41), added operator-label excludes (F-42), then promoted. Audit mode confirmed safe before Enforce flip. Total elapsed: ~25min from "0 fails baseline" to "0 fails Enforce live."
+
 ### 2026-05-23 (Ultrareview — 4-agent consensus + Wave-1 implementation) 🔍🛠️
 - ✅ **4-agent ultrareview** of main branch: arch (ecc:architect), k8s/Flux (k8s-devops-reviewer), security (ecc:security-reviewer), cruft (ecc:code-reviewer). Output: [REVIEW.md](../REVIEW.md) — 1 P0, 11 P1, 17 P2, 9 P3 + 4 doc-drift + 4 CI gaps. Verdict: APPROVE with backlog. No operational blocker.
 - ✅ **Pre-flight**: signed annotated git tag `pre-ultrareview-2026-05-23` for rollback. Live `kubectl get policyreport -A` scan → 0 FAIL/WARN/ERROR — Audit→Enforce promotion safe. 0 open PRs (no Renovate conflict).
