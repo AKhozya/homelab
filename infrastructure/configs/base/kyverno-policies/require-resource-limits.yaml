@@ -37,6 +37,10 @@ spec:
               - resources:
                   limits:
                     cpu: "?*"
+            =(initContainers):
+              - resources:
+                  limits:
+                    cpu: "?*"
     - name: require-memory-limit
       match:
         any:
@@ -57,6 +61,10 @@ spec:
         pattern:
           spec:
             containers:
+              - resources:
+                  limits:
+                    memory: "?*"
+            =(initContainers):
               - resources:
                   limits:
                     memory: "?*"

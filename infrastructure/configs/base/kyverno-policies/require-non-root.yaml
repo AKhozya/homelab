@@ -39,6 +39,7 @@ spec:
                 - stirling-pdf         # PDF processing with user switching capabilities
                 - loki                 # alloy requires root to read host logs
                 - backup-replication   # rsync needs root to access backup files
+                - paperless-ngx        # s6-overlay /run permission init — restored 2026-05 (see HOMELAB_HISTORY)
       validate:
         message: "Containers must not run as root (runAsNonRoot: true or runAsUser != 0)"
         anyPattern:
