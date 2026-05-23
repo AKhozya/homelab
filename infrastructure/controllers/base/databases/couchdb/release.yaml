@@ -28,7 +28,7 @@ spec:
     # Init container image (pin version, don't use :latest)
     initImage:
       repository: busybox
-      tag: "1.37.0"
+      tag: "1.38.0"
       pullPolicy: IfNotPresent
 
     # Init container resources

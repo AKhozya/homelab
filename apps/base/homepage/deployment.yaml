@@ -32,7 +32,7 @@ spec:
       # ConfigMaps are read-only, so we copy to emptyDir which is writable.
       initContainers:
         - name: copy-config
-          image: busybox:1.37.0
+          image: busybox:1.38.0
           command:
             - sh
             - -c
