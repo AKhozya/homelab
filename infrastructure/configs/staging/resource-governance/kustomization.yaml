@@ -26,6 +26,7 @@ resources:
   - small-tier/blocky.yaml
   - small-tier/audiobookshelf.yaml
   - small-tier/csp-reporter.yaml
+  - small-tier/claude-telegram.yaml
 
   # Infrastructure tier
   - small-tier/traefik.yaml
