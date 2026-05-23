@@ -15,7 +15,7 @@
 #
 # Works for both control-plane and worker nodes (auto-detected).
 
-set -e
+set -euo pipefail
 
 echo "=============================================="
 echo "       K3s Node Setup Script"
@@ -135,7 +135,8 @@ echo "Enabling crash logging..."
 CRASH_PARAMS="efi_pstore.pstore_disable=0 printk.always_kmsg_dump=Y panic=10"
 for entry in /boot/loader/entries/*lts*.conf; do
     [[ -f "$entry" ]] || continue
-    current_options=$(grep "^options " "$entry")
+    current_options=$(grep "^options " "$entry" || true)
+    [[ -n "$current_options" ]] || continue
     new_options=$(echo "$current_options" | sed \
         -e 's/ efi_pstore\.pstore_disable=[^ ]*//g' \
         -e 's/ printk\.always_kmsg_dump=[^ ]*//g' \

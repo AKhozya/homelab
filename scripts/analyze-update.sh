@@ -62,7 +62,13 @@ else
     PACKAGE_NAME=$(echo "$PR_TITLE" | sed 's/chore(deps): update //' | sed 's/ Docker tag.*//' | sed 's/ to.*//')
     OLD_VERSION="unknown"
     NEW_VERSION=$(echo "$PR_TITLE" | grep -oE 'to v?[0-9.]+' | sed 's/to v\?//' || echo "unknown")
-    UPDATE_TYPE=$(echo "$PR_TITLE" | grep -iq "major" && echo "major" || echo "$PR_TITLE" | grep -iq "minor" && echo "minor" || echo "patch")
+    if echo "$PR_TITLE" | grep -iq "major"; then
+        UPDATE_TYPE="major"
+    elif echo "$PR_TITLE" | grep -iq "minor"; then
+        UPDATE_TYPE="minor"
+    else
+        UPDATE_TYPE="patch"
+    fi
 fi
 
 echo "Package: $PACKAGE_NAME"

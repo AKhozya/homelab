@@ -79,5 +79,9 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git tag -f "claude-telegram-v${{ steps.version.outputs.tag }}"
-          git push origin "claude-telegram-v${{ steps.version.outputs.tag }}" --force
+          if git ls-remote --tags origin "claude-telegram-v${{ steps.version.outputs.tag }}" | grep -q .; then
+            echo "::error::Tag claude-telegram-v${{ steps.version.outputs.tag }} already exists. Re-run with manual version input."
+            exit 1
+          fi
+          git tag "claude-telegram-v${{ steps.version.outputs.tag }}"
+          git push origin "claude-telegram-v${{ steps.version.outputs.tag }}"
