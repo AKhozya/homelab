@@ -1,0 +1,62 @@
+---
+# Homelab yamllint config — Wave 7 CI gate.
+# Tuned for Flux Helm-released YAML (long auto-generated lines) and Kustomize patches.
+# `truthy` strict to catch `on:`/`off:` accidents in K8s manifests.
+
+extends: default
+
+yaml-files:
+  - '*.yaml'
+  - '*.yml'
+
+ignore: |
+  .git/
+  .playwright-mcp/
+  .backup/
+  clusters/staging/flux-system/gotk-components.yaml
+  docs/superpowers/
+  # SOPS-managed files — encrypted blocks rewritten by sops, fighting yamllint here is futile.
+  **/*-secret.yaml
+  **/*-secrets.yaml
+  **/secret.yaml
+  **/secrets.yaml
+  **/*.sops.yaml
+  **/*-db-user.yaml
+  **/postgres-admin-user.yaml
+  **/cluster-secrets.yaml
+  **/tunnel-credentials.yaml
+  **/tunnel-mgmt-token.yaml
+  **/*credentials*.yaml
+  **/cloudflared-config-secret.yaml
+  **/linkwarden-app-user-secret.yaml
+  # Misnamed SOPS-encrypted Secrets (named *configmap.yaml but kind=Secret).
+  apps/base/blocky/configmap.yaml
+  apps/base/stirling-pdf/custom-settings-configmap.yaml
+
+rules:
+  line-length:
+    max: 200
+    level: warning
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+  document-start: disable
+  truthy:
+    check-keys: false
+    allowed-values: ['true', 'false']
+    level: error
+  indentation:
+    spaces: 2
+    indent-sequences: whatever
+    check-multi-line-strings: false
+  comments-indentation: disable
+  comments:
+    min-spaces-from-content: 1
+  braces:
+    max-spaces-inside: 1
+  brackets:
+    max-spaces-inside: 1
+  empty-lines:
+    max: 2
+  new-line-at-end-of-file: enable
+  trailing-spaces: enable
+  key-duplicates: enable

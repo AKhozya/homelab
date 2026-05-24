@@ -1,0 +1,194 @@
+name: Validate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  KUBECONFORM_VERSION: v0.6.7
+  KUBERNETES_VERSION: "1.31.0"
+  FLUX_VERSION: 2.8.8
+
+jobs:
+  yamllint:
+    name: yamllint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install yamllint==1.35.1
+      - run: yamllint .
+
+  shellcheck:
+    name: shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Run shellcheck
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(find scripts docs/scripts -type f \
+            \( -name '*.sh' -o -name '*.bash' \) 2>/dev/null)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "no shell scripts found"
+            exit 0
+          fi
+          printf 'Found %d shell scripts\n' "${#files[@]}"
+          # -S error keeps the gate noise-free; warnings/info still surfaced inline below.
+          fail=0
+          for f in "${files[@]}"; do
+            if ! shellcheck -S error "$f"; then
+              fail=1
+            fi
+          done
+          exit $fail
+
+  sops-check:
+    name: sops encryption presence
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - run: scripts/ci/check-sops-encrypted.sh
+
+  init-resources:
+    name: initContainer resource limits guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install yq
+        run: |
+          curl -sSL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+          yq --version
+      - run: scripts/ci/check-init-resources.sh
+
+  kubeconform:
+    name: kubeconform (${{ matrix.root }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        root:
+          - apps/staging
+          - infrastructure/configs/staging
+          - infrastructure/controllers/staging
+          - monitoring/configs/staging
+          - monitoring/controllers/staging
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install kustomize + kubeconform + yq
+        run: |
+          set -euo pipefail
+          # kustomize (Helm plugin requires --enable-helm at build time)
+          curl -sSL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/kustomize
+          kustomize version
+          # kubeconform
+          curl -sSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
+            | tar xz -C /usr/local/bin kubeconform
+          kubeconform -v
+          # yq (used to strip sops field before validation)
+          curl -sSL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o /usr/local/bin/yq
+          sudo chmod +x /usr/local/bin/yq
+      - name: Build + validate
+        run: |
+          set -euo pipefail
+          # SOPS-encrypted Secrets carry a top-level `sops:` field that schemas reject.
+          # Strip the field across all docs before piping to kubeconform.
+          # Missing CRDs (operator-defined) are tolerated by `-ignore-missing-schemas`,
+          # but for first-party operators we still ship Datree's CRDs-catalog fallback.
+          out=$(mktemp)
+          kustomize build --enable-helm "${{ matrix.root }}" > "$out"
+          printf 'Built %s (%d lines)\n' "${{ matrix.root }}" "$(wc -l < "$out")"
+          yq eval 'del(.sops)' "$out" | \
+            kubeconform \
+              -strict \
+              -ignore-missing-schemas \
+              -kubernetes-version "${KUBERNETES_VERSION}" \
+              -schema-location default \
+              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              -summary
+
+  flux-build:
+    name: flux build (${{ matrix.kustomization }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kustomization: apps
+            path: ./apps/staging
+            file: clusters/apps.yaml
+          - kustomization: infrastructure-controllers
+            path: ./infrastructure/controllers/staging
+            file: clusters/infrastructure.yaml
+          - kustomization: infrastructure-configs
+            path: ./infrastructure/configs/staging
+            file: clusters/infrastructure-configs.yaml
+          - kustomization: monitoring-controllers
+            path: ./monitoring/controllers/staging
+            file: clusters/monitoring.yaml
+          - kustomization: monitoring-configs
+            path: ./monitoring/configs/staging
+            file: clusters/monitoring.yaml
+    steps:
+      - uses: actions/checkout@v6
+      - uses: fluxcd/flux2/action@v2.5.1
+        with:
+          version: ${{ env.FLUX_VERSION }}
+      - name: Flux build
+        run: |
+          set -euo pipefail
+          flux build kustomization "${{ matrix.kustomization }}" \
+            --path "${{ matrix.path }}" \
+            --kustomization-file "${{ matrix.file }}" \
+            > /tmp/flux-build-${{ matrix.kustomization }}.yaml
+          printf 'Built %s (%d lines)\n' \
+            "${{ matrix.kustomization }}" \
+            "$(wc -l < /tmp/flux-build-${{ matrix.kustomization }}.yaml)"
+
+  homelab-analysis-drift:
+    name: HOMELAB_ANALYSIS keyfact drift (warn-only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+      - name: Count live invariants vs documented
+        run: |
+          set -euo pipefail
+          # Static drift check — counts authored objects in-repo and compares to the
+          # keyfact line in docs/HOMELAB_ANALYSIS.md. Warn-only since exact phrasing
+          # in the keyfact line evolves (multi-doc NP files, etc.).
+          analysis=docs/HOMELAB_ANALYSIS.md
+          [ -f "$analysis" ] || { echo "no $analysis"; exit 0; }
+
+          np_files=$(find . -path './.git' -prune -o -name '*.yaml' -print 2>/dev/null \
+            | xargs grep -l '^kind: NetworkPolicy' 2>/dev/null | wc -l | tr -d ' ')
+          np_resources=$(find . -path './.git' -prune -o -name '*.yaml' -print 2>/dev/null \
+            | xargs grep -c '^kind: NetworkPolicy' 2>/dev/null \
+            | awk -F: '{s+=$2} END {print s+0}')
+          sops_count=$(find . -path './.git' -prune -o -name '*.yaml' -print 2>/dev/null \
+            | xargs grep -l 'ENC\[AES256_GCM' 2>/dev/null | wc -l | tr -d ' ')
+          kyverno_count=$(find infrastructure/configs/base/kyverno-policies -name '*.yaml' \
+            -exec grep -l '^kind: ClusterPolicy' {} \; 2>/dev/null | wc -l | tr -d ' ')
+
+          echo "Live counts:"
+          printf '  NetworkPolicy files=%s resources=%s\n' "$np_files" "$np_resources"
+          printf '  SOPS-encrypted files=%s\n' "$sops_count"
+          printf '  Kyverno ClusterPolicy=%s\n' "$kyverno_count"
+
+          echo
+          echo "Documented (HOMELAB_ANALYSIS.md):"
+          grep -E 'NetworkPolicy resources|SOPS secrets|Kyverno polic' "$analysis" | head -5 || true

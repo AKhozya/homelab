@@ -1,0 +1,60 @@
+---
+# Local mirror of .github/workflows/validate.yaml gates.
+# Heavy gates (kubeconform per kustomize-root, flux build) run in CI only.
+# Install: pre-commit install && pre-commit install --hook-type commit-msg
+# Run-all-files: pre-commit run -a
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: |
+          (?x)^(
+            .*\.sops\.yaml|
+            .*-secret\.yaml|
+            .*-secrets\.yaml|
+            .*credentials.*\.yaml|
+            apps/base/blocky/configmap\.yaml|
+            apps/base/stirling-pdf/custom-settings-configmap\.yaml|
+            clusters/staging/flux-system/gotk-components\.yaml|
+            docs/superpowers/.*
+          )$
+      - id: end-of-file-fixer
+        exclude: |
+          (?x)^(
+            .*\.sops\.yaml|
+            docs/superpowers/.*
+          )$
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=5000']
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        args: ['--strict']
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: ['-S', 'error']
+        files: ^(scripts|docs/scripts)/.*\.(sh|bash)$
+
+  - repo: local
+    hooks:
+      - id: sops-encryption
+        name: SOPS encryption presence
+        entry: scripts/ci/check-sops-encrypted.sh
+        language: script
+        pass_filenames: false
+        files: \.yaml$
+
+      - id: init-container-resources
+        name: initContainer resource limits
+        entry: scripts/ci/check-init-resources.sh
+        language: script
+        pass_filenames: false
+        files: \.yaml$
