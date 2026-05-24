@@ -10,8 +10,13 @@ node_ip: 192.168.1.129
 nic_tuning_iface: enp4s0
 
 # Swap config — 32G partition, UUID-mounted in fstab.
+# swap_path MUST be the stable /dev/disk/by-uuid symlink, NOT a raw /dev/nvmeXn1p3
+# name: NVMe controller enumeration (nvme0 vs nvme1) is non-deterministic across
+# reboots, so a raw device name silently breaks the verify task after any reboot
+# (history: flip-flopped nvme0↔nvme1 in c836a618/68bbf6fe). by-uuid resolves via
+# readlink -f to whatever the current device is. UUID matches swap_fstab_entry below.
 swap_kind: partition
-swap_path: /dev/nvme1n1p3
+swap_path: /dev/disk/by-uuid/a6b9e0ba-53f4-4335-8d9f-4d4a4e04306b
 swap_fstab_entry: "UUID=a6b9e0ba-53f4-4335-8d9f-4d4a4e04306b\tnone\tswap\tdefaults\t0 0"
 
 # ---- Packages ----
