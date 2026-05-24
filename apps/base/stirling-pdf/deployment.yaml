@@ -42,13 +42,14 @@ spec:
               drop: ["ALL"]
               add: ["SETGID", "SETUID", "CHOWN", "DAC_OVERRIDE"] # Required for su-exec privilege dropping, directory ownership, and nginx file access
           # v2.0.3 requires authentication on / - use /api/v1/info/status for health checks
-          # startupProbe allows 90s for slow startup (9 * 10s)
+          # startupProbe allows 300s for slow cold start (30 * 10s) — 2.11.0-fat
+          # Spring Boot 4 + license check + H2 init exceeds 90s on a cold node
           startupProbe:
             httpGet:
               path: /api/v1/info/status
               port: 8080
             periodSeconds: 10
-            failureThreshold: 9
+            failureThreshold: 30
             timeoutSeconds: 5
           livenessProbe:
             httpGet:
