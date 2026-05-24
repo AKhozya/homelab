@@ -30,18 +30,18 @@ spec:
     loki:
       revisionHistoryLimit: 2
       auth_enabled: false
-      
+
       commonConfig:
         replication_factor: 1
         path_prefix: /var/loki
-      
+
       # Storage configuration
       storage:
         type: filesystem
         filesystem:
           chunks_directory: /var/loki/chunks
           rules_directory: /var/loki/rules
-      
+
       # Schema configuration
       schemaConfig:
         configs:
@@ -52,7 +52,7 @@ spec:
             index:
               prefix: index_
               period: 24h
-      
+
       # Retention configuration - keep logs for 30 days
       limits_config:
         retention_period: 720h  # 30 days
@@ -60,7 +60,7 @@ spec:
         ingestion_burst_size_mb: 20
         max_query_series: 10000
         max_query_lookback: 720h
-      
+
       # Compactor for log retention
       compactor:
         working_directory: /var/loki/compactor
@@ -69,10 +69,10 @@ spec:
         retention_delete_delay: 2h
         retention_delete_worker_count: 150
         delete_request_store: filesystem
-    
+
     # Single binary mode for simplicity
     deploymentMode: SingleBinary
-    
+
     # Disable simple scalable mode components
     backend:
       replicas: 0
@@ -80,10 +80,10 @@ spec:
       replicas: 0
     write:
       replicas: 0
-    
+
     singleBinary:
       replicas: 1
-      
+
       # Resource limits
       resources:
         requests:
@@ -92,13 +92,13 @@ spec:
         limits:
           cpu: 500m
           memory: 1Gi
-      
+
       # Persistent storage for logs
       persistence:
         enabled: true
         size: 10Gi
         storageClass: local-path
-    
+
     # Gateway (nginx) configuration
     gateway:
       enabled: true
@@ -110,7 +110,7 @@ spec:
         limits:
           cpu: 50m
           memory: 64Mi
-    
+
     # Sidecar containers configuration
     sidecar:
       resources:
@@ -143,13 +143,13 @@ spec:
 
       selfMonitoring:
         enabled: false
-    
+
     # Disable caching for single binary mode
     chunksCache:
       enabled: false
     resultsCache:
       enabled: false
-    
+
     # Test configuration
     test:
       enabled: false
