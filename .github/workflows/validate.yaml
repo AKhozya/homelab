@@ -17,7 +17,6 @@ concurrency:
 env:
   KUBECONFORM_VERSION: v0.6.7
   KUBERNETES_VERSION: "1.31.0"
-  FLUX_VERSION: 2.8.8
 
 jobs:
   yamllint:
@@ -120,44 +119,6 @@ jobs:
               -schema-location default \
               -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
               -summary
-
-  flux-build:
-    name: flux build (${{ matrix.kustomization }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - kustomization: apps
-            path: ./apps/staging
-            file: clusters/apps.yaml
-          - kustomization: infrastructure-controllers
-            path: ./infrastructure/controllers/staging
-            file: clusters/infrastructure.yaml
-          - kustomization: infrastructure-configs
-            path: ./infrastructure/configs/staging
-            file: clusters/infrastructure-configs.yaml
-          - kustomization: monitoring-controllers
-            path: ./monitoring/controllers/staging
-            file: clusters/monitoring.yaml
-          - kustomization: monitoring-configs
-            path: ./monitoring/configs/staging
-            file: clusters/monitoring.yaml
-    steps:
-      - uses: actions/checkout@v6
-      - uses: fluxcd/flux2/action@v2.5.1
-        with:
-          version: ${{ env.FLUX_VERSION }}
-      - name: Flux build
-        run: |
-          set -euo pipefail
-          flux build kustomization "${{ matrix.kustomization }}" \
-            --path "${{ matrix.path }}" \
-            --kustomization-file "${{ matrix.file }}" \
-            > /tmp/flux-build-${{ matrix.kustomization }}.yaml
-          printf 'Built %s (%d lines)\n' \
-            "${{ matrix.kustomization }}" \
-            "$(wc -l < /tmp/flux-build-${{ matrix.kustomization }}.yaml)"
 
   homelab-analysis-drift:
     name: HOMELAB_ANALYSIS keyfact drift (warn-only)
