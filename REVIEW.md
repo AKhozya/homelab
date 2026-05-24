@@ -429,20 +429,21 @@ Pipe binds tighter than `||`. Logic broken on the "minor" branch. Fallback is "p
 
 ---
 
-### Wave 7 — CI Gates (HIGHEST PREVENTATIVE ROI — do first)
+### Wave 7 — CI Gates (HIGHEST PREVENTATIVE ROI — do first) ✅ Closed 2026-05-24
 
 **Goal:** every learning from L1, L4, L5, L8 above gets a CI guard so future PRs don't re-introduce.
 
-- [ ] **CI-1** `.github/workflows/validate.yaml` — runs on every PR + push to main. Steps:
-  - `yamllint .` (config in `.yamllint.yaml`)
-  - `kubeconform -strict -kubernetes-version 1.31 -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'` per `kustomize build` output
-  - SOPS encryption check: every `*secret*.yaml` or `**/secrets/**` must contain `ENC[AES256_GCM` (regex grep)
-  - `shellcheck` on `scripts/**/*.sh` + `docs/scripts/**/*.sh`
-  - `flux build kustomization` for `apps`, `infrastructure-configs`, `infrastructure-controllers`, `monitoring-controllers`, `monitoring-configs`
-  - Init container resources check: `yq -e 'all(.spec.template.spec.initContainers[]?.resources.limits.cpu)'` per Deployment
-  - HOMELAB_ANALYSIS drift gate (optional, post-merge): warn-only check that counts in keyfact line match live `kubectl` for NP/SOPS/policies
-- [ ] **CI-2** Pre-commit hook config (`.pre-commit-config.yaml`) — same gates locally before commit
-- **Effort:** 4h. **Risk:** Low. **Payoff:** Catches L1/L4/L5/L8 issues at PR time, not in cluster.
+- [x] **CI-1** `.github/workflows/validate.yaml` — runs on every PR + push to main. Jobs:
+  - `yamllint .` (config in `.yamllint.yaml` — SOPS-managed files excluded since the encrypted layout is operator-owned)
+  - `shellcheck -S error` on `scripts/**/*.sh` + `docs/scripts/**/*.sh`
+  - SOPS encryption presence (`scripts/ci/check-sops-encrypted.sh`): every `*secret*.yaml`, `*credentials*.yaml`, `*-db-user.yaml`, `*.sops.yaml`, etc. must contain `ENC[AES256_GCM`
+  - `kubeconform -strict -ignore-missing-schemas -kubernetes-version 1.31.0` per kustomize root (apps/staging, infrastructure/{configs,controllers}/staging, monitoring/{configs,controllers}/staging); pipes through `yq 'del(.sops)'` to strip the SOPS metadata before validation
+  - Init container resources guard (`scripts/ci/check-init-resources.sh`): `yq` across every authored Deployment/StatefulSet/DaemonSet/Job/CronJob with `initContainers`, asserts all 4 fields (`resources.{requests,limits}.{cpu,memory}`). HelmRelease + operator CRs (Cluster/Pooler/VMAgent) skipped — rendered server-side
+  - `HOMELAB_ANALYSIS` keyfact drift (`continue-on-error: true`): live NP/SOPS/Kyverno counts vs the keyfact line
+  - **NOT included:** `flux build kustomization` — needs a live cluster (queries server discovery for API versions), errors `dial tcp [::1]:8080: connect: connection refused` in CI. The kubeconform job exercises the same offline render path via `kustomize build --enable-helm`
+- [x] **CI-2** `.pre-commit-config.yaml` — mirrors the same gates locally (yamllint, shellcheck-py, sops-check, init-resources, trailing-whitespace, end-of-file-fixer). Heavy gates (kubeconform per root) stay CI-only
+- [x] **CI-3** Yamllint baseline cleanup (commit `7fc45914`) — EOL on 18 files, trailing whitespace strip on 5, flow→block on the authentik `!Find` blueprint
+- **Tag:** `pre-w7-2026-05-24` (annotated, signed). **Commits:** `7fc45914` (cleanup) → `d65ad41b` (CI gates) → `6fc3ebe3` (drop flux-build job, needs cluster) → `db4bc940` (pin kustomize v5.5.0, upstream installer flaked on 1/5 matrix) → `cd2c973e` (drop sudo — `/usr/local/bin` writable on ubuntu-latest but `$HOME/.local/bin` via `$GITHUB_PATH` is cleaner). Final run: 9/9 jobs green
 
 ### Wave 8 — New Kyverno policies (apply L1/L2/L10 directly)
 
