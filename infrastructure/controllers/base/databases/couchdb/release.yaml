@@ -5,6 +5,9 @@ metadata:
   namespace: databases
 spec:
   interval: 6h
+  timeout: 10m
+  driftDetection:
+    mode: enabled
   chart:
     spec:
       chart: couchdb

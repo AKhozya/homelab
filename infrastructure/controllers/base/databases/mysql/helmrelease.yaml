@@ -4,7 +4,11 @@ metadata:
   name: ps-operator
   namespace: percona-mysql
 spec:
-  interval: 30m
+  interval: 6h
+  driftDetection:
+    mode: enabled
+  rollback:
+    cleanupOnFail: true
   chart:
     spec:
       chart: ps-operator

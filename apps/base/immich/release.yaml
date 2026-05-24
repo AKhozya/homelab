@@ -5,6 +5,10 @@ metadata:
   namespace: immich
 spec:
   interval: 6h
+  driftDetection:
+    mode: enabled
+  rollback:
+    cleanupOnFail: true
   chart:
     spec:
       chart: immich
