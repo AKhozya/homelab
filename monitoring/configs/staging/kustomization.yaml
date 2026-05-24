@@ -5,4 +5,4 @@ resources:
   - grafana-dashboards
   - blocky
   - flux-notifications.yaml
-  - victoria-metrics
+  - ../base/victoria-metrics
