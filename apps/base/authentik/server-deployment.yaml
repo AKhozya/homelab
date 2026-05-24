@@ -71,6 +71,17 @@ spec:
           envFrom:
             - secretRef:
                 name: authentik
+          # Override PgBouncer host with direct CNPG connection.
+          # Since v2026.5.0 the server runs the Postgres-backed channel
+          # layer (django_channels_postgres), which holds a persistent
+          # LISTEN/NOTIFY connection. PgBouncer transaction pooling drops
+          # the LISTEN context when it recycles the connection, so flow
+          # WebSocket events stop delivering — login hangs at
+          # "Authenticating...". Direct connection keeps LISTEN alive.
+          # (Worker already does this for server-side cursors — 8c58c6af.)
+          env:
+            - name: AUTHENTIK_POSTGRESQL__HOST
+              value: main-postgres-rw.databases.svc.cluster.local
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
