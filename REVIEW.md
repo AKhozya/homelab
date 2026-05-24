@@ -386,6 +386,50 @@ Pipe binds tighter than `||`. Logic broken on the "minor" branch. Fallback is "p
 
 ## Action Backlog
 
+### ⏭ Resume Here — Outstanding work extracted (as of 2026-05-24 night)
+
+Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the **proper fix that remains**. This is the single resume point — wave sections keep the full context.
+
+**🔴 Scheduled / time-bound (do on date):**
+
+| ID | Done so far | Proper fix remaining | Risk | When |
+|---|---|---|---|---|
+| **F-4** | Audit shipped (`f6eac874`); `=()`→mandatory PSS pattern; 9 operator/privileged workloads surfaced | Add label-selector excludes (redis-operator, redis-replication, couchdb-couchdb, main-mysql-{haproxy,mysql,orc}, immich-server, loki/alloy, node-exporter, ps-operator) → flip `validationFailureAction` Audit→Enforce | Low (excludes explicit) | **cron `771dadd3` → 2026-05-25 19:30** |
+| **F-5** | Audit shipped (`252547ff`); 40 pass / 0 fail | **Promote-ready** — flip Audit→Enforce, no excludes needed | Low | with F-4 (2026-05-25) |
+| **F-6** | Audit shipped (`252547ff`); 11 workloads surfaced (26 fail/49 pass) | Exclude operators (redis-operator, ps-operator, alloy, grafana) + privileged (home-assistant, immich, paperless-ngx); for own apps (claude-telegram, homehub, pricebuddy, stirling-pdf) add RoRFS+`/tmp` emptyDir OR exclude → flip Enforce | Med (own-app RoRFS may need write-audit) | after F-39 audit |
+| **F-22** | Day-0 done (`971a27d2`): 3 report-only middlewares live | Per-tier ingress annotation swap → 7d Loki soak → flip Report-Only→enforced. Tier A (paperless,blocky,claude-telegram,obsidian) → B (8 apps) → C (4 apps) | Low (revert = 1 annotation line) | calendar, ~3wk |
+| **F-43** | — | Check hass-oidc-auth releases for HA compat; enable HA OIDC if shipped | Low | 2026-06-04 |
+
+**🟡 Attended (live verification required — do NOT run unattended):**
+
+| ID | Done so far | Proper fix remaining | Why attended |
+|---|---|---|---|
+| **F-13** | Decision made: collapse (no prod roadmap) | Rename 16 `apps/staging/<app>/` → `apps/<app>/`; Flux must re-discover | Highest blast radius — Flux re-discovery + prune risk on 16 dirs |
+| **F-15** | Files identified (authentik, immich, linkwarden, mealie, n8n, paperless) | Move `*-db-user.yaml`+`*-database.yaml` from `databases/postgres/` → `apps/staging/<app>/`; keep `metadata.name`+ns identical; pre/post `kubectl get database -n databases` diff | CNPG Database CR re-creation risk if name/ns drift |
+| **R5** | Analysis: NOT a clean dedup | Per-app NP review; build components only for the 17 standard apps (blocky/2 others have divergent DNS egress) | Forcing shared component on exceptions silently breaks egress |
+| **F-14 (infra)** | Monitoring subset done (`b442c098`) | Trace `infrastructure/controllers/staging` `[../base]` whole-dir ref + `couchdb/secret.yaml` wiring, then collapse | Orphan-looking secret wiring → prune risk |
+| **F-37** | Confirmed: 0 `forwardAuth` in repo | Build Authentik ForwardAuth Middleware + proxy provider/outpost FIRST, then wire uptime-kuma | New infra, not a single-line edit |
+| **F-38** | — | Narrow `disallow-host-namespaces` (Enforce) excludes from whole-ns → label selectors | Live `kubectl get pods -n databases -n monitoring --show-labels` + server-dry-run before flip |
+| **F-39** | Deployment review: writes look confined to `/home/akhozya`+`/tmp` | RoRFS on init+main → promote claude-telegram ns to PSS restricted | Live write-audit (`kubectl debug`) first — breaking primary bot unattended not worth it |
+
+**🟢 Housekeeping (zero/low risk, batch anytime):**
+
+| ID | Proper fix remaining |
+|---|---|
+| **F-30 (inject)** | Inject `priorityClassName` into ~40 workloads (classes already defined in `priority-classes/`) |
+| **F-44** | Document `pre-ultrareview-2026-05-23` DR handle in `.backup/README.md` |
+| **F-23** | Pin `claude-telegram-bot:1.22`→`1.22.0` (needs build-pipeline tag scheme + Renovate manager update) |
+| **F-24** | pricebuddy apprise non-root variant — upstream image investigation |
+| **W13-hist** | Rotate `HOMELAB_HISTORY.md` pre-2026 → `docs/archive/HOMELAB_HISTORY_2025.md` (bulky, dedicated pass) |
+| **W13-docs** | Archive 10 stale docs — each has 1-2 live referrers; update referrer links + fold into CODEMAPS first |
+| **W13-mem** | Memory back-links to ultrareview memories (lives in `~/.claude`, chezmoi sync) |
+
+**Operational fixes this session (outside original review scope — logged in HOMELAB_HISTORY):**
+- `2ff39465` W1 `swap_path` → stable `by-uuid` (NVMe enum flips on reboot; was flip-flopping nvme0↔nvme1). CP=`/swapfile` + W2=LVM already stable.
+- `466b8fca` stirling-pdf startupProbe `failureThreshold` 9→30 (2.11.0-fat cold boot >90s after reboot).
+
+---
+
 ### Wave 1 — Closed 2026-05-23
 
 - [x] **F-1** Cloudflare ACCOUNT + TUNNEL UUID → SOPS Secret env vars (no regen needed)
