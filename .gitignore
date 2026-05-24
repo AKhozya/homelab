@@ -44,3 +44,6 @@ target/
 .backup/secrets/*.agekey
 .backup/ENV_VARS.md
 .monitoring/
+
+# Transient PR/update baseline snapshots
+scripts/analyze-update/baselines/
