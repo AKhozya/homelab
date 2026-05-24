@@ -23,6 +23,7 @@ Claude no sudo. Node-side debug + fix workflow: `/homelab-node-fix` skill (SSH+T
 - **SOPS = truth** for secrets + Cloudflare tunnel config.
 - **Kyverno enforce resource limits** all containers (init included), PSS, NetworkPolicy, image-pin.
 - **`readOnlyRootFilesystem`** needs `/tmp` emptyDir volume.
+- **CI gate-of-record.** `.github/workflows/validate.yaml` runs yamllint + shellcheck + sops-check + init-resources + kubeconform × 5 kustomize roots on every push (~45s p95). `/gitops-workflow` step 3c blocks `fr` on CI red. Local validation (`/homelab-yaml-validate`) is fast iteration, not bypass.
 
 ## Docs (read before acting)
 - `docs/HOMELAB_ANALYSIS.md` — state tracker. Update after meaningful change (PostToolUse hook enforces).
