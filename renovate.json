@@ -162,8 +162,9 @@
   ],
   "timezone": "Europe/London",
   "schedule": [
-    "after 10pm and before 6am every weekday",
-    "every weekend"
+    "after 10pm every weekday",
+    "every weekend",
+    "before 6am every weekday"
   ],
   "ignorePaths": [
     "docs/**",
