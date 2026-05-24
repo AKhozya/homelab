@@ -1,0 +1,29 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: homelab-critical
+value: 100000
+globalDefault: false
+description: >-
+  Critical homelab workloads (databases, ingress, auth, monitoring core).
+  Scheduled and preferred over standard/batch under resource pressure.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: homelab-standard
+value: 50000
+globalDefault: false
+description: >-
+  Standard homelab applications. Default tier for user-facing apps that are
+  not critical infrastructure but should outrank batch jobs.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: homelab-batch
+value: 10000
+globalDefault: false
+description: >-
+  Batch and best-effort workloads (backups, cron jobs, one-off tasks).
+  First to be preempted under resource pressure.

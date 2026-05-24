@@ -6,6 +6,7 @@ metadata:
 spec:
   schedule: "5 3 * * *"  # 3:05 AM UTC daily (5 min after PostgreSQL backups)
   timeZone: "UTC"
+  startingDeadlineSeconds: 600
   successfulJobsHistoryLimit: 7
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid  # Don't run concurrent backups

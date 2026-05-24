@@ -15,6 +15,6 @@ spec:
       # Disable FLoC tracking
       Permissions-Policy: "interest-cohort=()"
       # Force HTTPS (1 year max-age - final step)
-      Strict-Transport-Security: "max-age=31536000"
+      Strict-Transport-Security: "max-age=31536000; includeSubDomains; preload"
       # Remove server version info
       X-Powered-By: ""

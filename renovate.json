@@ -151,11 +151,19 @@
       "matchFileNames": ["**/searxng/**"],
       "matchDatasources": ["docker"],
       "enabled": false
+    },
+    {
+      "description": "Automerge patch updates for low-risk apps (scoped to apps/ image patches; excludes DB operators, Flux, Traefik, monitoring)",
+      "matchFileNames": ["apps/**"],
+      "matchUpdateTypes": ["patch"],
+      "matchDatasources": ["docker", "github-releases"],
+      "automerge": true
     }
   ],
   "timezone": "Europe/London",
   "schedule": [
-    "at any time"
+    "after 10pm and before 6am every weekday",
+    "every weekend"
   ],
   "ignorePaths": [
     "docs/**",

@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - ../base/cert-manager
   - ../base/kyverno-policies
+  - ../base/priority-classes
   - databases
   - cloudflare
   - backup
