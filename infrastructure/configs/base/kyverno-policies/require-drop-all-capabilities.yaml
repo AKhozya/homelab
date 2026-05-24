@@ -11,7 +11,7 @@ metadata:
       Containers should drop all Linux capabilities and only add back
       specific ones if needed. This reduces the attack surface.
 spec:
-  validationFailureAction: Enforce
+  validationFailureAction: Audit  # F-4: mandatory-pattern soak; promote to Enforce after ≥24h clean scan
   background: true
   rules:
     - name: require-drop-all
@@ -30,16 +30,21 @@ spec:
                 - flux-system
                 - kyverno
       validate:
-        message: "Containers must drop all capabilities (capabilities.drop: [ALL])"
+        message: "Every container must drop all capabilities (capabilities.drop: [ALL])"
         pattern:
           spec:
+            =(ephemeralContainers):
+              - securityContext:
+                  capabilities:
+                    drop:
+                      - ALL
             =(initContainers):
-              - =(securityContext):
-                  =(capabilities):
+              - securityContext:
+                  capabilities:
                     drop:
                       - ALL
             containers:
-              - =(securityContext):
-                  =(capabilities):
+              - securityContext:
+                  capabilities:
                     drop:
                       - ALL
