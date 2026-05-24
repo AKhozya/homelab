@@ -1,15 +1,17 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # Enforced policies (0 violations)
-  - disallow-privilege-escalation.yaml
-  - require-drop-all-capabilities.yaml
+  # Enforce (clean scan, promoted)
   - require-labels.yaml
   - disallow-host-namespaces.yaml
-  # Audit policies (violations present, being remediated)
   - require-resource-limits.yaml
   - require-non-root.yaml
   - disallow-host-path.yaml
   - disallow-latest-tag.yaml
   - require-non-default-serviceaccount.yaml
   - require-seccomp-runtimedefault.yaml
+  # Audit (Wave 8 soak — promote to Enforce after >=24h clean scan + fix-forward)
+  - disallow-privilege-escalation.yaml   # F-4: mandatory =() removal
+  - require-drop-all-capabilities.yaml    # F-4: mandatory =() removal
+  - require-networkpolicy.yaml            # F-5: NP presence per namespace
+  - require-readonly-rootfs.yaml          # F-6: readOnlyRootFilesystem
