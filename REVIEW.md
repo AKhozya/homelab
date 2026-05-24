@@ -462,58 +462,58 @@ Each new policy ships Audit → scan ≥24h via `kubectl get policyreport -A` �
   - Own apps → triage (add RoRFS+`/tmp` emptyDir OR exclude if writable root needed): claude-telegram, homehub, pricebuddy, stirling-pdf
 - **Effort:** 1 day (split across 24h soak per policy). **Payoff:** closes 3 documented invariants currently held by manual discipline only.
 
-### Wave 9 — HelmRelease tightening (bulk low-risk)
+### Wave 9 — HelmRelease tightening (bulk low-risk) ✅ Closed 2026-05-24
 
-- [ ] **F-16** `driftDetection: { mode: enabled }` on 12 HelmReleases (all except KPS which already has it)
-- [ ] **F-17** Explicit `timeout: 10m` on `kube-prometheus-stack`, `loki`, `cert-manager`, `couchdb` (slow upgrades on worker disks)
-- [ ] **F-18** `rollback: { cleanupOnFail: true }` on `mysql`, `redis-operator`, `traefik`, `vm-operator`, `immich`
-- [ ] **F-20** Standardize HelmRelease `interval: 6h` (drop `30m` on mysql + redis-operator)
-- **Effort:** 2h, 1 PR. **Risk:** Low. **Payoff:** removes orphan ConfigMap accumulation referenced in `cluster-stale-cleanup` skill + catches manual `kubectl edit` drift.
+- [x] **F-16** `driftDetection: { mode: enabled }` on 11 HelmReleases (all except KPS which already had it)
+- [x] **F-17** Explicit `timeout: 10m` on `kube-prometheus-stack`, `loki`, `cert-manager`, `couchdb`
+- [x] **F-18** `rollback: { cleanupOnFail: true }` on `mysql`, `redis-operator`, `traefik`, `vm-operator`, `immich` (postgres/kyverno/alloy/cert-manager/couchdb already had rollback — left untouched)
+- [x] **F-20** Standardized HelmRelease `interval: 6h` (dropped `30m` on mysql + redis-operator)
+- **Commit** `60a8bf32`. All 5 kustomize roots build green. **Payoff:** removes orphan ConfigMap accumulation + catches manual `kubectl edit` drift.
 
-### Wave 10 — Simple polish (single-line / single-file edits)
+### Wave 10 — Simple polish (single-line / single-file edits) 🟢 Mostly closed 2026-05-24 (3 deferred → attended)
 
-- [ ] **F-21** HSTS middleware: `Strict-Transport-Security: "max-age=31536000; includeSubDomains; preload"`
-- [ ] **F-25** Privileged namespaces `audit: baseline, warn: baseline` (immich, home-assistant) — surfaces drift while keeping enforce: privileged
-- [ ] **F-26** Renovate schedule outside business hours + `automerge: true` on `patch` for low-risk apps
-- [ ] **F-30** Define `PriorityClass: homelab-{critical,standard,batch}` (100/50/10) + label injection
-- [ ] **F-31** Add `startingDeadlineSeconds: 600` + explicit `backoffLimit: 2` to 5 backup CronJobs
-- [ ] **F-32** Pin `fluxcd/flux2/action@main` → `@v2.5.1` (or latest tag)
-- [ ] **F-37** Authentik forward-auth middleware on `uptime-kuma` ingress
-- [ ] **F-38** Narrow `disallow-host-namespaces` exclusions to label-match (not whole namespace)
-- [ ] **F-39** claude-telegram RoRFS + PSS restricted (verify bot writes only to `/home/akhozya` + `/tmp` — use `kubectl debug` ephemeral container first)
-- [ ] **F-44 (NEW)** Update `pre-ultrareview-2026-05-23` cleanup — tag survives as DR handle; document in `.backup/README.md` how to use it
-- **Effort:** 3h, can batch as 1-2 PRs. **Risk:** Per-item low.
+- [x] **F-21** HSTS middleware: `max-age=31536000; includeSubDomains; preload`
+- [x] **F-25** Privileged namespaces `audit/warn: baseline` (immich, home-assistant); `enforce: privileged` kept
+- [x] **F-26** Renovate schedule off-hours (`after 10pm and before 6am every weekday`, `every weekend`) + `automerge: true` on `patch` scoped to `apps/**`
+- [x] **F-30** Defined `PriorityClass: homelab-{critical=100000,standard=50000,batch=10000}` (globalDefault:false) at `infrastructure/configs/base/priority-classes/`. **Workload `priorityClassName` injection deferred** — separate follow-up (touches ~40 workloads)
+- [x] **F-31** `startingDeadlineSeconds: 600` on 6 backup CronJobs; `backoffLimit: 2` where absent (couchdb kept intentional `6`; backup-replication already `2`)
+- [x] **F-32** Pinned `fluxcd/flux2/action@main` → `@v2.8.8` (matched live cluster Flux version)
+- [ ] **F-37 — DEFERRED (attended).** No Authentik forward-auth Middleware exists anywhere in repo (grep `forwardAuth` = 0 hits). Needs an Authentik ForwardAuth Middleware + proxy provider/outpost built FIRST, then wire to uptime-kuma. Bigger than a single-line edit.
+- [ ] **F-38 — DEFERRED (attended).** `disallow-host-namespaces` is `Enforce`; narrowing `databases`/`monitoring` namespace excludes to label selectors risks blocking operator-pod admission. Needs live label verification (`kubectl get pods -n databases -n monitoring --show-labels`) + server-dry-run before flip.
+- [ ] **F-39 — DEFERRED (attended).** claude-telegram RoRFS + PSS restricted. Deployment roots all writes in `/home/akhozya` (PVC) + `/tmp` (emptyDir) so RoRFS *looks* safe, but review mandates live write-audit (`kubectl debug`) first — breaking the primary bot unattended not worth it.
+- [ ] **F-44** Document `pre-ultrareview-2026-05-23` DR handle in `.backup/README.md`
+- **Commit** `d8ef6891` (6 findings). **Risk:** Per-item low.
 
-### Wave 11 — Structural refactor (highest blast radius — stage carefully)
+### Wave 11 — Structural refactor (highest blast radius — stage carefully) 🟡 F-14 partial done; R5/F-13/F-15 attended
 
-- [ ] **R5 / F-13 / F-14** Decision tree:
-  - **F-13** = collapse `apps/staging/<app>/` → `apps/<app>/` (single env, 16 apps). Decision: NO multi-cluster roadmap → safe to collapse.
-  - **F-14** = delete 6 dead 1-line passthroughs under `monitoring/{controllers,configs}/staging/` and `infrastructure/controllers/staging/`.
-  - **R5** = Kustomize components for NP DNS/Postgres/Redis egress (removes ~160 LOC duplication; single edit point for cluster-wide NP changes).
-  - **Order:** R5 first (additive, no breakage). Then F-14 (delete dead). Then F-13 (largest blast radius — defer or accept ongoing tax).
+- [~] **R5 / F-13 / F-14** Decision tree:
+  - **F-13** = collapse `apps/staging/<app>/` → `apps/<app>/` (single env, 16 apps). Decision: NO multi-cluster roadmap → safe to collapse. **DEFERRED (attended) — 16-dir rename, Flux re-discovery + prune risk.**
+  - **F-14** = ✅ **DONE (monitoring subset, commit `b442c098`):** collapsed `monitoring/controllers/staging` (loki-stack/popeye/victoria-metrics) + `monitoring/configs/staging/victoria-metrics` passthroughs into their staging roots; render verified byte-identical (17 controllers / 62 configs resources unchanged). **`infrastructure/controllers/staging` DEFERRED** — its `[../base]` whole-dir ref + orphan-looking `couchdb/secret.yaml` wiring needs tracing (prune risk).
+  - **R5** = Kustomize components for NP DNS/Postgres/Redis egress. **DEFERRED (attended) — NOT a clean dedup:** DNS egress varies per app (blocky has external upstream `1.1.1.2`/`9.9.9.9`/`149.112.112.112`/`1.0.0.2`; one app uses `k8s-app: kube-dns` podSelector; one allows `192.168.1.0/24`). A shared component fits only the 17 standard apps; forcing it on exceptions silently breaks egress. Needs per-app review.
+  - **Order (remaining):** R5 first (additive). Then F-13. Then infra-controllers F-14.
 - [ ] **F-15** Migrate 5 app DB users to app-owned (blocky pattern). Files: authentik, immich, linkwarden, mealie, n8n, paperless `*-db-user.yaml` + `*-database.yaml` from `infrastructure/configs/staging/databases/postgres/` → `apps/staging/<app>/`. Keep `metadata.name` + namespace identical to avoid CNPG re-creation. Pre-flight `kubectl get database -n databases -o yaml` snapshot + post-migration diff.
 - **Effort:** R5 = 2h, F-14 = 30min, F-15 = 2h, F-13 = 4h. **Risk:** F-15 medium (CNPG Database CR), F-13 high (16 dirs renamed, Flux must re-discover). **Payoff:** atomic per-app delete via `prune: true`; clean ownership.
 
-### Wave 12 — CSP 3-tier rollout (calendar-bound, 3 weeks)
+### Wave 12 — CSP 3-tier rollout (calendar-bound, 3 weeks) 🟡 Day-0 setup done 2026-05-24; rollout calendar-bound
 
-- [ ] **F-22** 3 middlewares + per-app ingress annotation swap. Existing csp-reporter as observability.
-  - **Day 0:** Create `csp-strict`, `csp-inline`, `csp-permissive` middlewares in `traefik` ns. Each carries `Content-Security-Policy-Report-Only: <proposed>` + retain current `Content-Security-Policy: <permissive>`.
+- [~] **F-22** 3 middlewares + per-app ingress annotation swap. Existing csp-reporter as observability.
+  - **Day 0:** ✅ **DONE (commit `971a27d2`):** Created `csp-strict`/`csp-inline`/`csp-permissive` in `traefik` ns, each emitting `Content-Security-Policy-Report-Only` (script-src 'self' | +'unsafe-inline' | +'unsafe-eval'); all other directives mirror the global enforced CSP; `report-uri` → csp-reporter preserved. NO ingress annotation swaps, current enforced `csp` middleware untouched. **Remaining = calendar-bound** (per-tier ingress swap + 7d soak + enforce flip).
   - **Day 1-2:** Swap Tier A ingresses (paperless, blocky, claude-telegram, obsidian) to `csp-strict`.
   - **Day 3-9:** Soak. Watch `{app="csp-reporter"} |= "<domain>"` in Loki.
   - **Day 10+:** If clean, flip Report-Only → enforced for that tier; drop permissive header.
   - **Repeat** for Tier B (8 apps) then Tier C (4 apps).
 - **Effort:** 2h actual edits, ~3 weeks calendar for soak. **Risk:** Low per-app (rollback = revert ingress annotation).
 
-### Wave 13 — Cruft + back-links (housekeeping)
+### Wave 13 — Cruft + back-links (housekeeping) 🟢 Mostly closed 2026-05-24 (2 deferred)
 
-- [ ] `git rm --cached` 13 `.DS_Store` files (already in `.gitignore`)
-- [ ] Delete `scripts/analyze-update/baselines/pr-198..pr-208.txt` + add `baselines/` to `.gitignore`
-- [ ] Delete `docs/POPEYE_CLUSTER_REPORT.txt` (7-month stale, weekly CronJob supersedes)
-- [ ] Archive `docs/superpowers/` (14 completed-work plans/specs) → `docs/archive/superpowers/`
-- [ ] Rotate `HOMELAB_HISTORY.md` pre-2026 entries → `docs/archive/HOMELAB_HISTORY_2025.md` (cuts ~1500 lines from active file)
-- [ ] Stale docs to archive (verify completion first): `KYVERNO_ADDITIONAL_POLICIES_RECOMMENDATIONS`, `KYVERNO_IMPLEMENTATION_SUMMARY`, `NETWORKPOLICY_EGRESS_AUDIT`, `MYSQL_OPERATOR_ANALYSIS`, `APP_ALTERNATIVES_RESEARCH`, `cloudflare-gateway-setup`, `K3S_NETWORKPOLICY_API_ACCESS`, `NOTIFICATION_REVIEW`, `RENOVATE_UPDATES`, `AUTHENTIK_SSO_INTEGRATION`
-- [ ] Memory back-links: add `[[project-ultrareview-2026-05-23]]` references to `gotchas.md` (Kyverno =() footgun, fix-forward pattern) and `reference_homelab_docs.md` (REVIEW.md pointer)
-- **Effort:** 1h. **Risk:** Zero (pure cleanup).
+- [x] `.DS_Store` — **no-op**: 0 actually tracked in git (review's "13 tracked" was stale; filesystem copies already gitignored)
+- [x] Deleted `scripts/analyze-update/baselines/pr-198..pr-208.txt` (10 files) + added `baselines/` to `.gitignore`
+- [x] Deleted `docs/POPEYE_CLUSTER_REPORT.txt`
+- [x] Archived `docs/superpowers/` (15 plans/specs) → `docs/archive/superpowers/` (git rename, content preserved)
+- [ ] **DEFERRED** Rotate `HOMELAB_HISTORY.md` pre-2026 entries → `docs/archive/HOMELAB_HISTORY_2025.md` (zero-risk but bulky; do as dedicated pass)
+- [ ] **DEFERRED** Stale docs to archive — each of the 10 has 1-2 live referrers; archiving needs referrer-link updates first (verify-completion + fold into CODEMAPS)
+- [ ] Memory back-links (separate from repo — lives in `~/.claude` memory; pending chezmoi sync)
+- **Commit** `ba9b1b7d`. **Risk:** Zero (pure cleanup).
 
 ### Watch / parking lot (no immediate action)
 
