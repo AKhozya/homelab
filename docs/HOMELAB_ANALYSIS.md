@@ -22,7 +22,7 @@
 | Database | 90/100 |
 | Infrastructure | 88/100 |
 
-**Key facts**: 40 NetworkPolicy resources (31 files, multi-doc). 53 SOPS secrets. **10 Kyverno policies all Enforce** (F-2b promoted 2026-05-23 after F-3/F-41/F-42 closed init container gaps; CNPG pooler + vmagent init excluded via label selectors). 13 HelmReleases. 16 apps. PSS restricted on 14 namespaces; `immich` + `home-assistant` deliberately privileged (GPU/hardware); `paperless-ngx` baseline (s6-overlay /run init). NetworkPolicy coverage manual (no Kyverno enforcement yet — see REVIEW F-5). HSTS, SSO, image-pin manually maintained — `claude-telegram:1.22` + `seleniumbase:v1.0` violate major.minor.patch (REVIEW F-23). Open findings: see [REVIEW.md](../REVIEW.md) backlog.
+**Key facts**: 40 NetworkPolicy resources (31 files, multi-doc). 53 SOPS secrets. **12 Kyverno policies — 8 Enforce + 4 Audit** (Wave 8 soak started 2026-05-24: F-4 `disallow-privilege-escalation`+`require-drop-all-capabilities` flipped to Audit after `=()`→mandatory-pattern rewrite; F-5 `require-networkpolicy` + F-6 `require-readonly-rootfs` new in Audit. Promote target ≥2026-05-25. CNPG pooler + vmagent init excluded via label selectors). 13 HelmReleases. 16 apps. PSS restricted on 14 namespaces; `immich` + `home-assistant` deliberately privileged (GPU/hardware); `paperless-ngx` baseline (s6-overlay /run init). NetworkPolicy coverage manual + F-5 Kyverno backstop (Audit; 40 pass/0 fail). HSTS, SSO, image-pin manually maintained — `claude-telegram:1.22` + `seleniumbase:v1.0` violate major.minor.patch (REVIEW F-23). Open findings: see [REVIEW.md](../REVIEW.md) backlog.
 
 ---
 

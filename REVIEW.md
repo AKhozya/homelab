@@ -445,13 +445,21 @@ Pipe binds tighter than `||`. Logic broken on the "minor" branch. Fallback is "p
 - [x] **CI-3** Yamllint baseline cleanup (commit `7fc45914`) — EOL on 18 files, trailing whitespace strip on 5, flow→block on the authentik `!Find` blueprint
 - **Tag:** `pre-w7-2026-05-24` (annotated, signed). **Commits:** `7fc45914` (cleanup) → `d65ad41b` (CI gates) → `6fc3ebe3` (drop flux-build job, needs cluster) → `db4bc940` (pin kustomize v5.5.0, upstream installer flaked on 1/5 matrix) → `cd2c973e` (drop sudo — `/usr/local/bin` writable on ubuntu-latest but `$HOME/.local/bin` via `$GITHUB_PATH` is cleaner). Final run: 9/9 jobs green
 
-### Wave 8 — New Kyverno policies (apply L1/L2/L10 directly)
+### Wave 8 — New Kyverno policies (apply L1/L2/L10 directly) 🟡 Audit soak started 2026-05-24 (tag `pre-w8-2026-05-24`)
 
 Each new policy ships Audit → scan ≥24h via `kubectl get policyreport -A` → fix gaps via fix-forward (in-repo `resources:`/labels + operator label-exclude) → promote Enforce.
 
-- [ ] **F-4** Replace `=()` in `disallow-privilege-escalation` + `require-drop-all-capabilities` with mandatory `deny` (operator: `NotEquals` block). Likely surfaces more gaps in Audit — expect 5-10 silent passes to fix.
-- [ ] **F-5** New `require-networkpolicy.yaml` ClusterPolicy: assert ≥1 NP per `apps/*` namespace. Ship Audit, scan, then Enforce. Optionally add `generate:` rule for default-deny NP.
-- [ ] **F-6** New `require-readonly-rootfs.yaml`: validate `readOnlyRootFilesystem: true` on `spec.containers[*]` + `=(initContainers)`. Ship Audit, scan, fix (pricebuddy has `false` on 3 containers — investigate per-container). Then Enforce.
+**Audit shipped** (commits `f6eac874` F-4, `252547ff` F-5/F-6). Background scan baseline (deterministic, captured at soak start). Promote-to-Enforce target ≥2026-05-25 19:30, after re-scan confirms no transient/CronJob regressions.
+
+- [~] **F-4** Replaced `=()` with canonical PSS mandatory pattern (drop `=()` from `securityContext`+leaf, keep on optional `=(initContainers)`/`=(ephemeralContainers)`; added ephemeralContainers) in `disallow-privilege-escalation` + `require-drop-all-capabilities`. **9 workloads surfaced**, all operator/privileged → need excludes before Enforce:
+  - databases: redis-operator, redis-replication, couchdb-couchdb, main-mysql-{haproxy,mysql,orc} (operator/Helm-managed init+containers)
+  - immich/immich-server (deliberately privileged, GPU)
+  - loki/alloy (host log reader), monitoring/node-exporter (host metrics, Helm), percona-mysql/ps-operator (operator)
+- [~] **F-5** New `require-networkpolicy.yaml`: apiCall counts NPs in `{{request.namespace}}`, deny if <1. Match Pod, exclude kube-system/kube-public/kube-node-lease/default. **40 pass, 0 fail** — every workload namespace already covered. apiCall verified working in background scan on Kyverno v1.18.1 (RBAC OK, no error results). Promote-ready.
+- [~] **F-6** New `require-readonly-rootfs.yaml`: mandatory PSS pattern. Excludes only system/operator ns (kube-*, flux-system, kyverno). **11 workloads surfaced** (26 fail/49 pass):
+  - Operator/Helm → exclude: redis-operator, ps-operator, alloy, grafana
+  - Privileged → exclude: home-assistant, immich, paperless-ngx (s6-overlay baseline)
+  - Own apps → triage (add RoRFS+`/tmp` emptyDir OR exclude if writable root needed): claude-telegram, homehub, pricebuddy, stirling-pdf
 - **Effort:** 1 day (split across 24h soak per policy). **Payoff:** closes 3 documented invariants currently held by manual discipline only.
 
 ### Wave 9 — HelmRelease tightening (bulk low-risk)
