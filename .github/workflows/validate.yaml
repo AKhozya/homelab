@@ -16,6 +16,7 @@ concurrency:
 
 env:
   KUBECONFORM_VERSION: v0.6.7
+  KUSTOMIZE_VERSION: v5.5.0
   KUBERNETES_VERSION: "1.31.0"
 
 jobs:
@@ -90,16 +91,14 @@ jobs:
       - name: Install kustomize + kubeconform + yq
         run: |
           set -euo pipefail
-          # kustomize (Helm plugin requires --enable-helm at build time)
-          curl -sSL "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-          sudo mv kustomize /usr/local/bin/kustomize
+          # Pinned binaries — avoid flaky upstream install scripts.
+          curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
+            | sudo tar xz -C /usr/local/bin kustomize
           kustomize version
-          # kubeconform
           curl -sSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
-            | tar xz -C /usr/local/bin kubeconform
+            | sudo tar xz -C /usr/local/bin kubeconform
           kubeconform -v
-          # yq (used to strip sops field before validation)
-          curl -sSL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o /usr/local/bin/yq
+          sudo curl -sSL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o /usr/local/bin/yq
           sudo chmod +x /usr/local/bin/yq
       - name: Build + validate
         run: |
