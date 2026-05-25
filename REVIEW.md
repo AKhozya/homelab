@@ -329,17 +329,19 @@ Pipe binds tighter than `||`. Logic broken on the "minor" branch. Fallback is "p
 - `docs/POPEYE_CLUSTER_REPORT.txt` — 7 months stale, superseded by weekly Popeye CronJob
 - `docs/superpowers/` — 14 pre-implementation plans/specs for completed work. Move to `docs/archive/` or delete
 
-### Stale Doc Candidates (archive)
-- `KYVERNO_ADDITIONAL_POLICIES_RECOMMENDATIONS.md` — likely actioned
-- `KYVERNO_IMPLEMENTATION_SUMMARY.md` — implementation done, covered by CODEMAPS
-- `NETWORKPOLICY_EGRESS_AUDIT.md` — verify completion, fold into CODEMAPS/networking.md
-- `MYSQL_OPERATOR_ANALYSIS.md` — decision made (Percona deployed)
-- `APP_ALTERNATIVES_RESEARCH.md` — pre-decision research
-- `AUTHENTIK_SSO_INTEGRATION.md` — superseded by passkey memory + CODEMAPS
-- `cloudflare-gateway-setup.md` — setup complete
-- `K3S_NETWORKPOLICY_API_ACCESS.md` — fold into `gotchas.md`
-- `NOTIFICATION_REVIEW.md` — one-time review
-- `RENOVATE_UPDATES.md` — superseded by renovate-analysis workflow
+### Stale Doc Candidates (archive) — ✅ DONE 2026-05-25 (W13-docs)
+
+All 10 `git mv`-d to `docs/archive/` (content preserved, durable conclusions already in CODEMAPS/skills/repo state). Index: [docs/archive/README.md](docs/archive/README.md).
+- `archive/KYVERNO_ADDITIONAL_POLICIES_RECOMMENDATIONS.md` — actioned (Wave 8 — 12 policies Enforce)
+- `archive/KYVERNO_IMPLEMENTATION_SUMMARY.md` — covered by HOMELAB_ANALYSIS keyfacts
+- `archive/NETWORKPOLICY_EGRESS_AUDIT.md` — egress topology in CODEMAPS/networking.md
+- `archive/MYSQL_OPERATOR_ANALYSIS.md` — Percona deployed; CODEMAPS/databases.md
+- `archive/APP_ALTERNATIVES_RESEARCH.md` — pre-decision research
+- `archive/AUTHENTIK_SSO_INTEGRATION.md` — passkey memory + CODEMAPS
+- `archive/cloudflare-gateway-setup.md` — setup complete
+- `archive/K3S_NETWORKPOLICY_API_ACCESS.md` — ipBlock `10.43.0.1/32` in networkpolicy-helper skill
+- `archive/NOTIFICATION_REVIEW.md` — one-time review
+- `archive/RENOVATE_UPDATES.md` — superseded by renovate-analysis workflow
 
 ### HOMELAB_HISTORY.md Rotation
 270 KB / 3537 lines / 123 entries / Oct 2025 → May 2026.

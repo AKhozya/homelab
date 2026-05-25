@@ -192,7 +192,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
     - ✅ Current stack grade: **A+ (96/100)**
     - ✅ 13 apps confirmed best-in-class
     - ✅ Identified Windmill as potential N8N alternative (44% less memory)
-    - ✅ Created `docs/APP_ALTERNATIVES_RESEARCH.md` (317+ lines)
+    - ✅ Created `docs/APP_ALTERNATIVES_RESEARCH.md` (317+ lines; archived 2026-05-25 → `docs/archive/`)
     - Impact: Validated current infrastructure choices, identified optimization opportunities
     - Commit: c4abd54
 
