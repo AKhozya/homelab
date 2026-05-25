@@ -302,6 +302,39 @@ curl -I https://immich.h0melab.work
 # Test OIDC login on all apps
 ```
 
+## Configuration Rollback (Git Tags)
+
+Distinct from data restore above: when a GitOps change (not a data loss) breaks the
+cluster, roll the **config** back to a known-good commit. Signed annotated tags are
+created before any multi-commit infra/security wave (`pre-<wave>-<date>`) and serve as
+DR handles — they survive many subsequent commits.
+
+**Known DR handles:**
+
+| Tag | Baseline |
+|---|---|
+| `pre-ultrareview-2026-05-23` | Pre-ultrareview state — last known-good before the multi-wave hardening (Kyverno Enforce, HelmRelease drift, CSP, priority classes). Primary config-rollback handle. |
+| `pre-w7-2026-05-24` | Before CI gates (validate.yaml). |
+| `pre-w8-2026-05-24` | Before Wave 8 Kyverno Audit→Enforce promotion. |
+
+```bash
+# Inspect a handle
+git show pre-ultrareview-2026-05-23 --stat
+
+# Roll config back (only if no downstream collaborator commits since the tag)
+git reset --hard pre-ultrareview-2026-05-23
+git push --force-with-lease origin main
+# Flux reconciles the reverted manifests within 60s (or force: fr)
+```
+
+Create a new handle before the next wave:
+
+```bash
+git tag -a pre-<wave>-$(date +%Y-%m-%d) -m "Pre-wave baseline before <description>"
+git push origin pre-<wave>-$(date +%Y-%m-%d)
+# NOTE: must be annotated (-a) — lightweight tags fail under [tag] gpgsign = true
+```
+
 ## Verification
 
 After recovery, verify:
