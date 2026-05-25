@@ -1,8 +1,8 @@
 [Unit]
-Description=Weekly cleanup of stale repro containers
+Description=Daily cleanup of stale repro containers
 
 [Timer]
-OnCalendar=Sun 08:00
+OnCalendar=*-*-* 08:00:00
 Persistent=true
 
 [Install]
