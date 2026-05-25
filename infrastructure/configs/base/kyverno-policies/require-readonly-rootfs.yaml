@@ -12,7 +12,7 @@ metadata:
       tampering of the image. Homelab invariant: readOnlyRootFilesystem requires a
       /tmp emptyDir volume for any path the process needs to write.
 spec:
-  validationFailureAction: Audit  # F-6: soak; promote to Enforce after >=24h scan + per-app triage
+  validationFailureAction: Enforce  # F-6: promoted 2026-05-25 (W8) after clean scan + per-app triage
   background: true
   rules:
     - name: require-readonly-rootfs

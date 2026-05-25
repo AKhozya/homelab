@@ -11,7 +11,7 @@ metadata:
       Containers should drop all Linux capabilities and only add back
       specific ones if needed. This reduces the attack surface.
 spec:
-  validationFailureAction: Audit  # F-4: mandatory-pattern soak; promote to Enforce after ≥24h clean scan
+  validationFailureAction: Enforce  # F-4: promoted 2026-05-25 (W8) after clean scan; operator/privileged excluded
   background: true
   rules:
     - name: require-drop-all

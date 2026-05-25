@@ -12,7 +12,7 @@ metadata:
       Homelab invariant: every ingress = NetworkPolicy (container port, not service port).
       This policy backstops the manual NetworkPolicy curation (40 NPs as of Wave 8).
 spec:
-  validationFailureAction: Audit  # F-5: soak; promote to Enforce after >=24h clean scan
+  validationFailureAction: Enforce  # F-5: promoted 2026-05-25 (W8) after clean scan; 160 pass / 0 fail
   background: true
   rules:
     - name: require-netpol-present
