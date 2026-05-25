@@ -99,9 +99,9 @@
 
 ## REBUILDERD (Arch contribution)
 
-- worker-node: 6 CPU, 18GB RAM cap, 24/7 (reduced from 32G after host OOM 2026-04-26)
-- worker-node-2: 4 CPU, 8GB RAM cap (MemoryHigh=6G), 24/7 (reduced 12G→8G after cosmic-launcher build caused 6 pod CrashLoops 2026-05-22)
-- Build timeout 48h, Sun 08:00 cleanup timer
+- worker-node: 6 CPU, 18GB RAM cap, 24/7 (reduced from 32G after host OOM 2026-04-26). repro+worker on `/mnt/k8s-storage` (4.2T).
+- worker-node-2: 4 CPU, 8GB RAM cap (MemoryHigh=6G), 24/7 (reduced 12G→8G after cosmic-launcher build caused 6 pod CrashLoops 2026-05-22). repro+worker on cramped `/mnt/extra-storage` (863G) = kubelet nodefs → **DiskPressure-prone** (2026-05-25 reboot-orphaned nspawn roots evicted pods; relocate to `/mnt/k8s-storage` is the root fix, PENDING).
+- Build timeout 48h. **Daily** repro-cleanup timer (weekly `Sun 08:00`→daily 2026-05-25): orphan nspawn build-roots + `.#machine.root*` snapshots + `paccache -rk2` of the per-name worker dep-cache (archlinux-repro never prunes it → W2 287G / W1 319G unbounded before fix). Both workers via `roles/rebuilderd/`.
 
 ---
 
@@ -121,6 +121,7 @@
 | Redis HA operator health check (master/replica/sentinel quorum, alerts firing only on real outages) | 2026-05-26 | P3 |
 | Redis HA failover smoke test (re-verify Sentinel-driven master promotion + app reconnect, post-Phase-1 stability check) | 2026-05-26 | P2 |
 | Validate UFW silent-disable auto-heal on next W1 kernel upgrade — UFW heal v5 shipped 2026-05-16: 5-layer defence (modules-load, k3s-wait-ready, boot-time healer, preflight role, 5min watchdog timer). Phase2 now retries 3x at 15min (Restart=on-failure). Stale phase2-pending flag auto-clears after 2h if Flux healthy (ExecCondition on config.service). Previous incident: phase2 Flux source-controller SSH timeout blocked drift-heal all day → UFW stayed disabled 12h. Now: L1 ansible retries+180s timeout, L2 systemd retry, L3 stale flag auto-clear. PASS = kernel upgrade + reboot → UFW recovers automatically, watchdog catches stragglers. FAIL = repeat outage. Watch: `journalctl -t ufw-heal --since reboot`, `systemctl is-active ufw-heal-watchdog.timer`, telegram drift-heal alerts. | next W1 kernel upgrade | P2 |
+| Relocate worker-node-2 rebuilderd (repro + worker dep-cache) off cramped 863G `/mnt/extra-storage` → spacious 3.6T `/mnt/k8s-storage` (mirror W1) — eliminates DiskPressure recurrence at the source; daily `paccache -rk2` is the interim mitigation. Needs finding the workdir knob (rebuilderd-worker internal default / conf `[build]`) + data migration. | Backlog | P2 |
 | Cluster CPU/memory right-sizing analysis — VMSingle PVC bound 2026-04-06; 90d data depth reached ~2026-07-05. Run after monthly cron cycles captured (security scan 1st, weekly Sat reboot, paccache, log rotation). Workload: per-namespace p95/p99 CPU + memory vs requests/limits, identify over/under-provisioned (use `vmq` helper). | 2026-07-06 | P2 |
 
 **Next Review**: 2026-06-04 (monthly) — 2026-05-02 review run early in lieu of 2026-05-04
