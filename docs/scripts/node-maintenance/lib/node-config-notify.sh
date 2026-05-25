@@ -78,6 +78,16 @@ extract_journal_window() {
   [ -n "${first_ts:-}" ] && printf 'window: %s..%s\n' "$first_ts" "$last_ts"
 }
 
+# exec-condition = the unit's ExecCondition SKIPPED the heal — a benign skip, NOT a failure:
+# either the phase2-pending maintenance window (heal correctly does not run during a reboot) or a
+# pacman db.lck mid-transaction. ExecStart never ran, so $LOG still holds the PREVIOUS run's RECAP —
+# alerting here is a false alarm (the source of the "drift-heal FAILED (result=exec-condition)" noise,
+# 2026-05-25). Treat like success: stay silent. Real failures (exit-code/signal/timeout/oom-kill/…)
+# still fall through to the alert below.
+if [ "$RESULT" = "exec-condition" ]; then
+  exit 0
+fi
+
 if [ "$RESULT" != "success" ] || [ "${FAILED:-0}" -gt 0 ]; then
   HOSTS=$(extract_failed_hosts)
   CTRL=$(hostname)
