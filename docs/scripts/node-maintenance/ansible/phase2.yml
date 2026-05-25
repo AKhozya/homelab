@@ -13,6 +13,27 @@
   become: false
 
   tasks:
+    - name: CP control-plane gate — verify k3s loopback LB (127.0.0.1:6443) routes to apiserver
+      # phase1 just rebooted the CP. The k3s client loadbalancer on 127.0.0.1:6443 — which the
+      # embedded controller-manager AND every kubectl check below dial — can wedge post-reboot
+      # while the apiserver is fine on the node IP. Controllers then stall SILENTLY (2026-05-25:
+      # coredns scale frozen, observedGeneration stuck). Probe it FIRST so a wedge fails fast +
+      # clear instead of 5 min of opaque "not ready" retries below. 401|200 = routed. Bounded
+      # retry (tolerate the LB coming up slowly post-reboot; never single-shot). Do NOT auto-restart
+      # k3s here — `systemctl restart k3s` HANGS on the CP (2026-05-25); a persistent fail means the
+      # operator must `sudo reboot` the CP. See gotcha_k3s_reboot_ordering.
+      ansible.builtin.shell: |
+        set -o pipefail
+        code=$(curl -sS -m5 -k -o /dev/null -w '%{http_code}' https://127.0.0.1:6443/healthz 2>/dev/null) || code=000
+        case "$code" in 401 | 200) exit 0 ;; *) echo "CP loopback LB wedged (healthz=$code)"; exit 1 ;; esac
+      args:
+        executable: /bin/bash
+      register: cp_loopback_gate
+      until: cp_loopback_gate.rc == 0
+      retries: 12
+      delay: 10
+      changed_when: false
+
     - name: CP stabilize — wait CP Node Ready
       ansible.builtin.shell: |
         set -o pipefail
@@ -192,6 +213,35 @@
       delay: "{{ node_ready_delay_sec }}"
       delegate_to: localhost
       become: false
+
+    - name: ClusterIP gate — verify worker kube-proxy DNAT before uncordon (self-heal if wedged)
+      # Node.Ready (above) proves kubelet, NOT that kube-proxy programmed KUBE-SERVICES DNAT for the
+      # ClusterIP. A Ready-but-wedged worker would get uncordoned and take pods that crashloop on
+      # 10.43.0.1 (2026-05-24 incident). Probe ON the worker; if wedged, restart k3s-agent (clean
+      # kube-proxy re-sync) and re-probe. Runs on the worker (become from play; NO delegate_to).
+      block:
+        - name: Probe ClusterIP DNAT on the rebooted worker
+          ansible.builtin.command: /etc/node-maintenance/bin/clusterip-probe.sh
+          register: cip_probe
+          until: cip_probe.rc == 0
+          retries: 12
+          delay: 10
+          changed_when: false
+      rescue:
+        - name: Self-heal — restart k3s-agent (forces clean kube-proxy re-sync)
+          ansible.builtin.systemd_service:
+            name: "{{ k3s_service }}"
+            state: restarted
+        - name: Re-probe ClusterIP DNAT after k3s-agent restart
+          ansible.builtin.command: /etc/node-maintenance/bin/clusterip-probe.sh
+          register: cip_probe_reheal
+          until: cip_probe_reheal.rc == 0
+          retries: 12
+          delay: 10
+          changed_when: false
+          # Still failing here → task errors → serial:1 play aborts: this worker stays CORDONED,
+          # phase2-pending retained, the NEXT worker is never processed. Operator re-triggers after
+          # manual remediation (cluster-reboot SKILL.md partial-completion model).
 
     - name: Uncordon node
       kubernetes.core.k8s:

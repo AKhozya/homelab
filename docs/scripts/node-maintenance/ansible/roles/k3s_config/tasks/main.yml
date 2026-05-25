@@ -56,6 +56,31 @@
     enabled: true
   tags: [k3s-config, k3s-ready]
 
+# ──────────────────────────────────────────────────────────────
+# clusterip-probe.sh — single source of the ClusterIP-DNAT verdict. The phase2
+# worker gate (PLAY 1) runs this on a freshly-rebooted worker before uncordon to
+# prove kube-proxy actually programmed KUBE-SERVICES DNAT for 10.43.0.1 (kubelet
+# Ready does NOT prove that — 2026-05-24 wedge). The cluster-reboot skill's
+# verify-clusterip.sh runs the same check over SSH. All nodes (CP harmless).
+# ──────────────────────────────────────────────────────────────
+- name: Ensure /etc/node-maintenance/bin exists
+  ansible.builtin.file:
+    path: /etc/node-maintenance/bin
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [k3s-config, clusterip-probe]
+
+- name: Deploy clusterip-probe.sh (phase2 ClusterIP gate invokes this)
+  ansible.builtin.copy:
+    src: clusterip-probe.sh
+    dest: /etc/node-maintenance/bin/clusterip-probe.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [k3s-config, clusterip-probe]
+
 # Note: NO directory-level perms audit on <data-dir>/server, /agent, etc.
 # K3s sets those to 0755 by design (containerd/kubelet/agent need traversal).
 # Real secrets are individual files (server/cred/*, agent/*.{crt,key},
