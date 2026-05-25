@@ -37,6 +37,9 @@ rebuilderd_mem_max: "18G"
 rebuilderd_mem_high: "17G"
 rebuilderd_mem_swap_max: "16G"
 rebuilderd_repro_dir: "/mnt/k8s-storage/repro"
+# rebuilderd-worker per-name working base (sibling of repro_dir); holds
+# <name>/cache pacman build-dep caches that paccache -rk2 prunes daily.
+rebuilderd_worker_dir: "/mnt/k8s-storage/rebuilderd-worker"
 # Reason note embedded verbatim in resources.conf — preserves OOM incident context.
 rebuilderd_mem_comment: |
   # RAM: 18GB (hard limit)

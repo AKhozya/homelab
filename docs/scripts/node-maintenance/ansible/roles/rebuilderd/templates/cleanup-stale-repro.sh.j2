@@ -10,7 +10,9 @@ echo "Active build: ${ACTIVE:-none}"
 
 BEFORE=$(du -sh $REPRO_DIR 2>/dev/null | cut -f1)
 
-cd $REPRO_DIR
+# Guard: if the mount is absent (e.g. post-reboot NVMe enum flip), cd would
+# fail and the */ glob + rm -rf below would run in CWD (/) — abort instead.
+cd "$REPRO_DIR" || { echo "FATAL: cannot cd to $REPRO_DIR — aborting"; exit 1; }
 FREED=0
 for dir in */; do
     dir=${dir%/}
@@ -29,6 +31,27 @@ rm -f .*.lck 2>/dev/null || true
 # dotdirs, so they accumulate from interrupted builds. Sweep explicitly.
 # -mmin +60 guard skips a clone that may be in progress.
 find "$REPRO_DIR" -maxdepth 1 -name '.#machine.root*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
+
+# rebuilderd-worker pacman cache prune.
+# archlinux-repro downloads exact archive-pinned build deps into
+# <worker_dir>/<name>/cache and NEVER prunes it (unbounded growth — was 223G/
+# 287G on W2, 319G on W1). Keep the 2 newest versions per package; older
+# versions re-download from archive.archlinux.org on demand (reproducibility-
+# safe, archive is permanent). flock -n on the same lock repro uses
+# (<cache>.lock) skips a cache that is mid-pacman-sync for an active build.
+WORKER_DIR={{ rebuilderd_worker_dir }}
+if command -v paccache >/dev/null 2>&1 && [ -d "$WORKER_DIR" ]; then
+    CACHE_BEFORE=$(du -sh "$WORKER_DIR" 2>/dev/null | cut -f1)
+    for cache in "$WORKER_DIR"/*/cache; do
+        [ -d "$cache" ] || continue
+        flock -n "$cache.lock" paccache -rk2 -c "$cache" >/dev/null 2>&1 \
+            || echo "  paccache skipped (locked/active): $cache"
+        # aborted download staging dirs repro leaves behind on failed fetches
+        find "$cache" -maxdepth 1 -type d -name 'download-*' -mmin +1440 -exec rm -rf {} + 2>/dev/null || true
+    done
+    CACHE_AFTER=$(du -sh "$WORKER_DIR" 2>/dev/null | cut -f1)
+    echo "Worker cache: ${CACHE_BEFORE} -> ${CACHE_AFTER} (paccache -rk2)"
+fi
 
 AFTER=$(du -sh $REPRO_DIR 2>/dev/null | cut -f1)
 FREED_GB=$(echo "scale=1; $FREED/1024/1024/1024" | bc)
