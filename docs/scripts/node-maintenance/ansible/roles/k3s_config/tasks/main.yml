@@ -79,3 +79,29 @@
     - "'control_plane' in group_names"
     - k3s_secrets_encryption | default(false)
   tags: [k3s-config, secrets-encryption]
+
+# ──────────────────────────────────────────────────────────────
+# CoreDNS HA — k3s ships CoreDNS as an Addon Deployment with replicas UNSET
+# (defaults to 1 → single point of failure for cluster DNS). The shipped source
+# manifest has no `replicas:` field, so we INSERT one. The k3s deploy/AddOn
+# controller watches the manifests dir and re-applies on file change, so the edit
+# takes effect without a k3s restart; drift-heal re-inserts after any k3s
+# re-extract (brief replicas=1 window until the next config run). CP only — the
+# manifest lives on the server. topologySpreadConstraints already present in the
+# shipped manifest spread the 2 replicas across nodes (no affinity edit needed).
+# ──────────────────────────────────────────────────────────────
+- name: CoreDNS HA — insert replicas into k3s addon Deployment spec (CP, idempotent)
+  ansible.builtin.replace:
+    path: /var/lib/rancher/k3s/server/manifests/coredns.yaml
+    # Anchor on the Deployment's top-level `spec:` immediately followed by
+    # `  revisionHistoryLimit:` — unique to the CoreDNS Deployment doc (the Service
+    # spec is followed by selector/ports/type). After insert the replicas line sits
+    # between them so the anchor no longer matches → idempotent, no double-insert. If
+    # k3s re-extracts the manifest (replicas gone), the anchor matches again → re-inserts.
+    # ansible.builtin.replace compiles with re.MULTILINE (^ = line start) and the
+    # replacement runs through re.sub (\n → newline). single-quoted so YAML keeps \n literal.
+    regexp: '^spec:\n  revisionHistoryLimit:'
+    replace: 'spec:\n  replicas: {{ coredns_replicas | default(2) }}\n  revisionHistoryLimit:'
+  register: coredns_addon_edit
+  when: "'control_plane' in group_names"
+  tags: [k3s-config, coredns-ha]
