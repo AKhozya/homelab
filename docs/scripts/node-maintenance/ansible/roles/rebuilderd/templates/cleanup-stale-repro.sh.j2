@@ -25,6 +25,11 @@ done
 
 rm -f .*.lck 2>/dev/null || true
 
+# Stale machinectl/nspawn snapshot temp dirs: the */ glob above never matches
+# dotdirs, so they accumulate from interrupted builds. Sweep explicitly.
+# -mmin +60 guard skips a clone that may be in progress.
+find "$REPRO_DIR" -maxdepth 1 -name '.#machine.root*' -mmin +60 -exec rm -rf {} + 2>/dev/null || true
+
 AFTER=$(du -sh $REPRO_DIR 2>/dev/null | cut -f1)
 FREED_GB=$(echo "scale=1; $FREED/1024/1024/1024" | bc)
 echo "Before: $BEFORE, After: $AFTER, Freed: ${FREED_GB}GB"
