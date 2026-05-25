@@ -412,6 +412,7 @@ Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the *
 | **F-14 (infra)** | Monitoring subset done (`b442c098`) | Trace `infrastructure/controllers/staging` `[../base]` whole-dir ref + `couchdb/secret.yaml` wiring, then collapse | Orphan-looking secret wiring → prune risk |
 | **F-37** | Confirmed: 0 `forwardAuth` in repo | Build Authentik ForwardAuth Middleware + proxy provider/outpost FIRST, then wire uptime-kuma | New infra, not a single-line edit |
 | **F-38** | — | Narrow `disallow-host-namespaces` (Enforce) excludes from whole-ns → label selectors | Live `kubectl get pods -n databases -n monitoring --show-labels` + server-dry-run before flip |
+| **F-30 (inject)** | 2026-05-25: reclassified attended; authored-workload tier map done (see 🟢 table) | Set critical tier (CNPG `cluster.yaml`, Percona CR, Traefik/VM Helm values) FIRST, then standard apps, then batch jobs; staggered commits | Partial inverts hierarchy (un-annotated DBs = priority 0); correct fix restarts DBs/ingress/metrics → live rollout verify |
 | **F-39** | Deployment review: writes look confined to `/home/akhozya`+`/tmp` | RoRFS on init+main → promote claude-telegram ns to PSS restricted | Live write-audit (`kubectl debug`) first — breaking primary bot unattended not worth it |
 
 **🟢 Housekeeping (zero/low risk, batch anytime):**
