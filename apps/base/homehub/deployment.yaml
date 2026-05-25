@@ -44,6 +44,7 @@ spec:
               mountPath: /app/config
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]

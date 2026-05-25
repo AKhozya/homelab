@@ -30,6 +30,43 @@ spec:
                 - kube-node-lease
                 - flux-system
                 - kyverno
+                - databases          # operator/CRD/Helm: couchdb, Percona main-mysql, redis CRD, in-ns backup CronJobs
+                - percona-mysql      # Percona operator (ps-operator)
+                - immich             # privileged GPU app, writes model/transcode cache to root fs
+                - home-assistant     # hardware integration, privileged ns
+                - paperless-ngx      # s6-overlay rewrites /run perms at boot (RoRFS not viable — F-40)
+                - backup-replication # rsync stages backup files to writable root
+                - claude-telegram    # F-39: RoRFS gated on live write-audit, primary bot — not flipped unattended
+                - pricebuddy         # Laravel bootstrap/cache + selenium chrome temp + apprise root writes
+                - stirling-pdf       # su-exec privilege drop + nginx/system-config writes (RoRFS:false by design)
+          # alloy DaemonSet (host log reader) — Helm-managed; keep rest of loki ns covered
+          - resources:
+              namespaces:
+                - loki
+              selector:
+                matchLabels:
+                  app.kubernetes.io/name: alloy
+          # grafana — Helm-managed (kube-prometheus-stack); keep rest of monitoring ns covered
+          - resources:
+              namespaces:
+                - monitoring
+              selector:
+                matchLabels:
+                  app.kubernetes.io/name: grafana
+          # mealie-user-provision Job installs apt packages at runtime → writable /var,/etc; keep mealie app covered
+          - resources:
+              namespaces:
+                - mealie
+              selector:
+                matchLabels:
+                  job-name: mealie-user-provision
+          # uptime-kuma-setup Job is a transient one-shot bootstrap; keep uptime-kuma app covered
+          - resources:
+              namespaces:
+                - uptime-kuma
+              selector:
+                matchLabels:
+                  job-name: uptime-kuma-setup
       validate:
         message: "Every container must set securityContext.readOnlyRootFilesystem: true (mount a /tmp emptyDir for writable paths)"
         pattern:

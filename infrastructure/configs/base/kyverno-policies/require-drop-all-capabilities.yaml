@@ -29,6 +29,23 @@ spec:
                 - kube-node-lease
                 - flux-system
                 - kyverno
+                - databases       # operator/CRD/Helm pods (redis-operator, redis CRD, couchdb, Percona main-mysql) — spec not editable
+                - immich          # deliberately privileged (GPU passthrough), PSS baseline not restricted
+                - percona-mysql   # Percona operator (ps-operator) — operator-managed spec
+          # alloy DaemonSet (host log reader) — Helm-managed; keep rest of loki ns covered
+          - resources:
+              namespaces:
+                - loki
+              selector:
+                matchLabels:
+                  app.kubernetes.io/name: alloy
+          # node-exporter mounts host paths — Helm-managed; keep rest of monitoring ns covered
+          - resources:
+              namespaces:
+                - monitoring
+              selector:
+                matchLabels:
+                  app.kubernetes.io/name: prometheus-node-exporter
       validate:
         message: "Every container must drop all capabilities (capabilities.drop: [ALL])"
         pattern:
