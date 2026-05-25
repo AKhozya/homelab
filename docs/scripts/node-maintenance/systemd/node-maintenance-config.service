@@ -30,7 +30,10 @@ Environment=ANSIBLE_CONFIG=/etc/node-maintenance/ansible/ansible.cfg
 ExecCondition=/usr/local/sbin/check-phase2-flag-age.sh
 ExecCondition=/bin/sh -c '[ ! -e /var/lib/pacman/db.lck ]'
 ExecStartPre=/bin/sh -c 'install -d -m 0750 -o root -g adm /var/log/node-maintenance /var/log/node-maintenance/config-archive && echo "=== start: $(date -u -Iseconds) ===" > /var/log/node-maintenance/config-latest.log'
-ExecStart=/usr/bin/ansible-playbook -D /etc/node-maintenance/ansible/node-config.yml -i /etc/node-maintenance/ansible/inventory.yml
+# Serialized via node-maintenance-lock (skip mode): if another heal/sync/reboot holds the lock,
+# skip this run (exit 0) instead of overlapping. Two concurrent ansible heals raced before — the
+# 10-min sync re-triggers this ~9-min heal, and the config timer + sync could overlap (2026-05-25).
+ExecStart=/usr/local/sbin/node-maintenance-lock.sh skip -- /usr/bin/ansible-playbook -D /etc/node-maintenance/ansible/node-config.yml -i /etc/node-maintenance/ansible/inventory.yml
 # Archive each run's log + retain 50 most recent. Pre-edit: only config-latest.log
 # existed and overwrote each run, making "always W2" claims unverifiable.
 ExecStopPost=/bin/sh -c 'cp -f /var/log/node-maintenance/config-latest.log /var/log/node-maintenance/config-archive/config-$(date -u +%%Y%%m%%dT%%H%%M%%SZ).log 2>/dev/null; ls -1t /var/log/node-maintenance/config-archive/config-*.log 2>/dev/null | tail -n +51 | xargs -r rm -f --'

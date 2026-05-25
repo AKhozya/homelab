@@ -12,7 +12,9 @@ WorkingDirectory=/etc/node-maintenance/ansible
 ExecStartPre=/bin/sh -c 'install -d -m 0750 -o root -g adm /var/log/node-maintenance; echo "ANSIBLE_LOG_PATH=/var/log/node-maintenance/phase2-$(date -u +%%d-%%m-%%Y).log" > /run/node-maintenance.env'
 EnvironmentFile=-/run/node-maintenance.env
 ExecStartPre=/bin/bash -c 'for i in {1..60}; do kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml get --raw /readyz 2>/dev/null | grep -q ok && exit 0; sleep 5; done; exit 1'
-ExecStart=/usr/bin/ansible-playbook -i inventory.yml phase2.yml
+# Serialized via node-maintenance-lock (wait mode): hold the lock across the worker rollout so a
+# drift-heal can't run concurrently; wait out (not skip) any heal in progress — phase2 must complete.
+ExecStart=/usr/local/sbin/node-maintenance-lock.sh wait -- /usr/bin/ansible-playbook -i inventory.yml phase2.yml
 # Flag cleared by Ansible on success (phase2.yml line 376). No ExecStartPost
 # removal — keeps flag on failure so Restart= retries with flag intact.
 ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance phase2 failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). Retrying in 15min (max 3x). Log: /var/log/node-maintenance/phase2-$(date -u +%%d-%%m-%%Y).log" || true'

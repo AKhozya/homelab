@@ -16,7 +16,9 @@ EnvironmentFile=-/run/node-maintenance.env
 # the new core while ConfigManager stays on the old import → TypeError on
 # `templar=` kwarg (observed 2.20.5 → 2.21.0 transition).
 ExecStartPre=/usr/bin/pacman -Sy --noconfirm --needed ansible ansible-core
-ExecStart=/usr/bin/ansible-playbook -i inventory.yml phase1.yml
+# Serialized via node-maintenance-lock (wait mode): the reboot MUST run, so wait out any in-progress
+# drift-heal (up to 15min) rather than skip — guarantees no heal runs concurrently with the reboot.
+ExecStart=/usr/local/sbin/node-maintenance-lock.sh wait -- /usr/bin/ansible-playbook -i inventory.yml phase1.yml
 ExecStartPost=/bin/sh -c 'systemctl reboot'
 ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance phase1 failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). No reboot. Log: /var/log/node-maintenance/phase1-$(date -u +%%d-%%m-%%Y).log" || true'
 TimeoutStartSec=30min
