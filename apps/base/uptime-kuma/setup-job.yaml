@@ -116,7 +116,8 @@ spec:
               mountPath: /tmp
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
+            # HOME=/tmp + pip --user → all writes land in the /tmp emptyDir; no container-root writes
+            readOnlyRootFilesystem: true
             runAsNonRoot: true
             runAsUser: 65534
             capabilities:

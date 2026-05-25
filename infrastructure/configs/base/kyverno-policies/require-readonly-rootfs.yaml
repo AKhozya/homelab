@@ -39,6 +39,7 @@ spec:
                 - claude-telegram    # F-39: RoRFS gated on live write-audit, primary bot — not flipped unattended
                 - pricebuddy         # Laravel bootstrap/cache + selenium chrome temp + apprise root writes
                 - stirling-pdf       # su-exec privilege drop + nginx/system-config writes (RoRFS:false by design)
+                - mealie             # PSS-baseline ns: user-provision Job runs apt-get at runtime (Job metadata lacks pod labels → ns-scope exclude covers Job+Pod recreation)
           # alloy DaemonSet (host log reader) — Helm-managed; keep rest of loki ns covered
           - resources:
               namespaces:
@@ -53,20 +54,6 @@ spec:
               selector:
                 matchLabels:
                   app.kubernetes.io/name: grafana
-          # mealie-user-provision Job installs apt packages at runtime → writable /var,/etc; keep mealie app covered
-          - resources:
-              namespaces:
-                - mealie
-              selector:
-                matchLabels:
-                  job-name: mealie-user-provision
-          # uptime-kuma-setup Job is a transient one-shot bootstrap; keep uptime-kuma app covered
-          - resources:
-              namespaces:
-                - uptime-kuma
-              selector:
-                matchLabels:
-                  job-name: uptime-kuma-setup
       validate:
         message: "Every container must set securityContext.readOnlyRootFilesystem: true (mount a /tmp emptyDir for writable paths)"
         pattern:
