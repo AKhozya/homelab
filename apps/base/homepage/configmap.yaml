@@ -19,6 +19,9 @@ data:
     theme: dark
     color: slate
     headerStyle: boxed
+    # Suppress built-in GitHub releases check — causes latency alerts when
+    # api.github.com is unreachable (ECONNREFUSED → p99 >2s → TraefikHighLatency)
+    hideVersion: true
     layout:
       - Productivity:
           style: row
