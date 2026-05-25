@@ -394,9 +394,9 @@ Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the *
 
 | ID | Done so far | Proper fix remaining | Risk | When |
 |---|---|---|---|---|
-| **F-4** | Audit shipped (`f6eac874`); `=()`→mandatory PSS pattern; 9 operator/privileged workloads surfaced | Add label-selector excludes (redis-operator, redis-replication, couchdb-couchdb, main-mysql-{haproxy,mysql,orc}, immich-server, loki/alloy, node-exporter, ps-operator) → flip `validationFailureAction` Audit→Enforce | Low (excludes explicit) | **≥2026-05-25 19:30, MANUAL** (soak deadline). Prior cron `771dadd3` was session-only — dead after restart. Re-trigger with the resume prompt. **Re-scan `kubectl get policyreport -A` before flipping** (catch transient/CronJob regressions). |
-| **F-5** | Audit shipped (`252547ff`); 40 pass / 0 fail | **Promote-ready** — flip Audit→Enforce, no excludes needed | Low | with F-4 (2026-05-25) |
-| **F-6** | Audit shipped (`252547ff`); 11 workloads surfaced (26 fail/49 pass) | Exclude operators (redis-operator, ps-operator, alloy, grafana) + privileged (home-assistant, immich, paperless-ngx); for own apps (claude-telegram, homehub, pricebuddy, stirling-pdf) add RoRFS+`/tmp` emptyDir OR exclude → flip Enforce | Med (own-app RoRFS may need write-audit) | after F-39 audit |
+| **F-4** | ✅ **CLOSED 2026-05-25** (`864231ee`) | Operator/privileged excluded (ns databases/immich/percona-mysql + alloy/node-exporter selectors); both policies **Enforce**, 44 pass/0 fail | — | Done |
+| **F-5** | ✅ **CLOSED 2026-05-25** (`864231ee`) | **Enforce**, 160 pass/0 fail, no excludes beyond kube-*/default | — | Done |
+| **F-6** | ✅ **CLOSED 2026-05-25** (`8a4295f2`+`60f2a2cb`+`864231ee`) | Fixed homehub-init + uptime-kuma-setup (RoRFS+/tmp); excluded operator/privileged/batch ns + alloy/grafana selectors; **Enforce**, 40 pass/0 fail. claude-telegram still deferred to F-39 write-audit | — | Done |
 | **F-22** | Day-0 done (`971a27d2`): 3 report-only middlewares live | Per-tier ingress annotation swap → 7d Loki soak → flip Report-Only→enforced. Tier A (paperless,blocky,claude-telegram,obsidian) → B (8 apps) → C (4 apps) | Low (revert = 1 annotation line) | calendar, ~3wk |
 | **F-43** | — | Check hass-oidc-auth releases for HA compat; enable HA OIDC if shipped | Low | 2026-06-04 |
 
@@ -489,22 +489,17 @@ Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the *
 - [x] **CI-3** Yamllint baseline cleanup (commit `7fc45914`) — EOL on 18 files, trailing whitespace strip on 5, flow→block on the authentik `!Find` blueprint
 - **Tag:** `pre-w7-2026-05-24` (annotated, signed). **Commits:** `7fc45914` (cleanup) → `d65ad41b` (CI gates) → `6fc3ebe3` (drop flux-build job, needs cluster) → `db4bc940` (pin kustomize v5.5.0, upstream installer flaked on 1/5 matrix) → `cd2c973e` (drop sudo — `/usr/local/bin` writable on ubuntu-latest but `$HOME/.local/bin` via `$GITHUB_PATH` is cleaner). Final run: 9/9 jobs green
 
-### Wave 8 — New Kyverno policies (apply L1/L2/L10 directly) 🟡 Audit soak started 2026-05-24 (tag `pre-w8-2026-05-24`)
+### Wave 8 — New Kyverno policies (apply L1/L2/L10 directly) ✅ Closed 2026-05-25 (tag `pre-w8-2026-05-24`)
 
-Each new policy ships Audit → scan ≥24h via `kubectl get policyreport -A` → fix gaps via fix-forward (in-repo `resources:`/labels + operator label-exclude) → promote Enforce.
+Each new policy shipped Audit → soak → fix-forward (in-repo `resources:`/labels + operator/ns exclude) → **promoted Enforce 2026-05-25**. Commits: `8a4295f2` (F-4/F-6 excludes + homehub init RoRFS) → `60f2a2cb` (F-6 robust Job handling) → `864231ee` (flip all 4 Audit→Enforce). Post-flip scan: priv-esc 44 pass/0 fail, drop-caps 44/0, networkpolicy 160/0, readonly-rootfs 40/0. Live admission-deny confirmed (`validate.kyverno.svc-fail` blocked a RoRFS-violating test pod).
 
-**Audit shipped** (commits `f6eac874` F-4, `252547ff` F-5/F-6). Background scan baseline (deterministic, captured at soak start). Promote-to-Enforce target ≥2026-05-25 19:30, after re-scan confirms no transient/CronJob regressions.
-
-- [~] **F-4** Replaced `=()` with canonical PSS mandatory pattern (drop `=()` from `securityContext`+leaf, keep on optional `=(initContainers)`/`=(ephemeralContainers)`; added ephemeralContainers) in `disallow-privilege-escalation` + `require-drop-all-capabilities`. **9 workloads surfaced**, all operator/privileged → need excludes before Enforce:
-  - databases: redis-operator, redis-replication, couchdb-couchdb, main-mysql-{haproxy,mysql,orc} (operator/Helm-managed init+containers)
-  - immich/immich-server (deliberately privileged, GPU)
-  - loki/alloy (host log reader), monitoring/node-exporter (host metrics, Helm), percona-mysql/ps-operator (operator)
-- [~] **F-5** New `require-networkpolicy.yaml`: apiCall counts NPs in `{{request.namespace}}`, deny if <1. Match Pod, exclude kube-system/kube-public/kube-node-lease/default. **40 pass, 0 fail** — every workload namespace already covered. apiCall verified working in background scan on Kyverno v1.18.1 (RBAC OK, no error results). Promote-ready.
-- [~] **F-6** New `require-readonly-rootfs.yaml`: mandatory PSS pattern. Excludes only system/operator ns (kube-*, flux-system, kyverno). **11 workloads surfaced** (26 fail/49 pass):
-  - Operator/Helm → exclude: redis-operator, ps-operator, alloy, grafana
-  - Privileged → exclude: home-assistant, immich, paperless-ngx (s6-overlay baseline)
-  - Own apps → triage (add RoRFS+`/tmp` emptyDir OR exclude if writable root needed): claude-telegram, homehub, pricebuddy, stirling-pdf
-- **Effort:** 1 day (split across 24h soak per policy). **Payoff:** closes 3 documented invariants currently held by manual discipline only.
+- [x] **F-4** `=()`→mandatory PSS pattern in `disallow-privilege-escalation` + `require-drop-all-capabilities`. 9 (priv-esc) / 10 (drop-caps) operator/privileged workloads excluded → **Enforce**. Excludes: ns `databases`/`immich`/`percona-mysql` (operator/CRD/Helm, privileged) + label-selectors `loki`→`app.kubernetes.io/name: alloy`, `monitoring`→`prometheus-node-exporter` (Helm DaemonSets, keep rest of ns covered).
+- [x] **F-5** `require-networkpolicy.yaml`: apiCall counts NPs in `{{request.namespace}}`, deny if <1. **160 pass / 0 fail**, no excludes beyond kube-*/default → **Enforce**. apiCall + `request.namespace` confirmed working in background scan on Kyverno v1.18.1.
+- [x] **F-6** `require-readonly-rootfs.yaml`: mandatory PSS pattern. Soak surfaced **23 workloads** (baseline at soak-start undercounted — background controller had not completed a full cycle). Triage → **Enforce**:
+  - Fixed (RoRFS+`/tmp`): **homehub** init `setup-config` (writes only to mounted emptyDir); **uptime-kuma-setup** Job (HOME=/tmp + pip --user → all writes in /tmp; force-recreated, Completed under RoRFS).
+  - Excluded ns (operator/privileged/batch can't comply): `databases`, `percona-mysql`, `immich`, `home-assistant`, `paperless-ngx`, `backup-replication`, `claude-telegram` (F-39 write-audit gate), `pricebuddy`, `stirling-pdf`, `mealie` (PSS-baseline; apt-get at runtime). Label-selectors: `loki`→alloy, `monitoring`→grafana.
+- **Gotcha (L13):** label-selector excludes on a Pod-matching policy do NOT cover the `autogen-*` rule's Job/controller resource if the label only exists on the pod template (a Job's `metadata.labels` carry only Flux labels). Use ns-scope exclude — or fix the workload — for Jobs. Caught pre-flip via PolicyViolation events on `job/uptime-kuma-setup`.
+- **Payoff:** closes 3 documented invariants previously held by manual discipline only. **12 Kyverno policies, all Enforce.**
 
 ### Wave 9 — HelmRelease tightening (bulk low-risk) ✅ Closed 2026-05-24
 
