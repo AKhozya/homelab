@@ -191,6 +191,21 @@
           changed_when: "'there is nothing to do' not in yay_result_retry.stdout"
           failed_when: false
 
+    - name: CP-health guard — apiserver /readyz before rebooting this worker
+      # Don't reboot a worker while the CP apiserver/tunnel is flapping: a worker that re-syncs
+      # kube-proxy against an unstable CP is far likelier to land a partial iptables-restore that
+      # wedges KUBE-SERVICES DNAT (2026-05-25 research). PLAY 0 gated the CP at run start; this
+      # re-checks right before THIS worker's reboot. Bounded wait (~3min); if the CP isn't ready the
+      # serial:1 play aborts (this worker not rebooted, next worker untouched, phase2-pending retained).
+      ansible.builtin.command: kubectl --kubeconfig={{ kubeconfig_path }} get --raw=/readyz
+      register: cp_readyz_guard
+      until: cp_readyz_guard.rc == 0 and (cp_readyz_guard.stdout | trim) == "ok"
+      retries: 18
+      delay: 10
+      changed_when: false
+      delegate_to: localhost
+      become: false
+
     - name: Reboot node (graceful — shutdownGracePeriod 2min handles pods)
       ansible.builtin.reboot:
         reboot_timeout: "{{ reboot_timeout_sec }}"
@@ -242,6 +257,23 @@
           # Still failing here → task errors → serial:1 play aborts: this worker stays CORDONED,
           # phase2-pending retained, the NEXT worker is never processed. Operator re-triggers after
           # manual remediation (cluster-reboot SKILL.md partial-completion model).
+
+    - name: Stabilization settle + final re-probe before uncordon (catch a post-gate re-wedge)
+      # The gate above can pass on a node whose kube-proxy then RE-wedges seconds later (observed
+      # 2026-05-25: gate caught a momentary-healthy flap, node re-wedged, took pods once uncordoned).
+      # Settle, then re-probe (N-sample + kube-proxy :10256 healthz). If it re-wedged this fails →
+      # serial:1 aborts, worker stays CORDONED — never uncordon a node that won't hold healthy.
+      block:
+        - name: Settle after gate (let kube-proxy converge)
+          ansible.builtin.pause:
+            seconds: 45
+        - name: Final ClusterIP + kube-proxy re-probe before uncordon
+          ansible.builtin.command: /etc/node-maintenance/bin/clusterip-probe.sh
+          register: cip_final
+          until: cip_final.rc == 0
+          retries: 6
+          delay: 10
+          changed_when: false
 
     - name: Uncordon node
       kubernetes.core.k8s:

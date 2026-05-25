@@ -1,40 +1,47 @@
 #!/usr/bin/env bash
-# clusterip-probe.sh — verify k3s ClusterIP DNAT works from this node's host netns.
-# Runs ON a node (host netns), no sudo, no args. Targets the WORKER kube-proxy wedge surface
-# (2026-05-24): node kubelet-Ready but KUBE-SERVICES DNAT for 10.43.0.1 missing → pods crashloop
-# on connection refused/timeout. The apiserver /healthz returns 401 unauthenticated when routed.
+# clusterip-probe.sh — verify a node's kube-proxy is actually healthy after (re)start, from the
+# node's host netns. No sudo, no args. Two complementary signals, BOTH required per sample:
+#   1. ClusterIP DNAT — curl https://10.43.0.1:443/healthz → 401|200 (kube-proxy programmed the
+#      KUBE-SERVICES DNAT for the apiserver ClusterIP). 000/timeout = DNAT missing.
+#   2. kube-proxy healthz — curl http://127.0.0.1:10256/healthz → 200 (the proxier's OWN last-sync
+#      health). This directly catches the wedge ROOT CAUSE (2026-05-25 research): an iptables/nft
+#      stale-chain conflict makes kube-proxy's atomic iptables-restore fail on reboot, so KUBE-SERVICES
+#      never gets programmed and the proxier retries the poisoned state forever — :10256 goes unhealthy
+#      while the node is still kubelet-Ready. Fix = restart k3s-agent (rebuilds chains clean).
 #
-# MULTI-SAMPLE: probes N times (default 3, override CLUSTERIP_PROBE_SAMPLES) and requires ALL of them
-# to return 401|200. ANY timeout/non-2xx among the samples = WEDGED. A single probe is fooled by an
-# INTERMITTENT/flapping wedge: 2026-05-25 worker-node flapped 401↔000, a one-shot gate caught a lucky
-# 401 and passed, uncordoned, then the node stayed wedged. Requiring N clean samples refuses a flapper.
+# MULTI-SAMPLE: probes N times (default 3, override CLUSTERIP_PROBE_SAMPLES); ALL N must pass both
+# checks. Defeats an INTERMITTENT/flapping wedge that a one-shot probe passes on a lucky reading.
 # Exit 0 = all N healthy, 1 = at least one sample wedged.
 #
-# Scope note: the CP control-plane reachability surface is DIFFERENT — k3s components dial the loopback
-# loadbalancer (CP: 127.0.0.1:6443, workers: 127.0.0.1:6444). That wedge (2026-05-25) is gated
-# separately + CP-only in phase2 PLAY 0 / watch-reboot, NOT here. host-netns 10.43.0.1 can also read
-# 000 on the CP even when pod-netns is fine, so this probe is meaningful on workers.
-#
-# NOTE: this multi-sample curl/`401|200` logic is duplicated in verify-clusterip.sh (over-SSH variant)
-# — keep the two in sync if either is changed.
+# Scope: the CP control-plane reachability surface is DIFFERENT (k3s loopback LB 127.0.0.1:6443/6444),
+# gated separately + CP-only in phase2 PLAY 0 / watch-reboot. host-netns 10.43.0.1 can read 000 on the
+# CP even when healthy — so this probe is meaningful on WORKERS (where the phase2 gate uses it).
+# NOTE: the dual curl/`401|200`+`:10256` logic is duplicated in verify-clusterip.sh — keep in sync.
 set -euo pipefail
 samples="${CLUSTERIP_PROBE_SAMPLES:-3}"
+
+# Prints the HTTP status (curl's -w already emits "000" on connect/timeout failure; `|| true` keeps
+# set -e from aborting and avoids the double-"000" of an `|| echo 000`).
+http() { curl -sS -m5 -k -o /dev/null -w '%{http_code}' "$1" 2>/dev/null || true; }
+
 ok=0
 bad=0
-codes=""
+detail=""
 for _ in $(seq 1 "$samples"); do
-	# `|| code=000` (NOT `|| echo 000` inside the $()) avoids doubling curl's own "000" timeout output.
-	code="$(curl -sS -m5 -k -o /dev/null -w '%{http_code}' https://10.43.0.1:443/healthz 2>/dev/null)" || code=000
-	codes="$codes $code"
-	case "$code" in
-	401 | 200) ok=$((ok + 1)) ;;
-	*) bad=$((bad + 1)) ;;
-	esac
+	cip="$(http https://10.43.0.1:443/healthz)"
+	kp="$(http http://127.0.0.1:10256/healthz)"
+	detail="$detail [cip=${cip:-000} kp=${kp:-000}]"
+	if { [ "$cip" = 401 ] || [ "$cip" = 200 ]; } && [ "$kp" = 200 ]; then
+		ok=$((ok + 1))
+	else
+		bad=$((bad + 1))
+	fi
 	sleep 1
 done
+
 if [ "$bad" -eq 0 ]; then
-	echo "clusterip OK ($ok/$samples healthy, codes:$codes)"
+	echo "node-net OK ($ok/$samples healthy:$detail)"
 	exit 0
 fi
-echo "clusterip WEDGED ($bad/$samples failed, codes:$codes — DNAT missing/intermittent)"
+echo "node-net WEDGED ($bad/$samples failed:$detail — ClusterIP DNAT missing and/or kube-proxy proxier unhealthy)"
 exit 1

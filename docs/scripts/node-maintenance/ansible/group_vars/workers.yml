@@ -13,6 +13,12 @@ pacman_packages_worker:
 k3s_node_labels:
   - "svccontroller.k3s.cattle.io/enablelb=true"
 
+# Use k3s's bundled iptables binaries (not the host's xtables-nft v1.8.13) to avoid the stale-chain
+# iptables-restore conflict that wedges kube-proxy ClusterIP DNAT on reboot (2026-05-25 research,
+# gotcha_k3s_reboot_ordering). Applies on next k3s-agent restart — config.yaml drift is alerted, not
+# auto-restarted. Validate on ONE worker first (restart k3s-agent, confirm ClusterIP stays healthy).
+k3s_prefer_bundled_bin: true
+
 # Workers extend universal kernel cmdline assertions with AMD-specific tuning.
 # amd_pstate=active enables EPP power profile. nvme_core.default_ps_max_latency_us=0
 # disables NVMe APST for SSD stability (paired with hardening role's NVMe APST modprobe).

@@ -49,6 +49,15 @@ node-label:
 
 kubelet-arg:
   - "config=/etc/rancher/k3s/kubelet.yaml"
+{% if k3s_prefer_bundled_bin | default(false) %}
+
+# Use k3s's BUNDLED iptables/nft binaries instead of the host's xtables-nft. The host iptables
+# v1.8.13 (nft backend) with mixed nft_compat + legacy ip_tables modules hits stale-chain
+# "CHAIN_USER_ADD/RULE_APPEND File exists" on reboot, so kube-proxy's atomic iptables-restore
+# fails and KUBE-SERVICES (10.43.0.1 DNAT) never gets programmed → ClusterIP wedged until a
+# k3s restart. Bundled bins avoid that conflict. See gotcha_k3s_reboot_ordering (2026-05-25).
+prefer-bundled-bin: true
+{% endif %}
 {% if is_cp %}
 
 # Controller-manager flags (CP only).
