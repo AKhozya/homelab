@@ -418,13 +418,13 @@ Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the *
 
 | ID | Proper fix remaining |
 |---|---|
-| **F-30 (inject)** | Inject `priorityClassName` into ~40 workloads (classes already defined in `priority-classes/`) |
-| **F-44** | Document `pre-ultrareview-2026-05-23` DR handle in `.backup/README.md` |
-| **F-23** | Pin `claude-telegram-bot:1.22`→`1.22.0` (needs build-pipeline tag scheme + Renovate manager update) |
-| **F-24** | pricebuddy apprise non-root variant — upstream image investigation |
-| **W13-hist** | Rotate `HOMELAB_HISTORY.md` pre-2026 → `docs/archive/HOMELAB_HISTORY_2025.md` (bulky, dedicated pass) |
-| **W13-docs** | Archive 10 stale docs — each has 1-2 live referrers; update referrer links + fold into CODEMAPS first |
-| **W13-mem** | Memory back-links to ultrareview memories (lives in `~/.claude`, chezmoi sync) |
+| **F-30 (inject)** | ⚠️ **RECLASSIFIED ATTENDED 2026-05-25.** NOT a safe partial: `globalDefault: false` → un-annotated pods = priority **0** (floor). The critical tier (DBs CNPG/Percona, ingress Traefik, monitoring-core VM) is **operator/Helm-managed** (`cluster.yaml`, HelmReleases, `vmagent/vmsingle`). Injecting `homelab-standard` (50000) into the ~22 authored apps while DBs stay at 0 **inverts the hierarchy** (a standard app could preempt a DB under pressure). Correct fix must set critical-tier priorityClassName via operator CRs + Helm values FIRST (causes managed DB/ingress/metrics restarts → needs live verify, like F-15). Authored targets mapped: critical=authentik(×2)/blocky/cloudflared; standard=~14 apps+meilisearch+csp-reporter+mysql-exporter; batch=~16 Jobs/CronJobs. |
+| **F-44** | ✅ **DONE 2026-05-25** (`669790ee`) — DR handle + git config-rollback section in `.backup/README.md` |
+| **F-23** | 🔬 **RESEARCHED 2026-05-25.** `:1.22` is *already effectively immutable* — `claude-telegram-build.yml` uses a 2-component `1.<minor>` scheme, creates unique git tag `claude-telegram-v1.X` per build, refuses overwrite (no silent drift; Kyverno `:latest` concern N/A). Literal `1.22.0` needs: rewrite the workflow version generator → 3-component, update git-tag pattern + Renovate custom-manager regex, **then trigger a build emitting `1.22.0` BEFORE bumping the manifest** (tag doesn't exist in GHCR yet). Multi-step, low payoff → keep parking-lot. |
+| **F-24** | 🔬 **RESEARCHED 2026-05-25 — now feasible (attended).** caronc/apprise added native non-root + RO-FS by default in upstream PR #273 (merged ~Nov 2025). README ships a "Hardened K8s (rootless + read only)" example: `runAsNonRoot: true`/`runAsUser:1000`/`fsGroup:1000`/`readOnlyRootFilesystem:true`, `cap drop:[ALL]` (no added caps), `/tmp` emptyDir `medium:Memory`, PVCs for `/config`,`/plugin`,`/attach`. Fix: bump `caronc/apprise:v1.4.1` → post-#273 release (verify exact tag; v1.4.1 likely predates), rewrite sidecar to that pattern, **drop the root `apprise-init` initContainer**, verify notifications still send. |
+| **W13-hist** | ✅ **DONE 2026-05-25** (`6790af4a`) — 2025 Oct–Dec changelog (1849 lines) → `docs/archive/HOMELAB_HISTORY_2025.md`; main file 3631→1782 lines + pointer |
+| **W13-docs** | ✅ **DONE 2026-05-25** (`79fbca85`) — 10 stale docs `git mv`→`docs/archive/` + `docs/archive/README.md` index; referrers updated |
+| **W13-mem** | ✅ **DONE 2026-05-25** (dotfiles `d5ebdd2`) — bidirectional `[[project-ultrareview-learnings]]`↔`[[project-ultrareview-2026-05-23]]` links, chezmoi-synced |
 
 **Operational fixes this session (outside original review scope — logged in HOMELAB_HISTORY):**
 - `2ff39465` W1 `swap_path` → stable `by-uuid` (NVMe enum flips on reboot; was flip-flopping nvme0↔nvme1). CP=`/swapfile` + W2=LVM already stable.
@@ -522,7 +522,7 @@ Each new policy shipped Audit → soak → fix-forward (in-repo `resources:`/lab
 - [ ] **F-37 — DEFERRED (attended).** No Authentik forward-auth Middleware exists anywhere in repo (grep `forwardAuth` = 0 hits). Needs an Authentik ForwardAuth Middleware + proxy provider/outpost built FIRST, then wire to uptime-kuma. Bigger than a single-line edit.
 - [ ] **F-38 — DEFERRED (attended).** `disallow-host-namespaces` is `Enforce`; narrowing `databases`/`monitoring` namespace excludes to label selectors risks blocking operator-pod admission. Needs live label verification (`kubectl get pods -n databases -n monitoring --show-labels`) + server-dry-run before flip.
 - [ ] **F-39 — DEFERRED (attended).** claude-telegram RoRFS + PSS restricted. Deployment roots all writes in `/home/akhozya` (PVC) + `/tmp` (emptyDir) so RoRFS *looks* safe, but review mandates live write-audit (`kubectl debug`) first — breaking the primary bot unattended not worth it.
-- [ ] **F-44** Document `pre-ultrareview-2026-05-23` DR handle in `.backup/README.md`
+- [x] **F-44** Document `pre-ultrareview-2026-05-23` DR handle in `.backup/README.md` — ✅ 2026-05-25 (`669790ee`)
 - **Commit** `d8ef6891` (6 findings). **Risk:** Per-item low.
 
 ### Wave 11 — Structural refactor (highest blast radius — stage carefully) 🟡 F-14 partial done; R5/F-13/F-15 attended
@@ -551,15 +551,15 @@ Each new policy shipped Audit → soak → fix-forward (in-repo `resources:`/lab
 - [x] Deleted `scripts/analyze-update/baselines/pr-198..pr-208.txt` (10 files) + added `baselines/` to `.gitignore`
 - [x] Deleted `docs/POPEYE_CLUSTER_REPORT.txt`
 - [x] Archived `docs/superpowers/` (15 plans/specs) → `docs/archive/superpowers/` (git rename, content preserved)
-- [ ] **DEFERRED** Rotate `HOMELAB_HISTORY.md` pre-2026 entries → `docs/archive/HOMELAB_HISTORY_2025.md` (zero-risk but bulky; do as dedicated pass)
-- [ ] **DEFERRED** Stale docs to archive — each of the 10 has 1-2 live referrers; archiving needs referrer-link updates first (verify-completion + fold into CODEMAPS)
-- [ ] Memory back-links (separate from repo — lives in `~/.claude` memory; pending chezmoi sync)
+- [x] Rotate `HOMELAB_HISTORY.md` pre-2026 entries → `docs/archive/HOMELAB_HISTORY_2025.md` — ✅ 2026-05-25 (`6790af4a`); 3631→1782 lines
+- [x] Stale docs to archive — ✅ 2026-05-25 (`79fbca85`); 10 `git mv`→`docs/archive/` + index, referrers updated
+- [x] Memory back-links — ✅ 2026-05-25 (dotfiles `d5ebdd2`); bidirectional ultrareview links, chezmoi-synced
 - **Commit** `ba9b1b7d`. **Risk:** Zero (pure cleanup).
 
 ### Watch / parking lot (no immediate action)
 
-- [ ] **F-23** Pin `claude-telegram-bot:1.22` → `1.22.0`. Needs bumping the build pipeline tagging scheme; coordinate with the bot repo. Renovate manager needs updating.
-- [ ] **F-24** pricebuddy apprise non-root variant — needs upstream image investigation; not blocking
+- [ ] **F-23** Pin `claude-telegram-bot:1.22` → `1.22.0`. 🔬 Researched 2026-05-25 (see Resume table): `:1.22` already immutable (unique-tag-per-build workflow). Literal `.0` needs 3-component workflow scheme + Renovate regex + rebuild-before-bump. Low payoff, keep parked.
+- [ ] **F-24** pricebuddy apprise non-root variant. 🔬 Researched 2026-05-25 (see Resume table): **feasible** — upstream PR #273 (~Nov 2025) added native non-root + RO-FS. Bump past v1.4.1, adopt upstream hardened pattern, drop root init, verify notifications (attended).
 - [ ] **F-40** `paperless-ngx` fsGroup migration to drop init — already verified NOT VIABLE (s6-overlay). Keep documented as closed.
 - [ ] **F-43** Monthly (next 2026-06-04): check https://github.com/christiaangoossens/hass-oidc-auth/releases for HA compat; enable HA OIDC if shipped.
 
