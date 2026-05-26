@@ -100,8 +100,8 @@ spec:
             httpGet:
               path: /api/app/about
               port: 9000
-            periodSeconds: 5
-            timeoutSeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 3
           resources:
             requests:

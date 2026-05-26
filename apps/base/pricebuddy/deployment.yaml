@@ -204,6 +204,7 @@ spec:
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 30
+            timeoutSeconds: 3
           readinessProbe:
             httpGet:
               path: /status
