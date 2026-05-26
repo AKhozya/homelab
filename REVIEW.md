@@ -392,7 +392,7 @@ All 10 `git mv`-d to `docs/archive/` (content preserved, durable conclusions alr
 
 Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the **proper fix that remains**. This is the single resume point — wave sections keep the full context.
 
-**Closed since 2026-05-24:** W7/W8 (all 12 Kyverno policies Enforce), housekeeping batch (F-44, W13-hist/docs/mem), F-38 (host-ns excludes narrowed, `a35481fb`), F-45 (PSS privileged-ns audit — closed not-viable, all 6 justified by hostPath/host-ns/GPU/caps, `9fcae542`). F-23/F-24 researched (parked/attended). PSS keyfact in HOMELAB_ANALYSIS corrected to live (`913fb941`). **No open unattended work** — everything below is attended (live verify) or calendar-bound.
+**Closed since 2026-05-24:** W7/W8 (all 12 Kyverno policies Enforce), housekeeping batch (F-44, W13-hist/docs/mem), F-38 (host-ns excludes narrowed, `a35481fb`), F-45 (PSS privileged-ns audit — closed not-viable, all 6 justified by hostPath/host-ns/GPU/caps, `9fcae542`), F-39 (claude-telegram RoRFS ×3 + runAsNonRoot + PSS restricted, `3c5ce4aa`+`3d080256` 2026-05-27). F-23/F-24 researched (parked/attended). PSS keyfact in HOMELAB_ANALYSIS corrected to live (`913fb941`). **No open unattended work** — everything below is attended (live verify) or calendar-bound.
 
 **🔴 Scheduled / time-bound (do on date):**
 
@@ -400,7 +400,7 @@ Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the *
 |---|---|---|---|---|
 | **F-4** | ✅ **CLOSED 2026-05-25** (`864231ee`) | Operator/privileged excluded (ns databases/immich/percona-mysql + alloy/node-exporter selectors); both policies **Enforce**, 44 pass/0 fail | — | Done |
 | **F-5** | ✅ **CLOSED 2026-05-25** (`864231ee`) | **Enforce**, 160 pass/0 fail, no excludes beyond kube-*/default | — | Done |
-| **F-6** | ✅ **CLOSED 2026-05-25** (`8a4295f2`+`60f2a2cb`+`864231ee`) | Fixed homehub-init + uptime-kuma-setup (RoRFS+/tmp); excluded operator/privileged/batch ns + alloy/grafana selectors; **Enforce**, 40 pass/0 fail. claude-telegram still deferred to F-39 write-audit | — | Done |
+| **F-6** | ✅ **CLOSED 2026-05-25** (`8a4295f2`+`60f2a2cb`+`864231ee`) | Fixed homehub-init + uptime-kuma-setup (RoRFS+/tmp); excluded operator/privileged/batch ns + alloy/grafana selectors; **Enforce**, 40 pass/0 fail. claude-telegram RoRFS closed via F-39 (`3c5ce4aa`, 2026-05-27) | — | Done |
 | **F-22** | Day-0 done (`971a27d2`): 3 report-only middlewares live | Per-tier ingress annotation swap → 7d Loki soak → flip Report-Only→enforced. Tier A (paperless,blocky,claude-telegram,obsidian) → B (8 apps) → C (4 apps) | Low (revert = 1 annotation line) | calendar, ~3wk |
 | **F-43** | — | Check hass-oidc-auth releases for HA compat; enable HA OIDC if shipped | Low | 2026-06-04 |
 
@@ -415,7 +415,7 @@ Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the *
 | **F-37** | Confirmed: 0 `forwardAuth` in repo | Build Authentik ForwardAuth Middleware + proxy provider/outpost FIRST, then wire uptime-kuma | New infra, not a single-line edit |
 | **F-38** | ✅ **DONE 2026-05-26** (`a35481fb`) — `databases` exclude removed (0 host-ns pods), `monitoring` → `app.kubernetes.io/name: prometheus-node-exporter` selector. Positive test: hostNetwork pod in `databases` (PSS privileged) now Kyverno-denied — closed a real unguarded gap. Scan 0-fail | — |
 | **F-30 (inject)** | 2026-05-25: reclassified attended; authored-workload tier map done (see 🟢 table) | Set critical tier (CNPG `cluster.yaml`, Percona CR, Traefik/VM Helm values) FIRST, then standard apps, then batch jobs; staggered commits | Partial inverts hierarchy (un-annotated DBs = priority 0); correct fix restarts DBs/ingress/metrics → live rollout verify |
-| **F-39** | Deployment review: writes look confined to `/home/akhozya`+`/tmp` | RoRFS on init+main → promote claude-telegram ns to PSS restricted | Live write-audit (`kubectl debug`) first — breaking primary bot unattended not worth it |
+| **F-39** | ✅ **DONE 2026-05-27** (`3c5ce4aa` RoRFS ×3 + `runAsNonRoot` + `/tmp` on sync; `3d080256` ns baseline→restricted). Live `find / -xdev` write-audit on both running containers: only kubelet bind-mounts (`/etc/hosts,hostname,resolv.conf`) touched, zero root-fs writes. Only PSS-restricted gap was `runAsNonRoot != true` (proven via `--dry-run=server` label flip before+after). New pod 2/2, no EROFS. (Init's github SSH-pull `Connection refused` is pre-existing F-12 port-22 drop, `\|\| true`-tolerated, not F-39.) | — |
 
 **🟢 Housekeeping (zero/low risk, batch anytime):**
 
