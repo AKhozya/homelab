@@ -33,7 +33,10 @@ spec:
           cat > /tmp/server.js << 'EOF'
           const http = require('http');
           const server = http.createServer((req, res) => {
-            if (req.method === 'POST' && req.url === '/report') {
+            if (req.method === 'GET' && req.url === '/healthz') {
+              res.writeHead(200, {'Content-Type': 'text/plain'});
+              res.end('ok');
+            } else if (req.method === 'POST' && req.url === '/report') {
               let body = '';
               req.on('data', chunk => { body += chunk; });
               req.on('end', () => {
@@ -68,6 +71,20 @@ spec:
           runAsNonRoot: true
           capabilities:
             drop: ["ALL"]
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          periodSeconds: 30
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
         resources:
           requests:
             cpu: 10m

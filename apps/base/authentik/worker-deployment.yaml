@@ -107,6 +107,26 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
+          # `ak healthcheck` checks Celery worker heartbeat + DB connectivity
+          startupProbe:
+            exec:
+              command: ["ak", "healthcheck"]
+            initialDelaySeconds: 60
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["ak", "healthcheck"]
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["ak", "healthcheck"]
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
           resources:
             requests:
               cpu: "100m"

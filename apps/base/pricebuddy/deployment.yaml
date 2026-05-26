@@ -142,8 +142,22 @@ spec:
         - name: scraper
           image: jez500/seleniumbase-scrapper:v1.0
           ports:
-            - containerPort: 4444
+            - containerPort: 3000
               name: scraper
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
