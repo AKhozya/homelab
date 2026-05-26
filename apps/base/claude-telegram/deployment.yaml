@@ -26,6 +26,7 @@ spec:
         - ip: "192.168.1.126"
           hostnames: ["worker-node-2"]
       securityContext:
+        runAsNonRoot: true
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
@@ -122,6 +123,7 @@ spec:
               value: "113452686"
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           resources:
@@ -191,6 +193,7 @@ spec:
               protocol: TCP
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           livenessProbe:
@@ -266,6 +269,7 @@ spec:
               value: /home/akhozya
           securityContext:
             allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
           resources:
@@ -278,6 +282,8 @@ spec:
           volumeMounts:
             - name: home
               mountPath: /home/akhozya
+            - name: tmp
+              mountPath: /tmp
       volumes:
         - name: home
           persistentVolumeClaim:
