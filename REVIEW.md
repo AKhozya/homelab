@@ -563,7 +563,11 @@ Each new policy shipped Audit → soak → fix-forward (in-repo `resources:`/lab
 - [ ] **F-24** pricebuddy apprise non-root variant. 🔬 Researched 2026-05-25 (see Resume table): **feasible** — upstream PR #273 (~Nov 2025) added native non-root + RO-FS. Bump past v1.4.1, adopt upstream hardened pattern, drop root init, verify notifications (attended).
 - [ ] **F-40** `paperless-ngx` fsGroup migration to drop init — already verified NOT VIABLE (s6-overlay). Keep documented as closed.
 - [ ] **F-43** Monthly (next 2026-06-04): check https://github.com/christiaangoossens/hass-oidc-auth/releases for HA compat; enable HA OIDC if shipped.
-- [ ] **F-45** PSS privileged-ns audit (surfaced during F-38 2026-05-26). 6 ns enforce `privileged`: `immich`+`home-assistant` (GPU/hardware, justified). Candidates to tighten → `baseline`: `databases` (F-38 proved zero host-ns pods; CNPG/Percona operator pods likely baseline-compatible), `loki` + `backup-replication` (verify host-access need). Per-ns securityContext analysis required; attended (PSS enforce change = pod admission blast radius — Audit/warn first). Not urgent.
+- [ ] **F-45** PSS privileged-ns audit (surfaced F-38 2026-05-26). 🔬 **Analyzed 2026-05-26** — live baseline-violation scan of all 6 `privileged`-enforce ns:
+  - **Stay privileged (justified, real kernel/host need):** `monitoring` (node-exporter `hostNetwork`+`hostPID`+`hostPort:9100`), `immich` (immich-server `privileged: true` — GPU/HW transcode), `home-assistant` (adds `cap:NET_ADMIN`).
+  - **Tighten → `baseline` (clean):** `databases` (22 live pods + backup CronJob template all baseline-safe; **already** `audit/warn: baseline`), `loki` (7 pods clean; currently `audit/warn: restricted`), `backup-replication` (CronJob template baseline-safe; **no** `audit/warn` labels).
+  - **Files to edit (flip `enforce: privileged`→`baseline`):** `infrastructure/controllers/base/databases/postgres/namespace.yaml:6` · `monitoring/controllers/base/loki-stack/namespace.yaml:13` (also drop audit/warn restricted→baseline or keep restricted as stricter audit) · `infrastructure/configs/staging/backup-replication/namespace.yaml:7` (add `audit/warn: baseline`).
+  - **Caveat (attended):** live scan saw steady-state + 1 backup CronJob template, NOT every ephemeral CNPG/Percona backup/bootstrap Job pod. `databases` already audits baseline (quiet = good signal). Flip `enforce`, then watch one backup cycle for admission denials before declaring done. Net result: 6 privileged → 3 (all justified).
 
 ---
 
