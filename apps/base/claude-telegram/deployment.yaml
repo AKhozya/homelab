@@ -199,6 +199,14 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 3
+          # Trigger server binds 127.0.0.1 — exec probe required (kubelet can't reach localhost)
+          readinessProbe:
+            exec:
+              command: ["curl", "-sf", "--max-time", "2", "http://127.0.0.1:8080/healthz"]
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             requests:
               cpu: 100m
