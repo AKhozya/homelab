@@ -563,6 +563,7 @@ Each new policy shipped Audit → soak → fix-forward (in-repo `resources:`/lab
 - [ ] **F-24** pricebuddy apprise non-root variant. 🔬 Researched 2026-05-25 (see Resume table): **feasible** — upstream PR #273 (~Nov 2025) added native non-root + RO-FS. Bump past v1.4.1, adopt upstream hardened pattern, drop root init, verify notifications (attended).
 - [ ] **F-40** `paperless-ngx` fsGroup migration to drop init — already verified NOT VIABLE (s6-overlay). Keep documented as closed.
 - [ ] **F-43** Monthly (next 2026-06-04): check https://github.com/christiaangoossens/hass-oidc-auth/releases for HA compat; enable HA OIDC if shipped.
+- [ ] **F-45** PSS privileged-ns audit (surfaced during F-38 2026-05-26). 6 ns enforce `privileged`: `immich`+`home-assistant` (GPU/hardware, justified). Candidates to tighten → `baseline`: `databases` (F-38 proved zero host-ns pods; CNPG/Percona operator pods likely baseline-compatible), `loki` + `backup-replication` (verify host-access need). Per-ns securityContext analysis required; attended (PSS enforce change = pod admission blast radius — Audit/warn first). Not urgent.
 
 ---
 
