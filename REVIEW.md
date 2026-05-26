@@ -388,9 +388,11 @@ All 10 `git mv`-d to `docs/archive/` (content preserved, durable conclusions alr
 
 ## Action Backlog
 
-### ⏭ Resume Here — Outstanding work extracted (as of 2026-05-24 night)
+### ⏭ Resume Here — Outstanding work extracted (as of 2026-05-26)
 
 Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the **proper fix that remains**. This is the single resume point — wave sections keep the full context.
+
+**Closed since 2026-05-24:** W7/W8 (all 12 Kyverno policies Enforce), housekeeping batch (F-44, W13-hist/docs/mem), F-38 (host-ns excludes narrowed, `a35481fb`), F-45 (PSS privileged-ns audit — closed not-viable, all 6 justified by hostPath/host-ns/GPU/caps, `9fcae542`). F-23/F-24 researched (parked/attended). PSS keyfact in HOMELAB_ANALYSIS corrected to live (`913fb941`). **No open unattended work** — everything below is attended (live verify) or calendar-bound.
 
 **🔴 Scheduled / time-bound (do on date):**
 
