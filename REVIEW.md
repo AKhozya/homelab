@@ -411,7 +411,7 @@ Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the *
 | **R5** | Analysis: NOT a clean dedup | Per-app NP review; build components only for the 17 standard apps (blocky/2 others have divergent DNS egress) | Forcing shared component on exceptions silently breaks egress |
 | **F-14 (infra)** | Monitoring subset done (`b442c098`) | Trace `infrastructure/controllers/staging` `[../base]` whole-dir ref + `couchdb/secret.yaml` wiring, then collapse | Orphan-looking secret wiring → prune risk |
 | **F-37** | Confirmed: 0 `forwardAuth` in repo | Build Authentik ForwardAuth Middleware + proxy provider/outpost FIRST, then wire uptime-kuma | New infra, not a single-line edit |
-| **F-38** | — | Narrow `disallow-host-namespaces` (Enforce) excludes from whole-ns → label selectors | Live `kubectl get pods -n databases -n monitoring --show-labels` + server-dry-run before flip |
+| **F-38** | ✅ **DONE 2026-05-26** (`a35481fb`) — `databases` exclude removed (0 host-ns pods), `monitoring` → `app.kubernetes.io/name: prometheus-node-exporter` selector. Positive test: hostNetwork pod in `databases` (PSS privileged) now Kyverno-denied — closed a real unguarded gap. Scan 0-fail | — |
 | **F-30 (inject)** | 2026-05-25: reclassified attended; authored-workload tier map done (see 🟢 table) | Set critical tier (CNPG `cluster.yaml`, Percona CR, Traefik/VM Helm values) FIRST, then standard apps, then batch jobs; staggered commits | Partial inverts hierarchy (un-annotated DBs = priority 0); correct fix restarts DBs/ingress/metrics → live rollout verify |
 | **F-39** | Deployment review: writes look confined to `/home/akhozya`+`/tmp` | RoRFS on init+main → promote claude-telegram ns to PSS restricted | Live write-audit (`kubectl debug`) first — breaking primary bot unattended not worth it |
 
@@ -521,7 +521,7 @@ Each new policy shipped Audit → soak → fix-forward (in-repo `resources:`/lab
 - [x] **F-31** `startingDeadlineSeconds: 600` on 6 backup CronJobs; `backoffLimit: 2` where absent (couchdb kept intentional `6`; backup-replication already `2`)
 - [x] **F-32** Pinned `fluxcd/flux2/action@main` → `@v2.8.8` (matched live cluster Flux version)
 - [ ] **F-37 — DEFERRED (attended).** No Authentik forward-auth Middleware exists anywhere in repo (grep `forwardAuth` = 0 hits). Needs an Authentik ForwardAuth Middleware + proxy provider/outpost built FIRST, then wire to uptime-kuma. Bigger than a single-line edit.
-- [ ] **F-38 — DEFERRED (attended).** `disallow-host-namespaces` is `Enforce`; narrowing `databases`/`monitoring` namespace excludes to label selectors risks blocking operator-pod admission. Needs live label verification (`kubectl get pods -n databases -n monitoring --show-labels`) + server-dry-run before flip.
+- [x] **F-38 — ✅ DONE 2026-05-26** (`a35481fb`). `databases` exclude removed (verified 0 host-ns pods), `monitoring` narrowed to `app.kubernetes.io/name: prometheus-node-exporter`. Closed a real gap: `databases` (PSS privileged) was host-ns-unguarded; now Kyverno-denied (positive dry-run test). Scan 0-fail, node-exporter Running.
 - [ ] **F-39 — DEFERRED (attended).** claude-telegram RoRFS + PSS restricted. Deployment roots all writes in `/home/akhozya` (PVC) + `/tmp` (emptyDir) so RoRFS *looks* safe, but review mandates live write-audit (`kubectl debug`) first — breaking the primary bot unattended not worth it.
 - [x] **F-44** Document `pre-ultrareview-2026-05-23` DR handle in `.backup/README.md` — ✅ 2026-05-25 (`669790ee`)
 - **Commit** `d8ef6891` (6 findings). **Risk:** Per-item low.

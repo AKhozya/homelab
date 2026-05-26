@@ -416,6 +416,11 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-05-26 (F-38 — disallow-host-namespaces excludes narrowed) 🛡️
+- 🛡️ **F-38** (`a35481fb`): replaced the whole-namespace `databases` + `monitoring` excludes on the `disallow-host-namespaces` Kyverno ClusterPolicy (Enforce) with a precise label selector. `databases` dropped entirely (verified zero host-namespace pods); `monitoring` narrowed to `app.kubernetes.io/name: prometheus-node-exporter` (the only host-ns workload there — DaemonSet, hostNetwork+hostPID for node metrics). Same selector pattern as F-4/F-6.
+- 🔓 **Closed a real gap:** `databases` ns is PSS **privileged** (no host-ns block from PSS) AND was whole-ns excluded from Kyverno → host namespaces were completely unguarded there. Now Kyverno denies them (positive `--dry-run=server` test: hostNetwork pod in `databases` rejected by `host-namespaces` rule). Scan 0-fail; node-exporter pods stay Running.
+- L13-safe: node-exporter label is on both pod + DaemonSet metadata (autogen covers controller); not a Job.
+
 ### 2026-05-25 (Ultrareview housekeeping batch — F-44/W13 docs+mem; F-23/F-24 research) 📚
 - 📄 **F-44** (`669790ee`): documented `pre-ultrareview-2026-05-23` DR handle + a "Configuration Rollback (Git Tags)" section in `.backup/README.md` (config-rollback path distinct from data restore).
 - 🗂️ **W13-hist** (`6790af4a`): rotated 2025 Oct–Dec changelog (1849 lines) → `docs/archive/HOMELAB_HISTORY_2025.md`; main file 3631→1782 lines + pointer. 2026 entries + Completed-Items archive retained.
