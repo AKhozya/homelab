@@ -90,11 +90,18 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
-          livenessProbe:
+          startupProbe:
             httpGet:
               path: /healthz
               port: 5678
             initialDelaySeconds: 60
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 5678
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
@@ -102,7 +109,6 @@ spec:
             httpGet:
               path: /healthz
               port: 5678
-            initialDelaySeconds: 30
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3

@@ -144,19 +144,26 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
-          livenessProbe:
+          # /api/v1/config: 210 bytes, unauthenticated, confirms API + DB backend
+          startupProbe:
             httpGet:
-              path: /
+              path: /api/v1/config
               port: 3000
             initialDelaySeconds: 60
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/v1/config
+              port: 3000
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
             httpGet:
-              path: /
+              path: /api/v1/config
               port: 3000
-            initialDelaySeconds: 30
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3

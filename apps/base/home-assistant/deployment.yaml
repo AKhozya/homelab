@@ -160,12 +160,20 @@ spec:
                 - SETGID           # Set group ID (internal process management)
                 - SETUID           # Set user ID (internal process management)
                 - DAC_OVERRIDE     # Bypass file permission checks for config files
-          livenessProbe:
+          startupProbe:
             httpGet:
               path: /manifest.json
               port: 8123
               scheme: HTTP
             initialDelaySeconds: 60
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /manifest.json
+              port: 8123
+              scheme: HTTP
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 5
@@ -174,7 +182,6 @@ spec:
               path: /manifest.json
               port: 8123
               scheme: HTTP
-            initialDelaySeconds: 30
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
