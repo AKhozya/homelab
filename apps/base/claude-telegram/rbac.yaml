@@ -44,7 +44,10 @@ rules:
   - apiGroups: ["postgresql.cnpg.io", "pxc.percona.com"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
-  # Kyverno reports
+  # Kyverno policies + reports (read-only)
+  - apiGroups: ["kyverno.io"]
+    resources: ["clusterpolicies", "policies"]
+    verbs: ["get", "list", "watch"]
   - apiGroups: ["wgpolicyk8s.io"]
     resources: ["policyreports", "clusterpolicyreports"]
     verbs: ["get", "list"]
