@@ -5,6 +5,7 @@
 .claude/*
 !.claude/hooks/
 !.claude/settings.json
+!.claude/review-invariants.md
 .*mcp*
 *.original.md
 

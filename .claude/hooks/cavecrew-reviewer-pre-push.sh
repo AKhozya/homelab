@@ -44,8 +44,9 @@ cat >&2 <<EOF
   Files:
 $(echo "$non_doc" | sed 's/^/    /')
 
-  Action: invoke Task tool with subagent_type=caveman:cavecrew-reviewer on the diff,
-  address findings, then \`touch $marker\` and retry push.
+  Action: invoke Task tool with subagent_type=caveman:cavecrew-reviewer on the diff.
+  Reviewer auto-reads CLAUDE.md -> .claude/review-invariants.md (semantic checks CI misses).
+  Address findings, then \`touch $marker\` and retry push.
   Bypass: CAVECREW_SKIP=1 git push ...
 EOF
 
