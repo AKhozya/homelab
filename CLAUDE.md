@@ -27,6 +27,7 @@ Claude no sudo. Node-side debug + fix workflow: `/homelab-node-fix` skill (SSH+T
 - **Review rubric.** Any code/diff review (cavecrew-reviewer pre-push gate, ECC/security reviewers) MUST read `.claude/review-invariants.md` and check the diff against it — semantic bug-classes CI and these invariants miss (Flux healthCheck GVK, Kyverno `=()` soft-anchor, NetworkPolicy AND/OR, PSS Baseline hostPath, external-access = central `cloudflared.yaml` not a 2nd Ingress, etc.). Grep the target file to confirm name/GVK claims before flagging.
 
 ## Docs (read before acting)
+- `docs/ARCHITECTURE.md` — how it's organized + why (design principles, mermaid diagrams, cut corners). Read first for orientation. Changes only when *design* changes, not counts.
 - `docs/HOMELAB_ANALYSIS.md` — state tracker. Update after meaningful change (PostToolUse hook enforces).
 - `docs/HOMELAB_HISTORY.md` — append-only changelog.
 - `docs/CODEMAPS/` — structural snapshots: [architecture](docs/CODEMAPS/architecture.md), [apps](docs/CODEMAPS/apps.md), [networking](docs/CODEMAPS/networking.md), [databases](docs/CODEMAPS/databases.md), [monitoring](docs/CODEMAPS/monitoring.md), [backup-restore](docs/CODEMAPS/backup-restore.md).
