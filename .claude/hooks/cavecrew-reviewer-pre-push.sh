@@ -31,18 +31,21 @@ non_doc=$(echo "$flux_hits" | grep -Ev '(^|/)(README\.md$|docs/|.*\.md$)' || tru
 [[ -z "$non_doc" ]] && exit 0
 
 # Skip trivial diffs (<20 lines changed across non-doc Flux files).
-changed_lines=$(git diff --numstat "${upstream}"..HEAD -- $non_doc 2>/dev/null \
+mapfile -t non_doc_files <<<"$non_doc"
+changed_lines=$(git diff --numstat "${upstream}"..HEAD -- "${non_doc_files[@]}" 2>/dev/null \
   | awk '{a+=$1; d+=$2} END {print a+d+0}')
 [[ "${changed_lines:-0}" -lt 20 ]] && exit 0
 
 marker=".git/.cavecrew-reviewed-$(git rev-parse HEAD 2>/dev/null || echo none)"
 [[ -f "$marker" ]] && exit 0
 
+non_doc_indented="    ${non_doc//$'\n'/$'\n'    }"
+
 cat >&2 <<EOF
 [cavecrew] git push touches Flux-managed paths. Run cavecrew-reviewer subagent on diff first:
 
   Files:
-$(echo "$non_doc" | sed 's/^/    /')
+$non_doc_indented
 
   Action: invoke Task tool with subagent_type=caveman:cavecrew-reviewer on the diff.
   Reviewer auto-reads CLAUDE.md -> .claude/review-invariants.md (semantic checks CI misses).
