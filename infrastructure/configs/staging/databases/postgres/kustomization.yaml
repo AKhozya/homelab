@@ -7,6 +7,8 @@ resources:
   # App-specific database users and databases
   - authentik-db-user.yaml
   - authentik-database.yaml
+  - blocky-db-user.yaml
+  - blocky-database.yaml
   - immich-db-user.yaml
   - immich-database.yaml
   - immich-init-extensions-job.yaml
