@@ -187,15 +187,10 @@ Recommend (b) — keep structure for future `prod/`, document the actual purpose
 
 **Fix:** Delete the passthroughs. Point Flux Kustomization at `./base/` directly OR list base paths in the parent staging kustomization. ~6 files deleted, zero behavior change.
 
-**F-15 — DB user ownership is inconsistent**
-- `apps/staging/blocky/kustomization.yaml:5` references `cnpg-database.yaml` + `blocky-db-user.yaml` (app-owned)
-- `apps/staging/n8n/kustomization.yaml` does NOT (DB user lives in `infrastructure/configs/staging/databases/postgres/`)
+**F-15 — DB user ownership is inconsistent** — ✅ **DONE 2026-05-27** (`002e06f7`, direction inverted after research)
+- `apps/staging/blocky/` was app-owned (`cnpg-database.yaml` + `blocky-db-user.yaml`); the other 6 (authentik/immich/linkwarden/mealie/n8n/paperless) lived in `infrastructure/configs/staging/databases/postgres/`. Half-and-half.
 
-Same for `mealie`, `paperless`, `authentik`, `immich`, `linkwarden`. Half-and-half.
-
-**Fix:** Pick "app-owned" (blocky pattern). Move `<app>-db-user.yaml` + `<app>-database.yaml` per app from `databases/postgres/kustomization.yaml` into `apps/staging/<app>/`. Leaves only cluster-scoped objects (Cluster, Pooler, PDB) in databases dir.
-
-**Payoff:** Atomic app deletion via `prune: true`. Onboarding new app is 1 dir, not 2.
+**Resolution — original "make all app-owned (blocky pattern)" was backwards.** CNPG `Database.spec.cluster` is a `LocalObjectReference`, so every `Database` CR must sit in ns `databases` (where `main-postgres` lives). 4 of 7 apps (immich/linkwarden/mealie/paperless-ngx) set `namespace: <app>` in their staging kustomization → kustomize would rewrite the moved CR's ns and break the cluster ref. Flux canonical also treats DB provisioning as infrastructure (apps `dependsOn` it). So the consistent + ns-correct fix is the inverse: moved blocky's 2 files → `infrastructure/configs/staging/databases/postgres/` (rename `cnpg-database.yaml`→`blocky-database.yaml`). All 7 now in one canonical infra dir. Handoff verified clean — `databaseReclaimPolicy: retain` + Flux GC label-protection meant the same CR object was adopted by `infrastructure-configs` (applied=true, AGE 31d preserved, never re-created); blocky pods unaffected.
 
 **F-16 — 12 of 13 HelmReleases missing `driftDetection: { mode: enabled }`**
 Only `monitoring/controllers/base/kube-prometheus-stack/release.yaml:30-31` has it. Without it, `kubectl edit` against Helm-managed resources persists until next chart upgrade.
@@ -372,8 +367,8 @@ All 10 `git mv`-d to `docs/archive/` (content preserved, durable conclusions alr
 ### R3 — Add `require-networkpolicy.yaml` + `require-readonly-rootfs.yaml` Kyverno policies (F-5, F-6)
 **Effort:** 1h each, start Audit, enforce after sweep. **Payoff:** Two documented invariants become real instead of relying on reviewer discipline.
 
-### R4 — Unify app-DB user ownership to app-owned pattern (F-15)
-**Effort:** 2h. Move 5 app `*-db-user.yaml` + `*-database.yaml` files from `databases/postgres/` to `apps/staging/<app>/`. **Risk:** Med (dep chain still works — `apps` depends on `infrastructure-configs` which creates the Cluster). **Payoff:** Atomic app deletion, single source of truth per app.
+### R4 — Unify app-DB user ownership (F-15) — ✅ DONE 2026-05-27 (`002e06f7`, inverted)
+**Done the OTHER way.** "App-owned" is structurally wrong: CNPG `Database.spec.cluster` is a `LocalObjectReference` → CR must be in ns `databases`; 4/7 apps' kustomizations set `namespace:<app>` which would break the ref; Flux canonical treats DB as infra (apps `dependsOn` it). Consolidated blocky's 2 files into `infrastructure/configs/staging/databases/postgres/` — all 7 now infra-owned, one canonical dir.
 
 ### R5 — NetworkPolicy Kustomize components (F-9, F-10, F-11, F-12 + maintenance)
 **Effort:** 2h. Create `apps/base/_components/{netpol-dns,netpol-postgres,netpol-redis}/`. Each app `kustomization.yaml` adds `components: [...]`. **Payoff:** Removes ~160 LOC duplication. Single point to fix the egress gaps in F-9/F-10/F-11/F-12. Single edit if DNS strategy changes.
@@ -392,7 +387,7 @@ All 10 `git mv`-d to `docs/archive/` (content preserved, durable conclusions alr
 
 Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the **proper fix that remains**. This is the single resume point — wave sections keep the full context.
 
-**Closed since 2026-05-24:** W7/W8 (all 12 Kyverno policies Enforce), housekeeping batch (F-44, W13-hist/docs/mem), F-38 (host-ns excludes narrowed, `a35481fb`), F-45 (PSS privileged-ns audit — closed not-viable, all 6 justified by hostPath/host-ns/GPU/caps, `9fcae542`), F-39 (claude-telegram RoRFS ×3 + runAsNonRoot + PSS restricted, `3c5ce4aa`+`3d080256` 2026-05-27), F-37 (closed won't-do 2026-05-27 — uptime-kuma internal-only + own 2FA; ForwardAuth = new infra + circular dep on monitoring tool). F-23/F-24 researched (parked/attended). PSS keyfact in HOMELAB_ANALYSIS corrected to live (`913fb941`). **No open unattended work** — everything below is attended (live verify) or calendar-bound.
+**Closed since 2026-05-24:** W7/W8 (all 12 Kyverno policies Enforce), housekeeping batch (F-44, W13-hist/docs/mem), F-38 (host-ns excludes narrowed, `a35481fb`), F-45 (PSS privileged-ns audit — closed not-viable, all 6 justified by hostPath/host-ns/GPU/caps, `9fcae542`), F-39 (claude-telegram RoRFS ×3 + runAsNonRoot + PSS restricted, `3c5ce4aa`+`3d080256` 2026-05-27), F-37 (closed won't-do 2026-05-27 — uptime-kuma internal-only + own 2FA; ForwardAuth = new infra + circular dep on monitoring tool), F-15 (consolidated blocky DB CRs into infra layer, `002e06f7` 2026-05-27 — direction inverted: CNPG Database CR is ns-bound to cluster, belongs in infra not apps). F-23/F-24 researched (parked/attended). PSS keyfact in HOMELAB_ANALYSIS corrected to live (`913fb941`). **No open unattended work** — everything below is attended (live verify) or calendar-bound.
 
 **🔴 Scheduled / time-bound (do on date):**
 
@@ -409,7 +404,7 @@ Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the *
 | ID | Done so far | Proper fix remaining | Why attended |
 |---|---|---|---|
 | **F-13** | Decision made: collapse (no prod roadmap) | Rename 16 `apps/staging/<app>/` → `apps/<app>/`; Flux must re-discover | Highest blast radius — Flux re-discovery + prune risk on 16 dirs |
-| **F-15** | Files identified (authentik, immich, linkwarden, mealie, n8n, paperless) | Move `*-db-user.yaml`+`*-database.yaml` from `databases/postgres/` → `apps/staging/<app>/`; keep `metadata.name`+ns identical; pre/post `kubectl get database -n databases` diff | CNPG Database CR re-creation risk if name/ns drift |
+| **F-15** | ✅ **DONE 2026-05-27** (`002e06f7`, direction inverted). Research showed "move into apps/" is wrong — CNPG `Database.spec.cluster` is a `LocalObjectReference` so every CR must be in ns `databases`, and 4/7 apps' kustomizations set `namespace:<app>` which would break the ref. Consolidated the OTHER way: moved blocky's 2 files `apps/staging/blocky` → `infrastructure/configs/staging/databases/postgres`. All 7 in one canonical infra dir. Clean ownership handoff (retain + Flux GC label-protection; adopted by infra-configs, applied=true, AGE preserved, blocky pods unaffected). | — |
 | **R5** | Analysis: NOT a clean dedup | Per-app NP review; build components only for the 17 standard apps (blocky/2 others have divergent DNS egress) | Forcing shared component on exceptions silently breaks egress |
 | **F-14 (infra)** | Monitoring subset done (`b442c098`) | Trace `infrastructure/controllers/staging` `[../base]` whole-dir ref + `couchdb/secret.yaml` wiring, then collapse | Orphan-looking secret wiring → prune risk |
 | **F-37** | ❌ **CLOSED won't-do 2026-05-27.** uptime-kuma is internal-only (`uptime.h0melab.work` via internal Traefik, NO Cloudflare Tunnel mapping) and already self-protects with built-in auth + TOTP 2FA. No app in repo uses ForwardAuth (0 hits) — uptime-kuma lacks native OIDC, so ForwardAuth was the only SSO path, i.e. brand-new infra (proxy provider + outpost pod + middleware + outpost→authentik NP) for one internal app. **Net negative: circular dependency** — gating the status dashboard behind Authentik means an Authentik/its-Postgres/outpost outage locks you out of the exact tool needed to diagnose that outage. Edge-auth value applies to internet-exposed apps; this isn't one. Revisit only if uptime-kuma is ever exposed via CF Tunnel. | — |
@@ -535,7 +530,7 @@ Each new policy shipped Audit → soak → fix-forward (in-repo `resources:`/lab
   - **F-14** = ✅ **DONE (monitoring subset, commit `b442c098`):** collapsed `monitoring/controllers/staging` (loki-stack/popeye/victoria-metrics) + `monitoring/configs/staging/victoria-metrics` passthroughs into their staging roots; render verified byte-identical (17 controllers / 62 configs resources unchanged). **`infrastructure/controllers/staging` DEFERRED** — its `[../base]` whole-dir ref + orphan-looking `couchdb/secret.yaml` wiring needs tracing (prune risk).
   - **R5** = Kustomize components for NP DNS/Postgres/Redis egress. **DEFERRED (attended) — NOT a clean dedup:** DNS egress varies per app (blocky has external upstream `1.1.1.2`/`9.9.9.9`/`149.112.112.112`/`1.0.0.2`; one app uses `k8s-app: kube-dns` podSelector; one allows `192.168.1.0/24`). A shared component fits only the 17 standard apps; forcing it on exceptions silently breaks egress. Needs per-app review.
   - **Order (remaining):** R5 first (additive). Then F-13. Then infra-controllers F-14.
-- [ ] **F-15** Migrate 5 app DB users to app-owned (blocky pattern). Files: authentik, immich, linkwarden, mealie, n8n, paperless `*-db-user.yaml` + `*-database.yaml` from `infrastructure/configs/staging/databases/postgres/` → `apps/staging/<app>/`. Keep `metadata.name` + namespace identical to avoid CNPG re-creation. Pre-flight `kubectl get database -n databases -o yaml` snapshot + post-migration diff.
+- [x] **F-15 — ✅ DONE 2026-05-27** (`002e06f7`, direction inverted). NOT "make all app-owned": CNPG `Database.spec.cluster` is a `LocalObjectReference` (CR must be ns `databases`); 4/7 apps set `namespace:<app>` which would break the ref; Flux canonical treats DB as infra (apps `dependsOn`). Consolidated blocky → `infrastructure/configs/staging/databases/postgres/` instead. All 7 in one canonical infra dir. Handoff clean (retain + Flux GC label-protection; CR adopted by infra-configs, applied=true, AGE preserved, pods unaffected).
 - **Effort:** R5 = 2h, F-14 = 30min, F-15 = 2h, F-13 = 4h. **Risk:** F-15 medium (CNPG Database CR), F-13 high (16 dirs renamed, Flux must re-discover). **Payoff:** atomic per-app delete via `prune: true`; clean ownership.
 
 ### Wave 12 — CSP 3-tier rollout (calendar-bound, 3 weeks) 🟡 Day-0 setup done 2026-05-24; rollout calendar-bound
