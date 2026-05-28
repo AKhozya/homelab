@@ -383,7 +383,7 @@ All 10 `git mv`-d to `docs/archive/` (content preserved, durable conclusions alr
 
 ## Action Backlog
 
-### ⏭ Resume Here — Outstanding work extracted (as of 2026-05-27)
+### ⏭ Resume Here — Outstanding work extracted (as of 2026-05-28)
 
 Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the **proper fix that remains**. This is the single resume point — wave sections keep the full context.
 
