@@ -416,6 +416,16 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-05-28 (F-30 Commit C — critical-tier priorityClassName: authored Deployments) ⚖️✅
+- ⚖️ **F-30 Commit C** (`1bcdbc75`): `priorityClassName: homelab-critical` on the 4 authored critical-tier Deployments — `authentik-server`, `authentik-worker`, `blocky`, `cloudflared`. Field placed after `serviceAccountName` + `automountServiceAccountToken` (consistent across files). All 8 pods rolled clean (HA, multi-replica + anti-affinity preserved traffic), live `homelab-critical` priority=100000 distributed W1+W2.
+- ✅ **F-30 critical tier 100% complete.** **30 critical-tier pods** at priority 100000 across all data-plane + ingress + SSO + DNS + monitoring-core:
+  - DBs: 4 CNPG (2 instance + 2 pooler) + 7 Percona (2 mysql + 3 orch + 2 haproxy) + 2 CouchDB + 5 Redis (2 replication + 3 sentinel) = **18**
+  - Ingress + tunnel: 2 Traefik + 2 cloudflared = **4**
+  - SSO: 2 authentik-server + 2 authentik-worker = **4**
+  - DNS: 2 blocky = **2**
+  - Monitoring core: 1 vmsingle + 1 vmagent + 1 vmalert = **3**
+- 📌 Remaining F-30: **standard tier** (~14 apps + meilisearch + csp-reporter + mysql-exporter) and **batch tier** (~16 Jobs/CronJobs) — un-annotated workloads stay at priority 0 (floor); critical hierarchy is now intact, preemption order under node pressure works correctly.
+
 ### 2026-05-28 (F-30 Commit D + DB primary-node-pinning to W1) ⚖️🔄
 - ⚖️ **F-30 Commit D** (`ab74c45a`): `priorityClassName: homelab-critical` on the remaining DB-tier components — CouchDB HelmRelease (`values.priorityClassName`, chart `couchdb/couchdb` 4.6.3), RedisReplication CR + RedisSentinel CR (`spec.priorityClassName`, OT operator `redis.redis.opstreelabs.in/v1beta2`). Discovered during B verification: CouchDB + Redis live in `databases` ns alongside Postgres+MySQL — not their own ns. All 7 pods rolled clean on Flux apply (2 couch + 2 redis-replication + 3 redis-sentinel, live `homelab-critical` priority=100000).
 - 🔄 **DB primary node-pinning to W1** (operational, no commit). User: "W1 is more performant — primaries should live there." Pre-switchover: CNPG primary=main-postgres-11 on W2; Percona primary=main-mysql-mysql-0 on W2; Redis master=redis-replication-0 on W2.
