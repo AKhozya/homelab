@@ -33,6 +33,7 @@ spec:
     image: percona/percona-orchestrator:3.2.6-19
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
+    priorityClassName: homelab-critical  # F-30 critical tier
     resources:
       requests:
         cpu: "50m"
@@ -81,6 +82,7 @@ spec:
     image: percona/percona-server:8.4.8-8.1
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
+    priorityClassName: homelab-critical  # F-30 critical tier (primary DB)
 
     # Environment variables for longer timeouts during clone/recovery
     # These prevent "query interrupted" errors during large data transfers
@@ -173,6 +175,7 @@ spec:
       image: percona/haproxy:2.8.18
       imagePullPolicy: IfNotPresent
       serviceAccountName: main-mysql
+      priorityClassName: homelab-critical  # F-30 critical tier (DB front)
       # Grace period for draining connections during rolling updates
       gracePeriod: 30
 

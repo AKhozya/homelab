@@ -4,6 +4,7 @@ metadata:
   name: main-postgres
   namespace: databases
 spec:
+  priorityClassName: homelab-critical  # F-30 critical tier (DB outranks standard/batch under node pressure)
   instances: 2  # 1 primary + 1 replica on worker node only
   inheritedMetadata:
     labels:
