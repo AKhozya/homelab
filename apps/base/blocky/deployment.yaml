@@ -23,6 +23,7 @@ spec:
     spec:
       serviceAccountName: blocky
       automountServiceAccountToken: false
+      priorityClassName: homelab-critical  # F-30 critical tier (LAN DNS resolver)
       securityContext:
         runAsNonRoot: true
         runAsUser: 100
