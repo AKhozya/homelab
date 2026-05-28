@@ -63,22 +63,29 @@ Each arrow is a hard `dependsOn` with `wait: true` — a stage only starts once 
 
 ---
 
-## Traffic flow — two front doors
+## Traffic flow — two front doors (different paths to the same Pod)
 
 ```mermaid
 flowchart LR
-  U1["Internet client"] --> CF["Cloudflare edge<br/>WAF + TLS termination"]
-  CF -->|"outbound tunnel"| CFD["cloudflared pod<br/>(SOPS tunnel config)"]
-  U2["LAN device"] --> BL["Blocky DNS<br/>W1/W2 LB IP"]
-  BL --> TR
-  CFD --> TR["Traefik :443<br/>(traefik ns)"]
-  TR --> ING["Ingress + middleware<br/>headers · rate-limit · CSP · redirect-https"]
-  ING --> SVC["app Service"]
-  SVC --> POD["app Pod"]
-  NP{{"NetworkPolicy<br/>(per ingress + cross-ns egress)"}} -. fences .- POD
+  subgraph EXT["External — internet → tunnel → Service (Traefik NOT in path)"]
+    U1["Internet client"] --> CF["Cloudflare edge<br/>WAF + TLS terminate"]
+    CF -->|"outbound tunnel"| CFD["cloudflared pod<br/>SOPS tunnel config"]
+    CFD -->|"direct to Service:port"| SVCE["app Service<br/>e.g. authentik:9000"]
+  end
+  subgraph INT["Internal — LAN client → Traefik → Service (middleware applies)"]
+    U2["LAN device"] --> BL["Blocky DNS<br/>W1/W2 LB IP"]
+    BL --> TR["Traefik :443<br/>traefik ns"]
+    TR --> ING["IngressRoute + middleware<br/>security-headers · rate-limit · CSP · redirect-https"]
+    ING --> SVCI["app Service"]
+  end
+  SVCE --> POD["app Pod"]
+  SVCI --> POD
+  NP{{"NetworkPolicy<br/>per ingress + cross-ns egress"}} -. fences .- POD
 ```
 
-An externally-reachable app has **two ingress rules** (internal hostname + Cloudflare hostname) but **one NetworkPolicy**. cert-manager issues TLS via DNS-01 (Cloudflare API token) for `*.h0melab.work`. The Cloudflare Tunnel is outbound-initiated, so the home router opens **zero** inbound ports.
+An externally-reachable app has **two ingress rules** (internal hostname + Cloudflare hostname) but **one NetworkPolicy**. cert-manager issues TLS via DNS-01 (Cloudflare API token) for `*.h0melab.work`. The Cloudflare Tunnel is outbound-initiated → home router opens **zero** inbound ports.
+
+**Consequence (often missed):** Traefik middleware applies **only on the internal path.** External traffic via Cloudflare Tunnel hops `cloudflared → Service` directly (verified: cloudflared NetworkPolicy has per-app `Service:port` egress, no egress to the `traefik` namespace). Externally-reached apps get Cloudflare's WAF + TLS, **not** the Traefik CSP/headers/rate-limit middlewares. F-22's tier-based CSP soak therefore covers internal browsing only; CF-tunnel browsers see whatever CSP the app itself sets.
 
 ---
 
@@ -88,7 +95,7 @@ An externally-reachable app has **two ingress rules** (internal hostname + Cloud
 flowchart TB
   L1["1 · Secrets at rest — SOPS + age, encrypted in git"]
   L2["2 · Admission — Kyverno (12 ClusterPolicies, all Enforce) + Pod Security Standards"]
-  L3["3 · Network — NetworkPolicy on every ingress + cross-ns egress (default-deny posture)"]
+  L3["3 · Network — allow-list NetworkPolicies per workload (per-pod default-deny effect; Kyverno F-5 enforces every ns has one)"]
   L4["4 · Runtime — runAsNonRoot · readOnlyRootFilesystem · drop ALL caps · seccomp RuntimeDefault"]
   L5["5 · Identity + transport — Authentik OIDC + cert-manager TLS"]
   L1 --> L2 --> L3 --> L4 --> L5
@@ -111,6 +118,17 @@ Backups: per-engine CronJobs in `infrastructure-configs` → the W1→W2→NAS r
 
 ---
 
+## Failure modes (what breaks when X dies)
+
+| Failure | Effect | What still works | Recovery |
+|---|---|---|---|
+| CP node down | Flux reconcile + admission paused; new pods can't schedule | Running pods + Services keep serving (kube-proxy on workers is independent) | Reboot CP; Flux catches up |
+| Worker node down | Pods on it go NotReady; Deployments reschedule elsewhere | Other-node workloads unaffected. **Immich is W2-pinned by mtime → no failover** | Reboot/replace; Immich resumes when W2 returns |
+| Cloudflare edge or tunnel down | Externally-published apps unreachable | LAN access via Traefik fully unaffected | Wait CF; LAN keeps working |
+| Authentik down | SSO apps lose login | Non-SSO apps; non-OIDC paths | Restart Authentik Pod or rollout |
+| GitHub down | No new commits reconciled | Cluster state frozen at last sync; everything keeps running | Wait GitHub |
+| Age key (`sops-age` Secret in flux-system) lost | Encrypted secrets unreadable; new SOPS reconciles fail | Already-applied secrets in etcd keep working | Restore key from secure backup (NOT in this repo) |
+
 ## Single-environment reality
 
 The tree has `base/` + `staging/` overlays (the canonical Flux monorepo shape) but there is **only `staging`** — no production. The `staging/` overlays are honest about being the one and only environment; the base/overlay split is kept because it costs little and leaves the door open, not because a second environment exists. Collapsing the passthrough indirection is tracked (F-13/F-14) but deliberately deferred — re-discovery/prune risk on a live single env outweighs the tidiness gain.
@@ -126,6 +144,12 @@ Called out so they are choices, not accidents:
 - **No distributed storage / no HA control plane.** Single CP node, node-local PVs. Durability is backup-based (replication chain), not replica-based. A CP outage stops reconciliation until the node returns; running workloads keep serving.
 - **Counts live in other docs.** This file avoids hard numbers that drift; where one appears it is approximate and the codemap/ANALYSIS is authoritative.
 - **Monitoring + backup internals are summarized.** Full detail in [CODEMAPS/monitoring.md](CODEMAPS/monitoring.md) and [CODEMAPS/backup-restore.md](CODEMAPS/backup-restore.md).
+- **OIDC redirect flow not in the traffic diagram.** SSO apps bounce through Authentik (`/oauth2/*`) on first login; the diagram shows the steady-state request path only.
+- **CNI / kube-proxy / cluster-internal pod networking not drawn.** Pod-to-pod via CoreDNS (`kube-system`) + flannel + ClusterIP DNAT is assumed; the 2026-05-24 ClusterIP wedge incident proves this layer matters operationally even if it's invisible here.
+- **Operator-created NetworkPolicies not enumerated.** Live `kubectl get netpol -A` shows ~44, git contains ~40 — the delta is operators (CNPG, Kyverno) creating their own. Codemap counts the file-level breakdown.
+- **Age-key bootstrap not drawn.** The decryption chain is: `sops-age` Secret in `flux-system` → kustomize-controller reads it → decrypts SOPS-encrypted manifests on apply. Lose the key and you can't reconcile new secrets (see Failure modes).
+- **Cluster boundary is implicit.** In-scope: the 3 nodes + the workloads they run. Out-of-scope but referenced: the NAS (backup sink), the home router (forwards nothing inbound — CF tunnel is outbound), the Cloudflare edge.
+- **Reconcile cascade timing not in diagrams.** Full chain ~5 min post-push (see `/gitops-workflow` skill); not worth drawing.
 
 ---
 

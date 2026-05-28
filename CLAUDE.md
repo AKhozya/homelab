@@ -1,6 +1,6 @@
 # Homelab — Claude Instructions
 
-K3s staging, 3 nodes, Flux GitOps, 17 apps. Global base: `~/.claude/CLAUDE.md`.
+K3s staging, 3 nodes, Flux GitOps, 16 apps. Global base: `~/.claude/CLAUDE.md`.
 
 ## Cluster
 | Node | IP | Role | SSH |
