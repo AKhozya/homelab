@@ -6,6 +6,7 @@ metadata:
 spec:
   clusterSize: 3
   serviceAccountName: redis-sentinel
+  priorityClassName: homelab-critical  # F-30 critical tier (Redis failover quorum)
   podSecurityContext:
     runAsUser: 1000
     runAsGroup: 1000
