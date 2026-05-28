@@ -23,8 +23,8 @@
 flowchart TB
   subgraph LAN["Home LAN — 192.168.1.0/24, SSH :65300"]
     CP["gmk-k3s-control-plane · .127<br/>control-plane + etcd<br/>NIC I225-V forced 1Gbps, EEE off"]
-    W1["worker-node (W1) · .129<br/>/mnt/k8s-storage (0700)"]
-    W2["worker-node-2 (W2) · .126<br/>Immich-pinned · /mnt/extra-storage<br/>SSH user z3us (not akhozya)"]
+    W1["worker-node (W1) · .129<br/>/mnt/k8s-storage (0700)<br/>hosts Immich PVs (local-path)"]
+    W2["worker-node-2 (W2) · .126<br/>/mnt/extra-storage<br/>SSH user z3us (not akhozya)"]
     NAS["NAS<br/>rsync daemon :50555"]
   end
   CP -. k3s API .-> W1
@@ -33,7 +33,7 @@ flowchart TB
   W2 -->|"rsync :50555"| NAS
 ```
 
-Storage is `local-path-provisioner` (node-local PVs — no distributed storage layer by choice; simpler, faster, and the backup chain provides durability instead). Immich is pinned to W2 by mtime affinity because its library lives on `/mnt/extra-storage`. Durability comes from the **replication chain W1 → W2 → NAS**, not from replicated volumes.
+Storage is `local-path-provisioner` (node-local PVs — no distributed storage layer by choice; simpler, faster, and the backup chain provides durability instead). Each PV is bound to the node where it was first allocated via the PV's `nodeAffinity` (the local-path mechanism) — there is no Deployment-level node pinning. **Immich PVs live on W1** (`/mnt/k8s-storage/...immich-library`, `...immich-machine-learning`) → Immich Pods can only run on W1; W1 down = Immich down. Durability comes from the **replication chain W1 → W2 → NAS**, not from replicated volumes.
 
 ---
 
@@ -85,7 +85,7 @@ flowchart LR
 
 An externally-reachable app has **two ingress rules** (internal hostname + Cloudflare hostname) but **one NetworkPolicy**. cert-manager issues TLS via DNS-01 (Cloudflare API token) for `*.h0melab.work`. The Cloudflare Tunnel is outbound-initiated → home router opens **zero** inbound ports.
 
-**Consequence (often missed):** Traefik middleware applies **only on the internal path.** External traffic via Cloudflare Tunnel hops `cloudflared → Service` directly (verified: cloudflared NetworkPolicy has per-app `Service:port` egress, no egress to the `traefik` namespace). Externally-reached apps get Cloudflare's WAF + TLS, **not** the Traefik CSP/headers/rate-limit middlewares. F-22's tier-based CSP soak therefore covers internal browsing only; CF-tunnel browsers see whatever CSP the app itself sets.
+**Consequence (often missed):** Traefik middleware applies **only on the internal path.** External traffic via Cloudflare Tunnel hops `cloudflared → Service` directly (per `infrastructure/configs/staging/cloudflare/networkpolicy.yaml`: per-app `Service:port` egress to 9 apps, zero egress to the `traefik` namespace). Externally-reached apps get Cloudflare's WAF + TLS, **not** the Traefik CSP/headers/rate-limit middlewares. F-22's tier-based CSP soak therefore covers internal browsing only; CF-tunnel browsers see whatever CSP the app itself sets.
 
 ---
 
@@ -95,7 +95,7 @@ An externally-reachable app has **two ingress rules** (internal hostname + Cloud
 flowchart TB
   L1["1 · Secrets at rest — SOPS + age, encrypted in git"]
   L2["2 · Admission — Kyverno (12 ClusterPolicies, all Enforce) + Pod Security Standards"]
-  L3["3 · Network — allow-list NetworkPolicies per workload (per-pod default-deny effect; Kyverno F-5 enforces every ns has one)"]
+  L3["3 · Network — allow-list NetworkPolicies per workload (per-pod default-deny effect; Kyverno F-5 require-networkpolicy Enforce denies Pod creation in any non-system ns lacking a NetworkPolicy)"]
   L4["4 · Runtime — runAsNonRoot · readOnlyRootFilesystem · drop ALL caps · seccomp RuntimeDefault"]
   L5["5 · Identity + transport — Authentik OIDC + cert-manager TLS"]
   L1 --> L2 --> L3 --> L4 --> L5
@@ -123,7 +123,7 @@ Backups: per-engine CronJobs in `infrastructure-configs` → the W1→W2→NAS r
 | Failure | Effect | What still works | Recovery |
 |---|---|---|---|
 | CP node down | Flux reconcile + admission paused; new pods can't schedule | Running pods + Services keep serving (kube-proxy on workers is independent) | Reboot CP; Flux catches up |
-| Worker node down | Pods on it go NotReady; Deployments reschedule elsewhere | Other-node workloads unaffected. **Immich is W2-pinned by mtime → no failover** | Reboot/replace; Immich resumes when W2 returns |
+| Worker node down | Pods on it go NotReady; Deployments reschedule elsewhere | Other-node workloads unaffected. **Immich PVs are on W1 (local-path nodeAffinity) → if W1 is down, Immich is down** (no failover; local-path is node-bound) | Reboot/replace; Immich resumes when its host returns |
 | Cloudflare edge or tunnel down | Externally-published apps unreachable | LAN access via Traefik fully unaffected | Wait CF; LAN keeps working |
 | Authentik down | SSO apps lose login | Non-SSO apps; non-OIDC paths | Restart Authentik Pod or rollout |
 | GitHub down | No new commits reconciled | Cluster state frozen at last sync; everything keeps running | Wait GitHub |
@@ -146,7 +146,7 @@ Called out so they are choices, not accidents:
 - **Monitoring + backup internals are summarized.** Full detail in [CODEMAPS/monitoring.md](CODEMAPS/monitoring.md) and [CODEMAPS/backup-restore.md](CODEMAPS/backup-restore.md).
 - **OIDC redirect flow not in the traffic diagram.** SSO apps bounce through Authentik (`/oauth2/*`) on first login; the diagram shows the steady-state request path only.
 - **CNI / kube-proxy / cluster-internal pod networking not drawn.** Pod-to-pod via CoreDNS (`kube-system`) + flannel + ClusterIP DNAT is assumed; the 2026-05-24 ClusterIP wedge incident proves this layer matters operationally even if it's invisible here.
-- **Operator-created NetworkPolicies not enumerated.** Live `kubectl get netpol -A` shows ~44, git contains ~40 — the delta is operators (CNPG, Kyverno) creating their own. Codemap counts the file-level breakdown.
+- **Operator-created NetworkPolicies not enumerated.** Live `kubectl get netpol -A` shows ~44, git contains ~43 — the delta is operators (CNPG, Kyverno) creating their own. Codemap counts the file-level breakdown.
 - **Age-key bootstrap not drawn.** The decryption chain is: `sops-age` Secret in `flux-system` → kustomize-controller reads it → decrypts SOPS-encrypted manifests on apply. Lose the key and you can't reconcile new secrets (see Failure modes).
 - **Cluster boundary is implicit.** In-scope: the 3 nodes + the workloads they run. Out-of-scope but referenced: the NAS (backup sink), the home router (forwards nothing inbound — CF tunnel is outbound), the Cloudflare edge.
 - **Reconcile cascade timing not in diagrams.** Full chain ~5 min post-push (see `/gitops-workflow` skill); not worth drawing.
