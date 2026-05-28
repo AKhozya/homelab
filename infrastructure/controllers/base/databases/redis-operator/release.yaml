@@ -18,6 +18,9 @@ spec:
         name: ot-helm
         namespace: databases
   values:
+    # F-30 critical tier: operator coordinates Redis Sentinel + CR reconcile
+    priorityClassName: homelab-critical
+
     redisOperator:
       imageTag: "v0.24.0"
       imagePullPolicy: IfNotPresent
