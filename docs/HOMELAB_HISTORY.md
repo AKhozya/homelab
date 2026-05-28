@@ -416,6 +416,13 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-05-28 (F-30 Commit E — critical-tier priorityClassName: DB operators) ⚖️🧰
+- ⚖️ **F-30 Commit E** (`f882c1c9`): `priorityClassName: homelab-critical` on `cnpg-operator` HR + `redis-operator` HR (`values.priorityClassName` on both Helm charts). Without these operators a node outage during a DB primary failure = no automatic promotion → data plane outage. Therefore operators belong in critical tier alongside the DBs they manage. 3 operator pods rolled live (cnpg-operator ×2 + redis-operator ×1).
+- 🧮 **Count correction:** prior doc said "30 critical pods" — arithmetic typo (18+4+4+2+3=31, plus 3 operators = **34 total** at homelab-critical/100000).
+- 📝 **Memory + codemap updated:** `[[gotchas]]` got CNPG v1.29.x priorityClassName-not-rolling-update + Pooler-separate-CR + DB primary-pin patterns (per engine); also fixed stale "CouchDB ns `couchdb`" → ns `databases`. `CODEMAPS/databases.md` gained a "Scheduling tier (F-30)" section.
+- 🔎 **Reviewer side-finding (out-of-scope, parked):** `redis-operator` HR lacks `install.remediation.retries` + `upgrade.remediation.retries` blocks (pre-existing, pre-dates Commit E). Add to REVIEW.md backlog.
+- ❓ **mysql-exporter** intentionally skipped (observability, not data-plane) — picks up `homelab-standard` later.
+
 ### 2026-05-28 (F-30 Commit C — critical-tier priorityClassName: authored Deployments) ⚖️✅
 - ⚖️ **F-30 Commit C** (`1bcdbc75`): `priorityClassName: homelab-critical` on the 4 authored critical-tier Deployments — `authentik-server`, `authentik-worker`, `blocky`, `cloudflared`. Field placed after `serviceAccountName` + `automountServiceAccountToken` (consistent across files). All 8 pods rolled clean (HA, multi-replica + anti-affinity preserved traffic), live `homelab-critical` priority=100000 distributed W1+W2.
 - ✅ **F-30 critical tier 100% complete.** **30 critical-tier pods** at priority 100000 across all data-plane + ingress + SSO + DNS + monitoring-core:

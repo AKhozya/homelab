@@ -74,4 +74,19 @@ All in `databases` namespace except CouchDB extras in `obsidian` (client side) a
 - **CNPG operator**: 100m/128Mi req, 500m/512Mi lim
 - **ps-operator**: 50m/128Mi req, 200m/256Mi lim
 - **redis-operator**: 50m/128Mi req, 200m/256Mi lim
+
+## Scheduling tier (F-30, 2026-05-28)
+All data-plane DB pods + their operators run at `priorityClassName: homelab-critical` (value=100000):
+- **CNPG** `Cluster.spec.priorityClassName` (instance pods) + `Pooler.spec.template.spec.priorityClassName` (PgBouncer — separate CR, edit both) + cnpg-operator HR `values.priorityClassName`
+- **Percona** per-component on the `PerconaServerMySQL` CR: `spec.mysql.priorityClassName`, `spec.orchestrator.priorityClassName`, `spec.proxy.haproxy.priorityClassName` (no top-level field)
+- **CouchDB** Helm chart `values.priorityClassName`
+- **Redis** OT operator: `RedisReplication.spec.priorityClassName` + `RedisSentinel.spec.priorityClassName` + redis-operator HR `values.priorityClassName`
+
+**Restart triggers per engine** (priorityClassName change isn't a rolling-update trigger on every operator):
+- CNPG v1.29.x: requires `kubectl cnpg restart <cluster>` (replicas) + `kubectl cnpg promote <cluster> <pod>` (primary). See `[[gotchas]]` → "CNPG v1.29.x".
+- Percona: auto-rolls on operator reconcile (SmartUpdate).
+- CouchDB / Redis CRs: Helm/OT operator handle rolling-update on apply.
+- Pooler: Pooler `deploymentStrategy: RollingUpdate` auto-handles.
+
+**DB primary node-pinning (best-effort, manual):** CNPG/Percona/Redis primaries currently on W1 (`worker-node`) — more performant. Pin patterns in `[[gotchas]]` → "DB primary node-pin patterns".
 - ⚠️ **Tier quotas may block rolling updates** (need 2x during rollout). Temp increase quota if a rolling update stalls on `exceeded quota`.
