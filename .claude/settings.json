@@ -1,25 +1,27 @@
 {
   "permissions": {
     "allow": [
-      "Bash(kubectl get *)",
-      "Bash(kubectl logs *)",
-      "Bash(kubectl describe *)",
-      "Bash(kubectl rollout status *)",
-      "Bash(kubectl apply --dry-run=server *)",
+      "Bash(chezmoi data *)",
       "Bash(chezmoi diff *)",
       "Bash(chezmoi managed *)",
       "Bash(chezmoi status *)",
-      "Bash(chezmoi data *)",
-      "Bash(flux get *)",
       "Bash(flux events *)",
+      "Bash(flux get *)",
       "Bash(flux logs *)",
-      "Bash(flux tree *)",
       "Bash(flux reconcile *)",
-      "Bash(flux suspend *)",
       "Bash(flux resume *)",
-      "Bash(kubectl rollout restart *)",
+      "Bash(flux suspend *)",
+      "Bash(flux tree *)",
+      "Bash(kubectl apply --dry-run=server *)",
       "Bash(kubectl delete pod *)",
-      "Bash(kustomize build *)"
+      "Bash(kubectl describe *)",
+      "Bash(kubectl get *)",
+      "Bash(kubectl logs *)",
+      "Bash(kubectl rollout restart *)",
+      "Bash(kubectl rollout status *)",
+      "Bash(kustomize build *)",
+      "Bash(shellcheck *)",
+      "mcp__plugin_ecc_exa__web_search_exa"
     ]
   },
   "hooks": {
