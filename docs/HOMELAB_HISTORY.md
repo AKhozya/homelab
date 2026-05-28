@@ -416,6 +416,12 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-05-28 (F-30 Commit A — critical-tier priorityClassName: VM-core + Traefik) ⚖️
+- ⚖️ **F-30 Commit A** (`85d39527`): injected `priorityClassName: homelab-critical` (value=100000) on `VMSingle`/`VMAgent`/`VMAlert` (`spec.priorityClassName`) + Traefik HelmRelease (`values.priorityClassName`). First of three critical-tier commits (B = CNPG + Percona; C = authored Deployments authentik×2 + blocky + cloudflared).
+- 🎯 Why critical-tier first: PriorityClass `homelab-critical/standard/batch` were defined in W9 (2026-05-24) but never injected — `globalDefault: false` meant un-annotated pods = priority 0 (floor). Injecting standard-tier into apps while DBs/ingress/monitoring stayed at 0 would **invert the hierarchy** (a standard app could preempt a DB under pressure). Correct fix: critical tier (operator/Helm-managed: DBs/ingress/monitoring-core) FIRST.
+- ✅ Verified live: vmagent / vmalert / vmsingle (×1 each) + traefik (×2) all `Running` with `priorityClassName=homelab-critical` and `priority=100000` post-reconcile (Flux `infrastructure-controllers` + `monitoring-configs` applied rev `85d3952`). VM operator did create-before-terminate rolling update; old vmagent/vmalert pods exited 0 (`Succeeded`).
+- 🪜 Lowest-blast bundling: VM-core (metrics blind ~30s, no user impact) + Traefik (rolling, 2-replica ingress no drop) → DB tier next.
+
 ### 2026-05-27 (F-39 — claude-telegram RoRFS + PSS restricted) 🛡️
 - 🛡️ **F-39** (`3c5ce4aa`): `readOnlyRootFilesystem: true` on all 3 containers (init `chezmoi-init` + `claude-telegram` + `sync`), `runAsNonRoot: true` at pod level, and a `/tmp` emptyDir mount added to `sync` (init + main already had one). Closes the claude-telegram RoRFS gap deferred from F-6 (Wave 8).
 - 🔬 **Live write-audit before editing:** `find / -xdev -type f -mmin -45` inside both running containers showed only the 3 kubelet bind-mounts (`/etc/hosts`, `/etc/hostname`, `/etc/resolv.conf`) — zero writes to the container root fs. HOME (`/home/akhozya`) is a PVC, `/tmp` an emptyDir; all app writes (session/audit/data, chezmoi, git repos) land there. `sync` lacked `/tmp` so git/chezmoi temp writes would EROFS under RoRFS once a 30-min pull cycle hit an update → added the mount preemptively. Init exited before audit; its script is fully HOME+/tmp-relative by inspection.
