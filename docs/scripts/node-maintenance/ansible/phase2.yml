@@ -130,7 +130,7 @@
 # other's reschedule window (evicted pods land on a quiet node —
 # avoids cold image pulls competing with 13x rebuilderd builders for
 # disk/network). rebuilderd-worker-boot.timer re-arms each worker at
-# +10min post-its-own-reboot, so no explicit restart needed.
+# +60min post-its-own-reboot, so no explicit restart needed.
 - name: Node maintenance — Phase 2 (pause rebuilderd fleet-wide)
   hosts: workers
   gather_facts: false
@@ -157,7 +157,7 @@
       ansible.builtin.wait_for_connection:
         timeout: 120
 
-    - name: Stop rebuilderd-worker (boot timer re-enables at +10min)
+    - name: Stop rebuilderd-worker (boot timer re-enables at +60min)
       ansible.builtin.systemd_service:
         name: rebuilderd-worker@1.service
         state: stopped
@@ -291,11 +291,11 @@
       ansible.builtin.pause:
         minutes: "{{ per_node_stabilize_minutes }}"
 
-    - name: Start rebuilderd-worker (explicit — boot timer only fires on reboot, yay-fail path may skip it)
-      ansible.builtin.systemd_service:
-        name: rebuilderd-worker@1.service
-        state: started
-      failed_when: false
+    # NOTE: rebuilderd-worker is NOT explicitly restarted here. rebuilderd-worker-boot.timer
+    # (OnBootSec=60min) re-arms on every reboot and is the sole re-enable path. An explicit
+    # start at uncordon+stabilize (~4min) competed with pod reschedule for disk/CPU and slowed
+    # convergence (2026-05-28: apprise/metrics-server cold-starts timed out under that load).
+    # 60min delay clears the convergence window before 13x builders resume.
 
     - name: Observe crashloops (report-only; decision - continue, self-heal)
       ansible.builtin.shell: |
