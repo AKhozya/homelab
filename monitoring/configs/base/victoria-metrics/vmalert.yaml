@@ -4,6 +4,7 @@ metadata:
   name: vmalert
   namespace: monitoring
 spec:
+  priorityClassName: homelab-critical
   # Query metrics from VMSingle
   datasource:
     url: "http://vmsingle-vmsingle.monitoring.svc:8429"

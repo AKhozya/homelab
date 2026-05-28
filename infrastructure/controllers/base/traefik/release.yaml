@@ -28,6 +28,9 @@ spec:
     remediation:
       retries: 3
   values:
+    # Critical-tier: ingress data-plane must outrank standard/batch under node pressure
+    priorityClassName: homelab-critical
+
     # Deployment settings
     deployment:
       replicas: 2

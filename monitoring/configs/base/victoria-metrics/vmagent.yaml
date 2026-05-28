@@ -4,6 +4,7 @@ metadata:
   name: vmagent
   namespace: monitoring
 spec:
+  priorityClassName: homelab-critical
   serviceScrapeSelector: {}
   podScrapeSelector: {}
   nodeScrapeSelector: {}

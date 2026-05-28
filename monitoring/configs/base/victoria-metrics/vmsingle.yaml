@@ -4,6 +4,7 @@ metadata:
   name: vmsingle
   namespace: monitoring
 spec:
+  priorityClassName: homelab-critical
   retentionPeriod: "90d"
   storage:
     accessModes:
