@@ -16,6 +16,7 @@ spec:
     spec:
       serviceAccountName: homehub
       automountServiceAccountToken: false
+      priorityClassName: homelab-standard
       securityContext:
         fsGroup: 1000
         runAsUser: 1000

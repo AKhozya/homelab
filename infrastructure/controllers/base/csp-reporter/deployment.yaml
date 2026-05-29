@@ -16,6 +16,7 @@ spec:
     spec:
       serviceAccountName: csp-reporter
       automountServiceAccountToken: false
+      priorityClassName: homelab-standard
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000

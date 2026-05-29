@@ -18,6 +18,7 @@ spec:
     spec:
       serviceAccountName: home-assistant
       automountServiceAccountToken: false
+      priorityClassName: homelab-standard
       securityContext:
         # Home Assistant runs as root but we add security constraints
         runAsUser: 0

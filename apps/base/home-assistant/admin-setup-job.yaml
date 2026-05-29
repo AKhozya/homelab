@@ -14,6 +14,7 @@ spec:
     spec:
       serviceAccountName: home-assistant
       automountServiceAccountToken: false
+      priorityClassName: homelab-standard
       restartPolicy: OnFailure
       securityContext:
         seccompProfile:

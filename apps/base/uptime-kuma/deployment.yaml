@@ -16,6 +16,7 @@ spec:
     spec:
       serviceAccountName: uptime-kuma
       automountServiceAccountToken: false
+      priorityClassName: homelab-standard
       # Pin to control-plane so probes targeting worker nodes always traverse
       # external networking, not pod-local loopback. Avoids "monitor blind to
       # its own node failure" (e.g. UK on W1 → W1 SSH probe stays green

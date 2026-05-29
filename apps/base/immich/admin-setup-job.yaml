@@ -15,6 +15,7 @@ spec:
     spec:
       serviceAccountName: immich
       automountServiceAccountToken: false
+      priorityClassName: homelab-standard
       restartPolicy: OnFailure
       securityContext:
         runAsUser: 65534

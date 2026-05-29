@@ -15,6 +15,7 @@ spec:
     spec:
       serviceAccountName: audiobookshelf
       automountServiceAccountToken: false
+      priorityClassName: homelab-standard
       securityContext:
         fsGroup: 1000
         runAsUser: 1000

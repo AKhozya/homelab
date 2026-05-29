@@ -18,6 +18,7 @@ spec:
     spec:
       serviceAccountName: claude-telegram
       automountServiceAccountToken: true
+      priorityClassName: homelab-standard
       hostAliases:
         - ip: "192.168.1.127"
           hostnames: ["gmk-k3s-control-plane", "master-node"]

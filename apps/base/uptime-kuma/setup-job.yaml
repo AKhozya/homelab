@@ -14,6 +14,7 @@ spec:
     spec:
       serviceAccountName: uptime-kuma
       automountServiceAccountToken: false
+      priorityClassName: homelab-standard
       restartPolicy: OnFailure
       # Co-locate with uptime-kuma Deployment (CP-only) for consistency.
       nodeSelector:

@@ -18,6 +18,7 @@ spec:
     spec:
       serviceAccountName: stirling-pdf
       automountServiceAccountToken: false
+      priorityClassName: homelab-standard
       securityContext:
         fsGroup: 1000
         seccompProfile:

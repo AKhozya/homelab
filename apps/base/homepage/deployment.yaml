@@ -16,6 +16,7 @@ spec:
     spec:
       serviceAccountName: homepage
       automountServiceAccountToken: true
+      priorityClassName: homelab-standard
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
