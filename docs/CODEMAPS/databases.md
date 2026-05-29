@@ -75,12 +75,14 @@ All in `databases` namespace except CouchDB extras in `obsidian` (client side) a
 - **ps-operator**: 50m/128Mi req, 200m/256Mi lim
 - **redis-operator**: 50m/128Mi req, 200m/256Mi lim
 
-## Scheduling tier (F-30, 2026-05-28)
-All data-plane DB pods + their operators run at `priorityClassName: homelab-critical` (value=100000):
+## Scheduling tier (F-30, fully closed 2026-05-29)
+All data-plane DB pods + all 4 DB operators run at `priorityClassName: homelab-critical` (value=100000):
 - **CNPG** `Cluster.spec.priorityClassName` (instance pods) + `Pooler.spec.template.spec.priorityClassName` (PgBouncer — separate CR, edit both) + cnpg-operator HR `values.priorityClassName`
-- **Percona** per-component on the `PerconaServerMySQL` CR: `spec.mysql.priorityClassName`, `spec.orchestrator.priorityClassName`, `spec.proxy.haproxy.priorityClassName` (no top-level field)
+- **Percona** per-component on the `PerconaServerMySQL` CR: `spec.mysql.priorityClassName`, `spec.orchestrator.priorityClassName`, `spec.proxy.haproxy.priorityClassName` (no top-level field) + **ps-operator** HR via `postRenderers` JSON6902 (chart 1.1.0 omits priorityClassName template hook — Commit I `77e3bb76`)
 - **CouchDB** Helm chart `values.priorityClassName`
 - **Redis** OT operator: `RedisReplication.spec.priorityClassName` + `RedisSentinel.spec.priorityClassName` + redis-operator HR `values.priorityClassName`
+
+mysql-exporter (databases ns) is **standard tier** (`homelab-standard`/50000) — not data plane; preempts safely (Commit G `a118d38d`).
 
 **Restart triggers per engine** (priorityClassName change isn't a rolling-update trigger on every operator):
 - CNPG v1.29.x: requires `kubectl cnpg restart <cluster>` (replicas) + `kubectl cnpg promote <cluster> <pod>` (primary). See `[[gotchas]]` → "CNPG v1.29.x".
