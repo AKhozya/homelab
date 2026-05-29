@@ -4,7 +4,7 @@ namespace: blocky
 resources:
   - namespace.yaml
   - serviceaccount.yaml
-  - configmap.yaml
+  - config-secret.yaml
   - deployment.yaml
   - service-dns.yaml
   - service-metrics.yaml

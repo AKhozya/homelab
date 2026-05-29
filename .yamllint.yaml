@@ -29,9 +29,6 @@ ignore: |
   **/*credentials*.yaml
   **/cloudflared-config-secret.yaml
   **/linkwarden-app-user-secret.yaml
-  # Misnamed SOPS-encrypted Secrets (named *configmap.yaml but kind=Secret).
-  apps/blocky/configmap.yaml
-  apps/stirling-pdf/custom-settings-configmap.yaml
 
 rules:
   line-length:

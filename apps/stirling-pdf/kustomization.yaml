@@ -5,7 +5,7 @@ resources:
   - namespace.yaml
   - serviceaccount.yaml
   - storage.yaml
-  - custom-settings-configmap.yaml
+  - custom-settings-secret.yaml
   - deployment.yaml
   - service.yaml
   - networkpolicy.yaml
