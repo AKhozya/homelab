@@ -42,14 +42,6 @@ spec:
         - protocol: TCP
           port: 3005
   egress:
-    # Allow DNS resolution
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
     # Allow HTTPS for metadata fetching (Audible, Google Books, OpenLibrary use HTTPS)
     - ports:
         - protocol: TCP

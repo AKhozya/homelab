@@ -19,14 +19,6 @@ spec:
         - protocol: TCP
           port: 8123
   egress:
-    # Allow DNS resolution
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
     # Allow HTTPS for internet access (integrations, updates, etc.)
     - ports:
         - protocol: TCP

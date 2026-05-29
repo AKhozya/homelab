@@ -36,14 +36,6 @@ spec:
         - protocol: TCP
           port: 3000
   egress:
-    # Allow DNS resolution
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
     # Allow PostgreSQL database access
     - to:
         - namespaceSelector:
@@ -89,12 +81,4 @@ spec:
       ports:
         - protocol: TCP
           port: 7700
-  egress:
-    # Allow DNS resolution only (no internet access needed)
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
+  egress: []

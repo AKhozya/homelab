@@ -12,14 +12,6 @@ spec:
     - Egress
   ingress: []
   egress:
-    # DNS resolution
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
     # HTTPS (Telegram API, Anthropic API, GitHub, external lookups)
     - ports:
         - protocol: TCP

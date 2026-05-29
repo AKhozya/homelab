@@ -28,12 +28,4 @@ spec:
       ports:
         - protocol: TCP
           port: 5000
-  egress:
-    # Allow DNS resolution
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
+  egress: []

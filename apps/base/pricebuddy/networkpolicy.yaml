@@ -28,14 +28,6 @@ spec:
         - protocol: TCP
           port: 80
   egress:
-    # Allow DNS resolution
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
     # Allow MySQL HAProxy access (Percona)
     - to:
         - namespaceSelector:
