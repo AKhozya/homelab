@@ -7,6 +7,7 @@ resources:
   - repository.yaml
   - library-pvc.yaml
   - release.yaml
+  - admin-setup-job-networkpolicy.yaml
   - admin-setup-job.yaml
   - networkpolicy.yaml
   - ingress.yaml

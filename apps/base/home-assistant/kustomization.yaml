@@ -11,6 +11,7 @@ resources:
   - networkpolicy.yaml
   - ingress.yaml
   - admin-credentials-secret.yaml
+  - admin-setup-job-networkpolicy.yaml
   - admin-setup-job.yaml
 
 components:

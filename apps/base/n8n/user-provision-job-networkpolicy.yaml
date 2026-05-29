@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: n8n-user-provision-egress
+  namespace: n8n
+spec:
+  # Selects the user-provision Job pod only (canonical label, auto-set on K3s >=1.27).
+  # The shared allow-dns-egress baseline EXCLUDES Jobs, so DNS is supplied here.
+  # The Job manifest lives in the staging overlay; this NP selects it by job-name.
+  podSelector:
+    matchLabels:
+      batch.kubernetes.io/job-name: n8n-user-provision
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # n8n API (same namespace), container port
+    - to:
+        - podSelector:
+            matchLabels:
+              app: n8n
+      ports:
+        - protocol: TCP
+          port: 5678

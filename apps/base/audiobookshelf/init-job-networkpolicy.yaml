@@ -1,0 +1,30 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: audiobookshelf-init-egress
+  namespace: audiobookshelf
+spec:
+  # Selects the init Job pod only (canonical label, auto-set on K3s >=1.27).
+  # The shared allow-dns-egress baseline EXCLUDES Jobs, so DNS is supplied here.
+  podSelector:
+    matchLabels:
+      batch.kubernetes.io/job-name: audiobookshelf-init
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # audiobookshelf API (same namespace), container port
+    - to:
+        - podSelector:
+            matchLabels:
+              app: audiobookshelf
+      ports:
+        - protocol: TCP
+          port: 3005

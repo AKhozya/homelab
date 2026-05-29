@@ -8,6 +8,7 @@ resources:
   - configmap.yaml
   - storage.yaml
   - networkpolicy.yaml
+  - init-job-networkpolicy.yaml
   - init-job.yaml
   - ingress.yaml
   - certificate.yaml

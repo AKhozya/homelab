@@ -9,6 +9,7 @@ resources:
   - deployment.yaml
   - user-provision-script.yaml
   - networkpolicy.yaml
+  - user-provision-job-networkpolicy.yaml
   - ingress.yaml
   - certificate.yaml
 

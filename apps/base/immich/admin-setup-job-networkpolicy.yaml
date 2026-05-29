@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: immich-admin-setup-egress
+  namespace: immich
+spec:
+  # Selects the admin-setup Job pod only (canonical label, auto-set on K3s >=1.27).
+  # The shared allow-dns-egress baseline EXCLUDES Jobs, so DNS is supplied here.
+  podSelector:
+    matchLabels:
+      batch.kubernetes.io/job-name: immich-admin-setup
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+    # immich-server API (same namespace), container port 2283 only
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: immich
+              app.kubernetes.io/name: server
+      ports:
+        - protocol: TCP
+          port: 2283
