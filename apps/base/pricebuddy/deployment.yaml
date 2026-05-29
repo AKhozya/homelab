@@ -46,8 +46,8 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
-            runAsUser: 0
-            runAsNonRoot: false
+            runAsUser: 1000
+            runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
           resources:
@@ -196,14 +196,23 @@ spec:
           volumeMounts:
             - name: apprise-config
               mountPath: /config
+            - name: apprise-plugin
+              mountPath: /plugin
+            - name: apprise-attach
+              mountPath: /attach
+            - name: apprise-tmp
+              mountPath: /tmp
+          # F-24: post-#273 (v1.4.x) runs non-root natively — no chown caps needed.
+          # nginx/gunicorn/supervisord write only to /tmp under RoRFS (upstream README
+          # hardened pattern). runAsUser 1000 + fsGroup 33 (pod) → writes the
+          # group-writable /config emptyDir via supplemental group.
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
-            runAsUser: 0
-            runAsNonRoot: false
+            readOnlyRootFilesystem: true
+            runAsUser: 1000
+            runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
-              add: ["CHOWN", "SETUID", "SETGID", "DAC_OVERRIDE", "FOWNER"]
           resources:
             requests:
               cpu: "50m"
@@ -243,6 +252,13 @@ spec:
             claimName: pricebuddy-storage
         - name: apprise-config
           emptyDir: {}
+        - name: apprise-plugin
+          emptyDir: {}
+        - name: apprise-attach
+          emptyDir: {}
+        - name: apprise-tmp
+          emptyDir:
+            medium: Memory
         - name: apprise-init-script
           configMap:
             name: pricebuddy-apprise-init
