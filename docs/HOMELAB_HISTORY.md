@@ -416,6 +416,11 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-05-29 (F-46 redis-operator HR remediation parity) ⚖️✅
+- ⚖️ **F-46 closed** (`1d473d5f`): added full cnpg-operator HR parity to redis-operator — `install.crds: Create` + `install.remediation.retries: 3` + `maxHistory: 3` + `upgrade.crds: CreateReplace` + `upgrade.remediation.retries: 3` + `remediateLastFailure: true` + `rollback.recreate: true` (kept pre-existing `rollback.cleanupOnFail: true`). Helm upgrade.v2 succeeded; HR `Ready=True` post-reconcile; operator pod stayed `homelab-critical`.
+- 🧠 **Reviewer caught parity miss:** first pass omitted `rollback.recreate: true` (cnpg HR has it). Fix-forward in same session before push. Lesson: when "match X HR shape", DIFF the full rollback block too, not just install/upgrade.
+- 🔎 **New backlog item F-48:** redis-operator pod has NO NetworkPolicy (live ns audit shows `cnpg-operator-policy` covers cnpg, `redis-ha-network-policy` covers data plane, but operator pod is naked). Hard-invariant gap. Mirror cnpg-operator-policy shape with selector `app.kubernetes.io/name: redis-operator`. Pre-existing since 2026-04-15, surfaced during F-46 review.
+
 ### 2026-05-29 (F-30 truly closed — Commit J gap-closure + F-47) ⚖️✅
 
 - 🔍 **Self-critique driven fix.** Post-F-30-closure audit (`audit-priority-class.sh --missing`) found 4 source Jobs at priority 0 that the Commit F investigator scope missed: `n8n-user-provision`, `mealie-user-provision`, `obsidian/couchdb-init`, `databases/immich-init-extensions`. Plus flux-system `notification-controller` was punted to F-47 backlog instead of being fixed.
