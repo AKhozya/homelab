@@ -104,7 +104,7 @@ jobs:
         root:
           - apps
           - infrastructure/configs/staging
-          - infrastructure/controllers/staging
+          - infrastructure/controllers
           - monitoring/configs/staging
           - monitoring/controllers/staging
     steps:
