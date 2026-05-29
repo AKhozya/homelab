@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - repository.yaml
+  - release.yaml
+  - redirect-https-middleware.yaml
+  - security-headers-middleware.yaml
+  - rate-limit-standard-middleware.yaml
+  - rate-limit-high-frequency-middleware.yaml
+  - csp-middleware.yaml
+  - csp-tier-middlewares.yaml
+  - networkpolicy.yaml
+  - pdb.yaml

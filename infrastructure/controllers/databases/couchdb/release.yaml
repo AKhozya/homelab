@@ -1,0 +1,139 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: couchdb
+  namespace: databases
+spec:
+  interval: 6h
+  timeout: 10m
+  driftDetection:
+    mode: enabled
+  chart:
+    spec:
+      chart: couchdb
+      version: 4.6.3
+      sourceRef:
+        kind: HelmRepository
+        name: couchdb
+        namespace: databases
+  install:
+    remediation:
+      retries: 3
+  maxHistory: 3
+  upgrade:
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  rollback:
+    recreate: true
+    cleanupOnFail: true
+  values:
+    # F-30 critical tier: CouchDB outranks standard/batch under node pressure
+    priorityClassName: homelab-critical
+
+    # Init container image (pin version, don't use :latest)
+    initImage:
+      repository: busybox
+      tag: "1.38.0"
+      pullPolicy: IfNotPresent
+
+    # Init container resources
+    initResources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+    # CouchDB cluster configuration - 2 replicas for HA
+    clusterSize: 2
+
+    # Distribute across worker nodes for HA
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: couchdb
+            topologyKey: kubernetes.io/hostname
+
+    # Cluster UUID (required for multi-node setup)
+    couchdbConfig:
+      couchdb:
+        uuid: beb932d28abcf87163a94cf52f1a795e
+        max_document_size: 50000000
+        # Delayed commits disabled for data safety - every write is immediately flushed
+        # This is slower but ensures zero data loss on crashes
+        delayed_commits: "false"
+      chttpd:
+        require_valid_user: true
+        max_http_request_size: 134217728
+        # Rate limiting: max requests per connection per second (prevents brute force)
+        # Set to 100 req/sec which is reasonable for sync operations
+        max_http_request_rate: 100
+        enable_cors: true
+        WWW-Authenticate: Basic realm="couchdb"
+      chttpd_auth:
+        require_valid_user: true
+      httpd:
+        enable_cors: true
+        WWW-Authenticate: Basic realm="couchdb"
+      cors:
+        origins: app://obsidian.md,capacitor://localhost,http://localhost
+        credentials: true
+        headers: accept, authorization, content-type, origin, referer
+        methods: GET, PUT, POST, HEAD, DELETE
+      # Automatic compaction: prevent database bloat from sync operations
+      compactions:
+        _default: "[{db_fragmentation, \"70%\"}, {view_fragmentation, \"60%\"}]"
+
+    # Admin credentials (chart will read an existing secret instead of creating one)
+    adminUsername: admin
+    # adminPassword removed from Git — create a SOPS-encrypted secret in the staging overlay
+    createAdminSecret: false
+
+    # Persistent storage
+    persistentVolume:
+      enabled: true
+      size: 30Gi
+      storageClass: local-path
+      accessModes:
+        - ReadWriteOnce
+
+    # Resource limits
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+    # Service configuration
+    service:
+      type: ClusterIP
+      externalPort: 5984
+
+    # Enable clustering
+    enableSearch: false
+
+    # Monitoring: metrics scraped via external ServiceMonitor on port 5984 with basic auth
+    # (chart key is prometheusPort, not prometheus - but we don't need the standalone
+    # unauthenticated metrics port since ServiceMonitor already handles this)
+
+    # Health checks for auto-recovery and resilience
+    livenessProbe:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 5
+    readinessProbe:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 5

@@ -1,0 +1,75 @@
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisReplication
+metadata:
+  name: redis-replication
+  namespace: databases
+spec:
+  clusterSize: 2
+  serviceAccountName: redis-replication
+  priorityClassName: homelab-critical  # F-30 critical tier (in-memory DB)
+  podSecurityContext:
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    runAsNonRoot: true
+    capabilities:
+      drop: ["ALL"]
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                  - worker-node
+                  - worker-node-2
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        - topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app: redis-replication
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v8.6.2
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: "50m"
+        memory: "128Mi"
+      limits:
+        cpu: "400m"
+        memory: "512Mi"
+  redisConfig:
+    additionalRedisConfig: redis-ha-config
+  acl:
+    secret:
+      secretName: redis-acl-secret
+  redisExporter:
+    enabled: true
+    image: quay.io/opstree/redis-exporter:v1.83.0
+    imagePullPolicy: IfNotPresent
+    resources:
+      requests:
+        cpu: "10m"
+        memory: "32Mi"
+      limits:
+        cpu: "300m"
+        memory: "64Mi"
+  storage:
+    volumeClaimTemplate:
+      spec:
+        storageClassName: local-path
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+  pdb:
+    enabled: true
+    minAvailable: 1

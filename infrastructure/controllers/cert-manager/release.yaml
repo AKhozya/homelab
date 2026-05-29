@@ -1,0 +1,189 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+spec:
+  interval: 6h
+  timeout: 10m
+  driftDetection:
+    mode: enabled
+  chart:
+    spec:
+      chart: cert-manager
+      version: v1.20.2
+      sourceRef:
+        kind: HelmRepository
+        name: cert-manager
+        namespace: cert-manager
+      interval: 12h
+  install:
+    crds: Create
+    remediation:
+      retries: 3
+  maxHistory: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  rollback:
+    recreate: true
+    cleanupOnFail: true
+  # F-30: standard-tier — chart 1.20.2 omits priorityClassName template hook for all 3 components.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: cert-manager
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
+          - target:
+              kind: Deployment
+              name: cert-manager-cainjector
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
+          - target:
+              kind: Deployment
+              name: cert-manager-webhook
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
+  values:
+    # Install CRDs as part of the Helm release
+    # Uses new crds section (installCRDs deprecated since cert-manager v1.15.0)
+    crds:
+      enabled: true
+      keep: true
+
+    # Global settings
+    global:
+      leaderElection:
+        namespace: cert-manager
+
+    # High availability: 2 replicas with pod anti-affinity
+    replicaCount: 2
+
+    # Rolling update strategy: delete old pod before creating new
+    # Required with 2 replicas + required anti-affinity on 2 worker nodes
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 0
+        maxUnavailable: 1
+
+    # Allow scheduling on control plane for HA
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
+
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: cert-manager
+                app.kubernetes.io/instance: cert-manager
+                app.kubernetes.io/component: controller
+            topologyKey: kubernetes.io/hostname
+
+    # Resource limits for cert-manager controller
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+    # Webhook settings
+    # Note: Webhook deployment may be scaled to 0 replicas and webhook configurations
+    # may be deleted if experiencing Kubernetes API server timeout issues (30s default).
+    # The webhook provides admission validation but is not strictly required for cert-manager
+    # operation, as the controllers also perform validation.
+    webhook:
+      replicaCount: 2
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxSurge: 0
+          maxUnavailable: 1
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: cert-manager
+                  app.kubernetes.io/instance: cert-manager
+                  app.kubernetes.io/component: webhook
+              topologyKey: kubernetes.io/hostname
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+      # Liveness probe settings
+      livenessProbe:
+        failureThreshold: 3
+        initialDelaySeconds: 60
+        periodSeconds: 10
+        successThreshold: 1
+        timeoutSeconds: 1
+      # Readiness probe settings
+      readinessProbe:
+        failureThreshold: 3
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        successThreshold: 1
+        timeoutSeconds: 1
+
+    # CA Injector settings
+    cainjector:
+      replicaCount: 2
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxSurge: 0
+          maxUnavailable: 1
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: cert-manager
+                  app.kubernetes.io/instance: cert-manager
+                  app.kubernetes.io/component: cainjector
+              topologyKey: kubernetes.io/hostname
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+
+    # Enable Prometheus metrics
+    prometheus:
+      enabled: true
+      servicemonitor:
+        enabled: true
+        prometheusInstance: default
+        labels:
+          release: kube-prometheus-stack

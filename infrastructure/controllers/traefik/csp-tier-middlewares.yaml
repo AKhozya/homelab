@@ -1,0 +1,35 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: csp-strict
+  namespace: traefik
+spec:
+  headers:
+    customResponseHeaders:
+      # CSP TIER: strict (REPORT-ONLY) — observe violations via csp-reporter (F-22)
+      # script-src 'self' only. All other directives mirror global enforced CSP.
+      Content-Security-Policy-Report-Only: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://authentik.h0melab.work; report-uri http://csp-reporter.csp-reporter.svc.cluster.local/report"
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: csp-inline
+  namespace: traefik
+spec:
+  headers:
+    customResponseHeaders:
+      # CSP TIER: inline (REPORT-ONLY) — observe violations via csp-reporter (F-22)
+      # script-src 'self' 'unsafe-inline'. All other directives mirror global enforced CSP.
+      Content-Security-Policy-Report-Only: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://authentik.h0melab.work; report-uri http://csp-reporter.csp-reporter.svc.cluster.local/report"
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: csp-permissive
+  namespace: traefik
+spec:
+  headers:
+    customResponseHeaders:
+      # CSP TIER: permissive (REPORT-ONLY) — observe violations via csp-reporter (F-22)
+      # script-src 'self' 'unsafe-inline' 'unsafe-eval'. All other directives mirror global enforced CSP.
+      Content-Security-Policy-Report-Only: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://authentik.h0melab.work; report-uri http://csp-reporter.csp-reporter.svc.cluster.local/report"
