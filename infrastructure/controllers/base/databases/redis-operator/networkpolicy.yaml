@@ -33,12 +33,30 @@ spec:
 
     # Allow HTTPS access to Kubernetes API server
     # API server runs on control-plane node, not as a pod, so we use ipBlock.
-    # Operator drives Redis/Sentinel reconcile + redis-cli via API exec (not direct
-    # pod network), so no egress to Redis instances is required — unlike CNPG's
-    # manager, which talks to instances on 8000 directly.
     - to:
         - ipBlock:
             cidr: 192.168.1.127/32  # control-plane node
       ports:
         - protocol: TCP
           port: 6443  # Kubernetes API server port
+
+    # Allow access to Redis + Sentinel instances. The operator dials pods directly
+    # (checkRedisServerRole → role/sentinel coordination), NOT via API exec —
+    # omitting this makes kube-router REJECT the egress (observed as TCP
+    # "connection refused" to redis-replication-0:6379 during first reconcile).
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+          podSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - redis-replication
+                  - redis-sentinel-sentinel
+      ports:
+        - protocol: TCP
+          port: 6379   # Redis
+        - protocol: TCP
+          port: 26379  # Sentinel
