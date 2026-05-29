@@ -4,3 +4,4 @@ namespace: databases
 resources:
   - repository.yaml
   - release.yaml
+  - networkpolicy.yaml
