@@ -47,7 +47,7 @@ spec:
       # to be ready before starting. This ensures migrations complete before the
       # worker attempts to run them (idempotent, no conflict).
       #
-      # See: apps/base/authentik/worker-deployment.yaml (wait-for-server init container)
+      # See: apps/authentik/worker-deployment.yaml (wait-for-server init container)
       securityContext:
         fsGroup: 1000
         runAsUser: 1000
