@@ -77,6 +77,24 @@ jobs:
           "$HOME/.local/bin/yq" --version
       - run: scripts/ci/check-init-resources.sh
 
+  image-pin:
+    name: image pin audit (major.minor.patch)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install yq
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          curl -sSL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o "$HOME/.local/bin/yq"
+          chmod +x "$HOME/.local/bin/yq"
+          "$HOME/.local/bin/yq" --version
+      # Closes the gap Kyverno's image-pin policy leaves: it only rejects :latest/no-tag,
+      # so major-only / major.minor tags float silently. This asserts major.minor.patch
+      # (or @sha256 digest). Allowlist for native-2-component upstreams in the script.
+      - run: scripts/ci/image-pin-audit.sh .
+
   kubeconform:
     name: kubeconform (${{ matrix.root }})
     runs-on: ubuntu-latest
