@@ -11,3 +11,6 @@ resources:
   - user-provision-script.yaml
   - ingress.yaml
   - certificate.yaml
+
+components:
+  - ../_components/allow-dns-egress

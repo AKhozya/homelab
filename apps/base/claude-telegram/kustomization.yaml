@@ -7,3 +7,6 @@ resources:
   - storage.yaml
   - deployment.yaml
   - networkpolicy.yaml
+
+components:
+  - ../_components/allow-dns-egress

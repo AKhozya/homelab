@@ -10,3 +10,6 @@ resources:
   - service.yaml
   - ingress.yaml
   - networkpolicy.yaml
+
+components:
+  - ../_components/allow-dns-egress
