@@ -13,6 +13,7 @@ spec:
       serviceAccountName: mealie
       automountServiceAccountToken: false
       restartPolicy: OnFailure
+      priorityClassName: homelab-standard
       # PSS Baseline (not Restricted): Job needs root to install apt packages
       securityContext:
         runAsUser: 0

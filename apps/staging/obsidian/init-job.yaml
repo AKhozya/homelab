@@ -12,6 +12,7 @@ spec:
       serviceAccountName: obsidian
       automountServiceAccountToken: false
       restartPolicy: OnFailure
+      priorityClassName: homelab-standard
       securityContext:
         runAsUser: 65534
         runAsGroup: 65534
