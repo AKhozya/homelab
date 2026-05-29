@@ -15,4 +15,4 @@ resources:
   - ingress.yaml
 
 components:
-  - ../_components/allow-dns-egress
+  - ../components/allow-dns-egress
