@@ -3,6 +3,7 @@ kind: Kustomization
 namespace: monitoring
 resources:
   - grafana-networkpolicy.yaml
-  - prometheus-networkpolicy.yaml
+  - kube-state-metrics-networkpolicy.yaml
+  - prometheus-operator-networkpolicy.yaml
   - alertmanager-networkpolicy.yaml
   - alertmanager-pdb.yaml
