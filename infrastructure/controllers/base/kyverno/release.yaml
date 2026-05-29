@@ -29,6 +29,38 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
+  # F-30: standard-tier — uniform postRenderer injection for 4 controllers.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: kyverno-admission-controller
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
+          - target:
+              kind: Deployment
+              name: kyverno-background-controller
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
+          - target:
+              kind: Deployment
+              name: kyverno-cleanup-controller
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
+          - target:
+              kind: Deployment
+              name: kyverno-reports-controller
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
   values:
     # Admission controller configuration
     # HA: 2 replicas for webhook availability during node reboots

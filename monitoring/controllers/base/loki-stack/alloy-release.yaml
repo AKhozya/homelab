@@ -27,6 +27,17 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
+  # F-30: standard-tier — alloy chart 1.8.2 has no priorityClassName values key.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: DaemonSet
+              name: alloy
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
   values:
     # DaemonSet to run on all nodes (same as Promtail)
     controller:

@@ -35,6 +35,10 @@ spec:
               kind: Deployment
               name: immich-server
             patch: |-
+              # F-30: standard-tier
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
               # Limit old ReplicaSets to prevent buildup
               - op: add
                 path: /spec/revisionHistoryLimit
@@ -73,6 +77,10 @@ spec:
               kind: Deployment
               name: immich-machine-learning
             patch: |-
+              # F-30: standard-tier
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
               - op: add
                 path: /spec/revisionHistoryLimit
                 value: 2

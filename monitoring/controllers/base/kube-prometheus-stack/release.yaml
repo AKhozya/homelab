@@ -30,6 +30,40 @@ spec:
     cleanupOnFail: true
   driftDetection:
     mode: enabled
+  # F-30: standard-tier — postRenderers for chart-managed Deployments/DS; alertmanager STS
+  # picks up priorityClassName via values.alertmanager.alertmanagerSpec.priorityClassName below
+  # (Prometheus Operator propagates Alertmanager CR field to the generated STS).
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: kube-prometheus-stack-operator
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
+          - target:
+              kind: Deployment
+              name: kube-prometheus-stack-grafana
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
+          - target:
+              kind: Deployment
+              name: kube-prometheus-stack-kube-state-metrics
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
+          - target:
+              kind: DaemonSet
+              name: kube-prometheus-stack-prometheus-node-exporter
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
   values:
     grafana:
       replicas: 1
@@ -228,6 +262,8 @@ spec:
             hosts:
             - am.h0melab.work
       alertmanagerSpec:
+        # F-30: standard-tier — Prometheus Operator propagates to the generated STS.
+        priorityClassName: homelab-standard
         # HA configuration - 2 replicas with anti-affinity
         replicas: 2
         podAntiAffinity: "hard"

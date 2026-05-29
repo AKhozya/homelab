@@ -28,6 +28,31 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
+  # F-30: standard-tier — loki chart 7.0.0 component priorityClassName paths vary; uniform patch.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: StatefulSet
+              name: loki
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
+          - target:
+              kind: Deployment
+              name: loki-gateway
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
+          - target:
+              kind: DaemonSet
+              name: loki-canary
+            patch: |-
+              - op: add
+                path: /spec/template/spec/priorityClassName
+                value: homelab-standard
   values:
     # Loki configuration
     loki:
