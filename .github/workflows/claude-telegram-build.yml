@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Image version tag (e.g., 1.0). Leave empty to auto-increment.'
+        description: 'Image version tag, major.minor.patch (e.g., 1.25.0). Leave empty to auto-increment patch.'
         required: false
         default: ''
   schedule:
@@ -47,19 +47,34 @@ jobs:
       - name: Generate version tag
         id: version
         run: |
-          if [ -n "${{ github.event.inputs.version }}" ]; then
-            echo "tag=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            LATEST=$(git tag -l 'claude-telegram-v1.*' --sort=-v:refname | head -1)
-            if [ -z "$LATEST" ]; then
-              NEXT="1.0"
-            else
-              MINOR=$(echo "$LATEST" | sed 's/claude-telegram-v1\.//')
-              NEXT="1.$((MINOR + 1))"
+          INPUT="${{ github.event.inputs.version }}"
+          if [ -n "$INPUT" ]; then
+            if ! echo "$INPUT" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "::error::version must be major.minor.patch (e.g. 1.25.0), got '$INPUT'"
+              exit 1
             fi
-            echo "tag=${NEXT}" >> $GITHUB_OUTPUT
+            NEXT="$INPUT"
+          else
+            # Auto-increment PATCH from the latest 3-component tag (each scheduled rebuild
+            # is a dependency refresh = a patch bump). Reserve minor/major for manual input.
+            LATEST=$(git tag -l 'claude-telegram-v*.*.*' --sort=-v:refname | head -1)
+            if [ -n "$LATEST" ]; then
+              V="${LATEST#claude-telegram-v}"          # e.g. 1.25.3
+              MAJOR="${V%%.*}"; REST="${V#*.}"; MINOR="${REST%%.*}"; PATCH="${REST#*.}"
+              NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
+            else
+              # Transition: no 3-component tag yet — continue the minor from the latest
+              # legacy 2-component tag (claude-telegram-v1.NN → 1.NN.0).
+              OLD=$(git tag -l 'claude-telegram-v1.*' --sort=-v:refname | head -1)
+              if [ -n "$OLD" ]; then
+                NEXT="1.$(echo "$OLD" | sed 's/claude-telegram-v1\.//').0"
+              else
+                NEXT="1.0.0"
+              fi
+            fi
           fi
-          echo "Version: $(cat $GITHUB_OUTPUT | grep tag)"
+          echo "tag=${NEXT}" >> $GITHUB_OUTPUT
+          echo "Version: ${NEXT}"
 
       - name: Build and push
         uses: docker/build-push-action@v7
