@@ -416,6 +416,13 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-05-29 (F-30 truly closed — Commit J gap-closure + F-47) ⚖️✅
+
+- 🔍 **Self-critique driven fix.** Post-F-30-closure audit (`audit-priority-class.sh --missing`) found 4 source Jobs at priority 0 that the Commit F investigator scope missed: `n8n-user-provision`, `mealie-user-provision`, `obsidian/couchdb-init`, `databases/immich-init-extensions`. Plus flux-system `notification-controller` was punted to F-47 backlog instead of being fixed.
+- ⚖️ **F-30 Commit J** (`6da41aa7`, 5 files / 5 insertions): added `priorityClassName: homelab-standard` to all 4 missed Jobs (all have `kustomize.toolkit.fluxcd.io/force: enabled` → Flux delete+recreate, idempotent). Added `priorityClassName: system-cluster-critical` to `notification-controller` Deployment in `clusters/staging/flux-system/gotk-components.yaml` (PARITY with the 3 already-present Flux controllers at lines 2607/3429/4985 — upstream Flux gotk omits notification-controller from this pattern). F-47 closed.
+- ✅ **Final audit:** `homelab-critical=35` + `homelab-standard=52` + `system-cluster-critical=6` + `system-node-critical=6`; `--missing` empty. KPS alertmanager STS spot-verified `homelab-standard` (Prom-Op propagated `alertmanagerSpec.priorityClassName` to generated STS). Health snapshot: Flux 6/6, pods 91 running 0 unhealthy, 0 alerts firing.
+- 🧠 **Lesson:** trust audit-priority-class output over investigator scope. Investigator caves on overlay/setup-Jobs that aren't under canonical `apps/base/` (the 3 missing jobs live in `apps/staging/`); cluster reality > file-map heuristics. Codified in `audit-priority-class.sh --missing` workflow.
+
 ### 2026-05-29 (F-30 fully closed — Commits F + G + H + I) ⚖️✅
 
 - ⚖️ **F-30 Commit I** (`77e3bb76` ps-operator critical correction): chart `ps-operator` 1.1.0 has no native `priorityClassName` value (verified upstream `values.yaml` + `deployment.yaml`). Injected via `postRenderers` JSON6902 patch on the `Deployment ps-operator` → `homelab-critical`. Parity with cnpg-operator + redis-operator from Commit E (4 DB control-plane operators all critical).
