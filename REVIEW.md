@@ -383,11 +383,11 @@ All 10 `git mv`-d to `docs/archive/` (content preserved, durable conclusions alr
 
 ## Action Backlog
 
-### ⏭ Resume Here — Outstanding work extracted (as of 2026-05-28)
+### ⏭ Resume Here — Outstanding work extracted (as of 2026-05-29)
 
 Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the **proper fix that remains**. This is the single resume point — wave sections keep the full context.
 
-**Closed since 2026-05-24:** W7/W8 (all 12 Kyverno policies Enforce), housekeeping batch (F-44, W13-hist/docs/mem), F-38 (host-ns excludes narrowed, `a35481fb`), F-45 (PSS privileged-ns audit — closed not-viable, all 6 justified by hostPath/host-ns/GPU/caps, `9fcae542`), F-39 (claude-telegram RoRFS ×3 + runAsNonRoot + PSS restricted, `3c5ce4aa`+`3d080256` 2026-05-27), F-37 (closed won't-do 2026-05-27 — uptime-kuma internal-only + own 2FA; ForwardAuth = new infra + circular dep on monitoring tool), F-15 (consolidated blocky DB CRs into infra layer, `002e06f7` 2026-05-27 — direction inverted: CNPG Database CR is ns-bound to cluster, belongs in infra not apps). F-23/F-24 researched (parked/attended). PSS keyfact in HOMELAB_ANALYSIS corrected to live (`913fb941`). **No open unattended work** — everything below is attended (live verify) or calendar-bound.
+**Closed since 2026-05-24:** W7/W8 (all 12 Kyverno policies Enforce), housekeeping batch (F-44, W13-hist/docs/mem), F-38 (host-ns excludes narrowed, `a35481fb`), F-45 (PSS privileged-ns audit — closed not-viable, all 6 justified by hostPath/host-ns/GPU/caps, `9fcae542`), F-39 (claude-telegram RoRFS ×3 + runAsNonRoot + PSS restricted, `3c5ce4aa`+`3d080256`), F-37 (won't-do — uptime-kuma internal-only + own 2FA), F-15 (consolidated blocky DB CRs into infra layer, `002e06f7` — direction inverted: CNPG Database CR is ns-bound to cluster, belongs in infra not apps). **F-30 fully closed 2026-05-29** (`85d39527 → 6da41aa7` — 10 commits: critical+std+batch+ps-op-postRenderers+flux-notif-parity; 35 critical + 52 standard + 8 batch templates; zero NULL-priority Running pods). **F-46 closed 2026-05-29** (`1d473d5f` — redis-operator HR full cnpg-parity remediation/maxHistory/rollback.recreate). **F-47 closed 2026-05-29** (`6da41aa7` — flux notification-controller → system-cluster-critical via gotk-components.yaml). F-23/F-24 researched (parked/attended). **New backlog 2026-05-29: F-48** (redis-operator pod NP gap — surfaced during F-46 review). **No open unattended work** — everything below is attended (live verify), calendar-bound, or housekeeping (F-48 trivial NP add).
 
 **🔴 Scheduled / time-bound (do on date):**
 
