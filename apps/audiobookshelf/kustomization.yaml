@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: audiobookshelf
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - deployment.yaml
+  - service.yaml
+  - configmap.yaml
+  - storage.yaml
+  - networkpolicy.yaml
+  - init-job-networkpolicy.yaml
+  - init-job.yaml
+  - ingress.yaml
+  - certificate.yaml
+  - secret.yaml
+  # OIDC config is stored in audiobookshelf's SQLite DB (configured via web UI)
+
+components:
+  - ../components/allow-dns-egress

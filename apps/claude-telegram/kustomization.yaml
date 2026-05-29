@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: claude-telegram
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - rbac.yaml
+  - storage.yaml
+  - deployment.yaml
+  - networkpolicy.yaml
+  - claude-telegram-env-secret.yaml
+  - claude-telegram-ssh-secret.yaml
+  - claude-telegram-chezmoi-secret.yaml
+
+components:
+  - ../components/allow-dns-egress

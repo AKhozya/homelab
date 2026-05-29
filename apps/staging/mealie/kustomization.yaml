@@ -1,9 +1,0 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-namespace: mealie
-resources:
-  - ../../base/mealie/
-  - mealie-env-secret.yaml
-  - mealie-user-credentials-secret.yaml
-  # OIDC config is in mealie-env-secret.yaml (OIDC_CLIENT_SECRET env var)
-  - user-provision-job.yaml

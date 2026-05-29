@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: pricebuddy
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - mysql-credentials.yaml
+  - pvc.yaml
+  - service.yaml
+  - apprise-configmap.yaml
+  - deployment.yaml
+  - networkpolicy.yaml
+  - ingress.yaml
+  - certificate.yaml
+  - secrets.yaml
+  - telegram-secret.yaml
+
+components:
+  - ../components/allow-dns-egress

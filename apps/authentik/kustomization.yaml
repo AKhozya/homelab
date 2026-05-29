@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: authentik
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - server-deployment.yaml
+  - worker-deployment.yaml
+  - service.yaml
+  - networkpolicy.yaml
+  - ingress.yaml
+  - pdb.yaml
+  - certificate.yaml
+  - secret.yaml
+
+configMapGenerator:
+  - name: authentik-blueprints-custom
+    namespace: authentik
+    files:
+      - blueprints/00-noop.yaml
+      - blueprints/10-voluntary-enrollment.yaml
+      - blueprints/20-passkey-first.yaml
+      - blueprints/30-enforce.yaml
+
+generatorOptions:
+  disableNameSuffixHash: true
+
+components:
+  - ../components/allow-dns-egress

@@ -1,7 +1,0 @@
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - ../../base/home-assistant
-  - certificate.yaml
-  - secrets.yaml
-  # OIDC config is embedded in secrets.yaml (oidc_client_secret key)

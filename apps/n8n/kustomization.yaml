@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: n8n
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - service.yaml
+  - storage.yaml
+  - deployment.yaml
+  - user-provision-script.yaml
+  - networkpolicy.yaml
+  - user-provision-job-networkpolicy.yaml
+  - ingress.yaml
+  - certificate.yaml
+  - n8n-env-secret.yaml
+  - n8n-user-credentials.yaml
+  - user-provision-job.yaml
+
+components:
+  - ../components/allow-dns-egress
