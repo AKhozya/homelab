@@ -23,6 +23,7 @@ spec:
           serviceAccountName: postgres-jobs
           automountServiceAccountToken: false
           restartPolicy: OnFailure
+          priorityClassName: homelab-batch
           securityContext:
             seccompProfile:
               type: RuntimeDefault

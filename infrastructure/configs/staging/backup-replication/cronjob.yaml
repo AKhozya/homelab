@@ -24,6 +24,7 @@ spec:
           serviceAccountName: backup-replication
           automountServiceAccountToken: false
           restartPolicy: OnFailure
+          priorityClassName: homelab-batch
           # Run on worker-node (source of backups)
           nodeSelector:
             kubernetes.io/hostname: worker-node

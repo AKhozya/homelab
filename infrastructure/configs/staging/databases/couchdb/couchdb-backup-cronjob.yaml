@@ -22,6 +22,7 @@ spec:
           serviceAccountName: couchdb-jobs
           automountServiceAccountToken: false
           restartPolicy: OnFailure
+          priorityClassName: homelab-batch
           securityContext:
             runAsUser: 1000  # non-root user
             runAsGroup: 1000

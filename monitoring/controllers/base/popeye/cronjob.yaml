@@ -17,6 +17,7 @@ spec:
         spec:
           serviceAccountName: popeye
           restartPolicy: Never
+          priorityClassName: homelab-batch
           containers:
             - name: popeye
               image: derailed/popeye:v0.22.1

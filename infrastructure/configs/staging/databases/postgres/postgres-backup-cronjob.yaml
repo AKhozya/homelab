@@ -22,6 +22,7 @@ spec:
           serviceAccountName: postgres-jobs
           automountServiceAccountToken: false
           restartPolicy: OnFailure
+          priorityClassName: homelab-batch
           securityContext:
             runAsUser: 999  # postgres user
             runAsGroup: 999

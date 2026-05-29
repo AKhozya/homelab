@@ -22,6 +22,7 @@ spec:
           serviceAccountName: mysql-jobs
           automountServiceAccountToken: false
           restartPolicy: OnFailure
+          priorityClassName: homelab-batch
           securityContext:
             runAsUser: 999  # mysql user
             runAsGroup: 999

@@ -20,6 +20,7 @@ spec:
             app: pvc-backup
         spec:
           restartPolicy: OnFailure
+          priorityClassName: homelab-batch
           securityContext:
             runAsUser: 0  # Need root to access all PVC files
             runAsGroup: 0
