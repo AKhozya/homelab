@@ -111,13 +111,16 @@ spec:
               drop: ["ALL"]
           # Use /up endpoint to avoid session creation (Laravel 11 health route)
           # See: https://github.com/jez500/pricebuddy/issues/103
+          # Budget: 18×5s = 90s total
+          # Bumped failureThreshold 12→18: Laravel needs headroom when
+          # MySQL is slow to accept connections after node reboot (was 60s)
           startupProbe:
             httpGet:
               path: /up
               port: 80
             periodSeconds: 5
             timeoutSeconds: 5
-            failureThreshold: 12
+            failureThreshold: 18
           livenessProbe:
             httpGet:
               path: /up

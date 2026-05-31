@@ -96,6 +96,9 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          # Budget: 60s delay + 12×5s = 120s total
+          # Bumped failureThreshold 6→12: Python+Django migrations need
+          # headroom during cold-start after node reboot (was 90s, now 120s)
           startupProbe:
             httpGet:
               path: /-/health/live/
@@ -103,7 +106,7 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 5
             timeoutSeconds: 5
-            failureThreshold: 6
+            failureThreshold: 12
           readinessProbe:
             httpGet:
               path: /-/health/ready/
