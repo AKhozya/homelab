@@ -258,6 +258,48 @@
           # phase2-pending retained, the NEXT worker is never processed. Operator re-triggers after
           # manual remediation (cluster-reboot SKILL.md partial-completion model).
 
+    - name: Pod-network gate — verify nat POSTROUTING jumps present before uncordon (self-heal if wedged)
+      # The host-netns clusterip-probe.sh above PASSES while pod→ClusterIP/DNS is dead in the
+      # 2026-05-30 failure mode: ufw-heal's disabled-recovery `flush-all` runs `iptables -t nat -F
+      # POSTROUTING`, deleting the -j CNI-HOSTPORT-MASQ / -j KUBE-POSTROUTING jumps. portmap CNI is
+      # NOT a daemon (k8s#93091) so the CNI jump never returns until a k3s-agent restart; host-netns
+      # curl to 10.43.0.1 still works (OUTPUT path) so the existing probe is blind to it. Assert the
+      # nat POSTROUTING jumps exist; if missing, restart k3s-agent (rebuilds CNI + kube-proxy chains).
+      # Runs ON the worker (become from play; NO delegate_to).
+      block:
+        - name: Assert nat POSTROUTING has CNI-HOSTPORT-MASQ + KUBE-POSTROUTING jumps
+          ansible.builtin.shell: |
+            set -o pipefail
+            s="$(iptables -t nat -S POSTROUTING 2>/dev/null)"
+            printf '%s\n' "$s" | grep -q -- '-j CNI-HOSTPORT-MASQ' \
+              && printf '%s\n' "$s" | grep -q -- '-j KUBE-POSTROUTING'
+          args:
+            executable: /bin/bash
+          register: nat_jumps
+          until: nat_jumps.rc == 0
+          retries: 6
+          delay: 10
+          changed_when: false
+      rescue:
+        - name: Self-heal — restart k3s-agent (rebuilds flushed CNI/kube-proxy nat jumps)
+          ansible.builtin.systemd_service:
+            name: "{{ k3s_service }}"
+            state: restarted
+        - name: Re-assert nat POSTROUTING jumps after k3s-agent restart
+          ansible.builtin.shell: |
+            set -o pipefail
+            s="$(iptables -t nat -S POSTROUTING 2>/dev/null)"
+            printf '%s\n' "$s" | grep -q -- '-j CNI-HOSTPORT-MASQ' \
+              && printf '%s\n' "$s" | grep -q -- '-j KUBE-POSTROUTING'
+          args:
+            executable: /bin/bash
+          register: nat_jumps_reheal
+          until: nat_jumps_reheal.rc == 0
+          retries: 6
+          delay: 10
+          changed_when: false
+          # Still failing → serial:1 aborts, worker stays CORDONED (existing partial-completion model).
+
     - name: Stabilization settle + final re-probe before uncordon (catch a post-gate re-wedge)
       # The gate above can pass on a node whose kube-proxy then RE-wedges seconds later (observed
       # 2026-05-25: gate caught a momentary-healthy flap, node re-wedged, took pods once uncordoned).
