@@ -421,7 +421,7 @@ Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the *
 | **F-4** | ✅ **CLOSED 2026-05-25** (`864231ee`) | Operator/privileged excluded (ns databases/immich/percona-mysql + alloy/node-exporter selectors); both policies **Enforce**, 44 pass/0 fail | — | Done |
 | **F-5** | ✅ **CLOSED 2026-05-25** (`864231ee`) | **Enforce**, 160 pass/0 fail, no excludes beyond kube-*/default | — | Done |
 | **F-6** | ✅ **CLOSED 2026-05-25** (`8a4295f2`+`60f2a2cb`+`864231ee`) | Fixed homehub-init + uptime-kuma-setup (RoRFS+/tmp); excluded operator/privileged/batch ns + alloy/grafana selectors; **Enforce**, 40 pass/0 fail. claude-telegram RoRFS closed via F-39 (`3c5ce4aa`, 2026-05-27) | — | Done |
-| **F-22** | Day-0 (`971a27d2`) + **Tier A swapped `8de095cd` 2026-05-31** (paperless-ngx + couchdb=obsidian surface; blocky/claude-telegram/obsidian have no Ingress). 7d Report-Only soak live | ~2026-06-07 check csp-reporter Loki for both domains → flip Tier A strict→enforced; then Tier B (8 apps) → C (4 apps) | Low (revert = 1 annotation line) | calendar, ~2wk left |
+| **F-22** | Day-0 (`971a27d2`) + **Tier A swapped `8de095cd` 2026-05-31** (paperless-ngx + couchdb=obsidian surface; blocky/claude-telegram/obsidian have no Ingress). 7d Report-Only soak live | **2026-06-07: check `{app="csp-reporter"}` Loki for `paperless.h0melab.work` + `couchdb.h0melab.work`** (clean ≥48h ⇒ flip Tier A strict Report-Only→enforced, drop report-only token); then Tier B (8 apps) → C (4 apps) | Low (revert = 1 annotation line) | **2026-06-07** |
 | **F-43** | — | Check hass-oidc-auth releases for HA compat; enable HA OIDC if shipped | Low | 2026-06-04 |
 
 **🟡 Attended (live verification required — do NOT run unattended):**
