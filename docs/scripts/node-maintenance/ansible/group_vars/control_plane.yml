@@ -26,11 +26,10 @@ k3s_node_labels:
 k3s_terminated_pod_gc_threshold: 20
 k3s_secrets_encryption: true
 
-# CoreDNS HA: k3s ships CoreDNS as an Addon with replicas unset (defaults to 1 =
-# single point of failure for cluster DNS). The k3s_config role inserts this into
-# the addon source manifest (CP only). topologySpreadConstraints already in the
-# shipped manifest spread the replicas across nodes.
-coredns_replicas: 2
+# CoreDNS HA: handled by the Flux-managed `coredns-ha` Deployment (infrastructure/coredns/,
+# 3 spread replicas) since the 2026-05-31 --disable=coredns convergence. The old
+# `coredns_replicas` var + k3s_config addon-manifest patch were removed (the addon manifest
+# no longer exists → the patch task failed every drift-heal run). See the k3s_disable comment above.
 
 # kube-controller-manager node-lease tuning. Lockstep with kubelet
 # nodeLeaseDurationSeconds=60 in roles/hardening/files/k3s-kubelet.yaml.
