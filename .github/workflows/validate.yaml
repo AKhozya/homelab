@@ -106,7 +106,7 @@ jobs:
           - infrastructure/configs/staging
           - infrastructure/controllers
           - monitoring/configs/staging
-          - monitoring/controllers/staging
+          - monitoring/controllers
     steps:
       - uses: actions/checkout@v6
       - name: Install kustomize + kubeconform + yq

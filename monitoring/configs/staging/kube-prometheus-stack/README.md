@@ -108,7 +108,7 @@ Secure options:
 
 If external access truly needed:
 
-1. Edit `monitoring/controllers/base/kube-prometheus-stack/release.yaml`
+1. Edit `monitoring/controllers/kube-prometheus-stack/release.yaml`
 2. Set `grafana.ingress.enabled: true` and/or `alertmanager.ingress.enabled: true`
 3. TLS certs still configured, will work
 4. **WARNING: increases attack surface significantly**
