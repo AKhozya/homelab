@@ -412,7 +412,7 @@ Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the *
 
 **🔵 Next candidates (pick one):**
 - **F-22** — CSP enforcement ramp (calendar, ~2wk left). Day-0 middlewares (`971a27d2`). **Tier A swapped 2026-05-31 (`8de095cd`): paperless-ngx + couchdb (obsidian's only web surface — blocky/claude-telegram/obsidian carry no Ingress). csp-strict Report-Only now rides alongside enforced csp; 7d soak started.** Next ~2026-06-07: check `{app="csp-reporter"}` Loki for both domains → clean ⇒ flip strict→enforced, then Tier B (8 apps) → C (4 apps). Revert = 1 annotation line.
-- **F-43** — 2026-06-04: check hass-oidc-auth release for Home Assistant compat; enable HA OIDC if shipped.
+- **F-43** — ✅ **DONE 2026-05-31** (`fcf2d1a8`). hass-oidc-auth **v1.1.0** (2026-05-14) fixed the auth-page-injection break that was incompatible with HA 2026.4.0; HA on 2026.5.4. Re-added `oidc-auth-install` init container (pinned v1.1.0 release zip → `custom_components/auth_oidc`) + restored `auth_oidc:` confidential config. Authentik provider/app survived the disable (discovery 200). Live login verified by user. See Attended table.
 
 **🔴 Scheduled / time-bound (do on date):**
 
@@ -422,7 +422,7 @@ Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the *
 | **F-5** | ✅ **CLOSED 2026-05-25** (`864231ee`) | **Enforce**, 160 pass/0 fail, no excludes beyond kube-*/default | — | Done |
 | **F-6** | ✅ **CLOSED 2026-05-25** (`8a4295f2`+`60f2a2cb`+`864231ee`) | Fixed homehub-init + uptime-kuma-setup (RoRFS+/tmp); excluded operator/privileged/batch ns + alloy/grafana selectors; **Enforce**, 40 pass/0 fail. claude-telegram RoRFS closed via F-39 (`3c5ce4aa`, 2026-05-27) | — | Done |
 | **F-22** | Day-0 (`971a27d2`) + **Tier A swapped `8de095cd` 2026-05-31** (paperless-ngx + couchdb=obsidian surface; blocky/claude-telegram/obsidian have no Ingress). 7d Report-Only soak live | **2026-06-07: check `{app="csp-reporter"}` Loki for `paperless.h0melab.work` + `couchdb.h0melab.work`** (clean ≥48h ⇒ flip Tier A strict Report-Only→enforced, drop report-only token); then Tier B (8 apps) → C (4 apps) | Low (revert = 1 annotation line) | **2026-06-07** |
-| **F-43** | — | Check hass-oidc-auth releases for HA compat; enable HA OIDC if shipped | Low | 2026-06-04 |
+| **F-43** | ✅ **DONE 2026-05-31** (`fcf2d1a8`) — v1.1.0 re-enable (init container + `auth_oidc` confidential config + plaintext-secret scrub in OIDC_SETUP.md). Live OIDC login verified. **Gotcha:** HA host is `ha.h0melab.work` (OIDC_SETUP.md had wrong `homeassistant.h0melab.work` redirect URI — fixed; Authentik provider was already correct, proven via authorize-endpoint probe 302-vs-400). | — | — | Done |
 
 **🟡 Attended (live verification required — do NOT run unattended):**
 
@@ -588,7 +588,7 @@ Each new policy shipped Audit → soak → fix-forward (in-repo `resources:`/lab
 - [x] **F-23 — ✅ DONE 2026-05-29** (`ba65f445` workflow + `693e41a8` manifest + `519ecead` CI gate). Rewrote claude-telegram version generator → 3-component tags (`major.minor.patch`). See Resume Housekeeping table.
 - [x] **F-24 — ✅ DONE 2026-05-29** (`c21b80a8`). `caronc/apprise:v1.4.1` already post-#273 (no bump needed); hardened pricebuddy to non-root + RO-FS, dropped root init. See Resume Housekeeping table.
 - [x] **F-40 — ❌ CLOSED not-viable.** `paperless-ngx` fsGroup migration to drop init — s6-overlay requires root-owned writes; verified NOT VIABLE. Documented closed.
-- [ ] **F-43** Monthly (next 2026-06-04): check https://github.com/christiaangoossens/hass-oidc-auth/releases for HA compat; enable HA OIDC if shipped.
+- [x] **F-43** ✅ **DONE 2026-05-31** (`fcf2d1a8`) — v1.1.0 shipped 2026-05-14, re-enabled HA OIDC (init container + `auth_oidc` config), live login verified. See Resume Attended table.
 - [x] **F-45** PSS privileged-ns audit (surfaced F-38). ✅ **CLOSED not-viable 2026-05-26** — all 6 `privileged`-enforce ns are justified; none can tighten to `baseline`.
   - **Disqualifier (the key fact):** PSS **Baseline forbids hostPath volumes** (it's a Baseline "HostPath Volumes" control, not Restricted-only). Verified by live `--dry-run=server` of a hostPath pod into a baseline-enforce ns → `violates PodSecurity "baseline:latest": hostPath volumes`. My first scan wrongly omitted hostPath (believed it baseline-allowed) and falsely flagged 3 ns as tightenable — corrected before any commit (zero changes shipped).
   - **Per-ns justification:** `monitoring` (node-exporter hostNetwork+hostPID+hostPort:9100) · `immich` (`privileged: true`, GPU/HW transcode) · `home-assistant` (`cap:NET_ADMIN`) · `loki` (Alloy DaemonSet hostPath `/var/log/journal`) · `databases` (backup CronJobs couchdb/mysql/postgres mount hostPath `backup-storage`) · `backup-replication` (hostPath backup dir).

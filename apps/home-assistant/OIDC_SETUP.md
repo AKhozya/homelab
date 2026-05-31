@@ -39,7 +39,7 @@ The `home-assistant` OAuth2 provider + application already exist in Authentik (s
    - **Client type:** `Confidential`
    - **Client ID:** `home-assistant`
    - **Client Secret:** _SOPS-only — stored in `secrets.yaml` → `oidc_client_secret`. Never commit plaintext; the provider's secret must equal that value._
-   - **Redirect URI (Strict):** `https://homeassistant.h0melab.work/auth/oidc/callback`
+   - **Redirect URI (Strict):** `https://ha.h0melab.work/auth/oidc/callback`
    - **Signing Key:** any available key (RS256 `id_token_signing_alg`)
    - **Scopes:** `openid`, `email`, `profile`
    - SAVE
@@ -49,12 +49,12 @@ The `home-assistant` OAuth2 provider + application already exist in Authentik (s
    - **Name:** `Home Assistant`
    - **Slug:** `home-assistant`
    - **Provider:** select provider above
-   - **Launch URL:** `https://homeassistant.h0melab.work`
+   - **Launch URL:** `https://ha.h0melab.work`
    - CREATE
 
 ### 4. Test OIDC Login
 
-1. Navigate to https://homeassistant.h0melab.work
+1. Navigate to https://ha.h0melab.work
 2. See "OpenID Connect" login button
 3. Click → auth via Authentik
 4. First login creates new HA user auto
@@ -65,7 +65,7 @@ The `home-assistant` OAuth2 provider + application already exist in Authentik (s
 **OIDC Issuer:** `https://authentik.h0melab.work/application/o/home-assistant/`
 **Client ID:** `home-assistant`
 **Client Secret:** (in `home-assistant-oidc` secret)
-**Callback URL:** `https://homeassistant.h0melab.work/auth/oidc/callback`
+**Callback URL:** `https://ha.h0melab.work/auth/oidc/callback`
 **Auto-create users:** `true` (on first OIDC login)
 **Username claim:** `email` (OIDC email = HA username)
 

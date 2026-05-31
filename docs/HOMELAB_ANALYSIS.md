@@ -112,7 +112,6 @@
 | Drop worker-node-2 replication step | ~2026-07-20 | P2 |
 | n8n PgBouncer `statement_timeout` fix — re-check #25705 (verified OPEN 2026-05-07, last upstream update 2026-04-28; rescheduled to align with monthly review) | 2026-06-04 | P3 |
 | High-pri secret rotation (PG: authentik/immich/n8n, MySQL: HA, Redis: immich) | 2026-07-01 | P1 |
-| HA OIDC — review [hass-oidc-auth releases](https://github.com/christiaangoossens/hass-oidc-auth/releases) for HA-compat fix, enable OIDC SSO on `home-assistant` if shipped (REVIEW.md F-43) | 2026-06-04 | P3 |
 | Re-evaluate Authentik 2026.5 client hints (#20700) — upstream release dependent (latest stable 2026.2.2 / RC 2026.2.3-rc1 as of 2026-05-08; ~3-4mo cadence implies 2026.5 ~mid-2026) | Backlog (watch releases) | P3 |
 | Watch Authentik #18232 (TOTP/WebAuthn pk collision in MFA Devices UI) | Backlog | P3 |
 | Watch Authentik #19580 (multi-passkey wrong-pick) — relevant if enrolling 2nd passkey | Backlog | P3 |
