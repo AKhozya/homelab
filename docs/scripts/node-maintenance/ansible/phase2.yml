@@ -466,6 +466,10 @@
       register: silence_id_b64
       failed_when: false
 
+    # Expires only the broad silence (silence_alertnames). The deferred-start
+    # silence (silence_deferred_alertnames, e.g. RebuilderdWorkerDown) is NOT
+    # expired here — its worker starts 60 min post-boot, after this play ends;
+    # it auto-expires via silence_deferred_duration_seconds.
     - name: Expire auto-silence (amtool)
       ansible.builtin.shell: |
         SILID="{{ silence_id_b64.content | b64decode | trim }}"

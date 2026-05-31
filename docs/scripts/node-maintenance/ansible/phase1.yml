@@ -109,6 +109,22 @@
         group: root
       when: silence_response.stdout | length > 0
 
+    # ── DEFERRED-START ALERTS (resolve after phase2 expires the broad silence) ──
+    # RebuilderdWorkerDown clears only when rebuilderd-worker@N starts 60 min
+    # post-boot. phase2 expires the broad silence at maintenance end, so this
+    # alert gets its own longer silence that phase2 does NOT expire — left to
+    # auto-expire (silence_deferred_duration_seconds). No silence-id persisted.
+    - name: "Silence deferred-start alerts, duration minutes: {{ silence_deferred_duration_seconds // 60 }}"
+      ansible.builtin.shell: |
+        kubectl --kubeconfig={{ kubeconfig_path }} -n monitoring exec "{{ am_pod.stdout }}" -c alertmanager -- \
+          amtool --alertmanager.url=http://localhost:9093 silence add \
+            --duration={{ silence_deferred_duration_seconds }}s \
+            --comment="Auto-silence (deferred-start) during scheduled node update run" \
+            'alertname=~"{{ silence_deferred_alertnames }}"'
+      args:
+        executable: /bin/bash
+      changed_when: false
+
     # ── UPGRADE ───────────────────────────────────────────────
     - name: Upgrade via yay (pacman + AUR)
       ansible.builtin.shell: "{{ yay_cmd }}"

@@ -19,7 +19,18 @@ kubeconfig_path: /etc/rancher/k3s/k3s.yaml
 # approach used kubectl proxy + wget, now obsolete — kubectl-proxy.service kept
 # installed for potential rollback but not used by playbooks.)
 silence_duration_seconds: 5400   # 90 minutes (covers phase1 + CP reboot + phase2 typical runtime)
-silence_alertnames: "KubeletDown|KubernetesAPIServerDown|DeploymentReplicasMismatch|StatefulSetReplicasMismatch|CloudflareTunnelDown|CloudflareTunnelPodNotRunning|CloudflareTunnelNoConnections|CouchDBDown|CouchDBPodNotRunning|FluxReconciliationFailure|FluxSourceNotReady|KyvernoAdmissionControllerDown|LokiDown|LokiCompactorNotRunning|MySQLDown|MySQLHAProxyNotRunning|MySQLOrchestratorNotRunning|RedisDown|RedisPodNotRunning|AlertmanagerFailedToSendAlerts|AlloyDown|AlloyLogDeliveryFailing|DaemonSetNotScheduled|TraefikDown|RebuilderdWorkerDown|PrometheusTargetDown|KubePodCrashLooping|KubePodNotReady|TargetDown|TooManyPodsPending|JobFailed"
+silence_alertnames: "KubeletDown|KubernetesAPIServerDown|DeploymentReplicasMismatch|StatefulSetReplicasMismatch|CloudflareTunnelDown|CloudflareTunnelPodNotRunning|CloudflareTunnelNoConnections|CouchDBDown|CouchDBPodNotRunning|FluxReconciliationFailure|FluxSourceNotReady|KyvernoAdmissionControllerDown|LokiDown|LokiCompactorNotRunning|MySQLDown|MySQLHAProxyNotRunning|MySQLOrchestratorNotRunning|RedisDown|RedisPodNotRunning|AlertmanagerFailedToSendAlerts|AlloyDown|AlloyLogDeliveryFailing|DaemonSetNotScheduled|TraefikDown|PrometheusTargetDown|KubePodCrashLooping|KubePodNotReady|TargetDown|TooManyPodsPending|JobFailed"
+
+# Deferred-start alerts: resolve LONG after phase2 completes, so the broad
+# silence above (expired by phase2 at maintenance end) doesn't cover them.
+# RebuilderdWorkerDown clears only when rebuilderd-worker@N starts, gated 60 min
+# post-boot by rebuilderd-worker-boot.timer. worker-node-2 reboots LAST in the
+# serial roll, so its worker clears latest. This silence is NOT expired by
+# phase2 — left to auto-expire. Math: last-rolled worker boot (~40-45m into a
+# heavy-upgrade run) + 60m boot-delay + 10m alert `for:` + margin for boot/CP-
+# stabilize variance = 150m. Over-provisioned on purpose (self-expiring).
+silence_deferred_duration_seconds: 9000   # 150 minutes
+silence_deferred_alertnames: "RebuilderdWorkerDown"
 
 # Preflight thresholds
 min_free_root_gb: 5
