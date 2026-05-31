@@ -5,6 +5,7 @@ resources:
   - traefik
   - kyverno
   - csp-reporter
+  - coredns-ha
   - databases/postgres
   - databases/couchdb
   - databases/redis-operator

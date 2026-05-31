@@ -1,0 +1,15 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: coredns-ha
+  namespace: kube-system
+  labels:
+    app: coredns-ha
+spec:
+  # 3 replicas, tolerate losing 2 to voluntary disruption (the reboot play only cordons — never
+  # drains/evicts — so this never blocks a reboot; it guards manual drains + descheduling).
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app: coredns-ha
