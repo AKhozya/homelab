@@ -108,20 +108,25 @@ spec:
                   # (can't create symlink in root-owned /opt/venv as user 1000)
                   # Manual update needed ~annually when Python minor version changes
                   mountPath: /opt/venv/lib/python3.11/site-packages/rapidocr/models
-              # Readiness probe: bump timeoutSeconds 1→5. bjw-s common chart ignores
-              # readiness custom probe override in values, so patch via postRenderer.
-              # ML model loading blocks /ping >1s → readiness fails → traffic drops.
-              - op: replace
-                path: /spec/template/spec/containers/0/readinessProbe
-                value:
-                  httpGet:
-                    path: /ping
-                    port: http
-                    scheme: HTTP
-                  periodSeconds: 10
-                  timeoutSeconds: 5
-                  failureThreshold: 3
-                  successThreshold: 1
+          # Strategic merge patch: bump readiness timeoutSeconds 1→5.
+          # JSON patch op in the block above silently failed (Kustomize
+          # treats multi-doc JSON-patch arrays as SMP when target lacks
+          # explicit patch type). SMP on named container works reliably.
+          - target:
+              kind: Deployment
+              name: immich-machine-learning
+            patch: |-
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: immich-machine-learning
+              spec:
+                template:
+                  spec:
+                    containers:
+                      - name: main
+                        readinessProbe:
+                          timeoutSeconds: 5
   # Hardware acceleration (VAAPI) enabled for GPU transcoding on AMD Radeon
   # Requires: privileged container, /dev/dri hostPath, PSS privileged namespace
   values:
