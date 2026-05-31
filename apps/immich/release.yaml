@@ -251,6 +251,30 @@ spec:
                 limits:
                   cpu: "1500m"
                   memory: 5Gi
+              # Probe timeout hardened (chart/bjw-s default timeoutSeconds:1) — same reboot-recovery
+              # fragility as machine-learning: a CPU-starved /api/server/ping answering in >1s reads
+              # as a probe failure and can SIGTERM a healthy pod. timeout 5s + liveness headroom.
+              probes:
+                startup:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      path: /api/server/ping
+                      port: http
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 30
+                liveness:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      path: /api/server/ping
+                      port: http
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 5
               # securityContext overridden via postRenderer patch (privileged: true for GPU)
       # GPU /dev/dri added via postRenderer patches (above)
       # Service port: uses chart default (2283) — no override needed
@@ -283,6 +307,32 @@ spec:
                 capabilities:
                   drop:
                     - ALL
+              # Probe timeout hardened (chart/bjw-s default timeoutSeconds:1 is too tight). During
+              # 2026-05-31 reboot recovery the CPU-starved single ML worker couldn't answer /ping
+              # within 1s → every probe "failed" → startup burned its 600s budget then SIGTERM
+              # (2 restarts). timeout 5s tolerates slow /ping under load; liveness gets headroom
+              # so it can't kill a momentarily-busy worker. readiness left as chart default (non-fatal).
+              probes:
+                startup:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      path: /ping
+                      port: http
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 60
+                liveness:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      path: /ping
+                      port: http
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 5
           pod:
             securityContext:
               runAsUser: 1000
