@@ -26,6 +26,14 @@ Claude no sudo. Node-side debug + fix workflow: `/homelab-node-fix` skill (SSH+T
 - **CI gate-of-record.** `.github/workflows/validate.yaml` runs yamllint + shellcheck + sops-check + init-resources + kubeconform × 5 kustomize roots on every push (~45s p95). `/gitops-workflow` step 3c blocks `fr` on CI red. Local validation (`/homelab-yaml-validate`) is fast iteration, not bypass.
 - **Review rubric.** Any code/diff review (cavecrew-reviewer pre-push gate, ECC/security reviewers) MUST read `.claude/review-invariants.md` and check the diff against it — semantic bug-classes CI and these invariants miss (Flux healthCheck GVK, Kyverno `=()` soft-anchor, NetworkPolicy AND/OR, PSS Baseline hostPath, external-access = central `cloudflared.yaml` not a 2nd Ingress, etc.). Grep the target file to confirm name/GVK claims before flagging.
 
+## Sessions & Worktrees (blast radius = uncommitted files)
+Concurrent Claude sessions share one checkout → silent file stomp. So:
+- **Main tree = pristine.** `/Users/akhozya/source-code/homelab` is the checkout Flux reconciles. NEVER edit files there directly — `worktree-guard` PreToolUse hook BLOCKS Edit/Write/MultiEdit on it.
+- **Edit in a worktree.** Per task: `git worktree add .claude/worktrees/<task> -b wt-<task> && cd $_`. Commit there → merge `wt-<task>` → main → push → `fr`. Flux source = `branch: main`, so worktree branches are invisible to the cluster until merged.
+- **Solo escape.** No other Claude running? `touch .claude/.allow-main-edits` (gitignored, local) to edit main directly. One-off: `WORKTREE_GUARD_SKIP=1`.
+- **Scope = this repo only.** Worktree isolates the homelab tree, NOT `~/.claude/**` (skills/hooks/dotfiles = separate chezmoi repo) — two sessions editing those still race.
+- **Worktree ≠ cluster mutex.** Isolates FILES, not the live cluster. Concurrent `fr`/rollout/SSH still collide (cause of 2026-05-24 wedge). Serialize cluster ops via `cluster-reboot`/`cluster-roll`.
+
 ## Docs (read before acting)
 - `docs/ARCHITECTURE.md` — how it's organized + why (design principles, mermaid diagrams, cut corners). Read first for orientation. Changes only when *design* changes, not counts.
 - `docs/HOMELAB_ANALYSIS.md` — state tracker. Update after meaningful change (PostToolUse hook enforces).

@@ -46,6 +46,25 @@
             "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/cavecrew-reviewer-pre-push.sh"
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/worktree-guard.sh"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/worktree-session-start.sh"
+          }
+        ]
       }
     ]
   },
