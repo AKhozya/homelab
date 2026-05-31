@@ -112,8 +112,16 @@ spec:
               # readiness custom probe override in values, so patch via postRenderer.
               # ML model loading blocks /ping >1s → readiness fails → traffic drops.
               - op: replace
-                path: /spec/template/spec/containers/0/readinessProbe/timeoutSeconds
-                value: 5
+                path: /spec/template/spec/containers/0/readinessProbe
+                value:
+                  httpGet:
+                    path: /ping
+                    port: http
+                    scheme: HTTP
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 3
+                  successThreshold: 1
   # Hardware acceleration (VAAPI) enabled for GPU transcoding on AMD Radeon
   # Requires: privileged container, /dev/dri hostPath, PSS privileged namespace
   values:
