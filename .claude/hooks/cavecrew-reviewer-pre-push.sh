@@ -17,7 +17,11 @@ esac
 
 [[ "${CAVECREW_SKIP:-0}" == "1" ]] && exit 0
 
-cd "${CLAUDE_PROJECT_DIR:-$(pwd)}"
+# Resolve the dir where the push actually runs (payload cwd) so the git-dir
+# probe below matches cavecrew-mark.sh's writer in a linked worktree. Fall back
+# to project dir, then pwd, when the payload omits cwd.
+cwd=$(echo "$input" | jq -r '.cwd // empty' 2>/dev/null || true)
+cd "${cwd:-${CLAUDE_PROJECT_DIR:-$(pwd)}}"
 
 upstream=$(git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || echo "origin/main")
 diff_files=$(git diff --name-only "${upstream}"..HEAD 2>/dev/null || git diff --name-only HEAD)
@@ -36,7 +40,11 @@ changed_lines=$(git diff --numstat "${upstream}"..HEAD -- "${non_doc_files[@]}" 
   | awk '{a+=$1; d+=$2} END {print a+d+0}')
 [[ "${changed_lines:-0}" -lt 20 ]] && exit 0
 
-marker=".git/.cavecrew-reviewed-$(git rev-parse HEAD 2>/dev/null || echo none)"
+# Resolve git-dir (the per-worktree dir in a linked worktree, .git in the main
+# tree) so the marker path matches cavecrew-mark.sh's writer in BOTH trees. A
+# hardcoded ".git/" breaks in a worktree, where .git is a file, not a dir.
+gitdir=$(git rev-parse --git-dir 2>/dev/null || echo .git)
+marker="${gitdir}/.cavecrew-reviewed-$(git rev-parse HEAD 2>/dev/null || echo none)"
 [[ -f "$marker" ]] && exit 0
 
 non_doc_indented="    ${non_doc//$'\n'/$'\n'    }"
@@ -49,7 +57,7 @@ $non_doc_indented
 
   Action: invoke Task tool with subagent_type=caveman:cavecrew-reviewer on the diff.
   Reviewer auto-reads CLAUDE.md -> .claude/review-invariants.md (semantic checks CI misses).
-  Address findings, then \`touch $marker\` and retry push.
+  Address findings, then run ~/.claude/hooks/cavecrew-mark.sh (from this worktree) and retry push.
   Bypass: CAVECREW_SKIP=1 git push ...
 EOF
 
