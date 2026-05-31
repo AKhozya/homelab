@@ -1,6 +1,6 @@
 # Reboot Pod-Network Wedge — Root Cause + Prevention Plan (v2, post-review)
 
-**Status:** Stage 1 IMPLEMENTED (phase2 nat-POSTROUTING-jump gate); Stage 2/3 deferred (need a controlled reboot-test / attended DNS-gap window). Revised after 3-agent adversarial review (2026-05-31) — v1's root cause + all three fixes were wrong in specifics; corrected below.
+**Status:** Stage 1 + Stage 2 IMPLEMENTED (phase2 nat-jump gate `7743ceeb`; ufw-heal phase-G CNI re-heal). Stage 3 (CoreDNS HA) authored, cutover gated on a maintenance-window k3s/CP restart. Revised after 3-agent adversarial review (2026-05-31) — v1's root cause + all three fixes were wrong in specifics; corrected below.
 **Incident:** 2026-05-30 weekly node-maintenance reboot. worker-node came up `Node.Ready`, phase2's ClusterIP gate PASSED, node was uncordoned — but pod→ClusterIP/DNS was dead cluster-wide ~25 min (CoreDNS `0/1`, mass CrashLoopBackOff on DNS i/o timeout). Cleared only by a **manual** `sudo systemctl restart k3s-agent` at 13:27. Goal: never need that manual step again.
 
 ---
@@ -51,8 +51,10 @@ Add a gate to phase2 PLAY 1 (before uncordon) that detects pod→ClusterIP/DNS f
 Requirements: **tri-state** — pod/exec not-ready-yet = RETRY inside the `until` window (12×10s), not FAIL; only a found-but-failing target = WEDGED → existing restart-k3s-agent rescue → re-probe → abort-cordoned if still bad. N≥3 samples. Target a Ready DaemonSet pod by status (`alloy` DESIRED=3), not `loki-canary` (DESIRED=2, absent on CP). containerd sock = `/run/k3s/containerd/containerd.sock` (runtime dir, NOT the data-dir) on all nodes.
 **This is the load-bearing stage: a recurrence self-heals with no operator action.** Land + validate first (reboot ONE worker).
 
-### Stage 2 — Root fix: stop `ufw-heal` from flushing the nat table
-Pick in review (not mutually exclusive):
+### Stage 2 — IMPLEMENTED — Root fix: heal the CNI nat jump that ufw-heal's flush-all wipes
+**Shipped:** `ufw-heal-post-k3s.sh` gains **phase-G** — when phase-b's disabled-recovery `flush-all` ran (`RECOVERED_FROM_DISABLED=1`) AND `-j CNI-HOSTPORT-MASQ` is missing from nat POSTROUTING AND the node is a worker (`k3s-agent.service` active), restart k3s-agent to rebuild CNI chains. CP-safe (never restarts `k3s` server — hangs). Boot-only (watchdog excluded), runs before phase-f so the UFW status check stays authoritative. Chosen over neutering UFW's `flush-all` (can't, it's UFW's own script) or nat snapshot/restore (host-vs-bundled iptables mismatch would propagate #8793 corruption). Covers BOTH planned and unplanned reboots (phase2's Stage-1 gate only covers planned). Takes effect at the next boot after the firewall role redeploys the script.
+
+Approaches considered (and why phase-G won):
 - **A. Keep UFW enabled across boot** so the disabled-recovery `flush-all` branch never fires. Addresses the trigger. Ties to the existing UFW-boots-disabled drift (ip6tables module ordering / `ufw.service` `Wants=`). Best if reliable.
 - **B. Make `flush_builtins`/`flush-all` filter-only** — never `iptables -t nat -F`. UFW manages no nat here (`MANAGE_BUILTINS=no`, before.rules nat-count=0), so scoping the flush to filter+mangle loses nothing and protects CNI/flannel/kube nat jumps. One-line guard. Lowest-risk direct fix.
 - **C. Post-heal CNI reconcile kick** — if any nat flush happened, force portmap to rebuild (restart svclb/hostPort pods, or a gated `k3s-agent` restart). Belt-and-suspenders; overlaps Stage 1's rescue.

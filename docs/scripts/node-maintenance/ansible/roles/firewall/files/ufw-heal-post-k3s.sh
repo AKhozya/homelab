@@ -30,6 +30,12 @@
 #   F. Status check (authoritative). FAIL if recovery was attempted but
 #      UFW is inactive.
 #
+# v6 changes (2026-05-30 reboot wedge):
+#   - Phase G: if phase-b's `flush-all` ran (RECOVERED_FROM_DISABLED) it also flushed nat
+#     POSTROUTING, deleting -j CNI-HOSTPORT-MASQ; portmap CNI is not a daemon (k8s#93091) so it
+#     never returns → pod→ClusterIP/DNS wedged until k3s restart. Worker-only: restart k3s-agent
+#     to rebuild CNI nat chains (CP k3s restart HANGS — skipped there). Runs before phase-f.
+#
 # Never exits non-zero from Phase A timeout — boot must proceed.
 # Exits non-zero from Phase F if UFW should be active but isn't → systemd
 # marks service failed → alerts fire.
@@ -289,6 +295,31 @@ phase_f_status() {
     return 1
 }
 
+# Phase G — rebuild CNI nat masquerade jump if the disabled-recovery flush-all wiped it.
+# `/lib/ufw/ufw-init flush-all` (phase-b disabled-recovery) runs `iptables -t nat -F POSTROUTING`,
+# deleting the `-j CNI-HOSTPORT-MASQ` jump. flannel (FLANNEL-POSTRTG) and kube-proxy
+# (KUBE-POSTROUTING) re-add their own jumps because they are daemons; the portmap CNI plugin does
+# NOT (k8s#93091) — so pod→ClusterIP/DNS stays wedged (masquerade gone) until k3s rebuilds CNI
+# chains. Root cause of the 2026-05-30 reboot wedge. Act ONLY when we recovered-from-disabled AND
+# the jump is genuinely missing, and ONLY on a worker: restarting `k3s` (server) on the CP HANGS
+# (gotcha) — detect role via the active unit. Boot-only (the 5min watchdog heals UFW, not CNI).
+phase_g_cni_heal() {
+    [ "$WATCHDOG_MODE" -eq 0 ] || return 0
+    [ "$RECOVERED_FROM_DISABLED" -eq 1 ] || return 0
+    if "$IPTABLES" -t nat -S POSTROUTING 2>/dev/null | grep -q -- '-j CNI-HOSTPORT-MASQ'; then
+        log "phase-g: CNI-HOSTPORT-MASQ jump present — no CNI heal needed"
+        return 0
+    fi
+    if systemctl is-active --quiet k3s-agent.service; then
+        log "phase-g: CNI-HOSTPORT-MASQ jump MISSING after flush-all — restarting k3s-agent to rebuild CNI nat chains"
+        systemctl restart k3s-agent.service || log "phase-g: k3s-agent restart FAILED"
+    elif systemctl is-active --quiet k3s.service; then
+        log "phase-g: CNI jump missing on a SERVER node — NOT restarting k3s (hangs on CP); leaving for operator/phase2 gate"
+    else
+        log "phase-g: no k3s/k3s-agent unit active — skipping CNI heal"
+    fi
+}
+
 main() {
     # Parse args
     if [[ "${1:-}" == "--watchdog" ]]; then
@@ -317,6 +348,7 @@ main() {
     phase_b_reload || true
     phase_e_final_reload || true
     phase_d_verify || log "WARN: probe set still unhealthy after repair"
+    phase_g_cni_heal
     phase_f_status
 }
 
