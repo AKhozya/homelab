@@ -416,6 +416,12 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-05-31 (monitoring/controllers base/staging → flat — F-14 monitoring completion) 🔄✅
+- 🔄 **Monitoring controllers flattened** (`b53a4cab`): `monitoring/controllers/{base,staging}` split → flat `monitoring/controllers/<component>/` (kube-prometheus-stack/loki-stack/popeye/victoria-metrics). Completes the monitoring side of the F-13/F-14 single-env collapse — `b442c098` had only removed the per-component passthrough overlays, leaving the base/staging dirs.
+- **kps namespace fold:** the dropped `staging/kube-prometheus-stack` overlay's only job was `namespace: monitoring` → folded into the flat `kube-prometheus-stack/kustomization.yaml`. loki/popeye/victoria-metrics self-namespace (referenced raw from base, no transform).
+- **Proof:** `kustomize build monitoring/controllers` byte-identical to pre-change `…/staging` render (same SHA256, 1058 lines, 17 resources); kubeconform 17/17. Flux applied `b53a4cab` READY=True, path repointed `./monitoring/controllers/staging`→`./monitoring/controllers`, zero workload churn (monitoring pods 26–27h, no restarts).
+- 🧠 **Single atomic commit** (dir move + path repoint together) → path-change race window near-zero; drove prompt `flux reconcile source git flux-system` + `kustomization monitoring-controllers`. CI billing-blocked → local ladder + cavecrew gate (user-authorized bypass). Executed in an isolated git worktree off origin/main.
+
 ### 2026-05-29 (F-23 image pinning to 3-component + CI image-pin gate) ⚖️✅
 - ⚖️ **F-23 closed** (`ba65f445`+`693e41a8`+`519ecead`). Two long-parked image-pin violations + the gate gap that let them hide.
 - **claude-telegram (own image):** rewrote `claude-telegram-build.yml` version generator 2-component (`1.<minor>`) → **3-component** (`major.minor.patch`). Each scheduled rebuild auto-increments PATCH (dep refresh = patch); minor/major via manual `workflow_dispatch` input (validated `^\d+\.\d+\.\d+$`); transition-safe (3-comp glob, falls back to latest 2-comp `1.NN`→`1.NN.0`). Triggered build → `1.25.0` (GHCR image + git tag `claude-telegram-v1.25.0`). Bumped manifest `:1.24`→`:1.25.0` (chezmoi-init + main + sync). Live: pod Ready, both containers 0-restart, init Completed exit 0 on the fresh build.
