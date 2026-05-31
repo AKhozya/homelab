@@ -299,6 +299,18 @@ spec:
                 limits:
                   cpu: 2000m
                   memory: 2Gi
+              # Bump readiness timeout: ML model loading blocks /ping >1s,
+              # causing readiness failures during startup and after reboot
+              probes:
+                readiness:
+                  custom: true
+                  spec:
+                    httpGet:
+                      path: /ping
+                      port: http
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 3
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
