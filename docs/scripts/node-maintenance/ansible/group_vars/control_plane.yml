@@ -7,13 +7,17 @@ k3s_default_storage_path: /mnt/k8s-storage
 k3s_disable_helm_controller: true
 k3s_disable:
   - traefik
-  # coredns disabled: CoreDNS is self-managed via Flux (infrastructure/coredns/ — coredns-ha
-  # Deployment + Flux-adopted kube-dns Service/CM/RBAC, commit ce8262f8). Activates on CP k3s
-  # restart: k3s deletes the addon copies by owner-label, Flux recreates the Service (clusterIP
-  # 10.43.0.10, freed by the delete) + CM, coredns-ha serves. Expect a MULTI-MINUTE cluster-wide DNS
-  # gap during the CP reboot (Service absent until Flux reconciles after the apiserver is back).
-  # Mitigations: `cache 30` in the Corefile serves stale answers; force `flux reconcile kustomization
-  # coredns` as soon as the CP is back to cut the gap. See docs/plans/2026-05-31-reboot-wedge-prevention.md.
+  # coredns disabled: CoreDNS self-managed via Flux (infrastructure/coredns/ — coredns-ha Deployment +
+  # kube-dns Service/CM/SA/RBAC; now owner-label-free so k3s --disable can't delete them).
+  # DNS-DEADLOCK GOTCHA (2026-05-31 cutover): on the FIRST CP restart, k3s --disable deleted the still-
+  # addon-owned Service/CM/SA/RBAC, and Flux could NOT recreate them — kustomize-controller resolves
+  # source-controller.flux-system.svc via cluster DNS = the just-deleted 10.43.0.10 VIP, so the source
+  # fetch i/o-timed-out and EVERY reconcile stalled cluster-wide (the "force flux reconcile" mitigation
+  # is useless for the same reason). phase2 Flux-Ready preflight then failed (exit=2). Broke it with
+  # break-glass `kubectl apply -k infrastructure/coredns/` (recreates from git → DNS up → Flux adopts).
+  # The recreated objects carry NO objectset.rio.cattle.io/owner label, so FUTURE --disable restarts no
+  # longer delete them → deadlock is a one-time transition cost. Steady state: Flux owns DNS, addon off,
+  # coredns-ha (3 spread replicas) serves. See docs/plans/2026-05-31-reboot-wedge-prevention.md.
   - coredns
 k3s_node_taints:
   - "node-role.kubernetes.io/control-plane:NoSchedule"
