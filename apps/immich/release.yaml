@@ -108,6 +108,12 @@ spec:
                   # (can't create symlink in root-owned /opt/venv as user 1000)
                   # Manual update needed ~annually when Python minor version changes
                   mountPath: /opt/venv/lib/python3.11/site-packages/rapidocr/models
+              # Readiness probe: bump timeoutSeconds 1→5. bjw-s common chart ignores
+              # readiness custom probe override in values, so patch via postRenderer.
+              # ML model loading blocks /ping >1s → readiness fails → traffic drops.
+              - op: replace
+                path: /spec/template/spec/containers/0/readinessProbe/timeoutSeconds
+                value: 5
   # Hardware acceleration (VAAPI) enabled for GPU transcoding on AMD Radeon
   # Requires: privileged container, /dev/dri hostPath, PSS privileged namespace
   values:
@@ -311,8 +317,8 @@ spec:
               # 2026-05-31 reboot recovery the CPU-starved single ML worker couldn't answer /ping
               # within 1s → every probe "failed" → startup burned its 600s budget then SIGTERM
               # (2 restarts). timeout 5s tolerates slow /ping under load; liveness gets headroom
-              # so it can't kill a momentarily-busy worker. Readiness also bumped 1→5s to avoid
-              # traffic drops during model loading.
+              # so it can't kill a momentarily-busy worker. Readiness bumped via postRenderer
+              # (bjw-s ignores readiness custom probe override in values).
               probes:
                 startup:
                   enabled: true
@@ -334,16 +340,6 @@ spec:
                     periodSeconds: 10
                     timeoutSeconds: 5
                     failureThreshold: 5
-                readiness:
-                  enabled: true
-                  custom: true
-                  spec:
-                    httpGet:
-                      path: /ping
-                      port: http
-                    periodSeconds: 10
-                    timeoutSeconds: 5
-                    failureThreshold: 3
           pod:
             securityContext:
               runAsUser: 1000
