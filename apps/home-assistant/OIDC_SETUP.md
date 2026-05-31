@@ -27,7 +27,8 @@ For other HACS integrations:
 
 ### 3. Configure Authentik Provider
 
-Create OAuth2/OIDC Provider in Authentik:
+The `home-assistant` OAuth2 provider + application already exist in Authentik (survived the
+2026-04 → 2026-05 OIDC disable; discovery endpoint returns 200). For a fresh setup, create:
 
 1. **Access Authentik Admin:** https://authentik.h0melab.work/if/admin
 2. **Create Provider:**
@@ -37,9 +38,9 @@ Create OAuth2/OIDC Provider in Authentik:
    - **Authorization flow:** `default-provider-authorization-implicit-consent`
    - **Client type:** `Confidential`
    - **Client ID:** `home-assistant`
-   - **Client Secret:** `2e172f428d9286839323245fe57acb535a534084d0c3ac98f4ba7f994697e0bc`
-   - **Redirect URIs:** `https://homeassistant.h0melab.work/auth/oidc/callback`
-   - **Signing Key:** your certificate
+   - **Client Secret:** _SOPS-only — stored in `secrets.yaml` → `oidc_client_secret`. Never commit plaintext; the provider's secret must equal that value._
+   - **Redirect URI (Strict):** `https://homeassistant.h0melab.work/auth/oidc/callback`
+   - **Signing Key:** any available key (RS256 `id_token_signing_alg`)
    - **Scopes:** `openid`, `email`, `profile`
    - SAVE
 

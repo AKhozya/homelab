@@ -132,9 +132,69 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
-        # OIDC init container removed — hass-oidc-auth incompatible with HA 2026.4.0
-        # Re-add when upstream fixes the login flow issue
-        # https://github.com/christiaangoossens/hass-oidc-auth
+        - name: oidc-auth-install
+          # hass-oidc-auth re-enabled on v1.1.0 (fixes the auth-page-injection break that
+          # was incompatible with HA 2026.4.0). Pinned release zip, extracted at component root.
+          # https://github.com/christiaangoossens/hass-oidc-auth
+          image: alpine:3.23.4
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              OIDC_DIR="/config/custom_components/auth_oidc"
+              OIDC_VERSION="v1.1.0"
+
+              # Idempotent: skip if this exact version is already installed
+              if [ -f "$OIDC_DIR/.installed-version" ] && \
+                 [ "$(cat "$OIDC_DIR/.installed-version")" = "$OIDC_VERSION" ]; then
+                echo "✓ hass-oidc-auth $OIDC_VERSION already installed at $OIDC_DIR"
+                exit 0
+              fi
+
+              echo "Installing hass-oidc-auth $OIDC_VERSION..."
+              apk add --no-cache wget unzip
+
+              # Clean any prior version, fresh install
+              rm -rf "$OIDC_DIR"
+              mkdir -p "$OIDC_DIR"
+
+              # Pinned release zip — integration files are at zip root, extract into the component dir
+              echo "Downloading hass-oidc-auth $OIDC_VERSION..."
+              wget -q "https://github.com/christiaangoossens/hass-oidc-auth/releases/download/${OIDC_VERSION}/hass-oidc-auth.zip" -O /tmp/hass-oidc-auth.zip
+
+              echo "Extracting..."
+              unzip -o -q /tmp/hass-oidc-auth.zip -d "$OIDC_DIR"
+              rm /tmp/hass-oidc-auth.zip
+              echo "$OIDC_VERSION" > "$OIDC_DIR/.installed-version"
+              sync
+
+              # Verify the component landed
+              if [ ! -f "$OIDC_DIR/__init__.py" ]; then
+                echo "❌ ERROR: hass-oidc-auth install failed (no __init__.py at $OIDC_DIR)"
+                ls -la "$OIDC_DIR" || true
+                exit 1
+              fi
+
+              echo "✓ hass-oidc-auth $OIDC_VERSION installed at $OIDC_DIR"
+          volumeMounts:
+            - name: home-assistant-data
+              mountPath: /config
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
       containers:
         - name: home-assistant
           image: ghcr.io/home-assistant/home-assistant:2026.5.4

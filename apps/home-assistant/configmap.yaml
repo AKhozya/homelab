@@ -23,9 +23,13 @@ data:
         - 10.42.0.0/16  # Kubernetes pod CIDR
         - 10.43.0.0/16  # Kubernetes service CIDR
 
-    # OIDC disabled — hass-oidc-auth community component incompatible with HA 2026.4.0
-    # Re-enable when upstream fixes the login flow issue
+    # OIDC Authentication with Authentik (hass-oidc-auth v1.1.0, auto-installed via init container)
+    # Confidential client; secret resolved from /config/secrets.yaml (home-assistant-secrets)
     # https://github.com/christiaangoossens/hass-oidc-auth
+    auth_oidc:
+      client_id: home-assistant
+      client_secret: !secret oidc_client_secret
+      discovery_url: https://authentik.h0melab.work/application/o/home-assistant/.well-known/openid-configuration
 
     # MySQL Recorder Configuration
     # Single instance - relies on daily backups for DR
