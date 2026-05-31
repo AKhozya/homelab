@@ -299,18 +299,6 @@ spec:
                 limits:
                   cpu: 2000m
                   memory: 2Gi
-              # Bump readiness timeout: ML model loading blocks /ping >1s,
-              # causing readiness failures during startup and after reboot
-              probes:
-                readiness:
-                  custom: true
-                  spec:
-                    httpGet:
-                      path: /ping
-                      port: http
-                    periodSeconds: 10
-                    timeoutSeconds: 5
-                    failureThreshold: 3
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
@@ -323,7 +311,8 @@ spec:
               # 2026-05-31 reboot recovery the CPU-starved single ML worker couldn't answer /ping
               # within 1s → every probe "failed" → startup burned its 600s budget then SIGTERM
               # (2 restarts). timeout 5s tolerates slow /ping under load; liveness gets headroom
-              # so it can't kill a momentarily-busy worker. readiness left as chart default (non-fatal).
+              # so it can't kill a momentarily-busy worker. Readiness also bumped 1→5s to avoid
+              # traffic drops during model loading.
               probes:
                 startup:
                   enabled: true
@@ -345,6 +334,16 @@ spec:
                     periodSeconds: 10
                     timeoutSeconds: 5
                     failureThreshold: 5
+                readiness:
+                  enabled: true
+                  custom: true
+                  spec:
+                    httpGet:
+                      path: /ping
+                      port: http
+                    periodSeconds: 10
+                    timeoutSeconds: 5
+                    failureThreshold: 3
           pod:
             securityContext:
               runAsUser: 1000
