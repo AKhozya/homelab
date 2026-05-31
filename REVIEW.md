@@ -411,7 +411,7 @@ Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the *
 **No open unattended work** — everything below is attended (live verify) or calendar-bound.
 
 **🔵 Next candidates (pick one):**
-- **F-22** — CSP enforcement ramp (calendar, ~3wk). Day-0 report-only middlewares live (`971a27d2`). Per-tier ingress annotation swap → 7d Loki soak → flip Report-Only→enforced. Tier A (paperless/blocky/claude-telegram/obsidian) → B (8 apps) → C (4 apps). Revert = 1 annotation line.
+- **F-22** — CSP enforcement ramp (calendar, ~2wk left). Day-0 middlewares (`971a27d2`). **Tier A swapped 2026-05-31 (`8de095cd`): paperless-ngx + couchdb (obsidian's only web surface — blocky/claude-telegram/obsidian carry no Ingress). csp-strict Report-Only now rides alongside enforced csp; 7d soak started.** Next ~2026-06-07: check `{app="csp-reporter"}` Loki for both domains → clean ⇒ flip strict→enforced, then Tier B (8 apps) → C (4 apps). Revert = 1 annotation line.
 - **F-43** — 2026-06-04: check hass-oidc-auth release for Home Assistant compat; enable HA OIDC if shipped.
 
 **🔴 Scheduled / time-bound (do on date):**
@@ -421,7 +421,7 @@ Every partial (`[~]`) and deferred (`[ ]`) item from the waves below, with the *
 | **F-4** | ✅ **CLOSED 2026-05-25** (`864231ee`) | Operator/privileged excluded (ns databases/immich/percona-mysql + alloy/node-exporter selectors); both policies **Enforce**, 44 pass/0 fail | — | Done |
 | **F-5** | ✅ **CLOSED 2026-05-25** (`864231ee`) | **Enforce**, 160 pass/0 fail, no excludes beyond kube-*/default | — | Done |
 | **F-6** | ✅ **CLOSED 2026-05-25** (`8a4295f2`+`60f2a2cb`+`864231ee`) | Fixed homehub-init + uptime-kuma-setup (RoRFS+/tmp); excluded operator/privileged/batch ns + alloy/grafana selectors; **Enforce**, 40 pass/0 fail. claude-telegram RoRFS closed via F-39 (`3c5ce4aa`, 2026-05-27) | — | Done |
-| **F-22** | Day-0 done (`971a27d2`): 3 report-only middlewares live | Per-tier ingress annotation swap → 7d Loki soak → flip Report-Only→enforced. Tier A (paperless,blocky,claude-telegram,obsidian) → B (8 apps) → C (4 apps) | Low (revert = 1 annotation line) | calendar, ~3wk |
+| **F-22** | Day-0 (`971a27d2`) + **Tier A swapped `8de095cd` 2026-05-31** (paperless-ngx + couchdb=obsidian surface; blocky/claude-telegram/obsidian have no Ingress). 7d Report-Only soak live | ~2026-06-07 check csp-reporter Loki for both domains → flip Tier A strict→enforced; then Tier B (8 apps) → C (4 apps) | Low (revert = 1 annotation line) | calendar, ~2wk left |
 | **F-43** | — | Check hass-oidc-auth releases for HA compat; enable HA OIDC if shipped | Low | 2026-06-04 |
 
 **🟡 Attended (live verification required — do NOT run unattended):**
@@ -566,8 +566,8 @@ Each new policy shipped Audit → soak → fix-forward (in-repo `resources:`/lab
 
 - [~] **F-22** 3 middlewares + per-app ingress annotation swap. Existing csp-reporter as observability.
   - **Day 0:** ✅ **DONE (commit `971a27d2`):** Created `csp-strict`/`csp-inline`/`csp-permissive` in `traefik` ns, each emitting `Content-Security-Policy-Report-Only` (script-src 'self' | +'unsafe-inline' | +'unsafe-eval'); all other directives mirror the global enforced CSP; `report-uri` → csp-reporter preserved. NO ingress annotation swaps, current enforced `csp` middleware untouched. **Remaining = calendar-bound** (per-tier ingress swap + 7d soak + enforce flip).
-  - **Day 1-2:** Swap Tier A ingresses (paperless, blocky, claude-telegram, obsidian) to `csp-strict`.
-  - **Day 3-9:** Soak. Watch `{app="csp-reporter"} |= "<domain>"` in Loki.
+  - **Day 1-2:** ✅ **DONE 2026-05-31 (`8de095cd`):** Appended `,traefik-csp-strict@kubernetescrd` to Tier A ingresses. Real scope = **paperless-ngx + couchdb** (obsidian's only web surface, Fauxton). blocky/claude-telegram/obsidian carry NO Ingress (DNS / outbound bot / couchdb-backed) → nothing to swap. Additive: strict rides `Content-Security-Policy-Report-Only` alongside the unchanged enforced `csp`. Both headers verified live via curl.
+  - **Day 3-9:** Soak started 2026-05-31. ~2026-06-07 check `{app="csp-reporter"} |= "paperless.h0melab.work"` / `|= "couchdb.h0melab.work"` in Loki.
   - **Day 10+:** If clean, flip Report-Only → enforced for that tier; drop permissive header.
   - **Repeat** for Tier B (8 apps) then Tier C (4 apps).
 - **Effort:** 2h actual edits, ~3 weeks calendar for soak. **Risk:** Low per-app (rollback = revert ingress annotation).
