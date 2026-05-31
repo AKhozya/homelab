@@ -21,6 +21,7 @@
       "Bash(kubectl rollout status *)",
       "Bash(kustomize build *)",
       "Bash(shellcheck *)",
+      "Bash(yamllint *)",
       "mcp__plugin_ecc_exa__web_search_exa"
     ]
   },
