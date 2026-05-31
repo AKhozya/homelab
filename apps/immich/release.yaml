@@ -311,6 +311,12 @@ spec:
                 pullPolicy: IfNotPresent
               env:
                 TRANSFORMERS_CACHE: /cache
+                # gunicorn 25.1.0 added a "control socket" (default relative path "gunicorn.ctl",
+                # joined to the read-only cwd → Errno 30 "Read-only file system"). That failed
+                # write intermittently hangs the gunicorn worker fork → ~50% of restarts deadlock
+                # at boot (observed 2026-05-31 reboot recovery). immich doesn't use gunicorn's
+                # control CLI, so disable it — eliminates the error while keeping readOnlyRootFilesystem.
+                GUNICORN_CMD_ARGS: "--no-control-socket"
               resources:
                 requests:
                   cpu: 200m
