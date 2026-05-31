@@ -1,0 +1,25 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: coredns
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  timeout: 5m0s
+  dependsOn:
+    - name: infrastructure-controllers
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./infrastructure/coredns
+  prune: true
+  # force: adopt the k3s-addon-owned kube-dns Service + coredns ConfigMap/SA/RBAC (SSA field-manager
+  # take-over) and recreate on immutable-field changes. After `--disable=coredns` (config.yaml.j2)
+  # the addon deletes its copies on CP k3s restart and Flux owns these outright.
+  force: true
+  wait: true
+  healthChecks:
+    - apiVersion: apps/v1
+      kind: Deployment
+      name: coredns-ha
+      namespace: kube-system

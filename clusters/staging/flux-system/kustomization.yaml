@@ -7,3 +7,4 @@ resources:
 - ../../monitoring.yaml
 - ../../infrastructure.yaml
 - ../../infrastructure-configs.yaml
+- ../../coredns.yaml

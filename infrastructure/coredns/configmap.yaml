@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  # Byte-exact copy of the live k3s-addon coredns Corefile (captured 2026-05-31) so Flux can adopt
+  # it without churn while the addon still co-owns it. After --disable, Flux owns it outright.
+  Corefile: |
+    .:53 {
+        errors
+        health
+        ready
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+          pods insecure
+          fallthrough in-addr.arpa ip6.arpa
+        }
+        hosts /etc/coredns/NodeHosts {
+          ttl 60
+          reload 15s
+          fallthrough
+        }
+        prometheus :9153
+        cache 30
+        loop
+        reload
+        loadbalance
+        import /etc/coredns/custom/*.override
+        forward . /etc/resolv.conf
+    }
+    import /etc/coredns/custom/*.server
+  # NodeHosts: k3s auto-maintained these per node; under Flux they are STATIC. IPv4 entries are
+  # DHCP-reserved (stable). IPv6 SLAAC entries CAN drift — refresh if a node's IPv6 changes (or
+  # drop them; IPv4 node-name resolution is what matters). Kept exact-as-live for quiescent adoption.
+  NodeHosts: |
+    192.168.1.126 worker-node-2
+    192.168.1.127 gmk-k3s-control-plane
+    192.168.1.129 worker-node
+    2a01:4b00:b718:7400:3a05:25ff:fe30:7a3c worker-node
+    2a01:4b00:b718:7400:e251:d8ff:fe1c:d58a gmk-k3s-control-plane
+    fd00::3a05:25ff:fe34:1171 worker-node-2
