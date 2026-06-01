@@ -8,7 +8,7 @@
 
 **Tech Stack:** ansible (node-maintenance), bash (skill scripts, shellcheck/shfmt), kubectl/flux, k3s.
 
-**Source spec:** `docs/superpowers/specs/2026-05-24-cluster-reboot-and-roll-skills-design.md` (v2).
+**Source spec:** `docs/archive/superpowers/specs/2026-05-24-cluster-reboot-and-roll-skills-design.md` (v2).
 
 **Global constraints:** Claude has no sudo (CP/node sudo steps are printed for the user to run, TTY). GitOps invariants apply. Skill files live in `~/.claude/skills/` (chezmoi → `/chezmoi-sync`). Ansible changes deploy via `node-maintenance-sync` → `node-maintenance-config`; **blocked while `/var/lib/node-maintenance/phase2-pending` is set.**
 
