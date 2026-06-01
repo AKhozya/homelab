@@ -20,6 +20,17 @@ spec:
       ports:
         - protocol: UDP
           port: 53
+    # PostgreSQL (init container wait-for-migrations), cross-namespace
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: databases
+          podSelector:
+            matchLabels:
+              cnpg.io/cluster: main-postgres
+      ports:
+        - protocol: TCP
+          port: 5432
     # immich-server API (same namespace), container port 2283 only
     - to:
         - podSelector:
