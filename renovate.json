@@ -7,7 +7,7 @@
     {
       "customType": "regex",
       "description": "n8n via GitHub releases to filter pre-releases",
-      "managerFilePatterns": ["/^apps\\/base\\/n8n\\/deployment\\.yaml$/"],
+      "managerFilePatterns": ["/^apps\\/n8n\\/deployment\\.yaml$/"],
       "matchStrings": ["image:\\s*n8nio/n8n:(?<currentValue>[^\\s]+)"],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "n8n-io/n8n",
@@ -20,15 +20,6 @@
       "managerFilePatterns": ["/cluster\\.yaml$/"],
       "matchStrings": ["imageName:\\s*(?<depName>[^:]+):(?<currentValue>[^\\s]+)"],
       "datasourceTemplate": "docker"
-    },
-    {
-      "customType": "regex",
-      "description": "SearXNG date+hash Docker tags",
-      "managerFilePatterns": ["/^apps\\/base\\/searxng\\/deployment\\.yaml$/"],
-      "matchStrings": ["image:\\s*docker\\.io/searxng/searxng:(?<currentValue>[^\\s]+)"],
-      "depNameTemplate": "docker.io/searxng/searxng",
-      "datasourceTemplate": "docker",
-      "versioningTemplate": "loose"
     }
   ],
   "commitMessagePrefix": "chore(deps): ",
@@ -144,13 +135,6 @@
       "matchPackageNames": ["n8n-io/n8n"],
       "matchDatasources": ["github-releases"],
       "ignoreUnstable": true
-    },
-    {
-      "description": "Disable Docker detection for SearXNG - using custom regex manager",
-      "matchPackageNames": ["docker.io/searxng/searxng", "searxng/searxng"],
-      "matchFileNames": ["**/searxng/**"],
-      "matchDatasources": ["docker"],
-      "enabled": false
     },
     {
       "description": "Automerge patch updates for low-risk apps (scoped to apps/ image patches; excludes DB operators, Flux, Traefik, monitoring)",
