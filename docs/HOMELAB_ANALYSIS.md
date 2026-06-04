@@ -1,6 +1,6 @@
 # HOMELAB COMPREHENSIVE ANALYSIS
 
-**Cluster**: K3s (staging) — 3 nodes (1 CP, 2 workers)
+**Cluster**: K3s — single-env **production** (no staging; merge to `main` = deploy to prod) — 3 nodes (1 CP, 2 workers)
 **Node IPs** (static DHCP, k3s pinned to IPv4): gmk-k3s-control-plane=192.168.1.127, worker-node=192.168.1.129, worker-node-2=192.168.1.126
 **Infra**: GitOps (Flux), CloudNativePG, Percona MySQL, monitoring stack, SSO (Authentik), Cloudflare Tunnel
 **Code Review**: 2026-04-02 — full scan (94/100, A)
