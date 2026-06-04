@@ -17,7 +17,7 @@
 Namespaces: PG/MySQL/CouchDB cronjobs in `databases`; PVC cronjob in `kube-system`; replication in `backup-replication`.
 
 ## PVC Backup CRITICAL_PVCS list
-Source: `infrastructure/configs/staging/backup/pvc-backup-cronjob.yaml` (13 entries, 10 apps — updated 2026-05-22).
+Source: `infrastructure/configs/backup/pvc-backup-cronjob.yaml` (13 entries, 10 apps — updated 2026-05-22).
 - `home-assistant/home-assistant-data-pvc`
 - `paperless-ngx/paperless-data-pvc`
 - `audiobookshelf/audiobookshelf-audiobooks`
@@ -120,4 +120,4 @@ Failure handling: trap on EXIT sends Telegram failure with `CURRENT_STEP` label;
 - Manual run: `kubectl create job -n kube-system --from=cronjob/pvc-backup pvc-backup-manual-$(date +%s)`
 - Last test: 2026-05-22 — full pipeline tested, all 13 PVCs + 4 DB types + immich weekly successful. immich timing: tar 187s + sha256 914s = 18m21s total for 62.5G. Replication w/ heavy prune: 102s including ~450 file deletes + ~50 dir deletes from NAS.
 - Replication validates 4 backup types daily; failure → Telegram with failed step
-- Backup-monitoring Grafana dashboard: `monitoring/configs/staging/grafana-dashboards/backup-monitoring-dashboard.yaml`
+- Backup-monitoring Grafana dashboard: `monitoring/configs/grafana-dashboards/backup-monitoring-dashboard.yaml`

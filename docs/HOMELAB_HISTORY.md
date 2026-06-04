@@ -1589,6 +1589,14 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
+### 2026-06-04 (Configs base/staging flatten) 🧹
+- ✅ **Flattened the last two `base/staging` overlay splits** — `monitoring/configs/{base,staging}` → `monitoring/configs/` (`081934c0`) + `infrastructure/configs/{base,staging}` → `infrastructure/configs/` (`87deba9e`). Completes the base/overlay collapse program (F-13 apps, F-14 controllers). No base/staging splits remain repo-wide.
+  - **Proof:** `kustomize build --enable-helm` render byte-identical pre/post both sides (oracle diff empty — 63 mon / 133 infra resources). Flux re-adopted every object by unchanged name/ns/GVK → zero churn (CNPG/Percona/CouchDB + cloudflared + grafana/vmsingle pod ages unchanged).
+  - Flux paths repointed (`monitoring-configs`, `infrastructure-configs` → `./…/configs`); CI kustomize roots + `kyverno_count` find path updated.
+  - **Tier-1 cleanups (render-neutral):** dropped redundant `namespace:` transforms on merged `kube-prometheus-stack` (a blanket transform would have corrupted `cloudflared-servicemonitor` → `cloudflare-tunnel`) + `databases/couchdb`; deleted dead `infrastructure/configs/base/resource-governance/` (4 files, no kustomization, unreferenced).
+  - **Gotcha:** `mysql/serviceaccount.yaml` collided between base (`main-mysql` cluster SA) and staging (`mysql-jobs` backup SA) when merged into one dir → renamed staging's to `jobs-serviceaccount.yaml` (object name unchanged → render identical; `mysql-backup-cronjob` references the object name, not the filename).
+  - Single atomic commit per side + race-safe reconcile (`source git flux-system` → `ks flux-system` → target ks) avoided the path-not-found transient alert. CI green both commits.
+
 ### 2026-03-16 (SearXNG Deployment) 🔍
 - ✅ **SearXNG deployed**: Privacy-respecting metasearch engine ⭐
   - Image: `searxng/searxng:2026.3.13-3c1f68c59`

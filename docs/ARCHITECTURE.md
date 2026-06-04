@@ -85,7 +85,7 @@ flowchart LR
 
 An externally-reachable app has **two ingress rules** (internal hostname + Cloudflare hostname) but **one NetworkPolicy**. cert-manager issues TLS via DNS-01 (Cloudflare API token) for `*.h0melab.work`. The Cloudflare Tunnel is outbound-initiated → home router opens **zero** inbound ports.
 
-**Consequence (often missed):** Traefik middleware applies **only on the internal path.** External traffic via Cloudflare Tunnel hops `cloudflared → Service` directly (per `infrastructure/configs/staging/cloudflare/networkpolicy.yaml`: per-app `Service:port` egress to 9 apps, zero egress to the `traefik` namespace). Externally-reached apps get Cloudflare's WAF + TLS, **not** the Traefik CSP/headers/rate-limit middlewares. F-22's tier-based CSP soak therefore covers internal browsing only; CF-tunnel browsers see whatever CSP the app itself sets.
+**Consequence (often missed):** Traefik middleware applies **only on the internal path.** External traffic via Cloudflare Tunnel hops `cloudflared → Service` directly (per `infrastructure/configs/cloudflare/networkpolicy.yaml`: per-app `Service:port` egress to 9 apps, zero egress to the `traefik` namespace). Externally-reached apps get Cloudflare's WAF + TLS, **not** the Traefik CSP/headers/rate-limit middlewares. F-22's tier-based CSP soak therefore covers internal browsing only; CF-tunnel browsers see whatever CSP the app itself sets.
 
 ---
 

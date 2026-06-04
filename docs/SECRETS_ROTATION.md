@@ -117,7 +117,7 @@
 - OIDC client secrets (Authentik provider + app-side)
 - DB passwords: Mealie, Paperless, Linkwarden, Uptime Kuma, PriceBuddy
 - Redis: Paperless
-- CouchDB admin (also update `monitoring/configs/base/victoria-metrics/couchdb-auth-secret.yaml` for VMAgent)
+- CouchDB admin (also update `monitoring/configs/victoria-metrics/couchdb-auth-secret.yaml` for VMAgent)
 - Authentik Django secret key
 
 ### Never Rotate
@@ -139,7 +139,7 @@ NEW_PASSWORD=$(openssl rand -hex 32)
 # 2. Update CNPG db-user secret (CNPG operator watches this and syncs to PostgreSQL)
 # All users are in managed.roles in the Cluster CRD — CNPG auto-updates the DB password
 sops --ignore-mac --set "[\"stringData\"][\"password\"] \"${NEW_PASSWORD}\"" \
-  infrastructure/configs/staging/databases/postgres/<app>-db-user.yaml
+  infrastructure/configs/databases/postgres/<app>-db-user.yaml
 
 # 3. Update app-side SOPS secret (so the app uses the new password)
 # Key name varies by app — check the file first with: sops --ignore-mac -d <file>
@@ -147,7 +147,7 @@ sops --ignore-mac --set '["stringData"]["<PASSWORD_KEY>"] "'${NEW_PASSWORD}'"' \
   apps/staging/<app>/<secret-file>.yaml
 
 # 4. Commit and push
-git add infrastructure/configs/staging/databases/postgres/<app>-db-user.yaml \
+git add infrastructure/configs/databases/postgres/<app>-db-user.yaml \
       apps/staging/<app>/<secret-file>.yaml
 git commit -m "Rotate <app> database password"
 git push

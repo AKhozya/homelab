@@ -109,7 +109,7 @@
 
 ### 1. PostgreSQL Automated Backups
 
-**File:** `infrastructure/configs/staging/databases/postgres/postgres-backup-cronjob.yaml`
+**File:** `infrastructure/configs/databases/postgres/postgres-backup-cronjob.yaml`
 
 **Implementation:**
 - CronJob daily 3:00 AM
@@ -139,7 +139,7 @@ kubectl exec -n databases main-postgres-1 -- \
 
 ### 2. CouchDB Automated Backups
 
-**File:** `infrastructure/configs/staging/databases/couchdb/couchdb-backup-cronjob.yaml`
+**File:** `infrastructure/configs/databases/couchdb/couchdb-backup-cronjob.yaml`
 
 **Implementation:**
 - CronJob daily 3:05 AM
@@ -170,7 +170,7 @@ cat /tmp/*/obsidian-personal.couchbackup | couchrestore \
 
 ### 3. PVC Automated Backups
 
-**File:** `infrastructure/configs/staging/backup/pvc-backup-cronjob.yaml`
+**File:** `infrastructure/configs/backup/pvc-backup-cronjob.yaml`
 
 **Implementation:**
 - CronJob daily 3:10 AM (after DB backups)
@@ -208,7 +208,7 @@ kubectl scale deployment/home-assistant -n home-assistant --replicas=1
 
 ### 4. MySQL Automated Backups
 
-**File:** `infrastructure/configs/staging/databases/mysql/mysql-backup-cronjob.yaml`
+**File:** `infrastructure/configs/databases/mysql/mysql-backup-cronjob.yaml`
 
 **Implementation:**
 - CronJob daily 3:15 AM
@@ -240,7 +240,7 @@ kubectl exec -n databases main-mysql-mysql-0 -- \
 
 ### 5. Backup Replication to NAS + worker-node-2
 
-**File:** `infrastructure/configs/staging/backup-replication/cronjob.yaml`
+**File:** `infrastructure/configs/backup-replication/cronjob.yaml`
 
 **Implementation:**
 - CronJob daily 3:30 AM (after all backups done ~3:16 AM)

@@ -45,8 +45,8 @@ Operator env: `VM_ENABLEDPROMETHEUSCONVERTER_*=false`. **PrometheusRule and Serv
 ## Rules (VMRule)
 | File | VMRule name | Group count | Notable groups |
 |------|-------------|-------------|----------------|
-| `monitoring/configs/base/victoria-metrics/vmrules.yaml` | `homelab-alerts` | 25 | node, pod, mysql, database, redis-alerts, redis-ha, kubernetes, certificate, flux, cloudflare-tunnel, kyverno, loki, traefik, rebuilderd, firewall (ufw), node-overrides, node-maintenance, etc. |
-| `monitoring/configs/staging/blocky/prometheusrule.yaml` | `blocky-alerts` (kind: VMRule) | 1 | blocky (5 alerts) |
+| `monitoring/configs/victoria-metrics/vmrules.yaml` | `homelab-alerts` | 25 | node, pod, mysql, database, redis-alerts, redis-ha, kubernetes, certificate, flux, cloudflare-tunnel, kyverno, loki, traefik, rebuilderd, firewall (ufw), node-overrides, node-maintenance, etc. |
+| `monitoring/configs/blocky/prometheusrule.yaml` | `blocky-alerts` (kind: VMRule) | 1 | blocky (5 alerts) |
 
 vmalert loads 26 groups total across 2 VMRule resources. Verify via: `kubectl port-forward -n monitoring svc/vmalert-vmalert 8080:8080 && curl localhost:8080/api/v1/rules | jq '.data.groups[].name'`
 
@@ -61,8 +61,8 @@ Drops in `vmagent.yaml`:
 
 ## Service scrapes (VMServiceScrape)
 - **37 native VMServiceScrape** + 4 VMPodScrape resources (cluster-wide, all manifests)
-- 13 scrape files in `monitoring/configs/base/victoria-metrics/scrape-*.yaml`: apiserver, apps, cnpg-operator, coredns, databases, kube-state-metrics, kubelet, kubelet-cadvisor, kubelet-probes, kyverno, monitoring-stack, node-exporter, vmoperator
-- App-specific scrapes also live alongside apps (e.g. `monitoring/configs/staging/blocky/servicemonitor.yaml`)
+- 13 scrape files in `monitoring/configs/victoria-metrics/scrape-*.yaml`: apiserver, apps, cnpg-operator, coredns, databases, kube-state-metrics, kubelet, kubelet-cadvisor, kubelet-probes, kyverno, monitoring-stack, node-exporter, vmoperator
+- App-specific scrapes also live alongside apps (e.g. `monitoring/configs/blocky/servicemonitor.yaml`)
 
 ## Dashboards
 - ConfigMaps with label `grafana_dashboard: "1"` auto-loaded by Grafana sidecar
@@ -104,5 +104,5 @@ Drops in `vmagent.yaml`:
 ## Decommissioned
 - Prometheus pods (replaced by vmsingle, 2026-Q1)
 - Prometheus PVCs (~100Gi) deleted 2026-04-26
-- `monitoring/configs/staging/kube-prometheus-stack/prometheus-rules.yaml` deleted 2026-04-26 (1183 lines, all groups duplicated to vmrules.yaml + redis-ha was missing)
+- `monitoring/configs/kube-prometheus-stack/prometheus-rules.yaml` deleted 2026-04-26 (1183 lines, all groups duplicated to vmrules.yaml + redis-ha was missing)
 - Loki/Alloy moved out of `monitoring` ns into dedicated `loki` ns

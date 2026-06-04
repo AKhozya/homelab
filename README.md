@@ -51,7 +51,7 @@ SOPS + age encrypt before commit. Never commit plaintext.
 
 **Decrypt:**
 ```bash
-sops -d infrastructure/configs/staging/databases/postgres/admin-secret.yaml
+sops -d infrastructure/configs/databases/postgres/admin-secret.yaml
 ```
 
 ## Troubleshooting
