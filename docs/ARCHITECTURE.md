@@ -131,7 +131,7 @@ Backups: per-engine CronJobs in `infrastructure-configs` → the W1→W2→NAS r
 
 ## Single-environment reality
 
-The tree has `base/` + `staging/` overlays (the canonical Flux monorepo shape) but there is **only `staging`** — no production. The `staging/` overlays are honest about being the one and only environment; the base/overlay split is kept because it costs little and leaves the door open, not because a second environment exists. Collapsing the passthrough indirection is tracked (F-13/F-14) but deliberately deferred — re-discovery/prune risk on a live single env outweighs the tidiness gain.
+This is a single-environment cluster — and that environment is **production** (the live homelab). There is no separate staging and no promotion pipeline: a merge to `main` deploys straight to prod. The repo once carried the canonical Flux `base/` + `staging/` overlay shape, but with one and only one environment the split was pure ceremony (overlays were `[../base]` + SOPS secrets — no patches, replicas, or image overrides), and the `staging/` dir name was a Flux-convention artifact, not a second environment. It has been **fully collapsed to flat single-env dirs**: apps (F-13, 2026-05-29), infra + monitoring controllers (F-14), and the configs layer (2026-06-04). Every move was proven render byte-identical (`kustomize build` oracle-diff empty) → Flux re-adopted every object in place, zero churn. **No `base/staging` overlay split remains repo-wide;** a new such split is now the smell, not the norm.
 
 ---
 
