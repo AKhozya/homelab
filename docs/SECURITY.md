@@ -206,7 +206,7 @@ All apps have egress + ingress rules:
 #### Step 1: Install Tailscale on K3s Cluster
 
 ```yaml
-# apps/base/tailscale/deployment.yaml
+# apps/tailscale/deployment.yaml
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:

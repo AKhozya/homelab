@@ -15,8 +15,6 @@ repos:
             .*-secret\.yaml|
             .*-secrets\.yaml|
             .*credentials.*\.yaml|
-            apps/base/blocky/configmap\.yaml|
-            apps/base/stirling-pdf/custom-settings-configmap\.yaml|
             clusters/staging/flux-system/gotk-components\.yaml|
             docs/superpowers/.*
           )$
