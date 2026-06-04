@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# No namespace transform: every resource self-namespaces. The grafana/ksm/prometheus-operator/
+# alertmanager NPs + alertmanager-pdb are namespace: monitoring; cloudflared-servicemonitor is
+# namespace: cloudflare-tunnel — a blanket transform would wrongly rewrite it.
+resources:
+  # Network policies + PDB (formerly base/)
+  - grafana-networkpolicy.yaml
+  - kube-state-metrics-networkpolicy.yaml
+  - prometheus-operator-networkpolicy.yaml
+  - alertmanager-networkpolicy.yaml
+  - alertmanager-pdb.yaml
+  # Grafana ingress TLS + auth
+  - grafana-certificate.yaml  # Auto-renewing cert from Let's Encrypt
+  - grafana-admin-secret.yaml
+  - grafana-oidc-secret.yaml  # Authentik OIDC integration
+  - https-redirect-middleware.yaml
+  - security-headers-middleware.yaml
+  - rate-limit-standard-middleware.yaml
+  - csp-middleware.yaml
+  # Alertmanager
+  - alertmanager-telegram-secret.yaml
+  - alertmanager-certificate.yaml
+  # Cloudflare tunnel scrape (namespace: cloudflare-tunnel)
+  - cloudflared-servicemonitor.yaml

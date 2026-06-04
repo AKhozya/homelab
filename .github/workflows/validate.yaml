@@ -105,7 +105,7 @@ jobs:
           - apps
           - infrastructure/configs/staging
           - infrastructure/controllers
-          - monitoring/configs/staging
+          - monitoring/configs
           - monitoring/controllers
     steps:
       - uses: actions/checkout@v6

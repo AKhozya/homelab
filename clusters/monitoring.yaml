@@ -42,7 +42,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  path: ./monitoring/configs/staging
+  path: ./monitoring/configs
   prune: true
   healthChecks:
     - apiVersion: operator.victoriametrics.com/v1beta1
