@@ -49,7 +49,7 @@ spec:
                   app: blocky
       containers:
         - name: blocky
-          image: spx01/blocky:v0.30.0
+          image: spx01/blocky:v0.31.0
           imagePullPolicy: IfNotPresent
           securityContext:
             allowPrivilegeEscalation: false
