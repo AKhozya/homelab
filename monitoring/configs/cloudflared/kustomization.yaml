@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# ServiceMonitor self-namespaces cloudflare-tunnel (where cloudflared runs); VMAgent
+# scrapes it via the `release: kube-prometheus-stack` label. No namespace transform.
+resources:
+  - cloudflared-servicemonitor.yaml
