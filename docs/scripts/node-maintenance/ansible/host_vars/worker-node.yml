@@ -59,3 +59,8 @@ ufw_rules_host:
 ufw_route_rules_host:
   - { comment: "K3s pod-to-node traffic (API server)", rule: allow, from_ip: 10.42.0.0/16, to_ip: 192.168.1.0/24 }
   - { comment: "K3s node-to-pod traffic", rule: allow, from_ip: 192.168.1.0/24, to_ip: 10.42.0.0/16 }
+
+# Primary NIC .network filename — target for the DNS-decoupling drop-in
+# (docs/plans/2026-06-04-dns-decoupling-implementation.md). DHCP link → blocky
+# DNS dropped via UseDNS=no; resolved global drop-in supplies public DNS.
+primary_network_file: 20-ethernet.network
