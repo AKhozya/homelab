@@ -7,6 +7,15 @@
   ansible.builtin.systemd_service:
     daemon_reload: true
 
+# Defined ABOVE Restart systemd-resolved so handler-run order drops the link's
+# DHCP/RA DNS first, then resolved restarts and picks up the global drop-in.
+- name: Reload networkd
+  ansible.builtin.shell: |
+    set -e
+    networkctl reload
+    resolvectl flush-caches
+  changed_when: false
+
 - name: Restart systemd-resolved
   ansible.builtin.systemd_service:
     name: systemd-resolved

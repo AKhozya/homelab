@@ -56,3 +56,8 @@ ufw_route_rules_host:
   - { comment: "K3s pod to nodes", rule: allow, from_ip: 10.42.0.0/16, to_ip: 192.168.1.0/24 }
   - { rule: allow, from_ip: 10.42.0.0/16 }
   - { rule: allow, to_ip: 10.42.0.0/16 }
+
+# Primary NIC .network filename — target for the DNS-decoupling drop-in.
+# Static link; its existing `DNS=192.168.1.129` is reset to public DNS via
+# the resolved global drop-in + networkd UseDNS reset.
+primary_network_file: 20-wired-static.network

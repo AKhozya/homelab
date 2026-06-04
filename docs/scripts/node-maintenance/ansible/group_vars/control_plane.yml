@@ -64,3 +64,7 @@ ufw_rules_group:
 ufw_route_rules_group:
   - { comment: "K3s pod-to-node traffic (API server)", rule: allow, from_ip: 10.42.0.0/16, to_ip: 192.168.1.0/24 }
   - { comment: "K3s node-to-pod traffic", rule: allow, from_ip: 192.168.1.0/24, to_ip: 10.42.0.0/16 }
+
+# Primary NIC .network filename — target for the DNS-decoupling drop-in
+# (CP is a single-host group). DHCP link.
+primary_network_file: 10-enp3s0.network
