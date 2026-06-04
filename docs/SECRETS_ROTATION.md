@@ -144,11 +144,11 @@ sops --ignore-mac --set "[\"stringData\"][\"password\"] \"${NEW_PASSWORD}\"" \
 # 3. Update app-side SOPS secret (so the app uses the new password)
 # Key name varies by app — check the file first with: sops --ignore-mac -d <file>
 sops --ignore-mac --set '["stringData"]["<PASSWORD_KEY>"] "'${NEW_PASSWORD}'"' \
-  apps/staging/<app>/<secret-file>.yaml
+  apps/<app>/<secret-file>.yaml
 
 # 4. Commit and push
 git add infrastructure/configs/databases/postgres/<app>-db-user.yaml \
-      apps/staging/<app>/<secret-file>.yaml
+      apps/<app>/<secret-file>.yaml
 git commit -m "Rotate <app> database password"
 git push
 
@@ -192,11 +192,11 @@ NEW_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=' | head -c 32)
 
 # 3. Update SOPS-encrypted secret for the app
 # Example for Authentik:
-sops apps/base/authentik/secret.yaml
+sops apps/authentik/secret.yaml
 # Update AUTHENTIK_REDIS__PASSWORD
 
 # 4. Commit and push
-git add apps/base/authentik/secret.yaml
+git add apps/authentik/secret.yaml
 git commit -m "Rotate Authentik Redis password"
 git push
 
@@ -224,11 +224,11 @@ NEW_PASSWORD=$(openssl rand -base64 24 | tr -d '+/=' | head -c 32)
 
 # 3. Update SOPS-encrypted secret for the app
 # Example for Home Assistant:
-sops apps/staging/home-assistant/secrets.yaml
+sops apps/home-assistant/admin-credentials-secret.yaml
 # Update the MySQL password value
 
 # 4. Commit and push
-git add apps/staging/home-assistant/secrets.yaml
+git add apps/home-assistant/admin-credentials-secret.yaml
 git commit -m "Rotate Home Assistant MySQL password"
 git push
 
@@ -263,10 +263,10 @@ kubectl exec -n authentik deploy/authentik-server -- curl -s -X PATCH \
 # 3. Update SOPS-encrypted secret for the app
 # Key name varies: "client-secret" for most apps, check with: sops --ignore-mac -d <file>
 sops --ignore-mac --set '["stringData"]["client-secret"] "'${NEW_SECRET}'"' \
-  apps/staging/<app>/<oidc-secret-file>.yaml
+  apps/<app>/<oidc-secret-file>.yaml
 
 # 4. Commit and push
-git add apps/staging/<app>/<oidc-secret-file>.yaml
+git add apps/<app>/<oidc-secret-file>.yaml
 git commit -m "Rotate <app> OIDC client secret"
 git push
 
@@ -294,11 +294,11 @@ kubectl rollout restart deployment/<app> -n <app>
 python3 -c "import bcrypt; print(bcrypt.hashpw(b'YOUR_NEW_PASSWORD', bcrypt.gensalt(rounds=12)).decode())"
 
 # 2. Update SOPS secret
-sops apps/base/homehub/secret.yaml
+sops apps/homehub/secret.yaml
 # Update HOMEHUB_PASSWORD with bcrypt hash
 
 # 3. Commit, push, reconcile, restart
-git add apps/base/homehub/secret.yaml
+git add apps/homehub/secret.yaml
 git commit -m "Rotate HomeHub password"
 git push
 flux reconcile kustomization apps --timeout 45s --force
@@ -311,20 +311,20 @@ kubectl rollout restart deployment/homehub -n homehub
 NEW=$(openssl rand -base64 32 | tr -d '\n=/+' | head -c 40)
 
 # 2. Update redis-passwords (databases ns)
-sops infrastructure/controllers/base/databases/redis-ha/passwords-secret.yaml
+sops infrastructure/controllers/databases/redis-ha/passwords-secret.yaml
 # Replace blocky-password value with $NEW
 
 # 3. Update redis-acl-secret (databases ns) — replace blocky line `>${OLD}` with `>${NEW}`
-sops infrastructure/controllers/base/databases/redis-ha/acl-secret.yaml
+sops infrastructure/controllers/databases/redis-ha/acl-secret.yaml
 
 # 4. Update Blocky's inlined config Secret
-sops apps/base/blocky/configmap.yaml
+sops apps/blocky/config-secret.yaml
 # Find redis.password: <OLD> → replace with <NEW>
 
 # 5. Commit, push, reconcile, restart
-git add infrastructure/controllers/base/databases/redis-ha/passwords-secret.yaml \
-        infrastructure/controllers/base/databases/redis-ha/acl-secret.yaml \
-        apps/base/blocky/configmap.yaml
+git add infrastructure/controllers/databases/redis-ha/passwords-secret.yaml \
+        infrastructure/controllers/databases/redis-ha/acl-secret.yaml \
+        apps/blocky/config-secret.yaml
 git commit -m "Rotate blocky redis password"
 git push
 flux reconcile source git flux-system --timeout 45s
@@ -421,10 +421,10 @@ If compromised:
 git log --all --date=short --format="%ad %s" --grep="secret\|password\|rotate" -- apps/
 
 # View specific secret file history
-git log --all --date=short --format="%ad %h %s" --follow -- apps/base/immich/secret.yaml
+git log --all --date=short --format="%ad %h %s" --follow -- apps/immich/immich-db-password-secret.yaml
 
 # View detailed changes for a specific commit
-git show <commit-hash> -- apps/base/immich/secret.yaml
+git show <commit-hash> -- apps/immich/immich-db-password-secret.yaml
 ```
 
 ---

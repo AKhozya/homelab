@@ -1,6 +1,6 @@
 # Apps Codemap
 
-16 application stacks. All in `apps/base/<name>/` (shared base) + `apps/staging/<name>/` (env overlay).
+16 application stacks. All in flat `apps/<name>/` (single-env; the `base/`+`staging/` overlay split was collapsed in F-13, 2026-05-29).
 
 | App | NS | Storage | DB | OIDC | External | Notes |
 |-----|-----|---------|-----|------|----------|-------|

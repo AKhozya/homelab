@@ -38,7 +38,7 @@ kubectl exec -n authentik deploy/authentik-server -- curl -s -H "Authorization: 
 ## Quick rollback (single phase)
 
 ```bash
-git log --oneline -5 -- apps/base/authentik/
+git log --oneline -5 -- apps/authentik/
 # Identify offending commit. Then:
 git revert --no-edit <SHA>
 git push
@@ -72,7 +72,7 @@ Note: `user_fields` + `sources` must be supplied on every PATCH (serializer vali
 
 ```bash
 # Find Phase commits (search commit subject pattern):
-git log --oneline --grep="Authentik:" -- apps/base/authentik/
+git log --oneline --grep="Authentik:" -- apps/authentik/
 
 # Revert in reverse landing order (Phase 3 → Phase 2 → Phase 1):
 git revert --no-edit <PHASE3_SHA>
