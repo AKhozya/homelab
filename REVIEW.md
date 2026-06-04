@@ -180,7 +180,7 @@ Not strictly wrong — SOPS-encrypted resources are cluster-specific and must li
 
 Recommend (b) — keep structure for future `prod/`, document the actual purpose.
 
-**F-14 — Monitoring/infra staging passthroughs are dead layers**
+**F-14 — Monitoring/infra staging passthroughs are dead layers** — ✅ **DONE 2026-05-29** (`95b87e53`+`367fc91d`+`b442c098`); all cited passthroughs below removed (incl. `monitoring/configs/staging/victoria-metrics` — gone). See Attended table row.
 - `infrastructure/controllers/staging/kustomization.yaml` → just `[../base]`
 - `monitoring/controllers/staging/{loki-stack,popeye,victoria-metrics}/kustomization.yaml` → just `[../../base/<name>]`
 - `monitoring/configs/staging/victoria-metrics/kustomization.yaml` → same
@@ -562,9 +562,9 @@ Each new policy shipped Audit → soak → fix-forward (in-repo `resources:`/lab
 - [x] **F-15 — ✅ DONE 2026-05-27** (`002e06f7`, direction inverted). NOT "make all app-owned": CNPG `Database.spec.cluster` is a `LocalObjectReference` (CR must be ns `databases`); 4/7 apps set `namespace:<app>` which would break the ref; Flux canonical treats DB as infra (apps `dependsOn`). Consolidated blocky → `infrastructure/configs/staging/databases/postgres/` instead. All 7 in one canonical infra dir. Handoff clean (retain + Flux GC label-protection; CR adopted by infra-configs, applied=true, AGE preserved, pods unaffected).
 - **Effort:** R5 = 2h, F-14 = 30min, F-15 = 2h, F-13 = 4h. **Risk:** F-15 medium (CNPG Database CR), F-13 high (16 dirs renamed, Flux must re-discover). **Payoff:** atomic per-app delete via `prune: true`; clean ownership.
 
-### Wave 12 — CSP 3-tier rollout (calendar-bound, 3 weeks) 🟡 Day-0 setup done 2026-05-24; rollout calendar-bound
+### Wave 12 — CSP 3-tier rollout ✅ Tier A+B DONE 2026-06-04 (`c8c5fbaa`+`e5ee973a`); browser-verified (soak gate non-functional)
 
-- [~] **F-22** 3 middlewares + per-app ingress annotation swap. Existing csp-reporter as observability.
+- [x] **F-22** 3 middlewares + per-app ingress annotation swap — **Tier A+B done 2026-06-04**. csp-reporter soak found non-functional (cluster-internal report-uri); browser-console verified instead. 6 apps tighter, 8 confirmed need eval/wasm. See resume table.
   - **Day 0:** ✅ **DONE (commit `971a27d2`):** Created `csp-strict`/`csp-inline`/`csp-permissive` in `traefik` ns, each emitting `Content-Security-Policy-Report-Only` (script-src 'self' | +'unsafe-inline' | +'unsafe-eval'); all other directives mirror the global enforced CSP; `report-uri` → csp-reporter preserved. NO ingress annotation swaps, current enforced `csp` middleware untouched. **Remaining = calendar-bound** (per-tier ingress swap + 7d soak + enforce flip).
   - **Day 1-2:** ✅ **DONE 2026-05-31 (`8de095cd`):** Appended `,traefik-csp-strict@kubernetescrd` to Tier A ingresses. Real scope = **paperless-ngx + couchdb** (obsidian's only web surface, Fauxton). blocky/claude-telegram/obsidian carry NO Ingress (DNS / outbound bot / couchdb-backed) → nothing to swap. Additive: strict rides `Content-Security-Policy-Report-Only` alongside the unchanged enforced `csp`. Both headers verified live via curl.
   - **Day 3-9:** Soak started 2026-05-31. ~2026-06-07 check `{app="csp-reporter"} |= "paperless.h0melab.work"` / `|= "couchdb.h0melab.work"` in Loki.
