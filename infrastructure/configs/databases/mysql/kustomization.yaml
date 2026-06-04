@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # Percona MySQL cluster config (formerly base/)
+  - serviceaccount.yaml          # main-mysql (cluster SA)
+  - cluster-secrets.yaml
+  - cluster.yaml
+  - networkpolicy.yaml
+  - exporter.yaml
+  - servicemonitor.yaml
+  - pdb.yaml
+  # Staging extras
+  - jobs-serviceaccount.yaml     # mysql-jobs (backup SA; was staging serviceaccount.yaml)
+  - mysql-backup-cronjob.yaml

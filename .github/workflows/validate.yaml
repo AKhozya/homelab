@@ -103,7 +103,7 @@ jobs:
       matrix:
         root:
           - apps
-          - infrastructure/configs/staging
+          - infrastructure/configs
           - infrastructure/controllers
           - monitoring/configs
           - monitoring/controllers
@@ -165,7 +165,7 @@ jobs:
             | awk -F: '{s+=$2} END {print s+0}')
           sops_count=$(find . -path './.git' -prune -o -name '*.yaml' -print 2>/dev/null \
             | xargs grep -l 'ENC\[AES256_GCM' 2>/dev/null | wc -l | tr -d ' ')
-          kyverno_count=$(find infrastructure/configs/base/kyverno-policies -name '*.yaml' \
+          kyverno_count=$(find infrastructure/configs/kyverno-policies -name '*.yaml' \
             -exec grep -l '^kind: ClusterPolicy' {} \; 2>/dev/null | wc -l | tr -d ' ')
 
           echo "Live counts:"

@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# No namespace transform: every resource self-namespaces (databases).
+resources:
+  # CouchDB cluster config (formerly base/)
+  - networkpolicy.yaml
+  - ingress.yaml
+  - certificate.yaml
+  - servicemonitor.yaml
+  - pdb.yaml
+  # Staging extras
+  - serviceaccount.yaml
+  - admin-secret.yaml
+  - couchdb-backup-cronjob.yaml
