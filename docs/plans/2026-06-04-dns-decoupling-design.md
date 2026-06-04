@@ -47,26 +47,38 @@ Rejected alternatives:
 
 Keep resolved **uplink mode** (real IPs in resolv.conf, never the `127.0.0.53` stub — a loopback resolv.conf makes k3s generate its own and the change wouldn't propagate).
 
-### Change 1 — ansible networkd DNS drop-in (per node)
+### Change 1 — two ansible drop-ins (per node)
 
-New `hardening`-role task deploys `/etc/systemd/network/<primary>.network.d/10-dns.conf`:
+Split into two drop-ins so the apply is **flap-free** (avoids `networkctl reconfigure`, which renegotiates DHCP/addressing and risks SSH lockout when run from the CP):
+
+**(a) networkd — drop the router-supplied DNS from the link.** `/etc/systemd/network/<primary>.network.d/10-no-dhcp-dns.conf`:
 
 ```ini
 [Network]
-DNS=1.1.1.1
-DNS=9.9.9.9
+DNS=
 
-[DHCP]
+[DHCPv4]
 UseDNS=no
 
 [IPv6AcceptRA]
 UseDNS=no
 ```
 
-- `UseDNS=no` (DHCP + RA) stops resolved consuming the router-supplied DNS (the blocky IPs + `fe80::1`). `[IPv6AcceptRA] UseDNS=no` is optional — `fe80::1` is the router, not the cluster, so keeping it is a benign fallback; dropping it gives a deterministic upstream.
+- `UseDNS=no` (DHCPv4 + RA) stops resolved consuming the router-supplied DNS (blocky IPs + `fe80::1`). Empty `DNS=` resets W2's static `DNS=192.168.1.129` from its main `.network` (drop-in list keys accumulate otherwise).
 - Drop-in (not file rewrite) preserves hand-tuned `.network` (W1 RouteMetric, W2 static address).
-- Per-host var maps the NIC `.network` filename: CP `10-enp3s0.network`, W1 `20-ethernet.network`, W2 `20-wired-static.network`.
-- Handler: `networkctl reload` + `resolvectl flush-caches`. DNS-only change → no address/route reconfigure → **link does not flap → SSH survives**. Never `systemctl restart systemd-networkd`.
+- Per-host var `primary_network_file` maps the NIC `.network` filename: CP `10-enp3s0.network`, W1 `20-ethernet.network`, W2 `20-wired-static.network`.
+
+**(b) resolved — supply the cluster-independent upstream.** `/etc/systemd/resolved.conf.d/upstream-dns.conf`:
+
+```ini
+[Resolve]
+DNS=1.1.1.1 9.9.9.9
+Domains=~.
+```
+
+With the link carrying no DNS (after (a)), resolved routes all lookups (`~.`) to the global `DNS=`. resolv.conf stays uplink-mode listing real IPs (`1.1.1.1`, `9.9.9.9`) — never `127.0.0.53`, or k3s would generate its own resolv.conf.
+
+**Apply:** handler `networkctl reload` + `resolvectl flush-caches` (drops link DNS, non-disruptive) + `systemctl restart systemd-resolved` (re-reads global DNS; restarts only the resolver daemon, **no link flap → SSH survives**). Never `systemctl restart systemd-networkd`.
 
 ### Change 2 — restart CoreDNS to re-read upstream
 
