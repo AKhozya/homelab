@@ -150,6 +150,25 @@
   notify: Restart systemd-resolved
   tags: [hardening, resolved, networkd-dns]
 
+- name: Ensure primary-NIC networkd drop-in dir exists
+  ansible.builtin.file:
+    path: "/etc/systemd/network/{{ primary_network_file }}.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [hardening, networkd-dns]
+
+- name: Deploy networkd no-DHCP-DNS drop-in (drop blocky DNS from link)
+  ansible.builtin.copy:
+    src: networkd-no-dhcp-dns.conf
+    dest: "/etc/systemd/network/{{ primary_network_file }}.d/10-no-dhcp-dns.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload networkd
+  tags: [hardening, networkd-dns]
+
 # ---------- kubelet ----------
 - name: Deploy kubelet config (applies on next k3s restart)
   ansible.builtin.copy:
