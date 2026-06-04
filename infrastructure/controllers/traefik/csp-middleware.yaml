@@ -11,3 +11,29 @@ spec:
       # Violations are sent to csp-reporter service and logged to Loki
       # report-uri remains active for continued monitoring
       Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://authentik.h0melab.work; report-uri http://csp-reporter.csp-reporter.svc.cluster.local/report"
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: csp-strict-enforced
+  namespace: traefik
+spec:
+  headers:
+    customResponseHeaders:
+      # Strict enforced CSP — script-src 'self' only. Applied per-ingress to couchdb/Fauxton.
+      # Browser-verified clean 2026-06-04: zero inline-script/eval violations under report-only soak.
+      # report-uri omitted: csp-reporter is cluster-internal HTTP, unreachable from a browser (Mixed-Content).
+      Content-Security-Policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://authentik.h0melab.work"
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: csp-inline-enforced
+  namespace: traefik
+spec:
+  headers:
+    customResponseHeaders:
+      # Inline enforced CSP — script-src 'self' 'unsafe-inline'; drops 'unsafe-eval' vs the global permissive csp.
+      # Applied to paperless-ngx: Angular UI emits inline scripts (browser-verified 2026-06-04, no eval needed).
+      # report-uri omitted: csp-reporter is cluster-internal HTTP, unreachable from a browser (Mixed-Content).
+      Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://authentik.h0melab.work"
