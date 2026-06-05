@@ -18,28 +18,34 @@
 
 ## Traefik Middlewares
 Defined in `traefik` ns (referenced as `traefik-<name>@kubernetescrd`):
-- `csp`, `rate-limit-standard`, `rate-limit-high-frequency`, `redirect-https`, `security-headers`
+- `csp`, `csp-strict-enforced`, `csp-inline-enforced`, `csp-permissive-enforced`, `rate-limit-standard`, `rate-limit-high-frequency`, `redirect-https`, `security-headers`
+
+CSP 3-tier is **enforced-only** — report-only tier middlewares deleted 2026-06-05 (`cc86baa9`, dead config). `report-uri` omitted everywhere: csp-reporter is cluster-internal HTTP, unreachable from a browser (Mixed-Content) — verify CSP via browser console, not Loki.
 
 Legacy duplicates also live in `monitoring` ns (`csp`, `rate-limit-standard`, `redirect-https`, `security-headers`) for kube-prometheus-stack ingresses.
 
 ## NetworkPolicy invariants
-- **44 NetworkPolicies** total (every ingress + every cross-ns egress)
+- **64 NetworkPolicies** total (every ingress + every cross-ns egress)
 - Default-deny implicit per-ns where NP exists with empty ingress
 - Container port (NOT service port) used in NP `ports:`
 - Apps with both internal + Cloudflare Tunnel access need 2 Ingress rules (Traefik) but 1 NP (covers both via TCP port)
-- Per-ns NP counts: databases 7, monitoring 7, flux-system 3, linkwarden 2, loki 2; all other ns with NP have 1
+- **allow-dns-egress** = Kustomize Component (`apps/components/allow-dns-egress/`), consumed by 14 apps; pod-selector excludes Jobs (`batch.kubernetes.io/job-name DoesNotExist`) so Jobs don't silently inherit DNS egress
+- 4 per-Job egress NPs (selector = `job-name=<job>`): `audiobookshelf-init-egress`, `home-assistant-admin-setup-egress`, `immich-admin-setup-egress`, `n8n-user-provision-egress`
+- mealie + uptime-kuma Jobs deliberately NP-naked (R5-followup decision)
+- Per-ns NP counts: monitoring 8, databases 8; 3 each: audiobookshelf/home-assistant/immich/n8n (app NP + dns-egress + Job NP), flux-system, linkwarden; 2 each: the other 10 dns-egress apps + loki; 1 elsewhere
 
 ## Cloudflare Tunnel topology
 - Account: `***REMOVED-CF-ACCOUNT-ID***`
 - Tunnel ID: `***REMOVED-CF-TUNNEL-UUID***`
+- Image `cloudflare/cloudflared:2026.5.2`; central config `infrastructure/configs/cloudflare/cloudflared.yaml` (external access = entry here, NOT a 2nd Ingress)
 - Config sync via `PUT /accounts/{acct}/cfd_tunnel/{tunnel}/configurations` from SOPS Secret `cloudflared-config`
 - Mgmt token in `cloudflare-tunnel-mgmt-token` Secret, **expires 2026-12-31**
 
 ## DNS chain
 1. LAN client → Blocky LB IP (.129 or .126) :53
 2. Blocky checks ACL → cache → upstream (DoH: Cloudflare Security + Quad9)
-3. Nodes (containerd, system) → systemd-resolved → **public DNS 1.1.1.1 / 9.9.9.9** — **NOT blocky** (decoupled 2026-06-04 to break the node→blocky→kube-proxy-servicelb circular dep; see HISTORY 2026-06-04). resolved stays uplink-mode (real IPs, not 127.0.0.53); networkd `UseDNS=no` drops the DHCP/RA-supplied blocky DNS, resolved global drop-in supplies public.
-4. Cluster pods → CoreDNS (`10.43.0.10`); `forward . /etc/resolv.conf` → node resolv.conf (= public, per step 3). Pods snapshot resolv.conf at creation → `rollout restart ds/coredns-ha` after any node-DNS change. coredns-ha is a **DaemonSet** (2026-06-05, was Deployment) — guarantees a node-local replica; the soft topologySpread kept skewing (06-04: wn2 had 0 → wn2 VXLAN issue = total pod-DNS loss there).
+3. Nodes (containerd, system) → systemd-resolved → **public DNS 1.1.1.1 / 9.9.9.9** — **NOT blocky** (decoupled 2026-06-04, shipped `c4fcd922`, to break the node→blocky→kube-proxy-servicelb circular dep; see HISTORY 2026-06-04). resolved stays uplink-mode (real IPs, not 127.0.0.53); networkd `UseDNS=no` drops the DHCP/RA-supplied blocky DNS, resolved global drop-in supplies public.
+4. Cluster pods → CoreDNS (`10.43.0.10`); `forward . /etc/resolv.conf` → node resolv.conf (= public, per step 3). Pods snapshot resolv.conf at creation → `rollout restart ds/coredns-ha` after any node-DNS change. coredns-ha is a **DaemonSet** (2026-06-05, was Deployment) — guarantees a node-local replica; the soft topologySpread kept skewing (06-04: wn2 had 0 → wn2 VXLAN issue = total pod-DNS loss there). PDB `minAvailable: 1` + updateStrategy `maxUnavailable: 1`.
 5. Mac per-domain resolver `/etc/resolver/h0melab.work` forces `*.h0melab.work` to LAN IPs (bypasses VPN-pushed public DNS)
 
 **Blocky `connectIPVersion: v4` is permanent** — K3s podCIDR is v4-only, dual-stack decided NOT-WORTH-IT (2026-04-26). Blocky on pods can't initiate v6 connections; v4-only DoH upstreams (Cloudflare/Quad9) cover all needs.
@@ -51,7 +57,7 @@ Workers use `ufw-heal-post-k3s.service` (oneshot, after k3s.service) to re-apply
 - **cert-manager** with Cloudflare DNS-01 challenge
 - Wildcard cert `*.h0melab.work` for Traefik
 - Per-app certs: grafana, alertmanager (kube-prometheus-stack uses own)
-- HSTS via `traefik-security-headers@kubernetescrd` middleware
+- HSTS via `traefik-security-headers@kubernetescrd` middleware — `max-age=31536000; includeSubDomains; preload` (customResponseHeaders, not Traefik sts* fields)
 - `minTlsServeVersion: 1.3` on Blocky (inert — no DoT/DoH server configured)
 
 ## Firewall (host-side via UFW)

@@ -2,9 +2,12 @@
 
 All in `databases` namespace except CouchDB extras in `obsidian` (client side) and the `ps-operator` MySQL operator in `percona-mysql` ns.
 
+**HR resilience**: all 4 DB HelmReleases (cnpg-operator, ps-operator, redis-operator, couchdb) set `driftDetection: enabled` + `rollback.cleanupOnFail: true`.
+
 ## PostgreSQL — CloudNativePG (CNPG)
-- **Operator**: helm `cloudnative-pg` 0.28.2 → controller `cnpg-operator-cloudnative-pg` image `ghcr.io/cloudnative-pg/cloudnative-pg:1.29.1` (2 replicas, anti-affinity, in `databases` ns)
-- **Cluster**: `main-postgres` (1 primary + 1 replica on workers, no CP scheduling, hard pod anti-affinity)
+- **Operator**: helm `cloudnative-pg` 0.28.2 → controller `cnpg-operator-cloudnative-pg` image `ghcr.io/cloudnative-pg/cloudnative-pg:1.29.1` (2 replicas, hard anti-affinity, in `databases` ns)
+- **Operator placement** (2026-06-05 `47fbf602`): soft nodeAffinity `NotIn worker-node-2` (weight 100) + CP toleration → pair lands CP+W1. Toleration is load-bearing: without it, replicaCount 2 + hard anti-affinity forces one replica onto wn2 (pref = dead config). Why: 2026-06-04 leader on wn2 probed the HEALTHY W1 primary across wn2's flaky VXLAN → spurious failover into the broken node.
+- **Cluster**: `main-postgres` (1 primary + 1 replica on workers, no CP scheduling, hard pod anti-affinity). `failoverDelay: 30` (default 0 = instant) — rides out 1-10s probe blips (the 06-04 spurious-failover class) at the cost of +30s RTO on genuine primary death.
 - **Pods**: `main-postgres-{N}` (sequential numbering, current 11+12 after upgrades)
 - **Storage**: 10Gi PVC per instance (`local-path`)
 - **Connection pooler**: PgBouncer Deployment `main-postgres-rw-pooler` (2 replicas, image `ghcr.io/cloudnative-pg/pgbouncer:1.25.1`)
@@ -21,7 +24,7 @@ All in `databases` namespace except CouchDB extras in `obsidian` (client side) a
 - **MySQL pods**: `main-mysql-mysql-{0,1}` (size 2, anti-affinity, 20Gi PVC each). Image `percona/percona-server:8.4.8-8.1`
 - **HAProxy pods**: `main-mysql-haproxy-{0,1}` (size 2, anti-affinity). Image `percona/haproxy:2.8.18`
 - **Orchestrator pods**: `main-mysql-orc-{0,1,2}` (size 3, spread across CP+W1+W2 with CP toleration, async failover quorum). Image `percona/percona-orchestrator:3.2.6-19`
-- **Toolkit sidecar**: `percona/percona-toolkit:3.7.1` in MySQL pods
+- **Toolkit sidecar**: `percona/percona-toolkit:3.7.1` in MySQL pods; CR `spec.backup.image` pinned `percona/percona-xtrabackup:8.4.0-5.1` (logical mysql-backup CronJob is the backup of record)
 - **Apps**: `uptimekuma`, `homeassistant`, `pricebuddy` (auto-discovered backup)
 - **Versioning**: regex `^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(-(?<build>\d+)\.(?<revision>\d+))?$`
 - **Root pwd**: `mysql-cluster-secrets/root` Secret (NOT `main-mysql-secrets`)
@@ -45,7 +48,7 @@ All in `databases` namespace except CouchDB extras in `obsidian` (client side) a
 - **Schema notes**: v1beta2 has no `spec.kubernetesConfig.serviceType`; sentinel password uses `secretKeyRef` (EnvVarSource) not flat fields
 
 ## CouchDB
-- **Chart**: helm `couchdb` 4.6.x → STS `couchdb-couchdb` (clusterSize 2, image `couchdb:3.5.1`)
+- **Chart**: helm `couchdb` 4.6.3 → STS `couchdb-couchdb` (clusterSize 2, image `couchdb:3.5.1`)
 - **Pods**: `couchdb-couchdb-{0,1}` in `databases` ns
 - **Auth**: Basic (admin from `couchdb-credentials` Secret)
 - **Backup**: daily HTTP-based dump CronJob (auto-discovers via `_all_dbs`)
@@ -90,5 +93,5 @@ mysql-exporter (databases ns) is **standard tier** (`homelab-standard`/50000) �
 - CouchDB / Redis CRs: Helm/OT operator handle rolling-update on apply.
 - Pooler: Pooler `deploymentStrategy: RollingUpdate` auto-handles.
 
-**DB primary node-pinning (best-effort, manual):** CNPG/Percona/Redis primaries currently on W1 (`worker-node`) — more performant. Pin patterns in `[[gotchas]]` → "DB primary node-pin patterns".
+**DB primary node-pinning (best-effort, manual):** target = W1 (`worker-node`) — more performant. Pin via `db-primary-pin` skill (wraps `kubectl cnpg promote` / orchestrator graceful-takeover / sentinel failover); patterns also in `[[gotchas]]` → "DB primary node-pin patterns". State 2026-06-05: CNPG + Percona primaries back on W1 after the 06-04 spurious-failover incident; Redis master still `redis-replication-0` on W2 (not yet re-pinned), 3 sentinels quorum OK.
 - ⚠️ **Tier quotas may block rolling updates** (need 2x during rollout). Temp increase quota if a rolling update stalls on `exceeded quota`.

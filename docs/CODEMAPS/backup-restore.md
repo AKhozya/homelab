@@ -14,7 +14,9 @@
 | **SOPS Secrets** | Encrypted in git | every commit | n/a (file-based) |
 | **Disaster recovery scripts** | `.backup/secrets-{backup,restore}.sh` | manual | partial (explicit list) |
 
-Namespaces: PG/MySQL/CouchDB cronjobs in `databases`; PVC cronjob in `kube-system`; replication in `backup-replication`.
+Namespaces: PG/MySQL/CouchDB cronjobs in `databases`; PVC + immich cronjobs in `kube-system`; replication in `backup-replication`.
+
+All 6 backup CronJobs: `startingDeadlineSeconds: 600` + `backoffLimit: 2` (couchdb keeps `backoffLimit: 6`) — Wave 10 hardening `d8ef6891` 2026-05-24.
 
 ## PVC Backup CRITICAL_PVCS list
 Source: `infrastructure/configs/backup/pvc-backup-cronjob.yaml` (13 entries, 10 apps — updated 2026-05-22).
@@ -47,6 +49,7 @@ Source: `infrastructure/configs/backup/pvc-backup-cronjob.yaml` (13 entries, 10 
 - Blocky — no PVC; config in Secret, query log in PG `blocky` DB
 
 ## Replication topology
+Source: `infrastructure/configs/backup-replication/cronjob.yaml` (script inline in CronJob; SSH key + NAS rsync creds + Telegram = SOPS secrets alongside).
 ```
 W1 PVCs/backups (source: /mnt/k8s-storage/backups)
   ↓ rsync --delete (SSH port 65300, key-based)
@@ -55,7 +58,7 @@ W2 /mnt/extra-storage/backups (z3us@192.168.1.126)
 NAS Zettlab 6 Ultra (192.168.1.136, /akhozya-pool1/backups/homelab/)
   500GB hard limit (warn 400GB / crit 450GB)
 ```
-After NAS push: validate (4 types: postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then **clean source on W1** (except `immich/` which is kept for keep-2 retention). Worker-2 still in chain — temp safety net, **remove ~2026-07-22 (postponed 2026-05-22 +2mo)**.
+After NAS push: validate (4 types: postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then **clean source on W1** (except `immich/` which is kept for keep-2 retention). Worker-2 still in chain (verified 2026-06-05, pending) — drop W2 replication step **~2026-07-20** (HOMELAB_ANALYSIS P2); temp safety net removal **~2026-07-22** (postponed 2026-05-22 +2mo).
 
 **Retention enforcement (Step 5b, set 2026-05-22):** NAS prune runs after validate + clean source.
 - **30d for postgres/mysql/couchdb** — `prune_nas_file()`: file-prune via rsync filter `--include=<file> --include=<file>.sha256 --exclude='*'` against empty source. Targets `<cat>/<cat>_YYYYMMDD_HHMMSS.tar.gz` pattern with date > 30d threshold.
@@ -73,9 +76,9 @@ Failure handling: trap on EXIT sends Telegram failure with `CURRENT_STEP` label;
 - Layout: `postgres/`, `mysql/`, `couchdb/` store FLAT files `<cat>_YYYYMMDD_HHMMSS.tar.gz`; `pvc/` and `immich/` store nested DIRS `<cat>/YYYYMMDD_HHMMSS/...` (file-vs-dir distinction matters for prune regex — bug found + fixed 2026-05-22).
 
 ## DB Backup mechanics
-- **Postgres:** image `postgres:18.3-alpine`, host `main-postgres-rw`, user `postgres-admin`, format custom (`-F c`), excludes `postgres` DB only.
+- **Postgres:** image `postgres:18.4-alpine`, host `main-postgres-rw`, user `postgres-admin`, format custom (`-F c`), excludes `postgres` DB only.
 - **MySQL:** image `mysql:8.4.8` (pinned to 8.4.x for Percona Server 8.4.6, Renovate ignore), host `main-mysql-haproxy:3306`, user `root` (from `mysql-cluster-secrets`), excludes `information_schema`/`mysql`/`performance_schema`/`sys`.
-- **CouchDB:** image `node:24.15.0-alpine`, npm-installs `@cloudant/couchbackup` per run, host `couchdb-couchdb.databases:5984`, has `wait-for-couchdb` initContainer (30 retries × 2s), excludes `_*` system DBs.
+- **CouchDB:** image `node:24.16.0-alpine`, npm-installs `@cloudant/couchbackup` per run, host `couchdb-couchdb.databases:5984`, has `wait-for-couchdb` initContainer (30 retries × 2s), excludes `_*` system DBs.
 - All 3: tar.gz + SHA256, 30-day retention via `find -mtime +30 -delete`, `successfulJobsHistoryLimit: 7`, `concurrencyPolicy: Forbid`, `nodeSelector: worker-node`, `hostPath /mnt/k8s-storage/backups/<engine>`.
 
 ## Disaster Recovery Scripts (`.backup/`)
@@ -93,7 +96,7 @@ Failure handling: trap on EXIT sends Telegram failure with `CURRENT_STEP` label;
 - **Backup replication:** SSH key + NAS rsync creds + Telegram (`backup-telegram`)
 - **OIDC:** only `grafana-oidc` standalone; rest embedded in app secrets (paperless/mealie env, HA secrets.yaml, stirling custom-settings, linkwarden main); immich/audiobookshelf store OIDC in internal DB via web UI
 
-**Coverage check:** all 17 apps in cluster mapped to script entries (incl. recently-added blocky, claude-telegram, pricebuddy). No app-secret gaps observed.
+**Coverage check:** 15 of 16 apps mapped to script entries (homepage = no secrets by design, config in git ConfigMap). No app-secret gaps observed (re-verified 2026-06-05).
 
 ### secrets-restore.sh — sequence
 1. Auto-find latest `secrets-backup-*.tar.gz.gpg` → prompt passphrase → decrypt + extract
@@ -119,5 +122,6 @@ Failure handling: trap on EXIT sends Telegram failure with `CURRENT_STEP` label;
 ## Verification
 - Manual run: `kubectl create job -n kube-system --from=cronjob/pvc-backup pvc-backup-manual-$(date +%s)`
 - Last test: 2026-05-22 — full pipeline tested, all 13 PVCs + 4 DB types + immich weekly successful. immich timing: tar 187s + sha256 914s = 18m21s total for 62.5G. Replication w/ heavy prune: 102s including ~450 file deletes + ~50 dir deletes from NAS.
+- Live check 2026-06-05: all 6 CronJobs present, unsuspended, last-schedule on time (dailies ran <11h ago; immich Sunday ran 2026-05-31).
 - Replication validates 4 backup types daily; failure → Telegram with failed step
 - Backup-monitoring Grafana dashboard: `monitoring/configs/grafana-dashboards/backup-monitoring-dashboard.yaml`

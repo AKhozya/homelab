@@ -2,6 +2,9 @@
 
 VictoriaMetrics primary stack. NO Prometheus pod (only operator chart kept for grafana/alertmanager/operator).
 
+## Layout (flat since F-14, 2026-05-31)
+`monitoring/controllers/` and `monitoring/configs/` are flat — base/staging overlays collapsed render-identical (`b53a4cab` controllers, `081934c0` configs). Flux paths: `./monitoring/controllers` + `./monitoring/configs` (clusters/monitoring.yaml).
+
 ## Stack components
 | Component | Type | Purpose |
 |-----------|------|---------|
@@ -17,14 +20,17 @@ VictoriaMetrics primary stack. NO Prometheus pod (only operator chart kept for g
 | `loki` | STS (`loki` ns) | Log storage |
 | `alloy` | DS (`loki` ns) | Log collector → Loki |
 | `loki-canary` | DS (`loki` ns) | Loki ingest/query health probe |
+| `popeye` | CronJob (`popeye` ns) | Cluster sanitizer scan, weekly Sun 06:00 UTC (`monitoring/controllers/popeye/`) |
 
 ## Helm chart versions
 | Chart | Version | Notes |
 |-------|---------|-------|
-| `kube-prometheus-stack` | 85.2.2 | `prometheus.enabled=false` — operator + grafana + alertmanager + KSM + node-exporter only |
+| `kube-prometheus-stack` | 86.1.1 | `prometheus.enabled=false` — operator + grafana + alertmanager + KSM + node-exporter only |
 | `victoria-metrics-operator` | 0.63.1 | Reconciles VMSingle/VMAgent/VMAlert/VMRule/VMServiceScrape |
 | `loki` | 7.0.0 | Includes loki-canary 3.6.7 subchart |
-| `alloy` | 1.8.1 | Replaces Promtail |
+| `alloy` | 1.8.2 | Replaces Promtail |
+
+All 4 HelmReleases: `driftDetection: {mode: enabled}`; explicit `timeout: 10m` on KPS + loki; `interval: 6h` standard (Wave 9, `60a8bf32`, 2026-05-24).
 
 ## Image versions (pinned)
 - `victoriametrics/victoria-metrics:v1.143.0` (vmsingle)
@@ -33,24 +39,32 @@ VictoriaMetrics primary stack. NO Prometheus pod (only operator chart kept for g
 - `victoriametrics/operator:v0.70.1`
 - `grafana/grafana:13.0.1-security-01`
 - `quay.io/prometheus/alertmanager:v0.32.1`
-- `quay.io/prometheus-operator/prometheus-operator:v0.90.1`
+- `quay.io/prometheus-operator/prometheus-operator:v0.91.0`
 - `registry.k8s.io/kube-state-metrics/kube-state-metrics:v2.19.0`
 - `quay.io/prometheus/node-exporter:v1.11.1-distroless`
 - `docker.io/grafana/loki:3.6.7` + `grafana/loki-canary:3.6.7`
 - `docker.io/grafana/alloy:v1.16.1`
+- `derailed/popeye:v0.22.1`
 
 ## ⚠️ Prometheus converter DISABLED
-Operator env: `VM_ENABLEDPROMETHEUSCONVERTER_*=false`. **PrometheusRule and ServiceMonitor are silently ignored.** Always use native VMRule + VMServiceScrape directly.
+Operator helm values: `operator.disable_prometheus_converter: true` + `enable_converter_ownership: false`. **PrometheusRule and ServiceMonitor are silently ignored.** Always use native VMRule + VMServiceScrape directly.
+
+Exception oddity: `monitoring/configs/cloudflared/cloudflared-servicemonitor.yaml` is a coreos `ServiceMonitor` (evicted to own dir `acac60d3` to escape the victoria-metrics namespace transform). Its kustomization comment claims VMAgent discovers it via `serviceScrapeSelector: {}`, but the real scrape is the native VMServiceScrape `cloudflared` in `scrape-apps.yaml` — converter disabled means the ServiceMonitor itself is likely inert.
 
 ## Rules (VMRule)
-| File | VMRule name | Group count | Notable groups |
-|------|-------------|-------------|----------------|
-| `monitoring/configs/victoria-metrics/vmrules.yaml` | `homelab-alerts` | 25 | node, pod, mysql, database, redis-alerts, redis-ha, kubernetes, certificate, flux, cloudflare-tunnel, kyverno, loki, traefik, rebuilderd, firewall (ufw), node-overrides, node-maintenance, etc. |
-| `monitoring/configs/blocky/prometheusrule.yaml` | `blocky-alerts` (kind: VMRule) | 1 | blocky (5 alerts) |
+| File | VMRule name | Groups | Alerts | Notable groups |
+|------|-------------|--------|--------|----------------|
+| `monitoring/configs/victoria-metrics/vmrules.yaml` | `homelab-alerts` | 25 | 124 | node, pod, mysql, database, redis-alerts, redis-ha, kubernetes, certificate, flux, cloudflare-tunnel, kyverno, loki, traefik, rebuilderd, firewall (ufw), node-overrides, node-maintenance, etc. |
+| `monitoring/configs/blocky/prometheusrule.yaml` | `blocky-alerts` (kind: VMRule) | 1 | 5 | blocky |
 
 vmalert loads 26 groups total across 2 VMRule resources. Verify via: `kubectl port-forward -n monitoring svc/vmalert-vmalert 8080:8080 && curl localhost:8080/api/v1/rules | jq '.data.groups[].name'`
 
 Note: `blocky/prometheusrule.yaml` filename is a relic — kind is already `VMRule`.
+
+Alert classes worth knowing:
+- **firewall-alerts**: `UfwDisabled`/`UfwServiceInactive`/`UfwChainsUnhealthy` (critical, 5m) — gauges from node-exporter textfile collector via `ufw-state-metric.timer`.
+- **JobFailed** (kubernetes-alerts, `kube_job_status_failed > 0`) — fires on TTL+force daily re-run Jobs that fail; 2026-06-04 RCA: audiobookshelf-init curl×6 during wn2 DNS outage. Job pod vanishes with TTL — use VM exit-code metrics, not Loki, for postmortem.
+- **RebuilderdWorkerDown** (critical, for 10m) — rebuilderd worker starts 60m post-boot, so node-maintenance phase1 sets a dedicated 150m Alertmanager silence that outlives the phase2 expire (`b3769f28`, 2026-05-31).
 
 ## VMAgent relabel-drops (noisy series filtered before remoteWrite)
 Drops in `vmagent.yaml`:
@@ -60,14 +74,18 @@ Drops in `vmagent.yaml`:
 - Loop-device fs metrics: `(container_fs_.+|node_filesystem_.+);loop\d+`
 
 ## Service scrapes (VMServiceScrape)
-- **37 native VMServiceScrape** + 4 VMPodScrape resources (cluster-wide, all manifests)
+- **26 VMServiceScrape** + 2 VMPodScrape manifests repo-wide (2026-06-05)
 - 13 scrape files in `monitoring/configs/victoria-metrics/scrape-*.yaml`: apiserver, apps, cnpg-operator, coredns, databases, kube-state-metrics, kubelet, kubelet-cadvisor, kubelet-probes, kyverno, monitoring-stack, node-exporter, vmoperator
-- App-specific scrapes also live alongside apps (e.g. `monitoring/configs/blocky/servicemonitor.yaml`)
+- App-specific scrapes also live alongside apps (e.g. `monitoring/configs/blocky/servicemonitor.yaml` — kind VMServiceScrape despite filename)
+
+## NetworkPolicies (F-49 coverage complete, `208dd218`)
+Per-pod NPs: vmsingle/vmagent/vmalert/vmoperator (`victoria-metrics/networkpolicy.yaml`, 4-in-1), grafana, alertmanager, kube-state-metrics, prometheus-operator (`kube-prometheus-stack/` dir), loki + alloy (`controllers/loki-stack/networkpolicy.yaml`), popeye. Orphan prometheus NP dropped (server disabled). Gap scanner: `~/.claude/skills/_shared/np-coverage.sh`.
 
 ## Dashboards
 - ConfigMaps with label `grafana_dashboard: "1"` auto-loaded by Grafana sidecar
 - Sidecar polls every 30s, writes to `/tmp/dashboards/`
 - Grafana `sidecarProvider` reads `/tmp/dashboards/` every 30s
+- `monitoring/configs/grafana-dashboards/`: cnpg, redis, traefik-k8s, loki-stack, cert-manager, backup-monitoring, node-maintenance
 - **Custom**: `blocky-dashboard` (custom panels using VictoriaMetrics datasource — community 13768 had Prometheus hardcoded + interactive HTML/JS plugin error)
 - Standard kube-prometheus-stack dashboards: cluster-total, pod-total, workload-total, node-exporter, kubelet, etc.
 
@@ -100,9 +118,11 @@ Drops in `vmagent.yaml`:
 - vmalert: 50m / 128Mi req → 200m / 256Mi lim
 - Loki: 1Gi req / 4Gi lim (chunk index growth)
 - Grafana: 256Mi req / 512Mi lim
+- VM-core (vmsingle/vmagent/vmalert): `priorityClassName: homelab-critical` (F-30, `85d39527`)
 
 ## Decommissioned
 - Prometheus pods (replaced by vmsingle, 2026-Q1)
 - Prometheus PVCs (~100Gi) deleted 2026-04-26
 - `monitoring/configs/kube-prometheus-stack/prometheus-rules.yaml` deleted 2026-04-26 (1183 lines, all groups duplicated to vmrules.yaml + redis-ha was missing)
 - Loki/Alloy moved out of `monitoring` ns into dedicated `loki` ns
+- base/staging overlay dirs under `monitoring/` (F-14 flatten, 2026-05-31)

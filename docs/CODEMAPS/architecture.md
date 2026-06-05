@@ -1,6 +1,6 @@
 # Architecture Codemap
 
-**Cluster**: K3s v1.35.x staging, 3 nodes (1 CP + 2 workers).
+**Cluster**: K3s v1.36.1+k3s1 **production** (single env — merge to `main` = deploy to prod), 3 nodes (1 CP + 2 workers), containerd 2.2.3-k3s1. Refreshed 2026-06-05.
 
 ## Nodes
 | Hostname | IP | Role | OS |
@@ -14,20 +14,27 @@ SSH port for all nodes: `65300`. Aliases: `ssh_master_node`, `ssh_worker_node`, 
 CP NIC: Intel I225-V (`enp3s0`), forced 1Gbps + EEE off via `igc-tune@.service` (ansible role `nic_tuning`).
 
 ## GitOps Layer (Flux v2)
-6 Kustomizations, dependency-ordered:
+7 Kustomizations, dependency DAG (apps does NOT depend on monitoring — parallel chains):
 ```
-flux-system
-  └─ infrastructure-controllers   (cert-manager, traefik, kyverno, CNPG operator, OT redis-op, Percona MySQL op)
-       └─ infrastructure-configs  (cluster CRs, NetworkPolicies, ResourceQuotas, secrets, cronjobs, backup-replication)
-            └─ monitoring-controllers   (kube-prometheus-stack chart, VictoriaMetrics op, Loki, Alloy)
-                 └─ monitoring-configs  (VMRule, VMServiceScrape, dashboards, alertmanager templates)
-                      └─ apps           (16 application stacks)
+flux-system (path ./clusters/staging — "staging" dir name = legacy artifact, env is PROD; branch main)
+  └─ infrastructure-controllers   (cert-manager, traefik, kyverno, csp-reporter, DB operators: CNPG, OT redis, Percona MySQL)
+       ├─ coredns                 (coredns-ha DaemonSet in kube-system — own Kustomization so DNS heals independently)
+       ├─ infrastructure-configs  (cluster CRs, NetworkPolicies, ResourceQuotas, secrets, cronjobs, backup-replication, kyverno-policies)
+       │    └─ apps               (16 app stacks, flat apps/<app> post base/overlay collapse F-13/F-14; + components/ shared allow-dns-egress)
+       └─ monitoring-controllers  (kube-prometheus-stack chart, VictoriaMetrics op, Loki, Alloy)
+            └─ monitoring-configs (VMRule, VMServiceScrape, dashboards, alertmanager templates; flat monitoring/{controllers,configs})
 ```
 
+## DNS & resilience
+- **coredns-ha**: DaemonSet (Deployment→DaemonSet 2026-06-05 — wn2 had no local coredns pod, all pod-DNS rode VXLAN → 2026-06-04 wn2-only blackout). Never `--disable=coredns` (deletes addon-owned kube-dns objects Flux can't recreate — break-glass `kubectl apply -k infrastructure/coredns/`).
+- **Blocky** = LAN DNS (apps/blocky, servicelb 1 LB IP per worker .129/.126, ETP=Local preserves source IP).
+- **Node resolvers** = public DNS since 2026-06-04 (`c4fcd922`) — broke circular node→blocky dependency at boot.
+- **CNPG** `main-postgres`: `failoverDelay: 30` + operator scheduled off W2 (`47fbf602`) — guards against spurious failover from flaky-node operator probes (2026-06-04 incident).
+
 ## Encryption
-- **SOPS + age** (53 SOPS-encrypted Secrets in git)
+- **SOPS + age** (52 SOPS-encrypted files in git)
 - Bootstrap key: `sops-age` Secret in `flux-system` ns
-- Cloudflare Tunnel config also SOPS-encrypted
+- Cloudflare Tunnel config also SOPS-encrypted (`cloudflared-config-secret.yaml` = source of truth for external hostnames)
 - **Edit pattern**: `sops <file>` opens decrypted in `$EDITOR`, re-encrypts on save. Or `sops -e -i <file>` to encrypt-in-place after manual write.
 
 ## ⚠️ GitOps invariants
@@ -44,15 +51,15 @@ flux-system
 
 ## Identity / Auth
 - **Authentik** = OIDC provider (PostgreSQL, no Redis — in-memory cache, passkey-first via Conditional UI)
-- 8 apps integrated: Stirling PDF, Grafana, Immich, Paperless, HA, LinkWarden, Mealie, Audiobookshelf
+- 8 apps integrated: Stirling PDF, Grafana, Immich, Paperless, HA (hass-oidc-auth v1.1.0, re-enabled 2026-05-31), LinkWarden, Mealie, Audiobookshelf
 - N8N uses native user mgmt (no OIDC — Enterprise-plan-only feature)
 
 ## External access
-- **Cloudflare Tunnel** (9 svcs): authentik, couchdb, audiobooks, linkwarden, stirling-pdf, mealie, paperless, immich, n8n
-- **Internal**: Blocky DNS (W1+W2 LB IPs) + Traefik Ingress (class=traefik) on port 443 (Traefik in own `traefik` ns)
+- **Cloudflare Tunnel** (9 svcs, verified from SOPS config 2026-06-05): authentik, couchdb, audiobooks, linkwarden, stirling, mealie, paperless, immich, n8n. New external app = entry in central `cloudflared.yaml`, NOT a 2nd Ingress.
+- **Internal**: Blocky DNS (see DNS section) + Traefik Ingress (class=traefik) on port 443 (Traefik in own `traefik` ns)
 - **Domain**: `h0melab.work` (cert-manager DNS-01 via Cloudflare API token)
 
 ## Cluster boundaries
 - 27 namespaces (excl. system: kube-*, flux-system, default)
-- 44 NetworkPolicies (every ingress + every cross-ns egress)
-- 10 Kyverno ClusterPolicies — 7 Enforce (disallow-host-namespaces, disallow-latest-tag, disallow-privilege-escalation, require-drop-all-capabilities, require-labels, require-non-default-serviceaccount, require-seccomp-runtimedefault) + 3 Audit (disallow-host-path, require-non-root, require-resource-limits)
+- 64 NetworkPolicies live = 47 git manifests + `allow-dns-egress` Kustomize Component fanned into 14 app namespaces (Jobs excluded via `batch.kubernetes.io/job-name DoesNotExist`)
+- 12 Kyverno ClusterPolicies — **ALL Enforce** (last Audit→Enforce promotions 2026-05-25, ultrareview): disallow-host-namespaces, disallow-host-path, disallow-latest-tag, disallow-privilege-escalation, require-drop-all-capabilities, require-labels, require-networkpolicy, require-non-default-serviceaccount, require-non-root, require-readonly-rootfs, require-resource-limits, require-seccomp-runtimedefault
