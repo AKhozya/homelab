@@ -117,50 +117,19 @@
 | Watch Authentik #19580 (multi-passkey wrong-pick) — relevant if enrolling 2nd passkey | Backlog | P3 |
 | Passkey-only login watch — real login verified 2026-06-05 (user, immich→Authentik OIDC); close 06-19 if no lockout edge cases (new device, post-reboot, Conditional UI) | 2026-06-19 | P3 |
 | Relocate worker-node-2 rebuilderd (repro + worker dep-cache) off cramped 863G `/mnt/extra-storage` → spacious 3.6T `/mnt/k8s-storage` (mirror W1) — eliminates DiskPressure recurrence at the source; daily `paccache -rk2` is the interim mitigation. Needs finding the workdir knob (rebuilderd-worker internal default / conf `[build]`) + data migration. | Backlog | P2 |
-| Cluster CPU/memory right-sizing analysis — VMSingle PVC bound 2026-04-06; 90d data depth reached ~2026-07-05. Run after monthly cron cycles captured (security scan 1st, weekly Sat reboot, paccache, log rotation). Workload: per-namespace p95/p99 CPU + memory vs requests/limits, identify over/under-provisioned (use `vmq` helper). | 2026-07-06 | P2 |
+| Cluster CPU/memory right-sizing analysis — VMSingle PVC bound 2026-04-06; 90d data depth reached ~2026-07-05. Run after monthly cron cycles captured (security scan 1st, weekly Sat reboot, paccache, log rotation). Workload: per-namespace p95/p99 CPU + memory vs requests/limits, identify over/under-provisioned (use `vmq` helper). Popeye 2026-06-05 POP-109/110 warns (PODS section 19%) = input data | 2026-07-06 | P2 |
+| Image-CVE scanning decision — NO scanner in stack (trivy absent from cluster/CI/nodes; renovate freshness ≠ CVE scan). Options: trivy-operator (in-cluster, costs resources), trivy in CI (image list scan, free), or accept-as-is documented | 2026-07-04 | P3 |
+| Investigate `databases/main-mysql-mysql-proxy` Service — Popeye POP-1100 "no pods match selector" (proxy disabled in Percona CR → operator still creates svc?); also POP-1106 named-port lints on Percona/Redis operator svcs (cosmetic, services work live) | 2026-07-04 | P3 |
 
 **Next Review**: 2026-07-04 (monthly + quarterly automation audit, same day). Last: 2026-06-05.
 
 ### Monthly Review Checklist
 
-**1. Security scan rollup** — pull security-scan summaries from 3 nodes, diff prior month, doc deltas in review commit.
+**Canonical procedure = `homelab-monthly-review` skill** (`~/.claude/skills/homelab-monthly-review/SKILL.md`, since 2026-06-05). Phases: prep → **posture sweep** (node security scans no-sudo, Kyverno polr, Popeye score diff, alerts, Flux/CI, certs, backups, disk, DB health + primary-pin drift, stale resources, renovate) → stocktake + CODEMAPS (parallel agents + fact block) → pending sweep + upstream re-checks → actions (worktree + /gitops-workflow, decisions batched via one ask) → docs/memory/chezmoi-sync.
 
-```bash
-for node in "akhozya@gmk-k3s-control-plane" "akhozya@worker-node" "z3us@worker-node-2"; do
-  echo "=== $node ==="
-  # no sudo — logs root:adm 640, both users in adm (verified 2026-06-05)
-  ssh -p 65300 "$node" "grep -E 'Suspect files|Possible rootkits' /var/log/node-maintenance/security-scan-$(date -u +%Y-%m).log; echo warnings=\$(grep -c '^Warning:' /var/log/node-maintenance/security-scan-$(date -u +%Y-%m).log)"
-done
-# prior-month diff: same grep on security-scan-<prev>.log.1 (logrotate keeps it)
-```
+Why skill, not inline list: 2026-06-05 review followed the old 3-item checklist (scan rollup, stocktake, CODEMAPS) and missed Kyverno/Popeye/image-CVE posture until asked — checklist-following ≠ completeness. Skill holds the full surface table + commands; this section stays a pointer so the two never drift.
 
-Source of truth:
-- `/var/log/node-maintenance/security-scan-YYYY-MM.log` (per-node summary, 12mo retention)
-- `/var/log/lynis-report.dat`, `/var/log/rkhunter.log` (full output, 6mo via logrotate)
-- Timer: `node-maintenance-security-scan.timer` — 1st of month 04:00 UTC, all 3 nodes
-
-**2. Skill stocktake** — actualise homelab skills against current cluster state. Catches stale tool refs (e.g. removed pods), missing frontmatter, content drift vs CLAUDE.md.
-
-```
-/skill-stocktake          # quick scan if results.json present
-/skill-stocktake full     # full re-eval, 20-30 min
-```
-
-Cache: `~/.claude/skills/skill-stocktake/results.json`. Cleanup pattern: Retire/Improve/Update verdicts → user-confirmed batch fix.
-
-**3. CODEMAPS refresh** — actualise `docs/CODEMAPS/*.md` against current cluster state. Snapshots drift silently (image bumps, ns moves, version pins, app add/remove, helm chart bumps). Dispatch parallel agents (one per codemap) with a pre-gathered live-cluster fact block to avoid redundant `kubectl` runs.
-
-```bash
-# Live-state snapshot to brief agents
-kubectl get nodes -o wide
-kubectl get helmrelease -A
-kubectl get clusters.postgresql.cnpg.io,redisreplication,redissentinel -A
-kubectl get cronjob,networkpolicy,clusterpolicy -A
-kubectl get pods -A -o jsonpath='{range .items[*]}{.spec.containers[*].image}{"\n"}{end}' | sort -u
-cat apps/kustomization.yaml
-```
-
-Files: `architecture.md`, `apps.md`, `networking.md`, `databases.md`, `monitoring.md`, `backup-restore.md`. Each agent: read current codemap → diff against source-of-truth dirs (apps/, infrastructure/, monitoring/, .backup/) → Write updated content. Last refresh: 2026-05-22.
+CODEMAPS last refresh: 2026-06-05.
 
 ### Quarterly Review (every 3 months — next: 2026-07-04)
 
