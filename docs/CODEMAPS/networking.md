@@ -39,7 +39,7 @@ Legacy duplicates also live in `monitoring` ns (`csp`, `rate-limit-standard`, `r
 1. LAN client → Blocky LB IP (.129 or .126) :53
 2. Blocky checks ACL → cache → upstream (DoH: Cloudflare Security + Quad9)
 3. Nodes (containerd, system) → systemd-resolved → **public DNS 1.1.1.1 / 9.9.9.9** — **NOT blocky** (decoupled 2026-06-04 to break the node→blocky→kube-proxy-servicelb circular dep; see HISTORY 2026-06-04). resolved stays uplink-mode (real IPs, not 127.0.0.53); networkd `UseDNS=no` drops the DHCP/RA-supplied blocky DNS, resolved global drop-in supplies public.
-4. Cluster pods → CoreDNS (`10.43.0.10`); `forward . /etc/resolv.conf` → node resolv.conf (= public, per step 3). Pods snapshot resolv.conf at creation → `rollout restart deploy/coredns-ha` after any node-DNS change.
+4. Cluster pods → CoreDNS (`10.43.0.10`); `forward . /etc/resolv.conf` → node resolv.conf (= public, per step 3). Pods snapshot resolv.conf at creation → `rollout restart ds/coredns-ha` after any node-DNS change. coredns-ha is a **DaemonSet** (2026-06-05, was Deployment) — guarantees a node-local replica; the soft topologySpread kept skewing (06-04: wn2 had 0 → wn2 VXLAN issue = total pod-DNS loss there).
 5. Mac per-domain resolver `/etc/resolver/h0melab.work` forces `*.h0melab.work` to LAN IPs (bypasses VPN-pushed public DNS)
 
 **Blocky `connectIPVersion: v4` is permanent** — K3s podCIDR is v4-only, dual-stack decided NOT-WORTH-IT (2026-04-26). Blocky on pods can't initiate v6 connections; v4-only DoH upstreams (Cloudflare/Quad9) cover all needs.

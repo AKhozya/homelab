@@ -84,7 +84,7 @@
 ## EXTERNAL ACCESS
 
 **Cloudflare Tunnel** (9 svcs): authentik, couchdb, audiobooks, linkwarden, stirling-pdf, mealie, paperless, immich, n8n
-**Internal**: Blocky LAN-client DNS (nodes + CoreDNS use public upstream since 2026-06-04 — see Blocky row), Traefik Ingress
+**Internal**: Blocky LAN-client DNS (nodes + CoreDNS use public upstream since 2026-06-04 — see Blocky row), Traefik Ingress. Cluster DNS = `coredns-ha` **DaemonSet** (2026-06-05, was Deployment whose soft-spread skewed to 0-on-a-node → 06-04 wn2 pod-DNS outage): 1 replica/node behind kube-dns `10.43.0.10`
 **Domain**: h0melab.work
 
 ---
