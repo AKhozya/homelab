@@ -21,6 +21,7 @@ configMapGenerator:
       - blueprints/10-voluntary-enrollment.yaml
       - blueprints/20-passkey-first.yaml
       - blueprints/30-enforce.yaml
+      - blueprints/40-remove-password-binding.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
