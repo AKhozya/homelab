@@ -36,7 +36,6 @@ spec:
                 - home-assistant     # hardware integration, privileged ns
                 - paperless-ngx      # s6-overlay rewrites /run perms at boot (RoRFS not viable — F-40)
                 - backup-replication # rsync stages backup files to writable root
-                - claude-telegram    # F-39: RoRFS gated on live write-audit, primary bot — not flipped unattended
                 - pricebuddy         # Laravel bootstrap/cache + selenium chrome temp + apprise root writes
                 - stirling-pdf       # su-exec privilege drop + nginx/system-config writes (RoRFS:false by design)
                 - mealie             # PSS-baseline ns: user-provision Job runs apt-get at runtime (Job metadata lacks pod labels → ns-scope exclude covers Job+Pod recreation)
