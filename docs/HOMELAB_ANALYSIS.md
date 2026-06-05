@@ -34,7 +34,7 @@
 |-----|----------|-------|
 | Homepage | - | Dashboard |
 | Uptime Kuma | - | Uptime monitor, MySQL |
-| Authentik | Provider | SSO, PostgreSQL (no Redis — in-memory cache), passkey-first via Conditional UI (password fallback retained) |
+| Authentik | Provider | SSO, PostgreSQL (no Redis — in-memory cache), passkey-only via Conditional UI (password binding removed 2026-06-05; recovery = username+TOTP or email flow) |
 | Blocky | - | DNS filter + ad blocking, **HA: 2 replicas (W1+W2), single Deployment, native rolling, Redis cache sync, CNPG Postgres query log**. Serves **LAN clients only** (via router DHCP → .129/.126 servicelb); nodes + CoreDNS upstream = public DNS since 2026-06-04 (circular-dep break) |
 | Stirling PDF | OIDC | PDF toolkit |
 | HomeHub | - | Family dashboard, local only |
@@ -110,20 +110,16 @@
 | Item | Target | Priority |
 |------|--------|----------|
 | Drop worker-node-2 replication step | ~2026-07-20 | P2 |
-| n8n PgBouncer `statement_timeout` fix — re-check #25705 (verified OPEN 2026-05-07, last upstream update 2026-04-28; rescheduled to align with monthly review) | 2026-06-04 | P3 |
+| n8n PgBouncer `statement_timeout` fix — re-check #25705 (re-verified OPEN 2026-06-05, no upstream movement since 2026-04-28) | 2026-07-04 | P3 |
 | High-pri secret rotation (PG: authentik/immich/n8n, MySQL: HA, Redis: immich) | 2026-07-01 | P1 |
-| Re-evaluate Authentik 2026.5 client hints (#20700) — upstream release dependent (latest stable 2026.2.2 / RC 2026.2.3-rc1 as of 2026-05-08; ~3-4mo cadence implies 2026.5 ~mid-2026) | Backlog (watch releases) | P3 |
+| Evaluate enabling WebAuthn client hints in Authentik blueprints — #20700 CLOSED upstream 2026-03-13, cluster on 2026.5.2 since 2026-05-28 (unblocked at 2026-06-05 review) | 2026-07-04 | P3 |
 | Watch Authentik #18232 (TOTP/WebAuthn pk collision in MFA Devices UI) | Backlog | P3 |
 | Watch Authentik #19580 (multi-passkey wrong-pick) — relevant if enrolling 2nd passkey | Backlog | P3 |
-| Consider removing default-authentication-password binding once 1+ month clean passkey ops | 2026-06 | P3 |
-| Blocky memory-limit review — soak (2026-05-07) peak 307Mi blocks 256Mi; reduce 512Mi → 384Mi (25% headroom) instead | 2026-05-26 | P3 |
-| Redis HA operator health check (master/replica/sentinel quorum, alerts firing only on real outages) | 2026-05-26 | P3 |
-| Redis HA failover smoke test (re-verify Sentinel-driven master promotion + app reconnect, post-Phase-1 stability check) | 2026-05-26 | P2 |
-| Validate UFW silent-disable auto-heal on next W1 kernel upgrade — UFW heal v5 shipped 2026-05-16: 5-layer defence (modules-load, k3s-wait-ready, boot-time healer, preflight role, 5min watchdog timer). Phase2 now retries 3x at 15min (Restart=on-failure). Stale phase2-pending flag auto-clears after 2h if Flux healthy (ExecCondition on config.service). Previous incident: phase2 Flux source-controller SSH timeout blocked drift-heal all day → UFW stayed disabled 12h. Now: L1 ansible retries+180s timeout, L2 systemd retry, L3 stale flag auto-clear. PASS = kernel upgrade + reboot → UFW recovers automatically, watchdog catches stragglers. FAIL = repeat outage. Watch: `journalctl -t ufw-heal --since reboot`, `systemctl is-active ufw-heal-watchdog.timer`, telegram drift-heal alerts. | next W1 kernel upgrade | P2 |
+| Verify passkey-only login post password-binding removal (browser check done 2026-06-05; watch for lockout edge cases ~2 weeks) | 2026-06-19 | P3 |
 | Relocate worker-node-2 rebuilderd (repro + worker dep-cache) off cramped 863G `/mnt/extra-storage` → spacious 3.6T `/mnt/k8s-storage` (mirror W1) — eliminates DiskPressure recurrence at the source; daily `paccache -rk2` is the interim mitigation. Needs finding the workdir knob (rebuilderd-worker internal default / conf `[build]`) + data migration. | Backlog | P2 |
 | Cluster CPU/memory right-sizing analysis — VMSingle PVC bound 2026-04-06; 90d data depth reached ~2026-07-05. Run after monthly cron cycles captured (security scan 1st, weekly Sat reboot, paccache, log rotation). Workload: per-namespace p95/p99 CPU + memory vs requests/limits, identify over/under-provisioned (use `vmq` helper). | 2026-07-06 | P2 |
 
-**Next Review**: 2026-06-04 (monthly) — 2026-05-02 review run early in lieu of 2026-05-04
+**Next Review**: 2026-07-04 (monthly + quarterly automation audit, same day). Last: 2026-06-05.
 
 ### Monthly Review Checklist
 
@@ -181,6 +177,7 @@ Output: keep / merge / cut / fix-next per surface. Run quarterly OR post-inciden
 *Monthly reviews, full changelog, done items: [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) + `git log --all -- docs/HOMELAB_ANALYSIS.md`*
 
 **Recent highlights** (2026):
+- 2026-06-05: **Monthly review** — security-scan rollup June vs May: warnings 95→32/94→31/94→31 (CP/W1/W2, −66%, propupd baseline effect), 0 rootkits all nodes. UFW heal v5 **validated PASS** (W1 kernel 6.18.33-1-lts upgrade + reboot 2026-05-31 22:35, UFW + watchdog active, no outage). Blocky memory-limit review closed **keep 512Mi** (30d peak 365Mi — 384Mi target would leave 5% headroom; limit ≠ reservation). Redis HA operator health verified (3-sentinel quorum OK, full alert ruleset). n8n #25705 still open (no movement since 04-28) → 07-04. Authentik client-hints unblocked (#20700 closed upstream, cluster on 2026.5.2) → evaluate 07-04. Redis failover smoke test **PASS** (sentinel promotion replication-0→1, quorum held, replica lag=0, immich ioredis self-recovered <3min) + master re-pinned wn2→W1. Authentik **password binding removed** (passkey-only main flow, blueprint `40-remove-password-binding.yaml`; TOTP = recovery + new weakest path, accepted). Skill stocktake: 21 OK / 3 Improve (cluster-roll DaemonSet lines, monitoring-check baselines, np-coverage REVIEW.md ref) — fixed same day. CODEMAPS refreshed (6 agents — KPS 86.1.1, NP 64 breakdown, CNPG hardening backfill, 9 app image rows).
 - 2026-06-04: **Configs base/staging flatten** (`081934c0` mon + `87deba9e` infra) — flattened the last two overlay splits (`monitoring/configs` + `infrastructure/configs`) to flat single-env dirs. Render byte-identical (63 mon / 133 infra res) → zero churn. Dropped redundant ns transforms (kps + databases/couchdb), deleted dead `base/resource-governance`, renamed colliding mysql SA file (`main-mysql` vs `mysql-jobs`). No base/staging splits remain repo-wide.
 - 2026-05-23: **Ultrareview** — 4-agent consensus (arch + k8s/Flux + security + cruft). REVIEW.md retired 2026-06-05 after full closure (record in git history). Findings: 1 P0 (Cloudflare ACCOUNT_ID + tunnel UUID plaintext in `cloudflared.yaml:53-54` `command:` field, SOPS does not cover commands — move to encrypted Secret env vars; no regen needed, account ID is non-secret + tunnel credentials JSON already SOPS-encrypted), 11 P1, 17 P2, 9 P3. Top P1: 3 Kyverno policies in Audit not Enforce (`disallow-host-path`, `require-non-root`, `require-resource-limits`); `require-resource-limits` skips `initContainers`; `disallow-privilege-escalation` + `require-drop-all-capabilities` use optional `=()` patterns (containers omitting fields pass); no Kyverno for NetworkPolicy presence or `readOnlyRootFilesystem`; `monitoring-*` Flux Kustomizations lack `dependsOn`+`healthChecks` (bootstrap race); `apps.yaml` `wait: false` + `healthChecks` contradict (dead config); Immich/uptime-kuma/n8n/claude-telegram egress gaps. Doc drift: 44 NPs → 40, "100% PSS" misleading. 13 .DS_Store tracked + closed-PR baselines + stale Popeye report + `docs/superpowers/` archive candidates. CI gaps: no kubeconform/yamllint/SOPS-check/shellcheck.
 - 2026-05-22: Backup overhaul — +5 PVCs (mealie, n8n, audiobookshelf-config+metadata) added to daily, stale uptime-kuma removed, claude-telegram + immich-ML + loki + vmsingle + stirling-pipeline/tessdata documented as expendable. NEW `immich-backup` weekly CronJob Sunday 03:00 UTC (uncompressed tar+sha256, 62.5G in 18m21s, keep-2). Retention enforced: W1 source 30d (`find -mtime +30`), NAS prune Step 5b for both layouts — `prune_nas_file` (rsync filter `--include=<file> --exclude='*'` against empty source) for postgres/mysql/couchdb files, `prune_nas_dir` for pvc + immich. File-vs-dir bug found mid-test + fixed (commit `73f7a611`). Redis cache+queue/broker confirmed via key inspection (BullMQ + Celery + Django sessions + TTL'd cache) — **no backup needed**, documented.
