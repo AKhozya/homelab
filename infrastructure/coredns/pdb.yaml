@@ -6,8 +6,8 @@ metadata:
   labels:
     app: coredns-ha
 spec:
-  # 3 replicas, tolerate losing 2 to voluntary disruption (the reboot play only cordons — never
-  # drains/evicts — so this never blocks a reboot; it guards manual drains + descheduling).
+  # DaemonSet pod per node (3), tolerate losing 2 to voluntary disruption (the reboot play only
+  # cordons — never drains/evicts — so this never blocks a reboot; it guards manual drains).
   minAvailable: 1
   unhealthyPodEvictionPolicy: AlwaysAllow
   selector:

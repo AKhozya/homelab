@@ -5,5 +5,5 @@ resources:
   - rbac.yaml
   - configmap.yaml
   - service.yaml
-  - deployment.yaml
+  - daemonset.yaml
   - pdb.yaml

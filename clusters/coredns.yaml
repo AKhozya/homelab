@@ -20,6 +20,6 @@ spec:
   wait: true
   healthChecks:
     - apiVersion: apps/v1
-      kind: Deployment
+      kind: DaemonSet
       name: coredns-ha
       namespace: kube-system

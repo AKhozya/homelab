@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: coredns-ha
   namespace: kube-system
@@ -8,19 +8,20 @@ metadata:
     k8s-app: kube-dns
     app.kubernetes.io/name: coredns-ha
 spec:
-  # Additive HA layer alongside the k3s packaged CoreDNS addon (left untouched — no --disable, no
-  # gap, no addon fight). Pods carry k8s-app=kube-dns so the existing kube-dns Service (10.43.0.10)
-  # load-balances across these 3 spread replicas + the addon's. Unique selector app=coredns-ha so
-  # this Deployment never adopts/steals the addon's pods. Reuses the addon's `coredns` ConfigMap
-  # (Corefile + NodeHosts) and `coredns` ServiceAccount — no Corefile/Service/RBAC duplication.
-  # Goal: a single wedged/rebooting node can no longer take cluster DNS down. See
-  # docs/plans/2026-05-31-reboot-wedge-prevention.md (Stage 3).
-  replicas: 3
+  # DaemonSet (was Deployment, 2026-06-05): exactly one CoreDNS per node. The Deployment's soft
+  # topologySpread (ScheduleAnyway) repeatedly skewed under least-allocated scoring + rolling-update
+  # double-counting (06-04: wn2 had ZERO local coredns -> flannel blackout on wn2 = total pod-DNS
+  # loss there, JobFailed audiobookshelf-init + authentik crashloop x17). A node-local replica
+  # bounds that blast radius; DaemonSet pods also auto-tolerate disk/memory-pressure taints.
+  # Pods carry k8s-app=kube-dns so the kube-dns Service (10.43.0.10) load-balances across them.
+  # Unique selector app=coredns-ha. Reuses the addon-named `coredns` ConfigMap (Corefile +
+  # NodeHosts) and ServiceAccount — Flux owns these outright since `--disable=coredns`
+  # (config.yaml.j2; addon deleted its copies on CP k3s restart, see clusters/coredns.yaml).
+  # See docs/plans/2026-05-31-reboot-wedge-prevention.md (Stage 3).
   revisionHistoryLimit: 2
-  strategy:
+  updateStrategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 25%
       maxUnavailable: 1
   selector:
     matchLabels:
@@ -44,15 +45,6 @@ spec:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
           effect: NoSchedule
-      # Best-effort one-per-node spread (ScheduleAnyway, NOT DoNotSchedule — never strand a Pending
-      # replica on this 3-node cluster). Single mechanism by hostname; no redundant podAntiAffinity.
-      topologySpreadConstraints:
-        - maxSkew: 1
-          topologyKey: kubernetes.io/hostname
-          whenUnsatisfiable: ScheduleAnyway
-          labelSelector:
-            matchLabels:
-              app: coredns-ha
       containers:
         - name: coredns
           image: rancher/mirrored-coredns-coredns:1.14.3
