@@ -128,8 +128,10 @@
 ```bash
 for node in "akhozya@gmk-k3s-control-plane" "akhozya@worker-node" "z3us@worker-node-2"; do
   echo "=== $node ==="
-  ssh -p 65300 "$node" "sudo cat /var/log/node-maintenance/security-scan-$(date -u +%Y-%m).log 2>/dev/null | tail -120"
+  # no sudo — logs root:adm 640, both users in adm (verified 2026-06-05)
+  ssh -p 65300 "$node" "grep -E 'Suspect files|Possible rootkits' /var/log/node-maintenance/security-scan-$(date -u +%Y-%m).log; echo warnings=\$(grep -c '^Warning:' /var/log/node-maintenance/security-scan-$(date -u +%Y-%m).log)"
 done
+# prior-month diff: same grep on security-scan-<prev>.log.1 (logrotate keeps it)
 ```
 
 Source of truth:
