@@ -115,7 +115,7 @@
 | Evaluate enabling WebAuthn client hints in Authentik blueprints — #20700 CLOSED upstream 2026-03-13, cluster on 2026.5.2 since 2026-05-28 (unblocked at 2026-06-05 review) | 2026-07-04 | P3 |
 | Watch Authentik #18232 (TOTP/WebAuthn pk collision in MFA Devices UI) | Backlog | P3 |
 | Watch Authentik #19580 (multi-passkey wrong-pick) — relevant if enrolling 2nd passkey | Backlog | P3 |
-| Verify passkey-only login post password-binding removal (browser check done 2026-06-05; watch for lockout edge cases ~2 weeks) | 2026-06-19 | P3 |
+| Passkey-only login watch — real login verified 2026-06-05 (user, immich→Authentik OIDC); close 06-19 if no lockout edge cases (new device, post-reboot, Conditional UI) | 2026-06-19 | P3 |
 | Relocate worker-node-2 rebuilderd (repro + worker dep-cache) off cramped 863G `/mnt/extra-storage` → spacious 3.6T `/mnt/k8s-storage` (mirror W1) — eliminates DiskPressure recurrence at the source; daily `paccache -rk2` is the interim mitigation. Needs finding the workdir knob (rebuilderd-worker internal default / conf `[build]`) + data migration. | Backlog | P2 |
 | Cluster CPU/memory right-sizing analysis — VMSingle PVC bound 2026-04-06; 90d data depth reached ~2026-07-05. Run after monthly cron cycles captured (security scan 1st, weekly Sat reboot, paccache, log rotation). Workload: per-namespace p95/p99 CPU + memory vs requests/limits, identify over/under-provisioned (use `vmq` helper). | 2026-07-06 | P2 |
 
