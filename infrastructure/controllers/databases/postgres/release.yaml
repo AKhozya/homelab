@@ -42,6 +42,26 @@ spec:
               matchLabels:
                 app.kubernetes.io/name: cloudnative-pg
             topologyKey: kubernetes.io/hostname
+      # Keep operator (esp. the leader) OFF worker-node-2: 2026-06-04 the leader replica on wn2
+      # probed the healthy W1 primary across wn2's flaky VXLAN -> spurious failover. Soft pref
+      # (weight 100) -> both replicas land CP+W1 in steady state; wn2 still usable if 2 nodes down.
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: NotIn
+                  values: ["worker-node-2"]
+
+    # CP toleration is REQUIRED for the nodeAffinity pref to be satisfiable: without it only
+    # W1+wn2 are schedulable, and replicaCount 2 + hard anti-affinity FORCES one replica onto
+    # wn2 (pref becomes dead config). With it the pair lands CP+W1. Operator is control-plane
+    # logic only (100m/128Mi) — no data path on CP.
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule
 
     # Update strategy: delete old pod before creating new (required with anti-affinity + 2 nodes)
     updateStrategy:

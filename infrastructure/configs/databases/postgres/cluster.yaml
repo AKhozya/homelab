@@ -6,6 +6,12 @@ metadata:
 spec:
   priorityClassName: homelab-critical  # F-30 critical tier (DB outranks standard/batch under node pressure)
   instances: 2  # 1 primary + 1 replica on worker node only
+  # Grace period before failover on a failed primary probe (default 0 = instant). Filters the
+  # transient-blip class: 2026-06-04 the operator (leader on wn2, flaky VXLAN) shot the HEALTHY
+  # W1 primary on a probe blip -> spurious failover into the broken node. 30s rides out 1-10s
+  # blips; costs +30s RTO on genuine primary death (rare, acceptable). Sustained flakiness
+  # exceeds any sane delay -> see operator nodeAffinity in controllers/databases/postgres.
+  failoverDelay: 30
   inheritedMetadata:
     labels:
       release: kube-prometheus-stack
