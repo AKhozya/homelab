@@ -162,6 +162,5 @@ Called out so they are choices, not accidents:
 | [HOMELAB_ANALYSIS.md](HOMELAB_ANALYSIS.md) | Current state + open action items (live counts) |
 | [CODEMAPS/](CODEMAPS/) | Refreshed structural snapshots per domain |
 | [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md) | Append-only changelog |
-| [REVIEW.md](../REVIEW.md) | Ultrareview backlog + decisions |
 | [.backup/README.md](../.backup/README.md) | DR runbook |
 | [SECRETS_ROTATION.md](SECRETS_ROTATION.md) | Rotation schedule |
