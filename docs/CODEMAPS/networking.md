@@ -3,7 +3,7 @@
 ## Ingress
 - **Traefik** (traefik ns, chart v40.2.0, image v3.7.1, 1 svc) handles all `*.h0melab.work` via K8s `Ingress` (class=traefik); 0 IngressRoute CRDs in use
 - **Cloudflare Tunnel** (cloudflare-tunnel ns) — outbound-only, exposes 9 svcs externally without inbound port
-- **Blocky DNS** (blocky ns, image `spx01/blocky:v0.30.0`) — single LB Service `blocky-dns` exposes 192.168.1.129 (W1) + 192.168.1.126 (W2) (servicelb ETP=Local, anti-affinity'd 2 pods)
+- **Blocky DNS** (blocky ns, image `spx01/blocky:v0.31.0`) — single LB Service `blocky-dns` exposes 192.168.1.129 (W1) + 192.168.1.126 (W2) (servicelb ETP=Local, anti-affinity'd 2 pods). Serves **LAN clients only** since 2026-06-04 — nodes + CoreDNS no longer use it as upstream (circular-dep break)
 - **NodeLocalDNS** N/A — using CoreDNS (`10.43.0.10`) cluster-internal
 
 ## Service Endpoints
@@ -38,8 +38,9 @@ Legacy duplicates also live in `monitoring` ns (`csp`, `rate-limit-standard`, `r
 ## DNS chain
 1. LAN client → Blocky LB IP (.129 or .126) :53
 2. Blocky checks ACL → cache → upstream (DoH: Cloudflare Security + Quad9)
-3. Cluster pods → CoreDNS (`10.43.0.10`) → upstreams via host network
-4. Mac per-domain resolver `/etc/resolver/h0melab.work` forces `*.h0melab.work` to LAN IPs (bypasses VPN-pushed public DNS)
+3. Nodes (containerd, system) → systemd-resolved → **public DNS 1.1.1.1 / 9.9.9.9** — **NOT blocky** (decoupled 2026-06-04 to break the node→blocky→kube-proxy-servicelb circular dep; see HISTORY 2026-06-04). resolved stays uplink-mode (real IPs, not 127.0.0.53); networkd `UseDNS=no` drops the DHCP/RA-supplied blocky DNS, resolved global drop-in supplies public.
+4. Cluster pods → CoreDNS (`10.43.0.10`); `forward . /etc/resolv.conf` → node resolv.conf (= public, per step 3). Pods snapshot resolv.conf at creation → `rollout restart deploy/coredns-ha` after any node-DNS change.
+5. Mac per-domain resolver `/etc/resolver/h0melab.work` forces `*.h0melab.work` to LAN IPs (bypasses VPN-pushed public DNS)
 
 **Blocky `connectIPVersion: v4` is permanent** — K3s podCIDR is v4-only, dual-stack decided NOT-WORTH-IT (2026-04-26). Blocky on pods can't initiate v6 connections; v4-only DoH upstreams (Cloudflare/Quad9) cover all needs.
 

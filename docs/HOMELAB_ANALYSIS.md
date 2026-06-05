@@ -35,7 +35,7 @@
 | Homepage | - | Dashboard |
 | Uptime Kuma | - | Uptime monitor, MySQL |
 | Authentik | Provider | SSO, PostgreSQL (no Redis — in-memory cache), passkey-first via Conditional UI (password fallback retained) |
-| Blocky | - | DNS filter + ad blocking, **HA: 2 replicas (W1+W2), single Deployment, native rolling, Redis cache sync, CNPG Postgres query log** |
+| Blocky | - | DNS filter + ad blocking, **HA: 2 replicas (W1+W2), single Deployment, native rolling, Redis cache sync, CNPG Postgres query log**. Serves **LAN clients only** (via router DHCP → .129/.126 servicelb); nodes + CoreDNS upstream = public DNS since 2026-06-04 (circular-dep break) |
 | Stirling PDF | OIDC | PDF toolkit |
 | HomeHub | - | Family dashboard, local only |
 | Immich | OIDC | Photo mgmt |
@@ -84,7 +84,7 @@
 ## EXTERNAL ACCESS
 
 **Cloudflare Tunnel** (9 svcs): authentik, couchdb, audiobooks, linkwarden, stirling-pdf, mealie, paperless, immich, n8n
-**Internal**: Blocky local DNS, Traefik Ingress
+**Internal**: Blocky LAN-client DNS (nodes + CoreDNS use public upstream since 2026-06-04 — see Blocky row), Traefik Ingress
 **Domain**: h0melab.work
 
 ---
