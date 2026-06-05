@@ -147,6 +147,17 @@ sops --ignore-mac --set "[\"stringData\"][\"password\"] \"${NEW_PASSWORD}\"" \
 sops --ignore-mac --set '["stringData"]["<PASSWORD_KEY>"] "'${NEW_PASSWORD}'"' \
   apps/<app>/<secret-file>.yaml
 
+# NOTE — DSN-embedded credential (no discrete key): if the app bakes the password into a
+# connection string rather than its own key — e.g. Blocky queryLog `target: postgres://blocky:PW@...`
+# (pgx can't expand ${VAR}, so the literal is required) — step 3 above does NOT apply. Decrypt the
+# config value, sed the password inside the DSN, re-encrypt:
+#   NEWCFG=$(sops -d --extract '["stringData"]["config.yml"]' apps/blocky/config-secret.yaml \
+#     | sed -E "s#(://blocky:)[^@]*(@main-postgres-rw)#\1${NEW_PASSWORD}\2#")
+#   sops set apps/blocky/config-secret.yaml '["stringData"]["config.yml"]' "$(printf '%s' "$NEWCFG" | jq -Rs .)"
+# Verify both carry the same new pw WITHOUT printing it; confirm CNPG synced the role via
+# `kubectl -n databases get cluster main-postgres -o jsonpath='{.status.managedRolesStatus}'`
+# (role in .reconciled at the new secret resourceVersion) before/after the app rollout restart.
+
 # 4. Commit and push
 git add infrastructure/configs/databases/postgres/<app>-db-user.yaml \
       apps/<app>/<secret-file>.yaml

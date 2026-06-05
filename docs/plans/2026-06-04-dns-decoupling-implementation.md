@@ -278,7 +278,9 @@ sudo git -C /var/lib/node-maintenance/homelab fetch --depth=50 origin main
 sudo git -C /var/lib/node-maintenance/homelab reset --hard origin/main
 sudo bash /var/lib/node-maintenance/homelab/docs/scripts/node-maintenance/install.sh --sync-only
 ```
-Expected: HEAD at the merge commit; `install.sh --sync-only` copies the updated ansible tree to `/etc/node-maintenance/ansible/` (file copy only — does NOT run the playbook).
+Expected: HEAD at the merge commit; the ansible tree synced to `/etc/node-maintenance/ansible/`.
+
+> ⚠️ **CORRECTION (learned 2026-06-04):** `install.sh --sync-only` is **NOT** file-copy-only — it re-enables `node-maintenance-config.timer` and runs `systemctl start --wait node-maintenance-config.service` = a **full drift-heal across ALL hosts**, which **bypasses** this staged per-node rollout (this is exactly what happened — the DNS change landed on all 3 nodes at once). For true staging, replace this step with a plain `rsync -a --delete <repo>/docs/scripts/node-maintenance/ansible/ /etc/node-maintenance/ansible/` (no `install.sh`). See the `homelab-node-fix` skill → "Staged / single-node node-config changes".
 
 - [ ] **Step 3: Verify the new files landed in the installed copy**
 

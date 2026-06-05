@@ -7,7 +7,7 @@
 | **homepage** | homepage | configmap | — | — | int | Dashboard (v1.13.1) |
 | **uptime-kuma** | uptime-kuma | PVC | MySQL | — | int | Probes 30+ targets (2.3.2-rootless) |
 | **authentik** | authentik | configmap | PostgreSQL | provider | both | SSO, passkey-first Conditional UI (2026.5.0) |
-| **blocky** | blocky | none (Secret config) | PG `blocky` (query log) + Redis HA db1 | — | LAN DNS :53 | 2 replicas, single LB Service .126+.129 (v0.30.0) |
+| **blocky** | blocky | none (Secret config) | PG `blocky` (query log) + Redis HA db1 | — | LAN DNS :53 | 2 replicas, single LB Service .126+.129 (v0.31.0); LAN clients only — nodes+CoreDNS use public DNS since 2026-06-04 |
 | **stirling-pdf** | stirling-pdf | PVC | — | OIDC | both | PDF tools (2.11.0-fat); 2.10.x ~36% RSS regression vs 2.9.2 |
 | **homehub** | homehub | PVC | — | — | int | Family dashboard (0.2.3) |
 | **immich** | immich | PVC (62GB photos) | PostgreSQL | OIDC | both | Helm chart `immich` 0.12.0, image v2.7.5; Sentinel via REDIS_URL |
