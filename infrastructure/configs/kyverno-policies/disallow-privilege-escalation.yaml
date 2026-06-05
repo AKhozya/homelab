@@ -11,7 +11,7 @@ metadata:
       Privilege escalation should be disallowed to prevent containers from gaining
       more privileges than their parent process. This is part of Pod Security Standards.
 spec:
-  validationFailureAction: Enforce  # F-4: promoted 2026-05-25 (W8) after clean scan; operator/privileged excluded
+  validationFailureAction: Enforce  # promoted Audit->Enforce 2026-05-25 after clean scan; operator/privileged excluded
   background: true
   rules:
     - name: disallow-privilege-escalation

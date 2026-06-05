@@ -29,7 +29,7 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
-  # F-30: standard-tier — uniform postRenderer injection for 4 controllers.
+  # standard-tier — uniform postRenderer injection for 4 controllers.
   postRenderers:
     - kustomize:
         patches:

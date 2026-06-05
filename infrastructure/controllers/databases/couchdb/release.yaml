@@ -28,7 +28,7 @@ spec:
     recreate: true
     cleanupOnFail: true
   values:
-    # F-30 critical tier: CouchDB outranks standard/batch under node pressure
+    # critical tier: CouchDB outranks standard/batch under node pressure
     priorityClassName: homelab-critical
 
     # Init container image (pin version, don't use :latest)

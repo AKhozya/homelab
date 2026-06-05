@@ -27,7 +27,7 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
-  # F-30: standard-tier — alloy chart 1.8.2 has no priorityClassName values key.
+  # standard-tier — alloy chart 1.8.2 has no priorityClassName values key.
   postRenderers:
     - kustomize:
         patches:

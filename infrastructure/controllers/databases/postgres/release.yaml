@@ -29,7 +29,7 @@ spec:
     recreate: true
     cleanupOnFail: true
   values:
-    # F-30 critical tier: operator controls CNPG failover/promotion — outage = no DB recovery
+    # critical tier: operator controls CNPG failover/promotion — outage = no DB recovery
     priorityClassName: homelab-critical
 
     # HA: Run 2 replicas across different nodes for webhook availability during reboots

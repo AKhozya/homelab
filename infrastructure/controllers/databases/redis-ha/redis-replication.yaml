@@ -6,7 +6,7 @@ metadata:
 spec:
   clusterSize: 2
   serviceAccountName: redis-replication
-  priorityClassName: homelab-critical  # F-30 critical tier (in-memory DB)
+  priorityClassName: homelab-critical  # critical tier (in-memory DB)
   podSecurityContext:
     runAsUser: 1000
     runAsGroup: 1000

@@ -34,7 +34,7 @@ spec:
         app: pgbouncer
         cluster: main-postgres
     spec:
-      priorityClassName: homelab-critical  # F-30 critical tier (DB connection pool front)
+      priorityClassName: homelab-critical  # critical tier (DB connection pool front)
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

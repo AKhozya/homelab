@@ -9,7 +9,7 @@ spec:
     mode: enabled
   rollback:
     cleanupOnFail: true
-  # F-30: standard-tier — chart 0.63.1 has no top-level priorityClassName template hook.
+  # standard-tier — chart 0.63.1 has no top-level priorityClassName template hook.
   postRenderers:
     - kustomize:
         patches:

@@ -30,7 +30,7 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
-  # F-30: standard-tier — chart 1.20.2 omits priorityClassName template hook for all 3 components.
+  # standard-tier — chart 1.20.2 omits priorityClassName template hook for all 3 components.
   postRenderers:
     - kustomize:
         patches:

@@ -28,7 +28,7 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
-  # F-30: standard-tier — loki chart 7.0.0 component priorityClassName paths vary; uniform patch.
+  # standard-tier — loki chart 7.0.0 component priorityClassName paths vary; uniform patch.
   postRenderers:
     - kustomize:
         patches:

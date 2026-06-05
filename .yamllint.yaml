@@ -1,5 +1,5 @@
 ---
-# Homelab yamllint config — Wave 7 CI gate.
+# Homelab yamllint config — CI gate.
 # Tuned for Flux Helm-released YAML (long auto-generated lines) and Kustomize patches.
 # `truthy` strict to catch `on:`/`off:` accidents in K8s manifests.
 

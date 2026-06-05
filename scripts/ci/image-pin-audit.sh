@@ -5,7 +5,7 @@
 # tag. A major-only (`:8`) or major.minor (`:1.0`, `:1.22`) tag is a real silent-drift hole —
 # `repo:1.0` floats across every 1.0.x rebuild. CLAUDE.md invariant: "Pin all images
 # major.minor.patch-variant." This script enforces that invariant offline, repo-wide.
-# Surfaced by F-24 (2026-05-29): `seleniumbase-scrapper:v1.0` + `claude-telegram:1.22`.
+# Surfaced 2026-05-29: `seleniumbase-scrapper:v1.0` + `claude-telegram:1.22`.
 #
 # Scope: container/init/ephemeral `image:` refs in authored workloads. HelmReleases are
 # SKIPPED — their image pinning is a different mechanism (chart version / values.tag), audited
@@ -37,7 +37,7 @@ semver_re='^v?[0-9]+\.[0-9]+\.[0-9]+([-.+].*)?$'
 # Two-component (major.minor) is also accepted for these upstreams where a deeper tag does not
 # exist — either native 2-part release versioning, or the publisher only ships major.minor.
 #   postgres / cloudnative-pg postgresql → `18.4`, `18.4-standard-trixie` (no patch component).
-#   seleniumbase-scrapper → upstream publishes only `:latest` + `:v1.0`, no patch tags (F-23);
+#   seleniumbase-scrapper → upstream publishes only `:latest` + `:v1.0`, no patch tags;
 #     digest-pin declined, so major.minor is the deepest available.
 twocomp_ok_re='(^|/)(postgres|postgresql|seleniumbase-scrapper)$'
 twocomp_re='^v?[0-9]+\.[0-9]+(\.[0-9]+)?([-.+].*)?$'

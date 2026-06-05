@@ -25,7 +25,7 @@ spec:
     spec:
       serviceAccountName: authentik
       automountServiceAccountToken: false
-      priorityClassName: homelab-critical  # F-30 critical tier (SSO data-plane)
+      priorityClassName: homelab-critical  # critical tier (SSO data-plane)
       # Allow scheduling on control plane for HA (rolling updates need 3 nodes)
       tolerations:
         - key: node-role.kubernetes.io/control-plane

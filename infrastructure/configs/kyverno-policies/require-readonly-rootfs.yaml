@@ -12,7 +12,7 @@ metadata:
       tampering of the image. Homelab invariant: readOnlyRootFilesystem requires a
       /tmp emptyDir volume for any path the process needs to write.
 spec:
-  validationFailureAction: Enforce  # F-6: promoted 2026-05-25 (W8) after clean scan + per-app triage
+  validationFailureAction: Enforce  # promoted Audit->Enforce 2026-05-25 after clean scan + per-app triage
   background: true
   rules:
     - name: require-readonly-rootfs
@@ -34,9 +34,9 @@ spec:
                 - percona-mysql      # Percona operator (ps-operator)
                 - immich             # privileged GPU app, writes model/transcode cache to root fs
                 - home-assistant     # hardware integration, privileged ns
-                - paperless-ngx      # s6-overlay rewrites /run perms at boot (RoRFS not viable — F-40)
+                - paperless-ngx      # s6-overlay rewrites /run perms at boot (RoRFS not viable)
                 - backup-replication # rsync stages backup files to writable root
-                - pricebuddy         # Laravel bootstrap/cache + selenium chrome temp + apprise root writes
+                - pricebuddy         # Laravel bootstrap/cache + selenium chrome temp
                 - stirling-pdf       # su-exec privilege drop + nginx/system-config writes (RoRFS:false by design)
                 - mealie             # PSS-baseline ns: user-provision Job runs apt-get at runtime (Job metadata lacks pod labels → ns-scope exclude covers Job+Pod recreation)
           # alloy DaemonSet (host log reader) — Helm-managed; keep rest of loki ns covered

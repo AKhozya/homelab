@@ -4,7 +4,7 @@ metadata:
   name: main-postgres
   namespace: databases
 spec:
-  priorityClassName: homelab-critical  # F-30 critical tier (DB outranks standard/batch under node pressure)
+  priorityClassName: homelab-critical  # critical tier (DB outranks standard/batch under node pressure)
   instances: 2  # 1 primary + 1 replica on worker node only
   # Grace period before failover on a failed primary probe (default 0 = instant). Filters the
   # transient-blip class: 2026-06-04 the operator (leader on wn2, flaky VXLAN) shot the HEALTHY

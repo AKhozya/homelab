@@ -15,7 +15,7 @@ spec:
         kind: HelmRepository
         name: ot-helm
         namespace: databases
-  # F-46: match cnpg-operator HR shape — auto-retry on install/upgrade failure +
+  # match cnpg-operator HR shape — auto-retry on install/upgrade failure +
   # remediate-last-failure on upgrade. Parity with other DB operators (cnpg + ps).
   install:
     crds: Create
@@ -31,7 +31,7 @@ spec:
     recreate: true
     cleanupOnFail: true
   values:
-    # F-30 critical tier: operator coordinates Redis Sentinel + CR reconcile
+    # critical tier: operator coordinates Redis Sentinel + CR reconcile
     priorityClassName: homelab-critical
 
     redisOperator:

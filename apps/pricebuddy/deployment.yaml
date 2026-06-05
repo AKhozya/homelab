@@ -150,7 +150,7 @@ spec:
               mountPath: /app/storage
         - name: scraper
           # Upstream publishes only :latest + :v1.0 — no patch tags exist, so major.minor
-          # is the deepest pin available (allowlisted in image-pin-audit.sh, F-23).
+          # is the deepest pin available (allowlisted in image-pin-audit.sh).
           image: jez500/seleniumbase-scrapper:v1.0
           ports:
             - containerPort: 3000
@@ -207,7 +207,7 @@ spec:
               mountPath: /attach
             - name: apprise-tmp
               mountPath: /tmp
-          # F-24: post-#273 (v1.4.x) runs non-root natively — no chown caps needed.
+          # post-#273 (v1.4.x) runs non-root natively — no chown caps needed.
           # nginx/gunicorn/supervisord write only to /tmp under RoRFS (upstream README
           # hardened pattern). runAsUser 1000 + fsGroup 33 (pod) → writes the
           # group-writable /config emptyDir via supplemental group.

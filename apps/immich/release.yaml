@@ -35,7 +35,7 @@ spec:
               kind: Deployment
               name: immich-server
             patch: |-
-              # F-30: standard-tier
+              # standard-tier
               - op: add
                 path: /spec/template/spec/priorityClassName
                 value: homelab-standard
@@ -77,7 +77,7 @@ spec:
               kind: Deployment
               name: immich-machine-learning
             patch: |-
-              # F-30: standard-tier
+              # standard-tier
               - op: add
                 path: /spec/template/spec/priorityClassName
                 value: homelab-standard

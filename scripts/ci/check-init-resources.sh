@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Asserts every authored initContainer carries cpu+memory requests AND limits.
 # Mirrors the in-cluster Kyverno `require-cpu-limit` / `require-memory-limit` policies
-# extended to initContainers (Wave 1 F-3 + F-41/F-42, 2026-05-23).
+# extended to initContainers (2026-05-23).
 # Operator-managed Pods (CNPG pooler, vmagent, Percona) are excluded by label-selector
 # at the Kyverno layer, not here.
 

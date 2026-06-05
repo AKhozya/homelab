@@ -10,9 +10,9 @@ metadata:
     policies.kyverno.io/description: >-
       Every namespace running workloads must declare at least one NetworkPolicy.
       Homelab invariant: every ingress = NetworkPolicy (container port, not service port).
-      This policy backstops the manual NetworkPolicy curation (40 NPs as of Wave 8).
+      This policy backstops the manual NetworkPolicy curation (64 NP resources as of 2026-06).
 spec:
-  validationFailureAction: Enforce  # F-5: promoted 2026-05-25 (W8) after clean scan; 160 pass / 0 fail
+  validationFailureAction: Enforce  # promoted Audit->Enforce 2026-05-25 after clean scan; 160 pass / 0 fail
   background: true
   rules:
     - name: require-netpol-present
