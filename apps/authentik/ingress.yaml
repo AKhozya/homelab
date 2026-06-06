@@ -4,7 +4,10 @@ metadata:
   name: authentik
   namespace: authentik
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-high-frequency@kubernetescrd,traefik-csp-permissive-enforced@kubernetescrd
+    # No rate-limit middleware: rate-limiting the SSO entry point throttles auth flows
+    # (all external auth shares the cloudflared pod IP under sourceCriterion depth:0).
+    # Per .claude/review-invariants.md: "authentik gets NO rate-limit (breaks auth flow)".
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-csp-permissive-enforced@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:

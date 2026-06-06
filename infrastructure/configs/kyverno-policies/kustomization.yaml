@@ -1,7 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # All 12 policies Enforce (promoted after Audit soak + clean scan)
+  # 11 of 12 policies Enforce; require-seccomp-runtimedefault is Audit pending fix-forward
+  # (hard-anchored 2026-06-06 after the =() soft anchors made it toothless; ~22 operator/chart
+  # pods lack a seccompProfile and must be remediated before it can promote back to Enforce).
   - require-labels.yaml
   - disallow-host-namespaces.yaml
   - require-resource-limits.yaml

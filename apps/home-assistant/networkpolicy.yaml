@@ -45,12 +45,11 @@ spec:
       ports:
         - protocol: TCP
           port: 3306
-    # Allow access to local network devices (for integrations)
-    # Home Assistant needs to discover and communicate with local IoT devices
+    # Allow access to local network devices (for integrations).
+    # Scoped to the home LAN only. 10.0.0.0/8 + 172.16.0.0/12 were removed: 10/8 contains the
+    # cluster pod CIDR (10.42.0.0/16) and service CIDR (10.43.0.0/16), so the old rule let a
+    # compromised HA pod reach every pod/ClusterIP in the cluster (lateral movement). In-cluster
+    # MySQL is granted by the port-3306 rule above; DNS via the allow-dns-egress component.
     - to:
-        - ipBlock:
-            cidr: 10.0.0.0/8
-        - ipBlock:
-            cidr: 172.16.0.0/12
         - ipBlock:
             cidr: 192.168.0.0/16

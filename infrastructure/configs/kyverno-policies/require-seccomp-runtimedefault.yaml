@@ -12,7 +12,12 @@ metadata:
       The RuntimeDefault profile provides a good balance of security and compatibility.
       This policy requires all pods to use the RuntimeDefault seccomp profile.
 spec:
-  validationFailureAction: Enforce
+  # Audit (not Enforce): the prior =() soft anchors made this pass every pod, so it was
+  # toothless-Enforce. With the hard anchors below it would correctly fail ~22 operator/chart
+  # pods (databases, loki/alloy, node-exporter, percona/redis operators) that lack a
+  # seccompProfile. Promote to Enforce only after those are remediated (per-workload chart
+  # values / pod-spec patches), following the Audit -> fix-forward -> Enforce workflow.
+  validationFailureAction: Audit
   background: true
   rules:
     - name: require-seccomp-runtimedefault
@@ -39,10 +44,10 @@ spec:
                   type: RuntimeDefault
           - spec:
               =(initContainers):
-                - =(securityContext):
-                    =(seccompProfile):
+                - securityContext:
+                    seccompProfile:
                       type: RuntimeDefault
               containers:
-                - =(securityContext):
-                    =(seccompProfile):
+                - securityContext:
+                    seccompProfile:
                       type: RuntimeDefault
