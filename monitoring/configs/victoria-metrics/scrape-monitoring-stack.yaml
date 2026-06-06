@@ -29,9 +29,9 @@ spec:
     matchLabels:
       app: kube-prometheus-stack-alertmanager
   endpoints:
+    # Only http-web (:9093) — alertmanager self-monitoring metrics live here. The reloader-web
+    # (:8080 config-reloader) endpoint is not scrapable (up=0) and only produced ScrapeTargetDown.
     - port: http-web
-      interval: "60s"
-    - port: reloader-web
       interval: "60s"
 ---
 apiVersion: operator.victoriametrics.com/v1beta1

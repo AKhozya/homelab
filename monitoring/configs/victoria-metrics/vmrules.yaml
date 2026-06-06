@@ -1192,7 +1192,9 @@ spec:
         description: "Less than 2 Sentinel pods reachable. Master failover will not happen. Quorum is set to 2 of 3."
 
     - alert: RedisHAReplicationBroken
-      expr: redis_connected_slaves{namespace="databases"} < 1
+      # max() over instances: a replica reports connected_slaves=0, so a bare `< 1` false-fires
+      # on the replica. Only alert when NO instance (i.e. not even the master) has a slave.
+      expr: max(redis_connected_slaves{namespace="databases"}) < 1
       for: 5m
       labels:
         severity: warning
