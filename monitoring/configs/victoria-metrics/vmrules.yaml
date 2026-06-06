@@ -555,13 +555,16 @@ spec:
         description: "Redis is using {{ printf \"%.1f\" $value }}% of max client connections."
 
     - alert: RedisSlowQueries
-      expr: redis_slowlog_length > 50
+      # delta over the window, not the raw gauge: redis_slowlog_length is a cumulative ring
+      # buffer (never auto-clears), so `> 50` false-fires on accumulated history. Alert on a
+      # burst of NEW slow queries instead.
+      expr: delta(redis_slowlog_length{namespace="databases"}[10m]) > 10
       for: 5m
       labels:
         severity: warning
       annotations:
         summary: "Redis {{ $labels.namespace }}/{{ $labels.pod }} has slow queries"
-        description: "{{ $value }} slow queries detected. Performance may be degraded."
+        description: "{{ $value }} new slow queries in the last 10m. Performance may be degraded."
 
     - alert: RedisConnectionFailure
       expr: redis_connected_clients == 0 and kube_pod_status_phase{namespace="databases",pod=~"redis.*",phase="Running"} > 0
