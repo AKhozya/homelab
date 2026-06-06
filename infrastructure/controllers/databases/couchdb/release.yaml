@@ -31,6 +31,13 @@ spec:
     # critical tier: CouchDB outranks standard/batch under node pressure
     priorityClassName: homelab-critical
 
+    # Pod-level seccomp baseline — satisfies require-seccomp-runtimedefault Kyverno
+    # policy. Chart renders this at pod securityContext; kubelet applies pod-level
+    # seccomp to all containers incl. init unless a container overrides it.
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+
     # Init container image (pin version, don't use :latest)
     initImage:
       repository: busybox
