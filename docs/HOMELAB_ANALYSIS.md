@@ -5,6 +5,7 @@
 **Infra**: GitOps (Flux), CloudNativePG, Percona MySQL, monitoring stack, SSO (Authentik), Cloudflare Tunnel
 **Code Review**: 2026-04-02 — full scan (94/100, A)
 **Ultrareview**: 2026-05-23 — 4-agent consensus (arch/k8s/security/cruft). 1 P0 + 11 P1 + 17 P2 + refactors — **all closed by 2026-06-05**; REVIEW.md retired (full record in git history).
+**Ultrareview 2 (UR2)**: 2026-06-06 — 8-dimension multi-agent scan + 2-lens adversarial verify. 16 confirmed (3 P1 + 13 P2, all live-re-verified), 1 refuted, 18 P3 deferred. **All 16 shipped + live-tested 2026-06-06** in 5 gated batches (`2843c86e`→`5286a2c1`) + 2 alert-fallout hotfixes (`5d217282`,`03711ab7`). Detail in HOMELAB_HISTORY 2026-06-06. Deferred: 18 P3 leads + seccomp re-Enforce (22-pod remediation).
 
 ---
 
