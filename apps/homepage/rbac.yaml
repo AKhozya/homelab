@@ -4,10 +4,11 @@ metadata:
   name: homepage
   labels:
     app.kubernetes.io/name: homepage
-# ACCEPTED RISK: Cluster-wide read access (including secrets) required for Homepage
-# Kubernetes service discovery and widget configuration. Scoping to namespace-level
-# Roles would require one Role per namespace (16+), adding significant complexity.
-# Mitigations: NetworkPolicy, non-root, readOnlyRootFilesystem, no write access.
+# Cluster-wide READ of discovery resources (namespaces/pods/nodes/services/ingresses/metrics) for
+# Homepage's Kubernetes service-discovery widgets. Per-namespace Roles would mean 16+ Roles.
+# `secrets` was REMOVED (UR2 P3-6): Homepage reads no secrets via the K8s API — widgets are
+# pod-status + static links, the kubernetes widget is disabled, and the Deployment mounts no secret
+# env. No write access anywhere. Mitigations: NetworkPolicy, non-root, readOnlyRootFilesystem.
 rules:
   - apiGroups:
       - ""
@@ -15,14 +16,7 @@ rules:
       - namespaces
       - pods
       - nodes
-    verbs:
-      - get
-      - list
-  - apiGroups:
-      - ""
-    resources:
       - services
-      - secrets
     verbs:
       - get
       - list

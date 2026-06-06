@@ -4,13 +4,31 @@ metadata:
   name: claude-telegram-ops
   labels:
     app: claude-telegram
-# ACCEPTED RISK: Cluster-wide read access + limited write (flux patch, pod exec,
+# Cluster-wide READ (core resources EXCEPT secrets) + limited write (flux patch, pod exec,
 # rollout restart, job create). Required for ops via Telegram. Destructive operations
 # (delete namespace, modify RBAC/secrets/NetworkPolicies) are NOT permitted — those
 # go through GitOps. Mitigations: Telegram allowlist, safety hook, permission relay.
 rules:
-  # Read all core resources
-  - apiGroups: ["", "apps", "batch", "networking.k8s.io"]
+  # Read core resources — secrets DELIBERATELY EXCLUDED (UR2 P3-7): an ops/diagnostics bot must not
+  # be able to read every secret in the cluster. The old resources:["*"] in the core group granted that.
+  - apiGroups: [""]
+    resources:
+      - pods
+      - services
+      - endpoints
+      - configmaps
+      - nodes
+      - namespaces
+      - events
+      - persistentvolumeclaims
+      - persistentvolumes
+      - replicationcontrollers
+      - serviceaccounts
+      - limitranges
+      - resourcequotas
+    verbs: ["get", "list", "watch"]
+  # Read apps/batch/networking (no secrets in these API groups)
+  - apiGroups: ["apps", "batch", "networking.k8s.io"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
   # Flux operations (reconcile = patch)
