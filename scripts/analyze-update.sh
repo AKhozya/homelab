@@ -147,7 +147,8 @@ fetch_github_release() {
 
     # 3. Try monorepo format: package@version (e.g., n8n@1.123.4)
     if [ -z "$content" ] && [ -n "$package_name" ]; then
-        local short_name=$(echo "$package_name" | sed 's|.*/||')  # n8nio/n8n -> n8n
+        local short_name
+        short_name=$(echo "$package_name" | sed 's|.*/||')  # n8nio/n8n -> n8n
         content=$(curl -sL "https://api.github.com/repos/$repo/releases/tags/${short_name}@$tag" 2>/dev/null | jq -r '.body // empty' 2>/dev/null || echo "")
     fi
 
@@ -466,6 +467,7 @@ elif [ "$HAS_BREAKING" = true ] || [ "$HAS_SECURITY" = true ]; then
     PRIORITY="HIGH"
     echo "🔴 HIGH PRIORITY - Breaking changes or security fixes detected"
 elif [ "$UPDATE_TYPE" = "patch" ]; then
+    # shellcheck disable=SC2034  # PRIORITY set per-branch for readability; not read downstream
     PRIORITY="LOW"
     echo "🟢 PATCH UPDATE - Low risk"
 else

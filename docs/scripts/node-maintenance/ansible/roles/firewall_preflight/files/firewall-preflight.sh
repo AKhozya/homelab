@@ -26,6 +26,7 @@ IPTABLES=/usr/sbin/iptables
 IP6TABLES=/usr/sbin/ip6tables
 IPTABLES_SAVE=/usr/sbin/iptables-save
 IP6TABLES_SAVE=/usr/sbin/ip6tables-save
+# shellcheck disable=SC2034  # NFT_BIN documents the nft path; not referenced in this script
 NFT_BIN=/usr/sbin/nft
 XTABLES_LOCK=/run/xtables.lock
 METRIC_FILE=/var/lib/node_exporter/textfile/firewall_preflight.prom

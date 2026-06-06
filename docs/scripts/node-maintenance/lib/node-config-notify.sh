@@ -70,7 +70,7 @@ extract_failed_hosts() {
 
 # UTC ISO timestamps bracketing the fatal — for `journalctl --since/--until`.
 extract_journal_window() {
-  local fatal_line first_line last_ts first_ts
+  local fatal_line last_ts first_ts
   fatal_line=$(grep -nE '^(fatal|failed):' "$LOG" | tail -1 | cut -d: -f1 || true)
   [ -z "${fatal_line:-}" ] && return 0
   first_ts=$(head -n 1 "$LOG" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:]+' | head -1)
