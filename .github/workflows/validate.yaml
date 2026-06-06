@@ -105,6 +105,7 @@ jobs:
           - apps
           - infrastructure/configs
           - infrastructure/controllers
+          - infrastructure/coredns
           - monitoring/configs
           - monitoring/controllers
     steps:
