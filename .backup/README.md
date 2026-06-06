@@ -227,12 +227,17 @@ sha256sum -c ${LATEST_BACKUP}.sha256
 # Extract
 tar -xzf $LATEST_BACKUP -C /tmp
 
-# Restore each DB
-for DB in authentik immich paperless grafana linkwarden mealie audiobookshelf n8n app; do
-  echo "Restoring $DB..."
-  kubectl exec -n databases main-postgres-1 -- \
-    pg_restore -U postgres -d $DB -c --if-exists \
-    /tmp/$(basename $LATEST_BACKUP .tar.gz)/${DB}.dump
+# Restore each DB by iterating the actual dumps (custom-format, pg_dump -F c) so every
+# backed-up database is covered and none are invented. Tarball extracts to /tmp/<TIMESTAMP>/<db>.dump
+# (the postgres_ prefix is only on the tarball name, not the inner dir).
+DUMP_DIR="/tmp/$(basename "$LATEST_BACKUP" .tar.gz | sed 's/^postgres_//')"
+PRIMARY=$(kubectl get pod -n databases -l cnpg.io/cluster=main-postgres,cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}')
+for DUMP in "$DUMP_DIR"/*.dump; do
+  DB=$(basename "$DUMP" .dump)
+  echo "Restoring $DB -> $PRIMARY..."
+  # -i streams the node-side dump into the pod; pg_restore reads the custom-format dump from stdin
+  kubectl exec -i -n databases "$PRIMARY" -- \
+    pg_restore -U postgres -d "$DB" -c --if-exists < "$DUMP"
 done
 ```
 
@@ -250,11 +255,15 @@ tar -xzf $LATEST_MYSQL -C /tmp
 # Get root password
 MYSQL_ROOT_PWD=$(kubectl get secret -n databases mysql-cluster-secrets -o jsonpath='{.data.root}' | base64 -d)
 
-# Restore each DB
-for DB in homeassistant uptimekuma pricebuddy; do
+# Restore each DB by iterating the actual dumps. Tarball extracts to /tmp/<TIMESTAMP>/<db>.sql
+# (the mysql_ prefix is only on the tarball name, not the per-DB files).
+SQL_DIR="/tmp/$(basename "$LATEST_MYSQL" .tar.gz | sed 's/^mysql_//')"
+for SQL in "$SQL_DIR"/*.sql; do
+  DB=$(basename "$SQL" .sql)
   echo "Restoring $DB..."
-  kubectl exec -n databases main-mysql-mysql-0 -- \
-    mysql -uroot -p${MYSQL_ROOT_PWD} $DB < /tmp/*/mysql_${DB}.sql
+  # -i streams the node-side dump in; -h haproxy routes the write to the primary
+  kubectl exec -i -n databases main-mysql-mysql-0 -- \
+    mysql -h main-mysql-haproxy.databases.svc.cluster.local -uroot -p"${MYSQL_ROOT_PWD}" "$DB" < "$SQL"
 done
 ```
 
