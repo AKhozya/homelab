@@ -27,7 +27,7 @@ spec:
       - monitoring
   selector:
     matchLabels:
-      app.kubernetes.io/name: alertmanager
+      app: kube-prometheus-stack-alertmanager
   endpoints:
     - port: http-web
       interval: "60s"
@@ -69,4 +69,20 @@ spec:
       app.kubernetes.io/name: grafana
   endpoints:
     - port: http-web
+      interval: "60s"
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: flux-system
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - flux-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: flux
+  podMetricsEndpoints:
+    - port: http-prom
       interval: "60s"

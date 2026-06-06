@@ -10,7 +10,7 @@ spec:
     interval: 60s
     rules:
     - alert: NodeDown
-      expr: up{job="node-exporter"} == 0
+      expr: up{job="kube-prometheus-stack-prometheus-node-exporter"} == 0
       for: 2m
       labels:
         severity: critical
@@ -19,7 +19,7 @@ spec:
         description: "Node exporter on {{ $labels.instance }} has been unreachable for more than 2 minutes. The node may be down or network is unreachable."
 
     - alert: KubeletDown
-      expr: up{job="kubelet"} == 0
+      expr: up{job="kube-prometheus-stack-kubelet"} == 0
       for: 2m
       labels:
         severity: critical
@@ -206,15 +206,6 @@ spec:
         summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} is being CPU throttled"
         description: "Container is being CPU throttled {{ printf \"%.1f\" $value }}% of the time for over 15 minutes. Performance may be degraded. Consider increasing CPU limits."
 
-    - alert: ContainerCPUNearLimit
-      expr: (rate(container_cpu_usage_seconds_total{container!=""}[5m]) / container_spec_cpu_limit{container!=""}) * 100 > 80 and container_spec_cpu_limit{container!=""} > 0
-      for: 5m
-      labels:
-        severity: warning
-      annotations:
-        summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} near CPU limit"
-        description: "Container is using {{ printf \"%.1f\" $value }}% of its CPU limit. May be throttled soon, affecting performance."
-
     - alert: ContainerNoResourceLimits
       expr: kube_pod_container_resource_limits{resource="memory"} == 0 and kube_pod_info{namespace!~"kube-system|monitoring|flux-system"}
       for: 30m
@@ -280,15 +271,6 @@ spec:
       annotations:
         summary: "Cloudflare tunnel {{ $labels.namespace }} has no traffic"
         description: "No requests received through Cloudflare tunnel in {{ $labels.namespace }} for 4 hours. Likely benign during idle hours; investigate only if external apps unreachable."
-
-    - alert: CloudflareTunnelHighLatency
-      expr: histogram_quantile(0.99, rate(cloudflared_tunnel_request_duration_seconds_bucket[5m])) > 5
-      for: 10m
-      labels:
-        severity: warning
-      annotations:
-        summary: "High latency on Cloudflare tunnel {{ $labels.namespace }}"
-        description: "P99 latency is {{ $value }}s on Cloudflare tunnel in {{ $labels.namespace }}. Users may experience slow response times."
 
   - name: certificate-alerts
     interval: 60s
@@ -369,7 +351,7 @@ spec:
         description: "Pod has been in Pending state for more than 10 minutes. Check for resource constraints or scheduling issues."
 
     - alert: KubernetesAPIServerDown
-      expr: up{job="apiserver"} == 0
+      expr: up{job="kubernetes"} == 0
       for: 1m
       labels:
         severity: critical
@@ -468,7 +450,7 @@ spec:
     interval: 60s
     rules:
     - alert: PostgreSQLDown
-      expr: pg_up == 0
+      expr: cnpg_collector_up == 0
       for: 2m
       labels:
         severity: critical
@@ -486,7 +468,7 @@ spec:
         description: "PostgreSQL pod is in {{ $labels.phase }} state. Database may be unavailable!"
 
     - alert: PostgreSQLConnectionFailure
-      expr: sum(rate(pg_stat_database_xact_commit[5m])) by (namespace, pod) == 0 and sum(kube_pod_status_phase{namespace="databases",pod=~"main-postgres.*",phase="Running"}) > 0
+      expr: sum(rate(cnpg_pg_stat_database_xact_commit[5m])) by (namespace, pod) == 0 and sum(kube_pod_status_phase{namespace="databases",pod=~"main-postgres.*",phase="Running"}) > 0
       for: 5m
       labels:
         severity: warning
@@ -495,16 +477,16 @@ spec:
         description: "No transactions detected while pod is running. Database may not be accepting connections."
 
     - alert: PostgreSQLTooManyConnections
-      expr: sum by (namespace, pod) (pg_stat_activity_count) / sum by (namespace, pod) (pg_settings_max_connections) * 100 > 80
+      expr: sum by (namespace, pod) (cnpg_backends_total) > 80
       for: 5m
       labels:
         severity: warning
       annotations:
         summary: "PostgreSQL {{ $labels.namespace }}/{{ $labels.pod }} has too many connections"
-        description: "PostgreSQL is using {{ printf \"%.1f\" $value }}% of max connections. May start refusing connections soon."
+        description: "PostgreSQL has {{ $value }} active backends (max_connections=100, CNPG default; not overridden in cluster.yaml). May start refusing connections soon."
 
     - alert: PostgreSQLReplicationLag
-      expr: pg_replication_lag > 30
+      expr: cnpg_pg_replication_lag > 30
       for: 5m
       labels:
         severity: warning
@@ -513,7 +495,7 @@ spec:
         description: "Replication is lagging {{ $value }}s behind primary. Data may be out of sync."
 
     - alert: PostgreSQLDeadlocks
-      expr: increase(pg_stat_database_deadlocks[5m]) > 5
+      expr: increase(cnpg_pg_stat_database_deadlocks[5m]) > 5
       for: 2m
       labels:
         severity: warning
@@ -522,7 +504,7 @@ spec:
         description: "{{ $value }} deadlocks detected in the last 5 minutes. May indicate application issues."
 
     - alert: PostgreSQLHighRollbackRate
-      expr: rate(pg_stat_database_xact_rollback[5m]) / rate(pg_stat_database_xact_commit[5m]) > 0.1
+      expr: rate(cnpg_pg_stat_database_xact_rollback[5m]) / rate(cnpg_pg_stat_database_xact_commit[5m]) > 0.1 and rate(cnpg_pg_stat_database_xact_commit[5m]) > 1
       for: 5m
       labels:
         severity: warning
@@ -600,7 +582,7 @@ spec:
     interval: 60s
     rules:
     - alert: CouchDBDown
-      expr: up{job="couchdb"} == 0
+      expr: up{job="couchdb-couchdb"} == 0
       for: 2m
       labels:
         severity: critical
@@ -710,19 +692,6 @@ spec:
         summary: "MySQL InnoDB buffer pool hit rate low"
         description: "Buffer pool hit rate is {{ printf \"%.1f\" $value }}%. Consider increasing innodb_buffer_pool_size."
 
-  # service-alerts group - ServiceDown alert removed, replaced by Uptime Kuma
-  - name: service-alerts
-    interval: 60s
-    rules:
-    - alert: HighErrorRate
-      expr: rate(vm_http_requests_total{code=~"5.."}[5m]) > 0.05
-      for: 5m
-      labels:
-        severity: warning
-      annotations:
-        summary: "High error rate detected"
-        description: "HTTP 5xx error rate is above 5% for {{ $labels.job }}"
-
   - name: monitoring-health-alerts
     interval: 60s
     rules:
@@ -777,7 +746,7 @@ spec:
     interval: 1h
     rules:
     - alert: KyvernoPolicyViolationsDailySummary
-      expr: sum(kyverno_policy_rule_results_total{rule_result="fail"}) > 50
+      expr: sum(kyverno_policy_results_total{rule_result="fail"}) > 50
       for: 24h
       labels:
         severity: info
@@ -785,17 +754,8 @@ spec:
         summary: "Daily Kyverno policy violations summary"
         description: "Total policy violations: {{ $value }}. This is a daily summary. Review violations with: kubectl get policyreports -A"
 
-    - alert: KyvernoHighSeverityViolationsDaily
-      expr: sum(kyverno_policy_rule_results_total{rule_result="fail",policy_severity="high"}) > 10
-      for: 24h
-      labels:
-        severity: info
-      annotations:
-        summary: "Daily high severity policy violations summary"
-        description: "{{ $value }} high-severity policy violations found. Review with: kubectl get policyreports -A -o json | jq '.items[] | select(.summary.fail > 0)'"
-
     - alert: KyvernoAdmissionControllerDown
-      expr: up{job="kyverno"} == 0
+      expr: up{job="kyverno-svc-metrics"} == 0
       for: 5m
       labels:
         severity: critical
@@ -1143,13 +1103,13 @@ spec:
         expr: |
           sum without (id, metrics_path, name, image, endpoint, job, node) (
             topk by (cluster, namespace, pod, container, instance) (1,
-              increase(container_cpu_cfs_throttled_periods_total{container!="", job="kubelet", metrics_path="/metrics/cadvisor", node!~"worker-node|worker-node-2"}[5m])
+              increase(container_cpu_cfs_throttled_periods_total{container!="", job="kube-prometheus-stack-kubelet", metrics_path="/metrics/cadvisor", node!~"worker-node|worker-node-2"}[5m])
             )
           )
           / on (cluster, namespace, pod, container, instance) group_left
           sum without (id, metrics_path, name, image, endpoint, job, node) (
             topk by (cluster, namespace, pod, container, instance) (1,
-              increase(container_cpu_cfs_periods_total{job="kubelet", metrics_path="/metrics/cadvisor", node!~"worker-node|worker-node-2"}[5m])
+              increase(container_cpu_cfs_periods_total{job="kube-prometheus-stack-kubelet", metrics_path="/metrics/cadvisor", node!~"worker-node|worker-node-2"}[5m])
             )
           )
           > ( 25 / 100 )
@@ -1163,7 +1123,7 @@ spec:
       # Exclude rebuilderd worker nodes (swap spillover causes expected page faults)
       - alert: NodeMemoryMajorPagesFaults
         expr: |
-          rate(node_vmstat_pgmajfault{job="node-exporter"}[5m])
+          rate(node_vmstat_pgmajfault{job="kube-prometheus-stack-prometheus-node-exporter"}[5m])
             * on(instance) group_left()
             node_uname_info{nodename!~"worker-node|worker-node2"}
           > 500
@@ -1176,7 +1136,7 @@ spec:
             Memory major pages are occurring at very high rate at {{ $labels.instance }}, 500 major page faults per second for the last 30 minutes, is currently at {{ printf "%.2f" $value }}.
       # Increase threshold from 10 to 20 and duration from 30m to 1h for rebuilderd
       - alert: NodeDiskIOSaturation
-        expr: rate(node_disk_io_time_weighted_seconds_total{job="node-exporter", device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"}[5m]) > 20
+        expr: rate(node_disk_io_time_weighted_seconds_total{job="kube-prometheus-stack-prometheus-node-exporter", device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"}[5m]) > 20
         for: 1h
         labels:
           severity: warning
@@ -1229,7 +1189,7 @@ spec:
         description: "Both redis-replication-0 and redis-replication-1 are unreachable. Immich and Paperless will be impacted."
 
     - alert: RedisHASentinelQuorumLost
-      expr: count(redis_up{namespace="databases", job=~".*sentinel.*"} == 1) < 2
+      expr: count(kube_pod_status_phase{namespace="databases",pod=~"redis-sentinel-sentinel.*",phase="Running"}) < 2
       for: 1m
       labels:
         severity: critical

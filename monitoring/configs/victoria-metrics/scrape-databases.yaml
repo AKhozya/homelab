@@ -31,9 +31,10 @@ spec:
       - databases
   selector:
     matchLabels:
-      app: redis
+      app: redis-replication
+      app.kubernetes.io/component: metrics
   endpoints:
-    - port: metrics
+    - port: redis-exporter
       interval: "60s"
       path: /metrics
       scrapeTimeout: "10s"
