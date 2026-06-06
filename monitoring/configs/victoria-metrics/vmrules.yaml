@@ -1119,7 +1119,7 @@ spec:
         expr: |
           rate(node_vmstat_pgmajfault{job="kube-prometheus-stack-prometheus-node-exporter"}[5m])
             * on(instance) group_left()
-            node_uname_info{nodename!~"worker-node|worker-node2"}
+            node_uname_info{nodename!~"worker-node|worker-node-2"}
           > 500
         for: 30m
         labels:
