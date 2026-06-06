@@ -268,18 +268,39 @@ done
 ```
 
 **CouchDB restore:**
+`couchrestore` is NOT in the couchdb image — it ships with `@cloudant/couchbackup` (npm),
+the same tool the backup CronJob uses. Run it from an ephemeral `node:alpine` pod (mirrors
+the backup), streaming each dump in via `kubectl run -i`. Admin creds are injected from the
+`couchdb-couchdb` secret via `--overrides` so they never land in shell history or pod args.
 ```bash
-# Find latest backup
+# 1. Find + verify the latest backup
 LATEST_COUCHDB=$(ls -t /mnt/k8s-storage/backups/couchdb/couchdb_*.tar.gz | head -1)
+sha256sum -c "${LATEST_COUCHDB}.sha256"
 
-# Verify integrity
-sha256sum -c ${LATEST_COUCHDB}.sha256
+# 2. Extract — yields per-DB files: /tmp/<TIMESTAMP>/<db>.couchbackup
+tar -xzf "$LATEST_COUCHDB" -C /tmp
+RESTORE_DIR="/tmp/$(basename "$LATEST_COUCHDB" .tar.gz | sed 's/^couchdb_//')"
 
-# Extract + restore
-tar -xzf $LATEST_COUCHDB -C /tmp
-cat /tmp/*/obsidian-personal.couchbackup | \
-  kubectl exec -i -n databases couchdb-couchdb-0 -- \
-  couchrestore --url http://admin:PASSWORD@localhost:5984 --db obsidian-personal
+# 3. Restore every DB in the archive. couchrestore does NOT create the target DB → PUT it first
+#    (ignore 412 = already exists). $U/$P/$DB expand inside the pod from the injected env.
+for BK in "$RESTORE_DIR"/*.couchbackup; do
+  DB=$(basename "$BK" .couchbackup)
+  echo "Restoring $DB..."
+  kubectl run couchrestore-tmp -n databases --rm -i --restart=Never \
+    --image=node:24.16.0-alpine \
+    --overrides='{
+      "spec": { "containers": [ {
+        "name": "couchrestore-tmp", "image": "node:24.16.0-alpine", "stdin": true,
+        "command": ["sh","-c",
+          "npm install -g @cloudant/couchbackup >/dev/null 2>&1; URL=\"http://$U:$P@couchdb-couchdb.databases.svc.cluster.local:5984\"; wget -q -O- --method=PUT \"$URL/$DB\" >/dev/null 2>&1 || true; couchrestore --url \"$URL\" --db \"$DB\""],
+        "env": [
+          {"name":"U","valueFrom":{"secretKeyRef":{"name":"couchdb-couchdb","key":"adminUsername"}}},
+          {"name":"P","valueFrom":{"secretKeyRef":{"name":"couchdb-couchdb","key":"adminPassword"}}},
+          {"name":"DB","value":"'"$DB"'"}
+        ]
+      } ] }
+    }' < "$BK"
+done
 ```
 
 **PVC restore:**

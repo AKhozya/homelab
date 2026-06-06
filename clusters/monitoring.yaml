@@ -6,7 +6,8 @@ metadata:
 spec:
   interval: 1m0s
   retryInterval: 2m
-  timeout: 45s
+  # 2m (was 45s): operator cold-start on reboot can exceed 45s → false-failed health gate. UR2 P3-1.
+  timeout: 2m
   dependsOn:
     - name: infrastructure-controllers
   sourceRef:
@@ -36,7 +37,8 @@ metadata:
 spec:
   interval: 1m0s
   retryInterval: 2m
-  timeout: 45s
+  # 2m (was 45s): VMSingle cold-start on reboot can exceed 45s → false-failed health gate. UR2 P3-1.
+  timeout: 2m
   dependsOn:
     - name: monitoring-controllers
   sourceRef:

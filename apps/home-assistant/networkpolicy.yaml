@@ -11,10 +11,31 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from all namespaces (internal cluster access only)
-    # This allows accessing Home Assistant from any pod in the cluster
+    # HA is LOCAL-ONLY — not in the cloudflared route table, so no cloudflare-tunnel rule.
+    # `namespaceSelector: {}` (admit every namespace) was over-broad; the only in-cluster
+    # consumers of 8123 are Traefik (ingress ha.h0melab.work), the uptime-kuma probe, and
+    # the same-namespace admin-setup Job. UR2 P3-8.
+    # Local UI access via Traefik ingress
     - from:
-        - namespaceSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - protocol: TCP
+          port: 8123
+    # uptime-kuma health probe
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: uptime-kuma
+      ports:
+        - protocol: TCP
+          port: 8123
+    # admin-setup Job (same namespace) — onboarding/OIDC bootstrap calls the HA API
+    - from:
+        - podSelector:
+            matchLabels:
+              app: home-assistant-admin-setup
       ports:
         - protocol: TCP
           port: 8123
