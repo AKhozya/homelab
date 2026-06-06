@@ -6,7 +6,7 @@ metadata:
 spec:
   # Selects the user-provision Job pod only (canonical label, auto-set on K3s >=1.27).
   # The shared allow-dns-egress baseline EXCLUDES Jobs, so DNS is supplied here.
-  # The Job manifest lives in the staging overlay; this NP selects it by job-name.
+  # The Job manifest is apps/n8n/user-provision-job.yaml; this NP selects it by job-name.
   podSelector:
     matchLabels:
       batch.kubernetes.io/job-name: n8n-user-provision

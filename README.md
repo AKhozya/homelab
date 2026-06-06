@@ -33,7 +33,6 @@ flux reconcile kustomization apps monitoring-controllers monitoring-configs
 - **[HOMELAB_ANALYSIS.md](docs/HOMELAB_ANALYSIS.md)** — infra overview, security, metrics (A grade, 94/100)
 - **[BACKUP_STRATEGY.md](docs/BACKUP_STRATEGY.md)** — daily backups, retention, restore
 - **[SECRETS_ROTATION.md](docs/SECRETS_ROTATION.md)** — credential rotation schedules
-- **[COMPREHENSIVE_CODEBASE_REVIEW.md](docs/COMPREHENSIVE_CODEBASE_REVIEW.md)** — security audit
 
 ## Monitoring
 

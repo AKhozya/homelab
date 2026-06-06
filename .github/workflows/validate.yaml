@@ -46,10 +46,11 @@ jobs:
             exit 0
           fi
           printf 'Found %d shell scripts\n' "${#files[@]}"
-          # -S error keeps the gate noise-free; warnings/info still surfaced inline below.
+          # -S warning catches the SC2015 (A && B || C) class the review-invariants flag; the
+          # tree is clean at this level (0 warnings) so the gate stays green.
           fail=0
           for f in "${files[@]}"; do
-            if ! shellcheck -S error "$f"; then
+            if ! shellcheck -S warning "$f"; then
               fail=1
             fi
           done

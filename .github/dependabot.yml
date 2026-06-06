@@ -1,22 +1,5 @@
 version: 2
 updates:
-  # Go modules in analyze-update script
-  - package-ecosystem: "gomod"
-    directory: "/scripts/analyze-update"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "18:00"
-      timezone: "UTC"
-    commit-message:
-      prefix: "chore(deps):"
-    labels:
-      - "dependencies"
-      - "go"
-    reviewers:
-      - "AKhozya"
-    open-pull-requests-limit: 5
-
   # GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
