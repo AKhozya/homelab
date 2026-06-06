@@ -34,6 +34,10 @@ spec:
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
     priorityClassName: homelab-critical  # critical tier
+    # Pod-level seccomp baseline (require-seccomp-runtimedefault Kyverno policy)
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
     resources:
       requests:
         cpu: "50m"
@@ -83,6 +87,10 @@ spec:
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
     priorityClassName: homelab-critical  # critical tier (primary DB)
+    # Pod-level seccomp baseline (require-seccomp-runtimedefault Kyverno policy)
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
 
     # Environment variables for longer timeouts during clone/recovery
     # These prevent "query interrupted" errors during large data transfers
@@ -176,6 +184,10 @@ spec:
       imagePullPolicy: IfNotPresent
       serviceAccountName: main-mysql
       priorityClassName: homelab-critical  # critical tier (DB front)
+      # Pod-level seccomp baseline (require-seccomp-runtimedefault Kyverno policy)
+      podSecurityContext:
+        seccompProfile:
+          type: RuntimeDefault
       # Grace period for draining connections during rolling updates
       gracePeriod: 30
 
