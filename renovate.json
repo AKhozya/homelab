@@ -26,10 +26,6 @@
   "commitMessageAction": "update",
   "dependencyDashboard": true,
   "dependencyDashboardApproval": false,
-  "postUpdateOptions": [
-    "gomodTidy",
-    "gomodUpdateImportPaths"
-  ],
   "kubernetes": {
     "managerFilePatterns": [
       "/\\.yaml$/"
