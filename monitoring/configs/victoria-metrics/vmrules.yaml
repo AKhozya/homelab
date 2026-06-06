@@ -380,32 +380,26 @@ spec:
   - name: flux-alerts
     interval: 60s
     rules:
-    - alert: FluxReconciliationFailure
-      expr: max(gotk_reconcile_condition{type="Ready",status="False"}) by (namespace,name,kind) > 0
-      for: 10m
+    # gotk_reconcile_condition / gotk_suspend_status removed upstream in Flux 2.8.x — per-object Ready
+    # failures are delivered to Telegram by the flux-gitops Alert (notification-controller event path,
+    # monitoring/configs/flux-notifications.yaml). These two are metric backstops to that path.
+    - alert: FluxControllerReconcileErrors
+      expr: sum by (controller) (rate(controller_runtime_reconcile_errors_total{namespace="flux-system"}[10m])) > 0
+      for: 15m
       labels:
         severity: warning
       annotations:
-        summary: "Flux {{ $labels.kind }} {{ $labels.name }} reconciliation failed"
-        description: "GitOps reconciliation has been failing for more than 10 minutes in {{ $labels.namespace }}. Your Git changes may not be applied! Check: kubectl describe {{ $labels.kind }} {{ $labels.name }} -n {{ $labels.namespace }}"
+        summary: "Flux {{ $labels.controller }} controller is erroring"
+        description: "Flux {{ $labels.controller }} controller has had reconcile errors for >15m. Your Git changes may not be applied. Check: flux get all -A --status-selector ready=false"
 
-    - alert: FluxSourceNotReady
-      expr: gotk_reconcile_condition{type="Ready",status="False",kind=~"GitRepository|HelmRepository"} > 0
+    - alert: FluxNotificationControllerDown
+      expr: up{namespace="flux-system",pod=~"notification-controller.*"} == 0
       for: 5m
       labels:
         severity: critical
       annotations:
-        summary: "Flux source {{ $labels.name }} not ready"
-        description: "Flux can't access the {{ $labels.kind }} {{ $labels.name }} in {{ $labels.namespace }}. Check credentials and connectivity."
-
-    - alert: FluxSuspended
-      expr: gotk_suspend_status == 1
-      for: 5m
-      labels:
-        severity: info
-      annotations:
-        summary: "Flux {{ $labels.kind }} {{ $labels.name }} is suspended"
-        description: "Resource {{ $labels.namespace }}/{{ $labels.name }} is suspended and will not reconcile automatically. Resume with: flux resume {{ $labels.kind }} {{ $labels.name }} -n {{ $labels.namespace }}"
+        summary: "Flux notification-controller is down - GitOps alerts not delivered"
+        description: "notification-controller is unreachable, so Flux reconciliation-failure events are NOT being sent to Telegram. The event-based alert path is blind until this recovers."
 
   - name: backup-alerts
     interval: 60s
