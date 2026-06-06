@@ -30,6 +30,25 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
+  # seccomp RuntimeDefault (UR2-4 soak) — chart 0.24.0 has no securityContext values hook; patch the
+  # rendered Deployment pod spec (strategic merge preserves any chart-set securityContext fields).
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: redis-operator
+            patch: |-
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: redis-operator
+              spec:
+                template:
+                  spec:
+                    securityContext:
+                      seccompProfile:
+                        type: RuntimeDefault
   values:
     # critical tier: operator coordinates Redis Sentinel + CR reconcile
     priorityClassName: homelab-critical

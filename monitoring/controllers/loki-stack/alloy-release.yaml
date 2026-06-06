@@ -38,6 +38,22 @@ spec:
               - op: add
                 path: /spec/template/spec/priorityClassName
                 value: homelab-standard
+          # seccomp RuntimeDefault (UR2-4 soak) — alloy reads host journal via file mounts, not
+          # blocked syscalls; RuntimeDefault is safe. Strategic-merge preserves chart securityContext.
+          - target:
+              kind: DaemonSet
+              name: alloy
+            patch: |-
+              apiVersion: apps/v1
+              kind: DaemonSet
+              metadata:
+                name: alloy
+              spec:
+                template:
+                  spec:
+                    securityContext:
+                      seccompProfile:
+                        type: RuntimeDefault
   values:
     # DaemonSet to run on all nodes (same as Promtail)
     controller:

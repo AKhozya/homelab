@@ -198,6 +198,10 @@ spec:
               supplementalGroups:
                 - 985  # video group on worker-node
                 - 989  # render group on worker-node
+              # Pod-level RuntimeDefault (UR2-4 seccomp soak). Pod-level because the main container's
+              # securityContext is replaced with privileged:true (GPU) via the postRenderer above.
+              seccompProfile:
+                type: RuntimeDefault
           initContainers:
             wait-for-database:
               image:

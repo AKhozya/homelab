@@ -53,6 +53,51 @@ spec:
               - op: add
                 path: /spec/template/spec/priorityClassName
                 value: homelab-standard
+          # seccomp RuntimeDefault (UR2-4 soak) — loki chart 7.0.0 has no uniform securityContext
+          # hook; strategic-merge each pod spec (merges into the chart's existing securityContext,
+          # preserving fsGroup/runAsUser).
+          - target:
+              kind: StatefulSet
+              name: loki
+            patch: |-
+              apiVersion: apps/v1
+              kind: StatefulSet
+              metadata:
+                name: loki
+              spec:
+                template:
+                  spec:
+                    securityContext:
+                      seccompProfile:
+                        type: RuntimeDefault
+          - target:
+              kind: Deployment
+              name: loki-gateway
+            patch: |-
+              apiVersion: apps/v1
+              kind: Deployment
+              metadata:
+                name: loki-gateway
+              spec:
+                template:
+                  spec:
+                    securityContext:
+                      seccompProfile:
+                        type: RuntimeDefault
+          - target:
+              kind: DaemonSet
+              name: loki-canary
+            patch: |-
+              apiVersion: apps/v1
+              kind: DaemonSet
+              metadata:
+                name: loki-canary
+              spec:
+                template:
+                  spec:
+                    securityContext:
+                      seccompProfile:
+                        type: RuntimeDefault
   values:
     # Loki configuration
     loki:

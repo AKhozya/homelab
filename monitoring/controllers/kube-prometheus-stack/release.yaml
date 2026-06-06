@@ -64,6 +64,22 @@ spec:
               - op: add
                 path: /spec/template/spec/priorityClassName
                 value: homelab-standard
+          # seccomp RuntimeDefault (UR2-4 soak) — node-exporter uses hostNetwork/hostPID + /proc,/sys
+          # file reads, none of which RuntimeDefault blocks. Strategic-merge preserves chart securityContext.
+          - target:
+              kind: DaemonSet
+              name: kube-prometheus-stack-prometheus-node-exporter
+            patch: |-
+              apiVersion: apps/v1
+              kind: DaemonSet
+              metadata:
+                name: kube-prometheus-stack-prometheus-node-exporter
+              spec:
+                template:
+                  spec:
+                    securityContext:
+                      seccompProfile:
+                        type: RuntimeDefault
   values:
     grafana:
       replicas: 1
