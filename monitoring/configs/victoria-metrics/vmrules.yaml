@@ -302,14 +302,9 @@ spec:
         summary: "Certificate {{ $labels.name }} in {{ $labels.namespace }} not ready"
         description: "Certificate has been in NotReady state for more than 10 minutes. Check cert-manager logs and issuer status."
 
-    - alert: CertificateRenewalFailed
-      expr: increase(certmanager_certificate_renewal_failure_count[1h]) > 0
-      for: 5m
-      labels:
-        severity: critical
-      annotations:
-        summary: "Certificate {{ $labels.name }} renewal failed"
-        description: "Certificate renewal has failed {{ $value }} times in the last hour. Check cert-manager logs immediately!"
+    # CertificateRenewalFailed removed UR2 2026-06-06: it used certmanager_certificate_renewal_failure_count
+    # which does not exist (permanently dead), and CertificateNotReady above already detects a
+    # Certificate whose Ready condition is not True (condition="False" > 0) — the same failure mode.
 
   - name: kubernetes-alerts
     interval: 60s
@@ -644,23 +639,11 @@ spec:
         summary: "MySQL connection usage high"
         description: "MySQL is using {{ printf \"%.1f\" $value }}% of max connections. May reject new connections soon."
 
-    - alert: MySQLReplicationNotRunning
-      expr: mysql_slave_status_slave_io_running == 0 or mysql_slave_status_slave_sql_running == 0
-      for: 2m
-      labels:
-        severity: critical
-      annotations:
-        summary: "MySQL replication is not running"
-        description: "MySQL replica IO or SQL thread is not running. Replication is broken! Check SHOW REPLICA STATUS."
-
-    - alert: MySQLReplicationLag
-      expr: mysql_slave_status_seconds_behind_master > 60
-      for: 5m
-      labels:
-        severity: warning
-      annotations:
-        summary: "MySQL replication lag detected"
-        description: "MySQL replica is {{ $value }}s behind primary. Data may be out of sync."
+    # MySQLReplicationNotRunning + MySQLReplicationLag removed UR2 2026-06-06: the standalone
+    # mysql-exporter scrapes the PRIMARY only (read_only=0), so SHOW REPLICA STATUS is empty and
+    # mysql_slave_status_* never had series — both alerts were permanently dead. Orchestrator
+    # manages failover (MySQLOrchestratorNotRunning above covers quorum). Real replication
+    # monitoring (scrape the replica read_only=1, or PMM) is tracked in ANALYSIS PENDING.
 
     - alert: MySQLSlowQueries
       expr: rate(mysql_global_status_slow_queries[5m]) > 0.1
@@ -941,7 +924,8 @@ spec:
         description: "Loki is experiencing {{ printf \"%.2f\" $value }} failed append operations per second. Check Loki logs for details."
 
     - alert: LokiCompactorNotRunning
-      expr: sum(loki_compactor_running) == 0
+      # boltdb-shipper mode emits loki_boltdb_shipper_compactor_running, not loki_compactor_running.
+      expr: sum(loki_boltdb_shipper_compactor_running) == 0
       for: 10m
       labels:
         severity: warning
