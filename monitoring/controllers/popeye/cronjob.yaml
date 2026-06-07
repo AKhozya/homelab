@@ -18,6 +18,11 @@ spec:
           serviceAccountName: popeye
           restartPolicy: Never
           priorityClassName: homelab-batch
+          # Pod-level seccomp baseline — satisfies require-seccomp-runtimedefault Kyverno
+          # policy (container already sets RoRFS/non-root/caps-drop but no seccompProfile)
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: popeye
               image: derailed/popeye:v0.22.1
