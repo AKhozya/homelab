@@ -77,6 +77,14 @@ spec:
       ports:
         - protocol: TCP
           port: 3306
+    # Replica-side exporter → HAProxy reader backend (3307) for replication metrics
+    - from:
+        - podSelector:
+            matchLabels:
+              app: mysql-replica-exporter
+      ports:
+        - protocol: TCP
+          port: 3307
   egress:
     # DNS
     - to:
