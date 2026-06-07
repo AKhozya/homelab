@@ -416,6 +416,14 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-06-07 (require-labels soak fix-forward — 15 violations cleared, polr → 0 cluster-wide) ✅
+Daily Kyverno digest fired 23 Audit violations (15 `require-labels` + 8 `require-seccomp-runtimedefault`). Triage: all 8 seccomp = stale objects (4 zero-replica pre-remediation RSes + 3 completed pre-fix popeye Jobs); 15 labels = real soak findings. Fixed forward NOW rather than at flip (`71495e61`) so the remaining ~4-week soak validates the FIX under churn (helm reconcile, CronJob spawns, Job force-recreates) instead of re-reporting knowns — quiet digest makes any new violator visible:
+- **3 provision Jobs** (mealie-user-provision, n8n-user-provision, couchdb-init): `app` label on pod template, values deliberately DISTINCT from app labels (`mealie-user-provision` ≠ `mealie`) so app-scoped NetworkPolicies don't start matching Job pods. Flux force-recreated all 3, re-ran clean (succeeded=1).
+- **popeye CronJob**: `app: popeye` at jobTemplate pod template (NP is `podSelector: {}`, unaffected).
+- **redis-operator**: populated chart's `redisOperator.podLabels` (`app.kubernetes.io/name`) — pulled chart 0.24.0 tgz first to prove podLabels merges into template labels ONLY (selector stays `name:` → no immutable-selector break). Rolled clean.
+- **Stale cleanup** (out-of-band, not git-managed): 5 zero-replica RSes (redis-operator ×2, immich-server, loki-gateway, ps-operator) + 3 completed popeye Jobs deleted.
+- **Verify**: fresh popeye run from updated template (labeled + seccomp'd, completed) → full polr re-query = **0 fail results cluster-wide, all 12 policies**.
+
 ### 2026-06-07 (UR2 non-July-gated cleanup — popeye seccomp, MySQL replica monitoring, CNPG-panels decided-leave) 🔬✅
 Swept the UR2 items NOT gated on the 07-04 soak (worktree → cavecrew → CI-green → reconcile → live-verify, each batch):
 - **popeye seccomp** (`22471c81`): the new `seccomp-violators.sh` live-pod audit caught `popeye` CronJob as a seccomp violator the 2026-06-06 12/12 check missed — CronJob pods cycle in/out, so point-in-time scans miss them between runs. Added pod-level `seccompProfile: RuntimeDefault` to its jobTemplate (container already had RoRFS/non-root/caps-drop). Verified the live CronJob template carries it.
