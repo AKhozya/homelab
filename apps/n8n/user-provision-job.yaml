@@ -9,6 +9,9 @@ spec:
   ttlSecondsAfterFinished: 86400
   backoffLimit: 3
   template:
+    metadata:
+      labels:
+        app: n8n-user-provision  # require-labels (Kyverno); distinct from app=n8n so app-scoped NetworkPolicies don't match this Job
     spec:
       serviceAccountName: n8n
       restartPolicy: OnFailure

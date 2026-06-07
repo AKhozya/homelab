@@ -8,6 +8,9 @@ metadata:
 spec:
   ttlSecondsAfterFinished: 86400
   template:
+    metadata:
+      labels:
+        app: couchdb-init  # require-labels (Kyverno)
     spec:
       serviceAccountName: obsidian
       automountServiceAccountToken: false

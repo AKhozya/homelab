@@ -9,6 +9,9 @@ spec:
   ttlSecondsAfterFinished: 86400
   backoffLimit: 3
   template:
+    metadata:
+      labels:
+        app: mealie-user-provision  # require-labels (Kyverno); distinct from app=mealie so app-scoped NetworkPolicies don't match this Job
     spec:
       serviceAccountName: mealie
       automountServiceAccountToken: false

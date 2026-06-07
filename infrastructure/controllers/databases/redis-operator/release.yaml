@@ -58,7 +58,10 @@ spec:
       imagePullPolicy: IfNotPresent
       automountServiceAccountToken: true
       podAnnotations: {}
-      podLabels: {}
+      # require-labels (Kyverno): chart merges podLabels into template labels only —
+      # selector stays selectorLabels (name:), no immutable-selector break on upgrade
+      podLabels:
+        app.kubernetes.io/name: redis-operator
       env: []
       webhook: false
       pprof:
