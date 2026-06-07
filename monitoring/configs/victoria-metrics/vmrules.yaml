@@ -639,11 +639,36 @@ spec:
         summary: "MySQL connection usage high"
         description: "MySQL is using {{ printf \"%.1f\" $value }}% of max connections. May reject new connections soon."
 
-    # MySQLReplicationNotRunning + MySQLReplicationLag removed UR2 2026-06-06: the standalone
-    # mysql-exporter scrapes the PRIMARY only (read_only=0), so SHOW REPLICA STATUS is empty and
-    # mysql_slave_status_* never had series — both alerts were permanently dead. Orchestrator
-    # manages failover (MySQLOrchestratorNotRunning above covers quorum). Real replication
-    # monitoring (scrape the replica read_only=1, or PMM) is tracked in ANALYSIS PENDING.
+    # Replica replication health — restored 2026-06-07 via mysql-replica-exporter (HAProxy
+    # reader backend :3307 → the read-only replica). MySQL 8.4 SHOW REPLICA STATUS exposes
+    # mysql_slave_status_replica_{sql,io}_running + _seconds_behind_source (NOT the legacy
+    # slave_*/master names removed UR2 2026-06-06). Orchestrator still covers failover quorum.
+    - alert: MySQLReplicaExporterDown
+      expr: mysql_up{job="mysql-replica-exporter"} == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "MySQL replica exporter cannot reach a replica"
+        description: "The replica exporter (HAProxy reader backend :3307) cannot connect — no read-only replica is serving reads, or the exporter is down. Replication health is unmonitored until restored."
+
+    - alert: MySQLReplicationNotRunning
+      expr: mysql_slave_status_replica_sql_running{job="mysql-replica-exporter"} == 0 or mysql_slave_status_replica_io_running{job="mysql-replica-exporter"} == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "MySQL replication thread stopped on the replica"
+        description: "The SQL or IO replication thread is not running on the replica — it is drifting from the primary and the failover target is stale. Check SHOW REPLICA STATUS."
+
+    - alert: MySQLReplicationLag
+      expr: mysql_slave_status_seconds_behind_source{job="mysql-replica-exporter"} > 30
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "MySQL replica lagging behind primary"
+        description: "The replica is {{ printf \"%.0f\" $value }}s behind the primary. A failover now would lose recent writes."
 
     - alert: MySQLSlowQueries
       expr: rate(mysql_global_status_slow_queries[5m]) > 0.1
