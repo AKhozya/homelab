@@ -39,6 +39,7 @@ For the `caveman:cavecrew-reviewer` pre-push gate. The reviewer already enforces
 - `0.0.0.0/0` (or bare 443) egress without an `except:` for RFC1918 (10/8, 172.16/12, 192.168/16) lets a compromised pod reach cluster-internal services. (F-9 immich, F-11 n8n)
 - DB-port egress (5432/3306/6379) must be scoped via `namespaceSelector` to `databases`, not `{}` (all-ns). (F-10)
 - A pod selected for Egress with NO egress rule denies all egress including DNS → every lookup hangs ~30s (not "refused"). `namespaceSelector` matches namespace LABELS, not names — use `kubernetes.io/metadata.name`. (k8s docs)
+- Cross-pod reachability is DUAL-SIDE: a client's egress to a DB/service pod is silently blocked unless the DEST pod's ingress NP ALSO has a matching `from`+port. A diff that adds a new client's egress (e.g. a 2nd exporter → a DB) but not a matching ingress on the target → kube-router **REJECT = "connection refused"** (fast, NOT the 30s DNS-style hang above; surfaces as `mysql_up=0`/connect errors, not lookup hangs). When a diff adds an exporter/client egress to an existing DB/service pod, confirm the dest's ingress NP gained a from-block for that source+port. (2026-06-07 mysql-replica-exporter→haproxy:3307)
 - `hostNetwork: true` pods bypass NetworkPolicy entirely. (CNI docs)
 
 ### securityContext / PSS
