@@ -47,7 +47,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: coredns
-          image: rancher/mirrored-coredns-coredns:1.14.3
+          image: rancher/mirrored-coredns-coredns:1.14.4
           imagePullPolicy: IfNotPresent
           args: ["-conf", "/etc/coredns/Corefile"]
           resources:
