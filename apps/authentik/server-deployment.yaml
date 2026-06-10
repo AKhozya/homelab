@@ -57,7 +57,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: server
-          image: ghcr.io/goauthentik/server:2026.5.2
+          image: ghcr.io/goauthentik/server:2026.5.3
           # Always pull to prevent digest mismatch across nodes
           # (Authentik re-publishes tags with different builds)
           imagePullPolicy: Always
