@@ -65,20 +65,23 @@ spec:
                   set -e
                   CURRENT_STEP="init"
 
+                  # Send a rich Markdown message (Bot API 10.1 sendRichMessage); best-effort.
+                  tg_rich() {
+                    [ -n "$TELEGRAM_BOT_TOKEN" ] || return 0
+                    command -v jq >/dev/null 2>&1 || return 0
+                    command -v curl >/dev/null 2>&1 || return 0
+                    jq -n --arg md "$1" --arg chat "$TELEGRAM_CHAT_ID" \
+                      '{chat_id:$chat, rich_message:{markdown:$md, skip_entity_detection:true}}' \
+                    | curl -s -X POST \
+                        "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendRichMessage" \
+                        -H 'content-type: application/json' --data-binary @- \
+                        -o /dev/null 2>/dev/null || true
+                  }
+
                   # Send Telegram failure notification on unexpected exit
                   send_failure() {
-                    if [ -n "$TELEGRAM_BOT_TOKEN" ] && command -v curl >/dev/null 2>&1; then
-                      MSG="❌ <b>Backup Replication FAILED</b> ($(date +%Y-%m-%d))
-
-                  Failed at: <b>${CURRENT_STEP}</b>
-                  Source backups preserved (not cleaned)."
-                      curl -s -X POST \
-                        "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-                        -d chat_id="${TELEGRAM_CHAT_ID}" \
-                        -d parse_mode=HTML \
-                        --data-urlencode "text=${MSG}" \
-                        -o /dev/null 2>/dev/null || true
-                    fi
+                    MSG=$(printf '## ❌ Backup Replication FAILED\n\nFailed at step: `%s`\nDate: %s\n\nSource backups preserved (not cleaned).' "$CURRENT_STEP" "$(date +%Y-%m-%d)")
+                    tg_rich "$MSG"
                   }
                   trap send_failure EXIT
 
@@ -86,7 +89,7 @@ spec:
 
                   # Install rsync, openssh, and curl
                   CURRENT_STEP="Installing dependencies"
-                  apk add --no-cache rsync openssh-client curl
+                  apk add --no-cache rsync openssh-client curl jq
 
                   # Setup SSH for worker-node-2
                   mkdir -p ~/.ssh
@@ -342,26 +345,20 @@ spec:
                     echo "=== Step 7: Sending Telegram failure report ==="
 
                     MSG_FILE="/tmp/telegram-msg.txt"
-                    printf "❌ <b>Backup Validation FAILED</b> (%s)\n\n" "$TODAY" > "$MSG_FILE"
+                    printf '## ❌ Backup Validation FAILED (%s)\n\n| Backup | Status | Details |\n|---|---|---|\n' "$TODAY" > "$MSG_FILE"
 
                     while IFS='|' read -r status label details; do
                       if [ "$status" = "OK" ]; then
-                        printf "✅ <b>%s</b>: %s\n" "$label" "$details" >> "$MSG_FILE"
+                        printf '| %s | ✅ | %s |\n' "$label" "$details" >> "$MSG_FILE"
                       else
-                        printf "❌ <b>%s</b>: %s\n" "$label" "$details" >> "$MSG_FILE"
+                        printf '| %s | ❌ | %s |\n' "$label" "$details" >> "$MSG_FILE"
                       fi
                     done < "$REPORT_FILE"
 
-                    printf "\n<b>%s</b>" "$NAS_STATUS" >> "$MSG_FILE"
+                    printf '\n**%s**' "$NAS_STATUS" >> "$MSG_FILE"
 
                     cat "$MSG_FILE"
-                    MSG_TEXT=$(cat "$MSG_FILE")
-                    curl -s -X POST \
-                      "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-                      -d chat_id="${TELEGRAM_CHAT_ID}" \
-                      -d parse_mode=HTML \
-                      --data-urlencode "text=${MSG_TEXT}" \
-                      -o /dev/null -w "Telegram HTTP %{http_code}\n"
+                    tg_rich "$(cat "$MSG_FILE")"
                   fi
 
                   # Clear failure trap on success

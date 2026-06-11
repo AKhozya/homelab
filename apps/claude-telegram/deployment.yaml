@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: chezmoi-init
-          image: ghcr.io/akhozya/claude-telegram-bot:1.26.0
+          image: ghcr.io/akhozya/claude-telegram-bot:1.27.0
           command:
             - /bin/bash
             - -c
@@ -97,18 +97,13 @@ spec:
               CLI=$(npx @anthropic-ai/claude-code --version 2>/dev/null || echo "unknown")
               SDK=$(node -e "console.log(require('/app/node_modules/@anthropic-ai/claude-agent-sdk/package.json').version)" 2>/dev/null || echo "unknown")
 
-              MSG="🤖 <b>Claude Bot Restarted</b>
-
-              CLI: <code>${CLI}</code>
-              SDK: <code>${SDK}</code>"
+              MSG=$(printf '## 🤖 Claude Bot Restarted\n\n| Component | Version |\n|---|---|\n| CLI | `%s` |\n| SDK | `%s` |' "$CLI" "$SDK")
 
               if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
-                curl -s -X POST \
-                  "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-                  -d chat_id="${TELEGRAM_CHAT_ID}" \
-                  -d parse_mode=HTML \
-                  --data-urlencode "text=${MSG}" \
-                  -o /dev/null 2>/dev/null || true
+                # Bot API 10.1 rich message (Markdown). node fetch has the keys via env to dodge quoting.
+                TG_TOKEN="$TELEGRAM_BOT_TOKEN" TG_CHAT="$TELEGRAM_CHAT_ID" TG_MSG="$MSG" \
+                  node -e 'fetch(`https://api.telegram.org/bot${process.env.TG_TOKEN}/sendRichMessage`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({chat_id:process.env.TG_CHAT,rich_message:{markdown:process.env.TG_MSG,skip_entity_detection:true}}),signal:AbortSignal.timeout(8000)}).then(r=>r.text()).catch(()=>{})' \
+                  >/dev/null 2>&1 || true
               fi
 
               echo "Init complete."
@@ -147,7 +142,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: claude-telegram
-          image: ghcr.io/akhozya/claude-telegram-bot:1.26.0
+          image: ghcr.io/akhozya/claude-telegram-bot:1.27.0
           env:
             - name: HOME
               value: /home/akhozya
@@ -224,7 +219,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync
-          image: ghcr.io/akhozya/claude-telegram-bot:1.26.0
+          image: ghcr.io/akhozya/claude-telegram-bot:1.27.0
           command:
             - /bin/bash
             - -c

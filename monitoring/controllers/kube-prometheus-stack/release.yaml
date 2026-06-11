@@ -244,11 +244,12 @@ spec:
             parse_mode: 'HTML'
             # Limit to 5 alerts max to avoid Telegram 4096 char limit truncation
             message: |
-              <b>{{ .Status | toUpper }}</b> ({{ len .Alerts }} alert{{ if gt (len .Alerts) 1 }}s{{ end }})
+              {{ if eq .Status "firing" }}🔥 <b>FIRING</b>{{ else }}✅ <b>RESOLVED</b>{{ end }} · {{ len .Alerts }} alert{{ if gt (len .Alerts) 1 }}s{{ end }}
               {{ range $i, $a := .Alerts }}{{ if lt $i 5 }}
-              • <b>{{ $a.Labels.alertname }}</b>{{ if $a.Labels.namespace }} [{{ $a.Labels.namespace }}]{{ end }}{{ if $a.Labels.instance }} ({{ $a.Labels.instance }}){{ end }}
+              <b>{{ $a.Labels.alertname }}</b>{{ if $a.Labels.severity }} · <i>{{ $a.Labels.severity }}</i>{{ end }}{{ if or $a.Labels.namespace $a.Labels.instance }}
+              <code>{{ if $a.Labels.namespace }}{{ $a.Labels.namespace }}{{ end }}{{ if $a.Labels.instance }}{{ if $a.Labels.namespace }} · {{ end }}{{ $a.Labels.instance }}{{ end }}</code>{{ end }}
               {{ $a.Annotations.summary }}{{ end }}{{ end }}{{ if gt (len .Alerts) 5 }}
-              <i>...and more ({{ len .Alerts }} total)</i>{{ end }}
+              <i>…and more ({{ len .Alerts }} total)</i>{{ end }}
         - name: 'telegram-backup'
           telegram_configs:
           - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot_token
@@ -258,11 +259,12 @@ spec:
             parse_mode: 'HTML'
             # Limit to 5 alerts max to avoid Telegram 4096 char limit truncation
             message: |
-              💾 <b>BACKUP {{ .Status | toUpper }}</b> ({{ len .Alerts }} alert{{ if gt (len .Alerts) 1 }}s{{ end }})
+              💾 {{ if eq .Status "firing" }}🔥 <b>BACKUP FIRING</b>{{ else }}✅ <b>BACKUP RESOLVED</b>{{ end }} · {{ len .Alerts }} alert{{ if gt (len .Alerts) 1 }}s{{ end }}
               {{ range $i, $a := .Alerts }}{{ if lt $i 5 }}
-              • <b>{{ $a.Labels.alertname }}</b>{{ if $a.Labels.namespace }} [{{ $a.Labels.namespace }}]{{ end }}{{ if $a.Labels.instance }} ({{ $a.Labels.instance }}){{ end }}
+              <b>{{ $a.Labels.alertname }}</b>{{ if $a.Labels.severity }} · <i>{{ $a.Labels.severity }}</i>{{ end }}{{ if or $a.Labels.namespace $a.Labels.instance }}
+              <code>{{ if $a.Labels.namespace }}{{ $a.Labels.namespace }}{{ end }}{{ if $a.Labels.instance }}{{ if $a.Labels.namespace }} · {{ end }}{{ $a.Labels.instance }}{{ end }}</code>{{ end }}
               {{ $a.Annotations.summary }}{{ end }}{{ end }}{{ if gt (len .Alerts) 5 }}
-              <i>...and more ({{ len .Alerts }} total)</i>{{ end }}
+              <i>…and more ({{ len .Alerts }} total)</i>{{ end }}
       # Ingress enabled for internal network access via am.h0melab.work
       # DNS points to internal IPs only (192.168.1.127, 192.168.1.129)
       # NOT exposed to the internet - NetworkPolicy restricts external access
