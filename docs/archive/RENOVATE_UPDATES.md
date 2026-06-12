@@ -33,7 +33,7 @@ Every Renovate PR gets **automatic version change analysis** (NOT code review):
 ./scripts/analyze-update-gh.sh <PR_NUMBER>  # GitHub-formatted
 ```
 
-See [Workflow Documentation](../.github/workflows/README.md).
+See [Workflow Documentation](../../.github/workflows/README.md).
 
 ---
 

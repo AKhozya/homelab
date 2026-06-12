@@ -147,7 +147,7 @@
   3. Secrets rotation documentation (1 hour)
   4. Enforce disallow-latest-tag policy (15 min)
   5. Traefik service alerts (1 hour)
-- 📄 **Documentation**: [CODE_REVIEW_2025_12_23.md](./CODE_REVIEW_2025_12_23.md)
+- **Documentation:** `CODE_REVIEW_2025_12_23.md` (archived — see `git log`)
 
 ### 2025-12-23 (ReadOnlyRootFilesystem Phase 3 Complete) 🔒
 - ✅ **Phase 3 Complete**: Enabled readOnlyRootFilesystem on 3 remaining Tier 3 apps ⭐

@@ -1,20 +1,23 @@
-# 🏗️ HOMELAB HISTORY & ARCHIVE
+# Homelab History
 
-**Purpose**: Historical changelog and completed task archive for the homelab infrastructure.
-**Related**: [HOMELAB_ANALYSIS.md](./HOMELAB_ANALYSIS.md) - Current status and active tasks
-**Created**: 2025-12-13
-**Coverage**: October 2025 - May 2026
+The append-only engineering record for the cluster — every review finding, incident, and completed action item since the first commit. Newest entries sit near the top; the canonical audit trail is `git log`.
+
+**Active status:** [HOMELAB_ANALYSIS.md](./HOMELAB_ANALYSIS.md) · **Design rationale:** [ARCHITECTURE.md](./ARCHITECTURE.md) · **Coverage:** October 2025 – present.
+
+## Milestones
+
+| Window | Milestone |
+|---|---|
+| Oct 2025 | Security hardening pass — PostgreSQL NetworkPolicies, Kyverno policy phases 1–3, SOPS secret encryption, Cloudflare Tunnel, HA for critical components |
+| Nov–Dec 2025 | SSO across the app fleet (Authentik OIDC), backup validation (SHA-256), monitoring HA (Prometheus/Alertmanager 2-replica) |
+| Q1 2026 | Node maintenance as ansible roles, Authentik passkey-first auth, Blocky DNS migration, Redis Sentinel HA |
+| Q2 2026 | DNS decoupling + coredns-ha DaemonSet, CNPG anti-flap hardening, per-app CSP rollout, Flux bootstrap flatten |
+
+The dated changelog and completed-action-item archive below are the detail behind these.
 
 ---
 
-## 📋 Table of Contents
-
-1. [Completed Action Items Archive](#-completed-action-items-archive)
-2. [Historical Changelog](#-historical-changelog-october-december-2025)
-
----
-
-### 🚨 December 2025 Review Findings
+### December 2025 Review Findings
 
 | Priority | Issue | Status | Action |
 |----------|-------|--------|--------|
@@ -33,10 +36,9 @@
 
 ---
 
-### 🔍 Code Review Findings (2025-12-23)
+### Code Review Findings (2025-12-23)
 
-**Source**: [CODE_REVIEW_2025_12_23.md](./CODE_REVIEW_2025_12_23.md)
-**Overall Score**: 89/100 (A-)
+**Source:** `CODE_REVIEW_2025_12_23.md` (archived — see `git log`)
 
 #### High Priority (This Month)
 
@@ -208,7 +210,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
     - ✅ SSO platform deployed with PostgreSQL and Redis
     - Commit: 46cc485
 
-#### 14. ✅ **COMPLETED: Create Ingresses for All Apps** - P1 ⭐
+#### 14. ✅ **COMPLETED: Create Ingresses for All Apps** - P1
     - ✅ **Completed**: 2025-10-25
     - ✅ **Dual-Access Pattern Implemented**: 10 apps with Traefik Ingress + Cloudflare Tunnel
     - ✅ **Apps Configured**: authentik, stirling-pdf, immich, paperless-ngx, audiobookshelf, mealie, wallabag, n8n, linkding, couchdb
@@ -216,7 +218,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
     - ✅ **Benefit**: Fast local HTTPS access + secure external access via Cloudflare
     - Commits: 2d8921b, ec2f63d
 
-#### 15. ✅ **COMPLETED: Integrate Apps with Authentik SSO** - P2 ⭐
+#### 15. ✅ **COMPLETED: Integrate Apps with Authentik SSO** - P2
     - **Completed**: 2025-10-22
     - **Apps Configured via Environment Variables** (3): Paperless-NGX, Linkding, Mealie
     - **Apps Configured via Web UI** (3): Grafana, Immich, Audiobookshelf
@@ -231,7 +233,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
     - **Note**: N8N Community Edition does not support SSO/LDAP - Enterprise plan required
     - Commit: 5e85276
 
-#### 16. ✅ **COMPLETED: Backup Validation** - P2 ⭐
+#### 16. ✅ **COMPLETED: Backup Validation** - P2
     - ✅ **Status:** FULLY VALIDATED - All backups tested and proven restorable
     - ✅ **PostgreSQL:** 2 databases restored successfully (authentik: 178 tables, immich: 49 tables)
     - ✅ **CouchDB:** 337 documents restored successfully
@@ -264,7 +266,7 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
    - Alternative: Continue with existing pg_dump daily backups (24h RPO acceptable for homelab)
    - barmanObjectStore doesn't support local filesystem paths
 
-#### 20. ✅ **CSP Enforcement** - P1 (2025-10-31) ⭐
+#### 20. ✅ **CSP Enforcement** - P1 (2025-10-31)
    - CSP in enforcement mode across all 17 apps (43 days active, zero violations)
    - Policy: `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'`
    - Monitoring: csp-reporter service → Loki
@@ -414,9 +416,9 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ---
 
-## 📝 Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
+## Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
-### 2026-06-12 (Flux bootstrap flatten — `clusters/staging/` → `clusters/`) 🔄✅
+### 2026-06-12 (Flux bootstrap flatten — `clusters/staging/` → `clusters/`) ✅
 The Flux bootstrap dir was misleadingly named `staging` (single-env PROD, no staging) and held only `flux-system/` while the 5 Kustomization CRs already sat flat at `clusters/`. Flattened to `clusters/` (root `spec.path: ./clusters`) via a **3-commit deadlock-safe migration** — the root Kustomization's `spec.path` lives inside the dir being deleted, so switch and delete must be separate, individually-reconciled commits (else Flux builds the current path from a tree where it's already gone → reconcile wedge, the CoreDNS-deadlock class).
 - **1/3** (`14973410`): added flat `clusters/{flux-system/,kustomization.yaml}` alongside `staging/`, **inert** (root still on `./clusters/staging`, nothing builds `./clusters`). priorityClassName `.*-controller$` patch moved into `clusters/flux-system/kustomization.yaml`. Reconcile = zero churn (verified: PODS/FLUX/ALERTS unchanged, only SHA).
 - **2/3** (`6304396e`): flipped both gotk-sync copies' `spec.path` `./clusters/staging` → `./clusters`. Reconcile N (root still on staging) builds old path via Flux **auto-gen** → applies flipped CR → in-cluster `spec.path` becomes `./clusters`; N+1 builds `./clusters`. Verified spec.path flipped live, 7/7 Ready, zero regression.
@@ -425,7 +427,7 @@ The Flux bootstrap dir was misleadingly named `staging` (single-env PROD, no sta
 - **GOTCHA — cavecrew false positive**: reviewer flagged "deadlock: `kustomize build ./clusters/staging` fails (no `kustomization.yaml`)". Conflated `kustomize build` CLI (no auto-gen + load-restrictor blocks `../../`) with the Flux kustomize-controller (**auto-generates** the kustomization + `LoadRestrictionsNone`). Refuted via `flux build` exit 0 at both paths + the live cluster *already* reconciling `./clusters/staging` with no `kustomization.yaml` there.
 - **NOT** re-bootstrapped via `flux bootstrap` (would regen gotk-components at the CLI's Flux version → drift from v2.8.8 + lose the notification-controller priorityClassName parity) — hand-edited the path field only.
 
-### 2026-06-12 (Pre-public sanitization: git-history rewrite + SSH key rotation) 🔒
+### 2026-06-12 (Pre-public sanitization: git-history rewrite + SSH key rotation)
 Audit ahead of possibly making the repo public found 3 secret classes in **git history** (working tree was clean — all SOPS-encrypted). Remediation:
 - **History rewrite** (`git filter-repo` on a fresh clone → force-push `e86068a5`→`04503602`, 3515→3475 commits): stripped the `2026-04-11-claude-telegram*` plan/spec docs (held a plaintext ed25519 key) + redacted the Telegram bot token + Cloudflare account-ID/tunnel-UUID across all history. Deleted stale branch `worktree-phase-a-node-config`; deleted + re-pushed all 35 tags onto clean commits. Pre-rewrite backup bundle taken (then deleted). Flux reconciled clean to `04503602`, zero disruption.
 - **SSH key rotation** (`b1c83ca1`): the leaked `claude-telegram-bot` ed25519 key was a **GitHub account-wide auth key** + node-SSH key. Rotated additive-first (new key → GitHub + 3 nodes' `authorized_keys` → SOPS `claude-telegram-ssh` → bot restart → verify github+node auth → remove old). Old key deauthorized everywhere → its history/PR-ref copies now inert.
@@ -465,7 +467,7 @@ Continuation of UR2 — worked the deferred P3 leads (worktree → cavecrew revi
 - **Fallout** (`5d217282`+`03711ab7`): Batch A's newly-live alerts surfaced 3 latent bugs that paged Telegram, all root-caused live + cleared — alertmanager `reloader-web:8080` not scrapable (`up=0`→ScrapeTargetDown; dropped from scrape), RedisHAReplicationBroken false-fired on the replica's `connected_slaves=0` (→`max()`), NodeMemoryMajorPagesFaults exclusion regex `worker-node2` (missing dash) never matched hostname `worker-node-2` so wn2's rebuilderd disk-I/O (7354 majflt/s, 60% mem free) fired it (→`worker-node-2`).
 - **Deferred**: 18 P3 leads (unverified — confirm before acting); UR2-4 seccomp re-Enforce (22-pod seccompProfile remediation); `scripts/analyze-update/` Go dir (orphaned, dependabot stopped — left for owner to delete).
 
-### 2026-06-05 (Monthly review — scan rollup, overdue-item closure, passkey-only flow, Redis failover test) 📋✅
+### 2026-06-05 (Monthly review — scan rollup, overdue-item closure, passkey-only flow, Redis failover test) ✅
 - 🔬 **Security-scan rollup** (June 1 run vs May): warnings 95→32 (CP), 94→31 (W1), 94→31 (W2) — −66%, uniform (rkhunter propupd baseline effect); suspect files 87→27/86→26/86→26; **0 rootkits all nodes**.
 - ✅ **UFW heal v5 validated PASS** — W1 linux-lts 6.18.33-1 upgrade + reboot 2026-05-31 22:35 survived: ufw.service + ufw-heal-watchdog.timer active, no UfwDisabled incident. Pending item (open since 2026-05-16) closed.
 - ⚖️ **Blocky memory-limit review closed: keep 512Mi** — 30d peak 365Mi (vs 307Mi May soak; 293Mi even in last 24h post node-DNS-decouple). Planned 384Mi would leave 5% headroom; limit ≠ reservation, DNS critical path. No change shipped.
@@ -478,54 +480,54 @@ Continuation of UR2 — worked the deferred P3 leads (worktree → cavecrew revi
 - 🧰 **Lesson → skill**: checklist-following ≠ review completeness. Built `homelab-monthly-review` skill (full posture-surface table + phases); ANALYSIS checklist section reduced to pointer so they can't drift.
 - 📋 Next review 2026-07-04 (monthly + first quarterly automation audit, same day). Not pulled in (not yet due): high-pri secret rotation 07-01, W2 replication-step drop ~07-20, right-sizing 07-06.
 
-### 2026-06-05 (Ultrareview closure: REVIEW.md retired + F-ref comment sweep + dead-config cleanup) 🧹✅
+### 2026-06-05 (Ultrareview closure: REVIEW.md retired + F-ref comment sweep + dead-config cleanup) ✅
 **Ultrareview 2026-05-23 backlog fully closed** — every finding (1 P0 + 11 P1 + 17 P2 + P3s + refactors R1-R7) done, won't-do'd with rationale, or deferred-by-decision (mealie/uptime-kuma Job NPs — runtime apt/pip egress; F-22 optional https report endpoint; HISTORY rotation 2026-Q3). `REVIEW.md` deleted (638 lines; full record in git history — last at `60b8d621`). Referrers updated: ANALYSIS header/keyfacts/changelog, ARCHITECTURE doc table.
 **Comment sweep**: 43 `F-N`/`Wave-N` review-plan refs removed from 29 yaml/sh files (comments now self-explanatory; dates kept). Stale claims fixed: kyverno-policies kustomization "Audit (Wave 8 soak)" header (all 12 Enforce since 2026-05-25), `require-networkpolicy` NP count, pricebuddy "apprise root writes" (non-root since F-24).
 **Dead config removed** (separate commit `9144e2a6`): (1) `csp-tier-middlewares.yaml` — 3 report-only CSP middlewares referenced by zero ingresses (all 14 use `-enforced` variants; report-uri was cluster-internal HTTP = browser-unreachable, the known-dead soak gate); (2) `claude-telegram` ns removed from `require-readonly-rootfs` excludes — RoRFS ×3 + PSS restricted since 2026-05-27 (`3c5ce4aa`), live-verified compliant pre-removal; Kyverno now guards the ns again.
 
-### 2026-06-05 (k3s v1.35.3 → v1.36.1, no-reboot binary swap) ⚙️✅
+### 2026-06-05 (k3s v1.35.3 → v1.36.1, no-reboot binary swap) ✅
 **Method** (k3s is NOT pacman-managed — manual binary at `/usr/local/bin/k3s`, last touched Apr 5): direct GitHub release binary swap, sha256-verified, **no install script** (on agents it rewrites systemd units and needs K3S_URL/K3S_TOKEN; binary swap needs neither — agents stay joined, token/config untouched). Staged on all 3 nodes with old binary kept at `/usr/local/bin/k3s.prev` (v1.35.3 rollback), then activated via the sanctioned `node-maintenance-rolling-restart.service` (serial CP→W1→W2, Ready gate per node, ~6min, pods keep running — only the k3s control process bounces). Sudo via `op://Personal/sudo-homelab/password` single-attempt pattern.
 **Verified**: all nodes Ready on v1.36.1+k3s1, watch-reboot all-green (3-surface ClusterIP/loopback/nat-jump), checkpoint `pre-k3s-1.36-upgrade` diff = zero regressions (pods 105/92/0, alerts 0). Skew order correct: server upgraded before agents. Cleanup later: `rm /usr/local/bin/k3s.prev` once stable for a week.
 
-### 2026-06-05 (coredns-ha Deployment → DaemonSet + JobFailed incident RCA) 🛡️✅
+### 2026-06-05 (coredns-ha Deployment → DaemonSet + JobFailed incident RCA) ✅
 **Incident (2026-06-04 18:12–~21:00 UTC)**: pod DNS dead on worker-node-2 only. Casualties: `audiobookshelf-init` daily TTL re-run (curl exit 6 ×6 → BackoffLimitExceeded → JobFailed alert, fixed 06-05 by delete+`fr` re-run) + authentik-server crashloop ×17 (liveness 500: name resolution fail for `main-postgres-rw`). CoreDNS pods healthy throughout (0 restarts, 0 SERVFAIL) — **wn2 had ZERO local coredns replica** (skew: W1×1+CP×2), so all wn2 pod DNS crossed flannel VXLAN; node-local VXLAN fault = total DNS loss for wn2 pods. Forensics via VM kube-state metrics (job pod deleted at backoffLimit, Alloy never captured fast-crashloop logs) — see memory `gotcha_worker_node2_flannel_dns`.
 **Why skew recurred**: `whenUnsatisfiable: ScheduleAnyway` = soft scoring hint; least-allocated scoring + rolling-update double-counting beat it (after 06-04 23:50 roll: CP×1+**wn2×2+W1×0**). No descheduler → skew permanent until next roll.
 **Fix** (`6e7c8581`): `infrastructure/coredns/deployment.yaml` → `daemonset.yaml` — exactly 1 CoreDNS/node, immune to scheduler scoring; DS pods auto-tolerate disk/memory-pressure taints. Flux healthCheck GVK Deployment→DaemonSet (clusters/coredns.yaml), PDB kept. Verified: 1/1/1 across nodes, old Deployment pruned, kube-dns svc selector (`k8s-app=kube-dns`) gave zero-gap cutover.
 **flannel drops RESOLVED same day**: timed tcpdump (`kubectl debug node --profile=sysadmin`) around the predicted :XX:29 burst second → top flow = `main-postgres-11`(wn2):5432 → `main-postgres-12`(W1), ~7.7k pkts/~11MB in <1s = **CNPG WAL segment-switch burst** (`archive_timeout=300s`) overrunning wn2 NIC queue (~9% burst drops, TCP retransmits cover). WAL was wn2-egress because of a **spurious failover 06-04 20:37:43 UTC**: CNPG operator runs ON wn2 — during the flaky window its probe to the healthy W1 primary failed over VXLAN → "Current primary isn't healthy" → promoted the wn2-local replica (drop regime began 20:52 = first segment switches). Fix: `kubectl cnpg promote main-postgres main-postgres-12` (06-05 11:34 UTC) — W1 pin restored, cluster healthy. Lesson: operator-on-flaky-node shoots healthy primaries. k3s update NOT needed — not a flannel bug. Third silent casualty of the 06-04 window (after JobFailed + authentik). Diagnostic dead-ends recorded in memory `gotcha_worker_node2_flannel_dns`.
 **HARDENED same day** (`47fbf602`): `Cluster.spec.failoverDelay: 30` (filters 1-10s probe blips; +30s RTO on real death) + operator nodeAffinity soft-pref NotIn wn2 + control-plane toleration (REQUIRED: without it replicaCount 2 + hard anti-affinity forces a replica onto wn2 — pref would be dead config). GOTCHA hit during rollout (2nd time today, after coredns): rolling reroll of hard-anti-affinity pods — the OLD Terminating pod still counts → blocks its node → new pod landed wn2 despite pref; one `kubectl delete pod` after the upgrade rescheduled it to W1. Final: operator CP+W1, failoverDelay live, cluster healthy.
 
-### 2026-06-04 (Node DNS decoupled from blocky — circular-dep break) 🛡️✅
+### 2026-06-04 (Node DNS decoupled from blocky — circular-dep break) ✅
 Nodes' upstream DNS moved off blocky's worker-IP servicelb endpoints (192.168.1.129/.126, DHCP-supplied) to public resolvers (1.1.1.1 + 9.9.9.9). **Why**: CoreDNS (`forward . /etc/resolv.conf`, `dnsPolicy: Default`) inherits the node resolv.conf, so cluster-external DNS (flux→github) flowed CoreDNS → node → blocky pod → kube-proxy servicelb DNAT. A worker kube-proxy/flannel wedge killed blocky reachability AND the node upstream together — self-amplifying (2026-06-04 incident, gotcha_k3s_reboot_ordering delta #3). blocky also hard-deps redis (`required:true`), so it's a poor thing for the cluster's own DNS to depend on.
 **Fix** (ansible `hardening` role, node-side — NOT Flux): per-NIC networkd drop-in `[DHCPv4]/[IPv6AcceptRA] UseDNS=no` + `[Network] DNS=` reset (drops DHCP/RA-supplied + W2's static .129); resolved global drop-in `DNS=1.1.1.1 9.9.9.9` + `Domains=~.`. Stays uplink-mode (real IPs in resolv.conf, NOT 127.0.0.53 — k3s would generate its own). Per-host var `primary_network_file` (CP 10-enp3s0, W1 20-ethernet, W2 20-wired-static). Merge `c4fcd922`.
 **Applied**: all 3 nodes via drift-heal, then `kubectl rollout restart deploy/coredns-ha` (pods snapshot resolv.conf at creation → must restart to re-read). Verified: every node resolv.conf = public, zero blocky IP; flux fetched github via CoreDNS→public; blocky still serves LAN (router DHCP DNS option untouched → .129/.126 servicelb intact, adblock for LAN devices preserved).
 **GOTCHA** `install.sh --sync-only` is NOT file-copy-only — lines 158/164 re-enable `node-maintenance-config.timer` + `systemctl start --wait node-maintenance-config.service` = a full drift-heal across ALL hosts (blocking ~5 min). It bypassed the intended staged W2→W1→CP rollout (landed all-at-once; idempotent + reviewed so harmless here, but for true per-node staging do a manual `rsync ansible/ /etc/node-maintenance/ansible/` + `ansible-playbook --limit <node> --tags <tag>`, NOT install.sh --sync-only). `fe80::1` (router IPv6 RA) persists post-apply — `UseDNS=no` doesn't drop an already-acquired RA lease without reconfigure/reboot; benign (router ≠ cluster). Design+impl: docs/plans/2026-06-04-dns-decoupling-{design,implementation}.md.
 
-### 2026-05-31 (immich post-reboot recovery — Redis stale-connection + gunicorn-25.1.0 control-socket boot hang) 🔴🛡️
+### 2026-05-31 (immich post-reboot recovery — Redis stale-connection + gunicorn-25.1.0 control-socket boot hang)
 Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-day blips (immich-server was mid-migration / the 03:00 backup pod was killed during maintenance — not disk, worker-node had 3.7T free; this week's backup re-run manually → Complete). Verifying immich health surfaced two real issues:
 - 🔴 **immich-server → read-only Redis replica** (`READONLY You can't write against a read only replica`, ongoing). Redis itself was healthy (Sentinel master `10.42.2.141` writable, 1 slave); immich's **ioredis connection was stale** — pinned to the pre-reboot replica, never followed the Sentinel failover. Fix: `kubectl rollout restart deployment/immich-server` → reconnected to master, errors stopped. (Operational, not git. Same class as the cached-DNS-after-failover gotchas — restart the *client*, not the DB.)
 - 🔴 **immich-ml boot hang ~50% of restarts** (`e740597d`+`e2ce645a`). Root cause: **gunicorn 25.1.0** (versionadded) ships a new **control socket**, default path the *relative* `gunicorn.ctl` → joined to the **read-only cwd** → `Errno 30 Read-only file system`. That failed write **intermittently hangs the gunicorn worker fork** (master logs "Control server error" then never forks the worker → `/ping` never serves → startup probe burns its 600s budget → SIGTERM; a fresh pod wins the race and boots fine). NOT benign log noise as first assumed. **Fix:** `GUNICORN_CMD_ARGS: "--no-control-socket"` env on immich-ml (gunicorn reads this env; flag valid in 25.1.0) — disables the unused control CLI socket, **keeps `readOnlyRootFilesystem: true`** (no security regression; immich ns is Kyverno require-readonly-rootfs-excluded + PSS-privileged, so RoRFS:false was the fallback but unneeded). Reusable: ANY RoRFS workload on gunicorn ≥25.1.0 hits this → set `--no-control-socket` (or `--control-socket /run/...` to a writable mount). See `[[immich-ml-gunicorn-control-socket]]` memory.
 - 🛡️ **Probe-timeout hardening** (`e740597d` mine + concurrent session's readiness postRenderer): immich-ml AND immich-server probes shipped chart-default `timeoutSeconds: 1` — under reboot CPU-starvation a >1s `/ping` reads as a probe failure → false SIGTERM. Bumped startup+liveness (values, `custom: true`) and readiness (postRenderer SMP) to `timeoutSeconds: 5` on both components; liveness failureThreshold 3→5. Defense-in-depth (the control-socket fix is the actual boot fix).
 
-### 2026-05-31 (F-43 — Home Assistant OIDC SSO re-enabled on hass-oidc-auth v1.1.0) ⚖️✅
+### 2026-05-31 (F-43 — Home Assistant OIDC SSO re-enabled on hass-oidc-auth v1.1.0) ✅
 - ✅ **Re-enabled** (`fcf2d1a8`): hass-oidc-auth **v1.1.0** (2026-05-14, first stable past the alpha/RC line) fixed the auth-page-injection break that made it incompatible with HA 2026.4.0 — the reason it was disabled 2026-04-02 (`0c70695b`). HA now on 2026.5.4 (`hacs.json` min HA 2025.11). Re-added the `oidc-auth-install` init container (downloads the **pinned v1.1.0 release zip** → `/config/custom_components/auth_oidc`, mirrors the HACS init pattern, `.installed-version` sentinel for idempotent upgrades) + restored the `auth_oidc:` **confidential** block in the configmap (`client_secret: !secret oidc_client_secret`, resolved from the existing SOPS `home-assistant-secrets`).
 - 🔵 **Authentik side survived the disable** — the `home-assistant` OAuth2 provider + application were never torn down (only the HA side was); discovery endpoint returned 200 and `secrets.yaml` still held `oidc_client_secret`, so the re-enable was config-only. **Live OIDC login verified** by operator.
 - 🔐 **Scrubbed** a plaintext client secret committed in `OIDC_SETUP.md` (line 40, in git since the 2026-04 setup) → SOPS-only pointer. The provider's secret is the source of truth.
 - 🧠 **Gotcha:** HA's real host is `ha.h0melab.work`; `OIDC_SETUP.md` documented the wrong `homeassistant.h0melab.work` redirect URI (4 refs, fixed). The Authentik provider was already correct — proven by probing the authorize endpoint: `ha.h0melab.work/auth/oidc/callback` → 302 (allowlisted), `homeassistant…` → 400 (rejected). Reusable check: `_shared/oidc-verify.sh`. CI was INFRA-RED (runner billing) — cavecrew + local-validate were the gate of record.
 
-### 2026-05-31 (CoreDNS single-managed convergence via `--disable=coredns` — DNS-deadlock cutover + break-glass) 🔬🛡️
+### 2026-05-31 (CoreDNS single-managed convergence via `--disable=coredns` — DNS-deadlock cutover + break-glass) 🔬️
 - ⚖️ **Convergence executed** (operator decision): `--disable=coredns` added to `control_plane.yml` k3s_disable (`bd2bd5b5`) so the k3s addon CoreDNS retires, leaving the Flux-managed `coredns-ha` (3 spread replicas) as the single CoreDNS behind kube-dns `10.43.0.10`. Activated on the phase1 update+reboot.
 - 🔴 **DNS DEADLOCK on cutover** (~20:46): the CP k3s restart fired `--disable`, which deleted the **entire still-addon-owned** set by `objectset.rio.cattle.io/owner-*` label — kube-dns **Service** (the VIP), `coredns` **CM** (Corefile), **SA**, `system:coredns` **ClusterRole+Binding**, addon **Deployment**. Phase-A "adoption" (`ce8262f8`) had only added kustomize-controller as a field-manager; it never stripped the owner-labels, so k3s still owned them. Flux then **could not recreate** them: kustomize-controller fetches its artifact from `source-controller.flux-system.svc` → resolves via the just-deleted `10.43.0.10:53` → `i/o timeout` → ALL reconciles stalled cluster-wide. The planned `cache 30` + forced `flux reconcile` mitigations were useless (same DNS dependency). **phase2 Flux-Ready preflight failed `exit=2`** (before any worker roll; `Restart=on-failure RestartSec=900` auto-retry).
 - 🩹 **Break-glass recovery:** `kubectl apply -k infrastructure/coredns/` recreated SA/RBAC/CM/Service from git → DNS up instantly (Service → 3 coredns-ha endpoints) → Flux unblocked, `flux reconcile kustomization coredns` succeeded, all 7 kustomizations `READY=True` (`5f4d202`). phase2 auto-retry then passed.
 - ✅ **Self-sustaining now / no revert:** recreated objects carry **no** owner-label, so future `--disable` restarts find nothing addon-owned to delete → deadlock is a one-time transition cost. `--disable=coredns` stays (removing it → k3s redeploys a conflicting addon).
 - 🧠 **Lesson:** a controller that fetches its own source over cluster DNS cannot rebuild that DNS from a deleted state — deadlock, not gap. SSA `force:true` changes field-manager, NOT labels. Safe sequence = strip owner-labels / redeploy under distinct basename and verify `kubectl get` shows none, THEN `--disable`. Full post-mortem: `docs/plans/2026-05-31-reboot-wedge-prevention.md` §7.
 
-### 2026-05-31 (monitoring/controllers base/staging → flat — F-14 monitoring completion) 🔄✅
+### 2026-05-31 (monitoring/controllers base/staging → flat — F-14 monitoring completion) ✅
 - 🔄 **Monitoring controllers flattened** (`b53a4cab`): `monitoring/controllers/{base,staging}` split → flat `monitoring/controllers/<component>/` (kube-prometheus-stack/loki-stack/popeye/victoria-metrics). Completes the monitoring side of the F-13/F-14 single-env collapse — `b442c098` had only removed the per-component passthrough overlays, leaving the base/staging dirs.
 - **kps namespace fold:** the dropped `staging/kube-prometheus-stack` overlay's only job was `namespace: monitoring` → folded into the flat `kube-prometheus-stack/kustomization.yaml`. loki/popeye/victoria-metrics self-namespace (referenced raw from base, no transform).
 - **Proof:** `kustomize build monitoring/controllers` byte-identical to pre-change `…/staging` render (same SHA256, 1058 lines, 17 resources); kubeconform 17/17. Flux applied `b53a4cab` READY=True, path repointed `./monitoring/controllers/staging`→`./monitoring/controllers`, zero workload churn (monitoring pods 26–27h, no restarts).
 - 🧠 **Single atomic commit** (dir move + path repoint together) → path-change race window near-zero; drove prompt `flux reconcile source git flux-system` + `kustomization monitoring-controllers`. CI billing-blocked → local ladder + cavecrew gate (user-authorized bypass). Executed in an isolated git worktree off origin/main.
 
-### 2026-05-29 (F-23 image pinning to 3-component + CI image-pin gate) ⚖️✅
+### 2026-05-29 (F-23 image pinning to 3-component + CI image-pin gate) ✅
 - ⚖️ **F-23 closed** (`ba65f445`+`693e41a8`+`519ecead`). Two long-parked image-pin violations + the gate gap that let them hide.
 - **claude-telegram (own image):** rewrote `claude-telegram-build.yml` version generator 2-component (`1.<minor>`) → **3-component** (`major.minor.patch`). Each scheduled rebuild auto-increments PATCH (dep refresh = patch); minor/major via manual `workflow_dispatch` input (validated `^\d+\.\d+\.\d+$`); transition-safe (3-comp glob, falls back to latest 2-comp `1.NN`→`1.NN.0`). Triggered build → `1.25.0` (GHCR image + git tag `claude-telegram-v1.25.0`). Bumped manifest `:1.24`→`:1.25.0` (chezmoi-init + main + sync). Live: pod Ready, both containers 0-restart, init Completed exit 0 on the fresh build.
 - **seleniumbase-scrapper (3rd-party):** upstream publishes only `:latest`+`:v1.0` — no patch tag exists. Digest-pin declined (user pref). So `:v1.0` is the deepest available pin; documented in-manifest + allowlisted in the auditor.
@@ -533,7 +535,7 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - 🧠 Renovate untouched — both images use the default kubernetes manager (3-comp handled natively); `pinDigests:false` leaves the 2-comp allowlisted images alone.
 - 🔬 **Pattern (4th this session):** gap-class → write a `.sh` that closes the gate's blind spot → tool finds + gates the instances. np-coverage.sh (per-pod NP) → F-49; image-pin-audit.sh (semver pin) → F-23.
 
-### 2026-05-29 (F-24 pricebuddy apprise sidecar non-root hardening) ⚖️✅
+### 2026-05-29 (F-24 pricebuddy apprise sidecar non-root hardening) ✅
 - ⚖️ **F-24 closed** (`c21b80a8`): pricebuddy apprise sidecar + its init container now run **non-root**. Sidecar: `runAsUser:1000` + `runAsNonRoot:true` + `readOnlyRootFilesystem:true`, removed cap adds `[CHOWN,SETUID,SETGID,DAC_OVERRIDE,FOWNER]` (kept drop ALL), added `/tmp` (emptyDir `medium:Memory`) + `/plugin` + `/attach` emptyDirs (upstream README "Hardened K8s" pattern). Init: `runAsUser:0→1000`. Pod `fsGroup:33` unchanged.
 - 🔍 **Research correction:** the backlog note assumed `v1.4.1` predated PR #273 (non-root default) and needed a bump. Wrong — #273 merged Nov 2025, v1.4.0 shipped May 2026, so the pinned v1.4.1 already has it. No image change. (`docker pull` web-confirmed via Exa.)
 - 🧠 **Chose non-root init over removing it.** Upstream's "drop the init" path needs a SOPS secret holding the assembled `tgram://<bot>/<chat>/` URL mounted into /config — more moving parts + a new secret. Making the existing init non-root eliminates the only root with far less risk; init still renders /config/pricebuddy.cfg from the telegram secret each start.
@@ -541,13 +543,13 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - ✅ **Live verify (notification path, not just pod-up):** Recreate rollout clean; init Completed exit 0 (non-root write to /config succeeded); apprise uid=1000, `/status`=200; `/config/pricebuddy.cfg` owned `1000:33`; **POST `/notify/pricebuddy` → HTTP 200, real telegram delivered**. All 3 containers ready / 0 restarts.
 - 🔎 **Surfaced (pre-existing, not in diff):** `jez500/seleniumbase-scrapper:v1.0` is major.minor-only — Kyverno image-pin only catches `:latest`/no-tag, so this class slips CI. Tracked F-23; motivated `image-pin-audit.sh`.
 
-### 2026-05-29 (F-49 monitoring per-pod NetworkPolicy gaps — found by new np-coverage.sh) ⚖️✅
+### 2026-05-29 (F-49 monitoring per-pod NetworkPolicy gaps — found by new np-coverage.sh) ✅
 - 🔬 **Tooling found it, not a human.** Built `_shared/np-coverage.sh` (per-pod NP auditor) immediately after F-48 because the existing `np-gap.sh` + Kyverno `require-networkpolicy` (F-5) are NAMESPACE-level — a ns with ≥1 NP passes even if a pod inside is selected by none. First live run flagged 3 monitoring gaps that had been invisible to every gate.
 - ⚖️ **F-49 closed** (`208dd218`): (1) **deleted** orphan `prometheus-network-policy` — KPS HelmRelease has `prometheus.enabled: false` (stack runs VictoriaMetrics), so its `app.kubernetes.io/name: prometheus` target pod never exists; the NP enforced nothing. Flux pruned it on reconcile. (2) **added** `kube-state-metrics-network-policy` — ksm pod was uncovered; ingress 8080 from monitoring ns (vmagent scrape), egress DNS + k8s API (ksm lists cluster objects). (3) **added** `prometheus-operator-network-policy` — operator pod was uncovered; **selector `app: kube-prometheus-stack-operator`** (the Service selector, NOT `app.kubernetes.io/name` — same label-verification lesson as F-48), ingress 10250 all-source (https = metrics + admission webhook; API-server source IPs vary — cnpg-operator-policy webhook precedent), egress DNS + k8s API.
 - ✅ **Live verify:** orphan gone; both new NPs bind their pods; ksm scrape target `health=up` with zero unhealthy targets cluster-wide; ksm + operator Ready / 0 restarts / 0 errors (egress to API intact); `np-coverage.sh` re-run clean except `popeye/popeye-network-policy` ORPHAN — a weekly CronJob with no pod running = the documented expected false-positive.
 - 🔬 **Lesson:** ns-level NP coverage gates create a blind spot for individual pods in already-guarded namespaces. The per-pod auditor (`np-coverage.sh`, wired into `/k8s-diagnostics` §5) is the complement; run it after adding any workload to a ns that already has NetworkPolicies. ORPHAN findings also catch dead NPs left behind when a component is disabled (prometheus here).
 
-### 2026-05-29 (F-48 redis-operator NetworkPolicy — closes every-ingress invariant) ⚖️✅
+### 2026-05-29 (F-48 redis-operator NetworkPolicy — closes every-ingress invariant) ✅
 - ⚖️ **F-48 closed** (`88a62e50` NP + `703c61fa` egress fix-forward): added `redis-operator-network-policy` in `databases` ns. Ingress: metrics 8080 from monitoring ns (no webhook — HR `webhook: false`). Egress: DNS, k8s API (192.168.1.127/32:6443), redis 6379 + sentinel 26379.
 - 🧠 **Two backlog-brief assumptions proven WRONG on live cluster — both would have shipped silently:**
   - Selector is **`name: redis-operator`**, NOT `app.kubernetes.io/name: redis-operator` (the F-46 brief / cnpg-operator-policy shape). The wrong label matches **zero pods** → a NetworkPolicy that looks present but enforces nothing = gap stays open while reported closed. Verified via `kubectl get pod -o jsonpath='{.metadata.labels}'` before writing.
@@ -556,19 +558,19 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - ✅ **Live verify post-fix:** 0 errors / 90s, RedisReplication CR `MASTER` repopulated (role-check working), operator pod 0 restarts, NP binds the pod (POD-SELECTOR `name=redis-operator`).
 - 🔬 **Lesson:** "mirror sibling X policy" is not enough for operator NetworkPolicies — verify (a) the actual pod labels and (b) whether the operator talks to its data plane over the **network** (dial) vs the **API** (exec). A timeout-vs-RST distinction matters: under kube-router, a blocked egress surfaces as "connection refused", masquerading as an app-down problem.
 
-### 2026-05-29 (F-46 redis-operator HR remediation parity) ⚖️✅
+### 2026-05-29 (F-46 redis-operator HR remediation parity) ✅
 - ⚖️ **F-46 closed** (`1d473d5f`): added full cnpg-operator HR parity to redis-operator — `install.crds: Create` + `install.remediation.retries: 3` + `maxHistory: 3` + `upgrade.crds: CreateReplace` + `upgrade.remediation.retries: 3` + `remediateLastFailure: true` + `rollback.recreate: true` (kept pre-existing `rollback.cleanupOnFail: true`). Helm upgrade.v2 succeeded; HR `Ready=True` post-reconcile; operator pod stayed `homelab-critical`.
 - 🧠 **Reviewer caught parity miss:** first pass omitted `rollback.recreate: true` (cnpg HR has it). Fix-forward in same session before push. Lesson: when "match X HR shape", DIFF the full rollback block too, not just install/upgrade.
 - 🔎 **New backlog item F-48:** redis-operator pod has NO NetworkPolicy (live ns audit shows `cnpg-operator-policy` covers cnpg, `redis-ha-network-policy` covers data plane, but operator pod is naked). Hard-invariant gap. Mirror cnpg-operator-policy shape with selector `app.kubernetes.io/name: redis-operator`. Pre-existing since 2026-04-15, surfaced during F-46 review.
 
-### 2026-05-29 (F-30 truly closed — Commit J gap-closure + F-47) ⚖️✅
+### 2026-05-29 (F-30 truly closed — Commit J gap-closure + F-47) ✅
 
 - 🔍 **Self-critique driven fix.** Post-F-30-closure audit (`audit-priority-class.sh --missing`) found 4 source Jobs at priority 0 that the Commit F investigator scope missed: `n8n-user-provision`, `mealie-user-provision`, `obsidian/couchdb-init`, `databases/immich-init-extensions`. Plus flux-system `notification-controller` was punted to F-47 backlog instead of being fixed.
 - ⚖️ **F-30 Commit J** (`6da41aa7`, 5 files / 5 insertions): added `priorityClassName: homelab-standard` to all 4 missed Jobs (all have `kustomize.toolkit.fluxcd.io/force: enabled` → Flux delete+recreate, idempotent). Added `priorityClassName: system-cluster-critical` to `notification-controller` Deployment in `clusters/staging/flux-system/gotk-components.yaml` (PARITY with the 3 already-present Flux controllers at lines 2607/3429/4985 — upstream Flux gotk omits notification-controller from this pattern). F-47 closed.
 - ✅ **Final audit:** `homelab-critical=35` + `homelab-standard=52` + `system-cluster-critical=6` + `system-node-critical=6`; `--missing` empty. KPS alertmanager STS spot-verified `homelab-standard` (Prom-Op propagated `alertmanagerSpec.priorityClassName` to generated STS). Health snapshot: Flux 6/6, pods 91 running 0 unhealthy, 0 alerts firing.
 - 🧠 **Lesson:** trust audit-priority-class output over investigator scope. Investigator caves on overlay/setup-Jobs that aren't under canonical `apps/base/` (the 3 missing jobs live in `apps/staging/`); cluster reality > file-map heuristics. Codified in `audit-priority-class.sh --missing` workflow.
 
-### 2026-05-29 (F-30 fully closed — Commits F + G + H + I) ⚖️✅
+### 2026-05-29 (F-30 fully closed — Commits F + G + H + I) ✅
 
 - ⚖️ **F-30 Commit I** (`77e3bb76` ps-operator critical correction): chart `ps-operator` 1.1.0 has no native `priorityClassName` value (verified upstream `values.yaml` + `deployment.yaml`). Injected via `postRenderers` JSON6902 patch on the `Deployment ps-operator` → `homelab-critical`. Parity with cnpg-operator + redis-operator from Commit E (4 DB control-plane operators all critical).
 - ⚖️ **F-30 Commit F** (`60af77f0` apps std-tier authored, 18 files / 18 insertions): `priorityClassName: homelab-standard` injected after `automountServiceAccountToken` on 13 authored app Deployments (audiobookshelf, claude-telegram, home-assistant, homehub, homepage, linkwarden, mealie, n8n, paperless-ngx, pricebuddy, stirling-pdf, uptime-kuma, csp-reporter) + 1 STS (meilisearch) + 4 setup Jobs (audiobookshelf-init, home-assistant-admin-setup, immich-admin-setup, uptime-kuma-setup; all `kustomize.toolkit.fluxcd.io/force: enabled` → Flux delete+recreate, idempotent payload). Std-tier pod count 0→18 post-reconcile.
@@ -578,14 +580,14 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - 🧮 **Pre-flight CNPG gotcha re-confirmed:** cnpg chart `cloudnative-pg` 0.28.2 natively exposes `priorityClassName` at top-level values (Commit E worked direct). ps-operator 1.1.0 does NOT — required postRenderer fallback. Pattern documented for future operator HRs.
 - 🔎 **New backlog item F-47:** flux-system `notification-controller` lacks priorityClassName. Inject `homelab-standard` via patch on `clusters/staging/flux-system/gotk-components.yaml` (other Flux controllers also miss it — confirm coverage via audit).
 
-### 2026-05-28 (F-30 Commit E — critical-tier priorityClassName: DB operators) ⚖️🧰
+### 2026-05-28 (F-30 Commit E — critical-tier priorityClassName: DB operators)
 - ⚖️ **F-30 Commit E** (`f882c1c9`): `priorityClassName: homelab-critical` on `cnpg-operator` HR + `redis-operator` HR (`values.priorityClassName` on both Helm charts). Without these operators a node outage during a DB primary failure = no automatic promotion → data plane outage. Therefore operators belong in critical tier alongside the DBs they manage. 3 operator pods rolled live (cnpg-operator ×2 + redis-operator ×1).
 - 🧮 **Count correction:** prior doc said "30 critical pods" — arithmetic typo (18+4+4+2+3=31, plus 3 operators = **34 total** at homelab-critical/100000).
 - 📝 **Memory + codemap updated:** `[[gotchas]]` got CNPG v1.29.x priorityClassName-not-rolling-update + Pooler-separate-CR + DB primary-pin patterns (per engine); also fixed stale "CouchDB ns `couchdb`" → ns `databases`. `CODEMAPS/databases.md` gained a "Scheduling tier (F-30)" section.
 - 🔎 **Reviewer side-finding (out-of-scope, parked):** `redis-operator` HR lacks `install.remediation.retries` + `upgrade.remediation.retries` blocks (pre-existing, pre-dates Commit E). Add to REVIEW.md backlog.
 - ❓ **mysql-exporter** intentionally skipped (observability, not data-plane) — picks up `homelab-standard` later.
 
-### 2026-05-28 (F-30 Commit C — critical-tier priorityClassName: authored Deployments) ⚖️✅
+### 2026-05-28 (F-30 Commit C — critical-tier priorityClassName: authored Deployments) ✅
 - ⚖️ **F-30 Commit C** (`1bcdbc75`): `priorityClassName: homelab-critical` on the 4 authored critical-tier Deployments — `authentik-server`, `authentik-worker`, `blocky`, `cloudflared`. Field placed after `serviceAccountName` + `automountServiceAccountToken` (consistent across files). All 8 pods rolled clean (HA, multi-replica + anti-affinity preserved traffic), live `homelab-critical` priority=100000 distributed W1+W2.
 - ✅ **F-30 critical tier 100% complete.** **30 critical-tier pods** at priority 100000 across all data-plane + ingress + SSO + DNS + monitoring-core:
   - DBs: 4 CNPG (2 instance + 2 pooler) + 7 Percona (2 mysql + 3 orch + 2 haproxy) + 2 CouchDB + 5 Redis (2 replication + 3 sentinel) = **18**
@@ -595,7 +597,7 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
   - Monitoring core: 1 vmsingle + 1 vmagent + 1 vmalert = **3**
 - 📌 Remaining F-30: **standard tier** (~14 apps + meilisearch + csp-reporter + mysql-exporter) and **batch tier** (~16 Jobs/CronJobs) — un-annotated workloads stay at priority 0 (floor); critical hierarchy is now intact, preemption order under node pressure works correctly.
 
-### 2026-05-28 (F-30 Commit D + DB primary-node-pinning to W1) ⚖️🔄
+### 2026-05-28 (F-30 Commit D + DB primary-node-pinning to W1)
 - ⚖️ **F-30 Commit D** (`ab74c45a`): `priorityClassName: homelab-critical` on the remaining DB-tier components — CouchDB HelmRelease (`values.priorityClassName`, chart `couchdb/couchdb` 4.6.3), RedisReplication CR + RedisSentinel CR (`spec.priorityClassName`, OT operator `redis.redis.opstreelabs.in/v1beta2`). Discovered during B verification: CouchDB + Redis live in `databases` ns alongside Postgres+MySQL — not their own ns. All 7 pods rolled clean on Flux apply (2 couch + 2 redis-replication + 3 redis-sentinel, live `homelab-critical` priority=100000).
 - 🔄 **DB primary node-pinning to W1** (operational, no commit). User: "W1 is more performant — primaries should live there." Pre-switchover: CNPG primary=main-postgres-11 on W2; Percona primary=main-mysql-mysql-0 on W2; Redis master=redis-replication-0 on W2.
   - CNPG: `kubectl cnpg promote -n databases main-postgres main-postgres-12` → primary=main-postgres-12 on **W1** ✓
@@ -604,7 +606,7 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - 🟰 **CouchDB is multi-master active-active** — no "primary" concept, both nodes accept writes. No switchover applicable.
 - ✅ **F-30 critical tier now complete on every data-plane component:** 22 critical-tier pods live `homelab-critical`/100000 (4 CNPG + 7 Percona + 7 Redis/Couch + 3 VM + 2 Traefik) — DB primaries on W1.
 
-### 2026-05-28 (F-30 Commit B + B' — critical-tier priorityClassName: DBs CNPG + Percona + Pooler) ⚖️
+### 2026-05-28 (F-30 Commit B + B' — critical-tier priorityClassName: DBs CNPG + Percona + Pooler)
 - ⚖️ **F-30 Commit B** (`79f1c1cb`): `priorityClassName: homelab-critical` on CNPG `Cluster` (`spec.priorityClassName`) and Percona `PerconaServerMySQL` per-component (`spec.mysql`, `spec.orchestrator`, `spec.proxy.haproxy`).
 - 🩹 **Commit B'** (`ae471421`): follow-on patch — CNPG `Pooler` is a SEPARATE CR (`spec.template.spec`), missed in B. Added `priorityClassName: homelab-critical` on the PgBouncer pod template.
 - ✅ **Percona auto-restarted** on operator reconcile (all 7 pods — 2 mysql / 3 orchestrator / 2 haproxy — live `homelab-critical` priority=100000, 19:10–19:11Z).
@@ -612,13 +614,13 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - ✅ **Final CNPG state**: primary=main-postgres-11, ready=2/2, all 4 instance+pooler pods `homelab-critical`/100000. Health uninterrupted (annotation rolls replica only while cluster healthy; switchover is the only brief moment).
 - 🌀 **Parallel-session race:** push raced with bot fix on `apps/base/pricebuddy/deployment.yaml` (`d261abfe`/`598f5fb1` from another session vs `f6309e29` on remote). Resolved via `git pull --rebase` autostash; ended up consolidated by the parallel session.
 
-### 2026-05-28 (F-30 Commit A — critical-tier priorityClassName: VM-core + Traefik) ⚖️
+### 2026-05-28 (F-30 Commit A — critical-tier priorityClassName: VM-core + Traefik)
 - ⚖️ **F-30 Commit A** (`85d39527`): injected `priorityClassName: homelab-critical` (value=100000) on `VMSingle`/`VMAgent`/`VMAlert` (`spec.priorityClassName`) + Traefik HelmRelease (`values.priorityClassName`). First of three critical-tier commits (B = CNPG + Percona; C = authored Deployments authentik×2 + blocky + cloudflared).
 - 🎯 Why critical-tier first: PriorityClass `homelab-critical/standard/batch` were defined in W9 (2026-05-24) but never injected — `globalDefault: false` meant un-annotated pods = priority 0 (floor). Injecting standard-tier into apps while DBs/ingress/monitoring stayed at 0 would **invert the hierarchy** (a standard app could preempt a DB under pressure). Correct fix: critical tier (operator/Helm-managed: DBs/ingress/monitoring-core) FIRST.
 - ✅ Verified live: vmagent / vmalert / vmsingle (×1 each) + traefik (×2) all `Running` with `priorityClassName=homelab-critical` and `priority=100000` post-reconcile (Flux `infrastructure-controllers` + `monitoring-configs` applied rev `85d3952`). VM operator did create-before-terminate rolling update; old vmagent/vmalert pods exited 0 (`Succeeded`).
 - 🪜 Lowest-blast bundling: VM-core (metrics blind ~30s, no user impact) + Traefik (rolling, 2-replica ingress no drop) → DB tier next.
 
-### 2026-05-27 (F-39 — claude-telegram RoRFS + PSS restricted) 🛡️
+### 2026-05-27 (F-39 — claude-telegram RoRFS + PSS restricted)
 - 🛡️ **F-39** (`3c5ce4aa`): `readOnlyRootFilesystem: true` on all 3 containers (init `chezmoi-init` + `claude-telegram` + `sync`), `runAsNonRoot: true` at pod level, and a `/tmp` emptyDir mount added to `sync` (init + main already had one). Closes the claude-telegram RoRFS gap deferred from F-6 (Wave 8).
 - 🔬 **Live write-audit before editing:** `find / -xdev -type f -mmin -45` inside both running containers showed only the 3 kubelet bind-mounts (`/etc/hosts`, `/etc/hostname`, `/etc/resolv.conf`) — zero writes to the container root fs. HOME (`/home/akhozya`) is a PVC, `/tmp` an emptyDir; all app writes (session/audit/data, chezmoi, git repos) land there. `sync` lacked `/tmp` so git/chezmoi temp writes would EROFS under RoRFS once a 30-min pull cycle hit an update → added the mount preemptively. Init exited before audit; its script is fully HOME+/tmp-relative by inspection.
 - 🔒 **PSS baseline→restricted** (`3d080256`): only restricted gap was `runAsNonRoot != true` (everything else — privesc/caps/seccomp/volume-types/non-zero-uid — already compliant). Proven with `kubectl label ns ... enforce=restricted --overwrite --dry-run=server` BEFORE editing (F-45 lesson): pre-change = 1 warning `runAsNonRoot != true`, post-change (new pod) = zero warnings. Label flip does not restart the pod.
@@ -626,14 +628,14 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - ⚖️ **F-37 closed won't-do (same day):** uptime-kuma ForwardAuth-to-Authentik dropped. App is internal-only (`uptime.h0melab.work`, internal Traefik, no Cloudflare Tunnel mapping) and already self-protects with built-in auth + TOTP 2FA. No app in repo uses ForwardAuth (0 hits); uptime-kuma has no native OIDC, so the finding's only SSO path was brand-new infra (proxy provider + outpost pod + middleware + outpost→authentik NetworkPolicy). Rejected as **net negative — circular dependency**: gating the status dashboard behind Authentik means an Authentik/Postgres/outpost outage locks you out of the tool needed to diagnose that outage. Edge-auth defense-in-depth value applies to internet-exposed apps; this isn't one. Revisit only if uptime-kuma is ever exposed via CF Tunnel.
 - 🔄 **F-15 (`002e06f7`) — direction inverted after research.** Finding said "make all app-DB manifests app-owned (blocky pattern)." Research overturned it: CNPG `Database.spec.cluster` is a `LocalObjectReference` → every `Database` CR must live in ns `databases` (where `main-postgres` is); 4 of 7 apps (immich/linkwarden/mealie/paperless-ngx) set `namespace:<app>` in their staging kustomization, which would rewrite the moved CR's ns and break the cluster ref; Flux's canonical model treats DB provisioning as infrastructure (apps `dependsOn` it). So consolidated the OTHER way — moved blocky's `cnpg-database.yaml`(→`blocky-database.yaml`) + `blocky-db-user.yaml` from `apps/staging/blocky/` into `infrastructure/configs/staging/databases/postgres/`. All 7 apps' DB provisioning now in one canonical, ns-correct, infra-owned dir. **Ownership handoff verified clean:** `databaseReclaimPolicy: retain` (DB never dropped) + Flux GC label-protection (skips pruning objects whose `kustomize.toolkit.fluxcd.io/name` points to another Kustomization) + dep order (`infrastructure-configs` adopts/relabels before `apps` reconciles) → the SAME Database CR object was re-owned by `infrastructure-configs`, `applied=true`, AGE 31d preserved (never re-created), blocky pods untouched (2d5h uptime). Lesson: CNPG `Database` CR is namespace-bound to its Cluster — DB provisioning belongs in the infra layer, not co-located in app dirs.
 
-### 2026-05-26 (F-38 — disallow-host-namespaces excludes narrowed) 🛡️
+### 2026-05-26 (F-38 — disallow-host-namespaces excludes narrowed)
 - 🛡️ **F-38** (`a35481fb`): replaced the whole-namespace `databases` + `monitoring` excludes on the `disallow-host-namespaces` Kyverno ClusterPolicy (Enforce) with a precise label selector. `databases` dropped entirely (verified zero host-namespace pods); `monitoring` narrowed to `app.kubernetes.io/name: prometheus-node-exporter` (the only host-ns workload there — DaemonSet, hostNetwork+hostPID for node metrics). Same selector pattern as F-4/F-6.
 - 🔓 **Closed a real gap:** `databases` ns is PSS **privileged** (no host-ns block from PSS) AND was whole-ns excluded from Kyverno → host namespaces were completely unguarded there. Now Kyverno denies them (positive `--dry-run=server` test: hostNetwork pod in `databases` rejected by `host-namespaces` rule). Scan 0-fail; node-exporter pods stay Running.
 - 📝 **Doc-drift fix (post-F-38 audit):** corrected stale PSS keyfact in `HOMELAB_ANALYSIS.md` — was "restricted on 14 ns / 2 privileged / 1 baseline", live is 11 `restricted` / 10 `baseline` / 6 `privileged`. Opened **F-45**: audit the 6 privileged ns for baseline-tightening.
 - ✅ **F-45 closed not-viable (same day):** investigated all 6 — none can drop to `baseline`. First scan wrongly flagged `databases`/`loki`/`backup-replication` as tightenable; live `--dry-run=server` proved **PSS baseline forbids hostPath volumes** (`violates PodSecurity "baseline:latest": hostPath volumes`), and all 3 use hostPath (Alloy journal / backup-storage CronJobs / backup dir). Corrected before any commit — zero changes shipped, nothing to revert. All 6 privileged justified (host-ns / GPU / NET_ADMIN / hostPath). Lesson: PSS-baseline scans must check hostPath.
 - L13-safe: node-exporter label is on both pod + DaemonSet metadata (autogen covers controller); not a Job.
 
-### 2026-05-25 (Ultrareview housekeeping batch — F-44/W13 docs+mem; F-23/F-24 research) 📚
+### 2026-05-25 (Ultrareview housekeeping batch — F-44/W13 docs+mem; F-23/F-24 research)
 - 📄 **F-44** (`669790ee`): documented `pre-ultrareview-2026-05-23` DR handle + a "Configuration Rollback (Git Tags)" section in `.backup/README.md` (config-rollback path distinct from data restore).
 - 🗂️ **W13-hist** (`6790af4a`): rotated 2025 Oct–Dec changelog (1849 lines) → `docs/archive/HOMELAB_HISTORY_2025.md`; main file 3631→1782 lines + pointer. 2026 entries + Completed-Items archive retained.
 - 🗃️ **W13-docs** (`79fbca85`): `git mv`'d 10 stale point-in-time docs (kyverno recs/summary, NP egress audit, mysql-operator analysis, app-alternatives, authentik-sso, cloudflare-gateway, k3s-NP-API, notification-review, renovate-updates) → `docs/archive/` + new `docs/archive/README.md` index. Durable conclusions already in CODEMAPS/skills; referrers (REVIEW.md, HISTORY) updated. FIREWALL_SECURITY kept (not flagged).
@@ -642,13 +644,13 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - 🔬 **F-24 research:** caronc/apprise now ships native non-root + RO-FS by default (upstream PR #273, ~Nov 2025). pricebuddy apprise sidecar hardening is feasible — bump past v1.4.1, adopt upstream pattern, drop root init, verify notifications (attended).
 - ⚠️ **F-30 reclassified attended:** priorityClassName injection is NOT a safe partial — `globalDefault:false` makes un-annotated pods priority 0; injecting apps→standard while operator-managed DBs stay at 0 inverts the hierarchy. Correct fix sets critical-tier via operator CRs/Helm first (DB/ingress restarts). See REVIEW.md Resume table.
 
-### 2026-05-25 (worker-node-2 DiskPressure — rebuilderd dep-cache + nspawn-orphan cleanup, weekly→daily) 🧹💽
+### 2026-05-25 (worker-node-2 DiskPressure — rebuilderd dep-cache + nspawn-orphan cleanup, weekly→daily)
 - 🔴 **W2 DiskPressure → pod evictions.** Evicted/`PodCrashLooping` pods (alloy, loki-canary, node-exporter, claude-telegram) traced NOT to the pods but to **kubelet nodefs = `/mnt/extra-storage`** (NOT the k3s data-dir `/mnt/k8s-storage`) crossing the ~129GiB eviction threshold. `df /` is a red herring — confirm via `/api/v1/nodes/<n>/proxy/stats/summary`. Acute trigger: the day's reboot SIGKILLed in-flight `systemd-nspawn` builds → ~310G orphaned `repro/electron*` roots; `rebuilderd-watchdog.timer` swept them, disk 88%→50%, DiskPressure cleared (after kubelet's ~5min transition period), corpses then deleted.
 - ✅ **Daily repro-cleanup on both workers** (commits `ade40be7`/`5ccb60aa`/`ef3e9429`; role `roles/rebuilderd/`): timer `Sun 08:00`→**daily** (`*-*-* 08:00:00`); script now also (a) sweeps stale `.#machine.root*` machinectl snapshot dotdirs (the `for dir in */` glob never matched dotdirs → 12 piled up Dec25–Jan26, line-17 skip was dead code), (b) **`paccache -rk2`** prunes the per-name worker dep-cache (archlinux-repro downloads archive-pinned deps and NEVER prunes → W2 287G / W1 319G unbounded; flock-guarded vs active builds), (c) guards `cd "$REPRO_DIR" || exit` (unguarded cd + service CWD=`/` → `rm -rf` in `/` if mount absent post-reboot). New host_var `rebuilderd_worker_dir`.
 - 🧹 **One-time slot reclaim:** stale rebuilderd-worker name-slots from prior higher-concurrency runs removed — W2 `{2,3,6}` (~64G), W1 `{2,3,4,5,6}` (kept `1`).
 - 📌 **Open root cause:** W2 rebuilderd sits on cramped 863G `/mnt/extra-storage` while its 3.6T `/mnt/k8s-storage` (k3s disk) is 1% used; W1 runs rebuilderd on its 4.2T disk and never pressures. Relocating W2 → `/mnt/k8s-storage` is the durable fix (PENDING). Memory: `gotcha_worker_node2_diskpressure`.
 
-### 2026-05-25 (Wave 8 Kyverno promote — F-4/F-5/F-6 Audit→Enforce) 🛡️✅
+### 2026-05-25 (Wave 8 Kyverno promote — F-4/F-5/F-6 Audit→Enforce) ✅
 - ✅ **3 invariants now machine-enforced.** Promoted `disallow-privilege-escalation`, `require-drop-all-capabilities`, `require-networkpolicy`, `require-readonly-rootfs` from Audit→**Enforce** after a clean fix-forward scan. **12 Kyverno policies, all Enforce.** Commits: `8a4295f2` (F-4/F-6 excludes + homehub init RoRFS) → `60f2a2cb` (F-6 robust Job handling) → `864231ee` (flip). Post-flip: priv-esc 44 pass/0 fail, drop-caps 44/0, networkpolicy 160/0, readonly-rootfs 40/0; live deny confirmed (`validate.kyverno.svc-fail` blocked a RoRFS-violating dry-run pod).
 - 🔵 **Soak surfaced more than the soak-start baseline.** F-6 baseline (captured 2026-05-24 at soak start) showed 11 workloads; the full background-controller cycle later revealed **23** (databases StatefulSets, backup CronJobs, 2 setup Jobs). Confirms the skill anti-pattern: a soak-start baseline undercounts because `background: true` hasn't completed a scan cycle — always re-scan after ≥24h before promoting.
 - ✅ **Fix-forward over exclude where the app tolerates it.** `homehub` init `setup-config` got `readOnlyRootFilesystem: true` (writes only to a mounted `/app/config` emptyDir; main container already RoRFS). `uptime-kuma-setup` Job flipped RoRFS:false→true (HOME=/tmp + `pip install --user` → all writes land in the mounted /tmp; Flux `force: enabled` recreated it → Completed under RoRFS).
@@ -656,13 +658,13 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - 🔬 **Gotcha (L13): a pod-label exclude does NOT cover a Job.** `job-name:`/`app:` selectors matched the generated pods but not the `autogen-*` rule's **Job resource** — a Job's `metadata.labels` carry only Flux labels, so under Enforce the Job admission would be blocked on recreation. Caught pre-flip via repeated `PolicyViolation` events on `job/uptime-kuma-setup`. Fix: ns-scope exclude (mealie) or fix the workload (uptime-kuma). Memory `gotchas` updated.
 - ⚙️ **Ops note:** forced a clean re-scan by `kubectl rollout restart deploy/kyverno-reports-controller` + deleting stale PolicyReports (Kyverno-generated, not git-managed) — the periodic background scan (~1h) lags policy changes; controller-level reports clear immediately but per-pod reports are stale until rescan.
 
-### 2026-05-25 (Reboot-safety hardening — CoreDNS HA + phase2 ClusterIP/loopback gates + cluster-roll/reboot skills) 🛡️🔧
+### 2026-05-25 (Reboot-safety hardening — CoreDNS HA + phase2 ClusterIP/loopback gates + cluster-roll/reboot skills)
 - 🔴 **CP wedge incident + recovery.** A `kubectl scale coredns --replicas=2` would not materialize — deployment controller stuck at `gen=22 observedGeneration=21`, RS frozen at 1. Root cause: the **CP's k3s loopback loadbalancer `127.0.0.1:6443` was wedged** (5/5 curl timeout) while the apiserver was fine on the node IP + ClusterIP — the embedded controller-manager dials the LB, so its sync stalled silently. `sudo systemctl restart k3s` **HUNG** on the CP; recovery = `sudo reboot`. One clean reboot reconverged everything (all-node ClusterIP, loopback→401, Kyverno admission, CoreDNS→2/2). 8 operator/controller crashloopers (flux ×4, cnpg/ps/vm-operator, kube-state-metrics) stuck on ~5min backoff after ClusterIP healed → `kubectl delete pod` reset backoff → recovered in ~8s. Captured in memory `gotcha_k3s_reboot_ordering` (new CP-loopback variant + role-specific LB ports: CP 6443 / worker 6444).
 - ✅ **CoreDNS HA** (commit `48ba71dd`): k3s ships CoreDNS as an Addon with `replicas` unset (=1, single point of failure). `k3s_config` role now inserts `replicas: {{ coredns_replicas|default(2) }}` into the addon source manifest (CP-only, idempotent `ansible.builtin.replace`; Addon controller applies on file change; drift-heal restores after any k3s re-extract). `topologySpreadConstraints` already in the shipped manifest spread the 2 replicas. Deployed + verified: `replicas: 2` in `coredns.yaml`, deploy 2/2.
 - ✅ **phase2 ClusterIP + CP-loopback gates** (commit `9cb36ae9`): a node can be `Node.Ready` yet wedged. PLAY 1 now gates each rebooted worker on `clusterip-probe.sh` (DNAT `10.43.0.1`) before uncordon, with a **k3s-agent-restart self-heal rescue**; if still wedged the `serial:1` play aborts (worker left cordoned, `phase2-pending` retained, next worker untouched). PLAY 0 gets a **CP loopback `127.0.0.1:6443` gate as its first task** (fail-fast, bounded retry; does NOT auto-restart k3s — it hangs → operator reboots CP). `clusterip-probe.sh` shipped to `/etc/node-maintenance/bin/` on all nodes (single source of the verdict). CI green.
 - ✅ **New skills** (dotfiles): `cluster-roll` — ordered tier-by-tier pod recycle (DNS→operators→platform→DNS-cache→apps), per-tier `rollout status` + all-node ClusterIP re-probe gate, Flux-stale-pod (survivor-UID) delete-pod fallback, aborts if CoreDNS<2 or any node wedged — the safe replacement for `kubectl rollout restart -A`. `cluster-reboot` — thin wrapper over phase1/phase2 + `verify-clusterip.sh`/`watch-reboot.sh` monitors (probes BOTH wedge surfaces). Spec: `docs/superpowers/specs/2026-05-24-cluster-reboot-and-roll-skills-design.md`, plan: `docs/superpowers/plans/2026-05-25-cluster-reboot-and-roll.md`.
 
-### 2026-05-25 (Reboot-wedge root-cause + detector/mutex hardening) 🔬🛡️
+### 2026-05-25 (Reboot-wedge root-cause + detector/mutex hardening) 🔬️
 - 🔬 **Root cause corrected (research).** The post-reboot kube-proxy ClusterIP wedge is NOT an apiserver/kube-proxy startup race — it is an **iptables/nft stale-chain conflict**. The host ships `xtables-nft-multi` v1.8.13 (nft backend) with mixed `nft_compat`+legacy `ip_tables` modules and `prefer-bundled-bin` unset, so after a reboot kube-proxy's atomic `iptables-restore` aborts on stale chains (`CHAIN_USER_ADD`/`RULE_APPEND: File exists`); `KUBE-SERVICES` (incl. the `10.43.0.1:443` DNAT) is never programmed and the proxier retries the poisoned state forever, never self-healing. `restart k3s-agent` rebuilds chains clean — which is why it always "fixes" it. Matches k3s#9243 / k8s#71305. Memory `gotcha_k3s_reboot_ordering` rewritten with the corrected cause + 6 mitigations.
 - ✅ **#4 prefer-bundled-bin — root-cause fix** (commit `ec59dd1e`; `group_vars/workers.yml`): workers now set `prefer-bundled-bin: true` so k3s uses its bundled iptables instead of the host xtables-nft shim, eliminating the stale-chain `iptables-restore` conflict at the source. Validated on BOTH workers (restart `k3s-agent` → ClusterIP stays healthy, no `File exists` chain errors recur; only the benign `nft-expr-counter` modprobe warning remains). config.yaml drift is alerted-not-restarted, so it lands on each worker's next k3s-agent restart/reboot (CP left unchanged — the wedge surface is the workers). nftables-native kube-proxy (`--proxy-mode=nftables`, GA in k8s 1.33) is noted as the eventual cleaner fix.
 - ✅ **#1 dual-signal detector + N=3 sampling** (commit `4e2a6187`; dotfiles `85ffe47`/`4b58c35`): `clusterip-probe.sh` now requires BOTH the `10.43.0.1:443/healthz` DNAT (401|200) AND the kube-proxy `127.0.0.1:10256/healthz` (200 = last sync OK, a direct wedge signal) across N=3 samples — all must pass. e2e #2 had flapped a single-sample ClusterIP-only probe through a genuinely wedged worker; the dual + N-sample gate now rejects it.
@@ -671,14 +673,14 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - ✅ **Ops fixes:** `node-config-notify` treats an `exec-condition` skip (the pacman-lock guard) as benign rather than a `FAILED` alert (commit `1f6f9294`); `watch-reboot.sh` gates completion on phase1/phase2 being idle so it no longer false-reports "done" in the phase1→phase2 gap (dotfiles `3e9e977`/`1ed9714`).
 - 🤖 **Hands-off trigger** (dotfiles `50a713d`): `trigger-reboot.sh` fires phase1 via `op read 'op://Personal/sudo-homelab/password' | ssh sudo -S` (1Password-injected, single attempt — pam_faillock `deny=3`-safe, aborts on an empty fetch), with an idle-guard and `--dry-run`. 3 e2e rolling reboots passed.
 
-### 2026-05-24 (Post-reboot operational fixes — swap by-uuid + drift-heal cascade + stirling probe) 🐛
+### 2026-05-24 (Post-reboot operational fixes — swap by-uuid + drift-heal cascade + stirling probe)
 - 🔴 **drift-heal FAILED on `worker-node`** (`Verify swap active`), cascading `node-maintenance-sync` to `exit=1`. Two findings:
   - **Root cause:** `host_vars/worker-node.yml` pinned `swap_path: /dev/nvme1n1p3`, but the rolling reboot renumbered the NVMe controllers — the swap partition (UUID `a6b9e0ba…`) is now `/dev/nvme0n1p3`. NVMe `nvmeXn1` enumeration follows PCIe probe order and is **non-deterministic across reboots**. Git history shows this flip-flopped twice (`c836a618`/`68bbf6fe`) — each "fix" just chased the current number. **Permanent fix** (commit `2ff39465`): `swap_path: /dev/disk/by-uuid/a6b9e0ba-53f4-4335-8d9f-4d4a4e04306b` — the verify task's `readlink -f` resolves the by-uuid symlink to whatever the current device is. Verified live: resolves → `/dev/nvme0n1p3`, `swapon` match, VERIFY PASS. CP (`/swapfile`) + W2 (`/dev/ArchinstallVg/swap` LVM) already stable — no change needed.
   - **Diagnostic note:** `node-maintenance-sync failed` was a *cascade*, not a git problem — `git pull` succeeded (CP at `466b8fca`); sync runs an initial drift-heal and inherits its exit code. Always read `node-maintenance-config.service` journal first.
 - ✅ **stirling-pdf** (commit `466b8fca`, prior in session): post-reboot CrashLoopBackOff (48 restarts) — NOT our change. 2.11.0-fat cold boot exceeded the 90s startup-probe budget on a cold node (page cache empty + contention). Clean logs + graceful exit (not OOMKilled) = probe-kill. Widened `startupProbe.failureThreshold` 9→30 (90s→300s). Recovered.
 - 📚 Skills updated: `homelab-node-fix` (new "Rolling reboot fallout" section: kube-proxy wedge, NVMe enum, sync-cascade), `k8s-diagnostics` (probe-kill-vs-OOM tell + cold-boot-is-slower note). REVIEW.md gained a "⏭ Resume Here" outstanding-work table.
 
-### 2026-05-24 (Ultrareview backlog batch — Waves 9/10/12/13 + F-14) 🛠️
+### 2026-05-24 (Ultrareview backlog batch — Waves 9/10/12/13 + F-14)
 - Context: triggered after a user rolling-reboot of all 3 nodes. First fixed a post-reboot incident — `worker-node` kube-proxy failed to program ClusterIP service rules (`10.43.0.1:443` timed out, 8 pods crashlooped on unreachable in-cluster apiserver); resolved by `sudo systemctl restart k3s-agent` on worker-node. Root cause: rolling-reboot spacing too tight (next node rebooted at ~2 min uptime) — see memory `gotcha_k3s_reboot_ordering`. Not W8-related.
 - ✅ **Wave 9** (commit `60a8bf32`): HelmRelease tightening. `driftDetection: {mode: enabled}` on 11 HRs (KPS already had it); `timeout: 10m` on KPS/loki/cert-manager/couchdb; `rollback.cleanupOnFail: true` on mysql/redis-operator/traefik/vm-operator/immich; standardized `interval: 6h` (dropped 30m on mysql + redis-operator). F-16/17/18/20.
 - ✅ **Wave 10** (commit `d8ef6891`): polish — F-21 HSTS `includeSubDomains; preload`; F-25 immich+home-assistant `audit/warn: baseline` (enforce kept privileged); F-26 Renovate off-hours schedule + `automerge` patch on `apps/**`; F-30 PriorityClasses (homelab-critical/standard/batch, no injection yet); F-31 backup CronJob `startingDeadlineSeconds: 600` + `backoffLimit: 2`; F-32 pinned `fluxcd/flux2/action@main` → `@v2.8.8` (matched live cluster). **Deferred to attended**: F-37 (no Authentik forward-auth Middleware exists — must be built first), F-38 (narrowing `disallow-host-namespaces` Enforce excludes risks operator admission), F-39 (claude-telegram RoRFS needs live write-audit).
@@ -687,7 +689,7 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - ✅ **Wave 13 partial** (commit `ba9b1b7d`): deleted 10 closed-PR baselines + gitignored dir; deleted stale POPEYE report; archived 15 superpowers plans/specs → `docs/archive/`. `.DS_Store` no-op (0 tracked). HISTORY rotation + stale-doc archive deferred (10 docs have live referrers).
 - **Deferred to attended session** (high blast radius / needs verification): R5 (NP Kustomize components — DNS egress varies per app, not clean dedup), F-13 (collapse 16 app staging dirs), F-15 (DB-user migration), infra-controllers F-14, F-37/F-38/F-39. All 5 kustomize roots build green; pre-push reviewer + CI gate passed.
 
-### 2026-05-24 (Wave 8 Kyverno F-4/F-5/F-6 — Audit soak shipped) 🛡️🟡
+### 2026-05-24 (Wave 8 Kyverno F-4/F-5/F-6 — Audit soak shipped)
 - 🏷️ **Tag**: `pre-w8-2026-05-24` (annotated, signed) before first commit.
 - ✅ **F-4** (commit `f6eac874`): replaced Kyverno optional-anchor `=()` footgun in `disallow-privilege-escalation` + `require-drop-all-capabilities` with the canonical PSS-restricted mandatory pattern — `=()` dropped from `securityContext` + leaf field (now mandatory per-container), kept only on the optional list wrappers `=(initContainers)`/`=(ephemeralContainers)`; added `ephemeralContainers` for PSS parity. Flipped Enforce → **Audit** for soak. Background scan surfaced **9 workloads** (all operator/privileged — redis-operator, redis-replication, couchdb, main-mysql-{haproxy,mysql,orc}, immich-server, alloy, node-exporter, ps-operator). All legitimate excludes, no authored-manifest regressions.
 - ✅ **F-5** (commit `252547ff`): new `require-networkpolicy.yaml` — apiCall context counts NetworkPolicies in `{{request.namespace}}`, `deny` if `<1`. Match Pod; exclude kube-system/kube-public/kube-node-lease/default. **Audit**. Result: **40 pass, 0 fail** — every workload namespace already has ≥1 NP (validates the manual "every ingress = NetworkPolicy" discipline). apiCall verified resolving in **background scan** on Kyverno v1.18.1 (RBAC to list networkpolicies confirmed — no `error` results). Promote-ready.
@@ -696,7 +698,7 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - 📌 **Pre-push reviewer** (cavecrew-reviewer) ran on both commits. F-4: 0 bugs. F-5/F-6: 2 flagged "bugs" (apiCall background resolution, RoRFS pattern syntax) **disproven empirically** post-deploy — background apiCall works (40 pass), PSS mandatory pattern is canonical + admission-accepted.
 - ⏭️ **Next**: re-scan ≥2026-05-25 19:30 → add operator/privileged excludes + own-app RoRFS triage → promote all three Audit → Enforce.
 
-### 2026-05-24 (Wave 7 CI gates — yamllint + kubeconform + SOPS check + shellcheck + init-resources) 🚦
+### 2026-05-24 (Wave 7 CI gates — yamllint + kubeconform + SOPS check + shellcheck + init-resources)
 - ✅ **CI workflow added** (`.github/workflows/validate.yaml`, commits `d65ad41b` → `6fc3ebe3` → `db4bc940` → `cd2c973e`). Jobs (9 total, all green): `yamllint`, `shellcheck`, `sops-check`, `init-resources`, `kubeconform` × 5 (one per kustomize root), `homelab-analysis-drift` (warn-only). Runs on every PR + push to main.
 - ✅ **Yamllint baseline cleanup** (commit `7fc45914`, 25 files / 76+ / 80-): EOL appended on 18 files (audiobookshelf/*, clusters/*, monitoring grafana-dashboards/*, multiple kustomization.yaml); trailing whitespace stripped on 5 files (cert-manager/release, traefik/release, vmrules, kps/release, loki-stack/release); `apps/base/authentik/blueprints/30-enforce.yaml` `!Find [...]` multi-line flow → single-line flow (semantics preserved). Final yamllint state: 0 errors, 62 warnings (all legitimate `line-length` on Grafana dashboard JSON / CSP middleware / VMRule PromQL).
 - ✅ **`.yamllint.yaml`** — extends `default`; `line-length: max: 200, level: warning`; `indent-sequences: whatever` (K8s mixes 2-/4-space sequence indent legitimately); `truthy: allowed-values: [true, false]` (catches `on:`/`off:` accidents); ignore SOPS-managed files (`*-secret.yaml`, `*credentials*.yaml`, `*-db-user.yaml`, `*.sops.yaml`, etc.) + `clusters/staging/flux-system/gotk-components.yaml` (auto-generated by `flux install`) + `.playwright-mcp/` + `docs/superpowers/`.
@@ -708,7 +710,7 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - 📊 **CI footprint**: ~45s p95 per run, parallel matrix. Catches L1 (Audit→Enforce regressions via init-resources guard) + L4 (hidden init containers) + L5 (kubeconform == server-side admission for schema) + L8 (HOMELAB_ANALYSIS keyfact drift, warn-only).
 - 📌 **Wave 8 next** (REVIEW.md): F-4 (`=()` → mandatory `deny`) + F-5 (require-NetworkPolicy) + F-6 (require-readOnlyRootFilesystem) — each Audit ≥24h → fix-forward → Enforce, per Wave 1 playbook codified in `/kyverno-policy-promotion` skill.
 
-### 2026-05-23 (Kyverno Audit→Enforce promotion + init container debt closure) 🛡️
+### 2026-05-23 (Kyverno Audit→Enforce promotion + init container debt closure)
 - ✅ **F-2b complete**: `disallow-host-path`, `require-non-root`, `require-resource-limits` promoted Audit→Enforce (commits c13d0403, 8383ef35). All 10 Kyverno policies now Enforce.
 - 🔍 **F-3 surfaced 5 latent init-container gaps** (Audit mode working as designed):
   - Repo-managed (fixed via F-41): authentik-worker `wait-for-server`, home-assistant `config-setup` + `hacs-install`, paperless-ngx `fix-permissions` — all received `resources: {requests, limits}` blocks sized to workload (busybox/curl init = 10m/16Mi → 50m/32Mi; alpine + wget HACS = 50m/64Mi → 500m/256Mi).
@@ -716,7 +718,7 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - 🧪 **Validation chain**: pre-promotion `kubectl get policyreport -A` = 0 fails baseline → F-41 commit → Flux apply → re-scan = 0 fails → F-2b promotion commit → Flux apply → live `kubectl get cpol -o jsonpath` = all 3 Enforce → re-scan = 0 fails → 0 admission rejections → 0 pod restarts in 5min window post-Enforce → 0 VMAlerts firing.
 - 📌 **F-2b unblocked by hotfix path**: rather than reverting F-3 (which surfaced the gaps), did "fix-forward" — added in-repo init resources (F-41), added operator-label excludes (F-42), then promoted. Audit mode confirmed safe before Enforce flip. Total elapsed: ~25min from "0 fails baseline" to "0 fails Enforce live."
 
-### 2026-05-23 (Ultrareview — 4-agent consensus + Wave-1 implementation) 🔍🛠️
+### 2026-05-23 (Ultrareview — 4-agent consensus + Wave-1 implementation)
 - ✅ **4-agent ultrareview** of main branch: arch (ecc:architect), k8s/Flux (k8s-devops-reviewer), security (ecc:security-reviewer), cruft (ecc:code-reviewer). Output: REVIEW.md (retired 2026-06-05, git history) — 1 P0, 11 P1, 17 P2, 9 P3 + 4 doc-drift + 4 CI gaps. Verdict: APPROVE with backlog. No operational blocker.
 - ✅ **Pre-flight**: signed annotated git tag `pre-ultrareview-2026-05-23` for rollback. Live `kubectl get policyreport -A` scan → 0 FAIL/WARN/ERROR — Audit→Enforce promotion safe. 0 open PRs (no Renovate conflict).
 - ✅ **Wave-1 implementation** (11 findings, 10 parallel cavecrew-builder agents + 1 cavecrew-reviewer):
@@ -735,14 +737,14 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - 📌 **Wave-5 deferred** (after Flux reconcile + verification): F-2b Audit→Enforce promotion for `disallow-host-path`, `require-non-root`, `require-resource-limits`.
 - 📌 **Backlog (next sprint)**: F-5/F-6 new Kyverno policies (require-networkpolicy, require-readonly-rootfs); F-15 DB user migration to app-owned (5 apps); F-16 driftDetection on 12 HelmReleases; F-17/F-18 timeout+rollback; F-22 CSP 3-tier rollout via existing csp-reporter Report-Only first; R7 CI gates (kubeconform, yamllint, SOPS-check, shellcheck); cruft sweep (.DS_Store, analyze-update/baselines/, POPEYE_CLUSTER_REPORT.txt, archive docs/superpowers/).
 
-### 2026-05-22 (CODEMAPS refresh + HOMELAB_ANALYSIS drift fix) 📚
+### 2026-05-22 (CODEMAPS refresh + HOMELAB_ANALYSIS drift fix)
 - ✅ **6 codemap files refreshed to live cluster state** (commit `106107df` + follow-up): drift accumulated since 2026-05-08 (14 days). `README.md` 17→16 apps. `architecture.md` 28→27 ns, 55→53 SOPS secrets, "Traefik IngressRoute" → "Traefik Ingress (class=traefik)" (0 IngressRoute CRDs in use; all 16 ingresses are vanilla K8s `Ingress` resources). `apps.md` 10 image bumps: homepage v1.13.1, authentik 2026.5.0, blocky v0.30.0, stirling-pdf 2.11.0-fat, immich helm 0.12.0, home-assistant 2026.5.4, mealie v3.18.0, n8n 2.21.7, audiobookshelf 2.35.0, claude-telegram 1.22; added meilisearch v1.44.0 note for linkwarden. `databases.md` CNPG image 18.3→18.4, helm chart 0.28.x→0.28.2 (pinned exact), controller 1.29.0→1.29.1 (deploy `cnpg-operator-cloudnative-pg` in `databases` ns, NOT `cnpg-system`), `immich-backup` row added. `monitoring.md` kube-prometheus-stack 84.5.0→85.2.2, victoria-metrics-operator 0.62.1→0.63.1, vm-images v1.140.0→v1.143.0, vm-operator v0.69.0→v0.70.1, grafana 13.0.1→13.0.1-security-01, kube-state-metrics v2.18.0→v2.19.0, node-exporter v1.11.1→v1.11.1-distroless, added loki 3.6.7 + alloy v1.16.1 image lines; scrapes 26+2→37+4 (cluster grew); 12→13 scrape files. `networking.md` traefik chart 40.0.0→40.2.0 + image v3.7.1, blocky v0.29.0→v0.30.0, IngressRoute terminology corrected.
 - ✅ **HOMELAB_ANALYSIS.md synced**: Key facts row 55→53 SOPS; APPS table 17→16 (Grafana row removed — already moved to monitoring infra in codemap on 2026-05-08, this finally aligns HA doc); Monthly Review Checklist "Last refresh: 2026-05-08" → 2026-05-22.
 - 🔍 **Fact-check methodology**: single `ctx_batch_execute` pass pulled live state for all chart versions (`kubectl get hr -A`), image pins (`kubectl get deploy/sts -A -o json`), CRD counts (vmservicescrape 37, vmpodscrape 4, vmrule 2 / 26 groups, netpol 44, kpol 10, ingress 16, ingressroute 0), ns count 27 (excl flux-system), SOPS file count 53 (`find . -name '*.yaml' -exec grep -l 'sops:'`). Cloudflare Tunnel `cloudflared-config` decoded — 9 svcs in config.yaml match codemap (authentik, couchdb, audiobooks, linkwarden, stirling, mealie, paperless, immich, n8n). Token expiry 2026-12-31 verified against `docs/SECRETS_ROTATION.md`.
 - 🧹 **Lint pass**: markdownlint not installed (npx offline disabled) — fell back to manual checks: per-file column count consistency (all tables uniform), trailing-whitespace scan (clean), backtick parity (all even = no broken code spans), heading hierarchy (no skipped levels). All pass.
 - 📝 **Gap residual**: codemap monitoring.md "Notable groups" list incomplete vs live 26 groups (alertmanager-overrides, backup-alerts, couchdb-alerts, monitoring-health-alerts, rate-limiting-alerts, resource-exhaustion-alerts, service-alerts, storage-alerts not enumerated — "etc." used). Accepted as deliberate compression, not refreshed.
 
-### 2026-05-22 (Backup overhaul — coverage + retention + immich weekly) 💾
+### 2026-05-22 (Backup overhaul — coverage + retention + immich weekly)
 - ⚠️ **Coverage audit**: 5 PVCs missing from daily backup whitelist (mealie, n8n, audiobookshelf-config + -metadata, claude-telegram). Plus stale `uptime-kuma/uptime-kuma-data-pvc` (UK switched to emptyDir).
 - ✅ **PVC whitelist updated** (commit `49d6afb2`): added mealie/mealie-data-pvc, n8n/n8n-data-pvc, audiobookshelf/audiobookshelf-config + -metadata. Removed stale uptime-kuma. `claude-telegram/claude-telegram-home-pvc` documented as expendable (session-only state, bot rebuilds on restart). immich/immich-machine-learning, loki, vmsingle, stirling-pipeline/tessdata documented as expendable (regenerable runtime).
 - ✅ **immich weekly CronJob**: 63G photo PVC was excluded from daily. Now `immich-backup` CronJob Sunday 03:00 UTC, uncompressed tar (JPEG already compressed), 2-pass tar + sha256, keep-2 retention. Live test: tar 187s (~340 MB/s disk-bound), sha256 914s (~75 MB/s single-thread Celeron N5095), total 18m21s. Fits 30min window before 03:30 replication.
@@ -752,7 +754,7 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - 📈 **NAS state** post-cleanup: 14.03 GiB → 72 GiB peak during test (incl. 62.5G immich) → trimmed back to natural-only after test artifact removal. 30d window enforced: postgres/mysql/couchdb=60 files each, pvc=636 files / 270 dirs, immich=0 (next Sunday).
 - 📚 **Docs**: BACKUP_STRATEGY.md updated with new PVC list, retention policy, immich weekly section, "What's NOT backed up by design" table.
 
-### 2026-05-29 (R5 — shared DNS-egress NetworkPolicy component) 🔄
+### 2026-05-29 (R5 — shared DNS-egress NetworkPolicy component)
 - ✅ **R5 closed** (`6229d4ed` P1 + `611b6320` P2). Repo's **first Kustomize Component**: `apps/base/components/allow-dns-egress/` — an egress-only NP allowing UDP 53 → `kube-system`, wired into 14 app bases via `components:`. Phase 2 then removed the duplicated per-app DNS egress block from those 14 NPs (−122 LOC). NetworkPolicy resources 46 → 60.
 - 🔬 **Only DNS was shareable.** Live read of all 16 per-app NPs: only the `kube-system` UDP-53 rule is byte-identical + parameter-free. Postgres/Redis/HTTPS egress + all ingress vary by port/DB-engine → a parameter-less component can't cover them without a named-port refactor of every Deployment (rejected, too broad). The F-9/F-10/F-11/F-12 "3-component" brief (netpol-dns/postgres/redis) was thus reduced to 1.
 - 🐛 **Job-isolation footgun avoided.** A naive `podSelector: {}` egress baseline is NOT additive — any egress NP selecting a pod flips it to deny-except-listed. 6 egress-naked provisioning Jobs (audiobookshelf-init, immich-admin-setup, mealie/n8n-user-provision, home-assistant-admin-setup, uptime-kuma-setup) would have been clamped DNS-only → break on helm-hook re-run. Baseline excludes them via `matchExpressions: [{key: batch.kubernetes.io/job-name, operator: DoesNotExist}]` (canonical label on K3s 1.35).
@@ -761,7 +763,7 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - ✅ **Verified live**: 14 `allow-dns-egress` NPs across correct namespaces, Job-exclusion selector active; DNS (`getent hosts kubernetes.default`) resolves in pods across every shape — incl. homehub + meilisearch whose egress is now `[]` (served solely by the baseline).
 - 🔮 **Surfaced R5-followup** (backlog): the 6 naked provisioning Jobs have no egress NP = lateral-movement gap. Per-app egress NP per Job (app port + DB, not shareable). Deliberately out of R5 scope.
 
-### 2026-05-29 (F-13 + F-14 + R6 — collapse base/overlay split, single-env) 🔄✅
+### 2026-05-29 (F-13 + F-14 + R6 — collapse base/overlay split, single-env) ✅
 - ✅ **F-13 apps flattened** (`b818b17d`+`9179c956`+`181711ec`). `apps/base/<app>/*` + `apps/staging/<app>/*` → `apps/<app>/*` (16 apps, 196 git renames); `apps/base/components` → `apps/components`; per-app kustomizations merged (base resources + staging secrets/certs/jobs, `namespace:` once, `components:`/`configMapGenerator` preserved); new top `apps/kustomization.yaml`; Flux `apps` path `./apps/staging`→`./apps`; CI kubeconform matrix repointed. The base/overlay split was ceremony — single env, no prod roadmap.
 - 🔬 **Safety = byte-identical render.** `diff <(kustomize build apps/staging @HEAD) <(kustomize build apps)` EMPTY → Flux adopts every object by unchanged name/ns/GVK → zero churn. Verified live: 16 apps Running, no prune/delete events. All 8 apps that gained a top-level `namespace:` had extras already hardcoding the right ns (transformer = no-op).
 - ⚖️ **2-phase prune.** P1 ran `prune:false` during the path repoint (orphan-safe even if render had drifted); P2 (`181711ec`) flipped `prune:true` + renamed 2 misnamed SOPS Secrets (`blocky/configmap.yaml`→`config-secret.yaml`, `stirling-pdf/custom-settings-configmap.yaml`→`custom-settings-secret.yaml`) so the `**/*-secret.yaml` yamllint-ignore glob catches them — the hardcoded `apps/base/...` ignore paths had re-broken CI the instant the files moved (durability fix: glob > path-pin).
@@ -771,13 +773,13 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - 🔧 **Tooling**: `~/.claude/hooks/cavecrew-mark.sh` wrapper (sets the pre-push marker without the `$()` that forces a Bash-permission prompt; allowlisted static invocation). dotfiles `b394161`.
 - ⚙️ **CI was billing-blocked** (out of Actions minutes) for F-13-P2 + F-14 → local validate ladder (render-diff + yamllint + kubeconform) + cavecrew-reviewer used as gate, `fr` bypass user-authorized.
 
-### 2026-05-29 (R5-followup — per-Job egress NPs, 4/6) ⚖️✅
+### 2026-05-29 (R5-followup — per-Job egress NPs, 4/6) ✅
 - ✅ **4/6 hardened** (`68dddceb`). One tight egress NP per Job: DNS (UDP 53→`kube-system`) + the single app container-port, selecting the Job pod by canonical `batch.kubernetes.io/job-name` (the R5 baseline excludes Jobs, so each NP carries its own DNS). audiobookshelf-init→app:3005, home-assistant-admin-setup→:8123, immich-admin-setup→immich-server:2283, n8n-user-provision→n8n:5678. NP resources 60 → 64.
 - 🔬 **Egress-only + symmetric.** App **ingress** already admitted these Jobs — same-ns `podSelector:{}` (audiobookshelf/mealie/n8n/uptime-kuma), immich's explicit `app: immich-admin-setup` rule, HA's all-ns rule — so no ingress edit needed. Egress target read from each Job's curl/psql command; port = target **container** port (post-DNAT, per kube-router).
 - ✅ **Live-proved enforcement.** Deleted+recreated `audiobookshelf-init` via Flux (force:enabled) → ran under its new NP → Complete 1/1 in 21s; logs show DNS resolved + reached app:3005 (HTTP 500 "already initialized", expected idempotent path). Confirms the tight egress doesn't regress the Job.
 - ⚖️ **mealie + uptime-kuma deferred (accepted residual).** `mealie-user-provision` (`apt-get install` curl/postgresql-client) + `uptime-kuma-setup` (`pip install uptime-kuma-api`) bootstrap tooling from the **internet at runtime** → any NP must open 443/80→0.0.0.0/0 = theater. Proper fix = bake deps into a pinned custom image; user declined custom images, so these 2 stay naked by decision.
 
-### 2026-05-22 (Drift-heal mid-flight ansible-core upgrade race) 🐛
+### 2026-05-22 (Drift-heal mid-flight ansible-core upgrade race)
 - ⚠️ **Incident**: drift-heal failed on all 3 nodes with `ConfigManager.get_config_value() got an unexpected keyword argument 'templar'` on `base_config : Deploy /etc/logrotate.d/pacman` (copy task). Secondary warning: `cannot import name 'VaultDecryptionContext' from 'ansible._internal._yaml._dumper'` killed `ansible.builtin.core` filter plugin.
 - 🔍 **Root cause**: manual `pacman -Syu` at 13:24:02 BST (upgrading ansible-core 2.20.5 → 2.21.0) raced the 10-min drift-heal timer fired at 13:24:16. ansible-playbook imported ConfigManager from 2.20.5 in memory; mid-run the on-disk core flipped to 2.21.0. Next action plugin reload picked up new `copy.py` (passes `templar=` kwarg) while ConfigManager singleton stayed on old import → TypeError. NOT a version bug — `get_config_value()` in on-disk 2.21.0 *does* accept `templar` (verified via `inspect.signature`). Pure timing race.
 - ✅ **Fix** (commit `3b5696d7`): two systemd guards prevent recurrence:
@@ -786,17 +788,17 @@ Two JobFailed alerts (immich-admin-setup, immich-backup-29669940) were reboot-da
 - 📝 **Verification**: post-deploy drift-heal cycles green on all 3 nodes (CP `ok=100`, W1+W2 `ok=121` each, `changed=0 failed=0 unreachable=0`). systemd status confirms new ExecCondition fires + passes.
 - 📚 **Gotcha logged**: memory `gotchas.md` — "Ansible mid-play runtime upgrade race". Don't pin/downgrade — Arch rolling; fix timing instead. Pattern applies to any long-running ansible-playbook that triggers `pacman -Syu` against its own runtime.
 
-### 2026-05-22 (Rebuilderd W2 memory limit reduction) 🔧
+### 2026-05-22 (Rebuilderd W2 memory limit reduction)
 - ⚠️ **Incident**: cosmic-launcher rebuilderd build on worker-node-2 peaked at 7.4G RAM, combined with concurrent ansible node-maintenance + kernel builds caused node memory pressure. 6 pods CrashLooped across both workers (cert-manager-cainjector ×2, kyverno-cleanup-controller, main-mysql-haproxy, ps-operator, +1). Control plane showed API proxy broken pipes. All self-resolved in ~10min.
 - ✅ **Fix**: Reduced rebuilderd systemd cgroup limits on worker-node-2: MemoryMax 12G→8G, MemoryHigh 11G→6G, MAX_MEMORY env 12G→8G. Swap unchanged at 16G (big builds spill to swap instead of pressuring K8s). Commit `f1efef99`. Applies at next drift-heal (03:00 UTC) or manual trigger.
 - 📝 **History**: W2 limits trajectory: 18G (initial) → 14G (2026-02-21 DPDK OOM) → 12G (2026-04-26 host OOM) → 8G (2026-05-22 cosmic build pressure).
 
-### 2026-05-14 to 2026-05-15 (Ansible packages parity + mirror-staleness fix) 🧰
+### 2026-05-14 to 2026-05-15 (Ansible packages parity + mirror-staleness fix)
 - ✅ **12 Mac-parity CLI tools added to `pacman_packages_base`** (commit `dac395a5`, 2026-05-14): bat, eza, git-delta, gron, jc, kubectx, kubeconform, shellcheck, shfmt, sops, stern, yamllint. Pkg count 30 → 41. Installed on all 3 nodes via daily drift-heal (`node-config.yml`). taplo intentionally NOT added — not in extra or AUR (Mac-only via Homebrew).
 - ✅ **Pacman mirror-staleness self-heal** (commit `811b67e9`, 2026-05-15): packages role gets pre-task `community.general.pacman: update_cache=true force=true` (=`pacman -Syy`) before all install tasks. First run of the 12-pkg addition hit `error: failed retrieving file 'haskell-prettyprinter-*.pkg.tar.zst' : 404` (shellcheck's transitive haskell deps had rotated on london.mirror.pkgbuild.com; local DB stale). Fix re-runs DB refresh under retries=3/delay=30. Daily 03:00/15:00 UTC config now self-heals mirror drift.
 - ✅ **Weekly `yay_cmd` bumped `-Syu` → `-Syyu`** (same commit): forces re-download of mirror DB even if cache appears fresh. Saturday 04:30 UTC phase1 + post-reboot phase2 weekly upgrades pick up next run. Covers both pacman + AUR (CP has 8 AUR pkgs: yay, viddy, zsh-you-should-use, 5 firmware blobs). Documented gotcha in memory `gotchas.md`.
 
-### 2026-04 / 2026-05 (Detailed Changelog — archived from HOMELAB_ANALYSIS.md 2026-05-15) 📜
+### 2026-04 / 2026-05 (Detailed Changelog — archived from HOMELAB_ANALYSIS.md 2026-05-15)
 Verbatim chronological entries (2026-04-02 → 2026-05-08) moved here to keep ANALYSIS lean.
 - 2026-05-08: **CODEMAPS refresh + monthly cadence + pending sweep** (commit `aa941721`). All 6 `docs/CODEMAPS/*.md` snapshots actualised against live cluster via 6 parallel agents (one per file) briefed with pre-gathered live-state (kubectl + helm + images + cronjobs). Major drift fixes: `databases.md` PXC→Percona Server for MySQL (`ps-operator` 1.1.x), 3 mysql nodes→2+haproxy 2+orc 3 with image pins; `monitoring.md` retention 30d→90d (vmsingle 50Gi PVC), Loki+Alloy moved to own `loki` ns, VMServiceScrape 37→26+2 VMPodScrape, helm + image pins (kps 84.5.0, vm-op 0.62.1, vm v1.140.0); `apps.md` 17→16 apps (Grafana → infra section), all live image tags refreshed, Immich noted as Helm chart, middleware chain expanded; `architecture.md` Traefik ns kube-system→traefik, Kyverno 10 split 7 Enforce + 3 Audit; `networking.md` Traefik chart 40.0.0, NP per-ns counts; `backup-restore.md` CRITICAL_PVCS list verified vs YAML (10/8 apps), W2 chain noted pending. Added monthly cadence: `CODEMAPS/README.md` "When to update" lists Monthly review; `HOMELAB_ANALYSIS.md` Monthly Review Checklist new item #3 CODEMAPS refresh with kubectl snapshot commands + agent dispatch pattern, "Last refresh: 2026-05-08". Pending sweep: nothing strictly overdue (today 2026-05-08; next event = W2 replication drop 2026-05-20). Authentik 2026.5 row retargeted to "Backlog (watch releases)" — upstream still on 2026.2.x (latest 2026.2.3-rc1). UFW heal umbrella row updated to reference both layers: layer 1 prevention `kernel-modules-hook` (commit `6e01c7d0`) + layer 2 recovery heal v4 (commit `476ec535`). 2026-05-02 incident sub-items (P1 ufw line-2, P2 heal v3 ufw-disabled probe, P3 nic_tuning enp3s0→enp4s0) verified covered: P1+P2 in 476ec535 + heal v4, P3 already correct in `host_vars/worker-node.yml` (`nic_tuning_iface: enp4s0`); CP host_vars correctly retains `enp3s0` (no rename on CP).
 - 2026-05-07: **Blocky soak observation closed (4d late vs 2026-05-03)**. Window 2026-04-30→2026-05-07: peak RSS 307Mi/283Mi (60% headroom on 512Mi), avg 140-156Mi, p95 latency 4.96 ms / p50 2.61 ms, log_entries 797k rows / 238 MB / ~110k/day stable, CPU throttle ≤0.24%, 0 active alerts. Restarts (4 rqbjj / 1 wwzgn) all on Sat 2026-05-04 maintenance window — Redis transient-unavail at boot (`dial 10.43.191.88:6379 connect: connection refused`), expected; pods stable 3d+ since. **Memory-limit review** (2026-05-26 row): peak 307Mi blocks 256Mi target; 384Mi acceptable (~25% headroom).
@@ -836,7 +838,7 @@ Verbatim chronological entries (2026-04-02 → 2026-05-08) moved here to keep AN
 - 2026-04-09: VictoriaMetrics migration (71% RAM save).
 - 2026-04-02: April monthly review, full secrets rotation.
 
-### 2026-05-02 to 2026-05-07 (May Sprint Closures) 🧹
+### 2026-05-02 to 2026-05-07 (May Sprint Closures)
 Items archived from HOMELAB_ANALYSIS.md PENDING ITEMS table on 2026-05-07.
 - ✅ **Uptime Kuma rework** (2026-05-02). Replaced standalone Redis monitor with HA Master + HA Sentinel TCP probes + Blocky DNS probes (W1 192.168.1.129 / W2 192.168.1.126). Pinned UK Deployment + setup-job to control-plane (`nodeSelector` + toleration) so node-targeted probes always traverse external network — fixes monitor-blind-to-own-node-failure (W1 SSH/kubelet probes had stayed 100%/99.86% green via pod-local loopback while host INPUT was DROPing external L3). `/app/data` PVC dropped (state in MySQL; db-config.json regenerates from env, screenshots/error.log ephemeral). New monitors live (MySQL ids 42/43/45/46).
 - ✅ **W1 UFW iptables-restore line 2 fail** — kernel-upgrade regression, RESOLVED 2026-05-02 (commit `476ec535`). Root cause: stale ufw kernel chains from previous session block `ufw enable` (re-create attempt against existing chains). `/lib/ufw/ufw-init flush-all` clears stale chains. Patches in `ufw-heal-post-k3s.sh` (phase_b detects "skipping reload\|not enabled" → flush-all + `--force enable`) and `firewall-preflight.sh` (new `phase_ufw_state_recover` runs after modprobe: detects `ENABLED=yes + Status:inactive` → flush-all + force-enable). **Validation tracking**: kept as separate pending row in HOMELAB_ANALYSIS.md (next W1 reboot/kernel upgrade).
@@ -846,7 +848,7 @@ Items archived from HOMELAB_ANALYSIS.md PENDING ITEMS table on 2026-05-07.
 - ✅ **Audit: zombie helm releases** — DONE 2026-05-02. 12 helm releases all active. kube-prometheus-stack already trimmed (`prometheus.enabled=false` in HelmRelease values; operator + grafana + AM + KSM + node-exporter retained — operator manages AM STS). 5 empty KPS CRDs (prometheuses/prometheusagents/thanosrulers/scrapeconfigs/probes) + 13 empty VM-operator CRDs (vlogs/vlsingles/vlclusters/vlagents, vmanomalies+vmanomalyconfigs, vmclusters/vmdistributed, vmusers/vmauths, vtclusters/vtsingles) bundled by chart — risky-to-remove for marginal benefit. No actionable cleanup.
 - ✅ **Blocky 1-week soak observation** — DONE 2026-05-07 (4d late vs 2026-05-03 target). Window 2026-04-30→2026-05-07. Peak RSS 307Mi (rqbjj/W2), 283Mi (wwzgn/W1) — 60% headroom on 512Mi limit. Avg RSS 140-156Mi. p95 latency 4.96 ms / p50 2.61 ms. log_entries 797k rows / 238 MB / ~110k/day stable (range 88k-116k/day). CPU throttle ≤0.24% (negligible). 0 active alerts. Restarts rqbjj=4 / wwzgn=1 — all on Sat 2026-05-04 weekly maintenance window, root cause `dial 10.43.191.88:6379 connect: connection refused` (Redis transient unavail during worker reboot, expected). Pods stable 3d+ since. Verdict: GREEN. Memory-limit review (2026-05-26) blocked by 307Mi peak — 256Mi unsafe; 384Mi acceptable (~25% headroom).
 
-### 2026-04-28 (Ansible Review + NOW Bucket Landed) 📋
+### 2026-04-28 (Ansible Review + NOW Bucket Landed)
 - ✅ **Full audit** of `docs/scripts/node-maintenance/ansible/` — 11 roles, 3 playbooks (`phase1`/`phase2`/`node-config`)
 - ✅ **Verified baseline**: drift-alerting wired (`ExecStopPost=/usr/local/sbin/node-maintenance-config-notify.sh` → Telegram on `failed>0` OR `changed>0`); sudoers `visudo -c -f` validated; journald caps already 500M/30d/1week; `firewall_preflight` + firewall pre-heal split is intentional (defense-in-depth, documented in `firewall-preflight.sh` header)
 - ✅ **Plan saved**: `docs/scripts/node-maintenance/ANSIBLE_REVIEW_PLAN.md` (20 confirmed gaps, triaged NOW/1-2 days/later/never)
@@ -880,7 +882,7 @@ Items archived from HOMELAB_ANALYSIS.md PENDING ITEMS table on 2026-05-07.
 - 🗓️ **Later**: pacman_config role, admin sudoers, fail2ban tuning, K3s server flags drift detection, idempotency CI, ansible-vault for secrets
 - ❌ **Never**: logrotate.conf system-wide tuning (per-app sufficient), K3s cert SAN auto-renewal (K3s handles internally), firewall+preflight consolidation (split intentional)
 
-### 2026-04-26 (Redis HA Migration — Phase 1) ⚡
+### 2026-04-26 (Redis HA Migration — Phase 1)
 - ✅ **OT-CONTAINER-KIT redis-operator v0.24.0** deployed via Flux HelmRelease
 - ✅ **RedisReplication CR**: 1 master (W2) + 1 replica (W1), hard pod anti-affinity, image `quay.io/opstree/redis:v8.6.2` (bumped from v7.4.8 by Renovate during cutover; researched, no breaking changes)
 - ✅ **RedisSentinel CR**: 3 sentinels spread across CP/W1/W2 (CP toleration added), quorum 2 of 3, parallelSyncs 1, downAfterMilliseconds 5000
@@ -894,7 +896,7 @@ Items archived from HOMELAB_ANALYSIS.md PENDING ITEMS table on 2026-05-07.
 - ⚙️ **Plan-vs-actual drift fixed during execution**: OT v1beta2 schema (`serviceType` removed; `secretKeyRef` for sentinel password); Sentinel pod label is `app=redis-sentinel-sentinel` (NP + anti-affinity selectors corrected); `readOnlyRootFilesystem: true` incompatible with OT entrypoint writing `/etc/redis/redis.conf` — set `false`; `protected-mode no` required for nopass default user
 - 🔮 **Phase 2 unblocked**: Blocky DNS migration ready (separate plan `docs/superpowers/plans/2026-04-26-blocky-migration.md`)
 
-### 2026-04-26 (Blocky DNS Migration — Phase 2) 🛡️
+### 2026-04-26 (Blocky DNS Migration — Phase 2)
 - ✅ **Replaced AdGuard Home** (2 node-pinned Deployments) with **Blocky v0.29.0** (single Deployment, 2 replicas, hard pod anti-affinity W1+W2, native rolling updates)
 - ✅ **Shared Redis HA cache** (database 1) for cross-pod state sync via Phase 1 redis-replication-master
 - ✅ **CNPG Postgres query log** — `blocky` database + role added to `cluster.yaml` `managed.roles`, 7-day retention via Blocky native pruning
@@ -916,7 +918,7 @@ Items archived from HOMELAB_ANALYSIS.md PENDING ITEMS table on 2026-05-07.
 - ⚙️ **AdGuard pruned**: ns + manifests deleted by Flux (cutover commit removes `apps/staging/kustomization.yaml` adguard entry); resource-governance adguard-home.yaml entry also removed
 - 🔮 **Open**: Uptime Kuma DNS probes for both Blocky IPs (manual UI step, scheduled 2026-05-04); Phase 1 redis-ha alerts also need VMRule conversion (separate task, P2)
 
-### 2026-04-26 (Phase 2 Hardening + Stale Cleanup) 🧹
+### 2026-04-26 (Phase 2 Hardening + Stale Cleanup)
 Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 **Blocky config tuning** (research-driven, per upstream best practices):
@@ -999,17 +1001,17 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 ---
 
-## 📋 2026 Monthly Reviews (January - April)
+## 2026 Monthly Reviews (January - April)
 
 *Moved from HOMELAB_ANALYSIS.md on 2026-04-10 to keep the analysis file lean.*
 
-## 🎯 CRITICAL ACTION ITEMS
+## CRITICAL ACTION ITEMS
 
 **Last Updated**: 2026-04-02 (Monthly Review)
 **Source**: HOMELAB_REVIEW_2025_12_17 (archived, see git history)
 **Completed Items**: See [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md) for detailed completed task archive
 
-### 🔍 April 2026 Monthly Review
+### April 2026 Monthly Review
 
 **Review Date**: 2026-04-02
 **Reviewer**: Staff DevOps/SRE + Staff Software Developer (7-agent parallel audit)
@@ -1079,7 +1081,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 **Next Review**: 2026-05-04 (Monthly)
 
-### 🔍 March 2026 Monthly Review
+### March 2026 Monthly Review
 
 **Review Date**: 2026-03-06
 **Reviewer**: Staff DevOps/SRE + Staff Software Developer
@@ -1148,7 +1150,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 **Next Review**: 2026-04-06 (Monthly)
 
-### 🔍 February 2026 Monthly Review
+### February 2026 Monthly Review
 
 **Review Date**: 2026-02-07
 **Reviewer**: Staff DevOps/SRE + Staff Software Developer
@@ -1236,7 +1238,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 ---
 
-### 🔍 January 2026 Comprehensive Review
+### January 2026 Comprehensive Review
 
 **Review Date**: 2026-01-09
 **Reviewer**: Staff DevOps/SRE + Staff Software Developer
@@ -1329,7 +1331,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 ---
 
-### 🔍 Code Review Findings (2026-03-07)
+### Code Review Findings (2026-03-07)
 
 **Overall Score**: 94/100 (A) — up from 93/100 in February 2026
 
@@ -1392,7 +1394,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 | cert-manager ClusterIssuers | 2025-10-27 | 2cb9e78 | Removed duplicate, kept single source |
 | CNPG WAL Archiving | N/A | - | ❌ Not implementing (pg_dump acceptable) |
 
-### 🛡️ SECURITY HARDENING (Active)
+### SECURITY HARDENING (Active)
 
 #### ✅ **Node-Level Hardening** - COMPLETED (2026-02-12)
    - **SSH**: Post-quantum kex (mlkem768x25519-sha256), strong ciphers only (chacha20-poly1305, aes256-gcm, aes128-gcm), ETM MACs only, ed25519/rsa-sha2 host keys
@@ -1462,7 +1464,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 ---
 
-### 📋 P2-MEDIUM (Active Items Only)
+### P2-MEDIUM (Active Items Only)
 
 | Pending Item | Effort | Priority |
 |--------------|--------|----------|
@@ -1476,7 +1478,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 **SOPS Multi-Key - DECLINED** (2026-02-06): Multi-key is for team environments where multiple people need independent decryption (e.g., separate keys for CI/CD, teammates). Single operator with one age key stored in 1Password. No CI/CD pipeline needing its own key. Adding complexity for no benefit.
 
-#### 🔒 **ReadOnlyRootFilesystem Security Hardening** (P2-MEDIUM) - PHASE 1-3 COMPLETE ✅
+#### **ReadOnlyRootFilesystem Security Hardening** (P2-MEDIUM) - PHASE 1-3 COMPLETE ✅
 
 **Investigation Date**: 2025-12-18
 **Implementation Date**: 2025-12-18 (Phase 1+2), 2025-12-23 (Phase 3)
@@ -1524,7 +1526,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 | **immich-server** | Runs as privileged for GPU transcoding | Required for VAAPI hardware acceleration |
 | **grafana** | Helm chart complexity, multiple sidecars | Would require extensive chart customization |
 
-##### 📋 **Implementation Summary**
+##### **Implementation Summary**
 
 **Phase 1** (Tier 1 - Zero Risk): ✅ **COMPLETED 2025-12-18**
 - Enabled on paperless-ngx, authentik-server, authentik-worker
@@ -1563,7 +1565,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 ---
 
-### 📋 P3-LOW (Active Items Only)
+### P3-LOW (Active Items Only)
 
 | Pending Item | Priority | Status |
 |--------------|----------|--------|
@@ -1586,7 +1588,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 ---
 
-### 📅 DEFERRED TASKS (February 2026)
+### DEFERRED TASKS (February 2026)
 
 #### 37. **Offsite Backup Replication to NAS** ✅ COMPLETED
    - **Status**: ✅ COMPLETED - NAS replication fully operational (2026-02-06)
@@ -1615,7 +1617,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
    - **Files**: `infrastructure/configs/staging/backup-replication/` (cronjob.yaml, nas-rsync-secret.yaml)
    - **Benefit**: Protects against node hardware failure (NAS = full history, worker-node-2 = today's safety net)
 
-#### 38. **Second Worker Node** 🖥️ ✅ COMPLETED
+#### 38. **Second Worker Node** ✅ COMPLETED
    - **Status**: ✅ DEPLOYED - 2025-12-15 (ahead of schedule!)
    - **Priority**: ~~P1-HIGH~~ COMPLETED
    - **Node Details**:
@@ -1642,7 +1644,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
      - ✅ **AdGuard Home DNS** - Added 192.168.1.126 to DNS rewrites
    - **Documentation**: SECOND_WORKER_NODE_SETUP.md (archived, see git history)
 
-#### 39. **Switch to LTS Kernel 6.18** 🐧 ✅ COMPLETED
+#### 39. **Switch to LTS Kernel 6.18** ✅ COMPLETED
    - **Status**: ✅ COMPLETED - 2026-03-06
    - **Priority**: ~~P2-MEDIUM~~ COMPLETED
    - **Result**: All 3 nodes switched from mainline `linux` (6.19.6) to `linux-lts` (6.18.16)
@@ -1651,7 +1653,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
    - **Boot Entries**: systemd-boot entries created from existing ones, fallback initramfs enabled
    - **Benefit**: Long-term stability, security backports until Dec 2027
 
-#### 40. **VictoriaMetrics Migration** 📊 ✅ COMPLETED
+#### 40. **VictoriaMetrics Migration** ✅ COMPLETED
    - **Status**: ✅ COMPLETED - 2026-04-09
    - **Priority**: ~~P3-LOW~~ COMPLETED
    - **Result**: Prometheus server replaced by VictoriaMetrics (VMSingle + VMAgent + VMAlert)
@@ -1669,11 +1671,11 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 ---
 
-## 📝 CHANGELOG (Recent)
+## CHANGELOG (Recent)
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
-### 2026-06-04 (Configs base/staging flatten) 🧹
+### 2026-06-04 (Configs base/staging flatten)
 - ✅ **Flattened the last two `base/staging` overlay splits** — `monitoring/configs/{base,staging}` → `monitoring/configs/` (`081934c0`) + `infrastructure/configs/{base,staging}` → `infrastructure/configs/` (`87deba9e`). Completes the base/overlay collapse program (F-13 apps, F-14 controllers). No base/staging splits remain repo-wide.
   - **Proof:** `kustomize build --enable-helm` render byte-identical pre/post both sides (oracle diff empty — 63 mon / 133 infra resources). Flux re-adopted every object by unchanged name/ns/GVK → zero churn (CNPG/Percona/CouchDB + cloudflared + grafana/vmsingle pod ages unchanged).
   - Flux paths repointed (`monitoring-configs`, `infrastructure-configs` → `./…/configs`); CI kustomize roots + `kyverno_count` find path updated.
@@ -1683,7 +1685,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
   - **Tier-2 follow-ups** (`637c6bdd`, render byte-identical, zero churn): evicted the lone `cloudflared` ServiceMonitor out of `kube-prometheus-stack/` into its own `monitoring/configs/cloudflared/` dir (it targets `cloudflare-tunnel` ns, the only non-KPS object there); dropped the now-redundant `namespace: monitoring` transform from `victoria-metrics/` (all 19 resources self-ns). Investigated a `kube-prometheus-stack/` rename — **declined**: post-eviction the dir is 14 cohesive KPS-stack config objects and the name deliberately parallels `monitoring/controllers/kube-prometheus-stack/` (a gratuitous rename = churn). VMAgent scrape-discovery is `serviceScrapeSelector: {}` (all ServiceMonitors), not the `release` label.
   - **Reframe:** corrected the long-standing misnomer — this is single-env **production**, not "staging" (merge to `main` = deploy to prod). Fixed `CLAUDE.md`, `HOMELAB_ANALYSIS.md`, `ARCHITECTURE.md`, `review-invariants.md` (which also still asserted the now-collapsed apps base/overlay split was the norm).
 
-### 2026-03-16 (SearXNG Deployment) 🔍
+### 2026-03-16 (SearXNG Deployment)
 - ✅ **SearXNG deployed**: Privacy-respecting metasearch engine ⭐
   - Image: `searxng/searxng:2026.3.13-3c1f68c59`
   - Internal: `search.h0melab.work` via Traefik (no auth)
@@ -1698,7 +1700,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 - ✅ **cert-manager NetworkPolicy fix**: Added external DNS egress (UDP/TCP 53) for DNS-01 challenges
 - ✅ **`.gitignore` fix**: Added `!secret.yaml` override for SOPS-encrypted secrets (was blocked by global gitignore)
 
-### 2026-03-15 (Remove Immich Nginx Proxy Sidecar) 🧹
+### 2026-03-15 (Remove Immich Nginx Proxy Sidecar)
 - ✅ **Nginx proxy sidecar removed from Immich** — unnecessary since v1.88.0 (Nov 2023) ⭐
   - **Root cause**: Sidecar was added due to misleading NestJS log (`[::1]:2283`), but server actually binds to `::` (all interfaces)
   - **Evidence**: `/proc/net/tcp6` confirmed `:::2283 LISTEN`, `wget` to pod IP returned `{"res":"pong"}`
@@ -1713,7 +1715,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 - ℹ️ **Gotcha**: Immutable Job spec blocked Flux reconciliation — had to delete completed `immich-admin-setup` Job before Flux could apply new port
 - 📋 **Commits**: 7d377a9a, c1f212f7
 
-### 2026-03-11 (NetworkPolicy K8s API Egress Audit) 🔒
+### 2026-03-11 (NetworkPolicy K8s API Egress Audit)
 - ✅ **Loki crash-loop fixed**: `loki-sc-rules` sidecar (kiwigrid/k8s-sidecar) couldn't reach K8s API ⭐
   - Root cause: loki NetworkPolicy (added Jan 9) missing K8s API egress (192.168.1.127:6443)
   - Went undetected because pod wasn't restarted since before policy was applied
@@ -1730,7 +1732,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 - ℹ️ **Key learning**: Existing TCP connections survive NetworkPolicy changes (conntrack ESTABLISHED). Always restart pods after adding/modifying NetworkPolicies to verify.
 - 📋 **Commits**: acea8f23, e84b2705
 
-### 2026-03-09 (Comprehensive Node Audit & Hardening) 🔒
+### 2026-03-09 (Comprehensive Node Audit & Hardening)
 - ✅ **Full Arch Linux audit across all 3 nodes** — 18 findings identified and fixed ⭐
 - ✅ **Unified setup-node.sh**: Single script replaces per-node scripts (auto-detects CP/worker, Intel/AMD)
   - Added: smartmontools, inetutils, journald config, PermitEmptyPasswords, amd_pstate boot param
@@ -1747,7 +1749,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 - ✅ **Rolling reboot**: W2 → W1 → CP, all verified post-reboot
 - ✅ **Cluster health**: 3/3 nodes Ready, 81 running pods, 0 alerts, 0 stale RS after cleanup
 
-### 2026-03-07 (March 2026 Code Review - 94/100, A) 📋
+### 2026-03-07 (March 2026 Code Review - 94/100, A)
 - **Full Codebase Review**: Score improved 93/100 -> 94/100 (+1 point) via 6 parallel agents
 - **NetworkPolicy**: Added for cert-manager, kyverno, percona-mysql, backup-replication (4 namespaces)
   - Key learning: K3s API server connects to webhooks via pod CIDR (10.42.0.0/16), not node IPs
@@ -1771,7 +1773,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
   - runbook_url: won't do (no runbooks exist); backup cleanup: accepted (low risk)
 - Commits: cd27a2e9, 21cb1e48
 
-### 2026-03-06 (LTS Kernel + K3s Upgrade) 🐧
+### 2026-03-06 (LTS Kernel + K3s Upgrade)
 - ✅ **Kernel: mainline 6.19.6 → LTS 6.18.16** on all 3 nodes ⭐
   - Two-phase approach: install LTS alongside mainline → reboot → verify → remove mainline
   - Rolling order: worker-node-2 → worker-node → control-plane
@@ -1784,7 +1786,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
   - Agent upgrade script auto-reads URL/token from service env file
 - ✅ **All pods healthy, 0 alerts firing after upgrade**
 
-### 2026-02-28 (Traefik Alert Fixes) 🔔
+### 2026-02-28 (Traefik Alert Fixes)
 - ✅ **Fixed all Traefik & rate-limit alerts using wrong `service` label** ⭐
   - **Root cause**: Prometheus renames app-exported `service` label to `exported_service` (collision with scrape target label). All alerts used `service` (always `traefik-metrics`) instead of `exported_service` (actual backend name)
   - **Impact**: TraefikHighLatency showed generic "traefik-metrics" instead of backend name; 6 rate-limit alerts could **never match** specific services (Authentik, CouchDB, N8N, Immich)
@@ -1795,7 +1797,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 - ✅ **Deferred VictoriaMetrics re-evaluation**: Feb 2026 → April 2026
 - 📋 **Commits**: e9881a50, 90e55ace
 
-### 2026-02-27 (Rebuilderd Monitoring Alerts) 📊
+### 2026-02-27 (Rebuilderd Monitoring Alerts)
 - ✅ **Rebuilderd monitoring via node-exporter textfile collector** ⭐
   - **Metrics**: `rebuilderd_worker_active`, `rebuilderd_builds_good_total`, `rebuilderd_builds_bad_total`, `rebuilderd_builds_total`
   - **Collection**: systemd timer every 5 minutes, parses journalctl for last hour
@@ -1805,7 +1807,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
   - **Scripts**: Metrics exporter integrated into `setup-rebuilderd-worker-*.sh` (not a separate file)
 - 📋 **Commits**: 38925637
 
-### 2026-02-26 (Kernel Update & Rebuilderd 24/7) 🐧
+### 2026-02-26 (Kernel Update & Rebuilderd 24/7)
 - ✅ **Kernel Updated**: 6.18.9-arch1-2 → **6.18.13-arch1-1** on all 3 nodes ⭐
   - Rolling reboot: worker-2 → worker-1 → control-plane
   - All nodes Ready, 0 alerts after reboot, 7 stale RS cleaned
@@ -1828,7 +1830,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
   - 6 stale ReplicaSets + 8 completed pods cleaned
 - 📋 **Commits**: 4baebd4d, 56bd4cb7, 858447f9
 
-### 2026-02-22 (Health Check & Cleanup) 🔍
+### 2026-02-22 (Health Check & Cleanup)
 - ✅ **Comprehensive Health Check**: All systems healthy, no critical issues ⭐
   - **K3s**: v1.35.1+k3s1 (latest stable), Kernel 6.18.13-arch1-1
   - **Pods**: 81 Running, 0 CrashLoop, 0 alerts firing (Watchdog only)
@@ -1851,7 +1853,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
   - HA Met.no: Transient DNS errors, self-resolved
   - CF Tunnel CouchDB: Long-poll `_changes` stream cancellations (normal for Obsidian sync)
 
-### 2026-02-21 (Rebuilderd OOM → MySQL Crash Fix) 🔧
+### 2026-02-21 (Rebuilderd OOM → MySQL Crash Fix)
 - ✅ **Root Cause Found**: Rebuilderd DPDK build OOM killed MySQL pods on worker-node-2 ⭐
   - `lto1-ltrans` (GCC LTO linker) exceeded 18GB memory limit in nspawn container
   - Cgroup `/machine.slice/dpdk1926193.scope`: 19.5GB usage, 228,266 failed allocations
@@ -1872,7 +1874,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
   - worker-node-2: `MemorySwapMax=8G` (14GB RAM + 8GB swap = 22GB effective)
   - Leaves half of each node's swap for K8s and system use
 
-### 2026-02-20 (Image Tag Pinning & Database Updates) 📌
+### 2026-02-20 (Image Tag Pinning & Database Updates)
 - ✅ **PostgreSQL Upgrade**: 18.1 → 18.2 (CNPG rolling update, zero downtime) ⭐
 - ✅ **Redis Upgrade**: 8.2.2 → 8.6.0 (was silently drifting on floating `8-alpine` tag) ⭐
 - ✅ **Floating Tags Pinned**: 15 image references across 13 files pinned to exact versions ⭐
@@ -1887,7 +1889,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 - ✅ **Intentionally floating**: CNPG helper images (`18-minimal-trixie`, `18-standard-trixie`) for psql jobs — no action needed
 - 📋 **Commits**: 456163b0
 
-### 2026-02-20 (February Code Review - 93/100, A) 📋
+### 2026-02-20 (February Code Review - 93/100, A)
 - ✅ **Full Codebase Review**: Score improved 89/100 → 93/100 (+4 points) ⭐
 - ✅ **Security**: Removed `hostNetwork: true` from PVC backup (unnecessary network access)
 - ✅ **Security**: SSH host key verification hardened (ConfigMap known hosts, `StrictHostKeyChecking=yes`)
@@ -1903,7 +1905,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 - ⏸️ **Deferred**: CF tunnel YAML parser hardening, pre-built backup image
 - 📊 **Findings**: 3 P1, 8 P2, 6 P3 — 12 fixed, 2 accepted, 2 deferred, 1 declined
 
-### 2026-02-20 (Codebase Review Fixes) 🔧
+### 2026-02-20 (Codebase Review Fixes)
 - ✅ **CouchDB Alert Namespace Fix**: Changed `namespace="couchdb"` → `namespace="databases"` in CouchDBPodNotRunning alert ⭐
   - Alert was never matching (CouchDB runs in databases namespace, not couchdb)
 - ✅ **NetworkPolicy Egress Hardened**: Alloy + Popeye restricted from `0.0.0.0/0` to `192.168.1.127/32` for K8s API ⭐
@@ -1914,7 +1916,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 - ✅ **Docs Cleanup**: Deleted 18 obsolete doc files (-6,164 lines)
 - 📋 **Commits**: 4053675e
 
-### 2026-02-20 (Cloudflare Tunnel GitOps Sync & Secrets Audit) ☁️
+### 2026-02-20 (Cloudflare Tunnel GitOps Sync & Secrets Audit)
 - ✅ **CF Tunnel Init Container**: Syncs Git config to CF API on every pod start ⭐
   - Shell parser extracts ingress rules from YAML, PUTs JSON to CF Tunnel Configurations API
   - Image: `curlimages/curl:8.12.1`, readOnlyRootFilesystem, runAsNonRoot, drop ALL
@@ -1927,7 +1929,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
   - `.gitignore` properly excludes `.backup/`, keys, `.env`
   - No git history rewrite needed
 
-### 2026-02-12 (Node Security Hardening) 🔒
+### 2026-02-12 (Node Security Hardening)
 - ✅ **SSH Hardening**: Post-quantum kex, strong ciphers/MACs only on all 3 nodes ⭐
   - KexAlgorithms: mlkem768x25519-sha256, curve25519-sha256
   - Ciphers: chacha20-poly1305, aes256-gcm, aes128-gcm (no CBC, no 3DES)
@@ -1953,7 +1955,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 - 📊 **Score**: Security 96→98/100, Overall 96→97/100
 - 📋 **Commits**: 178a84ee, 39e3f14d, 052fce9a, b9211fc0, ec68a7c7, b563df44
 
-### 2026-02-07 (Promtail → Grafana Alloy Migration) 🔄
+### 2026-02-07 (Promtail → Grafana Alloy Migration)
 - ✅ **Promtail Replaced with Grafana Alloy**: Full migration completed 24 days ahead of EOL deadline ⭐
   - **Chart**: grafana/alloy v1.5.1 (app v1.12.1) — replaces promtail 6.17.1 (EOL March 2, 2026)
   - **Config**: `loki.source.kubernetes` — tails logs via K8s API (no hostPath mounts needed)
@@ -1967,7 +1969,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 - ✅ **Kyverno**: loki namespace exclusion still covers Alloy (namespace-level, no change needed)
 - 📋 **Commits**: 70371693, 4c6e8b27, 3d710ff7, 216f317e
 
-### 2026-02-07 (Helm Chart Deprecation Audit) 🔧
+### 2026-02-07 (Helm Chart Deprecation Audit)
 - ✅ **Helm Chart Deprecation Audit**: Audited all 10 HelmReleases for deprecated fields ⭐
   - **cert-manager**: `installCRDs: true` → `crds: { enabled: true, keep: true }` (deprecated since v1.15.0)
   - **Loki**: Removed deprecated `grafanaAgent: installOperator: false` from selfMonitoring
@@ -1980,7 +1982,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
   - Commits: 70371693, 4c6e8b27, 3d710ff7, 216f317e
 - ✅ **Monthly Helm Audit Checklist**: Added to review template for recurring checks
 
-### 2026-02-07 (Monthly Review + Cleanup) 🔍
+### 2026-02-07 (Monthly Review + Cleanup)
 - ✅ **February Monthly Review Complete**: All systems healthy, A+ maintained ⭐
   - **Infrastructure**: All 3 nodes healthy, 81 running pods, 0 alerts firing
   - **Databases**: PostgreSQL 2/2, MySQL 2/2, CouchDB 2/2, Redis 1/1 - all healthy
@@ -1995,7 +1997,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 - ✅ **Uptime Kuma**: 28 monitors verified current, NAS Zettlab monitor active
 - 📋 **LTS Kernel**: Arch `linux-lts` still at 6.12.74 (not 6.18), continue waiting
 
-### 2026-02-06 (Automated Backup Validation) 💾
+### 2026-02-06 (Automated Backup Validation)
 - ✅ **Automated Backup Validation**: Daily integrity checks integrated into replication CronJob ⭐
   - **Checks**: SHA256 checksum, tar integrity, minimum size thresholds, file age (<25h)
   - **Thresholds**: PostgreSQL >1MB, CouchDB >100KB, MySQL >100KB, PVC >100KB
@@ -2009,7 +2011,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
   - 0 P0, 0 P1 active issues
 - 📋 **Commits**: 7c3235e (validation + telegram), 6326b3b (failure trap), b1280e8 (failure-only notifications)
 
-### 2026-01-09 (Comprehensive Review + HSTS Final) 🔍
+### 2026-01-09 (Comprehensive Review + HSTS Final)
 - ✅ **Comprehensive Homelab Review Complete**: Staff DevOps/SRE + Software Developer perspective ⭐
   - **Infrastructure**: All 3 nodes healthy, K3s v1.35.0, Kernel 6.18.3
   - **Databases**: PostgreSQL 2/2, MySQL 2/2, CouchDB 2/2, Redis 1/1 - all healthy
@@ -2023,7 +2025,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
   - Gradual rollout complete: 1mo (Oct) → 6mo (Nov) → 1yr (Jan)
   - Files: traefik + monitoring security-headers-middleware.yaml
 
-### 2026-01-26 (Rebuilderd Config Updates) ⚙️
+### 2026-01-26 (Rebuilderd Config Updates)
 - ✅ **Build Timeout Increased**: 24 hours → 48 hours (172800 seconds) ⭐
   - **Reason**: python-aotriton build was at 65% (106,500/163,981) when 24h timeout hit
   - **Estimate**: ~13 hours remaining, 48h provides comfortable margin
@@ -2034,7 +2036,7 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
   - **worker-node**: Also switched to 24/7 (2026-02-26)
 - 📋 **Scripts Updated**: `setup-rebuilderd-worker-1.sh`, `setup-rebuilderd-worker-2.sh`
 
-### 2026-01-06 (Rebuilderd Schedule Change) 🕐
+### 2026-01-06 (Rebuilderd Schedule Change)
 - ✅ **Schedule Changed**: 24/7 → 09:00-23:00 daily (14 hours) ⭐
   - **Both nodes**: worker-node (600% CPU) and worker-node-2 (400% CPU)
   - **Rationale**: Reduce resource contention during off-hours

@@ -357,8 +357,8 @@ egress:
 ## REFERENCES
 
 - [Kubernetes NetworkPolicy Documentation](https://kubernetes.io/docs/concepts/services-networking/network-policies/)
-- [HOMELAB_ANALYSIS.md](./HOMELAB_ANALYSIS.md) — original task priority
-- [Trivy Vulnerability Analysis](./TRIVY_VULNERABILITY_ANALYSIS.md) — defense in depth
+- [HOMELAB_ANALYSIS.md](../HOMELAB_ANALYSIS.md) — original task priority
+- Trivy vulnerability analysis (archived) — defense in depth
 
 ---
 
