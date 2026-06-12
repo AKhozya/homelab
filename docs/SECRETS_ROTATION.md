@@ -1,6 +1,6 @@
 # Secrets Rotation Playbook
 
-**Cluster**: K3s Homelab | **Last Updated**: 2026-04-17
+**Cluster**: K3s Homelab | **Last Updated**: 2026-06-12
 **Audit Trail**: rotation dates in git commit history
 
 ---
@@ -96,8 +96,11 @@
 | `cloudflare-tunnel-mgmt-token` | CF Tunnel Mgmt | 2026-02-19 | 2026-12-31 | Medium |
 | `node-maintenance-ssh` | Node Auto-Update (CP → workers) | 2026-04-17 | 2027-04-17 | High |
 | `homelab-deploy` (GitHub deploy key) | Node-Maintenance git sync (CP `/root/.ssh/homelab-deploy`, read-only) | 2026-04-18 | 2027-04-18 | Medium |
+| `claude-telegram-ssh` (id_ed25519) | Claude Telegram Bot — GitHub account auth + node SSH | 2026-06-12 (leak) | 2027-06-12 | High |
 
 \* Rotate only if compromised
+
+**`claude-telegram-ssh` (2026-06-12)**: rotated after the old key was found in pre-rewrite git history (account-wide GitHub auth key + node SSH). Procedure: new key added to GitHub + 3 nodes' `authorized_keys` + SOPS secret → bot restart → verified github/node auth → old key removed everywhere. Config also routes github via `ssh.github.com:443` (cluster egress blocks `:22`).
 
 ### TLS Certificates
 

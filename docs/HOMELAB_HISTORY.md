@@ -416,6 +416,13 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## 📝 Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-06-12 (Pre-public sanitization: git-history rewrite + SSH key rotation) 🔒
+Audit ahead of possibly making the repo public found 3 secret classes in **git history** (working tree was clean — all SOPS-encrypted). Remediation:
+- **History rewrite** (`git filter-repo` on a fresh clone → force-push `e86068a5`→`04503602`, 3515→3475 commits): stripped the `2026-04-11-claude-telegram*` plan/spec docs (held a plaintext ed25519 key) + redacted the Telegram bot token + Cloudflare account-ID/tunnel-UUID across all history. Deleted stale branch `worktree-phase-a-node-config`; deleted + re-pushed all 35 tags onto clean commits. Pre-rewrite backup bundle taken (then deleted). Flux reconciled clean to `04503602`, zero disruption.
+- **SSH key rotation** (`b1c83ca1`): the leaked `claude-telegram-bot` ed25519 key was a **GitHub account-wide auth key** + node-SSH key. Rotated additive-first (new key → GitHub + 3 nodes' `authorized_keys` → SOPS `claude-telegram-ssh` → bot restart → verify github+node auth → remove old). Old key deauthorized everywhere → its history/PR-ref copies now inert.
+- **Bot github-over-443** (`8cb1e209`): cluster egress blocks `:22`; routed the bot's github SSH via `ssh.github.com:443` so its chezmoi + homelab self-update works again (was silently failing). Node-maintenance sync unaffected (own deploy key + `reset --hard`, self-heals).
+- **NOT publishable yet**: GitHub serves 806 `refs/pull/*` (400+ renovate PRs) pinning old commits — un-deletable; only delete+recreate the repo (forkCount=0) or a GitHub Support purge removes them. All live credentials are rotated/dead, so residual = CF account-ID (an identifier) + inert keys. Decision pending.
+
 ### 2026-06-07 (require-labels soak fix-forward — 15 violations cleared, polr → 0 cluster-wide) ✅
 Daily Kyverno digest fired 23 Audit violations (15 `require-labels` + 8 `require-seccomp-runtimedefault`). Triage: all 8 seccomp = stale objects (4 zero-replica pre-remediation RSes + 3 completed pre-fix popeye Jobs); 15 labels = real soak findings. Fixed forward NOW rather than at flip (`71495e61`) so the remaining ~4-week soak validates the FIX under churn (helm reconcile, CronJob spawns, Job force-recreates) instead of re-reporting knowns — quiet digest makes any new violator visible:
 - **3 provision Jobs** (mealie-user-provision, n8n-user-provision, couchdb-init): `app` label on pod template, values deliberately DISTINCT from app labels (`mealie-user-provision` ≠ `mealie`) so app-scoped NetworkPolicies don't start matching Job pods. Flux force-recreated all 3, re-ran clean (succeeded=1).

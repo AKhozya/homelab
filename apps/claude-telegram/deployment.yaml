@@ -61,8 +61,9 @@ spec:
 
               # Clone or update dotfiles
               if [ -d ~/.local/share/chezmoi/.git ]; then
-                echo "Dotfiles exist, pulling latest..."
-                git -C ~/.local/share/chezmoi pull --quiet || true
+                echo "Dotfiles exist, syncing (hard reset — survives force-push/rewrite)..."
+                git -C ~/.local/share/chezmoi fetch --quiet || true
+                git -C ~/.local/share/chezmoi reset --hard "@{u}" || true
               else
                 echo "Cloning dotfiles..."
                 git clone git@github.com:AKhozya/dotfiles.git ~/.local/share/chezmoi
@@ -80,8 +81,9 @@ spec:
 
               # Clone or update homelab repo
               if [ -d ~/source-code/homelab/.git ]; then
-                echo "Homelab repo exists, pulling latest..."
-                git -C ~/source-code/homelab pull --quiet || true
+                echo "Homelab repo exists, syncing to origin/main (hard reset — survives force-push/rewrite)..."
+                git -C ~/source-code/homelab fetch --quiet origin main || true
+                git -C ~/source-code/homelab reset --hard origin/main || true
               else
                 echo "Cloning homelab repo..."
                 mkdir -p ~/source-code
@@ -229,20 +231,27 @@ spec:
 
               run_pull() {
                 local label="$1" dir="$2"
-                local before after out rc
+                local before after
                 before=$(git -C "$dir" rev-parse HEAD 2>/dev/null || echo "?")
-                out=$(git -C "$dir" pull --ff-only 2>&1)
-                rc=$?
-                after=$(git -C "$dir" rev-parse HEAD 2>/dev/null || echo "?")
-                if [ $rc -ne 0 ]; then
-                  echo "[$label] PULL FAILED rc=$rc"
-                  echo "$out" | sed 's/^/  /'
+                if ! git -C "$dir" fetch --quiet 2>&1; then
+                  echo "[$label] FETCH FAILED"
                   return 1
                 fi
-                if [ "$before" != "$after" ]; then
-                  echo "[$label] updated $before -> $after"
-                else
+                after=$(git -C "$dir" rev-parse "@{u}" 2>/dev/null || echo "?")
+                if [ "$before" = "$after" ]; then
                   echo "[$label] up-to-date $after"
+                  return 0
+                fi
+                # upstream moved (incl. force-push / history rewrite -> non-ff). Hard-reset
+                # ONLY when the tree is clean, so in-flight bot work is never clobbered.
+                if [ -n "$(git -C "$dir" status --porcelain 2>/dev/null)" ]; then
+                  echo "[$label] upstream moved $before -> $after but tree DIRTY — skip reset (in-flight work)"
+                  return 0
+                fi
+                if git -C "$dir" reset --hard "@{u}" --quiet; then
+                  echo "[$label] reset $before -> $after"
+                else
+                  echo "[$label] RESET FAILED"
                 fi
                 return 0
               }
