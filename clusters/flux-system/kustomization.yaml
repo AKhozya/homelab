@@ -1,13 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-- gotk-components.yaml
-- gotk-sync.yaml
-- ../../apps.yaml
-- ../../monitoring.yaml
-- ../../infrastructure.yaml
-- ../../infrastructure-configs.yaml
-- ../../coredns.yaml
+  - gotk-components.yaml
+  - gotk-sync.yaml
 # Re-apply priorityClassName on the Flux controllers via patch so it survives
 # `flux install --export` regeneration of gotk-components.yaml (flux-update.yaml).
 patches:

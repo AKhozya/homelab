@@ -15,7 +15,7 @@ repos:
             .*-secret\.yaml|
             .*-secrets\.yaml|
             .*credentials.*\.yaml|
-            clusters/staging/flux-system/gotk-components\.yaml|
+            clusters/flux-system/gotk-components\.yaml|
             docs/superpowers/.*
           )$
       - id: end-of-file-fixer

@@ -30,7 +30,7 @@ jobs:
         id: versions
         run: |
           # Extract versions and normalize (remove 'v' prefix for comparison)
-          CURRENT=$(grep -m1 'Flux Version:' clusters/staging/flux-system/gotk-components.yaml | awk '{print $4}' | sed 's/^v//')
+          CURRENT=$(grep -m1 'Flux Version:' clusters/flux-system/gotk-components.yaml | awk '{print $4}' | sed 's/^v//')
           NEW=$(flux --version | awk '{print $NF}')
           echo "current=$CURRENT" >> $GITHUB_OUTPUT
           echo "new=$NEW" >> $GITHUB_OUTPUT
@@ -39,7 +39,7 @@ jobs:
       - name: Generate new manifests
         if: steps.versions.outputs.current != steps.versions.outputs.new
         run: |
-          flux install --export > clusters/staging/flux-system/gotk-components.yaml
+          flux install --export > clusters/flux-system/gotk-components.yaml
 
       - name: Create Pull Request
         if: steps.versions.outputs.current != steps.versions.outputs.new

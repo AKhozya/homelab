@@ -336,7 +336,7 @@ cd .backup
 ./secrets-restore.sh
 
 # Then bootstrap Flux
-flux bootstrap github --owner=AKhozya --repository=homelab --path=clusters/staging --personal
+flux bootstrap github --owner=AKhozya --repository=homelab --path=clusters --personal
 ```
 
 ---
@@ -475,7 +475,7 @@ Restores:
 flux bootstrap github \
   --owner=AKhozya \
   --repository=homelab \
-  --path=clusters/staging \
+  --path=clusters \
   --personal
 ```
 

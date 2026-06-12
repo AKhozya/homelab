@@ -178,7 +178,7 @@ Auto-decrypts backup + restores ALL secrets needed for cluster ops.
 flux bootstrap github \
   --owner=AKhozya \
   --repository=homelab \
-  --path=clusters/staging \
+  --path=clusters \
   --personal
 ```
 

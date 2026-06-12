@@ -13,7 +13,7 @@ ignore: |
   .git/
   .playwright-mcp/
   .backup/
-  clusters/staging/flux-system/gotk-components.yaml
+  clusters/flux-system/gotk-components.yaml
   docs/superpowers/
   # SOPS-managed files — encrypted blocks rewritten by sops, fighting yamllint here is futile.
   **/*-secret.yaml
