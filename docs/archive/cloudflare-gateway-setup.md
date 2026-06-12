@@ -1,7 +1,7 @@
 # Cloudflare Gateway DNS Filtering Setup
 
 **Created:** 2025-10-25
-**Account:** Alexander.khozya@gmail.com
+**Account:** <admin-email>
 **Account ID:** `***REMOVED-CF-ACCOUNT-ID***`
 
 ## Overview

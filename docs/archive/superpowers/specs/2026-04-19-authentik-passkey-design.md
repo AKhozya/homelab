@@ -31,7 +31,7 @@ Make passkeys the default authentication factor on `authentik.h0melab.work` so t
 | `default-authenticator-webauthn-setup` stage | `resident_key_requirement=preferred`, `user_verification=preferred`, bound only to its own configure_flow (orphan from `default-user-settings-flow`) |
 | `default-user-settings-flow` bindings | order 20 `default-user-settings` (prompt-form), order 100 `default-user-settings-write` (user-write). No authenticator-setup stages bound. |
 | Existing WebAuthn devices | 1 — akadmin / "1Password", `rp_id=authentik.h0melab.work`, `aaguid=bada5566-…` (1Password), `sign_count=0` (never used for login) |
-| Recovery flow | `default-password-recovery-via-email-flow` active. SMTP configured (`smtp.gmail.com:587`, global settings, FROM = alexander.khozya@gmail.com). |
+| Recovery flow | `default-password-recovery-via-email-flow` active. SMTP configured (`smtp.gmail.com:587`, global settings, FROM = <admin-email>). |
 | `AUTHENTIK_COOKIE_DOMAIN` | unset → RPID derived from Host header → `authentik.h0melab.work` |
 | Custom blueprints | 0 (only 20 stock defaults applied) |
 | Bootstrap secret name | `authentik` (single envFrom secret, not `authentik-secret`) |
