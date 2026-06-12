@@ -23,7 +23,7 @@ spec:
   interval: 5m0s
   retryInterval: 1m0s
   timeout: 5m0s
-  path: ./clusters/staging
+  path: ./clusters
   prune: true
   wait: true
   sourceRef:
