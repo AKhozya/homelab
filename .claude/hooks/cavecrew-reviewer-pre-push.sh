@@ -55,7 +55,9 @@ cat >&2 <<EOF
   Files:
 $non_doc_indented
 
-  Action: invoke Task tool with subagent_type=caveman:cavecrew-reviewer on the diff.
+  Action: invoke Task tool with subagent_type=caveman:cavecrew-reviewer, model=sonnet, on the diff.
+  (model=sonnet per-call override: agent frontmatter defaults to haiku, too weak for the
+   semantic invariant bug-classes below; per-call leaves plugin body live, no shadow/drift.)
   Reviewer auto-reads CLAUDE.md -> .claude/review-invariants.md (semantic checks CI misses).
   Address findings, then run ~/.claude/hooks/cavecrew-mark.sh (from this worktree) and retry push.
   Bypass: CAVECREW_SKIP=1 git push ...
