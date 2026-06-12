@@ -1,8 +1,9 @@
 # HOMELAB SECURITY DOCUMENTATION
 
-**Last Updated:** 2025-10-22
-**Security Officer:** Alexander Khozya
-**Infrastructure:** K3s cluster with Flux GitOps
+**Last Updated:** 2026-06-12
+**Infrastructure:** K3s cluster (v1.36.1+k3s1) with Flux GitOps
+
+This homelab leans on defense-in-depth rather than any single control. Secrets are SOPS/age-encrypted in git, Kyverno admission policies block non-compliant workloads before they schedule, and every namespace runs under default-deny NetworkPolicies plus Pod Security Standards. User-facing access flows through Authentik SSO, and anything reachable from outside the LAN goes over a Cloudflare Tunnel — so the cluster keeps zero inbound ports open to the internet. The sections below document the current posture, the trade-offs accepted for a personal single-admin setup, and the triggers that would justify tightening it further.
 
 ---
 
@@ -19,13 +20,14 @@
 
 ## CURRENT SECURITY POSTURE
 
-### Overall Assessment: **Strong (A-)**
+### Overall Assessment
 
 **Strengths:**
-- Centralized SSO with Authentik (7/13 apps)
+- Centralized SSO with Authentik (7 of 16 apps)
 - Admin user 2FA enabled (TOTP)
 - OIDC-only (passwords disabled most apps)
-- NetworkPolicy 100% coverage
+- NetworkPolicy default-deny across all 28 namespaces (64 policy resources)
+- Kyverno admission policies enforced (12 ClusterPolicies: 9 Enforce, 3 in Audit soak)
 - Secrets SOPS/age encrypted
 - TLS on all ingresses
 - Emergency admin accounts for critical apps
@@ -62,7 +64,7 @@ Internet/LAN → Authentik Login → 2FA → Application Access
 - No evidence of targeted attacks
 - **Trade-off**: convenience vs defense-in-depth
 
-### OIDC-Integrated Applications (7/13)
+### OIDC-Integrated Applications (7 of 16)
 
 | Application | Auth Method | Local Admin | Notes |
 |-------------|-------------|-------------|-------|
@@ -101,7 +103,7 @@ Internet/LAN → Authentik Login → 2FA → Application Access
 
 ### NetworkPolicy Coverage
 
-**Status**: 100% coverage (13/13)
+**Status**: default-deny across all 28 namespaces — 64 NetworkPolicy resources covering all 16 apps
 
 All apps have egress + ingress rules:
 - DNS allowed
@@ -297,18 +299,17 @@ spec:
 
 ---
 
-## SECURITY METRICS
+## SECURITY POSTURE BY AREA
 
-**Current Scores:**
-- Authentication: Strong (2FA)
-- Network Security: Moderate (LAN-only, no VPN)
-- Access Control: Strong (OIDC, RBAC)
-- Secrets: Strong (SOPS)
-- Updates: Excellent (Renovate)
+| Area | State | Notes |
+|------|-------|-------|
+| Authentication | Strong | 2FA (TOTP) on admin |
+| Network Security | Moderate | LAN-only, no VPN layer |
+| Access Control | Strong | OIDC + RBAC |
+| Secrets | Strong | SOPS/age encryption |
+| Updates | Strong | Automated via Renovate |
 
-**Overall Grade: A- (Strong)**
-
-**Target Grade: A+ (needs VPN layer or justified risk acceptance)**
+The main gap is the absence of a network-layer (VPN) control in front of admin interfaces. That is a deliberate trade-off for a personal, LAN-only setup — see the triggers below for when it should be revisited.
 
 ---
 
@@ -331,8 +332,6 @@ spec:
 - Single auth factor type (know + have)
 
 **Review Date**: 2025-11-22 (1 month)
-
-**Signed**: Alexander Khozya (akadmin)
 
 ---
 
@@ -380,6 +379,4 @@ spec:
 
 ---
 
-**Owner**: Alexander Khozya
-**Next Review**: 2025-11-22
-**Classification**: Internal Use Only
+**Next Review**: 2026-07-04

@@ -1,5 +1,7 @@
 # Firewall Security Configuration
 
+This cluster defends itself in two layers. At the host level, every node runs a UFW firewall that defaults to deny-incoming and only opens the specific ports needed by SSH, the Kubernetes API, and intra-cluster traffic. Inside the cluster, Kubernetes NetworkPolicies wrap each workload so pods can only talk to the peers they actually depend on. Together they give defense in depth: a misconfigured app can't reach the wider network, and a host that slips past the firewall still meets a default-deny pod network.
+
 ## Overview
 UFW firewall config homelab cluster — services not exposed to internet.
 
@@ -98,6 +100,18 @@ sudo ufw allow from 10.42.0.0/16 to any port 8000 proto tcp
 # Enable firewall
 sudo ufw enable
 ```
+
+## Worker Node 2 (192.168.1.126)
+
+worker-node-2 joined after this document was first written and runs the same ansible-managed worker firewall profile as worker-node above — default-deny incoming, SSH + HTTP from the LAN only, all traffic allowed from the control-plane and itself, and the CNPG status API from the pod network. Only the self address differs:
+
+```bash
+# Same profile as worker-node, with worker-node-2's own address
+sudo ufw allow from 192.168.1.127        # control-plane
+sudo ufw allow from 192.168.1.126        # self
+```
+
+The host firewall is role-managed by ansible, so the worker nodes stay in lockstep; configuration drift is detected and healed automatically.
 
 ## Blocked Services (Not Exposed)
 

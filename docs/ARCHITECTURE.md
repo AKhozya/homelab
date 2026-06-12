@@ -2,14 +2,14 @@
 
 **What this is:** the *why* and the *shape* of the cluster — design principles, the diagrams, and the rationale behind each convention. For the current numbers see [HOMELAB_ANALYSIS.md](HOMELAB_ANALYSIS.md); for refreshed component snapshots see [CODEMAPS/](CODEMAPS/); for the changelog see [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md). This file changes only when the *design* changes, not when counts drift.
 
-**Cluster in one line:** single-environment K3s (v1.35.x, 3 Arch nodes) run as GitOps — Git is the only write path, Flux reconciles, every secret is SOPS-encrypted, every workload is admission-gated and network-fenced.
+**Cluster in one line:** single-environment K3s (v1.36.x, 3 Arch nodes) run as GitOps — Git is the only write path, Flux reconciles, every secret is SOPS-encrypted, every workload is admission-gated and network-fenced.
 
 ---
 
 ## Design principles (the logic)
 
 1. **Git is the only source of truth.** No `kubectl edit/patch/apply` against live objects — the cluster is whatever `main` says. A change is a commit; Flux reconciles it in ≤60s. This makes the cluster reproducible, auditable (git log = change log), and self-healing (drift is reverted on the next reconcile). The cost — no out-of-band hotfix — is accepted deliberately.
-2. **Layered reconciliation, infra before apps.** Resources have a dependency order (CRDs before custom resources, operators before the things they manage, databases before the apps that connect). Flux `dependsOn` + `wait: true` encodes it as a 6-stage chain so apps never reconcile against a half-built platform.
+2. **Layered reconciliation, infra before apps.** Resources have a dependency order (CRDs before custom resources, operators before the things they manage, databases before the apps that connect). Flux `dependsOn` encodes it as a dependency graph rooted at the controllers — DNS, infra configs (→ apps), and monitoring branch off in parallel — so apps never reconcile against a half-built platform.
 3. **Secrets are git-native, encrypted at rest.** SOPS + age keeps secrets *in* the repo (one source of truth, PR-reviewable) but unreadable without the cluster's age key. No external secret store to bootstrap or keep available.
 4. **Defense in depth, default-deny.** Four independent layers (admission, network, runtime, identity) each assume the others may fail. A compromised app still hits a NetworkPolicy wall, a non-root RoRFS container, and Kyverno-enforced limits.
 5. **Two front doors, no port-forwards.** Internal traffic stays on the LAN (fast, Blocky DNS → Traefik). External traffic enters only through a Cloudflare Tunnel (outbound-initiated — no inbound ports opened on the router). The LAN is never exposed directly.
@@ -39,27 +39,31 @@ Storage is `local-path-provisioner` (node-local PVs — no distributed storage l
 
 ## GitOps reconciliation order
 
+`flux-system` is the Git source; `infrastructure-controllers` is the root Kustomization, and three branches hang off it — DNS, infra configs (→ apps), and monitoring. It is a dependency graph, not a single chain:
+
 ```mermaid
 flowchart TB
   G["Git repo (main)<br/>SOPS-encrypted secrets"] --> FS["flux-system<br/>GitRepository source + Flux controllers"]
   FS --> IC["infrastructure-controllers<br/>cert-manager · Traefik · Kyverno<br/>CNPG / Percona / Redis operators"]
+  IC --> CD["coredns"]
   IC --> ICF["infrastructure-configs<br/>DB Cluster CRs · NetworkPolicy · ResourceQuota<br/>SOPS secrets · backup CronJobs"]
-  ICF --> MC["monitoring-controllers<br/>kube-prometheus-stack · VictoriaMetrics op · Loki · Alloy"]
+  IC --> MC["monitoring-controllers<br/>kube-prometheus-stack · VictoriaMetrics op · Loki · Alloy"]
+  ICF --> APPS["apps<br/>application stacks"]
   MC --> MCF["monitoring-configs<br/>VMRule · VMServiceScrape · dashboards · alert templates"]
-  MCF --> APPS["apps<br/>application stacks"]
 ```
 
-Each arrow is a hard `dependsOn` with `wait: true` — a stage only starts once the previous one reports Ready. Why this exact order:
+Each edge is a Flux `dependsOn`: a Kustomization waits for its parent to report Ready before it reconciles. The `apps` and `monitoring` branches are independent and reconcile in parallel once their prerequisites are met. `apps` is `wait: false` (it depends on `infrastructure-configs` being Ready, but Flux doesn't health-gate the whole apps stage — each app carries its own readiness).
 
-| Stage | Owns | Must precede next because |
+| Kustomization | Depends on | Owns |
 |---|---|---|
-| `infrastructure-controllers` | Operators + CRDs (cert-manager, Traefik, Kyverno, CNPG/Percona/Redis) | CRs in the next stage need their CRDs registered + operators running |
-| `infrastructure-configs` | DB `Cluster` CRs, NetworkPolicies, quotas, secrets, backups | Databases + network fences must exist before workloads use them |
-| `monitoring-controllers` | Metrics/logging stack (VictoriaMetrics, Loki, Alloy) | Scrape/alert configs need the CRDs + operators |
-| `monitoring-configs` | Scrapes, rules, dashboards | — |
-| `apps` | 16 application stacks | Apps `dependsOn` everything above (DBs, ingress, policy, observability) |
+| `infrastructure-controllers` | flux-system (source) | Operators + CRDs (cert-manager, Traefik, Kyverno, CNPG/Percona/Redis) |
+| `coredns` | infrastructure-controllers | Cluster DNS |
+| `infrastructure-configs` | infrastructure-controllers | DB `Cluster` CRs, NetworkPolicies, quotas, secrets, backups |
+| `apps` | infrastructure-configs | 16 application stacks — DBs + network fences must exist first |
+| `monitoring-controllers` | infrastructure-controllers | Metrics/logging stack (VictoriaMetrics, Loki, Alloy) |
+| `monitoring-configs` | monitoring-controllers | Scrapes, rules, dashboards, alert templates |
 
-**Consequence for DB provisioning:** a CNPG `Database` CR is *infrastructure*, not app config — it belongs in `infrastructure-configs`, in the `databases` namespace alongside its `Cluster` (the CR's `spec.cluster` is a same-namespace `LocalObjectReference`). This is why DB manifests live under `infrastructure/configs/.../databases/postgres/`, not in app dirs (F-15, 2026-05-27).
+**Consequence for DB provisioning:** a CNPG `Database` CR is *infrastructure*, not app config — it belongs in `infrastructure-configs`, in the `databases` namespace alongside its `Cluster` (the CR's `spec.cluster` is a same-namespace `LocalObjectReference`). This is why DB manifests live under `infrastructure/configs/.../databases/postgres/`, not in app dirs.
 
 ---
 
@@ -85,7 +89,7 @@ flowchart LR
 
 An externally-reachable app has **two ingress rules** (internal hostname + Cloudflare hostname) but **one NetworkPolicy**. cert-manager issues TLS via DNS-01 (Cloudflare API token) for `*.h0melab.work`. The Cloudflare Tunnel is outbound-initiated → home router opens **zero** inbound ports.
 
-**Consequence (often missed):** Traefik middleware applies **only on the internal path.** External traffic via Cloudflare Tunnel hops `cloudflared → Service` directly (per `infrastructure/configs/cloudflare/networkpolicy.yaml`: per-app `Service:port` egress to 9 apps, zero egress to the `traefik` namespace). Externally-reached apps get Cloudflare's WAF + TLS, **not** the Traefik CSP/headers/rate-limit middlewares. F-22's tier-based CSP soak therefore covers internal browsing only; CF-tunnel browsers see whatever CSP the app itself sets.
+**Consequence (often missed):** Traefik middleware applies **only on the internal path.** External traffic via Cloudflare Tunnel hops `cloudflared → Service` directly (per `infrastructure/configs/cloudflare/networkpolicy.yaml`: per-app `Service:port` egress to 9 apps, zero egress to the `traefik` namespace). Externally-reached apps get Cloudflare's WAF + TLS, **not** the Traefik CSP/headers/rate-limit middlewares. The tier-based CSP rollout therefore covers internal browsing only; CF-tunnel browsers see whatever CSP the app itself sets.
 
 ---
 
@@ -95,13 +99,13 @@ An externally-reachable app has **two ingress rules** (internal hostname + Cloud
 flowchart TB
   L1["1 · Secrets at rest — SOPS + age, encrypted in git"]
   L2["2 · Admission — Kyverno (12 ClusterPolicies, all Enforce) + Pod Security Standards"]
-  L3["3 · Network — allow-list NetworkPolicies per workload (per-pod default-deny effect; Kyverno F-5 require-networkpolicy Enforce denies Pod creation in any non-system ns lacking a NetworkPolicy)"]
+  L3["3 · Network — allow-list NetworkPolicies per workload (per-pod default-deny effect; Kyverno require-networkpolicy (Enforce) denies Pod creation in any non-system ns lacking a NetworkPolicy)"]
   L4["4 · Runtime — runAsNonRoot · readOnlyRootFilesystem · drop ALL caps · seccomp RuntimeDefault"]
   L5["5 · Identity + transport — Authentik OIDC + cert-manager TLS"]
   L1 --> L2 --> L3 --> L4 --> L5
 ```
 
-Each layer is independent: bypassing admission still leaves the network fence; escaping the network still leaves a non-root, read-only-rootfs container. **PSS** sets the namespace floor (`restricted` where possible, `baseline`/`privileged` only where a workload genuinely needs hostPath/host-namespaces/GPU — each justified, see F-45). **Kyverno** enforces the per-workload specifics PSS can't (image pinning, resource limits on *every* container including init, NetworkPolicy presence). NetworkPolicy ports are **container ports, not service ports**.
+Each layer is independent: bypassing admission still leaves the network fence; escaping the network still leaves a non-root, read-only-rootfs container. **PSS** sets the namespace floor (`restricted` where possible, `baseline`/`privileged` only where a workload genuinely needs hostPath/host-namespaces/GPU — each justified). **Kyverno** enforces the per-workload specifics PSS can't (image pinning, resource limits on *every* container including init, NetworkPolicy presence). NetworkPolicy ports are **container ports, not service ports**.
 
 ---
 
@@ -131,7 +135,7 @@ Backups: per-engine CronJobs in `infrastructure-configs` → the W1→W2→NAS r
 
 ## Single-environment reality
 
-This is a single-environment cluster — and that environment is **production** (the live homelab). There is no separate staging and no promotion pipeline: a merge to `main` deploys straight to prod. The repo once carried the canonical Flux `base/` + `staging/` overlay shape, but with one and only one environment the split was pure ceremony (overlays were `[../base]` + SOPS secrets — no patches, replicas, or image overrides), and the `staging/` dir name was a Flux-convention artifact, not a second environment. It has been **fully collapsed to flat single-env dirs**: apps (F-13, 2026-05-29), infra + monitoring controllers (F-14), and the configs layer (2026-06-04). Every move was proven render byte-identical (`kustomize build` oracle-diff empty) → Flux re-adopted every object in place, zero churn. **No `base/staging` overlay split remains repo-wide;** a new such split is now the smell, not the norm.
+This is a single-environment cluster — and that environment is **production** (the live homelab). There is no separate staging and no promotion pipeline: a merge to `main` deploys straight to prod. The repo once carried the canonical Flux `base/` + `staging/` overlay shape, but with one and only one environment the split was pure ceremony (overlays were `[../base]` + SOPS secrets — no patches, replicas, or image overrides), and the `staging/` dir name was a Flux-convention artifact, not a second environment. It has been **fully collapsed to flat single-env dirs**: apps (2026-05-29), infra + monitoring controllers, and the configs layer (2026-06-04). Every move was proven render byte-identical (`kustomize build` oracle-diff empty) → Flux re-adopted every object in place, zero churn. **No `base/staging` overlay split remains repo-wide;** a new such split is now the smell, not the norm.
 
 ---
 
@@ -150,7 +154,7 @@ Called out so they are choices, not accidents:
 - **Operator-created NetworkPolicies not enumerated.** Live `kubectl get netpol -A` shows ~44, git contains ~43 — the delta is operators (CNPG, Kyverno) creating their own. Codemap counts the file-level breakdown.
 - **Age-key bootstrap not drawn.** The decryption chain is: `sops-age` Secret in `flux-system` → kustomize-controller reads it → decrypts SOPS-encrypted manifests on apply. Lose the key and you can't reconcile new secrets (see Failure modes).
 - **Cluster boundary is implicit.** In-scope: the 3 nodes + the workloads they run. Out-of-scope but referenced: the NAS (backup sink), the home router (forwards nothing inbound — CF tunnel is outbound), the Cloudflare edge.
-- **Reconcile cascade timing not in diagrams.** Full chain ~5 min post-push (see `/gitops-workflow` skill); not worth drawing.
+- **Reconcile cascade timing not in diagrams.** Full chain ~5 min post-push; not worth drawing.
 
 ---
 
