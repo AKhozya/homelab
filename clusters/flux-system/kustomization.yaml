@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - gotk-components.yaml
+  - gotk-sync.yaml
+# Re-apply priorityClassName on the Flux controllers via patch so it survives
+# `flux install --export` regeneration of gotk-components.yaml (flux-update.yaml).
+patches:
+  - target:
+      kind: Deployment
+      name: ".*-controller$"
+    patch: |-
+      - op: add
+        path: /spec/template/spec/priorityClassName
+        value: system-cluster-critical
