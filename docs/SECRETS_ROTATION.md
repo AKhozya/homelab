@@ -1,7 +1,18 @@
 # Secrets Rotation Playbook
 
-**Cluster**: K3s Homelab | **Last Updated**: 2026-06-12
+**Cluster**: K3s Homelab (k3s v1.36.1+k3s1, 3 nodes) | **Last Updated**: 2026-06-12
 **Audit Trail**: rotation dates in git commit history
+
+Every secret in this cluster lives encrypted in Git using SOPS with an age key. The
+ciphertext is committed alongside the manifests that consume it; only the cluster's age
+key can decrypt it, so the repository can be public without exposing any value. The point
+of doing it this way is to have one auditable source of truth: every secret change is a
+reviewable commit, there is no external secret store to stand up or keep available before
+the cluster can boot, and disaster recovery only needs the repo plus the age key. This
+document tracks the rotation cadence for each class of secret — database credentials
+(PostgreSQL/CNPG, MySQL/Percona, CouchDB, Redis), the Cloudflare tunnel, GitHub deploy
+keys, node-maintenance and bot SSH keys, and TLS certificates (auto-renewed by
+cert-manager).
 
 ---
 
@@ -96,11 +107,11 @@
 | `cloudflare-tunnel-mgmt-token` | CF Tunnel Mgmt | 2026-02-19 | 2026-12-31 | Medium |
 | `node-maintenance-ssh` | Node Auto-Update (CP → workers) | 2026-04-17 | 2027-04-17 | High |
 | `homelab-deploy` (GitHub deploy key) | Node-Maintenance git sync (CP `/root/.ssh/homelab-deploy`, read-only) | 2026-04-18 | 2027-04-18 | Medium |
-| `claude-telegram-ssh` (id_ed25519) | Claude Telegram Bot — GitHub account auth + node SSH | 2026-06-12 (leak) | 2027-06-12 | High |
+| `claude-telegram-ssh` (id_ed25519) | Telegram bot — GitHub account auth + node SSH | 2026-06-12 (compromise) | 2027-06-12 | High |
 
 \* Rotate only if compromised
 
-**`claude-telegram-ssh` (2026-06-12)**: rotated after the old key was found in pre-rewrite git history (account-wide GitHub auth key + node SSH). Procedure: new key added to GitHub + 3 nodes' `authorized_keys` + SOPS secret → bot restart → verified github/node auth → old key removed everywhere. Config also routes github via `ssh.github.com:443` (cluster egress blocks `:22`).
+**`claude-telegram-ssh` (2026-06-12)**: rotated after the old key was found in pre-rewrite git history (an account-wide GitHub auth key that doubled as a node SSH key). Procedure: new key added to GitHub + the 3 nodes' `authorized_keys` + SOPS secret → bot restart → verified GitHub and node auth → old key removed everywhere. The bot also reaches GitHub over `ssh.github.com:443`, since the cluster's egress firewall blocks outbound `:22`.
 
 ### TLS Certificates
 

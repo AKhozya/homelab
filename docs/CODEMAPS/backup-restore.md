@@ -58,7 +58,7 @@ W2 /mnt/extra-storage/backups (z3us@192.168.1.126)
 NAS Zettlab 6 Ultra (192.168.1.136, /akhozya-pool1/backups/homelab/)
   500GB hard limit (warn 400GB / crit 450GB)
 ```
-After NAS push: validate (4 types: postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then **clean source on W1** (except `immich/` which is kept for keep-2 retention). Worker-2 still in chain (verified 2026-06-05, pending) — drop W2 replication step **~2026-07-20** (HOMELAB_ANALYSIS P2); temp safety net removal **~2026-07-22** (postponed 2026-05-22 +2mo).
+After NAS push: validate (4 types: postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then **clean source on W1** (except `immich/` which is kept for keep-2 retention). Worker-2 still in chain (verified 2026-06-05, pending) — drop W2 replication step **~2026-07-20**; temp safety net removal **~2026-07-22** (postponed 2026-05-22 +2mo).
 
 **Retention enforcement (Step 5b, set 2026-05-22):** NAS prune runs after validate + clean source.
 - **30d for postgres/mysql/couchdb** — `prune_nas_file()`: file-prune via rsync filter `--include=<file> --include=<file>.sha256 --exclude='*'` against empty source. Targets `<cat>/<cat>_YYYYMMDD_HHMMSS.tar.gz` pattern with date > 30d threshold.

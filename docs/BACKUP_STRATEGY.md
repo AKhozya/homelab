@@ -1,15 +1,30 @@
-# HOMELAB BACKUP STRATEGY
+# Homelab Backup Strategy
 
 **Last Updated:** 2026-02-06
-**Status:** **FULLY OPERATIONAL** (NAS replication)
-**Priority:** **P0 - CRITICAL** (implemented + tested)
+**Status:** Fully operational (NAS replication active)
 
 ---
 
-## BACKUP OBJECTIVES
+## Philosophy
 
-**RPO:** 24h (daily auto backups)
-**RTO:** ~30 min (restore from NAS or worker-node-2)
+Every database is backed up with a plain logical dump — `pg_dump`-style exports per engine — rather than continuous point-in-time recovery (PITR). For homelab data volumes (a few GB of databases, daily change measured in megabytes) a nightly logical dump is the right-sized choice: it is simple to reason about, trivial to inspect, and restores into any compatible engine version without WAL replay machinery. Backups run nightly on a fixed schedule, each archive carries a SHA256 checksum for integrity, and the result is replicated off the source node to a NAS plus a second worker as a short-term safety net. Every restore path is documented end to end, and the full disaster-recovery procedure below has been walked through, not just written down.
+
+## Backup Objectives
+
+**RPO (worst-case data loss):** up to 24h — backups run once nightly.
+**RTO (time to restore):** ~30 min for a full rebuild — mostly rsync pull from the NAS plus per-engine restore.
+
+### RTO / RPO by Data Tier
+
+| Data tier | Backup cadence | Retention | RPO (worst-case loss) | RTO (restore target) |
+|---|---|---|---|---|
+| **PostgreSQL** (CloudNativePG, 2 instances) | Nightly 03:00 | 30 days | up to ~24h | minutes–hours; manual `pg_restore` from dump |
+| **MySQL** (Percona, 2 instances) | Nightly 03:15 | 30 days | up to ~24h | minutes–hours; manual `mysql <` import from dump |
+| **CouchDB** (2 active-active) | Nightly 03:05 | 30 days | up to ~24h | minutes–hours; manual `couchrestore` from dump |
+| **App PVCs** (Home Assistant, Paperless, Audiobookshelf, etc.) | Nightly 03:10 | 30 days | up to ~24h | minutes–hours; scale down, untar, scale up |
+| **Off-node replication** → NAS + worker-node-2 | Nightly 03:30 | NAS unlimited (500GB cap); worker-2 = today only | n/a (copies the above) | rsync pull, then restore per tier |
+
+Redis is cache and queue/broker only and is **not** backed up by design — see the "What's NOT backed up" table below.
 
 **Protection Tiers:**
 1. **CRITICAL**: Authentik DB (all OIDC configs + user data)
@@ -20,7 +35,7 @@
 
 ---
 
-## CURRENT STATE - FULLY OPERATIONAL
+## Current State
 
 ### Automated Backup System
 
@@ -653,13 +668,13 @@ cd .backup
 
 ### Remaining Enhancements
 
-1. **Automated Backup Validation (P1):**
+1. **Automated backup validation:**
    - Automated restore testing
    - Integrity checks beyond SHA256
    - Alert if backups corrupted
    - Target: February 2026
 
-2. **Monitoring Integration (P2):**
+2. **Monitoring integration:**
    - Prometheus metrics for backup job success/fail
    - Grafana dashboard for backup monitoring (partially done)
    - Alertmanager alerts if backup jobs fail
@@ -708,4 +723,4 @@ cd .backup
 
 **Document Owner:** Alexander Khozya
 **Next Review:** 2026-02-09 (monthly review cycle)
-**Status:** FULLY OPERATIONAL — all P0 reqs met, NAS replication active
+**Status:** Fully operational — all critical requirements met, NAS replication active

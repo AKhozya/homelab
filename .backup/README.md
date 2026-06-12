@@ -1,8 +1,8 @@
 # Homelab Disaster Recovery Guide
 
-Scripts + docs for complete cluster recovery.
+This is the disaster-recovery runbook for the homelab K3s cluster — the step-by-step procedure to rebuild from nothing if the cluster is lost. It pairs the scripts in this directory (encrypted secret backup/restore) with the data backups described in `docs/BACKUP_STRATEGY.md`, and walks the full sequence: stand up a fresh cluster, restore secrets, bootstrap GitOps, then restore databases and volumes from backup. The same encryption and ordering rules below apply whether you are recovering one database or the whole fleet.
 
-## WARNING IMPORTANT
+## Important: Secret Backups Are Encrypted
 
 **All secrets backups ENCRYPTED with GPG AES256!**
 
@@ -335,17 +335,18 @@ curl -I https://immich.h0melab.work
 ## Configuration Rollback (Git Tags)
 
 Distinct from data restore above: when a GitOps change (not a data loss) breaks the
-cluster, roll the **config** back to a known-good commit. Signed annotated tags are
-created before any multi-commit infra/security wave (`pre-<wave>-<date>`) and serve as
-DR handles — they survive many subsequent commits.
+cluster, roll the **config** back to a known-good commit. A signed annotated tag is
+created before any large multi-commit infrastructure or security change
+(`pre-<name>-<date>`) so there is always a stable point to revert to — these tags
+survive many subsequent commits and act as named rollback handles.
 
-**Known DR handles:**
+**Known rollback handles:**
 
 | Tag | Baseline |
 |---|---|
-| `pre-ultrareview-2026-05-23` | Pre-ultrareview state — last known-good before the multi-wave hardening (Kyverno Enforce, HelmRelease drift, CSP, priority classes). Primary config-rollback handle. |
-| `pre-w7-2026-05-24` | Before CI gates (validate.yaml). |
-| `pre-w8-2026-05-24` | Before Wave 8 Kyverno Audit→Enforce promotion. |
+| `pre-ultrareview-2026-05-23` | Last known-good commit before a large round of security and reliability changes (Kyverno enforcement, HelmRelease drift fixes, CSP, priority classes). Primary config-rollback handle. |
+| `pre-w7-2026-05-24` | Before the CI gates were added (`validate.yaml`). |
+| `pre-w8-2026-05-24` | Before promoting Kyverno policies from Audit to Enforce. |
 
 ```bash
 # Inspect a handle
@@ -357,11 +358,11 @@ git push --force-with-lease origin main
 # Flux reconciles the reverted manifests within 60s (or force: fr)
 ```
 
-Create a new handle before the next wave:
+Create a new handle before the next large change:
 
 ```bash
-git tag -a pre-<wave>-$(date +%Y-%m-%d) -m "Pre-wave baseline before <description>"
-git push origin pre-<wave>-$(date +%Y-%m-%d)
+git tag -a pre-<name>-$(date +%Y-%m-%d) -m "Baseline before <description>"
+git push origin pre-<name>-$(date +%Y-%m-%d)
 # NOTE: must be annotated (-a) — lightweight tags fail under [tag] gpgsign = true
 ```
 

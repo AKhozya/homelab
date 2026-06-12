@@ -9,7 +9,7 @@
 | `worker-node` (W1) | 192.168.1.129 | Worker, hosts Immich PVs (local-path nodeAffinity) | Arch + zsh, SSH user `akhozya` |
 | `worker-node-2` (W2) | 192.168.1.126 | Worker | Arch + zsh, **SSH user `z3us`** (different!) |
 
-SSH port for all nodes: `65300`. Aliases: `ssh_master_node`, `ssh_worker_node`, `ssh_worker_node2`. Claude has NO sudo over SSH (pam_faillock lockout risk).
+SSH port for all nodes: `65300`. Aliases: `ssh_master_node`, `ssh_worker_node`, `ssh_worker_node2`. No sudo over SSH (pam_faillock lockout risk).
 
 CP NIC: Intel I225-V (`enp3s0`), forced 1Gbps + EEE off via `igc-tune@.service` (ansible role `nic_tuning`).
 
@@ -17,10 +17,10 @@ CP NIC: Intel I225-V (`enp3s0`), forced 1Gbps + EEE off via `igc-tune@.service` 
 7 Kustomizations, dependency DAG (apps does NOT depend on monitoring — parallel chains):
 ```
 flux-system (path ./clusters/staging — "staging" dir name = legacy artifact, env is PROD; branch main)
-  └─ infrastructure-controllers   (cert-manager, traefik, kyverno, csp-reporter, DB operators: CNPG, OT redis, Percona MySQL)
+  └─ infrastructure-controllers   (cert-manager, traefik, kyverno, csp-reporter, DB operators: CNPG, OpsTree redis, Percona MySQL)
        ├─ coredns                 (coredns-ha DaemonSet in kube-system — own Kustomization so DNS heals independently)
        ├─ infrastructure-configs  (cluster CRs, NetworkPolicies, ResourceQuotas, secrets, cronjobs, backup-replication, kyverno-policies)
-       │    └─ apps               (16 app stacks, flat apps/<app> post base/overlay collapse F-13/F-14; + components/ shared allow-dns-egress)
+       │    └─ apps               (16 app stacks, flat apps/<app>; + components/ shared allow-dns-egress Kustomize component)
        └─ monitoring-controllers  (kube-prometheus-stack chart, VictoriaMetrics op, Loki, Alloy)
             └─ monitoring-configs (VMRule, VMServiceScrape, dashboards, alertmanager templates; flat monitoring/{controllers,configs})
 ```
@@ -32,13 +32,13 @@ flux-system (path ./clusters/staging — "staging" dir name = legacy artifact, e
 - **CNPG** `main-postgres`: `failoverDelay: 30` + operator scheduled off W2 (`47fbf602`) — guards against spurious failover from flaky-node operator probes (2026-06-04 incident).
 
 ## Encryption
-- **SOPS + age** (52 SOPS-encrypted files in git)
+- **SOPS + age** (53 SOPS-encrypted files in git)
 - Bootstrap key: `sops-age` Secret in `flux-system` ns
 - Cloudflare Tunnel config also SOPS-encrypted (`cloudflared-config-secret.yaml` = source of truth for external hostnames)
 - **Edit pattern**: `sops <file>` opens decrypted in `$EDITOR`, re-encrypts on save. Or `sops -e -i <file>` to encrypt-in-place after manual write.
 
 ## ⚠️ GitOps invariants
-- **Never** `kubectl apply -f` without `--dry-run=server` (hook blocks). Commit to git → Flux reconciles in ≤60s.
+- **Never** `kubectl apply -f` without `--dry-run=server`. Commit to git → Flux reconciles in ≤60s.
 - **Never** force-delete DB pods. Use CRDs (CNPG/Percona) + `kubectl rollout restart`.
 - **Always** pin images `major.minor.patch-variant`. Floating tags drift silently (Kyverno only catches `:latest`/no-tag).
 - **`readOnlyRootFilesystem: true`** requires `/tmp` emptyDir volume mount.
@@ -60,6 +60,6 @@ flux-system (path ./clusters/staging — "staging" dir name = legacy artifact, e
 - **Domain**: `h0melab.work` (cert-manager DNS-01 via Cloudflare API token)
 
 ## Cluster boundaries
-- 27 namespaces (excl. system: kube-*, flux-system, default)
-- 64 NetworkPolicies live = 47 git manifests + `allow-dns-egress` Kustomize Component fanned into 14 app namespaces (Jobs excluded via `batch.kubernetes.io/job-name DoesNotExist`)
-- 12 Kyverno ClusterPolicies — **ALL Enforce** (last Audit→Enforce promotions 2026-05-25, ultrareview): disallow-host-namespaces, disallow-host-path, disallow-latest-tag, disallow-privilege-escalation, require-drop-all-capabilities, require-labels, require-networkpolicy, require-non-default-serviceaccount, require-non-root, require-readonly-rootfs, require-resource-limits, require-seccomp-runtimedefault
+- 28 namespaces
+- 64 NetworkPolicies live = 42 git manifests + `allow-dns-egress` Kustomize Component fanned into 14 app namespaces (Jobs excluded via `batch.kubernetes.io/job-name DoesNotExist`)
+- 12 Kyverno ClusterPolicies — **9 Enforce, 3 Audit soak**: disallow-host-namespaces, disallow-host-path, disallow-latest-tag, disallow-privilege-escalation, require-drop-all-capabilities, require-networkpolicy, require-non-default-serviceaccount, require-readonly-rootfs, require-resource-limits (Enforce); require-labels, require-non-root, require-seccomp-runtimedefault (Audit)

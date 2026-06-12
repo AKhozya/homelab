@@ -1,6 +1,6 @@
 # Apps Codemap
 
-16 application stacks. All in flat `apps/<name>/` (single-env; the `base/`+`staging/` overlay split was collapsed in F-13, 2026-05-29).
+16 application stacks. All in flat `apps/<name>/` (single-env; the `base/`+`staging/` overlay split was collapsed 2026-05-29).
 
 | App | NS | Storage | DB | OIDC | External | Notes |
 |-----|-----|---------|-----|------|----------|-------|
@@ -19,7 +19,7 @@
 | **audiobookshelf** | audiobookshelf | 2 PVCs | sqlite | OIDC | both | Audio library (2.35.1) |
 | **obsidian** | obsidian | — | CouchDB (`databases` ns) | — | both | LiveSync (LAN-only client cert) |
 | **pricebuddy** | pricebuddy | PVC | MySQL | — | int | Price tracking (v1.0.46); sidecars seleniumbase-scrapper :v1.0 (CI image-pin allowlisted — upstream has no patch tags) + apprise v1.5.0 (non-root native since v1.4.x) |
-| **claude-telegram** | claude-telegram | none | — | — | TG only | AI bot (Agent SDK, 1.25.2); HTTP /trigger loopback hook |
+| **claude-telegram** | claude-telegram | none | — | — | TG only | AI bot (1.25.2); HTTP /trigger loopback hook |
 
 ## Key infrastructure namespaces (not "apps")
 - `databases` — CNPG (`main-postgres`), Percona Server for MySQL via ps-operator 1.1.x (`main-mysql` — single-master + replica + HAProxy + 3-node Orchestrator; **not** PXC), CouchDB STS, Redis HA via OT-CONTAINER-KIT operator (RedisReplication 1+1 master/replica + RedisSentinel 3, since 2026-04-26 cutover)
@@ -34,6 +34,6 @@
 - All app ingress use middleware chain: `traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-{standard|high-frequency}@kubernetescrd,traefik-csp-{inline|permissive}-enforced@kubernetescrd` (middlewares live in `traefik` ns)
 - CSP tiers (enforced per-app 2026-06-04, `c8c5fbaa`+`1d7eb372`+`6eb0aeef`): `csp-inline-enforced` (self + unsafe-inline, no eval) — audiobookshelf, homehub, homepage, mealie, paperless-ngx; `csp-permissive-enforced` (+unsafe-eval, explicit opt-in for eval/wasm) — authentik, home-assistant, immich, linkwarden, n8n, pricebuddy, stirling-pdf, uptime-kuma; `csp-strict-enforced` (self only) — couchdb/Fauxton. Global `csp` default INVERTED to inline tier so new apps can't silently inherit unsafe-eval. report-uri omitted everywhere (csp-reporter is cluster-internal HTTP, unreachable from browser)
 - Rate limits: `rate-limit-standard` 100/min avg, burst 150 (default, incl. paperless-ngx); `rate-limit-high-frequency` 200/min avg, burst 300 (authentik, home-assistant, immich, n8n)
-- Image-pin CI gate (F-23): `scripts/ci/image-pin-audit.sh` in validate.yaml enforces `major.minor.patch` on every image (Kyverno only catches `:latest`/no-tag); 2-component allowlist: `postgres*`, `seleniumbase-scrapper`
+- Image-pin CI gate: `scripts/ci/image-pin-audit.sh` in validate.yaml enforces `major.minor.patch` on every image (Kyverno only catches `:latest`/no-tag); 2-component allowlist: `postgres*`, `seleniumbase-scrapper`
 - DB usernames = app name (CNPG `managed.roles` for PG, ACL for Redis, GRANT for MySQL)
 - DB endpoints: `main-postgres-rw-pooler.databases.svc.cluster.local:5432` (PgBouncer), `main-mysql-haproxy.databases.svc.cluster.local:3306` (HAProxy), `redis-replication-master.databases.svc.cluster.local:6379` (static for Paperless/Blocky), Sentinel for Immich

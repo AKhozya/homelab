@@ -2,7 +2,7 @@
 
 VictoriaMetrics primary stack. NO Prometheus pod (only operator chart kept for grafana/alertmanager/operator).
 
-## Layout (flat since F-14, 2026-05-31)
+## Layout (flat since 2026-05-31)
 `monitoring/controllers/` and `monitoring/configs/` are flat — base/staging overlays collapsed render-identical (`b53a4cab` controllers, `081934c0` configs). Flux paths: `./monitoring/controllers` + `./monitoring/configs` (clusters/monitoring.yaml).
 
 ## Stack components
@@ -78,8 +78,8 @@ Drops in `vmagent.yaml`:
 - 13 scrape files in `monitoring/configs/victoria-metrics/scrape-*.yaml`: apiserver, apps, cnpg-operator, coredns, databases, kube-state-metrics, kubelet, kubelet-cadvisor, kubelet-probes, kyverno, monitoring-stack, node-exporter, vmoperator
 - App-specific scrapes also live alongside apps (e.g. `monitoring/configs/blocky/servicemonitor.yaml` — kind VMServiceScrape despite filename)
 
-## NetworkPolicies (F-49 coverage complete, `208dd218`)
-Per-pod NPs: vmsingle/vmagent/vmalert/vmoperator (`victoria-metrics/networkpolicy.yaml`, 4-in-1), grafana, alertmanager, kube-state-metrics, prometheus-operator (`kube-prometheus-stack/` dir), loki + alloy (`controllers/loki-stack/networkpolicy.yaml`), popeye. Orphan prometheus NP dropped (server disabled). Gap scanner: `~/.claude/skills/_shared/np-coverage.sh`.
+## NetworkPolicies (coverage complete, `208dd218`)
+Per-pod NPs: vmsingle/vmagent/vmalert/vmoperator (`victoria-metrics/networkpolicy.yaml`, 4-in-1), grafana, alertmanager, kube-state-metrics, prometheus-operator (`kube-prometheus-stack/` dir), loki + alloy (`controllers/loki-stack/networkpolicy.yaml`), popeye. Orphan prometheus NP dropped (server disabled).
 
 ## Dashboards
 - ConfigMaps with label `grafana_dashboard: "1"` auto-loaded by Grafana sidecar
@@ -118,11 +118,11 @@ Per-pod NPs: vmsingle/vmagent/vmalert/vmoperator (`victoria-metrics/networkpolic
 - vmalert: 50m / 128Mi req → 200m / 256Mi lim
 - Loki: 1Gi req / 4Gi lim (chunk index growth)
 - Grafana: 256Mi req / 512Mi lim
-- VM-core (vmsingle/vmagent/vmalert): `priorityClassName: homelab-critical` (F-30, `85d39527`)
+- VM-core (vmsingle/vmagent/vmalert): `priorityClassName: homelab-critical` (`85d39527`)
 
 ## Decommissioned
 - Prometheus pods (replaced by vmsingle, 2026-Q1)
 - Prometheus PVCs (~100Gi) deleted 2026-04-26
 - `monitoring/configs/kube-prometheus-stack/prometheus-rules.yaml` deleted 2026-04-26 (1183 lines, all groups duplicated to vmrules.yaml + redis-ha was missing)
 - Loki/Alloy moved out of `monitoring` ns into dedicated `loki` ns
-- base/staging overlay dirs under `monitoring/` (F-14 flatten, 2026-05-31)
+- base/staging overlay dirs under `monitoring/` (flattened 2026-05-31)

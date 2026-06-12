@@ -31,7 +31,7 @@ Legacy duplicates also live in `monitoring` ns (`csp`, `rate-limit-standard`, `r
 - Apps with both internal + Cloudflare Tunnel access need 2 Ingress rules (Traefik) but 1 NP (covers both via TCP port)
 - **allow-dns-egress** = Kustomize Component (`apps/components/allow-dns-egress/`), consumed by 14 apps; pod-selector excludes Jobs (`batch.kubernetes.io/job-name DoesNotExist`) so Jobs don't silently inherit DNS egress
 - 4 per-Job egress NPs (selector = `job-name=<job>`): `audiobookshelf-init-egress`, `home-assistant-admin-setup-egress`, `immich-admin-setup-egress`, `n8n-user-provision-egress`
-- mealie + uptime-kuma Jobs deliberately NP-naked (R5-followup decision)
+- mealie + uptime-kuma Jobs deliberately NP-naked (by decision)
 - Per-ns NP counts: monitoring 8, databases 8; 3 each: audiobookshelf/home-assistant/immich/n8n (app NP + dns-egress + Job NP), flux-system, linkwarden; 2 each: the other 10 dns-egress apps + loki; 1 elsewhere
 
 ## Cloudflare Tunnel topology
