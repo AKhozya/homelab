@@ -18,6 +18,7 @@ env:
   KUBECONFORM_VERSION: v0.6.7
   KUSTOMIZE_VERSION: v5.5.0
   KUBERNETES_VERSION: "1.31.0"
+  GITLEAKS_VERSION: "8.30.1"
 
 jobs:
   yamllint:
@@ -62,6 +63,30 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - run: scripts/ci/check-sops-encrypted.sh
+
+  gitleaks:
+    name: gitleaks secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar xz -C "$HOME/.local/bin" gitleaks
+          "$HOME/.local/bin/gitleaks" version
+      - name: Scan working tree
+        run: |
+          set -euo pipefail
+          # Scans the CURRENT TREE (gitleaks dir), not git history. The repo invariant
+          # is that the checked-out tree carries no plaintext secret; sops-check only
+          # proves designated files are encrypted, not that arbitrary content is clean.
+          # History is deliberately NOT scanned — it holds already-ROTATED (dead) values
+          # that would red this gate forever. Per-commit coverage = the pre-commit
+          # gitleaks hook (.pre-commit-config.yaml); config = .gitleaks.toml.
+          gitleaks dir . --config .gitleaks.toml --no-banner --redact
 
   init-resources:
     name: initContainer resource limits guard
