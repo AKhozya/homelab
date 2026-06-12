@@ -4,13 +4,13 @@ CREATE DATABASE IF NOT EXISTS uptimekuma;
 CREATE DATABASE IF NOT EXISTS pricebuddy;
 
 -- Create users and grant permissions
-CREATE USER IF NOT EXISTS 'homeassistant'@'%' IDENTIFIED BY 'a5bb6697879d2a256d53e05a6be7687840709ed61c2833a2df776293e1a8a3b4';
+CREATE USER IF NOT EXISTS 'homeassistant'@'%' IDENTIFIED BY '<value>';
 GRANT ALL PRIVILEGES ON homeassistant.* TO 'homeassistant'@'%';
 
-CREATE USER IF NOT EXISTS 'uptimekuma'@'%' IDENTIFIED BY '4d8983610a54b635797f284270b993b633bfd0e62ccc7f229460499e93b25935';
+CREATE USER IF NOT EXISTS 'uptimekuma'@'%' IDENTIFIED BY '<value>';
 GRANT ALL PRIVILEGES ON uptimekuma.* TO 'uptimekuma'@'%';
 
-CREATE USER IF NOT EXISTS 'pricebuddy'@'%' IDENTIFIED BY 'bcaaaf0c00b0330192b7e245bbbf51ff9d0abee6042a8226c5884dbcdeecdc80';
+CREATE USER IF NOT EXISTS 'pricebuddy'@'%' IDENTIFIED BY '<value>';
 GRANT ALL PRIVILEGES ON pricebuddy.* TO 'pricebuddy'@'%';
 
 FLUSH PRIVILEGES;
