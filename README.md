@@ -61,4 +61,4 @@ sops -d infrastructure/configs/databases/postgres/admin-secret.yaml
 
 ## Notes
 
-Personal homelab, not production. Some choices prioritize simplicity (single Redis, accepted CVEs).
+Personal homelab, not production. Some choices prioritise simplicity (not 100% of infra is HA).
