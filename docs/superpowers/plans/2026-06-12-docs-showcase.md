@@ -44,7 +44,7 @@
 - **Markdown house style (global CLAUDE.md):** every line changes what the reader knows/does; no decorative emoji; bold the one lookup keyword; drop intensifiers (comprehensive/robust/significantly/simply); tables over paragraphs for enumerable facts; KEEP the why, gotchas, repro commands, dates, SHAs. For PUBLIC docs, relax terseness enough for a human voice — explain the *why*, but no fluff.
 - **De-jargon term list** (replace in reader-facing docs): caveman, cavecrew, superpowers, "skill"/"skills" (agent sense), "memory"/`ctx_*`, ultrareview/UR1/UR2, worktree-guard, "PostToolUse/PreToolUse hook", "Claude no sudo", `/homelab-node-fix`, `/gitops-workflow` (as a slash command). Translate to neutral ops language: "automated review", "CI validation", "GitOps workflow", "agent-assisted ops" (only where genuinely needed, never as a feature).
 - **DO NOT TOUCH:** `CLAUDE.md`, `.claude/**` (skills/hooks/agents/review-invariants), `apps/*/` YAML, any non-doc file. Docs-only change.
-- **PII scrub:** remove `alexander.khozya@gmail.com` (any case). KEEP IPs/hostnames/domain `h0melab.work`.
+- **PII scrub:** remove `<admin-email>` (any case). KEEP IPs/hostnames/domain `h0melab.work`.
 - **Verification per stage** (replaces TDD): (a) `grep -rin 'alexander.khozya' docs README.md` → empty; (b) de-jargon grep → empty in target files; (c) markdown link integrity on changed files; (d) every cited number traces to Verified-facts or a fresh repo query; (e) `git diff --stat` sanity.
 
 ---
@@ -54,7 +54,7 @@
 **Status:** worktree `wt-docs-showcase` already created at `.claude/worktrees/docs-showcase`.
 
 **Files:**
-- Modify: any doc containing `alexander.khozya@gmail.com`
+- Modify: any doc containing `<admin-email>`
 - Create: `docs/images/.gitkeep` (placeholder dir for screenshots)
 
 - [ ] **Step 1: Finish fact-gathering.** Run and record:
