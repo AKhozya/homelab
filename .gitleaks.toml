@@ -1,0 +1,55 @@
+# gitleaks config — homelab
+# Content backstop for the SOPS/encryption invariant: catches plaintext
+# credentials, API keys, and private keys before they land in git. This is the
+# gate that was missing when 3 plaintext MySQL passwords slipped into a tracked
+# .sql file (2025-12) — the sops-check hook only verifies *designated* secret
+# files are encrypted, it does not scan arbitrary content.
+#
+# Encrypted SOPS values (ENC[AES256_GCM,...]) and the Flux-generated bootstrap
+# manifest are allowlisted as expected, not leaks.
+#
+# Personal-PII sweeps (emails, usernames) deliberately live in the pii-scrub
+# skill, which sources identifiers at runtime — kept OUT of this committed,
+# public file so the scanner config never itself re-exposes PII.
+
+title = "homelab"
+
+[extend]
+useDefault = true
+
+# Custom rule: SQL password literals. gitleaks' default generic-api-key catches
+# `password: x` / `PASSWORD=x` assignment forms, but NOT the SQL DDL form
+# `CREATE/ALTER USER ... IDENTIFIED BY 'x'` — which is precisely how the 3
+# plaintext MySQL passwords were embedded in the tracked .sql file. This closes
+# that exact gap.
+[[rules]]
+id = "sql-identified-by"
+description = "SQL password literal (… IDENTIFIED BY '…')"
+regex = '''(?i)identified\s+by\s+['"][^'"]{8,}['"]'''
+keywords = ["identified by"]
+
+  [rules.allowlist]
+  regexTarget = "match"
+  regexes = [
+    # Ignore env-var refs / placeholders: ${VAR}, <value>, {{ template }}
+    '''(?i)identified\s+by\s+['"][$<{]''',
+  ]
+
+[allowlist]
+description = "SOPS-encrypted values, Flux-generated manifests, and doc placeholders are not leaks"
+regexTarget = "line"
+regexes = [
+  '''ENC\[AES256_GCM''',
+]
+paths = [
+  '''clusters/flux-system/gotk-components\.yaml''',
+]
+# Case-insensitive substring match — skips obvious placeholder tokens in docs
+# (e.g. `Authorization: Bearer YOUR_TOKEN`) instead of crying wolf on them.
+stopwords = [
+  "your_token",
+  "placeholder",
+  "changeme",
+  "example",
+  "redacted",
+]

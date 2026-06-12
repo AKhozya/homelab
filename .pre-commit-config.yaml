@@ -56,3 +56,13 @@ repos:
         language: script
         pass_filenames: false
         files: \.yaml$
+
+      # Content secret scan (gitleaks) — the gate sops-check can't be: it scans
+      # ARBITRARY staged content for plaintext credentials/keys, not just that
+      # designated *-secret.yaml files are encrypted. Config: .gitleaks.toml.
+      # Requires the gitleaks binary on PATH (brew install gitleaks).
+      - id: gitleaks
+        name: gitleaks secret scan (staged)
+        entry: gitleaks git --pre-commit --staged --redact --no-banner
+        language: system
+        pass_filenames: false
