@@ -98,7 +98,10 @@ spec:
             - name: SCRAPER_BASE_URL
               value: "http://localhost:3000"
             - name: APP_USER_EMAIL
-              value: "alexander.khozya@gmail.com"
+              valueFrom:
+                secretKeyRef:
+                  name: pricebuddy-secrets
+                  key: app-user-email
             - name: APP_USER_PASSWORD
               valueFrom:
                 secretKeyRef:

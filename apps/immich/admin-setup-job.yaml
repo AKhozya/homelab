@@ -129,7 +129,10 @@ spec:
               echo "Admin user setup complete!"
           env:
             - name: IMMICH_ADMIN_EMAIL
-              value: "alexander.khozya@gmail.com"
+              valueFrom:
+                secretKeyRef:
+                  name: immich-admin-credentials
+                  key: email
             - name: IMMICH_ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
