@@ -95,3 +95,17 @@ Both workers run [rebuilderd](https://github.com/kpcyrd/rebuilderd) 24/7, indepe
 ## Maintenance
 
 The cluster is reviewed monthly (security scans, policy reports, alert/backup/cert health, dependency freshness). The full changelog lives in [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md); every change is a commit, so `git log` is the audit trail.
+
+### Upcoming deadlines
+
+Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md) is authoritative for rotation specifics; this table is the at-a-glance roll-up. Recurring timers (sync 10 min, drift-heal 03:00, weekly update Sat, security scan 1st) are not listed.
+
+| Due | Item |
+|---|---|
+| 2026-07-01 | High-priority 90-day secret rotation — PG authentik/immich/n8n, MySQL home-assistant, Redis immich |
+| 2026-07-04 | Monthly review + first quarterly automation audit |
+| 2026-07-06 | Resource right-sizing pass |
+| ~2026-07-20 | Worker-2 backup replication-step drop / temp safety-net removal (postponed +2mo from 2026-05-22) |
+| 2026-10-01 | Medium-priority 180-day secret rotation — remaining PG/MySQL/Redis, CouchDB, OIDC, Authentik Django key |
+| 2026-12-18 | `backup-replication-ssh` key rotation |
+| 2026-12-31 | `cloudflare-tunnel-mgmt-token` rotation |
