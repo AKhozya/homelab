@@ -3,8 +3,14 @@ name: Validate
 on:
   pull_request:
     branches: [main]
+    # Docs/assets touch no validate job (yaml/shell/sops/manifest). Skip on pure
+    # doc-only changes; mixed md+yaml pushes still run (paths-ignore skips only when
+    # EVERY changed file matches). Markdown secret coverage = pre-commit gitleaks hook.
+    # docs/scripts/** (shell) deliberately NOT ignored — shellcheck job scans it.
+    paths-ignore: ['**.md', 'docs/images/**']
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'docs/images/**']
   workflow_dispatch:
 
 permissions:
