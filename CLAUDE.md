@@ -23,7 +23,7 @@ Claude no sudo. Node-side debug + fix workflow: `/homelab-node-fix` skill (SSH+T
 - **SOPS = truth** for secrets + Cloudflare tunnel config.
 - **Kyverno enforce resource limits** all containers (init included), PSS, NetworkPolicy, image-pin.
 - **`readOnlyRootFilesystem`** needs `/tmp` emptyDir volume.
-- **CI gate-of-record.** `.github/workflows/validate.yaml` runs yamllint + shellcheck + sops-check + init-resources + kubeconform × 5 kustomize roots on every push (~45s p95). `/gitops-workflow` step 3c blocks `fr` on CI red. Local validation (`/homelab-yaml-validate`) is fast iteration, not bypass.
+- **CI gate-of-record.** `.github/workflows/validate.yaml` runs yamllint + shellcheck + sops-check + init-resources + kubeconform × 5 kustomize roots on every push (~45s p95; `paths-ignore` skips docs/markdown-only pushes). `/gitops-workflow` step 3c blocks `fr` on CI red. Local validation (`/homelab-yaml-validate`) is fast iteration, not bypass.
 - **Review rubric.** Any code/diff review (cavecrew-reviewer pre-push gate, ECC/security reviewers) MUST read `.claude/review-invariants.md` and check the diff against it — semantic bug-classes CI and these invariants miss (Flux healthCheck GVK, Kyverno `=()` soft-anchor, NetworkPolicy AND/OR, PSS Baseline hostPath, external-access = central `cloudflared.yaml` not a 2nd Ingress, etc.). Grep the target file to confirm name/GVK claims before flagging.
 
 ## Sessions & Worktrees (blast radius = uncommitted files)
