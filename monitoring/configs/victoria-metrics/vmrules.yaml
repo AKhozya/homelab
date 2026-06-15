@@ -709,6 +709,20 @@ spec:
         summary: "Target {{ $labels.job }} ({{ $labels.instance }}) is down"
         description: "Cannot scrape {{ $labels.job }} on {{ $labels.instance }}. Monitoring data may be incomplete."
 
+    # Weak-surface backstop (2026-06-15): vm-operator's :8081 health probe is independent of its :8080
+    # reconcile/metrics surface, so the loop can wedge while the pod stays Ready. ScrapeTargetDown only
+    # catches a full :8080 outage (up==0); this catches "up but not reconciling". Baseline rate is a
+    # steady ~0.05/s (never 0 over 6h observed), so ==0 for 30m is low-false-positive. sum() (not by job)
+    # = whole-operator stall; absent-series (full wedge) yields empty, not 0, so no double-fire with above.
+    - alert: VMOperatorReconcileStalled
+      expr: sum(rate(controller_runtime_reconcile_total{job="victoria-metrics-operator"}[15m])) == 0
+      for: 30m
+      labels:
+        severity: warning
+      annotations:
+        summary: "victoria-metrics-operator reconcile loop stalled"
+        description: "VM operator up but logged zero reconciles for 30m — manager may be wedged while its :8081 health probe stays green. Fix: kubectl rollout restart deploy victoria-metrics-operator -n monitoring."
+
     - alert: VMTooManyRestarts
       expr: changes(process_start_time_seconds{job=~".*(vmsingle|vmagent|vmalert).*"}[15m]) > 2
       for: 1m
