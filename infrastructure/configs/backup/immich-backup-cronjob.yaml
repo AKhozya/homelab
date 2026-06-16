@@ -32,7 +32,7 @@ spec:
               type: RuntimeDefault
           initContainers:
             - name: setup-permissions
-              image: alpine:3.24.0
+              image: alpine:3.24.1
               command:
                 - sh
                 - -c
@@ -57,7 +57,7 @@ spec:
                   memory: "128Mi"
           containers:
             - name: backup
-              image: alpine:3.24.0
+              image: alpine:3.24.1
               command:
                 - /bin/sh
                 - -c
