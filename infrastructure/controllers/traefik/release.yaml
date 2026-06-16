@@ -97,7 +97,6 @@ spec:
           additionalLabels:
             release: kube-prometheus-stack
 
-    # Enable access logs
-    logs:
-      access:
-        enabled: true
+    # Enable access logs (v41: logs.access → accessLog)
+    accessLog:
+      enabled: true
