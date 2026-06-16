@@ -69,7 +69,7 @@ spec:
               cpu: 50m
               memory: 32Mi
         - name: hacs-install
-          image: alpine:3.24.0
+          image: alpine:3.24.1
           command:
             - /bin/sh
             - -c
@@ -136,7 +136,7 @@ spec:
           # hass-oidc-auth re-enabled on v1.1.0 (fixes the auth-page-injection break that
           # was incompatible with HA 2026.4.0). Pinned release zip, extracted at component root.
           # https://github.com/christiaangoossens/hass-oidc-auth
-          image: alpine:3.24.0
+          image: alpine:3.24.1
           command:
             - /bin/sh
             - -c
