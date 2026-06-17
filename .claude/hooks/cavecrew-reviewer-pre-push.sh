@@ -59,7 +59,9 @@ $non_doc_indented
   (model=sonnet per-call override: agent frontmatter defaults to haiku, too weak for the
    semantic invariant bug-classes below; per-call leaves plugin body live, no shadow/drift.)
   Reviewer auto-reads CLAUDE.md -> .claude/review-invariants.md (semantic checks CI misses).
-  Address findings, then run ~/.claude/hooks/cavecrew-mark.sh (from this worktree) and retry push.
+  Addressing findings: apply superpowers:receiving-code-review (verify each vs code, push back
+  on wrong/YAGNI, no performative agreement). Then run ~/.claude/hooks/cavecrew-mark.sh (from
+  this worktree) and retry push.
   Bypass: CAVECREW_SKIP=1 git push ...
 EOF
 
