@@ -17,7 +17,6 @@ configMapGenerator:
   - name: authentik-blueprints-custom
     namespace: authentik
     files:
-      - blueprints/00-noop.yaml
       - blueprints/10-voluntary-enrollment.yaml
       - blueprints/20-passkey-first.yaml
       - blueprints/30-enforce.yaml
