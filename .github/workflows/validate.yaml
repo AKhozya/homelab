@@ -31,7 +31,7 @@ jobs:
     name: yamllint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
         with:
           python-version: '3.14'
@@ -42,7 +42,7 @@ jobs:
     name: shellcheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Run shellcheck
         run: |
           set -euo pipefail
@@ -67,14 +67,14 @@ jobs:
     name: sops encryption presence
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - run: scripts/ci/check-sops-encrypted.sh
 
   gitleaks:
     name: gitleaks secret scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install gitleaks
         run: |
           set -euo pipefail
@@ -98,7 +98,7 @@ jobs:
     name: initContainer resource limits guard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install yq
         run: |
           set -euo pipefail
@@ -113,7 +113,7 @@ jobs:
     name: image pin audit (major.minor.patch)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install yq
         run: |
           set -euo pipefail
@@ -141,7 +141,7 @@ jobs:
           - monitoring/configs
           - monitoring/controllers
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Install kustomize + kubeconform + yq
         run: |
           set -euo pipefail
@@ -181,7 +181,7 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Count live invariants vs documented
         run: |
           set -euo pipefail
