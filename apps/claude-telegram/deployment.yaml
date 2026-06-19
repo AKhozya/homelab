@@ -72,16 +72,20 @@ spec:
               # Apply chezmoi (.chezmoiignore handles .ssh exclusion)
               chezmoi apply --force --no-tty || true
 
-              # Refresh plugins (PVC-cached; .chezmoiignore excludes them, seeded-once -> stale).
-              # Guarded so any marketplace/plugin hiccup never wedges bot init. node (not jq) parses keys.
+              # Install plugins from the chezmoi SOURCE (fresh from git), NOT ~/.claude/plugins:
+              # that tree is .chezmoiignore'd on linux, so the PVC seed never updates -> it
+              # misses new plugins and keeps dead refs (update-only loop can't add/remove).
+              # Register every marketplace by repo, then idempotently install every desired key.
+              # Guarded so any marketplace/plugin hiccup never wedges bot init. node (not jq) parses JSON.
               CC="npx --yes @anthropic-ai/claude-code"
-              $CC plugin marketplace update 2>&1 | tail -3 || true
-              for p in $(node -e 'try{process.stdout.write(Object.keys(require(`${process.env.HOME}/.claude/plugins/installed_plugins.json`).plugins).join("\n"))}catch(e){}' 2>/dev/null || true); do
-                $CC plugin update "$p" 2>&1 | tail -1 || true
+              export SRC="$HOME/.local/share/chezmoi/dot_claude/private_plugins"
+              for repo in $(node -e 'const m=require(process.env.SRC+"/known_marketplaces.json");const o=m.marketplaces||m;for(const v of Object.values(o)){const r=v&&(v.repo||(v.source&&v.source.repo));if(r)console.log(r)}' 2>/dev/null || true); do
+                $CC plugin marketplace add "$repo" 2>&1 | tail -1 || true
               done
-              # ponytail for the monthly-audit over-engineering lens (install if absent)
-              $CC plugin marketplace add DietrichGebert/ponytail 2>&1 | tail -2 || true
-              $CC plugin install ponytail@ponytail 2>&1 | tail -2 || true
+              $CC plugin marketplace update 2>&1 | tail -1 || true
+              for key in $(node -e 'const p=require(process.env.SRC+"/installed_plugins.json").plugins;for(const k of Object.keys(p))console.log(k)' 2>/dev/null || true); do
+                $CC plugin install "$key" 2>&1 | tail -1 || true
+              done
 
               # Fix CLAUDE_PLUGIN_ROOT paths for this environment
               for f in ~/.claude/plugins/cache/*/*/hooks/hooks.json; do
