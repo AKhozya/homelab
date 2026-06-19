@@ -418,11 +418,17 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-06-19 (authentik server startupProbe widened — CP cold-start SIGKILL fix) ✅
+Follow-on to the lockout-watch close (entry below): root-caused the flagged CP `authentik-server` restarts (16×, exit 137, last ~37h before fix). On the control-plane node, bootstrap+migration-check contends with k3s-server, pushing gunicorn boot to ~146s — past the old 120s startup budget (`initialDelay 60 + 12×5`) → kubelet SIGKILL. Worker replica boots fast (0 restarts). Had self-resolved once a restart won the race; HA replica masked any blip.
+- **Fix (`418a9c9f`)**: `apps/authentik/server-deployment.yaml` startupProbe `failureThreshold 12→30` (budget 120s→210s). Kept `initialDelaySeconds 60` + `periodSeconds 5` — the probe marks the pod ready the instant `/-/health/live/` returns 200, so the threshold is a *ceiling* not a wait; raising it (not the dead-time delay) keeps ready-detection fast in the common case while tolerating the slow CP cold-start.
+- **Verified**: rolling restart clean, both server pods 1/1 0-restarts (CP pod `…px5dl` booted within the new budget), live `failureThreshold=30`.
+- **GOTCHA**: CI was still billing-down (5s "failure", not validation) — local kubeconform `-strict` + yamllint (`.yamllint.yaml`, line-length max 200/warning) were the gate.
+
 ### 2026-06-19 (Passkey-only lockout watch CLOSED — no edge cases) ✅
 Closed the 14-day lockout watch opened 2026-06-05 when password binding was removed (`40-remove-password-binding.yaml`, passkey-only main flow). Watch criteria: new-device enroll, post-reboot login, Conditional UI autofill.
 - **Evidence**: Authentik 2026.5.3 event log `login_failed == 0` since 2026-06-05 (1 `login` success — single user, persistent SSO session); both server pods 1/1, ingress live. User confirmed all 3 edge cases clean.
 - **Action**: dropped the `2026-06-19` row from [HOMELAB_ANALYSIS.md](./HOMELAB_ANALYSIS.md) Upcoming-deadlines table. Recovery posture unchanged — username+TOTP → re-enroll passkey, email flow, or `ak create_recovery_key` break-glass.
-- **Note**: CP `authentik-server` replica showed 16 restarts (last 35h ago), unrelated to auth — flagged for next monitoring-check.
+- **Note**: CP `authentik-server` replica showed 16 restarts (last 35h ago), unrelated to auth — root-caused + fixed same day (startupProbe budget; see entry above).
 
 ### 2026-06-15 (vm-operator metrics wedge → ScrapeTargetDown; cluster probe audit → reconcile-staleness alert) ✅
 - **Incident:** `ScrapeTargetDown` fired for `victoria-metrics-operator` — its `:8080/metrics` handler wedged (TCP-accept, never sends headers) for ~2–2.5h while the `:8081` health server stayed up, so the pod read `Ready 1/1` and only the scrape alert caught it. Root cause = controller-runtime metrics server is independent of the health server. `kubectl rollout restart` cleared it; coincident renovate #815 then landed operator `v0.71.0`→`v0.72.0` (chart 0.65.1). The `:8081` "connection refused" seen from vmagent was a NetworkPolicy artifact (only `:8080` open cross-pod), not a dead listener — kubelet's `:8081` probe passed the whole time.
