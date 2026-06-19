@@ -96,9 +96,11 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
-          # Budget: 60s delay + 12×5s = 120s total
-          # Bumped failureThreshold 6→12: Python+Django migrations need
-          # headroom during cold-start after node reboot (was 90s, now 120s)
+          # Budget: 60s delay + 30×5s = 210s total
+          # Bumped failureThreshold 12→30 (2026-06-19): on the control-plane node,
+          # bootstrap+migration-check contends with k3s server and pushed gunicorn
+          # boot to ~146s — past the old 120s budget → SIGKILL (exit 137), 16 restarts
+          # over 6d on the CP replica (worker replica boots fast, 0 restarts).
           startupProbe:
             httpGet:
               path: /-/health/live/
@@ -106,7 +108,7 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 5
             timeoutSeconds: 5
-            failureThreshold: 12
+            failureThreshold: 30
           readinessProbe:
             httpGet:
               path: /-/health/ready/
