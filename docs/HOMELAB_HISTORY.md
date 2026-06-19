@@ -418,6 +418,12 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-06-19 (Passkey-only lockout watch CLOSED — no edge cases) ✅
+Closed the 14-day lockout watch opened 2026-06-05 when password binding was removed (`40-remove-password-binding.yaml`, passkey-only main flow). Watch criteria: new-device enroll, post-reboot login, Conditional UI autofill.
+- **Evidence**: Authentik 2026.5.3 event log `login_failed == 0` since 2026-06-05 (1 `login` success — single user, persistent SSO session); both server pods 1/1, ingress live. User confirmed all 3 edge cases clean.
+- **Action**: dropped the `2026-06-19` row from [HOMELAB_ANALYSIS.md](./HOMELAB_ANALYSIS.md) Upcoming-deadlines table. Recovery posture unchanged — username+TOTP → re-enroll passkey, email flow, or `ak create_recovery_key` break-glass.
+- **Note**: CP `authentik-server` replica showed 16 restarts (last 35h ago), unrelated to auth — flagged for next monitoring-check.
+
 ### 2026-06-15 (vm-operator metrics wedge → ScrapeTargetDown; cluster probe audit → reconcile-staleness alert) ✅
 - **Incident:** `ScrapeTargetDown` fired for `victoria-metrics-operator` — its `:8080/metrics` handler wedged (TCP-accept, never sends headers) for ~2–2.5h while the `:8081` health server stayed up, so the pod read `Ready 1/1` and only the scrape alert caught it. Root cause = controller-runtime metrics server is independent of the health server. `kubectl rollout restart` cleared it; coincident renovate #815 then landed operator `v0.71.0`→`v0.72.0` (chart 0.65.1). The `:8081` "connection refused" seen from vmagent was a NetworkPolicy artifact (only `:8080` open cross-pod), not a dead listener — kubelet's `:8081` probe passed the whole time.
 - **Probe audit** (multi-agent workflow, 55 main containers, 41 sidecars): probe posture **adequate cluster-wide** — every user-facing app has both probes; gaps are sidecars (skip-by-convention) or stateful/controllers where liveness-on-stateful is a restart-storm anti-pattern. **0 probe changes.** Research then killed the workflow's first alert idea (a dedicated up-gap alert) as **redundant** — generic `ScrapeTargetDown` (`up==0`) already covers a full `:8080` outage.

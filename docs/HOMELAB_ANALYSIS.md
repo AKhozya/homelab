@@ -102,7 +102,6 @@ Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md
 
 | Due | Item |
 |---|---|
-| 2026-06-19 | Passkey-only login — close lockout watch if no edge cases (new device, post-reboot, Conditional UI) |
 | 2026-07-01 | High-priority 90-day secret rotation — PG authentik/immich/n8n, MySQL home-assistant, Redis immich |
 | 2026-07-04 | Monthly review + first quarterly automation audit — carries Kyverno Audit→Enforce flips (require-labels/-non-root/-seccomp) + upstream re-checks (n8n #25705, Authentik client-hints #20700, image-CVE scanner decision, mysql-proxy POP-1100) |
 | 2026-07-06 | Resource right-sizing pass |
