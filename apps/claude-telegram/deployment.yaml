@@ -72,13 +72,22 @@ spec:
               # Apply chezmoi (.chezmoiignore handles .ssh exclusion)
               chezmoi apply --force --no-tty || true
 
-              # Install plugins from the chezmoi SOURCE (fresh from git), NOT ~/.claude/plugins:
-              # that tree is .chezmoiignore'd on linux, so the PVC seed never updates -> it
-              # misses new plugins and keeps dead refs (update-only loop can't add/remove).
-              # Register every marketplace by repo, then idempotently install every desired key.
+              # Reconcile bot plugin state to the chezmoi SOURCE (fresh from git), NOT ~/.claude/plugins:
+              # that tree is .chezmoiignore'd on linux, so the PVC seed never self-updates. PRUNE what
+              # source no longer declares (handles renames like everything-claude-code -> ecc, whose stale
+              # entry shadows the new name and blocks its install), THEN add marketplaces + install keys.
               # Guarded so any marketplace/plugin hiccup never wedges bot init. node (not jq) parses JSON.
               CC="npx --yes @anthropic-ai/claude-code"
               export SRC="$HOME/.local/share/chezmoi/dot_claude/private_plugins"
+              # Prune plugins, then marketplaces, not present in source (plugins first so marketplace removal isn't blocked).
+              keepP=$(node -e 'const p=require(process.env.SRC+"/installed_plugins.json").plugins;console.log(Object.keys(p).join(" "))' 2>/dev/null || true)
+              if [ -n "$keepP" ]; then for k in $(node -e 'try{const p=require(process.env.HOME+"/.claude/plugins/installed_plugins.json").plugins;console.log(Object.keys(p).join("\n"))}catch(e){}' 2>/dev/null || true); do
+                case " $keepP " in *" $k "*) : ;; *) $CC plugin uninstall "$k" 2>&1 | tail -1 || true ;; esac
+              done; fi
+              keepM=$(node -e 'const m=require(process.env.SRC+"/known_marketplaces.json");console.log(Object.keys(m.marketplaces||m).join(" "))' 2>/dev/null || true)
+              if [ -n "$keepM" ]; then for mp in $(node -e 'try{const m=require(process.env.HOME+"/.claude/plugins/known_marketplaces.json");console.log(Object.keys(m.marketplaces||m).join("\n"))}catch(e){}' 2>/dev/null || true); do
+                case " $keepM " in *" $mp "*) : ;; *) $CC plugin marketplace remove "$mp" 2>&1 | tail -1 || true ;; esac
+              done; fi
               for repo in $(node -e 'const m=require(process.env.SRC+"/known_marketplaces.json");const o=m.marketplaces||m;for(const v of Object.values(o)){const r=v&&(v.repo||(v.source&&v.source.repo));if(r)console.log(r)}' 2>/dev/null || true); do
                 $CC plugin marketplace add "$repo" 2>&1 | tail -1 || true
               done
