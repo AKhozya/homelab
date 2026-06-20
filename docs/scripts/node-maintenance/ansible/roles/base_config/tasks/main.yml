@@ -192,6 +192,27 @@
     shell: /bin/bash
   tags: [base-config, user]
 
+# HOME ships root:root 0750 → node-maintenance(965) can't create ~/.cache. When
+# `yay -Syyu` (phase1 on CP, phase2 on workers) actually COMPILES an AUR pkg, Go
+# defaults GOCACHE to ~/.cache/go-build → `mkdir .cache: permission denied` →
+# build fails, task rc=1. Bit the CP on 2026-06-20 (yay 13.0.1 self-rebuild) →
+# phase1 failed pre-reboot → phase2/workers never ran. All hosts: own HOME +
+# .cache (go-build, yay clonedir) + .config (yay config). On workers ansible
+# already made .cache/.config root-owned as parents of the makepkg dirs, which
+# would block builds there too.
+- name: Own node-maintenance HOME + dotdirs (writable for AUR builds)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: node-maintenance
+    group: node-maintenance
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: /var/lib/node-maintenance, mode: "0750"}
+    - {path: /var/lib/node-maintenance/.cache, mode: "0755"}
+    - {path: /var/lib/node-maintenance/.config, mode: "0755"}
+  tags: [base-config, user, makepkg]
+
 - name: Ensure /var/lib/node-maintenance/.ssh perms
   ansible.builtin.file:
     path: /var/lib/node-maintenance/.ssh
