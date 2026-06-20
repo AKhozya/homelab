@@ -36,6 +36,29 @@ spec:
         summary: "Node {{ $labels.node }} is not ready"
         description: "Node {{ $labels.node }} has been in NotReady state for more than 5 minutes. Check node status and logs."
 
+    - alert: ClusterIPHealWedged
+      # Worker kube-proxy ClusterIP DNAT wedge that clusterip_heal has NOT cleared within ~2
+      # heal cycles (timer every 3min + 5min restart cooldown). Self-heals in the normal case;
+      # sustained = the k3s-agent restart isn't restoring the 10.43.0.1 DNAT.
+      expr: node_clusterip_heal_wedged == 1
+      for: 8m
+      labels:
+        severity: warning
+      annotations:
+        summary: "ClusterIP DNAT wedged on {{ $labels.instance }} — clusterip_heal not clearing it"
+        description: "node_clusterip_heal_wedged=1 for >8min on {{ $labels.instance }}: the watchdog's k3s-agent restarts have not restored the 10.43.0.1 DNAT. Pods on this worker may be failing ClusterIP/DNS. Check kube-proxy (:10256) and restart k3s-agent."
+
+    - alert: ClusterIPHealGaveUp
+      # Watchdog hit MAX_RESTARTS within its window and backed off — a wedge that
+      # restart-k3s-agent does NOT fix = deeper fault, needs a human (the safety net's net).
+      expr: node_clusterip_heal_giveup == 1
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "clusterip_heal GAVE UP on {{ $labels.instance }} — manual intervention needed"
+        description: "node_clusterip_heal_giveup=1 on {{ $labels.instance }}: the ClusterIP DNAT wedge persisted past the watchdog's restart cap. restart-k3s-agent is not fixing it — investigate stale nft chain / CNI / hardware."
+
     - alert: NodeMemoryPressure
       expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
       for: 5m
