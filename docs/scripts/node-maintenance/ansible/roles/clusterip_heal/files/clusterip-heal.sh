@@ -55,6 +55,10 @@ emit_metric() { # $1 wedged(0/1)  $2 restarts-total  $3 giveup(0/1)
 		printf '# TYPE node_clusterip_heal_giveup gauge\n'
 		printf 'node_clusterip_heal_giveup %s\n' "$3"
 	} >"$tmp"; then
+		# 0644 so a non-root node_exporter can scrape it (mktemp made it 0600; all sibling
+		# *.prom in the textfile dir are 0644). Without this the wedged/giveup metrics never
+		# reach Prometheus → the give-up alert is silent.
+		chmod 0644 "$tmp"
 		mv -f "$tmp" "$METRIC" || rm -f "$tmp"
 	else
 		rm -f "$tmp"
