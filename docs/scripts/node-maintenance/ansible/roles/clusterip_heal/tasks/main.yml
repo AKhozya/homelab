@@ -1,0 +1,60 @@
+---
+# clusterip_heal — node-local self-heal for the post-reboot kube-proxy ClusterIP DNAT wedge.
+# WORKERS ONLY (wired in node-config.yml Play 4, hosts: workers). Never the CP: restart-k3s-on-CP
+# hangs and the CP host-netns ClusterIP probe false-reads wedged. The script also no-ops where
+# k3s-agent is absent (the CP) as a second guard. Detection reuses the phase2 clusterip-probe.sh
+# (deployed by the k3s_config role to /etc/node-maintenance/bin/). See files/clusterip-heal.sh.
+
+- name: Ensure node-maintenance state dir (heal state file)
+  ansible.builtin.file:
+    path: /var/lib/node-maintenance
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [clusterip-heal]
+
+- name: Ensure node-exporter textfile dir (heal metrics)
+  ansible.builtin.file:
+    path: /var/lib/node_exporter/textfile
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [clusterip-heal]
+
+- name: Deploy clusterip-heal.sh
+  ansible.builtin.copy:
+    src: clusterip-heal.sh
+    dest: /usr/local/sbin/clusterip-heal.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [clusterip-heal]
+
+- name: Deploy clusterip-heal-watchdog.service
+  ansible.builtin.copy:
+    src: clusterip-heal-watchdog.service
+    dest: /etc/systemd/system/clusterip-heal-watchdog.service
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [clusterip-heal]
+
+- name: Deploy clusterip-heal-watchdog.timer
+  ansible.builtin.copy:
+    src: clusterip-heal-watchdog.timer
+    dest: /etc/systemd/system/clusterip-heal-watchdog.timer
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [clusterip-heal]
+
+# daemon_reload picks up any unit-file change; enabling+starting the timer is idempotent.
+- name: Enable + start clusterip-heal-watchdog.timer
+  ansible.builtin.systemd_service:
+    name: clusterip-heal-watchdog.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [clusterip-heal]

@@ -1,0 +1,15 @@
+[Unit]
+Description=ClusterIP DNAT heal watchdog (worker kube-proxy wedge self-heal)
+Documentation=https://github.com/AKhozya/homelab
+# Only meaningful where the heal script + probe exist (workers).
+ConditionPathExists=/usr/local/sbin/clusterip-heal.sh
+ConditionPathExists=/etc/node-maintenance/bin/clusterip-probe.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/clusterip-heal.sh
+# restart k3s-agent (can be slow) + 15s reprobe wait fits under this; timer won't double-fire a
+# still-running oneshot, so a >interval timeout can't pile up.
+TimeoutStartSec=4min
+StandardOutput=journal
+StandardError=journal

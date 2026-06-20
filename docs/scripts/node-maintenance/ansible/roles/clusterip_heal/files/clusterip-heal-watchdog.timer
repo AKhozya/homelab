@@ -1,0 +1,14 @@
+[Unit]
+Description=ClusterIP DNAT heal watchdog — check ~90s after boot + every 3min, restart k3s-agent if wedged
+# Defense-in-depth: the role is workers-only (Play 4), but also gate on the heal script existing.
+ConditionPathExists=/usr/local/sbin/clusterip-heal.sh
+
+[Timer]
+# Boot is the primary wedge moment; give k3s-agent time to come up + (fail to) program rules first.
+OnBootSec=90s
+OnUnitActiveSec=3min
+# Stagger the two workers so they don't restart k3s-agent at the same instant.
+RandomizedDelaySec=20s
+
+[Install]
+WantedBy=timers.target

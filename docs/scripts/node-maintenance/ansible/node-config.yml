@@ -54,4 +54,8 @@
     # not call ufw directly today but the play boundary resets state and a
     # cheap settle barrier guards against future role additions that might.
     - role: firewall_preflight
+    # Node-local self-heal for the post-reboot kube-proxy ClusterIP DNAT wedge
+    # (restart k3s-agent when 10.43.0.1 DNAT is missing). Workers-only — never the
+    # CP (restart-k3s-on-CP hangs; CP host-netns probe false-reads wedged).
+    - role: clusterip_heal
     - role: rebuilderd
