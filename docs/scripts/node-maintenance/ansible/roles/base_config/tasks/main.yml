@@ -208,7 +208,13 @@
     group: node-maintenance
     mode: "{{ item.mode }}"
   loop:
-    - {path: /var/lib/node-maintenance, mode: "0750"}
+    # HOME is 0751 (not 0750): the o+x lets the human SSH account stat (not list)
+    # /var/lib/node-maintenance/phase2-pending WITHOUT sudo, so the no-sudo interlock in
+    # cluster-reboot's watch-reboot.sh / trigger-reboot.sh reads it correctly. At 0750 the
+    # human account can't traverse the dir → `[ -e phase2-pending ]` false-negatives to
+    # "absent" always (masked a stuck flag ~1.7h on 2026-06-20). `.ssh` stays 0700 (set
+    # below) so the SSH key is NOT exposed by the traversal bit.
+    - {path: /var/lib/node-maintenance, mode: "0751"}
     - {path: /var/lib/node-maintenance/.cache, mode: "0755"}
     - {path: /var/lib/node-maintenance/.config, mode: "0755"}
   tags: [base-config, user, makepkg]
