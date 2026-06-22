@@ -5,14 +5,11 @@
 # k3s-agent is absent (the CP) as a second guard. Detection reuses the phase2 clusterip-probe.sh
 # (deployed by the k3s_config role to /etc/node-maintenance/bin/). See files/clusterip-heal.sh.
 
-- name: Ensure node-maintenance state dir (heal state file)
-  ansible.builtin.file:
-    path: /var/lib/node-maintenance
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
-  tags: [clusterip-heal]
+  # /var/lib/node-maintenance is node-maintenance's HOME — owned by base_config
+  # (node-maintenance:node-maintenance 0751). Do NOT re-assert root:root here;
+  # it fights base_config every drift-heal run (2 spurious changed per worker).
+  # The heal state file (clusterip-heal.state) is written as root inside the dir,
+  # which works fine with o+x on the parent.
 
 - name: Ensure node-exporter textfile dir (heal metrics)
   ansible.builtin.file:
