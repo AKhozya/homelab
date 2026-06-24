@@ -49,7 +49,7 @@ spec:
       # separate migration Job or complex Flux Kustomization dependencies.
       initContainers:
         - name: wait-for-server
-          image: curlimages/curl:8.20.0
+          image: curlimages/curl:8.21.0
           command:
             - sh
             - -c
