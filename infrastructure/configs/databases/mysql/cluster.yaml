@@ -61,7 +61,7 @@ spec:
   # Backup configuration (required even if not using backups)
   backup:
     enabled: false
-    image: percona/percona-xtrabackup:8.4.0-5.1
+    image: percona/percona-xtrabackup:8.4.0-6.1
     imagePullPolicy: IfNotPresent
 
   # Toolkit sidecar (required for MySQL pods)
