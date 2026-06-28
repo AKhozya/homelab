@@ -322,13 +322,15 @@ spec:
                 # at boot (observed 2026-05-31 reboot recovery). immich doesn't use gunicorn's
                 # control CLI, so disable it — eliminates the error while keeping readOnlyRootFilesystem.
                 GUNICORN_CMD_ARGS: "--no-control-socket"
+              # ML resources bumped 2026-06-28: CPU limit 2x (2000m→4000m) for inference throughput;
+              # RAM limit +15% (2Gi→2355Mi) — 7d peak hit ~78% of 2Gi, too close to OOM headroom.
               resources:
                 requests:
                   cpu: 200m
                   memory: 512Mi
                 limits:
-                  cpu: 2000m
-                  memory: 2Gi
+                  cpu: 4000m
+                  memory: 2355Mi
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
