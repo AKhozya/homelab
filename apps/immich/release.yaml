@@ -158,7 +158,12 @@ spec:
                   secretKeyRef:
                     name: immich-db-password
                     key: password
-              # Redis Sentinel via REDIS_URL=ioredis://<base64(json)>
+              # Redis Sentinel via REDIS_URL=ioredis://<base64(json)>.
+              # JSON carries failoverDetector:true (2026-06-28) — ioredis subscribes to the
+              # sentinels' +switch-master channel so a node-reboot failover is detected even
+              # when the dead-master TCP connection half-opens (ioredis#1314). Without it the
+              # client held the stale master and needed a manual rollout restart. Config lives
+              # in the SOPS secret immich-redis-url (not visible here).
               REDIS_URL:
                 valueFrom:
                   secretKeyRef:
