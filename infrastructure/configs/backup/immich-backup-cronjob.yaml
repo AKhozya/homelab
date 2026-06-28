@@ -9,7 +9,7 @@ spec:
                          # 30min headroom is ample, and runs parallel with 03:00 postgres-backup
                          # (postgres is fast — ~55s — so disk contention is negligible).
   timeZone: "UTC"
-  startingDeadlineSeconds: 600
+  startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid
