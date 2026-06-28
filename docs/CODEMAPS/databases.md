@@ -42,8 +42,8 @@ All in `databases` namespace except CouchDB extras in `obsidian` (client side) a
   - Users: `default` (on nopass for liveness), `admin`, `paperless`, `immich`, `blocky`
 - **Required config**: `protected-mode no` (nopass + cross-ns access), `readOnlyRootFilesystem: false` (entrypoint writes /etc/redis/redis.conf)
 - **Client modes**:
-  - **Static master Service**: paperless, blocky → always correct (operator-controlled)
-  - **Sentinel discovery via REDIS_URL**: immich (`REDIS_URL=ioredis://<base64-json>`)
+  - **Static master Service** (operator-controlled, always correct): paperless, blocky, immich → all connect to `redis-replication-master` (selector `redis-role=master`); operator repoints it on failover so clients follow at the infra layer. immich uses `REDIS_URL=ioredis://<base64-json>` with a plain `{host:redis-replication-master…}` body.
+  - **Sentinel client discovery**: none — immich moved off it 2026-06-28 (`cc5c02a1`; ioredis Sentinel passive detection hung on the half-open dead-master socket after reboot, see HOMELAB_HISTORY)
 - **Failover behavior**: Sentinel elects in ~15s; OT operator restores original topology on master pod recovery → Sentinel may have stale view ~5min until manual reset (documented gotcha)
 - **Schema notes**: v1beta2 has no `spec.kubernetesConfig.serviceType`; sentinel password uses `secretKeyRef` (EnvVarSource) not flat fields
 

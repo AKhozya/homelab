@@ -54,7 +54,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 |---|---|---|---|---|
 | PostgreSQL (CloudNativePG) | 2 | Streaming replication | PgBouncer | Authentik, Immich, Paperless, Grafana, n8n, Mealie, Linkwarden, Audiobookshelf |
 | MySQL (Percona) | 2 | Async replication | HAProxy | Home Assistant, Uptime Kuma, PriceBuddy |
-| Redis (OT-operator) | 1 master + 1 replica + 3 Sentinels | Sentinel quorum (2 of 3) | Sentinel / static master Service | Paperless, Immich |
+| Redis (OT-operator) | 1 master + 1 replica + 3 Sentinels | Sentinel quorum (2 of 3) | Static master Service (Sentinel-elected) | Paperless, Immich |
 | CouchDB | 2 | Active-active | — | Obsidian sync |
 
 DB role name = app name. Provisioning goes through the operator CRDs (CNPG `Database` / Percona `User`) — never direct SQL drops or force-deleted pods.

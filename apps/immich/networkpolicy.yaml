@@ -70,23 +70,19 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
-    # Allow Redis HA access (master + sentinel)
+    # Allow Redis access via the operator's master-following Service
+    # (redis-replication-master → redis-replication pods, 6379). Sentinel (26379)
+    # egress dropped 2026-06-28: immich is a plain client now, no Sentinel discovery.
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: databases
           podSelector:
-            matchExpressions:
-              - key: app
-                operator: In
-                values:
-                  - redis-replication
-                  - redis-sentinel-sentinel
+            matchLabels:
+              app: redis-replication
       ports:
         - protocol: TCP
           port: 6379
-        - protocol: TCP
-          port: 26379
     # Allow inter-pod communication (ML <-> Server)
     - to:
         - podSelector:
