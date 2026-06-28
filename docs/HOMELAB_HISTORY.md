@@ -418,6 +418,9 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-06-28 (backup-replication: drop rsync `-z` — wasted CPU on LAN) ✅
+Step 1 (→worker-node-2 over SSH) + Step 2 (→NAS daemon) used `rsync -avz`. Backups are `.tar.gz` (already compressed) and both hops are LAN → `-z` re-compresses incompressible data, burning CPU on both ends for ~0 size gain. Dropped to `-av`. `infrastructure/configs/backup-replication/cronjob.yaml`.
+
 ### 2026-06-28 (backup CronJobs startingDeadlineSeconds 600→3600 — reboot-overrun skip hardening) ✅
 6 backup CronJobs (postgres/couchdb/mysql/pvc/immich/backup-replication) fire at 03:00–03:30 with `startingDeadlineSeconds: 600`. A reboot whose recovery overruns the window by >10 min **silently skips** that day's backup (deadline set → no catch-up). Surfaced today after a **planned 5–6 day heat shutdown** (cluster off ~06-23→06-28): `BackupCronJobMissedSchedule`×6 critical + `CronJobNotScheduled`×6 fired. The gap itself was **expected** (cluster powered off; controller healthy — the 06:00-Sun popeye/pg-extension jobs ran today; `*-postreboot` startup jobs backfilled, alerts self-clear after the next on-time 03:00). Bumped deadline to **3600** (catch-up until ~04:00–04:30) so a normal maintenance-reboot overrun still runs the day's backup; `concurrencyPolicy: Forbid` guards overlap. Multi-day shutdowns remain covered by the `*-postreboot` startup jobs, not the deadline.
 

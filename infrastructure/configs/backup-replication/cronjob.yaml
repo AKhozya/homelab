@@ -107,7 +107,9 @@ spec:
                   CURRENT_STEP="Step 1: Syncing to worker-node-2"
                   echo ""
                   echo "=== Step 1: Syncing to worker-node-2 (safety net) ==="
-                  rsync -avz --delete \
+                  # No -z (both steps): backups are .tar.gz (already compressed) and transfers
+                  # are LAN — compression just burns CPU on both ends for ~0 size gain (2026-06-28).
+                  rsync -av --delete \
                     --exclude='*.tmp' \
                     --exclude='.*.swp' \
                     -e "ssh -p 65300 -o StrictHostKeyChecking=yes" \
@@ -118,7 +120,7 @@ spec:
                   CURRENT_STEP="Step 2: Syncing to NAS"
                   echo ""
                   echo "=== Step 2: Syncing to NAS ==="
-                  RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync -avz \
+                  RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync -av \
                     --exclude='*.tmp' \
                     --exclude='.*.swp' \
                     --port=50555 \
