@@ -418,6 +418,12 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-06-28 (NAS admin SSH access + security-posture audit) ✅
+Established workstation admin SSH to the backup-sink NAS (`zl-nas`, ZettLab/zettOS Debian 12, `192.168.1.136`): dedicated ed25519 key (`~/.ssh/zl_nas_ed25519`, file-based — deliberately **not** the 1Password agent), port `56634`. Key login is passwordless; `sudo` stays password-gated (no NOPASSWD, by design).
+- **Audit verdict — nothing actionable.** No host firewall is loaded (`ufw`/`nftables`/`firewalld` inactive; nft ruleset = libvirt VM-net only, `INPUT policy accept`; `iptables-legacy` empty) → the ZettLab UI "Allow `192.168.1.0/24`" rule is a **no-op**. WAN is safe regardless — via the **router** (zero inbound port-forward), not the NAS rule.
+- The one LAN-exposed sensitive service, `zettos-postgresql` (`listen_addresses='*'`), is **auth-blocked**: `pg_hba.conf` permits only `127.0.0.1`/`::1`/local — LAN connections are rejected pre-auth; all real clients are localhost. Appliance-managed configs left untouched (ZettLab clobbers them on update). Details in memory `reference_nas`.
+- Appliance is **out of ansible/k3s/UFW scope** — node-maintenance + node-fix patterns do not apply to it.
+
 ### 2026-06-20 (clusterip-heal watchdog — autonomous worker kube-proxy DNAT-wedge self-heal) ✅
 The validation reboot after the RebootWatchdogSec fix (below) exposed the *separate*, recurring **post-reboot kube-proxy DNAT wedge** (2026-05-24 class): `worker-node` came back Ready but `10.43.0.1:443` DNAT was missing (kube-proxy `:10256=200`, legacy iptables proxier's atomic `iptables-restore` poisoned by a stale nft chain). The phase2 ClusterIP gate passed it on a flap then it **re-wedged after uncordon** → phase2 PLAY 2 stuck looping `flux reconcile flux-system` (deadline exceeded, ClusterIP blackholed) for ~25min → needed a manual `restart k3s-agent`.
 - **Research verdict (deep-dive)**: the architectural root fix — kube-proxy **nftables mode** (GA k8s 1.33, supported on our v1.36) — is **blocked**: host `nft 1.1.6` triggers an open kube-proxy segfault (k8s#136786); `prefer-bundled-bin` doesn't shield it (k3s bundles iptables, not nft). Trades a recoverable wedge for an unrecoverable crashloop → deferred until #136786 fixed + in our k3s.

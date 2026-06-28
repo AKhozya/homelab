@@ -84,7 +84,7 @@ DB role name = app name. Provisioning goes through the operator CRDs (CNPG `Data
 
 - worker-node: 4.22 TB LVM (2 NVMe SSDs) — hosts the bulk of app PVCs.
 - worker-node-2: 863 GB extra storage.
-- NAS: 14 TB (500 GB backup cap).
+- NAS: 14 TB (500 GB backup cap) — `zl-nas`, ZettLab/zettOS (Debian 12) at `192.168.1.136`. Out-of-cluster backup sink; admin SSH on `:56634` (key-based, sudo password-gated). Not a K3s node, not in ansible/k3s scope.
 
 Storage is node-local (`local-path-provisioner`) — no distributed storage layer by choice; durability comes from the backup chain, not replicated volumes.
 
