@@ -257,12 +257,19 @@ spec:
                   #   - postgres/ + mysql/ + couchdb/ store flat FILES named
                   #     "<category>_YYYYMMDD_HHMMSS.tar.gz" (+ matching .sha256).
                   prune_nas_dir() {
-                    # $1 = "pvc/20260206_215032" (dir path)
-                    local dir="$1"
-                    echo "  pruning dir: $dir"
+                    # $1 = "pvc/20260206_215032" (dir path) — delete the dated dir AND its shell.
+                    # rsync syncing empty INTO the dir only clears contents (empty husk leaks), so
+                    # operate at the PARENT and scope --delete to the target subtree via the same
+                    # include/exclude idiom as prune_nas_file. Verified: removes /<name> + shell,
+                    # siblings protected by --exclude='*'.
+                    local subpath="$1"
+                    local parent="${subpath%/*}"   # e.g. pvc
+                    local name="${subpath##*/}"    # e.g. 20260206_215032
+                    echo "  pruning dir: $subpath"
                     RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --delete \
+                      --include="/${name}/***" --exclude='*' \
                       /tmp/empty/ \
-                      "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/${dir}/" \
+                      "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/${parent}/" \
                       2>&1 | tail -3 || echo "  (delete refused — manual prune via NAS UI)"
                   }
                   prune_nas_file() {
