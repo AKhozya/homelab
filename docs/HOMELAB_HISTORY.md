@@ -418,6 +418,11 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-06-28 (backup husk-leak prune fix + immich ML resource bump) ✅
+Two small prod fixes shipped this session.
+- **Backup husk-leak** (`2e65af1f`): NAS replication `prune_nas_dir` rsync'd `/tmp/empty/` *into* the dated dir, which clears its **contents only** — the empty directory shell ("husk") leaked and accumulated on the NAS. Fixed to operate at the **parent** and scope `--delete` to the target subtree with `--include="/${name}/***" --exclude='*'`, so the dated dir itself is removed; siblings protected by `--exclude='*'` (same idiom as `prune_nas_file`). Clears the chronic empty-dir accumulation noted in memory `reference_nas`. `infrastructure/configs/backup-replication/cronjob.yaml`.
+- **Immich ML resources** (`6af4971e`): machine-learning container CPU limit **2000m→4000m** (2×, inference throughput) + RAM limit **2Gi→2355Mi** (+15% — 7-day peak hit ~78% of 2Gi, too thin against OOM). Requests unchanged (200m/512Mi). `apps/immich/release.yaml`.
+
 ### 2026-06-28 (NAS admin SSH access + security-posture audit) ✅
 Established workstation admin SSH to the backup-sink NAS (`zl-nas`, ZettLab/zettOS Debian 12, `192.168.1.136`): dedicated ed25519 key (`~/.ssh/zl_nas_ed25519`, file-based — deliberately **not** the 1Password agent), port `56634`. Key login is passwordless; `sudo` stays password-gated (no NOPASSWD, by design).
 - **Audit verdict — nothing actionable.** No host firewall is loaded (`ufw`/`nftables`/`firewalld` inactive; nft ruleset = libvirt VM-net only, `INPUT policy accept`; `iptables-legacy` empty) → the ZettLab UI "Allow `192.168.1.0/24`" rule is a **no-op**. WAN is safe regardless — via the **router** (zero inbound port-forward), not the NAS rule.
