@@ -418,6 +418,14 @@ Duplication exists but is acceptable for transparency and ease of maintenance.
 
 ## Historical Changelog (2026 — Present; 2025 Oct–Dec archived)
 
+### 2026-06-28 (immich Redis reboot-survival — point at master-following Service, drop Sentinel client) ✅
+**Problem**: after a node reboot Sentinel promotes a new Redis master, but immich's ioredis Sentinel client held the stale old-master connection and never recovered — needed a manual `kubectl rollout restart deploy/immich-server` (recurring; hit again today, obs 6978).
+- **Root cause**: ioredis Sentinel uses *passive* failover detection (re-queries sentinels only when the master connection *closes*). On a node reboot the TCP socket to the dead master **half-opens and hangs** (no FIN/RST) → ioredis never detects it, never re-resolves the master ([ioredis#1314](https://github.com/redis/ioredis/issues/1314)).
+- **Rejected — `failoverDetector:true`** (`f992bbda`, superseded): active detection via the sentinels' `+switch-master` pub/sub does recover, but triggers a **known ioredis connection leak** — a sentinel-failover test left 301 orphaned subscribe connections (non-draining) and immich-server spinning at ~1.3 CPU. Trades a manual restart for a leak that itself eventually needs one.
+- **Fix** (`cc5c02a1`): point immich at the OT operator's master-following Service **`redis-replication-master`** (selector `redis-role=master`) as a **plain** ioredis client. Failover moves to the **infra layer** — on promotion the operator repoints that Service to the new master, so ioredis just reconnects to a stable ClusterIP; no flaky client-side Sentinel discovery. Same pattern paperless already runs. Egress NetworkPolicy unchanged (`redis-replication:6379` already allowed; `sentinel:26379` egress now unused).
+- **Verified** (delete master pod = reboot sim): immich auto-recovered in ~18s, pod **RESTARTS=0**, 40 live `ioredis` connections on the re-promoted master, **0** sentinel connections (leak gone), CPU 1344m→2m. No manual restart.
+- SOPS secret `immich-redis-url` re-encrypted (sentinels→host); `apps/immich/release.yaml` REDIS_URL comment updated. Note: `cc5c02a1` committed unsigned (1Password agent was locked mid-session).
+
 ### 2026-06-28 (backup husk-leak prune fix + immich ML resource bump) ✅
 Two small prod fixes shipped this session.
 - **Backup husk-leak** (`2e65af1f`): NAS replication `prune_nas_dir` rsync'd `/tmp/empty/` *into* the dated dir, which clears its **contents only** — the empty directory shell ("husk") leaked and accumulated on the NAS. Fixed to operate at the **parent** and scope `--delete` to the target subtree with `--include="/${name}/***" --exclude='*'`, so the dated dir itself is removed; siblings protected by `--exclude='*'` (same idiom as `prune_nas_file`). Clears the chronic empty-dir accumulation noted in memory `reference_nas`. `infrastructure/configs/backup-replication/cronjob.yaml`.
