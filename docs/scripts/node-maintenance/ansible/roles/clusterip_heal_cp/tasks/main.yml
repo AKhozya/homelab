@@ -1,0 +1,63 @@
+---
+# clusterip_heal_cp — CONTROL-PLANE self-heal for the post-reboot kube-proxy ClusterIP DNAT wedge.
+# CP counterpart of clusterip_heal (workers). Wired in node-config.yml on hosts: control_plane.
+# Uses a POD-NETNS probe (the host-netns probe false-reads on the CP) + a timeout-guarded
+# `systemctl restart k3s` (the "restart-k3s-on-CP hangs" caveat was disproven 2026-06-29; the
+# timeout converts any future hang into a give-up + alert, never an indefinite control-plane wedge).
+# See files/clusterip-heal-cp.sh. State (clusterip-heal-cp.state) is written as root inside
+# /var/lib/node-maintenance (node-maintenance:node-maintenance 0751, owned by base_config) — do NOT
+# re-assert ownership here; root writes fine with o+x on the parent.
+
+- name: Ensure node-exporter textfile dir (heal metrics)
+  ansible.builtin.file:
+    path: /var/lib/node_exporter/textfile
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [clusterip-heal-cp]
+
+- name: Deploy clusterip-probe-cp.sh
+  ansible.builtin.copy:
+    src: clusterip-probe-cp.sh
+    dest: /usr/local/sbin/clusterip-probe-cp.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [clusterip-heal-cp]
+
+- name: Deploy clusterip-heal-cp.sh
+  ansible.builtin.copy:
+    src: clusterip-heal-cp.sh
+    dest: /usr/local/sbin/clusterip-heal-cp.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [clusterip-heal-cp]
+
+- name: Deploy clusterip-heal-cp-watchdog.service
+  ansible.builtin.copy:
+    src: clusterip-heal-cp-watchdog.service
+    dest: /etc/systemd/system/clusterip-heal-cp-watchdog.service
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [clusterip-heal-cp]
+
+- name: Deploy clusterip-heal-cp-watchdog.timer
+  ansible.builtin.copy:
+    src: clusterip-heal-cp-watchdog.timer
+    dest: /etc/systemd/system/clusterip-heal-cp-watchdog.timer
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [clusterip-heal-cp]
+
+# daemon_reload picks up any unit-file change; enabling+starting the timer is idempotent.
+- name: Enable + start clusterip-heal-cp-watchdog.timer
+  ansible.builtin.systemd_service:
+    name: clusterip-heal-cp-watchdog.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [clusterip-heal-cp]

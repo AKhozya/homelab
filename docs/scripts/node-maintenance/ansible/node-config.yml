@@ -55,7 +55,20 @@
     # cheap settle barrier guards against future role additions that might.
     - role: firewall_preflight
     # Node-local self-heal for the post-reboot kube-proxy ClusterIP DNAT wedge
-    # (restart k3s-agent when 10.43.0.1 DNAT is missing). Workers-only — never the
-    # CP (restart-k3s-on-CP hangs; CP host-netns probe false-reads wedged).
+    # (restart k3s-agent when 10.43.0.1 DNAT is missing). Workers here; the CP is
+    # handled by clusterip_heal_cp below (pod-netns probe + k3s restart).
     - role: clusterip_heal
     - role: rebuilderd
+
+- name: Node config drift-heal (control-plane only)
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  roles:
+    # CP counterpart of clusterip_heal. The CP host-netns ClusterIP probe false-reads wedged, so this
+    # uses a pod-netns probe (nsenter into coredns) + a timeout-guarded `systemctl restart k3s`. The
+    # "restart-k3s-on-CP hangs" caveat was disproven 2026-06-29 (clean ~30-60s restart that
+    # reprogrammed the DNAT); the timeout makes any future hang a give-up+alert, never an indefinite
+    # control-plane wedge. Fixes the gap where a CP-pinned pod (e.g. uptime-kuma) stays DNS-dead
+    # post-reboot with no auto-heal.
+    - role: clusterip_heal_cp

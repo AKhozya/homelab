@@ -1,0 +1,15 @@
+[Unit]
+Description=ClusterIP DNAT heal watchdog — control-plane (CP kube-proxy wedge self-heal via k3s restart)
+Documentation=https://github.com/AKhozya/homelab
+# Only meaningful where the CP heal script + pod-netns probe exist.
+ConditionPathExists=/usr/local/sbin/clusterip-heal-cp.sh
+ConditionPathExists=/usr/local/sbin/clusterip-probe-cp.sh
+
+[Service]
+Type=oneshot
+# timeout-guarded `systemctl restart k3s` (120s) + 30s reprobe fits well under this; the timer will
+# not double-fire a still-running oneshot, so a >interval run can't pile up.
+ExecStart=/usr/local/sbin/clusterip-heal-cp.sh
+TimeoutStartSec=5min
+StandardOutput=journal
+StandardError=journal

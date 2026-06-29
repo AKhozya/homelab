@@ -1,0 +1,14 @@
+[Unit]
+Description=ClusterIP DNAT heal watchdog (CP) — check ~2min after boot + every 3min, restart k3s if pod-netns-wedged
+# Defense-in-depth: the role is control-plane-only (node-config.yml), but also gate on the script existing.
+ConditionPathExists=/usr/local/sbin/clusterip-heal-cp.sh
+
+[Timer]
+# Boot is the primary wedge moment; the CP + k3s need longer than a worker's k3s-agent to come up
+# and (fail to) program rules first, so wait a touch longer than the workers' 90s.
+OnBootSec=2min
+OnUnitActiveSec=3min
+RandomizedDelaySec=15s
+
+[Install]
+WantedBy=timers.target
