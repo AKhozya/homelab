@@ -1,6 +1,6 @@
 # Secrets Rotation Playbook
 
-**Cluster**: K3s Homelab (k3s v1.36.1+k3s1, 3 nodes) | **Last Updated**: 2026-06-12
+**Cluster**: K3s Homelab (k3s v1.36.1+k3s1, 3 nodes) | **Last Updated**: 2026-07-02
 **Audit Trail**: rotation dates in git commit history
 
 Every secret in this cluster lives encrypted in Git using SOPS with an age key. The
@@ -24,12 +24,12 @@ cert-manager).
 
 | Secret Name | App | Last Rotated | Next Rotation | Priority |
 |-------------|-----|--------------|---------------|----------|
-| `immich-db-password` | Immich | 2026-04-02 | 2026-07-01 | High |
+| `immich-db-password` | Immich | 2026-04-02 | 2026-10-01 | High |
 | `linkwarden-db-password` | Linkwarden | 2026-04-02 | 2026-10-01 | Medium |
 | `mealie-db-password` | Mealie | 2026-04-02 | 2026-10-01 | Medium |
-| `n8n-db-password` | N8N | 2026-04-02 | 2026-07-01 | High |
+| `n8n-db-password` | N8N | 2026-04-02 | 2026-10-01 | High |
 | `paperless-db-password` | Paperless-NGX | 2026-04-02 | 2026-10-01 | Medium |
-| `authentik-db-password` | Authentik | 2026-04-02 | 2026-07-01 | Critical |
+| `authentik-db-password` | Authentik | 2026-04-02 | 2026-10-01 | Critical |
 | `blocky-db-user` | Blocky (queryLog) | 2026-06-05 | 2026-12-05 | Low |
 | `grafana-db-password` | Grafana | N/A (SQLite) | N/A | N/A |
 | `audiobookshelf-db-password` | Audiobookshelf | N/A (SQLite) | N/A | N/A |
@@ -38,7 +38,7 @@ cert-manager).
 
 | Secret Name | App | Last Rotated | Next Rotation | Priority |
 |-------------|-----|--------------|---------------|----------|
-| `home-assistant-mysql` | Home Assistant | 2026-04-02 | 2026-07-01 | High |
+| `home-assistant-mysql` | Home Assistant | 2026-04-02 | 2026-10-01 | High |
 | `uptime-kuma-mysql` | Uptime Kuma | 2026-04-02 | 2026-10-01 | Medium |
 | `pricebuddy-mysql` | PriceBuddy | 2026-04-02 | 2026-10-01 | Medium |
 
@@ -53,10 +53,10 @@ cert-manager).
 | Secret Name | App | Last Rotated | Next Rotation | Priority |
 |-------------|-----|--------------|---------------|----------|
 | `authentik-redis-password` | Authentik | N/A (Removed 2025-10-29) | N/A | N/A |
-| `redis-passwords.immich-password` | Immich (Sentinel via REDIS_URL) | 2026-04-02 | 2026-07-01 | High |
+| `redis-passwords.immich-password` | Immich (Sentinel via REDIS_URL) | 2026-04-02 | 2026-10-01 | High |
 | `redis-passwords.paperless-password` | Paperless-NGX (static master Service) | 2026-04-02 | 2026-10-01 | Medium |
 | `redis-passwords.blocky-password` | Blocky DNS (static master Service, db 1) | 2026-04-26 | 2026-10-26 | Medium |
-| `redis-passwords.admin-password` | Redis HA admin | 2026-04-26 | 2026-07-01 | High |
+| `redis-passwords.admin-password` | Redis HA admin | 2026-04-26 | 2026-10-26 | High |
 | `redis-acl-secret` | Redis ACL (literal user list, mounted /etc/redis/user.acl) | 2026-04-26 | rotate WITH redis-passwords | High |
 | `wallabag-redis-password` | Wallabag | N/A (Decommissioned) | N/A | N/A |
 
@@ -124,16 +124,14 @@ cert-manager).
 
 ## ROTATION SCHEDULES
 
-### High Priority (90 Days)
-- DB passwords: Immich, Authentik, N8N, Home Assistant
-- Redis: Immich
-
-### Medium Priority (180 Days)
+### Standard (180 Days) — single cadence for all scheduled rotations
+- DB passwords: Immich, Authentik, N8N, Home Assistant, Mealie, Paperless, Linkwarden, Uptime Kuma, PriceBuddy, Blocky
+- Redis: Immich, Paperless, Blocky, HA admin (`redis-acl-secret` rotates with `redis-passwords`)
 - OIDC client secrets (Authentik provider + app-side)
-- DB passwords: Mealie, Paperless, Linkwarden, Uptime Kuma, PriceBuddy
-- Redis: Paperless
 - CouchDB admin (also update `monitoring/configs/victoria-metrics/couchdb-auth-secret.yaml` for VMAgent)
 - Authentik Django secret key
+
+90-day High tier retired 2026-07-02 — Priority column in the inventory ranks blast-radius, not cadence. Annual infrastructure keys (SSH, deploy, CF mgmt token) keep their own dates.
 
 ### Never Rotate
 - User login passwords (AdGuard, HomeHub, Grafana admin, Audiobookshelf admin)
@@ -420,10 +418,11 @@ If compromised:
   - Authentik Django secret key
 
 ### 2026 Q3 (Jul-Sep)
-- [ ] 2026-07-01: High-priority 90-day rotation (PG: authentik/immich/n8n, MySQL: HA, Redis: immich)
+- [x] 2026-07-02: Cadence change — 90-day High tier retired, all scheduled rotations now 180-day. Ex-High secrets (PG authentik/immich/n8n, MySQL HA, Redis immich) folded into the 2026-10-01 batch; Redis admin → 2026-10-26.
 
 ### 2026 Q4 (Oct-Dec)
-- [ ] 2026-10-01: Medium-priority 180-day rotation (all remaining PG, MySQL, Redis, CouchDB, OIDC, Django key)
+- [ ] 2026-10-01: 180-day rotation — ALL scheduled secrets (PG, MySQL, Redis, CouchDB, OIDC, Django key; ex-High included)
+- [ ] 2026-10-26: Redis `admin-password` + `blocky-password` (+ `redis-acl-secret`)
 
 ---
 
@@ -455,4 +454,4 @@ git show <commit-hash> -- apps/immich/immich-db-password-secret.yaml
 
 ---
 
-**Review Schedule**: Quarterly | **Next Review**: 2026-07-01
+**Review Schedule**: Quarterly | **Next Review**: 2026-10-01

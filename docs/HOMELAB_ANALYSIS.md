@@ -102,10 +102,9 @@ Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md
 
 | Due | Item |
 |---|---|
-| 2026-07-01 | High-priority 90-day secret rotation — PG authentik/immich/n8n, MySQL home-assistant, Redis immich |
 | 2026-07-04 | Monthly review + first quarterly automation audit — carries Kyverno Audit→Enforce flips (require-labels/-non-root/-seccomp) + upstream re-checks (n8n #25705, Authentik client-hints #20700, image-CVE scanner decision, mysql-proxy POP-1100) |
 | 2026-07-06 | Resource right-sizing pass |
 | ~2026-07-20 | Worker-2 backup replication-step drop / temp safety-net removal (postponed +2mo from 2026-05-22) |
-| 2026-10-01 | Medium-priority 180-day secret rotation — remaining PG/MySQL/Redis, CouchDB, OIDC, Authentik Django key |
+| 2026-10-01 | 180-day secret rotation — ALL scheduled secrets: PG/MySQL/Redis, CouchDB, OIDC, Authentik Django key (90-day High tier retired 2026-07-02, ex-High folded in; Redis admin+blocky follow 2026-10-26) |
 | 2026-12-18 | `backup-replication-ssh` key rotation |
 | 2026-12-31 | `cloudflare-tunnel-mgmt-token` rotation |
