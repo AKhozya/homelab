@@ -29,11 +29,11 @@ flowchart TB
   end
   CP -. k3s API .-> W1
   CP -. k3s API .-> W2
-  W1 -->|"rsync --delete"| W2
-  W2 -->|"rsync :50555"| NAS
+  W1 -->|"rsync --delete<br/>(today only, safety net)"| W2
+  W1 -->|"rsync :50555<br/>(30-day history)"| NAS
 ```
 
-Storage is `local-path-provisioner` (node-local PVs — no distributed storage layer by choice; simpler, faster, and the backup chain provides durability instead). Each PV is bound to the node where it was first allocated via the PV's `nodeAffinity` (the local-path mechanism) — there is no Deployment-level node pinning. **Immich PVs live on W1** (`/mnt/k8s-storage/...immich-library`, `...immich-machine-learning`) → Immich Pods can only run on W1; W1 down = Immich down. Durability comes from the **replication chain W1 → W2 → NAS**, not from replicated volumes.
+Storage is `local-path-provisioner` (node-local PVs — no distributed storage layer by choice; simpler, faster, and the backup chain provides durability instead). Each PV is bound to the node where it was first allocated via the PV's `nodeAffinity` (the local-path mechanism) — there is no Deployment-level node pinning. **Immich PVs live on W1** (`/mnt/k8s-storage/...immich-library`, `...immich-machine-learning`) → Immich Pods can only run on W1; W1 down = Immich down. Durability comes from the **nightly replication fan-out from W1** (one CronJob on W1 syncs → W2 with `--delete` as a single-day safety net AND → NAS for 30-day history — not a serial W1→W2→NAS chain), not from replicated volumes.
 
 ---
 
@@ -98,7 +98,7 @@ An externally-reachable app has **two ingress rules** (internal hostname + Cloud
 ```mermaid
 flowchart TB
   L1["1 · Secrets at rest — SOPS + age, encrypted in git"]
-  L2["2 · Admission — Kyverno (12 ClusterPolicies, all Enforce) + Pod Security Standards"]
+  L2["2 · Admission — Kyverno (12 ClusterPolicies: 9 Enforce + 3 in Audit soak) + Pod Security Standards"]
   L3["3 · Network — allow-list NetworkPolicies per workload (per-pod default-deny effect; Kyverno require-networkpolicy (Enforce) denies Pod creation in any non-system ns lacking a NetworkPolicy)"]
   L4["4 · Runtime — runAsNonRoot · readOnlyRootFilesystem · drop ALL caps · seccomp RuntimeDefault"]
   L5["5 · Identity + transport — Authentik OIDC + cert-manager TLS"]
@@ -118,7 +118,7 @@ Each layer is independent: bypassing admission still leaves the network fence; e
 | CouchDB | Helm | |
 | Redis | Operator (OT) | In-memory; Authentik uses Postgres-only (no Redis) |
 
-Backups: per-engine CronJobs in `infrastructure-configs` → the W1→W2→NAS replication chain. DR runbook in [`.backup/README.md`](../.backup/README.md). Never force-delete a DB pod or drop a DB directly — go through the CRD + `kubectl rollout restart`.
+Backups: per-engine CronJobs in `infrastructure-configs` → nightly replication fan-out from W1 (→ W2 safety net, → NAS 30-day history). DR runbook in [`.backup/README.md`](../.backup/README.md). Never force-delete a DB pod or drop a DB directly — go through the CRD + `kubectl rollout restart`.
 
 ---
 
@@ -127,7 +127,8 @@ Backups: per-engine CronJobs in `infrastructure-configs` → the W1→W2→NAS r
 | Failure | Effect | What still works | Recovery |
 |---|---|---|---|
 | CP node down | Flux reconcile + admission paused; new pods can't schedule | Running pods + Services keep serving (kube-proxy on workers is independent) | Reboot CP; Flux catches up |
-| Worker node down | Pods on it go NotReady; Deployments reschedule elsewhere | Other-node workloads unaffected. **Immich PVs are on W1 (local-path nodeAffinity) → if W1 is down, Immich is down** (no failover; local-path is node-bound) | Reboot/replace; Immich resumes when its host returns |
+| worker-node (W1) down | **W1 is the state + durability node**: bulk of app PVCs (local-path node-bound, incl. Immich), all 6 backup CronJobs (nodeSelector-pinned to W1), and Loki live there → most stateful apps + logs + the entire backup chain down (no failover; local-path is node-bound) | Stateless/other-node workloads; metrics + alerting (on W2) | Reboot/replace; stateful apps + backups resume when W1 returns |
+| worker-node-2 (W2) down | **All metrics + alerting blind**: the single VMSingle instance's PV is node-bound to W2. Monitoring is self-blind on its own loss — the Watchdog dead-man alert routes to null, so nothing pages about the blindness | Apps, logs, and backups on W1 unaffected | Reboot/replace; monitoring resumes when W2 returns |
 | Cloudflare edge or tunnel down | Externally-published apps unreachable | LAN access via Traefik fully unaffected | Wait CF; LAN keeps working |
 | Authentik down | SSO apps lose login | Non-SSO apps; non-OIDC paths | Restart Authentik Pod or rollout |
 | GitHub down | No new commits reconciled | Cluster state frozen at last sync; everything keeps running | Wait GitHub |
@@ -143,7 +144,9 @@ This is a single-environment cluster — and that environment is **production** 
 
 Called out so they are choices, not accidents:
 
-- **Diagrams are logical, not exhaustive.** Individual apps (16), every NetworkPolicy (~44 live), and every namespace (27) are not drawn — the [codemaps](CODEMAPS/) carry the full enumeration. This file shows the *pattern*.
+- **Diagrams are logical, not exhaustive.** Individual apps, NetworkPolicies, and namespaces are not drawn — the [codemaps](CODEMAPS/) and [HOMELAB_ANALYSIS](HOMELAB_ANALYSIS.md) carry the enumeration and counts. This file shows the *pattern*.
+- **No offsite backup (3-2-1 ceiling).** W1, W2, and the NAS share one building, power feed, and LAN — a whole-site event (fire, surge, theft) loses every copy at once. No cloud/offsite copy by choice; accepted risk ceiling.
+- **Monitoring is single-node and self-blind.** One VMSingle instance, PV node-bound to W2 → W2 loss blinds all metrics + alerting, and the Watchdog dead-man alert routes to null, so nothing pages about the blindness. Accepted.
 - **No formal threat model.** Trust boundaries are implicit: LAN is semi-trusted, Cloudflare edge is the only external entry, pod-to-pod is default-deny. A written threat model is not maintained.
 - **No distributed storage / no HA control plane.** Single CP node, node-local PVs. Durability is backup-based (replication chain), not replica-based. A CP outage stops reconciliation until the node returns; running workloads keep serving.
 - **Counts live in other docs.** This file avoids hard numbers that drift; where one appears it is approximate and the codemap/ANALYSIS is authoritative.
@@ -151,7 +154,7 @@ Called out so they are choices, not accidents:
 - **OIDC redirect flow not in the traffic diagram.** SSO apps bounce through Authentik (`/oauth2/*`) on first login; the diagram shows the steady-state request path only.
 - **CNI / kube-proxy / cluster-internal pod networking not drawn.** Pod-to-pod via CoreDNS (`kube-system`) + flannel + ClusterIP DNAT is assumed; the 2026-05-24 ClusterIP wedge incident proves this layer matters operationally even if it's invisible here.
 - **Node + CoreDNS *external* DNS upstream not drawn.** Nodes and CoreDNS resolve external names via public resolvers (1.1.1.1/9.9.9.9), decoupled from Blocky since 2026-06-04 to break a node→Blocky→kube-proxy circular dep; Blocky serves LAN clients only. See [CODEMAPS/networking.md](CODEMAPS/networking.md).
-- **Operator-created NetworkPolicies not enumerated.** Live `kubectl get netpol -A` shows ~44, git contains ~43 — the delta is operators (CNPG, Kyverno) creating their own. Codemap counts the file-level breakdown.
+- **Operator-created NetworkPolicies not enumerated.** Live `kubectl get netpol -A` shows more than git contains — the delta is operators (CNPG, Kyverno) creating their own plus component-generated policies. Codemap counts the file-level breakdown.
 - **Age-key bootstrap not drawn.** The decryption chain is: `sops-age` Secret in `flux-system` → kustomize-controller reads it → decrypts SOPS-encrypted manifests on apply. Lose the key and you can't reconcile new secrets (see Failure modes).
 - **Cluster boundary is implicit.** In-scope: the 3 nodes + the workloads they run. Out-of-scope but referenced: the NAS (backup sink), the home router (forwards nothing inbound — CF tunnel is outbound), the Cloudflare edge.
 - **Reconcile cascade timing not in diagrams.** Full chain ~5 min post-push; not worth drawing.

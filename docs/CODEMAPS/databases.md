@@ -11,7 +11,7 @@ All in `databases` namespace except CouchDB extras in `obsidian` (client side) a
 - **Pods**: `main-postgres-{N}` (sequential numbering, current 11+12 after upgrades)
 - **Storage**: 10Gi PVC per instance (`local-path`)
 - **Connection pooler**: PgBouncer Deployment `main-postgres-rw-pooler` (2 replicas, image `ghcr.io/cloudnative-pg/pgbouncer:1.25.1`)
-- **Backup**: WAL streaming + daily logical pg_dump CronJob (auto-discovers DBs via `pg_database`)
+- **Backup**: daily logical pg_dump CronJob ONLY (auto-discovers DBs via `pg_database`) — no WAL archiving/PITR by decision; streaming replication = HA, not backup
 - **Versioning**: pinned `ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie`
 - **Managed roles** (in `cluster.yaml` `spec.managed.roles`, 8 total):
   - `postgres-admin` (superuser, used by backup + extension jobs)

@@ -107,27 +107,36 @@ Files saved to `.backup/secrets/` (gitignored)
 
 #### Step 1: Create Fresh K3s Cluster
 
+**Do NOT run a bare `curl -sfL https://get.k3s.io | sh -`** — that installs an
+unpinned k3s WITH bundled Traefik + CoreDNS + helm-controller, which collide with
+the Flux-managed ones. K3s config (`config.yaml` + `kubelet.yaml`) is
+ansible-owned (`k3s_config` role: disables bundled coredns/traefik/helm-controller,
+enables secrets-encryption) and must be in place BEFORE first k3s start.
+
+**Per node, control-plane first:**
+
+```bash
+# 1. Bootstrap: ansible stack (CP) + K3s config directory (script is bootstrap-only)
+sudo bash docs/scripts/setup-node.sh
+
+# 2. Apply ansible-owned config (k3s config.yaml/kubelet.yaml, firewall, sysctls, ...)
+sudo systemctl start node-maintenance-sync.service
+sudo systemctl start node-maintenance-config.service
+```
+
 **On control-plane node (192.168.1.127):**
 
 ```bash
-curl -sfL https://get.k3s.io | sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.1+k3s1" sh -
 sudo cat /var/lib/rancher/k3s/server/node-token
 ```
 
-**On worker-node (192.168.1.129):**
+**On worker-node (192.168.1.129) and worker-node-2 (192.168.1.126):**
 
 ```bash
 export K3S_URL=https://192.168.1.127:6443
 export K3S_TOKEN=<token-from-control-plane>
-curl -sfL https://get.k3s.io | sh -
-```
-
-**On worker-node-2 (192.168.1.126):**
-
-```bash
-export K3S_URL=https://192.168.1.127:6443
-export K3S_TOKEN=<token-from-control-plane>
-curl -sfL https://get.k3s.io | sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.1+k3s1" sh -
 ```
 
 **Get kubeconfig:**
@@ -139,13 +148,10 @@ sudo cat /etc/rancher/k3s/k3s.yaml
 # Update server IP to 192.168.1.127
 ```
 
-#### Step 2: Configure Firewall
+#### Step 2: Firewall
 
-**On all 3 nodes:**
-
-```bash
-sudo ufw allow from 192.168.1.0/24
-```
+Already applied by the ansible `firewall` role in Step 1 (`node-maintenance-config.service`).
+No manual `ufw` commands — rules are role-managed, additive, never reset.
 
 #### Step 3: Install Flux CLI
 
@@ -205,7 +211,7 @@ Backups from 3 sources (preference order):
 # Get NAS creds from restored secrets or 1Password
 export RSYNC_PASSWORD='<nas-rsync-password>'
 rsync -avz --port=50555 \
-  rsync://akhozya@192.168.1.136/akhozya/backups/homelab/ \
+  rsync://akhozya@192.168.1.136/akhozya-pool1/backups/homelab/ \
   /mnt/k8s-storage/backups/
 ```
 
@@ -423,14 +429,13 @@ kubectl get ingress -A
 ### Manual Steps Required (one-time)
 - **DNS A records** — only if node IPs changed:
   - `*.h0melab.work` records → node IPs
-- **Firewall rules** on all 3 nodes:
-  - `sudo ufw allow from 192.168.1.0/24`
+- **Firewall rules** — none: ansible `firewall` role applies them (Step 1)
 
 ## Security Best Practices
 
 1. **Encrypt backups:** encrypted storage for `.backup/secrets/`
 2. **Rotate creds:** after recovery, rotate sensitive tokens
-3. **Test recovery:** regular test in staging
+3. **Test recovery:** periodic restore drill (single env — no staging)
 4. **Document changes:** update guide when adding secrets/services
 5. **Offline copy:** backup scripts + secrets offline (USB, password manager)
 

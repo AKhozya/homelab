@@ -8,9 +8,9 @@
 | **CouchDB logical** | `@cloudant/couchbackup` per DB | 03:05 daily | YES (`/_all_dbs`) |
 | **PVC tarballs** | Filesystem snapshots of stateful PVCs | 03:10 daily | NO (CRITICAL_PVCS list) |
 | **MySQL logical** | `mysqldump --single-transaction` per DB (Percona via HAProxy) | 03:15 daily | YES (`SHOW DATABASES`) |
-| **PG WAL** | Continuous (CNPG) | continuous | YES |
+| **PG streaming replication** | CNPG 2-instance streaming — HA only, NOT a backup layer (no WAL archiving/PITR by decision) | continuous | n/a |
 | **Immich library** | Uncompressed tar of 62.5G photo PVC (separate `immich-backup` CronJob) | Sunday 03:00 weekly | n/a (single PVC) |
-| **Replication** | rsync W1 → W2 → NAS + validation + retention prune | 03:30 daily | n/a (path-agnostic) |
+| **Replication** | rsync fan-out from W1: → W2 (safety net) AND → NAS + validation + retention prune | 03:30 daily | n/a (path-agnostic) |
 | **SOPS Secrets** | Encrypted in git | every commit | n/a (file-based) |
 | **Disaster recovery scripts** | `.backup/secrets-{backup,restore}.sh` | manual | partial (explicit list) |
 
@@ -51,12 +51,12 @@ Source: `infrastructure/configs/backup/pvc-backup-cronjob.yaml` (13 entries, 10 
 ## Replication topology
 Source: `infrastructure/configs/backup-replication/cronjob.yaml` (script inline in CronJob; SSH key + NAS rsync creds + Telegram = SOPS secrets alongside).
 ```
-W1 PVCs/backups (source: /mnt/k8s-storage/backups)
-  ↓ rsync --delete (SSH port 65300, key-based)
-W2 /mnt/extra-storage/backups (z3us@192.168.1.126)
-  ↓ rsync (no --delete) port 50555 (rsync daemon)
-NAS Zettlab 6 Ultra (192.168.1.136, /akhozya-pool1/backups/homelab/)
-  500GB hard limit (warn 400GB / crit 450GB)
+W1 PVCs/backups (source: /mnt/k8s-storage/backups) — FAN-OUT, both syncs from W1:
+  ├─ rsync --delete (SSH port 65300, key-based)
+  │    → W2 /mnt/extra-storage/backups (z3us@192.168.1.126) — today only, safety net
+  └─ rsync (no --delete) port 50555 (rsync daemon)
+       → NAS Zettlab 6 Ultra (192.168.1.136, /akhozya-pool1/backups/homelab/)
+         30-day history; 500GB hard limit (warn 400GB / crit 450GB)
 ```
 After NAS push: validate (4 types: postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then **clean source on W1** (except `immich/` which is kept for keep-2 retention). Worker-2 still in chain (verified 2026-06-05, pending) — drop W2 replication step **~2026-07-20**; temp safety net removal **~2026-07-22** (postponed 2026-05-22 +2mo).
 

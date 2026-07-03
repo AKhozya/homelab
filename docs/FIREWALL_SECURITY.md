@@ -11,107 +11,20 @@ UFW firewall config homelab cluster — services not exposed to internet.
 - **Pod Network Isolation**: internal pod traffic → 10.42.0.0/16
 - **Public Access**: Cloudflare Tunnel only (encrypted, authenticated)
 
-## Control-Plane Node (192.168.1.127)
+## Rule Management (ansible-owned)
 
-### Current UFW Rules
-```bash
-Status: active
+UFW rules are NOT maintained by hand and NOT listed here — a static listing drifts
+the day a role changes. Source of truth:
 
-     To                         Action      From
-     --                         ------      ----
-[ 1] 65300/tcp                  ALLOW IN    192.168.1.0/24    # SSH
-[ 2] 6443/tcp                   ALLOW IN    192.168.1.0/24    # Kubernetes API
-[ 3] 9090/tcp                   ALLOW IN    192.168.1.0/24    # Prometheus
-[ 4] 80                         ALLOW IN    192.168.1.0/24    # HTTP (dev access)
-[ 5] Anywhere                   ALLOW IN    192.168.1.127      # Self
-[ 6] Anywhere                   ALLOW IN    192.168.1.129      # Worker node
-[ 7] 8000/tcp                   ALLOW IN    10.42.0.0/16       # CNPG status API
-```
+- **Role:** `docs/scripts/node-maintenance/ansible/roles/firewall/` (+ `firewall_preflight`)
+- **Per-node rules:** `docs/scripts/node-maintenance/ansible/group_vars/{all,control_plane,workers}.yml` and `host_vars/<node>.yml` (e.g. VXLAN 8472/udp on worker-node-2, route rules)
+- **Heal / apply:** `sudo systemctl start node-maintenance-config.service` (drift-heal also runs daily via timer)
+- **Inspect live:** `sudo ufw status numbered` on the node
 
-### Setup Commands
-```bash
-# Reset and configure UFW
-sudo ufw --force reset
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-
-# SSH access from local network only
-sudo ufw allow from 192.168.1.0/24 to any port 65300 proto tcp
-
-# Kubernetes API from local network only
-sudo ufw allow from 192.168.1.0/24 to any port 6443 proto tcp
-
-# Prometheus from local network only
-sudo ufw allow from 192.168.1.0/24 to any port 9090 proto tcp
-
-# HTTP from local network only (for development)
-sudo ufw allow from 192.168.1.0/24 to any port 80
-
-# Allow all traffic from control-plane (self)
-sudo ufw allow from 192.168.1.127
-
-# Allow all traffic from worker node
-sudo ufw allow from 192.168.1.129
-
-# CNPG instance manager status API from pod network
-sudo ufw allow from 10.42.0.0/16 to any port 8000 proto tcp
-
-# Enable firewall
-sudo ufw enable
-```
-
-## Worker Node (192.168.1.129)
-
-### Current UFW Rules
-```bash
-Status: active
-
-     To                         Action      From
-     --                         ------      ----
-[ 1] 65300/tcp                  ALLOW IN    192.168.1.0/24    # SSH
-[ 2] 80                         ALLOW IN    192.168.1.0/24    # HTTP (dev access)
-[ 3] Anywhere                   ALLOW IN    192.168.1.127      # Control-plane
-[ 4] Anywhere                   ALLOW IN    192.168.1.129      # Self
-[ 5] 8000/tcp                   ALLOW IN    10.42.0.0/16       # CNPG status API
-```
-
-### Setup Commands
-```bash
-# Reset and configure UFW
-sudo ufw --force reset
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
-
-# SSH access from local network only
-sudo ufw allow from 192.168.1.0/24 to any port 65300 proto tcp
-
-# HTTP from local network only (for development)
-sudo ufw allow from 192.168.1.0/24 to any port 80
-
-# Allow all traffic from control-plane node
-sudo ufw allow from 192.168.1.127
-
-# Allow all traffic from worker (self)
-sudo ufw allow from 192.168.1.129
-
-# CNPG instance manager status API from pod network
-sudo ufw allow from 10.42.0.0/16 to any port 8000 proto tcp
-
-# Enable firewall
-sudo ufw enable
-```
-
-## Worker Node 2 (192.168.1.126)
-
-worker-node-2 joined after this document was first written and runs the same ansible-managed worker firewall profile as worker-node above — default-deny incoming, SSH + HTTP from the LAN only, all traffic allowed from the control-plane and itself, and the CNPG status API from the pod network. Only the self address differs:
-
-```bash
-# Same profile as worker-node, with worker-node-2's own address
-sudo ufw allow from 192.168.1.127        # control-plane
-sudo ufw allow from 192.168.1.126        # self
-```
-
-The host firewall is role-managed by ansible, so the worker nodes stay in lockstep; configuration drift is detected and healed automatically.
+**NEVER `ufw --force reset`.** The role is idempotent-ADDITIVE: a reset strips
+role-added rules (VXLAN 8472/udp on W2, route rules) and is not what heals drift —
+the ansible run is. To fix a broken firewall, run `node-maintenance-config.service`,
+not manual `ufw` commands.
 
 ## Blocked Services (Not Exposed)
 

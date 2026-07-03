@@ -88,7 +88,7 @@ cert-manager).
 | Mealie | `mealie-env-secret.yaml` (OIDC_CLIENT_SECRET env) | 2026-04-02 | 2026-10-01 | Medium |
 | Linkwarden | `linkwarden-secret.yaml` (DATABASE_URL + OIDC combined) | 2026-04-02 | 2026-10-01 | Medium |
 | Audiobookshelf | SQLite on PVC (web UI config) + Authentik API | 2026-04-02 | 2026-10-01 | Medium |
-| Home Assistant | OIDC disabled (hass-oidc-auth incompatible with HA 2026.4.0) | N/A | N/A | N/A |
+| Home Assistant | Confidential `!secret` in HA config (hass-oidc-auth v1.1.0, re-enabled 2026-05-31) | 2026-05-31 | 2026-10-01 | Medium |
 | Stirling PDF | `custom-settings-configmap.yaml` (SOPS Secret) | 2026-04-02 | 2026-10-01 | Medium |
 
 **OIDC rotation gotchas:**
@@ -205,33 +205,41 @@ kubectl rollout restart deployment/<app> -n <app>
 
 ---
 
-### 2. Redis Password
+### 2. Redis Password (redis-ha)
+
+Redis auth lives in TWO server-side SOPS secrets that must rotate TOGETHER, plus
+each consumer's app-side secret (Authentik has had no Redis since 2025-10-29):
+
+- `infrastructure/controllers/databases/redis-ha/passwords-secret.yaml` — `redis-passwords` (per-user: admin, immich, paperless, blocky)
+- `infrastructure/controllers/databases/redis-ha/acl-secret.yaml` — `redis-acl-secret`, literal user list mounted at `/etc/redis/user.acl`; contains the SAME passwords — regenerate both, never hand-sync one side
+- Consumers: `apps/immich/immich-redis-url-secret.yaml` (`REDIS_URL=ioredis://<base64(json)>` — password embedded in the JSON) · `apps/paperless-ngx/paperless-env-secret.yaml` (Redis URL env) · Blocky config
 
 ```bash
-# 1. Generate new password
+# 1. Generate new password (per Redis user being rotated)
 NEW_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=' | head -c 32)
 
-# 2. Update Redis password via kubectl (if using Redis CRD)
-# Or update the Redis ConfigMap/Secret directly
+# 2. Update BOTH server-side secrets with the new password
+sops infrastructure/controllers/databases/redis-ha/passwords-secret.yaml
+sops infrastructure/controllers/databases/redis-ha/acl-secret.yaml   # same password in the ACL line
 
-# 3. Update SOPS-encrypted secret for the app
-# Example for Authentik:
-sops apps/authentik/secret.yaml
-# Update AUTHENTIK_REDIS__PASSWORD
+# 3. Update the app-side consumer secret
+sops apps/immich/immich-redis-url-secret.yaml        # rebuild the base64(json) REDIS_URL
+# or: sops apps/paperless-ngx/paperless-env-secret.yaml
 
 # 4. Commit and push
-git add apps/authentik/secret.yaml
-git commit -m "Rotate Authentik Redis password"
+git add -A
+git commit -m "Rotate Redis <user> password"
 git push
 
-# 5. Reconcile and restart
+# 5. Reconcile, then rollout restart (NEVER delete pods — Flux reverts restartedAt)
 flux reconcile source git flux-system --timeout 45s
-flux reconcile kustomization apps --timeout 45s --force
-kubectl rollout restart deployment/authentik-server -n authentik
-kubectl rollout restart deployment/authentik-worker -n authentik
+flux reconcile kustomization infrastructure-controllers --timeout 60s
+flux reconcile kustomization apps --timeout 60s
+kubectl rollout restart statefulset/redis-replication -n databases
+kubectl rollout restart deployment/<app> -n <app>
 
 # 6. Verify connectivity
-kubectl logs -n authentik deployment/authentik-server --tail=20 | grep -i "redis\|error"
+kubectl logs -n <app> deployment/<app> --tail=20 | grep -i "redis\|error"
 ```
 
 ---

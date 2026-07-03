@@ -17,11 +17,11 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 
 ## Platform facts
 
-- **16** applications across **28** namespaces
-- **64** NetworkPolicy resources — default-deny posture; presence enforced by Kyverno
+- **16** applications across **28** namespaces in git (32 live incl. k8s system namespaces)
+- **65** NetworkPolicy resources live (51 raw manifests in git — operator- and component-generated policies make up the delta) — default-deny posture; presence enforced by Kyverno
 - **12** Kyverno `ClusterPolicy` resources — **9 Enforce, 3 in Audit** soak
-- **53** SOPS-encrypted secrets — no plaintext secret in Git
-- **13** HelmReleases — drift detection enabled, with targeted timeouts + rollback
+- **51** SOPS-encrypted secrets in git — no plaintext secret in Git
+- **12** HelmReleases (live = git) — drift detection enabled, with targeted timeouts + rollback
 - **3** PriorityClasses (critical / standard / batch) — every workload annotated
 - **PSS:** 12 namespaces `restricted`, 9 `baseline`, 6 `privileged` (each justified — GPU, hostPath, host-network)
 
@@ -62,7 +62,7 @@ DB role name = app name. Provisioning goes through the operator CRDs (CNPG `Data
 ## Backups
 
 - Per-engine logical dumps overnight: Postgres 03:00, CouchDB 03:05, PVCs 03:10, MySQL 03:15 — **30-day retention**.
-- 03:30 replication: worker-node-2 → NAS (rsync daemon, 500 GB cap).
+- 03:30 replication CronJob on worker-node — fan-out: → NAS (rsync daemon :50555, 30-day history, 500 GB cap) AND → worker-node-2 (today-only safety copy, removal ~2026-07-20).
 - Every backup validated (SHA-256 + tar + size + age); failure-only Telegram alerts.
 
 ## Monitoring

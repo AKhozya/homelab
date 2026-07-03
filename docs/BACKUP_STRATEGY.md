@@ -1,13 +1,13 @@
 # Homelab Backup Strategy
 
-**Last Updated:** 2026-02-06
+**Last Updated:** 2026-07-03
 **Status:** Fully operational (NAS replication active)
 
 ---
 
 ## Philosophy
 
-Every database is backed up with a plain logical dump — `pg_dump`-style exports per engine — rather than continuous point-in-time recovery (PITR). For homelab data volumes (a few GB of databases, daily change measured in megabytes) a nightly logical dump is the right-sized choice: it is simple to reason about, trivial to inspect, and restores into any compatible engine version without WAL replay machinery. Backups run nightly on a fixed schedule, each archive carries a SHA256 checksum for integrity, and the result is replicated off the source node to a NAS plus a second worker as a short-term safety net. Every restore path is documented end to end, and the full disaster-recovery procedure below has been walked through, not just written down.
+Every database is backed up with a plain logical dump — `pg_dump`-style exports per engine — rather than continuous point-in-time recovery (PITR). For homelab data volumes (a few GB of databases, daily change measured in megabytes) a nightly logical dump is the right-sized choice: it is simple to reason about, trivial to inspect, and restores into any compatible engine version without WAL replay machinery. There is deliberately NO WAL archiving / barman / continuous PG backup — CNPG streaming replication is HA, not a backup layer. Backups run nightly on a fixed schedule, each archive carries a SHA256 checksum for integrity, and one replication CronJob on worker-node fans the result out to a NAS (30-day history) and to worker-node-2 as a single-day safety net. Every restore path is documented end to end.
 
 ## Backup Objectives
 
@@ -22,7 +22,7 @@ Every database is backed up with a plain logical dump — `pg_dump`-style export
 | **MySQL** (Percona, 2 instances) | Nightly 03:15 | 30 days | up to ~24h | minutes–hours; manual `mysql <` import from dump |
 | **CouchDB** (2 active-active) | Nightly 03:05 | 30 days | up to ~24h | minutes–hours; manual `couchrestore` from dump |
 | **App PVCs** (Home Assistant, Paperless, Audiobookshelf, etc.) | Nightly 03:10 | 30 days | up to ~24h | minutes–hours; scale down, untar, scale up |
-| **Off-node replication** → NAS + worker-node-2 | Nightly 03:30 | NAS unlimited (500GB cap); worker-2 = today only | n/a (copies the above) | rsync pull, then restore per tier |
+| **Off-node replication** (fan-out from worker-node) → NAS + worker-node-2 | Nightly 03:30 | NAS 30 days (500GB cap); worker-2 = today only | n/a (copies the above) | rsync pull, then restore per tier |
 
 Redis is cache and queue/broker only and is **not** backed up by design — see the "What's NOT backed up" table below.
 
@@ -43,9 +43,9 @@ Redis is cache and queue/broker only and is **not** backed up by design — see 
 |------------|----------|-----------|-----------|--------|
 | **PostgreSQL** | 3:00 AM daily | databases | 30 days | Operational |
 | **CouchDB** | 3:05 AM daily | couchdb | 30 days | Operational |
-| **PVC** | 3:10 AM daily | kube-system | 7 days | Operational |
+| **PVC** | 3:10 AM daily | kube-system | 30 days | Operational |
 | **MySQL** | 3:15 AM daily | databases | 30 days | Operational |
-| **Replication** | 3:30 AM daily | backup-replication | NAS: unlimited, worker-2: today | Operational |
+| **Replication** | 3:30 AM daily | backup-replication | NAS: 30 days, worker-2: today | Operational |
 | **Secrets** | Manual (monthly) | N/A | In `.backup/` | Scripts ready |
 
 ### Backup Flow
@@ -55,13 +55,14 @@ Redis is cache and queue/broker only and is **not** backed up by design — see 
 3:05 AM  CouchDB backup    → /mnt/k8s-storage/backups/couchdb/
 3:10 AM  PVC backup        → /mnt/k8s-storage/backups/pvc/
 3:15 AM  MySQL backup      → /mnt/k8s-storage/backups/mysql/
-3:30 AM  Replication CronJob:
-         Step 1: worker-node → NAS (no --delete, accumulates full history)
-         Step 2: worker-node → worker-node-2 (--delete, today's backup only)
-         Step 3: Verify NAS
-         Step 4: Clean source on worker-node
-         Step 5: Check NAS storage (500GB limit)
+3:30 AM  Replication CronJob (runs on worker-node, FAN-OUT to both targets):
+         Step 2: worker-node → worker-node-2 (--delete, today's backup only — safety net)
+         Step 3: worker-node → NAS (no --delete, 30-day history)
+         Step 4: Verify NAS
+         Step 5: Clean source on worker-node + prune NAS to 30d/keep-2 immich
 ```
+
+(Step numbers match `infrastructure/configs/backup-replication/cronjob.yaml`.)
 
 ### What's Protected (GitOps + Auto Backups)
 
@@ -87,7 +88,7 @@ Redis is cache and queue/broker only and is **not** backed up by design — see 
   - `mealie/mealie-data-pvc`
   - `n8n/n8n-data-pvc`
 
-**Auto Weekly Backups** (separate CronJob `immich-backup`, Sunday 02:00 UTC):
+**Auto Weekly Backups** (separate CronJob `immich-backup`, Sunday 03:00 UTC):
 - **`immich/immich-library`** — 63G photo data. Uncompressed tar (jpeg already compressed). Retention keep-2 (≈ 2 weeks).
 
 **What's NOT backed up (by design)** — 2026-05-22 audit:
@@ -105,9 +106,9 @@ Redis is cache and queue/broker only and is **not** backed up by design — see 
 - W2 safety mirror: today's only (`rsync --delete`).
 - NAS: 30d for daily backups (postgres/mysql/couchdb/pvc) + keep-2 for immich (`backup-replication` Step 5b prune via `rsync --delete` against empty source per old dir; soft-fail if daemon refuses delete → manual NAS UI prune).
 
-**Backup Replication (3 copies):**
-- **NAS** (Zettlab 6 Ultra, 192.168.1.136): full history, rsync daemon port 50555
-- **worker-node-2** (192.168.1.126): today's backup only (temp safety net until ~2026-07-22, postponed 2026-05-22 +2mo)
+**Backup Replication (3 copies, fan-out from worker-node — NOT a serial W1→W2→NAS chain):**
+- **NAS** (Zettlab 6 Ultra, 192.168.1.136): 30-day history, rsync daemon port 50555
+- **worker-node-2** (192.168.1.126): today's backup only (temp safety net until ~2026-07-20)
 - Source on worker-node cleaned after replication success
 
 **Manual Secret Backups (Scripts `.backup/`):**
@@ -194,14 +195,16 @@ cat /tmp/*/obsidian-personal.couchbackup | couchrestore \
 - **SHA256 checksum** per file
 - Stores `/mnt/k8s-storage/backups/pvc/YYYYMMDD_HHMMSS/` on worker node
 
-**Backed up PVCs:**
-- `home-assistant/home-assistant-data-pvc` — HA config + state
-- `paperless-ngx/paperless-data-pvc` — documents
-- `couchdb/database-storage-couchdb-couchdb-0` — CouchDB data
-- `audiobookshelf/audiobookshelf-audiobooks` + `audiobookshelf-podcasts`
-- Note: Immich `immich-library` excluded (photos re-uploadable, DB backed up via PostgreSQL)
+**Backed up PVCs** (13 — source of truth: `CRITICAL_PVCS` var in `pvc-backup-cronjob.yaml`):
+- `home-assistant/home-assistant-data-pvc`, `paperless-ngx/paperless-data-pvc`
+- `audiobookshelf/audiobookshelf-{audiobooks,podcasts,config,metadata}`
+- `homehub/homehub-data-pvc`, `stirling-pdf/stirling-pdf-configs-pvc`
+- `linkwarden/linkwarden-data`, `linkwarden/meilisearch-data`
+- `pricebuddy/pricebuddy-storage`, `mealie/mealie-data-pvc`, `n8n/n8n-data-pvc`
+- No CouchDB PVC — CouchDB has its own dump CronJob
+- Note: Immich `immich-library` excluded here — separate weekly `immich-backup` CronJob
 
-**Storage:** 7-day retention = ~3GB total (after Immich exclusion)
+**Storage:** 30-day retention
 
 **Restore procedure:**
 ```bash
@@ -258,17 +261,17 @@ kubectl exec -n databases main-mysql-mysql-0 -- \
 **File:** `infrastructure/configs/backup-replication/cronjob.yaml`
 
 **Implementation:**
-- CronJob daily 3:30 AM (after all backups done ~3:16 AM)
-- Step 1: rsync → NAS (no `--delete`, accumulates full history)
-- Step 2: rsync → worker-node-2 (`--delete`, current backup only as safety net)
-- Step 3: Verify NAS data via rsync list
-- Step 4: Clean source on worker-node (data on NAS + worker-node-2)
-- Step 5: Check NAS storage (warn 400GB, critical 450GB, hard limit 500GB)
+- CronJob daily 3:30 AM on worker-node (after all backups done ~3:16 AM)
+- FAN-OUT: both targets synced from the same worker-node source (not serial via W2)
+- Step 2: rsync → worker-node-2 (`--delete`, today's backup only — safety net, removal ~2026-07-20)
+- Step 3: rsync → NAS (no `--delete`)
+- Step 4: Verify NAS data via rsync list
+- Step 5: Clean source on worker-node; prune NAS to 30d daily / keep-2 immich; check NAS storage (warn 400GB, critical 450GB, hard limit 500GB)
 
 **NAS Details:**
 - **Hardware:** Zettlab 6 Ultra (14TB usable)
 - **IP:** 192.168.1.136, rsync daemon port 50555
-- **Module:** `akhozya`, path `backups/homelab/`
+- **Module:** `akhozya-pool1`, path `backups/homelab/`
 - **Auth:** rsync user/password (SOPS secret `nas-rsync-credentials`)
 - **Storage limit:** 500GB homelab backups (~190 days at 2.6GB/day)
 - **Pruning:** Manual via NAS web UI (no SSH access)
@@ -277,14 +280,14 @@ kubectl exec -n databases main-mysql-mysql-0 -- \
 - **IP:** 192.168.1.126, SSH port 65300
 - **Path:** `/mnt/extra-storage/backups/`
 - **Auth:** SSH key (SOPS secret `backup-replication-ssh-key`)
-- **Temporary:** Safety net until ~2026-07-22 (postponed 2026-05-22 +2mo)
+- **Temporary:** Safety net until ~2026-07-20 (postponed 2026-05-22 +2mo)
 
 **Recovery from NAS:**
 ```bash
 # On worker-node (or any machine on local network)
 export RSYNC_PASSWORD='<nas-rsync-password>'
 rsync -avz --port=50555 \
-  rsync://akhozya@192.168.1.136/akhozya/backups/homelab/ \
+  rsync://akhozya@192.168.1.136/akhozya-pool1/backups/homelab/ \
   /mnt/k8s-storage/backups/
 ```
 
@@ -350,12 +353,12 @@ flux bootstrap github --owner=AKhozya --repository=homelab --path=clusters --per
 | PostgreSQL | ~50 MB | 30 days | **~1.5 GB** |
 | CouchDB | ~3 MB | 30 days | **~90 MB** |
 | MySQL | ~1 MB | 30 days | **~30 MB** |
-| PVC | ~400 MB | 7 days | **~3 GB** |
-| **Local Total** | | | **~5 GB / 4.2 TB** |
-| **NAS (accumulated)** | ~2.6 GB | unlimited | **~500 GB limit** |
+| PVC | ~400 MB | 30 days | **~12 GB** |
+| **Local Total** | | | **~14 GB / 4.2 TB** |
+| **NAS (accumulated)** | ~2.6 GB | 30 days (+ keep-2 immich) | **~500 GB limit** |
 
 **Local storage:** 4.2 TB on `/mnt/k8s-storage` — backups use <1%
-**NAS storage:** 500 GB limit — ~190 days before prune at current rate
+**NAS storage:** 500 GB soft limit — 30-day prune keeps usage well below it
 
 ---
 
@@ -421,24 +424,30 @@ flux bootstrap github --owner=AKhozya --repository=homelab --path=clusters --per
 
 #### 1. Rebuild K3s Cluster
 
+**Do NOT run a bare `curl | sh -`** — that installs unpinned k3s WITH bundled
+Traefik + CoreDNS + helm-controller (collide with the Flux-managed ones). K3s
+`config.yaml`/`kubelet.yaml` are ansible-owned and must be applied BEFORE first start.
+
+**Per node, control-plane first:**
+```bash
+# 1. Bootstrap ansible stack + K3s config directory (script is bootstrap-only)
+sudo bash docs/scripts/setup-node.sh
+# 2. Apply ansible-owned config (k3s config, firewall, sysctls, ...)
+sudo systemctl start node-maintenance-sync.service
+sudo systemctl start node-maintenance-config.service
+```
+
 **On control-plane node (192.168.1.127):**
 ```bash
-curl -sfL https://get.k3s.io | sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.1+k3s1" sh -
 sudo cat /var/lib/rancher/k3s/server/node-token
 ```
 
-**On worker-node (192.168.1.129):**
+**On worker-node (192.168.1.129) and worker-node-2 (192.168.1.126):**
 ```bash
 export K3S_URL=https://192.168.1.127:6443
 export K3S_TOKEN=<token-from-control-plane>
-curl -sfL https://get.k3s.io | sh -
-```
-
-**On worker-node-2 (192.168.1.126):**
-```bash
-export K3S_URL=https://192.168.1.127:6443
-export K3S_TOKEN=<token-from-control-plane>
-curl -sfL https://get.k3s.io | sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.1+k3s1" sh -
 ```
 
 **Get kubeconfig:**
@@ -447,12 +456,10 @@ sudo cat /etc/rancher/k3s/k3s.yaml
 # Copy to ~/.kube/config and update server IP
 ```
 
-#### 2. Configure Firewall
+#### 2. Firewall
 
-```bash
-# On all 3 nodes
-sudo ufw allow from 192.168.1.0/24
-```
+Applied by the ansible `firewall` role in step 1 (`node-maintenance-config.service`).
+No manual `ufw` commands — rules are role-managed, additive, never reset.
 
 #### 3. Restore ALL Secrets (BEFORE Flux)
 
@@ -495,7 +502,7 @@ kubectl wait --for=condition=ready cluster/main-postgres -n databases --timeout=
 # On worker-node
 export RSYNC_PASSWORD='<nas-rsync-password>'
 rsync -avz --port=50555 \
-  rsync://akhozya@192.168.1.136/akhozya/backups/homelab/ \
+  rsync://akhozya@192.168.1.136/akhozya-pool1/backups/homelab/ \
   /mnt/k8s-storage/backups/
 ```
 
@@ -591,7 +598,7 @@ du -sh /mnt/k8s-storage/backups/*/
 # Check NAS storage
 export RSYNC_PASSWORD='<nas-rsync-password>'
 rsync --port=50555 -r --list-only \
-  rsync://akhozya@192.168.1.136/akhozya/backups/homelab/ | head -20
+  rsync://akhozya@192.168.1.136/akhozya-pool1/backups/homelab/ | head -20
 ```
 
 ### Manual Backup Trigger (for testing)
@@ -625,9 +632,9 @@ cd .backup
 |------|------|-------|-----------|-------------|
 | **PostgreSQL** | Daily 3:00 AM | `/mnt/k8s-storage/backups/postgres/` | 30 days | NAS + worker-2 |
 | **CouchDB** | Daily 3:05 AM | `/mnt/k8s-storage/backups/couchdb/` | 30 days | NAS + worker-2 |
-| **PVC** | Daily 3:10 AM | `/mnt/k8s-storage/backups/pvc/` | 7 days | NAS + worker-2 |
+| **PVC** | Daily 3:10 AM | `/mnt/k8s-storage/backups/pvc/` | 30 days | NAS + worker-2 |
 | **MySQL** | Daily 3:15 AM | `/mnt/k8s-storage/backups/mysql/` | 30 days | NAS + worker-2 |
-| **Replication** | Daily 3:30 AM | NAS + worker-node-2 | NAS: unlimited | - |
+| **Replication** (fan-out from worker-node) | Daily 3:30 AM | NAS + worker-node-2 | NAS: 30 days | - |
 | **Secrets** | Manual (monthly) | `.backup/` | Encrypted GPG | Store in 1Password |
 
 ---
@@ -650,7 +657,7 @@ cd .backup
 - Check NAS storage use (warn 400GB, critical 450GB)
 
 **Quarterly (validation):**
-- Full DR test in staging
+- Full DR restore drill (single env — no staging; drill against scratch namespaces / spare hardware)
 - Verify all apps restore correctly
 - Update DR docs if needed
 
@@ -658,11 +665,14 @@ cd .backup
 
 ## FUTURE ENHANCEMENTS
 
-### NAS Offsite Backup - COMPLETED (2026-02-06)
+### NAS Off-node Backup - COMPLETED (2026-02-06)
+
+Note: NAS is off-NODE, not offsite — W1, W2, and NAS share one building/power/LAN.
+No cloud/3-2-1 copy exists (accepted risk ceiling, see `docs/ARCHITECTURE.md`).
 
 - Rsync backups to NAS daily 3:30 AM
-- NAS accumulates full history (no `--delete`)
-- 500GB storage alloc (~190 days at current rate)
+- NAS keeps 30-day history (no `--delete` on sync; pruned in Step 5b)
+- 500GB storage alloc
 - Manual prune via NAS web UI
 - worker-node-2 as temp safety net
 

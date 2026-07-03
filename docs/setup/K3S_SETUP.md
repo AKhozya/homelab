@@ -8,19 +8,24 @@
 
 ## Control Plane Setup
 
-```bash
-# Install K3s
-curl -sfL https://get.k3s.io | sh -
+Order matters: bootstrap + ansible config BEFORE first k3s start. A bare
+`curl | sh -` installs unpinned k3s WITH bundled Traefik + CoreDNS + helm-controller
+that collide with the Flux-managed ones — the ansible-owned `config.yaml` disables them.
 
-# Run setup script (deploys config, firmware, hardening, kubelet, shutdown)
+```bash
+# 1. Bootstrap (ansible stack + firmware suppressors + bootloader params + K3s config dir)
 sudo bash setup-node.sh
 
-# Restart K3s to apply config
-sudo systemctl restart k3s
+# 2. Apply ansible-owned config (k3s config.yaml/kubelet.yaml, hardening, firewall, sysctls)
+sudo systemctl start node-maintenance-sync.service
+sudo systemctl start node-maintenance-config.service
+
+# 3. Install pinned K3s
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.1+k3s1" sh -
 
 # Enable secrets encryption (first time only)
 sudo k3s secrets-encrypt enable
-# Add 'secrets-encryption: true' is already in config from setup-node.sh
+# 'secrets-encryption: true' is already in config.yaml from the ansible k3s_config role
 sudo systemctl restart k3s
 sudo k3s secrets-encrypt rotate-keys
 sudo systemctl restart k3s
@@ -49,27 +54,30 @@ sudo mount -a
 ### Installation
 
 ```bash
-# Install K3s agent (replace token)
-curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<node-token> sh -
-
-# Run setup script (deploys config, firmware, hardening, kubelet, shutdown)
+# 1. Bootstrap + ansible-owned config (same as CP — BEFORE k3s install)
 sudo bash setup-node.sh
+sudo systemctl start node-maintenance-sync.service
+sudo systemctl start node-maintenance-config.service
 
-# Restart K3s agent
-sudo systemctl restart k3s-agent
+# 2. Install pinned K3s agent (replace token)
+curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<node-token> INSTALL_K3S_VERSION="v1.36.1+k3s1" sh -
 ```
 
-## What setup-node.sh Configures
+## What setup-node.sh Configures (bootstrap-only)
 
-Script (`docs/scripts/setup-node.sh`) auto-detects node type + applies:
+The script (`docs/scripts/setup-node.sh`) is **bootstrap-only** (see its header) and
+auto-detects node type. It applies exactly three things:
 
-1. **Firmware**: Intel/AMD microcode, linux-firmware, optional AUR firmware
-2. **Performance**: CPU governor, BBR, inotify limits, conntrack, SSD power mgmt
-3. **Security**: SSH hardening (post-quantum kex), kernel sysctls, streaming timeout
-4. **K3s config**: writes `/etc/rancher/k3s/config.yaml` (CP or worker, auto-detect)
-   - CP: disables Helm controller + bundled Traefik, taints node, secrets encryption flag
-   - Worker: sets node-name from hostname, enables ServiceLB
-5. **Graceful shutdown**: kubelet config (120s grace), systemd timeouts, conntrack fix
+1. **Bootstrap packages**: ansible stack (CP only) + AUR firmware suppressors
+2. **Bootloader kernel params**: systemd-boot entries (not ansible-managed)
+3. **K3s config directory stub**: creates the `/etc/rancher/k3s/` directory
+
+It does NOT write `config.yaml`/`kubelet.yaml` or apply hardening directly. Everything
+else — K3s `config.yaml` (CP: disables bundled coredns/traefik/helm-controller, secrets
+encryption; worker: node-name, ServiceLB) + `kubelet.yaml` (120s graceful shutdown),
+sysctls, sshd hardening, udev, tmpfiles, journald, logrotate, UFW, packages — is owned
+by ansible roles (`docs/scripts/node-maintenance/ansible/roles/`) and drift-healed daily
+by `node-maintenance-config.timer`.
 
 ## Node Scheduling
 
@@ -84,13 +92,12 @@ Script (`docs/scripts/setup-node.sh`) auto-detects node type + applies:
 
 ## Updating K3s
 
-```bash
-# Control plane
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.35.3+k3s1 sh -
-
-# Worker nodes (need URL + token)
-curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<token> INSTALL_K3S_VERSION=v1.35.3+k3s1 sh -
-```
+Do NOT re-run the install script to upgrade. k3s is a manual binary at
+`/usr/local/bin/k3s` — not pacman/yay-managed, and the node-maintenance
+phase1/phase2 flow does not bump it. Upgrade via the manual-binary rolling
+procedure (`k3s-upgrade` skill): pick version from the channels API, stage the
+new binary on each node, rolling-restart k3s / k3s-agent (no reboot, CP first),
+verify, keep the old binary for rollback.
 
 ## Verification
 
