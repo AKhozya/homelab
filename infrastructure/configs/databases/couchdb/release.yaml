@@ -70,20 +70,9 @@ spec:
       couchdb:
         uuid: beb932d28abcf87163a94cf52f1a795e
         max_document_size: 50000000
-        # Delayed commits disabled for data safety - every write is immediately flushed
-        # This is slower but ensures zero data loss on crashes
-        delayed_commits: "false"
       chttpd:
         require_valid_user: true
         max_http_request_size: 134217728
-        # Rate limiting: max requests per connection per second (prevents brute force)
-        # Set to 100 req/sec which is reasonable for sync operations
-        max_http_request_rate: 100
-        enable_cors: true
-        WWW-Authenticate: Basic realm="couchdb"
-      chttpd_auth:
-        require_valid_user: true
-      httpd:
         enable_cors: true
         WWW-Authenticate: Basic realm="couchdb"
       cors:
@@ -91,9 +80,8 @@ spec:
         credentials: true
         headers: accept, authorization, content-type, origin, referer
         methods: GET, PUT, POST, HEAD, DELETE
-      # Automatic compaction: prevent database bloat from sync operations
-      compactions:
-        _default: "[{db_fragmentation, \"70%\"}, {view_fragmentation, \"60%\"}]"
+      # Compaction: smoosh defaults (CouchDB 3.x auto-compaction daemon) — tune
+      # [smoosh.<channel>] here if bloat ever becomes a problem
 
     # Admin credentials (chart will read an existing secret instead of creating one)
     adminUsername: admin

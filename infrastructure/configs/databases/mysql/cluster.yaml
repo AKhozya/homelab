@@ -11,7 +11,9 @@ spec:
   crVersion: "1.2.0"
 
   # Enable dynamic storage expansion without downtime
-  enableVolumeExpansion: true
+  # (spec.enableVolumeExpansion deprecated in operator 1.2.0, removed 1.5.0)
+  storageScaling:
+    enableVolumeScaling: true
 
   # Allow 2 replicas and simplified orchestrator (homelab setup)
   unsafeFlags:

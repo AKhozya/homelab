@@ -234,10 +234,9 @@ spec:
       admissionReports:
         enabled: true
 
-      # Validate existing resources in background
+      # Validate existing resources in background (backgroundScanInterval: chart default 1h)
       backgroundScan:
         enabled: true
-        interval: 1h
 
     # CRDs configuration
     crds:
@@ -254,9 +253,3 @@ spec:
 
       # Webhook configuration
       webhookAnnotations: {}
-      webhookMatchConditions: []
-
-    # Metrics
-    metricsService:
-      create: true
-      type: ClusterIP

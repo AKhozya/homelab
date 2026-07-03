@@ -4,5 +4,7 @@ metadata:
   name: immich
   namespace: immich
 spec:
-  url: https://immich-app.github.io/immich-charts
+  # HTTP repo frozen upstream (immich-charts #381) — 0.13+ published OCI-only
+  type: oci
+  url: oci://ghcr.io/immich-app/immich-charts
   interval: 6h

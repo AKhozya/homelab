@@ -104,8 +104,10 @@ Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md
 |---|---|
 | 2026-07-04 | Monthly review + first quarterly automation audit — upstream re-checks (n8n #25705, Authentik client-hints #20700, image-CVE scanner decision, mysql-proxy POP-1100). Kyverno Audit→Enforce flip + `validationFailureAction`→per-rule `failureAction` sweep done early 2026-07-03 (main 6abb551f) |
 | 2026-07 (unscheduled) | Remaining deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only). **Done 2026-07-03** (main `d771464d`): Percona `crVersion`→1.2.0 (SmartUpdate roll, matched operator chart already at 1.2.0); ClusterIssuer→`letsencrypt-prod` (16 certs re-issued, was already prod ACME); Redis/CouchDB instance CRs → configs layer (gapless prune:disabled move); csp-reporter GC'd — see HISTORY |
+| 2026-07 (unscheduled) | Loki chart lineage migration — `grafana.github.io` loki chart is GEL-only since 7.0.0 (frozen for OSS); repoint HelmRepository to `grafana-community/helm-charts` (fork of 6.55.0, renumbered — 18.x as of 2026-07) + values-compat review. Until then Renovate is blind to OSS Loki updates |
 | 2026-07-06 | Resource right-sizing pass |
 | ~2026-07-20 | Worker-2 backup replication-step drop / temp safety-net removal (postponed +2mo from 2026-05-22) |
+| ~2026-10 (before Kyverno chart ships v1.20) | `kyverno.io/v1` ClusterPolicy kind deprecated since Kyverno 1.17; removal planned 1.20 (~Oct 2026). Migrate all 12 ClusterPolicies (pattern/anyPattern) → CEL `ValidatingPolicy` v1 BEFORE accepting any kyverno chart bump that ships 1.20. Until migrated: hold such Renovate PRs |
 | 2026-10-01 | 180-day secret rotation — ALL scheduled secrets: PG/MySQL/Redis, CouchDB, OIDC, Authentik Django key (90-day High tier retired 2026-07-02, ex-High folded in; Redis admin+blocky follow 2026-10-26) |
 | 2026-12-18 | `backup-replication-ssh` key rotation |
 | 2026-12-31 | `cloudflare-tunnel-mgmt-token` rotation |

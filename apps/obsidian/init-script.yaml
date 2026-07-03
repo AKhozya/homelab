@@ -64,13 +64,7 @@ data:
     curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
       "$COUCHDB_URL/_node/_local/_config/chttpd/require_valid_user" -d '"true"'
     curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
-      "$COUCHDB_URL/_node/_local/_config/chttpd_auth/require_valid_user" -d '"true"'
-    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
-      "$COUCHDB_URL/_node/_local/_config/httpd/WWW-Authenticate" -d '"Basic realm=\"couchdb\""'
-    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
       "$COUCHDB_URL/_node/_local/_config/chttpd/WWW-Authenticate" -d '"Basic realm=\"couchdb\""'
-    curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
-      "$COUCHDB_URL/_node/_local/_config/httpd/enable_cors" -d '"true"'
     curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
       "$COUCHDB_URL/_node/_local/_config/chttpd/enable_cors" -d '"true"'
     curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \

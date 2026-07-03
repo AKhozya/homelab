@@ -32,6 +32,25 @@ Shipped 4 deferred items from the 2026-07-03 ultrareview backlog, staged as sepa
 
 ---
 
+### 2026-07-03 — Deprecation audit (helm chart values + repo YAML + Flux/CRD APIs)
+
+Fan-out audit of all 12 HelmRelease values against their pinned upstream charts, every repo apiVersion/field, Flux APIs, and live `apiserver_requested_deprecated_apis`. Every fix proven render-identical via `helm template` before/after diff (except 2 intended changes). Codex static peer review (1 MEDIUM catch: obsidian init-script re-applied legacy CouchDB keys).
+
+**Fixed (this commit):**
+- immich: deleted dead `serviceAccount:{create,name}` values block (bjw-s common ≤3.x shape; SA attachment actually done by postRenderer) — was hard-blocking chart 0.13+ (`values.schema.json` rejects it). Render diff: chart now emits its 2 default SAs (harmless; matches post-0.13 state). Deleted dead envs `IMMICH_METRICS` (removed in server 1.119.0; telemetry injected by chart via `immich.metrics.enabled`) + `IMMICH_MEDIA_FFMPEG_ACCEL` (never an upstream var; VAAPI configured in admin UI)
+- immich: HelmRepository → `oci://ghcr.io/immich-app/immich-charts` (HTTP repo frozen upstream; 0.13+ OCI-only — Renovate was blind to upgrades)
+- flux: Alert `spec.summary` → `spec.eventMetadata.summary` (deprecated; removed at Alert v1 GA, Flux 2.10 ~Q4 2026)
+- kube-prometheus-stack: deleted phantom `grafana.rbac.extraPermissions` (key never existed in grafana chart; sidecar RBAC auto-generated)
+- kyverno: deleted 3 phantom values keys (`features.backgroundScan.interval` — real key `backgroundScanInterval`; `config.webhookMatchConditions` — real key `matchConditions`; top-level `metricsService` — chart-v2 shape). All no-ops, defaults = intent
+- redis-operator: deleted phantom `serviceMonitor.enabled` + entire `serviceAccount` block (keys never existed in chart, any version; SA gated on `rbac.enabled`, `automountServiceAccountToken` value = chart default)
+- couchdb: deleted 5 dead ini keys — `[compactions]._default` (2.x daemon; smoosh since 3.0 — **intended 70%/60% fragmentation thresholds were never in effect**), `chttpd.max_http_request_rate` (Cloudant-ism, not a CouchDB option — **believed rate limiting never existed**), `couchdb.delayed_commits` (option removed in 3.0, behavior hardwired), `chttpd_auth.require_valid_user` + `httpd:{enable_cors,WWW-Authenticate}` (3.2 moved to `[chttpd]`; identical effective copies kept). Obsidian init-script: same 3 legacy config-API writes deleted (Codex catch). CouchDB pods roll once (checksum/config)
+- loki: deleted deprecated `monitoring.selfMonitoring` block (false = default). **Refuted during proof**: SSD `backend/read/write: replicas: 0` stanzas are NOT redundant — chart validate.yaml hard-fails SingleBinary without them; kept with corrected comment
+- percona: `spec.enableVolumeExpansion` → `spec.storageScaling.enableVolumeScaling` (deprecated in operator 1.2.0, removal 1.5.0; unblocked by the crVersion→1.2.0 bump `3769dc87` — field verified against live CRD). Spec-only toggle, no pod-template change → no roll expected
+
+**Tracked (not fixed here):** Kyverno ClusterPolicy→CEL ValidatingPolicy migration deadline (~Oct 2026, kind deprecated since 1.17, removal planned 1.20); Loki chart lineage → grafana-community (7.x = GEL-only); immich 0.13.1 via Renovate now unblocked.
+
+**Verified clean:** traefik 41.0.1 (schema-strict render proof; `traefik.io/v1alpha1` = only CRD version, no v1 exists upstream), cert-manager 1.20.3 (`crds.*` already), cnpg 0.29.0 (zero barmanObjectStore → 1.31 removal no-impact), alloy 1.10.0, vm-operator 0.65.1 (`v1beta1` current for all VM* kinds, no promotion announced), kube-prometheus-stack 87.6.0 (Alertmanager config already modern matchers), ps-operator 1.2.0 values, couchdb chart keys, all Flux v1/v2 APIs + notification v1beta3 (current through 2.9; deprecated 2.10; removal ≥2 minors later), core k8s all-GA, kustomize v5 fields absent, live apiserver deprecated-API metric ~zero (one `Endpoints` read, no removal planned).
+
 ### 2026-07-03 — Ultrareview (6-axis: architecture, approaches, solution, quality, docs, security)
 
 6 dimension reviewers + adversarial verification (52 findings survived) + live-cluster spikes + Codex static review. Fixed in worktree, single-env prod.

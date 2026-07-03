@@ -19,7 +19,9 @@ metadata:
   name: flux-gitops
   namespace: monitoring
 spec:
-  summary: "🔄 Flux GitOps Events"
+  # spec.summary deprecated (removed at Alert v1 GA, Flux 2.10) — eventMetadata.summary replaces it
+  eventMetadata:
+    summary: "🔄 Flux GitOps Events"
   providerRef:
     name: telegram
   eventSeverity: error

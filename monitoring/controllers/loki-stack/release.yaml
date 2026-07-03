@@ -146,7 +146,8 @@ spec:
     # Single binary mode for simplicity
     deploymentMode: SingleBinary
 
-    # Disable simple scalable mode components
+    # SSD components MUST be zeroed explicitly — chart validate.yaml rejects
+    # SingleBinary with non-zero (default) scalable-target replicas
     backend:
       replicas: 0
     read:
@@ -213,9 +214,6 @@ spec:
         enabled: true
         labels:
           release: kube-prometheus-stack  # Required for Prometheus discovery
-
-      selfMonitoring:
-        enabled: false
 
     # Disable caching for single binary mode
     chunksCache:

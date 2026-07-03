@@ -130,12 +130,6 @@ spec:
   # Hardware acceleration (VAAPI) enabled for GPU transcoding on AMD Radeon
   # Requires: privileged container, /dev/dri hostPath, PSS privileged namespace
   values:
-    # Service Account configuration (created via separate manifest)
-    # Applied globally to all Immich components
-    serviceAccount:
-      create: false
-      name: immich
-
     # Global image configuration for Renovate/Dependabot tracking
     # See: https://github.com/immich-app/immich-charts/issues/68
     # Kept in sync with the per-component server/machine-learning tags below.
@@ -174,7 +168,6 @@ spec:
                     key: redis-url
               # Immich-specific settings
               IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
-              IMMICH_METRICS: "true"
 
     # Immich shared configuration
     immich:
@@ -272,9 +265,9 @@ spec:
                 tag: v3.0.1
                 pullPolicy: IfNotPresent
               env:
-                # Hardware acceleration via VAAPI on AMD Radeon GPU
-                # Tested: 27x faster than CPU encoding (privileged container required)
-                IMMICH_MEDIA_FFMPEG_ACCEL: vaapi
+                # Hardware acceleration via VAAPI on AMD Radeon GPU (accel itself is
+                # configured in the admin UI ffmpeg settings; needs privileged container)
+                # Tested: 27x faster than CPU encoding
                 LIBVA_DRIVER_NAME: radeonsi
               resources:
                 requests:
