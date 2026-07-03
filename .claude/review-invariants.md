@@ -60,6 +60,13 @@ For the `caveman:cavecrew-reviewer` pre-push gate. The reviewer already enforces
 
 ### Shell
 - `A | grep -q X && echo Y || echo Z` — the pipe binds tighter than `||`, so the middle branch breaks; shellcheck misses the logic. Use `set -euo pipefail`, not bare `set -e`. (F-27 setup-node.sh, F-28 analyze-update.sh)
+- **Backup/dump success-theater (embedded CronJob shell — invisible to CI shellcheck).** Three patterns make a partial/failed backup report success, and all alerting keys on job-exit-status so the loss is silent: (a) `cmd 2>&1 | tee file` under `set -e` **without** pipefail — the pipeline's exit is tee's (always 0), so a failed `pg_dump`/`mysqldump` never trips `set -e` and the following `if [ $? -eq 0 ]` tests tee, not the dump. Fix: `set -eo pipefail` + `if cmd | tee …; then` (the `if` keeps set -e from aborting mid-loop). (b) `mysqldump … > out.sql 2>&1` redirects **stderr into the dump file** — the `[Warning] Using a password…` line becomes line 1 and `mysql < out.sql` chokes at restore. Fix: `2>err` sidecar (or `MYSQL_PWD` to kill the warning). (c) a missing required input handled by a bare `continue`/warning that does NOT increment a failure counter → the job still exits 0 with a silent gap. Fix: count the failure + `exit 1` before packaging. (2026-07-03 ultrareview: postgres/mysql/pvc backup jobs all three.)
+
+### Traefik / Ingress
+- **`rateLimit.average` is per `period`, default `1s`.** A middleware with `average: 100` and NO `period:` enforces 100 req/**second** (~6000/min), not the "100/min" the comment claims — 60× looser, so a brute-force/scrape never trips it. Fix: set `period: 1m` (or the intended window) alongside `average`. `burst` is instantaneous-concurrent, unrelated to the rate. (2026-07-03 ultrareview: both rate-limit-standard/-high-frequency were per-second.)
+
+### Monitoring / VMRule
+- **A staleness alert `time() - <Job metric> > N` is structurally DEAD when N > the Job's `ttlSecondsAfterFinished`.** kube-state-metrics drops `kube_job_*` series when the Job is TTL-reaped (backups: 24h TTL), so a >24h threshold (e.g. 48h) can never be satisfied before the series vanishes — a "0 firing" scan looks healthy. Also a per-namespace `max(...) by (namespace)` masks one stopped CronJob when a sibling in the same ns still runs. Fix: key on the CronJob status metric `kube_cronjob_status_last_successful_time` (NOT TTL-reaped, persists on the Flux-managed CronJob object), evaluated per-cronjob. `_shared/vmrules-metric-audit.sh` now flags this class. (2026-07-03 ultrareview: NoRecentBackups.)
 
 ## Maintenance
 
