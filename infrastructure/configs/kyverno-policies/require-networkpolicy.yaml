@@ -20,6 +20,13 @@ spec:
           - resources:
               kinds:
                 - Pod
+              # CREATE/UPDATE only: the shared validate.kyverno.svc-fail webhook also fires on
+              # DELETE, and a "require NP present" deny on DELETE blocks namespace teardown once
+              # the NP is pruned (netpolcount=0) — the csp-reporter ns wedge (2026-07-03). A
+              # delete never needs an NP guarantee. Precondition below covers UPDATE-on-terminating.
+              operations:
+                - CREATE
+                - UPDATE
       exclude:
         any:
           - resources:
