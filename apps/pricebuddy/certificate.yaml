@@ -6,7 +6,7 @@ metadata:
 spec:
   secretName: pricebuddy-tls-secret
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
     - pricebuddy.h0melab.work

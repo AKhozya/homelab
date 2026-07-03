@@ -1,14 +1,15 @@
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
-  name: letsencrypt-staging
+  name: letsencrypt-prod
 spec:
   acme:
-    # Let's Encrypt production server (using prod for staging environment)
+    # Let's Encrypt production ACME server (renamed from letsencrypt-staging 2026-07-03 —
+    # it always pointed at prod; the "staging" name was a leftover misnomer).
     server: https://acme-v02.api.letsencrypt.org/directory
     email: acme@h0melab.work
     privateKeySecretRef:
-      name: letsencrypt-staging
+      name: letsencrypt-prod
     solvers:
     - dns01:
         cloudflare:

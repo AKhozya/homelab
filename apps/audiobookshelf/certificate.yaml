@@ -6,7 +6,7 @@ metadata:
 spec:
   secretName: audiobookshelf-tls-secret
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
     - audiobooks.h0melab.work

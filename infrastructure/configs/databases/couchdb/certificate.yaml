@@ -6,7 +6,7 @@ metadata:
 spec:
   secretName: couchdb-tls-secret
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
     - couchdb.h0melab.work

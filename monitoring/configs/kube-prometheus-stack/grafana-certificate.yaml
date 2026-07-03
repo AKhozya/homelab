@@ -6,7 +6,7 @@ metadata:
 spec:
   secretName: grafana-tls-secret
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
     - grafana.h0melab.work

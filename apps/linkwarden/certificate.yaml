@@ -6,7 +6,7 @@ metadata:
 spec:
   secretName: linkwarden-tls-secret
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
     - linkwarden.h0melab.work

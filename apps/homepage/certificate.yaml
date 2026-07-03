@@ -6,7 +6,7 @@ metadata:
 spec:
   secretName: homepage-tls-secret
   issuerRef:
-    name: letsencrypt-staging
+    name: letsencrypt-prod
     kind: ClusterIssuer
   dnsNames:
     - home.h0melab.work
