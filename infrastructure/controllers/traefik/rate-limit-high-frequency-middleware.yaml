@@ -5,9 +5,13 @@ metadata:
   namespace: traefik
 spec:
   rateLimit:
-    # High-frequency rate limit for APIs and services with burst traffic
-    # 200 requests/minute sustained, allows bursts up to 300
-    average: 200
+    # High-frequency rate limit for APIs and asset-heavy apps: 600 req/min
+    # per client IP. `average` is per `period` — WITHOUT period it defaults
+    # to 1s, which silently made the old "200/min" comment enforce
+    # 200/SECOND (12000/min). Calibrated 2026-07-03: immich 7d peak
+    # 200 req/min → 3x headroom.
+    average: 600
+    period: 1m
     burst: 300
     # Rate limit based on client IP
     sourceCriterion:

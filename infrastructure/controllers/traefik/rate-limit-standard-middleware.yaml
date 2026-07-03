@@ -5,9 +5,12 @@ metadata:
   namespace: traefik
 spec:
   rateLimit:
-    # Standard rate limit for normal web apps
-    # 100 requests/minute sustained, allows bursts up to 150
-    average: 100
+    # Standard rate limit for normal web apps: 300 req/min per client IP.
+    # `average` is per `period` — WITHOUT period it defaults to 1s, which
+    # silently made the old "100/min" comment enforce 100/SECOND (6000/min).
+    # Calibrated 2026-07-03: standard-tier 7d peak ≤~100/min → 3x headroom.
+    average: 300
+    period: 1m
     burst: 150
     # Rate limit based on client IP
     sourceCriterion:
