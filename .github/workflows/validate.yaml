@@ -23,7 +23,9 @@ concurrency:
 env:
   KUBECONFORM_VERSION: v0.6.7
   KUSTOMIZE_VERSION: v5.5.0
-  KUBERNETES_VERSION: "1.31.0"
+  # Track the live cluster (v1.36.1+k3s1). yannh/kubernetes-json-schema ships
+  # v1.36.1 schemas. Bump alongside any k3s upgrade (k3s-upgrade skill checklist).
+  KUBERNETES_VERSION: "1.36.1"
   GITLEAKS_VERSION: "8.30.1"
 
 jobs:

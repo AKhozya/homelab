@@ -82,7 +82,7 @@
       ]
     },
     {
-      "description": "Pin digests for Helm charts and images",
+      "description": "Do NOT pin digests — tag pins (major.minor.patch) plus the image-pin CI audit are the supply-chain mechanism; digest churn not wanted",
       "matchDatasources": [
         "helm",
         "docker"
@@ -133,10 +133,11 @@
       "ignoreUnstable": true
     },
     {
-      "description": "Automerge patch updates for low-risk apps (scoped to apps/ image patches; excludes DB operators, Flux, Traefik, monitoring)",
+      "description": "Automerge patch updates for low-risk apps (scoped to apps/ image patches; excludes DB operators, Flux, Traefik, monitoring). minimumReleaseAge soaks 3 days so yanked/hotfixed/re-tagged patches don't auto-deploy to prod overnight (merge-to-main = deploy)",
       "matchFileNames": ["apps/**"],
       "matchUpdateTypes": ["patch"],
       "matchDatasources": ["docker", "github-releases"],
+      "minimumReleaseAge": "3 days",
       "automerge": true
     }
   ],
