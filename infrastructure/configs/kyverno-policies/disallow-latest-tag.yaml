@@ -12,7 +12,6 @@ metadata:
       it difficult to track which version is deployed and can lead to unexpected
       updates. This policy disallows images with the 'latest' tag or no tag specified.
 spec:
-  validationFailureAction: Enforce
   background: true
   rules:
     - name: disallow-latest-tag
@@ -31,6 +30,7 @@ spec:
                 - flux-system
                 - kyverno
       validate:
+        failureAction: Enforce
         message: "Images must not use the 'latest' tag or omit the tag (which defaults to 'latest')"
         foreach:
           - list: "request.object.spec.[initContainers, containers][]"

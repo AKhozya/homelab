@@ -12,7 +12,6 @@ metadata:
       host resources and bypass Pod isolation. This policy blocks the use of
       host namespaces to prevent container escape.
 spec:
-  validationFailureAction: Enforce
   background: true
   rules:
     - name: host-namespaces
@@ -39,6 +38,7 @@ spec:
                 matchLabels:
                   app.kubernetes.io/name: prometheus-node-exporter
       validate:
+        failureAction: Enforce
         message: "Using host namespaces (hostNetwork, hostPID, hostIPC) is disallowed"
         pattern:
           spec:

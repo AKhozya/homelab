@@ -12,7 +12,6 @@ metadata:
       Homelab invariant: every ingress = NetworkPolicy (container port, not service port).
       This policy backstops the manual NetworkPolicy curation (64 NP resources as of 2026-06).
 spec:
-  validationFailureAction: Enforce  # promoted Audit->Enforce 2026-05-25 after clean scan; 160 pass / 0 fail
   background: true
   rules:
     - name: require-netpol-present
@@ -35,6 +34,7 @@ spec:
             urlPath: "/apis/networking.k8s.io/v1/namespaces/{{ request.namespace }}/networkpolicies"
             jmesPath: "items | length(@)"
       validate:
+        failureAction: Enforce  # promoted Audit->Enforce 2026-05-25 after clean scan; 160 pass / 0 fail
         message: "Namespace {{ request.namespace }} must declare at least one NetworkPolicy (homelab invariant: every ingress = NetworkPolicy)"
         deny:
           conditions:

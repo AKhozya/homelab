@@ -11,9 +11,6 @@ metadata:
       Containers should not run as root (UID 0). This reduces the impact of container
       compromise by limiting the privileges available inside the container.
 spec:
-  # Audit (was Enforce): container securityContext hard-anchored (UR2 P3-4) — old =() passed any
-  # container lacking securityContext. Audit-first surfaces real root-capable pods before re-Enforce (soak → ~2026-07).
-  validationFailureAction: Audit
   background: true
   rules:
     - name: require-non-root-user
@@ -43,6 +40,8 @@ spec:
                 - backup-replication   # rsync needs root to access backup files
                 - paperless-ngx        # s6-overlay /run permission init — restored 2026-05 (see HOMELAB_HISTORY)
       validate:
+        # Enforce (promoted from Audit 2026-07-03; soak clean, 113 pass / 0 fail). securityContext hard-anchored (UR2 P3-4) — old =() passed containers lacking securityContext.
+        failureAction: Enforce
         message: "Containers must not run as root (set runAsNonRoot: true or runAsUser > 0 at pod or container level)"
         anyPattern:
           # Pod-level securityContext covers every container

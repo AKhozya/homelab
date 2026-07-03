@@ -12,7 +12,6 @@ metadata:
       tampering of the image. Homelab invariant: readOnlyRootFilesystem requires a
       /tmp emptyDir volume for any path the process needs to write.
 spec:
-  validationFailureAction: Enforce  # promoted Audit->Enforce 2026-05-25 after clean scan + per-app triage
   background: true
   rules:
     - name: require-readonly-rootfs
@@ -54,6 +53,7 @@ spec:
                 matchLabels:
                   app.kubernetes.io/name: grafana
       validate:
+        failureAction: Enforce  # promoted Audit->Enforce 2026-05-25 after clean scan + per-app triage
         message: "Every container must set securityContext.readOnlyRootFilesystem: true (mount a /tmp emptyDir for writable paths)"
         pattern:
           spec:

@@ -11,9 +11,6 @@ metadata:
       Labels are essential for organization, filtering, and tooling integration.
       This policy requires all pods to have common labels for better resource management.
 spec:
-  # Audit (was Enforce): the pattern below was hard-anchored (UR2 P3-3) — the old =() soft anchors
-  # passed pods missing labels entirely. Audit-first surfaces real violators before re-Enforce (soak → ~2026-07).
-  validationFailureAction: Audit
   background: true
   rules:
     - name: require-app-label
@@ -32,6 +29,8 @@ spec:
                 - flux-system
                 - kyverno
       validate:
+        # Enforce (promoted from Audit 2026-07-03; soak clean, 199 pass / 0 fail). Pattern hard-anchored (UR2 P3-3) — old =() soft anchors passed pods missing labels entirely.
+        failureAction: Enforce
         message: "The 'app' or 'app.kubernetes.io/name' label is required"
         anyPattern:
           - metadata:

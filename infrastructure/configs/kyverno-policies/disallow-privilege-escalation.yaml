@@ -11,7 +11,6 @@ metadata:
       Privilege escalation should be disallowed to prevent containers from gaining
       more privileges than their parent process. This is part of Pod Security Standards.
 spec:
-  validationFailureAction: Enforce  # promoted Audit->Enforce 2026-05-25 after clean scan; operator/privileged excluded
   background: true
   rules:
     - name: disallow-privilege-escalation
@@ -47,6 +46,7 @@ spec:
                 matchLabels:
                   app.kubernetes.io/name: prometheus-node-exporter
       validate:
+        failureAction: Enforce  # promoted Audit->Enforce 2026-05-25 after clean scan; operator/privileged excluded
         message: "Privilege escalation must be disabled (allowPrivilegeEscalation: false) on every container"
         pattern:
           spec:
