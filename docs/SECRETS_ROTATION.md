@@ -210,8 +210,8 @@ kubectl rollout restart deployment/<app> -n <app>
 Redis auth lives in TWO server-side SOPS secrets that must rotate TOGETHER, plus
 each consumer's app-side secret (Authentik has had no Redis since 2025-10-29):
 
-- `infrastructure/controllers/databases/redis-ha/passwords-secret.yaml` — `redis-passwords` (per-user: admin, immich, paperless, blocky)
-- `infrastructure/controllers/databases/redis-ha/acl-secret.yaml` — `redis-acl-secret`, literal user list mounted at `/etc/redis/user.acl`; contains the SAME passwords — regenerate both, never hand-sync one side
+- `infrastructure/configs/databases/redis-ha/passwords-secret.yaml` — `redis-passwords` (per-user: admin, immich, paperless, blocky)
+- `infrastructure/configs/databases/redis-ha/acl-secret.yaml` — `redis-acl-secret`, literal user list mounted at `/etc/redis/user.acl`; contains the SAME passwords — regenerate both, never hand-sync one side
 - Consumers: `apps/immich/immich-redis-url-secret.yaml` (`REDIS_URL=ioredis://<base64(json)>` — password embedded in the JSON) · `apps/paperless-ngx/paperless-env-secret.yaml` (Redis URL env) · Blocky config
 
 ```bash
@@ -219,8 +219,8 @@ each consumer's app-side secret (Authentik has had no Redis since 2025-10-29):
 NEW_PASSWORD=$(openssl rand -base64 32 | tr -d '+/=' | head -c 32)
 
 # 2. Update BOTH server-side secrets with the new password
-sops infrastructure/controllers/databases/redis-ha/passwords-secret.yaml
-sops infrastructure/controllers/databases/redis-ha/acl-secret.yaml   # same password in the ACL line
+sops infrastructure/configs/databases/redis-ha/passwords-secret.yaml
+sops infrastructure/configs/databases/redis-ha/acl-secret.yaml   # same password in the ACL line
 
 # 3. Update the app-side consumer secret
 sops apps/immich/immich-redis-url-secret.yaml        # rebuild the base64(json) REDIS_URL
@@ -343,19 +343,19 @@ kubectl rollout restart deployment/homehub -n homehub
 NEW=$(openssl rand -base64 32 | tr -d '\n=/+' | head -c 40)
 
 # 2. Update redis-passwords (databases ns)
-sops infrastructure/controllers/databases/redis-ha/passwords-secret.yaml
+sops infrastructure/configs/databases/redis-ha/passwords-secret.yaml
 # Replace blocky-password value with $NEW
 
 # 3. Update redis-acl-secret (databases ns) — replace blocky line `>${OLD}` with `>${NEW}`
-sops infrastructure/controllers/databases/redis-ha/acl-secret.yaml
+sops infrastructure/configs/databases/redis-ha/acl-secret.yaml
 
 # 4. Update Blocky's inlined config Secret
 sops apps/blocky/config-secret.yaml
 # Find redis.password: <OLD> → replace with <NEW>
 
 # 5. Commit, push, reconcile, restart
-git add infrastructure/controllers/databases/redis-ha/passwords-secret.yaml \
-        infrastructure/controllers/databases/redis-ha/acl-secret.yaml \
+git add infrastructure/configs/databases/redis-ha/passwords-secret.yaml \
+        infrastructure/configs/databases/redis-ha/acl-secret.yaml \
         apps/blocky/config-secret.yaml
 git commit -m "Rotate blocky redis password"
 git push

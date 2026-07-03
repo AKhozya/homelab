@@ -20,7 +20,7 @@
 Defined in `traefik` ns (referenced as `traefik-<name>@kubernetescrd`):
 - `csp`, `csp-strict-enforced`, `csp-inline-enforced`, `csp-permissive-enforced`, `rate-limit-standard`, `rate-limit-high-frequency`, `redirect-https`, `security-headers`
 
-CSP 3-tier is **enforced-only** — report-only tier middlewares deleted 2026-06-05 (`cc86baa9`, dead config). `report-uri` omitted everywhere: csp-reporter is cluster-internal HTTP, unreachable from a browser (Mixed-Content) — verify CSP via browser console, not Loki.
+CSP 3-tier is **enforced-only** — report-only tier middlewares deleted 2026-06-05 (`cc86baa9`, dead config). `report-uri` omitted everywhere: csp-reporter was a browser-unreachable cluster-internal sink (Mixed-Content); deleted 2026-07-03 — verify CSP via browser console, not Loki.
 
 Legacy duplicates also live in `monitoring` ns (`csp`, `rate-limit-standard`, `redirect-https`, `security-headers`) for kube-prometheus-stack ingresses.
 

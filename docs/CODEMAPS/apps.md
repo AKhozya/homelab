@@ -26,13 +26,13 @@
 - `monitoring` — VM stack (vmsingle, vmagent, vmalert), Grafana (PVC, sqlite, OIDC, dual-ingress, monitoring UI), Alertmanager, kube-state-metrics, node-exporter (kube-prometheus-stack chart trimmed — no Prometheus pod)
 - `loki` — Loki helm 7.0.0 + Alloy 1.8.2 (own namespace, not monitoring)
 - `traefik` — ingress controller (own namespace) + shared middleware CRDs
-- `cert-manager`, `cloudflare-tunnel`, `kyverno`, `csp-reporter`
+- `cert-manager`, `cloudflare-tunnel`, `kyverno`
 - `backup-replication` — daily rsync to W2 + NAS
 - `popeye` — weekly cluster scan
 
 ## Shared service patterns
 - All app ingress use middleware chain: `traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-{standard|high-frequency}@kubernetescrd,traefik-csp-{inline|permissive}-enforced@kubernetescrd` (middlewares live in `traefik` ns)
-- CSP tiers (enforced per-app 2026-06-04, `c8c5fbaa`+`1d7eb372`+`6eb0aeef`): `csp-inline-enforced` (self + unsafe-inline, no eval) — audiobookshelf, homehub, homepage, mealie, paperless-ngx; `csp-permissive-enforced` (+unsafe-eval, explicit opt-in for eval/wasm) — authentik, home-assistant, immich, linkwarden, n8n, pricebuddy, stirling-pdf, uptime-kuma; `csp-strict-enforced` (self only) — couchdb/Fauxton. Global `csp` default INVERTED to inline tier so new apps can't silently inherit unsafe-eval. report-uri omitted everywhere (csp-reporter is cluster-internal HTTP, unreachable from browser)
+- CSP tiers (enforced per-app 2026-06-04, `c8c5fbaa`+`1d7eb372`+`6eb0aeef`): `csp-inline-enforced` (self + unsafe-inline, no eval) — audiobookshelf, homehub, homepage, mealie, paperless-ngx; `csp-permissive-enforced` (+unsafe-eval, explicit opt-in for eval/wasm) — authentik, home-assistant, immich, linkwarden, n8n, pricebuddy, stirling-pdf, uptime-kuma; `csp-strict-enforced` (self only) — couchdb/Fauxton. Global `csp` default INVERTED to inline tier so new apps can't silently inherit unsafe-eval. report-uri omitted everywhere (csp-reporter was a browser-unreachable cluster-internal sink; deleted 2026-07-03)
 - Rate limits: `rate-limit-standard` 100/min avg, burst 150 (default, incl. paperless-ngx); `rate-limit-high-frequency` 200/min avg, burst 300 (authentik, home-assistant, immich, n8n)
 - Image-pin CI gate: `scripts/ci/image-pin-audit.sh` in validate.yaml enforces `major.minor.patch` on every image (Kyverno only catches `:latest`/no-tag); 2-component allowlist: `postgres*`, `seleniumbase-scrapper`
 - DB usernames = app name (CNPG `managed.roles` for PG, ACL for Redis, GRANT for MySQL)
