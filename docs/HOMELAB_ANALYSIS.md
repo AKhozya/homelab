@@ -102,8 +102,8 @@ Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md
 
 | Due | Item |
 |---|---|
-| 2026-07-04 | Monthly review + first quarterly automation audit — carries Kyverno Audit→Enforce flips (require-labels/-non-root/-seccomp; soak passed 2026-07) + `validationFailureAction`→per-rule `failureAction` sweep (13 policies) + upstream re-checks (n8n #25705, Authentik client-hints #20700, image-CVE scanner decision, mysql-proxy POP-1100) |
-| 2026-07 (unscheduled) | Ultrareview 2026-07-03 deferred items: Percona `crVersion` 1.0.0→1.1.0 (rolling restart); ClusterIssuer `letsencrypt-staging`→`-prod` rename (re-issues 16 certs); Redis/CouchDB instance CRs → configs layer; monitoring-ns Traefik middleware fork; csp-reporter fork-or-GC; offsite backup + external dead-man (owner decision) |
+| 2026-07-04 | Monthly review + first quarterly automation audit — carries Kyverno Audit→Enforce flips (require-labels/-non-root/-seccomp; soak passed 2026-07) + `validationFailureAction`→per-rule `failureAction` sweep (12 policies; soak verified clean 2026-07-03 — all 3 Audit policies zero live violations, Enforce flip blocks nothing deployed) + upstream re-checks (n8n #25705, Authentik client-hints #20700, image-CVE scanner decision, mysql-proxy POP-1100) |
+| 2026-07 (unscheduled) | Ultrareview 2026-07-03 deferred items: Percona `crVersion` 1.0.0→1.1.0 (rolling restart); ClusterIssuer `letsencrypt-staging`→`-prod` rename (re-issues 16 certs); Redis/CouchDB instance CRs → configs layer; monitoring-ns Traefik middleware fork; csp-reporter fork-or-GC; offsite backup (owner decision — external dead-man switch shipped 2026-07-03) |
 | 2026-07-06 | Resource right-sizing pass |
 | ~2026-07-20 | Worker-2 backup replication-step drop / temp safety-net removal (postponed +2mo from 2026-05-22) |
 | 2026-10-01 | 180-day secret rotation — ALL scheduled secrets: PG/MySQL/Redis, CouchDB, OIDC, Authentik Django key (90-day High tier retired 2026-07-02, ex-High folded in; Redis admin+blocky follow 2026-10-26) |
