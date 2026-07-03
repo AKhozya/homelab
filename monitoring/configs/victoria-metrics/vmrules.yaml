@@ -449,23 +449,36 @@ spec:
         summary: "Backup job {{ $labels.namespace }}/{{ $labels.job_name }} running too long"
         description: "Backup job has been running for more than 2 hours. May be stuck or encountering issues. Check: kubectl logs -n {{ $labels.namespace }} job/{{ $labels.job_name }}"
 
+    # Keyed on CronJob .status.lastSuccessfulTime (kube_cronjob_status_last_successful_time),
+    # NOT kube_job_status_completion_time: backup Jobs carry ttlSecondsAfterFinished 24h, so
+    # their Job metric is reaped before any 48h age threshold — and a per-namespace max()
+    # masked a single stopped CronJob when a sibling in the same namespace still ran
+    # (kube-system holds both pvc-backup daily and immich-backup weekly). The CronJob status
+    # metric persists (Flux-managed object) and is evaluated per-cronjob, so every backup is
+    # covered independently.
     - alert: NoRecentBackups
-      # Backup Jobs carry ttlSecondsAfterFinished: 86400 (24h), so their
-      # kube-state-metrics series VANISH long before the 48h threshold — the
-      # age branch alone can never fire once all Jobs are gone. The absent()
-      # branch covers exactly that: no backup Job object exists at all
-      # (backups suspended/stopped >24h → last Job TTL-reaped). The 10-min
-      # daily window between TTL reap and the next run is bridged by for: 1h.
+      # Daily backups: postgres/mysql/couchdb (databases), pvc-backup (kube-system),
+      # backup-replication. immich-backup is weekly — excluded here, own rule below.
       expr: |
-        (time() - max(kube_job_status_completion_time{job_name=~".*backup.*"}) by (namespace) > 172800)
-        or
-        absent(kube_job_status_completion_time{job_name=~".*backup.*"})
+        time() - kube_cronjob_status_last_successful_time{cronjob=~".*backup.*", cronjob!="immich-backup"} > 172800
       for: 1h
       labels:
         severity: critical
       annotations:
-        summary: "No recent successful backup ({{ if $labels.namespace }}{{ $labels.namespace }}{{ else }}no backup Jobs exist at all{{ end }})"
-        description: "Latest backup >48h old, or no backup Job objects exist at all (TTL-reaped — backups not run for >24h). Data protection at risk. Check backup CronJobs + recent job logs."
+        summary: "No successful backup for {{ $labels.namespace }}/{{ $labels.cronjob }} in >48h"
+        description: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} has not completed a successful backup in over 48 hours. Data protection at risk. Check: kubectl get cronjob {{ $labels.cronjob }} -n {{ $labels.namespace }} + recent job logs."
+
+    - alert: NoRecentImmichBackup
+      # immich-backup runs weekly (image library too large for daily). 9-day threshold
+      # = 7-day cadence + 2-day grace for a missed run.
+      expr: |
+        time() - kube_cronjob_status_last_successful_time{cronjob="immich-backup"} > 777600
+      for: 1h
+      labels:
+        severity: critical
+      annotations:
+        summary: "No successful Immich backup in >9 days"
+        description: "The weekly immich-backup CronJob has not completed a successful backup in over 9 days. Check: kubectl get cronjob immich-backup -n kube-system + recent job logs."
 
   - name: database-alerts
     interval: 60s
