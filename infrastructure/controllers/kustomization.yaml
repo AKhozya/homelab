@@ -9,7 +9,6 @@ resources:
   - cert-manager
   - traefik
   - kyverno
-  - csp-reporter
   - databases/postgres
   - databases/couchdb
   - databases/redis-operator

@@ -8,6 +8,6 @@ spec:
     customResponseHeaders:
       # Content Security Policy - ENFORCEMENT MODE (2025-10-31)
       # Policy validated with automated testing: 0 violations (Grafana, Alertmanager tested)
-      # Violations are sent to csp-reporter service and logged to Loki
-      # report-uri remains active for continued monitoring
-      Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://authentik.h0melab.work; report-uri http://csp-reporter.csp-reporter.svc.cluster.local/report"
+      # report-uri dropped 2026-07-03: csp-reporter was a cluster-internal HTTP sink a browser
+      # can never reach (Mixed-Content), so it collected nothing. Verify CSP via browser console.
+      Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://authentik.h0melab.work"
