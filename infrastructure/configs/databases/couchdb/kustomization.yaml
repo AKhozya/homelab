@@ -12,3 +12,7 @@ resources:
   - serviceaccount.yaml
   - admin-secret.yaml
   - couchdb-backup-cronjob.yaml
+  # Instance: HelmRepository + HelmRelease (moved from infrastructure-controllers 2026-07-03,
+  # for operator/instance-layer parity with postgres + mysql).
+  - repository.yaml
+  - release.yaml

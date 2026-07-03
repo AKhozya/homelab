@@ -10,7 +10,5 @@ resources:
   - traefik
   - kyverno
   - databases/postgres
-  - databases/couchdb
   - databases/redis-operator
-  - databases/redis-ha
   - databases/mysql
