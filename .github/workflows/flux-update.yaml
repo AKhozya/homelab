@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Flux CLI
-        uses: fluxcd/flux2/action@v2.9.0
+        uses: fluxcd/flux2/action@dcc7def046cba2fe8d15d9737a4c250100f62fe0 # v2.9.0
         with:
           version: ${{ inputs.version || 'latest' }}
 
@@ -43,7 +43,7 @@ jobs:
 
       - name: Create Pull Request
         if: steps.versions.outputs.current != steps.versions.outputs.new
-        uses: peter-evans/create-pull-request@v8
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "chore(deps): update Flux to ${{ steps.versions.outputs.new }}"

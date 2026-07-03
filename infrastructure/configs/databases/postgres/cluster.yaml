@@ -16,7 +16,14 @@ spec:
     labels:
       release: kube-prometheus-stack
   imageName: ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie
-  enableSuperuserAccess: true  # Required for operator to create pooler roles
+  # false: the PgBouncer Pooler does NOT need this — the operator creates
+  # cnpg_pooler_pgbouncer via local instance-manager SQL and PgBouncer auths
+  # with an operator-issued TLS client cert (CNPG 1.30 connection_pooling docs).
+  # Leaving it true kept a live `postgres` superuser Secret that nothing
+  # consumes and no rotation tracked. Disabling makes CNPG blank the postgres
+  # password + delete the secret (SQL, no pod restart). Maintenance still uses
+  # the managed postgres-admin role and local peer auth via `kubectl exec`.
+  enableSuperuserAccess: false
 
   # Worker nodes only - control-plane has NoSchedule taint
   affinity:
