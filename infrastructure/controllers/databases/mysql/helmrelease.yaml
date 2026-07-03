@@ -26,7 +26,7 @@ spec:
     crds: CreateReplace
     remediation:
       retries: 3
-  # critical-tier via postRenderers — chart 1.1.0 has no priorityClassName template hook.
+  # critical-tier via postRenderers — chart 1.2.0 has no priorityClassName template hook.
   # Parity with cnpg-operator + redis-operator (DB control plane).
   postRenderers:
     - kustomize:
@@ -38,7 +38,7 @@ spec:
               - op: add
                 path: /spec/template/spec/priorityClassName
                 value: homelab-critical
-          # seccomp RuntimeDefault (UR2-4 soak) — chart 1.1.0 has no securityContext hook.
+          # seccomp RuntimeDefault (UR2-4 soak) — chart 1.2.0 has no securityContext hook.
           - target:
               kind: Deployment
               name: ps-operator

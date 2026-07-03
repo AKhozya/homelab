@@ -6,7 +6,9 @@ metadata:
   finalizers:
     - percona.com/delete-mysql-pods-in-order
 spec:
-  crVersion: "1.0.0"
+  # Matches ps-operator chart 1.2.0 (bumped from 1.0.0 2026-07-03). crVersion tracks the
+  # operator minor; SmartUpdate rolls replicas first, primary last (HA held by PDB minAvailable:1).
+  crVersion: "1.2.0"
 
   # Enable dynamic storage expansion without downtime
   enableVolumeExpansion: true
