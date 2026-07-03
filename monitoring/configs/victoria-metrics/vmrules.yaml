@@ -6,6 +6,22 @@ metadata:
 
 spec:
   groups:
+  # Dead-man source. This cluster runs defaultRules.create:false (alerts via VMRules
+  # only), which removed kube-prometheus-stack's built-in always-firing Watchdog — so
+  # it is re-supplied here. Routed to the 'deadman' alertmanager receiver (Watchdog
+  # route in kube-prometheus-stack/release.yaml) → healthchecks.io ping every AM
+  # repeat_interval (10m). If VMAlert/VMSingle/alertmanager die (e.g. W2 loss takes
+  # VMSingle), this stops firing → pings stop → healthchecks.io alerts EXTERNALLY.
+  - name: watchdog
+    interval: 60s
+    rules:
+    - alert: Watchdog
+      expr: vector(1)
+      labels:
+        severity: none
+      annotations:
+        summary: "Alerting pipeline is functional (always-firing dead-man source)."
+        description: "Always firing by design. Its ABSENCE — no ping at healthchecks.io — means the VMAlert→VMSingle→alertmanager pipeline is down. This is the one alert path that survives cluster-internal monitoring death."
   - name: node-alerts
     interval: 60s
     rules:
