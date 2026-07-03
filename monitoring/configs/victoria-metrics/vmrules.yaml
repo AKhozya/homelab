@@ -403,7 +403,12 @@ spec:
         description: "Job has failed. Check logs: kubectl logs -n {{ $labels.namespace }} job/{{ $labels.job_name }}"
 
     - alert: CronJobNotScheduled
-      expr: time() - kube_cronjob_next_schedule_time > 600
+      # immich-backup excluded: it is weekly ("0 3 * * 0") and off-slot/manual runs leave the
+      # CronJob's .status.lastScheduleTime stale, so KSM's kube_cronjob_next_schedule_time
+      # (= lastScheduleTime + interval) sits in the PAST and false-fires this daily-tuned rule
+      # even when Immich is healthy (verified 2026-07-03: lastSuccessful 5d fresh, delta +5.7d).
+      # Immich backup staleness is covered by NoRecentImmichBackup (9d) in backup-alerts.
+      expr: time() - kube_cronjob_next_schedule_time{cronjob!="immich-backup"} > 600
       for: 5m
       labels:
         severity: warning
@@ -448,7 +453,9 @@ spec:
         description: "Critical backup job has failed. Data protection may be compromised! Check logs: kubectl logs -n {{ $labels.namespace }} job/{{ $labels.job_name }}"
 
     - alert: BackupCronJobMissedSchedule
-      expr: (time() - kube_cronjob_next_schedule_time{cronjob=~".*backup.*"}) > 3600
+      # immich-backup excluded (weekly): see CronJobNotScheduled note — next_schedule_time goes
+      # stale on the weekly cadence and false-fires; NoRecentImmichBackup (below) covers it instead.
+      expr: (time() - kube_cronjob_next_schedule_time{cronjob=~".*backup.*", cronjob!="immich-backup"}) > 3600
       for: 10m
       labels:
         severity: critical
