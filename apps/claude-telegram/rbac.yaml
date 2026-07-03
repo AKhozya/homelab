@@ -4,13 +4,16 @@ metadata:
   name: claude-telegram-ops
   labels:
     app: claude-telegram
-# Cluster-wide READ (core resources EXCEPT secrets) + limited write (flux patch, pod exec,
-# rollout restart, job create). Required for ops via Telegram. Destructive operations
-# (delete namespace, modify RBAC/secrets/NetworkPolicies) are NOT permitted — those
-# go through GitOps. Mitigations: Telegram allowlist, safety hook, permission relay.
+# EFFECTIVE PRIVILEGE = CLUSTER-ADMIN-EQUIVALENT. The `secrets` exclusion below is defence-in-depth,
+# NOT a security boundary: cluster-wide `pods/exec create` lets this bot exec into any pod (e.g. a
+# flux-system controller) and read that pod's ServiceAccount token, and cluster-wide `deployments patch`
+# lets it alter privileged workloads — either path reaches full cluster control. Treat a bot compromise
+# as a cluster compromise. Real controls: Telegram sender allowlist, the safety hook, image supply chain
+# (SHA-pinned build + SOPS), and GitOps drift-heal reverting out-of-band changes. Do NOT rely on the
+# secrets exclusion to bound blast radius. (Ultrareview 2026-07-03; supersedes the UR2 P3-7 framing.)
 rules:
-  # Read core resources — secrets DELIBERATELY EXCLUDED (UR2 P3-7): an ops/diagnostics bot must not
-  # be able to read every secret in the cluster. The old resources:["*"] in the core group granted that.
+  # Read core resources — secrets excluded so casual `get secret` fails, but see the header: exec+patch
+  # make this cosmetic, not a boundary. The old resources:["*"] in the core group also granted secrets.
   - apiGroups: [""]
     resources:
       - pods
