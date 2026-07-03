@@ -129,9 +129,13 @@ spec:
                     SOURCE_DIR=$(find /mnt/k8s-storage -maxdepth 1 -type d -name "$PATTERN" | head -1)
 
                     if [ -z "$SOURCE_DIR" ]; then
-                      echo "⚠️  WARNING: PVC not found matching pattern: $PATTERN"
-                      echo "   Skipping..."
+                      # A missing critical PVC is a FAILURE, not a skip: local-path PVs
+                      # can rebind to another node on PVC recreate, silently dropping the
+                      # app from coverage forever if this only warns.
+                      echo "❌ FAIL: PVC not found matching pattern: $PATTERN"
+                      echo "   (PV moved off worker-node, or PVC renamed — update CRITICAL_PVCS)"
                       echo ""
+                      failed_count=$((failed_count + 1))
                       continue
                     fi
 
@@ -271,6 +275,13 @@ spec:
 
                   echo ""
                   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                  if [ "$failed_count" -gt 0 ]; then
+                    echo "❌ PVC Backup FAILED ($failed_count failure(s))"
+                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+                    # Non-zero exit fails the Job → BackupJobFailed alert fires.
+                    # Successful PVCs above are already on disk and still replicate.
+                    exit 1
+                  fi
                   echo "✅ PVC Backup Complete"
                   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                   echo "Backup ID: $TIMESTAMP"

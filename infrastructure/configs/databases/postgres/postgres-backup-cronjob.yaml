@@ -64,7 +64,7 @@ spec:
                 - /bin/bash
                 - -c
                 - |
-                  set -e
+                  set -eo pipefail
 
                   echo "=== PostgreSQL Backup Started ==="
                   echo "Timestamp: $(date)"
@@ -85,24 +85,33 @@ spec:
 
                   echo "Found databases: $DATABASES"
 
-                  # Backup each database
+                  # Backup each database. pipefail makes the pipeline status pg_dump's,
+                  # not tee's; the if-condition keeps set -e from aborting mid-loop so
+                  # remaining databases still get dumped before the job fails.
+                  FAILED=0
                   for DB in $DATABASES; do
                     echo "Backing up database: $DB"
-                    PGPASSWORD="$POSTGRES_PASSWORD" pg_dump \
+                    if PGPASSWORD="$POSTGRES_PASSWORD" pg_dump \
                       -h main-postgres-rw.databases.svc.cluster.local \
                       -U postgres-admin \
                       -d "$DB" \
                       -F c \
                       -f "$BACKUP_DIR/${DB}.dump" \
-                      2>&1 | tee "$BACKUP_DIR/${DB}.log"
-
-                    if [ $? -eq 0 ]; then
+                      2>&1 | tee "$BACKUP_DIR/${DB}.log"; then
                       SIZE=$(du -h "$BACKUP_DIR/${DB}.dump" | cut -f1)
                       echo "✅ $DB backup completed ($SIZE)"
                     else
                       echo "❌ $DB backup failed!"
+                      FAILED=1
                     fi
                   done
+
+                  # Fail the Job before packaging: a partial dump must not become a
+                  # "good" tarball. Yesterday's backup stays; BackupJobFailed fires.
+                  if [ "$FAILED" -ne 0 ]; then
+                    echo "❌ One or more database backups failed — aborting before packaging"
+                    exit 1
+                  fi
 
                   # Create manifest
                   cat > "$BACKUP_DIR/MANIFEST.txt" <<EOF

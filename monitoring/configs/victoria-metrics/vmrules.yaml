@@ -450,13 +450,22 @@ spec:
         description: "Backup job has been running for more than 2 hours. May be stuck or encountering issues. Check: kubectl logs -n {{ $labels.namespace }} job/{{ $labels.job_name }}"
 
     - alert: NoRecentBackups
-      expr: time() - max(kube_job_status_completion_time{job_name=~".*backup.*"}) by (namespace) > 172800
+      # Backup Jobs carry ttlSecondsAfterFinished: 86400 (24h), so their
+      # kube-state-metrics series VANISH long before the 48h threshold — the
+      # age branch alone can never fire once all Jobs are gone. The absent()
+      # branch covers exactly that: no backup Job object exists at all
+      # (backups suspended/stopped >24h → last Job TTL-reaped). The 10-min
+      # daily window between TTL reap and the next run is bridged by for: 1h.
+      expr: |
+        (time() - max(kube_job_status_completion_time{job_name=~".*backup.*"}) by (namespace) > 172800)
+        or
+        absent(kube_job_status_completion_time{job_name=~".*backup.*"})
       for: 1h
       labels:
         severity: critical
       annotations:
-        summary: "No successful backup in {{ $labels.namespace }} for 48 hours"
-        description: "Most recent backup in {{ $labels.namespace }} is older than 48 hours. Data protection is at risk! Check backup CronJobs and recent job logs."
+        summary: "No recent successful backup ({{ if $labels.namespace }}{{ $labels.namespace }}{{ else }}no backup Jobs exist at all{{ end }})"
+        description: "Latest backup >48h old, or no backup Job objects exist at all (TTL-reaped — backups not run for >24h). Data protection at risk. Check backup CronJobs + recent job logs."
 
   - name: database-alerts
     interval: 60s

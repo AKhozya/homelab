@@ -75,40 +75,53 @@ spec:
                   BACKUP_DIR="/backup/$TIMESTAMP"
                   mkdir -p "$BACKUP_DIR"
 
+                  # MYSQL_PWD instead of -p<pass>: no password on the command line
+                  # (visible in ps) and no "[Warning] Using a password..." on stderr.
+                  export MYSQL_PWD="$MYSQL_PASSWORD"
+
                   # Auto-discover databases (exclude system databases)
                   echo "Discovering databases..."
                   DATABASES=$(mysql \
                     -h main-mysql-haproxy.databases.svc.cluster.local \
                     -P 3306 \
                     -u "$MYSQL_USER" \
-                    -p"$MYSQL_PASSWORD" \
                     -N -e "SHOW DATABASES" \
                     | grep -Ev "^(information_schema|mysql|performance_schema|sys)$")
 
                   echo "Found databases: $DATABASES"
 
-                  # Backup each database
+                  # Backup each database. stderr goes to a sidecar .err file — NEVER
+                  # into the .sql dump, where a single warning line breaks restore
+                  # (`mysql db < dump.sql` chokes on line 1).
+                  FAILED=0
                   for DB in $DATABASES; do
                     echo "Backing up database: $DB"
-                    mysqldump \
+                    if mysqldump \
                       -h main-mysql-haproxy.databases.svc.cluster.local \
                       -P 3306 \
                       -u "$MYSQL_USER" \
-                      -p"$MYSQL_PASSWORD" \
                       --single-transaction \
                       --routines \
                       --triggers \
                       --events \
-                      "$DB" > "$BACKUP_DIR/${DB}.sql" 2>&1
-
-                    if [ $? -eq 0 ]; then
+                      --set-gtid-purged=OFF \
+                      "$DB" > "$BACKUP_DIR/${DB}.sql" 2> "$BACKUP_DIR/${DB}.err"; then
                       SIZE=$(du -h "$BACKUP_DIR/${DB}.sql" | cut -f1)
                       echo "✅ $DB backup completed ($SIZE)"
+                      rm -f "$BACKUP_DIR/${DB}.err"
                     else
                       echo "❌ $DB backup failed!"
-                      cat "$BACKUP_DIR/${DB}.sql"
+                      cat "$BACKUP_DIR/${DB}.err"
+                      FAILED=1
                     fi
                   done
+
+                  # Fail the Job before packaging: a partial dump must not become a
+                  # "good" tarball. Yesterday's backup stays; BackupJobFailed fires.
+                  if [ "$FAILED" -ne 0 ]; then
+                    echo "❌ One or more database backups failed — aborting before packaging"
+                    exit 1
+                  fi
 
                   # Create manifest
                   cat > "$BACKUP_DIR/MANIFEST.txt" <<EOF
