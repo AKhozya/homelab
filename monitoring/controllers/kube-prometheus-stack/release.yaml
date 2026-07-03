@@ -197,7 +197,15 @@ spec:
           routes:
           - matchers:
               - alertname = Watchdog
-            receiver: 'null'
+            # Dead-man switch: Watchdog always fires, so alertmanager re-notifies
+            # every repeat_interval → one heartbeat ping to healthchecks.io per
+            # interval. If the monitoring stack dies (e.g. W2 loss takes VMSingle),
+            # Watchdog stops, pings stop, healthchecks.io alerts EXTERNALLY — the
+            # one alert path that survives cluster-internal monitoring death.
+            # 10m cadence: keep the healthchecks.io period+grace comfortably above it.
+            receiver: 'deadman'
+            group_wait: 0s
+            repeat_interval: 10m
           - matchers:
               - alertname = InfoInhibitor
             receiver: 'null'
@@ -235,6 +243,12 @@ spec:
               - severity = info
         receivers:
         - name: 'null'
+        - name: 'deadman'
+          webhook_configs:
+          # url_file keeps the secret UUID out of the plaintext HelmRelease config;
+          # mounted from the alertmanager-deadman secret (alertmanagerSpec.secrets).
+          - url_file: /etc/alertmanager/secrets/alertmanager-deadman/ping_url
+            send_resolved: false
         - name: 'telegram'
           telegram_configs:
           - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot_token
@@ -290,6 +304,7 @@ spec:
         externalUrl: https://am.h0melab.work
         secrets:
           - alertmanager-telegram
+          - alertmanager-deadman
         resources:
           requests:
             cpu: 50m

@@ -19,4 +19,5 @@ resources:
   - csp-middleware.yaml
   # Alertmanager
   - alertmanager-telegram-secret.yaml
+  - alertmanager-deadman-secret.yaml
   - alertmanager-certificate.yaml
