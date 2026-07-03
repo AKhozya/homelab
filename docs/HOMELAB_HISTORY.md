@@ -17,6 +17,28 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-03 — Ultrareview (6-axis: architecture, approaches, solution, quality, docs, security)
+
+6 dimension reviewers + adversarial verification (52 findings survived) + live-cluster spikes + Codex static review. Fixed in worktree, single-env prod.
+
+| Sev | Finding | Fix |
+|---|---|---|
+| HIGH | pg_dump/mysqldump/pvc backups reported success on partial dumps (`set -e` w/o pipefail; `pg_dump\|tee` masked exit; missing PVC only warned; mysqldump stderr written into `.sql`) | `set -eo pipefail`, per-DB failure accounting + `exit 1` before packaging; mysql `MYSQL_PWD` + stderr→`.err` sidecar + `--set-gtid-purged=OFF`; missing critical PVC now fails the job |
+| HIGH | `NoRecentBackups` structurally dead — 48h threshold vs 24h Job TTL; per-ns `max()` masked a stopped sibling CronJob | Rekeyed on `kube_cronjob_status_last_successful_time` (not TTL-reaped), per-cronjob; split daily (>48h) / immich weekly (>9d). Live-verified |
+| HIGH | Backup replication validated AFTER rsync — a corrupt backup overwrote the last good W2 copy (`--delete`) + wiped W1 source | Reordered: validate → abort-before-sync on failure; source preserved, W2/NAS untouched |
+| HIGH | Grafana egress NP had no 8429 to VMSingle (dead `prometheus:9090` rule) — every metric dashboard silently unreachable | Added 8429→vmsingle, removed dead prometheus rule |
+| HIGH | CI Actions on mutable tags feeding a packages:write / PR-write pipeline | SHA-pinned all third-party + `actions/checkout` in the 2 write-privileged workflows (`# vX.Y.Z` for Renovate) |
+| MED | CNPG `enableSuperuserAccess: true` on a false "pooler needs it" premise — untracked live `postgres` superuser secret | `false` (pooler uses cert auth; no consumer of the secret) |
+| MED | vmsingle `namespaceSelector:{}` on 8429 = cluster-wide metric WRITE/DoS surface | Removed; 4 scoped consumers (vmagent/vmalert/grafana/uptime-kuma) retained |
+| MED | Traefik rate-limits enforcing per-**second** (no `period`) — 60× looser than the "/min" comments | Added `period: 1m`, recalibrated (standard 300, high-freq 600) from measured 7d peaks |
+| MED/LOW | HA + claude-telegram bare 443/80 egress reached cluster/LAN CIDRs; DNS component UDP-only (no TCP fallback); uptime-kuma dead all-ports /24 ICMP rule (zero ping monitors) | RFC1918-`except` on 443/80; DNS TCP/53 added; ICMP rule → scoped NAS `.136/32:50555` |
+| LOW | CI kubeconform schema pinned 1.31 vs live 1.36; dead dependabot.yml (0 PRs, Renovate owns actions); apps automerge no soak | Schema→1.36.1; dependabot deleted; `minimumReleaseAge: 3 days` on apps automerge |
+| docs | DR runbook: wrong NAS rsync module (`akhozya`→`akhozya-pool1`), bare `curl\|sh` k3s install (unpinned + collides with Flux traefik/coredns); no-WAL decision contradicted; serial vs fan-out topology; W1/W2 blast radius understated; stale counts; ufw-reset firewall block | Rewrote DR steps (pinned k3s + ansible config), fan-out topology, honest failure table + no-offsite/self-blind-monitoring ceilings, count refresh |
+
+**Deferred (own change / owner call):** re-promote require-labels/-non-root/-seccomp Audit→Enforce + `validationFailureAction`→per-rule `failureAction` sweep (→ 2026-07-04 policy audit); Percona `crVersion` 1.0.0→1.1.0 (rolling restart window); ClusterIssuer `letsencrypt-staging`→`-prod` rename (re-issues 16 certs); Redis/CouchDB instance CRs live in controllers layer vs configs (cross-Kustomization move); monitoring-ns Traefik middleware fork; csp-reporter fork-or-GC; offsite backup + external dead-man switch (awaiting owner decision).
+
+---
+
 ### December 2025 Review Findings
 
 | Priority | Issue | Status | Action |
