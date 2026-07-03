@@ -17,6 +17,21 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-03 — Deferred-item cleanup (post-ultrareview) + Kyverno namespace-teardown deadlock fix
+
+Shipped 4 deferred items from the 2026-07-03 ultrareview backlog, staged as separate merge+reconcile waves to serialize cluster ops. Main `df521682`→`d771464d`.
+
+| Change | Detail |
+|---|---|
+| Percona `crVersion` 1.0.0→**1.2.0** | Matched ps-operator chart (already 1.2.0 via Renovate #874) — CR + comments had lagged. SmartUpdate rolled replicas-first, primary-last, converged Ready (HA held: PDB `minAvailable:1` + HAProxy; transient `get cluster primary: empty response` during the primary switchover is expected). |
+| ClusterIssuer `letsencrypt-staging`→**`letsencrypt-prod`** | The "staging" issuer always pointed at the **prod** ACME server — pure misnomer. Renamed issuer + `privateKeySecretRef` + all 16 Certificate `issuerRef`s; cert-manager re-issued all 16 against prod (old TLS secrets kept serving → no downtime; 16 < 50/week LE limit). Old `letsencrypt-staging` account-key Secret orphaned (harmless). |
+| csp-reporter **GC'd** | Dead component: apps middleware `report-uri` already omitted, monitoring's pointed at a browser-unreachable cluster-internal HTTP sink → collected nothing. Removed Deployment+ns+NP+svc+SA + resource-governance entry + stale report-uri. Browser-console is the CSP-verify path. |
+| Redis-HA + CouchDB instance CRs → **configs layer** | Operator/instance-layer parity with postgres+mysql. Gapless controllers→configs move via `kustomize.toolkit.fluxcd.io/prune: disabled` (2-stage: annotate live → then move+strip; `infrastructure-configs dependsOn infrastructure-controllers` so controllers reconciles+prunes FIRST — a single-`fr` whole-branch merge would prune-before-adopt = ~1-2min Redis/CouchDB outage). CouchDB zero restart; Redis rolled once — the opstree operator mirrors CR labels onto the StatefulSet, so the Flux ownership-label flip triggered a pod recreate, Sentinel-HA absorbed it. |
+
+**Incident (found + fixed mid-rollout):** Kyverno `require-networkpolicy` (Enforce) **wedged the csp-reporter namespace teardown**. The shared `validate.kyverno.svc-fail` webhook fires on DELETE too, so once the ns's NetworkPolicy was pruned (netpolcount→0) the deny blocked the Deployment/RS/Pod DELETE → ns stuck `Terminating` indefinitely (can't recreate an NP in a Terminating ns → deadlock). Fix: scope the rule to `operations: [CREATE, UPDATE]` + a precondition skipping objects carrying a `deletionTimestamp`. Latent since require-networkpolicy went Enforce (2026-05-25); affects **every** namespace teardown, not just this one. New review-invariant class recorded.
+
+---
+
 ### 2026-07-03 — Ultrareview (6-axis: architecture, approaches, solution, quality, docs, security)
 
 6 dimension reviewers + adversarial verification (52 findings survived) + live-cluster spikes + Codex static review. Fixed in worktree, single-env prod.

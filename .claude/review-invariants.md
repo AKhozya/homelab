@@ -34,6 +34,7 @@ For the `caveman:cavecrew-reviewer` pre-push gate. The reviewer already enforces
 - A Job label-exclude does NOT cover the autogen Job rule (Job `metadata.labels` carry only Flux labels, not pod-template labels) → Job recreate denied under Enforce. Use ns-scope exclude or fix the workload. (W8)
 - A whole-namespace `exclude` on a PSS-privileged ns leaves host-namespaces/escalation fully unguarded there. Fix: workload `selector.matchLabels`. (F-38)
 - Rules reading `request.userInfo`/Roles/Subjects must set `background: false` — that data is absent from background scans, so the rule silently no-ops outside admission. (Kyverno docs)
+- A `validate.deny` "require X present" rule (e.g. require-networkpolicy) MUST scope `match.resources.operations: [CREATE, UPDATE]` — the shared `validate.kyverno.svc-fail` webhook also fires on DELETE, so under Enforce the deny blocks namespace teardown once X is pruned (netpolcount→0), wedging the ns in `Terminating` forever (can't recreate an NP in a Terminating ns). Also add a precondition skipping objects with a `deletionTimestamp` (covers the finalization UPDATE). Surfaced 2026-07-03 by the csp-reporter namespace GC.
 
 ### NetworkPolicy
 - AND/OR trap: `namespaceSelector` + `podSelector` under ONE `from`/`to` list item = AND; as SEPARATE list items = OR. One indent level turns "prometheus pod in monitoring ns" into "any pod in monitoring OR prometheus in ANY ns" — no API error. (CNCF / Apr 2026 n8n·linkwarden·mealie)
