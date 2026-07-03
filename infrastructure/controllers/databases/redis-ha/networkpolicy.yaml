@@ -3,6 +3,9 @@ kind: NetworkPolicy
 metadata:
   name: redis-ha-network-policy
   namespace: databases
+  annotations:
+    # temp: gapless controllers->configs move (removed once configs adopts). 2026-07-03.
+    kustomize.toolkit.fluxcd.io/prune: disabled
 spec:
   podSelector:
     matchExpressions:
