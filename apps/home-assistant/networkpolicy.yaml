@@ -40,12 +40,22 @@ spec:
         - protocol: TCP
           port: 8123
   egress:
-    # Allow HTTPS for internet access (integrations, updates, etc.)
-    - ports:
+    # Allow HTTPS/HTTP for internet access (integrations, updates, etc.).
+    # RFC1918 excluded so a compromised HA pod (malicious HACS integration
+    # or poisoned upstream) can't reach cluster pods/ClusterIPs or LAN hosts
+    # over 443/80 — same reasoning as the 10/8 removal on the LAN rule below.
+    # LAN 443/80 (local device web UIs, ESPHome) stays reachable via the
+    # explicit 192.168.0.0/16 all-port rule; in-cluster MySQL via port 3306.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
         - protocol: TCP
           port: 443
-    # Allow HTTP for internet access
-    - ports:
         - protocol: TCP
           port: 80
     # Allow mDNS for local device discovery (broadcast)

@@ -12,12 +12,11 @@ spec:
     - Egress
   ingress: []
   egress:
-    # HTTPS (Telegram API, Anthropic API, GitHub, external lookups)
-    - ports:
-        - protocol: TCP
-          port: 443
-    # HTTP (some package managers, MCP servers)
-    # RFC1918 excluded to prevent lateral movement to cluster-internal services.
+    # HTTPS + HTTP (Telegram API, Anthropic API, GitHub, package managers,
+    # MCP servers). RFC1918 excluded to prevent lateral movement to
+    # cluster-internal services — the bot holds cluster-wide RBAC, so a
+    # compromised process must not reach internal HTTPS endpoints. Its only
+    # in-cluster target is the API server on 6443, granted explicitly below.
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -26,6 +25,8 @@ spec:
               - 172.16.0.0/12
               - 192.168.0.0/16
       ports:
+        - protocol: TCP
+          port: 443
         - protocol: TCP
           port: 80
     # Port 22 egress removed: bot does not initiate SSH from inside cluster

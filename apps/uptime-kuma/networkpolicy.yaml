@@ -104,7 +104,15 @@ spec:
           port: 53          # Blocky DNS LB (TCP) on node IPs .129/.126
         - protocol: UDP
           port: 53          # Blocky DNS LB (UDP) on node IPs .129/.126
-    # Allow ICMP (ping) to nodes - rule without ports allows all protocols
+    # NAS rsyncd health probe (only non-node LAN monitor as of 2026-07-03).
     - to:
         - ipBlock:
-            cidr: 192.168.1.0/24
+            cidr: 192.168.1.136/32
+      ports:
+        - protocol: TCP
+          port: 50555       # NAS rsync daemon
+    # NOTE: the old all-ports `192.168.1.0/24` egress rule (nominally for ICMP
+    # ping) was removed 2026-07-03 — there are zero `ping`-type monitors; every
+    # active monitor is http/port/dns and covered by the scoped ports above.
+    # NetworkPolicy can't express ICMP anyway; re-add a scoped rule ONLY if a
+    # real ping monitor is added, and prefer /32 targets + explicit ports.

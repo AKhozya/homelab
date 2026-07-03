@@ -46,12 +46,6 @@ spec:
       ports:
         - protocol: TCP
           port: 8429
-    # Cluster-wide querying
-    - from:
-        - namespaceSelector: {}
-      ports:
-        - protocol: TCP
-          port: 8429
   egress:
     # DNS
     - to:

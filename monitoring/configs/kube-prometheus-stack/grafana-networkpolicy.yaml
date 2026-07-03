@@ -34,14 +34,14 @@ spec:
       ports:
         - protocol: TCP
           port: 6443
-    # Allow access to Prometheus in the same namespace
+    # Allow access to VictoriaMetrics (provisioned datasource) in the same namespace
     - to:
         - podSelector:
             matchLabels:
-              app.kubernetes.io/name: prometheus
+              app.kubernetes.io/name: vmsingle
       ports:
         - protocol: TCP
-          port: 9090
+          port: 8429
     # Allow access to Alertmanager in the same namespace
     - to:
         - podSelector:

@@ -17,3 +17,8 @@ spec:
       ports:
         - protocol: UDP
           port: 53
+        # TCP fallback: responses over the UDP payload limit set the TC bit
+        # and resolvers retry over TCP/53 — without this, large answers
+        # (long CNAME chains, big CDN rotations) hang instead of resolving.
+        - protocol: TCP
+          port: 53
