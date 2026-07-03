@@ -8,7 +8,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 
 | Area | Status |
 |---|---|
-| **Security** | Pod Security Standards enforced; 12 Kyverno policies (9 Enforce, 3 in Audit soak); default-deny NetworkPolicies; secrets SOPS-encrypted in Git |
+| **Security** | Pod Security Standards enforced; 12 Kyverno policies (all Enforce); default-deny NetworkPolicies; secrets SOPS-encrypted in Git |
 | **Backup / DR** | Daily logical backups (Postgres, MySQL, CouchDB, app PVCs), 30-day retention, off-node + NAS replication, documented restore runbook |
 | **Observability** | VictoriaMetrics + Grafana + Loki/Alloy; Alertmanager → Telegram; weekly Popeye hygiene scan |
 | **Networking** | Dual ingress (LAN Traefik + Cloudflare Tunnel), zero inbound ports, Blocky DNS + ad-block |
@@ -19,7 +19,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 
 - **16** applications across **28** namespaces in git (32 live incl. k8s system namespaces)
 - **65** NetworkPolicy resources live (51 raw manifests in git — operator- and component-generated policies make up the delta) — default-deny posture; presence enforced by Kyverno
-- **12** Kyverno `ClusterPolicy` resources — **9 Enforce, 3 in Audit** soak
+- **12** Kyverno `ClusterPolicy` resources — **all 12 Enforce** (per-rule `validate.failureAction`; require-labels/-non-root/-seccomp promoted from Audit 2026-07-03)
 - **51** SOPS-encrypted secrets in git — no plaintext secret in Git
 - **12** HelmReleases (live = git) — drift detection enabled, with targeted timeouts + rollback
 - **3** PriorityClasses (critical / standard / batch) — every workload annotated
@@ -102,7 +102,7 @@ Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md
 
 | Due | Item |
 |---|---|
-| 2026-07-04 | Monthly review + first quarterly automation audit — carries Kyverno Audit→Enforce flips (require-labels/-non-root/-seccomp; soak passed 2026-07) + `validationFailureAction`→per-rule `failureAction` sweep (12 policies; soak verified clean 2026-07-03 — all 3 Audit policies zero live violations, Enforce flip blocks nothing deployed) + upstream re-checks (n8n #25705, Authentik client-hints #20700, image-CVE scanner decision, mysql-proxy POP-1100) |
+| 2026-07-04 | Monthly review + first quarterly automation audit — upstream re-checks (n8n #25705, Authentik client-hints #20700, image-CVE scanner decision, mysql-proxy POP-1100). Kyverno Audit→Enforce flip + `validationFailureAction`→per-rule `failureAction` sweep done early 2026-07-03 (main 6abb551f) |
 | 2026-07 (unscheduled) | Ultrareview 2026-07-03 deferred items: Percona `crVersion` 1.0.0→1.1.0 (rolling restart); ClusterIssuer `letsencrypt-staging`→`-prod` rename (re-issues 16 certs); Redis/CouchDB instance CRs → configs layer; monitoring-ns Traefik middleware fork; csp-reporter fork-or-GC; offsite backup (owner decision — external dead-man switch shipped 2026-07-03) |
 | 2026-07-06 | Resource right-sizing pass |
 | ~2026-07-20 | Worker-2 backup replication-step drop / temp safety-net removal (postponed +2mo from 2026-05-22) |
