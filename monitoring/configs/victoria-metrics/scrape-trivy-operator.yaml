@@ -1,0 +1,17 @@
+# trivy-operator CVE metrics (trivy_image_vulnerabilities etc.) — container port 8080
+# /metrics, port name "metrics". Feeds the trivy VMRule group (vmrules.yaml).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: trivy-operator
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - trivy-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: trivy-operator
+  podMetricsEndpoints:
+    - port: metrics
+      interval: "60s"

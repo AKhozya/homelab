@@ -1,0 +1,95 @@
+# Image-CVE scanning (monthly-review decision 2026-07-04: in-cluster operator over
+# trivy-in-CI / accept-documented). Reports live as CRDs (VulnerabilityReport etc.),
+# no PVC; metrics scraped by VMAgent (scrape-trivy-operator.yaml) + daily-digest VMRule.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: trivy-operator
+  namespace: trivy-system
+spec:
+  interval: 6h
+  driftDetection:
+    mode: enabled
+  chart:
+    spec:
+      chart: trivy-operator
+      version: 0.33.2  # appVersion 0.31.2
+      sourceRef:
+        kind: HelmRepository
+        name: aquasecurity
+        namespace: trivy-system
+      interval: 12h
+  install:
+    crds: Create
+    remediation:
+      retries: 3
+  maxHistory: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+      remediateLastFailure: true
+  rollback:
+    recreate: true
+    cleanupOnFail: true
+  values:
+    priorityClassName: homelab-standard  # long-lived controller (scan jobs get batch below)
+    image:
+      tag: "0.31.2"  # pin (chart default resolves appVersion, keep explicit)
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "500m"
+        memory: "512Mi"
+    # Chart's container securityContext already: RoRFS, no-privesc, drop ALL.
+    # It omits runAsNonRoot/seccomp — add at pod level (PSS restricted-ready).
+    podSecurityContext:
+      runAsNonRoot: true
+      seccompProfile:
+        type: RuntimeDefault
+    targetNamespaces: ""  # all namespaces...
+    excludeNamespaces: "kube-system,kube-public,kube-node-lease,trivy-system"  # ...minus k8s system + self
+    operator:
+      # Node-collector needs hostPath mounts (/var/lib/kubelet, /var/lib/etcd) and its
+      # containers have NO resources key in the chart — violates disallow-host-path +
+      # require-resource-limits. Image-CVE scanning (the C1 goal) doesn't need it.
+      infraAssessmentScannerEnabled: false
+      clusterComplianceEnabled: false  # CIS compliance needs node data → dead weight
+      scanJobsConcurrentLimit: 2  # 3-node cluster; default 10 = churn spike
+      scanJobTimeout: 5m
+      scanJobPodPriorityClassName: homelab-batch  # the actual batch work, first to evict
+    trivy:
+      image:
+        tag: "0.71.1"  # pin scanner
+      # Applies to scan-job containers AND their DB-download init containers
+      # (Kyverno require-resource-limits checks init too).
+      resources:
+        requests:
+          cpu: "100m"
+          memory: "128Mi"
+        limits:
+          cpu: "500m"
+          memory: "512Mi"
+    trivyOperator:
+      # Known label for the scan-job NetworkPolicy selector (job pods don't carry
+      # the operator's deployment labels) + satisfies require-labels.
+      # STRING form is load-bearing: the chart renders this key with bare `| quote`
+      # (a map becomes "map[app:...]" → operator label-parse error → NO scan jobs,
+      # silently). Sibling *PodSecurityContext key renders via `toJson` — map is fine there.
+      scanJobPodTemplateLabels: "app=trivy-scan-job"
+      # Pin the container-level SC instead of riding chart defaults — three Enforce
+      # policies (drop-all-caps, no-privesc, readonly-rootfs) depend on it; a chart
+      # default change would silently block every scan job.
+      scanJobPodTemplateContainerSecurityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        privileged: false
+        readOnlyRootFilesystem: true
+      scanJobPodTemplatePodSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault

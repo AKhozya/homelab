@@ -1328,3 +1328,14 @@ spec:
       annotations:
         summary: "Redis client reconnect storm on {{ $labels.instance }}"
         description: "Connected clients changing >50/sec. Likely client-side instability or repeated failovers."
+
+  - name: trivy
+    rules:
+      - alert: TrivyCriticalVulnerabilities
+        expr: sum by (image_repository, image_tag) (trivy_image_vulnerabilities{severity="Critical"}) > 0
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Critical CVEs in {{ $labels.image_repository }}:{{ $labels.image_tag }}"
+          description: "trivy-operator reports {{ $value }} Critical vulnerabilities in a running image for 6h+. Check VulnerabilityReport CRs (kubectl get vulnerabilityreports -A) and bump/patch the image (renovate PR or manual pin)."
