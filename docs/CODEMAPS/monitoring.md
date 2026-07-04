@@ -27,7 +27,7 @@ VictoriaMetrics primary stack. NO Prometheus pod (only operator chart kept for g
 |-------|---------|-------|
 | `kube-prometheus-stack` | 86.1.1 | `prometheus.enabled=false` — operator + grafana + alertmanager + KSM + node-exporter only |
 | `victoria-metrics-operator` | 0.63.1 | Reconciles VMSingle/VMAgent/VMAlert/VMRule/VMServiceScrape |
-| `loki` | 7.0.0 | Includes loki-canary 3.6.7 subchart |
+| `loki` | 18.4.0 | `grafana-community` lineage (grafana.github.io frozen GEL-only at 7.0.0); loki + canary 3.7.3 |
 | `alloy` | 1.8.2 | Replaces Promtail |
 
 All 4 HelmReleases: `driftDetection: {mode: enabled}`; explicit `timeout: 10m` on KPS + loki; `interval: 6h` standard (Wave 9, `60a8bf32`, 2026-05-24).

@@ -17,6 +17,22 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-04 — Loki chart lineage migration → grafana-community 18.4.0
+
+`grafana.github.io` loki chart went GEL-only (frozen at 7.0.0 for OSS) — Renovate was blind to OSS Loki updates. Repointed the HelmRelease to the community fork (`grafana-community/helm-charts`, strict-semver continuation of 6.55.0). Main `8f2e54ea`.
+
+| Change | Detail |
+|---|---|
+| Chart 7.0.0 → **18.4.0** (app 3.6.7→3.7.3) | New `grafana-community` HelmRepository added ALONGSIDE `grafana` (alloy still consumes the old repo; fork hosts no alloy chart). In-place STS roll (immutables verified identical to live pre-merge), PVC `storage-loki-0` reused, helm history continued (`loki.v30`). |
+| `deploymentMode: SingleBinary`→`Monolithic` | 18.x rename; SSD `backend/read/write: replicas: 0` stanzas kept (chart validate.yaml requires them zeroed). |
+| postRenderers block **deleted** | priorityClassName now via values (`global.priorityClassName` + separate `lokiCanary.priorityClassName` — global does NOT reach canary); seccompProfile RuntimeDefault chart-native on all 3 workloads. Render-verified before merge. |
+| `gateway.image.tag: 1.31.2-alpine` pin | Chart default floats `1.31-alpine` (live had floated `1.29-alpine` — pre-existing image-pin violation this migration fixes). |
+| `gateway.metrics.enabled: false` | 18.x default-on nginx exporter sidecar renders with empty resources (Kyverno enforce-limits would block) + port 4040 absent from NetworkPolicy. Enabling later = deliberate change with resources + NP port. |
+
+Verified live: LokiDown silent, alloy dropped-entries rate 0, canary writing with 0 missing, gateway 1-container. Migration plan was 2-round Codex-reviewed pre-implementation; implementation diff PASS zero findings. Render-parity proof: final render byte-identical to pre-validated artifact except the intended image pin.
+
+---
+
 ### 2026-07-03 — Deferred-item cleanup (post-ultrareview) + Kyverno namespace-teardown deadlock fix
 
 Shipped 4 deferred items from the 2026-07-03 ultrareview backlog, staged as separate merge+reconcile waves to serialize cluster ops. Main `df521682`→`d771464d`.
