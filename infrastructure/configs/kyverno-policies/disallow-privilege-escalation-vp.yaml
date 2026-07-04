@@ -1,0 +1,51 @@
+# CEL twin of the disallow-privilege-escalation ClusterPolicy — Audit soak (Phase 1).
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-privilege-escalation
+  annotations:
+    policies.kyverno.io/title: Disallow Privilege Escalation
+    policies.kyverno.io/category: Pod Security Standards (Restricted)
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Privilege escalation should be disallowed to prevent containers from gaining
+      more privileges than their parent process. This is part of Pod Security Standards.
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    # databases: operator/CRD/Helm pods (redis-operator, redis CRD, couchdb, Percona
+    # main-mysql) — spec not editable. immich: deliberately privileged (GPU passthrough).
+    # percona-mysql: ps-operator-managed spec.
+    - name: exclude-namespaces
+      expression: >-
+        !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
+        'flux-system', 'kyverno', 'databases', 'immich', 'percona-mysql'])
+    # alloy DaemonSet (host log reader) — Helm-managed; keep rest of loki ns covered.
+    - name: exclude-loki-alloy
+      expression: >-
+        !(request.namespace == 'loki' &&
+        object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') == 'alloy')
+    # node-exporter mounts host paths — Helm-managed; keep rest of monitoring ns covered.
+    - name: exclude-monitoring-node-exporter
+      expression: >-
+        !(request.namespace == 'monitoring' &&
+        object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') == 'prometheus-node-exporter')
+  validations:
+    # Container-set parity (Design rule 3b): containers HARD + initContainers/
+    # ephemeralContainers soft at list level; inner securityContext HARD-anchored
+    # (missing securityContext or missing field = fail → orValue(true) fails).
+    - expression: >-
+        object.spec.containers.all(c,
+        c.?securityContext.?allowPrivilegeEscalation.orValue(true) == false) &&
+        object.spec.?initContainers.orValue([]).all(c,
+        c.?securityContext.?allowPrivilegeEscalation.orValue(true) == false) &&
+        object.spec.?ephemeralContainers.orValue([]).all(c,
+        c.?securityContext.?allowPrivilegeEscalation.orValue(true) == false)
+      message: "Privilege escalation must be disabled (allowPrivilegeEscalation: false) on every container"
+  validationActions: [Audit]

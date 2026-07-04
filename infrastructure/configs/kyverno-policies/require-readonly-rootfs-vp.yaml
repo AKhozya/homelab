@@ -1,0 +1,52 @@
+# CEL twin of the require-readonly-rootfs ClusterPolicy — Audit soak (Phase 1).
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-readonly-rootfs
+  annotations:
+    policies.kyverno.io/title: Require Read-Only Root Filesystem
+    policies.kyverno.io/category: Pod Security Standards (Restricted)
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Containers should run with a read-only root filesystem to prevent runtime
+      tampering of the image. Homelab invariant: readOnlyRootFilesystem requires a
+      /tmp emptyDir volume for any path the process needs to write.
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    # Per-namespace rationale lives in the CP twin (require-readonly-rootfs.yaml) —
+    # operator-managed specs, s6-overlay /run writes, privileged GPU apps, etc.
+    - name: exclude-namespaces
+      expression: >-
+        !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
+        'flux-system', 'kyverno', 'databases', 'percona-mysql', 'immich',
+        'home-assistant', 'paperless-ngx', 'backup-replication', 'pricebuddy',
+        'stirling-pdf', 'mealie'])
+    # alloy DaemonSet (host log reader) — Helm-managed; keep rest of loki ns covered.
+    - name: exclude-loki-alloy
+      expression: >-
+        !(request.namespace == 'loki' &&
+        object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') == 'alloy')
+    # grafana — Helm-managed (kube-prometheus-stack); keep rest of monitoring ns covered.
+    - name: exclude-monitoring-grafana
+      expression: >-
+        !(request.namespace == 'monitoring' &&
+        object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') == 'grafana')
+  validations:
+    # Container-set parity (Design rule 3b): containers HARD + init/ephemeral soft at
+    # list level; readOnlyRootFilesystem HARD inside each (missing → orValue(false) → fail).
+    - expression: >-
+        object.spec.containers.all(c,
+        c.?securityContext.?readOnlyRootFilesystem.orValue(false) == true) &&
+        object.spec.?initContainers.orValue([]).all(c,
+        c.?securityContext.?readOnlyRootFilesystem.orValue(false) == true) &&
+        object.spec.?ephemeralContainers.orValue([]).all(c,
+        c.?securityContext.?readOnlyRootFilesystem.orValue(false) == true)
+      message: "Every container must set securityContext.readOnlyRootFilesystem: true (mount a /tmp emptyDir for writable paths)"
+  validationActions: [Audit]

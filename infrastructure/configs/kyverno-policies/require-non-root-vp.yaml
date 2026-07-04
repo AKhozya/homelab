@@ -1,0 +1,45 @@
+# CEL twin of the require-non-root ClusterPolicy — Audit soak (Phase 1).
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-non-root
+  annotations:
+    policies.kyverno.io/title: Require Non-Root Containers
+    policies.kyverno.io/category: Pod Security Standards (Restricted)
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Containers should not run as root (UID 0). This reduces the impact of container
+      compromise by limiting the privileges available inside the container.
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    # Per-namespace rationale lives in the CP twin (require-non-root.yaml).
+    - name: exclude-namespaces
+      expression: >-
+        !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
+        'flux-system', 'kyverno', 'databases', 'mealie', 'home-assistant',
+        'pricebuddy', 'stirling-pdf', 'loki', 'backup-replication', 'paperless-ngx'])
+  validations:
+    # anyPattern parity — 4 DISTINCT branches, not mixable: a pod with one container
+    # using runAsNonRoot and another using runAsUser fails the CP (each branch must
+    # match ALL containers) and must fail here too. Inner securityContext HARD-anchored
+    # (UR2 P3-4); initContainers soft at list level.
+    - expression: >-
+        object.spec.?securityContext.?runAsNonRoot.orValue(false) == true ||
+        object.spec.?securityContext.?runAsUser.orValue(0) > 0 ||
+        (object.spec.containers.all(c,
+        c.?securityContext.?runAsNonRoot.orValue(false) == true) &&
+        object.spec.?initContainers.orValue([]).all(c,
+        c.?securityContext.?runAsNonRoot.orValue(false) == true)) ||
+        (object.spec.containers.all(c,
+        c.?securityContext.?runAsUser.orValue(0) > 0) &&
+        object.spec.?initContainers.orValue([]).all(c,
+        c.?securityContext.?runAsUser.orValue(0) > 0))
+      message: "Containers must not run as root (set runAsNonRoot: true or runAsUser > 0 at pod or container level)"
+  validationActions: [Audit]

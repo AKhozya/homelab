@@ -1,0 +1,37 @@
+# CEL twin of the disallow-latest-tag ClusterPolicy — Audit soak (Phase 1).
+# Behavior-preserving: keeps the CP's `registry:5000/img` false-pass (a ':' anywhere
+# counts as a tag). Tightening via CEL image() lib = separate post-migration change.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-latest-tag
+  annotations:
+    policies.kyverno.io/title: Disallow Latest Image Tag
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Using the 'latest' tag for container images is an anti-pattern as it makes
+      it difficult to track which version is deployed and can lead to unexpected
+      updates. This policy disallows images with the 'latest' tag or no tag specified.
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: exclude-system-namespaces
+      expression: >-
+        !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
+        'flux-system', 'kyverno'])
+  validations:
+    # CP foreach covers initContainers + containers (no ephemeralContainers) — kept.
+    - expression: >-
+        object.spec.containers.all(c,
+        !c.image.endsWith(':latest') && c.image.contains(':')) &&
+        object.spec.?initContainers.orValue([]).all(c,
+        !c.image.endsWith(':latest') && c.image.contains(':'))
+      message: "Images must not use the 'latest' tag or omit the tag (which defaults to 'latest')"
+  validationActions: [Audit]

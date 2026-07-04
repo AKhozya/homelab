@@ -1,0 +1,45 @@
+# CEL twin of the disallow-host-namespaces ClusterPolicy — Audit soak (Phase 1 of the
+# kyverno.io/v1 removal migration, deadline ~Oct 2026). Same name as the CP on purpose:
+# PolicyReport parity comparison joins on policy name, `source` field separates engines.
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: disallow-host-namespaces
+  annotations:
+    policies.kyverno.io/title: Disallow Host Namespaces
+    policies.kyverno.io/category: Pod Security Standards (Baseline)
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Host namespaces (hostNetwork, hostPID, hostIPC) allow pods to access
+      host resources and bypass Pod isolation. This policy blocks the use of
+      host namespaces to prevent container escape.
+spec:
+  # Bare-pods rule ONLY — anything more (excludeResourceRules/objectSelector/namespaceSelector)
+  # silently kills autogen (CanAutoGen gate). Excludes live in matchConditions.
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: exclude-system-namespaces
+      expression: >-
+        !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
+        'flux-system', 'kyverno'])
+    # node-exporter (DaemonSet) needs hostNetwork+hostPID for node metrics — Helm-managed;
+    # keep rest of monitoring ns covered. (autogen rewrites the label path to template
+    # labels in controller clones — desired.)
+    - name: exclude-monitoring-node-exporter
+      expression: >-
+        !(request.namespace == 'monitoring' &&
+        object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') == 'prometheus-node-exporter')
+  validations:
+    # =() soft-anchor parity: absent field passes, present must be false.
+    - expression: >-
+        object.spec.?hostNetwork.orValue(false) == false &&
+        object.spec.?hostPID.orValue(false) == false &&
+        object.spec.?hostIPC.orValue(false) == false
+      message: "Using host namespaces (hostNetwork, hostPID, hostIPC) is disallowed"
+  validationActions: [Audit]

@@ -1,0 +1,52 @@
+# CEL twin of the require-resource-limits ClusterPolicy — Audit soak (Phase 1).
+# One VP, two validations (cpu/memory) — mirrors the CP's two rules with separate
+# messages + report results (parity Class 3 counts on this).
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-resource-limits
+  annotations:
+    policies.kyverno.io/title: Require Resource Limits
+    policies.kyverno.io/category: Best Practices
+    policies.kyverno.io/severity: medium
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Containers should have resource limits (CPU and memory) to prevent resource
+      exhaustion and ensure fair resource distribution across the cluster.
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: exclude-system-namespaces
+      expression: >-
+        !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
+        'flux-system', 'kyverno'])
+    # Operator-managed pods (we cannot edit upstream): CNPG pooler (PgBouncer,
+    # cloudnative-pg), VMAgent (victoria-metrics-operator). Label-keyed, any namespace.
+    - name: exclude-cnpg-pooler
+      expression: >-
+        object.metadata.?labels[?'cnpg.io/podRole'].orValue('') != 'pooler'
+    - name: exclude-vm-operator
+      expression: >-
+        object.metadata.?labels[?'managed-by'].orValue('') != 'vm-operator'
+  validations:
+    # containers HARD + initContainers soft at list level; NO ephemeralContainers
+    # (k8s rejects resources on ephemeral containers — API-impossible). Key presence
+    # in limits map == the CP's `cpu: "?*"` (a present Quantity is never empty).
+    - expression: >-
+        object.spec.containers.all(c,
+        'cpu' in c.?resources.?limits.orValue({})) &&
+        object.spec.?initContainers.orValue([]).all(c,
+        'cpu' in c.?resources.?limits.orValue({}))
+      message: "CPU limit is required for all containers"
+    - expression: >-
+        object.spec.containers.all(c,
+        'memory' in c.?resources.?limits.orValue({})) &&
+        object.spec.?initContainers.orValue([]).all(c,
+        'memory' in c.?resources.?limits.orValue({}))
+      message: "Memory limit is required for all containers"
+  validationActions: [Audit]

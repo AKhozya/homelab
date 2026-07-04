@@ -1,0 +1,49 @@
+# CEL twin of the require-networkpolicy ClusterPolicy — Audit soak (Phase 1).
+# Carries BOTH 2026-07-03 namespace-teardown wedge fixes: CREATE/UPDATE-only ops +
+# deletionTimestamp skip (a "require NP present" deny during teardown deadlocks the
+# namespace in Terminating — csp-reporter incident).
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-networkpolicy
+  annotations:
+    policies.kyverno.io/title: Require NetworkPolicy Per Namespace
+    policies.kyverno.io/category: Security
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Namespace, NetworkPolicy
+    policies.kyverno.io/description: >-
+      Every namespace running workloads must declare at least one NetworkPolicy.
+      Homelab invariant: every ingress = NetworkPolicy (container port, not service port).
+      This policy backstops the manual NetworkPolicy curation (64 NP resources as of 2026-06).
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  # Explicit OFF: the CP matches Pods only — autogen would ADD controller coverage the
+  # CP never had (parity break).
+  autogen:
+    podControllers:
+      controllers: []
+  matchConditions:
+    - name: exclude-namespaces
+      expression: >-
+        !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease', 'default'])
+    - name: skip-terminating
+      expression: "!has(object.metadata.deletionTimestamp)"
+  variables:
+    - name: npcount
+      expression: >-
+        resource.List("networking.k8s.io/v1", "networkpolicies",
+        object.metadata.namespace).items.size()
+  validations:
+    - expression: "variables.npcount >= 1"
+      message: >-
+        Namespace must declare at least one NetworkPolicy
+        (homelab invariant: every ingress = NetworkPolicy)
+  auditAnnotations:
+    - key: netpol-count
+      valueExpression: "string(variables.npcount)"
+  validationActions: [Audit]

@@ -16,3 +16,19 @@ resources:
   - require-drop-all-capabilities.yaml    # mandatory pattern (no =() soft-anchor)
   - require-networkpolicy.yaml            # NP presence per namespace
   - require-readonly-rootfs.yaml          # readOnlyRootFilesystem
+  # --- CEL ValidatingPolicy twins (Audit soak — kyverno.io/v1 removal migration Phase 1,
+  # 2026-07-04). Same names as their CPs; PolicyReport `source` separates engines.
+  # Deny flip + CP deletion = Phase 3 after ≥1-week parity soak.
+  - require-labels-vp.yaml
+  - disallow-host-namespaces-vp.yaml
+  - require-resource-limits-vp.yaml
+  - require-non-root-vp.yaml
+  - disallow-host-path-vp.yaml
+  - disallow-latest-tag-vp.yaml
+  - require-non-default-serviceaccount-vp.yaml
+  - require-seccomp-runtimedefault-vp.yaml
+  - disallow-privilege-escalation-vp.yaml
+  - require-drop-all-capabilities-vp.yaml
+  - require-networkpolicy-vp.yaml
+  - require-readonly-rootfs-vp.yaml
+  - vp-canary.yaml                        # Deny-path live proof; deleted in Phase 4

@@ -1,0 +1,46 @@
+# CEL twin of the require-drop-all-capabilities ClusterPolicy — Audit soak (Phase 1).
+apiVersion: policies.kyverno.io/v1
+kind: ValidatingPolicy
+metadata:
+  name: require-drop-all-capabilities
+  annotations:
+    policies.kyverno.io/title: Require Drop All Capabilities
+    policies.kyverno.io/category: Pod Security Standards (Restricted)
+    policies.kyverno.io/severity: high
+    policies.kyverno.io/subject: Pod
+    policies.kyverno.io/description: >-
+      Containers should drop all Linux capabilities and only add back
+      specific ones if needed. This reduces the attack surface.
+spec:
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    # Same exclude set as disallow-privilege-escalation (see that file for rationale).
+    - name: exclude-namespaces
+      expression: >-
+        !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
+        'flux-system', 'kyverno', 'databases', 'immich', 'percona-mysql'])
+    - name: exclude-loki-alloy
+      expression: >-
+        !(request.namespace == 'loki' &&
+        object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') == 'alloy')
+    - name: exclude-monitoring-node-exporter
+      expression: >-
+        !(request.namespace == 'monitoring' &&
+        object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') == 'prometheus-node-exporter')
+  validations:
+    # Container-set parity (Design rule 3b): containers HARD + init/ephemeral soft at
+    # list level; drop list must CONTAIN 'ALL' (missing chain → orValue([]) → fail).
+    - expression: >-
+        object.spec.containers.all(c,
+        c.?securityContext.?capabilities.?drop.orValue([]).exists(x, x == 'ALL')) &&
+        object.spec.?initContainers.orValue([]).all(c,
+        c.?securityContext.?capabilities.?drop.orValue([]).exists(x, x == 'ALL')) &&
+        object.spec.?ephemeralContainers.orValue([]).all(c,
+        c.?securityContext.?capabilities.?drop.orValue([]).exists(x, x == 'ALL'))
+      message: "Every container must drop all capabilities (capabilities.drop: [ALL])"
+  validationActions: [Audit]
