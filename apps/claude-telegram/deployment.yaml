@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: chezmoi-init
-          image: ghcr.io/akhozya/claude-telegram-bot:1.27.2
+          image: ghcr.io/akhozya/claude-telegram-bot:1.27.4
           command:
             - /bin/bash
             - -c
@@ -77,7 +77,11 @@ spec:
               # source no longer declares (handles renames like everything-claude-code -> ecc, whose stale
               # entry shadows the new name and blocks its install), THEN add marketplaces + install keys.
               # Guarded so any marketplace/plugin hiccup never wedges bot init. node (not jq) parses JSON.
-              CC="npx --yes @anthropic-ai/claude-code"
+              # CC = CLI binary vendored by the Agent SDK platform package — the exact engine
+              # the bot runs (npx resolved a stale ~/.npm/_npx PVC cache instead; image npm-global
+              # install was shadowed by the PVC mount at /home/akhozya).
+              CC=/app/node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl/claude
+              [ -x "$CC" ] || echo "WARN: vendored claude binary missing at $CC — plugin sync will no-op"
               export SRC="$HOME/.local/share/chezmoi/dot_claude/private_plugins"
               # Prune plugins, then marketplaces, not present in source (plugins first so marketplace removal isn't blocked).
               keepP=$(node -e 'const p=require(process.env.SRC+"/installed_plugins.json").plugins;console.log(Object.keys(p).join(" "))' 2>/dev/null || true)
@@ -118,9 +122,9 @@ spec:
               mkdir -p ~/data
 
               # CLI + SDK pinned at image build (bi-weekly GHA rebuild Mon+Thu 23:00 UTC).
-              # Runtime self-update removed — /app is image-baked, updates didn't persist
-              # to main container. Renovate bumps image tag in deployment.yaml.
-              CLI=$(npx @anthropic-ai/claude-code --version 2>/dev/null || echo "unknown")
+              # CLI is the SDK-vendored engine binary (lockstep: SDK 0.3.X = CLI 2.1.X);
+              # report it, not npx (npx served a stale PVC cache). Renovate bumps image tag.
+              CLI=$("$CC" --version 2>/dev/null || echo "unknown")
               SDK=$(node -e "console.log(require('/app/node_modules/@anthropic-ai/claude-agent-sdk/package.json').version)" 2>/dev/null || echo "unknown")
 
               MSG=$(printf '## 🤖 Claude Bot Restarted\n\n| Component | Version |\n|---|---|\n| CLI | `%s` |\n| SDK | `%s` |' "$CLI" "$SDK")
@@ -168,7 +172,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: claude-telegram
-          image: ghcr.io/akhozya/claude-telegram-bot:1.27.2
+          image: ghcr.io/akhozya/claude-telegram-bot:1.27.4
           env:
             - name: HOME
               value: /home/akhozya
@@ -245,7 +249,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync
-          image: ghcr.io/akhozya/claude-telegram-bot:1.27.2
+          image: ghcr.io/akhozya/claude-telegram-bot:1.27.4
           command:
             - /bin/bash
             - -c

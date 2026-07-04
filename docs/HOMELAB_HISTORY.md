@@ -17,6 +17,14 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-04 — claude-telegram: bot engine unfrozen (SDK 0.2.119/CLI 2.1.119 since April) + honest version report
+
+Restart message said CLI 2.1.197 while local was 2.1.201 — investigation found THREE divergent CLI copies: (1) the **actual engine**, the binary vendored in `@anthropic-ai/claude-agent-sdk-linux-x64-musl`, frozen at **2.1.119 (2026-04-23)** because package.json pinned `^0.2.119` (caret on 0.x blocks minor bumps; npm latest was 0.3.201) AND the Dockerfile ran `bun install` against the committed `bun.lock`, so the bi-weekly image rebuild's BUILD_TS cache-bust refreshed **nothing** — the "dependency refresh" was theater since the lock landed; (2) the restart-report version from `npx @anthropic-ai/claude-code` = stale `~/.npm/_npx` cache on the PVC (2.1.197); (3) the image's npm-global 2.1.201 install — **shadowed by the PVC mount at `/home/akhozya`**, unreachable at runtime, dead weight (also the source of the `EBADENGINE` node-20-vs-22 build warn).
+
+Fix (fork `2308383` + image 1.27.4): package.json → `^0.3.195`, Dockerfile deps stage → `bun update` (refreshes ranges past the lock each rebuild) + `COPY bunfig.toml` (7-day `minimumReleaseAge` supply-chain gate now in build context), npm-global CLI install deleted; deployment init `CC` → the SDK-vendored musl binary (one version of truth — engine and plugin-sync CLI are the same file) and the restart message reports that binary's version. SDK 0.3.X vendors CLI 2.1.X lockstep. **Residual**: CI `bun update` resolved 0.3.201 despite the 7d gate (image bun predates `minimumReleaseAge` or `update` bypasses it) — gate ineffective in builds for now; drift stays visible via the now-honest restart message.
+
+---
+
 ### 2026-07-04 — Kyverno CP→VP migration Phase 1: 12 CEL ValidatingPolicy twins in Audit + vp-canary
 
 `kyverno.io/v1` ClusterPolicy removal lands Kyverno 1.20 (~Oct 2026). Phase 1 of the 4-phase migration: every CP now has a `policies.kyverno.io/v1` ValidatingPolicy twin (SAME name, `validationActions: [Audit]`) dual-running against the Enforce CP — PolicyReports carry both engines (`source: kyverno` vs `KyvernoValidatingPolicy`), parity compared by `docs/scripts/kyverno-vp-parity.sh` (3 jq classes). **Soak: 2026-07-04 → ≥07-11** (covers weekly CronJobs), then Phase 3 Deny-flip/CP-delete (2 commits, gated).
