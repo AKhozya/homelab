@@ -98,7 +98,7 @@ An externally-reachable app has **two ingress rules** (internal hostname + Cloud
 ```mermaid
 flowchart TB
   L1["1 · Secrets at rest — SOPS + age, encrypted in git"]
-  L2["2 · Admission — Kyverno (12 ClusterPolicies: 9 Enforce + 3 in Audit soak) + Pod Security Standards"]
+  L2["2 · Admission — Kyverno (12 ClusterPolicies all Enforce + 13 CEL ValidatingPolicy twins in Audit soak) + Pod Security Standards"]
   L3["3 · Network — allow-list NetworkPolicies per workload (per-pod default-deny effect; Kyverno require-networkpolicy (Enforce) denies Pod creation in any non-system ns lacking a NetworkPolicy)"]
   L4["4 · Runtime — runAsNonRoot · readOnlyRootFilesystem · drop ALL caps · seccomp RuntimeDefault"]
   L5["5 · Identity + transport — Authentik OIDC + cert-manager TLS"]

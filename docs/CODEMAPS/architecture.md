@@ -62,4 +62,4 @@ flux-system (path ./clusters — flat bootstrap layout, staging/ dir removed 202
 ## Cluster boundaries
 - 28 namespaces
 - 64 NetworkPolicies live = 42 git manifests + `allow-dns-egress` Kustomize Component fanned into 14 app namespaces (Jobs excluded via `batch.kubernetes.io/job-name DoesNotExist`)
-- 12 Kyverno ClusterPolicies — **9 Enforce, 3 Audit soak**: disallow-host-namespaces, disallow-host-path, disallow-latest-tag, disallow-privilege-escalation, require-drop-all-capabilities, require-networkpolicy, require-non-default-serviceaccount, require-readonly-rootfs, require-resource-limits (Enforce); require-labels, require-non-root, require-seccomp-runtimedefault (Audit)
+- 12 Kyverno ClusterPolicies — **all 12 Enforce** (last 3 promoted 2026-07-03). Since 2026-07-04 each has a CEL `ValidatingPolicy` twin (Audit, same name) + `vp-canary` (Deny) dual-running for the kyverno.io/v1 removal migration — CPs planned for deletion after the ≥2026-07-11 parity soak (Phase 3)
