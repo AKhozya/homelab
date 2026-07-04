@@ -43,23 +43,19 @@ spec:
               set -e
               export HOME=/home/akhozya
 
-              # Copy SSH keys from Secret staging mount to writable PVC
-              # (Secret mounts are read-only; SSH needs writable known_hosts)
+              # Secret mounts are read-only; SSH needs writable known_hosts — stage keys onto PVC
               rm -rf ~/.ssh
               install -d -m 700 ~/.ssh
               cp /etc/ssh-keys/* ~/.ssh/
               chmod 600 ~/.ssh/id_ed25519 ~/.ssh/config
               chmod 644 ~/.ssh/id_ed25519.pub ~/.ssh/known_hosts 2>/dev/null || true
 
-              # Scan node SSH fingerprints into writable known_hosts
               echo "Scanning node SSH fingerprints..."
               ssh-keyscan -p 65300 gmk-k3s-control-plane worker-node worker-node-2 >> ~/.ssh/known_hosts 2>/dev/null || true
 
-              # Setup chezmoi config
               mkdir -p ~/.config/chezmoi
               cp /etc/chezmoi-config/chezmoi.toml ~/.config/chezmoi/chezmoi.toml
 
-              # Clone or update dotfiles
               if [ -d ~/.local/share/chezmoi/.git ]; then
                 echo "Dotfiles exist, syncing (hard reset — survives force-push/rewrite)..."
                 git -C ~/.local/share/chezmoi fetch --quiet || true
@@ -69,7 +65,7 @@ spec:
                 git clone git@github.com:AKhozya/dotfiles.git ~/.local/share/chezmoi
               fi
 
-              # Apply chezmoi (.chezmoiignore handles .ssh exclusion)
+              # .chezmoiignore excludes .ssh
               chezmoi apply --force --no-tty || true
 
               # Reconcile bot plugin state to the chezmoi SOURCE (fresh from git), NOT ~/.claude/plugins:
@@ -77,9 +73,7 @@ spec:
               # source no longer declares (handles renames like everything-claude-code -> ecc, whose stale
               # entry shadows the new name and blocks its install), THEN add marketplaces + install keys.
               # Guarded so any marketplace/plugin hiccup never wedges bot init. node (not jq) parses JSON.
-              # CC = CLI binary vendored by the Agent SDK platform package — the exact engine
-              # the bot runs (npx resolved a stale ~/.npm/_npx PVC cache instead; image npm-global
-              # install was shadowed by the PVC mount at /home/akhozya).
+              # CC = SDK-vendored engine binary; npx and image npm-global both resolve stale/PVC-shadowed copies.
               CC=/app/node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl/claude
               [ -x "$CC" ] || echo "WARN: vendored claude binary missing at $CC — plugin sync will no-op"
               export SRC="$HOME/.local/share/chezmoi/dot_claude/private_plugins"
@@ -107,7 +101,6 @@ spec:
                 sed -i "s|\${CLAUDE_PLUGIN_ROOT}|$plugin_root|g" "$f" 2>/dev/null
               done
 
-              # Clone or update homelab repo
               if [ -d ~/source-code/homelab/.git ]; then
                 echo "Homelab repo exists, syncing to origin/main (hard reset — survives force-push/rewrite)..."
                 git -C ~/source-code/homelab fetch --quiet origin main || true
@@ -118,12 +111,9 @@ spec:
                 git clone git@github.com:AKhozya/homelab.git ~/source-code/homelab
               fi
 
-              # Create data dir for session persistence
               mkdir -p ~/data
 
-              # CLI + SDK pinned at image build (bi-weekly GHA rebuild Mon+Thu 23:00 UTC).
-              # CLI is the SDK-vendored engine binary (lockstep: SDK 0.3.X = CLI 2.1.X);
-              # report it, not npx (npx served a stale PVC cache). Renovate bumps image tag.
+              # Versions pinned at image build (bi-weekly GHA rebuild); Renovate bumps the tag.
               CLI=$("$CC" --version 2>/dev/null || echo "unknown")
               SDK=$(node -e "console.log(require('/app/node_modules/@anthropic-ai/claude-agent-sdk/package.json').version)" 2>/dev/null || echo "unknown")
 
