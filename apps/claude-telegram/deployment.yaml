@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: chezmoi-init
-          image: ghcr.io/akhozya/claude-telegram-bot:1.27.6
+          image: ghcr.io/akhozya/claude-telegram-bot:1.27.7
           command:
             - /bin/bash
             - -c
@@ -113,11 +113,40 @@ spec:
 
               mkdir -p ~/data
 
+              # Codex CLI state (~/.codex on PVC). config.toml rewritten every init — drift-heals
+              # model/effort/trust (mirrors mac ~/.codex/config.toml for the review gate).
+              # Auth = dedicated project-scoped OpenAI API key, injected like the Claude OAuth
+              # token (SOPS secret env). Bare OPENAI_API_KEY env is NOT honored by codex 0.142.x
+              # (verified: requests go out unauthenticated) — must round-trip through
+              # `codex login --with-api-key`, which writes auth.json. Rewritten every init so
+              # key rotation in the secret propagates on restart. Key absent -> skip (bot runs,
+              # codex just reports logged-out; secretKeyRef is optional).
+              mkdir -p ~/.codex
+              cat > ~/.codex/config.toml <<'CODEXCFG'
+              model = "gpt-5.5"
+              model_reasoning_effort = "xhigh"
+
+              [projects."/home/akhozya/source-code/homelab"]
+              trust_level = "trusted"
+              CODEXCFG
+              # No `| tail -1` here: under set -e (no pipefail) tail would mask a login
+              # failure. Capture to file; surface last line only on failure (never the key).
+              if [ -n "${OPENAI_API_KEY:-}" ]; then
+                if printenv OPENAI_API_KEY | codex login --with-api-key > /tmp/codex-login.out 2>&1; then
+                  echo "codex login OK"
+                else
+                  echo "WARN: codex login failed: $(tail -1 /tmp/codex-login.out)"
+                fi
+              else
+                echo "OPENAI_API_KEY not set — skipping codex login"
+              fi
+
               # Versions pinned at image build (bi-weekly GHA rebuild); Renovate bumps the tag.
               CLI=$("$CC" --version 2>/dev/null || echo "unknown")
               SDK=$(node -e "console.log(require('/app/node_modules/@anthropic-ai/claude-agent-sdk/package.json').version)" 2>/dev/null || echo "unknown")
+              CODEX=$(codex --version 2>/dev/null || echo "missing")
 
-              MSG=$(printf '## 🤖 Claude Bot Restarted\n\n| Component | Version |\n|---|---|\n| CLI | `%s` |\n| SDK | `%s` |' "$CLI" "$SDK")
+              MSG=$(printf '## 🤖 Claude Bot Restarted\n\n| Component | Version |\n|---|---|\n| CLI | `%s` |\n| SDK | `%s` |\n| Codex | `%s` |' "$CLI" "$SDK" "$CODEX")
 
               if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
                 # Bot API 10.1 rich message (Markdown). node fetch has the keys via env to dodge quoting.
@@ -137,6 +166,12 @@ spec:
                   key: telegram-bot-token
             - name: TELEGRAM_CHAT_ID
               value: "113452686"
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: claude-telegram-env
+                  key: openai-api-key
+                  optional: true
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -162,7 +197,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: claude-telegram
-          image: ghcr.io/akhozya/claude-telegram-bot:1.27.6
+          image: ghcr.io/akhozya/claude-telegram-bot:1.27.7
           env:
             - name: HOME
               value: /home/akhozya
@@ -239,7 +274,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync
-          image: ghcr.io/akhozya/claude-telegram-bot:1.27.6
+          image: ghcr.io/akhozya/claude-telegram-bot:1.27.7
           command:
             - /bin/bash
             - -c

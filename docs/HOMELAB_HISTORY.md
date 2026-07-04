@@ -1857,6 +1857,14 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 
 *For older entries, see [HOMELAB_HISTORY.md](./HOMELAB_HISTORY.md)*
 
+### 2026-07-04 (Codex CLI wired into claude-telegram bot)
+- ✅ **Codex review gate now works from the TG bot** — bot pod previously had no `codex` binary, so the CLAUDE.md pre-commit review gate was mac-only.
+  - Image `1.27.7` (fork `ad29203`): `npm install -g @openai/codex@0.142.5` baked in — linux platform dep is codex's static musl binary (alpine-safe), lands in `/usr/bin` outside the PVC shadow; `codex --version` build-time smoke.
+  - Init container: writes `~/.codex/config.toml` every start (gpt-5.5 / xhigh / homelab dir trusted — drift-heals, mirrors mac); pipes optional `OPENAI_API_KEY` secret env through `codex login --with-api-key` (bare env var NOT honored by codex 0.142.x — verified requests go out unauthenticated; login round-trip writes `auth.json` to PVC, rewritten each init so key rotation propagates on restart).
+  - Auth = dedicated project-scoped OpenAI API key (trackable/revocable, no ChatGPT token-refresh divergence with mac) in existing SOPS secret `claude-telegram-env` key `openai-api-key`; `secretKeyRef optional: true` so pod boots keyless (codex just logged-out). Restart TG message now reports Codex version.
+  - NetworkPolicy unchanged (443 egress to non-RFC1918 already covers OpenAI).
+  - Codex static review (gate): 1 MEDIUM — `| tail -1` after `codex login` masked failure under `set -e` (no pipefail); fixed via capture-to-file + last-line-on-failure-only.
+
 ### 2026-06-04 (Configs base/staging flatten)
 - ✅ **Flattened the last two `base/staging` overlay splits** — `monitoring/configs/{base,staging}` → `monitoring/configs/` (`081934c0`) + `infrastructure/configs/{base,staging}` → `infrastructure/configs/` (`87deba9e`). Completes the base/overlay collapse program (F-13 apps, F-14 controllers). No base/staging splits remain repo-wide.
   - **Proof:** `kustomize build --enable-helm` render byte-identical pre/post both sides (oracle diff empty — 63 mon / 133 infra resources). Flux re-adopted every object by unchanged name/ns/GVK → zero churn (CNPG/Percona/CouchDB + cloudflared + grafana/vmsingle pod ages unchanged).

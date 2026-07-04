@@ -46,7 +46,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 | Uptime Kuma | — | Uptime monitor; MySQL |
 | PriceBuddy | — | Price tracker; MySQL |
 | Blocky | — | DNS resolver + ad-block; HA (2 replicas, W1+W2); serves LAN clients only |
-| claude-telegram | — | Telegram bot bridge for ops |
+| claude-telegram | — | Telegram bot bridge for ops (Claude engine + Codex review gate) |
 
 ## Databases
 
