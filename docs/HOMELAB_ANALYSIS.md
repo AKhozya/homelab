@@ -72,7 +72,7 @@ DB role name = app name. Provisioning goes through the operator CRDs (CNPG `Data
 - **Loki + Grafana Alloy** — log aggregation (DaemonSet).
 - **Alertmanager** — Telegram alerts.
 - **Popeye** — weekly cluster-hygiene scan.
-- **Kyverno** — daily policy-violation digest.
+- **Kyverno** — daily policy-violation digest via `KyvernoPolicyViolationsDailySummary` VMRule (no CronJob).
 
 ## External access
 
@@ -102,7 +102,9 @@ Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md
 
 | Due | Item |
 |---|---|
-| 2026-07-04 | Monthly review + first quarterly automation audit — upstream re-checks (n8n #25705, Authentik client-hints #20700, image-CVE scanner decision, mysql-proxy POP-1100, kiwigrid/k8s-sidecar#531 — re-enable loki sidecar probes when HEALTH_HOST ships). Kyverno Audit→Enforce flip + `validationFailureAction`→per-rule `failureAction` sweep done early 2026-07-03 (main 6abb551f) |
+| ~~2026-07-04~~ ✅ | Monthly review + quarterly automation audit DONE 2026-07-04 (see HISTORY). Watches CLOSED: Authentik client-hints (2026.5.3 live), passkey lockout, UR2 vmalert, mysql-proxy POP-1100/1110 (accepted cosmetic). Still watched monthly: n8n #25705 (workaround PROVEN still required at 2.28.6), k8s-sidecar#531 (loki probes stay disabled), Stirling#6211 |
+| 2026-07-05 | Verify immich-backup 03:00 UTC Sunday slot fires (06-28 slot missed pre-hardening; sds now 3600) |
+| 2026-07-08 | Install trivy-operator (image-CVE decision 2026-07-04: in-cluster operator; pinned chart, hardened values, NP, Kyverno-compliant scan jobs) + security-scan service ExecStopPost failure-notify (quarterly-audit silent-failure fix) |
 | 2026-07 (unscheduled) | Remaining deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only). **Done 2026-07-03** (main `d771464d`): Percona `crVersion`→1.2.0 (SmartUpdate roll, matched operator chart already at 1.2.0); ClusterIssuer→`letsencrypt-prod` (16 certs re-issued, was already prod ACME); Redis/CouchDB instance CRs → configs layer (gapless prune:disabled move); csp-reporter GC'd — see HISTORY |
 | 2026-07-06 | Resource right-sizing pass |
 | ~2026-07-20 | Worker-2 backup replication-step drop / temp safety-net removal (postponed +2mo from 2026-05-22) |

@@ -100,7 +100,7 @@ Per-pod NPs: vmsingle/vmagent/vmalert/vmoperator (`victoria-metrics/networkpolic
 ## VMAlert wiring
 - `datasource.url`: `http://vmsingle-vmsingle.monitoring.svc:8429`
 - `remoteWrite.url`: `http://vmsingle-vmsingle.monitoring.svc:8429` (recording rule results)
-- `notifier.url`: `http://alertmanager-operated.monitoring.svc:9093`
+- `notifiers[]`: both AM pod FQDNs (`...alertmanager-{0,1}.alertmanager-operated.monitoring.svc:9093`) — a single service URL pinned one endpoint leaving AM-0 dark (fixed 2026-07-04); AM gossip dedupes
 - `ruleNamespaceSelector: {}` + `ruleSelector: {}` → picks up VMRules from all namespaces
 - `replicaCount: 1`, `evaluationInterval: 60s`
 

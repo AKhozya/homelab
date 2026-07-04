@@ -17,7 +17,29 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
-### 2026-07-04 — claude-telegram: bot engine unfrozen (SDK 0.2.119/CLI 2.1.119 since April) + honest version report
+### 2026-07-04 — Monthly review + first quarterly automation audit
+
+Posture sweep (3 parallel agents: cluster, nodes-SSH, GitHub): **no FAIL findings**. Flux 7/7, CI green, certs 19/19, backups zero failed jobs, disks healthy (W2 extra-storage 28%), node-maintenance all success + updates 0 (weekly run rebooted fleet this morning), Popeye A (90), no open PRs, no rotations due before 2026-10-01.
+
+Shipped (commits `e78a033f`, `492911f9`, `eb0774b7`):
+- **Kyverno soak day-0 findings** (the dual-run caught real divergence classes on day 0):
+  - `require-networkpolicy` VP twin had `autogen: controllers: []` on a WRONG premise — live polr proves the CP autogen is ACTIVE (namespaces-only exclude). Twin autogen enabled; `npcount` switched to `request.namespace` (autogen clones rewrite `object.metadata` to template metadata; request.* live-verified populated in background reports).
+  - **Kyverno suppresses autogen on selector-bearing rules**: the 5 CPs with label-selector excludes (resource-limits, readonly-rootfs, drop-all-capabilities, privilege-escalation, host-namespaces) report Pod-only cluster-wide — they NEVER checked controllers. Their CEL twins do (matchConditions ≠ selectors) — deliberate strengthening, kept.
+  - First strengthened-coverage catch: `main-mysql-haproxy` mysql-monit sidecar had no template limits (ran on databases LimitRange defaults 1cpu/1Gi, invisible to the CP). Fixed via Percona CR `sidecarResources` (20m/32Mi–200m/128Mi); haproxy rolled clean.
+  - `kyverno-vp-parity.sh` reworked: vp-canary excluded (structural), VP-only all-SKIP groups filtered (report-shape: CP exclude = no row, twin matchCondition = skip row), new **Class 2e** prints fail/error from strengthened coverage. Live after fixes: class1=0, class2=125 (all networkpolicy CP-only — clears as twin-autogen reports regenerate), 2e=1 (mysql-monit, clears on rescan), class3=0.
+- **Alertmanager HA was theater**: vmalert `notifier` single service URL pinned one endpoint — alertmanager-0 held ZERO alert state (not even Watchdog). Switched to `notifiers[]` with both pod FQDNs (gossip dedupes); AM-0 verified receiving.
+- **n8n statement_timeout claim REFUTED**: trial-removed `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` per n8n#25705 community report (fixed ≥2.17.3) — 2.28.6 crash-looped with `unsupported startup parameter: statement_timeout` (old pod kept serving, zero downtime). Reverted with evidence; workaround stays.
+
+Investigated / closed without code:
+- **Redis master on W2** (silent pin drift): 3 sentinel failovers all bounced — ot redis-operator records `status.masterNode` and repairs topology back; sentinel-only pin no longer sticks. Replication healthy, apps clean (master-following Service), W2 flannel issues resolved 06-05 → **drift accepted**, db-primary-pin caveat updated.
+- **immich-backup missed 06-28 slot**: pre-hardening `startingDeadlineSeconds: 600` miss; manual make-up ran 06-28 13:57; sds now 3600. Verify 07-05 03:00 UTC slot fires.
+- **rkhunter suspects 27→50 lockstep all 3 nodes** (rootkits 0, warnings +25 uniform) — post-update baseline drift; `--propupd` + re-scan queued (needs sudo TTY).
+- Upstream re-checks: authentik client-hints shipped 2026.5.0 (we run 2026.5.3; passkey-first solid for a month → watch CLOSED). k8s-sidecar#531 open (loki probes stay disabled). Stirling#6211 open, PR #6475 unmerged (fine on 2.11.0-fat). Passkey lockout watch CLOSED (no edge cases). UR2 vmalert watch CLOSED (129 rules, 0 unhealthy, no FP storms).
+- 16:01 Flux linkwarden webhook alert = transient during kyverno Helm v23 no-op upgrade churn (Flux 2.9.0 controllers restart); apps kustomization recovered same cycle.
+
+**Quarterly automation audit** (first run): 20+ automations inventoried, all firing on schedule. Silent-failure risks: security-scan service has no failure notify (only maintenance unit without ExecStopPost — fix queued), repro-cleanup + k3s-image-gc alert only via the disaster they prevent, rebuilderd textfile metrics need staleness guard check. "Kyverno digest CronJob" struck from checklist (digest = VMRule `KyvernoPolicyViolationsDailySummary`, not a CronJob).
+
+Decisions: image-CVE scanning = **trivy-operator in-cluster** (install scheduled 2026-07-08); CSP Tier B/C = continue via per-app browser verify; POP-1100/1110 mysql-primary Service = accepted operator cosmetic (dropped from monthly checks); W2 rebuilderd relocation deferred (28% disk). Skill stocktake: 6 stale skills fixed (csp-reporter refs, retired `validationFailureAction` column, `clusters/staging.yaml` default, ansible role path, PENDING-table ref).
 
 Restart message said CLI 2.1.197 while local was 2.1.201 — investigation found THREE divergent CLI copies: (1) the **actual engine**, the binary vendored in `@anthropic-ai/claude-agent-sdk-linux-x64-musl`, frozen at **2.1.119 (2026-04-23)** because package.json pinned `^0.2.119` (caret on 0.x blocks minor bumps; npm latest was 0.3.201) AND the Dockerfile ran `bun install` against the committed `bun.lock`, so the bi-weekly image rebuild's BUILD_TS cache-bust refreshed **nothing** — the "dependency refresh" was theater since the lock landed; (2) the restart-report version from `npx @anthropic-ai/claude-code` = stale `~/.npm/_npx` cache on the PVC (2.1.197); (3) the image's npm-global 2.1.201 install — **shadowed by the PVC mount at `/home/akhozya`**, unreachable at runtime, dead weight (also the source of the `EBADENGINE` node-20-vs-22 build warn).
 
