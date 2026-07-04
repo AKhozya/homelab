@@ -135,6 +135,15 @@ spec:
           memory: 256Mi
       rules:
         enabled: true
+      # k8s-sidecar healthz binds dual-stack; on this IPv4-only cluster the health
+      # thread dies (upstream kiwigrid/k8s-sidecar#531) → chart-18.x default probes
+      # get connection-refused and liveness crash-loops the pod (2026-07-04 incident).
+      # Chart 7.0.0 had no sidecar probes — same posture; rules watcher is a separate
+      # thread and unaffected. Re-enable when #531 ships a HEALTH_HOST fix.
+      readinessProbe:
+        enabled: false
+      livenessProbe:
+        enabled: false
 
     # Loki canary configuration
     lokiCanary:
