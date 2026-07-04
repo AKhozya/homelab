@@ -17,6 +17,16 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-04 — Kyverno CP→VP migration Phase 1: 12 CEL ValidatingPolicy twins in Audit + vp-canary
+
+`kyverno.io/v1` ClusterPolicy removal lands Kyverno 1.20 (~Oct 2026). Phase 1 of the 4-phase migration: every CP now has a `policies.kyverno.io/v1` ValidatingPolicy twin (SAME name, `validationActions: [Audit]`) dual-running against the Enforce CP — PolicyReports carry both engines (`source: kyverno` vs `KyvernoValidatingPolicy`), parity compared by `docs/scripts/kyverno-vp-parity.sh` (3 jq classes). **Soak: 2026-07-04 → ≥07-11** (covers weekly CronJobs), then Phase 3 Deny-flip/CP-delete (2 commits, gated).
+
+Design (source-verified against kyverno 1.18.1 `pkg/cel/autogen`): bare-pods `matchConstraints` ONLY (anything more silently kills autogen — CanAutoGen gate); all excludes as `matchConditions` CEL (`request.namespace` for ns — never rewritten by autogen; `object.metadata.?labels[...]` for workload excludes — rewritten to template labels in clones, desired); optional-chain defaults reproduce hard-anchor semantics (`orValue(<fail-value>)`); container-set parity per-CP (ephemeralContainers only where the CP had it; resource-limits: no ephemeral — API-impossible). `require-networkpolicy`: autogen explicitly off, `resource.List` for NP count, both 2026-07-03 teardown-wedge fixes carried. `vp-canary`: Deny from day one, matches only `vp-canary-test=fail` pods — Phase-3 Gate A proof that the VP Deny path is live with no CP masking.
+
+Offline validation (kyverno CLI 1.18.1): 12 VPs × 10-resource corpus → error=0, every targeted assertion exact (autogen fires on controllers, ns/label excludes honored, non-root anyPattern branch non-mixing preserved, canary isolates); `require-networkpolicy` VP against live cluster read-only: pass=85 fail=0 error=0. **Engine finding**: VP emits ONE result per (policy, resource) — multi-validation short-circuit — so `require-resource-limits` reports cp=2/vp=1 structurally; parity script Class 3 carries that exact exception (verify-early-in-soak note inside) and Class 1 compares worst-of-source. Review-invariants: new CEL section (CanAutoGen silent-kill, request.namespace-vs-object rewrite, orValue soft-anchor rebirth, per-CP container sets, 3-class parity).
+
+---
+
 ### 2026-07-04 — Loki chart lineage migration → grafana-community 18.4.0
 
 `grafana.github.io` loki chart went GEL-only (frozen at 7.0.0 for OSS) — Renovate was blind to OSS Loki updates. Repointed the HelmRelease to the community fork (`grafana-community/helm-charts`, strict-semver continuation of 6.55.0). Main `8f2e54ea`.
@@ -30,6 +40,8 @@ The dated changelog and completed-action-item archive below are the detail behin
 | `gateway.metrics.enabled: false` | 18.x default-on nginx exporter sidecar renders with empty resources (Kyverno enforce-limits would block) + port 4040 absent from NetworkPolicy. Enabling later = deliberate change with resources + NP port. |
 
 Verified live: LokiDown silent, alloy dropped-entries rate 0, canary writing with 0 missing, gateway 1-container. Migration plan was 2-round Codex-reviewed pre-implementation; implementation diff PASS zero findings. Render-parity proof: final render byte-identical to pre-validated artifact except the intended image pin.
+
+**Incident (~20 min post-deploy, fixed same day `d1b586ca`):** loki-0 CrashLoopBackOff — chart 18.x newly enables a healthz server + probes on the `loki-sc-rules` sidecar (7.0.0 had neither); k8s-sidecar's health server binds dual-stack and its thread dies on IPv4-only kernels ("Unsupported address family", upstream **kiwigrid/k8s-sidecar#531**, open — reproduces on old 2.5.0 image too, probes are the trigger) → liveness connection-refused → kill every ~2.5 min. Ingest never dropped (distributor ~39 lines/s, alloy drops 0, canary 0 missing). Fix: `sidecar.readinessProbe.enabled=false` + `livenessProbe.enabled=false` (chart flags, restores exact 7.0.0 posture; rules watcher is a separate thread — worked for months with the same silently-dead health thread). Both probes required: readiness alone leaves the pod NotReady forever. Re-enable when #531 ships HEALTH_HOST.
 
 ---
 
