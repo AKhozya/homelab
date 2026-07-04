@@ -125,6 +125,10 @@ spec:
               cat > ~/.codex/config.toml <<'CODEXCFG'
               model = "gpt-5.5"
               model_reasoning_effort = "xhigh"
+              # Pod seccomp (RuntimeDefault) blocks unprivileged user namespaces -> codex's
+              # bwrap sandbox cannot start (verified in-pod). The pod IS the sandbox:
+              # non-root, readOnlyRootFilesystem, caps dropped, egress-restricted, own RBAC.
+              sandbox_mode = "danger-full-access"
 
               [projects."/home/akhozya/source-code/homelab"]
               trust_level = "trusted"
