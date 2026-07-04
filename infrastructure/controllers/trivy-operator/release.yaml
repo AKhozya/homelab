@@ -42,7 +42,7 @@ spec:
         memory: "128Mi"
       limits:
         cpu: "500m"
-        memory: "512Mi"
+        memory: "768Mi"  # bumped from 512Mi — near-limit alert at concurrency=2
     # Chart's container securityContext already: RoRFS, no-privesc, drop ALL.
     # It omits runAsNonRoot/seccomp — add at pod level (PSS restricted-ready).
     podSecurityContext:
