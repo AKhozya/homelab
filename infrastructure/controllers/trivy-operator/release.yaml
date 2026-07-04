@@ -71,7 +71,7 @@ spec:
           memory: "128Mi"
         limits:
           cpu: "500m"
-          memory: "512Mi"
+          memory: "1Gi"  # 512Mi OOM-killed large-image scans (6× on W1 2026-07-04, rss ~520Mi at kill)
     trivyOperator:
       # Known label for the scan-job NetworkPolicy selector (job pods don't carry
       # the operator's deployment labels) + satisfies require-labels.
