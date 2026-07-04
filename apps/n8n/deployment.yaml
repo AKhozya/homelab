@@ -78,10 +78,9 @@ spec:
             - secretRef:
                 name: n8n-env
           env:
-            # Disable statement_timeout in startup message - incompatible with PgBouncer transaction mode
-            # https://github.com/n8n-io/n8n/issues/25705
-            - name: DB_POSTGRESDB_STATEMENT_TIMEOUT
-              value: "0"
+            # DB_POSTGRESDB_STATEMENT_TIMEOUT=0 workaround removed 2026-07-04: n8n ≥2.17.3
+            # no longer sends statement_timeout as a startup parameter (community-reported in n8n#25705 via
+            # typeorm#50); re-add if PgBouncer logs "Unsupported startup parameter".
             # Pre-migrate storage path before n8n v3 renames binaryData → storage
             - name: N8N_MIGRATE_FS_STORAGE_PATH
               value: "true"

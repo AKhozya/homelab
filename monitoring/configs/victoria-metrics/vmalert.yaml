@@ -11,9 +11,12 @@ spec:
   # Write recording rule results to VMSingle
   remoteWrite:
     url: "http://vmsingle-vmsingle.monitoring.svc:8429"
-  # Send alerts to existing Alertmanager
-  notifier:
-    url: "http://alertmanager-operated.monitoring.svc:9093"
+  # Send alerts to BOTH Alertmanager replicas by pod FQDN — a single service URL
+  # pins one endpoint (kube-proxy sticky conn), leaving the other replica with zero
+  # alert state (found 2026-07-04: alertmanager-0 dark, HA theater). AM gossip dedupes.
+  notifiers:
+    - url: "http://alertmanager-kube-prometheus-stack-alertmanager-0.alertmanager-operated.monitoring.svc:9093"
+    - url: "http://alertmanager-kube-prometheus-stack-alertmanager-1.alertmanager-operated.monitoring.svc:9093"
   # Select all VMRules from all namespaces
   ruleNamespaceSelector: {}
   ruleSelector: {}
