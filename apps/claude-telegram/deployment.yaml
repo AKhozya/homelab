@@ -115,12 +115,11 @@ spec:
 
               # Codex CLI state (~/.codex on PVC). config.toml rewritten every init — drift-heals
               # model/effort/trust (mirrors mac ~/.codex/config.toml for the review gate).
-              # Auth = dedicated project-scoped OpenAI API key, injected like the Claude OAuth
-              # token (SOPS secret env). Bare OPENAI_API_KEY env is NOT honored by codex 0.142.x
-              # (verified: requests go out unauthenticated) — must round-trip through
-              # `codex login --with-api-key`, which writes auth.json. Rewritten every init so
-              # key rotation in the secret propagates on restart. Key absent -> skip (bot runs,
-              # codex just reports logged-out; secretKeyRef is optional).
+              # Auth = ChatGPT-plan tokens (auth.json copied from mac — the official codex
+              # headless path). Seeded ONLY if absent: codex refreshes tokens in place on the
+              # PVC; re-seeding the (stale) secret snapshot would clobber live tokens. If pod
+              # auth ever dies: re-copy mac auth.json into the SOPS secret, rm the PVC copy,
+              # restart pod.
               mkdir -p ~/.codex
               cat > ~/.codex/config.toml <<'CODEXCFG'
               model = "gpt-5.5"
@@ -133,16 +132,9 @@ spec:
               [projects."/home/akhozya/source-code/homelab"]
               trust_level = "trusted"
               CODEXCFG
-              # No `| tail -1` here: under set -e (no pipefail) tail would mask a login
-              # failure. Capture to file; surface last line only on failure (never the key).
-              if [ -n "${OPENAI_API_KEY:-}" ]; then
-                if printenv OPENAI_API_KEY | codex login --with-api-key > /tmp/codex-login.out 2>&1; then
-                  echo "codex login OK"
-                else
-                  echo "WARN: codex login failed: $(tail -1 /tmp/codex-login.out)"
-                fi
-              else
-                echo "OPENAI_API_KEY not set — skipping codex login"
+              if [ ! -f ~/.codex/auth.json ] && [ -f /etc/codex-auth/auth.json ]; then
+                install -m 600 /etc/codex-auth/auth.json ~/.codex/auth.json
+                echo "codex auth.json seeded from secret"
               fi
 
               # Versions pinned at image build (bi-weekly GHA rebuild); Renovate bumps the tag.
@@ -170,12 +162,6 @@ spec:
                   key: telegram-bot-token
             - name: TELEGRAM_CHAT_ID
               value: "113452686"
-            - name: OPENAI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: claude-telegram-env
-                  key: openai-api-key
-                  optional: true
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -196,6 +182,9 @@ spec:
               readOnly: true
             - name: chezmoi-config
               mountPath: /etc/chezmoi-config
+              readOnly: true
+            - name: codex-auth
+              mountPath: /etc/codex-auth
               readOnly: true
             - name: tmp
               mountPath: /tmp
@@ -357,5 +346,9 @@ spec:
         - name: chezmoi-config
           secret:
             secretName: claude-telegram-chezmoi
+        - name: codex-auth
+          secret:
+            secretName: claude-telegram-codex
+            defaultMode: 0400
         - name: tmp
           emptyDir: {}
