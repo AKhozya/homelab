@@ -19,7 +19,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 
 - **16** applications across **28** namespaces in git (32 live incl. k8s system namespaces)
 - **65** NetworkPolicy resources live (51 raw manifests in git — operator- and component-generated policies make up the delta) — default-deny posture; presence enforced by Kyverno
-- **12** Kyverno `ClusterPolicy` resources — **all 12 Enforce** (per-rule `validate.failureAction`; require-labels/-non-root/-seccomp promoted from Audit 2026-07-03)
+- **12** Kyverno `ClusterPolicy` resources — **all 12 Enforce** (per-rule `validate.failureAction`; require-labels/-non-root/-seccomp promoted from Audit 2026-07-03). Dual-running since 2026-07-04: **13** CEL `ValidatingPolicy` resources (12 Audit twins + `vp-canary` Deny) soaking for the kyverno.io/v1 removal migration — see deadlines
 - **51** SOPS-encrypted secrets in git — no plaintext secret in Git
 - **12** HelmReleases (live = git) — drift detection enabled, with targeted timeouts + rollback
 - **3** PriorityClasses (critical / standard / batch) — every workload annotated
