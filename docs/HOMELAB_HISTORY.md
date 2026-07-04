@@ -33,7 +33,7 @@ Shipped (commits `e78a033f`, `492911f9`, `eb0774b7`):
 Investigated / closed without code:
 - **Redis master on W2** (silent pin drift): 3 sentinel failovers all bounced — ot redis-operator records `status.masterNode` and repairs topology back; sentinel-only pin no longer sticks. Replication healthy, apps clean (master-following Service), W2 flannel issues resolved 06-05 → **drift accepted**, db-primary-pin caveat updated.
 - **immich-backup missed 06-28 slot**: pre-hardening `startingDeadlineSeconds: 600` miss; manual make-up ran 06-28 13:57; sds now 3600. Verify 07-05 03:00 UTC slot fires.
-- **rkhunter suspects 27→50 lockstep all 3 nodes** (rootkits 0, warnings +25 uniform) — post-update baseline drift; `--propupd` + re-scan queued (needs sudo TTY).
+- **rkhunter suspects 27→50 lockstep all 3 nodes** (rootkits 0, warnings +25 uniform) — post-update baseline drift; `--propupd` + re-scan DONE same day (user TTY): property-change warnings cleared, remaining 7/node = permanent known-noise set (egrep/fgrep/ldd script-replacements, SSH Protocol legacy check, /etc/.updated + krb5 man hidden files), identical across nodes.
 - Upstream re-checks: authentik client-hints shipped 2026.5.0 (we run 2026.5.3; passkey-first solid for a month → watch CLOSED). k8s-sidecar#531 open (loki probes stay disabled). Stirling#6211 open, PR #6475 unmerged (fine on 2.11.0-fat). Passkey lockout watch CLOSED (no edge cases). UR2 vmalert watch CLOSED (129 rules, 0 unhealthy, no FP storms).
 - 16:01 Flux linkwarden webhook alert = transient during kyverno Helm v23 no-op upgrade churn (Flux 2.9.0 controllers restart); apps kustomization recovered same cycle.
 
