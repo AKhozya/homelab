@@ -832,21 +832,6 @@ spec:
   - name: kyverno-policy-alerts
     interval: 1h
     rules:
-    - alert: KyvernoPolicyViolationsDailySummary
-      # kyverno_policy_results_total is a CUMULATIVE counter (all-time fail events,
-      # never decreases) — raw sum()>N fires forever once tripped (was stuck at 6951
-      # after 2026-06-07 fix-forward cleared every live violation). increase[24h]
-      # = fail events in the last day: background rescans keep it >0 while a real
-      # violator exists, decays to 0 within 24h of the last fail. for: 1h skips
-      # one-off admission/churn blips.
-      expr: sum(increase(kyverno_policy_results_total{rule_result="fail"}[24h])) > 0
-      for: 1h
-      labels:
-        severity: info
-      annotations:
-        summary: "Daily Kyverno policy violations summary"
-        description: "{{ $value }} policy fail events in the last 24h. Review violations with: kubectl get policyreports -A"
-
     - alert: KyvernoAdmissionControllerDown
       expr: up{job="kyverno-svc-metrics"} == 0
       for: 5m
