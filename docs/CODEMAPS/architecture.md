@@ -17,7 +17,7 @@ CP NIC: Intel I225-V (`enp3s0`), forced 1Gbps + EEE off via `igc-tune@.service` 
 7 Kustomizations, dependency DAG (apps does NOT depend on monitoring — parallel chains):
 ```
 flux-system (path ./clusters — flat bootstrap layout, staging/ dir removed 2026-06-12; env is PROD; branch main)
-  └─ infrastructure-controllers   (cert-manager, traefik, kyverno, DB operators: CNPG, OpsTree redis, Percona MySQL)
+  └─ infrastructure-controllers   (cert-manager, traefik, kyverno, trivy-operator, DB operators: CNPG, OpsTree redis, Percona MySQL)
        ├─ coredns                 (coredns-ha DaemonSet in kube-system — own Kustomization so DNS heals independently)
        ├─ infrastructure-configs  (cluster CRs, NetworkPolicies, ResourceQuotas, secrets, cronjobs, backup-replication, kyverno-policies)
        │    └─ apps               (16 app stacks, flat apps/<app>; + components/ shared allow-dns-egress Kustomize component)

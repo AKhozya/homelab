@@ -8,7 +8,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 
 | Area | Status |
 |---|---|
-| **Security** | Pod Security Standards enforced; 12 Kyverno policies (all Enforce); default-deny NetworkPolicies; secrets SOPS-encrypted in Git |
+| **Security** | Pod Security Standards enforced; 12 Kyverno policies (all Enforce); default-deny NetworkPolicies; secrets SOPS-encrypted in Git; in-cluster image-CVE scanning (trivy-operator) |
 | **Backup / DR** | Daily logical backups (Postgres, MySQL, CouchDB, app PVCs), 30-day retention, off-node + NAS replication, documented restore runbook |
 | **Observability** | VictoriaMetrics + Grafana + Loki/Alloy; Alertmanager → Telegram; weekly Popeye hygiene scan |
 | **Networking** | Dual ingress (LAN Traefik + Cloudflare Tunnel), zero inbound ports, Blocky DNS + ad-block |
@@ -21,7 +21,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 - **65** NetworkPolicy resources live (51 raw manifests in git — operator- and component-generated policies make up the delta) — default-deny posture; presence enforced by Kyverno
 - **12** Kyverno `ClusterPolicy` resources — **all 12 Enforce** (per-rule `validate.failureAction`; require-labels/-non-root/-seccomp promoted from Audit 2026-07-03). Dual-running since 2026-07-04: **13** CEL `ValidatingPolicy` resources (12 Audit twins + `vp-canary` Deny) soaking for the kyverno.io/v1 removal migration — see deadlines
 - **51** SOPS-encrypted secrets in git — no plaintext secret in Git
-- **12** HelmReleases (live = git) — drift detection enabled, with targeted timeouts + rollback
+- **13** HelmReleases (live = git) — drift detection enabled, with targeted timeouts + rollback
 - **3** PriorityClasses (critical / standard / batch) — every workload annotated
 - **PSS:** 12 namespaces `restricted`, 9 `baseline`, 6 `privileged` (each justified — GPU, hostPath, host-network)
 
@@ -104,7 +104,7 @@ Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md
 |---|---|
 | ~~2026-07-04~~ ✅ | Monthly review + quarterly automation audit DONE 2026-07-04 (see HISTORY). Watches CLOSED: Authentik client-hints (2026.5.3 live), passkey lockout, UR2 vmalert, mysql-proxy POP-1100/1110 (accepted cosmetic). Still watched monthly: n8n #25705 (workaround PROVEN still required at 2.28.6), k8s-sidecar#531 (loki probes stay disabled), Stirling#6211 |
 | 2026-07-05 | Verify immich-backup 03:00 UTC Sunday slot fires (06-28 slot missed pre-hardening; sds now 3600) |
-| 2026-07-08 | Install trivy-operator (image-CVE decision 2026-07-04: in-cluster operator; pinned chart, hardened values, NP, Kyverno-compliant scan jobs) + security-scan service ExecStopPost failure-notify (quarterly-audit silent-failure fix) |
+| 2026-07-08 | security-scan service ExecStopPost failure-notify (quarterly-audit silent-failure fix). trivy-operator installed EARLY 2026-07-04 (`dfeb0153`) — first sweep found criticals; triage via TrivyCriticalVulnerabilities alert + `kubectl get vulnerabilityreports -A` |
 | 2026-07 (unscheduled) | Remaining deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only). **Done 2026-07-03** (main `d771464d`): Percona `crVersion`→1.2.0 (SmartUpdate roll, matched operator chart already at 1.2.0); ClusterIssuer→`letsencrypt-prod` (16 certs re-issued, was already prod ACME); Redis/CouchDB instance CRs → configs layer (gapless prune:disabled move); csp-reporter GC'd — see HISTORY |
 | 2026-07-06 | Resource right-sizing pass |
 | ~2026-07-20 | Worker-2 backup replication-step drop / temp safety-net removal (postponed +2mo from 2026-05-22) |
