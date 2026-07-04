@@ -205,6 +205,20 @@ spec:
           cpu: "500m"
           memory: "128Mi"
 
+      # mysql-monit sidecar previously ran on databases-ns LimitRange defaults (1 CPU/1Gi
+      # injected at pod admission) — template itself had no limits, which the CEL
+      # ValidatingPolicy twin flags at controller level (the ClusterPolicy never did:
+      # selector-based excludes suppress Kyverno autogen). Explicit modest values; it is
+      # a lightweight health-check loop (right-sizing pass 2026-07-06 may tune further).
+      sidecarResources:
+        mysql-monit:
+          requests:
+            cpu: "20m"
+            memory: "32Mi"
+          limits:
+            cpu: "200m"
+            memory: "128Mi"
+
       # Anti-affinity for HA - spread across nodes
       affinity:
         antiAffinityTopologyKey: kubernetes.io/hostname

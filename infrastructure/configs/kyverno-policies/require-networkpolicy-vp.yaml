@@ -22,11 +22,10 @@ spec:
         apiVersions: ["v1"]
         operations: ["CREATE", "UPDATE"]
         resources: ["pods"]
-  # Explicit OFF: the CP matches Pods only — autogen would ADD controller coverage the
-  # CP never had (parity break).
-  autogen:
-    podControllers:
-      controllers: []
+  # Autogen ON (default when unset) — the original "CP never had controller coverage"
+  # assumption was wrong: the CP's namespaces-only exclude leaves Kyverno autogen ACTIVE
+  # (live polr carries autogen-require-netpol-present rows on controllers). Twin must
+  # mirror that, else parity shows 100+ CP-only controller rows (2026-07-04 soak day-0).
   matchConditions:
     - name: exclude-namespaces
       expression: >-
@@ -35,9 +34,13 @@ spec:
       expression: "!has(object.metadata.deletionTimestamp)"
   variables:
     - name: npcount
+      # request.namespace, NOT object.metadata.namespace: autogen controller clones
+      # rewrite object.metadata to pod-template metadata (namespace unset there), and
+      # request.namespace is populated in background report mode too (live-verified via
+      # matchCondition skip rows). Also mirrors the CP's {{ request.namespace }} apiCall.
       expression: >-
         resource.List("networking.k8s.io/v1", "networkpolicies",
-        object.metadata.namespace).items.size()
+        request.namespace).items.size()
   validations:
     - expression: "variables.npcount >= 1"
       message: >-
