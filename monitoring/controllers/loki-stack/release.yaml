@@ -11,10 +11,10 @@ spec:
   chart:
     spec:
       chart: loki
-      version: 7.0.0  # Renovate-managed
+      version: 18.4.0  # Renovate-managed (grafana-community lineage — OSS fork of 6.55.0)
       sourceRef:
         kind: HelmRepository
-        name: grafana
+        name: grafana-community
         namespace: loki
       interval: 12h
   install:
@@ -28,76 +28,8 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
-  # standard-tier — loki chart 7.0.0 component priorityClassName paths vary; uniform patch.
-  postRenderers:
-    - kustomize:
-        patches:
-          - target:
-              kind: StatefulSet
-              name: loki
-            patch: |-
-              - op: add
-                path: /spec/template/spec/priorityClassName
-                value: homelab-standard
-          - target:
-              kind: Deployment
-              name: loki-gateway
-            patch: |-
-              - op: add
-                path: /spec/template/spec/priorityClassName
-                value: homelab-standard
-          - target:
-              kind: DaemonSet
-              name: loki-canary
-            patch: |-
-              - op: add
-                path: /spec/template/spec/priorityClassName
-                value: homelab-standard
-          # seccomp RuntimeDefault (UR2-4 soak) — loki chart 7.0.0 has no uniform securityContext
-          # hook; strategic-merge each pod spec (merges into the chart's existing securityContext,
-          # preserving fsGroup/runAsUser).
-          - target:
-              kind: StatefulSet
-              name: loki
-            patch: |-
-              apiVersion: apps/v1
-              kind: StatefulSet
-              metadata:
-                name: loki
-              spec:
-                template:
-                  spec:
-                    securityContext:
-                      seccompProfile:
-                        type: RuntimeDefault
-          - target:
-              kind: Deployment
-              name: loki-gateway
-            patch: |-
-              apiVersion: apps/v1
-              kind: Deployment
-              metadata:
-                name: loki-gateway
-              spec:
-                template:
-                  spec:
-                    securityContext:
-                      seccompProfile:
-                        type: RuntimeDefault
-          - target:
-              kind: DaemonSet
-              name: loki-canary
-            patch: |-
-              apiVersion: apps/v1
-              kind: DaemonSet
-              metadata:
-                name: loki-canary
-              spec:
-                template:
-                  spec:
-                    securityContext:
-                      seccompProfile:
-                        type: RuntimeDefault
+  # (18.x: priorityClassName via values, seccompProfile RuntimeDefault chart-native
+  # on all 3 workloads — the 7.0.0-era postRenderers block is gone.)
   values:
     # Loki configuration
     loki:
@@ -143,11 +75,11 @@ spec:
         retention_delete_worker_count: 150
         delete_request_store: filesystem
 
-    # Single binary mode for simplicity
-    deploymentMode: SingleBinary
+    # Single-binary mode for simplicity (18.x name; SingleBinary = deprecated alias)
+    deploymentMode: Monolithic
 
     # SSD components MUST be zeroed explicitly — chart validate.yaml rejects
-    # SingleBinary with non-zero (default) scalable-target replicas
+    # Monolithic with non-zero (default) scalable-target replicas
     backend:
       replicas: 0
     read:
@@ -177,6 +109,8 @@ spec:
     gateway:
       enabled: true
       replicas: 1
+      image:
+        tag: "1.31.2-alpine"  # chart default floats 1.31-alpine — image-pin invariant
       resources:
         requests:
           cpu: 10m
@@ -184,6 +118,11 @@ spec:
         limits:
           cpu: 50m
           memory: 64Mi
+      # Default-on exporter sidecar renders with empty resources (Kyverno
+      # enforce-limits blocks) + port 4040 not in NetworkPolicy. Enabling later =
+      # deliberate change with resources + NP port.
+      metrics:
+        enabled: false
 
     # Sidecar containers configuration
     sidecar:
@@ -207,6 +146,7 @@ spec:
         limits:
           cpu: 100m
           memory: 256Mi
+      priorityClassName: homelab-standard  # global.priorityClassName does NOT reach canary
 
     # Monitoring configuration
     monitoring:
@@ -224,3 +164,7 @@ spec:
     # Test configuration
     test:
       enabled: false
+
+    # standard-tier priority for loki + gateway (canary has its own key above)
+    global:
+      priorityClassName: homelab-standard

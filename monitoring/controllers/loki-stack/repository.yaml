@@ -6,3 +6,14 @@ metadata:
 spec:
   interval: 6h
   url: https://grafana.github.io/helm-charts
+---
+# Community fork of the OSS loki chart — grafana.github.io loki lineage is
+# GEL-only since 7.0.0. Alloy stays on the `grafana` repo above (fork hosts no alloy).
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: grafana-community
+  namespace: loki
+spec:
+  interval: 6h
+  url: https://grafana-community.github.io/helm-charts
