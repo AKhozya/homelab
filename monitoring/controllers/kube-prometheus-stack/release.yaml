@@ -301,6 +301,10 @@ spec:
           - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot_token
             chat_id: 113452686
             parse_mode: 'HTML'
+            # A digest is a current-state snapshot, not an alert lifecycle: suppress the
+            # resolved notification. On resolve it carries each alert's stale last-firing
+            # count → a contradictory "✅ cleared · N critical". Silence = all clear.
+            send_resolved: false
             message: |
               {{ if eq .Status "firing" }}🔍 <b>Image CVE digest</b>{{ else }}✅ <b>Image CVE digest — cleared</b>{{ end }} · {{ len .Alerts }} image{{ if gt (len .Alerts) 1 }}s{{ end }} with patchable criticals
               {{ range $i, $a := .Alerts }}{{ if lt $i 25 }}
