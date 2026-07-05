@@ -63,6 +63,12 @@ spec:
     trivy:
       image:
         tag: "0.71.1"  # pin scanner
+      # Alert only on PATCHABLE CVEs: --ignore-unfixed drops base-OS/system-lib CVEs
+      # with no distro fix yet (perl/glib/zlib/mesa/sqlite/mariadb/… — unactionable in a
+      # GitOps homelab that can only remediate by bumping an image). Every remaining
+      # Critical then has a remediation path; cuts TrivyCriticalVulnerabilities noise
+      # (~7 pure-nofix image alerts clear; the rest slim to fixable-only). 2026-07-05.
+      ignoreUnfixed: true
       # Applies to scan-job containers AND their DB-download init containers
       # (Kyverno require-resource-limits checks init too).
       resources:

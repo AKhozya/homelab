@@ -1322,5 +1322,8 @@ spec:
         labels:
           severity: warning
         annotations:
-          summary: "Critical CVEs in {{ $labels.image_repository }}:{{ $labels.image_tag }}"
-          description: "trivy-operator reports {{ $value }} Critical vulnerabilities in a running image for 6h+. Check VulnerabilityReport CRs (kubectl get vulnerabilityreports -A) and bump/patch the image (renovate PR or manual pin)."
+          summary: "{{ $value }} patchable Critical CVEs in {{ $labels.image_repository }}:{{ $labels.image_tag }}"
+          # critcount feeds the compact per-image line in the 'telegram-digest' receiver
+          # (alertmanager templates can't read the numeric alert value, only annotations).
+          critcount: "{{ $value }}"
+          description: "trivy-operator reports {{ $value }} PATCHABLE Critical CVEs (unfixed base-OS CVEs excluded via ignoreUnfixed) in a running image for 6h+. Delivered as a weekly digest, not a page. Detail: kubectl get vulnerabilityreports -A. Remediate by bumping the image (renovate PR or manual pin) or filing an upstream issue when already on the latest release."
