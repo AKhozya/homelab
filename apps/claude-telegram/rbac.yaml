@@ -62,7 +62,7 @@ rules:
     resources: ["replicasets"]
     verbs: ["delete"]
   # CNPG + Percona (database status)
-  - apiGroups: ["postgresql.cnpg.io", "pxc.percona.com"]
+  - apiGroups: ["postgresql.cnpg.io", "pxc.percona.com", "ps.percona.com"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
   # Kyverno policies + reports (read-only)
