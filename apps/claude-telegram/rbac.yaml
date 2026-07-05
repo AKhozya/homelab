@@ -100,6 +100,30 @@ rules:
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
+  # Trivy operator (read vulnerability/compliance scan results)
+  - apiGroups: ["aquasecurity.github.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  # Events API (kubectl events)
+  - apiGroups: ["events.k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  # Kyverno background scan reports
+  - apiGroups: ["reports.kyverno.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  # Storage (StorageClass, CSI)
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  # Autoscaling (HPA — future-proofing)
+  - apiGroups: ["autoscaling"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  # MySQL InnoDB operator CRDs
+  - apiGroups: ["mysql.oracle.com"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
