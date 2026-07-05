@@ -17,6 +17,15 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-05 — trivy CVE triage: ignore-unfixed + weekly digest, 3 upstream issues
+
+First real triage of the 21 `TrivyCriticalVulnerabilities` alerts (trivy-operator installed 07-04). **0 on our own images** (claude-telegram-bot clean) — all 3rd-party. ~90% are base-OS / system-lib CVEs (perl/glib/zlib/mesa/sqlite/mariadb-client/Go-stdlib/chromium/kernel-headers) — the same CVE recurs across 12+ unrelated images = shared base layers, unactionable (only a Debian/base rebuild fixes them). App-level (maintainer-fixable) deps sit in only 4 apps, and none is fixable by an image bump (all already pinned to their latest release).
+
+- **Filed 3 upstream issues** (verified below-fix, no existing tracking): paperless-ngx #13092 (Django 5.2.7→5.2.8 CVE-2025-64459 SQLi; nltk 3.9.2→3.9.3 CVE-2025-14009 **CVSS 10.0** zip-slip), linkwarden #1733 (fast-xml-parser/shell-quote/i18next-fs-backend transitive; handlebars already tracked = upstream Dependabot PR #1654; vitest dev-only N/A), uptime-kuma #7572 (protobufjs 7.2.6→7.5.5 CVE-2026-41242). audiobookshelf form-data = accepted-risk, not filed (transitive via ancient axios 0.27.2, maintainer declines per-CVE bumps — closed #5182).
+- **Shipped (`e0756d47`, CI green, Codex-reviewed)**: `trivy.ignoreUnfixed: true` (drops unpatchable base-OS noise — verified **28→14** critical reports; clears authentik/cnpg-postgres/cnpg-pgbouncer/immich ×2/python-slim, slims uptime-kuma 126→71, paperless 35→8) + demoted the alert to a **weekly `telegram-digest`** receiver (compact 1-line-per-image HTML, cap 25 lines for the TG 4096 limit, `group_by:[alertname]`, `repeat_interval:168h`; `critcount` annotation carries the per-image count). `alertmanagerSpec.retention:192h` REQUIRED so 168h isn't GC-capped to ~5d (AM nflog default 120h — Codex catch). HTML parse_mode not MarkdownV2 (CVE IDs / version tags are full of dots+dashes → a MarkdownV2 escape-miss = TG 400-reject = silent non-delivery).
+- **Decision**: keep trivy **cluster-wide**, not scoped to our images — its unique value over Renovate is surfacing fixable CVEs on 3rd-party images we're already on the latest of (Renovate's blind spot; proven by the paperless CVSS-10 nltk). We build ~1 image, CI-scannable in its own repo.
+- **Gotcha**: do NOT mass-delete VulnerabilityReports to force a re-scan — it drops the metric → alert resolves → re-created reports re-arm `for:6h` (no digest ~6h), AND triggers the upstream #2859 cache-lock scan storm (`cache may be in use by another process: timeout`) on multi-container pods. Both self-heal (retries converge); restart a single workload pod instead.
+
 ### 2026-07-04 — Monthly review + first quarterly automation audit
 
 Posture sweep (3 parallel agents: cluster, nodes-SSH, GitHub): **no FAIL findings**. Flux 7/7, CI green, certs 19/19, backups zero failed jobs, disks healthy (W2 extra-storage 28%), node-maintenance all success + updates 0 (weekly run rebooted fleet this morning), Popeye A (90), no open PRs, no rotations due before 2026-10-01.

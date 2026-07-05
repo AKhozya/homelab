@@ -91,8 +91,8 @@ Per-pod NPs: vmsingle/vmagent/vmalert/vmoperator (`victoria-metrics/networkpolic
 
 ## Alertmanager
 - 2 STS replicas (HA via gossip)
-- Receivers: Telegram (bot via `alertmanager-telegram` Secret)
-- Routing: severity-based (critical/warning/info)
+- Receivers: `telegram` (default, bot via `alertmanager-telegram` Secret), `telegram-backup` (backup alerts), `telegram-digest` (weekly trivy image-CVE digest — compact 1-line-per-image HTML, cap 25 lines / TG 4096 limit), `deadman` (Watchdog → healthchecks.io), `null`
+- Routing: severity-based (critical/warning/info); `TrivyCriticalVulnerabilities` → `telegram-digest` (`group_by:[alertname]`, `repeat_interval:168h` — needs `alertmanagerSpec.retention:192h`, else nflog GC caps it to ~5d)
 - Templates: `alertmanager-overrides` group in vmrules.yaml inhibits noisy alerts
 - **Gotcha**: Go templates have NO `sub`/`add`/`mul`/`div` math funcs (use `len`)
 - Health check: BOTH `/api/v1/alerts` (Prometheus-compat) AND `/api/v2/alerts` (Alertmanager native)
