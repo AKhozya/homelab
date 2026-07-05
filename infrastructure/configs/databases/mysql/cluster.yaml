@@ -47,8 +47,8 @@ spec:
         cpu: "50m"
         memory: "64Mi"
       limits:
-        # Increased from 300m to 500m (2026-01-11) - CPU throttling during rebuilderd load
-        cpu: "500m"
+        # Increased from 500m to 750m (2026-07-05) - CPU throttling on worker-node
+        cpu: "750m"
         # Increased from 128Mi to 192Mi (2025-12-30) - OOM during cluster recovery
         memory: "192Mi"
     # Distribute across all nodes including control plane
