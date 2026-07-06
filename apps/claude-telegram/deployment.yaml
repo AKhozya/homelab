@@ -35,7 +35,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: chezmoi-init
-          image: ghcr.io/akhozya/claude-telegram-bot:1.27.9
+          image: ghcr.io/akhozya/claude-telegram-bot:1.27.10
           command:
             - /bin/bash
             - -c
@@ -190,7 +190,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: claude-telegram
-          image: ghcr.io/akhozya/claude-telegram-bot:1.27.9
+          image: ghcr.io/akhozya/claude-telegram-bot:1.27.10
           env:
             - name: HOME
               value: /home/akhozya
@@ -210,6 +210,13 @@ spec:
               value: /home/akhozya/source-code/homelab
             - name: ALLOWED_PATHS
               value: "/home/akhozya"
+            # OS-level Bash sandbox off in-pod: its Linux backend is bubblewrap, which needs
+            # unprivileged user namespaces that this pod's seccompProfile RuntimeDefault blocks
+            # (same reason codex runs danger-full-access above). The pod IS the sandbox —
+            # readOnlyRootFilesystem confines writes to the mounted paths, caps dropped, egress
+            # NetworkPolicy. env-secret scrub, strictMcpConfig, and the native-tool gates stay on.
+            - name: BASH_SANDBOX_ENABLED
+              value: "false"
             - name: SESSION_FILE_PATH
               value: /home/akhozya/data/session.json
             - name: RESTART_FILE_PATH
@@ -267,7 +274,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync
-          image: ghcr.io/akhozya/claude-telegram-bot:1.27.9
+          image: ghcr.io/akhozya/claude-telegram-bot:1.27.10
           command:
             - /bin/bash
             - -c
