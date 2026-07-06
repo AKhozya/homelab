@@ -57,10 +57,6 @@
     # (restart k3s-agent when 10.43.0.1 DNAT is missing). Workers here; the CP is
     # handled by clusterip_heal_cp below (pod-netns probe + k3s restart).
     - role: clusterip_heal
-    # ONE-SHOT: actively removes rebuilderd (build farm) — see plan
-    # docs/superpowers/plans/2026-07-06-rebuilderd-removal-plan.md. Delete this
-    # role + line once workers verify clean (PR-2). Idempotent no-op meanwhile.
-    - role: rebuilderd_teardown
 
 - name: Node config drift-heal (control-plane only)
   hosts: control_plane
