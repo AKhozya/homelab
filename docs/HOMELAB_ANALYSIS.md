@@ -88,10 +88,6 @@ DB role name = app name. Provisioning goes through the operator CRDs (CNPG `Data
 
 Storage is node-local (`local-path-provisioner`) — no distributed storage layer by choice; durability comes from the backup chain, not replicated volumes.
 
-## Reproducible-build contribution
-
-Both workers run [rebuilderd](https://github.com/kpcyrd/rebuilderd) 24/7, independently rebuilding Arch Linux packages and attesting whether they reproduce bit-for-bit — a contribution to the [Arch reproducible-builds](https://reproducible.archlinux.org/) effort using otherwise-idle homelab capacity.
-
 ## Maintenance
 
 The cluster is reviewed monthly (security scans, policy reports, alert/backup/cert health, dependency freshness). The full changelog lives in [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md); every change is a commit, so `git log` is the audit trail.

@@ -35,7 +35,7 @@
 | 12 | Hardening sysctl handler `changed_when: false` masks applied values | Audit-trail blind spot |
 | 13 | `packages` retry collapses lock vs corruption | Real errors retried 3x silently |
 | 14 | Phase2 `Failed` pod GC has no namespace filter | Risk of nuking user-namespace test pods |
-| 15 | rebuilderd cleanup scripts duplicated per worker | DRY violation |
+| 15 | ~~rebuilderd cleanup scripts duplicated per worker~~ | RESOLVED — rebuilderd removed 2026-07 |
 | 16 | No idempotency CI — playbook 2nd run could `changed>0` | Drift-heal cries wolf |
 | 17 | Role meta dependencies not declared | Implicit ordering, breaks if reordered |
 | 18 | CNI/flannel runtime config not fingerprinted | Silent network drift |
@@ -56,7 +56,7 @@
 - **#5** SSH host key fingerprint capture + diff alerting (read-only).
 - ~~**#9** systemd-resolved upstream DNS pinning — DROPPED (would bypass Blocky for node-side traffic: image pulls, pacman).~~ **REVERSED + IMPLEMENTED 2026-06-04** (`c4fcd922`): nodes pinned to public DNS 1.1.1.1/9.9.9.9 via networkd `UseDNS=no` + resolved global drop-in (hardening role). The earlier "keep the Blocky chain at node level" call was outweighed by breaking the node→Blocky→kube-proxy **circular DNS dep** — cluster-external DNS (CoreDNS `forward . /etc/resolv.conf`, `dnsPolicy: Default`) must NOT depend on a cluster pod (blocky also hard-deps redis). Node-side adblock loss judged near-zero (node queries = registries/NTP, not ad domains); LAN-client adblock unchanged (router DHCP untouched).
 - ~~**#12** sysctl handler — surface real changes.~~ DROPPED on review: `changed_when: false` on a handler is correct semantics — handler running means upstream task already reported `changed=1` (notify trigger). `command:` module still fails on non-zero rc, so invalid sysctl propagates as failure → telegram alert. Original critique was overcooked.
-- **#15** rebuilderd cleanup — single template with `inventory_hostname`.
+- ~~**#15** rebuilderd cleanup~~ — MOOT: rebuilderd removed 2026-07 (see HOMELAB_HISTORY).
 - ~~**#17** role `meta/main.yml` dependencies declared.~~ DROPPED on review: `dependencies:` forces dep role to run on EVERY invocation (slow + noisy when packages already ran via playbook). Playbook role list already enforces correct order. `.ansible-lint` passes production profile without meta files — no lint pressure. Real protection (someone deletes `packages` from playbook) requires intentional action, not accidental drift.
 
 ### LATER — RESEARCHED 2026-04-28, mostly DROPPED

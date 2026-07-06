@@ -17,6 +17,14 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-06 — rebuilderd (reproducible-build farm) removed cluster-wide
+
+Removed rebuilderd + `archlinux-repro` from both workers: packages, all systemd units (worker / metrics / watchdog / boot-timer / repro-cleanup / sync), the `/mnt/*/repro` + `/mnt/*/rebuilderd-worker` caches, the node-exporter textfile metric, the ansible `rebuilderd` role, the `rebuilderd-alerts` VMRule group, and every rebuilderd-motivated node-alert carve-out (`CPUThrottlingHigh` + `NodeMemoryMajorPagesFaults` worker exclusions dropped; `NodeHighIOWait` 15%/15m→10%/10m; `NodeDiskIOSaturation` 20/1h→10/30m). The `rebuilderd-progress` Claude skill was retired alongside (separate chezmoi repo).
+
+**Why:** the build farm chronically saturated worker-node-2 and disrupted co-located latency-sensitive workloads. 2026-07-06 incident: load ~11, 7.6 GB swap thrash, 17× `cicc`/`nvshmem` cgroup-OOMs starved the node's DNS/flannel path → the co-located MySQL replica lost DNS (`-2` NONAME) → its replication IO thread hit 3/3 retries and stopped → `StatefulSetReplicasMismatch` + `MySQLReplicaExporterDown` that don't self-heal. Same class as the OOM→MySQL-pod-kill incidents that forced `MemoryMax` down 18G→8G (2026-02-21, 04-26, 05-22) and the chronic W2 DiskPressure from the repro cache. The resource-tuning arms race stopped being worth the idle-capacity contribution.
+
+Executed via a one-shot `rebuilderd_teardown` ansible role wired into the workers drift-heal (removed after the nodes verified clean). Plan: `docs/superpowers/plans/2026-07-06-rebuilderd-removal-plan.md`. Codex peer-reviewed (SHIP-WITH-FIXES; all applied).
+
 ### 2026-07-05 — trivy CVE triage: ignore-unfixed + weekly digest, 3 upstream issues
 
 First real triage of the 21 `TrivyCriticalVulnerabilities` alerts (trivy-operator installed 07-04). **0 on our own images** (claude-telegram-bot clean) — all 3rd-party. ~90% are base-OS / system-lib CVEs (perl/glib/zlib/mesa/sqlite/mariadb-client/Go-stdlib/chromium/kernel-headers) — the same CVE recurs across 12+ unrelated images = shared base layers, unactionable (only a Debian/base rebuild fixes them). App-level (maintainer-fixable) deps sit in only 4 apps, and none is fixable by an image bump (all already pinned to their latest release).

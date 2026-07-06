@@ -54,7 +54,7 @@ Exception oddity: `monitoring/configs/cloudflared/cloudflared-servicemonitor.yam
 ## Rules (VMRule)
 | File | VMRule name | Groups | Alerts | Notable groups |
 |------|-------------|--------|--------|----------------|
-| `monitoring/configs/victoria-metrics/vmrules.yaml` | `homelab-alerts` | 25 | 124 | node, pod, mysql, database, redis-alerts, redis-ha, kubernetes, certificate, flux, cloudflare-tunnel, kyverno, loki, traefik, rebuilderd, firewall (ufw), node-overrides, node-maintenance, etc. |
+| `monitoring/configs/victoria-metrics/vmrules.yaml` | `homelab-alerts` | 24 | 122 | node, pod, mysql, database, redis-alerts, redis-ha, kubernetes, certificate, flux, cloudflare-tunnel, kyverno, loki, traefik, firewall (ufw), node-overrides, node-maintenance, etc. |
 | `monitoring/configs/blocky/prometheusrule.yaml` | `blocky-alerts` (kind: VMRule) | 1 | 5 | blocky |
 
 vmalert loads 26 groups total across 2 VMRule resources. Verify via: `kubectl port-forward -n monitoring svc/vmalert-vmalert 8080:8080 && curl localhost:8080/api/v1/rules | jq '.data.groups[].name'`
@@ -64,7 +64,6 @@ Note: `blocky/prometheusrule.yaml` filename is a relic — kind is already `VMRu
 Alert classes worth knowing:
 - **firewall-alerts**: `UfwDisabled`/`UfwServiceInactive`/`UfwChainsUnhealthy` (critical, 5m) — gauges from node-exporter textfile collector via `ufw-state-metric.timer`.
 - **JobFailed** (kubernetes-alerts, `kube_job_status_failed > 0`) — fires on TTL+force daily re-run Jobs that fail; 2026-06-04 RCA: audiobookshelf-init curl×6 during wn2 DNS outage. Job pod vanishes with TTL — use VM exit-code metrics, not Loki, for postmortem.
-- **RebuilderdWorkerDown** (critical, for 10m) — rebuilderd worker starts 60m post-boot, so node-maintenance phase1 sets a dedicated 150m Alertmanager silence that outlives the phase2 expire (`b3769f28`, 2026-05-31).
 
 ## VMAgent relabel-drops (noisy series filtered before remoteWrite)
 Drops in `vmagent.yaml`:

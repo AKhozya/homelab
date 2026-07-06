@@ -83,7 +83,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design, principles
 |---|---|---|---|
 | `gmk-k3s-control-plane` | control-plane | 192.168.1.127 | API server, scheduler, etcd |
 | `worker-node` | worker | 192.168.1.129 | workloads + Postgres replica |
-| `worker-node-2` | worker | 192.168.1.126 | workloads + reproducible-build farm |
+| `worker-node-2` | worker | 192.168.1.126 | workloads |
 
 Arch Linux on all three; SSH on a non-default port; static DHCP leases.
 

@@ -48,4 +48,3 @@ Auto-discovered from `~/.claude/skills/` (each SKILL.md frontmatter advertises w
 
 Homelab-coupled skills (non-exhaustive — frontmatter is source of truth):
 - `cluster-stale-cleanup` — scan stale K8s (failed pods, jobs without TTL, RS over revisionHistoryLimit, released PVs, stuck Helm). GitOps cleanup recs.
-- `rebuilderd-progress` — reproducible-build progress from worker-node + worker-node-2 over N h/d window. Per-worker table + recent BAD summary.
