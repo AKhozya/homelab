@@ -1,0 +1,105 @@
+---
+# Active, idempotent removal of rebuilderd (reproducible-build farm) from workers.
+# Removed 2026-07 after chronic worker-node-2 resource saturation (build load
+# OOM-killed co-located MySQL pods; see docs/HOMELAB_HISTORY.md).
+#
+# Deleting `- role: rebuilderd` from node-config.yml only STOPS managing it; this
+# role actively removes what the install role left behind. One-shot: wired into the
+# workers play until verified clean, then the role itself is deleted (see plan
+# docs/superpowers/plans/2026-07-06-rebuilderd-removal-plan.md).
+#
+# Paths are HARDCODED (not host_vars) so this role is self-contained and the
+# host_vars rebuilderd blocks can be deleted in the same PR. The assert below is
+# the guardrail against ever rm-ing a non-rebuilderd path — critically
+# /mnt/extra-storage/backups, the 128G NAS backup sink on W2's disk.
+
+- name: Stop + disable rebuilderd units (ignore absent)
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop:
+    - "rebuilderd-worker@1.service"
+    - rebuilderd.service
+    - rebuilderd-metrics.timer
+    - rebuilderd-watchdog.timer
+    - rebuilderd-worker-boot.timer
+    - repro-cleanup.timer
+    - "rebuilderd-sync@archlinux-core.timer"
+    - "rebuilderd-sync@archlinux-extra.timer"
+    - rebuilderd-metrics.service
+    - rebuilderd-watchdog.service
+    - repro-cleanup.service
+    # legacy orphan units the install role also cleaned (already gone on live
+    # nodes; listed for idempotent completeness on any node that lagged)
+    - rebuilderd-reenable-stop.timer
+    - rebuilderd-reenable-stop.service
+    - rebuilderd-worker-scheduled.service
+  failed_when: false
+
+- name: Remove rebuilderd packages (recursive — orphans archlinux-repro/rebuilderd-tools/diffoscope)
+  community.general.pacman:
+    name:
+      - rebuilderd
+      - rebuilderd-tools
+      - archlinux-repro
+    state: absent
+    extra_args: --recursive
+
+- name: Remove ansible-dropped unit files + drop-in dirs
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/systemd/system/rebuilderd-metrics.service
+    - /etc/systemd/system/rebuilderd-metrics.timer
+    - /etc/systemd/system/rebuilderd-watchdog.service
+    - /etc/systemd/system/rebuilderd-watchdog.timer
+    - /etc/systemd/system/rebuilderd-worker-boot.timer
+    - /etc/systemd/system/repro-cleanup.service
+    - /etc/systemd/system/repro-cleanup.timer
+    - /etc/systemd/system/rebuilderd-sync@.service.d
+    - /etc/systemd/system/rebuilderd-worker.service.d
+    - /etc/systemd/system/rebuilderd-worker@.service.d
+    - '/etc/systemd/system/system-rebuilderd\x2dworker.slice.d'
+    - /etc/systemd/system/rebuilderd-reenable-stop.service
+    - /etc/systemd/system/rebuilderd-reenable-stop.timer
+    - /etc/systemd/system/rebuilderd-worker-scheduled.service
+  notify: Reload systemd
+
+- name: Remove helper scripts + configs
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /usr/local/bin/rebuilderd-metrics.sh
+    - /usr/local/bin/rebuilderd-watchdog.sh
+    - /usr/local/bin/cleanup-stale-repro.sh
+    - /etc/rebuilderd.conf
+    - /etc/rebuilderd-sync.conf
+    - /etc/rebuilderd-worker.conf
+    - /etc/makepkg.conf.d/storage.conf
+    - /var/lib/node_exporter/textfile/rebuilderd.prom
+
+- name: Build rebuilderd data-path list (hardcoded per host — see header)
+  ansible.builtin.set_fact:
+    _rebuilderd_data_paths: >-
+      {{ [ _base ~ '/repro', _base ~ '/rebuilderd-worker',
+           '/var/lib/repro', '/var/lib/rebuilderd-worker', '/var/lib/rebuilderd' ] }}
+  vars:
+    _base: "{{ '/mnt/extra-storage' if inventory_hostname == 'worker-node-2' else '/mnt/k8s-storage' }}"
+
+- name: SAFETY ASSERT — every rm target is an exact rebuilderd path (guards /mnt/extra-storage/backups)
+  ansible.builtin.assert:
+    that:
+      - item is match('^/mnt/(extra-storage|k8s-storage)/(repro|rebuilderd-worker)$') or
+        item is match('^/var/lib/(repro|rebuilderd-worker|rebuilderd)$')
+    fail_msg: "Refusing to rm '{{ item }}' — not an exact rebuilderd data path"
+    quiet: true
+  loop: "{{ _rebuilderd_data_paths }}"
+
+- name: Remove rebuilderd data dirs + symlinks (exact paths only, asserted above)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ _rebuilderd_data_paths }}"
