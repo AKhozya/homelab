@@ -8,7 +8,7 @@ exclude_paths:
 skip_list:
   - yaml[line-length]           # long alertname regex + URLs in tg_message deliberate
   - command-instead-of-shell    # yay_cmd needs shell expansion (sudo -u ... yay -Syu ...)
-  - var-naming[no-role-prefix]  # vars are domain-scoped (k3s_*, ufw_*, rebuilderd_*) —
+  - var-naming[no-role-prefix]  # vars are domain-scoped (k3s_*, ufw_*, etc.) —
                                 # shared across roles, group_vars, host_vars. Role-prefix
                                 # renaming would inflate 30+ refs with zero clarity gain.
 

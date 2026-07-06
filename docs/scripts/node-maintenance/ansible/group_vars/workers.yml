@@ -3,11 +3,6 @@
 # Per-worker UFW rules live in host_vars/ — both workers diverge on pod-to-node
 # route comment (W2: "to nodes", W1: "(API server)") + W2 broad routes + 8472 LAN.
 
-# ---- Packages (workers only) ----
-pacman_packages_worker:
-  - rebuilderd
-  - archlinux-repro
-
 # ---- K3s config (Step 5 — §A) ----
 # Drift-alert only, no auto-restart. Restart via: sudo systemctl restart k3s-agent.
 k3s_node_labels:

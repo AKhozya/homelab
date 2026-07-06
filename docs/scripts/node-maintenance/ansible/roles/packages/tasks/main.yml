@@ -96,16 +96,3 @@
   retries: 3
   delay: 30
   tags: [packages, gpu]
-
-- name: Install worker-only packages (rebuilderd stack)
-  ansible.builtin.package:
-    name: "{{ pacman_packages_worker }}"
-    state: present
-  when:
-    - "'workers' in group_names"
-    - pacman_packages_worker is defined
-  register: pkg_worker
-  until: pkg_worker is not failed
-  retries: 3
-  delay: 30
-  tags: [packages, worker]
