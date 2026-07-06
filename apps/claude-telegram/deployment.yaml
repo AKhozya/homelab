@@ -17,7 +17,8 @@ spec:
         app: claude-telegram
     spec:
       serviceAccountName: claude-telegram
-      automountServiceAccountToken: true
+      # Bot doesn't use the k8s API; don't mount an SA token Claude's Bash could read/exfil.
+      automountServiceAccountToken: false
       priorityClassName: homelab-standard
       hostAliases:
         - ip: "192.168.1.127"
