@@ -201,7 +201,7 @@ spec:
           cpu: "50m"
           memory: "64Mi"
         limits:
-          # Increased from 300m to 500m (2026-01-11) - CPU throttling during rebuilderd load
+          # Raised 300m->500m (2026-01-11); retained as burst headroom for MySQL
           cpu: "500m"
           memory: "128Mi"
 

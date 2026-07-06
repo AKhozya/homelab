@@ -7,7 +7,7 @@
 #   - node-maintenance user + SSH authorized_keys (needs CP-provided pubkey substitution)
 #   - sudoers bootstrap (ansible owns going forward; first-run needs it to connect)
 #
-# Non-bootstrap config (logrotate, journald, rebuilderd-worker override, security-scan
+# Non-bootstrap config (logrotate, journald, security-scan
 # script + service/timer, sudoers, user shell) is deployed by ansible from CP on first
 # node-config.yml run against this worker.
 set -euo pipefail
@@ -53,4 +53,4 @@ visudo -c -f /etc/sudoers.d/node-maintenance
 # Log dir /var/log/node-maintenance created by ansible role.
 
 echo "Worker bootstrap complete on ${HOSTNAME:-$(cat /etc/hostname 2>/dev/null || echo unknown)}."
-echo "Next: ansible node-config.yml will deploy security-scan + logrotate + journald + rebuilderd-worker override."
+echo "Next: ansible node-config.yml will deploy security-scan + logrotate + journald."

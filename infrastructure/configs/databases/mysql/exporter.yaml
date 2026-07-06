@@ -50,7 +50,7 @@ spec:
               cpu: "10m"
               memory: "32Mi"
             limits:
-              # Increased from 200m to 300m (2026-01-11) - CPU throttling during rebuilderd load
+              # Raised 200m->300m (2026-01-11); retained as burst headroom
               cpu: "300m"
               memory: "64Mi"
           livenessProbe:

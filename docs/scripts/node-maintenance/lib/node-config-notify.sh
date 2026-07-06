@@ -25,7 +25,7 @@ FAILED=$(grep -oE 'failed=[0-9]+' "$LOG" | tail -3 | awk -F= '{s+=$2} END{print 
 # Pair the *correct* TASK header to the fatal line — the TASK on or before
 # the fatal's line number, NOT the last TASK in the log. A naive `last TASK`
 # pick can land on a later host-conditional task that the failing host
-# skipped (e.g. rebuilderd W2-only orphan removal printed after a CP fatal).
+# skipped (e.g. a workers-only task's output printed after a CP fatal).
 extract_task_header() {
   local last_fatal task_line
   last_fatal=$1

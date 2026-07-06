@@ -74,7 +74,7 @@ fi
 
 # AUR firmware (mkinitcpio warning suppressors). Kept in bash because:
 # kewlfft.aur module requires per-user makepkg.conf on node-maintenance user
-# which would clash with rebuilderd /etc/makepkg.conf.d/storage.conf. These
+# to guarantee a writable BUILDDIR (overrides any system /etc/makepkg.conf.d/). These
 # packages install once, never update — zero drift-heal value. yay itself
 # is AUR, chicken-egg before any AUR ansible task could run.
 echo "Installing AUR firmware..."
@@ -91,9 +91,9 @@ fi
 if [ -n "$AUR_HELPER" ]; then
     SUDO_USER=${SUDO_USER:-$(who | head -1 | awk '{print $1}')}
     if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
-        # Per-user makepkg.conf override: rebuilderd storage.conf points
-        # BUILDDIR/SRCDEST/PKGDEST to root-owned dirs — breaks AUR builds
-        # as a regular user.
+        # Per-user makepkg.conf override: guarantees writable BUILDDIR/SRCDEST/
+        # PKGDEST so AUR builds work as a regular user even if a system-wide
+        # /etc/makepkg.conf.d/ entry points them at root-owned dirs.
         USER_HOME=$(eval echo "~$SUDO_USER")
         USER_MAKEPKG="$USER_HOME/.makepkg.conf"
         if [ ! -f "$USER_MAKEPKG" ]; then
@@ -190,7 +190,7 @@ echo "=============================================="
 echo ""
 echo "Bootstrap applied:"
 echo "  - AUR firmware: aic94xx/ast/wd719x/upd72020x (mkinitcpio warning suppressors)"
-echo "  - User makepkg.conf: BUILDDIR/SRCDEST/PKGDEST override for rebuilderd nodes"
+echo "  - User makepkg.conf: writable BUILDDIR/SRCDEST/PKGDEST override for AUR builds"
 if [ "$NODE_TYPE" = "control-plane" ]; then
     echo "  - Ansible stack: ansible, jq, rsync, logrotate, python-kubernetes"
 fi
@@ -200,7 +200,7 @@ echo "  - K3s config directory stub"
 echo ""
 echo "Ansible roles own (applied after install.sh, drift-healed daily):"
 echo "  packages / base_config / k3s_config / k3s_image_gc / firewall /"
-echo "  hardening / security_scan / rebuilderd (workers) / ad_hoc"
+echo "  hardening / security_scan / ad_hoc"
 echo ""
 if [ "$NODE_TYPE" = "control-plane" ]; then
     echo "Next steps:"
