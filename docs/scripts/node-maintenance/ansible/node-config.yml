@@ -50,15 +50,17 @@
   become: true
   gather_facts: false
   roles:
-    # Defense: re-run preflight on workers before rebuilderd. rebuilderd does
-    # not call ufw directly today but the play boundary resets state and a
-    # cheap settle barrier guards against future role additions that might.
+    # Defense: re-run preflight on workers. The play boundary resets state and a
+    # cheap settle barrier guards against role additions that might touch ufw.
     - role: firewall_preflight
     # Node-local self-heal for the post-reboot kube-proxy ClusterIP DNAT wedge
     # (restart k3s-agent when 10.43.0.1 DNAT is missing). Workers here; the CP is
     # handled by clusterip_heal_cp below (pod-netns probe + k3s restart).
     - role: clusterip_heal
-    - role: rebuilderd
+    # ONE-SHOT: actively removes rebuilderd (build farm) — see plan
+    # docs/superpowers/plans/2026-07-06-rebuilderd-removal-plan.md. Delete this
+    # role + line once workers verify clean (PR-2). Idempotent no-op meanwhile.
+    - role: rebuilderd_teardown
 
 - name: Node config drift-heal (control-plane only)
   hosts: control_plane

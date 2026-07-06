@@ -1,9 +1,0 @@
-[Unit]
-Description=Daily cleanup of stale repro containers
-
-[Timer]
-OnCalendar=*-*-* 08:00:00
-Persistent=true
-
-[Install]
-WantedBy=timers.target

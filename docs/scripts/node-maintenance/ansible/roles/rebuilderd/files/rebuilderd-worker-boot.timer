@@ -1,9 +1,0 @@
-[Unit]
-Description=Start rebuilderd worker 60 minutes after boot
-
-[Timer]
-OnBootSec=60min
-Unit=rebuilderd-worker@1.service
-
-[Install]
-WantedBy=timers.target
