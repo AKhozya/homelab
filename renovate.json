@@ -142,11 +142,7 @@
     }
   ],
   "timezone": "Europe/London",
-  "schedule": [
-    "after 10pm every weekday",
-    "every weekend",
-    "before 6am every weekday"
-  ],
+  "schedule": ["after 6pm and before 11pm"],
   "ignorePaths": [
     "docs/**",
     "README.md",
