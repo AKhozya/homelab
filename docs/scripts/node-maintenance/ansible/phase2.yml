@@ -123,27 +123,6 @@
         minutes: "{{ cp_stabilize_minutes }}"
 
 # ──────────────────────────────────────────────────────────────
-# PLAY 0.5: Pause rebuilderd fleet-wide
-# ──────────────────────────────────────────────────────────────
-# Fires only after CP is confirmed healthy. Stops rebuilderd on BOTH
-# workers in parallel so the non-rebooting worker is idle during the
-# other's reschedule window (evicted pods land on a quiet node —
-# avoids cold image pulls competing with 13x rebuilderd builders for
-# disk/network). rebuilderd-worker-boot.timer re-arms each worker at
-# +60min post-its-own-reboot, so no explicit restart needed.
-- name: Node maintenance — Phase 2 (pause rebuilderd fleet-wide)
-  hosts: workers
-  gather_facts: false
-  become: true
-
-  tasks:
-    - name: Stop rebuilderd-worker on all workers (fleet-wide pause)
-      ansible.builtin.systemd_service:
-        name: rebuilderd-worker@1.service
-        state: stopped
-      failed_when: false  # tolerate "not running"
-
-# ──────────────────────────────────────────────────────────────
 # PLAY 1: Per-worker rolling update (serial: 1)
 # ──────────────────────────────────────────────────────────────
 - name: Node maintenance — Phase 2 (worker rolling update)
@@ -156,12 +135,6 @@
     - name: Verify SSH reachable before start
       ansible.builtin.wait_for_connection:
         timeout: 120
-
-    - name: Stop rebuilderd-worker (boot timer re-enables at +60min)
-      ansible.builtin.systemd_service:
-        name: rebuilderd-worker@1.service
-        state: stopped
-      failed_when: false   # tolerate "not running"
 
     - name: Cordon node
       kubernetes.core.k8s:
@@ -333,12 +306,6 @@
       ansible.builtin.pause:
         minutes: "{{ per_node_stabilize_minutes }}"
 
-    # NOTE: rebuilderd-worker is NOT explicitly restarted here. rebuilderd-worker-boot.timer
-    # (OnBootSec=60min) re-arms on every reboot and is the sole re-enable path. An explicit
-    # start at uncordon+stabilize (~4min) competed with pod reschedule for disk/CPU and slowed
-    # convergence (2026-05-28: apprise/metrics-server cold-starts timed out under that load).
-    # 60min delay clears the convergence window before 13x builders resume.
-
     - name: Observe crashloops (report-only; decision - continue, self-heal)
       ansible.builtin.shell: |
         set -o pipefail
@@ -472,10 +439,7 @@
       register: silence_id_b64
       failed_when: false
 
-    # Expires only the broad silence (silence_alertnames). The deferred-start
-    # silence (silence_deferred_alertnames, e.g. RebuilderdWorkerDown) is NOT
-    # expired here — its worker starts 60 min post-boot, after this play ends;
-    # it auto-expires via silence_deferred_duration_seconds.
+    # Expires the broad maintenance silence (silence_alertnames).
     - name: Expire auto-silence (amtool)
       ansible.builtin.shell: |
         SILID="{{ silence_id_b64.content | b64decode | trim }}"
