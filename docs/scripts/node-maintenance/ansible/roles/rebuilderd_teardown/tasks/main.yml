@@ -37,14 +37,19 @@
     - rebuilderd-worker-scheduled.service
   failed_when: false
 
-- name: Remove rebuilderd packages (recursive — orphans archlinux-repro/rebuilderd-tools/diffoscope)
+# NOTE: no extra_args. The ansible pacman module lists targets via `pacman -R --print`,
+# and `--nosave`/`--print` are mutually exclusive ("invalid option ... may not be used
+# together"), so --nosave here fails the whole task. Plain removal of all three
+# (rebuilderd depends on the other two) works with --print. Any .pacsave configs pacman
+# leaves are deleted by the explicit .pacsave paths in the cleanup task below.
+# diffoscope is left as a harmless orphan (accepted; no aggressive orphan sweep).
+- name: Remove rebuilderd packages
   community.general.pacman:
     name:
       - rebuilderd
       - rebuilderd-tools
       - archlinux-repro
     state: absent
-    extra_args: --recursive --nosave   # --nosave: no .pacsave config backups left behind
 
 - name: Remove ansible-dropped unit files + drop-in dirs
   ansible.builtin.file:
