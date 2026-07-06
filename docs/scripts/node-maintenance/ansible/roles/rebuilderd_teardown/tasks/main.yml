@@ -44,7 +44,7 @@
       - rebuilderd-tools
       - archlinux-repro
     state: absent
-    extra_args: --recursive
+    extra_args: --recursive --nosave   # --nosave: no .pacsave config backups left behind
 
 - name: Remove ansible-dropped unit files + drop-in dirs
   ansible.builtin.file:
@@ -78,6 +78,10 @@
     - /etc/rebuilderd.conf
     - /etc/rebuilderd-sync.conf
     - /etc/rebuilderd-worker.conf
+    # .pacsave belt-and-suspenders in case a prior run removed pkgs without --nosave
+    - /etc/rebuilderd.conf.pacsave
+    - /etc/rebuilderd-sync.conf.pacsave
+    - /etc/rebuilderd-worker.conf.pacsave
     - /etc/makepkg.conf.d/storage.conf
     - /var/lib/node_exporter/textfile/rebuilderd.prom
 
