@@ -90,6 +90,23 @@
     - /etc/makepkg.conf.d/storage.conf
     - /var/lib/node_exporter/textfile/rebuilderd.prom
 
+# Catch stale manual backups (.bak.<ts>) + pacman .pacsave of rebuilderd configs
+# that the exact-path list above can't enumerate. rebuilderd-worker.conf can hold
+# an auth secret, so leave nothing behind.
+- name: Find stale rebuilderd config backups
+  ansible.builtin.find:
+    paths: /etc
+    patterns: "rebuilderd*.bak.*,rebuilderd*.conf.pacsave"
+  register: _rebuilderd_bak
+
+- name: Remove stale rebuilderd config backups
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ _rebuilderd_bak.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
 - name: Build rebuilderd data-path list (hardcoded per host — see header)
   ansible.builtin.set_fact:
     _rebuilderd_data_paths: >-
