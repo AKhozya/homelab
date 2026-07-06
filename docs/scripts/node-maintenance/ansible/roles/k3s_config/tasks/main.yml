@@ -111,4 +111,4 @@
 # `ansible.builtin.replace` insert-replicas task failed every drift-heal run
 # (exit=2 INVALIDARGUMENT on the missing file). HA is now the Flux-managed
 # `coredns-ha` Deployment (infrastructure/coredns/, 3 spread replicas). See
-# docs/plans/2026-05-31-reboot-wedge-prevention.md §7 + [[coredns-disable-deadlock]].
+# [[coredns-disable-deadlock]].

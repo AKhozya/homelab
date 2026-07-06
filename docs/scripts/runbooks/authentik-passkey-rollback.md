@@ -1,8 +1,6 @@
 # Authentik Passkey-First — Rollback Runbook
 
 **Owner**: akhozya
-**Spec**: `docs/superpowers/specs/2026-04-19-authentik-passkey-design.md`
-**Plan**: `docs/superpowers/plans/2026-04-19-authentik-passkey.md`
 **Created**: 2026-04-19
 **Passkey rollout completed**: 2026-04-20
 

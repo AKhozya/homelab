@@ -17,7 +17,7 @@ k3s_disable:
   # break-glass `kubectl apply -k infrastructure/coredns/` (recreates from git → DNS up → Flux adopts).
   # The recreated objects carry NO objectset.rio.cattle.io/owner label, so FUTURE --disable restarts no
   # longer delete them → deadlock is a one-time transition cost. Steady state: Flux owns DNS, addon off,
-  # coredns-ha (3 spread replicas) serves. See docs/plans/2026-05-31-reboot-wedge-prevention.md.
+  # coredns-ha (3 spread replicas) serves.
   - coredns
 k3s_node_taints:
   - "node-role.kubernetes.io/control-plane:NoSchedule"

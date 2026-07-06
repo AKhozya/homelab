@@ -17,7 +17,6 @@ spec:
   # Unique selector app=coredns-ha. Reuses the addon-named `coredns` ConfigMap (Corefile +
   # NodeHosts) and ServiceAccount — Flux owns these outright since `--disable=coredns`
   # (config.yaml.j2; addon deleted its copies on CP k3s restart, see clusters/coredns.yaml).
-  # See docs/plans/2026-05-31-reboot-wedge-prevention.md (Stage 3).
   revisionHistoryLimit: 2
   updateStrategy:
     type: RollingUpdate

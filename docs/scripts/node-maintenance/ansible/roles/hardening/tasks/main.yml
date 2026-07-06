@@ -139,7 +139,7 @@
 # ---------- DNS decoupling: cluster-independent upstream ----------
 # Break the node→blocky→kube-proxy circular dependency. Nodes + CoreDNS
 # (forward . /etc/resolv.conf, dnsPolicy: Default) must resolve external DNS
-# without a cluster pod. See docs/plans/2026-06-04-dns-decoupling-*.md.
+# without a cluster pod.
 - name: Deploy resolved upstream-DNS drop-in (cluster-independent public DNS)
   ansible.builtin.copy:
     src: resolved-upstream-dns.conf

@@ -84,8 +84,7 @@ spec:
           cpu: 200m
           memory: 512Mi
 
-      # hostPath mounts for node-maintenance systemd journal (F2 follow-up from
-      # docs/superpowers/specs/2026-04-18-node-maintenance-design.md). Read-only.
+      # hostPath mounts for node-maintenance systemd journal (F2 follow-up). Read-only.
       # Mount-only — blast radius limited by loki.source.journal matches below.
       mounts:
         extra:

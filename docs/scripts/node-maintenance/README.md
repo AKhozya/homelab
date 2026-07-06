@@ -92,8 +92,6 @@ sudo cat /var/log/node-maintenance/security-scan-$(date -u +%Y-%m).log
 
 When `security-scan.sh` changes: CP auto-syncs (sync timer), ansible `security_scan` role deploys to 3 nodes on next `node-maintenance-config.service` run (daily, or `sudo systemctl start node-maintenance-config.service`).
 
-**Spec**: `docs/superpowers/specs/2026-04-18-node-maintenance-design.md`
-
 ---
 
 ## Install (one-time)
