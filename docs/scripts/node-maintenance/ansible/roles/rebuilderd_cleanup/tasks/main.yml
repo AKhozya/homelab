@@ -28,6 +28,26 @@
     state: absent
     extra_args: --recursive
 
+- name: Find ANY leftover rebuilderd/archlinux-repro paths under managed dirs
+  ansible.builtin.find:
+    paths:
+      - /etc/systemd/system
+      - /etc/systemd/system.control
+      - /usr/local/bin
+      - /var/lib
+    patterns: "*rebuilderd*,*archlinux-repro*"
+    file_type: any
+    recurse: false
+  register: _rebuilderd_leftover
+
+- name: Remove leftover rebuilderd systemd/bin/lib paths
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ _rebuilderd_leftover.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+
 - name: Find cached rebuilderd/archlinux-repro/diffoscope packages
   ansible.builtin.find:
     paths: /var/cache/pacman/pkg
