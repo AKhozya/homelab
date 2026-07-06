@@ -31,11 +31,14 @@
 - name: Find ANY leftover rebuilderd/archlinux-repro paths under managed dirs
   ansible.builtin.find:
     paths:
+      - /etc
       - /etc/systemd/system
       - /etc/systemd/system.control
+      - /usr/bin
       - /usr/local/bin
       - /var/lib
-    patterns: "*rebuilderd*,*archlinux-repro*"
+      - /var/lib/systemd/timers   # persistent-timer stamp files (stamp-*.timer)
+    patterns: "*rebuilderd*,*archlinux-repro*,stamp-repro-cleanup.timer"
     file_type: any
     recurse: false
   register: _rebuilderd_leftover
