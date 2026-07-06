@@ -57,6 +57,10 @@
     # (restart k3s-agent when 10.43.0.1 DNAT is missing). Workers here; the CP is
     # handled by clusterip_heal_cp below (pod-netns probe + k3s restart).
     - role: clusterip_heal
+    # ONE-SHOT: mops up rebuilderd leftovers the teardown missed (data root,
+    # diffoscope orphan, pkg cache). Delete this role + line once verified (like
+    # rebuilderd_teardown was). Idempotent no-op afterwards.
+    - role: rebuilderd_cleanup
 
 - name: Node config drift-heal (control-plane only)
   hosts: control_plane
