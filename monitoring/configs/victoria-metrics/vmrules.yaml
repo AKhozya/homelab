@@ -131,9 +131,8 @@ spec:
 
     - alert: NodeHighIOWait
       # Average I/O wait across all CPUs (node-wide, not per-core)
-      # Raised from 10%/10m to 15%/15m — rebuilderd builds cause transient spikes
-      expr: avg by(instance) (rate(node_cpu_seconds_total{mode="iowait"}[5m])) * 100 > 15
-      for: 15m
+      expr: avg by(instance) (rate(node_cpu_seconds_total{mode="iowait"}[5m])) * 100 > 10
+      for: 10m
       labels:
         severity: warning
       annotations:
@@ -1105,36 +1104,6 @@ spec:
         description: "Certificate for {{ $labels.cn }} has expired! HTTPS connections will fail."
 
   # ==========================================================================
-  # REBUILDERD ALERTS - Arch Linux reproducible build worker health
-  # Metrics from node-exporter textfile collector (5-min update interval)
-  # ==========================================================================
-  - name: rebuilderd-alerts
-    interval: 5m
-    rules:
-    - alert: RebuilderdWorkerDown
-      expr: rebuilderd_worker_active == 0
-      for: 10m
-      labels:
-        severity: critical
-      annotations:
-        summary: "Rebuilderd worker on {{ $labels.node }} is down"
-        description: "Rebuilderd worker on {{ $labels.node }} has been inactive for more than 10 minutes. Check systemd service: ssh <node> systemctl status rebuilderd-worker@1"
-
-    - alert: RebuilderdHighFailureRate
-      # Smooth ratio + denominator over 1h to dampen flapping when 2h-window total
-      # straddles the min-sample floor (worker churns ~8-25 builds/2h).
-      expr: |
-        avg_over_time((rebuilderd_builds_bad_total / clamp_min(rebuilderd_builds_total, 1))[1h:5m]) > 0.8
-        and avg_over_time(rebuilderd_builds_total[1h:5m]) >= 50
-      for: 1h
-      keep_firing_for: 1h
-      labels:
-        severity: warning
-      annotations:
-        summary: "High rebuilderd failure rate on {{ $labels.node }}"
-        description: "{{ $labels.node }} sustained >80% BAD builds (1h avg of 2h-window ratio: {{ $value | humanizePercentage }}). Likely build environment issue."
-
-  # ==========================================================================
   # FIREWALL ALERTS - UFW health per node
   # Metrics from /usr/local/sbin/ufw-state-metric.sh via ufw-state-metric.timer
   # (60s cadence, node-exporter textfile collector)
@@ -1173,22 +1142,22 @@ spec:
 
   # ==========================================================================
   # OVERRIDES - Previously in kube-prometheus-stack additionalPrometheusRulesMap
-  # Adjusted thresholds for homelab workloads (rebuilderd workers)
+  # Adjusted thresholds for homelab workloads. (defaultRules disabled, so these
+  # are the only copy of these alerts — keep them, tuned for this cluster.)
   # ==========================================================================
   - name: node-overrides
     rules:
-      # Exclude rebuilderd worker nodes where CPU contention is expected
       - alert: CPUThrottlingHigh
         expr: |
           sum without (id, metrics_path, name, image, endpoint, job, node) (
             topk by (cluster, namespace, pod, container, instance) (1,
-              increase(container_cpu_cfs_throttled_periods_total{container!="", job="kube-prometheus-stack-kubelet", metrics_path="/metrics/cadvisor", node!~"worker-node|worker-node-2"}[5m])
+              increase(container_cpu_cfs_throttled_periods_total{container!="", job="kube-prometheus-stack-kubelet", metrics_path="/metrics/cadvisor"}[5m])
             )
           )
           / on (cluster, namespace, pod, container, instance) group_left
           sum without (id, metrics_path, name, image, endpoint, job, node) (
             topk by (cluster, namespace, pod, container, instance) (1,
-              increase(container_cpu_cfs_periods_total{job="kube-prometheus-stack-kubelet", metrics_path="/metrics/cadvisor", node!~"worker-node|worker-node-2"}[5m])
+              increase(container_cpu_cfs_periods_total{job="kube-prometheus-stack-kubelet", metrics_path="/metrics/cadvisor"}[5m])
             )
           )
           > ( 25 / 100 )
@@ -1199,12 +1168,9 @@ spec:
           summary: Processes experience elevated CPU throttling.
           description: >-
             {{ $value | humanizePercentage }} throttling of CPU in namespace {{ $labels.namespace }} for container {{ $labels.container }} in pod {{ $labels.pod }}.
-      # Exclude rebuilderd worker nodes (swap spillover causes expected page faults)
       - alert: NodeMemoryMajorPagesFaults
         expr: |
           rate(node_vmstat_pgmajfault{job="kube-prometheus-stack-prometheus-node-exporter"}[5m])
-            * on(instance) group_left()
-            node_uname_info{nodename!~"worker-node|worker-node-2"}
           > 500
         for: 30m
         labels:
@@ -1213,16 +1179,15 @@ spec:
           summary: Memory major page faults are occurring at very high rate.
           description: |
             Memory major pages are occurring at very high rate at {{ $labels.instance }}, 500 major page faults per second for the last 30 minutes, is currently at {{ printf "%.2f" $value }}.
-      # Increase threshold from 10 to 20 and duration from 30m to 1h for rebuilderd
       - alert: NodeDiskIOSaturation
-        expr: rate(node_disk_io_time_weighted_seconds_total{job="kube-prometheus-stack-prometheus-node-exporter", device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"}[5m]) > 20
-        for: 1h
+        expr: rate(node_disk_io_time_weighted_seconds_total{job="kube-prometheus-stack-prometheus-node-exporter", device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"}[5m]) > 10
+        for: 30m
         labels:
           severity: warning
         annotations:
           summary: Disk IO queue is high.
           description: |
-            Disk IO queue (aqu-sq) is high on {{ $labels.device }} at {{ $labels.instance }}, has been above 20 for the last 1 hour, is currently at {{ printf "%.2f" $value }}.
+            Disk IO queue (aqu-sq) is high on {{ $labels.device }} at {{ $labels.instance }}, has been above 10 for the last 30 minutes, is currently at {{ printf "%.2f" $value }}.
 
   # Weekly node-maintenance run health. Metric emitted by phase2 post-tasks
   # (ansible.builtin.copy → /var/lib/node_exporter/textfile/node_maintenance.prom).
