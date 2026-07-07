@@ -1,0 +1,76 @@
+# Immich on NAS (zl-nas) — corrected, based on official v3.0.1 upstream compose.
+# Changes vs upstream: DB image -> PG17 VectorChord+pgvector (source is PG18, matches pgvector backend);
+# QSV quicksync inlined on server (Intel Meteor Lake); ML pinned to openvino; data on pool/1.
+# Dropped the user's custom postgres `command:` (it forced shared_preload_libraries=vectors.so = the
+# REMOVED pgvecto.rs — the official VectorChord image self-configures its preload).
+name: immich
+
+services:
+  immich-server:
+    container_name: immich_server
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION}
+    # QSV hardware transcoding (inlined quicksync profile) — Intel Meteor Lake QSV proven on-box
+    devices:
+      - /dev/dri:/dev/dri
+    security_opt:
+      - label:disable
+    volumes:
+      - ${UPLOAD_LOCATION}:/data
+      - /etc/localtime:/etc/localtime:ro
+    env_file:
+      - .env
+    ports:
+      - '2283:2283'
+    depends_on:
+      - redis
+      - database
+    restart: always
+    healthcheck:
+      disable: false
+
+  immich-machine-learning:
+    container_name: immich_machine_learning
+    # OpenVINO = correct Intel ML image (armnn was ARM/wrong). Falls back to CPU if iGPU init fails.
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION}-openvino
+    devices:
+      - /dev/dri:/dev/dri
+    security_opt:
+      - label:disable
+    volumes:
+      - model-cache:/cache
+    env_file:
+      - .env
+    restart: always
+    healthcheck:
+      disable: false
+
+  redis:
+    container_name: immich_redis
+    # Exact valkey pin from the official v3.0.1 compose (v3-compatible — Codex valkey concern resolved)
+    image: docker.io/valkey/valkey:9@sha256:4963247afc4cd33c7d3b2d2816b9f7f8eeebab148d29056c2ca4d7cbc966f2d9
+    healthcheck:
+      test: redis-cli ping || exit 1
+    restart: always
+
+  database:
+    container_name: immich_postgres
+    # PG17 (accepts PG18 logical dump = one-major downgrade, rehearsal-gated) + bundled pgvector to
+    # match the source backend so embeddings/faces restore intact (no re-embed).
+    image: ghcr.io/immich-app/postgres:17-vectorchord0.4.3-pgvector0.8.0
+    environment:
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_DB: ${DB_DATABASE_NAME}
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+    volumes:
+      # Docker-managed named volume on pool/1 (/zettos/pool/1/docker/volumes) — NVMe-cached,
+      # avoids bind-mount ownership issues. Restore/dump go via `docker exec`, volume-agnostic.
+      - pgdata:/var/lib/postgresql/data
+    shm_size: 512mb
+    restart: always
+    healthcheck:
+      disable: false
+
+volumes:
+  model-cache:
+  pgdata:
