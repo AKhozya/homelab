@@ -48,3 +48,6 @@ target/
 
 # Transient PR/update baseline snapshots
 scripts/analyze-update/baselines/
+
+# SkillOpt-Sleep local staging (offline self-evolution proposals)
+.skillopt-sleep/
