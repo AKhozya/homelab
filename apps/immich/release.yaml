@@ -262,7 +262,7 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-server
-                tag: v3.0.1
+                tag: v3.0.2
                 pullPolicy: IfNotPresent
               env:
                 # Hardware acceleration via VAAPI on AMD Radeon GPU (accel itself is
@@ -313,7 +313,7 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-machine-learning
-                tag: v3.0.1  # CPU-only (ROCm gfx1036 not supported)
+                tag: v3.0.2  # CPU-only (ROCm gfx1036 not supported)
                 pullPolicy: IfNotPresent
               env:
                 TRANSFORMERS_CACHE: /cache
