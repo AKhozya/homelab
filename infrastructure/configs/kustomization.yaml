@@ -8,3 +8,4 @@ resources:
   - backup
   - backup-replication
   - resource-governance
+  - intel-gpu-plugin

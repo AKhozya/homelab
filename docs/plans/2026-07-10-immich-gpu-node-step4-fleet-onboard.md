@@ -6,7 +6,7 @@
 
 **Architecture:** Two-tier as designed in `2026-07-10-immich-gpu-node-substrate-heal.md`. This runbook executes the guest onboarding (Tier-1 substrate) + k3s join + GPU exposure. Immich pod cutover to the node (4E) is **design-only here — it is gated on the data-migration spec** (the local-path library PVC pins the server to W1; a nodeSelector alone strands it Pending).
 
-**Tech stack:** ansible node-maintenance (roles reused as-is), k3s v1.36.1+k3s1 (manual binary), Flux GitOps, `intel/intel-gpu-plugin:0.36.0` (standalone DaemonSet), libvirt/virsh on the NAS.
+**Tech stack:** ansible node-maintenance (roles reused as-is), k3s v1.36.2+k3s1 (manual binary; matches the live cluster — bumped from the v1.36.1 first pinned here), Flux GitOps, `intel/intel-gpu-plugin:0.36.0` (standalone DaemonSet), libvirt/virsh on the NAS.
 
 ## Global Constraints (every gate inherits these)
 - **GitOps-only** for cluster state: commit → Flux `fr`. Never `kubectl apply/edit/patch`. Node config via ansible node-maintenance, never hand-edit `/etc/rancher/k3s`.
@@ -314,8 +314,12 @@ Expect: UFW active with the fleet allow-list (`65300/tcp` from LAN, k3s pod/svc 
 - [ ] **2. [VM — node-maintenance or akhozya, sudo] Confirm config.yaml, then join.**
   ```bash
   cat /etc/rancher/k3s/config.yaml    # must show data-dir /home/k3s + node-label + node-name immich-vm (from 4B)
+  # version MUST match the live cluster (all nodes v1.36.2+k3s1 as of 2026-07-10 — a concurrent
+  # patch bumped it past the v1.36.1 this runbook first pinned). The safety hook blocks `curl | sh`,
+  # so download → inspect → run the file: curl -sfL https://get.k3s.io -o /tmp/k3s-install.sh; then
+  # sudo K3S_URL=… K3S_TOKEN=… INSTALL_K3S_VERSION='v1.36.2+k3s1' sh /tmp/k3s-install.sh agent
   curl -sfL https://get.k3s.io | sudo K3S_URL=https://192.168.1.127:6443 \
-    K3S_TOKEN='<NODE-TOKEN>' INSTALL_K3S_VERSION='v1.36.1+k3s1' sh -s - agent
+    K3S_TOKEN='<NODE-TOKEN>' INSTALL_K3S_VERSION='v1.36.2+k3s1' sh -s - agent
   systemctl status k3s-agent.service --no-pager | head -5
   ```
   (The installer reads `/etc/rancher/k3s/config.yaml` → applies data-dir, node-name, node-ip, node-label at first registration.)
@@ -327,7 +331,7 @@ kubectl get node immich-vm -o jsonpath='{.metadata.labels.homelab/gpu}{"\n"}'   
 # containerd data actually on the home LV:
 # [VM] sudo du -sh /home/k3s 2>/dev/null   (should be growing, not /var/lib/rancher/k3s)
 ```
-Expect: `immich-vm  Ready  <none>  …  v1.36.1+k3s1`, label `intel`. `clusterip_heal` (Play 4, workers) now covers it (safe k3s-agent restart on a ClusterIP wedge); `node_isolation_heal` is **excluded** from the VM (reboot path #4).
+Expect: `immich-vm  Ready  <none>  …  v1.36.2+k3s1`, label `intel`. `clusterip_heal` (Play 4, workers) now covers it (safe k3s-agent restart on a ClusterIP wedge); `node_isolation_heal` is **excluded** from the VM (reboot path #4).
 
 **ROLLBACK 4C:** `[VM] sudo /usr/local/bin/k3s-agent-uninstall.sh` removes the agent cleanly; then `kubectl delete node immich-vm`. Node-token compromise is the only real risk — do not paste it into logs/commits.
 
@@ -346,7 +350,7 @@ Expect: `immich-vm  Ready  <none>  …  v1.36.1+k3s1`, label `intel`. `clusterip
 - [ ] **1. Vendor the upstream base DaemonSet** (`deployments/gpu_plugin/base/intel-gpu-plugin.yaml` @ `v0.36.0`) into `daemonset.yaml`, namespace `kube-system`, with three edits:
   - `image: docker.io/intel/intel-gpu-plugin:0.36.0` (pinned)
   - add container arg `-shared-dev-num=10` (Immich server + ML time-share one iGPU)
-  - `nodeSelector: { kubernetes.io/arch: amd64, kubernetes.io/hostname: immich-vm }` (binds to the one GPU node only; AMD nodes excluded by hostname)
+  - `nodeSelector: { kubernetes.io/arch: amd64, homelab/gpu: intel }` (binds to the GPU node via the purpose-built label from D3/host_vars — cleaner + more portable than pinning `kubernetes.io/hostname`; AMD workers lack the label; amd64 guards image arch)
   Keep the upstream securityContext (non-privileged, `drop: ALL`, `readOnlyRootFilesystem: true`, seccomp RuntimeDefault) and the four hostPath mounts (`/dev/dri`, `/sys/class/drm`, `/var/lib/kubelet/device-plugins`, `/var/run/cdi`) — these are why it must live in an excluded ns.
 - [ ] **2. kustomization.yaml** referencing `daemonset.yaml`; wire into `infrastructure/configs/kustomization.yaml`.
 - [ ] **3. Validate + Codex review + commit → merge → push → `fr`.**
