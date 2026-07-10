@@ -84,6 +84,20 @@
   notify: Disarm systemd watchdog
   tags: [immich-gpu-node, reset-bug, watchdog]
 
+# ---- Admin-sudo parity (remove the VM-build NOPASSWD override) ----
+# The VM image shipped /etc/sudoers.d/akhozya-nopasswd (`akhozya ALL=(ALL) NOPASSWD:ALL`). sudoers is
+# last-match-wins in lexical file order, so that file SHADOWS base_config's `00_akhozya`
+# (`akhozya ALL=(ALL) ALL`, password-required) → akhozya is effectively NOPASSWD on this node, unlike
+# the physical nodes where the admin user is password-required. base_config deploys the password rule
+# but never REMOVES this build artifact, so the gap is silent. Remove it here (drift-enforced) → the
+# already-present 00_akhozya governs → admin-sudo parity with the fleet. Safe: akhozya has a login
+# password (node-maintenance keeps NOPASSWD for automation; virsh console is the ultimate break-glass).
+- name: Remove VM-build akhozya NOPASSWD sudoers override (admin-sudo parity — 00_akhozya governs)
+  ansible.builtin.file:
+    path: /etc/sudoers.d/akhozya-nopasswd
+    state: absent
+  tags: [immich-gpu-node, sudoers, hardening]
+
 # ---- Guest packages for on-node QSV health probing (vainfo) ----
 
 - name: Ensure iHD VAAPI driver + vainfo present (watchdog QSV probe)

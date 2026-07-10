@@ -11,10 +11,10 @@
 ## Global Constraints (every gate inherits these)
 - **GitOps-only** for cluster state: commit → Flux `fr`. Never `kubectl apply/edit/patch`. Node config via ansible node-maintenance, never hand-edit `/etc/rancher/k3s`.
 - **Image-pin** `major.minor.patch`. `intel/intel-gpu-plugin:0.36.0` — pinned, no floating tag.
-- **VM lifecycle = `virsh` only** (`-c qemu:///system`), never the zettOS UI (regenerates the domain, C2/C5). Autostart stays OFF.
+- **VM lifecycle = `virsh` only** (`-c qemu:///system`), never the zettOS UI (regenerates the domain, C2/C5). **UI-autostart stays OFF**; libvirt-native `virsh autostart` is permitted as the host-reboot stopgap (D12) — it does not regenerate the XML.
 - **NEVER in-guest reboot / `systemctl reboot` the VM; never `virsh destroy`** (dirty iGPU → host crash, C3). This runbook is designed so **no reboot is needed** (cmdline blacklist already baked).
 - **Worktree edits only** (`wt-immich-gpu-node`); main tree is edit-blocked. Codex static-review each repo batch before commit (`.claude/review-invariants.md`), fix in severity order, cap 3 rounds.
-- **Agents have no sudo** on nodes. CP-sudo reads (node-maintenance pubkey, k3s node-token) + NAS `virsh` are **operator-assisted** steps, flagged `[OPERATOR]`. VM `akhozya` has NOPASSWD sudo.
+- **Agents have no sudo** on nodes. CP-sudo reads (node-maintenance pubkey, k3s node-token) + NAS `virsh` are **operator-assisted** steps, flagged `[OPERATOR]`. VM `akhozya` has NOPASSWD sudo **through onboarding**, then password-required after 4B step 3d removes the build-time override (D11); `node-maintenance` keeps NOPASSWD (automation).
 - **CI is red since 2026-07-09** (runner-init failure, pre-existing, unrelated) — not a merge blocker for these changes; validate locally.
 - **Sequencing invariant:** do NOT commit `immich-vm` into `inventory.yml` until 4A is done (node-maintenance@:65300 reachable + host key in `lib/known_hosts`), else the CP drift-heal (03:00/15:00) errors on the unreachable host every run.
 
@@ -99,7 +99,7 @@ Expect: `uid=…(node-maintenance) …` then `root` (NOPASSWD sudo works). If th
 - Modify: `docs/scripts/node-maintenance/ansible/phase2.yml` (**carve the VM out of the weekly in-guest reboot** + add update-only VM play — path #1)
 - Create: `docs/scripts/node-maintenance/ansible/roles/immich_gpu_node/files/99-zz-immich-vm-nopanic.conf` (**disable auto-reboot-on-panic** — path #5)
 - Create: `docs/scripts/node-maintenance/ansible/roles/immich_gpu_node/files/zz-immich-vm-nowatchdog.conf` (**disarm the q35 iTCO systemd watchdog** — path #6, found live: `/dev/watchdog0` present)
-- Modify: `docs/scripts/node-maintenance/ansible/roles/immich_gpu_node/{tasks,handlers}/main.yml` (deploy + apply BOTH reset-bug overrides: `sysctl --system` for no-panic, `daemon-reexec` for no-watchdog)
+- Modify: `docs/scripts/node-maintenance/ansible/roles/immich_gpu_node/{tasks,handlers}/main.yml` (deploy + apply BOTH reset-bug overrides: `sysctl --system` for no-panic, `daemon-reexec` for no-watchdog; **+ remove the VM-build `akhozya-nopasswd` sudoers override** — admin-sudo parity, step 3d)
 - Modify: `docs/scripts/node-maintenance/ansible/host_vars/immich-vm.yml` (k3s vars + cmdline token)
 - Modify: `docs/scripts/node-maintenance/lib/known_hosts` (add `.231` host keys)
 
@@ -194,6 +194,9 @@ Expect: `uid=…(node-maintenance) …` then `root` (NOPASSWD sudo works). If th
   - `tasks/main.yml`: `copy` → `/etc/systemd/system.conf.d/zz-immich-vm-nowatchdog.conf`, `notify: Disarm systemd watchdog`.
   - `handlers/main.yml`: `Disarm systemd watchdog` → `systemctl daemon-reexec` (Manager config is re-read ONLY on re-exec, not reload — `daemon-reload` would leave 30 latent). Safe: PID-1 re-exec preserves state, k3s-agent/containerd unaffected.
   (hardening's "Reload systemd" handler is `daemon-reload`, so `RuntimeWatchdogSec=30` never goes live *during* the run — the danger is a future `daemon-reexec`; the override closes it permanently.)
+
+- [ ] **3d. immich_gpu_node role — admin-sudo parity (remove the VM-build NOPASSWD override).** Spiked 2026-07-10: the VM has **three** sudoers files — `00_akhozya` (`akhozya ALL=(ALL) ALL`, password-required, deployed by `base_config`), `akhozya-nopasswd` (`akhozya ALL=(ALL) NOPASSWD:ALL`, VM-image build artifact), and `node-maintenance` (NOPASSWD, fleet-standard automation account). sudoers is **last-match-wins in lexical file order** → `akhozya-nopasswd` sorts after `00_akhozya` and **wins** → akhozya is effectively NOPASSWD, unlike the physical nodes (admin user password-required). `base_config` deploys the password rule but never *removes* the build artifact, so the gap is silent. Remove it (drift-enforced) so the already-present `00_akhozya` governs → parity. **Safe — no lockout:** akhozya has a login password (`passwd -S` → `P`, 2026-07-08); `node-maintenance` keeps its NOPASSWD (automation unaffected); virsh console (`console=hvc0`) is the ultimate break-glass.
+  - `roles/immich_gpu_node/tasks/main.yml` — `ansible.builtin.file: { path: /etc/sudoers.d/akhozya-nopasswd, state: absent }`. No-op on the physical nodes (they never had the file); this play is `hosts: virtual` anyway. Leaves `node-maintenance` NOPASSWD untouched (required by `ansible.cfg` pipelining + `yay`→`sudo pacman`).
 
 - [ ] **4. lib/known_hosts — trust the VM's host keys** (StrictHostKeyChecking=yes → ansible refuses .231 otherwise):
   ```bash
@@ -290,7 +293,7 @@ Expect: UFW active with the fleet allow-list (`65300/tcp` from LAN, k3s pod/svc 
 
 **ROLLBACK / LOCKOUT-RECOVERY 4B:** if the firewall role locks out `:65300` → NAS **virsh console** (`console=hvc0`), `sudo ufw allow from 192.168.1.0/24 to any port 65300 proto tcp`, investigate. Config revert = `git revert` the 4B commit + re-sync + re-run `--limit immich-vm`. The firewall pre-heal `ufw reload` is gated on `repaired>0` (`ff2b486b`) so a healthy run won't race the (not-yet-existing) k3s tunnel.
 
-- [ ] **8. [OPTIONAL — run only AFTER 4B verification + 4C prove `:65300` end-to-end] Close the `:22` break-glass for fleet parity.** Keep it if you want an extra SSH break-glass alongside the virsh console; close it for minimal surface (other nodes are :65300-only). On the VM:
+- [ ] **8. [RECOMMENDED for parity — run only AFTER 4B verification + 4C prove `:65300` end-to-end] Close the `:22` break-glass.** Fleet nodes are `:65300`-only; `:22` was retained purely as an onboarding lockout-net. Once `:65300` is proven, `:22` is **redundant** — the VM's virsh console (`console=hvc0`) is a *superior* break-glass (works even with sshd/network down), so closing `:22` costs no recovery path and matches the fleet. On the VM:
   ```bash
   sudo rm -f /etc/ssh/sshd_config.d/10-port.conf   # or edit to `Port 65300` only
   printf 'Port 65300\n' | sudo tee /etc/ssh/sshd_config.d/10-port.conf
@@ -399,7 +402,9 @@ Expect allocatable `gpu.intel.com/i915: "10"`. **If `0` / absent:** i915 loads ~
 | D7 | VM carved out of phase2 in-guest reboot; weekly *updates* via PLAY 1b, *reboot* via NAS virsh (alerted) | In-guest reboot of a passthrough VM crashes the host (C3). Weekly patch stays automated; the reboot is the one thing that must be host-side. |
 | D8 | VM-only `kernel.panic=0`+lockup_panic=0 (path #5) AND `RuntimeWatchdogSec=0`+`RebootWatchdogSec=0` (path #6) overrides | Two distinct in-guest auto-reboot-on-lockup vectors from `hardening`: (#5) panic/lockup sysctls, and (#6) the systemd hardware watchdog — the q35 iTCO `/dev/watchdog0` makes it live (audit's "inert" assumption was wrong). Both auto-reboot the VM → host crash. #6 is not covered by #5 (watchdog fires with the kernel alive, no panic). On the VM a lockup must hang→alert→NAS reset, never auto-reboot. |
 | D9 | `node_isolation_heal` gated off `virtual` (reboot path #4), `clusterip_heal` kept | The isolation ladder self-reboots; catastrophic on the VM. k3s-agent restart (clusterip_heal) is the safe isolation recovery. |
-| D10 | `:22` break-glass retained through onboarding (additive firewall), optional close in 4B step 8 | firewall role won't delete `:22`; keeping it as an extra break-glass until `:65300` is proven end-to-end is prudent for a fragile substrate. |
+| D10 | `:22` retained through onboarding as a lockout-net, then **closed for fleet parity** (4B step 8, after `:65300` proven) | firewall role is additive (won't delete `:22`); once `:65300` is proven the virsh console (`console=hvc0`) is a superior break-glass → `:22` is redundant surface. Fleet nodes are `:65300`-only. |
+| D11 | Remove the VM-build `akhozya-nopasswd` sudoers override (immich_gpu_node role, `file: absent`) → admin-sudo parity | Build artifact `akhozya ALL=(ALL) NOPASSWD:ALL` *shadows* base_config's password-required `00_akhozya` (sudoers last-match-wins by filename). Physical nodes' admin user is password-required; this restores parity. Safe: akhozya has a login password; `node-maintenance` NOPASSWD (automation) is untouched; virsh console is break-glass. |
+| D12 | VM auto-start after host reboot = `virsh autostart` **stopgap now** + Tier-2 CronJob durable (Step-5) | No autostart today → host power loss strands Immich (hit live 2026-07-10). libvirt-native `virsh autostart` (not the XML-regenerating UI autostart) is safe on cold boot (clean GPU reset = manual `virsh start`) and not a C3 in-guest-reboot vector. Tier-2 adds health-check + re-define-from-Git that `virsh autostart` alone can't. |
 
 ## Weekly maintenance & substrate self-heal (operator questions)
 **Q: does the weekly "upgrade + reboot" (Sat 04:30) work for the VM/k3s on the NAS?**
@@ -416,6 +421,12 @@ Expect allocatable `gpu.intel.com/i915: "10"`. **If `0` / absent:** i915 loads ~
   - **Alert-only** (needs NAS root, can't self-fix): SSH key wiped by an update, `akhozya` dropped from the `libvirt` group, host i915 firmware missing → Telegram + the exact operator fix command.
   - **True reset-bug wedge** = alert-only → NAS host reboot (the only clean iGPU reset); never auto-`destroy` (crashes the host).
 - **Status: Tier-2 is NOT built yet** — it is the natural **Step-5 follow-up** to this runbook. This runbook committed the canonical XML it consumes; building the CronJob + SOPS NAS-SSH key + VMRule + NetworkPolicy is separate. Until then, substrate recovery is operator-in-the-loop (recipes in memory `project_immich_gpu_transcode` + design C2–C5).
+
+**Q: does the VM come back automatically after a NAS *host* reboot / power loss? (hit live 2026-07-10 — cable pull → manual `virsh start`)**
+- **No, today — real gap.** There is no autostart, so a host power-cycle leaves the VM (and Immich GPU node) down until an operator runs `virsh start`. Proven tonight.
+- **`virsh autostart` ≠ the OFF "UI autostart" hard rule.** The rule that keeps autostart OFF targets the **zettOS UI** autostart, which *regenerates the domain XML* (reset-bug C2/C5). **libvirt-native `virsh autostart <domain>`** is different — it only symlinks the domain into `/etc/libvirt/qemu/autostart/`; no XML regen. On a **cold host boot the iGPU is firmware-reset clean** → vfio binds → the VM starts on a clean GPU = *exactly the operator's manual `virsh start`*. **C3 is an in-guest-reboot vector, NOT host-reboot-then-autostart** — no conflict with the reboot-path audit above.
+- **Stopgap (do now, operator, NAS host):** `virsh -c qemu:///system autostart 0398541a-c088-48cd-b16a-4b45d31a92f3`. Verify first: `systemctl is-enabled libvirtd` (autostart no-ops if libvirtd isn't boot-enabled). One residual edge to watch: a zettOS **warm** reboot (kexec/fast-reboot) that does *not* fully PCI-reset the iGPU → autostart onto a half-reset GPU — the same risk the manual start already carries; a full power-cycle is clean. Note: `virsh autostart` may not survive an appliance *update* that clobbers `/etc/libvirt` (design: "updates clobber") — that clobber case is Tier-2's job.
+- **Durable (Step-5): the Tier-2 CronJob IS the real autostart** — it adds a health-check, `virsh start` when down, AND re-`virsh define` from the Git canonical XML on clobber/drift (`virsh autostart` alone can't re-define). The stopgap covers the common power-cycle case until Tier-2 lands; it does not replace it.
 
 ## Rollback matrix
 | Gate | Blast radius | Recovery |
