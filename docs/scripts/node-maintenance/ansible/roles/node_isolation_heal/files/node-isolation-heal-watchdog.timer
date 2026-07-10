@@ -1,0 +1,13 @@
+[Unit]
+Description=Node isolation heal watchdog — check ~2min after boot + every 2min
+ConditionPathExists=/usr/local/sbin/node-isolation-heal.sh
+
+[Timer]
+# Give k3s-agent time to establish its tunnel after boot before the first check.
+OnBootSec=2min
+OnUnitActiveSec=2min
+# Stagger the two workers so their probes/actions don't land at the same instant.
+RandomizedDelaySec=15s
+
+[Install]
+WantedBy=timers.target

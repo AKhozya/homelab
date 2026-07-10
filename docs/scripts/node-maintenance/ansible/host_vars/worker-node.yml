@@ -46,3 +46,8 @@ ufw_route_rules_host:
 # DHCP link → blocky
 # DNS dropped via UseDNS=no; resolved global drop-in supplies public DNS.
 primary_network_file: 20-ethernet.network
+
+# ---- node_isolation_heal (CP-isolation self-recovery watchdog) ----
+# Reboot stagger index 0 → self-reboots at 15min isolated. W2 is index 1 (23min), so the
+# two workers never self-reboot together (leaderless rolling reboot; HA DBs lose ≤1 replica).
+node_isolation_reboot_index: 0

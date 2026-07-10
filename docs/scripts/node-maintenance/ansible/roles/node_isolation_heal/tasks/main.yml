@@ -1,0 +1,79 @@
+---
+# node_isolation_heal — worker CP-isolation self-recovery watchdog. WORKERS ONLY
+# (wired in node-config.yml Play 4, hosts: workers). The script also no-ops where the
+# k3s-agent unit is absent (the control-plane), as a second guard.
+#
+# Ships DRY-RUN (node_isolation_dry_run: true): the watchdog logs the decision it WOULD
+# take + emits metrics; it takes no destructive action until the flag is flipped false
+# after the soak + active-mode interlocks. See docs/plans/2026-07-10-node-isolation-heal.md.
+
+- name: Ensure node-isolation-heal state dir
+  ansible.builtin.file:
+    path: /var/lib/node-isolation-heal
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [node-isolation-heal]
+
+- name: Ensure node-exporter textfile dir (heal metrics)
+  ansible.builtin.file:
+    path: /var/lib/node_exporter/textfile
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [node-isolation-heal]
+
+- name: Ensure /etc/node-isolation-heal config dir
+  ansible.builtin.file:
+    path: /etc/node-isolation-heal
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [node-isolation-heal]
+
+- name: Deploy node-isolation-heal env (per-host tunables)
+  ansible.builtin.template:
+    src: node-isolation-heal.env.j2
+    dest: /etc/node-isolation-heal/env
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [node-isolation-heal]
+
+- name: Deploy node-isolation-heal.sh
+  ansible.builtin.copy:
+    src: node-isolation-heal.sh
+    dest: /usr/local/sbin/node-isolation-heal.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [node-isolation-heal]
+
+- name: Deploy node-isolation-heal-watchdog.service
+  ansible.builtin.copy:
+    src: node-isolation-heal-watchdog.service
+    dest: /etc/systemd/system/node-isolation-heal-watchdog.service
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [node-isolation-heal]
+
+- name: Deploy node-isolation-heal-watchdog.timer
+  ansible.builtin.copy:
+    src: node-isolation-heal-watchdog.timer
+    dest: /etc/systemd/system/node-isolation-heal-watchdog.timer
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [node-isolation-heal]
+
+- name: Enable + start node-isolation-heal-watchdog.timer
+  ansible.builtin.systemd_service:
+    name: node-isolation-heal-watchdog.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [node-isolation-heal]

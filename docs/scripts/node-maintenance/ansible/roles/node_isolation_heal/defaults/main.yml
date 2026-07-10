@@ -1,0 +1,21 @@
+---
+# node_isolation_heal — worker CP-isolation self-recovery watchdog. Ships DRY-RUN.
+# See docs/plans/2026-07-10-node-isolation-heal.md. Timings mirror the script defaults.
+
+# 1=log the decision it WOULD take + emit metrics, take NO destructive action.
+# Flip false ONLY after the soak AND active-mode interlocks land (phase2 worker-local
+# maint-hold + shared /var/lib/k3s-agent-restart/cooldown honored by clusterip_heal).
+node_isolation_dry_run: true
+
+# Reboot stagger index — overridden per host: worker-node=0 (15min), worker-node-2=1 (23min).
+node_isolation_reboot_index: 0
+
+node_isolation_fail_consecutive: 2       # consecutive isolated cycles (~4min) before acting
+node_isolation_restart_after_s: 360      # wedged >= 6min  -> L1 restart k3s-agent
+node_isolation_reboot_base_s: 900        # wedged >= 15min -> L2 self-reboot (base, index 0)
+node_isolation_reboot_stagger_s: 480     # + index*8min (worker-node-2 -> 23min)
+node_isolation_min_uptime_s: 1800        # boot-loop guard: no reboot if uptime < 30min
+node_isolation_reboot_gap_s: 86400       # <= 1 self-reboot / 24h
+node_isolation_restart_cooldown_s: 300   # min seconds between k3s-agent restarts (shared)
+node_isolation_curl_timeout: 5
+node_isolation_maint_hold_max_age_s: 3600  # ignore a stuck maint-hold older than 1h

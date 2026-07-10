@@ -44,3 +44,9 @@ ufw_route_rules_host:
 # Static link; its existing `DNS=192.168.1.129` is reset to public DNS via
 # the resolved global drop-in + networkd UseDNS reset.
 primary_network_file: 20-wired-static.network
+
+# ---- node_isolation_heal (CP-isolation self-recovery watchdog) ----
+# Reboot stagger index 1 → self-reboots at 23min isolated (8min after W1's 15min), so the
+# two workers never self-reboot together. W2 = the Realtek r8169 node that lost the
+# 2026-07-10 reload↔tunnel race → the primary beneficiary of this watchdog.
+node_isolation_reboot_index: 1

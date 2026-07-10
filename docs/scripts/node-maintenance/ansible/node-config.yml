@@ -57,6 +57,11 @@
     # (restart k3s-agent when 10.43.0.1 DNAT is missing). Workers here; the CP is
     # handled by clusterip_heal_cp below (pod-netns probe + k3s restart).
     - role: clusterip_heal
+    # Node-local self-recovery for CP-isolation (k3s-agent tunnel wedged / kubelet
+    # NotReady while the host is alive) — the 2026-07-10 W2 90-min-isolation class that
+    # no existing watchdog caught. Ladder: restart k3s-agent -> staggered self-reboot.
+    # Ships DRY-RUN (node_isolation_dry_run: true) — logs only until the soak + interlocks.
+    - role: node_isolation_heal
 
 - name: Node config drift-heal (control-plane only)
   hosts: control_plane
