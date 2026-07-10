@@ -57,7 +57,9 @@ spec:
       # require-resource-limits. Image-CVE scanning (the C1 goal) doesn't need it.
       infraAssessmentScannerEnabled: false
       clusterComplianceEnabled: false  # CIS compliance needs node data → dead weight
-      scanJobsConcurrentLimit: 2  # 3-node cluster; default 10 = churn spike
+      scanJobsConcurrentLimit: 1  # concurrency=2 still hit trivy fs-cache-lock timeout storm on
+        # post-reboot fleet rescan (2026-07-10 k3s v1.36.2 restart, 33 err/min peak); serialize scan
+        # pods. Intra-pod multi-container contention (grafana/home-assistant) unaffected — see history.
       scanJobTimeout: 5m
       scanJobPodPriorityClassName: homelab-batch  # the actual batch work, first to evict
     trivy:
