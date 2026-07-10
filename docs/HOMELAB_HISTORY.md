@@ -17,6 +17,12 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-10 — k3s v1.36.1 → v1.36.2 patch + trivy scan concurrency 2→1
+
+**k3s patch upgrade** (`v1.36.1+k3s1` → `v1.36.2+k3s1`, same-minor patch on the stable channel). Binary-swap via `k3s-upgrade` skill: staged the new binary to all 3 nodes (sha256-verified, old kept at `k3s.prev`), activated through the sanctioned serial rolling-restart (CP→W1→W2). Zero workload disruption, ~10 min. No repo commit — k3s is a manual `/usr/local/bin/k3s` binary, not Flux/pacman-managed. Rollback = swap `k3s.prev` back (patch-level is cleanly reversible); cleanup `k3s.prev` after ~1 week stable.
+
+**trivy `scanJobsConcurrentLimit: 2 → 1`** (`5a882546`, CI green; Codex skipped — single-int tuning, no bug-class surface). The upgrade's rolling restart triggered a full-fleet trivy rescan → the upstream #2859 fs-cache-lock storm (`cache may be in use by another process: timeout`), 33 err/min peak. This is the same self-healing churn documented 2026-07-05; it drains on its own and reports are still produced, but concurrency=2 wasn't enough to keep it quiet post-reboot. Serializing scan pods (limit=1) dropped the post-restart error rate to ~0. Trade-off: full-fleet rescan now serial (slower) — fine for 93 workloads. Note: pod-level concurrency can't fix the *intra-pod* multi-container contention (grafana+sidecar, home-assistant init trio) that #2859 also covers; limit=1 only removes pod-vs-pod contention. Verify-time gotcha now documented in the `k3s-upgrade` + `cluster-reboot` skills so the transient scan-Error wave isn't re-investigated as reboot damage.
+
 ### 2026-07-06 — rebuilderd (reproducible-build farm) removed cluster-wide
 
 Removed rebuilderd + `archlinux-repro` from both workers: packages, all systemd units (worker / metrics / watchdog / boot-timer / repro-cleanup / sync), the `/mnt/*/repro` + `/mnt/*/rebuilderd-worker` caches, the node-exporter textfile metric, the ansible `rebuilderd` role, the `rebuilderd-alerts` VMRule group, and every rebuilderd-motivated node-alert carve-out (`CPUThrottlingHigh` + `NodeMemoryMajorPagesFaults` worker exclusions dropped; `NodeHighIOWait` 15%/15m→10%/10m; `NodeDiskIOSaturation` 20/1h→10/30m). The `rebuilderd-progress` Claude skill was retired alongside (separate chezmoi repo).
