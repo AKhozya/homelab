@@ -1,0 +1,18 @@
+---
+# immich_gpu_node role defaults.
+
+# Kernel package whose UKI is rebuilt when the i915 boot-blacklist cmdline token changes
+# (systemd-boot + UKI; mkinitcpio bakes /etc/kernel/cmdline into /boot/EFI/Linux/<preset>.efi).
+immich_gpu_kernel_preset: linux-lts
+
+# Add `modprobe.blacklist=i915` to the UKI cmdline so the passed-through IGD never loads i915 at boot
+# (early load with no vBIOS/opregion wedges the guest); load-i915.service loads it render-only after
+# multi-user.target. A cmdline change requires a UKI rebuild (handler) + reboot to take effect — set
+# false only for a role test that must not trigger that reboot.
+immich_gpu_boot_blacklist: true
+
+# Guest packages for the watchdog's QSV verification (vainfo) + the iHD VAAPI driver. The Immich
+# container ships its own iHD; these are only for on-guest health probing.
+immich_gpu_packages:
+  - intel-media-driver
+  - libva-utils

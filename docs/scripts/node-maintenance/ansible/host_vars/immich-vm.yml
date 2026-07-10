@@ -1,0 +1,36 @@
+---
+# immich-vm (192.168.1.231) — Arch VM on the zettOS NAS, the Immich GPU node.
+# Meteor Lake iGPU (0000:00:02.0) full-passthrough for QSV transcode. 4 vCPU / 12Gi, virtio disk + NIC.
+# Member of `workers` (k3s-agent, clusterip_heal) + `virtual` (immich_gpu_node role) — see inventory.yml.
+# NOT live until bootstrapped to node-maintenance@:65300 and added to inventory (go-live step).
+
+# Cluster LAN IP for the /etc/hosts block (mirrors ansible_host, explicit).
+node_ip: 192.168.1.231
+
+# ---- NIC ----
+# virtio NIC (ens3) — no igc/r8169 EEE link-drop issue → nic_tuning_iface intentionally UNSET, so the
+# nic_tuning role no-ops (every task self-gates on nic_tuning_iface). No `virtual`-group when: needed.
+
+# ---- Swap ----
+# No swap (12Gi RAM, transcode node) → swap_* intentionally UNSET → base_config swap asserts skip.
+
+# ---- Kernel cmdline (UKI + systemd-boot — NOT the workers group's AMD/NVMe params) ----
+# base_config greps each token in /proc/cmdline (missing = fail = alert). The VM boots a minimal UKI
+# cmdline; console=hvc0 is the meaningful drift token (virsh-console recovery must persist).
+# modprobe.blacklist=i915 is added by the immich_gpu_node role + baked at the step-3 passthrough
+# reboot — it is ADDED to this list THEN (asserting a not-yet-booted token would fail here now).
+expected_kernel_params:
+  - console=hvc0
+
+# ---- Packages ----
+# VM guest: microcode load is a host concern, but keep the pkg for mkinitcpio's microcode hook parity.
+ucode_pkg: intel-ucode
+gpu_vendor: intel
+
+# ---- Admin user ----
+admin_user: akhozya
+
+# ---- K3s config ----
+# k3s_data_dir intentionally UNSET for now → config.yaml.j2 omits the data-dir block → k3s default
+# (/var/lib/rancher/k3s). Revisit at step 4 (k3s join): root LV is 32Gi, home LV is 126Gi — containerd
+# image + Immich working set likely wants the larger volume. Storage layout is a step-4 decision.

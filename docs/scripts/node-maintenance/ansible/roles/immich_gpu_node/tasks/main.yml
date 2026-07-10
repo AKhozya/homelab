@@ -1,0 +1,113 @@
+---
+# immich_gpu_node — Immich GPU node (Arch VM) i915 render config + guest-local heal watchdog.
+# Applied to the `virtual` inventory group only (node-config.yml Play "immich-gpu-node"): the passed-
+# through Meteor Lake iGPU exists only on this VM; running this on a physical node is meaningless.
+#
+# i915 is render-only (disable_display=1) + boot-blacklisted (loads post-boot via load-i915.service);
+# see files/i915-render.conf + files/load-i915.service. The heal watchdog mirrors clusterip_heal
+# (bounded restart + node-exporter textfile metrics) but heals ONLY the render node — k3s-agent is
+# clusterip_heal's job, the reset-bug wedge is the Tier-2 host watchdog's. See files/immich-gpu-heal.sh.
+
+# ---- i915 render-only driver config ----
+
+- name: Deploy i915 render-only modprobe conf
+  ansible.builtin.copy:
+    src: i915-render.conf
+    dest: /etc/modprobe.d/i915-render.conf
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [immich-gpu-node, i915]
+
+- name: Ensure i915 boot-blacklist token on kernel cmdline (UKI)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    f=/etc/kernel/cmdline
+    if grep -qw 'modprobe.blacklist=i915' "$f"; then
+      exit 0
+    fi
+    line="$(head -n1 "$f" | sed 's/[[:space:]]*$//')"
+    printf '%s modprobe.blacklist=i915\n' "$line" >"$f"
+    echo CHANGED
+  args:
+    executable: /bin/bash
+  register: immich_gpu_cmdline
+  changed_when: "'CHANGED' in immich_gpu_cmdline.stdout"
+  when: immich_gpu_boot_blacklist | bool
+  notify: Rebuild UKI for i915 cmdline change
+  tags: [immich-gpu-node, i915, i915-cmdline]
+
+- name: Deploy load-i915.service (post-boot render load)
+  ansible.builtin.copy:
+    src: load-i915.service
+    dest: /etc/systemd/system/load-i915.service
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [immich-gpu-node, i915]
+
+# Enabled (fires After=multi-user.target on every boot), not started here: a mid-run start would load
+# i915 out of band. It runs at the next boot — which for this node is a host cold-restart (reset-bug).
+- name: Enable load-i915.service
+  ansible.builtin.systemd_service:
+    name: load-i915.service
+    enabled: true
+    daemon_reload: true
+  tags: [immich-gpu-node, i915]
+
+# ---- Guest packages for on-node QSV health probing (vainfo) ----
+
+- name: Ensure iHD VAAPI driver + vainfo present (watchdog QSV probe)
+  ansible.builtin.package:
+    name: "{{ immich_gpu_packages }}"
+    state: present
+  tags: [immich-gpu-node, packages]
+
+# ---- Heal watchdog (mirrors clusterip_heal) ----
+
+# /var/lib/node-maintenance is node-maintenance's HOME (owned by base_config, 0751). Do NOT re-assert
+# ownership here — the heal state file is written as root inside it, which works with o+x on the parent.
+
+- name: Ensure node-exporter textfile dir (heal metrics)
+  ansible.builtin.file:
+    path: /var/lib/node_exporter/textfile
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [immich-gpu-node, heal]
+
+- name: Deploy immich-gpu-heal.sh
+  ansible.builtin.copy:
+    src: immich-gpu-heal.sh
+    dest: /usr/local/sbin/immich-gpu-heal.sh
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [immich-gpu-node, heal]
+
+- name: Deploy immich-gpu-heal-watchdog.service
+  ansible.builtin.copy:
+    src: immich-gpu-heal-watchdog.service
+    dest: /etc/systemd/system/immich-gpu-heal-watchdog.service
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [immich-gpu-node, heal]
+
+- name: Deploy immich-gpu-heal-watchdog.timer
+  ansible.builtin.copy:
+    src: immich-gpu-heal-watchdog.timer
+    dest: /etc/systemd/system/immich-gpu-heal-watchdog.timer
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [immich-gpu-node, heal]
+
+- name: Enable + start immich-gpu-heal-watchdog.timer
+  ansible.builtin.systemd_service:
+    name: immich-gpu-heal-watchdog.timer
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [immich-gpu-node, heal]

@@ -1,0 +1,14 @@
+[Unit]
+Description=Load i915 (render-only) for the passed-through Intel iGPU, post-boot
+Documentation=https://github.com/AKhozya/homelab
+# i915 is boot-blacklisted (modprobe.blacklist=i915 on the UKI cmdline): early load on a passed-through
+# IGD with no vBIOS/opregion wedges the guest boot. Load it AFTER userspace is up instead.
+After=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/modprobe i915
+
+[Install]
+WantedBy=multi-user.target

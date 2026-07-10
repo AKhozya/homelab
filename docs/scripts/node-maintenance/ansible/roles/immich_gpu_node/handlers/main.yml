@@ -1,0 +1,8 @@
+---
+# Rebuild the systemd-boot UKI after a kernel cmdline change. mkinitcpio bakes /etc/kernel/cmdline
+# into /boot/EFI/Linux/<preset>.efi; the change only takes effect after this rebuild + a reboot.
+# Reboot is intentionally NOT automated here — on the GPU node a reboot must be a HOST cold-restart
+# (reset-bug), driven by the Tier-2 watchdog / operator, never an in-guest `systemctl reboot`.
+- name: Rebuild UKI for i915 cmdline change
+  ansible.builtin.command: "mkinitcpio -p {{ immich_gpu_kernel_preset }}"
+  changed_when: true

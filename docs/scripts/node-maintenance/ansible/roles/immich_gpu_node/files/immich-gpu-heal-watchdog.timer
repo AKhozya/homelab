@@ -1,0 +1,13 @@
+[Unit]
+Description=Immich GPU node heal watchdog — check ~90s after boot + every 3min
+ConditionPathExists=/usr/local/sbin/immich-gpu-heal.sh
+
+[Timer]
+# Boot is a key moment: the iGPU render node comes up ~10s after boot (load-i915.service, post
+# multi-user.target), so give it a head start before the first check.
+OnBootSec=90s
+OnUnitActiveSec=3min
+RandomizedDelaySec=20s
+
+[Install]
+WantedBy=timers.target

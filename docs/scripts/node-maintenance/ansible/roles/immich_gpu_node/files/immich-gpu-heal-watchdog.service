@@ -1,0 +1,12 @@
+[Unit]
+Description=Immich GPU node heal watchdog (i915 render-node self-heal)
+Documentation=https://github.com/AKhozya/homelab
+ConditionPathExists=/usr/local/sbin/immich-gpu-heal.sh
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/immich-gpu-heal.sh
+# load-i915 restart + 10s reprobe fits under this; the timer won't double-fire a running oneshot.
+TimeoutStartSec=3min
+StandardOutput=journal
+StandardError=journal
