@@ -131,6 +131,7 @@ install -m 0750 -o root -g root "$REPO_DIR/lib/telegram-notify.sh" /usr/local/sb
 install -m 0750 -o root -g root "$REPO_DIR/lib/sync-from-git.sh"   /usr/local/sbin/node-maintenance-sync-from-git.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/node-config-notify.sh" /usr/local/sbin/node-maintenance-config-notify.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/node-maintenance-lock.sh" /usr/local/sbin/node-maintenance-lock.sh
+install -m 0750 -o root -g root "$REPO_DIR/lib/rotate-k3s-server-token.sh" /usr/local/sbin/rotate-k3s-server-token.sh
 for unit in \
     node-maintenance.timer \
     node-maintenance-phase1.service \
