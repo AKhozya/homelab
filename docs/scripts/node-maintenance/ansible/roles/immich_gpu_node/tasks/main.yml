@@ -63,6 +63,42 @@
     state: present
   tags: [immich-gpu-node, packages]
 
+# ---- virtiofs library mount (Immich library share from the NAS host) ----
+# The library lives on the NAS host and is exposed to this guest as a virtiofs share (tag
+# immich-library, defined in the domain XML). Mount it at a stable path so the k3s Immich pod (step 4)
+# bind-mounts a real directory, not an empty one. The unit filename MUST be the systemd escape of the
+# mount path (var-lib-immich\x2dlibrary.mount) — immich-gpu-heal.sh restarts it by that exact name
+# (library_unit → systemd-escape -p --suffix=mount /var/lib/immich-library).
+
+- name: Ensure Immich library mountpoint
+  ansible.builtin.file:
+    path: /var/lib/immich-library
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [immich-gpu-node, virtiofs]
+
+- name: Deploy immich-library virtiofs mount unit
+  ansible.builtin.copy:
+    src: immich-library.mount
+    dest: '/etc/systemd/system/var-lib-immich\x2dlibrary.mount'
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [immich-gpu-node, virtiofs]
+
+# enabled=at boot (WantedBy, non-fatal), started=mount now on this heal run. A mount failure here alerts
+# (drift) — correct: an unmountable library means Immich is broken, worth a page. The heal watchdog
+# covers transient drops between runs.
+- name: Enable + start immich-library virtiofs mount
+  ansible.builtin.systemd_service:
+    name: 'var-lib-immich\x2dlibrary.mount'
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [immich-gpu-node, virtiofs]
+
 # ---- Heal watchdog (mirrors clusterip_heal) ----
 
 # /var/lib/node-maintenance is node-maintenance's HOME (owned by base_config, 0751). Do NOT re-assert

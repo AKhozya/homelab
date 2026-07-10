@@ -1,0 +1,15 @@
+[Unit]
+Description=Immich library share (virtiofs tag immich-library from NAS host)
+Documentation=https://github.com/AKhozya/homelab
+
+[Mount]
+What=immich-library
+Where=/var/lib/immich-library
+Type=virtiofs
+# No hard boot dependency by design: this is WantedBy (not RequiredBy) multi-user.target below,
+# so a mount failure — e.g. a troubled boot where the host share is briefly absent — never wedges
+# boot (reset-bug: the guest must always reach a shell so a cold-restart can recover). immich-gpu-heal
+# re-starts this unit when it drops (virtiofs_state → down); a normal boot mounts it via WantedBy.
+
+[Install]
+WantedBy=multi-user.target
