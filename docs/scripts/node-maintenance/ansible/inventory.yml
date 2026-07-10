@@ -22,3 +22,15 @@ all:
         worker-node-2:
           ansible_host: 192.168.1.126
           k3s_service: k3s-agent.service
+        # Immich GPU node (Arch VM on the zettOS NAS). In `workers` for k3s-agent +
+        # clusterip_heal; also in `virtual` (below) which scopes the immich_gpu_node role,
+        # gates OFF node_isolation_heal, and carves it out of the phase2 in-guest reboot
+        # (a passthrough-VM in-guest reboot wedges the iGPU → NAS host crash). See host_vars.
+        immich-vm:
+          ansible_host: 192.168.1.231
+          k3s_service: k3s-agent.service
+    # `virtual` = VMs that must never in-guest reboot (GPU-passthrough reset-bug). Scopes the
+    # immich_gpu_node role and every reboot-path carve-out (node-config, phase2).
+    virtual:
+      hosts:
+        immich-vm: {}

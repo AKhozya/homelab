@@ -8,19 +8,25 @@
 node_ip: 192.168.1.231
 
 # ---- NIC ----
-# virtio NIC (ens3) — no igc/r8169 EEE link-drop issue → nic_tuning_iface intentionally UNSET, so the
+# virtio NIC (enp2s0) — no igc/r8169 EEE link-drop issue → nic_tuning_iface intentionally UNSET, so the
 # nic_tuning role no-ops (every task self-gates on nic_tuning_iface). No `virtual`-group when: needed.
+# primary_network_file: the systemd-networkd file managing enp2s0 (networkctl: 20-ethernet.network).
+# REQUIRED — the hardening role renders /etc/systemd/network/{{ primary_network_file }}.d/ UNguarded,
+# so without this the hardening play errors on this host (undefined var). Same name W1 uses.
+primary_network_file: 20-ethernet.network
 
 # ---- Swap ----
 # No swap (12Gi RAM, transcode node) → swap_* intentionally UNSET → base_config swap asserts skip.
 
 # ---- Kernel cmdline (UKI + systemd-boot — NOT the workers group's AMD/NVMe params) ----
 # base_config greps each token in /proc/cmdline (missing = fail = alert). The VM boots a minimal UKI
-# cmdline; console=hvc0 is the meaningful drift token (virsh-console recovery must persist).
-# modprobe.blacklist=i915 is added by the immich_gpu_node role + baked at the step-3 passthrough
-# reboot — it is ADDED to this list THEN (asserting a not-yet-booted token would fail here now).
+# cmdline; console=hvc0 is the virsh-console recovery token, modprobe.blacklist=i915 keeps i915 out
+# of the boot path (loads post-boot via load-i915.service — early load on the passed IGD wedges boot).
+# Both are baked into the UKI and confirmed live in /proc/cmdline (step-3 passthrough done). This list
+# REPLACES the AMD-specific workers-group set (amd_pstate/nvme_core/pcie_aspm — absent on this VM).
 expected_kernel_params:
   - console=hvc0
+  - modprobe.blacklist=i915
 
 # ---- Packages ----
 # VM guest: microcode load is a host concern, but keep the pkg for mkinitcpio's microcode hook parity.
@@ -30,7 +36,19 @@ gpu_vendor: intel
 # ---- Admin user ----
 admin_user: akhozya
 
-# ---- K3s config ----
-# k3s_data_dir intentionally UNSET for now → config.yaml.j2 omits the data-dir block → k3s default
-# (/var/lib/rancher/k3s). Revisit at step 4 (k3s join): root LV is 32Gi, home LV is 126Gi — containerd
-# image + Immich working set likely wants the larger volume. Storage layout is a step-4 decision.
+# ---- K3s config (step-4 join decisions) ----
+# Data-dir on the 126Gi home LV, NOT the 32Gi root: containerd images + the Immich working set are
+# far too big for root (mirrors W1/W2's big-volume data-dir + the W2 DiskPressure lesson). k3s_config
+# writes this into /etc/rancher/k3s/config.yaml; the k3s installer reads it at first registration.
+k3s_data_dir: /home/k3s
+
+# Node label so the Intel GPU device-plugin DaemonSet + (later) the Immich server/ML pods can
+# nodeSelector this node. This REPLACES the workers-group inherited label
+# (svccontroller.k3s.cattle.io/enablelb=true) — deliberate: the GPU transcode node is not a servicelb
+# ingress endpoint. If servicelb parity is ever wanted, add that label back here alongside gpu=intel.
+k3s_node_labels:
+  - "homelab/gpu=intel"
+
+# NOTE: k3s_prefer_bundled_bin is NOT set here — it is inherited as `true` from group_vars/workers.yml
+# (the VM is a `workers` member), which is the desired value (iptables-nft stale-chain avoidance,
+# gotcha_k3s_reboot_ordering). Re-declaring it would be redundant.

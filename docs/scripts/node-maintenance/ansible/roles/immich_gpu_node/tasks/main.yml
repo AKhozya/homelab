@@ -55,6 +55,35 @@
     daemon_reload: true
   tags: [immich-gpu-node, i915]
 
+# ---- Reset-bug safety: never auto-reboot in-guest (C3) ----
+# On this GPU-passthrough VM an in-guest reboot wedges the passed-through iGPU → NAS host crash. Two
+# in-guest auto-reboot vectors are inherited from the `hardening` role (hosts: all) and MUST be
+# neutralized here (hardening runs before this play, so its files are on disk to override):
+#   #5 kernel.panic=10 + softlockup/hardlockup_panic=1 → 0 (sysctl drop-in, applied by `sysctl --system`)
+#   #6 systemd RuntimeWatchdogSec=30 pinging the q35 iTCO /dev/watchdog0 → 0 (system.conf.d drop-in,
+#      applied by `systemctl daemon-reexec` — Manager config is only re-read on re-exec, not reload).
+# #6 is NOT covered by #5: a hardware-watchdog reset fires while the kernel is still ALIVE (no panic).
+
+- name: Disable auto-reboot-on-panic (reset-bug safety — overrides hardening 99-watchdog.conf sysctls)
+  ansible.builtin.copy:
+    src: 99-zz-immich-vm-nopanic.conf
+    dest: /etc/sysctl.d/99-zz-immich-vm-nopanic.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Apply nopanic sysctl
+  tags: [immich-gpu-node, reset-bug, sysctl]
+
+- name: Disarm systemd hardware watchdog (reset-bug safety — q35 iTCO /dev/watchdog0 is NOT inert)
+  ansible.builtin.copy:
+    src: zz-immich-vm-nowatchdog.conf
+    dest: /etc/systemd/system.conf.d/zz-immich-vm-nowatchdog.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Disarm systemd watchdog
+  tags: [immich-gpu-node, reset-bug, watchdog]
+
 # ---- Guest packages for on-node QSV health probing (vainfo) ----
 
 - name: Ensure iHD VAAPI driver + vainfo present (watchdog QSV probe)

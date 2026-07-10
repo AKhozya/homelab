@@ -6,3 +6,17 @@
 - name: Rebuild UKI for i915 cmdline change
   ansible.builtin.command: "mkinitcpio -p {{ immich_gpu_kernel_preset }}"
   changed_when: true
+
+# Applies the reset-bug panic override (99-zz-immich-vm-nopanic.conf). Non-disruptive; re-reads all
+# /etc/sysctl.d in lexical order so the 99-zz override wins over hardening's 99-watchdog.conf.
+- name: Apply nopanic sysctl
+  ansible.builtin.command: sysctl --system
+  changed_when: false
+
+# Applies the reset-bug watchdog override (zz-immich-vm-nowatchdog.conf). systemd Manager config
+# (RuntimeWatchdogSec/RebootWatchdogSec) is ONLY re-read on daemon-reexec, never daemon-reload — so a
+# reexec is required to guarantee the watchdog stays disarmed. Safe: PID-1 re-exec preserves state and
+# does not disrupt k3s-agent/containerd (they are not children of the re-exec).
+- name: Disarm systemd watchdog
+  ansible.builtin.command: systemctl daemon-reexec
+  changed_when: false

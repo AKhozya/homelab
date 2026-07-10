@@ -126,7 +126,11 @@
 # PLAY 1: Per-worker rolling update (serial: 1)
 # ──────────────────────────────────────────────────────────────
 - name: Node maintenance — Phase 2 (worker rolling update)
-  hosts: workers
+  # `workers:!virtual` — physical workers only. The GPU-passthrough VM (`virtual` group) must
+  # NEVER be in-guest rebooted: an in-guest reboot wedges the passed-through iGPU → NAS host
+  # crash (reset-bug C3). Its weekly patching runs in PLAY 1b below with NO reboot; the reboot
+  # half is a NAS-side `virsh shutdown --mode acpi --timeout 120` + `virsh start` (operator/Tier-2).
+  hosts: workers:!virtual
   serial: 1
   gather_facts: false
   become: true
@@ -319,6 +323,63 @@
       failed_when: false
       delegate_to: localhost
       become: false
+
+# ──────────────────────────────────────────────────────────────
+# PLAY 1b: GPU VM weekly update (NO in-guest reboot — reset-bug C3)
+# ──────────────────────────────────────────────────────────────
+# The `virtual` group is excluded from PLAY 1's reboot rollout. It still gets weekly package
+# updates here — but NEVER an in-guest reboot (that wedges the passed-through iGPU → NAS host
+# crash). If a kernel bump lands, we alert so the operator (later: Tier-2 watchdog) does a
+# NAS-side graceful `virsh shutdown --mode acpi --timeout 120` + `virsh start`. No cordon/drain:
+# nothing is rebooted, so the node is never disrupted.
+- name: Node maintenance — Phase 2 (GPU VM update, no reboot)
+  hosts: virtual
+  serial: 1
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Verify SSH reachable before start
+      ansible.builtin.wait_for_connection:
+        timeout: 120
+
+    - name: Upgrade via yay (best-effort; NEVER reboots — cold-restart is a NAS-side virsh op)
+      block:
+        - name: yay upgrade
+          ansible.builtin.shell: "{{ yay_cmd }}"
+          register: vm_yay
+          changed_when: "'there is nothing to do' not in vm_yay.stdout"
+      rescue:
+        - name: Non-fatal retry (a transient AUR failure must not fail the run)
+          ansible.builtin.shell: "{{ yay_cmd }}"
+          changed_when: false
+          failed_when: false
+
+    - name: Detect pending kernel reboot (running kernel != installed linux-lts module dir)
+      # NOT `test -d /usr/lib/modules/$(uname -r)`: the fleet convention installs kernel-modules-hook,
+      # which KEEPS the running kernel's modules dir across a pacman kernel upgrade — that heuristic
+      # would then always report "current" and this cold-restart alert would never fire. Compare the
+      # running kernel to the module dir OWNED by the installed linux-lts package (hook-independent).
+      ansible.builtin.shell: |
+        set -o pipefail
+        running="$(uname -r)"
+        installed="$(pacman -Ql linux-lts 2>/dev/null \
+          | sed -n 's#^linux-lts /usr/lib/modules/\([^/]*\)/$#\1#p' | head -n1)"
+        if [ -n "$installed" ] && [ "$running" != "$installed" ]; then echo pending; else echo current; fi
+      args:
+        executable: /bin/bash
+      register: vm_reboot_needed
+      changed_when: false
+
+    - name: Alert if a NAS-side virsh-graceful cold-restart is due (kernel bumped, never in-guest reboot)
+      ansible.builtin.command: >-
+        /usr/local/sbin/telegram-notify.sh
+        "⚠️ immich-vm: weekly updates applied but the running kernel is stale — a NAS-side graceful
+         virsh shutdown --mode acpi --timeout 120 + virsh start is due (NEVER in-guest reboot — reset-bug)."
+      delegate_to: "{{ groups['control_plane'][0] }}"
+      become: false
+      changed_when: false
+      when: vm_reboot_needed.stdout == "pending"
 
 # ──────────────────────────────────────────────────────────────
 # PLAY 2: Cluster-level post-tasks (cleanup + alerts + notify)
