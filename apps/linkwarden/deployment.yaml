@@ -105,12 +105,15 @@ spec:
               set -e
               echo "Installing Playwright Chromium browser..."
               npx playwright install chromium
-              if ls -d /home/node/.cache/ms-playwright/chromium_headless_shell-* >/dev/null 2>&1; then
+              if ls -d "${PLAYWRIGHT_BROWSERS_PATH}"/chromium_headless_shell-* >/dev/null 2>&1; then
                 echo "Playwright browsers installed successfully!"
               else
                 echo "ERROR: Playwright browser not found after install"
                 exit 1
               fi
+          env:
+            - name: PLAYWRIGHT_BROWSERS_PATH
+              value: /home/node/.cache/ms-playwright
           volumeMounts:
             - name: playwright-cache
               mountPath: /home/node/.cache
@@ -136,6 +139,9 @@ spec:
             - containerPort: 3000
               name: http
               protocol: TCP
+          env:
+            - name: PLAYWRIGHT_BROWSERS_PATH
+              value: /home/node/.cache/ms-playwright
           envFrom:
             - secretRef:
                 name: linkwarden
