@@ -17,8 +17,9 @@ spec:
         app: claude-telegram
     spec:
       serviceAccountName: claude-telegram
-      # Bot doesn't use the k8s API; don't mount an SA token Claude's Bash could read/exfil.
-      automountServiceAccountToken: false
+      # Bot uses kubectl for cluster diagnostics. RBAC scoped by claude-telegram-ops ClusterRole.
+      # Blast radius = cluster-admin-equivalent regardless (pods/exec + SSH to all nodes) — see rbac.yaml header.
+      automountServiceAccountToken: true
       priorityClassName: homelab-standard
       hostAliases:
         - ip: "192.168.1.127"
