@@ -10,7 +10,8 @@
 #
 # Resilience layers (2026-04-29 hardening):
 #   L0  preflight role runs first (settle barrier, xtables-lock probe)
-#   L1  pre-heal task: per-chain repair + ufw reload
+#   L1  pre-heal task: per-chain repair + ufw reload ONLY if a chain was missing
+#       (unconditional reload wedged W2's k3s tunnel 2026-07-10 — see task below)
 #   L2  per-task retries: until/retries=10 delay=20 → 200s window/task
 #   L3  block/rescue around UFW rule set: on rescue → diag snapshot +
 #       ufw-heal-post-k3s.sh + one re-attempt of the rule batch
@@ -53,6 +54,17 @@
         fi
       done
     done
+    # Reload ONLY when a chain was actually missing (repaired > 0). The reload
+    # exists to restore UFW rules over freshly-recreated chains; with nothing
+    # repaired there is nothing to restore. An unconditional `ufw reload` on a
+    # healthy node is a full iptables flush+rebuild that races the k3s agent↔CP
+    # websocket tunnel (127.0.0.1:6444 client LB) — the reload dropped the
+    # tunnel on W2 2026-07-10, wedging the node NotReady and blackholing host
+    # SSH (65300) for ~90min until a manual power-cycle. Skip = idempotent no-op.
+    if [ "$repaired" -eq 0 ]; then
+      echo "NOHEAL_NEEDED repaired=0 (no missing chains — ufw reload skipped)"
+      exit 0
+    fi
     for attempt in 1 2 3; do
       if /usr/sbin/ufw reload >/dev/null 2>&1; then
         echo "RELOAD_OK repaired=$repaired attempt=$attempt"
