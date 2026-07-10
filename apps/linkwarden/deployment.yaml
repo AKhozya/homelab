@@ -97,7 +97,7 @@ spec:
             capabilities:
               drop: ["ALL"]
         - name: install-playwright-browsers
-          image: ghcr.io/linkwarden/linkwarden:v2.14.1
+          image: ghcr.io/linkwarden/linkwarden:v2.15.0
           command:
             - sh
             - -c
@@ -131,7 +131,7 @@ spec:
               drop: ["ALL"]
       containers:
         - name: linkwarden
-          image: ghcr.io/linkwarden/linkwarden:v2.14.1
+          image: ghcr.io/linkwarden/linkwarden:v2.15.0
           ports:
             - containerPort: 3000
               name: http
