@@ -345,15 +345,29 @@
 
     - name: Upgrade via yay (best-effort; NEVER reboots — cold-restart is a NAS-side virsh op)
       block:
-        - name: yay upgrade
+        - name: Yay upgrade
           ansible.builtin.shell: "{{ yay_cmd }}"
           register: vm_yay
           changed_when: "'there is nothing to do' not in vm_yay.stdout"
       rescue:
-        - name: Non-fatal retry (a transient AUR failure must not fail the run)
+        - name: Yay upgrade retry (a transient AUR/network failure gets one more attempt)
           ansible.builtin.shell: "{{ yay_cmd }}"
-          changed_when: false
+          register: vm_yay_retry
+          changed_when: "'there is nothing to do' not in vm_yay_retry.stdout"
           failed_when: false
+        # Do NOT re-raise a persistent failure: a hard-fail here leaves phase2-pending stuck →
+        # gates sync + config drift-heal cluster-wide (2026-06-20 ~1.7h stall). Alert instead so
+        # the play completes. This replaces a silent swallow that let `yay: command not found`
+        # report success → the VM went unpatched undetected until 2026-07-11.
+        - name: Alert if the GPU-VM upgrade still failed after retry (surfaced, not swallowed)
+          ansible.builtin.command: >-
+            /usr/local/sbin/telegram-notify.sh
+            "⚠️ immich-vm: weekly yay upgrade FAILED after retry (rc={{ vm_yay_retry.rc }}) — VM left
+             unpatched, see phase2 journal. Manual check needed."
+          delegate_to: "{{ groups['control_plane'][0] }}"
+          become: false
+          changed_when: false
+          when: vm_yay_retry.rc != 0
 
     - name: Detect pending kernel reboot (running kernel != installed linux-lts module dir)
       # NOT `test -d /usr/lib/modules/$(uname -r)`: the fleet convention installs kernel-modules-hook,

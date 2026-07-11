@@ -98,6 +98,58 @@
     state: absent
   tags: [immich-gpu-node, sudoers, hardening]
 
+# ---- yay AUR helper bootstrap (parity with physical nodes) ----
+# Physical nodes seed yay once at build via setup-node.sh; this VM's GPU-onboarding path skipped it,
+# so phase2's `yay_cmd` (sudo -u node-maintenance yay -Syyu) silently no-op'd (`yay: command not
+# found`, swallowed by the old rescue) → the VM went unpatched, undetected until 2026-07-11. Bootstrap
+# it here, drift-enforced + idempotent (only when absent — thereafter the weekly yay_cmd self-updates
+# yay). AUR-in-drift-heal is otherwise out of scope, but yay is the updater itself, a bootstrap gap not
+# a package-set choice. Build/install SPLIT: makepkg refuses root, and akhozya has NO NOPASSWD on this
+# node (the admin-parity task above removes it), so `makepkg -si` — which self-calls `sudo pacman` —
+# would hang. Build as akhozya (deps pre-installed as root so no `-s` sudo), then `pacman -U` as root.
+# stat, not `command -v yay`: ansible.builtin.command runs no shell and `command` is a shell builtin,
+# so it would never resolve → the guard would report "missing" forever → bootstrap every drift-heal.
+- name: Check yay present (AUR helper — the fleet weekly updater)
+  ansible.builtin.stat:
+    path: /usr/bin/yay
+  register: immich_gpu_yay_check
+  tags: [immich-gpu-node, yay, packages]
+
+- name: Bootstrap yay-bin from AUR (idempotent — only when missing)
+  when: not immich_gpu_yay_check.stat.exists
+  tags: [immich-gpu-node, yay, packages]
+  block:
+    - name: Ensure makepkg build deps present (so the akhozya build needs no `-s` sudo)
+      ansible.builtin.package:
+        name:
+          - base-devel
+          - git
+        state: present
+
+    - name: Build yay-bin as the admin user (makepkg only — no install; akhozya has no NOPASSWD)
+      become: true
+      become_user: "{{ admin_user }}"
+      ansible.builtin.shell: |
+        set -euo pipefail
+        build=/tmp/yay-bootstrap
+        rm -rf "$build"
+        mkdir -p "$build/src" "$build/pkg" "$build/bld"
+        git clone --depth 1 https://aur.archlinux.org/yay-bin.git "$build/src/yay-bin"
+        cd "$build/src/yay-bin"
+        PKGDEST="$build/pkg" BUILDDIR="$build/bld" makepkg --noconfirm
+        ls -1 "$build/pkg"/yay-bin-*.pkg.tar.zst | head -n1
+      register: immich_gpu_yay_build
+      changed_when: true
+
+    - name: Install the built yay package as root (pacman -U — akhozya sudo not needed)
+      ansible.builtin.command: "pacman -U --noconfirm {{ immich_gpu_yay_build.stdout_lines[-1] }}"
+      changed_when: true
+
+    - name: Remove the yay bootstrap build dir
+      ansible.builtin.file:
+        path: /tmp/yay-bootstrap
+        state: absent
+
 # ---- Guest packages for on-node QSV health probing (vainfo) ----
 
 - name: Ensure iHD VAAPI driver + vainfo present (watchdog QSV probe)
