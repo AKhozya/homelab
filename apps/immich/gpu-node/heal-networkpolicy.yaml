@@ -1,0 +1,33 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: immich-vm-heal-egress
+  namespace: immich
+spec:
+  # Scoped to the watchdog Job pods only (dedicated label set on the CronJob pod
+  # template). NOT a namespace-wide egress — that would clamp the immich server/ML
+  # pods; NOT batch.kubernetes.io/job-name — CronJob-generated Job names vary per run.
+  # The shared allow-dns-egress baseline excludes Jobs, so DNS is supplied here.
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: immich-vm-heal
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # SSH to the NAS host (libvirt/virsh over ssh). NAS admin sshd = :56634.
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.136/32
+      ports:
+        - protocol: TCP
+          port: 56634

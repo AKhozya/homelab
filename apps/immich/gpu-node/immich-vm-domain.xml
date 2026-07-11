@@ -31,7 +31,12 @@
   </clock>
   <on_poweroff>destroy</on_poweroff>
   <on_reboot>restart</on_reboot>
-  <on_crash>destroy</on_crash>
+  <!-- preserve (not destroy): destroy would tear the domain down on a guest crash,
+       re-binding the still-dirty iGPU to the host i915 (managed='yes') = the C3
+       host-crash path, and would leave the domain 'shut off' so the watchdog
+       auto-starts it. preserve keeps it 'crashed' → watchdog alerts, operator
+       does a clean NAS host reboot. -->
+  <on_crash>preserve</on_crash>
   <pm>
     <suspend-to-mem enabled='no'/>
     <suspend-to-disk enabled='no'/>

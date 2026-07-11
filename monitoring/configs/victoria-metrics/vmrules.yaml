@@ -1292,3 +1292,41 @@ spec:
           # (alertmanager templates can't read the numeric alert value, only annotations).
           critcount: "{{ $value }}"
           description: "trivy-operator reports {{ $value }} PATCHABLE Critical CVEs (unfixed base-OS CVEs excluded via ignoreUnfixed) in a running image for 6h+. Delivered as a weekly digest, not a page. Detail: kubectl get vulnerabilityreports -A. Remediate by bumping the image (renovate PR or manual pin) or filing an upstream issue when already on the latest release."
+
+  # Tier-2 host watchdog for the Immich GPU node (immich-vm on the NAS). The
+  # watchdog SSHes the NAS + drives virsh; see apps/immich/gpu-node/. The VM being
+  # down is NOT covered here — NodeNotReady (immich-vm) already fires for that.
+  # These two watch the WATCHDOG: an unhealable fault (it exits non-zero) and the
+  # watchdog itself going silent.
+  - name: immich-gpu-node-alerts
+    interval: 60s
+    rules:
+    - alert: ImmichVMHealJobFailing
+      # Any watchdog fault: ssh_unreachable (NAS down / key wiped / rekeyed),
+      # libvirt_group_missing, drift_while_running (appliance clobbered the domain
+      # while it ran — GPU/virtiofs dropped, Immich degraded), domain in an
+      # unexpected state, or a failed virsh define/start.
+      expr: kube_job_status_failed{namespace="immich", job_name=~"immich-vm-heal.*"} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "immich-vm host watchdog job failed ({{ $labels.job_name }})"
+        description: "The Tier-2 immich-vm watchdog exited non-zero. Check the reason= line: kubectl logs -n immich job/{{ $labels.job_name }} (or Loki app.kubernetes.io/name=immich-vm-heal). drift_while_running / ssh_unreachable need an operator (NAS-side virsh or key re-add)."
+    - alert: ImmichVMHealStale
+      # No successful run in >30min (6 missed 5-min cycles) = the watchdog is not
+      # running (suspended, unschedulable, or every run failing) → the VM substrate
+      # is unwatched and would NOT auto-start after a NAS reboot. The absent() arm
+      # covers a watchdog that NEVER succeeds (ImagePullBackOff / admission reject
+      # from day 1) — then last_successful_time never exists and the subtraction
+      # alone is silent. for:10m (2 schedule cycles) keeps a fresh deploy landing
+      # just after a tick from tripping before its first run completes + is scraped.
+      expr: |
+        (time() - kube_cronjob_status_last_successful_time{namespace="immich", cronjob="immich-vm-heal"} > 1800)
+        or absent(kube_cronjob_status_last_successful_time{namespace="immich", cronjob="immich-vm-heal"})
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "immich-vm host watchdog has not succeeded in >30min"
+        description: "CronJob immich/immich-vm-heal has no recent successful run — the immich-vm substrate is unwatched (no auto-start on a NAS reboot). Check: kubectl get cronjob -n immich immich-vm-heal + recent job logs."

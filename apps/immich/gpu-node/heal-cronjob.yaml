@@ -1,0 +1,97 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: immich-vm-heal
+  namespace: immich
+spec:
+  # Every 5 min: on a NAS reboot the VM does NOT auto-start (UI autostart OFF by
+  # design — C2/C4), so this watchdog IS the autostart. 5 min bounds VM-down time.
+  schedule: "*/5 * * * *"
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 200
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0          # one attempt per tick; the next tick is the retry
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: immich-vm-heal
+        spec:
+          serviceAccountName: immich-vm-heal
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          priorityClassName: homelab-batch
+          # Must run OFF the GPU node so it can heal that node when it is down.
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: homelab/gpu
+                        operator: NotIn
+                        values: ["intel"]
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532        # makes the /tmp + /home emptyDirs writable by non-root
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: heal
+              # alpine/git bundles openssh (ssh client) on Alpine/busybox — no runtime
+              # apk install, so egress stays NAS-only. Pin: verify tag at go-live.
+              image: alpine/git:2.54.0
+              command: ["sh", "/heal/immich-vm-heal.sh"]
+              env:
+                - name: HOME
+                  value: /home/heal
+                - name: SSH_PRIVATE_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: immich-vm-heal-nas-ssh-key
+                      key: ssh-private-key
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: "25m"
+                  memory: "32Mi"
+                limits:
+                  cpu: "100m"
+                  memory: "64Mi"
+              volumeMounts:
+                - name: heal-script
+                  mountPath: /heal
+                  readOnly: true
+                - name: canonical-xml
+                  mountPath: /canonical
+                  readOnly: true
+                - name: known-hosts
+                  mountPath: /ssh-known-hosts
+                  readOnly: true
+                - name: home
+                  mountPath: /home/heal
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: heal-script
+              configMap:
+                name: immich-vm-heal-script
+            - name: canonical-xml
+              configMap:
+                name: immich-vm-domain-xml
+            - name: known-hosts
+              configMap:
+                name: immich-vm-heal-known-hosts
+            - name: home
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}

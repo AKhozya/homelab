@@ -16,6 +16,24 @@ resources:
   - immich-redis-url-secret.yaml
   - admin-secret.yaml
   # OIDC config is stored in immich's DB (configured via admin web UI)
+  # Tier-2 GPU-node substrate watchdog (SSHes NAS + virsh; see gpu-node/README.md)
+  - gpu-node/heal-serviceaccount.yaml
+  - gpu-node/heal-networkpolicy.yaml
+  - gpu-node/nas-known-hosts-configmap.yaml
+  - gpu-node/nas-ssh-key-secret.yaml
+  - gpu-node/heal-cronjob.yaml
 
 components:
   - ../components/allow-dns-egress
+
+# Heal script + canonical domain XML mounted into the watchdog Job. Stable names
+# (no hash suffix) so heal-cronjob.yaml can reference them directly.
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: immich-vm-heal-script
+    files:
+      - gpu-node/immich-vm-heal.sh
+  - name: immich-vm-domain-xml
+    files:
+      - gpu-node/immich-vm-domain.xml

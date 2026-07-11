@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: immich-vm-heal-known-hosts
+  namespace: immich
+data:
+  # NAS host key, port 56634 (ssh-keyscan 2026-07-11, Debian 12 / OpenSSH 9.2p1).
+  # StrictHostKeyChecking=yes pins this — a NAS rekey (firmware update) makes the
+  # watchdog fail closed as ssh_unreachable (correct; needs an operator re-keyscan).
+  known_hosts: |
+    [192.168.1.136]:56634 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHng1fCKLDOQJOuLuXWNlJNVbVSmVXdTEWuuEEnsGdb3

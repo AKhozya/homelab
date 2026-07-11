@@ -9,13 +9,31 @@ The zettOS appliance regenerates the VM domain from its own template on **any UI
 op** (shutdown/start/autostart toggle) — wiping q35, the `<hostdev>` GPU passthrough,
 the `<filesystem>` virtiofs share, `memfd` `memoryBacking`, and the pinned MAC (C2/C5
 in the design). So the domain is **not durably ours**. This file is the source of
-truth the planned **Tier-2 host watchdog** (k8s CronJob, step 4) re-defines from on
-drift: `virsh define immich-vm-domain.xml`. A NAS-only backup is insufficient — hence Git.
+truth the **Tier-2 host watchdog** (k8s CronJob) re-defines from on drift:
+`virsh define immich-vm-domain.xml`. A NAS-only backup is insufficient — hence Git.
 
-## Status: reference-only, NOT wired
-No `kustomization.yaml` references this file yet, so Flux/kustomize ignore it (inert,
-does not render, does not affect CI). Step 4 adds the watchdog CronJob + a
-`configMapGenerator` over this `.xml` + VMRule + NetworkPolicy + SOPS NAS-SSH key.
+## Tier-2 host watchdog (this dir, wired into `apps/immich/kustomization.yaml`)
+A CronJob (`immich-vm-heal`, immich ns, every 5 min, scheduled OFF the GPU node)
+SSHes the NAS host and drives `virsh` to keep the domain **defined-from-Git + running**.
+It IS the autostart — native/UI autostart is OFF by design (C2/C4).
+
+| File | Role |
+|---|---|
+| `immich-vm-heal.sh` | Heal logic. Non-root, POSIX sh. Checks ssh/ libvirt-group/ defined/ drift/ running; heals via `virsh define` (drift/missing) + `virsh start` (shut off). NEVER `destroy`, NEVER restarts a running domain (C3). |
+| `heal-cronjob.yaml` | CronJob. Non-root (`require-non-root` is Enforce for immich), drop-ALL, RoRFS, seccomp; `alpine/git` (bundles ssh) — no runtime apk so egress stays NAS-only. |
+| `heal-networkpolicy.yaml` | Egress scoped to the Job pods (`app.kubernetes.io/name: immich-vm-heal`) → NAS `:56634` + DNS only. |
+| `heal-serviceaccount.yaml` | Dedicated SA, no RBAC, no token (makes no k8s API calls). |
+| `nas-known-hosts-configmap.yaml` | Pinned NAS host key (`:56634`). A NAS rekey → fails closed. |
+| `nas-ssh-key-secret.yaml` | SOPS-encrypted **dedicated** `immich-vm-heal` ed25519 private key. |
+| `immich-vm-heal.sh` + `immich-vm-domain.xml` | Mounted via `configMapGenerator` (stable names, no hash suffix). |
+
+Alerts: VMRule group `immich-gpu-node-alerts` (`ImmichVMHealJobFailing`,
+`ImmichVMHealStale`) → Telegram. VM-down itself is covered by `NodeNotReady` (immich-vm).
+
+**Go-live requires an operator step**: append the dedicated PUBLIC key to the NAS
+`~akhozya/.ssh/authorized_keys` (the private half is in the SOPS secret; the pubkey
+is printed at build time / in HOMELAB_HISTORY). Until then the watchdog job fails
+(`ssh_unreachable`) — which is the correct fail-closed signal.
 
 ## The canonical elements (must survive any re-define)
 - `machine='pc-q35-7.2'` + stateless OVMF (`OVMF_CODE_4M.fd`, no nvram)
@@ -23,6 +41,10 @@ does not render, does not affect CI). Step 4 adds the watchdog CronJob + a
 - `<filesystem><driver type='virtiofs'/>` `immich-library` (15T library share)
 - `<memoryBacking><source type='memfd'/><access mode='shared'/>` (virtiofs requires)
 - `<interface>` MAC `52:54:00:82:be:df` on `vnet-bridge0` (router-reserved `.231`)
+- `<on_crash>preserve</on_crash>` — **intentionally diverges** from the original NAS
+  snapshot (which had `destroy`). `destroy` on a guest crash tears the domain down,
+  re-binding the dirty iGPU to the host = the C3 crash path, and leaves it `shut off`
+  so the watchdog would auto-start it. `preserve` keeps it `crashed` → alert-only.
 
 Domain name = `0398541a-c088-48cd-b16a-4b45d31a92f3` (internal uuid
 `c629f1de-01ff-40bc-9521-8d7adb643636`, title `immich-vm`).
