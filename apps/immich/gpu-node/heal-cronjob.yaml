@@ -36,9 +36,13 @@ spec:
                         values: ["intel"]
           securityContext:
             runAsNonRoot: true
-            runAsUser: 65532
-            runAsGroup: 65532
-            fsGroup: 65532        # makes the /tmp + /home emptyDirs writable by non-root
+            # 65534 = nobody, which EXISTS in the alpine/git image's /etc/passwd.
+            # ssh calls getpwuid(uid) at startup and aborts ("No user exists for uid")
+            # if the uid has no passwd entry — so an arbitrary uid (e.g. distroless
+            # 65532) breaks ssh before it connects. nobody resolves cleanly.
+            runAsUser: 65534
+            runAsGroup: 65534
+            fsGroup: 65534        # makes the /tmp + /home emptyDirs writable by non-root
             seccompProfile:
               type: RuntimeDefault
           containers:
