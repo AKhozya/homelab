@@ -581,7 +581,8 @@ spec:
         description: "Redis is unreachable. Applications using Redis cache/session storage will fail!"
 
     - alert: RedisPodNotRunning
-      expr: kube_pod_status_phase{namespace="databases",pod=~"redis.*", phase!="Running"} > 0
+      # ponytail: exclude operator pods (Completed=normal) and Succeeded phase
+      expr: kube_pod_status_phase{namespace="databases",pod=~"redis-(replication|sentinel).*", phase!~"Running|Succeeded"} > 0
       for: 5m
       labels:
         severity: critical
