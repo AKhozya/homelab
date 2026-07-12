@@ -39,7 +39,7 @@ spec:
     resources:
       requests:
         cpu: "100m"
-        memory: "128Mi"
+        memory: "640Mi"  # 7d p95 working set ~560Mi — request was 128Mi, chronic overcommit
       limits:
         cpu: "500m"
         memory: "768Mi"  # bumped from 512Mi — near-limit alert at concurrency=2
