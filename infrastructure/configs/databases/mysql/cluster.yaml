@@ -44,7 +44,8 @@ spec:
         type: RuntimeDefault
     resources:
       requests:
-        cpu: "50m"
+        # Raised 50m->160m (2026-07-12) - 7d p95 ~150m, chronic CPU overcommit
+        cpu: "160m"
         memory: "64Mi"
       limits:
         # Increased from 500m to 750m (2026-07-05) - CPU throttling on worker-node
@@ -134,7 +135,7 @@ spec:
     resources:
       requests:
         cpu: "100m"
-        memory: "768Mi"
+        memory: "896Mi"  # 7d p95 working set ~860Mi (2026-07-12)
       limits:
         cpu: "1000m"
         memory: "1536Mi"
@@ -195,10 +196,10 @@ spec:
       # Grace period for draining connections during rolling updates
       gracePeriod: 30
 
-      # Resources for HAProxy (actual usage ~25-35m CPU, ~25-35Mi memory)
       resources:
         requests:
-          cpu: "50m"
+          # Raised 50m->160m (2026-07-12) - 7d p95 ~150m under replication traffic
+          cpu: "160m"
           memory: "64Mi"
         limits:
           # Raised 300m->500m (2026-01-11); retained as burst headroom for MySQL
