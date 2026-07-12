@@ -129,7 +129,7 @@
   # `workers:!virtual` — physical workers only. The GPU-passthrough VM (`virtual` group) must
   # NEVER be in-guest rebooted: an in-guest reboot wedges the passed-through iGPU → NAS host
   # crash (reset-bug C3). Its weekly patching runs in PLAY 1b below with NO reboot; the reboot
-  # half is a NAS-side `virsh shutdown --mode acpi --timeout 120` + `virsh start` (operator/Tier-2).
+  # half is a NAS-side `virsh shutdown --mode acpi` → poll domstate → `virsh start` (operator/Tier-2).
   hosts: workers:!virtual
   serial: 1
   gather_facts: false
@@ -330,7 +330,7 @@
 # The `virtual` group is excluded from PLAY 1's reboot rollout. It still gets weekly package
 # updates here — but NEVER an in-guest reboot (that wedges the passed-through iGPU → NAS host
 # crash). If a kernel bump lands, we alert so the operator (later: Tier-2 watchdog) does a
-# NAS-side graceful `virsh shutdown --mode acpi --timeout 120` + `virsh start`. No cordon/drain:
+# NAS-side graceful `virsh shutdown --mode acpi` → poll domstate → `virsh start`. No cordon/drain:
 # nothing is rebooted, so the node is never disrupted.
 - name: Node maintenance — Phase 2 (GPU VM update, no reboot)
   hosts: virtual
@@ -389,7 +389,8 @@
       ansible.builtin.command: >-
         /usr/local/sbin/telegram-notify.sh
         "⚠️ immich-vm: weekly updates applied but the running kernel is stale — a NAS-side graceful
-         virsh shutdown --mode acpi --timeout 120 + virsh start is due (NEVER in-guest reboot — reset-bug)."
+         virsh shutdown --mode acpi <dom>, poll domstate for 'shut off', then virsh start is due
+         (NEVER in-guest reboot, NEVER destroy/reset — reset-bug)."
       delegate_to: "{{ groups['control_plane'][0] }}"
       become: false
       changed_when: false

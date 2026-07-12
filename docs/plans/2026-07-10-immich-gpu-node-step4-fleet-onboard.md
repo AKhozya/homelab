@@ -38,7 +38,7 @@ Any in-guest reboot of this passthrough VM wedges the iGPU → NAS host crash (C
 | 4 | `node_isolation_heal` self-reboot ladder (dry-run today) | YES (Play 4 `workers`) | 4B: gate the role `when: "'virtual' not in group_names"` |
 | 5 | `hardening` `kernel.panic=10` + `softlockup_panic=1` + `hardlockup_panic=1` (auto-reboot on lockup) | YES (`node-config` Play 3, `hosts: all`) | 4B: VM-only sysctl override `kernel.panic=0` + lockup_panic=0 (via `immich_gpu_node` role) |
 | 6 | `hardening` systemd `RuntimeWatchdogSec=30`/`RebootWatchdogSec=2min` | **YES** — the q35 machine emulates an ICH9 LPC bridge whose iTCO watchdog appears in-guest as `/dev/watchdog0` (`iTCO_wdt`). The domain XML has no `<watchdog>` device, but the *chipset* provides one anyway. Original "inert" assumption WRONG — verified live 2026-07-10. | 4B: VM-only `system.conf.d` override `RuntimeWatchdogSec=0` + `RebootWatchdogSec=0` (via `immich_gpu_node` role) + `daemon-reexec`. Distinct vector from #5 — a hardware-watchdog reset fires while the kernel is still ALIVE (no panic), so the panic sysctls do NOT catch it. |
-| 7 | Manual/operator in-guest `systemctl reboot` | operator discipline | Rule: NEVER; cold-restart = NAS `virsh shutdown --timeout 120`+`start` |
+| 7 | Manual/operator in-guest `systemctl reboot` | operator discipline | Rule: NEVER; cold-restart = NAS `virsh shutdown`+`start` |
 
 ---
 
@@ -255,7 +255,7 @@ Expect: `uid=…(node-maintenance) …` then `root` (NOPASSWD sudo works). If th
           ansible.builtin.command: >-
             /usr/local/sbin/telegram-notify.sh
             "⚠️ immich-vm: weekly updates applied but the running kernel is stale — a NAS-side graceful
-             virsh shutdown --mode acpi --timeout 120 + virsh start is due (NEVER in-guest reboot — reset-bug)."
+             virsh shutdown --mode acpi + virsh start is due (NEVER in-guest reboot — reset-bug)."
           delegate_to: "{{ groups['control_plane'][0] }}"
           become: false
           when: vm_reboot_needed.stdout == "pending"
@@ -410,7 +410,7 @@ Expect allocatable `gpu.intel.com/i915: "10"`. **If `0` / absent:** i915 loads ~
 **Q: does the weekly "upgrade + reboot" (Sat 04:30) work for the VM/k3s on the NAS?**
 - **Trigger chain:** `node-maintenance.timer` (Sat 04:30 UTC) → `phase1.yml` (`hosts: localhost` — CP self-update + CP reboot only, VM untouched) → sets `phase2-pending` → `phase2.yml`.
 - **phase2 PLAY 1** (`hosts: workers`, `serial:1`) does `ansible.builtin.reboot` per worker. As written, adding the VM to `workers` would in-guest-reboot it weekly → **host crash (C3)**. Gate 4B step 5 fixes this: `workers:!virtual` excludes the VM; PLAY 1b gives it a **weekly yay upgrade with NO in-guest reboot**, and Telegram-alerts when a kernel bump means a cold-restart is due.
-- **The reboot half stays a NAS-side `virsh` op** — `virsh shutdown --mode acpi --timeout 120` + `virsh start` (graceful; the drained/responsive guest releases the iGPU cleanly). Manual by the operator today; automated by the **Tier-2 host watchdog** later (below).
+- **The reboot half stays a NAS-side `virsh` op** — `virsh shutdown --mode acpi` + `virsh start` (graceful; the drained/responsive guest releases the iGPU cleanly). Manual by the operator today; automated by the **Tier-2 host watchdog** later (below).
 - **k3s rolling restart** (`cluster-roll` / `rolling-restart-k3s.yml`) is a `systemctl restart k3s-agent` — **safe on the VM as-is** (no OS reboot, no GPU reset). No change needed.
 - **Daily config drift-heal** (`node-maintenance-config.timer`, 03:00/15:00, `node-config.yml` all hosts) runs the roles on the VM (firewall/hardening/immich_gpu_node) idempotently — the VM IS drift-healed daily, just never in-guest-rebooted.
 

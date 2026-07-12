@@ -52,9 +52,11 @@ Domain name = `0398541a-c088-48cd-b16a-4b45d31a92f3` (internal uuid
 ## Lifecycle rules (learned the hard way — see design C2–C5)
 - **`virsh` only, never the zettOS UI.** virsh needs `-c qemu:///system` (SYSTEM domains).
 - Autostart **OFF** (appliance soft-restart re-wedges the passthrough iGPU).
-- Cold-restart = graceful `virsh shutdown --mode acpi --timeout 120` + `virsh start`.
-  **Never `virsh destroy`** a passthrough VM — dirty iGPU re-binds to host i915 →
-  NAS host crash. A true wedge = NAS host reboot.
+- Cold-restart = graceful `virsh shutdown --mode acpi <dom>` (no `--timeout` — the flag does
+  not exist on the NAS libvirt), then poll `virsh domstate` until `shut off`, then `virsh start`.
+  `--mode agent` is the reliable primary now qemu-guest-agent is installed.
+  **Never `virsh destroy`/`reset`** a passthrough VM — dirty iGPU re-binds to host i915 →
+  NAS host crash. A true wedge (never reaches `shut off`) = alert + NAS host reboot, never destroy/reset.
 - Clobber recovery: `virsh define immich-vm-domain.xml` → graceful shutdown → `virsh start`.
 
 Mirror on the NAS: `/home/akhozya/immich-vm-xml-backups/immich-vm-q35-virtiofs.xml`
