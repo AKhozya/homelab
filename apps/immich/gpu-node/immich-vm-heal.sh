@@ -25,6 +25,7 @@ NAS_HOST="${NAS_HOST:-192.168.1.136}"
 NAS_PORT="${NAS_PORT:-56634}"
 NAS_USER="${NAS_USER:-akhozya}"
 DOMAIN="${DOMAIN:-0398541a-c088-48cd-b16a-4b45d31a92f3}"
+LIBRARY_SRC="${LIBRARY_SRC:-/home/akhozya/immich/library}" # virtiofs source on the NAS (lazy-mounted)
 SSH_KEY="${SSH_KEY:-${HOME}/.ssh/id_nas}"
 KNOWN_HOSTS="${KNOWN_HOSTS:-/ssh-known-hosts/known_hosts}"
 CANONICAL_XML="${CANONICAL_XML:-/canonical/immich-vm-domain.xml}"
@@ -114,6 +115,10 @@ check_marker "52:54:00:82:be:df" mac_changed
 # unique to the GPU hostdev.
 check_marker "domain='0x0000' bus='0x00' slot='0x02' function='0x0'" hostdev_gpu_source_missing
 check_marker "managed='yes'" hostdev_gpu_unmanaged
+# on_reboot=preserve: an in-guest reboot must NOT in-place-reset (restart→C4 wedge) nor host-re-attach
+# (destroy→C3 crash) the iGPU — preserve takes the domain down so the cold-start below cleanly resets
+# it. Appliance regen resets this to the default 'restart' → re-define from Git.
+check_marker "<on_reboot>preserve</on_reboot>" on_reboot_not_preserve
 
 STATE="$(vsh "domstate $DOMAIN" 2>/dev/null || echo unknown)"
 
@@ -127,7 +132,7 @@ if [ "$drift" -eq 1 ]; then
     # define only updates persistent config; the running (clobbered, GPU-less)
     # instance is untouched and Immich transcode is degraded until an operator
     # gracefully restarts it. Do NOT auto-restart (reset-bug C3 / live transcodes).
-    log "WARN=drift_while_running operator='virsh shutdown --mode acpi --timeout 120 $DOMAIN then virsh start'"
+    log "WARN=drift_while_running operator='virsh shutdown --mode acpi $DOMAIN → poll domstate for shut off → virsh start (NEVER destroy/reset)'"
     fail drift_while_running 8
   fi
   # drift while shut off → fall through; the start below boots the canonical XML.
@@ -141,6 +146,16 @@ case "$STATE" in
     log "OK=domain_running"
     ;;
   "shut off")
+    # Autostart mount-gate: the virtiofs SOURCE on the NAS (a btrfs subvol on bcache) lazy-mounts LATE
+    # after a NAS reboot — /home/akhozya is a ro tmpfs stub until the subvol mounts over it. Before
+    # then `virsh start` fails "virtiofs export directory ... does not exist". Gate on the source dir
+    # existing (virsh's own predicate) → skip this cycle if not ready; the next 5-min tick retries. A
+    # persistently-down VM is independently caught by k3s NodeNotReady, so a skip needs no separate alert.
+    if ! ssh_nas "test -d $LIBRARY_SRC"; then
+      log "SKIP=library_source_not_ready path=$LIBRARY_SRC (NAS lazy-mount not up yet — retry next cycle)"
+      log "RESULT=OK"
+      exit 0
+    fi
     if vsh "start $DOMAIN"; then
       log "HEAL=started_domain"
     else

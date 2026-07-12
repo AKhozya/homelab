@@ -30,7 +30,13 @@
     <timer name='hpet' present='no'/>
   </clock>
   <on_poweroff>destroy</on_poweroff>
-  <on_reboot>restart</on_reboot>
+  <!-- preserve (not restart/destroy) — reset-bug belt for an in-guest reboot that slips the guards
+       (kernel.panic=0 + HW watchdog off already neutralize the known vectors). restart = libvirt
+       terminates + restarts same-config → in-place iGPU reset while still bound = C4 wedge. destroy =
+       resources released → managed iGPU re-attached to the host i915 = the C3 host-crash path. preserve
+       terminates the domain and KEEPS its resources (iGPU stays bound to vfio, no host re-attach, no
+       in-place reset) → domain goes down → the Tier-2 watchdog cold-starts it = a clean iGPU reset. -->
+  <on_reboot>preserve</on_reboot>
   <!-- preserve (not destroy): destroy would tear the domain down on a guest crash,
        re-binding the still-dirty iGPU to the host i915 (managed='yes') = the C3
        host-crash path, and would leave the domain 'shut off' so the watchdog
