@@ -15,7 +15,7 @@ Why Path B (not Path A / NAS-native docker): keeps Flux/GitOps, CNPG HA, monitor
 | # | Decision | Rationale |
 |---|---|---|
 | D1 | **Phased**: Phase 1 = server + library + GPU; Phase 2 = ML→openvino + VM resource bump | ML doesn't mount the library (talks to server over HTTP) → safe to leave on W1 in P1; smallest blast radius; transcode is the win. Operator will grow VM vCPU/RAM for P2. |
-| D2 | **GPU via Intel device-plugin** (`gpu.intel.com/i915: 1`), **non-privileged** | Uses the 4D DaemonSet (advertises 10); drops `privileged`+hostPath `/dev/dri` → cleaner PSS/Kyverno posture. Spike-gated with a hostPath+privileged fallback. |
+| D2 | **GPU via Intel device-plugin** (`gpu.intel.com/i915: 1`), **non-privileged** | Uses the 4D DaemonSet (advertises 10); drops `privileged`+hostPath `/dev/dri` → cleaner POD securityContext (non-privileged, drop-ALL). NB: the **namespace stays PSS `privileged`** regardless — the library still uses a hostPath (§2.1); immich is already Kyverno-excluded from `disallow-host-path` (rationale updates from `/dev/dri` to the library mount). Spike-gated with a hostPath+privileged fallback. |
 | D3 | **Library on NAS via virtiofs**, hostPath `/var/lib/immich-library` → container `/data` | The 15T NAS pool is the target; the virtiofs mount is already live on the VM. |
 | D4 | **Data move via backup-restore** (not rsync) | Reuse the existing library-backup tar + sha256 tooling; clean full restore, no partial-state ambiguity. |
 | D5 | **Maintenance-window cutover** (accept minutes of downtime) | RWO library → old+new pod can't co-run; zero-downtime dual-path risks split-brain on a single DB. YAGNI for a homelab photo app. |
@@ -58,19 +58,23 @@ Before touching the HelmRelease: throwaway pod on immich-vm — `nodeSelector ho
 
 Library lives at `/data` on W1 (PVC). Target = NAS `/home/akhozya/immich/library` (= the virtiofs source → guest `/var/lib/immich-library`).
 1. Trigger a **fresh** Immich library backup via the existing `immich-backup-cronjob` (produces `immich-library.tar` + `.sha256`), replicated to the NAS by `backup-replication`.
-2. On the NAS: verify sha256, then **extract the tar into `/home/akhozya/immich/library`** (over the stale July-5 pre-seed; tar overwrites changed files — acceptable for an append-mostly photo library; for a byte-clean target, extract into an empty dir and swap).
-3. Because a full library backup is point-in-time, run this **inside the window** (server suspended = writes fenced) so no upload is missed. (Optional: a pre-window backup shrinks the tail, but Immich backups are full-tar, not incremental — accept one full backup during the window.)
+2. On the NAS: verify sha256, then **extract into a CLEAN empty staging dir and atomically swap** it in for the library source — do NOT extract over the stale July-5 pre-seed. Tar extract only adds/overwrites; overwriting the pre-seed would leave DB-orphaned media (files deleted from Immich since July-5) lingering on disk and in every future backup. Clean-extract-then-swap = a byte-exact restore. Discard the pre-seed.
+3. **Ownership (write-capability — grounded 2026-07-12):** virtiofs is `accessmode='passthrough'` → the pod's uid 1000 / gid 1000 map 1:1 to the NAS, where **uid 1000 = `akhozya`** and gid 1000 = `zettos-admins`. Immich (non-root, uid 1000) writes new files into the `/data` subtrees (`upload/ thumbs/ library/ encoded-video/ profile/`), NOT the `/data` root. The restore MUST leave those subtrees writable by uid 1000 / gid 1000 (e.g. `chown -R 1000:1000` on the staged tree, or confirm the tar preserved uid-1000 ownership + group-writable+setgid dirs — the working pre-seed pattern is `drwxrwsr-x` owner-root group-1000-setgid). **Verify with the write-test gate (§2.4 step 5b) — do NOT assume.**
+4. Because a full library backup is point-in-time, run steps 1-3 **inside the window** (server suspended = writes fenced) so no upload is missed. Immich backups are full-tar, not incremental → accept one full backup during the window.
 
 ### 2.4 Cutover sequence (maintenance window)
 
+**Write-fence principle (per Codex review):** the moment the server resumes on the NAS library and accepts an **upload**, the NAS diverges from the W1 copy → a rollback to W1 would lose those new assets (files on NAS only; DB rows shared). So keep **uploads DISABLED** from fence until acceptance; enabling uploads is the TRUE point of no return, not PV-delete. (Mirrors the Path-A "uploads-disabled-until-acceptance" rule.)
+
 1. **Spike gate** (§2.2) — resolve D2 (device-plugin vs fallback).
-2. **Fence + backup**: `flux suspend helmrelease immich`; scale `immich-server` to 0 (**downtime start**, writes fenced). Trigger fresh library backup → NAS; verify sha256.
-3. **Restore**: extract on NAS into `/home/akhozya/immich/library`; confirm structure (`library/ upload/ thumbs/ encoded-video/ profile/`) + spot-check a recent asset.
-4. **Repoint**: apply the §2.1 HelmRelease changes (library hostPath + nodeSelector + GPU resource + GIDs + iHD); `flux resume`.
-5. **Verify** (gates, all must pass): pod `Running` on `immich-vm`; `/data` populated (asset count on disk); web UI loads thumbnails; open a photo (original serves); **QSV transcode a test video** (check ffmpeg uses `hevc_qsv`/renderD129, GPU busy); DB asset count == pre-cutover count. **Downtime ends** here.
-6. **Admin**: set ffmpeg hardware accel = QSV; re-run a transcode job on a sample; confirm no `radeonsi`/CPU fallback.
-7. **Soak** (≥48h): watch transcode jobs, virtiofs I/O latency, pod restarts, memory.
-8. **Backup gate** (§3) must be GREEN before → **decommission** the W1 PVC/PV + the old library-backup source path (**point of no return**).
+2. **Fence**: `flux suspend helmrelease immich`; scale `immich-server` to 0 (**downtime start**, writes fenced). Trigger fresh library backup → NAS; verify sha256.
+3. **Restore**: clean-extract + swap on NAS (§2.3); set/verify uid-1000/gid-1000 writable subtrees; confirm structure (`library/ upload/ thumbs/ encoded-video/ profile/`) + spot-check a recent asset.
+4. **Repoint**: apply the §2.1 HelmRelease changes (library hostPath + nodeSelector + GPU resource + GIDs + iHD); **set Immich to a read-only / uploads-disabled posture** (server env or admin lock) before exposing it; `flux resume`.
+5. **Verify — reads/transcode** (all must pass): pod `Running` on `immich-vm`; `/data` populated (on-disk asset count); web UI loads thumbnails; open a photo (original serves); **QSV transcode a test video** (ffmpeg uses `hevc_qsv`/renderD129, GPU busy); DB asset count == pre-cutover count.
+   - **5b. Verify — WRITE** (the finding-3 gate): with uploads still fenced from the public path, prove the non-root pod can create files on the NAS virtiofs library — e.g. exec `touch /data/upload/.write-test` (lands on NAS as uid 1000) + trigger a thumbnail/one controlled upload and confirm the new file appears under `/home/akhozya/immich/library/...` on the NAS. If writes fail → fix ownership (§2.3 step 3) before proceeding. **Downtime (read-availability) ends** after step 5; the service is up read-only.
+6. **Enable uploads** (⚠️ **POINT OF NO RETURN** — after this, NAS has assets W1 doesn't): lift the uploads lock. Set admin ffmpeg accel = QSV; re-run a transcode on a sample; confirm no `radeonsi`/CPU fallback.
+7. **Soak** (≥48h): transcode jobs succeed, virtiofs I/O latency, pod restarts, memory, watchdog green.
+8. **Backup gate** (§3) GREEN → **decommission** the W1 PVC/PV + old library-backup source path. (This only reclaims the now-stale W1 copy; the real no-return was step 6.)
 
 ---
 
@@ -102,17 +106,18 @@ After Phase 1 soaks:
 4. **Device-plugin non-priv QSV** is a standard Intel k8s pattern but unproven on this exact stack → §2.2 spike gate + fallback.
 5. **Backup circularity** (NAS primary + sink) is the hardest new constraint → §3 topology + validation gate before decommission.
 6. **DB stays CNPG** — no PG18→17 / pgvector / embedding-regen work (that is Path-A-only). DB paths stay valid because `/data` is preserved.
-7. **The stale July-5 pre-seed** on the NAS is overwritten by the fresh backup restore — do NOT trust it as-is.
+7. **The stale July-5 pre-seed** on the NAS is DISCARDED (clean-extract + swap, §2.3) — do NOT extract over it (leaves DB-orphaned deleted files).
 8. **ML left on W1 in P1** — if a future Immich version makes ML mount the library, revisit (today it's HTTP-only).
+9. **virtiofs uid-passthrough is load-bearing** (grounded): pod uid 1000 = NAS `akhozya`, gid 1000 = `zettos-admins`; the `/data` root is root:root (pod can only traverse) while the subtrees are group-1000-setgid-writable. A restore that gets subtree ownership wrong = silent upload/thumbnail failures → the §2.4-5b write gate is mandatory, not optional. A zettOS update could reset `/home/akhozya` perms (appliance, out of IaC) → same class as the NAS-key StrictModes gotcha.
 
 ---
 
 ## 6. Risks / rollback
 
-- **Rollback (before §2.4 step 8 / PV delete)**: W1 PVC + suspended-intact config remain → `flux suspend`, revert the HelmRelease patch, `flux resume` → server returns to W1 on the old library. Cheap and complete.
-- **Point of no return** = deleting the W1 PV + repointing the backup source. After it, NAS-side uploads don't reverse → the window between resume and PV-delete must keep the W1 copy intact (don't delete until the backup gate + soak pass).
-- **Reset-bug**: NEVER virsh destroy/reset/in-guest reboot; cold-cycle = NAS host reboot / graceful `virsh shutdown --mode acpi` → poll → `start`.
-- **CI billing-block** (infra, ongoing) → local validation gate stands in until fixed.
+- **Clean rollback window = while uploads are fenced (through §2.4 step 5b, BEFORE step 6).** The W1 PVC is untouched and no user asset has landed on the NAS, so: `flux suspend`, revert the HelmRelease patch, `flux resume` → server returns to W1 on the intact old library. Cheap and complete, zero data loss.
+- **True point of no return = enabling uploads (§2.4 step 6)** — NOT PV-delete (Codex HIGH). Once uploads flow to the NAS library, new files exist on NAS only (DB rows are shared), so a revert to W1 would lose them. After step 6, "rollback" means fence again + reverse-sync the NAS→W1 delta (not cheap) — or forward-fix on NAS. Keep the W1 PV intact through soak + the backup gate purely as a disaster fallback, understanding it is already stale for post-cutover uploads.
+- **Reset-bug**: NEVER virsh destroy/reset/in-guest reboot; cold-cycle = NAS host reboot / graceful `virsh shutdown --mode acpi` → poll domstate → `start`.
+- **CI = gate of record.** Per `AGENTS.md`, CI green is required to merge a cutover change; local validation is fast iteration, not a bypass. CI is currently **infra-blocked (GitHub billing)** — that block must be **resolved before the cutover merges** (it is an outstanding operator action). Do not proceed a prod cutover on a red/absent CI gate.
 
 ---
 
@@ -122,8 +127,9 @@ After Phase 1 soaks:
 |---|---|
 | GPU spike | vainfo rc=0 + `hevc_qsv` encode, non-privileged, on immich-vm |
 | Restore integrity | sha256 match + on-disk asset count + recent-asset spot-check |
-| Cutover | pod Running on immich-vm; thumbnails + originals serve; DB asset count == pre-cutover; QSV (not CPU/radeonsi) in a live transcode |
-| Backup gate | full backup on NAS → replicated to W1/W2 → restore-verified on the second node |
+| Cutover (reads) | pod Running on immich-vm; thumbnails + originals serve; DB asset count == pre-cutover; QSV (not CPU/radeonsi) in a live transcode |
+| **WRITE (blocks upload-enable)** | non-root pod (uid 1000) creates a file under `/data/upload` that appears on the NAS at `/home/akhozya/immich/library/...`; a thumbnail generates. Fails → fix ownership, do NOT enable uploads. |
+| Backup gate (blocks W1 decommission) | full backup on NAS → replicated to W1/W2 → restore-verified on the second node |
 | Soak (≥48h) | no pod restarts from I/O; transcode jobs succeed; memory stable; watchdog green |
 
 ## 8. GitOps placement
@@ -137,4 +143,4 @@ After Phase 1 soaks:
 | VM vCPU/RAM bump (P2) | `apps/immich/gpu-node/immich-vm-domain.xml` | Flux CM + watchdog re-define + cold-cycle |
 | Admin ffmpeg accel = QSV | Immich admin UI (runtime) | operator (post-cutover) |
 
-Pre-commit: Codex STATIC review + `.claude/review-invariants.md`; `/homelab-yaml-validate`; CI (billing permitting). Cutover steps that touch the live cluster (suspend/scale/backup/restore/decommission) are **operator-run in a window**, not agent-autonomous.
+Pre-commit: Codex STATIC review + `.claude/review-invariants.md`; `/homelab-yaml-validate`; **CI green (gate of record — resolve the GitHub billing block before the cutover merges, don't bypass it for a prod change).** Cutover steps that touch the live cluster (suspend/scale/backup/restore/decommission) are **operator-run in a window**, not agent-autonomous.
