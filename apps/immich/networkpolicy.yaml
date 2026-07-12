@@ -11,13 +11,20 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # FENCE (4E cutover) — the traefik (LAN) + cloudflare-tunnel (external) client-upload
-    # ingress rules to :2283 are REMOVED for the cutover window so no user upload can reach
-    # the server on the NAS library before acceptance (keeps rollback clean). Both user paths
-    # transit these two namespaces; cloudflare-tunnel hits the pod directly (bypasses Traefik),
-    # so an app/Traefik-level fence would leak — NP is the only path-agnostic fence.
-    # `git revert` this commit at cutover step 6 (enable-uploads) to restore both rules.
-    # uptime-kuma (health GET) kept: no upload path, avoids a false down-page during the window.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik
+      ports:
+        - protocol: TCP
+          port: 2283
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflare-tunnel
+      ports:
+        - protocol: TCP
+          port: 2283
     - from:
         - namespaceSelector:
             matchLabels:
