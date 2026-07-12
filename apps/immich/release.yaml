@@ -285,7 +285,10 @@ spec:
                   memory: 512Mi
                   gpu.intel.com/i915: "1"   # Intel device-plugin injects /dev/dri (non-privileged)
                 limits:
-                  cpu: "1500m"
+                  # 3000m (of the 4-vCPU immich-vm): headroom for QSV transcode + thumbnail
+                  # bursts — pod was hitting ~82% of the old 1500m while the VM sat at ~41%.
+                  # Leaves ~1 core for k3s/system on the node. Raised 2026-07-12.
+                  cpu: "3000m"
                   memory: 5Gi
                   gpu.intel.com/i915: "1"
               # Probe timeout hardened (chart/bjw-s default timeoutSeconds:1) — same reboot-recovery
