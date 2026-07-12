@@ -115,10 +115,11 @@ check_marker "52:54:00:82:be:df" mac_changed
 # unique to the GPU hostdev.
 check_marker "domain='0x0000' bus='0x00' slot='0x02' function='0x0'" hostdev_gpu_source_missing
 check_marker "managed='yes'" hostdev_gpu_unmanaged
-# on_reboot=preserve: an in-guest reboot must NOT in-place-reset (restart→C4 wedge) nor host-re-attach
-# (destroy→C3 crash) the iGPU — preserve takes the domain down so the cold-start below cleanly resets
-# it. Appliance regen resets this to the default 'restart' → re-define from Git.
-check_marker "<on_reboot>preserve</on_reboot>" on_reboot_not_preserve
+# Pin on_reboot=restart. QEMU supports only destroy|restart here (preserve is on_crash-only → `define`
+# rejects it). Both are imperfect on a slipped in-guest reboot, but `destroy` is the C3 host-crash path
+# (managed iGPU re-attach) while `restart` only wedges (NAS-host-reboot recoverable) — so if an
+# appliance regen flips it to destroy, treat it as drift and re-define back to the canonical restart.
+check_marker "<on_reboot>restart</on_reboot>" on_reboot_not_restart
 
 STATE="$(vsh "domstate $DOMAIN" 2>/dev/null || echo unknown)"
 
