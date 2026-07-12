@@ -478,3 +478,18 @@ max_over_time((rate(container_cpu_cfs_throttled_periods_total{namespace="kyverno
 | A8 | Distributing the Telegram bot token to worker nodes (Task 6 Step 3) is acceptable secret sprawl | OWNER DECISION — same trust domain (root 0600 on cluster nodes), fixes all worker-side silent notifies; fallback documented (`-x` guard, workers stay silent) |
 | A4 | No VMRule depends on CP-era metrics | GROUNDED — live scan: only `KyvernoAdmissionControllerDown` (up-based). Stale memory claim about a daily-summary rule refuted |
 | A5 | Sentinel/Percona request changes roll cleanly | GROUNDED by precedent (07-03 crVersion SmartUpdate; sentinel quorum roll 1199988d) — still gated behind wave-1-settled + watched live |
+
+---
+
+## Execution record (2026-07-12)
+
+| Task | Status | Evidence |
+|---|---|---|
+| T0-T3 Kyverno Phases 2-4 | ✅ DONE | `abf5d2c5` Deny flip (Gate A) → CP+canary delete (Gate B 12/12 live attribution) → `fc45be04` parity/canary retire + invariants rewrite. Codex HIGH fixed: autogen rewrite voids deletionTimestamp — require-networkpolicy direct controller match, autogen off |
+| T4 wave 1 (8 stateless) | ✅ DONE | `d4d21e18`; all rollouts converged (5 apps + trivy-operator + vmsingle 768Mi + vm-operator 160Mi live-verified) |
+| T5 wave 2 (DB CRs) | ✅ DONE | `6cd4c036`; Percona SmartUpdate → state=ready, pods carry 896Mi/160m/160m; sentinel 50m 3/3. Codex verdict SHIP (combined T4+T5 diff, round 1) |
+| T6 security-scan notify | ✅ DONE | `89cd65b3`; node-side apply at drift-heal 03:00 UTC 07-13 — verify ExecStopPost + worker telegram-notify.sh/creds after |
+| T7 docs closeout | ✅ DONE | ANALYSIS deadline rows struck (07-05/07-06/07-08/Kyverno/Oct-2026), platform wording → CEL VPs; HISTORY overdue-closeout entry; memory files updated |
+| T8 throttle re-check | ⏳ 2026-07-13 | 24h max throttle ratio ≥0.25 → reports-controller limits.cpu 500m→800m |
+
+CI billing-blocked (all jobs 0-step fail since 07-10) — gates ran locally: yamllint, kubeconform ×5 roots, Codex static review.
