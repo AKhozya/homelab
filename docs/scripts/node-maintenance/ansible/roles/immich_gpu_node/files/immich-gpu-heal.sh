@@ -33,6 +33,7 @@ WINDOW=1800       # give-up window (s)
 MAX_RESTARTS=3    # restarts within WINDOW before giving up + alerting
 REPROBE_WAIT=10   # seconds to let i915 settle before re-checking
 QSV_INTERVAL=3600 # full vainfo probe at most hourly — do NOT contend with a live transcode every cycle
+QSV_TIMEOUT=30    # bound a NORMAL vainfo hang; a D-state hang survives SIGKILL → surfaced via qsv_probe_stuck
 
 log() {
 	logger -t immich-gpu-heal -- "$*" 2>/dev/null || true
@@ -73,10 +74,19 @@ virtiofs_state() {
 }
 
 # vainfo lists a QSV encode entrypoint on the Intel render node. rc 0=ok, 1=no-encode, 2=unverifiable.
+# `timeout` bounds a NORMAL (killable) hang. The pre-Track-0 fbdev wedge hung vainfo in D-state where
+# SIGKILL is ignored — timeout can't reap that; qsv_probe_stuck() catches the leftover instead (below).
 qsv_probe() {
 	command -v vainfo >/dev/null 2>&1 || return 2
-	LIBVA_DRIVER_NAME=iHD vainfo --display drm --device "$RENDER_NODE" 2>/dev/null |
+	timeout -k 5 "$QSV_TIMEOUT" env LIBVA_DRIVER_NAME=iHD \
+		vainfo --display drm --device "$RENDER_NODE" 2>/dev/null |
 		grep -q 'VAEntrypointEncSlice'
+}
+
+# A prior hourly vainfo still alive = it wedged in D-state (timeout couldn't kill it). Detect it so the
+# cycle surfaces the stuck probe instead of launching another that piles up (self-heal that self-harms).
+qsv_probe_stuck() {
+	pgrep -f "vainfo .*${RENDER_NODE}" >/dev/null 2>&1
 }
 
 # Pure bounded-restart decision (unit-testable, no systemctl). Applies the window roll, then picks
@@ -98,9 +108,9 @@ decide() { # $1 now  $2 win  $3 count  $4 last
 	echo "heal $win $count"
 }
 
-emit_metric() { # $1 render_ok  $2 qsv(1/0/-1)  $3 virtiofs_ok  $4 restarts_total  $5 giveup(0/1)
+emit_metric() { # $1 render_ok  $2 qsv(1/0/-1)  $3 virtiofs_ok  $4 restarts_total  $5 giveup(0/1)  [$6 qsv_stuck(0/1)]
 	[ -d "$METRIC_DIR" ] || return 0
-	local tmp
+	local tmp stuck="${6:-0}"
 	tmp="$(mktemp "${METRIC}.XXXXXX")" || return 0
 	if {
 		printf '# HELP immich_gpu_render_ok Intel i915 render node (renderD129) present + i915 loaded (1=ok).\n'
@@ -118,6 +128,9 @@ emit_metric() { # $1 render_ok  $2 qsv(1/0/-1)  $3 virtiofs_ok  $4 restarts_tota
 		printf '# HELP immich_gpu_heal_giveup Render fault persisted past MAX_RESTARTS (1=needs a human / host cold-restart).\n'
 		printf '# TYPE immich_gpu_heal_giveup gauge\n'
 		printf 'immich_gpu_heal_giveup %s\n' "$5"
+		printf '# HELP immich_gpu_qsv_stuck A prior hourly QSV probe is wedged in D-state (1=needs a host cold-restart; probe not relaunched).\n'
+		printf '# TYPE immich_gpu_qsv_stuck gauge\n'
+		printf 'immich_gpu_qsv_stuck %s\n' "$stuck"
 	} >"$tmp"; then
 		# 0644 so a non-root node_exporter can scrape (mktemp made it 0600; sibling *.prom are 0644).
 		chmod 0644 "$tmp"
@@ -168,6 +181,9 @@ selfcheck() {
 	_a "metric render" "$(grep -c '^immich_gpu_render_ok 1$' "$METRIC")" 1
 	_a "metric qsv" "$(grep -c '^immich_gpu_qsv_ok -1$' "$METRIC")" 1
 	_a "metric total" "$(grep -c '^immich_gpu_heal_restarts_total 7$' "$METRIC")" 1
+	_a "metric stuck default" "$(grep -c '^immich_gpu_qsv_stuck 0$' "$METRIC")" 1
+	emit_metric 1 -1 1 7 0 1
+	_a "metric stuck set" "$(grep -c '^immich_gpu_qsv_stuck 1$' "$METRIC")" 1
 	rm -rf "$sd"
 
 	if [ "$fail" = 0 ]; then
@@ -210,8 +226,14 @@ if [ "$vfs" = down ]; then
 fi
 
 # Hourly QSV probe (only when the render node exists; do not contend with a live transcode each cycle).
+# If a prior probe is still stuck in D-state (the pre-Track-0 fbdev wedge signature), surface it via
+# immich_gpu_qsv_stuck instead of launching another that accumulates unkillably.
 qsv_metric=-1
-if render_present && [ "$((now - last_qsv))" -ge "$QSV_INTERVAL" ]; then
+qsv_stuck=0
+if qsv_probe_stuck; then
+	qsv_stuck=1
+	log "prior vainfo QSV probe still stuck (D-state) — NOT launching another; immich_gpu_qsv_stuck=1 (needs a host cold-restart)."
+elif render_present && [ "$((now - last_qsv))" -ge "$QSV_INTERVAL" ]; then
 	if qsv_probe; then qsv_metric=1; else
 		rc=$?
 		[ "$rc" = 2 ] && qsv_metric=-1 || qsv_metric=0
@@ -221,7 +243,7 @@ fi
 
 # Healthy render → clear + exit.
 if i915_loaded && render_present; then
-	emit_metric 1 "$qsv_metric" "$vfs_ok" "$total" 0
+	emit_metric 1 "$qsv_metric" "$vfs_ok" "$total" 0 "$qsv_stuck"
 	write_state "$win" "$count" "$total" "$last" "$last_qsv"
 	exit 0
 fi

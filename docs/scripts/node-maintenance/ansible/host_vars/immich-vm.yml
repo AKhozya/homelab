@@ -19,14 +19,23 @@ primary_network_file: 20-ethernet.network
 # No swap (12Gi RAM, transcode node) → swap_* intentionally UNSET → base_config swap asserts skip.
 
 # ---- Kernel cmdline (UKI + systemd-boot — NOT the workers group's AMD/NVMe params) ----
-# base_config greps each token in /proc/cmdline (missing = fail = alert). The VM boots a minimal UKI
-# cmdline; console=hvc0 is the virsh-console recovery token, modprobe.blacklist=i915 keeps i915 out
-# of the boot path (loads post-boot via load-i915.service — early load on the passed IGD wedges boot).
-# Both are baked into the UKI and confirmed live in /proc/cmdline (step-3 passthrough done). This list
-# REPLACES the AMD-specific workers-group set (amd_pstate/nvme_core/pcie_aspm — absent on this VM).
+# base_config greps each token in the RUNNING /proc/cmdline with `grep -qFw` (missing = fail = alert).
+#   console=hvc0                        virsh-console recovery token.
+#   modprobe.blacklist=i915             keeps i915 out of the boot path (loads post-boot via
+#                                       load-i915.service — early load on the passed IGD wedges boot).
+#   drm_kms_helper.fbdev_emulation=0    Track-0 wedge fix — no kernel fbdev consumer to D-lock on the
+#   fbcon=off                           stalled host virtio-gpu virtqueue (holds drm_modeset_lock).
+# All four are live in /proc/cmdline (confirmed 2026-07-12). `-Fw` matches the whole token bounded by
+# non-word chars, so `modprobe.blacklist=i915` also matches the running kernel once the immich_gpu_node
+# role's cmdline task merges `xe` into the token (→ `modprobe.blacklist=i915,xe`). We DELIBERATELY do
+# NOT list `modprobe.blacklist=i915,xe` here: the `xe` merge lands in the UKI *source* now but reaches
+# the RUNNING kernel only after the next operator NAS cold-cycle — asserting it against /proc/cmdline
+# pre-reboot would be a false alert. `xe` drift is enforced at the source by the role's cmdline task.
 expected_kernel_params:
   - console=hvc0
   - modprobe.blacklist=i915
+  - drm_kms_helper.fbdev_emulation=0
+  - fbcon=off
 
 # ---- Packages ----
 # VM guest: microcode load is a host concern, but keep the pkg for mkinitcpio's microcode hook parity.

@@ -19,16 +19,51 @@
     mode: "0644"
   tags: [immich-gpu-node, i915]
 
-- name: Ensure i915 boot-blacklist token on kernel cmdline (UKI)
+# Idempotent token-set management of the guest UKI cmdline. Three concerns, all order-independent:
+#   - modprobe.blacklist  — a single comma-list token; MERGE i915 + xe into it (i915 keeps the IGD out
+#                           of the boot path → loads render-only post-boot; xe is a second driver that
+#                           probes the iGPU at boot and binds nothing → hygiene, keep it out too).
+#   - drm_kms_helper.fbdev_emulation=0 + fbcon=off — the Track-0 wedge fix: remove the kernel fbdev
+#                           consumer whose damage-work D-locks on the stalled host virtio-gpu virtqueue
+#                           (holds drm_modeset_lock → every GPU open D-states → box wedges). Proven live.
+# Standalone tokens are appended only if the exact token is absent; the blacklist merges missing drivers
+# into the existing token (never a duplicate token). Run-twice → zero changes (asserted in role tests).
+- name: Ensure GPU/display kernel cmdline tokens on the UKI (fbdev-off + i915,xe blacklist)
   ansible.builtin.shell: |
     set -euo pipefail
     f=/etc/kernel/cmdline
-    if grep -qw 'modprobe.blacklist=i915' "$f"; then
-      exit 0
+    read -r -a toks < <(head -n1 "$f") || true   # split the single cmdline line into tokens
+
+    blacklist_want='i915 xe'      # drivers that must be present in the one modprobe.blacklist token
+    have_fbdev=0 have_fbcon=0 bl_idx=-1
+    for i in "${!toks[@]}"; do
+      case "${toks[$i]}" in
+        drm_kms_helper.fbdev_emulation=0) have_fbdev=1 ;;
+        fbcon=off) have_fbcon=1 ;;
+        modprobe.blacklist=*) bl_idx=$i ;;
+      esac
+    done
+
+    changed=0
+    if [ "$bl_idx" -ge 0 ]; then
+      new="${toks[$bl_idx]#modprobe.blacklist=}"
+      for d in $blacklist_want; do
+        case ",$new," in
+          *",$d,"*) : ;;
+          *) new="${new:+$new,}$d"; changed=1 ;;
+        esac
+      done
+      toks[$bl_idx]="modprobe.blacklist=$new"
+    else
+      toks+=("modprobe.blacklist=$(printf '%s' "$blacklist_want" | tr ' ' ',')"); changed=1
     fi
-    line="$(head -n1 "$f" | sed 's/[[:space:]]*$//')"
-    printf '%s modprobe.blacklist=i915\n' "$line" >"$f"
-    echo CHANGED
+    [ "$have_fbdev" -eq 1 ] || { toks+=("drm_kms_helper.fbdev_emulation=0"); changed=1; }
+    [ "$have_fbcon" -eq 1 ] || { toks+=("fbcon=off"); changed=1; }
+
+    if [ "$changed" -eq 1 ]; then
+      printf '%s\n' "${toks[*]}" >"$f"
+      echo CHANGED
+    fi
   args:
     executable: /bin/bash
   register: immich_gpu_cmdline
