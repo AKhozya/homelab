@@ -17,6 +17,11 @@ START_TS=$(date -u +'%Y-%m-%d %H:%M:%S %Z')
 RKHUNTER_TMP=$(mktemp -t rkhunter-scan.XXXXXX)
 trap 'rm -f "$RKHUNTER_TMP"' EXIT
 
+# Missing scan tool = hard failure (unit's ExecStopPost notifies). Tool WARNING exits
+# stay benign (deliberate || true on invocations — lynis/rkhunter exit nonzero on
+# normal monthly warnings).
+FAIL=0
+
 {
   echo "====================================================="
   echo "Host:      $HOST"
@@ -52,7 +57,8 @@ trap 'rm -f "$RKHUNTER_TMP"' EXIT
       echo "(lynis report $REPORT not found after scan)"
     fi
   else
-    echo "lynis not installed — SKIP"
+    echo "lynis not installed — FAIL"
+    FAIL=1
   fi
 
   echo
@@ -84,7 +90,8 @@ trap 'rm -f "$RKHUNTER_TMP"' EXIT
         | tail -10 || echo "(no summary lines)"
     fi
   else
-    echo "rkhunter not installed — SKIP"
+    echo "rkhunter not installed — FAIL"
+    FAIL=1
   fi
 
   echo
@@ -95,3 +102,5 @@ trap 'rm -f "$RKHUNTER_TMP"' EXIT
 
 chown root:adm "$SUMMARY" 2>/dev/null || true
 chmod 0640 "$SUMMARY" 2>/dev/null || true
+
+exit "$FAIL"

@@ -11,3 +11,4 @@ IOSchedulingClass=best-effort
 IOSchedulingPriority=7
 ExecStart=/usr/local/sbin/node-maintenance-security-scan.sh
 TimeoutStartSec=45min
+ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && [ -x /usr/local/sbin/telegram-notify.sh ] && /usr/local/sbin/telegram-notify.sh "❌ security-scan failed on $(hostname) (result=$SERVICE_RESULT exit=$EXIT_STATUS). Log: /var/log/node-maintenance/security-scan-$(date -u +%%Y-%%m).log" || true'

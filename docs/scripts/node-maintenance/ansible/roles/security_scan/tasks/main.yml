@@ -41,3 +41,29 @@
     state: started
     daemon_reload: true
   tags: [security-scan]
+
+# Telegram notify was CP-only (install.sh installs it locally; workers never got it),
+# leaving every worker-side ExecStopPost/notify path silently dead — including this
+# role's scan-failure notify and the firewall role's check-phase2-flag-age. Control
+# node = CP, so its installed copy + creds are the distribution source.
+- name: Deploy telegram-notify.sh (CP-installed copy -> all hosts)
+  ansible.builtin.copy:
+    src: /usr/local/sbin/telegram-notify.sh
+    dest: /usr/local/sbin/telegram-notify.sh
+    owner: root
+    group: root
+    mode: "0750"
+  tags: [security-scan]
+
+- name: Distribute telegram credentials (CP-local files -> all hosts, 0600)
+  ansible.builtin.copy:
+    src: "/etc/node-maintenance/{{ item }}"
+    dest: "/etc/node-maintenance/{{ item }}"
+    owner: root
+    group: root
+    mode: "0600"
+  loop:
+    - telegram-token
+    - telegram-chat-id
+  no_log: true
+  tags: [security-scan]
