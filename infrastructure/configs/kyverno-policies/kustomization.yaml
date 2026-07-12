@@ -17,4 +17,3 @@ resources:
   - require-drop-all-capabilities-vp.yaml
   - require-networkpolicy-vp.yaml
   - require-readonly-rootfs-vp.yaml
-  - vp-canary.yaml                        # Deny-path live proof; deleted in Phase 4
