@@ -42,4 +42,4 @@ spec:
         object.spec.?initContainers.orValue([]).all(c,
         c.?securityContext.?runAsUser.orValue(0) > 0))
       message: "Containers must not run as root (set runAsNonRoot: true or runAsUser > 0 at pod or container level)"
-  validationActions: [Audit]
+  validationActions: [Deny]

@@ -49,4 +49,4 @@ spec:
         object.spec.?initContainers.orValue([]).all(c,
         'memory' in c.?resources.?limits.orValue({}))
       message: "Memory limit is required for all containers"
-  validationActions: [Audit]
+  validationActions: [Deny]

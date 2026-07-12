@@ -48,4 +48,4 @@ spec:
         object.spec.?ephemeralContainers.orValue([]).all(c,
         c.?securityContext.?allowPrivilegeEscalation.orValue(true) == false)
       message: "Privilege escalation must be disabled (allowPrivilegeEscalation: false) on every container"
-  validationActions: [Audit]
+  validationActions: [Deny]

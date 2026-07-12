@@ -31,4 +31,4 @@ spec:
         object.metadata.?labels[?'app'].orValue('') != '' ||
         object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') != ''
       message: "The 'app' or 'app.kubernetes.io/name' label is required"
-  validationActions: [Audit]
+  validationActions: [Deny]

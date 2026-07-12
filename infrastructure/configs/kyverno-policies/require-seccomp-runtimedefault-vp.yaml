@@ -34,4 +34,4 @@ spec:
         object.spec.?initContainers.orValue([]).all(c,
         c.?securityContext.?seccompProfile.?type.orValue('') == 'RuntimeDefault'))
       message: "Pods must set securityContext.seccompProfile.type to RuntimeDefault"
-  validationActions: [Audit]
+  validationActions: [Deny]

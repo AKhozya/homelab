@@ -49,4 +49,4 @@ spec:
   auditAnnotations:
     - key: netpol-count
       valueExpression: "string(variables.npcount)"
-  validationActions: [Audit]
+  validationActions: [Deny]

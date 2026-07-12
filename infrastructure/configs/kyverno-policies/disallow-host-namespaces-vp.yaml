@@ -42,4 +42,4 @@ spec:
         object.spec.?hostPID.orValue(false) == false &&
         object.spec.?hostIPC.orValue(false) == false
       message: "Using host namespaces (hostNetwork, hostPID, hostIPC) is disallowed"
-  validationActions: [Audit]
+  validationActions: [Deny]

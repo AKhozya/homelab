@@ -49,4 +49,4 @@ spec:
         object.spec.?ephemeralContainers.orValue([]).all(c,
         c.?securityContext.?readOnlyRootFilesystem.orValue(false) == true)
       message: "Every container must set securityContext.readOnlyRootFilesystem: true (mount a /tmp emptyDir for writable paths)"
-  validationActions: [Audit]
+  validationActions: [Deny]

@@ -43,4 +43,4 @@ spec:
         object.spec.?ephemeralContainers.orValue([]).all(c,
         c.?securityContext.?capabilities.?drop.orValue([]).exists(x, x == 'ALL'))
       message: "Every container must drop all capabilities (capabilities.drop: [ALL])"
-  validationActions: [Audit]
+  validationActions: [Deny]

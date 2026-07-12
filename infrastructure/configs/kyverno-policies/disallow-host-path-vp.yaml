@@ -31,4 +31,4 @@ spec:
     - expression: >-
         object.spec.?volumes.orValue([]).all(v, !has(v.hostPath))
       message: "hostPath volumes are not allowed"
-  validationActions: [Audit]
+  validationActions: [Deny]

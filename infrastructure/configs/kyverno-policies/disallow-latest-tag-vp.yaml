@@ -34,4 +34,4 @@ spec:
         object.spec.?initContainers.orValue([]).all(c,
         !c.image.endsWith(':latest') && c.image.contains(':'))
       message: "Images must not use the 'latest' tag or omit the tag (which defaults to 'latest')"
-  validationActions: [Audit]
+  validationActions: [Deny]
