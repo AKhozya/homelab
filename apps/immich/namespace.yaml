@@ -3,7 +3,10 @@ kind: Namespace
 metadata:
   name: immich
   labels:
-    # Changed to privileged for GPU hardware transcoding (requires /dev/dri hostPath + privileged container)
+    # Privileged: the immich-server mounts the photo library as a hostPath (/var/lib/immich-library,
+    # NAS virtiofs) — PSS baseline/restricted forbid hostPath volumes. GPU is now the non-privileged
+    # Intel device-plugin (no /dev/dri hostPath, no privileged container), but the library hostPath
+    # keeps the namespace at privileged.
     pod-security.kubernetes.io/enforce: privileged
     pod-security.kubernetes.io/audit: baseline
     pod-security.kubernetes.io/warn: baseline

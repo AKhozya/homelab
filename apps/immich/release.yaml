@@ -54,25 +54,25 @@ spec:
               - op: add
                 path: /spec/template/spec/automountServiceAccountToken
                 value: false
-              # GPU transcoding: Replace main container securityContext with privileged mode
+              # Library: swap the chart's PVC library volume (index 0, name=data) for the
+              # NAS virtiofs hostPath. Mount path /data is unchanged (DB asset paths are
+              # relative to it). virtiofs accessmode=passthrough → pod uid/gid 1000 maps 1:1
+              # to NAS akhozya/zettos-admins. Replaces the W1-pinned local-path PVC (removed
+              # after soak). volumes[0]=data is render-verified stable (server's only volume;
+              # GPU now uses the Intel device-plugin, not a /dev/dri hostPath).
+              # Guard: if a future chart bump shifts the volume order, this `test` fails the
+              # whole patch (reconcile errors, release stays last-good) rather than silently
+              # replacing the wrong volume.
+              - op: test
+                path: /spec/template/spec/volumes/0/name
+                value: data
               - op: replace
-                path: /spec/template/spec/containers/0/securityContext
+                path: /spec/template/spec/volumes/0
                 value:
-                  privileged: true
-              # GPU transcoding: Add /dev/dri hostPath volume
-              - op: add
-                path: /spec/template/spec/volumes/-
-                value:
-                  name: dri
+                  name: data
                   hostPath:
-                    path: /dev/dri
+                    path: /var/lib/immich-library
                     type: Directory
-              # GPU transcoding: Mount /dev/dri to main container
-              - op: add
-                path: /spec/template/spec/containers/0/volumeMounts/-
-                value:
-                  name: dri
-                  mountPath: /dev/dri
           - target:
               kind: Deployment
               name: immich-machine-learning
@@ -127,8 +127,10 @@ spec:
                       - name: main
                         readinessProbe:
                           timeoutSeconds: 5
-  # Hardware acceleration (VAAPI) enabled for GPU transcoding on AMD Radeon
-  # Requires: privileged container, /dev/dri hostPath, PSS privileged namespace
+  # Hardware acceleration (QSV/VAAPI) for GPU transcoding on the immich-vm Intel iGPU.
+  # GPU via the Intel device-plugin (gpu.intel.com/i915) — non-privileged, no /dev/dri
+  # hostPath. Library on the NAS via virtiofs hostPath (postRenderer above). immich ns
+  # stays PSS privileged (hostPath library) but the pod is non-root, drop-ALL.
   values:
     # Global image configuration for Renovate/Dependabot tracking
     # See: https://github.com/immich-app/immich-charts/issues/68
@@ -175,6 +177,10 @@ spec:
         enabled: true
       persistence:
         library:
+          # existingClaim is schema-required (the chart won't auto-create the library
+          # volume) but is OVERRIDDEN by the postRenderer, which replaces volume[0]
+          # (name=data) PVC→hostPath /var/lib/immich-library (NAS virtiofs). The
+          # immich-library PVC is removed after the cutover soak.
           existingClaim: immich-library
 
     # Disable built-in Valkey (using external Redis)
@@ -191,16 +197,20 @@ spec:
       controllers:
         main:
           pod:
+            # Pin the server to the immich-vm GPU node (Intel iGPU + NAS virtiofs library).
+            nodeSelector:
+              homelab/gpu: intel
             securityContext:
               runAsUser: 1000
               runAsGroup: 1000
               fsGroup: 1000
-              # Video (985) and render (989) groups for GPU device access
+              # Video (983) and render (987) groups for Intel GPU device access on immich-vm
+              # (device-plugin injects /dev/dri; render GID grants access to the non-root pod).
               supplementalGroups:
-                - 985  # video group on worker-node
-                - 989  # render group on worker-node
-              # Pod-level RuntimeDefault (UR2-4 seccomp soak). Pod-level because the main container's
-              # securityContext is replaced with privileged:true (GPU) via the postRenderer above.
+                - 983  # video group on immich-vm
+                - 987  # render group on immich-vm
+              # Pod-level RuntimeDefault (UR2-4 seccomp soak). Pod-level so it also covers the
+              # main container (whose own securityContext sets allowPrivilegeEscalation/drop-ALL).
               seccompProfile:
                 type: RuntimeDefault
           initContainers:
@@ -265,17 +275,19 @@ spec:
                 tag: v3.0.2
                 pullPolicy: IfNotPresent
               env:
-                # Hardware acceleration via VAAPI on AMD Radeon GPU (accel itself is
-                # configured in the admin UI ffmpeg settings; needs privileged container)
-                # Tested: 27x faster than CPU encoding
-                LIBVA_DRIVER_NAME: radeonsi
+                # Hardware acceleration on the immich-vm Intel iGPU. accel (QSV) is set in
+                # the admin UI ffmpeg settings post-cutover. iHD = Intel media driver (was
+                # radeonsi for AMD on W1). Spike-proven: hevc_qsv 25.3x, non-privileged.
+                LIBVA_DRIVER_NAME: iHD
               resources:
                 requests:
                   cpu: 200m
                   memory: 512Mi
+                  gpu.intel.com/i915: "1"   # Intel device-plugin injects /dev/dri (non-privileged)
                 limits:
                   cpu: "1500m"
                   memory: 5Gi
+                  gpu.intel.com/i915: "1"
               # Probe timeout hardened (chart/bjw-s default timeoutSeconds:1) — same reboot-recovery
               # fragility as machine-learning: a CPU-starved /api/server/ping answering in >1s reads
               # as a probe failure and can SIGTERM a healthy pod. timeout 5s + liveness headroom.
@@ -300,8 +312,15 @@ spec:
                     periodSeconds: 10
                     timeoutSeconds: 5
                     failureThreshold: 5
-              # securityContext overridden via postRenderer patch (privileged: true for GPU)
-      # GPU /dev/dri added via postRenderer patches (above)
+              # Non-privileged container (device-plugin GPU, no /dev/dri hostPath). immich ns is
+              # Kyverno-excluded from RoRFS + priv-esc, so RoRFS is not set (server writes to /data);
+              # non-root comes from the pod-level runAsUser 1000.
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+      # GPU via the Intel device-plugin (gpu.intel.com/i915) — see resources above.
       # Service port: uses chart default (2283) — no override needed
 
     # Immich Machine Learning component
