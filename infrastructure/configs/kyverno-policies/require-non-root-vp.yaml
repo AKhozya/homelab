@@ -19,7 +19,7 @@ spec:
         operations: ["CREATE", "UPDATE"]
         resources: ["pods"]
   matchConditions:
-    # Per-namespace rationale lives in the CP twin (require-non-root.yaml).
+    # Per-namespace rationale in git history (CP require-non-root.yaml, deleted Phase 3 2026-07-12).
     - name: exclude-namespaces
       expression: >-
         !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',

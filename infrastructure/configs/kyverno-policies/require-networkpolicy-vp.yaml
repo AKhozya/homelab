@@ -1,7 +1,13 @@
-# CEL twin of the require-networkpolicy ClusterPolicy — Audit soak (Phase 1).
+# Sole enforcement since Phase 3 (2026-07-12) — CP twin deleted.
 # Carries BOTH 2026-07-03 namespace-teardown wedge fixes: CREATE/UPDATE-only ops +
 # deletionTimestamp skip (a "require NP present" deny during teardown deadlocks the
 # namespace in Terminating — csp-reporter incident).
+# Direct controller match, autogen OFF (2026-07-12, Codex catch): autogen clones rewrite
+# object.metadata to pod-TEMPLATE metadata (live-verified: skip-terminating became
+# object.spec.template.metadata.deletionTimestamp — vacuously true, never skips), so a
+# terminating controller's finalizer UPDATE lost the CP's request.object protection.
+# Matching controllers in the BASE policy means no rewrite: object.metadata is always the
+# admission object's own metadata, so the skip works for every kind.
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:
@@ -21,11 +27,19 @@ spec:
       - apiGroups: [""]
         apiVersions: ["v1"]
         operations: ["CREATE", "UPDATE"]
-        resources: ["pods"]
-  # Autogen ON (default when unset) — the original "CP never had controller coverage"
-  # assumption was wrong: the CP's namespaces-only exclude leaves Kyverno autogen ACTIVE
-  # (live polr carries autogen-require-netpol-present rows on controllers). Twin must
-  # mirror that, else parity shows 100+ CP-only controller rows (2026-07-04 soak day-0).
+        resources: ["pods", "replicationcontrollers"]
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["jobs", "cronjobs"]
+  # Same kind set the old autogen covered ("defaults" + cronjobs), now matched directly.
+  autogen:
+    podControllers:
+      controllers: []
   matchConditions:
     - name: exclude-namespaces
       expression: >-
@@ -34,10 +48,9 @@ spec:
       expression: "!has(object.metadata.deletionTimestamp)"
   variables:
     - name: npcount
-      # request.namespace, NOT object.metadata.namespace: autogen controller clones
-      # rewrite object.metadata to pod-template metadata (namespace unset there), and
-      # request.namespace is populated in background report mode too (live-verified via
-      # matchCondition skip rows). Also mirrors the CP's {{ request.namespace }} apiCall.
+      # request.namespace (not object.metadata.namespace) — populated in background
+      # report mode too (live-verified via matchCondition skip rows) and mirrors the
+      # CP-era {{ request.namespace }} apiCall.
       expression: >-
         resource.List("networking.k8s.io/v1", "networkpolicies",
         request.namespace).items.size()

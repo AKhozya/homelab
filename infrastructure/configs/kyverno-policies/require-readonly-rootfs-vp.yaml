@@ -20,7 +20,7 @@ spec:
         operations: ["CREATE", "UPDATE"]
         resources: ["pods"]
   matchConditions:
-    # Per-namespace rationale lives in the CP twin (require-readonly-rootfs.yaml) —
+    # Per-namespace rationale in git history (CP require-readonly-rootfs.yaml, deleted Phase 3 2026-07-12) —
     # operator-managed specs, s6-overlay /run writes, privileged GPU apps, etc.
     - name: exclude-namespaces
       expression: >-
