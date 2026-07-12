@@ -133,6 +133,31 @@
     state: absent
   tags: [immich-gpu-node, sudoers, hardening]
 
+# ---- Admin user (akhozya) SSH authorized_keys ----
+# Seed the operator + automation pubkeys on the guest, EXCLUSIVE (drift-heal reconciles adds/removes +
+# de-dups). /home is persistent ext4 LVM (no cloud-init) so keys survive reboots once written — closes
+# the build-onboarding gap where the operator re-added the key every boot. Mirrors base_config's
+# node-maintenance authorized_keys pattern. StrictModes needs 0700 dir / 0600 file, asserted here; the
+# recurring NAS-side ~/.ssh 0771 reset is appliance-side (out of IaC) → operator `chmod 700 ~/.ssh`.
+- name: Ensure admin_user ~/.ssh dir (StrictModes 0700)
+  ansible.builtin.file:
+    path: "/home/{{ admin_user }}/.ssh"
+    state: directory
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0700"
+  tags: [immich-gpu-node, user, authorized-keys]
+
+- name: Deploy admin_user authorized_keys (operator + automation pubkeys, exclusive)
+  ansible.builtin.copy:
+    dest: "/home/{{ admin_user }}/.ssh/authorized_keys"
+    content: "{{ immich_gpu_authorized_keys | join('\n') }}\n"
+    owner: "{{ admin_user }}"
+    group: "{{ admin_user }}"
+    mode: "0600"
+  when: immich_gpu_authorized_keys | length > 0
+  tags: [immich-gpu-node, user, authorized-keys]
+
 # ---- yay AUR helper bootstrap (parity with physical nodes) ----
 # Physical nodes seed yay once at build via setup-node.sh; this VM's GPU-onboarding path skipped it,
 # so phase2's `yay_cmd` (sudo -u node-maintenance yay -Syyu) silently no-op'd (`yay: command not
@@ -187,11 +212,23 @@
 
 # ---- Guest packages for on-node QSV health probing (vainfo) ----
 
-- name: Ensure iHD VAAPI driver + vainfo present (watchdog QSV probe)
+- name: Ensure iHD VAAPI driver + vainfo + qemu-guest-agent present (watchdog QSV probe + agent shutdown)
   ansible.builtin.package:
     name: "{{ immich_gpu_packages }}"
     state: present
   tags: [immich-gpu-node, packages]
+
+# qemu-guest-agent talks to the host over the org.qemu.guest_agent.0 virtio channel (already in the
+# domain XML) → the NAS-side watchdog gets a reliable `virsh shutdown --mode agent` (clean even when
+# ACPI is ignored) + domtime/domfsinfo guest-health without SSH. Enabled + started (a plain systemd
+# service — no GPU/reboot interaction, safe to start mid-run, unlike load-i915.service).
+- name: Enable + start qemu-guest-agent
+  ansible.builtin.systemd_service:
+    name: qemu-guest-agent.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [immich-gpu-node, packages, guest-agent]
 
 # ---- virtiofs library mount (Immich library share from the NAS host) ----
 # The library lives on the NAS host and is exposed to this guest as a virtiofs share (tag

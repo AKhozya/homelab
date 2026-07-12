@@ -45,6 +45,17 @@ gpu_vendor: intel
 # ---- Admin user ----
 admin_user: akhozya
 
+# ---- Admin user SSH access (operator + automation pubkeys) ----
+# akhozya's authorized_keys, deployed EXCLUSIVELY by the immich_gpu_node role (drift-heal reconciles
+# adds/removes + de-dups the 3× master-node drift seen 2026-07-12). /home is persistent ext4 LVM (no
+# cloud-init) so keys survive reboots once seeded — this closes the "key clears every reboot" build-
+# onboarding gap. The recurring NAS-side ~/.ssh 0771 reset (sshd StrictModes reject) is appliance-side,
+# out of IaC → operator `chmod 700 ~/.ssh`. Public keys are not secret; this is the exact deduped set
+# live on the guest 2026-07-12 (a superset would lock the operator out — the file is exclusive).
+immich_gpu_authorized_keys:
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP3LVqolWJr2vol503OhrF+3IkBE5dDYxBEXpvpLge8Z zl-nas-akhozya-20260628"  # operator (laptop, zl_nas_ed25519)
+  - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBoaDR2hN2N4NzyQnOOz5in1jC4XW6handLW30EuTjBp master-node-homelab"       # automation (CP akhozya)
+
 # ---- K3s config (step-4 join decisions) ----
 # Data-dir on the 126Gi home LV, NOT the 32Gi root: containerd images + the Immich working set are
 # far too big for root (mirrors W1/W2's big-volume data-dir + the W2 DiskPressure lesson). k3s_config

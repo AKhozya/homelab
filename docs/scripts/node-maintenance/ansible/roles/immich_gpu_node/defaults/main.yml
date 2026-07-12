@@ -12,7 +12,14 @@ immich_gpu_kernel_preset: linux-lts
 immich_gpu_boot_blacklist: true
 
 # Guest packages for the watchdog's QSV verification (vainfo) + the iHD VAAPI driver. The Immich
-# container ships its own iHD; these are only for on-guest health probing.
+# container ships its own iHD; these are only for on-guest health probing. qemu-guest-agent gives the
+# NAS-side Tier-2 watchdog a reliable `virsh shutdown --mode agent` + guest-health signal (domtime/
+# domfsinfo) over the org.qemu.guest_agent.0 channel already in the domain XML — no SSH into the guest.
 immich_gpu_packages:
   - intel-media-driver
   - libva-utils
+  - qemu-guest-agent
+
+# akhozya's authorized_keys on the guest (operator + automation pubkeys). Empty default = the role skips
+# key management on any host that doesn't set it; immich-vm sets the real list in host_vars.
+immich_gpu_authorized_keys: []
