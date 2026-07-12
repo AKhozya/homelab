@@ -7,10 +7,14 @@
   ansible.builtin.command: "mkinitcpio -p {{ immich_gpu_kernel_preset }}"
   changed_when: true
 
-# Applies the reset-bug panic override (99-zz-immich-vm-nopanic.conf). Non-disruptive; re-reads all
-# /etc/sysctl.d in lexical order so the 99-zz override wins over hardening's 99-watchdog.conf.
+# Applies the reset-bug panic override (99-zz-immich-vm-nopanic.conf). Load ONLY that file — NOT
+# `sysctl --system`, which re-applies every /etc/sysctl.d file and exits rc=1 on this VM's unsettable
+# `kernel.nmi_watchdog` ("Operation not permitted"), failing the whole drift-heal when a mere comment
+# change triggered this handler (2026-07-12). This file's 3 keys (panic/softlockup_panic/
+# hardlockup_panic) are all settable, and applying it in isolation IS the override — boot-time ordering
+# is handled by systemd-sysctl reading 99-zz last, independent of this runtime apply.
 - name: Apply nopanic sysctl
-  ansible.builtin.command: sysctl --system
+  ansible.builtin.command: sysctl -p /etc/sysctl.d/99-zz-immich-vm-nopanic.conf
   changed_when: false
 
 # Applies the reset-bug watchdog override (zz-immich-vm-nowatchdog.conf). systemd Manager config
