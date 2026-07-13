@@ -1307,7 +1307,17 @@ spec:
       # libvirt_group_missing, drift_while_running (appliance clobbered the domain
       # while it ran — GPU/virtiofs dropped, Immich degraded), domain in an
       # unexpected state, or a failed virsh define/start.
-      expr: kube_job_status_failed{namespace="immich", job_name=~"immich-vm-heal.*"} > 0
+      # `unless recent-success`: a NAS-host reboot makes the watchdog fail ~2 jobs
+      # (its SSH key + the library gate both live on `/home/akhozya`, which zettOS
+      # takes ~9min to re-establish after boot) over the measured ~11min NAS-reboot
+      # RTO; the failed Job then LINGERS (failedJobsHistoryLimit) so a raw `>0` would
+      # keep firing for hours off one transient reboot. Suppress while the watchdog
+      # has succeeded within 20min (> observed RTO) — so a normal reboot is silent
+      # but a genuinely stuck VM (no heal success >20min) still fires. ImmichVMHealStale
+      # (no success >30min) remains the backstop; NodeNotReady covers a down VM directly.
+      expr: |
+        (kube_job_status_failed{namespace="immich", job_name=~"immich-vm-heal.*"} > 0)
+        unless on() (time() - kube_cronjob_status_last_successful_time{namespace="immich", cronjob="immich-vm-heal"} < 1200)
       for: 5m
       labels:
         severity: warning
