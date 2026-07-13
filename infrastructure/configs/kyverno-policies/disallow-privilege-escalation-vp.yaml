@@ -1,4 +1,4 @@
-# CEL twin of the disallow-privilege-escalation ClusterPolicy — Audit soak (Phase 1).
+# CEL ValidatingPolicy — sole policy engine since 2026-07-12 (migrated from the disallow-privilege-escalation ClusterPolicy).
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:

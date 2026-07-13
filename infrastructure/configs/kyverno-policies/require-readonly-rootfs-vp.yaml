@@ -1,4 +1,4 @@
-# CEL twin of the require-readonly-rootfs ClusterPolicy — Audit soak (Phase 1).
+# CEL ValidatingPolicy — sole policy engine since 2026-07-12 (migrated from the require-readonly-rootfs ClusterPolicy).
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:

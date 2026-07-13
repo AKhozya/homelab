@@ -1,4 +1,4 @@
-# CEL twin of the disallow-latest-tag ClusterPolicy — Audit soak (Phase 1).
+# CEL ValidatingPolicy — sole policy engine since 2026-07-12 (migrated from the disallow-latest-tag ClusterPolicy).
 # Behavior-preserving: keeps the CP's `registry:5000/img` false-pass (a ':' anywhere
 # counts as a tag). Tightening via CEL image() lib = separate post-migration change.
 apiVersion: policies.kyverno.io/v1

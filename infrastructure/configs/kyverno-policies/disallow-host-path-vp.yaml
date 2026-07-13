@@ -1,4 +1,4 @@
-# CEL twin of the disallow-host-path ClusterPolicy — Audit soak (Phase 1).
+# CEL ValidatingPolicy — sole policy engine since 2026-07-12 (migrated from the disallow-host-path ClusterPolicy).
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:

@@ -201,13 +201,13 @@ jobs:
           sops_count=$(find . -path './.git' -prune -o -name '*.yaml' -print 2>/dev/null \
             | xargs grep -l 'ENC\[AES256_GCM' 2>/dev/null | wc -l | tr -d ' ')
           kyverno_count=$(find infrastructure/configs/kyverno-policies -name '*.yaml' \
-            -exec grep -l '^kind: ClusterPolicy' {} \; 2>/dev/null | wc -l | tr -d ' ')
+            -exec grep -l '^kind: ValidatingPolicy' {} \; 2>/dev/null | wc -l | tr -d ' ')
 
           echo "Live counts:"
           printf '  NetworkPolicy files=%s resources=%s\n' "$np_files" "$np_resources"
           printf '  SOPS-encrypted files=%s\n' "$sops_count"
-          printf '  Kyverno ClusterPolicy=%s\n' "$kyverno_count"
+          printf '  Kyverno ValidatingPolicy=%s\n' "$kyverno_count"
 
           echo
           echo "Documented (HOMELAB_ANALYSIS.md):"
-          grep -E 'NetworkPolicy resources|SOPS secrets|Kyverno polic' "$analysis" | head -5 || true
+          grep -E 'NetworkPolicy resources|SOPS secrets|Kyverno CEL' "$analysis" | head -5 || true
