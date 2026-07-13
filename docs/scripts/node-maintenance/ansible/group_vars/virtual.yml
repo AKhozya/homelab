@@ -1,0 +1,9 @@
+---
+# Group vars for `virtual` — the GPU-passthrough VM(s) that must never in-guest reboot.
+#
+# vm_cold_cycle_force: normally the phase2 PLAY 1b cold-cycle fires only on a real kernel bump
+# (running kernel != installed linux-lts). Set true — usually per-run via
+# `-e vm_cold_cycle_force=true` — to force the graceful poweroff → watchdog cold-start → wait-Ready
+# path on demand. Lets us prove the mechanism without waiting for the next kernel update; leave the
+# committed default false so a normal weekly roll only cold-cycles when a kernel actually changed.
+vm_cold_cycle_force: false
