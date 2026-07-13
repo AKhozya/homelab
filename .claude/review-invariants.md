@@ -1,6 +1,6 @@
 # Review invariants
 
-For any pre-commit reviewer (Codex static loop — see AGENTS.md; the cavecrew pre-push gate this file originally served was retired 2026-06-29). The reviewer already enforces CLAUDE.md hard invariants (image pin, every-ingress-has-NetworkPolicy, NP-port=container-port, DB-username=app, SOPS secrets, RoRFS+/tmp, GitOps-only) + CI (yamllint, kubeconform, shellcheck, gitleaks, sops-check, init-resources, image-pin) and catches generic bugs (selector≠template, off-by-one) unaided. This file covers what those miss. Flag real instances only; cite file:line. Verify name/GVK claims by grepping the target file before flagging.
+For any pre-commit reviewer (opposite-family peer static loop — see AGENTS.md; the cavecrew pre-push gate this file originally served was retired 2026-06-29). The reviewer already enforces CLAUDE.md hard invariants (image pin, every-ingress-has-NetworkPolicy, NP-port=container-port, DB-username=app, SOPS secrets, RoRFS+/tmp, GitOps-only) + CI (yamllint, kubeconform, shellcheck, gitleaks, sops-check, init-resources, image-pin) and catches generic bugs (selector≠template, off-by-one) unaided. This file covers what those miss. Flag real instances only; cite file:line. Verify name/GVK claims by grepping the target file before flagging.
 
 ## Established patterns — deviation is a smell
 
