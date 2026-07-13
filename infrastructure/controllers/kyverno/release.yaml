@@ -203,7 +203,9 @@ spec:
           cpu: 50m
           memory: 192Mi
         limits:
-          cpu: 500m
+          # 500m->800m (2026-07-13): post-VP-migration hourly background-scan spikes
+          # still throttle to 48% at 500m (avg fine at ~11%); stale-polr risk
+          cpu: 800m
           memory: 384Mi
 
       # Security context
