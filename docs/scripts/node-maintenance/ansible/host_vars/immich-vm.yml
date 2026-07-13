@@ -29,8 +29,9 @@ primary_network_file: 20-ethernet.network
 # non-word chars, so `modprobe.blacklist=i915` also matches the running kernel once the immich_gpu_node
 # role's cmdline task merges `xe` into the token (→ `modprobe.blacklist=i915,xe`). We DELIBERATELY do
 # NOT list `modprobe.blacklist=i915,xe` here: the `xe` merge lands in the UKI *source* now but reaches
-# the RUNNING kernel only after the next operator NAS cold-cycle — asserting it against /proc/cmdline
-# pre-reboot would be a false alert. `xe` drift is enforced at the source by the role's cmdline task.
+# the RUNNING kernel only after the next cold-cycle (now automated by phase2 PLAY 1b on a kernel bump;
+# also operator/watchdog) — asserting it against /proc/cmdline pre-reboot would be a false alert. `xe`
+# drift is enforced at the source by the role's cmdline task.
 expected_kernel_params:
   - console=hvc0
   - modprobe.blacklist=i915

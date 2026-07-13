@@ -58,6 +58,7 @@ Domain name = `0398541a-c088-48cd-b16a-4b45d31a92f3` (internal uuid
   **Never `virsh destroy`/`reset`** a passthrough VM — dirty iGPU re-binds to host i915 →
   NAS host crash. A true wedge (never reaches `shut off`) = alert + NAS host reboot, never destroy/reset.
 - Clobber recovery: `virsh define immich-vm-domain.xml` → graceful shutdown → `virsh start`.
+- **Kernel-bump reboots are AUTOMATED** (node-maintenance phase2 PLAY 1b, main `19d51c19`): after weekly patching, a stale running kernel triggers an in-guest graceful `poweroff` (== `virsh shutdown --mode acpi`) → the `immich-vm-heal` watchdog cold-`virsh start`s the shut-off domain → waits node Ready. No operator step for the routine kernel case; the manual `virsh` cold-restart above stays the break-glass path (wedged-but-running, clobber recovery). Test on demand: `sudo ansible-playbook -i inventory.yml phase2.yml --limit immich-vm -e vm_cold_cycle_force=true`.
 
 Mirror on the NAS: `/home/akhozya/immich-vm-xml-backups/immich-vm-q35-virtiofs.xml`
 (break-glass; this Git copy is now canonical).

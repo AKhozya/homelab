@@ -17,6 +17,14 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-13 — immich-vm auto cold-cycle codified in node-maintenance phase2 (kernel-bump reboots automated)
+
+Closed the "patched-but-never-rebooted" gap. The `virtual` group (immich-vm) is carved out of the phase2 in-guest reboot rollout — a GPU-passthrough in-guest reboot re-binds the dirty iGPU → NAS host crash (reset-bug C3) — so a kernel bump previously only fired a **manual** operator-Telegram alert. phase2 PLAY 1b (`19d51c19`) now AUTO cold-cycles the reset-bug-safe way: graceful in-guest `/usr/bin/poweroff` (== `virsh shutdown --mode acpi`, never `reboot`) → wait node leaves Ready (NAS-free proxy for domain "shut off"; ansible never touches the NAS) → nudge the existing `immich-vm-heal` watchdog to cold-`virsh start` it → wait node Ready (7min; the watchdog's 5-min CronJob backstops a raced nudge). Wrapped block/rescue so a stall NEVER hard-fails PLAY 1b (a hard-fail leaves `phase2-pending` stuck → cluster-wide sync+config drift-heal ~1.7h). New `group_vars/virtual.yml` adds `vm_cold_cycle_force` for on-demand testing.
+
+- **Codex 2-round static review** — round 1 HIGH: the four inline `telegram-notify.sh` tasks lacked `failed_when: false`, so a failing rescue-notify would hard-fail the play → the exact `phase2-pending` wedge; fixed all four (incl. the pre-existing yay-alert). Round 2 SHIP.
+- **Both paths tested PASS** via `sudo ansible-playbook … --limit immich-vm [-e vm_cold_cycle_force=true]` (`--limit immich-vm` isolates PLAY 1b — delegated tasks bypass `--limit` to localhost/CP, so PLAY 0/1/2 skip = no worker reboots, no `phase2-pending` touch). NON-FORCE = gate skips (kernel current → all 7 cold-cycle tasks skipped, zero downtime, `ok=3 changed=1 failed=0`). FORCE = full cold-cycle (VM uptime 1h12m→2min = genuine, heal-maint job Complete 1/1 21s, node Ready ~1min, external 200 ~2.5min, assets 5791, GPU renderD129, fbdev cmdline intact, `ok=10 failed=0 rescued=0`).
+- CI billing-blocked since 07-10 — gates ran locally (yamllint, ansible-lint production profile, `--syntax-check`).
+
 ### 2026-07-12 — July overdue closeout: Kyverno CP→VP Phases 2-4 COMPLETE, right-sizing pass, security-scan failure-notify
 
 Closed the three real overdue items from the July monthly review in one worktree pass (`wt-overdue-closeout`; plan `docs/superpowers/plans/2026-07-12-monthly-review-overdue-closeout.md`). All commits Codex-reviewed (static git-only, `.claude/review-invariants.md` rubric).
