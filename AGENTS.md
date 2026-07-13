@@ -1,6 +1,6 @@
 # Homelab — Agent Instructions
 
-K3s **production** (single env — no staging; merge to `main` deploys straight to prod), 3 nodes, Flux GitOps, 16 apps. Claude reads this through `CLAUDE.md`; Codex reads this file directly.
+K3s **production** (single env — no staging; merge to `main` deploys straight to prod), 4 nodes, Flux GitOps, 16 apps. Claude reads this through `CLAUDE.md`; Codex reads this file directly.
 
 ## Cluster
 | Node | IP | Role | SSH |
@@ -8,6 +8,7 @@ K3s **production** (single env — no staging; merge to `main` deploys straight 
 | `gmk-k3s-control-plane` | 192.168.1.127 | CP | `ssh -p 65300 akhozya@gmk-k3s-control-plane` (alias `ssh_master_node`) |
 | `worker-node` | 192.168.1.129 | W1 | `ssh -p 65300 akhozya@worker-node` (alias `ssh_worker_node`) |
 | `worker-node-2` | 192.168.1.126 | W2 | `ssh -p 65300 z3us@worker-node-2` (alias `ssh_worker_node2` — no dash before 2) |
+| `immich-vm` | 192.168.1.231 | GPU worker (Arch VM on the NAS, Intel QSV passthrough; joined 2026-07-10) | `ssh -p 65300 akhozya@immich-vm` — NEVER in-guest reboot / `virsh destroy` (GPU reset-bug; phase2 carve-out handles reboots) |
 
 Kustomization deps (branching, not a chain): `flux-system` → `infrastructure-controllers` → { `coredns` | `infrastructure-configs` → `apps` | `monitoring-controllers` → `monitoring-configs` }.
 
@@ -23,7 +24,7 @@ Agents do not have sudo. Node-side debug + fix workflow: `homelab-node-fix` skil
 - **SOPS = truth** for secrets + Cloudflare tunnel config.
 - **Kyverno enforce resource limits** all containers (init included), PSS, NetworkPolicy, image-pin.
 - **`readOnlyRootFilesystem`** needs `/tmp` emptyDir volume.
-- **CI gate-of-record.** `.github/workflows/validate.yaml` runs yamllint + shellcheck + sops-check + init-resources + kubeconform × 5 kustomize roots on every push (~45s p95; `paths-ignore` skips docs/markdown-only pushes). `/gitops-workflow` step 3c blocks `fr` on CI red. Local validation (`/homelab-yaml-validate`) is fast iteration, not bypass.
+- **CI gate-of-record.** `.github/workflows/validate.yaml` runs yamllint + shellcheck + gitleaks + sops-check + init-resources + image-pin + kubeconform × 5 kustomize roots on every push (~45s p95; `paths-ignore` skips docs/markdown-only pushes). `/gitops-workflow` step 3c blocks `fr` on CI red. Local validation (`/homelab-yaml-validate`) is fast iteration, not bypass.
 - **Pre-commit review loop (substantive code/config — gate-of-record).** Before committing a non-trivial diff: (1) dispatch Codex (`codex-rescue`) for a **STATIC git-only** review — allowed `git diff/show/log` + file reads, FORBIDDEN run-anything (state gates already ran green; unconstrained it re-runs the full local gate and stalls ~14min with no verdict), demand a **one-message verdict** (no loop), point it at `.claude/review-invariants.md`. Codex runs `xhigh` reasoning (global `~/.codex/config.toml`). (2) Process findings via `superpowers:receiving-code-review` — verify each against the code, push back on wrong/YAGNI, fix in severity order, test each. (3) Re-review **delta-scoped** WHILE the latest round returns CRITICAL/HIGH, **cap 3 rounds**; a clean/nits-only round → commit. **No Gemini, no PR-babysitting.** Docs/markdown-only commits are exempt. Replaces the retired cavecrew pre-push gate.
 - **Review rubric.** Any reviewer (Codex, ECC/security) MUST check the diff against `.claude/review-invariants.md` — semantic bug-classes CI misses (Flux healthCheck GVK, Kyverno `=()` soft-anchor, NetworkPolicy AND/OR, PSS Baseline hostPath, external-access = central `cloudflared.yaml` not a 2nd Ingress, etc.). Grep the target file to confirm name/GVK claims before flagging.
 

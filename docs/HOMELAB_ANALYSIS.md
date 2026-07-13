@@ -2,7 +2,7 @@
 
 A snapshot of what runs in the cluster and how it's postured. For *why* it's built this way see [ARCHITECTURE.md](ARCHITECTURE.md); for the change log see [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md); for per-subsystem structure see [CODEMAPS/](CODEMAPS/).
 
-**Cluster:** K3s `v1.36.1+k3s1`, single-environment **production** (no staging — a merge to `main` deploys straight to prod), 3 Arch Linux nodes (1 control-plane + 2 workers), static-DHCP IPv4.
+**Cluster:** K3s `v1.36.2+k3s1`, single-environment **production** (no staging — a merge to `main` deploys straight to prod), 4 Arch Linux nodes (1 control-plane + 2 workers + 1 GPU-worker VM `immich-vm` on the NAS, joined 2026-07-10), static-DHCP IPv4.
 
 ## Platform at a glance
 
@@ -84,7 +84,7 @@ DB role name = app name. Provisioning goes through the operator CRDs (CNPG `Data
 
 - worker-node: 4.22 TB LVM (2 NVMe SSDs) — hosts the bulk of app PVCs.
 - worker-node-2: 863 GB extra storage.
-- NAS: 14 TB (500 GB backup cap) — `zl-nas`, ZettLab/zettOS (Debian 12) at `192.168.1.136`. Out-of-cluster backup sink; admin SSH on `:56634` (key-based, sudo password-gated). Not a K3s node, not in ansible/k3s scope.
+- NAS: 15 TB pool (the 500 GB figure is a soft self-limit inside the replication job, not a quota) — `zl-nas`, ZettLab/zettOS (Debian 12) at `192.168.1.136`. Out-of-cluster backup sink; admin SSH on `:56634` (key-based, sudo password-gated). The appliance itself is not a K3s node and not in ansible/k3s scope (the `immich-vm` K3s worker is a VM hosted on it).
 
 Storage is node-local (`local-path-provisioner`) — no distributed storage layer by choice; durability comes from the backup chain, not replicated volumes.
 

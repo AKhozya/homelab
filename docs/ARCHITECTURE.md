@@ -2,7 +2,7 @@
 
 **What this is:** the *why* and the *shape* of the cluster — design principles, the diagrams, and the rationale behind each convention. For the current numbers see [HOMELAB_ANALYSIS.md](HOMELAB_ANALYSIS.md); for refreshed component snapshots see [CODEMAPS/](CODEMAPS/); for the changelog see [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md). This file changes only when the *design* changes, not when counts drift.
 
-**Cluster in one line:** single-environment K3s (v1.36.x, 3 Arch nodes) run as GitOps — Git is the only write path, Flux reconciles, every secret is SOPS-encrypted, every workload is admission-gated and network-fenced.
+**Cluster in one line:** single-environment K3s (v1.36.x, 4 Arch nodes — 3 physical + 1 GPU-worker VM on the NAS) run as GitOps — Git is the only write path, Flux reconciles, every secret is SOPS-encrypted, every workload is admission-gated and network-fenced.
 
 ---
 
@@ -23,17 +23,20 @@
 flowchart TB
   subgraph LAN["Home LAN — 192.168.1.0/24, SSH :65300"]
     CP["gmk-k3s-control-plane · .127<br/>control-plane + etcd<br/>NIC I225-V forced 1Gbps, EEE off"]
-    W1["worker-node (W1) · .129<br/>/mnt/k8s-storage (0700)<br/>hosts Immich PVs (local-path)"]
+    W1["worker-node (W1) · .129<br/>/mnt/k8s-storage (0700)<br/>hosts most app PVs (local-path)"]
     W2["worker-node-2 (W2) · .126<br/>/mnt/extra-storage<br/>SSH user z3us (not akhozya)"]
     NAS["NAS<br/>rsync daemon :50555"]
+    VM["immich-vm · .231<br/>GPU worker (Arch VM on the NAS, Intel QSV passthrough)<br/>runs immich-server; library via NAS virtiofs"]
   end
   CP -. k3s API .-> W1
   CP -. k3s API .-> W2
+  CP -. k3s API .-> VM
+  NAS --- VM
   W1 -->|"rsync --delete<br/>(today only, safety net)"| W2
   W1 -->|"rsync :50555<br/>(30-day history)"| NAS
 ```
 
-Storage is `local-path-provisioner` (node-local PVs — no distributed storage layer by choice; simpler, faster, and the backup chain provides durability instead). Each PV is bound to the node where it was first allocated via the PV's `nodeAffinity` (the local-path mechanism) — there is no Deployment-level node pinning. **Immich PVs live on W1** (`/mnt/k8s-storage/...immich-library`, `...immich-machine-learning`) → Immich Pods can only run on W1; W1 down = Immich down. Durability comes from the **nightly replication fan-out from W1** (one CronJob on W1 syncs → W2 with `--delete` as a single-day safety net AND → NAS for 30-day history — not a serial W1→W2→NAS chain), not from replicated volumes.
+Storage is `local-path-provisioner` (node-local PVs — no distributed storage layer by choice; simpler, faster, and the backup chain provides durability instead). Each PV is bound to the node where it was first allocated via the PV's `nodeAffinity` (the local-path mechanism) — there is no Deployment-level node pinning. **Immich split since the 2026-07-12 Path-B cutover**: immich-server runs on the `immich-vm` GPU worker with the photo library on NAS storage via a virtiofs hostPath (the old W1 `immich-library` PV is retired from serving); the ML PV (`...immich-machine-learning`) stays W1-bound, so ML still follows W1. Durability comes from the **nightly replication fan-out from W1** (one CronJob on W1 syncs → W2 with `--delete` as a single-day safety net AND → NAS for 30-day history — not a serial W1→W2→NAS chain), not from replicated volumes.
 
 ---
 
@@ -98,7 +101,7 @@ An externally-reachable app has **two ingress rules** (internal hostname + Cloud
 ```mermaid
 flowchart TB
   L1["1 · Secrets at rest — SOPS + age, encrypted in git"]
-  L2["2 · Admission — Kyverno (12 ClusterPolicies all Enforce + 13 CEL ValidatingPolicy twins in Audit soak) + Pod Security Standards"]
+  L2["2 · Admission — Kyverno (12 CEL ValidatingPolicies, all Deny — sole engine since 2026-07-12, ClusterPolicies deleted) + Pod Security Standards"]
   L3["3 · Network — allow-list NetworkPolicies per workload (per-pod default-deny effect; Kyverno require-networkpolicy (Enforce) denies Pod creation in any non-system ns lacking a NetworkPolicy)"]
   L4["4 · Runtime — runAsNonRoot · readOnlyRootFilesystem · drop ALL caps · seccomp RuntimeDefault"]
   L5["5 · Identity + transport — Authentik OIDC + cert-manager TLS"]
@@ -127,7 +130,8 @@ Backups: per-engine CronJobs in `infrastructure-configs` → nightly replication
 | Failure | Effect | What still works | Recovery |
 |---|---|---|---|
 | CP node down | Flux reconcile + admission paused; new pods can't schedule | Running pods + Services keep serving (kube-proxy on workers is independent) | Reboot CP; Flux catches up |
-| worker-node (W1) down | **W1 is the state + durability node**: bulk of app PVCs (local-path node-bound, incl. Immich), all 6 backup CronJobs (nodeSelector-pinned to W1), and Loki live there → most stateful apps + logs + the entire backup chain down (no failover; local-path is node-bound) | Stateless/other-node workloads; metrics + alerting (on W2) | Reboot/replace; stateful apps + backups resume when W1 returns |
+| worker-node (W1) down | **W1 is the state + durability node**: bulk of app PVCs (local-path node-bound; Immich ML PV still here — the server moved to `immich-vm` 2026-07-12), all 6 backup CronJobs (nodeSelector-pinned to W1), and Loki live there → most stateful apps + logs + the entire backup chain down (no failover; local-path is node-bound) | Stateless/other-node workloads; metrics + alerting (on W2); immich-server (on `immich-vm`, minus ML) | Reboot/replace; stateful apps + backups resume when W1 returns |
+| immich-vm down (VM on the NAS) | Immich web/API down (server pod pinned there for GPU) | Everything else; Immich data safe (library on NAS storage, DB on CNPG) | `immich-vm-heal` watchdog `virsh start`s a `shut off` domain; wedges = operator-supervised (never `virsh destroy` — GPU reset-bug) |
 | worker-node-2 (W2) down | **All metrics + alerting blind**: the single VMSingle instance's PV is node-bound to W2. Monitoring is self-blind on its own loss — the Watchdog dead-man alert routes to null, so nothing pages about the blindness | Apps, logs, and backups on W1 unaffected | Reboot/replace; monitoring resumes when W2 returns |
 | Cloudflare edge or tunnel down | Externally-published apps unreachable | LAN access via Traefik fully unaffected | Wait CF; LAN keeps working |
 | Authentik down | SSO apps lose login | Non-SSO apps; non-OIDC paths | Restart Authentik Pod or rollout |
@@ -156,7 +160,7 @@ Called out so they are choices, not accidents:
 - **Node + CoreDNS *external* DNS upstream not drawn.** Nodes and CoreDNS resolve external names via public resolvers (1.1.1.1/9.9.9.9), decoupled from Blocky since 2026-06-04 to break a node→Blocky→kube-proxy circular dep; Blocky serves LAN clients only. See [CODEMAPS/networking.md](CODEMAPS/networking.md).
 - **Operator-created NetworkPolicies not enumerated.** Live `kubectl get netpol -A` shows more than git contains — the delta is operators (CNPG, Kyverno) creating their own plus component-generated policies. Codemap counts the file-level breakdown.
 - **Age-key bootstrap not drawn.** The decryption chain is: `sops-age` Secret in `flux-system` → kustomize-controller reads it → decrypts SOPS-encrypted manifests on apply. Lose the key and you can't reconcile new secrets (see Failure modes).
-- **Cluster boundary is implicit.** In-scope: the 3 nodes + the workloads they run. Out-of-scope but referenced: the NAS (backup sink), the home router (forwards nothing inbound — CF tunnel is outbound), the Cloudflare edge.
+- **Cluster boundary is implicit.** In-scope: the 4 nodes + the workloads they run (incl. the `immich-vm` guest OS). Out-of-scope but referenced: the NAS appliance itself (backup sink + `immich-vm` hypervisor), the home router (forwards nothing inbound — CF tunnel is outbound), the Cloudflare edge.
 - **Reconcile cascade timing not in diagrams.** Full chain ~5 min post-push; not worth drawing.
 
 ---
