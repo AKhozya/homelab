@@ -369,6 +369,7 @@
           delegate_to: "{{ groups['control_plane'][0] }}"
           become: false
           changed_when: false
+          failed_when: false   # notify failure here would hard-fail the yay rescue → phase2-pending wedge
           when: vm_yay_retry.rc != 0
 
     - name: Detect pending kernel reboot (running kernel != installed linux-lts module dir)
@@ -405,6 +406,7 @@
           delegate_to: "{{ groups['control_plane'][0] }}"
           become: false
           changed_when: false
+          failed_when: false   # a Telegram hiccup must NOT jump to rescue before the poweroff runs
 
         # Graceful ACPI poweroff, fired async so ansible doesn't hang on the dropped connection as the
         # VM halts. poweroff == `virsh shutdown --mode acpi` (domain → "shut off"), the SAFE path.
@@ -483,6 +485,7 @@
           delegate_to: "{{ groups['control_plane'][0] }}"
           become: false
           changed_when: false
+          failed_when: false   # recovery already succeeded — a notify hiccup must not trip rescue
       rescue:
         # Never re-raise — phase2-pending must stay clean. Alert loudly; the operator finishes by hand.
         - name: Alert — immich-vm cold-cycle did not complete
@@ -494,6 +497,8 @@
           delegate_to: "{{ groups['control_plane'][0] }}"
           become: false
           changed_when: false
+          failed_when: false   # rescue must NEVER re-raise — a notify failure here would hard-fail
+          # PLAY 1b, leaving phase2-pending stuck → cluster-wide sync+config drift-heal stall (~1.7h)
 
 # ──────────────────────────────────────────────────────────────
 # PLAY 2: Cluster-level post-tasks (cleanup + alerts + notify)
