@@ -500,7 +500,7 @@ spec:
         severity: critical
       annotations:
         summary: "No successful Immich backup in >9 days"
-        description: "The weekly immich-backup CronJob has not completed a successful backup in over 9 days. Check: kubectl get cronjob immich-backup -n kube-system + recent job logs."
+        description: "The weekly immich-backup CronJob has not completed a successful backup in over 9 days. Check: kubectl get cronjob immich-backup -n backup-replication + recent job logs."
 
   - name: database-alerts
     interval: 60s

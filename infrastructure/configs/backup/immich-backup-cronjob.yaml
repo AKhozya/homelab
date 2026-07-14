@@ -2,12 +2,15 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: immich-backup
-  namespace: kube-system
+  # backup-replication ns (NOT kube-system): post-cutover the library lives on the
+  # NAS, so this job must pull it over the NAS rsync daemon. Running here reuses the
+  # existing nas-rsync-credentials secret + the ns-wide egress NetworkPolicy
+  # (podSelector:{}, :50555 allowed) + known-hosts — no duplicated secret, no new NP.
+  namespace: backup-replication
 spec:
   schedule: "0 3 * * 0"  # Sunday 03:00 UTC — 30min before backup-replication (03:30).
-                         # Live test 2026-05-22 measured 63G tar+SHA at ~5min on worker-node SSD;
-                         # 30min headroom is ample, and runs parallel with 03:00 postgres-backup
-                         # (postgres is fast — ~55s — so disk contention is negligible).
+                         # backup-replication Step 5b enforces pool keep-2 for immich/,
+                         # so this job pushes (no --delete) and lets that sweep prune.
   timeZone: "UTC"
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 3
@@ -17,6 +20,7 @@ spec:
     spec:
       backoffLimit: 2
       ttlSecondsAfterFinished: 86400
+      activeDeadlineSeconds: 5400  # 90min: full 61G pull + tar + sha + push over LAN
       template:
         metadata:
           labels:
@@ -24,121 +28,150 @@ spec:
         spec:
           restartPolicy: OnFailure
           priorityClassName: homelab-batch
+          # Producer runs on W2: has disk to stage the 61G library + the NAS rsync creds.
+          # immich-vm (the library's node) is a small guest that cannot hold a 60G+ tar.
+          nodeSelector:
+            kubernetes.io/hostname: worker-node-2
           securityContext:
             runAsUser: 0
             runAsGroup: 0
-            fsGroup: 0
             seccompProfile:
               type: RuntimeDefault
-          initContainers:
-            - name: setup-permissions
-              image: alpine:3.24.1
-              command:
-                - sh
-                - -c
-                - |
-                  mkdir -p /backup
-                  chmod 755 /backup
-                  echo "Backup directory ready"
-              volumeMounts:
-                - name: backup-storage
-                  mountPath: /backup
-              securityContext:
-                allowPrivilegeEscalation: false
-                capabilities:
-                  drop: ["ALL"]
-                  add: ["CHOWN", "DAC_OVERRIDE"]
-              resources:
-                requests:
-                  cpu: "50m"
-                  memory: "64Mi"
-                limits:
-                  cpu: "200m"
-                  memory: "128Mi"
           containers:
             - name: backup
               image: alpine:3.24.1
+              env:
+                - name: NAS_RSYNC_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: nas-rsync-credentials
+                      key: rsync-user
+                - name: NAS_RSYNC_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: nas-rsync-credentials
+                      key: rsync-password
               command:
                 - /bin/sh
                 - -c
                 - |
                   set -e
 
-                  echo "=== Immich Library Backup (weekly) ==="
+                  echo "=== Immich Library Backup (weekly, NAS-resident library, producer=W2) ==="
                   echo "Timestamp: $(date)"
 
+                  apk add --no-cache rsync
+
                   TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  WIP="/backup/.wip"
                   BACKUP_ROOT="/backup/$TIMESTAMP"
-                  mkdir -p "$BACKUP_ROOT"
+                  STAGING="/staging/live"
+                  NAS="192.168.1.136"
+                  LIB="rsync://${NAS_RSYNC_USER}@${NAS}/personal_folder/immich/library/"
+                  POOL="rsync://${NAS_RSYNC_USER}@${NAS}/akhozya-pool1/backups/homelab/immich"
 
-                  # Locate immich-library PVC dir on worker-node local-path
-                  SOURCE_DIR=$(find /mnt/k8s-storage -maxdepth 1 -type d -name "*immich-library*" | head -1)
-                  if [ -z "$SOURCE_DIR" ]; then
-                    echo "❌ ERROR: immich-library PVC dir not found on this node" >&2
-                    exit 1
-                  fi
-                  echo "Source: $SOURCE_DIR"
-                  echo "Size: $(du -sh "$SOURCE_DIR" | cut -f1)"
+                  # Fresh work dirs — clear any leftover from a crashed prior run. The dated
+                  # final dir (/backup/<ts>) is created ONLY by an atomic rename after success
+                  # (step 5), so keep-2 (globs /backup/20*) never counts a partial. .wip is
+                  # not matched by that glob.
+                  rm -rf "$WIP" "$STAGING"
+                  mkdir -p "$WIP" "$STAGING"
 
-                  # Skip compression — immich-library is JPG/MP4/etc, already compressed.
-                  # 2-pass: tar then sha256sum. Live-tested 2026-05-22: ~17min for 62.5G on
-                  # worker-node (Celeron N5095). sha256 is single-thread CPU-bound (~75 MB/s);
-                  # tee+sha pipe variant only saved ~3min and added complexity — kept 2-pass.
-                  BACKUP_FILE="$BACKUP_ROOT/immich-library.tar"
-                  START_TIME=$(date +%s)
+                  # Remove a partial dir from the NAS pool on failure (parent-scoped husk-delete:
+                  # removes /<name>/** AND its shell; siblings protected by --exclude='*'). This
+                  # is the proven idiom from backup-replication — a partial pool dir must not
+                  # pollute the pool keep-2 window.
+                  cleanup_pool_partial() {
+                    mkdir -p /tmp/empty
+                    RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --delete \
+                      --include="/${TIMESTAMP}/***" --exclude='*' \
+                      /tmp/empty/ "${POOL}/" 2>&1 | tail -2 || echo "(pool cleanup refused — prune manually)"
+                  }
 
+                  # 1) Pull the LIVE NAS library to W2 staging (read-only source; --delete
+                  #    makes staging == source, clearing any leftover).
+                  echo "=== Pull live library (rsync personal_folder module) ==="
+                  RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync -a --delete --port=50555 \
+                    --exclude='*.tmp' --exclude='.*.swp' \
+                    "$LIB" "$STAGING/"
+                  echo "Staged: $(du -sh "$STAGING" | cut -f1)"
+
+                  # 2) tar + sha256 into the .wip work dir (no compression — media is already
+                  #    compressed).
+                  BACKUP_FILE="$WIP/immich-library.tar"
+                  START=$(date +%s)
                   echo "Creating uncompressed tar..."
-                  if tar -cf "$BACKUP_FILE" -C "$SOURCE_DIR" .; then
-                    TAR_DONE=$(date +%s)
-                    TAR_DURATION=$((TAR_DONE - START_TIME))
-                    BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
+                  tar -cf "$BACKUP_FILE" -C "$STAGING" .
+                  TAR_DONE=$(date +%s)
+                  echo "Generating SHA256 (single-thread CPU)..."
+                  (cd "$WIP" && sha256sum immich-library.tar > immich-library.tar.sha256)
+                  END=$(date +%s)
+                  echo "Backup: $(du -h "$BACKUP_FILE" | cut -f1), tar $((TAR_DONE-START))s, sha $((END-TAR_DONE))s"
 
-                    echo "Generating SHA256 checksum (single-thread CPU on $BACKUP_SIZE tarball)..."
-                    (cd "$BACKUP_ROOT" && sha256sum "$(basename "$BACKUP_FILE")" > "$(basename "$BACKUP_FILE").sha256")
-                    END_TIME=$(date +%s)
-                    SHA_DURATION=$((END_TIME - TAR_DONE))
-                    DURATION=$((END_TIME - START_TIME))
+                  # 3) Free staging immediately — the tar is the retained artifact.
+                  rm -rf "$STAGING"
 
-                    echo ""
-                    echo "✅ Backup complete"
-                    echo "   Size:     $BACKUP_SIZE"
-                    echo "   Tar:      ${TAR_DURATION}s"
-                    echo "   SHA256:   ${SHA_DURATION}s"
-                    echo "   Total:    ${DURATION}s ($((DURATION/60))min)"
-                  else
-                    echo "❌ tar failed" >&2
+                  # 4) Sanity floor: library is ~61G; a tar under 40G means a truncated/empty
+                  #    pull. Abort (discard .wip) BEFORE anything is published — the last good
+                  #    W2 + pool copies stay untouched.
+                  SZ=$(stat -c%s "$BACKUP_FILE" 2>/dev/null || wc -c < "$BACKUP_FILE")
+                  MIN_BYTES=$((40 * 1024 * 1024 * 1024))
+                  if [ "$SZ" -lt "$MIN_BYTES" ]; then
+                    echo "ERROR: tar ${SZ}B < 40G floor — suspect bad pull. Aborting; nothing published." >&2
+                    rm -rf "$WIP"
                     exit 1
                   fi
 
-                  echo ""
-                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                  echo "🧹 Cleanup: Keep only last 2 backups"
-                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                  # Per 2026-05-22 policy: immich keep-2 (vs 30d for everything else).
-                  # Sort by name (ISO timestamps sort chronologically), drop newest 2, delete rest.
-                  ls -1d /backup/20* 2>/dev/null | sort | head -n -2 | while read -r old; do
-                    echo "Deleting: $old"
+                  # 5) Publish the W2 copy atomically: rename .wip -> /backup/<ts> (same fs).
+                  #    Only now does a complete, dated W2 copy exist (1st physical copy, on a node).
+                  mv "$WIP" "$BACKUP_ROOT"
+
+                  # 6) Push the tar dir to the NAS akhozya-pool1 history pool = 2nd physical copy
+                  #    on a DIFFERENT filesystem than personal_folder/library (non-circular, D6).
+                  #    On any push/verify failure, remove the partial pool dir.
+                  echo "=== Push tar to NAS akhozya-pool1 pool ==="
+                  if ! RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync -a --port=50555 \
+                       "$BACKUP_ROOT/" "${POOL}/${TIMESTAMP}/"; then
+                    echo "ERROR: pool push failed — removing partial pool dir." >&2
+                    cleanup_pool_partial
+                    exit 1
+                  fi
+
+                  # 7) Verify the pushed copy is actually listed on the pool (else clean + fail).
+                  echo "=== Verify NAS pool copy ==="
+                  if RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 --list-only \
+                       "${POOL}/${TIMESTAMP}/" 2>/dev/null | grep -q immich-library.tar; then
+                    echo "OK: tar present on NAS pool"
+                  else
+                    echo "ERROR: tar missing on NAS pool after push — removing partial pool dir." >&2
+                    cleanup_pool_partial
+                    exit 1
+                  fi
+
+                  # 8) W2 keep-2 retention — portable (busybox has no 'head -n -N'; use
+                  #    'sort -r | tail -n +3', matching backup-replication's pool sweep). Runs
+                  #    only after the 2nd copy is confirmed, and only complete dated dirs exist.
+                  echo "=== W2 keep-2 retention ==="
+                  ls -1d /backup/20* 2>/dev/null | sort -r | tail -n +3 | while read -r old; do
+                    echo "Deleting old W2 backup: $old"
                     rm -rf "$old"
                   done
 
                   echo ""
-                  echo "📁 Current immich backups:"
-                  ls -lh /backup/ | grep "^d" || echo "No backups found"
-                  du -sh /backup/* 2>/dev/null || true
-
-                  echo ""
+                  echo "Current W2 immich backups:"
+                  du -sh /backup/20* 2>/dev/null || echo "none"
                   echo "=== Done ==="
               volumeMounts:
-                - name: k8s-storage
-                  mountPath: /mnt/k8s-storage
-                  readOnly: true
                 - name: backup-storage
                   mountPath: /backup
+                - name: staging
+                  mountPath: /staging
               securityContext:
                 allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: false
                 capabilities:
                   drop: ["ALL"]
-                  add: ["DAC_READ_SEARCH", "DAC_OVERRIDE"]
+                  add: ["DAC_OVERRIDE", "CHOWN", "FOWNER"]
               resources:
                 requests:
                   cpu: "500m"
@@ -147,13 +180,15 @@ spec:
                   cpu: "2000m"
                   memory: "512Mi"
           volumes:
-            - name: k8s-storage
-              hostPath:
-                path: /mnt/k8s-storage
-                type: Directory
+            # NOT under /mnt/extra-storage/backups/ — that dir is the --delete target of
+            # backup-replication Step 2 (W1 /source-backups -> W2 mirror). Since immich no
+            # longer populates W1's /source-backups, a copy under /backups/ would be wiped
+            # by that --delete 30min later. A sibling dir is out of its scope.
             - name: backup-storage
               hostPath:
-                path: /mnt/k8s-storage/backups/immich
+                path: /mnt/extra-storage/immich-backup
                 type: DirectoryOrCreate
-          nodeSelector:
-            kubernetes.io/hostname: worker-node
+            - name: staging
+              hostPath:
+                path: /mnt/extra-storage/immich-backup-staging
+                type: DirectoryOrCreate
