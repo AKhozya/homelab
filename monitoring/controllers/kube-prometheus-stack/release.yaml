@@ -312,6 +312,21 @@ spec:
 
     prometheusOperator:
       revisionHistoryLimit: 2
+      # The chart's pre-upgrade admission-webhook cert patch Jobs (job-createSecret /
+      # job-patchWebhook) ship with NO resource limits — Kyverno require-resource-limits
+      # denies them at admission, which wedged every chart upgrade since the VP migration
+      # (87.15.2 and 87.16.0 both stalled after 4 attempts, rolled back to 87.15.1).
+      # Helm hook Jobs go through admission like any workload; charts must be given
+      # limits via values.
+      admissionWebhooks:
+        patch:
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
       # Note: Prometheus Operator runs as single instance by design (uses leader election)
       # The replicas field is hardcoded to 1 in the chart
       prometheusConfigReloader:
