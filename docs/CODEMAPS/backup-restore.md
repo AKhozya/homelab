@@ -9,12 +9,12 @@
 | **PVC tarballs** | Filesystem snapshots of stateful PVCs | 03:10 daily | NO (CRITICAL_PVCS list) |
 | **MySQL logical** | `mysqldump --single-transaction` per DB (Percona via HAProxy) | 03:15 daily | YES (`SHOW DATABASES`) |
 | **PG streaming replication** | CNPG 2-instance streaming — HA only, NOT a backup layer (no WAL archiving/PITR by decision) | continuous | n/a |
-| **Immich library** | Uncompressed tar of 62.5G photo PVC (separate `immich-backup` CronJob) | Sunday 03:00 weekly | n/a (single PVC) |
+| **Immich library** | Uncompressed tar of the ~61G **NAS-resident** library — `immich-backup` CronJob on **W2** pulls it via the NAS `personal_folder` rsync module, tars locally, pushes to the NAS `akhozya-pool1` pool | Sunday 03:00 weekly | keep-2 on both W2 + NAS pool |
 | **Replication** | rsync fan-out from W1: → W2 (safety net) AND → NAS + validation + retention prune | 03:30 daily | n/a (path-agnostic) |
 | **SOPS Secrets** | Encrypted in git | every commit | n/a (file-based) |
 | **Disaster recovery scripts** | `.backup/secrets-{backup,restore}.sh` | manual | partial (explicit list) |
 
-Namespaces: PG/MySQL/CouchDB cronjobs in `databases`; PVC + immich cronjobs in `kube-system`; replication in `backup-replication`.
+Namespaces: PG/MySQL/CouchDB cronjobs in `databases`; PVC cronjob in `kube-system`; `immich-backup` + replication in `backup-replication` (immich-backup moved there 2026-07-14 to reuse the NAS rsync creds + egress NP).
 
 All 6 backup CronJobs: `startingDeadlineSeconds: 600` + `backoffLimit: 2` (couchdb keeps `backoffLimit: 6`) — Wave 10 hardening `d8ef6891` 2026-05-24.
 
@@ -39,7 +39,7 @@ Source: `infrastructure/configs/backup/pvc-backup-cronjob.yaml` (13 entries, 10 
 **Storage:** `hostPath /mnt/k8s-storage/backups/pvc` (worker-node), `nodeSelector: worker-node`.
 
 **Excluded by design (audit 2026-05-22):**
-- `immich/immich-library` — 62.5G photos; separate `immich-backup` weekly CronJob with keep-2 retention
+- `immich/immich-library` — **decommissioned 2026-07-14**; the ~61G library is NAS-resident (virtiofs), backed up by the W2-producer `immich-backup` weekly CronJob (keep-2 on W2 + NAS pool)
 - `immich/immich-machine-learning` — regenerable ML cache
 - `uptime-kuma/uptime-kuma-data-pvc` — UK switched to emptyDir, state in MySQL (removed from whitelist 2026-05-22)
 - `claude-telegram/claude-telegram-home-pvc` — session-only state, bot rebuilds on restart
@@ -58,7 +58,7 @@ W1 PVCs/backups (source: /mnt/k8s-storage/backups) — FAN-OUT, both syncs from 
        → NAS Zettlab 6 Ultra (192.168.1.136, /akhozya-pool1/backups/homelab/)
          30-day history; 500GB hard limit (warn 400GB / crit 450GB)
 ```
-After NAS push: validate (4 types: postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then **clean source on W1** (except `immich/` which is kept for keep-2 retention). Worker-2 still in chain (verified 2026-06-05, pending) — drop W2 replication step **~2026-07-20**; temp safety net removal **~2026-07-22** (postponed 2026-05-22 +2mo).
+After NAS push: validate (4 types: postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then **clean source on W1** (immich is no longer a W1 source since 2026-07-14 — it is produced on W2 and pushed straight to the NAS pool). Worker-2 still in chain (verified 2026-06-05, pending) — drop W2 replication step **~2026-07-20**; temp safety net removal **~2026-07-22** (postponed 2026-05-22 +2mo).
 
 **Retention enforcement (Step 5b, set 2026-05-22):** NAS prune runs after validate + clean source.
 - **30d for postgres/mysql/couchdb** — `prune_nas_file()`: file-prune via rsync filter `--include=<file> --include=<file>.sha256 --exclude='*'` against empty source. Targets `<cat>/<cat>_YYYYMMDD_HHMMSS.tar.gz` pattern with date > 30d threshold.

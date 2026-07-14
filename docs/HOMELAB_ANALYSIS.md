@@ -63,6 +63,7 @@ DB role name = app name. Provisioning goes through the operator CRDs (CNPG `Data
 
 - Per-engine logical dumps overnight: Postgres 03:00, CouchDB 03:05, PVCs 03:10, MySQL 03:15 — **30-day retention**.
 - 03:30 replication CronJob on worker-node — fan-out: → NAS (rsync daemon :50555, 30-day history, 500 GB cap) AND → worker-node-2 (today-only safety copy, removal ~2026-07-20).
+- **Immich library** (weekly, Sun 03:00 UTC): `immich-backup` on **worker-node-2** pulls the NAS-resident library (rsync `personal_folder` module) → tar+sha on W2 + push to the NAS `akhozya-pool1` pool = 2 physical copies on different filesystems, keep-2 each. (W1 `immich-library` PVC decommissioned 2026-07-14 — see HISTORY.)
 - Every backup validated (SHA-256 + tar + size + age); failure-only Telegram alerts.
 
 ## Monitoring
@@ -98,6 +99,7 @@ Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md
 
 | Due | Item |
 |---|---|
+| ~~2026-07-14~~ ✅ | Immich Path-B follow-up (T7) DONE 2026-07-14 (`4628800d` + `a32f6ef8`): backup re-topology (immich-backup → W2 producer, pulls NAS library → tar on W2 + NAS `akhozya-pool1` pool, keep-2 each; Codex 3 rounds) + W1 `immich-library` PVC decommissioned (PV `pvc-495129ee` + 61G reclaimed via local-path Delete). Gate: live 60.6G tar, NAS-pool `sha256 -c` OK. Soak waived ~40h/48h (repoint reversible, touches only backup cronjob). See HISTORY |
 | ~~2026-07-04~~ ✅ | Monthly review + quarterly automation audit DONE 2026-07-04 (see HISTORY). Watches CLOSED: Authentik client-hints (2026.5.3 live), passkey lockout, UR2 vmalert, mysql-proxy POP-1100/1110 (accepted cosmetic). Still watched monthly: n8n #25705 (workaround PROVEN still required at 2.28.6), k8s-sidecar#531 (loki probes stay disabled), Stirling#6211 |
 | ~~2026-07-05~~ ✅ | immich-backup Sunday slot VERIFIED firing — `lastSuccessfulTime 2026-07-12T03:07Z` (closed 2026-07-12) |
 | ~~2026-07-08~~ ✅ | security-scan ExecStopPost failure-notify SHIPPED 2026-07-12 (`89cd65b3`): missing lynis/rkhunter now exit 1, unit ExecStopPost fires telegram-notify on any failure, script+creds distributed to workers via security_scan role (was CP-only — every worker notify path silently dead). Node-side apply at drift-heal 03:00 UTC, verify next day. trivy soak CLOSED 2026-07-10 (#2859 cache-lock churn benign, concurrency 2→1) |
