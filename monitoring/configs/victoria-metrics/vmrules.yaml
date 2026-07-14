@@ -228,7 +228,7 @@ spec:
 
     - alert: ContainerMemoryNearLimit
       expr: (container_memory_working_set_bytes / container_spec_memory_limit_bytes) * 100 > 80 and container_spec_memory_limit_bytes > 0
-      for: 5m
+      for: 15m
       labels:
         severity: warning
       annotations:
