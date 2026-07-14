@@ -21,7 +21,7 @@ sudo systemctl start node-maintenance-sync.service
 sudo systemctl start node-maintenance-config.service
 
 # 3. Install pinned K3s
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.1+k3s1" sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.2+k3s1" sh -
 
 # Enable secrets encryption (first time only)
 sudo k3s secrets-encrypt enable
@@ -60,7 +60,7 @@ sudo systemctl start node-maintenance-sync.service
 sudo systemctl start node-maintenance-config.service
 
 # 2. Install pinned K3s agent (replace token)
-curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<node-token> INSTALL_K3S_VERSION="v1.36.1+k3s1" sh -
+curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<node-token> INSTALL_K3S_VERSION="v1.36.2+k3s1" sh -
 ```
 
 ## What setup-node.sh Configures (bootstrap-only)

@@ -25,7 +25,7 @@ CSP 3-tier is **enforced-only** — report-only tier middlewares deleted 2026-06
 Legacy duplicates also live in `monitoring` ns (`csp`, `rate-limit-standard`, `redirect-https`, `security-headers`) for kube-prometheus-stack ingresses.
 
 ## NetworkPolicy invariants
-- **66 NetworkPolicies** total (every ingress + every cross-ns egress)
+- **NetworkPolicies** on every ingress + every cross-ns egress (live count in HOMELAB_ANALYSIS.md)
 - Default-deny implicit per-ns where NP exists with empty ingress
 - Container port (NOT service port) used in NP `ports:`
 - Apps with both internal + Cloudflare Tunnel access need 2 Ingress rules (Traefik) but 1 NP (covers both via TCP port)

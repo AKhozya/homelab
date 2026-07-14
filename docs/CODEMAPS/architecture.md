@@ -62,5 +62,5 @@ flux-system (path ./clusters — flat bootstrap layout, staging/ dir removed 202
 
 ## Cluster boundaries
 - 28 namespaces
-- 66 NetworkPolicies live = 52 git manifests + `allow-dns-egress` Kustomize Component fanned into 14 app namespaces (Jobs excluded via `batch.kubernetes.io/job-name DoesNotExist`)
+- NetworkPolicies: raw git manifests + `allow-dns-egress` Kustomize Component fanned into 14 app namespaces (Jobs excluded via `batch.kubernetes.io/job-name DoesNotExist`); live count in HOMELAB_ANALYSIS.md
 - 12 Kyverno CEL `ValidatingPolicy` resources (policies.kyverno.io/v1) — **all Deny-enforcing**, sole policy engine since 2026-07-12 (kyverno.io/v1 ClusterPolicies deleted after the 8-day parity soak; removal deadline met early)
