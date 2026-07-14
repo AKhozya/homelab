@@ -180,7 +180,10 @@ spec:
           # existingClaim is schema-required (the chart won't auto-create the library
           # volume) but is OVERRIDDEN by the postRenderer, which replaces volume[0]
           # (name=data) PVC→hostPath /var/lib/immich-library (NAS virtiofs). The
-          # immich-library PVC is removed after the cutover soak.
+          # immich-library PVC was decommissioned 2026-07-14 (library lives on the NAS);
+          # this value is now inert schema filler — the named claim no longer exists and
+          # is never mounted (postRenderer strips it). Keep it: dropping it changes the
+          # persistence shape and the postRenderer patches volume[0] by index.
           existingClaim: immich-library
 
     # Disable built-in Valkey (using external Redis)
