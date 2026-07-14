@@ -88,8 +88,8 @@ Redis is cache and queue/broker only and is **not** backed up by design — see 
   - `mealie/mealie-data-pvc`
   - `n8n/n8n-data-pvc`
 
-**Auto Weekly Backups** (separate CronJob `immich-backup`, Sunday 03:00 UTC):
-- **`immich/immich-library`** — 63G photo data. Uncompressed tar (jpeg already compressed). Retention keep-2 (≈ 2 weeks).
+**Auto Weekly Backups** (separate CronJob `immich-backup`, `backup-replication` ns, **worker-node-2**, Sunday 03:00 UTC):
+- **Immich library** (~61G, NAS-resident since the 2026-07-12 Path-B cutover — no longer a PVC) — W2 pulls the live library from the NAS (`personal_folder` rsync module) → uncompressed tar+sha on W2 (`/mnt/extra-storage/immich-backup/`, jpeg already compressed) → push to the NAS `akhozya-pool1` pool. **Two physical copies** (W2 + NAS pool), retention keep-2 each (≈ 2 weeks).
 
 **What's NOT backed up (by design)** — 2026-05-22 audit:
 | Resource | Reason |
@@ -202,7 +202,7 @@ cat /tmp/*/obsidian-personal.couchbackup | couchrestore \
 - `linkwarden/linkwarden-data`, `linkwarden/meilisearch-data`
 - `pricebuddy/pricebuddy-storage`, `mealie/mealie-data-pvc`, `n8n/n8n-data-pvc`
 - No CouchDB PVC — CouchDB has its own dump CronJob
-- Note: Immich `immich-library` excluded here — separate weekly `immich-backup` CronJob
+- Note: the Immich library is NAS-resident (no longer a PVC) — backed up by the separate weekly `immich-backup` CronJob (W2 producer → NAS pool)
 
 **Storage:** 30-day retention
 

@@ -10,7 +10,7 @@
 | **blocky** | blocky | none (Secret config) | PG `blocky` (query log) + Redis HA db1 | — | LAN DNS :53 | 2 replicas, single LB Service .126+.129 (v0.31.0); LAN clients only — nodes+CoreDNS use public DNS since 2026-06-04 |
 | **stirling-pdf** | stirling-pdf | PVC | — | OIDC | both | PDF tools (2.11.0-fat); 2.10.x ~36% RSS regression resolved at 2.11.0 (back to 2.9.2 baseline) |
 | **homehub** | homehub | PVC | — | — | int | Family dashboard (0.2.3) |
-| **immich** | immich | PVC (62GB photos) | PostgreSQL | OIDC | both | Helm chart `immich` 0.12.0, image v2.7.5; Sentinel via REDIS_URL |
+| **immich** | immich | NAS library (~61G, virtiofs hostPath) | PostgreSQL | OIDC | both | Helm chart `immich` 0.12.0, image v2.7.5; Sentinel via REDIS_URL; server on `immich-vm` GPU node |
 | **paperless-ngx** | paperless-ngx | PVC | PostgreSQL + Redis HA (static master Service) | OIDC | both | Doc mgmt (2.20.15) |
 | **home-assistant** | home-assistant | PVC | MySQL | OIDC | both | Smart home (2026.6.0) |
 | **linkwarden** | linkwarden | PVC + Meilisearch PVC | PostgreSQL | OIDC | both | Bookmarks (v2.14.1, meilisearch v1.45.2) |

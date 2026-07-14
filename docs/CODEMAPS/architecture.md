@@ -6,7 +6,7 @@
 | Hostname | IP | Role | OS |
 |----------|-----|------|-----|
 | `gmk-k3s-control-plane` | 192.168.1.127 | CP, etcd | Arch + zsh, SSH user `akhozya` |
-| `worker-node` (W1) | 192.168.1.129 | Worker, hosts Immich PVs (local-path nodeAffinity) | Arch + zsh, SSH user `akhozya` |
+| `worker-node` (W1) | 192.168.1.129 | Worker, hosts most app PVs incl. immich ML cache (local-path nodeAffinity); immich library PV decommissioned 2026-07-14 | Arch + zsh, SSH user `akhozya` |
 | `worker-node-2` (W2) | 192.168.1.126 | Worker | Arch + zsh, **SSH user `z3us`** (different!) |
 
 SSH port for all nodes: `65300`. Aliases: `ssh_master_node`, `ssh_worker_node`, `ssh_worker_node2`. No sudo over SSH (pam_faillock lockout risk).

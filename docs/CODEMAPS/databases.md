@@ -61,7 +61,7 @@ All in `databases` namespace except CouchDB extras in `obsidian` (client side) a
 | `couchdb-backup` | databases | 03:05 daily | YES (`_all_dbs`) |
 | `pvc-backup` | kube-system | 03:10 daily | NO — explicit list in CRITICAL_PVCS |
 | `mysql-backup` | databases | 03:15 daily | YES (`SHOW DATABASES` excluding system) |
-| `immich-backup` | kube-system | Sun 03:00 weekly | NO — single PVC (62GB photos), 2-pass tar+sha256, keep-2 retention |
+| `immich-backup` | backup-replication | Sun 03:00 weekly | NO — W2 pulls the ~61G NAS library (rsync), 2-pass tar+sha256 on W2 + push to NAS `akhozya-pool1` pool, keep-2 each |
 | `backup-replication` | databases | 03:30 daily | NO — rsync flat /mnt/k8s-storage/backups/ |
 | `postgres-update-extensions` | databases | 06:00 weekly Sun | runs `ALTER EXTENSION ... UPDATE` |
 | `popeye` | monitoring | 06:00 weekly Sun | cluster scan |
