@@ -50,7 +50,7 @@ spec:
     resources:
       requests:
         cpu: "50m"  # 7d p95 ~40m per sentinel (2026-07-12)
-        memory: "64Mi"
+        memory: "96Mi"
       limits:
         cpu: "300m"
-        memory: "128Mi"
+        memory: "192Mi"
