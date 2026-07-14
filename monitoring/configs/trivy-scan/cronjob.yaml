@@ -1,0 +1,121 @@
+# Monthly image-CVE scan — replaced the always-on trivy-operator (2026-07-14).
+# Rationale: the operator burned ~650Mi RAM 24/7 to re-scan images that only
+# change when Renovate bumps them; 88 VulnerabilityReports on upstream images
+# we don't own = noise. This job prints a per-image table to stdout (Loki
+# captures it) for review during the monthly security scan cadence.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: trivy-scan
+  namespace: trivy-scan
+spec:
+  schedule: "0 4 1 * *"  # Monthly on the 1st at 04:00 UTC
+  timeZone: "UTC"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 86400  # Clean up after 1 day
+      template:
+        metadata:
+          labels:
+            app: trivy-scan  # require-labels (Kyverno); NP uses podSelector {} so unaffected
+        spec:
+          serviceAccountName: trivy-scan
+          restartPolicy: Never
+          priorityClassName: homelab-batch
+          # Pod-level seccomp baseline — satisfies require-seccomp-runtimedefault
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+          initContainers:
+            # Collects the unique image set into /work/images.txt for the scan
+            # container. rancher/kubectl is shell-less (scratch-style, no way to
+            # redirect to a file) — rancher/shell = bash + kubectl, k3s ecosystem.
+            - name: list-images
+              image: rancher/shell:v0.8.0
+              command: ["/bin/bash", "-c"]
+              # pipefail + non-empty guard: a kubectl/RBAC failure must fail the
+              # init container, not hand trivy an empty list (silent zero-image
+              # "success" — the backup success-theater bug class)
+              args:
+                - >-
+                  set -euo pipefail;
+                  kubectl get pods -A -o
+                  jsonpath='{range .items[*]}{range .spec.initContainers[*]}{.image}{"\n"}{end}{range .spec.containers[*]}{.image}{"\n"}{end}{end}'
+                  | sort -u > /work/images.txt;
+                  [ -s /work/images.txt ];
+                  echo "collected $(wc -l < /work/images.txt) unique images"
+              env:
+                # kubectl writes discovery cache under $HOME — point it at the
+                # writable emptyDir (root fs is read-only)
+                - name: HOME
+                  value: /work
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65534
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 32Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                - name: tmp
+                  mountPath: /tmp
+          containers:
+            - name: trivy
+              image: aquasec/trivy:0.71.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  rc=0
+                  total=$(wc -l < /work/images.txt)
+                  n=0
+                  while IFS= read -r img; do
+                    n=$((n + 1))
+                    echo "=== [${n}/${total}] ${img} ==="
+                    trivy image --scanners vuln --severity CRITICAL,HIGH \
+                      --ignore-unfixed --format table --quiet "${img}" || rc=1
+                  done < /work/images.txt
+                  exit "${rc}"
+              env:
+                - name: TRIVY_CACHE_DIR
+                  value: /tmp/trivy-cache
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 65534
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                # 1Gi headroom: trivy peaks scanning large images (immich ~1.5GB)
+                limits:
+                  cpu: 1000m
+                  memory: 1Gi
+              volumeMounts:
+                - name: work
+                  mountPath: /work
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: work
+              emptyDir:
+                sizeLimit: 16Mi
+            # trivy-db (~700Mi on disk) + per-image analysis cache
+            - name: tmp
+              emptyDir:
+                sizeLimit: 5Gi

@@ -21,6 +21,7 @@ VictoriaMetrics primary stack. NO Prometheus pod (only operator chart kept for g
 | `alloy` | DS (`loki` ns) | Log collector → Loki |
 | `loki-canary` | DS (`loki` ns) | Loki ingest/query health probe |
 | `popeye` | CronJob (`popeye` ns) | Cluster sanitizer scan, weekly Sun 06:00 UTC (`monitoring/controllers/popeye/`) |
+| `trivy-scan` | CronJob (`trivy-scan` ns) | Image-CVE scan of all running images, monthly 1st 04:00 UTC, table to stdout/Loki (`monitoring/configs/trivy-scan/`) — replaced trivy-operator 2026-07-14 |
 
 ## Helm chart versions
 | Chart | Version | Notes |
@@ -45,6 +46,7 @@ All 4 HelmReleases: `driftDetection: {mode: enabled}`; explicit `timeout: 10m` o
 - `docker.io/grafana/loki:3.6.7` + `grafana/loki-canary:3.6.7`
 - `docker.io/grafana/alloy:v1.16.1`
 - `derailed/popeye:v0.22.1`
+- `aquasec/trivy:0.71.1` + `rancher/shell:v0.8.0` (trivy-scan CronJob: scanner + kubectl image-inventory init)
 
 ## ⚠️ Prometheus converter DISABLED
 Operator helm values: `operator.disable_prometheus_converter: true` + `enable_converter_ownership: false`. **PrometheusRule and ServiceMonitor are silently ignored.** Always use native VMRule + VMServiceScrape directly.
@@ -54,7 +56,7 @@ Exception oddity: `monitoring/configs/cloudflared/cloudflared-servicemonitor.yam
 ## Rules (VMRule)
 | File | VMRule name | Groups | Alerts | Notable groups |
 |------|-------------|--------|--------|----------------|
-| `monitoring/configs/victoria-metrics/vmrules.yaml` | `homelab-alerts` | 24 | 122 | node, pod, mysql, database, redis-alerts, redis-ha, kubernetes, certificate, flux, cloudflare-tunnel, kyverno, loki, traefik, firewall (ufw), node-overrides, node-maintenance, etc. |
+| `monitoring/configs/victoria-metrics/vmrules.yaml` | `homelab-alerts` | 25 | 123 | node, pod, mysql, database, redis-alerts, redis-ha, kubernetes, certificate, flux, cloudflare-tunnel, kyverno, loki, traefik, firewall (ufw), node-overrides, node-maintenance, immich-gpu-node-alerts, etc. |
 | `monitoring/configs/blocky/prometheusrule.yaml` | `blocky-alerts` (kind: VMRule) | 1 | 5 | blocky |
 
 vmalert loads 26 groups total across 2 VMRule resources. Verify via: `kubectl port-forward -n monitoring svc/vmalert-vmalert 8080:8080 && curl localhost:8080/api/v1/rules | jq '.data.groups[].name'`
@@ -90,8 +92,8 @@ Per-pod NPs: vmsingle/vmagent/vmalert/vmoperator (`victoria-metrics/networkpolic
 
 ## Alertmanager
 - 2 STS replicas (HA via gossip)
-- Receivers: `telegram` (default, bot via `alertmanager-telegram` Secret), `telegram-backup` (backup alerts), `telegram-digest` (weekly trivy image-CVE digest — compact 1-line-per-image HTML, cap 25 lines / TG 4096 limit), `deadman` (Watchdog → healthchecks.io), `null`
-- Routing: severity-based (critical/warning/info); `TrivyCriticalVulnerabilities` → `telegram-digest` (`group_by:[alertname]`, `repeat_interval:168h` — needs `alertmanagerSpec.retention:192h`, else nflog GC caps it to ~5d)
+- Receivers: `telegram` (default, bot via `alertmanager-telegram` Secret), `telegram-backup` (backup alerts), `deadman` (Watchdog → healthchecks.io), `null` (`telegram-digest` removed with trivy-operator 2026-07-14)
+- Routing: severity-based (critical/warning/info)
 - Templates: `alertmanager-overrides` group in vmrules.yaml inhibits noisy alerts
 - **Gotcha**: Go templates have NO `sub`/`add`/`mul`/`div` math funcs (use `len`)
 - Health check: BOTH `/api/v1/alerts` (Prometheus-compat) AND `/api/v2/alerts` (Alertmanager native)

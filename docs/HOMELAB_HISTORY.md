@@ -17,6 +17,10 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-14 — trivy-operator removed; replaced by monthly trivy-scan CronJob
+
+Always-on trivy-operator torn down after 10 days in service (installed `dfeb0153` 2026-07-04): ~650Mi RAM 24/7 to re-scan images that only change when Renovate bumps them, 88 VulnerabilityReports on upstream images we don't own = noise over signal (2026-07-05 triage: 0 findings on our own images). Replaced with `monitoring/configs/trivy-scan/` — a monthly CronJob (1st 04:00 UTC, matching the monthly security-scan cadence) in its own `trivy-scan` ns: `rancher/shell:v0.8.0` init collects the unique image set via kubectl (~80 images; rancher/kubectl is shell-less scratch — can't redirect to a file), then `aquasec/trivy:0.71.1` loops `trivy image --severity CRITICAL,HIGH --ignore-unfixed` printing per-image tables to stdout (Loki captures). Partial scan failures fail the Job (no success-theater); 1Gi mem limit (trivy peaks on large images); `ttlSecondsAfterFinished: 86400`; NP = DNS + API server + 443-only registry egress (popeye/trivy-operator patterns). Swept with it: `TrivyCriticalVulnerabilities` VMRule, `scrape-trivy-operator.yaml` VMPodScrape, Alertmanager `telegram-digest` route+receiver, `alertmanagerSpec.retention: 192h` (existed only for the 168h digest repeat_interval), claude-telegram `aquasecurity.github.io` RBAC. Post-reconcile manual GC: aquasecurity CRDs + orphaned VulnerabilityReports (helm uninstall leaves CRDs).
+
 ### 2026-07-14 — Immich T7: backup re-topology (W2 producer) + W1 library PVC decommissioned
 
 Closed the Path-B follow-up. Two commits, both Codex static-reviewed (`.claude/review-invariants.md`); CI still billing-blocked since 07-10, gates ran locally (yamllint, kustomize build, kubeconform).

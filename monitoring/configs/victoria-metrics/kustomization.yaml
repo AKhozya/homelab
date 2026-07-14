@@ -17,7 +17,6 @@ resources:
   - scrape-apps.yaml
   - scrape-kyverno.yaml
   - scrape-cnpg-operator.yaml
-  - scrape-trivy-operator.yaml
   - scrape-vmoperator.yaml
   - vmalert.yaml
   - vmrules.yaml

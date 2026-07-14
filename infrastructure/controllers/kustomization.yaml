@@ -9,7 +9,6 @@ resources:
   - cert-manager
   - traefik
   - kyverno
-  - trivy-operator
   - databases/postgres
   - databases/redis-operator
   - databases/mysql

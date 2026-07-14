@@ -407,7 +407,9 @@ spec:
       # (= lastScheduleTime + interval) sits in the PAST and false-fires this daily-tuned rule
       # even when Immich is healthy (verified 2026-07-03: lastSuccessful 5d fresh, delta +5.7d).
       # Immich backup staleness is covered by NoRecentImmichBackup (9d) in backup-alerts.
-      expr: time() - kube_cronjob_next_schedule_time{cronjob!="immich-backup"} > 600
+      # trivy-scan excluded for the same reason: monthly ("0 4 1 * *") + off-slot manual
+      # smoke runs; a low-urgency scanner needs no staleness rule (monthly review covers it).
+      expr: time() - kube_cronjob_next_schedule_time{cronjob!~"immich-backup|trivy-scan"} > 600
       for: 5m
       labels:
         severity: warning
@@ -1279,20 +1281,6 @@ spec:
       annotations:
         summary: "Redis client reconnect storm on {{ $labels.instance }}"
         description: "Connected clients changing >50/sec. Likely client-side instability or repeated failovers."
-
-  - name: trivy
-    rules:
-      - alert: TrivyCriticalVulnerabilities
-        expr: sum by (image_repository, image_tag) (trivy_image_vulnerabilities{severity="Critical"}) > 0
-        for: 6h
-        labels:
-          severity: warning
-        annotations:
-          summary: "{{ $value }} patchable Critical CVEs in {{ $labels.image_repository }}:{{ $labels.image_tag }}"
-          # critcount feeds the compact per-image line in the 'telegram-digest' receiver
-          # (alertmanager templates can't read the numeric alert value, only annotations).
-          critcount: "{{ $value }}"
-          description: "trivy-operator reports {{ $value }} PATCHABLE Critical CVEs (unfixed base-OS CVEs excluded via ignoreUnfixed) in a running image for 6h+. Delivered as a weekly digest, not a page. Detail: kubectl get vulnerabilityreports -A. Remediate by bumping the image (renovate PR or manual pin) or filing an upstream issue when already on the latest release."
 
   # Tier-2 host watchdog for the Immich GPU node (immich-vm on the NAS). The
   # watchdog SSHes the NAS + drives virsh; see apps/immich/gpu-node/. The VM being

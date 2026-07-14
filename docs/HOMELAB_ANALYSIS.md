@@ -8,7 +8,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 
 | Area | Status |
 |---|---|
-| **Security** | Pod Security Standards enforced; 12 Kyverno CEL ValidatingPolicies (all Deny-enforcing); default-deny NetworkPolicies; secrets SOPS-encrypted in Git; in-cluster image-CVE scanning (trivy-operator) |
+| **Security** | Pod Security Standards enforced; 12 Kyverno CEL ValidatingPolicies (all Deny-enforcing); default-deny NetworkPolicies; secrets SOPS-encrypted in Git; monthly image-CVE scan (trivy CronJob, 1st 04:00 UTC — replaced always-on trivy-operator 2026-07-14) |
 | **Backup / DR** | Daily logical backups (Postgres, MySQL, CouchDB, app PVCs), 30-day retention, off-node + NAS replication, documented restore runbook |
 | **Observability** | VictoriaMetrics + Grafana + Loki/Alloy; Alertmanager → Telegram; weekly Popeye hygiene scan |
 | **Networking** | Dual ingress (LAN Traefik + Cloudflare Tunnel), zero inbound ports, Blocky DNS + ad-block |

@@ -7,3 +7,4 @@ resources:
   - blocky
   - flux-notifications.yaml
   - victoria-metrics
+  - trivy-scan

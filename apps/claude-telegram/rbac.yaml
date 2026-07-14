@@ -100,10 +100,6 @@ rules:
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
-  # Trivy operator (read vulnerability/compliance scan results)
-  - apiGroups: ["aquasecurity.github.io"]
-    resources: ["*"]
-    verbs: ["get", "list", "watch"]
   # Events API (kubectl events)
   - apiGroups: ["events.k8s.io"]
     resources: ["*"]

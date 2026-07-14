@@ -1,8 +1,9 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: trivy-system
+  name: trivy-scan
   labels:
+    app.kubernetes.io/name: trivy-scan
     pod-security.kubernetes.io/enforce: baseline
     pod-security.kubernetes.io/audit: restricted
     pod-security.kubernetes.io/warn: restricted

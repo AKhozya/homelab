@@ -216,22 +216,6 @@ spec:
               - alertname =~ "^(BackupJobFailed|BackupCronJobMissedSchedule|BackupJobRunningTooLong|NoRecentBackups)$"
             receiver: 'telegram-backup'
             continue: false
-          - matchers:
-              - alertname = TrivyCriticalVulnerabilities
-            # Demote image-CVE findings to a weekly digest. Trivy is a low-urgency
-            # sensor: it flags PATCHABLE CVEs in 3rd-party images we are already on the
-            # latest of — remediation is a Renovate bump or an upstream issue, never a
-            # page (verified 2026-07-05: 0 findings on our own images, all upstream).
-            # group_by alertname collapses every affected image into ONE grouped
-            # message; repeat_interval 168h re-notifies weekly, not the 12h default.
-            # Dedicated receiver: the shared 'telegram' template caps at 5 alerts, which
-            # would truncate a ~14-image digest — 'telegram-digest' renders a compact,
-            # char-bounded one-line-per-image list instead.
-            receiver: 'telegram-digest'
-            group_by: ['alertname']
-            group_interval: 30m
-            repeat_interval: 168h
-            continue: false
           # K3s component alerts disabled in defaultRules (embedded architecture)
         inhibit_rules:
           # Suppress pod/container alerts when their node is down
@@ -289,28 +273,6 @@ spec:
               <code>{{ if $a.Labels.namespace }}{{ $a.Labels.namespace }}{{ end }}{{ if $a.Labels.instance }}{{ if $a.Labels.namespace }} · {{ end }}{{ $a.Labels.instance }}{{ end }}</code>{{ end }}
               {{ $a.Annotations.summary }}{{ end }}{{ end }}{{ if gt (len .Alerts) 5 }}
               <i>…and more ({{ len .Alerts }} total)</i>{{ end }}
-        - name: 'telegram-digest'
-          # Low-urgency weekly image-CVE digest (trivy). Compact one-line-per-image
-          # HTML render, capped at 25 lines to stay under Telegram's 4096-char cap
-          # (worst-case ~25×80 + header ≈ 2 KB). parse_mode HTML — NOT MarkdownV2 —
-          # because the dots/dashes in version tags (18.4-standard-trixie) and CVE IDs
-          # would need escaping under MarkdownV2 and a single miss 400-rejects the whole
-          # message (silent non-delivery). image_repository/image_tag are real alert
-          # labels (expr groups by them); critcount annotation carries the CVE count.
-          telegram_configs:
-          - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot_token
-            chat_id: 113452686
-            parse_mode: 'HTML'
-            # A digest is a current-state snapshot, not an alert lifecycle: suppress the
-            # resolved notification. On resolve it carries each alert's stale last-firing
-            # count → a contradictory "✅ cleared · N critical". Silence = all clear.
-            send_resolved: false
-            message: |
-              {{ if eq .Status "firing" }}🔍 <b>Image CVE digest</b>{{ else }}✅ <b>Image CVE digest — cleared</b>{{ end }} · {{ len .Alerts }} image{{ if gt (len .Alerts) 1 }}s{{ end }} with patchable criticals
-              {{ range $i, $a := .Alerts }}{{ if lt $i 25 }}
-              • <code>{{ $a.Labels.image_repository }}:{{ $a.Labels.image_tag }}</code>{{ if $a.Annotations.critcount }} — {{ $a.Annotations.critcount }} critical{{ end }}{{ end }}{{ end }}{{ if gt (len .Alerts) 25 }}
-              <i>…showing 25 of {{ len .Alerts }}</i>{{ end }}
-              <i>Weekly digest · detail: <code>kubectl get vulnerabilityreports -A</code></i>
       # Ingress enabled for internal network access via am.h0melab.work
       # DNS points to internal IPs only (192.168.1.127, 192.168.1.129)
       # NOT exposed to the internet - NetworkPolicy restricts external access
@@ -331,11 +293,6 @@ spec:
         # HA configuration - 2 replicas with anti-affinity
         replicas: 2
         podAntiAffinity: "hard"
-        # nflog/silence retention (--data.retention, default 120h). Raised so the weekly
-        # trivy image-CVE digest route (repeat_interval 168h) isn't GC-capped to ~5 days:
-        # Alertmanager re-notifies a group once its nflog entry ages out of retention, so
-        # repeat_interval only holds if retention ≥ it. 192h = 168h + margin.
-        retention: 192h
         # Configure external URL so Alert Manager generates HTTPS links
         # This prevents mixed content warnings in browsers
         externalUrl: https://am.h0melab.work

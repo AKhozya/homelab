@@ -1,0 +1,52 @@
+# Namespace holds only the monthly scan job pods — podSelector {} covers them.
+# Ingress default-deny (nothing serves); egress = DNS, API server (image
+# inventory via kubectl), and HTTPS to registries (layer pulls + trivy-db).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: trivy-scan-network-policy
+  namespace: trivy-scan
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress: []
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Kubernetes API server (CP node direct + in-cluster service VIP)
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.127/32
+      ports:
+        - protocol: TCP
+          port: 6443
+    - to:
+        - ipBlock:
+            cidr: 10.43.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
+    # Image registries + trivy-db OCI pulls (mirror.gcr.io, ghcr.io, docker.io,
+    # quay.io): destination set is open-ended by design — scanning follows
+    # whatever registry a workload pins. HTTPS only, full RFC1918 excluded
+    # (all registries in use are public).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8      # pod + service CIDRs and then some
+              - 172.16.0.0/12
+              - 192.168.0.0/16  # LAN
+      ports:
+        - protocol: TCP
+          port: 443
