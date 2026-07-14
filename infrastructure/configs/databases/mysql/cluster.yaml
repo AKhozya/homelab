@@ -21,7 +21,6 @@ spec:
     orchestrator: true
     orchestratorSize: true
 
-  # Secrets for credentials
   secretsName: mysql-cluster-secrets
 
   # Update strategy: SmartUpdate for zero-downtime (updates replicas first, primary last)
@@ -159,7 +158,6 @@ spec:
             storage: 20Gi
         storageClassName: local-path
 
-    # MySQL configuration
     configuration: |
       [mysqld]
       max_connections=100

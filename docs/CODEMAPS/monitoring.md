@@ -16,7 +16,7 @@ VictoriaMetrics primary stack. NO Prometheus pod (only operator chart kept for g
 | `alertmanager-kube-prometheus-stack-alertmanager` | STS 2x | Alert routing |
 | `kube-prometheus-stack-operator` | Deploy 1x | prom-operator (manages PrometheusRule/SM CRDs but NOT consumed) |
 | `kube-prometheus-stack-kube-state-metrics` | Deploy 1x | k8s state metrics |
-| `kube-prometheus-stack-prometheus-node-exporter` | DS 3x | host metrics |
+| `kube-prometheus-stack-prometheus-node-exporter` | DS (per node) | host metrics |
 | `loki` | STS (`loki` ns) | Log storage |
 | `alloy` | DS (`loki` ns) | Log collector → Loki |
 | `loki-canary` | DS (`loki` ns) | Loki ingest/query health probe |

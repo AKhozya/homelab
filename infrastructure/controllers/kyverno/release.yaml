@@ -240,7 +240,6 @@ spec:
       backgroundScan:
         enabled: true
 
-    # CRDs configuration
     crds:
       install: true
 

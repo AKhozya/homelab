@@ -31,7 +31,6 @@ spec:
   # (18.x: priorityClassName via values, seccompProfile RuntimeDefault chart-native
   # on all 3 workloads — the 7.0.0-era postRenderers block is gone.)
   values:
-    # Loki configuration
     loki:
       revisionHistoryLimit: 2
       auth_enabled: false
@@ -40,7 +39,6 @@ spec:
         replication_factor: 1
         path_prefix: /var/loki
 
-      # Storage configuration
       storage:
         type: filesystem
         filesystem:
@@ -157,7 +155,6 @@ spec:
           memory: 256Mi
       priorityClassName: homelab-standard  # global.priorityClassName does NOT reach canary
 
-    # Monitoring configuration
     monitoring:
       serviceMonitor:
         enabled: true
@@ -170,7 +167,6 @@ spec:
     resultsCache:
       enabled: false
 
-    # Test configuration
     test:
       enabled: false
 

@@ -1,6 +1,6 @@
 # Architecture Codemap
 
-**Cluster**: K3s v1.36.1+k3s1 **production** (single env — merge to `main` = deploy to prod), 3 nodes (1 CP + 2 workers), containerd 2.2.3-k3s1. Refreshed 2026-06-05.
+**Cluster**: K3s v1.36.2+k3s1 **production** (single env — merge to `main` = deploy to prod), 4 nodes (1 CP + 2 workers + 1 GPU-worker VM), containerd 2.2.3-k3s1. Refreshed 2026-06-05.
 
 ## Nodes
 | Hostname | IP | Role | OS |
@@ -8,6 +8,7 @@
 | `gmk-k3s-control-plane` | 192.168.1.127 | CP, etcd | Arch + zsh, SSH user `akhozya` |
 | `worker-node` (W1) | 192.168.1.129 | Worker, hosts most app PVs incl. immich ML cache (local-path nodeAffinity); immich library PV decommissioned 2026-07-14 | Arch + zsh, SSH user `akhozya` |
 | `worker-node-2` (W2) | 192.168.1.126 | Worker | Arch + zsh, **SSH user `z3us`** (different!) |
+| `immich-vm` | 192.168.1.231 | GPU worker (Arch VM on the NAS, Intel QSV; joined 2026-07-10) | Arch, SSH user `akhozya`; NEVER in-guest reboot/`virsh destroy` (GPU reset-bug) |
 
 SSH port for all nodes: `65300`. Aliases: `ssh_master_node`, `ssh_worker_node`, `ssh_worker_node2`. No sudo over SSH (pam_faillock lockout risk).
 
@@ -61,5 +62,5 @@ flux-system (path ./clusters — flat bootstrap layout, staging/ dir removed 202
 
 ## Cluster boundaries
 - 28 namespaces
-- 64 NetworkPolicies live = 42 git manifests + `allow-dns-egress` Kustomize Component fanned into 14 app namespaces (Jobs excluded via `batch.kubernetes.io/job-name DoesNotExist`)
+- 66 NetworkPolicies live = 52 git manifests + `allow-dns-egress` Kustomize Component fanned into 14 app namespaces (Jobs excluded via `batch.kubernetes.io/job-name DoesNotExist`)
 - 12 Kyverno CEL `ValidatingPolicy` resources (policies.kyverno.io/v1) — **all Deny-enforcing**, sole policy engine since 2026-07-12 (kyverno.io/v1 ClusterPolicies deleted after the 8-day parity soak; removal deadline met early)

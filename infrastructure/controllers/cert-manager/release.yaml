@@ -62,7 +62,6 @@ spec:
       enabled: true
       keep: true
 
-    # Global settings
     global:
       leaderElection:
         namespace: cert-manager

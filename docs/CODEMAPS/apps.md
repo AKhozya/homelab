@@ -10,7 +10,7 @@
 | **blocky** | blocky | none (Secret config) | PG `blocky` (query log) + Redis HA db1 | — | LAN DNS :53 | 2 replicas, single LB Service .126+.129 (v0.31.0); LAN clients only — nodes+CoreDNS use public DNS since 2026-06-04 |
 | **stirling-pdf** | stirling-pdf | PVC | — | OIDC | both | PDF tools (2.11.0-fat); 2.10.x ~36% RSS regression resolved at 2.11.0 (back to 2.9.2 baseline) |
 | **homehub** | homehub | PVC | — | — | int | Family dashboard (0.2.3) |
-| **immich** | immich | NAS library (~61G, virtiofs hostPath) | PostgreSQL | OIDC | both | Helm chart `immich` 0.12.0, image v2.7.5; Sentinel via REDIS_URL; server on `immich-vm` GPU node |
+| **immich** | immich | NAS library (~61G, virtiofs hostPath) | PostgreSQL | OIDC | both | Helm chart `immich` 0.12.0, image v2.7.5; Redis via static master Service; server on `immich-vm` GPU node |
 | **paperless-ngx** | paperless-ngx | PVC | PostgreSQL + Redis HA (static master Service) | OIDC | both | Doc mgmt (2.20.15) |
 | **home-assistant** | home-assistant | PVC | MySQL | OIDC | both | Smart home (2026.6.0) |
 | **linkwarden** | linkwarden | PVC + Meilisearch PVC | PostgreSQL | OIDC | both | Bookmarks (v2.14.1, meilisearch v1.45.2) |
@@ -36,4 +36,4 @@
 - Rate limits: `rate-limit-standard` 100/min avg, burst 150 (default, incl. paperless-ngx); `rate-limit-high-frequency` 200/min avg, burst 300 (authentik, home-assistant, immich, n8n)
 - Image-pin CI gate: `scripts/ci/image-pin-audit.sh` in validate.yaml enforces `major.minor.patch` on every image (Kyverno only catches `:latest`/no-tag); 2-component allowlist: `postgres*`, `seleniumbase-scrapper`
 - DB usernames = app name (CNPG `managed.roles` for PG, ACL for Redis, GRANT for MySQL)
-- DB endpoints: `main-postgres-rw-pooler.databases.svc.cluster.local:5432` (PgBouncer), `main-mysql-haproxy.databases.svc.cluster.local:3306` (HAProxy), `redis-replication-master.databases.svc.cluster.local:6379` (static for Paperless/Blocky), Sentinel for Immich
+- DB endpoints: `main-postgres-rw-pooler.databases.svc.cluster.local:5432` (PgBouncer), `main-mysql-haproxy.databases.svc.cluster.local:3306` (HAProxy), `redis-replication-master.databases.svc.cluster.local:6379` (static for Paperless/Blocky/Immich)

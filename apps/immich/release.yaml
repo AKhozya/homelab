@@ -327,7 +327,6 @@ spec:
       # GPU via the Intel device-plugin (gpu.intel.com/i915) — see resources above.
       # Service port: uses chart default (2283) — no override needed
 
-    # Immich Machine Learning component
     machine-learning:
       enabled: true
       controllers:

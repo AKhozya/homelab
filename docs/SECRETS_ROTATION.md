@@ -1,6 +1,6 @@
 # Secrets Rotation Playbook
 
-**Cluster**: K3s Homelab (k3s v1.36.1+k3s1, 3 nodes) | **Last Updated**: 2026-07-02
+**Cluster**: K3s Homelab (k3s v1.36.2+k3s1, 4 nodes) | **Last Updated**: 2026-07-14
 **Audit Trail**: rotation dates in git commit history
 
 Every secret in this cluster lives encrypted in Git using SOPS with an age key. The
@@ -53,7 +53,7 @@ cert-manager).
 | Secret Name | App | Last Rotated | Next Rotation | Priority |
 |-------------|-----|--------------|---------------|----------|
 | `authentik-redis-password` | Authentik | N/A (Removed 2025-10-29) | N/A | N/A |
-| `redis-passwords.immich-password` | Immich (Sentinel via REDIS_URL) | 2026-04-02 | 2026-10-01 | High |
+| `redis-passwords.immich-password` | Immich (static master Service) | 2026-04-02 | 2026-10-01 | High |
 | `redis-passwords.paperless-password` | Paperless-NGX (static master Service) | 2026-04-02 | 2026-10-01 | Medium |
 | `redis-passwords.blocky-password` | Blocky DNS (static master Service, db 1) | 2026-04-26 | 2026-10-26 | Medium |
 | `redis-passwords.admin-password` | Redis HA admin | 2026-04-26 | 2026-10-26 | High |

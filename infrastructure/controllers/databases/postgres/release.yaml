@@ -79,13 +79,11 @@ spec:
         cpu: 500m
         memory: 512Mi
 
-    # Enable monitoring
     monitoring:
       podMonitorEnabled: true
       podMonitorAdditionalLabels:
         release: kube-prometheus-stack
 
-    # Webhook configuration
     webhook:
       port: 9443
       # Increase startup probe tolerance for node reboots

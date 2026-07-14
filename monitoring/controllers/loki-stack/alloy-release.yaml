@@ -198,7 +198,6 @@ spec:
           cpu: 100m
           memory: 64Mi
 
-    # ServiceMonitor for Prometheus
     serviceMonitor:
       enabled: true
       additionalLabels:

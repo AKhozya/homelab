@@ -12,8 +12,8 @@
 | Postgres pooler (PgBouncer 1.25.1) | `main-postgres-rw-pooler.databases.svc:5432` | most apps |
 | Postgres direct | `main-postgres-rw.databases.svc:5432` | n8n, blocky (queryLog), CNPG admin |
 | MySQL HAProxy 2.8.18 | `main-mysql-haproxy.databases.svc:3306` | uptime-kuma, HA, pricebuddy |
-| Redis HA master (static) | `redis-replication-master.databases.svc:6379` | paperless, blocky |
-| Redis HA Sentinel | `redis-sentinel-sentinel.databases.svc:26379` | immich (REDIS_URL=ioredis://...) |
+| Redis HA master (static) | `redis-replication-master.databases.svc:6379` | paperless, blocky, immich |
+| Redis HA Sentinel | `redis-sentinel-sentinel.databases.svc:26379` | operator-internal failover; no direct app clients since 2026-06-28 |
 | CouchDB | `couchdb-couchdb.databases.svc:5984` | obsidian (LiveSync via Cloudflare Tunnel) |
 
 ## Traefik Middlewares
@@ -25,7 +25,7 @@ CSP 3-tier is **enforced-only** — report-only tier middlewares deleted 2026-06
 Legacy duplicates also live in `monitoring` ns (`csp`, `rate-limit-standard`, `redirect-https`, `security-headers`) for kube-prometheus-stack ingresses.
 
 ## NetworkPolicy invariants
-- **64 NetworkPolicies** total (every ingress + every cross-ns egress)
+- **66 NetworkPolicies** total (every ingress + every cross-ns egress)
 - Default-deny implicit per-ns where NP exists with empty ingress
 - Container port (NOT service port) used in NP `ports:`
 - Apps with both internal + Cloudflare Tunnel access need 2 Ingress rules (Traefik) but 1 NP (covers both via TCP port)

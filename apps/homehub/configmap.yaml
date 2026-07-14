@@ -9,7 +9,6 @@ data:
     password: "PLACEHOLDER_PASSWORD"
     admin_name: "Admin"
 
-    # Feature toggles
     feature_toggles:
       shopping_list: true
       media_downloader: true
@@ -25,11 +24,9 @@ data:
       url_shortener: true
       expense_tracker: true
 
-    # Family members
     family_members:
       - "Family"
 
-    # Reminders configuration
     reminders:
       time_format: "24h"
       calendar_start_day: "monday"
@@ -47,7 +44,6 @@ data:
           label: "Bills"
           color: "#F59E0B"
 
-    # Theme customization
     theme:
       primary_color: "#1d4ed8"
       secondary_color: "#a0aec0"
