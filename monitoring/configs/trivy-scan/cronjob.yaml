@@ -35,7 +35,7 @@ spec:
             # container. rancher/kubectl is shell-less (scratch-style, no way to
             # redirect to a file) — rancher/shell = bash + kubectl, k3s ecosystem.
             - name: list-images
-              image: rancher/shell:v0.8.0
+              image: rancher/shell:v7.0.0
               command: ["/bin/bash", "-c"]
               # pipefail + non-empty guard: a kubectl/RBAC failure must fail the
               # init container, not hand trivy an empty list (silent zero-image
