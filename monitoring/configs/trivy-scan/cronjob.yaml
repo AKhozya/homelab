@@ -94,6 +94,12 @@ spec:
               env:
                 - name: TRIVY_CACHE_DIR
                   value: /tmp/trivy-cache
+                # Authenticated Docker Hub pulls (200/6h vs 100 anonymous per node
+                # IP; ~40 of ~80 cluster images are docker.io). config.json keychain
+                # scopes the credential to index.docker.io only — TRIVY_USERNAME env
+                # would send it to every registry.
+                - name: DOCKER_CONFIG
+                  value: /etc/docker-cfg
               securityContext:
                 runAsNonRoot: true
                 runAsUser: 65534
@@ -114,6 +120,9 @@ spec:
                   mountPath: /work
                 - name: tmp
                   mountPath: /tmp
+                - name: dockerhub-config
+                  mountPath: /etc/docker-cfg
+                  readOnly: true
           volumes:
             - name: work
               emptyDir:
@@ -122,3 +131,6 @@ spec:
             - name: tmp
               emptyDir:
                 sizeLimit: 5Gi
+            - name: dockerhub-config
+              secret:
+                secretName: trivy-dockerhub

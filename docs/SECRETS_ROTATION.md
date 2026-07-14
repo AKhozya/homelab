@@ -31,6 +31,7 @@ cert-manager).
 | `paperless-db-password` | Paperless-NGX | 2026-04-02 | 2026-10-01 | Medium |
 | `authentik-db-password` | Authentik | 2026-04-02 | 2026-10-01 | Critical |
 | `blocky-db-user` | Blocky (queryLog) | 2026-06-05 | 2026-12-05 | Low |
+| `trivy-dockerhub` | trivy-scan CronJob (Docker Hub read-only PAT, 1Password `docker_hub_ro`; PAT non-expiring — revoke+reissue) | 2026-07-14 | 2027-07-14 | Low |
 | `grafana-db-password` | Grafana | N/A (SQLite) | N/A | N/A |
 | `audiobookshelf-db-password` | Audiobookshelf | N/A (SQLite) | N/A | N/A |
 
