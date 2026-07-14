@@ -74,7 +74,7 @@ spec:
                   mountPath: /tmp
           containers:
             - name: trivy
-              image: aquasec/trivy:0.71.1
+              image: aquasec/trivy:0.72.0
               command: ["/bin/sh", "-c"]
               args:
                 - |
