@@ -23,7 +23,7 @@ spec:
     - name: exclude-namespaces
       expression: >-
         !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
-        'flux-system', 'kyverno', 'databases', 'immich', 'percona-mysql'])
+        'flux-system', 'kyverno', 'databases', 'percona-mysql'])
     - name: exclude-loki-alloy
       expression: >-
         !(request.namespace == 'loki' &&

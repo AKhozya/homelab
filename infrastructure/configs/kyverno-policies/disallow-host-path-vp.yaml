@@ -19,7 +19,8 @@ spec:
         operations: ["CREATE", "UPDATE"]
         resources: ["pods"]
   matchConditions:
-    # immich: GPU hardware transcoding requires /dev/dri hostPath.
+    # immich: photo library hostPath (/var/lib/immich-library, NAS virtiofs) on the
+    # immich-vm server pod. (GPU is now the device-plugin, no /dev/dri hostPath.)
     # backup-replication: needs access to host backup directory.
     - name: exclude-namespaces
       expression: >-
