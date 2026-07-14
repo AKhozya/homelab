@@ -17,6 +17,14 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-14 — trivy-scan hardening: scan timeout, Docker Hub auth (PAT incident), schedule shift
+
+Three follow-up commits after the smoke runs, plus one security incident:
+- **`--timeout 15m`** (`6599bb05`): smoke1 scanned all 81 images but 3 FATAL'd on trivy's default 5m per-scan timeout mid-layer-analysis (scipy/prisma `.so`-heavy layers) — exit 1 by design (partial failure fails the Job).
+- **Docker Hub auth** (`c8ffb596` + `ca2fce4a`): ~40/81 images are docker.io; anonymous 100 manifest-pulls/6h/IP is borderline monthly. SOPS `trivy-dockerhub` Secret (dockerconfig scoped to `index.docker.io` via `DOCKER_CONFIG` — not the unscoped `TRIVY_USERNAME`), annual slot in SECRETS_ROTATION. **Gotcha:** first cut had an empty username (`:token`) because the 1Password field was blank — docker's config parser rejects the whole file ("invalid auth configuration file"), killing even anonymous mirror.gcr.io DB pulls; smoke2 failed 81/81 in seconds. **Incident:** during diagnosis the first PAT leaked into the agent transcript via a redaction regex that assumed non-empty username — token revoked + reissued same hour; regenerated secret ships with non-empty-username + rotated-prefix guards.
+- **Schedule 04:00→08:00 UTC on the 1st** (`bb0b4621`): 04:00 collided with the node security scan (1st 04:00) and, when the 1st is a Saturday, the weekly upgrade+rolling-reboot window (Sat 04:30) would kill the scan mid-run. Review-night manual run + Saturday caveat codified in `homelab-monthly-review`.
+- **Proof + closure:** smoke3 Complete 81/81 in 11min (authenticated); output verified queryable in Loki (`{namespace="trivy-scan"}`); user deleted the 12 orphaned `aquasecurity.github.io` CRDs (cascaded all 88 reports) — teardown fully closed.
+
 ### 2026-07-14 — kube-prometheus-stack upgrades wedged by Kyverno vs chart hook Jobs (fixed)
 
 Post-trivy-teardown audit found the kube-prometheus-stack HelmRelease Stalled: the chart's pre-upgrade admission-webhook cert patch Jobs carry no resource limits, so `require-resource-limits` denied them at admission — 87.15.2 and then 87.16.0 (Renovate #920/#923) both failed 4 upgrade attempts and auto-rolled back to 87.15.1. First chart-hook denial since the VP migration (same first-X-since-VP class as the trivy-scan namespace bootstrap below). Side effect: the trivy Alertmanager cleanup (telegram-digest removal) was silently held back with the stalled release. Fix: `prometheusOperator.admissionWebhooks.patch.resources` (10m/32Mi → 100m/64Mi) in release.yaml values; verified via `helm template 87.16.0` that the hook Job renders with limits. Invariant added to `.claude/review-invariants.md` (chart-bump reviewer check: hook Jobs need limits via values).

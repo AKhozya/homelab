@@ -46,7 +46,7 @@ All 4 HelmReleases: `driftDetection: {mode: enabled}`; explicit `timeout: 10m` o
 - `docker.io/grafana/loki:3.6.7` + `grafana/loki-canary:3.6.7`
 - `docker.io/grafana/alloy:v1.16.1`
 - `derailed/popeye:v0.22.1`
-- `aquasec/trivy:0.71.1` + `rancher/shell:v0.8.0` (trivy-scan CronJob: scanner + kubectl image-inventory init)
+- `aquasec/trivy` + `rancher/shell` (trivy-scan CronJob: scanner + kubectl image-inventory init; pins renovate-managed — see `monitoring/configs/trivy-scan/cronjob.yaml`)
 
 ## ⚠️ Prometheus converter DISABLED
 Operator helm values: `operator.disable_prometheus_converter: true` + `enable_converter_ownership: false`. **PrometheusRule and ServiceMonitor are silently ignored.** Always use native VMRule + VMServiceScrape directly.
