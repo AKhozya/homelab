@@ -9,7 +9,11 @@ metadata:
   name: trivy-scan
   namespace: trivy-scan
 spec:
-  schedule: "0 4 1 * *"  # Monthly on the 1st at 04:00 UTC
+  # Monthly on the 1st at 08:00 UTC. NOT 04:00: the node security scan runs
+  # 1st 04:00 and the weekly upgrade+rolling-reboot window is Sat 04:30 UTC —
+  # when the 1st lands on a Saturday a 04:00 start gets its ~2h scan pod
+  # killed mid-run by the reboot cascade. 08:00 clears both.
+  schedule: "0 8 1 * *"
   timeZone: "UTC"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1

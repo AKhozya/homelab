@@ -21,7 +21,7 @@ VictoriaMetrics primary stack. NO Prometheus pod (only operator chart kept for g
 | `alloy` | DS (`loki` ns) | Log collector → Loki |
 | `loki-canary` | DS (`loki` ns) | Loki ingest/query health probe |
 | `popeye` | CronJob (`popeye` ns) | Cluster sanitizer scan, weekly Sun 06:00 UTC (`monitoring/controllers/popeye/`) |
-| `trivy-scan` | CronJob (`trivy-scan` ns) | Image-CVE scan of all running images, monthly 1st 04:00 UTC, table to stdout/Loki (`monitoring/configs/trivy-scan/`) — replaced trivy-operator 2026-07-14 |
+| `trivy-scan` | CronJob (`trivy-scan` ns) | Image-CVE scan of all running images, monthly 1st 08:00 UTC, table to stdout/Loki (`monitoring/configs/trivy-scan/`) — replaced trivy-operator 2026-07-14 |
 
 ## Helm chart versions
 | Chart | Version | Notes |
