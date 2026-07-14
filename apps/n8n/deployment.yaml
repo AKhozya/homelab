@@ -70,7 +70,7 @@ spec:
               drop: ["ALL"]
       containers:
         - name: n8n
-          image: n8nio/n8n:2.29.10
+          image: n8nio/n8n:2.30.4
           ports:
             - containerPort: 5678
               name: http
