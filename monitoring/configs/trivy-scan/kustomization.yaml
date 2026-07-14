@@ -5,4 +5,6 @@ resources:
   - serviceaccount.yaml
   - rbac.yaml
   - networkpolicy.yaml
-  - cronjob.yaml
+  # cronjob.yaml lands in the follow-up commit: Kyverno require-networkpolicy
+  # evaluates during Flux's server-side dry-run, where this namespace + NP don't
+  # exist yet — bootstrap a new namespace in two commits (ns+NP first, workload second)
