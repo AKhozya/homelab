@@ -78,6 +78,8 @@ spec:
               command: ["/bin/sh", "-c"]
               args:
                 - |
+                  # --timeout 15m: trivy default 5m FATALs mid-analysis on large
+                  # layers (smoke 2026-07-14: 3/81 images, scipy/prisma .so files)
                   rc=0
                   total=$(wc -l < /work/images.txt)
                   n=0
@@ -85,7 +87,8 @@ spec:
                     n=$((n + 1))
                     echo "=== [${n}/${total}] ${img} ==="
                     trivy image --scanners vuln --severity CRITICAL,HIGH \
-                      --ignore-unfixed --format table --quiet "${img}" || rc=1
+                      --ignore-unfixed --format table --quiet \
+                      --timeout 15m "${img}" || rc=1
                   done < /work/images.txt
                   exit "${rc}"
               env:
