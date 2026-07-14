@@ -2,9 +2,9 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: immich-backup
-  # backup-replication ns (NOT kube-system): post-cutover the library lives on the
-  # NAS, so this job must pull it over the NAS rsync daemon. Running here reuses the
-  # existing nas-rsync-credentials secret + the ns-wide egress NetworkPolicy
+  # backup-replication ns (NOT kube-system): the library lives on the NAS, so this
+  # job pulls it over the NAS rsync daemon. Running here reuses the existing
+  # nas-rsync-credentials secret + the ns-wide egress NetworkPolicy
   # (podSelector:{}, :50555 allowed) + known-hosts — no duplicated secret, no new NP.
   namespace: backup-replication
 spec:

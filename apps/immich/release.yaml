@@ -178,12 +178,10 @@ spec:
       persistence:
         library:
           # existingClaim is schema-required (the chart won't auto-create the library
-          # volume) but is OVERRIDDEN by the postRenderer, which replaces volume[0]
-          # (name=data) PVC→hostPath /var/lib/immich-library (NAS virtiofs). The
-          # immich-library PVC was decommissioned 2026-07-14 (library lives on the NAS);
-          # this value is now inert schema filler — the named claim no longer exists and
-          # is never mounted (postRenderer strips it). Keep it: dropping it changes the
-          # persistence shape and the postRenderer patches volume[0] by index.
+          # volume) but the postRenderer replaces volume[0] with the NAS hostPath
+          # (/var/lib/immich-library) — so this claim is never created or mounted.
+          # Keep it: dropping it changes the persistence shape, and the postRenderer
+          # patches volume[0] by index.
           existingClaim: immich-library
 
     # Disable built-in Valkey (using external Redis)
@@ -279,8 +277,8 @@ spec:
                 pullPolicy: IfNotPresent
               env:
                 # Hardware acceleration on the immich-vm Intel iGPU. accel (QSV) is set in
-                # the admin UI ffmpeg settings post-cutover. iHD = Intel media driver (was
-                # radeonsi for AMD on W1). Spike-proven: hevc_qsv 25.3x, non-privileged.
+                # the admin UI ffmpeg settings. iHD = Intel media driver. Spike-proven:
+                # hevc_qsv 25.3x, non-privileged.
                 LIBVA_DRIVER_NAME: iHD
               resources:
                 requests:

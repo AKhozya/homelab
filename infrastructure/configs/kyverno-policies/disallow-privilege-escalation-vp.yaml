@@ -21,8 +21,6 @@ spec:
   matchConditions:
     # databases: operator/CRD/Helm pods (redis-operator, redis CRD, couchdb, Percona
     # main-mysql) — spec not editable. percona-mysql: ps-operator-managed spec.
-    # (immich removed 2026-07-14: Path-B server is non-privileged via the GPU
-    # device-plugin; all immich-ns pods now set allowPrivilegeEscalation=false.)
     - name: exclude-namespaces
       expression: >-
         !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',

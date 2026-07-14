@@ -321,7 +321,7 @@ tar -xzf $LATEST_PVC/home-assistant/home-assistant-data-pvc.tar.gz \
 kubectl scale deployment/home-assistant -n home-assistant --replicas=1
 
 # Repeat: paperless-ngx, audiobookshelf
-# Note: Immich photos excluded from PVC backups (re-upload from source)
+# Note: Immich photos excluded from PVC backups — backed up by the weekly immich-backup CronJob (W2 tar + NAS akhozya-pool1 pool)
 ```
 
 #### Step 8: Verify Applications
