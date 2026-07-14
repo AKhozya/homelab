@@ -94,7 +94,7 @@ Files saved to `.backup/secrets/` (gitignored)
 - **CouchDB:** Daily 3:05 AM → `/mnt/k8s-storage/backups/couchdb/` (30 day retention)
 - **MySQL:** Daily 3:15 AM → `/mnt/k8s-storage/backups/mysql/` (30 day retention)
 - **Critical PVCs:** Daily 3:10 AM → `/mnt/k8s-storage/backups/pvc/` (30 day retention, bumped from 7d on 2026-05-22)
-- **Immich library:** Weekly Sunday 3:00 AM — `immich-backup` (`backup-replication` ns) on **worker-node-2** pulls the NAS-resident library (rsync `personal_folder`) → tar+sha on W2 (`/mnt/extra-storage/immich-backup/`) + push to NAS `akhozya-pool1` pool = 2 copies, keep-2 each (~61G uncompressed)
+- **Immich library:** Weekly Sunday 3:00 AM — `immich-backup` (`backup-replication` ns) on **worker-node-2** pulls the NAS-resident library (rsync `personal_folder`) → tar+sha on W2 (`/mnt/extra-storage/immich-backup/`) + push to NAS `akhozya-pool1` pool = 2 copies, keep-2 each (~61G uncompressed). Restore: `docs/BACKUP_STRATEGY.md` §5 (extract in-place onto the NAS — virtiofs inode gotcha).
 - **Backup Replication:** Daily 3:30 AM → NAS (30d daily / keep-2 immich, Step 5b prune) + worker-node-2 (today only via `--delete`)
 
 **Details:** `docs/BACKUP_STRATEGY.md`

@@ -256,7 +256,61 @@ kubectl exec -n databases main-mysql-mysql-0 -- \
 
 ---
 
-### 5. Backup Replication to NAS + worker-node-2
+### 5. Immich Library
+
+**File:** `infrastructure/configs/backup/immich-backup-cronjob.yaml`
+
+**Implementation:**
+- Weekly CronJob Sunday 03:00 UTC, `backup-replication` ns, on **worker-node-2**.
+- Pulls the live NAS library (`personal_folder` rsync module) → uncompressed `tar` + SHA256 on a W2 hostPath (`/mnt/extra-storage/immich-backup/<ts>/`) → pushes to the NAS `akhozya-pool1` pool (`backups/homelab/immich/<ts>/`). **Two physical copies** on different filesystems (W2 node + NAS pool), keep-2 each.
+- The library is NAS-resident (virtiofs hostPath into `immich-vm`, container `/data`) — there is no immich-library PVC (decommissioned 2026-07-14). So a restore writes onto the NAS, not into a PVC.
+
+**Restore procedure** (library lost/corrupt → restore onto the NAS):
+```bash
+# 0) Pick a source tar + verify. The NAS pool is reachable from your workstation over
+#    the rsync daemon; the W2 copy (/mnt/extra-storage/immich-backup/<ts>/) is identical
+#    if you prefer restoring from the node instead.
+NAS=192.168.1.136
+RU=$(kubectl get secret -n backup-replication nas-rsync-credentials -o jsonpath='{.data.rsync-user}' | base64 -d)
+RP=$(kubectl get secret -n backup-replication nas-rsync-credentials -o jsonpath='{.data.rsync-password}' | base64 -d)
+# list available backups (newest last), then pick one:
+RSYNC_PASSWORD="$RP" rsync --port=50555 --list-only "rsync://${RU}@${NAS}/akhozya-pool1/backups/homelab/immich/"
+TS=20260714_100910   # <-- the dir you picked
+
+# 1) Fence writes, then WAIT for the server pod to actually terminate — `scale` is async,
+#    and a still-running pod would write into a half-restored tree.
+kubectl -n immich scale deploy/immich-server --replicas=0
+kubectl -n immich wait --for=delete pod \
+  -l app.kubernetes.io/instance=immich,app.kubernetes.io/name=server --timeout=120s
+
+# 2) On the NAS (akhozya owns /home/akhozya): verify SHA, THEN clear + extract — all in ONE
+#    guarded chain (`set -e` + `&&`) so a failed verify (or unset $TS) never reaches the
+#    delete. The tar's top level is the library's own subdirs (library/ thumbs/
+#    encoded-video/ upload/ profile/), so extract -C the library dir. `-mindepth 1 -delete`
+#    clears contents INCLUDING dotfiles (immich's .immich markers) while preserving the dir
+#    inode (see gotcha). ${TS:?} aborts locally if you forgot to set TS.
+POOL="/zettos/pool/1/teams/akhozya-pool1/DATA/akhozya-pool1/backups/homelab/immich/${TS:?set TS to the chosen backup dir first}" && \
+ssh zl-nas "set -e; cd '$POOL' && sha256sum -c immich-library.tar.sha256 && \
+            find /home/akhozya/immich/library -mindepth 1 -delete && \
+            tar -xf '$POOL/immich-library.tar' -C /home/akhozya/immich/library"
+
+# 3) Fix perms: the library subtrees are setgid group-writable (drwxrwsr-x) so the
+#    server pod (runAsGroup 1000 = group zettos-admins) can write.
+ssh zl-nas "chgrp -R zettos-admins /home/akhozya/immich/library && \
+            find /home/akhozya/immich/library -type d -exec chmod 2775 {} +"
+
+# 4) Bring immich back up, then verify the mount + DB↔disk.
+kubectl -n immich scale deploy/immich-server --replicas=1
+kubectl -n immich exec deploy/immich-server -- sh -c 'ls /data/library >/dev/null && echo "library mounted"'
+```
+
+**Gotchas:**
+- **virtiofs is inode-bound.** `immich-vm` holds the fd to the library dir's inode, so extract IN-PLACE (clear contents with `find library -mindepth 1 -delete`, then `tar -x -C library/`) — the inode is unchanged and the guest sees the new content immediately. If you instead SWAP the dir (`mv library library.bad; mv library.new library`), the guest keeps seeing the OLD (empty) inode until a **VM cold-cycle**: graceful `virsh shutdown --mode acpi` → `virsh start`. NEVER `virsh reboot`/`reset`/`destroy` — the GPU reset-bug crashes the NAS host.
+- Fence first (step 1): skipping it lets immich write thumbnails/uploads mid-restore.
+
+---
+
+### 6. Backup Replication to NAS + worker-node-2
 
 **File:** `infrastructure/configs/backup-replication/cronjob.yaml`
 
