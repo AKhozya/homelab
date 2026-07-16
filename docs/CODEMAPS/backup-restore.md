@@ -1,127 +1,92 @@
 # Backup / Restore Codemap
 
-## Backup Layers
+## Backup layers
 
 | Layer | What | Schedule (UTC) | Auto-discover |
 |-------|------|----------------|---------------|
-| **PG logical** | `pg_dump -F c` per DB (CNPG) | 03:00 daily | YES (`pg_database` query) |
+| **PG logical** | `pg_dump -F c` per DB (CNPG) | 03:00 daily | YES (`pg_database`) |
 | **CouchDB logical** | `@cloudant/couchbackup` per DB | 03:05 daily | YES (`/_all_dbs`) |
-| **PVC tarballs** | Filesystem snapshots of stateful PVCs | 03:10 daily | NO (CRITICAL_PVCS list) |
-| **MySQL logical** | `mysqldump --single-transaction` per DB (Percona via HAProxy) | 03:15 daily | YES (`SHOW DATABASES`) |
-| **PG streaming replication** | CNPG 2-instance streaming — HA only, NOT a backup layer (no WAL archiving/PITR by decision) | continuous | n/a |
-| **Immich library** | Uncompressed tar of the ~61G **NAS-resident** library — `immich-backup` CronJob on **W2** pulls it via the NAS `personal_folder` rsync module, tars locally, pushes to the NAS `akhozya-pool1` pool | Sunday 03:00 weekly | keep-2 on both W2 + NAS pool |
+| **PVC tarballs** | Filesystem snapshots of stateful PVCs | 03:10 daily | NO — CRITICAL_PVCS list in `infrastructure/configs/backup/pvc-backup-cronjob.yaml` |
+| **MySQL logical** | `mysqldump --single-transaction` per DB (via HAProxy) | 03:15 daily | YES (`SHOW DATABASES`) |
+| **PG streaming replication** | CNPG 2-instance — HA only, NOT a backup layer (no WAL/PITR by decision) | continuous | n/a |
+| **Immich library** | Uncompressed tar of the NAS-resident library — `immich-backup` CronJob on **W2** pulls via the NAS `personal_folder` rsync module, tars locally, pushes to the NAS `akhozya-pool1` pool | Sun 03:00 weekly | keep-2 on both W2 + NAS pool |
 | **Replication** | rsync fan-out from W1: → W2 (safety net) AND → NAS + validation + retention prune | 03:30 daily | n/a (path-agnostic) |
-| **SOPS Secrets** | Encrypted in git | every commit | n/a (file-based) |
-| **Disaster recovery scripts** | `.backup/secrets-{backup,restore}.sh` | manual | partial (explicit list) |
+| **SOPS Secrets** | Encrypted in git | every commit | n/a |
+| **DR scripts** | `.backup/secrets-{backup,restore}.sh` | manual | partial (explicit list) |
 
-Namespaces: PG/MySQL/CouchDB cronjobs in `databases`; PVC cronjob in `kube-system`; `immich-backup` + replication in `backup-replication` (immich-backup moved there 2026-07-14 to reuse the NAS rsync creds + egress NP).
+Namespaces: PG/MySQL/CouchDB CronJobs in `databases`; PVC CronJob in `kube-system`; `immich-backup` + replication in `backup-replication` (immich shares the NAS rsync creds + egress NP there). All backup CronJobs: `startingDeadlineSeconds: 600` + `backoffLimit: 2` (couchdb keeps `backoffLimit: 6`).
 
-All 6 backup CronJobs: `startingDeadlineSeconds: 600` + `backoffLimit: 2` (couchdb keeps `backoffLimit: 6`) — Wave 10 hardening `d8ef6891` 2026-05-24.
+## PVC backup
+Whitelist (CRITICAL_PVCS) + `nodeSelector: worker-node` + `hostPath /mnt/k8s-storage/backups/pvc`: `infrastructure/configs/backup/pvc-backup-cronjob.yaml`. Compression gzip, except `audiobookshelf-{audiobooks,podcasts}` = uncompressed tar (already-compressed media). Retention 30 days local (matches NAS).
 
-## PVC Backup CRITICAL_PVCS list
-Source: `infrastructure/configs/backup/pvc-backup-cronjob.yaml` (13 entries, 10 apps — updated 2026-05-22).
-- `home-assistant/home-assistant-data-pvc`
-- `paperless-ngx/paperless-data-pvc`
-- `audiobookshelf/audiobookshelf-audiobooks`
-- `audiobookshelf/audiobookshelf-podcasts`
-- `audiobookshelf/audiobookshelf-config`
-- `audiobookshelf/audiobookshelf-metadata`
-- `homehub/homehub-data-pvc`
-- `stirling-pdf/stirling-pdf-configs-pvc`
-- `linkwarden/linkwarden-data`
-- `linkwarden/meilisearch-data`
-- `pricebuddy/pricebuddy-storage`
-- `mealie/mealie-data-pvc`
-- `n8n/n8n-data-pvc`
-
-**Compression:** gzip default; `audiobookshelf-{audiobooks,podcasts}` = uncompressed tar (already-compressed media).
-**Retention:** 30 days W1 local (matches NAS, set 2026-05-22; was 7d prior).
-**Storage:** `hostPath /mnt/k8s-storage/backups/pvc` (worker-node), `nodeSelector: worker-node`.
-
-**Excluded by design (audit 2026-05-22):**
-- `immich/immich-library` — **decommissioned 2026-07-14**; the ~61G library is NAS-resident (virtiofs), backed up by the W2-producer `immich-backup` weekly CronJob (keep-2 on W2 + NAS pool)
-- `immich/immich-machine-learning` — regenerable ML cache
-- `uptime-kuma/uptime-kuma-data-pvc` — UK switched to emptyDir, state in MySQL (removed from whitelist 2026-05-22)
+**Excluded by design** (the *why* matters — re-justify before re-adding):
+- `immich/immich-machine-learning` — regenerable ML cache (library PVC gone — NAS-resident since the Path-B cutover, covered by the weekly W2 job above)
+- `uptime-kuma` — emptyDir, state in MySQL
 - `claude-telegram/claude-telegram-home-pvc` — session-only state, bot rebuilds on restart
 - `loki/storage-loki-0`, `monitoring/vmsingle-vmsingle` — log/metric buffers, ephemeral
 - `stirling-pdf/stirling-pdf-{pipeline,tessdata}-pvc` — runtime + downloadable model data
-- Redis HA PVCs — cache + queue/broker only (DB0 = BullMQ/Celery/Django sessions, DB1 = TTL'd cache); see BACKUP_STRATEGY.md § "What's NOT backed up"
+- Redis HA PVCs — cache + queue/broker only (DB0 = BullMQ/Celery/Django sessions, DB1 = TTL'd cache)
 - Blocky — no PVC; config in Secret, query log in PG `blocky` DB
 
 ## Replication topology
-Source: `infrastructure/configs/backup-replication/cronjob.yaml` (script inline in CronJob; SSH key + NAS rsync creds + Telegram = SOPS secrets alongside).
-```
-W1 PVCs/backups (source: /mnt/k8s-storage/backups) — FAN-OUT, both syncs from W1:
-  ├─ rsync --delete (SSH port 65300, key-based)
+Source: `infrastructure/configs/backup-replication/cronjob.yaml` (script inline; SSH key + NAS rsync creds + Telegram = SOPS secrets alongside).
+```text
+W1 /mnt/k8s-storage/backups — FAN-OUT, both syncs from W1:
+  ├─ rsync --delete (SSH :65300, key-based)
   │    → W2 /mnt/extra-storage/backups (z3us@192.168.1.126) — today only, safety net
-  └─ rsync (no --delete) port 50555 (rsync daemon)
-       → NAS Zettlab 6 Ultra (192.168.1.136, /akhozya-pool1/backups/homelab/)
-         30-day history; 500GB hard limit (warn 400GB / crit 450GB)
+  └─ rsync (no --delete) :50555 (rsync daemon)
+       → NAS (192.168.1.136, /akhozya-pool1/backups/homelab/) — 30-day history; 500GB cap (warn 400 / crit 450)
 ```
-After NAS push: validate (4 types: postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then **clean source on W1** (immich is no longer a W1 source since 2026-07-14 — it is produced on W2 and pushed straight to the NAS pool). Worker-2 still in chain (verified 2026-06-05, pending) — drop W2 replication step **~2026-07-20**; temp safety net removal **~2026-07-22** (postponed 2026-05-22 +2mo).
+After NAS push: validate (postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then clean source on W1. Immich is not a W1 source — produced on W2, pushed straight to the NAS pool. W2-step removal deadline: HOMELAB_ANALYSIS.md.
 
-**Retention enforcement (Step 5b, set 2026-05-22):** NAS prune runs after validate + clean source.
-- **30d for postgres/mysql/couchdb** — `prune_nas_file()`: file-prune via rsync filter `--include=<file> --include=<file>.sha256 --exclude='*'` against empty source. Targets `<cat>/<cat>_YYYYMMDD_HHMMSS.tar.gz` pattern with date > 30d threshold.
-- **30d for pvc dirs** — `prune_nas_dir()`: rsync `-r --delete` from empty dir to target subpath; clears contents of >30d-old `pvc/YYYYMMDD_HHMMSS/` dirs.
-- **keep-2 for immich** — sort `immich/YYYYMMDD_HHMMSS/` dirs descending, prune all but newest 2 via `prune_nas_dir`.
-- Soft-fail (`|| true`) on rsync errors so prune issues don't break replication; manual NAS UI prune is fallback.
-- Triple-safe against immich data loss: file-prune regex requires single `/` + DB-category allow-list (immich path has two `/`s and isn't in `(postgres|mysql|couchdb)`).
+**Retention prune (after validate + clean):**
+- 30d postgres/mysql/couchdb — `prune_nas_file()`: rsync include-filter file-prune against empty source, targets `<cat>/<cat>_YYYYMMDD_HHMMSS.tar.gz` older than 30d
+- 30d pvc dirs — `prune_nas_dir()`: rsync `-r --delete` from empty dir into `pvc/YYYYMMDD_HHMMSS/` subpaths older than 30d
+- keep-2 immich — sort `immich/YYYYMMDD_HHMMSS/` descending, prune all but newest 2
+- Soft-fail (`|| true`) on rsync errors so prune issues don't break replication; NAS UI prune is the fallback
+- Triple-safe against immich loss: file-prune regex requires a single `/` + DB-category allow-list (immich paths have two `/`s and aren't in `(postgres|mysql|couchdb)`)
 
-Failure handling: trap on EXIT sends Telegram failure with `CURRENT_STEP` label; success path is silent (no Telegram on OK).
+Failure handling: trap on EXIT sends Telegram with `CURRENT_STEP`; success is silent.
 
 ## NAS quirks
 - Rsync daemon (no SSH); auth via `RSYNC_PASSWORD` env var
-- Replication push step uses no `--delete` (NAS accumulates history); retention via Step 5b prune above
-- NAS module path: `akhozya-pool1/backups/homelab/`
-- Layout: `postgres/`, `mysql/`, `couchdb/` store FLAT files `<cat>_YYYYMMDD_HHMMSS.tar.gz`; `pvc/` and `immich/` store nested DIRS `<cat>/YYYYMMDD_HHMMSS/...` (file-vs-dir distinction matters for prune regex — bug found + fixed 2026-05-22).
+- Push uses no `--delete` (NAS accumulates history); retention only via the prune step
+- Layout: `postgres/`, `mysql/`, `couchdb/` hold FLAT files `<cat>_YYYYMMDD_HHMMSS.tar.gz`; `pvc/` and `immich/` hold nested DIRS — the file-vs-dir distinction is what the prune regex keys on
 
-## DB Backup mechanics
-- **Postgres:** image `postgres:18.4-alpine`, host `main-postgres-rw`, user `postgres-admin`, format custom (`-F c`), excludes `postgres` DB only.
-- **MySQL:** image `mysql:8.4.8` (pinned to 8.4.x for Percona Server 8.4.6, Renovate ignore), host `main-mysql-haproxy:3306`, user `root` (from `mysql-cluster-secrets`), excludes `information_schema`/`mysql`/`performance_schema`/`sys`.
-- **CouchDB:** image `node:24.16.0-alpine`, npm-installs `@cloudant/couchbackup` per run, host `couchdb-couchdb.databases:5984`, has `wait-for-couchdb` initContainer (30 retries × 2s), excludes `_*` system DBs.
-- All 3: tar.gz + SHA256, 30-day retention via `find -mtime +30 -delete`, `successfulJobsHistoryLimit: 7`, `concurrencyPolicy: Forbid`, `nodeSelector: worker-node`, `hostPath /mnt/k8s-storage/backups/<engine>`.
+## DB backup mechanics
+Images pinned in each CronJob manifest (`infrastructure/configs/databases/*/`, `infrastructure/configs/backup/`).
+- **Postgres:** host `main-postgres-rw`, user `postgres-admin`, format custom (`-F c`), excludes only the `postgres` DB
+- **MySQL:** host `main-mysql-haproxy:3306`, user `root` (from `mysql-cluster-secrets`), excludes `information_schema`/`mysql`/`performance_schema`/`sys`; client image pinned to the server's 8.4.x line (Renovate ignore)
+- **CouchDB:** npm-installs `@cloudant/couchbackup` per run, host `couchdb-couchdb.databases:5984`, `wait-for-couchdb` initContainer (30 × 2s), excludes `_*` system DBs
+- All 3: tar.gz + SHA256, 30-day retention (`find -mtime +30 -delete`), `successfulJobsHistoryLimit: 7`, `concurrencyPolicy: Forbid`, `nodeSelector: worker-node`, `hostPath /mnt/k8s-storage/backups/<engine>`
 
-## Disaster Recovery Scripts (`.backup/`)
-**Excluded from git** (`.gitignore`). Force-add when committing edits.
+## DR scripts (`.backup/`)
+**Excluded from git** (`.gitignore`) — force-add when committing edits. Runbook: `.backup/README.md`.
 
-### secrets-backup.sh — covers
-- **CRITICAL:** SOPS age key (gates Flux decrypt of all encrypted secrets)
-- **Cloudflare:** API token (cert-manager), tunnel credentials, tunnel config, **mgmt API token (expiry 2026-12-31)**
-- **Monitoring:** Grafana admin, Alertmanager Telegram, monitoring/`couchdb-couchdb` (VMAgent auth mirror, optional)
-- **DB secrets:**
-  - `redis-passwords` (admin/immich/paperless/blocky) + `redis-acl-secret` (HA Redis, optional)
-  - `postgres-admin-user` + 7 PG app users: authentik, immich, linkwarden, mealie, n8n, paperless, blocky
-  - `mysql-cluster-secrets` (Percona root/repl/xtrabackup) + 2 app creds: uptime-kuma, pricebuddy
-- **App secrets (covered):** authentik, immich (admin + db-password + redis-url), home-assistant (admin + secrets), n8n (env + user), mealie (env + user), paperless-ngx (env), linkwarden + meilisearch, audiobookshelf, uptime-kuma (admin + mysql), stirling-pdf (env + custom-settings), homehub, blocky-config, claude-telegram (env + ssh + chezmoi), pricebuddy (secrets + mysql + telegram), obsidian couchdb-admin/couchdb-credentials, databases/couchdb-couchdb
-- **Backup replication:** SSH key + NAS rsync creds + Telegram (`backup-telegram`)
-- **OIDC:** only `grafana-oidc` standalone; rest embedded in app secrets (paperless/mealie env, HA secrets.yaml, stirling custom-settings, linkwarden main); immich/audiobookshelf store OIDC in internal DB via web UI
+### secrets-backup.sh covers
+- **CRITICAL:** SOPS age key (gates Flux decrypt of everything)
+- **Cloudflare:** API token (cert-manager), tunnel credentials + config, mgmt API token
+- **Monitoring:** Grafana admin, Alertmanager Telegram, VMAgent couchdb auth mirror
+- **DB:** `redis-passwords` + `redis-acl-secret`; `postgres-admin-user` + PG app users (authentik, immich, linkwarden, mealie, n8n, paperless, blocky); `mysql-cluster-secrets` + uptime-kuma, pricebuddy
+- **App secrets:** all apps with secrets (homepage = none by design, config in git ConfigMap)
+- **Backup replication:** SSH key + NAS rsync creds + Telegram
+- **OIDC:** only `grafana-oidc` standalone; rest embedded in app secrets; immich/audiobookshelf store OIDC in their internal DB via web UI
 
-**Coverage check:** 15 of 16 apps mapped to script entries (homepage = no secrets by design, config in git ConfigMap). No app-secret gaps observed (re-verified 2026-06-05).
+New app checklist: add its secrets here or record why not.
 
-### secrets-restore.sh — sequence
+### secrets-restore.sh sequence
 1. Auto-find latest `secrets-backup-*.tar.gz.gpg` → prompt passphrase → decrypt + extract
 2. SOPS age key first (gates encrypted-secret reconciliation)
-3. Cluster-level: cert-manager (Cloudflare API), cloudflare-tunnel (creds + config + mgmt token), flux-system (optional)
+3. Cluster-level: cert-manager, cloudflare-tunnel, flux-system (optional)
 4. Monitoring → databases (Redis + PG users + MySQL) → per-app namespaces
-5. Optional restoration with `[ -f ... ] && kubectl apply` for deprecated/optional secrets
+5. Optional secrets via `[ -f ... ] && kubectl apply`
 6. Idempotent via `kubectl create ns --dry-run=client | apply -f -`
 
 ### Encryption flow
-- GPG AES256 symmetric, passphrase prompted (or `GPG_PASSPHRASE` env)
-- Output: `secrets-backup-YYYYMMDD_HHMMSS.tar.gz.gpg`
-- JSON cleanup pre-encrypt: `jq` strips resourceVersion/uid/creationTimestamp/managedFields
-- Unencrypted dir auto-removed post-encryption
-- Plaintext extracts (`*.txt`) for fast lookup: cloudflare API, grafana admin, telegram bot, redis-immich, redis-blocky
-
-## Decommissioned (no longer in scripts)
-- AdGuard Home (replaced by Blocky)
-- SearXNG (decommissioned)
-- Wallabag, Linkding (replaced by LinkWarden)
-- Authentik Redis (Authentik moved to in-memory cache)
+GPG AES256 symmetric (passphrase prompt or `GPG_PASSPHRASE`); output `secrets-backup-YYYYMMDD_HHMMSS.tar.gz.gpg`; `jq` strips resourceVersion/uid/creationTimestamp/managedFields pre-encrypt; unencrypted dir auto-removed; plaintext `*.txt` extracts for fast lookup (cloudflare API, grafana admin, telegram bot, redis-immich, redis-blocky).
 
 ## Verification
 - Manual run: `kubectl create job -n kube-system --from=cronjob/pvc-backup pvc-backup-manual-$(date +%s)`
-- Last test: 2026-05-22 — full pipeline tested, all 13 PVCs + 4 DB types + immich weekly successful. immich timing: tar 187s + sha256 914s = 18m21s total for 62.5G. Replication w/ heavy prune: 102s including ~450 file deletes + ~50 dir deletes from NAS.
-- Live check 2026-06-05: all 6 CronJobs present, unsuspended, last-schedule on time (dailies ran <11h ago; immich Sunday ran 2026-05-31).
-- Replication validates 4 backup types daily; failure → Telegram with failed step
-- Backup-monitoring Grafana dashboard: `monitoring/configs/grafana-dashboards/backup-monitoring-dashboard.yaml`
+- Full-pipeline drill: `backup-restore-drill` skill. Last full test 2026-05-22 — all PVCs + 4 DB types + immich OK; expectation anchors: immich 62.5G = tar 187s + sha256 914s ≈ 18m; replication with heavy prune ≈ 102s
+- Replication validates 4 backup types daily; failure → Telegram with the failed step
+- Grafana dashboard: `monitoring/configs/grafana-dashboards/backup-monitoring-dashboard.yaml`

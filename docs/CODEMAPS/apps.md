@@ -1,39 +1,41 @@
 # Apps Codemap
 
-16 application stacks. All in flat `apps/<name>/` (single-env; the `base/`+`staging/` overlay split was collapsed 2026-05-29).
+Application stacks, one dir each under `apps/<name>/` (flat, single-env). Image versions: pinned in each app's `deployment.yaml` / `release.yaml`.
 
 | App | NS | Storage | DB | OIDC | External | Notes |
 |-----|-----|---------|-----|------|----------|-------|
-| **homepage** | homepage | configmap | — | — | int | Dashboard (v1.13.1) |
-| **uptime-kuma** | uptime-kuma | PVC | MySQL | — | int | Probes 30+ targets (2.4.0-rootless) |
-| **authentik** | authentik | configmap | PostgreSQL | provider | both | SSO, passkey-first Conditional UI (2026.5.2) |
-| **blocky** | blocky | none (Secret config) | PG `blocky` (query log) + Redis HA db1 | — | LAN DNS :53 | 2 replicas, single LB Service .126+.129 (v0.31.0); LAN clients only — nodes+CoreDNS use public DNS since 2026-06-04 |
-| **stirling-pdf** | stirling-pdf | PVC | — | OIDC | both | PDF tools (2.11.0-fat); 2.10.x ~36% RSS regression resolved at 2.11.0 (back to 2.9.2 baseline) |
-| **homehub** | homehub | PVC | — | — | int | Family dashboard (0.2.3) |
-| **immich** | immich | NAS library (~61G, virtiofs hostPath) | PostgreSQL | OIDC | both | Helm chart `immich` 0.12.0, image v2.7.5; Redis via static master Service; server on `immich-vm` GPU node |
-| **paperless-ngx** | paperless-ngx | PVC | PostgreSQL + Redis HA (static master Service) | OIDC | both | Doc mgmt (2.20.15) |
-| **home-assistant** | home-assistant | PVC | MySQL | OIDC | both | Smart home (2026.6.0) |
-| **linkwarden** | linkwarden | PVC + Meilisearch PVC | PostgreSQL | OIDC | both | Bookmarks (v2.14.1, meilisearch v1.45.2) |
-| **mealie** | mealie | PVC | PostgreSQL | OIDC | both | Recipes (v3.19.2) |
-| **n8n** | n8n | PVC | PostgreSQL | — (native user mgmt) | both | Workflow automation (2.23.3; community edition — SSO is Enterprise-only) |
-| **audiobookshelf** | audiobookshelf | 2 PVCs | sqlite | OIDC | both | Audio library (2.35.1) |
-| **obsidian** | obsidian | — | CouchDB (`databases` ns) | — | both | LiveSync (LAN-only client cert) |
-| **pricebuddy** | pricebuddy | PVC | MySQL | — | int | Price tracking (v1.0.46); sidecars seleniumbase-scrapper :v1.0 (CI image-pin allowlisted — upstream has no patch tags) + apprise v1.5.0 (non-root native since v1.4.x) |
-| **claude-telegram** | claude-telegram | none | — | — | TG only | AI bot (1.25.2); HTTP /trigger loopback hook |
+| **homepage** | homepage | configmap | — | — | int | Dashboard |
+| **uptime-kuma** | uptime-kuma | PVC | MySQL | — | int | Probes 30+ targets; rootless image |
+| **authentik** | authentik | configmap | PostgreSQL | provider | both | SSO; passkey-first Conditional UI; no Redis (in-memory cache) |
+| **blocky** | blocky | none (Secret config) | PG `blocky` (query log) + Redis HA db1 | — | LAN DNS :53 | 2 replicas, single LB Service on W1+W2 IPs; LAN clients only — nodes + CoreDNS use public DNS |
+| **stirling-pdf** | stirling-pdf | PVC | — | OIDC | both | PDF tools; `-fat` image variant |
+| **homehub** | homehub | PVC | — | — | int | Family dashboard |
+| **immich** | immich | NAS library (virtiofs hostPath) | PostgreSQL + Redis (static master Service) | OIDC | both | Helm chart `immich` (`apps/immich/release.yaml`); server pod on `immich-vm` GPU node |
+| **paperless-ngx** | paperless-ngx | PVC | PostgreSQL + Redis (static master Service) | OIDC | both | Doc mgmt |
+| **home-assistant** | home-assistant | PVC | MySQL | OIDC | int | Smart home; not in Cloudflare tunnel config (verified 2026-07-16 from SOPS) |
+| **linkwarden** | linkwarden | PVC + Meilisearch PVC | PostgreSQL | OIDC | both | Bookmarks |
+| **mealie** | mealie | PVC | PostgreSQL | OIDC | both | Recipes |
+| **n8n** | n8n | PVC | PostgreSQL | — (native user mgmt; SSO is Enterprise-only) | both | Workflow automation |
+| **audiobookshelf** | audiobookshelf | 2 PVCs | sqlite | OIDC | both | Audio library |
+| **obsidian** | obsidian | — | CouchDB (`databases` ns) | — | both | LiveSync (LAN-only client cert); external hostname is `couchdb.h0melab.work` |
+| **pricebuddy** | pricebuddy | PVC | MySQL | — | int | Price tracking; sidecars `seleniumbase-scrapper` (CI image-pin allowlisted — upstream has no patch tags) + `apprise` |
+| **claude-telegram** | claude-telegram | none | — | — | TG only | AI bot; HTTP `/trigger` loopback hook |
+
+External = hostname entry in the central Cloudflare tunnel config — see [networking.md](networking.md), never a second Ingress. Grafana (monitoring ns) is also OIDC + dual-ingress — see [monitoring.md](monitoring.md).
 
 ## Key infrastructure namespaces (not "apps")
-- `databases` — CNPG (`main-postgres`), Percona Server for MySQL via ps-operator 1.1.x (`main-mysql` — single-master + replica + HAProxy + 3-node Orchestrator; **not** PXC), CouchDB STS, Redis HA via OT-CONTAINER-KIT operator (RedisReplication 1+1 master/replica + RedisSentinel 3, since 2026-04-26 cutover)
-- `monitoring` — VM stack (vmsingle, vmagent, vmalert), Grafana (PVC, sqlite, OIDC, dual-ingress, monitoring UI), Alertmanager, kube-state-metrics, node-exporter (kube-prometheus-stack chart trimmed — no Prometheus pod)
-- `loki` — Loki helm 7.0.0 + Alloy 1.8.2 (own namespace, not monitoring)
-- `traefik` — ingress controller (own namespace) + shared middleware CRDs
+- `databases` — CNPG (`main-postgres`), Percona Server for MySQL (`main-mysql` — single-master + replica + HAProxy + 3-node Orchestrator; **not** PXC), CouchDB STS, Redis HA (OT-CONTAINER-KIT: RedisReplication 1+1 + RedisSentinel 3). Detail: [databases.md](databases.md)
+- `monitoring` — VM stack (vmsingle, vmagent, vmalert), Grafana (PVC, sqlite, OIDC, dual-ingress), Alertmanager, kube-state-metrics, node-exporter (kube-prometheus-stack chart trimmed — no Prometheus pod)
+- `loki` — Loki + Alloy (own namespace, not monitoring)
+- `traefik` — ingress controller + shared middleware CRDs
 - `cert-manager`, `cloudflare-tunnel`, `kyverno`
-- `backup-replication` — daily rsync to W2 + NAS
-- `popeye` — weekly cluster scan
+- `backup-replication` — daily rsync to W2 + NAS; weekly immich backup
+- `popeye` — weekly cluster scan; `trivy-scan` — monthly image-CVE scan
 
 ## Shared service patterns
-- All app ingress use middleware chain: `traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-{standard|high-frequency}@kubernetescrd,traefik-csp-{inline|permissive}-enforced@kubernetescrd` (middlewares live in `traefik` ns)
-- CSP tiers (enforced per-app 2026-06-04, `c8c5fbaa`+`1d7eb372`+`6eb0aeef`): `csp-inline-enforced` (self + unsafe-inline, no eval) — audiobookshelf, homehub, homepage, mealie, paperless-ngx; `csp-permissive-enforced` (+unsafe-eval, explicit opt-in for eval/wasm) — authentik, home-assistant, immich, linkwarden, n8n, pricebuddy, stirling-pdf, uptime-kuma; `csp-strict-enforced` (self only) — couchdb/Fauxton. Global `csp` default INVERTED to inline tier so new apps can't silently inherit unsafe-eval. report-uri omitted everywhere (csp-reporter was a browser-unreachable cluster-internal sink; deleted 2026-07-03)
-- Rate limits: `rate-limit-standard` 100/min avg, burst 150 (default, incl. paperless-ngx); `rate-limit-high-frequency` 200/min avg, burst 300 (authentik, home-assistant, immich, n8n)
-- Image-pin CI gate: `scripts/ci/image-pin-audit.sh` in validate.yaml enforces `major.minor.patch` on every image (Kyverno only catches `:latest`/no-tag); 2-component allowlist: `postgres*`, `seleniumbase-scrapper`
+- All app ingress use middleware chain: `traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-{standard|high-frequency}@kubernetescrd,traefik-csp-{inline|permissive}-enforced@kubernetescrd` (middlewares in `traefik` ns)
+- CSP tiers (enforced): `csp-inline-enforced` (self + unsafe-inline, no eval) — audiobookshelf, homehub, homepage, mealie, paperless-ngx; `csp-permissive-enforced` (+unsafe-eval, explicit opt-in for eval/wasm) — authentik, home-assistant, immich, linkwarden, n8n, pricebuddy, stirling-pdf, uptime-kuma; `csp-strict-enforced` (self only) — couchdb/Fauxton. Global `csp` default = inline tier so new apps can't silently inherit unsafe-eval. `report-uri` omitted everywhere (a cluster-internal report sink is browser-unreachable) — verify CSP via browser console, not Loki.
+- Rate limits: `rate-limit-standard` 100/min avg, burst 150 (default); `rate-limit-high-frequency` 200/min avg, burst 300 (authentik, home-assistant, immich, n8n)
+- Image-pin CI gate: `scripts/ci/image-pin-audit.sh` in `validate.yaml` enforces `major.minor.patch` on every image (Kyverno only catches `:latest`/no-tag); allowlist inside the script (`postgres*`, `seleniumbase-scrapper`)
 - DB usernames = app name (CNPG `managed.roles` for PG, ACL for Redis, GRANT for MySQL)
-- DB endpoints: `main-postgres-rw-pooler.databases.svc.cluster.local:5432` (PgBouncer), `main-mysql-haproxy.databases.svc.cluster.local:3306` (HAProxy), `redis-replication-master.databases.svc.cluster.local:6379` (static for Paperless/Blocky/Immich)
+- DB endpoints: `main-postgres-rw-pooler.databases.svc.cluster.local:5432` (PgBouncer), `main-mysql-haproxy.databases.svc.cluster.local:3306` (HAProxy), `redis-replication-master.databases.svc.cluster.local:6379` (static master — paperless, blocky, immich)

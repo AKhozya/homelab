@@ -17,6 +17,10 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-16 — CODEMAPS restructure: drift-prone facts removed, content rules added
+
+Fact-check found 17+ stale version pins in the codemaps (immich a full major behind, blocky 2 minors, internal loki contradiction in monitoring.md) plus counts and "Refreshed" headers drifted — hand-copied manifest/live facts were a permanent treadmill. Restructure (Codex-reviewed plan, SHIP-WITH-FIXES): codemaps now carry structure/relations/gotchas only, every fact path-anchored; no versions ("pinned in `<path>`"), no counts (grep or ANALYSIS), no changelog narration. `CODEMAPS/architecture.md` deleted (~80% duplicate of AGENTS.md); unique content moved — named Cloudflare hostname list + coredns `--disable` deadlock → networking.md, SOPS edit pattern + Flux path tree → README index. apps.md fix: home-assistant marked internal-only (absent from tunnel SOPS config; was wrongly "both"). ARCHITECTURE.md:133 fixed — 5 daily backup CronJobs W1-pinned, weekly immich-backup is W2-producer and survives W1 loss (was "all 6 on W1", self-contradicting the T7 entry). Monthly-review skill step 2 rewritten: refresh → verify (no live-fact dump, rule-violation grep). Follow-ups noted: several Helm chart-default images unpinned in git (traefik, CNPG operator, grafana, VM stack, couchdb — escape both the image-pin invariant and CI gate); inert `values.image.tag: v2.7.5` in `apps/immich/release.yaml`.
+
 ### 2026-07-14 — trivy-scan hardening: scan timeout, Docker Hub auth (PAT incident), schedule shift
 
 Three follow-up commits after the smoke runs, plus one security incident:

@@ -130,7 +130,7 @@ Backups: per-engine CronJobs in `infrastructure-configs` → nightly replication
 | Failure | Effect | What still works | Recovery |
 |---|---|---|---|
 | CP node down | Flux reconcile + admission paused; new pods can't schedule | Running pods + Services keep serving (kube-proxy on workers is independent) | Reboot CP; Flux catches up |
-| worker-node (W1) down | **W1 is the state + durability node**: bulk of app PVCs (local-path node-bound; Immich ML PV still here — the server moved to `immich-vm` 2026-07-12), all 6 backup CronJobs (nodeSelector-pinned to W1), and Loki live there → most stateful apps + logs + the entire backup chain down (no failover; local-path is node-bound) | Stateless/other-node workloads; metrics + alerting (on W2); immich-server (on `immich-vm`, minus ML) | Reboot/replace; stateful apps + backups resume when W1 returns |
+| worker-node (W1) down | **W1 is the state + durability node**: bulk of app PVCs (local-path node-bound; Immich ML PV still here — the server moved to `immich-vm` 2026-07-12), the 5 daily backup CronJobs (nodeSelector-pinned to W1), and Loki live there → most stateful apps + logs + the daily backup chain down (no failover; local-path is node-bound; the weekly `immich-backup` — W2-producer since 2026-07-14 — keeps running) | Stateless/other-node workloads; metrics + alerting (on W2); immich-server (on `immich-vm`, minus ML) | Reboot/replace; stateful apps + backups resume when W1 returns |
 | immich-vm down (VM on the NAS) | Immich web/API down (server pod pinned there for GPU) | Everything else; Immich data safe (library on NAS storage, DB on CNPG) | `immich-vm-heal` watchdog `virsh start`s a `shut off` domain; wedges = operator-supervised (never `virsh destroy` — GPU reset-bug) |
 | worker-node-2 (W2) down | **All metrics + alerting blind**: the single VMSingle instance's PV is node-bound to W2. Monitoring is self-blind on its own loss — the Watchdog dead-man alert routes to null, so nothing pages about the blindness | Apps, logs, and backups on W1 unaffected | Reboot/replace; monitoring resumes when W2 returns |
 | Cloudflare edge or tunnel down | Externally-published apps unreachable | LAN access via Traefik fully unaffected | Wait CF; LAN keeps working |
@@ -148,12 +148,12 @@ This is a single-environment cluster — and that environment is **production** 
 
 Called out so they are choices, not accidents:
 
-- **Diagrams are logical, not exhaustive.** Individual apps, NetworkPolicies, and namespaces are not drawn — the [codemaps](CODEMAPS/) and [HOMELAB_ANALYSIS](HOMELAB_ANALYSIS.md) carry the enumeration and counts. This file shows the *pattern*.
+- **Diagrams are logical, not exhaustive.** Individual apps, NetworkPolicies, and namespaces are not drawn — [HOMELAB_ANALYSIS](HOMELAB_ANALYSIS.md) carries the counts, the [codemaps](CODEMAPS/) the structure. This file shows the *pattern*.
 - **No offsite backup (3-2-1 ceiling).** W1, W2, and the NAS share one building, power feed, and LAN — a whole-site event (fire, surge, theft) loses every copy at once. No cloud/offsite copy by choice; accepted risk ceiling.
 - **Monitoring is single-node and self-blind.** One VMSingle instance, PV node-bound to W2 → W2 loss blinds all metrics + alerting, and the Watchdog dead-man alert routes to null, so nothing pages about the blindness. Accepted.
 - **No formal threat model.** Trust boundaries are implicit: LAN is semi-trusted, Cloudflare edge is the only external entry, pod-to-pod is default-deny. A written threat model is not maintained.
 - **No distributed storage / no HA control plane.** Single CP node, node-local PVs. Durability is backup-based (replication chain), not replica-based. A CP outage stops reconciliation until the node returns; running workloads keep serving.
-- **Counts live in other docs.** This file avoids hard numbers that drift; where one appears it is approximate and the codemap/ANALYSIS is authoritative.
+- **Counts live in other docs.** This file avoids hard numbers that drift; where one appears it is approximate and HOMELAB_ANALYSIS is authoritative.
 - **Monitoring + backup internals are summarized.** Full detail in [CODEMAPS/monitoring.md](CODEMAPS/monitoring.md) and [CODEMAPS/backup-restore.md](CODEMAPS/backup-restore.md).
 - **OIDC redirect flow not in the traffic diagram.** SSO apps bounce through Authentik (`/oauth2/*`) on first login; the diagram shows the steady-state request path only.
 - **CNI / kube-proxy / cluster-internal pod networking not drawn.** Pod-to-pod via CoreDNS (`kube-system`) + flannel + ClusterIP DNAT is assumed; the 2026-05-24 ClusterIP wedge incident proves this layer matters operationally even if it's invisible here.
@@ -171,7 +171,7 @@ Called out so they are choices, not accidents:
 |---|---|
 | **ARCHITECTURE.md** (this) | How is it organized and *why* |
 | [HOMELAB_ANALYSIS.md](HOMELAB_ANALYSIS.md) | Current state + open action items (live counts) |
-| [CODEMAPS/](CODEMAPS/) | Refreshed structural snapshots per domain |
+| [CODEMAPS/](CODEMAPS/) | Structural maps per domain — where things live, how they connect |
 | [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md) | Append-only changelog |
 | [.backup/README.md](../.backup/README.md) | DR runbook |
 | [SECRETS_ROTATION.md](SECRETS_ROTATION.md) | Rotation schedule |

@@ -1,97 +1,62 @@
 # Databases Codemap
 
-All in `databases` namespace except CouchDB extras in `obsidian` (client side) and the `ps-operator` MySQL operator in `percona-mysql` ns.
+All in `databases` namespace except the ps-operator (MySQL) in `percona-mysql` ns and obsidian's client-side CouchDB creds. Operators: `infrastructure/controllers/databases/<engine>/`; cluster CRs + config: `infrastructure/configs/databases/<engine>/`. Versions: pinned there.
 
 **HR resilience**: all 4 DB HelmReleases (cnpg-operator, ps-operator, redis-operator, couchdb) set `driftDetection: enabled` + `rollback.cleanupOnFail: true`.
 
+Backup CronJobs (schedules, auto-discovery, mechanics): [backup-restore.md](backup-restore.md).
+
 ## PostgreSQL — CloudNativePG (CNPG)
-- **Operator**: helm `cloudnative-pg` 0.28.2 → controller `cnpg-operator-cloudnative-pg` image `ghcr.io/cloudnative-pg/cloudnative-pg:1.29.1` (2 replicas, hard anti-affinity, in `databases` ns)
-- **Operator placement** (2026-06-05 `47fbf602`): soft nodeAffinity `NotIn worker-node-2` (weight 100) + CP toleration → pair lands CP+W1. Toleration is load-bearing: without it, replicaCount 2 + hard anti-affinity forces one replica onto wn2 (pref = dead config). Why: 2026-06-04 leader on wn2 probed the HEALTHY W1 primary across wn2's flaky VXLAN → spurious failover into the broken node.
-- **Cluster**: `main-postgres` (1 primary + 1 replica on workers, no CP scheduling, hard pod anti-affinity). `failoverDelay: 30` (default 0 = instant) — rides out 1-10s probe blips (the 06-04 spurious-failover class) at the cost of +30s RTO on genuine primary death.
-- **Pods**: `main-postgres-{N}` (sequential numbering, current 11+12 after upgrades)
-- **Storage**: 10Gi PVC per instance (`local-path`)
-- **Connection pooler**: PgBouncer Deployment `main-postgres-rw-pooler` (2 replicas, image `ghcr.io/cloudnative-pg/pgbouncer:1.25.1`)
-- **Backup**: daily logical pg_dump CronJob ONLY (auto-discovers DBs via `pg_database`) — no WAL archiving/PITR by decision; streaming replication = HA, not backup
-- **Versioning**: pinned `ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie`
-- **Managed roles** (in `cluster.yaml` `spec.managed.roles`, 8 total):
-  - `postgres-admin` (superuser, used by backup + extension jobs)
-  - `n8n`, `mealie`, `authentik`, `paperless`, `immich`, `linkwarden`, `blocky` (login + createdb)
+- **Operator**: `cnpg-operator` (2 replicas, hard anti-affinity, `databases` ns; chart in `controllers/databases/postgres/release.yaml`)
+- **Operator placement**: soft nodeAffinity `NotIn worker-node-2` (weight 100) + CP toleration → pair lands CP+W1. Toleration is load-bearing: without it, replicaCount 2 + hard anti-affinity forces one replica onto W2 (preference = dead config). Why: an operator leader on a flaky node once probed the healthy W1 primary across that node's broken VXLAN → spurious failover into the broken node.
+- **Cluster**: `main-postgres` (`configs/databases/postgres/cluster.yaml` — 1 primary + 1 replica on workers, no CP scheduling, hard pod anti-affinity). `failoverDelay: 30` (default 0 = instant) — rides out 1-10s probe blips at the cost of +30s RTO on genuine primary death.
+- **Pods**: `main-postgres-{N}` (sequential numbering climbs across upgrades)
+- **Pooler**: PgBouncer Deployment `main-postgres-rw-pooler` (2 replicas; `configs/databases/postgres/pooler.yaml` — separate CR from the Cluster)
+- **Backup**: daily logical pg_dump ONLY (auto-discovers via `pg_database`) — **no WAL archiving/PITR by decision**; streaming replication = HA, not backup
+- **Managed roles** (`cluster.yaml` `spec.managed.roles`): `postgres-admin` (superuser — backup + extension jobs) + per-app login roles `n8n`, `mealie`, `authentik`, `paperless`, `immich`, `linkwarden`, `blocky`
 - **Reload trigger**: Secret label `cnpg.io/reload: "true"` for password updates (NOT role creation)
 
 ## MySQL — Percona Server for MySQL
-- **Operator**: helm `ps-operator` 1.1.x in `percona-mysql` ns, watches all ns. Image `percona/percona-server-mysql-operator:1.1.0`
-- **Cluster CR**: `ps.percona.com/v1` `PerconaServerMySQL/main-mysql` (clusterType `async`, autoRecovery on)
-- **MySQL pods**: `main-mysql-mysql-{0,1}` (size 2, anti-affinity, 20Gi PVC each). Image `percona/percona-server:8.4.8-8.1`
-- **HAProxy pods**: `main-mysql-haproxy-{0,1}` (size 2, anti-affinity). Image `percona/haproxy:2.8.18`
-- **Orchestrator pods**: `main-mysql-orc-{0,1,2}` (size 3, spread across CP+W1+W2 with CP toleration, async failover quorum). Image `percona/percona-orchestrator:3.2.6-19`
-- **Toolkit sidecar**: `percona/percona-toolkit:3.7.1` in MySQL pods; CR `spec.backup.image` pinned `percona/percona-xtrabackup:8.4.0-5.1` (logical mysql-backup CronJob is the backup of record)
-- **Apps**: `uptimekuma`, `homeassistant`, `pricebuddy` (auto-discovered backup)
-- **Versioning**: regex `^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)(-(?<build>\d+)\.(?<revision>\d+))?$`
+- **Operator**: `ps-operator` in `percona-mysql` ns, watches all ns (`controllers/databases/mysql/helmrelease.yaml`)
+- **Cluster CR**: `ps.percona.com/v1` `PerconaServerMySQL/main-mysql` (`configs/databases/mysql/cluster.yaml` — clusterType `async`, autoRecovery on)
+- **Pods**: `main-mysql-mysql-{0,1}` (anti-affinity), `main-mysql-haproxy-{0,1}`, `main-mysql-orc-{0,1,2}` (spread CP+W1+W2 with CP toleration — async failover quorum)
+- **Apps**: `uptimekuma`, `homeassistant`, `pricebuddy`
 - **Root pwd**: `mysql-cluster-secrets/root` Secret (NOT `main-mysql-secrets`)
 - **Update strategy**: SmartUpdate (replicas first, primary last) — requires orchestrator
 - **Gotcha**: `skip-replica-start` in `[mysqld]` config — operator bug workaround (primary retains stale replica config from PVC, breaks HAProxy health check otherwise)
 
 ## Redis HA — OT-CONTAINER-KIT operator
-- **Operator**: helm `redis-operator` 0.24.0, image `quay.io/opstreelabs/redis-operator:v0.24.0`
-- **RedisReplication CR**: 2 pods (master + replica, anti-affinity'd W1+W2) — image `quay.io/opstree/redis:v8.6.2`
-- **RedisSentinel CR**: 3 sentinels (CP+W1+W2, with CP toleration, quorum 2/3) — image `quay.io/opstree/redis-sentinel:v8.6.2`
-- **Exporter**: `quay.io/opstree/redis-exporter:v1.83.0` per replication pod
-- **Pod label**: `app=redis-replication` and `app=redis-sentinel-sentinel` (NOT `app=redis-sentinel`)
-- **Storage**: 5Gi PVC per replication pod (RDB snapshots, NOT backed up — cache + transient queues)
-- **ACL**: SOPS Secret `redis-acl-secret` mounted at `/etc/redis/user.acl`
-  - Users: `default` (on nopass for liveness), `admin`, `paperless`, `immich`, `blocky`
+- **Operator**: `redis-operator` (`controllers/databases/redis-operator/release.yaml`); CRs in `configs/databases/redis-ha/`
+- **RedisReplication**: 2 pods (master + replica, anti-affinity'd W1+W2); **RedisSentinel**: 3 (CP+W1+W2 with CP toleration, quorum 2/3)
+- **Pod labels**: `app=redis-replication` and `app=redis-sentinel-sentinel` (NOT `app=redis-sentinel`)
+- **Storage**: PVC per replication pod holds RDB snapshots — NOT backed up (cache + transient queues)
+- **ACL**: SOPS Secret `redis-acl-secret` mounted at `/etc/redis/user.acl`; users `default` (on nopass for liveness), `admin`, `paperless`, `immich`, `blocky`
 - **Required config**: `protected-mode no` (nopass + cross-ns access), `readOnlyRootFilesystem: false` (entrypoint writes /etc/redis/redis.conf)
-- **Client modes**:
-  - **Static master Service** (operator-controlled, always correct): paperless, blocky, immich → all connect to `redis-replication-master` (selector `redis-role=master`); operator repoints it on failover so clients follow at the infra layer. immich uses `REDIS_URL=ioredis://<base64-json>` with a plain `{host:redis-replication-master…}` body.
-  - **Sentinel client discovery**: none — immich moved off it 2026-06-28 (`cc5c02a1`; ioredis Sentinel passive detection hung on the half-open dead-master socket after reboot, see HOMELAB_HISTORY)
-- **Failover behavior**: Sentinel elects in ~15s; OT operator restores original topology on master pod recovery → Sentinel may have stale view ~5min until manual reset (documented gotcha)
-- **Schema notes**: v1beta2 has no `spec.kubernetesConfig.serviceType`; sentinel password uses `secretKeyRef` (EnvVarSource) not flat fields
+- **Client mode**: static master Service only — paperless, blocky, immich connect to `redis-replication-master` (selector `redis-role=master`); operator repoints it on failover. immich uses `REDIS_URL=ioredis://<base64-json>` with a plain `{host:redis-replication-master…}` body. No Sentinel client discovery — ioredis Sentinel passive detection hung on a half-open dead-master socket after reboot (see HOMELAB_HISTORY 2026-06-28).
+- **Failover behavior**: Sentinel elects in ~15s; operator restores original topology on master pod recovery → Sentinel may hold a stale view ~5min until manual reset
+- **Schema gotchas**: v1beta2 has no `spec.kubernetesConfig.serviceType`; sentinel password uses `secretKeyRef` (EnvVarSource), not flat fields
 
 ## CouchDB
-- **Chart**: helm `couchdb` 4.6.3 → STS `couchdb-couchdb` (clusterSize 2, image `couchdb:3.5.1`)
-- **Pods**: `couchdb-couchdb-{0,1}` in `databases` ns
-- **Auth**: Basic (admin from `couchdb-credentials` Secret)
-- **Backup**: daily HTTP-based dump CronJob (auto-discovers via `_all_dbs`)
-- **Client (obsidian)**: separate `obsidian/couchdb-credentials` Secret with read-only user
+- **Chart**: `couchdb` → STS `couchdb-couchdb`, pods `couchdb-couchdb-{0,1}` (`configs/databases/couchdb/release.yaml`)
+- **Auth**: Basic (admin from `couchdb-credentials` Secret); obsidian uses a separate read-only `obsidian/couchdb-credentials`
+- **Backup**: daily HTTP dump (auto-discovers via `_all_dbs`)
 
-## Backup CronJobs
-| Job | Namespace | Schedule | Auto-discovers? |
-|-----|-----------|----------|-----------------|
-| `postgres-backup` | databases | 03:00 daily | YES (`pg_database` excluding system) |
-| `couchdb-backup` | databases | 03:05 daily | YES (`_all_dbs`) |
-| `pvc-backup` | kube-system | 03:10 daily | NO — explicit list in CRITICAL_PVCS |
-| `mysql-backup` | databases | 03:15 daily | YES (`SHOW DATABASES` excluding system) |
-| `immich-backup` | backup-replication | Sun 03:00 weekly | NO — W2 pulls the ~61G NAS library (rsync), 2-pass tar+sha256 on W2 + push to NAS `akhozya-pool1` pool, keep-2 each |
-| `backup-replication` | databases | 03:30 daily | NO — rsync flat /mnt/k8s-storage/backups/ |
-| `postgres-update-extensions` | databases | 06:00 weekly Sun | runs `ALTER EXTENSION ... UPDATE` |
-| `popeye` | monitoring | 06:00 weekly Sun | cluster scan |
+## Resources / quotas
+Requests/limits live in each CR/HelmRelease; `databases` ns ResourceQuota in `configs/databases/`. ⚠️ **Tier quotas may block rolling updates** (rollouts need ~2x transiently) — temp-bump the quota if a rollout stalls on `exceeded quota`.
 
-## Database resource sizing
-- **databases ns quota**: 20 CPU lim, 20Gi mem lim, 50 services (bumped Phase 1 for OT operator's 6+3 svc per CR)
-- **PG**: 250m/512Mi req, 1000m/2Gi lim per instance
-- **MySQL (mysqld)**: 100m/768Mi req, 1000m/1536Mi lim per node (innodb buffer pool 256M)
-- **MySQL (HAProxy)**: 50m/64Mi req, 500m/128Mi lim per pod
-- **MySQL (orchestrator)**: 50m/64Mi req, 500m/192Mi lim per pod (bumped 2026-01-11 throttling + 2025-12-30 OOM)
-- **Redis replication**: 50m/128Mi req, 400m/512Mi lim per pod
-- **Redis sentinel**: 10m/32Mi req, 200m/64Mi lim per pod
-- **CNPG operator**: 100m/128Mi req, 500m/512Mi lim
-- **ps-operator**: 50m/128Mi req, 200m/256Mi lim
-- **redis-operator**: 50m/128Mi req, 200m/256Mi lim
+## Scheduling tier
+All data-plane DB pods + all 4 operators run `priorityClassName: homelab-critical`. Field paths differ per engine:
+- **CNPG**: `Cluster.spec.priorityClassName` (instances) + `Pooler.spec.template.spec.priorityClassName` (separate CR — edit both) + operator HR `values.priorityClassName`
+- **Percona**: per-component on the CR — `spec.mysql.priorityClassName`, `spec.orchestrator.priorityClassName`, `spec.proxy.haproxy.priorityClassName` (no top-level field); ps-operator HR needs a `postRenderers` JSON6902 patch (chart omits the template hook)
+- **CouchDB**: chart `values.priorityClassName`
+- **Redis**: `RedisReplication.spec.priorityClassName` + `RedisSentinel.spec.priorityClassName` + operator HR `values.priorityClassName`
 
-## Scheduling tier (fully closed 2026-05-29)
-All data-plane DB pods + all 4 DB operators run at `priorityClassName: homelab-critical` (value=100000):
-- **CNPG** `Cluster.spec.priorityClassName` (instance pods) + `Pooler.spec.template.spec.priorityClassName` (PgBouncer — separate CR, edit both) + cnpg-operator HR `values.priorityClassName`
-- **Percona** per-component on the `PerconaServerMySQL` CR: `spec.mysql.priorityClassName`, `spec.orchestrator.priorityClassName`, `spec.proxy.haproxy.priorityClassName` (no top-level field) + **ps-operator** HR via `postRenderers` JSON6902 (chart 1.1.0 omits priorityClassName template hook — `77e3bb76`)
-- **CouchDB** Helm chart `values.priorityClassName`
-- **Redis** OT operator: `RedisReplication.spec.priorityClassName` + `RedisSentinel.spec.priorityClassName` + redis-operator HR `values.priorityClassName`
+mysql-exporter is `homelab-standard` — not data plane, preempts safely.
 
-mysql-exporter (databases ns) is **standard tier** (`homelab-standard`/50000) — not data plane; preempts safely (`a118d38d`).
+**Restart triggers** (priorityClassName change isn't a rolling-update trigger on every operator):
+- CNPG: `kubectl cnpg restart <cluster>` (replicas) + `kubectl cnpg promote <cluster> <pod>` (primary)
+- Percona: auto-rolls on operator reconcile (SmartUpdate)
+- CouchDB / Redis CRs: operator rolling-update on apply
+- Pooler: `deploymentStrategy: RollingUpdate` auto-handles
 
-**Restart triggers per engine** (priorityClassName change isn't a rolling-update trigger on every operator):
-- CNPG v1.29.x: requires `kubectl cnpg restart <cluster>` (replicas) + `kubectl cnpg promote <cluster> <pod>` (primary).
-- Percona: auto-rolls on operator reconcile (SmartUpdate).
-- CouchDB / Redis CRs: Helm/OT operator handle rolling-update on apply.
-- Pooler: Pooler `deploymentStrategy: RollingUpdate` auto-handles.
-
-**DB primary node-pinning (best-effort, manual):** target = W1 (`worker-node`) — more performant. Pin wraps `kubectl cnpg promote` / orchestrator graceful-takeover / sentinel failover. State 2026-06-05: CNPG + Percona primaries back on W1 after the 06-04 spurious-failover incident; Redis master still `redis-replication-0` on W2 (not yet re-pinned), 3 sentinels quorum OK.
-- ⚠️ **Tier quotas may block rolling updates** (need 2x during rollout). Temp increase quota if a rolling update stalls on `exceeded quota`.
+**DB primary node-pinning** (best-effort, manual): target = W1 (more performant); use the `db-primary-pin` skill (`kubectl cnpg promote` / orchestrator graceful takeover). Redis master is NOT pinnable — operator repairs topology itself.

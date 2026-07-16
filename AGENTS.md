@@ -40,7 +40,7 @@ Concurrent agent sessions share one checkout → silent file stomp. So:
 - `docs/ARCHITECTURE.md` — how it's organized + why (design principles, mermaid diagrams, cut corners). Read first for orientation. Changes only when *design* changes, not counts.
 - `docs/HOMELAB_ANALYSIS.md` — state tracker. Update after meaningful change (PostToolUse hook enforces).
 - `docs/HOMELAB_HISTORY.md` — append-only changelog.
-- `docs/CODEMAPS/` — structural snapshots: [architecture](docs/CODEMAPS/architecture.md), [apps](docs/CODEMAPS/apps.md), [networking](docs/CODEMAPS/networking.md), [databases](docs/CODEMAPS/databases.md), [monitoring](docs/CODEMAPS/monitoring.md), [backup-restore](docs/CODEMAPS/backup-restore.md).
+- `docs/CODEMAPS/` — structural maps ([index + content rules](docs/CODEMAPS/README.md)): [apps](docs/CODEMAPS/apps.md), [networking](docs/CODEMAPS/networking.md), [databases](docs/CODEMAPS/databases.md), [monitoring](docs/CODEMAPS/monitoring.md), [backup-restore](docs/CODEMAPS/backup-restore.md).
 - `.backup/README.md` — DR runbook.
 - `docs/SECRETS_ROTATION.md` — rotation schedule.
 
