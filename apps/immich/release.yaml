@@ -132,12 +132,6 @@ spec:
   # hostPath. Library on the NAS via virtiofs hostPath (postRenderer above). immich ns
   # stays PSS privileged (hostPath library) but the pod is non-root, drop-ALL.
   values:
-    # Global image configuration for Renovate/Dependabot tracking
-    # See: https://github.com/immich-app/immich-charts/issues/68
-    # Kept in sync with the per-component server/machine-learning tags below.
-    image:
-      tag: v2.7.5
-
     # Shared configuration for all Immich components
     controllers:
       main:
