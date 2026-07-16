@@ -273,7 +273,7 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-server
-                tag: v3.0.2
+                tag: v3.0.3
                 pullPolicy: IfNotPresent
               env:
                 # Hardware acceleration on the immich-vm Intel iGPU. accel (QSV) is set in
@@ -335,7 +335,7 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-machine-learning
-                tag: v3.0.2  # CPU-only (ROCm gfx1036 not supported)
+                tag: v3.0.3  # CPU-only (ROCm gfx1036 not supported)
                 pullPolicy: IfNotPresent
               env:
                 TRANSFORMERS_CACHE: /cache
