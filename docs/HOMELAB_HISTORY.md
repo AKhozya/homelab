@@ -17,6 +17,12 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-17 — claude-telegram 1.27.15: track latest Anthropic SDK/CLI + codex; SDK 0.3.212 tool-gate audit
+
+Follow-on to 1.27.14 (same day): 7-day supply-chain lag on trusted publishers dropped by decision — the SDK tool-surface tripwire test is the safety net. bunfig gained `minimumReleaseAgeExcludes` for the Anthropic SDK + all 8 platform packages (7-day quarantine kept for the ~117 third-party deps; Codex review caught 2 missing platform names — enumerate from bun.lock). Dockerfile codex install dropped the `--before` gate → `@openai/codex@latest`. SDK 0.3.212 tripwire fired on 3 new built-in tools, classified: RefreshMcpTools allowed; SendFeedback denied (external publish channel); ProposeSkills denied (skill-injection persistence). 179/179 tests green, image built/pushed locally (CI still billing-blocked), pod verified: codex 0.144.5, engine CLI 2.1.212, SDK 0.3.212.
+
+Base-image review (user question "does alpine still make sense?"): **stay on alpine** — apk carries current gh + chezmoi (debian stable has neither fresh; switch would resurrect `curl | sh` installs), every runtime binary is musl-safe (SDK ships a musl engine variant, codex is static musl, kubectl/flux static Go), and the alpine base is 22–41 MB smaller compressed than slim/debian.
+
 ### 2026-07-17 — claude-telegram 1.27.14: Dockerfile install hardening, shipped via local build (CI billing-blocked)
 
 Dockerfile linter audit (droast) flagged the flux `curl | bash` install — floating version + pipe-to-shell. Fork rework (`9c56118`): flux pinned `ARG FLUX_VERSION=2.9.2` (cluster minor) with sha256 verify against release checksums; kubectl download now checksum-verified; chezmoi switched from `curl get.chezmoi.io | sh` to `apk add chezmoi`; codex un-pinned to latest behind `npm --before=(now−7d)` gate + BUILD_TS layer-bust — mirrors bunfig `minimumReleaseAge`, closing the codex-not-gated asymmetry. apk RUNs consolidated, unpinned-by-design documented in-file.
