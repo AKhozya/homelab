@@ -17,6 +17,15 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-17 — claude-telegram 1.27.14: Dockerfile install hardening, shipped via local build (CI billing-blocked)
+
+Dockerfile linter audit (droast) flagged the flux `curl | bash` install — floating version + pipe-to-shell. Fork rework (`9c56118`): flux pinned `ARG FLUX_VERSION=2.9.2` (cluster minor) with sha256 verify against release checksums; kubectl download now checksum-verified; chezmoi switched from `curl get.chezmoi.io | sh` to `apk add chezmoi`; codex un-pinned to latest behind `npm --before=(now−7d)` gate + BUILD_TS layer-bust — mirrors bunfig `minimumReleaseAge`, closing the codex-not-gated asymmetry. apk RUNs consolidated, unpinned-by-design documented in-file.
+
+- **Gate proof**: codex resolved 0.144.1 (0.144.5 was 1 day old — excluded); SDK 0.3.206 vs latest 0.3.212 (same 7-day logic).
+- **Ship**: GitHub Actions still billing-blocked (Jul 16 scheduled run failed in 4s) → local escape hatch: CI replica green (typecheck + compile + 179 tests), amd64 build, GHCR push, tag `claude-telegram-v1.27.14`, deployment bump `9cab06fb`.
+- **Verified in-pod**: engine CLI 2.1.206 / SDK 0.3.206 lockstep, codex 0.144.1, flux 2.9.2, chezmoi v2.62.5 (37 skills applied), bot polling.
+- Codex static review: SHIP, zero findings.
+
 ### 2026-07-17 — Redis sentinel "memory leak" root-caused: operator annotation hot loop (live-object fix, no manifest change)
 
 `ContainerMemoryNearLimit` on the sentinel pods had been re-firing through two limit bumps (64→128Mi `1199988d`, 128→192Mi `57bb642a`) and an operator CPU bump (`c214e0cd`) — all symptom-chasing. Actual chain: the 2026-07-03 controllers→configs move (`8595de63`/`d771464d`) put a temporary `kustomize.toolkit.fluxcd.io/prune: disabled` annotation on the Redis CRs for 4 minutes; the opstree operator (v0.24.0) propagated it to its 12 owned children (2 STS, 8 SVC, 2 PDB). After the annotation left the CRs, the operator diffed the children every reconcile but its client-side merge can never delete an annotation → non-convergent update → its own StatefulSet watch re-queued it → self-sustaining ~3.4s loop. Since upstream PR #1533 every sentinel reconcile unconditionally runs SENTINEL MONITOR/SET/RESET, so the sentinels took ~25,400 RESETs/day each (Loki baseline: 5–19/day before Jul 4), each one rewriting `sentinel.conf` (1.5GB written per pod in 2.7d) — the "leak" was ~145Mi of reclaimable dentry/inode slab in the container cgroup (`memory.stat kernel`), process RSS a flat 17Mi. Side effects while looping: sentinel known-replica/sentinel state wiped every 3s (failover-reliability risk), ~76k spurious operator→redis connections/day (`pool.go:380 Conn has unread data`), operator CPU throttling.
