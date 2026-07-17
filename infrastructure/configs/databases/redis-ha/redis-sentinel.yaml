@@ -49,8 +49,8 @@ spec:
     imagePullPolicy: IfNotPresent
     resources:
       requests:
-        cpu: "50m"  # 7d p95 ~40m per sentinel (2026-07-12)
-        memory: "96Mi"
+        cpu: "10m"
+        memory: "32Mi"
       limits:
         cpu: "300m"
-        memory: "192Mi"
+        memory: "64Mi"
