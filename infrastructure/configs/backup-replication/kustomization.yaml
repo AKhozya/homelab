@@ -4,9 +4,7 @@ namespace: backup-replication
 resources:
   - namespace.yaml
   - serviceaccount.yaml
-  - ssh-key-secret.yaml
   - nas-rsync-secret.yaml
   - backup-telegram-secret.yaml
-  - ssh-known-hosts-configmap.yaml
   - networkpolicy.yaml
   - cronjob.yaml

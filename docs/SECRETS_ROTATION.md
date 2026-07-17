@@ -104,7 +104,7 @@ cert-manager).
 |-------------|-----------|--------------|---------------|----------|
 | `tunnel-credentials` | Cloudflare Tunnel | 2025-10-18 | Never* | Critical |
 | `pricebuddy-telegram` | PriceBuddy | 2025-12-05 | Never* | Medium |
-| `backup-replication-ssh` | Backup Jobs | 2025-12-18 | 2026-12-18 | High |
+| `backup-replication-ssh` | Backup Jobs | RETIRED 2026-07-17 — W2 safety-net leg removed, secret deleted (NAS-only replication, rsync daemon auth) | N/A | N/A |
 | `cloudflare-tunnel-mgmt-token` | CF Tunnel Mgmt | 2026-02-19 | 2026-12-31 | Medium |
 | `node-maintenance-ssh` | Node Auto-Update (CP → workers) | 2026-04-17 | 2027-04-17 | High |
 | `homelab-deploy` (GitHub deploy key) | Node-Maintenance git sync (CP `/root/.ssh/homelab-deploy`, read-only) | 2026-04-18 | 2027-04-18 | Medium |

@@ -29,7 +29,7 @@ spec:
           nodeSelector:
             kubernetes.io/hostname: worker-node
           securityContext:
-            # Run as root to install rsync/ssh and access backup files
+            # Run as root to install rsync and access backup files
             runAsUser: 0
             runAsGroup: 0
             seccompProfile:
@@ -79,7 +79,7 @@ spec:
                   }
 
                   # Build + send the validation table from REPORT_FILE.
-                  # Used by the early-abort path (Step 1) and the final report (Step 7).
+                  # Used by the early-abort path (Step 1) and the final report (Step 6).
                   send_report() {
                     MSG_FILE="/tmp/telegram-msg.txt"
                     printf '## ❌ Backup Validation FAILED (%s)\n\n| Backup | Status | Details |\n|---|---|---|\n' "$TODAY" > "$MSG_FILE"
@@ -107,24 +107,17 @@ spec:
 
                   echo "=== Backup Replication Started: $(date) ==="
 
-                  # Install rsync, openssh, and curl
+                  # Install rsync and curl
                   CURRENT_STEP="Installing dependencies"
-                  apk add --no-cache rsync openssh-client curl jq
-
-                  # Setup SSH for worker-node-2
-                  mkdir -p ~/.ssh
-                  cp /ssh-key/ssh-private-key ~/.ssh/id_ed25519
-                  chmod 600 ~/.ssh/id_ed25519
-                  cp /ssh-known-hosts/known_hosts ~/.ssh/known_hosts
-                  chmod 644 ~/.ssh/known_hosts
+                  apk add --no-cache rsync curl jq
 
                   # Show source backup status
                   echo "=== Source Backups ==="
                   du -sh /source-backups/*/ 2>/dev/null || echo "No backups found"
 
-                  # Step 1: Validate source backups BEFORE any sync — a corrupt/stale
-                  # backup must not overwrite the last good W2 copy (--delete) or land
-                  # on the NAS. (Reordered 2026-07-03; was Step 4, after both syncs.)
+                  # Step 1: Validate source backups BEFORE syncing — a corrupt/stale
+                  # backup must not land on the NAS. (Reordered 2026-07-03; was Step 4,
+                  # after the sync.)
                   CURRENT_STEP="Step 1: Validating source backups"
                   echo ""
                   echo "=== Step 1: Validating source backups (before any sync) ==="
@@ -229,8 +222,8 @@ spec:
                   validate_backup "mysql" 102400 "MySQL" || true
                   validate_backup "pvc" 102400 "PVC" || true
 
-                  # Abort before any sync on validation failure: source preserved for
-                  # forensics, W2 keeps yesterday's good copy, NAS history untouched.
+                  # Abort before the sync on validation failure: source preserved for
+                  # forensics, NAS history untouched.
                   if [ "$OVERALL_OK" != true ]; then
                     NAS_STATUS="NAS: not checked (aborted before sync)"
                     send_report
@@ -239,24 +232,15 @@ spec:
                     exit 1
                   fi
 
-                  # Step 2: Sync to worker-node-2 (--delete, keeps only current backup as safety net)
-                  # TODO: Remove worker-node-2 step after extended safety period (~Jul 20, 2026)
-                  CURRENT_STEP="Step 2: Syncing to worker-node-2"
-                  echo ""
-                  echo "=== Step 2: Syncing to worker-node-2 (safety net) ==="
-                  # No -z (both steps): backups are .tar.gz (already compressed) and transfers
-                  # are LAN — compression just burns CPU on both ends for ~0 size gain (2026-06-28).
-                  rsync -av --delete \
-                    --exclude='*.tmp' \
-                    --exclude='.*.swp' \
-                    -e "ssh -p 65300 -o StrictHostKeyChecking=yes" \
-                    /source-backups/ \
-                    z3us@192.168.1.126:/mnt/extra-storage/backups/
+                  # (W1→W2 safety-net sync removed 2026-07-17 — NAS leg validated since
+                  # 2026-05; NAS is the sole replication sink.)
 
-                  # Step 3: Sync to NAS (no --delete, NAS accumulates full history)
-                  CURRENT_STEP="Step 3: Syncing to NAS"
+                  # Step 2: Sync to NAS (no --delete, NAS accumulates full history)
+                  CURRENT_STEP="Step 2: Syncing to NAS"
                   echo ""
-                  echo "=== Step 3: Syncing to NAS ==="
+                  echo "=== Step 2: Syncing to NAS ==="
+                  # No -z: backups are .tar.gz (already compressed) and transfers are
+                  # LAN — compression just burns CPU on both ends for ~0 size gain (2026-06-28).
                   RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync -av \
                     --exclude='*.tmp' \
                     --exclude='.*.swp' \
@@ -264,28 +248,28 @@ spec:
                     /source-backups/ \
                     "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/"
 
-                  # Step 4: Verify NAS
-                  CURRENT_STEP="Step 4: Verifying NAS"
+                  # Step 3: Verify NAS
+                  CURRENT_STEP="Step 3: Verifying NAS"
                   echo ""
-                  echo "=== Step 4: Verifying NAS ==="
+                  echo "=== Step 3: Verifying NAS ==="
                   RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
                     "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/" 2>/dev/null \
                     | head -20 || echo "NAS verification failed"
 
-                  # Step 5: Clean source on worker-node (data is on NAS + worker-node-2;
+                  # Step 4: Clean source on worker-node (data is on NAS;
                   # only reachable when Step 1 validation passed)
                   echo ""
-                  echo "=== Step 5: Cleaning source backups ==="
+                  echo "=== Step 4: Cleaning source backups ==="
                   rm -rf /source-backups/postgres/* /source-backups/couchdb/* /source-backups/mysql/* /source-backups/pvc/*
-                  echo "Source cleaned (data on NAS + worker-node-2)"
+                  echo "Source cleaned (data on NAS)"
 
-                  # Step 5b: Enforce NAS retention (30d for daily backups, keep-2 for immich weekly).
+                  # Step 4b: Enforce NAS retention (30d for daily backups, keep-2 for immich weekly).
                   # Set 2026-05-22. rsync daemon supports push, so it should accept push of empty
                   # tree with --delete to clear out old dirs. Soft-fail (|| true) if the module
                   # config refuses delete — replication itself must not break on prune failure.
-                  CURRENT_STEP="Step 5b: Pruning NAS retention"
+                  CURRENT_STEP="Step 4b: Pruning NAS retention"
                   echo ""
-                  echo "=== Step 5b: Pruning NAS retention (30d daily / keep-2 immich) ==="
+                  echo "=== Step 4b: Pruning NAS retention (30d daily / keep-2 immich) ==="
                   mkdir -p /tmp/empty
 
                   # Two prune helpers — NAS layout is mixed:
@@ -362,9 +346,9 @@ spec:
                   done
                   echo "Retention sweep complete"
 
-                  # Step 6: Check NAS storage usage (500GB hard limit)
+                  # Step 5: Check NAS storage usage (500GB hard limit)
                   echo ""
-                  echo "=== Step 6: Checking NAS storage ==="
+                  echo "=== Step 5: Checking NAS storage ==="
                   NAS_SIZE_GB=$(RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
                     "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/" 2>/dev/null \
                     | awk '/^-/{gsub(",", "", $2); sum+=$2} END{printf "%d", sum/1073741824}')
@@ -380,12 +364,12 @@ spec:
                     NAS_STATUS="NAS: ${NAS_SIZE_GB}GB / 500GB WARNING"
                   fi
 
-                  # Step 7: Send Telegram report (only on failure)
+                  # Step 6: Send Telegram report (only on failure)
                   echo ""
                   if [ "$OVERALL_OK" = true ]; then
-                    echo "=== Step 7: All validations passed, skipping Telegram ==="
+                    echo "=== Step 6: All validations passed, skipping Telegram ==="
                   else
-                    echo "=== Step 7: Sending Telegram failure report ==="
+                    echo "=== Step 6: Sending Telegram failure report ==="
                     send_report
                   fi
 
@@ -410,21 +394,8 @@ spec:
               volumeMounts:
                 - name: source-backups
                   mountPath: /source-backups
-                - name: ssh-key
-                  mountPath: /ssh-key
-                  readOnly: true
-                - name: ssh-known-hosts
-                  mountPath: /ssh-known-hosts
-                  readOnly: true
           volumes:
             - name: source-backups
               hostPath:
                 path: /mnt/k8s-storage/backups
                 type: Directory
-            - name: ssh-key
-              secret:
-                secretName: backup-replication-ssh-key
-                defaultMode: 0400
-            - name: ssh-known-hosts
-              configMap:
-                name: ssh-known-hosts

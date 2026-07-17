@@ -19,13 +19,6 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # SSH to worker-node-2 for backup replication
-    - to:
-        - ipBlock:
-            cidr: 192.168.1.126/32
-      ports:
-        - protocol: TCP
-          port: 65300
     # rsync to NAS for backup replication
     - to:
         - ipBlock:

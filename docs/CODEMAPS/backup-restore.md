@@ -10,7 +10,7 @@
 | **MySQL logical** | `mysqldump --single-transaction` per DB (via HAProxy) | 03:15 daily | YES (`SHOW DATABASES`) |
 | **PG streaming replication** | CNPG 2-instance — HA only, NOT a backup layer (no WAL/PITR by decision) | continuous | n/a |
 | **Immich library** | Uncompressed tar of the NAS-resident library — `immich-backup` CronJob on **W2** pulls via the NAS `personal_folder` rsync module, tars locally, pushes to the NAS `akhozya-pool1` pool | Sun 03:00 weekly | keep-2 on both W2 + NAS pool |
-| **Replication** | rsync fan-out from W1: → W2 (safety net) AND → NAS + validation + retention prune | 03:30 daily | n/a (path-agnostic) |
+| **Replication** | rsync W1 → NAS + validation + retention prune (W2 safety-net leg removed 2026-07-17) | 03:30 daily | n/a (path-agnostic) |
 | **SOPS Secrets** | Encrypted in git | every commit | n/a |
 | **DR scripts** | `.backup/secrets-{backup,restore}.sh` | manual | partial (explicit list) |
 
@@ -29,15 +29,13 @@ Whitelist (CRITICAL_PVCS) + `nodeSelector: worker-node` + `hostPath /mnt/k8s-sto
 - Blocky — no PVC; config in Secret, query log in PG `blocky` DB
 
 ## Replication topology
-Source: `infrastructure/configs/backup-replication/cronjob.yaml` (script inline; SSH key + NAS rsync creds + Telegram = SOPS secrets alongside).
+Source: `infrastructure/configs/backup-replication/cronjob.yaml` (script inline; NAS rsync creds + Telegram = SOPS secrets alongside).
 ```text
-W1 /mnt/k8s-storage/backups — FAN-OUT, both syncs from W1:
-  ├─ rsync --delete (SSH :65300, key-based)
-  │    → W2 /mnt/extra-storage/backups (z3us@192.168.1.126) — today only, safety net
+W1 /mnt/k8s-storage/backups
   └─ rsync (no --delete) :50555 (rsync daemon)
        → NAS (192.168.1.136, /akhozya-pool1/backups/homelab/) — 30-day history; 500GB cap (warn 400 / crit 450)
 ```
-After NAS push: validate (postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then clean source on W1. Immich is not a W1 source — produced on W2, pushed straight to the NAS pool. W2-step removal deadline: HOMELAB_ANALYSIS.md.
+Validate BEFORE the sync (postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then push to NAS, then clean source on W1. Immich is not a W1 source — produced on W2, pushed straight to the NAS pool. The temporary W1→W2 SSH safety-net leg (single-day `--delete` copy) was removed 2026-07-17 — NAS is the sole sink.
 
 **Retention prune (after validate + clean):**
 - 30d postgres/mysql/couchdb — `prune_nas_file()`: rsync include-filter file-prune against empty source, targets `<cat>/<cat>_YYYYMMDD_HHMMSS.tar.gz` older than 30d
@@ -69,7 +67,7 @@ Images pinned in each CronJob manifest (`infrastructure/configs/databases/*/`, `
 - **Monitoring:** Grafana admin, Alertmanager Telegram, VMAgent couchdb auth mirror
 - **DB:** `redis-passwords` + `redis-acl-secret`; `postgres-admin-user` + PG app users (authentik, immich, linkwarden, mealie, n8n, paperless, blocky); `mysql-cluster-secrets` + uptime-kuma, pricebuddy
 - **App secrets:** all apps with secrets (homepage = none by design, config in git ConfigMap)
-- **Backup replication:** SSH key + NAS rsync creds + Telegram
+- **Backup replication:** NAS rsync creds + Telegram
 - **OIDC:** only `grafana-oidc` standalone; rest embedded in app secrets; immich/audiobookshelf store OIDC in their internal DB via web UI
 
 New app checklist: add its secrets here or record why not.

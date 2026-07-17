@@ -80,7 +80,6 @@ Extracts **ALL** secrets needed for complete cluster rebuild:
 - CouchDB (Obsidian sync)
 
 **Backup Replication:**
-- SSH key for worker-node-2 sync
 - NAS rsync creds (rsync daemon auth)
 - Telegram bot token (backup failure notifications)
 
@@ -95,7 +94,7 @@ Files saved to `.backup/secrets/` (gitignored)
 - **MySQL:** Daily 3:15 AM → `/mnt/k8s-storage/backups/mysql/` (30 day retention)
 - **Critical PVCs:** Daily 3:10 AM → `/mnt/k8s-storage/backups/pvc/` (30 day retention, bumped from 7d on 2026-05-22)
 - **Immich library:** Weekly Sunday 3:00 AM — `immich-backup` (`backup-replication` ns) on **worker-node-2** pulls the NAS-resident library (rsync `personal_folder`) → tar+sha on W2 (`/mnt/extra-storage/immich-backup/`) + push to NAS `akhozya-pool1` pool = 2 copies, keep-2 each (~61G uncompressed). Restore: `docs/BACKUP_STRATEGY.md` §5 (extract in-place onto the NAS — virtiofs inode gotcha).
-- **Backup Replication:** Daily 3:30 AM → NAS (30d daily / keep-2 immich, Step 5b prune) + worker-node-2 (today only via `--delete`)
+- **Backup Replication:** Daily 3:30 AM → NAS (30d daily / keep-2 immich, Step 4b prune). W2 safety-net leg removed 2026-07-17.
 
 **Details:** `docs/BACKUP_STRATEGY.md`
 
@@ -201,10 +200,9 @@ kubectl get helmrelease -A
 
 #### Step 7: Restore Databases from Backups
 
-Backups from 3 sources (preference order):
+Backups from 2 sources (preference order):
 1. **NAS** (192.168.1.136) — full history, rsync daemon port 50555
-2. **worker-node-2** (192.168.1.126) — latest only, `/mnt/extra-storage/backups/`
-3. **worker-node** (192.168.1.129) — source cleaned daily, may be empty
+2. **worker-node** (192.168.1.129) — source cleaned daily, may be empty
 
 **Copy backups from NAS to worker-node:**
 ```bash
@@ -212,13 +210,6 @@ Backups from 3 sources (preference order):
 export RSYNC_PASSWORD='<nas-rsync-password>'
 rsync -avz --port=50555 \
   rsync://akhozya@192.168.1.136/akhozya-pool1/backups/homelab/ \
-  /mnt/k8s-storage/backups/
-```
-
-**Or copy from worker-node-2:**
-```bash
-rsync -avz -e "ssh -p 65300" \
-  z3us@192.168.1.126:/mnt/extra-storage/backups/ \
   /mnt/k8s-storage/backups/
 ```
 
@@ -417,9 +408,9 @@ kubectl get ingress -A
 - **Database credentials** (Redis, PostgreSQL users, MySQL cluster + app users)
 - **Infrastructure secrets** (Cloudflare tokens, tunnel creds)
 - **Monitoring credentials** (Grafana admin, Telegram bot)
-- **Backup replication credentials** (SSH key, NAS rsync creds, Telegram)
+- **Backup replication credentials** (NAS rsync creds, Telegram)
 
-### Via Automated Backups (restore from NAS or worker-node-2)
+### Via Automated Backups (restore from NAS)
 - **PostgreSQL databases** — all app DBs backed up daily
 - **MySQL databases** — homeassistant, uptimekuma, pricebuddy backed up daily
 - **CouchDB databases** — obsidian-personal backed up daily

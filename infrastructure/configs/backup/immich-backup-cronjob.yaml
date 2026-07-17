@@ -9,7 +9,7 @@ metadata:
   namespace: backup-replication
 spec:
   schedule: "0 3 * * 0"  # Sunday 03:00 UTC — 30min before backup-replication (03:30).
-                         # backup-replication Step 5b enforces pool keep-2 for immich/,
+                         # backup-replication Step 4b enforces pool keep-2 for immich/,
                          # so this job pushes (no --delete) and lets that sweep prune.
   timeZone: "UTC"
   startingDeadlineSeconds: 3600
@@ -180,10 +180,9 @@ spec:
                   cpu: "2000m"
                   memory: "512Mi"
           volumes:
-            # NOT under /mnt/extra-storage/backups/ — that dir is the --delete target of
-            # backup-replication Step 2 (W1 /source-backups -> W2 mirror). Since immich no
-            # longer populates W1's /source-backups, a copy under /backups/ would be wiped
-            # by that --delete 30min later. A sibling dir is out of its scope.
+            # Sibling of /mnt/extra-storage/backups/ — that dir was the --delete target of
+            # the W1->W2 replication mirror (removed 2026-07-17); the sibling path kept
+            # this job's tars out of its wipe scope and stays for continuity.
             - name: backup-storage
               hostPath:
                 path: /mnt/extra-storage/immich-backup

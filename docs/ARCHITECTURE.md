@@ -32,11 +32,10 @@ flowchart TB
   CP -. k3s API .-> W2
   CP -. k3s API .-> VM
   NAS --- VM
-  W1 -->|"rsync --delete<br/>(today only, safety net)"| W2
   W1 -->|"rsync :50555<br/>(30-day history)"| NAS
 ```
 
-Storage is `local-path-provisioner` (node-local PVs — no distributed storage layer by choice; simpler, faster, and the backup chain provides durability instead). Each PV is bound to the node where it was first allocated via the PV's `nodeAffinity` (the local-path mechanism) — there is no Deployment-level node pinning. **Immich split since the 2026-07-12 Path-B cutover**: immich-server runs on the `immich-vm` GPU worker with the photo library on NAS storage via a virtiofs hostPath (the old W1 `immich-library` PV was **decommissioned 2026-07-14** after the soak; its weekly backup now runs on W2, pulling the NAS library → tar on W2 + a copy in the NAS `akhozya-pool1` pool, keep-2 each); the ML PV (`...immich-machine-learning`) stays W1-bound, so ML still follows W1. Durability comes from the **nightly replication fan-out from W1** (one CronJob on W1 syncs → W2 with `--delete` as a single-day safety net AND → NAS for 30-day history — not a serial W1→W2→NAS chain), not from replicated volumes.
+Storage is `local-path-provisioner` (node-local PVs — no distributed storage layer by choice; simpler, faster, and the backup chain provides durability instead). Each PV is bound to the node where it was first allocated via the PV's `nodeAffinity` (the local-path mechanism) — there is no Deployment-level node pinning. **Immich split since the 2026-07-12 Path-B cutover**: immich-server runs on the `immich-vm` GPU worker with the photo library on NAS storage via a virtiofs hostPath (the old W1 `immich-library` PV was **decommissioned 2026-07-14** after the soak; its weekly backup now runs on W2, pulling the NAS library → tar on W2 + a copy in the NAS `akhozya-pool1` pool, keep-2 each); the ML PV (`...immich-machine-learning`) stays W1-bound, so ML still follows W1. Durability comes from the **nightly replication from W1 → NAS** (one CronJob on W1, 30-day history on the NAS; the temporary W2 single-day safety-net leg was retired 2026-07-17 once the NAS sink had proven itself), not from replicated volumes.
 
 ---
 
@@ -121,7 +120,7 @@ Each layer is independent: bypassing admission still leaves the network fence; e
 | CouchDB | Helm | |
 | Redis | Operator (OT) | In-memory; Authentik uses Postgres-only (no Redis) |
 
-Backups: per-engine CronJobs in `infrastructure-configs` → nightly replication fan-out from W1 (→ W2 safety net, → NAS 30-day history). DR runbook in [`.backup/README.md`](../.backup/README.md). Never force-delete a DB pod or drop a DB directly — go through the CRD + `kubectl rollout restart`.
+Backups: per-engine CronJobs in `infrastructure-configs` → nightly replication W1 → NAS (30-day history). DR runbook in [`.backup/README.md`](../.backup/README.md). Never force-delete a DB pod or drop a DB directly — go through the CRD + `kubectl rollout restart`.
 
 ---
 

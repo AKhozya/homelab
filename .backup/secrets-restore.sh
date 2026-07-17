@@ -248,17 +248,14 @@ if [ -f "${BACKUP_DIR}/secrets/couchdb-couchdb.json" ]; then
     echo "   ✅ CouchDB"
 fi
 
-# Backup Replication (SSH key + NAS rsync credentials + Telegram)
-if [ -f "${BACKUP_DIR}/secrets/backup-replication-ssh-key.json" ]; then
+# Backup Replication (NAS rsync credentials + Telegram; W2 SSH key retired 2026-07-17)
+if [ -f "${BACKUP_DIR}/secrets/nas-rsync-credentials.json" ]; then
     kubectl create namespace backup-replication --dry-run=client -o yaml | kubectl apply -f -
-    kubectl apply -f "${BACKUP_DIR}/secrets/backup-replication-ssh-key.json"
-    if [ -f "${BACKUP_DIR}/secrets/nas-rsync-credentials.json" ]; then
-        kubectl apply -f "${BACKUP_DIR}/secrets/nas-rsync-credentials.json"
-    fi
+    kubectl apply -f "${BACKUP_DIR}/secrets/nas-rsync-credentials.json"
     if [ -f "${BACKUP_DIR}/secrets/backup-telegram.json" ]; then
         kubectl apply -f "${BACKUP_DIR}/secrets/backup-telegram.json"
     fi
-    echo "   ✅ Backup Replication (SSH key + NAS credentials + Telegram)"
+    echo "   ✅ Backup Replication (NAS credentials + Telegram)"
 fi
 
 # Cloudflare Tunnel config
