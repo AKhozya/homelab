@@ -108,17 +108,36 @@ MKEOF
             chown "$SUDO_USER:$SUDO_USER" "$USER_MAKEPKG"
             sudo -u "$SUDO_USER" mkdir -p "$USER_HOME/.cache/makepkg"/{build,sources,packages}
         fi
+        # Failures are collected and reported, NOT swallowed. The old form
+        # (`... 2>/dev/null && echo Installed || true`) hid both the error output and
+        # the fact that anything went wrong, so a node could finish bootstrap missing
+        # packages with nothing in the log. That is how immich-vm ended up without
+        # kernel-modules-hook until the modprobe cascade surfaced it on 2026-07-18.
+        # Still non-fatal: these are optional HW firmware blobs and a build failure
+        # must not abort the rest of the bootstrap. Loud, not fatal.
+        AUR_FAILED=""
         for pkg in $AUR_PKGS; do
             if ! pacman -Qi "$pkg" &>/dev/null; then
-                sudo -u "$SUDO_USER" $AUR_HELPER -S --noconfirm --needed "$pkg" 2>/dev/null && echo "  Installed: $pkg" || true
+                if sudo -u "$SUDO_USER" $AUR_HELPER -S --noconfirm --needed "$pkg"; then
+                    echo "  Installed: $pkg"
+                else
+                    echo "  FAILED: $pkg (rc=$?)" >&2
+                    AUR_FAILED="$AUR_FAILED $pkg"
+                fi
             fi
         done
+        if [ -n "$AUR_FAILED" ]; then
+            echo "" >&2
+            echo "  !! AUR packages NOT installed:$AUR_FAILED" >&2
+            echo "  !! Bootstrap continued, but this node is missing them. Retry with:" >&2
+            echo "  !!   sudo -u $SUDO_USER $AUR_HELPER -S --needed$AUR_FAILED" >&2
+        fi
     else
-        echo "  Skipped: Cannot run $AUR_HELPER as root, install manually"
+        echo "  Skipped: Cannot run $AUR_HELPER as root, install manually" >&2
     fi
 else
-    echo "  Skipped: No AUR helper (yay/paru) found"
-    echo "  To install manually: yay -S $AUR_PKGS"
+    echo "  Skipped: No AUR helper (yay/paru) found" >&2
+    echo "  To install manually: yay -S $AUR_PKGS" >&2
 fi
 echo ""
 
