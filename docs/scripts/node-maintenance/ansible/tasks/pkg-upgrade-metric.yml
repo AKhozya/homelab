@@ -1,0 +1,31 @@
+---
+# Emit the per-node package-upgrade outcome as a node_exporter textfile metric.
+#
+# Why this exists: every `yay` call site in phase1/phase2 is deliberately best-effort — PLAY 1
+# retries then proceeds to the reboot, and PLAY 1b wraps the retry in a rescue, because a hard
+# failure there strands `phase2-pending` and gates drift-heal cluster-wide (2026-06-20, ~1.7h).
+# That is the right call for the RUN, but it made a FAILED upgrade invisible: immich-vm silently
+# skipped two consecutive weekly runs (2026-07-11, 2026-07-18) while phase2 reported failed=0.
+# NodeMaintenanceMissedRun could not catch it — that metric tracks whether the run completed,
+# not whether each node's packages actually moved.
+#
+# Written to its own file, NOT metrics_file: phase2 post-tasks `copy` metrics_file wholesale on
+# the CP, which would clobber anything merged into it here.
+#
+# Caller must set: pkg_upgrade_ok (bool).
+
+- name: Emit per-node package-upgrade metric
+  ansible.builtin.copy:
+    dest: /var/lib/node_exporter/textfile/node_pkg_upgrade.prom
+    mode: '0644'
+    owner: root
+    group: root
+    content: |
+      # HELP node_pkg_upgrade_success Whether the last node-maintenance package upgrade succeeded on this node
+      # TYPE node_pkg_upgrade_success gauge
+      node_pkg_upgrade_success {{ 1 if pkg_upgrade_ok | bool else 0 }}
+  # Never let telemetry fail the run it is reporting on — that would recreate the exact
+  # phase2-pending wedge the rescues above exist to prevent.
+  failed_when: false
+  changed_when: false
+  tags: [metrics, packages]

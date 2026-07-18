@@ -124,6 +124,13 @@
         owner: root
         group: root
 
+    # The CP's yay is fail-fast (no rescue), so reaching here means it succeeded. Emitted anyway
+    # so node_pkg_upgrade_success exists for every node and the alert has no blind spot.
+    - name: Record package-upgrade outcome
+      ansible.builtin.include_tasks: tasks/pkg-upgrade-metric.yml
+      vars:
+        pkg_upgrade_ok: true
+
     # ── STAGE PHASE 2 ─────────────────────────────────────────
     - name: Create phase2-pending flag
       ansible.builtin.file:

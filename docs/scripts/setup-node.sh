@@ -78,10 +78,12 @@ fi
 # packages install once, never update — zero drift-heal value. yay itself
 # is AUR, chicken-egg before any AUR ansible task could run.
 echo "Installing AUR firmware..."
-# kernel-modules-hook keeps `/usr/lib/modules/<running>` populated when
-# pacman upgrades the kernel pkg, preventing modprobe failures (and the
-# UFW silent-disable cascade observed 2026-05-02 W1 incident) until reboot.
-AUR_PKGS="aic94xx-firmware ast-firmware wd719x-firmware upd72020x-fw kernel-modules-hook"
+# kernel-modules-hook was listed here until 2026-07-18 and does NOT belong: it lives in
+# `extra`, not the AUR. Carrying it here meant a bootstrap-only, best-effort install (the
+# loop below swallows failures with `2>/dev/null ... || true`), which is exactly how
+# immich-vm ended up without it and hit the modprobe cascade. It is now declared in
+# ansible's pacman_packages_base and installed on every node-config run.
+AUR_PKGS="aic94xx-firmware ast-firmware wd719x-firmware upd72020x-fw"
 AUR_HELPER=""
 if command -v yay &>/dev/null; then
     AUR_HELPER="yay"

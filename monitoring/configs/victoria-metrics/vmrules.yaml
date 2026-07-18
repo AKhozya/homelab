@@ -1213,6 +1213,28 @@ spec:
             Check: `systemctl list-timers node-maintenance.timer` on CP.
             Logs: `journalctl -u node-maintenance-phase1.service -u node-maintenance-phase2.service --since '9 days ago'`
 
+      # Per-node upgrade outcome. NodeMaintenanceMissedRun above only proves the RUN completed —
+      # it cannot see a single node whose `yay` failed, because every worker/VM upgrade call site
+      # is deliberately best-effort (a hard failure there strands phase2-pending and gates
+      # drift-heal cluster-wide, 2026-06-20). immich-vm failed on 2026-07-11 and 2026-07-18 with
+      # phase2 reporting failed=0 both times, leaving it two weeks unpatched on a stale kernel.
+      # Metric: tasks/pkg-upgrade-metric.yml → /var/lib/node_exporter/textfile/node_pkg_upgrade.prom
+      - alert: NodePackageUpgradeFailed
+        expr: node_pkg_upgrade_success == 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "Package upgrade failed on {{ $labels.instance }} — node left unpatched"
+          description: |
+            The last node-maintenance `yay` upgrade on {{ $labels.instance }} failed after its retry.
+            The run itself was allowed to continue by design, so this will NOT show as a failed run.
+            Node stays on old packages until fixed — a pending kernel here also blocks the
+            reboot/cold-cycle that would activate it.
+            Logs: `grep -A5 immich-vm /var/log/node-maintenance/phase2-$(date +%d-%m-%Y).log` on CP.
+            Common cause: pacman file conflict from a truncated package (empty `desc` in
+            /var/lib/pacman/local/<pkg>/) → `sudo pacman -S --overwrite '/usr/*' <pkg>`.
+
 
   - name: redis-ha
     interval: 60s

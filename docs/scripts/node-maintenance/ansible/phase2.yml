@@ -168,6 +168,13 @@
           changed_when: "'there is nothing to do' not in yay_result_retry.stdout"
           failed_when: false
 
+    # The block above intentionally swallows a failed upgrade so the reboot still happens.
+    # Record the real outcome so it is not also invisible — see tasks/pkg-upgrade-metric.yml.
+    - name: Record package-upgrade outcome
+      ansible.builtin.include_tasks: tasks/pkg-upgrade-metric.yml
+      vars:
+        pkg_upgrade_ok: "{{ (yay_result_retry is not defined) or (yay_result_retry.rc | default(1)) == 0 }}"
+
     - name: CP-health guard — apiserver /readyz before rebooting this worker
       # Don't reboot a worker while the CP apiserver/tunnel is flapping: a worker that re-syncs
       # kube-proxy against an unstable CP is far likelier to land a partial iptables-restore that
@@ -371,6 +378,13 @@
           changed_when: false
           failed_when: false   # notify failure here would hard-fail the yay rescue → phase2-pending wedge
           when: vm_yay_retry.rc != 0
+
+    # Telegram alone proved insufficient: the 2026-07-11 and 2026-07-18 failures both notified and
+    # both went unnoticed, so the VM sat two weeks unpatched. Emit a metric an alert can latch onto.
+    - name: Record package-upgrade outcome
+      ansible.builtin.include_tasks: tasks/pkg-upgrade-metric.yml
+      vars:
+        pkg_upgrade_ok: "{{ (vm_yay_retry is not defined) or (vm_yay_retry.rc | default(1)) == 0 }}"
 
     - name: Detect pending kernel reboot (running kernel != installed linux-lts module dir)
       # NOT `test -d /usr/lib/modules/$(uname -r)`: the fleet convention installs kernel-modules-hook,

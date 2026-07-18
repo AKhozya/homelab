@@ -85,31 +85,51 @@ ufw_logging: low
 # ---- Packages ----
 # Applied by `packages` role. AUR pkgs out of scope (setup-node.sh bootstrap).
 pacman_packages_base:
+  # arch-audit: CVE scan of the installed package set; companion to the security_scan role.
+  - arch-audit
   - base-devel
   - bash-completion
   # Modern CLI viewing/diff/lint — parity with Mac dev env, useful when SSH'd in
   - bat
+  - bc
   - btop
+  - chezmoi
+  - duf
+  - dust
   - efibootmgr
   - ethtool
   - eza
   - fail2ban
+  - fd
   - fwupd
   - fzf
   - git
   - git-delta
+  - github-cli
   - go
   - gron
   - inetutils
   - jc
   - jq
+  # kernel-modules-hook KEEPS /usr/lib/modules/<running> populated when pacman upgrades the
+  # kernel package. Without it, a mid-session `pacman -Syu` lets 60-mkinitcpio-remove.hook delete
+  # the RUNNING kernel's modules dir → every subsequent modprobe FATALs → the 2026-05-02 W1
+  # cascade (ufw silent-disable → INPUT chain DROP).
+  # Declared here rather than in setup-node.sh's AUR_PKGS: it lives in `extra`, NOT the AUR. The
+  # old "(AUR)" labelling routed it through a bootstrap-only best-effort install that failed
+  # silently on immich-vm, and the cascade went live there 2026-07-18 (kernel 6.18.38-2 → -4).
+  # Declarative here = every node, every node-config run, with the role's retries.
+  - kernel-modules-hook
   # k8s-adjacent (most useful on control plane; small on workers)
+  - kubectl
   - kubectx
   - kubeconform
+  - helm
   - linux-lts
   - linux-lts-headers
   - lvm2
   - lynis
+  - neovim
   - nvme-cli
   - openssh
   - pacman-contrib
@@ -126,12 +146,20 @@ pacman_packages_base:
   - ufw
   - ufw-extras
   - vim
+  - xclip
   - yamllint
   - yq
+  - zoxide
 # Note: `yay` deliberately NOT here — AUR-only, pacman cannot install it.
 # Bootstrapped manually once per node (makepkg). setup-node.sh Section 1 uses it for firmware AUR pkgs.
 # Note: `taplo` (TOML lint) intentionally not on nodes — not in extra or AUR.
 # Mac-only via Homebrew. Nodes have ~no TOML files; cost > benefit to track GH releases.
+# Note: 2026-07-18 fleet-parity audit (immich-vm vs W1/W2) found 19 packages hand-installed on
+# both workers but never declared. The repo-installable ones are now listed above. Deliberately
+# still excluded:
+#   flux-bin, viddy, zsh-you-should-use — AUR-only; this list is pacman-only by design.
+#   packagekit, pkgstats, udisks2      — dependency leftovers on W1/W2, not deliberate installs.
+# Node-local extras beyond this list are tolerated drift; the list is a floor, not a whitelist.
 
 # Base rules common to all 3 nodes.
 # Order preserved as UFW orders rules internally by insertion; module idempotency
