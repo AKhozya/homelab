@@ -12,6 +12,7 @@ resources:
   - claude-telegram-ssh-secret.yaml
   - claude-telegram-chezmoi-secret.yaml
   - claude-telegram-codex-secret.yaml
+  - claude-telegram-ghcr-secret.yaml
 
 components:
   - ../components/allow-dns-egress
