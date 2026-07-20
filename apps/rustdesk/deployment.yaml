@@ -40,7 +40,7 @@ spec:
                       - worker-node
       containers:
         - name: hbbs
-          image: rustdesk/rustdesk-server:1.1.15
+          image: rustdesk/rustdesk-server:1.1.16
           imagePullPolicy: IfNotPresent
           # -k _ = only clients presenting the server pubkey may connect.
           # No -r: clients infer relay = ID-server-host:21117, which keeps hbbs
@@ -83,7 +83,7 @@ spec:
             - { name: data, mountPath: /data }
             - { name: tmp, mountPath: /tmp }
         - name: hbbr
-          image: rustdesk/rustdesk-server:1.1.15
+          image: rustdesk/rustdesk-server:1.1.16
           imagePullPolicy: IfNotPresent
           command: ["hbbr", "-k", "_"]
           workingDir: /data
