@@ -17,7 +17,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 
 ## Platform facts
 
-- **16** applications across **28** namespaces in git (32 live incl. k8s system namespaces)
+- **17** applications across **29** namespaces in git (33 live incl. k8s system namespaces)
 - **66** NetworkPolicy resources live (52 raw manifests in git — operator- and component-generated policies make up the delta) — default-deny posture; presence enforced by Kyverno
 - **12** Kyverno CEL `ValidatingPolicy` resources (policies.kyverno.io/v1) — **all Deny-enforcing**, sole policy engine since 2026-07-12 (kyverno.io/v1 ClusterPolicies deleted after 8-day parity soak; live admission attribution proven per-policy). `require-networkpolicy` matches controllers directly with autogen off (autogen rewrites void top-level-metadata checks)
 - **51** SOPS-encrypted secrets in git — no plaintext secret in Git

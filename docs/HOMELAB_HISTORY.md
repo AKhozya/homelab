@@ -17,6 +17,15 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-20 — RustDesk server (OSS) self-hosted, LAN remote desktop
+
+Added `apps/rustdesk/` — RustDesk rendezvous (`hbbs`) + relay (`hbbr`) from `rustdesk/rustdesk-server:1.1.15`, 1 pod / 2 containers sharing a 100Mi `local-path` PVC (`/data` holds the ed25519 keypair + `db_v2.sqlite3`). One mixed-protocol LoadBalancer Service (21115/TCP, 21116/TCP+UDP, 21117/TCP), pod pinned to **W1** so under servicelb ETP=Local only **192.168.1.129** carries traffic (.126 advertised but blackholes — clients use .129). `-k _` key-enforced. Deny-all-egress NetworkPolicy (server needs no upstream; verified by docker spike with `--network none`).
+
+- **17th app; new `rustdesk` namespace.** 2-commit bootstrap (ns+SA+NP → reconcile barrier → workload) per the 2026-07-14 Kyverno `require-networkpolicy` dry-run gotcha.
+- **Scored GO, LAN-only.** WAN scored 1/5: 21116/UDP is mandatory and can't traverse the Cloudflare Tunnel (HTTP-only), and zero-inbound-ports stands. WARP-via-tunnel chosen as the remote-access path (pending Zero Trust enrollment).
+- **CVE-2026-30784** (rustdesk-server#670, open, fix on master, no release): `hbbs` reflects UDP `PunchHoleResponse` to attacker-chosen addresses without key validation (`-k _` doesn't gate it). Decision: **stay on pinned 1.1.15, no custom master build** — primary mitigation is LAN-only reachability; deny-all-egress NP is defense-in-depth (reflection to any no-conntrack-tuple address = new egress = dropped). Renovate picks up 1.1.16 on release.
+- **Verified:** pod 2/2 on W1; LB IP 192.168.1.129; all 3 TCP ports reachable from Mac; a real Mac RustDesk client hit hbbs over **UDP 21116** (NAT responses on 21116+21115, 2.7ms latency, `register_pk` initiated) — proving the UDP app path + registration against the self-hosted server. Peer review: Codex STATIC, plan (2 rounds) + manifests (1 round, verdict SHIP, one NIT fixed). Plan: `docs/plans/2026-07-19-rustdesk-server.md`.
+
 ### 2026-07-18 — immich-vm modprobe cascade: kernel-modules-hook mislabelled AUR, two weeks of silently-failed patching
 
 An operator `yay -Syyu` on immich-vm surfaced 33 pending packages, which should have been impossible on a node in the weekly flow. Four failures had stacked:
