@@ -11,12 +11,27 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # RustDesk clients from anywhere (LAN via servicelb, ETP=Local preserves source IP)
-    - ports:
+    # LAN clients direct: servicelb ETP=Local preserves the client source IP, so the
+    # pod sees 192.168.1.x (verified live: hbbs logged a registration from 192.168.1.111).
+    - from:
+        - ipBlock:
+            cidr: 192.168.1.0/24
+      ports:
         - { protocol: TCP, port: 21115 }  # hbbs NAT-type test
         - { protocol: TCP, port: 21116 }  # hbbs TCP hole punch / connection
         - { protocol: UDP, port: 21116 }  # hbbs ID registration + heartbeat
         - { protocol: TCP, port: 21117 }  # hbbr relay
+    # WARP/remote clients arrive proxied through the cloudflared pod (source = its pod IP,
+    # verified live: registration from a 10.42.x cloudflared address).
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: cloudflare-tunnel
+      ports:
+        - { protocol: TCP, port: 21115 }
+        - { protocol: TCP, port: 21116 }
+        - { protocol: UDP, port: 21116 }
+        - { protocol: TCP, port: 21117 }
   # No egress rules = default-deny egress. Both binaries verified to run fully offline.
   # Defense-in-depth for CVE-2026-30784 (rustdesk-server#670 UDP reflection): a
   # PunchHoleResponse to an address with no active conntrack tuple is a NEW egress
