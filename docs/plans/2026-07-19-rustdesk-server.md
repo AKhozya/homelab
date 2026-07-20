@@ -23,8 +23,8 @@
 | Relay discovery | client infers relay = ID-server-host:21117 when unset → `-r` unnecessary, avoids hbbs relay-healthcheck egress | client-config docs |
 | Client needs | ID server `192.168.1.129`, Key = contents of `id_ed25519.pub` | client-config docs |
 
-### CVE-2026-30784 (rustdesk-server#670, open, fix on master, no release yet)
-hbbs answers `PunchHoleSent`/`LocalAddr` messages **without key validation** (`-k _` only gates `handle_punch_hole_request`), sending a `PunchHoleResponse` (+32B pk, ×2–3 amplification) to an attacker-chosen encoded address → UDP reflection/DDoS abuse on internet-exposed servers.
+### CVE-2026-30784 (rustdesk-server#670, open — NO real fix even on master)
+hbbs answers `PunchHoleSent`/`LocalAddr` messages **without key validation** (`-k _` only gates `handle_punch_hole_request` at `rendezvous_server.rs:682`), sending a `PunchHoleResponse` (+32B pk, ×2–3 amplification) to an attacker-chosen encoded address → UDP reflection/DDoS abuse on internet-exposed servers. **Verified against master source:** the maintainer's referenced commit `80d3a505` only makes UDP `PunchHoleRequest` unsupported (+2/−10); it does NOT touch the reflection handlers — self-building master gains nothing. Registration (`RegisterPk`) is also unauthenticated. So `-k _` gates the connect-to-peer path only, not registration or the reflection surface.
 
 **Decision: stay on 1.1.15, no custom build.** Two mitigation layers:
 1. **Reachability (primary):** 21116/UDP is LAN-only (zero inbound WAN ports; tunnel is HTTP-only) — internet attackers can't reach it. Abuse requires a LAN foothold.
