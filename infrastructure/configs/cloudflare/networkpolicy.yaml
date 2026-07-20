@@ -119,3 +119,24 @@ spec:
       ports:
         - protocol: TCP
           port: 5984
+    # Allow WARP-routed access to RustDesk (hbbs/hbbr). Clients reach it at the
+    # servicelb LB IP 192.168.1.129 (single address, LAN + WARP). Two rules cover
+    # both CNI egress-eval points: ipBlock matches pre-DNAT (LB IP), the
+    # namespaceSelector matches post-DNAT (rustdesk pod IP). Ports = container ports.
+    - to:
+        - ipBlock:
+            cidr: 192.168.1.129/32
+      ports:
+        - { protocol: TCP, port: 21115 }
+        - { protocol: TCP, port: 21116 }
+        - { protocol: UDP, port: 21116 }
+        - { protocol: TCP, port: 21117 }
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: rustdesk
+      ports:
+        - { protocol: TCP, port: 21115 }
+        - { protocol: TCP, port: 21116 }
+        - { protocol: UDP, port: 21116 }
+        - { protocol: TCP, port: 21117 }
