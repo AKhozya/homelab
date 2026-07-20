@@ -104,7 +104,11 @@ spec:
             fi
           fi
 
-          PAYLOAD="{\"config\":{\"ingress\":[${RULES}]}}"
+          # This tunnel is REMOTELY-managed: cloudflared serves the config PUT here,
+          # not the local file. warp-routing MUST be in this payload (a bare ingress
+          # PUT resets warp-routing to false). Enables WARP devices to reach the
+          # rustdesk private-network route (192.168.1.129).
+          PAYLOAD="{\"config\":{\"ingress\":[${RULES}],\"warp-routing\":{\"enabled\":true}}}"
           COUNT=$(printf '%s' "$RULES" | grep -o '{"' | wc -l | tr -d ' ')
           echo "Syncing ${COUNT} ingress rules to Cloudflare API..."
 
