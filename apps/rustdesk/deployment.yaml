@@ -1,0 +1,127 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rustdesk
+  namespace: rustdesk
+  labels:
+    app: rustdesk
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate  # RWO PVC shared by both containers; no rolling overlap
+  selector:
+    matchLabels:
+      app: rustdesk
+  template:
+    metadata:
+      labels:
+        app: rustdesk
+    spec:
+      serviceAccountName: rustdesk
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      # Pin to W1: servicelb ETP=Local means only the pod's node carries traffic,
+      # and clients hardcode 192.168.1.129 as ID server - don't let the pod drift.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - worker-node
+      containers:
+        - name: hbbs
+          image: rustdesk/rustdesk-server:1.1.15
+          imagePullPolicy: IfNotPresent
+          # -k _ = only clients presenting the server pubkey may connect.
+          # No -r: clients infer relay = ID-server-host:21117, which keeps hbbs
+          # free of relay-healthcheck egress (NetworkPolicy is deny-all egress).
+          command: ["hbbs", "-k", "_"]
+          workingDir: /data
+          env:
+            # Binary writes fallback config under $HOME; image default /root is
+            # read-only scratch -> harmless ERROR spam unless pointed at /data.
+            - name: HOME
+              value: /data
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - { containerPort: 21115, name: hbbs-nat, protocol: TCP }
+            - { containerPort: 21116, name: hbbs-tcp, protocol: TCP }
+            - { containerPort: 21116, name: hbbs-udp, protocol: UDP }
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          livenessProbe:
+            tcpSocket: { port: 21116 }
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket: { port: 21116 }
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+        - name: hbbr
+          image: rustdesk/rustdesk-server:1.1.15
+          imagePullPolicy: IfNotPresent
+          command: ["hbbr", "-k", "_"]
+          workingDir: /data
+          env:
+            - name: HOME
+              value: /data
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - { containerPort: 21117, name: hbbr-relay, protocol: TCP }
+          resources:
+            requests:
+              cpu: "25m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+          livenessProbe:
+            tcpSocket: { port: 21117 }
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket: { port: 21117 }
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - { name: data, mountPath: /data }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: rustdesk-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi

@@ -99,6 +99,7 @@ spec:
                   pricebuddy/pricebuddy-storage/*pricebuddy-storage*
                   mealie/mealie-data-pvc/*mealie-data-pvc*
                   n8n/n8n-data-pvc/*n8n-data-pvc*
+                  rustdesk/rustdesk-data/*rustdesk-data*
                   "
 
                   # PVCs containing already-compressed media files (audio)
