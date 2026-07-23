@@ -183,7 +183,7 @@ spec:
     haproxy:
       enabled: true
       size: 2
-      image: percona/haproxy:2.8.18
+      image: percona/haproxy:2.8.26
       imagePullPolicy: IfNotPresent
       serviceAccountName: main-mysql
       priorityClassName: homelab-critical  # critical tier (DB front)
