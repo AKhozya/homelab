@@ -17,6 +17,14 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-23 — WARP managed-network beacon: home/away device profiles auto-switch
+
+Added `warp-beacon` to the `rustdesk` namespace (`apps/rustdesk/beacon-*.yaml`): `nginxinc/nginx-unprivileged:1.30.4-alpine` serving a 10-year self-signed cert (CN `warp-beacon.h0melab.internal`, fingerprint `4B8045EA…B2F3DF`) on **192.168.1.129:18443** (same W1 servicelb ETP=Local pin as RustDesk). Key in SOPS Secret; cert+nginx.conf in ConfigMap; PSS-restricted, RoRFS, deny-all-egress; ingress 8443/TCP from LAN only — **deliberately NOT tunnel-reachable**, off-LAN detection must fail (per CF managed-networks docs: 5 s probe timeout → default profile, no retry).
+
+Zero Trust side (dashboard): managed network **`home-lan`** = `192.168.1.129:18443` + pinned cert SHA-256; device profile **"Home LAN - direct"** (precedence 1, match `Managed network is home-lan`, split-tunnel Include = inert `192.0.2.1/32` only) — retargeted from the interim same-day `os == macOS` profile; **Default** (precedence 2) keeps the `192.168.1.129/32` include. Net effect for every enrolled device, current and future (2nd Mac, Windows): at home → tunnel nothing, RustDesk + node SSH direct on LAN; away → tunneled `.129` route for remote RustDesk. This closes the same-day gotcha where the `.129/32` teamnet route hijacked Mac→W1 SSH whenever WARP was Connected.
+
+Verified end-to-end: beacon fingerprint match + 200 in 47 ms from LAN; after a WARP cycle the Mac (profile now matches ONLY via beacon) still received the inert include → detection proven; ping + SSH:65300 + RustDesk 21116 all green with WARP Connected. Codex STATIC review SHIP (accepted MED: single replica — safe degradation, probes fire only on network change and a beacon outage just means away-profile/tunnel routes; accepted LOW: subPath mounts don't hot-reload — cert rotation is a coordinated event with the dashboard fingerprint). CI on the push was the billing-block fail-to-start signature (all 13 jobs, 0 steps) — classifier initially miscalled it content-red over a null-conclusion job; `ci-red-classify.sh` (dotfiles) fixed same day (conclusion-agnostic zero-step + explicit CANCELLED exit 12, 2 Codex rounds).
+
 ### 2026-07-23 — node_isolation_heal ACTIVE (dry-run off after 13-day soak) + interlocks
 
 `node_isolation_dry_run: false` — the worker CP-isolation watchdog (dry-run since 2026-07-10, `68f114d0`) now acts: L1 `systemctl restart k3s-agent` at ≥6 min isolated; staggered L2 self-reboot (W1 15 min / W2 23 min, `cp_direct`-gated, ≤1/24 h, uptime>30 min) as last resort. **Soak evidence:** 13 days, zero false pending actions, zero giveups; the only `wedged=1` sample was a <6 min blip on W1 during the 2026-07-18 Saturday phase2 reboot window — exactly the class the new maint-hold suppresses.

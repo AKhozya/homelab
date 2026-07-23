@@ -80,6 +80,7 @@ DB role name = app name. Provisioning goes through the operator CRDs (CNPG `Data
 - **Cloudflare Tunnel** fronts the internet-reachable apps (Authentik, CouchDB, Audiobookshelf, Linkwarden, Stirling-PDF, Mealie, Paperless, Immich, n8n) — outbound-initiated, so the router opens zero inbound ports.
 - **Internal:** Blocky serves LAN-client DNS; Traefik terminates internal ingress. Cluster DNS is a `coredns-ha` DaemonSet (1 replica/node) behind `10.43.0.10`.
 - **Domain:** `h0melab.work` (TLS via cert-manager DNS-01).
+- **WARP device profiles:** Zero Trust managed-network beacon at `192.168.1.129:18443` (LAN-only TLS endpoint, `apps/rustdesk/beacon-*`) auto-switches every enrolled device — home = "Home LAN - direct" (tunnel nothing), away = Default (tunneled `.129/32` for remote RustDesk).
 
 ## Storage
 
