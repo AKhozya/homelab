@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: warp-beacon
+  namespace: rustdesk
+  labels:
+    app: warp-beacon
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: warp-beacon
+  template:
+    metadata:
+      labels:
+        app: warp-beacon
+    spec:
+      serviceAccountName: rustdesk
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+        seccompProfile:
+          type: RuntimeDefault
+      # Same W1 pin as rustdesk: servicelb ETP=Local means only the pod's node
+      # answers, and the Zero Trust managed-network entry hardcodes 192.168.1.129.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - worker-node
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.30.4-alpine
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - { containerPort: 8443, name: beacon-tls, protocol: TCP }
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+          livenessProbe:
+            tcpSocket: { port: 8443 }
+            initialDelaySeconds: 3
+            periodSeconds: 30
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket: { port: 8443 }
+            initialDelaySeconds: 2
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - { name: config, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf }
+            - { name: config, mountPath: /certs/cert.pem, subPath: cert.pem }
+            - { name: key, mountPath: /certs/key.pem, subPath: key.pem }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: config
+          configMap:
+            name: warp-beacon-config
+        - name: key
+          secret:
+            secretName: warp-beacon-key
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Mi

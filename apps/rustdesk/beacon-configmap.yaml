@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: warp-beacon-config
+  namespace: rustdesk
+data:
+  # 10-year self-signed cert (public half; key in warp-beacon-key SOPS Secret).
+  # SHA-256 fingerprint is pinned in the Cloudflare Zero Trust "Managed networks"
+  # entry — replacing this cert requires updating that fingerprint or every WARP
+  # device silently stops detecting the home network (5s probe timeout = away).
+  nginx.conf: |
+    worker_processes 1;
+    pid /tmp/nginx.pid;
+    error_log /dev/stderr warn;
+    events { worker_connections 64; }
+    http {
+      access_log off;
+      client_body_temp_path /tmp/client_temp;
+      proxy_temp_path /tmp/proxy_temp;
+      fastcgi_temp_path /tmp/fastcgi_temp;
+      uwsgi_temp_path /tmp/uwsgi_temp;
+      scgi_temp_path /tmp/scgi_temp;
+      server {
+        listen 8443 ssl;
+        ssl_certificate /certs/cert.pem;
+        ssl_certificate_key /certs/key.pem;
+        location / { return 200; }
+      }
+    }
+  cert.pem: |
+    -----BEGIN CERTIFICATE-----
+    MIIFWDCCA0CgAwIBAgIUFeUOthqMDlN3RJHR/dDAAk+LkrYwDQYJKoZIhvcNAQEL
+    BQAwJzElMCMGA1UEAwwcd2FycC1iZWFjb24uaDBtZWxhYi5pbnRlcm5hbDAeFw0y
+    NjA3MjMxNDQ1NTNaFw0zNjA3MjAxNDQ1NTNaMCcxJTAjBgNVBAMMHHdhcnAtYmVh
+    Y29uLmgwbWVsYWIuaW50ZXJuYWwwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIK
+    AoICAQDHrz5D1Z0UEDqJVjWe/pKmIUAM3djLgFqsWFgvuNbz1SpcljbbgtepU9M9
+    08dclq9+Bpg5pdo3p+PrURHAflgUkU03B771nuEZpc43O44jVwr4LjrvZ9e/1Zd8
+    6gMsVEMEIxOXPPp4IzzZmxciNpGXtiaKJ1QsSfqxi+m1qQ5Lbn77EPwfu9hzLQgg
+    vJrmKtUT91pc+O/PYBj5rxFxLQbJEGfShJykx2gBdC2jOiB/8VVokZTWDS7OJ6/U
+    joMlScf+Plnclic47yG4yZMM1MJq3zRXg/AZJhuzevEI5twH3jvP71uCqiBXWaqL
+    mu/nGFhhLnySFoCNR71JS4uejz/Ozi9YLrzgV7l2GCJdw1A77Bsru5EueZAj3zKc
+    A2pmQwJ8qcGvAPO2kaZ3oQS4HfY7EvLLOj/1V7vLjix3zeLryLjH185oKeYAPizI
+    mZ1HHMYm8lEQZ3JcpVklEtjErinQHcj3MJ3LbLdm6C/0PFiLyP1MonUKG75nHz7v
+    OvZDUPhuF1QdJnHUwg5zmxuwLBjjc8T+vXn7uuqSTV/ks6PeQdhSXGpopp+XTk+G
+    BeTWHAVZJwvwvRVxxXofIQT6Q+yVaE0J18AUWoSbtg6CscD66pBvE/hH1NbiThrs
+    6aQ4R5K5F5giow8btP9lxbSsQbx4dsLi3F1XZvKgKGVPSjc/MQIDAQABo3wwejAd
+    BgNVHQ4EFgQUpxp3nzVpRv/Y5yoeU0BeGs9QNuAwHwYDVR0jBBgwFoAUpxp3nzVp
+    Rv/Y5yoeU0BeGs9QNuAwDwYDVR0TAQH/BAUwAwEB/zAnBgNVHREEIDAeghx3YXJw
+    LWJlYWNvbi5oMG1lbGFiLmludGVybmFsMA0GCSqGSIb3DQEBCwUAA4ICAQAUnGhs
+    P53+XO+mx1AYyW42rFYbm9SBeyE++9Rv03jJ1wuhX/rZYWa+G3QwgEguZ6yFqXOh
+    ABj+/NEBFEca0bpbIw+NS6Z5UK9MG3g1xYj/KC+CrBSHpRJc5UeSASOdRYTv/vIS
+    2iULEO3PR74qgwAj4czJ2u2sv2mS/cS4uXgxfFl1iP07neXe175RdYXp3/rN0UKK
+    A5h8iY433cJ1PsBOFDI2zn3H7VE6gID7mjnJT2n4b+C1RHev9if2XiOOzVrO1qwJ
+    mVRt8yQ48VRhvHvg6bsUbF7q2G3bszNvoVE5JeTHtyhhhKb5MZuJKz1Ygz66g9Ab
+    M5ovQWctio1+C8lYe8EWF4AhaBsBhLlwrMDL+l0LlzLdwyriK5cgnbzLv9/wFSER
+    zZczrnxnfUojrLdjZ0xIi9heBhbEljZKr/Nl3f6oti6rPxk4+4vTX7b2d9yBkAgE
+    pM0QJW0n9FggxHJALcmIwgXQb209MQ//vwEW3qJB0HAmi+skT3j4ej71hocNQFDc
+    h7UnSc/RcDJHwmIULHEGfqdlR7fRFMaB2M1bx51NgMgiwUSJxT0rFXzM2FCRwyhE
+    1uZ/hY/d+6pcUyrYWnrnfXrVCFR1sC3UKzBpqwYzcjZMMnS+0RDQQvZvXUZlwzRI
+    ZVjYz+CYZHfbbCCrvwzMrjpYStTFdG68o6c8Yg==
+    -----END CERTIFICATE-----

@@ -8,3 +8,8 @@ resources:
   - storage.yaml
   - deployment.yaml
   - service.yaml
+  - beacon-configmap.yaml
+  - beacon-key-secret.yaml
+  - beacon-networkpolicy.yaml
+  - beacon-deployment.yaml
+  - beacon-service.yaml

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: warp-beacon
+  namespace: rustdesk
+  labels:
+    app: warp-beacon
+spec:
+  selector:
+    app: warp-beacon
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  ports:
+    - { port: 18443, targetPort: 8443, protocol: TCP, name: beacon-tls }

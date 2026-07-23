@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: warp-beacon-network-policy
+  namespace: rustdesk
+spec:
+  podSelector:
+    matchLabels:
+      app: warp-beacon
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # LAN only, DELIBERATELY. The beacon exists so WARP clients can tell "home LAN"
+    # from "away": detection must FAIL off-LAN, so no cloudflared/tunnel ingress rule
+    # here — a tunnel path would make remote devices detect as home and drop their
+    # tunnel routes. Kubelet TCP probes arrive from the node IP, inside this CIDR.
+    - from:
+        - ipBlock:
+            cidr: 192.168.1.0/24
+      ports:
+        - { protocol: TCP, port: 8443 }
+  # No egress rules = default-deny egress. nginx serves a static 200 over TLS and
+  # needs nothing outbound.
