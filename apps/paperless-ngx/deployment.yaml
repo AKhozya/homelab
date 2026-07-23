@@ -29,10 +29,24 @@ spec:
           command:
             - sh
             - -c
-            - chown -R 1000:1000 /run && chmod 755 /run
+            - |
+              chown -R 1000:1000 /run && chmod 755 /run
+              chown 1000:1000 /data /media /export /consume
           volumeMounts:
             - name: run
               mountPath: /run
+            - name: paperless-storage
+              mountPath: /data
+              subPath: data
+            - name: paperless-storage
+              mountPath: /media
+              subPath: media
+            - name: paperless-storage
+              mountPath: /export
+              subPath: export
+            - name: paperless-storage
+              mountPath: /consume
+              subPath: consume
           securityContext:
             runAsUser: 0
             runAsNonRoot: false
@@ -65,8 +79,8 @@ spec:
             capabilities:
               drop: ["ALL"]
           startupProbe:
-            # Paperless init pipeline runs Django migrations + Redis/Postgres waits + tesseract checks.
-            # Observed cold-start: ~98s. failureThreshold 30 × periodSeconds 10 = 300s budget.
+            # Paperless v3 init: Django migrations + Redis/Postgres waits + tesseract + search index.
+            # Observed v3 cold-start: ~125s. failureThreshold 30 × periodSeconds 10 = 300s budget.
             httpGet:
               path: /
               port: 8000
