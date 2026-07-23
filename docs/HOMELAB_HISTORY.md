@@ -17,6 +17,18 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-23 — node_isolation_heal ACTIVE (dry-run off after 13-day soak) + interlocks
+
+`node_isolation_dry_run: false` — the worker CP-isolation watchdog (dry-run since 2026-07-10, `68f114d0`) now acts: L1 `systemctl restart k3s-agent` at ≥6 min isolated; staggered L2 self-reboot (W1 15 min / W2 23 min, `cp_direct`-gated, ≤1/24 h, uptime>30 min) as last resort. **Soak evidence:** 13 days, zero false pending actions, zero giveups; the only `wedged=1` sample was a <6 min blip on W1 during the 2026-07-18 Saturday phase2 reboot window — exactly the class the new maint-hold suppresses.
+
+Activation interlocks (same commit):
+
+- **phase2.yml** touches worker-local `/var/lib/node-isolation-heal/maint-hold` right before each orchestrated worker reboot and removes it after uncordon — the watchdog skips its ladder while the hold is <1 h old; a stuck hold ages out.
+- **k3s-agent restart serialization**: `clusterip-heal.sh` and `node-isolation-heal.sh` both take a non-blocking `flock` on the shared `/var/lib/k3s-agent-restart/cooldown`, held check→restart→touch (mtime-only check left an interleave window — review HIGH). Lock-infra failure **fails closed** (skip cycle; wedged metrics/alerts still fire — review R2 HIGH); `NIH_SKIP_LOCK=1` is a test-harness-only bypass (macOS has no flock).
+- **VMRules**: `NodeIsolationHealActing` (warn, wedged >8 m), `NodeIsolationHealPendingReboot` (critical, `for: 1m` — fires on persistent dry-run/guard-blocked states only; the active reboot path zeroes `pending_action` before rebooting, since the textfile survives the boot under `/var/lib` and a stale 2 would double-page — review R3 MED), `NodeIsolationHealRebooted` (critical — new persistent `node_isolation_heal_last_reboot_timestamp` gauge re-emitted from the on-disk state file each cycle; the sole alert for a completed self-reboot — review R1 MED), `NodeIsolationHealGaveUp` (critical).
+
+Rollout: ansible side lands via the 10-min git sync + 03:00 UTC drift-heal; vmrules via Flux `monitoring-configs`. Gates: shellcheck/shfmt/yamllint/ansible-lint clean, ladder tests 22/22, vmrules metric audit (new gauge's series appears after first node run; absent series = alert no-op). Codex STATIC review 3 rounds (R1 BLOCK: lock race HIGH + alert-reliability MED + stale plan LOW; R2 BLOCK: fail-open fallback HIGH + double-fire MED + plan sections LOW; R3 BLOCK: 1 MED persisted-textfile double-fire, no HIGH — fixed post-round, cap reached). Plan: `docs/plans/2026-07-10-node-isolation-heal.md`.
+
 ### 2026-07-20 — RustDesk server (OSS) self-hosted, LAN remote desktop
 
 Added `apps/rustdesk/` — RustDesk rendezvous (`hbbs`) + relay (`hbbr`) from `rustdesk/rustdesk-server:1.1.15`, 1 pod / 2 containers sharing a 100Mi `local-path` PVC (`/data` holds the ed25519 keypair + `db_v2.sqlite3`). One mixed-protocol LoadBalancer Service (21115/TCP, 21116/TCP+UDP, 21117/TCP), pod pinned to **W1** so under servicelb ETP=Local only **192.168.1.129** carries traffic (.126 advertised but blackholes — clients use .129). Deny-all-egress NetworkPolicy (server needs no upstream; verified by docker spike with `--network none`).

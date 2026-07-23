@@ -1,7 +1,8 @@
 # node_isolation_heal — worker self-recovery watchdog
 
-**Status:** DESIGN v2 — Codex R1 folded in (2 HIGH + 2 MED + 1 LOW). Pending operator
-sign-off on escalation policy + a 2nd Codex delta review, then implement (dry-run first).
+**Status:** ACTIVE since 2026-07-23 — dry-run shipped 2026-07-10 (`68f114d0`), 13-day soak
+clean (one <6min blip during the 07-18 phase2 reboot window; zero false pending actions),
+interlocks + VMRules landed and `node_isolation_dry_run` flipped false in the same commit.
 **Origin:** 2026-07-10 W2 isolation incident. Trigger (firewall pre-heal unconditional
 `ufw reload`) fixed in `ff2b486b`. This watchdog is the **defense-in-depth safety net**
 for the failure *class*, not the specific trigger.
@@ -95,12 +96,18 @@ to honor it. Neither restarts `k3s-agent` within the shared cooldown of the othe
 - `node_isolation_heal_giveup` 0/1 — escalation exhausted (guard/cap) → needs a human
 - `node_isolation_heal_dryrun` 0/1 — 1 while `NIH_DRY_RUN=1` (soak)
 - `node_isolation_heal_signal_up{signal="tunnel|cp_direct|kubelet|gateway"}` 0/1 — per-signal probe
+- `node_isolation_heal_last_reboot_timestamp` — Unix time of the last watchdog self-reboot
+  (0=never), re-emitted every cycle from the on-disk state file so it survives the reboot
 
-## Alerts (monitoring VMRule — separate commit, active-flip follow-up)
+## Alerts (monitoring VMRule — shipped 2026-07-23 with the active flip)
 
 - `NodeIsolationHealActing` — `node_isolation_heal_wedged == 1` >8 min — warn
-- `NodeIsolationHealPendingReboot` — `node_isolation_heal_pending_action == 2` — **critical**
-  (dry-run: it WOULD reboot; active: it did — either way the operator must know)
+- `NodeIsolationHealPendingReboot` — `node_isolation_heal_pending_action == 2` for 1m —
+  **critical**; fires on persistent pending states (dry-run would-reboot, guard-blocked).
+  The active reboot path emits pending=0 just before rebooting — the textfile persists
+  under /var/lib across the boot, so a stale 2 would double-fire this on top of Rebooted
+- `NodeIsolationHealRebooted` — `time() - node_isolation_heal_last_reboot_timestamp < 1h`
+  — **critical**, the durable post-reboot signal
 - `NodeIsolationHealGaveUp` — `node_isolation_heal_giveup == 1` — **critical**, manual
 
 ## Testing / rollout
@@ -144,6 +151,9 @@ to honor it. Neither restarts `k3s-agent` within the shared cooldown of the othe
   host_var (W1=0, W2=1). Emits `node_isolation_heal_*` metrics incl. `node_isolation_heal_dryrun`
   and per-signal `node_isolation_heal_signal_up`. No destructive path reachable. Ladder logic
   covered by an offline unit test (`tests/test-ladder.sh`, 22 cases).
-- **Before ACTIVE flip (follow-up):** `phase2.yml` worker-local `maint-hold`; shared
-  `/var/lib/k3s-agent-restart/cooldown` honored by `clusterip_heal.sh` too; monitoring
-  VMRules (`NodeIsolationHealActing/Rebooted/GaveUp`); flip `NIH_DRY_RUN=0`.
+- **Before ACTIVE flip (DONE 2026-07-23):** `phase2.yml` worker-local `maint-hold`; shared
+  `/var/lib/k3s-agent-restart/cooldown` honored by `clusterip_heal.sh` too (flock-serialized
+  check→restart→touch, both watchdogs); monitoring VMRules (`NodeIsolationHealActing/
+  PendingReboot/Rebooted/GaveUp` — Rebooted rides a persistent last-reboot timestamp gauge,
+  since the pending_action=2 sample is wiped seconds later by the reboot itself);
+  flip `NIH_DRY_RUN=0`.

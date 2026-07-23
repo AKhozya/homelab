@@ -72,7 +72,7 @@
     # Node-local self-recovery for CP-isolation (k3s-agent tunnel wedged / kubelet
     # NotReady while the host is alive) — the 2026-07-10 W2 90-min-isolation class that
     # no existing watchdog caught. Ladder: restart k3s-agent -> staggered self-reboot.
-    # Ships DRY-RUN (node_isolation_dry_run: true) — logs only until the soak + interlocks.
+    # ACTIVE since 2026-07-23 (13-day dry-run soak clean); dry-run via node_isolation_dry_run.
     # EXCLUDED on the `virtual` group: its escalation ladder ends in an in-guest `systemctl
     # reboot`, which on the GPU-passthrough VM wedges the iGPU → NAS host crash (reset-bug C3).
     # clusterip_heal (above) is kept — its k3s-agent restart is the safe isolation recovery.

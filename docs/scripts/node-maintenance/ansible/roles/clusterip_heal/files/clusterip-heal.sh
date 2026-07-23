@@ -29,6 +29,9 @@ PROBE="/etc/node-maintenance/bin/clusterip-probe.sh"
 STATE="/var/lib/node-maintenance/clusterip-heal.state" # "window_start count total last_restart"
 METRIC_DIR="/var/lib/node_exporter/textfile"
 METRIC="${METRIC_DIR}/clusterip_heal.prom"
+# Shared cross-watchdog cooldown (also touched by node_isolation_heal's L1): neither
+# watchdog restarts k3s-agent within COOLDOWN of the other's restart.
+SHARED_RESTART_COOLDOWN="/var/lib/k3s-agent-restart/cooldown"
 
 COOLDOWN=300    # min seconds between restarts (let the last one settle)
 WINDOW=1800     # cap window (s)
@@ -115,9 +118,32 @@ if [ "$count" -ge "$MAX_RESTARTS" ]; then
 	exit 1
 fi
 
-# Cooldown → wait one cycle so the previous restart can settle.
-if [ "$last" -ne 0 ] && [ "$((now - last))" -lt "$COOLDOWN" ]; then
-	log "within ${COOLDOWN}s cooldown ($((now - last))s since last restart) — waiting a cycle."
+# Serialize with node_isolation_heal: hold the shared lock from cooldown-check through
+# restart+touch, so the two watchdogs can't interleave check→restart and double-restart
+# k3s-agent. -n = never block the timer cycle; lock auto-releases on exit.
+# Lock infra failing (no flock / fd open error) = fail CLOSED: skip the restart this cycle
+# — never degrade to the racy mtime-only path; the wedged metric + alert still fire.
+mkdir -p "$(dirname "$SHARED_RESTART_COOLDOWN")" 2>/dev/null || true
+if ! command -v flock >/dev/null 2>&1 || ! exec 9>>"$SHARED_RESTART_COOLDOWN" 2>/dev/null; then
+	log "restart-lock infrastructure unavailable (flock/fd open) — failing closed this cycle."
+	emit_metric 1 "$total" 0
+	exit 1
+fi
+if ! flock -n 9; then
+	log "another watchdog holds the k3s-agent restart lock — waiting a cycle."
+	emit_metric 1 "$total" 0
+	exit 1
+fi
+
+# Cooldown → wait one cycle so the previous restart can settle. The shared file's mtime
+# counts too, so an L1 restart by node_isolation_heal defers this watchdog (and vice versa).
+last_any="$last"
+if [ -f "$SHARED_RESTART_COOLDOWN" ]; then
+	shared_last="$(stat -c %Y "$SHARED_RESTART_COOLDOWN" 2>/dev/null || echo 0)"
+	if [ "$shared_last" -gt "$last_any" ]; then last_any="$shared_last"; fi
+fi
+if [ "$last_any" -ne 0 ] && [ "$((now - last_any))" -lt "$COOLDOWN" ]; then
+	log "within ${COOLDOWN}s cooldown ($((now - last_any))s since last k3s-agent restart) — waiting a cycle."
 	emit_metric 1 "$total" 0
 	exit 1
 fi
@@ -128,6 +154,7 @@ if systemctl restart k3s-agent.service; then
 	count="$((count + 1))"
 	total="$((total + 1))"
 	last="$(date +%s)"
+	: >"$SHARED_RESTART_COOLDOWN" 2>/dev/null || true
 	write_state "$win" "$count" "$total" "$last"
 	sleep "$REPROBE_WAIT"
 	if "$PROBE" >/dev/null 2>&1; then

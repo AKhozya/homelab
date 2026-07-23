@@ -24,6 +24,8 @@ chmod +x "$TMP/bin/systemctl"
 export PATH="$TMP/bin:$PATH"
 export MOCK_ACTIONS="$TMP/actions"
 export NIH_STATE_DIR="$TMP/state" NIH_METRIC_DIR="$TMP/metric" NIH_SHARED_COOLDOWN="$TMP/shared-cooldown"
+# Test-only: bypass the shared flock (absent on macOS); the ladder under test is mtime-based.
+export NIH_SKIP_LOCK=1
 export NIH_FAIL_CONSECUTIVE=2 NIH_RESTART_AFTER_S=300 NIH_REBOOT_BASE_S=900 NIH_REBOOT_STAGGER_S=480
 export NIH_MOCK_KUBELET=0 NIH_MOCK_GW=0 # logged-only signals; hold "up" (don't gate)
 

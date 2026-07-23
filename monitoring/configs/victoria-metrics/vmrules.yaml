@@ -75,6 +75,54 @@ spec:
         summary: "clusterip_heal GAVE UP on {{ $labels.instance }} — manual intervention needed"
         description: "node_clusterip_heal_giveup=1 on {{ $labels.instance }}: the ClusterIP DNAT wedge persisted past the watchdog's restart cap. restart-k3s-agent is not fixing it — investigate stale nft chain / CNI / hardware."
 
+    - alert: NodeIsolationHealActing
+      # Worker isolated from the CP (k3s-agent tunnel down) long enough that the isolation
+      # watchdog's ladder is acting (L1 agent restart at 6min; staggered self-reboot 15/23min).
+      expr: node_isolation_heal_wedged == 1
+      for: 8m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Worker {{ $labels.instance }} isolated from control-plane — isolation watchdog acting"
+        description: "node_isolation_heal_wedged=1 for >8min on {{ $labels.instance }}: the k3s-agent tunnel to the CP is down. The watchdog restarts k3s-agent at 6min wedged and self-reboots (staggered, guarded) if the CP stays directly unreachable."
+
+    - alert: NodeIsolationHealPendingReboot
+      # The ladder selected the reboot rung: past the staggered threshold, cp_direct down,
+      # an L1 restart already tried. pending=2 persists only in dry-run and guard-blocked
+      # states — the active reboot path emits 0 just before rebooting (the textfile
+      # survives the boot under /var/lib; a stale 2 would double-fire this on top of
+      # Rebooted, which alone covers the successful self-reboot).
+      expr: node_isolation_heal_pending_action == 2
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Isolation watchdog on {{ $labels.instance }} reached the self-reboot rung"
+        description: "node_isolation_heal_pending_action=2 on {{ $labels.instance }}: isolated past the staggered reboot threshold with the CP directly unreachable and a k3s-agent restart already tried. The watchdog reboots the worker — verify it rejoins Ready."
+
+    - alert: NodeIsolationHealRebooted
+      # Durable post-reboot signal: the timestamp gauge is re-emitted every cycle from the
+      # on-disk state file. Sole alert for a completed self-reboot — the reboot path
+      # deliberately zeroes pending_action first.
+      expr: (time() - node_isolation_heal_last_reboot_timestamp < 3600) and (node_isolation_heal_last_reboot_timestamp > 0)
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Isolation watchdog SELF-REBOOTED {{ $labels.instance }} in the last hour"
+        description: "node_isolation_heal_last_reboot_timestamp on {{ $labels.instance }} is within the last hour: the watchdog rebooted this worker to recover from CP isolation. Verify the node is Ready and investigate what isolated it (switch port, NIC, CP)."
+
+    - alert: NodeIsolationHealGaveUp
+      # Reboot guard tripped (uptime<30min boot-loop or the 1/24h cap) — the watchdog stops
+      # escalating and the node stays isolated until a human intervenes.
+      expr: node_isolation_heal_giveup == 1
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Isolation watchdog GAVE UP on {{ $labels.instance }} — manual intervention needed"
+        description: "node_isolation_heal_giveup=1 on {{ $labels.instance }}: a reboot guard (boot-loop / daily cap) blocked further escalation while the node is still isolated from the CP. Check power, switch port, NIC (W2 r8169), and the CP itself."
+
     - alert: NodeMemoryPressure
       expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
       for: 5m

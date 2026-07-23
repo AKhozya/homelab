@@ -190,6 +190,21 @@
       delegate_to: localhost
       become: false
 
+    - name: Hold node-isolation-heal during the orchestrated reboot (worker-local interlock)
+      # The isolation watchdog skips its ladder while this file exists (<1h old) — the
+      # reboot+rejoin window must not count as an isolation episode. Removed after uncordon;
+      # if the play dies first, the watchdog ignores holds older than NIH_MAINT_HOLD_MAX_AGE_S.
+      ansible.builtin.file:
+        path: /var/lib/node-isolation-heal
+        state: directory
+        mode: "0755"
+
+    - name: Touch node-isolation-heal maint-hold
+      ansible.builtin.file:
+        path: /var/lib/node-isolation-heal/maint-hold
+        state: touch
+        mode: "0644"
+
     - name: Reboot node (graceful — shutdownGracePeriod 2min handles pods)
       ansible.builtin.reboot:
         reboot_timeout: "{{ reboot_timeout_sec }}"
@@ -312,6 +327,11 @@
             unschedulable: false
       delegate_to: localhost
       become: false
+
+    - name: Release node-isolation-heal maint-hold (rejoin complete)
+      ansible.builtin.file:
+        path: /var/lib/node-isolation-heal/maint-hold
+        state: absent
 
     - name: Stabilize pause
       ansible.builtin.pause:

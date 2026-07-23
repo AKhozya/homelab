@@ -3,9 +3,9 @@
 # (wired in node-config.yml Play 4, hosts: workers). The script also no-ops where the
 # k3s-agent unit is absent (the control-plane), as a second guard.
 #
-# Ships DRY-RUN (node_isolation_dry_run: true): the watchdog logs the decision it WOULD
-# take + emits metrics; it takes no destructive action until the flag is flipped false
-# after the soak + active-mode interlocks. See docs/plans/2026-07-10-node-isolation-heal.md.
+# node_isolation_dry_run=true → the watchdog logs the decision it WOULD take + emits
+# metrics, acts on nothing. ACTIVE (false) requires the interlocks: phase2 maint-hold,
+# shared restart cooldown, VMRules. See docs/plans/2026-07-10-node-isolation-heal.md.
 
 - name: Ensure node-isolation-heal state dir
   ansible.builtin.file:

@@ -27,10 +27,10 @@
 #       node so two simultaneously-isolated workers        down, AND an L1 already tried.
 #       never reboot together (leaderless rolling reboot → HA DB loses ≤1 replica).
 #
-# DRY_RUN=1 (default during the soak): probe + log the decision it WOULD take + emit
-# metrics; take NO destructive action. Flip to 0 only after the soak AND the active-mode
-# interlocks land (worker-local maint-hold set by phase2; shared k3s-agent restart cooldown
-# honored by clusterip_heal too).
+# DRY_RUN=1 (safe script fallback — the ansible-managed env file sets the live value):
+# probe + log the decision it WOULD take + emit metrics; take NO destructive action.
+# Active mode (0) relies on the interlocks: worker-local maint-hold set by phase2;
+# shared k3s-agent restart cooldown honored by clusterip_heal too.
 
 set -uo pipefail
 
@@ -94,6 +94,13 @@ emit_metric() { # wedged(0/1) wedged_seconds pending(0none/1restart/2reboot) giv
 		printf 'node_isolation_heal_signal_up{signal="cp_direct"} %s\n' "$cp_up"
 		printf 'node_isolation_heal_signal_up{signal="kubelet"} %s\n' "$kubelet_up"
 		printf 'node_isolation_heal_signal_up{signal="gateway"} %s\n' "$gw_up"
+		# Persists across the reboot via the state file — the durable signal for the
+		# NodeIsolationHealRebooted alert. pending_action can't carry this: the active
+		# reboot path deliberately emits 0 before rebooting (the textfile survives the
+		# boot and a stale 2 would double-fire PendingReboot).
+		printf '# HELP node_isolation_heal_last_reboot_timestamp Unix time of the last watchdog self-reboot (0=never).\n'
+		printf '# TYPE node_isolation_heal_last_reboot_timestamp gauge\n'
+		printf 'node_isolation_heal_last_reboot_timestamp %s\n' "${last_reboot:-0}"
 	} >"$tmp"; then
 		chmod 0644 "$tmp" # node_exporter scrapes as non-root; mktemp made it 0600
 		mv -f "$tmp" "$METRIC" || rm -f "$tmp"
@@ -189,6 +196,27 @@ if [ "$last_restart" -ne 0 ] && [ "$last_restart" -ge "$first_fail" ]; then rest
 
 # do_l1: k3s-agent restart rung (cooldown → dry-run → real), then exit the script.
 do_l1() {
+	# Hold the shared restart lock through check→restart→touch so this and clusterip_heal
+	# can't interleave and double-restart k3s-agent. -n: never block; busy = wait a cycle.
+	# Lock infra failing (no flock / fd open error) = fail CLOSED: skip the restart this
+	# cycle — never degrade to the racy mtime-only path; wedged metric + Acting alert still
+	# fire. NIH_SKIP_LOCK=1 is ONLY for the offline test harness (macOS has no flock);
+	# production nodes always ship util-linux.
+	if [ "${NIH_SKIP_LOCK:-0}" != "1" ]; then
+		mkdir -p "$(dirname "$SHARED_RESTART_COOLDOWN")" 2>/dev/null || true
+		if ! command -v flock >/dev/null 2>&1 || ! exec 9>>"$SHARED_RESTART_COOLDOWN" 2>/dev/null; then
+			log "L1: restart-lock infrastructure unavailable (flock/fd open) — failing closed this cycle."
+			write_state "$first_fail" "$consecutive" "$last_restart" "$last_reboot"
+			emit_metric 1 "$wedged_s" 1 0
+			exit 0
+		fi
+		if ! flock -n 9; then
+			log "L1: another watchdog holds the k3s-agent restart lock — waiting a cycle."
+			write_state "$first_fail" "$consecutive" "$last_restart" "$last_reboot"
+			emit_metric 1 "$wedged_s" 1 0
+			exit 0
+		fi
+	fi
 	local shared_last=0 last_any="$last_restart"
 	[ -f "$SHARED_RESTART_COOLDOWN" ] && shared_last="$(stat -c %Y "$SHARED_RESTART_COOLDOWN" 2>/dev/null || echo 0)"
 	[ "$shared_last" -gt "$last_any" ] && last_any="$shared_last"
@@ -206,7 +234,6 @@ do_l1() {
 		exit 0
 	fi
 	log "L1: restarting k3s-agent (isolated ${wedged_s}s)."
-	mkdir -p "$(dirname "$SHARED_RESTART_COOLDOWN")" 2>/dev/null || true
 	: >"$SHARED_RESTART_COOLDOWN" 2>/dev/null || true
 	write_state "$first_fail" "$consecutive" "$now" "$last_reboot"
 	systemctl restart k3s-agent.service || log "L1: k3s-agent restart FAILED."
@@ -235,13 +262,18 @@ if [ "$wedged_s" -ge "$reboot_threshold" ] && [ "$cp_up" -eq 0 ]; then
 		emit_metric 1 "$wedged_s" 2 1
 		exit 1
 	fi
-	emit_metric 1 "$wedged_s" 2 0
 	if [ "$DRY_RUN" = "1" ]; then
+		emit_metric 1 "$wedged_s" 2 0
 		log "DRY_RUN: WOULD self-reboot now (wedged ${wedged_s}s >= ${reboot_threshold}s, index=$NODE_INDEX, cp_direct down, prior L1 tried). Taking NO action."
 		write_state "$first_fail" "$consecutive" "$last_restart" "$last_reboot"
 		exit 0
 	fi
 	log "SELF-REBOOT: isolated ${wedged_s}s, cannot reach CP, L1 didn't recover — rebooting (staggered index=$NODE_INDEX)."
+	# pending_action goes to the textfile under /var/lib, which SURVIVES the reboot —
+	# node-exporter would re-expose a stale 2 for ~2min post-boot (watchdog OnBootSec)
+	# and double-fire PendingReboot on top of Rebooted. Emit 0 before rebooting; the
+	# completed reboot is signaled by node_isolation_heal_last_reboot_timestamp alone.
+	emit_metric 1 "$wedged_s" 0 0
 	write_state "$first_fail" "$consecutive" "$last_restart" "$now"
 	systemctl reboot
 	exit 0

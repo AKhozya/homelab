@@ -1,11 +1,12 @@
 ---
-# node_isolation_heal — worker CP-isolation self-recovery watchdog. Ships DRY-RUN.
+# node_isolation_heal — worker CP-isolation self-recovery watchdog.
 # See docs/plans/2026-07-10-node-isolation-heal.md. Timings mirror the script defaults.
 
-# 1=log the decision it WOULD take + emit metrics, take NO destructive action.
-# Flip false ONLY after the soak AND active-mode interlocks land (phase2 worker-local
-# maint-hold + shared /var/lib/k3s-agent-restart/cooldown honored by clusterip_heal).
-node_isolation_dry_run: true
+# false = ACTIVE (L1 k3s-agent restart, staggered L2 self-reboot). Keeping this false
+# REQUIRES the interlocks: phase2 worker-local maint-hold + shared
+# /var/lib/k3s-agent-restart/cooldown honored by clusterip_heal + the NodeIsolationHeal*
+# VMRules. true = dry-run: log the decision it WOULD take + emit metrics, act on nothing.
+node_isolation_dry_run: false
 
 # Reboot stagger index — overridden per host: worker-node=0 (15min), worker-node-2=1 (23min).
 node_isolation_reboot_index: 0
