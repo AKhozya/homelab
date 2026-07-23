@@ -76,13 +76,16 @@ spec:
       # Resource limits
       # Alloy uses ~2x memory vs Promtail due to broader feature set
       # Promtail peak was 181Mi; Alloy expected peak ~300-350Mi
+      # 768Mi: working_set counts tailed-log page cache — on the busiest node
+      # (W1, ~70 pods) anon is only ~200Mi but cache pins working_set at ~430Mi,
+      # flapping ContainerMemoryNearLimit at the old 512Mi limit.
       resources:
         requests:
           cpu: 50m
           memory: 256Mi
         limits:
           cpu: 200m
-          memory: 512Mi
+          memory: 768Mi
 
       # hostPath mounts for node-maintenance systemd journal (F2 follow-up). Read-only.
       # Mount-only — blast radius limited by loki.source.journal matches below.
