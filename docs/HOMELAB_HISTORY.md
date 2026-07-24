@@ -17,6 +17,27 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-24 — Ultrareview remediation Batch 3: CouchDB DR restore path, drilled end-to-end
+
+The audit found the documented CouchDB restore could not run (bare `kubectl run` denied by Kyverno; `wget --method=PUT` is not a busybox flag). Running it turned up **four** blockers, not two — the last of which only appears after part of the restore has already succeeded.
+
+**Now drilled end-to-end**: a full restore of the live Obsidian database into a scratch target completed — 1505 document revisions, 1479 docs against 1494 live (the gap is edits made after the 03:05 backup), deleted-doc counts matching exactly at 21. Scratch database dropped afterwards.
+
+What actually blocked it:
+
+1. **Kyverno.** All 12 ValidatingPolicies are Deny-enforcing; a bare `kubectl run` is rejected at admission. Proven live — and the fine-grained webhook names only the FIRST failing policy (`require-labels`), so fixing one field just reveals the next. The spec now carries all of it, including `serviceAccountName: couchdb-jobs` for `require-non-default-serviceaccount`, which the audit did not flag.
+2. **ResourceQuota, a second rejection after Kyverno passes.** `namespace-quota` on `databases` leaves ~800m CPU free on a running cluster, so the initial 1-CPU limit was refused. Limits now sized to fit.
+3. **`readOnlyRootFilesystem` breaks npm** — its default `~/.npm` is unwritable, so `npm install` fails and couchrestore is simply absent. Fixed with `HOME` and `npm_config_cache` in the `/tmp` emptyDir, keeping RoRFS on rather than disabling it.
+4. **`--parallelism 5` (the default) breaks authentication mid-restore.** Some concurrent requests reach CouchDB carrying no credentials at all — its log shows the user as `undefined` and returns 401 on `_bulk_docs` — after several batches have already been written, so it reads as partial success rather than a broken command. `couchrestore` has no username/password flags, only `--url`, so `--parallelism 1` is the fix and is now marked as required, not tuning.
+
+Also corrected: the restore is now a **Job reading the archive from the backup hostPath** instead of streaming through `kubectl run -i` (whose attach timed out and killed the pod); it selects the newest archive itself and **verifies the `.sha256` in-pod**, so no node SSH is needed — which matters because that key lives in 1Password and may be locked mid-incident. The DB pre-create uses Node's built-in `fetch` with an Authorization header, and passes `?n=2` to match `clusterSize: 2` (CouchDB defaults new databases to n=3 and logs `Request to create N=3 DB but only 2 node(s)`). A `DRILL_SUFFIX` switch restores into `<db>-drill` so the whole path can be rehearsed without touching live data, and drops the scratch DB first so re-runs are idempotent (couchrestore refuses a non-empty target). Image drift fixed (`node:24.16.0-alpine` → `24.18.0-alpine`) and `@cloudant/couchbackup` pinned to 2.11.18.
+
+Added a **NAS-fetch Job** alongside the existing shell rsync: it reads the `nas-rsync-credentials` secret and inherits the namespace's NAS egress policy, so archives can be pulled back without a node shell or the password in the operator's environment. Verified pulling the 16.6 MB 2026-07-24 archive.
+
+Both manifests were re-rendered *from the committed markdown* and re-validated with kubeconform plus a live `--dry-run=server`, so the documented commands are the ones that were executed.
+
+**Deferred:** B3-2 (PVC restore runbook covers 3 apps while `CRITICAL_PVCS` backs up 10) needs a workload/target mapping added to `pvc-backup-cronjob.yaml` first — split into its own batch rather than stretch this one further.
+
 ### 2026-07-24 — Ultrareview remediation Batch 2: backup integrity + data-loss guards
 
 Closes the audit's highest-severity finding and the silent-loss paths around it. Backups are the only durability substrate here (no PITR, no offsite — both standing decisions), so every one of these failed *quietly*.

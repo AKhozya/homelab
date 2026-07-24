@@ -205,6 +205,8 @@ Backups from 2 sources (preference order):
 2. **worker-node** (192.168.1.129) — source cleaned daily, may be empty
 
 **Copy backups from NAS to worker-node:**
+
+Either run rsync directly on worker-node (needs a shell there and the password in your env):
 ```bash
 # Get NAS creds from restored secrets or 1Password
 export RSYNC_PASSWORD='<nas-rsync-password>'
@@ -212,6 +214,107 @@ rsync -avz --port=50555 \
   rsync://akhozya@192.168.1.136/akhozya-pool1/backups/homelab/ \
   /mnt/k8s-storage/backups/
 ```
+
+…or run it as a Job, which needs neither node SSH nor the password in your shell — it reads
+the existing `nas-rsync-credentials` secret and inherits the namespace's NAS egress policy.
+Prefer this when the SSH key is locked in 1Password mid-incident. Set `SUBDIR` to the backup
+type you need (`couchdb`, `postgres`, `mysql`, `pvc`); it fetches the newest archive plus its
+`.sha256` sidecar. Verified 2026-07-24.
+
+```bash
+kubectl apply -f - <<'EOF'
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nas-fetch
+  namespace: backup-replication
+  labels:
+    app: backup-replication
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: backup-replication
+    spec:
+      restartPolicy: Never
+      serviceAccountName: backup-replication
+      nodeSelector:
+        kubernetes.io/hostname: worker-node
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: source-backups
+          hostPath:
+            path: /mnt/k8s-storage/backups
+            type: Directory
+      containers:
+        - name: nas-fetch
+          image: alpine:3.24.1
+          volumeMounts:
+            - name: source-backups
+              mountPath: /source-backups
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["DAC_OVERRIDE", "CHOWN", "FOWNER"]
+          env:
+            - name: SUBDIR
+              value: "couchdb"
+            - name: NAS_RSYNC_USER
+              valueFrom:
+                secretKeyRef:
+                  name: nas-rsync-credentials
+                  key: rsync-user
+            - name: NAS_RSYNC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nas-rsync-credentials
+                  key: rsync-password
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              apk add --no-cache rsync >/dev/null
+              mkdir -p "/source-backups/$SUBDIR"
+              NEWEST=$(RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
+                "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/${SUBDIR}/" \
+                | awk '$NF ~ /\.tar\.gz$/ {print $NF}' | sort | tail -1)
+              [ -n "$NEWEST" ] || { echo "no .tar.gz on NAS under $SUBDIR"; exit 1; }
+              echo "=== fetching $NEWEST (+ .sha256) ==="
+              RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -av \
+                --include="$NEWEST" --include="$NEWEST.sha256" --exclude='*' \
+                "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/${SUBDIR}/" \
+                "/source-backups/${SUBDIR}/"
+              ls -l "/source-backups/${SUBDIR}/"
+EOF
+
+# Keep the Job on failure: a bare `wait; logs; delete` sequence would exit 0 even when the
+# wait failed, and would delete the evidence.
+if kubectl wait --for=condition=complete job/nas-fetch -n backup-replication --timeout=30m; then
+  kubectl logs -n backup-replication job/nas-fetch --tail=20
+  kubectl delete job nas-fetch -n backup-replication
+else
+  echo "NAS FETCH FAILED — Job kept for diagnosis."
+  kubectl logs -n backup-replication job/nas-fetch --tail=50
+  false
+fi
+```
+
 
 **PostgreSQL restore:**
 ```bash
@@ -265,40 +368,225 @@ done
 ```
 
 **CouchDB restore:**
+
+> The restore Jobs on this page are applied straight to the cluster rather than committed to
+> Git — the one carve-out from the GitOps-only invariant in AGENTS.md, noted there too.
+> Committing them is not an option: Flux would re-run a destructive restore on every
+> reconcile. They are one-shot, ephemeral, and deleted once complete.
+
 `couchrestore` is NOT in the couchdb image — it ships with `@cloudant/couchbackup` (npm),
-the same tool the backup CronJob uses. Run it from an ephemeral `node:alpine` pod (mirrors
-the backup), streaming each dump in via `kubectl run -i`. Admin creds are injected from the
-`couchdb-couchdb` secret via `--overrides` so they never land in shell history or pod args.
+the same tool the backup CronJob uses. Run it as a Job that reads the archive straight off
+the backup hostPath, mirroring how the backup CronJob reaches it. Admin creds come from the
+`couchdb-couchdb` secret, so they never land in shell history or the Job spec. They do reach
+the couchrestore child's argv inside the pod — `--url` is the only way to pass credentials,
+there are no user/password flags — so they are visible to anything that can read that pod's
+process list. The previous version carried the same exposure.
+
+**Status: drilled end-to-end on 2026-07-24.** A full restore of the live Obsidian database
+into a scratch target completed — 1505 document revisions, 1479 docs against 1494 live (the
+gap is edits made after the 03:05 backup), deleted-doc counts matching exactly at 21.
+
+Four things make a naive `kubectl run` fail here, all found by actually running it — and the
+reason the previous version of this runbook could not have worked:
+
+1. **Kyverno denies it.** All 12 ValidatingPolicies are Deny-enforcing. Every field below is
+   demanded by one of them: the `app` label (require-labels), requests+limits
+   (require-resource-limits), runAsNonRoot (require-non-root), seccompProfile
+   (require-seccomp-runtimedefault), drop ALL (require-drop-all-capabilities),
+   `allowPrivilegeEscalation: false` (disallow-privilege-escalation), readOnlyRootFilesystem
+   (require-readonly-rootfs), and a non-default serviceAccountName
+   (require-non-default-serviceaccount → `couchdb-jobs`). The webhook names only the FIRST
+   failing policy, so dropping one field gives a single misleading error, not a checklist.
+2. **ResourceQuota denies it a second time.** `namespace-quota` on `databases` leaves only
+   ~800m CPU free on a running cluster, so a 1-CPU limit is rejected even after Kyverno
+   passes. Check headroom first: `kubectl get resourcequota namespace-quota -n databases`.
+   In a real full restore the namespace is mostly empty and headroom is ample.
+3. **`readOnlyRootFilesystem` breaks npm.** Its default `~/.npm` is unwritable, so
+   `npm install` fails and couchrestore ends up simply absent. `HOME` and `npm_config_cache`
+   must point into the `/tmp` emptyDir.
+4. **The default `--parallelism 5` breaks authentication mid-restore.** See the comment on
+   the couchrestore invocation below — this one only shows up after several batches have
+   already succeeded, so it looks like a partial success rather than a broken command.
+
+Also: `couchrestore` does NOT create the target database, and this image's busybox wget has
+**no `--method` flag** (only `--post-data`/`--post-file`) — so the pre-create uses Node's
+built-in `fetch` with an Authorization header. HTTP 412 = already exists = fine.
+
+The Job selects and checksum-verifies the archive itself, so this needs no node SSH — which
+matters because the key lives in 1Password and may be unavailable mid-incident.
+
 ```bash
-# 1. Find + verify the latest backup
-LATEST_COUCHDB=$(ls -t /mnt/k8s-storage/backups/couchdb/couchdb_*.tar.gz | head -1)
-sha256sum -c "${LATEST_COUCHDB}.sha256"
+# ARCHIVE: leave EMPTY to use the newest archive; set a filename to pin a specific one.
+ARCHIVE=""
+# DRILL_SUFFIX is the safety catch: "-drill" restores into <db>-drill and proves the whole
+# path WITHOUT touching live data. Set it to "" for a real disaster recovery.
+# A real restore never DELETES anything — the drop below is drill-only, and couchrestore
+# refuses a non-empty target. So a real restore needs the target absent or empty (true when
+# rebuilding a cluster): restoring over a populated database FAILS rather than overwriting
+# it, and you must drop that database yourself first.
+DRILL_SUFFIX="-drill"     # <-- "" for a real restore
 
-# 2. Extract — yields per-DB files: /tmp/<TIMESTAMP>/<db>.couchbackup
-tar -xzf "$LATEST_COUCHDB" -C /tmp
-RESTORE_DIR="/tmp/$(basename "$LATEST_COUCHDB" .tar.gz | sed 's/^couchdb_//')"
+kubectl apply -f - <<EOF
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: couchrestore
+  namespace: databases
+  labels:
+    app: couchrestore
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: couchrestore
+    spec:
+      restartPolicy: Never
+      serviceAccountName: couchdb-jobs
+      # hostPath is node-local — the archives exist only on worker-node.
+      nodeSelector:
+        kubernetes.io/hostname: worker-node
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: backup-storage
+          hostPath:
+            path: /mnt/k8s-storage/backups/couchdb
+            type: Directory
+        - name: tmp
+          emptyDir: {}
+      containers:
+        - name: couchrestore
+          image: node:24.18.0-alpine
+          volumeMounts:
+            - name: backup-storage
+              mountPath: /backup
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: HOME
+              value: /tmp
+            - name: npm_config_cache
+              value: /tmp/.npm
+            - name: ARCHIVE
+              value: "${ARCHIVE}"
+            - name: DRILL_SUFFIX
+              value: "${DRILL_SUFFIX}"
+            # No backticks anywhere in this heredoc: it is UNQUOTED, so backticks
+            # would be command substitution on the operator's own machine.
+            # Must match clusterSize in the couchdb HelmRelease values. CouchDB
+            # defaults new databases to n=3; on this 2-node cluster that logs
+            # "Request to create N=3 DB but only 2 node(s)" and creates it wrong.
+            - name: CLUSTER_N
+              value: "2"
+            - name: COUCHDB_ENDPOINT
+              value: http://couchdb-couchdb.databases.svc.cluster.local:5984
+            - name: U
+              valueFrom:
+                secretKeyRef:
+                  name: couchdb-couchdb
+                  key: adminUsername
+            - name: P
+              valueFrom:
+                secretKeyRef:
+                  name: couchdb-couchdb
+                  key: adminPassword
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -eu
+              npm install --prefix /tmp @cloudant/couchbackup@2.11.18 >/dev/null
+              if [ -n "\$ARCHIVE" ]; then
+                SRC="/backup/\$ARCHIVE"
+              else
+                SRC=\$(ls -t /backup/couchdb_*.tar.gz | head -1)
+              fi
+              [ -f "\$SRC" ] || { echo "archive not found: \$SRC"; exit 1; }
+              echo "=== archive: \$SRC ==="
+              # Verify the checksum HERE rather than over SSH — the sidecar sits next to it.
+              if [ -f "\$SRC.sha256" ]; then
+                ( cd /backup && sha256sum -c "\$(basename "\$SRC").sha256" ) || {
+                  echo "CHECKSUM MISMATCH — refusing to restore"; exit 1; }
+              else
+                echo "no .sha256 sidecar — refusing to restore an unverified archive"; exit 1
+              fi
+              mkdir -p /tmp/restore
+              tar -xzf "\$SRC" -C /tmp/restore
+              FIRST=\$(find /tmp/restore -name '*.couchbackup' | head -1)
+              # Test FIRST, not dirname's output: dirname "" returns ".", which passes a
+              # -d check and then iterates the literal unmatched glob.
+              [ -n "\$FIRST" ] || { echo "no .couchbackup files inside \$SRC"; exit 1; }
+              DIR=\$(dirname "\$FIRST")
+              RC=0
+              for BK in "\$DIR"/*.couchbackup; do
+                DB="\$(basename "\$BK" .couchbackup)\$DRILL_SUFFIX"
+                echo "=== restoring \$DB ==="
+                # Pre-create the database; couchrestore will not do it. couchrestore also
+                # REFUSES a non-empty target, so in drill mode (and ONLY in drill mode)
+                # the scratch database is dropped first to make re-runs idempotent.
+                if ! DB="\$DB" node -e 'const a="Basic "+Buffer.from(process.env.U+":"+process.env.P).toString("base64");const u=process.env.COUCHDB_ENDPOINT+"/"+process.env.DB;const cu=u+"?n="+(process.env.CLUSTER_N||"2");const h={Authorization:a};(async()=>{try{if(process.env.DRILL_SUFFIX){const d=await fetch(u,{method:"DELETE",headers:h});console.log("drill: dropped scratch db ("+d.status+")")}const r=await fetch(cu,{method:"PUT",headers:h});if([201,202,412].indexOf(r.status)<0){console.error("create failed: "+r.status);process.exit(1)}console.log("db ready ("+r.status+")")}catch(e){console.error(e.message);process.exit(1)}})()'
+                then
+                  # A negated test is true when the command FAILED, so the failure
+                  # handling belongs here. Guarded because under set -e an unguarded
+                  # failure would abort the whole restore instead of moving to the next
+                  # database. (No backticks in this heredoc — it is unquoted.)
+                  echo "FAILED \$DB (database pre-create)"
+                  RC=1
+                  continue
+                fi
+                # --parallelism 1 is REQUIRED, not a tuning choice. At the default 5, some
+                # concurrent requests reach CouchDB with no credentials at all (its log shows
+                # the user as "undefined" and returns 401 on _bulk_docs) and the restore dies
+                # part-way with "Access is denied due to invalid credentials" — after having
+                # already written several batches. couchrestore has no username/password
+                # flags, only --url, so serialising is the fix.
+                if /tmp/node_modules/.bin/couchrestore --url "http://\$U:\$P@couchdb-couchdb.databases.svc.cluster.local:5984" --parallelism 1 --db "\$DB" < "\$BK"; then
+                  echo "OK \$DB"
+                else
+                  echo "FAILED \$DB"
+                  RC=1
+                fi
+              done
+              exit \$RC
+EOF
 
-# 3. Restore every DB in the archive. couchrestore does NOT create the target DB → PUT it first
-#    (ignore 412 = already exists). $U/$P/$DB expand inside the pod from the injected env.
-for BK in "$RESTORE_DIR"/*.couchbackup; do
-  DB=$(basename "$BK" .couchbackup)
-  echo "Restoring $DB..."
-  kubectl run couchrestore-tmp -n databases --rm -i --restart=Never \
-    --image=node:24.16.0-alpine \
-    --overrides='{
-      "spec": { "containers": [ {
-        "name": "couchrestore-tmp", "image": "node:24.16.0-alpine", "stdin": true,
-        "command": ["sh","-c",
-          "npm install -g @cloudant/couchbackup >/dev/null 2>&1; URL=\"http://$U:$P@couchdb-couchdb.databases.svc.cluster.local:5984\"; wget -q -O- --method=PUT \"$URL/$DB\" >/dev/null 2>&1 || true; couchrestore --url \"$URL\" --db \"$DB\""],
-        "env": [
-          {"name":"U","valueFrom":{"secretKeyRef":{"name":"couchdb-couchdb","key":"adminUsername"}}},
-          {"name":"P","valueFrom":{"secretKeyRef":{"name":"couchdb-couchdb","key":"adminPassword"}}},
-          {"name":"DB","value":"'"$DB"'"}
-        ]
-      } ] }
-    }' < "$BK"
-done
+# Do NOT run these as three independent commands: if `wait` fails, a following successful
+# `logs` and `delete` leaves the block at exit status 0 and destroys the failure evidence.
+if kubectl wait --for=condition=complete job/couchrestore -n databases --timeout=30m; then
+  kubectl logs -n databases job/couchrestore --tail=50
+  kubectl delete job couchrestore -n databases
+else
+  echo "RESTORE FAILED — Job kept for diagnosis; delete it yourself once done."
+  kubectl logs -n databases job/couchrestore --tail=100
+  false
+fi
 ```
+
+After a drill, drop the scratch databases (they are named `<db>-drill`):
+```bash
+kubectl exec -n databases couchdb-couchdb-0 -c couchdb -- \
+  curl -sS -X DELETE -u "$ADMIN_USER:$ADMIN_PASS" "http://127.0.0.1:5984/<db>-drill"
+```
+
 
 **PVC restore:**
 ```bash

@@ -16,7 +16,7 @@ Kustomization deps (branching, not a chain): `flux-system` → `infrastructure-c
 Agents do not have sudo. Node-side debug + fix workflow: `homelab-node-fix` skill (SSH+TTY pattern). Persistent fixes via ansible roles at `docs/scripts/node-maintenance/`; trigger via systemd: `sudo systemctl start node-maintenance-sync.service` (git pull) → `sudo systemctl start node-maintenance-config.service` (drift-heal).
 
 ## Hard Invariants (blast radius = cluster)
-- **GitOps only.** `kubectl apply -f` no `--dry-run=server` = violation. Commit → Flux reconcile 60s. Never `kubectl edit/patch/replace`.
+- **GitOps only.** `kubectl apply -f` no `--dry-run=server` = violation. Sole carve-out: the one-shot DR restore Jobs in `.backup/README.md`, which must not be committed (Flux would re-run a destructive restore every reconcile) and are deleted after use. Commit → Flux reconcile 60s. Never `kubectl edit/patch/replace`.
 - **Pin all images** `major.minor.patch-variant`. Floating drift silent. Kyverno catch only `:latest`/no-tag. Helm chart-default images (no tag in values) count as pinned via the pinned chart version — don't mirror them into values (renovate-blind bare tags skew on chart bumps).
 - **DB username = app name.** No direct SQL drops, no force-delete DB pods. Use CRDs (CNPG/Percona) + `kubectl rollout restart`.
 - **Every ingress = NetworkPolicy.** Dual access (internal + Cloudflare Tunnel) = 2 ingress rules.
