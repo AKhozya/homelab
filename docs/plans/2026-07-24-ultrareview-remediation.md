@@ -45,8 +45,8 @@ Ships first because a credential is **already exposed**, and because B0-2 determ
 
 | ID | Was | Item | Fix |
 |---|---|---|---|
-| B0-1 | B3-3 | **Telegram bot token printed to pod logs → Loki** — `apps/pricebuddy/apprise-configmap.yaml:26` | Delete the `cat`; **rotate the bot token** (it is already in Loki) |
-| B0-2 | B5-1 | **OWNER DECISION — CI is not a gate.** Branch protection is unavailable (A5) and Flux syncs `main` every 5 min regardless of the verdict, so a validate-red commit reaches prod | **(a)** add a `promote` job that fast-forwards `refs/heads/ci-green` only when every gate (incl. gitleaks) passes, and point `clusters/flux-system/gotk-sync.yaml:11` at `ci-green`; **or (b)** amend `AGENTS.md:27` to stop calling CI the gate-of-record. If (a): one-time bootstrap `ci-green == main`, verify no oscillation, and note `gotk-sync.yaml` is bootstrap-generated so a future `flux bootstrap` resets it |
+| B0-1 | B3-3 | **Telegram bot token printed to pod logs → Loki** — `apps/pricebuddy/apprise-configmap.yaml:26` (confirmed live in the `apprise-init` container log) | Delete the `cat`. **DECIDED 2026-07-24: do NOT rotate.** Exposure is internal-only and the bot is dedicated: `pricebuddy-telegram` is a separate secret from claude-telegram, so the blast radius is the price-alert chat, not the ops channel. Readers are limited to Grafana/Loki (anonymous off, basic off, login form disabled, Authentik passkey-only OIDC) and anyone with `kubectl logs`. Note Loki retention is 720h, so existing lines carry the token for ~30 days after the fix |
+| B0-2 | B5-1 | **CI is not a gate.** Branch protection is unavailable (A5) and Flux syncs `main` every 5 min regardless of the verdict, so a validate-red commit reaches prod | **DECIDED 2026-07-24: option (b) — remove the gating claim.** Amend `AGENTS.md:27` so CI is described as pre-merge validation, not the gate-of-record; the real gate is the per-batch Codex static review + local validation. Do **not** build the `ci-green` promotion ref or repoint `gotk-sync.yaml`. Consequence to state plainly in AGENTS.md: nothing mechanically prevents a validate-red commit from reaching prod within ~5 min |
 | B0-3 | B1-8 | DR secrets tarball not gitignored — `.gitignore:42` | Add `.backup/*.tar.gz.gpg` |
 
 ---
@@ -61,7 +61,7 @@ Ships first because a credential is **already exposed**, and because B0-2 determ
 | B1-2 | B5-4 | shellcheck scans only `scripts/` + `docs/scripts/`, missing `immich-vm-heal.sh` (needed before B4-4 edits it) | Repo-wide `find` sweep; drop the pre-commit path anchor |
 | B1-3 | B5-5 | sops-check gates by **filename only** — a plaintext `kind: Secret` in an off-pattern file passes CI | Content pass: any yaml with `^kind: Secret` must carry `ENC[AES256_GCM` |
 | B1-4 | B5-7 | CI kustomize v5.5.0 vs controller-embedded v5.8.1 render skew | Bump `KUSTOMIZE_VERSION` to v5.8.1 |
-| B1-5 | B5-6 | gitleaks never runs on markdown-only pushes | **Shape depends on B0-2:** if (a), fold gitleaks into the single promotion DAG and drop workflow-level `paths-ignore`; if (b), split gitleaks into its own tiny workflow |
+| B1-5 | B5-6 | gitleaks never runs on markdown-only pushes | B0-2 resolved to (b), so: **split gitleaks into its own tiny workflow** without `paths-ignore` (checkout + scan ≈ 15s), keeping the heavy jobs' doc-skip intact |
 
 ---
 
