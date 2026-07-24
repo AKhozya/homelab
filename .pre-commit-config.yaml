@@ -37,9 +37,11 @@ repos:
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.10.0.1
     hooks:
+      # No path anchor — shell also lives in apps/, .backup/ and .claude/hooks/,
+      # all of which the old ^(scripts|docs/scripts)/ filter skipped.
       - id: shellcheck
         args: ['-S', 'error']
-        files: ^(scripts|docs/scripts)/.*\.(sh|bash)$
+        files: \.(sh|bash)$
 
   - repo: local
     hooks:
@@ -48,7 +50,7 @@ repos:
         entry: scripts/ci/check-sops-encrypted.sh
         language: script
         pass_filenames: false
-        files: \.yaml$
+        files: \.ya?ml$
 
       - id: init-container-resources
         name: initContainer resource limits

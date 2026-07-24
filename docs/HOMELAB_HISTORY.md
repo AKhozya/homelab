@@ -17,6 +17,18 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-24 — Ultrareview remediation Batch 1: CI validation coverage
+
+Closes the gaps that let changes ship unvalidated. Sequenced before the fix batches because those edit `clusters/` and `immich-vm-heal.sh`, neither of which CI touched.
+
+- **kubeconform matrix + `clusters`** (6 roots → 7). The Flux Kustomization CRs were never schema-validated. Structural only — the CRD types `healthChecks`/`dependsOn` entries as strings, so a name or GVK matching nothing still passes; that stays a manual review item.
+- **shellcheck repo-wide** instead of `find scripts docs/scripts`, pruning `.git` and `.claude/worktrees`; same anchor dropped from the pre-commit hook. Newly covers `apps/immich/gpu-node/immich-vm-heal.sh`, `.backup/secrets-{backup,restore}.sh`, `.claude/hooks/*.sh`, `docs/worker-node-post-install.sh` — 42 files, all clean at `-S warning`. Corrected a **false comment** while there: it claimed `-S warning` catches the SC2015 `A && B || C` class, but shellcheck emits SC2015 at *info* (`Analytics.hs`, `info id 2015`), so the gate never saw it. Threshold left alone — `-S info` surfaces 15 pre-existing findings (SC2016/2162/2086/2012) needing their own pass.
+- **`check-sops-encrypted.sh` gained a per-document content pass.** Filename matching alone let a plaintext `kind: Secret` in an off-pattern file through. Now every `*.yaml`/`*.yml` is split on `^---` in awk and **each document** must carry `ENC[AES256_GCM` — file-wide grep would let an encrypted document 1 vouch for a plaintext document 2. Handles quoted `kind: 'Secret'`/`"Secret"`, trailing `# comment` on both the kind line and the separator, CRLF, and leading-`---` numbering; `kind: SecretStore` correctly ignored. `exit $((missing > 0))` because a raw count wraps mod 256.
+- **gitleaks split into `.github/workflows/gitleaks.yaml`** with no `paths-ignore`. `validate.yaml` skips markdown-only pushes, so a credential pasted into a runbook or plan was reaching main unscanned. Checkout + scan is ~15s.
+- **`KUSTOMIZE_VERSION` v5.5.0 → v5.8.1** — CI was rendering a different tree than the cluster. Chain verified: kustomize-controller `v1.9.1` → `sigs.k8s.io/kustomize/api v0.21.1` → kustomize CLI `v5.8.1` (v5.5.0 pinned api v0.18.0). **`KUBERNETES_VERSION` 1.36.1 → 1.36.2** to match the live cluster, as the file's own comment instructs; v1.36.2 schemas confirmed present upstream.
+
+Gates (CI runners are billing-blocked — all jobs 0-step since before this batch — so every job was replicated locally): all 7 kubeconform roots under the new versions, 529 resources, 0 invalid; repo-wide shellcheck; actionlint; yamllint; init-resources; image-pin; gitleaks. The sops checker was proven with 9 behavioural tests, not just a green run. Codex STATIC review, 3 rounds to cap: R1 REQUEST CHANGES (2 MED), R2 CHANGES REQUESTED (the `seen` dedupe still let a *named* secret file hide a plaintext second document — the original bug relocated), R3 BLOCK (3 MED: comment-suffixed kind, CRLF separator, mod-256 exit) — all fixed and retested. One Codex claim contested and withdrawn: the shellcheck severity flag was never in the diff.
+
 ### 2026-07-24 — Ultrareview remediation Batch 0: token leak, CI-gate claim, DR tarball ignore
 
 First batch of [the 2026-07-24 ultrareview remediation plan](plans/2026-07-24-ultrareview-remediation.md) (58 findings, 0 refuted; H3 CouchDB exposure closed same day via Cloudflare Access Service Auth).

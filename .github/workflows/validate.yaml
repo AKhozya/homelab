@@ -22,11 +22,14 @@ concurrency:
 
 env:
   KUBECONFORM_VERSION: v0.6.7
-  KUSTOMIZE_VERSION: v5.5.0
-  # Track the live cluster (v1.36.1+k3s1). yannh/kubernetes-json-schema ships
-  # v1.36.1 schemas. Bump alongside any k3s upgrade (k3s-upgrade skill checklist).
-  KUBERNETES_VERSION: "1.36.1"
-  GITLEAKS_VERSION: "8.30.1"
+  # Must match what kustomize-controller embeds, or CI renders a different tree
+  # than the cluster does. Chain: controller v1.9.1 -> sigs.k8s.io/kustomize/api
+  # v0.21.1 -> kustomize CLI v5.8.1. Re-derive from the controller's go.mod on
+  # any Flux bump; v5.5.0 (api v0.18.0) had drifted three minors behind.
+  KUSTOMIZE_VERSION: v5.8.1
+  # Track the live cluster (v1.36.2+k3s1). yannh/kubernetes-json-schema ships
+  # v1.36.2 schemas. Bump alongside any k3s upgrade (k3s-upgrade skill checklist).
+  KUBERNETES_VERSION: "1.36.2"
 
 jobs:
   yamllint:
@@ -48,15 +51,23 @@ jobs:
       - name: Run shellcheck
         run: |
           set -euo pipefail
-          mapfile -t files < <(find scripts docs/scripts -type f \
-            \( -name '*.sh' -o -name '*.bash' \) 2>/dev/null)
+          # Repo-wide, not scripts/-only: shell also lives in apps/ (immich-vm-heal.sh),
+          # .backup/ (DR scripts) and .claude/hooks/. Anchoring to scripts/ left those
+          # unchecked. Prune .git and any local worktrees (absent in CI checkouts).
+          mapfile -t files < <(find . \
+            -path './.git' -prune -o \
+            -path './.claude/worktrees' -prune -o \
+            -type f \( -name '*.sh' -o -name '*.bash' \) -print 2>/dev/null)
           if [ "${#files[@]}" -eq 0 ]; then
             echo "no shell scripts found"
             exit 0
           fi
           printf 'Found %d shell scripts\n' "${#files[@]}"
-          # -S warning catches the SC2015 (A && B || C) class the review-invariants flag; the
-          # tree is clean at this level (0 warnings) so the gate stays green.
+          # NOT a full logic gate: SC2015 (A && B || C) is emitted at *info* severity
+          # (shellcheck Analytics.hs, `info id 2015`), so -S warning filters it out.
+          # That class stays a manual review item (.claude/review-invariants.md).
+          # Lowering to -S info surfaces 15 pre-existing findings (SC2016/2162/2086/2012)
+          # and needs its own cleanup pass before the threshold can move.
           fail=0
           for f in "${files[@]}"; do
             if ! shellcheck -S warning "$f"; then
@@ -71,30 +82,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - run: scripts/ci/check-sops-encrypted.sh
-
-  gitleaks:
-    name: gitleaks secret scan
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install gitleaks
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.local/bin"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar xz -C "$HOME/.local/bin" gitleaks
-          "$HOME/.local/bin/gitleaks" version
-      - name: Scan working tree
-        run: |
-          set -euo pipefail
-          # Scans the CURRENT TREE (gitleaks dir), not git history. The repo invariant
-          # is that the checked-out tree carries no plaintext secret; sops-check only
-          # proves designated files are encrypted, not that arbitrary content is clean.
-          # History is deliberately NOT scanned — it holds already-ROTATED (dead) values
-          # that would red this gate forever. Per-commit coverage = the pre-commit
-          # gitleaks hook (.pre-commit-config.yaml); config = .gitleaks.toml.
-          gitleaks dir . --config .gitleaks.toml --no-banner --redact
 
   init-resources:
     name: initContainer resource limits guard
@@ -136,6 +123,11 @@ jobs:
       fail-fast: false
       matrix:
         root:
+          # clusters/ holds the Flux Kustomization CRs themselves, unvalidated until
+          # 2026-07-24. Structural only: the CRD types healthChecks/dependsOn entries
+          # as strings, so a name or GVK that matches nothing still passes here —
+          # that stays a manual check (.claude/review-invariants.md).
+          - clusters
           - apps
           - infrastructure/configs
           - infrastructure/controllers
