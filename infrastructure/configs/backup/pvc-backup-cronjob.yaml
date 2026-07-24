@@ -143,8 +143,13 @@ spec:
                     # Check if source has data
                     DATA_SIZE=$(du -sb "$SOURCE_DIR" 2>/dev/null | cut -f1 || echo "0")
                     if [ "$DATA_SIZE" -eq 0 ]; then
-                      echo "ℹ️  INFO: PVC is empty, skipping"
+                      # A FAILURE, not an informational skip — same reasoning as the
+                      # missing-PVC branch above. `du -sb` reports directory overhead for
+                      # a real-but-empty directory, so 0 means unreadable or vanished.
+                      # Uncounted, this kept the job green while an app went unbacked-up.
+                      echo "❌ FAIL: PVC empty or unreadable: $SOURCE_DIR"
                       echo ""
+                      failed_count=$((failed_count + 1))
                       continue
                     fi
 

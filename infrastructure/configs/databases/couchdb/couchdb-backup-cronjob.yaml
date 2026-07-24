@@ -133,7 +133,10 @@ spec:
                   # Install couchbackup
                   echo "[$(elapsed)] Installing couchbackup..."
                   NPM_START=$(date +%s)
-                  npm install --prefix /tmp @cloudant/couchbackup 2>&1 | tail -3
+                  # Pinned: an unpinned install floats the tool that produces the DR
+                  # artifact, and the completeness check below parses its log format.
+                  # Renovate does not see npm specs inside shell — bump by hand.
+                  npm install --prefix /tmp @cloudant/couchbackup@2.11.18 2>&1 | tail -3
                   echo "[$(elapsed)] npm install completed in $(($(date +%s) - NPM_START))s"
                   export PATH="/tmp/node_modules/.bin:$PATH"
 
@@ -164,33 +167,70 @@ spec:
                     echo "[$(elapsed)] Backing up database: $DB"
                     DB_START=$(date +%s)
 
-                    # Run couchbackup - stdout=JSON data, stderr=logs (keep separate!)
-                    # Note: couchbackup may return non-zero even when data is written successfully
+                    # stdout=JSON data, stderr=diagnostics — kept in SEPARATE files.
+                    # Merging them (2>&1) put log lines into the stream a restore reads.
+                    BACKUP_RC=0
                     /tmp/node_modules/.bin/couchbackup \
                       --url "$COUCHDB_URL" \
                       --db "$DB" \
                       --log "$BACKUP_DIR/${DB}.log" \
                       --request-timeout 60000 \
-                      > "$BACKUP_DIR/${DB}.raw" 2>&1 || true
+                      > "$BACKUP_DIR/${DB}.raw" 2> "$BACKUP_DIR/${DB}.stderr" || BACKUP_RC=$?
 
-                    # Check if actual JSON data was written (lines starting with '[')
-                    if grep -q "^\[" "$BACKUP_DIR/${DB}.raw" 2>/dev/null; then
-                      # Filter output to keep only JSON array lines
-                      grep "^\[" "$BACKUP_DIR/${DB}.raw" > "$BACKUP_DIR/${DB}.couchbackup"
-                      rm -f "$BACKUP_DIR/${DB}.raw"
+                    # Completeness mirrors upstream includes/logfilesummary.js: whole only
+                    # if :changes_complete was written AND every spooled ':t batchN' was
+                    # cancelled by a ':d batchN'. Presence of '[' lines proves nothing —
+                    # a mid-stream fatal still leaves earlier batches looking valid, which
+                    # is how a truncated dump used to earn a good sha256 and pass replication.
+                    INCOMPLETE=$(awk '
+                      $1 == ":t" { todo[$2] = 1 }
+                      $1 == ":d" { delete todo[$2] }
+                      $1 == ":changes_complete" { complete = 1 }
+                      END {
+                        if (!complete) { print "spooling never completed"; exit }
+                        n = 0
+                        for (b in todo) n++
+                        if (n > 0) printf "%d batch(es) spooled but never written\n", n
+                      }
+                    ' "$BACKUP_DIR/${DB}.log" 2>/dev/null) || INCOMPLETE="log file unreadable"
 
-                      DB_DURATION=$(($(date +%s) - DB_START))
-                      SIZE=$(du -h "$BACKUP_DIR/${DB}.couchbackup" | cut -f1)
-                      echo "[$(elapsed)] ✅ $DB completed ($SIZE, ${DB_DURATION}s)"
-                    else
-                      echo "[$(elapsed)] ❌ $DB backup failed - no JSON data produced!"
-                      echo "Raw output:"
-                      cat "$BACKUP_DIR/${DB}.raw" 2>/dev/null || echo "(empty)"
-                      echo "Log file:"
-                      cat "$BACKUP_DIR/${DB}.log" 2>/dev/null || echo "(empty)"
-                      rm -f "$BACKUP_DIR/${DB}.raw"
+                    if [ "$BACKUP_RC" -ne 0 ] || [ -n "$INCOMPLETE" ]; then
+                      echo "[$(elapsed)] ❌ $DB backup FAILED (exit=$BACKUP_RC${INCOMPLETE:+; $INCOMPLETE})"
+                      echo "--- stderr ---"
+                      cat "$BACKUP_DIR/${DB}.stderr" 2>/dev/null || echo "(empty)"
+                      echo "--- log tail ---"
+                      tail -20 "$BACKUP_DIR/${DB}.log" 2>/dev/null || echo "(empty)"
                       exit 1
                     fi
+
+                    # A database with zero documents spools zero batches and so writes no
+                    # JSON — legitimately. Only demand data when the log says batches
+                    # existed, otherwise one empty database fails the whole nightly run.
+                    # `|| true`, not `|| echo 0`: grep -c prints "0" AND exits 1 on no
+                    # match, so `|| echo 0` captures BOTH and yields "0\n0", which busybox
+                    # test rejects as a bad number — aborting the run under set -e.
+                    BATCH_COUNT=$(grep -c "^:t " "$BACKUP_DIR/${DB}.log" 2>/dev/null || true)
+                    [ -n "$BATCH_COUNT" ] || BATCH_COUNT=0
+                    if [ "$BATCH_COUNT" -gt 0 ] && ! grep -q "^\[" "$BACKUP_DIR/${DB}.raw"; then
+                      echo "[$(elapsed)] ❌ $DB logged $BATCH_COUNT batch(es) but produced no JSON"
+                      cat "$BACKUP_DIR/${DB}.stderr" 2>/dev/null || true
+                      exit 1
+                    fi
+
+                    # grep exits 1 on "no match" (legitimate for a zero-batch database)
+                    # but >=2 on a real error. A blanket `|| true` would swallow the
+                    # latter and package a truncated archive.
+                    FILTER_RC=0
+                    grep "^\[" "$BACKUP_DIR/${DB}.raw" > "$BACKUP_DIR/${DB}.couchbackup" || FILTER_RC=$?
+                    if [ "$FILTER_RC" -gt 1 ]; then
+                      echo "[$(elapsed)] ❌ $DB filter failed (grep exit $FILTER_RC) — not packaging"
+                      exit 1
+                    fi
+                    rm -f "$BACKUP_DIR/${DB}.raw" "$BACKUP_DIR/${DB}.stderr"
+
+                    DB_DURATION=$(($(date +%s) - DB_START))
+                    SIZE=$(du -h "$BACKUP_DIR/${DB}.couchbackup" | cut -f1)
+                    echo "[$(elapsed)] ✅ $DB completed ($SIZE, ${DB_DURATION}s)"
                   done
 
                   # Create manifest

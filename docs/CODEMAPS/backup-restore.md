@@ -14,7 +14,7 @@
 | **SOPS Secrets** | Encrypted in git | every commit | n/a |
 | **DR scripts** | `.backup/secrets-{backup,restore}.sh` | manual | partial (explicit list) |
 
-Namespaces: PG/MySQL/CouchDB CronJobs in `databases`; PVC CronJob in `kube-system`; `immich-backup` + replication in `backup-replication` (immich shares the NAS rsync creds + egress NP there). All backup CronJobs: `startingDeadlineSeconds: 600` + `backoffLimit: 2` (couchdb keeps `backoffLimit: 6`).
+Namespaces: PG/MySQL/CouchDB CronJobs in `databases`; PVC CronJob in `kube-system`; `immich-backup` + replication in `backup-replication` (immich shares the NAS rsync creds + egress NP there). All backup CronJobs: `startingDeadlineSeconds: 3600` + `backoffLimit: 2` (couchdb keeps `backoffLimit: 6`).
 
 ## PVC backup
 Whitelist (CRITICAL_PVCS) + `nodeSelector: worker-node` + `hostPath /mnt/k8s-storage/backups/pvc`: `infrastructure/configs/backup/pvc-backup-cronjob.yaml`. Compression gzip, except `audiobookshelf-{audiobooks,podcasts}` = uncompressed tar (already-compressed media). Retention 30 days local (matches NAS).

@@ -1,6 +1,11 @@
+# local-path reclaimPolicy is Delete, so a Flux prune of these PVCs destroys
+# the data with them — renaming or removing the owning Kustomization is enough.
+# prune: disabled makes Flux leave them behind instead.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled
   name: rustdesk-data
   namespace: rustdesk
 spec:

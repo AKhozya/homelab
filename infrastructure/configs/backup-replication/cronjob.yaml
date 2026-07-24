@@ -123,6 +123,17 @@ spec:
                   echo "=== Step 1: Validating source backups (before any sync) ==="
                   REPORT_FILE="/tmp/backup-report.txt"
                   : > "$REPORT_FILE"
+                  # Artifacts that PASSED Step 1, as "<type>/<basename>". Step 3 proves
+                  # each one actually landed on the NAS before Step 4 deletes the source.
+                  VALIDATED_LIST="/tmp/validated-artifacts.txt"
+                  : > "$VALIDATED_LIST"
+                  # Appended to NAS_STATUS at report time so a mid-run failure reason
+                  # survives Step 5's unconditional rewrite of NAS_STATUS.
+                  NAS_NOTE=""
+                  # Counted in the shell, NOT re-derived from a file: the expectation must
+                  # not share a failure mode with the list it audits, or two matched write
+                  # failures cancel out and the check passes having proved nothing.
+                  VALIDATED_EXPECTED=0
                   OVERALL_OK=true
                   TODAY=$(date +%Y-%m-%d)
 
@@ -213,6 +224,13 @@ spec:
                       OVERALL_OK=false
                     else
                       printf "OK|%s|%s, %s\n" "$label" "$size_human" "$checks" >> "$REPORT_FILE"
+                      # Path RELATIVE to /source-backups, because that is exactly how it
+                      # appears in the recursive rsync listing of the NAS. Not
+                      # "<type>/<basename>": pvc archives nest as
+                      # pvc/<timestamp>/<namespace>/<file>, so a flattened name matches
+                      # nothing and Step 3 would fail every run.
+                      printf "%s\n" "${latest#/source-backups/}" >> "$VALIDATED_LIST"
+                      VALIDATED_EXPECTED=$((VALIDATED_EXPECTED + 1))
                     fi
                   }
 
@@ -248,16 +266,73 @@ spec:
                     /source-backups/ \
                     "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/"
 
+                  # Single place that knows the NAS URL; writes the listing to stdout and
+                  # returns rsync's own status so callers can branch on failure. The old
+                  # inline forms buried this in `2>/dev/null | ...`, where the pipeline
+                  # status is the last stage's and the script has set -e but NOT pipefail.
+                  nas_list() {
+                    RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
+                      "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/" \
+                      2>/tmp/nas-list.err
+                  }
+
                   # Step 3: Verify NAS
                   CURRENT_STEP="Step 3: Verifying NAS"
                   echo ""
                   echo "=== Step 3: Verifying NAS ==="
-                  RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
-                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/" 2>/dev/null \
-                    | head -20 || echo "NAS verification failed"
+                  # This MUST be able to fail — Step 4 deletes the only other copy right
+                  # after it. The previous form (`... | head -20 || echo "failed"`) could
+                  # not: head exits 0 regardless, and the || swallowed what was left.
+                  NAS_VERIFY_LIST="/tmp/nas-verify.txt"
+                  if ! nas_list > "$NAS_VERIFY_LIST"; then
+                    echo "FAIL: could not list the NAS after sync"
+                    cat /tmp/nas-list.err 2>/dev/null || true
+                    NAS_STATUS="NAS: listing FAILED after sync — source NOT cleaned"
+                    OVERALL_OK=false
+                    send_report
+                    trap - EXIT
+                    exit 1
+                  fi
 
-                  # Step 4: Clean source on worker-node (data is on NAS;
-                  # only reachable when Step 1 validation passed)
+                  # Guard against a VACUOUS pass: the appends inside validate_backup are
+                  # its last command and every caller uses `|| true`, so a failed write
+                  # would leave an empty list, an empty loop, and an unset MISSING —
+                  # green-lighting the rm -rf below while proving nothing.
+                  VALIDATED_COUNT=$(wc -l < "$VALIDATED_LIST" | tr -d ' ')
+                  if [ "$VALIDATED_COUNT" -eq 0 ] || [ "$VALIDATED_COUNT" -ne "$VALIDATED_EXPECTED" ]; then
+                    echo "FAIL: validated-artifact list incomplete ($VALIDATED_COUNT of $VALIDATED_EXPECTED expected)"
+                    NAS_STATUS="NAS: verification list incomplete — source NOT cleaned"
+                    OVERALL_OK=false
+                    send_report
+                    trap - EXIT
+                    exit 1
+                  fi
+
+                  MISSING=""
+                  while IFS= read -r artifact; do
+                    if [ -z "$artifact" ]; then continue; fi
+                    # EXACT match on the listing's path field, not a substring: plain grep
+                    # for "postgres/x.tar.gz" is also satisfied by the line for
+                    # "postgres/x.tar.gz.sha256", so a missing payload could be vouched
+                    # for by its surviving checksum sidecar.
+                    if ! awk -v want="$artifact" '$NF == want { found = 1 } END { exit !found }' \
+                      "$NAS_VERIFY_LIST"; then
+                      MISSING="${MISSING}${artifact} "
+                    fi
+                  done < "$VALIDATED_LIST"
+
+                  if [ -n "$MISSING" ]; then
+                    echo "FAIL: Step-1-validated artifacts absent from the NAS: $MISSING"
+                    NAS_STATUS="NAS: missing after sync ($MISSING) — source NOT cleaned"
+                    OVERALL_OK=false
+                    send_report
+                    trap - EXIT
+                    exit 1
+                  fi
+                  echo "OK: all $(wc -l < "$VALIDATED_LIST" | tr -d ' ') validated artifact(s) present on NAS"
+
+                  # Step 4: Clean source on worker-node — reachable only once Step 1
+                  # validated the artifacts AND Step 3 confirmed each one is on the NAS.
                   echo ""
                   echo "=== Step 4: Cleaning source backups ==="
                   rm -rf /source-backups/postgres/* /source-backups/couchdb/* /source-backups/mysql/* /source-backups/pvc/*
@@ -308,8 +383,18 @@ spec:
                       2>&1 | tail -3 || echo "  (delete refused — manual prune via NAS UI)"
                   }
 
-                  NAS_LIST=$(RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
-                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/" 2>/dev/null)
+                  # A failed listing used to yield an empty NAS_LIST, which silently means
+                  # "nothing matched retention" — the sweep would no-op forever unnoticed.
+                  if ! NAS_LIST=$(nas_list); then
+                    echo "FAIL: could not list the NAS for the retention sweep"
+                    cat /tmp/nas-list.err 2>/dev/null || true
+                    # A note, not NAS_STATUS — Step 5 rewrites NAS_STATUS unconditionally,
+                    # which would erase the reason and leave Telegram showing a normal
+                    # size for a run that failed.
+                    NAS_NOTE="${NAS_NOTE} | retention sweep SKIPPED (listing failed)"
+                    OVERALL_OK=false
+                    NAS_LIST=""
+                  fi
 
                   NOW_EPOCH=$(date +%s)
                   THRESH=$((30*86400))
@@ -349,13 +434,25 @@ spec:
                   # Step 5: Check NAS storage usage (500GB hard limit)
                   echo ""
                   echo "=== Step 5: Checking NAS storage ==="
-                  NAS_SIZE_GB=$(RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --list-only \
-                    "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/" 2>/dev/null \
-                    | awk '/^-/{gsub(",", "", $2); sum+=$2} END{printf "%d", sum/1073741824}')
-                  echo "NAS backup size: ~${NAS_SIZE_GB}GB / 500GB limit"
+                  # Capture the listing and check ITS status before measuring: the script
+                  # has set -e but no pipefail, and the pipeline ended in awk, so a failed
+                  # rsync produced 0GB — indistinguishable from a healthy empty NAS, and
+                  # the 400/450GB tiers below could never fire.
+                  NAS_SIZE_LIST="/tmp/nas-size.txt"
+                  if nas_list > "$NAS_SIZE_LIST"; then
+                    NAS_SIZE_GB=$(awk '/^-/{gsub(",", "", $2); sum+=$2} END{printf "%d", sum/1073741824}' "$NAS_SIZE_LIST")
+                    echo "NAS backup size: ~${NAS_SIZE_GB}GB / 500GB limit"
+                  else
+                    echo "FAIL: could not list the NAS to measure usage"
+                    cat /tmp/nas-list.err 2>/dev/null || true
+                    NAS_SIZE_GB=-1
+                  fi
 
                   NAS_STATUS="NAS: ${NAS_SIZE_GB}GB / 500GB"
-                  if [ "$NAS_SIZE_GB" -gt 450 ]; then
+                  if [ "$NAS_SIZE_GB" -lt 0 ]; then
+                    NAS_STATUS="NAS: size UNKNOWN (listing failed)"
+                    OVERALL_OK=false
+                  elif [ "$NAS_SIZE_GB" -gt 450 ]; then
                     echo "CRITICAL: NAS backup size ~${NAS_SIZE_GB}GB exceeds 450GB! Manual pruning required via NAS web UI."
                     NAS_STATUS="NAS: ${NAS_SIZE_GB}GB / 500GB CRITICAL"
                     OVERALL_OK=false
@@ -363,6 +460,7 @@ spec:
                     echo "WARNING: NAS backup size ~${NAS_SIZE_GB}GB exceeds 400GB. Consider pruning old backups via NAS web UI."
                     NAS_STATUS="NAS: ${NAS_SIZE_GB}GB / 500GB WARNING"
                   fi
+                  NAS_STATUS="${NAS_STATUS}${NAS_NOTE}"
 
                   # Step 6: Send Telegram report (only on failure)
                   echo ""
@@ -371,6 +469,10 @@ spec:
                   else
                     echo "=== Step 6: Sending Telegram failure report ==="
                     send_report
+                    # Exit non-zero so the Job records a failure. Reporting alone left
+                    # kube_job_* green, so every alert keyed on job status stayed silent.
+                    trap - EXIT
+                    exit 1
                   fi
 
                   # Clear failure trap on success

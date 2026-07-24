@@ -114,10 +114,10 @@
       "groupName": "Percona MySQL"
     },
     {
-      "description": "Ignore MySQL backup image - manually updated with cluster",
+      "description": "MySQL backup client: track the Percona server's 8.4 line, not frozen",
       "matchPackageNames": ["mysql"],
       "matchFileNames": ["**/mysql-backup-cronjob.yaml"],
-      "enabled": false
+      "allowedVersions": "/^8\\.4\\./"
     },
     {
       "description": "Disable Docker detection for n8n - using custom GitHub releases manager",
