@@ -213,17 +213,15 @@ spec:
               - alertname = KubeAPIErrorBudgetBurn
             receiver: 'null'
           - matchers:
-              - alertname =~ "^(BackupJobFailed|BackupCronJobMissedSchedule|BackupJobRunningTooLong|NoRecentBackups)$"
+              - alertname =~ "^(BackupJobFailed|BackupCronJobMissedSchedule|BackupJobRunningTooLong|NoRecentBackups|NoRecentImmichBackup)$"
             receiver: 'telegram-backup'
             continue: false
           # K3s component alerts disabled in defaultRules (embedded architecture)
         inhibit_rules:
-          # Suppress pod/container alerts when their node is down
-          - source_matchers:
-              - alertname = NodeDown
-            target_matchers:
-              - severity =~ "warning|info"
-            equal: [instance]
+          # NodeDown inhibit removed 2026-07-25: it never matched. NodeDown comes from
+          # up{job="...node-exporter"}, whose `instance` is 192.168.1.x:9100, while the
+          # pod/container alerts it was meant to suppress carry kube-state-metrics'
+          # instance (10.42.x.x:8080) — equal:[instance] can never be satisfied.
           # Suppress warning alerts when a critical alert fires for same namespace/pod
           - source_matchers:
               - severity = critical

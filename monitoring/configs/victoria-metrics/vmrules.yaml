@@ -177,6 +177,19 @@ spec:
         summary: "Critical disk space on {{ $labels.instance }}"
         description: "Disk {{ $labels.mountpoint }} has less than 5% free space (current: {{ $value }}%)"
 
+    - alert: NASLibraryMountMissing
+      # NodeDiskSpaceLow/Critical already cover this mount's CAPACITY, but only while the
+      # series exists. If the NAS detaches, node_filesystem_* for it simply disappears and
+      # those alerts go quiet rather than firing — absent() is what makes the loss loud.
+      # Deliberately not pinned to an instance: any node reporting the mount satisfies it.
+      expr: absent(node_filesystem_size_bytes{mountpoint="/var/lib/immich-library"})
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: "NAS-backed immich library mount is no longer reported"
+        description: "node_filesystem metrics for /var/lib/immich-library have been absent for 10m — the virtiofs mount from the NAS is gone, or immich-vm's node-exporter is not scraping. Capacity alerting for this mount is blind while this fires."
+
     - alert: NodeHighIOWait
       # Average I/O wait across all CPUs (node-wide, not per-core)
       expr: avg by(instance) (rate(node_cpu_seconds_total{mode="iowait"}[5m])) * 100 > 10
@@ -513,7 +526,19 @@ spec:
         description: "Backup CronJob hasn't run for more than 1 hour past its schedule time. Backups may not be running! Check: kubectl get cronjob {{ $labels.cronjob }} -n {{ $labels.namespace }}"
 
     - alert: BackupJobRunningTooLong
-      expr: (time() - kube_job_status_start_time{job_name=~".*backup.*"} > 7200) and (kube_job_complete{job_name=~".*backup.*"} == 0)
+      # The old form was `and (kube_job_complete{...} == 0)`, which matched nothing:
+      # `and` requires IDENTICAL label sets, and kube_job_complete carries a `condition`
+      # label (true/false/unknown) that kube_job_status_start_time lacks.
+      # Excluding the two TERMINAL conditions is what is wanted: old, and neither
+      # finished nor failed. Two wrong ways to express that, both rejected in review:
+      # `kube_job_status_active > 0` misses a stuck Job whose pod was evicted or sits
+      # between retries (nonterminal, active==0); and `kube_job_status_failed > 0` counts
+      # failed PODS, so a Job that lost one pod and is still retrying would be excluded
+      # while genuinely stuck. The Failed *condition* is the terminal signal.
+      # kube_job_failed has zero series today only because nothing has failed — KSM emits
+      # condition metrics only for conditions actually present, so the `unless` correctly
+      # excludes nothing until a Job really fails (verified against the KSM scrape).
+      expr: (time() - kube_job_status_start_time{job_name=~".*backup.*"} > 7200) unless on(namespace,job_name) (kube_job_complete{job_name=~".*backup.*",condition="true"} == 1) unless on(namespace,job_name) (kube_job_failed{job_name=~".*backup.*",condition="true"} == 1)
       for: 5m
       labels:
         severity: warning
@@ -573,14 +598,10 @@ spec:
         summary: "PostgreSQL pod {{ $labels.pod }} not running"
         description: "PostgreSQL pod is in {{ $labels.phase }} state. Database may be unavailable!"
 
-    - alert: PostgreSQLConnectionFailure
-      expr: sum(rate(cnpg_pg_stat_database_xact_commit[5m])) by (namespace, pod) == 0 and sum(kube_pod_status_phase{namespace="databases",pod=~"main-postgres.*",phase="Running"}) > 0
-      for: 5m
-      labels:
-        severity: warning
-      annotations:
-        summary: "PostgreSQL {{ $labels.pod }} may have connection issues"
-        description: "No transactions detected while pod is running. Database may not be accepting connections."
+    # PostgreSQLConnectionFailure removed 2026-07-25: the `and` compared a
+    # by(namespace,pod) aggregate against a bare sum() with no matching labels, so it
+    # evaluated to nothing. Zero committed transactions is idle, not broken, either way.
+    # Real availability is covered by PostgreSQLDown (cnpg_collector_up == 0) below.
 
     - alert: PostgreSQLTooManyConnections
       expr: sum by (namespace, pod) (cnpg_backends_total) > 80
@@ -679,14 +700,9 @@ spec:
         summary: "Redis {{ $labels.namespace }}/{{ $labels.pod }} has slow queries"
         description: "{{ $value }} new slow queries in the last 10m. Performance may be degraded."
 
-    - alert: RedisConnectionFailure
-      expr: redis_connected_clients == 0 and kube_pod_status_phase{namespace="databases",pod=~"redis.*",phase="Running"} > 0
-      for: 10m
-      labels:
-        severity: warning
-      annotations:
-        summary: "Redis {{ $labels.namespace }}/{{ $labels.pod }} has no connected clients"
-        description: "No clients connected to Redis for 10 minutes while pod is running. May indicate connection issues."
+    # RedisConnectionFailure removed 2026-07-25: same dead `and` (exporter labels never
+    # match kube_pod_status_phase labels), and zero connected clients is idle, not down.
+    # Real availability is covered by the redis_up == 0 alert below.
 
   - name: couchdb-alerts
     interval: 60s
@@ -740,7 +756,10 @@ spec:
         description: "HAProxy pod is in {{ $labels.phase }} state. Application database connectivity may be affected!"
 
     - alert: MySQLOrchestratorNotRunning
-      expr: count(kube_pod_status_phase{namespace="databases",pod=~"main-mysql-orc-.*",phase="Running"}) < 2
+      # Same two traps as RedisHASentinelQuorumLost: `== 1` because KSM emits a
+      # phase="Running" series valued 0 for pods that are not running, and `or vector(0)`
+      # because count() over an empty vector yields no series at all.
+      expr: (count(kube_pod_status_phase{namespace="databases",pod=~"main-mysql-orc-.*",phase="Running"} == 1) or vector(0)) < 2
       for: 5m
       labels:
         severity: warning
@@ -832,6 +851,18 @@ spec:
     # catches a full :8080 outage (up==0); this catches "up but not reconciling". Baseline rate is a
     # steady ~0.05/s (never 0 over 6h observed), so ==0 for 30m is low-false-positive. sum() (not by job)
     # = whole-operator stall; absent-series (full wedge) yields empty, not 0, so no double-fire with above.
+    - alert: VMAgentIngestionDown
+      # A dedicated liveness arm: if vmagent stops being scraped entirely its `up` series
+      # vanishes, so any rule of the form `up{...} == 0` goes quiet instead of firing.
+      # absent() is the only form that survives the series disappearing.
+      expr: absent(up{job="vmagent-vmagent"})
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: "VMAgent is not being scraped — metric ingestion may be stopped"
+        description: "up{job=\"vmagent-vmagent\"} has been absent for 10m. Nothing is confirming that metrics are still being ingested; most other alerts will fall silent rather than fire while this is true."
+
     - alert: VMOperatorReconcileStalled
       expr: sum(rate(controller_runtime_reconcile_total{job="victoria-metrics-operator"}[15m])) == 0
       for: 30m
@@ -880,7 +911,9 @@ spec:
         severity: warning
 
   - name: kyverno-policy-alerts
-    interval: 1h
+    # 60s, not 1h: this group holds a critical (admission controller down). At an
+    # hourly interval it was reported up to an hour after the fact.
+    interval: 60s
     rules:
     - alert: KyvernoAdmissionControllerDown
       expr: up{job="kyverno-svc-metrics"} == 0
@@ -1297,8 +1330,14 @@ spec:
         description: "A redis-replication or redis-sentinel pod is unreachable. HA is degraded but failover may still work depending on which pod."
 
     - alert: RedisHAAllDown
-      expr: count(redis_up{namespace="databases", job=~".*redis-replication.*"} == 1) == 0
-      for: 1m
+      # `or vector(0)` is what makes this alert work AT ALL: when every redis pod is
+      # down its exporter targets go away, redis_up disappears, and count() over the
+      # empty vector produces no series — so `== 0` matched nothing in exactly the
+      # total-outage case this alert is named for.
+      expr: (count(redis_up{namespace="databases", job=~".*redis-replication.*"} == 1) or vector(0)) == 0
+      # 5m, raised from 1m for the same reason as RedisHASentinelQuorumLost: with
+      # `or vector(0)` a scrape gap reads as "all down", so a short absence must not page.
+      for: 5m
       labels:
         severity: critical
       annotations:
@@ -1306,8 +1345,18 @@ spec:
         description: "Both redis-replication-0 and redis-replication-1 are unreachable. Immich and Paperless will be impacted."
 
     - alert: RedisHASentinelQuorumLost
-      expr: count(kube_pod_status_phase{namespace="databases",pod=~"redis-sentinel-sentinel.*",phase="Running"}) < 2
-      for: 1m
+      # Two separate traps here. `== 1` is load-bearing: KSM emits a phase="Running"
+      # series valued 0 for pods that are NOT running, so a bare count() counts every
+      # sentinel regardless of state and never falls below 2. And `or vector(0)` is
+      # load-bearing too: count() over an EMPTY vector yields no series at all, so with
+      # zero sentinels running — the total outage this alert exists for — the comparison
+      # would silently produce nothing.
+      expr: (count(kube_pod_status_phase{namespace="databases",pod=~"redis-sentinel-sentinel.*",phase="Running"} == 1) or vector(0)) < 2
+      # 5m, raised from 1m alongside `or vector(0)`: absence of the series now evaluates
+      # to 0 rather than to nothing, so a kube-state-metrics restart or a node reboot
+      # would page at 1m. 5m rides out those gaps and still reports a real outage
+      # promptly. Trading four minutes of latency for an alert that fires at all.
+      for: 5m
       labels:
         severity: critical
       annotations:

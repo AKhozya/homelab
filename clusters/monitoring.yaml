@@ -46,11 +46,21 @@ spec:
     name: flux-system
   path: ./monitoring/configs
   prune: true
-  healthChecks:
+  # healthCheckExprs, not healthChecks: kstatus treats a custom resource with NO
+  # status.conditions as Current, and VMSingle publishes none (verified live — its
+  # status carries updateStatus/lastAppliedSpec/observedGeneration only). The plain
+  # healthCheck therefore passed unconditionally and gated nothing.
+  healthCheckExprs:
     - apiVersion: operator.victoriametrics.com/v1beta1
       kind: VMSingle
-      name: vmsingle
-      namespace: monitoring
+      # No inProgress arm on purpose: Flux treats anything matching neither current nor
+      # failed as still in progress. The operator's full updateStatus vocabulary is not
+      # published (the CRD ships no description), so enumerating it would risk a value
+      # like "updating" matching nothing and wedging the gate on every rollout.
+      # observedGeneration guards against reading a stale status from the previous
+      # generation as if it described the spec just applied.
+      failed: has(status.updateStatus) && status.updateStatus == 'failed' && status.observedGeneration == metadata.generation
+      current: has(status.updateStatus) && status.updateStatus == 'operational' && status.observedGeneration == metadata.generation
   decryption:
     provider: sops
     secretRef:
