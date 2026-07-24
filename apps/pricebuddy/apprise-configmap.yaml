@@ -22,5 +22,6 @@ data:
     tgram://${TELEGRAM_BOT_TOKEN}/${TELEGRAM_CHAT_ID}/
     EOF
 
+    # Never echo the file — it embeds the bot token, and init-container stdout
+    # is shipped to Loki (720h retention).
     echo "Apprise config created at /config/pricebuddy.cfg"
-    cat /config/pricebuddy.cfg

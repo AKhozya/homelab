@@ -12,7 +12,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 | **Backup / DR** | Daily logical backups (Postgres, MySQL, CouchDB, app PVCs), 30-day retention, off-node + NAS replication, documented restore runbook |
 | **Observability** | VictoriaMetrics + Grafana + Loki/Alloy; Alertmanager → Telegram; weekly Popeye hygiene scan |
 | **Networking** | Dual ingress (LAN Traefik + Cloudflare Tunnel), zero inbound ports, Blocky DNS + ad-block |
-| **Automation** | Flux GitOps reconcile; Renovate dependency PRs; CI validation gate; ansible-driven node maintenance |
+| **Automation** | Flux GitOps reconcile; Renovate dependency PRs; CI validation (signal, not a merge gate — branch protection unavailable on the Free plan); ansible-driven node maintenance |
 | **HA** | Postgres primary+replica, MySQL async replication, Redis Sentinel quorum, CouchDB active-active; single control-plane (deliberate — see ARCHITECTURE trade-offs) |
 
 ## Platform facts

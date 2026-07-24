@@ -40,6 +40,7 @@ target/
 
 # Backup directory with secrets
 .backup/secrets/
+.backup/*.tar.gz.gpg
 .backup/secrets/*.json
 .backup/secrets/*.txt
 .backup/secrets/*.agekey

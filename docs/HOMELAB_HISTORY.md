@@ -17,6 +17,16 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-24 — Ultrareview remediation Batch 0: token leak, CI-gate claim, DR tarball ignore
+
+First batch of [the 2026-07-24 ultrareview remediation plan](plans/2026-07-24-ultrareview-remediation.md) (58 findings, 0 refuted; H3 CouchDB exposure closed same day via Cloudflare Access Service Auth).
+
+- **`apps/pricebuddy/apprise-configmap.yaml`** — the apprise init script ended with `cat /config/pricebuddy.cfg`, printing the Telegram bot token to init-container stdout and therefore into Loki (**720 h retention — existing lines carry the token for ~30 days after this fix**). Deleted; a comment now names the constraint so it isn't re-added. **Decision: not rotated.** `pricebuddy-telegram` is a dedicated secret separate from claude-telegram, so the blast radius is the price-alert chat, not the ops channel; readers are limited to Grafana/Loki (anonymous off, basic off, login form disabled, Authentik passkey-only OIDC) and anyone with `kubectl logs`.
+- **`AGENTS.md` + `docs/HOMELAB_ANALYSIS.md`** — the "CI gate-of-record" invariant was false. Branch protection is unavailable (private repo on the GitHub Free plan; `gh api …/branches/main/protection` → 403) and Flux syncs `main` every 5 min regardless of the CI verdict, so nothing mechanically stops a validate-red commit from reaching prod; `/gitops-workflow` step 3c blocking `fr` on red only withholds the manual nudge. Reworded to "a signal, NOT a merge gate", naming the pre-commit review loop and `/homelab-yaml-validate` as the gates that actually hold. **Decision: no `ci-green` promotion ref** — repointing a bootstrap-generated `gotk-sync.yaml` is the highest-structural-risk change available here, and the per-batch static review is the control that has actually been catching defects. Stale count corrected in the same line: kubeconform covers 6 roots, not 5 (`validate.yaml:138-144`).
+- **`.gitignore`** — added `.backup/*.tar.gz.gpg`. `secrets-backup.sh:235` writes `${BACKUP_DIR}/secrets-backup-${TIMESTAMP}.tar.gz.gpg` with `BACKUP_DIR="$(dirname "$0")"`, so an encrypted DR bundle landed in a tracked directory with no ignore rule.
+
+Gates: yamllint, `kustomize build`, gitleaks (tree mode — history mode's 11 hits are already-rotated values CI deliberately skips, `validate.yaml:91-96`), sops-check (57 files), init-resources, image-pin — all green. Codex STATIC review: APPROVE WITH NITS, one nit (the 5→6 root count) verified against the workflow and fixed.
+
 ### 2026-07-23 — WARP managed-network beacon: home/away device profiles auto-switch
 
 Added `warp-beacon` to the `rustdesk` namespace (`apps/rustdesk/beacon-*.yaml`): `nginxinc/nginx-unprivileged:1.30.4-alpine` serving a 10-year self-signed cert (CN `warp-beacon.h0melab.internal`, fingerprint `4B8045EA…B2F3DF`) on **192.168.1.129:18443** (same W1 servicelb ETP=Local pin as RustDesk). Key in SOPS Secret; cert+nginx.conf in ConfigMap; PSS-restricted, RoRFS, deny-all-egress; ingress 8443/TCP from LAN only — **deliberately NOT tunnel-reachable**, off-LAN detection must fail (per CF managed-networks docs: 5 s probe timeout → default profile, no retry).
