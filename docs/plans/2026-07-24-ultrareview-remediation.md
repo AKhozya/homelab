@@ -14,6 +14,7 @@ This plan was itself Codex-reviewed (verdict REVISE) and revised; the accepted c
 - **Batches are dependency-ordered, not severity-ordered.** Rationale per batch below. Batch 0 and 1 are prerequisites; 2→8 may be resequenced if a batch blocks.
 - **Do not re-litigate** the 14 accepted decisions (no-PITR, no-offsite, bot RBAC, naked provisioning Jobs, chart-default image pins, rustdesk 1.1.15, single CP, no `@sha256` pins…). Recorded in memory and `.claude/review-invariants.md`.
 - **Never commit a command you have not run.** Every runbook/CronJob snippet touched here gets executed (or `--dry-run=server`'d) before commit.
+- **Re-derive every line number before editing.** Findings were verified at `32bf3d0c`; ten Renovate PRs merged immediately afterwards (loki 18.5.4, monitoring stack, flux2 action v2.9.3, n8n, paperless, home-assistant, mealie, kube-state-metrics). Line references below may have drifted, and a bump may have already fixed or moved an item — grep for the described code, do not trust the `:NNN`. Confirm each finding still reproduces before fixing it.
 
 ## Assumptions
 
