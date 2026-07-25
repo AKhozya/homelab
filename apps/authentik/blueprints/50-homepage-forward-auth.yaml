@@ -1,0 +1,46 @@
+version: 1
+metadata:
+  name: homelab-homepage-forward-auth
+  labels:
+    blueprints.goauthentik.io/description: >-
+      Proxy provider in forward_single mode for home.h0melab.work, bound to the built-in
+      embedded outpost (no separate outpost deployment). Traefik's authentik-forward-auth
+      middleware calls the embedded outpost on authentik-server:9000. First proxy provider
+      in this instance; every other application here uses OIDC.
+entries:
+  # Forward-auth provider. `forward_single` is the single-application mode — it expects
+  # the protected host to also route /outpost.goauthentik.io/ to the outpost, which the
+  # homepage-outpost Ingress does. Domain-level mode would instead cover *.h0melab.work
+  # from one provider; single mode keeps the blast radius to this one host.
+  - model: authentik_providers_proxy.proxyprovider
+    state: present
+    id: homepage-provider
+    identifiers:
+      name: homepage-forward-auth
+    attrs:
+      mode: forward_single
+      external_host: https://home.h0melab.work
+      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+
+  - model: authentik_core.application
+    state: present
+    identifiers:
+      slug: homepage
+    attrs:
+      name: Homepage
+      provider: !KeyOf homepage-provider
+      meta_launch_url: https://home.h0melab.work
+      meta_description: Homelab dashboard
+
+  # Bind to the embedded outpost that ships inside the authentik server. Verified before
+  # writing this: the embedded outpost currently has ZERO providers bound, so this
+  # assignment cannot displace an existing one — `attrs.providers` REPLACES the list.
+  # Anything added here later must list every provider, not just the new one.
+  - model: authentik_outposts.outpost
+    state: present
+    identifiers:
+      managed: goauthentik.io/outposts/embedded
+    attrs:
+      providers:
+        - !KeyOf homepage-provider

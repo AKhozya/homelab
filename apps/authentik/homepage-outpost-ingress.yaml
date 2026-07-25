@@ -1,0 +1,39 @@
+# The authentik callback route for home.h0melab.work, deliberately living in the
+# authentik namespace rather than in homepage.
+#
+# An Ingress can only target a Service in its own namespace. Putting this route in the
+# homepage namespace would need an ExternalName Service pointing at authentik-server —
+# and Traefik's kubernetesIngress provider sets allowExternalNameServices to FALSE by
+# default (it is not enabled here), so Traefik would refuse that backend and the login
+# callback would fail. A server-side dry-run does NOT catch this: the object is valid,
+# Traefik just declines to route it. Hosting the route here keeps the Service reference
+# same-namespace and leaves that safety default alone.
+#
+# Traefik builds routers from host+path across all namespaces, so this composes with the
+# `homepage` Ingress in the homepage namespace. No `tls:` block: the certificate for
+# home.h0melab.work is already loaded from that Ingress and Traefik selects it by SNI
+# across the whole store, so duplicating the Certificate here would only mean a second
+# needless ACME order.
+#
+# NOT protected by forward-auth, on purpose — this is the request that completes the
+# login, so authenticating it would be a redirect loop.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: homepage-outpost
+  namespace: authentik
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: home.h0melab.work
+      http:
+        paths:
+          - path: /outpost.goauthentik.io/
+            pathType: Prefix
+            backend:
+              service:
+                name: authentik-server
+                port:
+                  number: 9000

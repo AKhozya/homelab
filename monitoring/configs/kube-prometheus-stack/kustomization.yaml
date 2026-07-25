@@ -18,6 +18,8 @@ resources:
   - rate-limit-standard-middleware.yaml
   - csp-middleware.yaml
   # Alertmanager
+  - alertmanager-basic-auth-secret.yaml
+  - alertmanager-basic-auth-middleware.yaml
   - alertmanager-telegram-secret.yaml
   - alertmanager-deadman-secret.yaml
   - alertmanager-certificate.yaml
