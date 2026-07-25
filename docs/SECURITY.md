@@ -23,7 +23,7 @@ This homelab leans on defense-in-depth rather than any single control. Secrets a
 ### Overall Assessment
 
 **Strengths:**
-- Centralized SSO with Authentik (7 of 16 apps)
+- Centralized SSO with Authentik — 7 of 17 apps via OIDC, plus homepage via forward-auth
 - Admin user 2FA enabled (TOTP)
 - OIDC-only (passwords disabled most apps)
 - NetworkPolicy default-deny across all 28 namespaces (64 policy resources)

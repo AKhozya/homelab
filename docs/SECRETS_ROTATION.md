@@ -109,8 +109,15 @@ cert-manager).
 | `node-maintenance-ssh` | Node Auto-Update (CP → workers) | 2026-04-17 | 2027-04-17 | High |
 | `homelab-deploy` (GitHub deploy key) | Node-Maintenance git sync (CP `/root/.ssh/homelab-deploy`, read-only) | 2026-04-18 | 2027-04-18 | Medium |
 | `claude-telegram-ssh` (id_ed25519) | Telegram bot — GitHub account auth + node SSH | 2026-06-12 (compromise) | 2027-06-12 | High |
+| `cloudflare-api-token` (`cert-manager` ns) | cert-manager DNS-01 for `*.h0melab.work` | 2025-10-19 | 2026-10-19 | Critical |
+| `sops-age` (`flux-system` ns) | SOPS decryption key for every secret in this repo | 2025-10-19 (bootstrap) | Never* | Critical |
+| `alertmanager-basic-auth` (`monitoring` ns) | Traefik basicAuth on `am.h0melab.work` | 2026-07-25 | 2027-07-25 | Medium |
 
 \* Rotate only if compromised
+
+**`sops-age`** is the root of the whole scheme — losing it makes every encrypted file in this repo unreadable, and leaking it makes all of them readable. It is deliberately *not* on a rotation clock: rotating it means re-encrypting every SOPS file in one commit. Keep an offline copy.
+
+**`alertmanager-basic-auth`** holds only the htpasswd `users` key — Traefik rejects a basicAuth Secret with more than one key. The generating plaintext lives in the separate `alertmanager-basic-auth-credential` Secret, which should be moved to 1Password and then deleted.
 
 **`claude-telegram-ssh` (2026-06-12)**: rotated after the old key was found in pre-rewrite git history (an account-wide GitHub auth key that doubled as a node SSH key). Procedure: new key added to GitHub + the 3 nodes' `authorized_keys` + SOPS secret → bot restart → verified GitHub and node auth → old key removed everywhere. The bot also reaches GitHub over `ssh.github.com:443`, since the cluster's egress firewall blocks outbound `:22`.
 
@@ -135,7 +142,7 @@ cert-manager).
 90-day High tier retired 2026-07-02 — Priority column in the inventory ranks blast-radius, not cadence. Annual infrastructure keys (SSH, deploy, CF mgmt token) keep their own dates.
 
 ### Never Rotate
-- User login passwords (AdGuard, HomeHub, Grafana admin, Audiobookshelf admin)
+- User login passwords (HomeHub, Grafana admin, Audiobookshelf admin)
 - N8N encryption key (breaks encrypted workflow credentials)
 - Cloudflare tunnel token (only if compromised)
 - Age key for SOPS (only if compromised)
@@ -233,8 +240,10 @@ git commit -m "Rotate Redis <user> password"
 git push
 
 # 5. Reconcile, then rollout restart (NEVER delete pods — Flux reverts restartedAt)
+# infrastructure-configs, not -controllers: the Redis secrets live under
+# infrastructure/configs/databases/redis-ha/, which is the -configs Kustomization's path.
 flux reconcile source git flux-system --timeout 45s
-flux reconcile kustomization infrastructure-controllers --timeout 60s
+flux reconcile kustomization infrastructure-configs --timeout 60s
 flux reconcile kustomization apps --timeout 60s
 kubectl rollout restart statefulset/redis-replication -n databases
 kubectl rollout restart deployment/<app> -n <app>
@@ -267,7 +276,7 @@ git push
 
 # 5. Reconcile and restart
 flux reconcile source git flux-system --timeout 45s
-flux reconcile kustomization apps --timeout 45s --force
+flux reconcile kustomization apps --timeout 45s
 kubectl rollout restart deployment/home-assistant -n home-assistant
 
 # 6. Verify connectivity
@@ -319,7 +328,7 @@ kubectl rollout restart deployment/<app> -n <app>
 
 ---
 
-### 5. User Login Passwords (HomeHub, AdGuard)
+### 5. User Login Passwords (HomeHub)
 
 #### HomeHub
 ```bash
@@ -334,7 +343,7 @@ sops apps/homehub/secret.yaml
 git add apps/homehub/secret.yaml
 git commit -m "Rotate HomeHub password"
 git push
-flux reconcile kustomization apps --timeout 45s --force
+flux reconcile kustomization apps --timeout 45s
 kubectl rollout restart deployment/homehub -n homehub
 ```
 

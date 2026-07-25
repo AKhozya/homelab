@@ -17,6 +17,25 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-25 — Ultrareview remediation Batch 8: documentation currency
+
+Every claim was re-derived from the cluster or the manifests rather than from another document, which turned up four inaccuracies the plan had not listed.
+
+**Recorded the Cloudflare Access posture** per tunnel hostname in `ARCHITECTURE.md`, next to the existing note that Traefik middleware never applies on the external path. Access policies live in the Cloudflare zone and leave no repo artifact, so nothing can drift-check them — the table is the decision record. `couchdb` is the one hostname on Service Auth, because Obsidian LiveSync is headless and cannot authenticate a human; `authentik` is deliberately ungated (gating the identity provider locks every other app out of its own login); the remaining seven rely on app-native OIDC, with the accepted trade-off written down: their login pages are internet-reachable, so an app-level auth bug is exposed to the internet rather than the LAN.
+
+**Corrections the plan did not ask for, found by checking rather than trusting:**
+
+- `HOMELAB_ANALYSIS.md` listed **n8n as OIDC**. It has no OIDC configuration anywhere in the repo — n8n SSO is an Enterprise feature, which `CODEMAPS/apps.md` already said. Two docs had been contradicting each other; the codemap was right.
+- `SECURITY.md` claimed SSO covered "7 of 16 apps". The 7 was right, the 16 was not, and homepage's new forward-auth was missing.
+- The rate-limit figures in `CODEMAPS/apps.md` were the pre-2026-07-03 values (100/min, 200/min) — the middlewares actually enforce `average: 300` and `average: 600` with an explicit `period: 1m`. The codemap also listed **authentik under high-frequency**; authentik carries no rate-limit middleware at all, deliberately, since throttling the SSO provider breaks the auth flow for everything behind it.
+- The rotation inventory was missing three secrets, including `cloudflare-api-token` — the DNS-01 credential behind every certificate in the cluster — and `sops-age`, the key that decrypts every secret in this repo. Dates were read from the live objects, not guessed.
+
+**Two runbook commands in `SECRETS_ROTATION.md` could not have worked.** `flux reconcile kustomization apps --timeout 45s --force` uses a flag that does not exist — `flux reconcile kustomization` accepts only `--with-source`. And the Redis rotation told the operator to reconcile `infrastructure-controllers`, but the Redis secrets live under `infrastructure/configs/databases/redis-ha/`, which belongs to `infrastructure-configs`; the reconcile would have reported success while picking up nothing.
+
+Remaining drift cleared: 16→17 apps in `AGENTS.md`, `ARCHITECTURE.md` and the `HOMELAB_ANALYSIS.md` heading, a RustDesk row, Homepage's SSO column, the retired W1→W2 replication leg, decommissioned AdGuard entries, and a `KyvernoPolicyViolationsDailySummary` VMRule that exists in neither git nor the cluster. Dated historical entries mentioning "16 apps" were left untouched — they were true when written.
+
+---
+
 ### 2026-07-25 — Ultrareview remediation Batch 7: runtime hygiene and supply chain
 
 Nine items sharing one shape: a failure that reports success. Every one was reproduced before it was touched, and each fix was proven against the failure it claims to prevent rather than against a green deploy.

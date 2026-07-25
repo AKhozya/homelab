@@ -4,7 +4,7 @@ Application stacks, one dir each under `apps/<name>/` (flat, single-env). Image 
 
 | App | NS | Storage | DB | OIDC | External | Notes |
 |-----|-----|---------|-----|------|----------|-------|
-| **homepage** | homepage | configmap | — | — | int | Dashboard |
+| **homepage** | homepage | configmap | — | forward-auth | int | Dashboard; Authentik proxy provider on the embedded outpost (callback Ingress lives in the `authentik` ns) |
 | **uptime-kuma** | uptime-kuma | PVC | MySQL | — | int | Probes 30+ targets; rootless image |
 | **authentik** | authentik | configmap | PostgreSQL | provider | both | SSO; passkey-first Conditional UI; no Redis (in-memory cache) |
 | **blocky** | blocky | none (Secret config) | PG `blocky` (query log) + Redis HA db1 | — | LAN DNS :53 | 2 replicas, single LB Service on W1+W2 IPs; LAN clients only — nodes + CoreDNS use public DNS |
@@ -30,13 +30,14 @@ External = hostname entry in the central Cloudflare tunnel config — see [netwo
 - `loki` — Loki + Alloy (own namespace, not monitoring)
 - `traefik` — ingress controller + shared middleware CRDs
 - `cert-manager`, `cloudflare-tunnel`, `kyverno`
-- `backup-replication` — daily rsync to W2 + NAS; weekly immich backup
+- `backup-replication` — daily rsync to the NAS; weekly immich backup. The W1→W2 safety-net leg was removed 2026-07-17 (NAS leg validated), so this is a single destination now
 - `popeye` — weekly cluster scan; `trivy-scan` — monthly image-CVE scan
 
 ## Shared service patterns
-- All app ingress use middleware chain: `traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-{standard|high-frequency}@kubernetescrd,traefik-csp-{inline|permissive}-enforced@kubernetescrd` (middlewares in `traefik` ns)
+- All app ingress use middleware chain: `traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-{standard|high-frequency}@kubernetescrd,traefik-csp-{inline|permissive}-enforced@kubernetescrd` (middlewares in `traefik` ns). homepage inserts `traefik-authentik-forward-auth@kubernetescrd` **after** rate-limit — a 401 or redirect short-circuits the chain, so auth placed earlier would leave login attempts unthrottled
 - CSP tiers (enforced): `csp-inline-enforced` (self + unsafe-inline, no eval) — audiobookshelf, homehub, homepage, mealie, paperless-ngx; `csp-permissive-enforced` (+unsafe-eval, explicit opt-in for eval/wasm) — authentik, home-assistant, immich, linkwarden, n8n, pricebuddy, stirling-pdf, uptime-kuma; `csp-strict-enforced` (self only) — couchdb/Fauxton. Global `csp` default = inline tier so new apps can't silently inherit unsafe-eval. `report-uri` omitted everywhere (a cluster-internal report sink is browser-unreachable) — verify CSP via browser console, not Loki.
-- Rate limits: `rate-limit-standard` 100/min avg, burst 150 (default); `rate-limit-high-frequency` 200/min avg, burst 300 (authentik, home-assistant, immich, n8n)
+- Rate limits: `rate-limit-standard` `average: 300` / `period: 1m`, burst 150 (default); `rate-limit-high-frequency` `average: 600` / `period: 1m`, burst 300 (home-assistant, immich, n8n). Both carry an explicit `period` — without it `average` is per **second**, which is how the earlier "100/min" and "200/min" comments were really enforcing 6000/min and 12000/min (fixed 2026-07-03).
+- **authentik carries no rate-limit middleware at all** — its chain is redirect-https, security-headers, csp-permissive-enforced. Throttling the SSO provider breaks the auth flow for every app behind it.
 - Image-pin CI gate: `scripts/ci/image-pin-audit.sh` in `validate.yaml` enforces `major.minor.patch` on every image (Kyverno only catches `:latest`/no-tag); allowlist inside the script (`postgres*`, `seleniumbase-scrapper`)
 - DB usernames = app name (CNPG `managed.roles` for PG, ACL for Redis, GRANT for MySQL)
 - DB endpoints: `main-postgres-rw-pooler.databases.svc.cluster.local:5432` (PgBouncer), `main-mysql-haproxy.databases.svc.cluster.local:3306` (HAProxy), `redis-replication-master.databases.svc.cluster.local:6379` (static master — paperless, blocky, immich)

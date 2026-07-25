@@ -61,7 +61,7 @@ Each edge is a Flux `dependsOn`: a Kustomization waits for its parent to report 
 | `infrastructure-controllers` | flux-system (source) | Operators + CRDs (cert-manager, Traefik, Kyverno, CNPG/Percona/Redis) |
 | `coredns` | infrastructure-controllers | Cluster DNS |
 | `infrastructure-configs` | infrastructure-controllers | DB `Cluster` CRs, NetworkPolicies, quotas, secrets, backups |
-| `apps` | infrastructure-configs | 16 application stacks — DBs + network fences must exist first |
+| `apps` | infrastructure-configs | 17 application stacks — DBs + network fences must exist first |
 | `monitoring-controllers` | infrastructure-controllers | Metrics/logging stack (VictoriaMetrics, Loki, Alloy) |
 | `monitoring-configs` | monitoring-controllers | Scrapes, rules, dashboards, alert templates |
 
@@ -92,6 +92,16 @@ flowchart LR
 An externally-reachable app has **two ingress rules** (internal hostname + Cloudflare hostname) but **one NetworkPolicy**. cert-manager issues TLS via DNS-01 (Cloudflare API token) for `*.h0melab.work`. The Cloudflare Tunnel is outbound-initiated → home router opens **zero** inbound ports.
 
 **Consequence (often missed):** Traefik middleware applies **only on the internal path.** External traffic via Cloudflare Tunnel hops `cloudflared → Service` directly (per `infrastructure/configs/cloudflare/networkpolicy.yaml`: per-app `Service:port` egress to 9 apps, zero egress to the `traefik` namespace). Externally-reached apps get Cloudflare's WAF + TLS, **not** the Traefik CSP/headers/rate-limit middlewares. The tier-based CSP rollout therefore covers internal browsing only; CF-tunnel browsers see whatever CSP the app itself sets.
+
+**Cloudflare Access posture — per hostname.** Access policies live in the Cloudflare zone, not in this repo, so nothing here can drift-check them; this table is the record of what was decided and why.
+
+| Tunnel hostname | Edge gate | Rationale |
+|---|---|---|
+| `couchdb` | **CF Access Service Auth** | Obsidian LiveSync is a headless client with a shared CouchDB credential and no interactive login — the only hostname where the app cannot authenticate a human, so the gate has to sit at the edge. Uses the `Service Auth` action (not `Allow`); `Use Internal API` must stay OFF. |
+| `authentik` | None (by design) | It *is* the identity provider — gating it at the edge would lock every other app out of its own login. Passkey-first with no password fallback. |
+| `audiobookshelf`, `immich`, `linkwarden`, `mealie`, `n8n`, `paperless`, `stirling-pdf` | None — app-native OIDC | Each authenticates through Authentik itself, so an edge gate would add a second prompt without adding a factor. **Accepted trade-off:** the app's own login page is internet-reachable, so app-level auth bugs are exposed to the internet rather than to the LAN. |
+
+Adding a tunnel hostname means picking one of these three rows and recording it here, since the zone config leaves no artifact to review.
 
 ---
 

@@ -25,7 +25,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 - **3** PriorityClasses (critical / standard / batch) — every workload annotated
 - **PSS:** 12 namespaces `restricted`, 9 `baseline`, 6 `privileged` (each justified — GPU, hostPath, host-network)
 
-## Applications (16)
+## Applications (17)
 
 > Grafana is monitoring infrastructure, not a listed app.
 
@@ -38,15 +38,16 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 | Paperless-NGX | OIDC | Document archive with OCR |
 | Linkwarden | OIDC | Bookmarks + Meilisearch |
 | Mealie | OIDC | Recipe manager |
-| n8n | OIDC | Workflow automation |
+| n8n | — | Workflow automation; native user management (n8n SSO is an Enterprise feature) |
 | Stirling-PDF | OIDC | PDF toolkit |
-| Homepage | — | Services dashboard |
+| Homepage | Forward-auth | Services dashboard; Authentik proxy provider on the embedded outpost, not OIDC |
 | HomeHub | — | Family start page (LAN only) |
 | Obsidian | — | Notes sync (CouchDB LiveSync) |
 | Uptime Kuma | — | Uptime monitor; MySQL |
 | PriceBuddy | — | Price tracker; MySQL |
 | Blocky | — | DNS resolver + ad-block; HA (2 replicas, W1+W2); serves LAN clients only |
 | claude-telegram | — | Telegram bot bridge for ops (Claude engine + Codex review gate) |
+| RustDesk | — | Self-hosted remote desktop relay (hbbs + hbbr); LAN-only on the W1 LoadBalancer, deny-all egress |
 
 ## Databases
 
@@ -73,7 +74,7 @@ DB role name = app name. Provisioning goes through the operator CRDs (CNPG `Data
 - **Loki + Grafana Alloy** — log aggregation (DaemonSet).
 - **Alertmanager** — Telegram alerts.
 - **Popeye** — weekly cluster-hygiene scan.
-- **Kyverno** — daily policy-violation digest via `KyvernoPolicyViolationsDailySummary` VMRule (no CronJob).
+- **Kyverno** — `KyvernoAdmissionControllerDown` availability alert. There is no policy-violation digest: the `KyvernoPolicyViolationsDailySummary` VMRule this file used to claim does not exist in git or in the cluster.
 
 ## External access
 

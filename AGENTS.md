@@ -1,6 +1,6 @@
 # Homelab — Agent Instructions
 
-K3s **production** (single env — no staging; merge to `main` deploys straight to prod), 4 nodes, Flux GitOps, 16 apps. Claude reads this through `CLAUDE.md`; Codex reads this file directly.
+K3s **production** (single env — no staging; merge to `main` deploys straight to prod), 4 nodes, Flux GitOps, 17 apps. Claude reads this through `CLAUDE.md`; Codex reads this file directly.
 
 ## Cluster
 | Node | IP | Role | SSH |
