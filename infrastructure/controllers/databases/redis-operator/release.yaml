@@ -30,31 +30,21 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
-  # seccomp RuntimeDefault (UR2-4 soak) — chart 0.24.0 has no securityContext values hook; patch the
-  # rendered Deployment pod spec (strategic merge preserves any chart-set securityContext fields).
-  postRenderers:
-    - kustomize:
-        patches:
-          - target:
-              kind: Deployment
-              name: redis-operator
-            patch: |-
-              apiVersion: apps/v1
-              kind: Deployment
-              metadata:
-                name: redis-operator
-              spec:
-                template:
-                  spec:
-                    securityContext:
-                      seccompProfile:
-                        type: RuntimeDefault
   values:
     # critical tier: operator coordinates Redis Sentinel + CR reconcile
     priorityClassName: homelab-critical
 
+    # seccomp RuntimeDefault (UR2-4 soak). Renders to the Deployment's pod-level
+    # securityContext, replacing the postRenderer this needed before the chart grew
+    # the hook — proven render-identical against the patched output.
+    podSecurityContext:
+      seccompProfile:
+        type: RuntimeDefault
+
     redisOperator:
-      imageTag: "v0.24.0"
+      # No imageTag: the chart defaults to v<appVersion>, so the pinned chart version
+      # pins the image. A mirrored tag here is renovate-blind and silently skewed the
+      # operator to v0.24.0 while the chart moved to 0.25.0.
       imagePullPolicy: IfNotPresent
       automountServiceAccountToken: true
       podAnnotations: {}
