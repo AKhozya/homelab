@@ -111,8 +111,15 @@ spec:
             timeoutSeconds: 5
             failureThreshold: 3
           readinessProbe:
+            # /healthz answers {status:'ok'} unconditionally — it never touches the database.
+            # /healthz/readiness returns 503 unless `connected && migrated && fullyReady`
+            # (abstract-server.js in the 2.31.6 image). On 2026-07-25 n8n sat 1/1 Ready for
+            # 8 hours serving 503s after its Postgres pool gave up on a transient blip,
+            # because readiness was on /healthz. Liveness and startup deliberately stay on
+            # /healthz: a database dependency in liveness turns a Postgres failover into a
+            # CrashLoopBackOff, and in startup it would fail the pod before the DB is up.
             httpGet:
-              path: /healthz
+              path: /healthz/readiness
               port: 5678
             periodSeconds: 5
             timeoutSeconds: 3
