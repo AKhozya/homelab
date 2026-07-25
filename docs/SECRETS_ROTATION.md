@@ -437,6 +437,20 @@ If compromised:
 
 ### 2026 Q3 (Jul-Sep)
 - [x] 2026-07-02: Cadence change — 90-day High tier retired, all scheduled rotations now 180-day. Ex-High secrets (PG authentik/immich/n8n, MySQL HA, Redis immich) folded into the 2026-10-01 batch; Redis admin → 2026-10-26.
+- [ ] **2026-08-06: move the Alertmanager basicAuth password to 1Password, then delete the `alertmanager-basic-auth-credential` Secret.** Created 2026-07-25 with the `am.h0melab.work` basicAuth work. The plaintext currently sits in SOPS purely so it can be retrieved once — it is not read by anything, so deleting it breaks nothing. Nothing reminds you automatically; this checklist is the reminder.
+  ```bash
+  kubectl -n monitoring get secret alertmanager-basic-auth-credential \
+    -o jsonpath='{.data.username}' | base64 -d; echo
+  kubectl -n monitoring get secret alertmanager-basic-auth-credential \
+    -o jsonpath='{.data.password}' | base64 -d; echo
+  ```
+  Store it in 1Password, then delete **only the second Secret document** from
+  `monitoring/configs/kube-prometheus-stack/alertmanager-basic-auth-secret.yaml` — that
+  one file holds *both* Secrets, and the first one (`alertmanager-basic-auth`, the htpasswd
+  `users` key) is what Traefik actually reads. Deleting the whole file, or its kustomization
+  entry, takes Alertmanager's auth down with it. Leave the file and the entry in place.
+  Flux prunes the removed Secret on the next reconcile; confirm with a `401` on
+  `https://am.h0melab.work` and a `200` with the credentials.
 
 ### 2026 Q4 (Oct-Dec)
 - [ ] 2026-10-01: 180-day rotation — ALL scheduled secrets (PG, MySQL, Redis, CouchDB, OIDC, Django key; ex-High included)
