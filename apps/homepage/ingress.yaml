@@ -4,7 +4,10 @@ metadata:
   name: homepage
   namespace: homepage
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-standard@kubernetescrd,traefik-csp-inline-enforced@kubernetescrd
+    # authentik-forward-auth sits AFTER rate-limit: an unauthenticated request is answered
+    # by the auth middleware and the chain short-circuits there, so auth placed earlier
+    # would leave the login path unthrottled.
+    traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-standard@kubernetescrd,traefik-authentik-forward-auth@kubernetescrd,traefik-csp-inline-enforced@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:

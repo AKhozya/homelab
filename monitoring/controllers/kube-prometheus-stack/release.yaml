@@ -278,7 +278,9 @@ spec:
         enabled: true
         ingressClassName: traefik
         annotations:
-          traefik.ingress.kubernetes.io/router.middlewares: monitoring-redirect-https@kubernetescrd,monitoring-security-headers@kubernetescrd,monitoring-rate-limit-standard@kubernetescrd,monitoring-csp@kubernetescrd
+          # basic-auth sits AFTER rate-limit deliberately: a 401 short-circuits the
+          # chain, so auth placed earlier would leave brute-force attempts unthrottled.
+          traefik.ingress.kubernetes.io/router.middlewares: monitoring-redirect-https@kubernetescrd,monitoring-security-headers@kubernetescrd,monitoring-rate-limit-standard@kubernetescrd,monitoring-alertmanager-basic-auth@kubernetescrd,monitoring-csp@kubernetescrd
         hosts:
           - am.h0melab.work
         tls:
