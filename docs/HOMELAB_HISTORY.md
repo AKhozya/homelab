@@ -17,6 +17,28 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-25 — Ultrareview remediation Batch 5: authentication for Alertmanager and homepage
+
+`am.h0melab.work` served `/api/v2/silences` to anyone on the LAN — a `200`, verified live — so any device on the wifi could suppress all alerting. Both hosts are LAN-only (neither is in the Cloudflare tunnel), so the threat is the local network, not the internet.
+
+**Deliberately two different mechanisms**, matched to each service's role:
+
+- **Alertmanager -> Traefik basicAuth** from a SOPS Secret. It is an incident-response tool, so it must not depend on the stack it is used to debug: putting it behind Authentik would couple it to postgres -> authentik, and a CNPG failover would take out the alert console exactly when it is needed. Verified after deploy: `401` with no credentials, `200` with, `401` with wrong ones.
+- **homepage -> Authentik forward-auth** via the **embedded outpost**. No separate outpost deployment exists or was needed — `authentik-server` already exposes port 9000, and Traefik->authentik:9000 egress plus authentik's ingress-from-traefik were already permitted, so this batch adds **zero** NetworkPolicy changes. First proxy provider in the instance; everything else uses OIDC.
+
+Findings that changed the shape of the work:
+
+- **The homepage callback cannot live in the homepage namespace.** An Ingress can only target a Service in its own namespace, and routing `/outpost.goauthentik.io/` via an ExternalName alias fails: Traefik's `kubernetesIngress` provider defaults `allowExternalNameServices` to **false** and it is not enabled here, so Traefik silently refuses that backend. A `--dry-run=server` does not catch it — the object is valid, Traefik just declines to route it. The callback Ingress therefore lives in the **authentik** namespace, where `authentik-server` is a normal same-namespace Service, which also avoids weakening that global default.
+- **The callback must be its own Ingress.** Traefik applies the `router.middlewares` annotation to every rule in an Ingress, so folding the callback into the protected Ingress would authenticate the request that completes the login — a redirect loop.
+- **Auth goes AFTER rate-limit in both chains.** A 401 or redirect short-circuits the chain, so auth placed earlier would leave login attempts unthrottled.
+- **Traefik's basicAuth Secret must contain exactly ONE key.** Storing the plaintext password alongside the htpasswd `users` key made the middleware fail to build; Traefik dropped the router and the host answered **404 instead of 401** — a silent outage with nothing in the Traefik error log. Caught in post-deploy verification and fixed by splitting the plaintext into a separate, unreferenced Secret.
+
+Shipped in **two phases on purpose**: phase 1 added the middlewares, blueprint and callback route with nothing referencing them; phase 2 flipped the ingress annotations. Without the split, the Alertmanager annotation (in `monitoring-controllers`) would have applied before the middleware and Secret (in `monitoring-configs`, which depends on it), leaving Traefik pointing at a middleware that did not exist yet. Between phases the callback path was confirmed to redirect correctly to authentik before anything was gated on it.
+
+No monitor was affected: uptime-kuma probes both apps via cluster Services, never the ingress hostname, and nothing in-cluster resolves `am.h0melab.work` (VMAlert posts to the Service).
+
+The generated credential is in the SOPS-encrypted `alertmanager-basic-auth-credential` Secret (`username`/`password`) — read it with `kubectl -n monitoring get secret alertmanager-basic-auth-credential -o jsonpath='{.data.password}' | base64 -d`, move it to 1Password, then delete that Secret and add the entry to `SECRETS_ROTATION.md`.
+
 ### 2026-07-25 — Ultrareview remediation Batch 6: policy, NetworkPolicy and RBAC hygiene
 
 Six of eight items; the two spike-gated ones are deferred (below). Every fix verified against live cluster state rather than against the finding text.
