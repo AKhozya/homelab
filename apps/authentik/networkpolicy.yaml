@@ -40,11 +40,17 @@ spec:
         - protocol: TCP
           port: 9000
   egress:
-    # Allow PostgreSQL access
+    # Allow PostgreSQL access — scoped to the postgres pods, not the whole namespace.
+    # podSelector sits under the SAME list item as namespaceSelector, which means AND;
+    # as a separate `-` item it would mean OR and grant 5432 to every pod anywhere.
+    # cnpg.io/cluster covers both the instances and the rw-pooler pods.
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: databases
+          podSelector:
+            matchLabels:
+              cnpg.io/cluster: main-postgres
       ports:
         - protocol: TCP
           port: 5432

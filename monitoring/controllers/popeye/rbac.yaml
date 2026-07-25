@@ -13,7 +13,12 @@ rules:
       - persistentvolumes
       - persistentvolumeclaims
       - pods
-      - secrets
+      # `secrets` deliberately NOT granted: a list returns full secret CONTENT, so this
+      # would give a weekly hygiene scanner standing cluster-wide read of every
+      # credential in the cluster. The cost is popeye's unused-secret linter, which can
+      # no longer enumerate them; it logs a permission error and the rest of the scan is
+      # unaffected (the CronJob runs with --force-exit-zero). Re-add if that linter is
+      # ever wanted more than the reduced blast radius.
       - serviceaccounts
       - services
     verbs: ["get", "list"]

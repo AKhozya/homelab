@@ -19,10 +19,15 @@ spec:
         - protocol: UDP
           port: 53
     # Allow access to CouchDB in databases namespace
+    # Scoped to the couchdb pods rather than the whole databases namespace. podSelector
+    # under the SAME list item as namespaceSelector = AND (separate items would be OR).
     - to:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: databases
+          podSelector:
+            matchLabels:
+              app: couchdb
       ports:
         - protocol: TCP
           port: 5984

@@ -17,6 +17,19 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-25 — Ultrareview remediation Batch 6: policy, NetworkPolicy and RBAC hygiene
+
+Six of eight items; the two spike-gated ones are deferred (below). Every fix verified against live cluster state rather than against the finding text.
+
+- **monitoring `rate-limit-standard` enforced 100 req/second, not per minute.** `rateLimit.average` is per `period` and the default period is **1s**, so `average: 100` with no `period` was 60x looser than the comment directly above it claimed ("100 requests/minute sustained"). The apps tier was corrected on 2026-07-03; this monitoring fork was missed. Added `period: 1m`.
+- **popeye held cluster-wide `get,list` on Secrets.** A `list` returns full secret *content*, so a weekly hygiene scanner had standing read access to every credential in the cluster. Removed. Cost is popeye's unused-secret linter; the CronJob runs `--force-exit-zero` so the rest of the scan is unaffected.
+- **Kyverno NetworkPolicy allowed a port nothing listens on.** Every kyverno controller (admission, background, cleanup, reports) serves its webhook on **9443** — verified against the live pods; none listens on 443. Removed the dead 443 entry and corrected the comment, which attributed 9443 to the admission controller alone.
+- **Two dead "Kubernetes API" egress rules on `mysql-cluster`, replaced with one that works.** `namespaceSelector` selects pod namespaces: `default` holds **zero pods** (the API is a Service at 10.43.0.1:443 backed by the control-plane node, not a pod), and the `ps-operator` pod in `percona-mysql` declares **no container ports at all**. Deleting them outright was the first attempt and review pushed back correctly: steady-state health is not evidence of restart safety, since Percona pods can need the API for peer discovery during bootstrap or recovery. Both dead rules are now replaced by `ipBlock: 192.168.1.127/32` on **6443** — the same pattern grafana, prometheus-operator and kube-state-metrics already use here, because NetworkPolicy is evaluated after DNAT so the ClusterIP is not the address that matches.
+- **authentik and obsidian had namespace-wide database egress.** Both now scope to the serving pods (`cnpg.io/cluster: main-postgres`, `app: couchdb`) with `podSelector` under the **same** `to` item as `namespaceSelector` — AND, not OR; as separate items it would have widened the grant instead of narrowing it. Confirmed in the rendered output. `cnpg.io/cluster` deliberately chosen because it covers the rw-pooler pods as well as the instances, and authentik connects via `main-postgres-rw`.
+- **Removed a fossil Kyverno exclude** for `main-mariadb-metrics` in `require-non-default-serviceaccount` — MariaDB was replaced by Percona MySQL and zero such pods exist.
+
+**Deferred, both spike-gated and needing work the plan scopes separately:** narrowing `disallow-host-path`'s whole-namespace excludes to label-keyed `matchConditions` (A11 — needs per-workload rendered-label discovery plus an admission probe for each), and dropping uptime-kuma's four dead egress ports (A10 — needs the live monitor list first, since a port that looks dead may back a configured probe). Also deferred: correcting three `ephemeralContainers` comments in the Kyverno policies, which needs its own reachability check rather than a text edit.
+
 ### 2026-07-25 — Ultrareview remediation Batch 4: monitoring correctness
 
 Nine alerting defects, every one verified against live VictoriaMetrics before editing. **One finding was refuted as written** — see the first item; applying the plan verbatim would have replaced a dead alert with a differently-dead one.

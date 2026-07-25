@@ -108,19 +108,18 @@ spec:
           port: 3000   # Orchestrator HTTP API
         - protocol: TCP
           port: 10008  # Orchestrator Raft
-    # Kubernetes API for operator/cluster communication
+    # Kubernetes API — reached by ipBlock to the control-plane node on 6443, matching how
+    # grafana, prometheus-operator and kube-state-metrics do it in this repo. NetworkPolicy
+    # is evaluated after DNAT, so the Service ClusterIP 10.43.0.1:443 is not the address
+    # that matches.
+    # This REPLACES two rules that matched nothing: one selected namespace `default`
+    # (which holds zero pods — the API is a Service, not a pod) and one selected namespace
+    # `percona-mysql` on 443 (the ps-operator pod declares no container ports). Steady
+    # state never needed them, but peer discovery during bootstrap or recovery can, and
+    # "it works while running" is not evidence of restart safety.
     - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: default
+        - ipBlock:
+            cidr: 192.168.1.127/32  # control-plane node
       ports:
         - protocol: TCP
-          port: 443
-    # Operator namespace
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: percona-mysql
-      ports:
-        - protocol: TCP
-          port: 443
+          port: 6443

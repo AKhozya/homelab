@@ -6,8 +6,13 @@ metadata:
 spec:
   rateLimit:
     # Standard rate limit for monitoring services (Grafana, AlertManager)
-    # 100 requests/minute sustained, allows bursts up to 150
+    # 100 requests/minute sustained, allows bursts up to 150.
+    # `period` is REQUIRED to mean that: rateLimit.average is per period and the default
+    # period is 1s, so average:100 alone enforced 100 req/SECOND — 60x looser than the
+    # line above claims, loose enough that no brute-force or scrape would ever trip it.
+    # The apps tier was corrected on 2026-07-03; this monitoring fork was missed.
     average: 100
+    period: 1m
     burst: 150
     # Rate limit based on client IP
     sourceCriterion:
