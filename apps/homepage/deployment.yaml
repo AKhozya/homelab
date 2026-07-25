@@ -38,8 +38,31 @@ spec:
             - sh
             - -c
             - |
+              set -eu
               echo "Copying ConfigMap files to writable config directory..."
-              cp -v /tmp/configmap/* /app/config/ 2>/dev/null || echo "No ConfigMap files to copy (using defaults)"
+              # An unmounted volume is a failure, not "no config": the ls below discards
+              # its own error, so without this the pod would start with default config.
+              if [ ! -d /tmp/configmap ]; then
+                echo "ERROR: /tmp/configmap is not mounted" >&2
+                exit 1
+              fi
+
+              # Plain `ls`, not `ls -A`: a projected ConfigMap always carries a `..data`
+              # symlink, so -A reports non-empty even with zero keys — while `*` would
+              # match nothing and hand cp a literal glob. This mirrors what `*` sees, so
+              # an empty ConfigMap is distinguished from a copy that genuinely failed.
+              # Capture the status separately: an unreadable directory also lists empty,
+              # and swallowing that would start the app on defaults.
+              if ! CONFIG_FILES=$(ls /tmp/configmap 2>&1); then
+                echo "ERROR: cannot list /tmp/configmap: $CONFIG_FILES" >&2
+                exit 1
+              fi
+
+              if [ -z "$CONFIG_FILES" ]; then
+                echo "No ConfigMap files to copy (using defaults)"
+              else
+                cp -v /tmp/configmap/* /app/config/
+              fi
               echo "Config directory ready"
           volumeMounts:
             - name: config

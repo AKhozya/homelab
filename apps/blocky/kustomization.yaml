@@ -6,6 +6,7 @@ resources:
   - serviceaccount.yaml
   - config-secret.yaml
   - deployment.yaml
+  - pdb.yaml
   - service-dns.yaml
   - service-metrics.yaml
   - networkpolicy.yaml

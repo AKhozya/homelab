@@ -104,6 +104,19 @@ spec:
             fi
           fi
 
+          # Parse-drift guard. A PUT is authoritative for the whole tunnel, so a parser
+          # that silently matches fewer rules wipes external access for every hostname it
+          # missed. Count hostnames straight from the config and refuse to PUT unless the
+          # parser agrees — derived, not a hardcoded floor, so adding a hostname needs no
+          # edit here. Commented-out rules cannot inflate the count: they start with '#'.
+          WANT_HOSTS=$(grep -c '^[[:space:]]*-[[:space:]]*hostname:' "$CONFIG" || true)
+          [ -n "$WANT_HOSTS" ] || WANT_HOSTS=0
+          GOT_HOSTS=$(printf '%s' "$RULES" | grep -o '"hostname":' | wc -l | tr -d ' ')
+          if [ "$WANT_HOSTS" -eq 0 ] || [ "$GOT_HOSTS" -ne "$WANT_HOSTS" ]; then
+            echo "Refusing to PUT: parsed ${GOT_HOSTS} hostname rules, config declares ${WANT_HOSTS}"
+            exit 1
+          fi
+
           # This tunnel is REMOTELY-managed: cloudflared serves the config PUT here,
           # not the local file. warp-routing MUST be in this payload (a bare ingress
           # PUT resets warp-routing to false). Enables WARP devices to reach the

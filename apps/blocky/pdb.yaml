@@ -1,0 +1,16 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: blocky
+  namespace: blocky
+  labels:
+    app: blocky
+spec:
+  # LAN DNS resolver: draining both replicas at once blackholes name resolution for every
+  # client on the network. minAvailable 1 of 2 still permits the rolling update, which is
+  # already maxSurge 0 / maxUnavailable 1.
+  minAvailable: 1
+  unhealthyPodEvictionPolicy: AlwaysAllow
+  selector:
+    matchLabels:
+      app: blocky

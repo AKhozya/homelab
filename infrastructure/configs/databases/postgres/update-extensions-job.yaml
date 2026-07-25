@@ -38,35 +38,48 @@ spec:
 
                   echo "Updating PostgreSQL extensions in immich database..."
 
-                  # Update all extensions in immich database using postgres-admin
-                  psql -h main-postgres-rw -U postgres-admin -d immich <<-EOSQL
-                      DO \$\$
-                      DECLARE
-                        ext RECORD;
-                      BEGIN
-                        FOR ext IN
-                          SELECT extname, extversion
-                          FROM pg_extension
-                          WHERE extname != 'plpgsql'
-                          ORDER BY extname
-                        LOOP
-                          BEGIN
-                            EXECUTE format('ALTER EXTENSION %I UPDATE', ext.extname);
-                            RAISE NOTICE 'Updated extension: % (was version: %)', ext.extname, ext.extversion;
-                          EXCEPTION
-                            WHEN OTHERS THEN
-                              RAISE NOTICE 'Extension % already at latest version', ext.extname;
-                          END;
-                        END LOOP;
-                      END
-                      \$\$;
+                  PSQL="psql -v ON_ERROR_STOP=1 -h main-postgres-rw -U postgres-admin -d immich"
 
-                      -- Show updated versions
-                      SELECT extname, extversion
-                      FROM pg_extension
-                      WHERE extname != 'plpgsql'
-                      ORDER BY extname;
-                  EOSQL
+                  # One psql call per extension, deliberately NOT a single DO block: a DO
+                  # block is one transaction, so raising at the end to fail the job would
+                  # roll back every successful ALTER with it. Separate statements let the
+                  # successes persist while a broken extension still fails the job.
+                  # ON_ERROR_STOP makes psql exit non-zero instead of reporting and moving on.
+                  # Assign first: inside `for ... in $(psql)` a connection failure would be an
+                  # empty word list, so the loop would silently do nothing and exit 0. As a
+                  # plain assignment, set -e aborts on it.
+                  EXTS=$($PSQL -tAc "SELECT extname FROM pg_extension WHERE extname <> 'plpgsql' ORDER BY extname")
+                  if [ -z "$EXTS" ]; then
+                    echo "❌ No extensions found in immich — refusing to report success."
+                    exit 1
+                  fi
+
+                  # Read one row per line rather than `for EXT in $EXTS`, which would split
+                  # on any whitespace inside a quoted extension name. Fed by a here-doc, not
+                  # a pipe: a piped while-loop runs in a subshell and RC would not survive it.
+                  RC=0
+                  while IFS= read -r EXT; do
+                    [ -n "$EXT" ] || continue
+                    # Already-at-latest is a NOTICE, not an error, so a non-zero exit here is
+                    # a real failure — the previous handler reported all of them as
+                    # "already at latest version" and the job exited 0.
+                    if $PSQL -c "ALTER EXTENSION \"$EXT\" UPDATE"; then
+                      echo "OK $EXT"
+                    else
+                      echo "FAILED $EXT"
+                      RC=1
+                    fi
+                  done <<EOF
+                  $EXTS
+                  EOF
+
+                  echo "--- extension versions after update ---"
+                  $PSQL -c "SELECT extname, extversion FROM pg_extension WHERE extname <> 'plpgsql' ORDER BY extname"
+
+                  if [ "$RC" -ne 0 ]; then
+                    echo "❌ One or more extension updates failed."
+                    exit 1
+                  fi
 
                   echo "✅ Finished updating extensions in immich database!"
               env:

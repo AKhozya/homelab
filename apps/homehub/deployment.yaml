@@ -31,10 +31,28 @@ spec:
             - sh
             - -c
             - |
-              # Read password from secret
+              set -eu
               PASSWORD=$(cat /tmp/secret/password)
-              # Substitute placeholder with actual password in config
-              sed "s/PLACEHOLDER_PASSWORD/$PASSWORD/g" /tmp/config/config.yml > /app/config/config.yml
+
+              # Fail loudly rather than shipping a config the app would read literally.
+              if ! grep -q PLACEHOLDER_PASSWORD /tmp/config/config.yml; then
+                echo "ERROR: PLACEHOLDER_PASSWORD not found in config template" >&2
+                exit 1
+              fi
+
+              # index/substr, not sed: a password containing / or & is a sed metacharacter
+              # and would corrupt the substitution. ENVIRON keeps it off the argv too.
+              PASSWORD="$PASSWORD" awk '
+                BEGIN { k = "PLACEHOLDER_PASSWORD"; v = ENVIRON["PASSWORD"] }
+                {
+                  out = ""
+                  while ((i = index($0, k)) > 0) {
+                    out = out substr($0, 1, i - 1) v
+                    $0 = substr($0, i + length(k))
+                  }
+                  print out $0
+                }
+              ' /tmp/config/config.yml > /app/config/config.yml
               echo "Config file prepared with password from secret"
           volumeMounts:
             - name: config-template

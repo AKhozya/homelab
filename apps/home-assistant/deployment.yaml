@@ -77,43 +77,43 @@ spec:
               set -e
 
               HACS_DIR="/config/custom_components/hacs"
+              HACS_VERSION="2.0.5"
 
-              # Check if HACS is already installed
-              if [ -d "$HACS_DIR" ]; then
+              # Test the same two artifacts the post-install check requires, not the
+              # directory: HACS extracts to the component root, and accepting the manifest
+              # alone would make a half-extracted install permanently "already installed".
+              # HACS also updates itself through the Home Assistant UI, so a complete
+              # install is left alone — HACS_VERSION bootstraps a fresh volume, it is not
+              # a version lock that would revert in-app updates on the next restart.
+              if [ -f "$HACS_DIR/manifest.json" ] && [ -f "$HACS_DIR/__init__.py" ]; then
                 echo "✓ HACS already installed at $HACS_DIR"
                 exit 0
               fi
 
-              echo "Installing HACS (Home Assistant Community Store)..."
-
-              # Install required packages
+              echo "Installing HACS (Home Assistant Community Store) $HACS_VERSION..."
               apk add --no-cache wget unzip
 
-              # Create HACS directory
+              # Clear any half-extracted directory left by a failed earlier run.
+              rm -rf "$HACS_DIR"
               mkdir -p "$HACS_DIR"
 
-              # Download latest HACS release
-              echo "Downloading HACS..."
-              wget -q https://github.com/hacs/integration/releases/latest/download/hacs.zip -O /tmp/hacs.zip
+              echo "Downloading HACS $HACS_VERSION..."
+              wget -q "https://github.com/hacs/integration/releases/download/${HACS_VERSION}/hacs.zip" -O /tmp/hacs.zip
 
-              # Extract to hacs directory (force overwrite without prompting)
               echo "Extracting HACS..."
               unzip -o -q /tmp/hacs.zip -d "$HACS_DIR"
-
-              # Cleanup
               rm /tmp/hacs.zip
-
-              # Ensure filesystem sync
               sync
 
-              # Verify installation
-              if [ ! -d "$HACS_DIR" ]; then
-                echo "❌ ERROR: HACS installation verification failed"
-                echo "   Expected directory at: $HACS_DIR"
+              # Verify real artifacts. The previous check tested the directory, which the
+              # mkdir -p above had already created, so it could never fail.
+              if [ ! -f "$HACS_DIR/__init__.py" ] || [ ! -f "$HACS_DIR/manifest.json" ]; then
+                echo "❌ ERROR: HACS install failed (no __init__.py/manifest.json at $HACS_DIR)"
+                ls -la "$HACS_DIR" || true
                 exit 1
               fi
 
-              echo "✓ HACS installed successfully at $HACS_DIR"
+              echo "✓ HACS $HACS_VERSION installed at $HACS_DIR"
               echo "  You can now configure HACS via Settings → Devices & Services"
           volumeMounts:
             - name: home-assistant-data
