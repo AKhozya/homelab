@@ -26,7 +26,11 @@ spec:
         'flux-system', 'kyverno'])
   validations:
     # anyPattern parity: pod-level seccompProfile covers all, OR every container sets it
-    # (initContainers soft at list level — if present, each must set it). No ephemeral in CP.
+    # (initContainers soft at list level — if present, each must set it).
+    # ephemeralContainers are NOT checked, so a `kubectl debug` container can run without
+    # a seccomp profile unless the pod sets one at pod level. Carried over from the
+    # ClusterPolicy this replaced (deleted in 2b5ffb99); readonly-rootfs, drop-all-caps
+    # and privilege-escalation DO cover ephemeral, so the gap is seccomp-specific.
     - expression: >-
         object.spec.?securityContext.?seccompProfile.?type.orValue('') == 'RuntimeDefault' ||
         (object.spec.containers.all(c,

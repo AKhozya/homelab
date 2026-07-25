@@ -17,6 +17,84 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-25 — n8n outage: 8 hours down, no alert, pod reporting healthy
+
+Found incidentally while capturing a monitor baseline for Batch 9. n8n had been serving HTTP 503
+since **04:47**, and nothing had fired.
+
+Root cause was a transient PostgreSQL blip during the early-morning node event: n8n's TypeORM
+pool logged `connect ECONNREFUSED` against the `main-postgres-rw-pooler` ClusterIP, exhausted
+its retries, and never reconnected. By the time it was found the cluster was healthy — postgres
+2/2, both pooler pods up, and a TCP connect from inside the n8n pod itself succeeded to the
+ClusterIP *and* both pooler pod IPs. The network had recovered hours earlier; only the pool
+had not.
+
+**Two failures made it silent, and both are worth remembering:**
+
+- **The readiness probe passes while the app is unusable.** n8n's probe hits `/healthz`, which
+  does not touch the database, so the pod sat `1/1 Running` for eight hours with 0 restarts
+  while every real request returned 503. Kubernetes had no idea anything was wrong.
+- **`kubectl rollout restart` silently did nothing.** It reported "successfully rolled out", but
+  Flux's drift detection stripped the `kubectl.kubernetes.io/restartedAt` annotation, reverted
+  the Deployment to its git spec, and scaled the *old* ReplicaSet back to 1. The original pod
+  survived, same name, same 8h age. Only `kubectl delete pod` worked, because Flux manages the
+  Deployment and not the pod it creates. This is the inverse of the usual advice: for a
+  no-spec-change restart under drift detection, deleting the pod is the reliable action.
+
+uptime-kuma had it right the whole time — its N8N monitor was the only thing that knew. Its
+monitors are not wired to Alertmanager, so "no alerts firing" was never evidence of health.
+
+---
+
+### 2026-07-25 — Ultrareview remediation Batch 9: the deferred items
+
+Four items earlier batches deferred because each needed a spike first. Two more of the plan's
+prescriptions were refuted by actually running those spikes.
+
+**uptime-kuma egress — the plan named the wrong port.** It said to drop 6446/5984/8428/9090.
+Dumping the authoritative monitor table showed **5984 is actively probed** against
+`couchdb-svc-couchdb`, so removing it would have broken a live monitor. The other three are
+genuinely unprobed and were removed: MySQL is monitored on 3306 directly, VMSingle on **8429**
+(not 8428), Alertmanager on 9093, and Prometheus no longer exists. Worth recording for next
+time: uptime-kuma does **not** use its bundled sqlite here — `/app/data/kuma.db` is a 0-byte
+stub and the real data lives in MariaDB, so any monitor question has to be asked there.
+
+**The PVC restore runbook documented 3 of 14 PVCs and could not have worked.** Its extract
+target was a literal `pvc-XXXXX` placeholder. The plan said this needed a workload/target
+mapping added to `pvc-backup-cronjob.yaml` first — refuted: local-path names every PV directory
+`<pv-uuid>_<namespace>_<pvc-name>`, and the owning workload is derivable from the PVC, so both
+are discovered at restore time. A hardcoded table would go stale the first time a PVC is
+recreated, which is exactly when a restore is most likely.
+
+Three review rounds went into that procedure, each catching a real defect: a `PV_PATH` computed
+on the workstation but used on the node (kubectl is not configured on k3s agents, so it is now
+resolved node-side by the same glob the backup job uses); a destructive sequence that was not
+fail-closed; an overlay extract that leaves files absent from the backup behind — a corrupt
+hybrid rather than a restore, so the live directory is now moved aside and kept as a rollback;
+a `find | head -1` that would silently pick one of several PV directories; and a STEP 3 that
+inherited variables from another shell and would have left the app scaled to zero while
+reading as "still restoring". Every block now rediscovers its own inputs. The extract itself is
+still **not drilled** end-to-end, and the runbook says so.
+
+**Two Kyverno comments** justified their container-set by pointing at ClusterPolicy twins
+deleted in `2b5ffb99`. Git archaeology confirmed both were accurate — the old latest-tag CP
+really did use `foreach: list: spec.[initContainers, containers][]` — so the comments were
+rewritten to stand alone and to name the resulting gap: `kubectl debug` containers are not
+checked for seccomp or for a floating tag. Deliberate; extending enforcement would break debug
+during an incident.
+
+**`disallow-host-path` narrowing (B6-2) was deliberately NOT shipped.** The A11 spike succeeded
+— every hostPath workload does carry a scopeable label — but it also showed the change needs
+**nine** correct selectors against a **Deny**-enforcing policy, and that six of the affected
+workloads are CronJobs whose pods exist only while running and are therefore invisible to the
+`kubectl get pods` scan such a change would naturally be built from. 41 pods across the six
+excluded namespaces currently mount no hostPath and are unguarded, so the gap is real — but
+nothing is broken today, and the failure mode of getting it wrong is a backup Job denied at
+03:00 with nobody watching, which is the precise silent-failure class this whole review existed
+to remove. Full analysis and the Audit-first rollout path are recorded in the plan.
+
+---
+
 ### 2026-07-25 — Ultrareview remediation Batch 8: documentation currency
 
 Every claim was re-derived from the cluster or the manifests rather than from another document, which turned up four inaccuracies the plan had not listed.

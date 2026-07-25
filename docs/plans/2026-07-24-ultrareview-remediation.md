@@ -31,8 +31,8 @@ This plan was itself Codex-reviewed (verdict REVISE) and revised; the accepted c
 | A7 | No in-cluster client uses the Alertmanager **ingress hostname** (VMAlert posts to the Service) | ✅ | `rg am.h0melab.work` → only ingress/cert/externalUrl + a homepage browser href |
 | A8 | `prune: disabled` on 12 PVCs is inert until a prune event | ⚠️ | **Spike:** `flux diff kustomization apps` shows no churn |
 | A9 | VMSingle actually exposes `status.updateStatus` with `operational`/`failed` values | ⚠️ | **Spike before B4-3.** A6 proves only that Flux supports the field |
-| A10 | The 4 dead uptime-kuma egress ports have no live monitor depending on them | ⚠️ | **Spike:** list uptime-kuma monitors first |
-| A11 | Every Helm-generated hostPath workload in `databases`/`backup-replication` carries a stable, scopeable label | ⚠️ | **Spike before B6-2:** rendered template labels + admission probe per workload |
+| A10 | The 4 dead uptime-kuma egress ports have no live monitor depending on them | ❌ **REFUTED for 5984** | Spike done 2026-07-25 — dumped the monitor table from uptime-kuma's MariaDB backend (it does **not** use the bundled sqlite; `kuma.db` is a 0-byte stub). `5984` is actively probed against `couchdb-svc-couchdb`, so dropping it would have broken a live monitor. 6446/8428/9090 confirmed unprobed and removed (VMSingle is on 8429, Alertmanager on 9093). 3001 and 3005 are also unprobed but left in place as plausibly-returning. |
+| A11 | Every Helm-generated hostPath workload in `databases`/`backup-replication` carries a stable, scopeable label | ⚠️ **Spike done, B6-2 NOT shipped** | See "A11 spike result" below. |
 | A12 | **No forward-auth exists anywhere in the repo today** — Grafana is native OIDC, so B5 introduces the first consumer (Authentik proxy provider + outpost + Middleware, not just an annotation) | ✅ | `rg forwardAuth` → zero hits |
 
 **Deliberate cut corners:** no PITR/offsite (decided); NAS SMART/RAID stays unmonitored (not readable without sudo — record as accepted risk, do not build an agent); `ephemeralContainers` VP clauses get a comment fix, not a companion policy.
@@ -162,3 +162,25 @@ Per A12 this is **not** an annotation change — it stands up the repo's first f
 **Accepted and folded in:** exit-0 **AND** log-pairing for couchbackup (OR would still admit a fatal); the replication size pipeline needs a captured exit check because the script has `set -e` but no `pipefail`; the DR PVC runbook needs a workload/target mapping before any loop; `ConnectionFailure` rules deleted rather than repaired (real availability alerts already exist); `WHEN OTHERS` must be re-raised or removed, not just paired with `ON_ERROR_STOP`; `databases`/`backup-replication` ns-excludes should also be narrowed; B4-4 trimmed because `NodeDiskSpaceLow` already covers virtiofs; Node built-in fetch instead of adding curl; urgent token rotation pulled to Batch 0; CI-coverage fixes pulled ahead of the batches they must validate; PVC prune protection moved next to the other data-loss guards; new prereqs A9/A11/A12.
 
 **Partially accepted — B0-2 sequencing.** Codex's verdict was that the `ci-green` cutover must be bootstrapped before any production batch. The *decision* is now Batch 0, but the cutover itself is not mandated as a hard prerequisite: repointing a bootstrap-generated `gotk-sync.yaml` is the single highest-structural-risk change in this plan, and front-loading it means the riskiest merge happens with no warm-up. Each batch already carries a Codex static gate plus local validation, which is the control that has actually been catching defects. If the owner picks (a), it ships as its own early batch; if (b), it is a one-line doc change.
+
+---
+
+## A11 spike result — B6-2 deliberately NOT shipped (2026-07-25)
+
+The spike answered its question **yes**: every hostPath workload does carry a scopeable label, so a label-keyed `matchConditions` rewrite of `disallow-host-path` is possible. It also showed the change is bigger and more dangerous than the plan assumed, so it was left unshipped rather than merged unattended.
+
+**What is actually excluded today.** Six whole namespaces — `monitoring`, `loki`, `databases`, `couchdb`, `immich`, `backup-replication` — plus the four system ones. **41 pods in those namespaces mount no hostPath at all** and are therefore unguarded by this policy. That is the real finding: the gap is wide.
+
+**The workload set is larger than a live scan suggests.** Long-running hostPath workloads are only three:
+
+| Workload | Scopeable label |
+|---|---|
+| `immich/immich-server` | `app.kubernetes.io/name=server`, `app.kubernetes.io/instance=immich` |
+| `loki/alloy` (DaemonSet) | `app.kubernetes.io/name=alloy` |
+| `monitoring/…-prometheus-node-exporter` (DaemonSet) | `app.kubernetes.io/name=prometheus-node-exporter` |
+
+But **six hostPath CronJobs are invisible to `kubectl get pods`** because their pods exist only while running: `backup-replication/cronjob`, `backup-replication/immich-backup-cronjob`, `databases/{couchdb,mysql,postgres}-backup-cronjob`, and `kube-system/pvc-backup-cronjob`. A narrowing built from a live pod scan would omit all six.
+
+**Why it was not shipped.** Nine distinct selectors must all be correct against a **Deny**-enforcing policy, and the failure mode is a backup Job denied at 03:00 with nobody watching — the exact silent-failure class the rest of this review was spent removing. Nothing is currently broken, so this is hardening, not a fix.
+
+**How to ship it safely.** Flip `validationActions` to `Audit` first, soak, read the PolicyReports to confirm the nine selectors cover every real hostPath pod including a full backup cycle, then flip back to `Deny`. That is the pattern this repo already used for the seccomp/securityContext rollout. Do it in a session where the admission probes can be run and watched.

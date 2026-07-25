@@ -589,19 +589,154 @@ kubectl exec -n databases couchdb-couchdb-0 -c couchdb -- \
 
 
 **PVC restore:**
+
+The `pvc-backup` CronJob covers **14** PVCs across 10 namespaces, not the three this section used
+to name. Nothing needs a lookup table: local-path names each PV directory
+`<pv-uuid>_<namespace>_<pvc-name>`, and the owning workload is derivable from the PVC, so both
+are discovered at restore time. Hardcoding either goes stale the moment a PVC is recreated.
+
+Archive layout is `/mnt/k8s-storage/backups/pvc/<timestamp>/<namespace>/<pvc-name>.tar[.gz]`
+plus a `.sha256` sidecar. `audiobookshelf-audiobooks` and `audiobookshelf-podcasts` are stored
+**uncompressed** (`.tar`) because they hold already-compressed audio; everything else is `.tar.gz`.
+
+Three steps, on two different hosts. Every PV backed up by this job is node-local to
+`worker-node`. Run each block whole — each one is `set -e` so a failed step stops before the
+next, rather than extracting into a running app or restarting on top of a half-extract.
+
 ```bash
-# Find latest PVC backup
-LATEST_PVC=$(ls -td /mnt/k8s-storage/backups/pvc/* | head -1)
+# --- STEP 1 (workstation): stop the workload ---
+set -euo pipefail
+NS=home-assistant
+PVC=home-assistant-data-pvc
 
-# For each critical PVC (stop, restore, start):
-kubectl scale deployment/home-assistant -n home-assistant --replicas=0
-tar -xzf $LATEST_PVC/home-assistant/home-assistant-data-pvc.tar.gz \
-  -C /mnt/k8s-storage/pvc-XXXXX/
-kubectl scale deployment/home-assistant -n home-assistant --replicas=1
+# Find the workload that mounts this PVC — never guess the name.
+WORKLOAD=$(kubectl get deploy,statefulset -n "$NS" -o json \
+  | jq -r --arg p "$PVC" '.items[]
+      | select([.spec.template.spec.volumes[]?.persistentVolumeClaim.claimName] | index($p))
+      | "\(.kind|ascii_downcase)/\(.metadata.name)"')
+[ -n "$WORKLOAD" ] || { echo "no workload mounts $NS/$PVC"; exit 1; }
+echo "workload: $WORKLOAD"
 
-# Repeat: paperless-ngx, audiobookshelf
-# Note: Immich photos excluded from PVC backups — backed up by the weekly immich-backup CronJob (W2 tar + NAS akhozya-pool1 pool)
+# Derive the selector — do NOT assume `app=<namespace>`. linkwarden's meilisearch
+# StatefulSet selects `app=meilisearch`, so a guessed label waits on the wrong pods
+# and the extract would start while the app is still writing.
+SEL=$(kubectl get "$WORKLOAD" -n "$NS" -o jsonpath='{.spec.selector.matchLabels}' \
+  | jq -r 'to_entries|map("\(.key)=\(.value)")|join(",")')
+
+kubectl scale "$WORKLOAD" -n "$NS" --replicas=0
+kubectl wait --for=delete pod -l "$SEL" -n "$NS" --timeout=5m
+echo "stopped — now run STEP 2 on worker-node"
 ```
+
+```bash
+# --- STEP 2 (on worker-node): verify, set aside, extract. DESTRUCTIVE ---
+set -euo pipefail
+NS=home-assistant
+PVC=home-assistant-data-pvc
+
+# Resolve the PV directory HERE, on the node. kubectl is not configured on agent nodes,
+# and a PV_PATH computed in the workstation shell does not exist in this one. local-path
+# encodes both names in the directory, so the same glob the backup CronJob uses works.
+# Require EXACTLY one match — `| head -1` would silently pick one of several and extract
+# over the wrong volume. A stale directory from a recreated PVC is the realistic way two
+# appear, and that is precisely when guessing is worst.
+MATCHES=$(find /mnt/k8s-storage -maxdepth 1 -type d -name "*_${NS}_${PVC}")
+COUNT=$(printf '%s\n' "$MATCHES" | grep -c . || true)
+[ "$COUNT" = "1" ] || { echo "expected 1 PV directory for ${NS}/${PVC}, found ${COUNT}:"; printf '%s\n' "$MATCHES"; exit 1; }
+PV_PATH="$MATCHES"
+
+# Pin ONE backup generation. For a multi-PVC app, `ls -td | head -1` re-evaluated per PVC
+# would silently mix generations if the 03:10 backup lands mid-restore. Run this block for
+# the first PVC, then `export BACKUP_DIR=<printed value>` before the remaining ones.
+BACKUP_DIR="${BACKUP_DIR:-$(ls -td /mnt/k8s-storage/backups/pvc/*/ | head -1)}"
+echo "using backup generation: $BACKUP_DIR"
+
+# .tar for the two audiobookshelf audio PVCs, .tar.gz for the rest; tar -xf detects either.
+ARCHIVE="$BACKUP_DIR/$NS/$PVC.tar.gz"
+[ -f "$ARCHIVE" ] || ARCHIVE="$BACKUP_DIR/$NS/$PVC.tar"
+[ -f "$ARCHIVE" ] || { echo "no archive for ${NS}/${PVC} in $BACKUP_DIR"; exit 1; }
+
+# Verify BEFORE touching anything — a bad archive must not cost both the app and the data.
+( cd "$(dirname "$ARCHIVE")" && sha256sum -c "$(basename "$ARCHIVE").sha256" )
+tar -tf "$ARCHIVE" >/dev/null
+
+# Set the old directory aside instead of extracting over it. tar does not delete files
+# missing from the archive, so an overlay leaves stale data behind — for anything with a
+# WAL or index that is a corrupt hybrid, not a restore. This also keeps a rollback.
+STAMP=$(date +%Y%m%d-%H%M%S)
+mv "$PV_PATH" "${PV_PATH}.pre-restore-${STAMP}"
+mkdir -p "$PV_PATH"
+chown --reference="${PV_PATH}.pre-restore-${STAMP}" "$PV_PATH"
+chmod --reference="${PV_PATH}.pre-restore-${STAMP}" "$PV_PATH"
+
+# Created with `tar -C <pv-dir> .`, so it extracts at the PV root.
+tar -xf "$ARCHIVE" -C "$PV_PATH"
+echo "extracted — old data kept at ${PV_PATH}.pre-restore-${STAMP}"
+```
+
+```bash
+# --- STEP 3 (workstation): start it back up ---
+# Rediscovers its own inputs. Inheriting $WORKLOAD/$NS from STEP 1 means that in any other
+# shell `set -u` aborts here and the app stays scaled to zero — a failure that reads as
+# "the restore is still running" while the outage continues.
+set -euo pipefail
+NS=home-assistant
+PVC=home-assistant-data-pvc
+
+WORKLOAD=$(kubectl get deploy,statefulset -n "$NS" -o json \
+  | jq -r --arg p "$PVC" '.items[]
+      | select([.spec.template.spec.volumes[]?.persistentVolumeClaim.claimName] | index($p))
+      | "\(.kind|ascii_downcase)/\(.metadata.name)"')
+[ -n "$WORKLOAD" ] || { echo "no workload mounts $NS/$PVC"; exit 1; }
+
+kubectl scale "$WORKLOAD" -n "$NS" --replicas=1
+kubectl rollout status "$WORKLOAD" -n "$NS" --timeout=5m
+```
+
+**If STEP 2 fails partway**, the original data is untouched under `.pre-restore-*`. Leave the
+workload stopped and roll back on the node before restarting anything:
+
+```bash
+# --- ROLLBACK (on worker-node) ---
+# Rediscovers both directories rather than reusing STEP 2's $PV_PATH/$STAMP — those are
+# gone if that shell exited, which is exactly the situation a rollback follows.
+# `-name` matches the whole basename, so the live directory and the `.pre-restore-*`
+# copy never match each other's pattern.
+set -euo pipefail
+NS=home-assistant
+PVC=home-assistant-data-pvc
+
+SAVED=$(find /mnt/k8s-storage -maxdepth 1 -type d -name "*_${NS}_${PVC}.pre-restore-*")
+# Everything keys off SAVED. If STEP 2's `mv` never ran there is no .pre-restore-* copy,
+# the original was never touched, and this exits BEFORE any rm — nothing to roll back.
+# Zero or several matches both stop here: deleting the live directory on a guess is the
+# one mistake a rollback must never make.
+[ "$(printf '%s\n' "$SAVED" | grep -c . || true)" = "1" ] || {
+  echo "expected exactly 1 .pre-restore-* directory for ${NS}/${PVC}, found:"
+  printf '%s\n' "$SAVED"
+  echo "STOP — do not delete anything by hand until you know which is the original."
+  exit 1; }
+
+# Derive the live path from SAVED rather than globbing for it: if mkdir failed, the live
+# directory does not exist and a second find would return empty, turning the rm below
+# into `rm -rf ""`.
+TARGET="${SAVED%.pre-restore-*}"
+if [ -d "$TARGET" ]; then rm -rf "$TARGET"; fi
+mv "$SAVED" "$TARGET"
+echo "rolled back to $TARGET"
+```
+
+Delete the `.pre-restore-*` directory only after the app is verified healthy — it is the
+rollback. `audiobookshelf` (4 PVCs) and `stirling-pdf` (3) share one Deployment each: run
+STEP 1 once, STEP 2 per PVC with `BACKUP_DIR` pinned, then STEP 3 once.
+
+> **Not drilled.** The discovery block and the PVC→PV→path→workload mapping were verified
+> against the live cluster on 2026-07-25 for all 14 PVCs. The extract itself has **not** been
+> rehearsed end-to-end, unlike the CouchDB restore above. Run the checksum and `tar -tf` steps
+> first; they are the cheap guard against discovering a bad archive after the app is already down.
+
+Immich photos are excluded from PVC backups — they are covered by the weekly `immich-backup`
+CronJob (NAS `akhozya-pool1` pool).
 
 #### Step 8: Verify Applications
 
