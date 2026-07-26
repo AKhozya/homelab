@@ -170,10 +170,19 @@ spec:
                     # stdout=JSON data, stderr=diagnostics — kept in SEPARATE files.
                     # Merging them (2>&1) put log lines into the stream a restore reads.
                     BACKUP_RC=0
+                    # --parallelism 1 is REQUIRED, not tuning. At the default 5, some
+                    # concurrent requests reach CouchDB with no credentials and get 401
+                    # ("Access is denied due to invalid credentials"), so batches are
+                    # spooled but never written. obsidian-personal failed this way on
+                    # 2026-07-25 and 07-26 (exit=11, 3 batches lost); the small databases
+                    # survive because they never open enough connections to race. The
+                    # identical race is why the DR restore in .backup/README.md pins
+                    # parallelism 1 — same library, same failure, opposite direction.
                     /tmp/node_modules/.bin/couchbackup \
                       --url "$COUCHDB_URL" \
                       --db "$DB" \
                       --log "$BACKUP_DIR/${DB}.log" \
+                      --parallelism 1 \
                       --request-timeout 60000 \
                       > "$BACKUP_DIR/${DB}.raw" 2> "$BACKUP_DIR/${DB}.stderr" || BACKUP_RC=$?
 
