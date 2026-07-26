@@ -17,6 +17,50 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-26 — Kyverno namespace-exclude audit: 1 dead exclude removed, wholesale narrowing rejected
+
+Follow-up to B6-2, which narrowed `disallow-host-path`. Four other policies still carried
+whole-namespace excludes, so the same treatment looked applicable. **Measurement says otherwise.**
+
+Violation rates across every app namespace those policies exclude:
+
+| Policy | Pods | Violate |
+|---|---|---|
+| `require-readonly-rootfs` | 31 | 21 (67%) |
+| `require-non-root` | 37 | 17 (45%) |
+| `disallow-privilege-escalation` | 24 | 12 (50%) |
+| `require-drop-all-capabilities` | 24 | 13 (54%) |
+
+B6-2 was worth doing because only ~15% of pods in its namespaces needed the exemption. At 45–67%
+a label-keyed rewrite means dozens of selectors against Deny policies — more fragile than the hole
+it closes. **Wholesale narrowing rejected on evidence, not taste.**
+
+Exactly one exclude was provably dead: **`percona-mysql` removed from
+`disallow-privilege-escalation`**. That namespace holds only `ps-operator`, and the pinned
+`ps-operator-1.2.0` chart already sets `allowPrivilegeEscalation: false`. Its
+`require-drop-all-capabilities` exclude stays — the operator does not drop `ALL`. If a future
+chart bump drops the setting the HelmRelease fails to apply: loud, and worth knowing.
+
+**Two candidates were rejected after checking workload templates rather than running pods.**
+`mealie` looks compliant by pod scan, but `Job/mealie-user-provision` runs as root and its pod had
+already Succeeded, so a phase-filtered scan hid it. `backup-replication` has no long-running pods
+at all; both its CronJobs violate.
+
+**A third was caught in review, not by measurement.** `paperless-ngx` was staged for removal from
+`require-non-root` and reverted: `apps/paperless-ngx/deployment.yaml:50` runs a `fix-permissions`
+init container as UID 0, which `.claude/review-invariants.md:54` documents as required — s6-overlay
+CrashLoopBackOffs without it (incident `ca3891c`→`d3b5036`). The measurement missed it because the
+check replicated the policy's own logic and so answered "does this pass?" rather than "does this
+run as root?".
+
+That gap is real and wider than this change: `require-non-root`'s first branch is a **pod-level**
+`runAsNonRoot` test, so a pod-level `true` satisfies the policy no matter what an individual
+container overrides. Any workload can run a root container under it today. Not fixed here —
+tightening it would deny paperless-ngx and mealie, both documented and deliberate — but it means
+this policy is weaker than its name suggests. Recorded as a follow-up.
+
+---
+
 ### 2026-07-26 — B6-2: `disallow-host-path` narrowed from namespace excludes to workload identities
 
 Last open item of the [2026-07-24 ultrareview remediation](plans/2026-07-24-ultrareview-remediation.md).
