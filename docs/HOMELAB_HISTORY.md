@@ -17,6 +17,50 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-26 — CouchDB backups silently failing two nights; couchbackup parallelism race
+
+`obsidian-personal` — the Obsidian LiveSync database — failed to back up on **07-25 and 07-26**,
+five retries each night. Root cause is a concurrency bug in `@cloudant/couchbackup` 2.11.18: at
+the default `--parallelism 5` some requests reach CouchDB with **no credentials**, get
+`Access is denied due to invalid credentials`, and the run dies with `exit=11` having spooled
+batches it never wrote. The small databases (`empty`, `zz-dr-drill`) survive because they never
+open enough connections to race. Fixed by pinning `--parallelism 1` (`4d84acc5`).
+
+**This is the same race already documented for the DR restore** in `.backup/README.md`, found
+during the 2026-07-24 restore drill. It was written up for `couchrestore` and never connected to
+`couchbackup` — same library, same symptom, opposite direction. Anything invoking this package
+should assume parallelism 1.
+
+**The failure was two days old and nobody knew**, for two compounding reasons:
+
+- **`vmsingle-vmsingle-0` does not exist.** VMSingle is a *Deployment*, not a StatefulSet. Every
+  alert check of the form `kubectl exec -n monitoring vmsingle-vmsingle-0 -- wget …` errored to
+  stderr, and with `2>/dev/null` the empty stdout read as "no alerts firing". Three critical
+  alerts — `BackupJobFailed`, `JobFailed`, `NoRecentBackups` — were firing the whole time. Always
+  resolve the pod by label and assert `.status == "success"` before believing an empty result.
+- **The previous code could not have reported it.** Before `e136ae08` the invocation ended
+  `> "$DB.raw" 2>&1 || true`: the exit code was discarded and stderr was merged into the file
+  holding the backup JSON. The nightly `✅ completed (20.3M)` measured whatever partial JSON
+  survived a `grep "^\["` — it never proved completeness. So the pre-07-25 "successes" are
+  **unverified**, not known-good; the alert only started because Batch 2 began honouring the
+  exit code.
+
+`backup-replication` failed the same nights as a **correct cascade**: no CouchDB archive existed,
+so it aborted before syncing and preserved the source rather than deleting the only other copy —
+the Batch 2 receipt-before-`rm -rf` guard doing exactly its job.
+
+Recovery was verified rather than assumed: a manual `couchdb-backup` run produced
+`obsidian-personal completed (21.1M, 1s)` — matching the pre-failure size and speed — and a manual
+`backup-replication` run reported `OK: all 4 validated artifact(s) present on NAS`. Stale failed
+Job objects were deleted and `kube_job_failed` now returns no series.
+
+Two things surfaced while investigating, both still open: the nightly rsync to the NAS reports
+`speedup is 1.00` and re-sends the full ~139 GB history every run (`-r` without `-t`, so the
+size+mtime quick-check can never match); and `zz-dr-drill`, the scratch database from the
+2026-07-24 restore drill, was never dropped and is still being backed up nightly.
+
+---
+
 ### 2026-07-25 — n8n outage: 8 hours down, no alert, pod reporting healthy
 
 Found incidentally while capturing a monitor baseline for Batch 9. n8n had been serving HTTP 503
