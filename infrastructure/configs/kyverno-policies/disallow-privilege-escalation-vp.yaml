@@ -39,6 +39,12 @@ spec:
     # Container-set parity (Design rule 3b): containers HARD + initContainers/
     # ephemeralContainers soft at list level; inner securityContext HARD-anchored
     # (missing securityContext or missing field = fail → orValue(true) fails).
+    # The ephemeralContainers clause is REPORT-ONLY, not enforced: matchConstraints binds
+    # `resources: ["pods"]`, but kubectl debug adds a container through the
+    # pods/ephemeralcontainers SUBRESOURCE, which a pods-scoped webhook never receives.
+    # It evaluates on a pod CREATE/UPDATE that already lists ephemeralContainers — which
+    # the API does not accept — so in practice it only ever shows up in PolicyReports.
+    # Adding the subresource here would start denying kubectl debug mid-incident.
     - expression: >-
         object.spec.containers.all(c,
         c.?securityContext.?allowPrivilegeEscalation.orValue(true) == false) &&
