@@ -10,7 +10,8 @@ metadata:
     policies.kyverno.io/subject: Pod,Volume
     policies.kyverno.io/description: >-
       HostPath volumes allow pods to access the host filesystem, which can be a security
-      risk. This policy disallows hostPath volumes except in system namespaces.
+      risk. This policy disallows hostPath volumes except for the named workloads that
+      need them and the system namespaces.
 spec:
   matchConstraints:
     resourceRules:
@@ -19,14 +20,52 @@ spec:
         operations: ["CREATE", "UPDATE"]
         resources: ["pods"]
   matchConditions:
-    # immich: photo library hostPath (/var/lib/immich-library, NAS virtiofs) on the
-    # immich-vm server pod. (GPU is now the device-plugin, no /dev/dri hostPath.)
-    # backup-replication: needs access to host backup directory.
-    - name: exclude-namespaces
+    - name: exclude-system-namespaces
       expression: >-
         !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
-        'flux-system', 'kyverno', 'monitoring', 'loki', 'databases', 'couchdb',
-        'immich', 'backup-replication'])
+        'flux-system', 'kyverno'])
+    # Replaces whole-namespace excludes for monitoring, loki, databases, immich and
+    # backup-replication. All five enforce PSS `privileged` because their hostPath
+    # workloads require it, so Pod Security Admission does not guard them either —
+    # between the two, every pod in those namespaces could mount any host path.
+    # Verified 2026-07-26 by server dry-run: an innocent pod plus an injected hostPath
+    # was admitted in all five, and denied in home-assistant, which is also `privileged`
+    # but was never excluded here.
+    #
+    # `couchdb` was in the old namespace list; that namespace no longer exists. CouchDB
+    # runs in `databases`.
+    #
+    # Autogen copies matchConditions VERBATIM into the Deployment/DaemonSet/ReplicaSet/
+    # StatefulSet/Job/CronJob rules and rewrites only the validation's volume path, so
+    # every label below must sit on the CONTROLLER's own metadata, not just on its pod
+    # template. The five backup CronJobs carry a top-level `app` label for that reason —
+    # without it autogen's CronJob rule denies them at apply time and Flux cannot
+    # reconcile infrastructure-configs.
+    #
+    # `couchrestore` is the one-shot DR Job in .backup/README.md. It is not running, so a
+    # live pod scan does not reveal it; omitting it would break the restore path at the
+    # moment it is needed.
+    #
+    # A pod label is spoofable by anyone who can create pods in these namespaces. This
+    # narrows the blast radius from five whole namespaces to nine workload identities; it
+    # does not seal it.
+    - name: exclude-hostpath-workloads
+      expression: >-
+        !(has(object.metadata.labels) && (
+        (request.namespace == 'monitoring' &&
+        object.metadata.labels[?'app.kubernetes.io/name'].orValue('') == 'prometheus-node-exporter') ||
+        (request.namespace == 'loki' &&
+        object.metadata.labels[?'app.kubernetes.io/name'].orValue('') == 'alloy') ||
+        (request.namespace == 'immich' &&
+        object.metadata.labels[?'app.kubernetes.io/name'].orValue('') == 'server' &&
+        object.metadata.labels[?'app.kubernetes.io/instance'].orValue('') == 'immich') ||
+        (request.namespace == 'databases' &&
+        object.metadata.labels[?'app'].orValue('') in
+        ['couchdb-backup', 'mysql-backup', 'postgres-backup', 'couchrestore']) ||
+        (request.namespace == 'backup-replication' &&
+        object.metadata.labels[?'app'].orValue('') in
+        ['backup-replication', 'immich-backup'])
+        ))
   validations:
     # X(hostPath) parity: volumes list optional; any present volume must not be hostPath.
     - expression: >-

@@ -17,6 +17,44 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-26 — B6-2: `disallow-host-path` narrowed from namespace excludes to workload identities
+
+Last open item of the [2026-07-24 ultrareview remediation](plans/2026-07-24-ultrareview-remediation.md).
+Deferred on 07-25 pending a supervised Audit soak; shipped instead on deterministic proof. Plan
+and full test matrix: [2026-07-26-b6-2-hostpath-narrowing.md](plans/2026-07-26-b6-2-hostpath-narrowing.md).
+
+**The gap was wider than recorded.** The policy excluded six namespaces wholesale. Five of them
+(`monitoring`, `loki`, `databases`, `immich`, `backup-replication`) also enforce PSS
+**`privileged`**, because their hostPath workloads require it — so neither layer guarded them and
+every pod in those namespaces could mount any host path. Demonstrated by server dry-run: an
+innocent pod plus an injected hostPath was admitted in all five and denied in `home-assistant`,
+which is equally `privileged` but was never excluded here. The sixth namespace, `couchdb`, no
+longer exists; CouchDB runs in `databases`.
+
+**Autogen was the landmine.** Kyverno copies `matchConditions` **verbatim** into the generated
+Deployment/DaemonSet/ReplicaSet/StatefulSet/Job/CronJob rules and rewrites only the validation's
+volume path, so an exemption label must exist on the *controller's own* metadata. The five backup
+CronJobs carried `app` only on their pod template. Running the reproduced autogen rule against
+`main` denied **all five** — Flux could not have reconciled `infrastructure-configs`. Fixed by
+adding the label to `metadata` and to `spec.jobTemplate.metadata` on each.
+
+The jobTemplate half is belt-and-braces with a real trap behind it: Kubernetes copies pod-template
+labels onto a Job only while the Job's own labels are nil, so adding any unrelated label there
+later would silently strip `app` and deny the backup.
+
+**`couchrestore` would have been missed.** The one-shot DR Job in `.backup/README.md` mounts
+hostPath and is invisible to any live scan. Without an allowlist entry it is denied — re-breaking
+ultrareview H2, closed two days earlier. Confirmed by removing the entry and watching it fail.
+
+**No Audit soak.** Every check ran in both directions, because a Kyverno `skip` is ambiguous
+between "exempted" and "never matched": 8 exempt / 8 denied pairs across pods, controllers, Jobs
+and CronJobs, using autogen rules reproduced from the live `status.autogen`. Codex round 1 raised
+the Job labels as a HIGH; the factual premise was disproved (API-server defaulting supplies them
+before admission) but the latent fragility was accepted and fixed. Round 2 returned no
+CRITICAL/HIGH.
+
+---
+
 ### 2026-07-26 — CouchDB backups silently failing two nights; couchbackup parallelism race
 
 `obsidian-personal` — the Obsidian LiveSync database — failed to back up on **07-25 and 07-26**,
