@@ -54,10 +54,19 @@ Recovery was verified rather than assumed: a manual `couchdb-backup` run produce
 `backup-replication` run reported `OK: all 4 validated artifact(s) present on NAS`. Stale failed
 Job objects were deleted and `kube_job_failed` now returns no series.
 
-Two things surfaced while investigating, both still open: the nightly rsync to the NAS reports
-`speedup is 1.00` and re-sends the full ~139 GB history every run (`-r` without `-t`, so the
-size+mtime quick-check can never match); and `zz-dr-drill`, the scratch database from the
-2026-07-24 restore drill, was never dropped and is still being backed up nightly.
+One thing is still open: `zz-dr-drill`, the scratch database from the 2026-07-24 restore drill,
+was never dropped and is still being backed up nightly.
+
+**A `speedup is 1.00` on the NAS sync was investigated the same day and is NOT a defect** —
+recorded here because it looks alarming and will be re-noticed. The replication moved 138.7 GB
+and reported no rsync reuse, which reads like the whole history being re-sent every night. It is
+not. Step 2 uses `rsync -av`, and `-a` implies `-t`, so mtimes are preserved and the size+mtime
+quick-check works. Two facts explain the number: Step 4 deletes the source
+(`postgres`/`couchdb`/`mysql`/`pvc`) after a verified NAS receipt, so on a normal run nearly
+every file present IS new; and 129 GB of that particular run was the **weekly** immich backup,
+created that morning and never synced because that night's replication had aborted. Step 4
+deliberately omits `immich/` — `immich-backup-cronjob.yaml` owns that lifecycle with its own
+keep-2 sweep, which is why ~129 GB (two weekly snapshots) legitimately sits in the source tree.
 
 ---
 
