@@ -17,6 +17,39 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-26 — `PodNotReady` measured phase, not readiness — renamed, and the real gap closed
+
+The alert named `PodNotReady` ran `kube_pod_status_phase{phase!~"Running|Succeeded"}`. That is
+**phase**, not readiness: a pod that stays `Running` while its Ready condition is false is pulled
+from Service endpoints and serves nothing, and the alert never sees it. n8n sat exactly there for
+~8h on 2026-07-25 returning HTTP 503 with a dead DB pool. Nothing fired.
+
+- The phase alert keeps its expression under an honest name, **`PodPhaseNotRunning`**.
+- New **`PodRunningNotReady`** covers the gap, `for: 15m`.
+
+Deliberately *not* reusing the `PodNotReady` name for the new rule — it would merge two different
+meanings in alert history and collide with any silence matching the old name exactly.
+
+Both names added to `silence_alertnames` in the node-maintenance ansible vars, which previously
+carried only upstream's `KubePodNotReady`; without that, every node drain would page.
+
+Two guards in the expression are load-bearing, both found in review rather than by writing it:
+
+- `and on(namespace, pod) kube_pod_status_phase{phase="Running"} == 1` — kube-state-metrics
+  reports `condition="true"` value 0 for Succeeded Job pods too, so this stops every CronJob
+  firing it.
+- `unless on(namespace, pod) kube_pod_deletion_timestamp` — a terminating pod keeps
+  `phase=Running` while Ready flips false, so one stuck terminating would page.
+
+`condition="true"` is one-hot, so `== 0` covers Ready both False and Unknown.
+
+Verified against live vmsingle, including a **positive control**: the exact expression returns 0
+series, and the same expression with `== 0` flipped to `== 1` returns 103. Without that control a
+zero would be indistinguishable from a broken query — the failure mode that hid two nights of
+CouchDB backup failures earlier in the same week.
+
+---
+
 ### 2026-07-26 — Kyverno namespace-exclude audit: 1 dead exclude removed, wholesale narrowing rejected
 
 Follow-up to B6-2, which narrowed `disallow-host-path`. Four other policies still carried
