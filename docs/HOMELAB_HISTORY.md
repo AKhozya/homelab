@@ -17,6 +17,51 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-26 — cert-manager PDBs enabled; and a same-day correction to the B6-2 autogen claim
+
+**Correction first, because it invalidates something written earlier today.** The B6-2 entry below
+claimed Kyverno autogen copies `matchConditions` **verbatim** into its controller clones. That is
+**wrong**. Autogen rewrites `object.metadata` to the pod-template path in matchConditions as well
+as in validations — `object.spec.template.metadata.labels` for controllers,
+`object.spec.jobTemplate.spec.template.metadata.labels` for CronJobs. Only `request.namespace` is
+left alone, which is precisely why namespace tests are safe there. `.claude/review-invariants.md`
+already recorded this correctly; the claim contradicted it and should have been caught on the way in.
+
+Root cause of the error: the reading came from the *old* policy, whose matchConditions contained
+nothing but `request.namespace` — a value that is never rewritten — and generalised from that one
+case. The offline autogen tests were then built by hand-reproducing the rules with `yq`, rewriting
+only `validations`. That reproduced a policy shape Kyverno never emits, so those tests confirmed
+the mistaken model instead of catching it.
+
+Consequences, all cosmetic — **the shipped policy is correct and unchanged**:
+
+- The five backup CronJobs' `app` labels on `metadata` and `spec.jobTemplate.metadata` were
+  unnecessary; their pod templates already carried `app`. Removed, along with the comments that
+  asserted the false rule.
+- The B6-2 plan's assumptions C2/C3 are marked REFUTED, and its offline autogen test rows marked
+  unsound. The **live** post-deploy probes are what validate the change and they stand: five
+  CronJobs produced admittable Jobs, three hostPath controllers still admitted, and a hostPath pod
+  was denied in each of the five namespaces.
+
+Lesson, now in the invariants file: **read autogen, never reconstruct it** —
+`kubectl get vpol <name> -o json | jq .status.autogen`. A hand-built model of a generator tests the
+model, not the generator.
+
+**cert-manager PDBs enabled** (`podDisruptionBudget.enabled: true`, `minAvailable: 1` on the
+controller, webhook and cainjector). The chart's own values recommend it whenever
+`replicaCount > 1`, and this repo runs 2. Safe at 2 replicas: `disruptionsAllowed` lands on 1 so
+drains still proceed — unlike `main-postgres-primary`, which sits at 0 by design. Required
+anti-affinity plus `serial: 1` node maintenance already kept one replica up; this makes it
+structural rather than incidental. Verified by rendering the chart: all three PDBs materialise and
+their selectors match 2 live pods each.
+
+**cnpg-operator deliberately left without one.** Chart `cloudnative-pg` 0.29.0 exposes no PDB
+value (checked the full 27KB of values — zero mentions of `disruption` or `pdb`), so covering it
+needs a standalone manifest with a hand-maintained selector that would go silently inert on a
+chart relabel. Marginal benefit, real upkeep.
+
+---
+
 ### 2026-07-26 — `PodNotReady` measured phase, not readiness — renamed, and the real gap closed
 
 The alert named `PodNotReady` ran `kube_pod_status_phase{phase!~"Running|Succeeded"}`. That is
@@ -88,9 +133,13 @@ run as root?".
 
 That gap is real and wider than this change: `require-non-root`'s first branch is a **pod-level**
 `runAsNonRoot` test, so a pod-level `true` satisfies the policy no matter what an individual
-container overrides. Any workload can run a root container under it today. Not fixed here —
-tightening it would deny paperless-ngx and mealie, both documented and deliberate — but it means
-this policy is weaker than its name suggests. Recorded as a follow-up.
+container overrides. Any workload can run a root container under it today. Not fixed here, and
+recorded as a follow-up.
+
+*(Corrected same day: this first read "tightening it would deny paperless-ngx and mealie, both
+documented and deliberate". Wrong — both namespaces are ns-excluded from `require-non-root`, so
+they are never evaluated and are not what holds the expression loose. Hardening it means auditing
+the namespaces the policy actually matches. Codex catch.)*
 
 ---
 
@@ -108,16 +157,7 @@ innocent pod plus an injected hostPath was admitted in all five and denied in `h
 which is equally `privileged` but was never excluded here. The sixth namespace, `couchdb`, no
 longer exists; CouchDB runs in `databases`.
 
-**Autogen was the landmine.** Kyverno copies `matchConditions` **verbatim** into the generated
-Deployment/DaemonSet/ReplicaSet/StatefulSet/Job/CronJob rules and rewrites only the validation's
-volume path, so an exemption label must exist on the *controller's own* metadata. The five backup
-CronJobs carried `app` only on their pod template. Running the reproduced autogen rule against
-`main` denied **all five** — Flux could not have reconciled `infrastructure-configs`. Fixed by
-adding the label to `metadata` and to `spec.jobTemplate.metadata` on each.
-
-The jobTemplate half is belt-and-braces with a real trap behind it: Kubernetes copies pod-template
-labels onto a Job only while the Job's own labels are nil, so adding any unrelated label there
-later would silently strip `app` and deny the backup.
+**Autogen was believed to be a landmine. It was not — see the correction below.**
 
 **`couchrestore` would have been missed.** The one-shot DR Job in `.backup/README.md` mounts
 hostPath and is invisible to any live scan. Without an allowlist entry it is denied — re-breaking

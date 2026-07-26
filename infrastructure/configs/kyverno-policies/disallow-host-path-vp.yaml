@@ -35,12 +35,12 @@ spec:
     # `couchdb` was in the old namespace list; that namespace no longer exists. CouchDB
     # runs in `databases`.
     #
-    # Autogen copies matchConditions VERBATIM into the Deployment/DaemonSet/ReplicaSet/
-    # StatefulSet/Job/CronJob rules and rewrites only the validation's volume path, so
-    # every label below must sit on the CONTROLLER's own metadata, not just on its pod
-    # template. The five backup CronJobs carry a top-level `app` label for that reason —
-    # without it autogen's CronJob rule denies them at apply time and Flux cannot
-    # reconcile infrastructure-configs.
+    # These are POD labels. Autogen rewrites `object.metadata` to the pod-template path in
+    # its controller clones (`object.spec.template.metadata.labels`, and
+    # `object.spec.jobTemplate.spec.template.metadata.labels` for CronJobs) — matchConditions
+    # included, not just validations — so one pod-level expression covers every kind.
+    # `request.namespace` is never rewritten, which is why the namespace test above is safe.
+    # Confirmed against the live `status.autogen` after this policy shipped.
     #
     # `couchrestore` is the one-shot DR Job in .backup/README.md. It is not running, so a
     # live pod scan does not reveal it; omitting it would break the restore path at the

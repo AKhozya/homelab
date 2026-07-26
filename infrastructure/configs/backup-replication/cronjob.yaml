@@ -3,10 +3,6 @@ kind: CronJob
 metadata:
   name: backup-replication
   namespace: backup-replication
-  labels:
-    # Must be on the CronJob itself, not only the pod template: Kyverno autogen copies
-    # disallow-host-path's pod-level exemption verbatim into its CronJob rule.
-    app: backup-replication
 spec:
   # Run at 3:30 AM UTC daily (after all backups complete at 3:00-3:16 AM)
   schedule: "30 3 * * *"
@@ -16,12 +12,6 @@ spec:
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
   jobTemplate:
-    metadata:
-      labels:
-        # Explicit, though Kubernetes would copy it from the pod template: that copy only
-        # happens while the Job's own labels are nil, so adding any other label here would
-        # silently drop the hostPath exemption and deny the replication run.
-        app: backup-replication
     spec:
       ttlSecondsAfterFinished: 86400  # auto-cleanup after 24h
       backoffLimit: 2

@@ -69,6 +69,16 @@ spec:
     # High availability: 2 replicas with pod anti-affinity
     replicaCount: 2
 
+    # Chart default is false; upstream values say to enable it whenever replicaCount > 1.
+    # Safe at 2 replicas: minAvailable 1 leaves disruptionsAllowed 1, so a drain still
+    # proceeds. (A PDB whose minAvailable equals the replica count pins
+    # disruptionsAllowed to 0 and blocks drain outright — main-postgres-primary sits
+    # there by design.) Required anti-affinity plus serial:1 node maintenance already
+    # keep one replica up; this makes that structural rather than incidental.
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
+
     # Rolling update strategy: delete old pod before creating new
     # Required with 2 replicas + required anti-affinity on 2 worker nodes
     strategy:
@@ -109,6 +119,11 @@ spec:
     # operation, as the controllers also perform validation.
     webhook:
       replicaCount: 2
+      # See the top-level podDisruptionBudget comment. Matters most here: the webhook
+      # gates every cert-manager CR admission, so losing both replicas fails those calls.
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
       strategy:
         type: RollingUpdate
         rollingUpdate:
@@ -152,6 +167,10 @@ spec:
     # CA Injector settings
     cainjector:
       replicaCount: 2
+      # See the top-level podDisruptionBudget comment.
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
       strategy:
         type: RollingUpdate
         rollingUpdate:

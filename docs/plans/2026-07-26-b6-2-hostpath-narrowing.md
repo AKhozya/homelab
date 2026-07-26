@@ -24,14 +24,14 @@ The sixth namespace, `couchdb`, **no longer exists**. CouchDB runs in `databases
 | # | Assumption | Tier | Evidence |
 |---|---|---|---|
 | C1 | Exactly 8 workloads in the 5 namespaces mount hostPath | ✅ | Cluster-wide sweep of deploy/ds/sts/cronjob/job/pod templates. `intel-gpu-plugin` + `pvc-backup` are in `kube-system`, which stays excluded |
-| C2 | Kyverno autogen copies `matchConditions` **verbatim** and rewrites only the validation's volume path | ✅ | Read from the live `status.autogen` of this policy |
-| C3 | Consequently every exemption label must exist on the **controller's own** metadata | ✅ | Follows from C2; tested both directions below |
+| C2 | ~~Kyverno autogen copies `matchConditions` **verbatim**~~ | ❌ **REFUTED 2026-07-26, after shipping** | Autogen rewrites `object.metadata` to the pod-template path in **matchConditions too**, not only in validations. The original reading came from the *old* policy, whose matchConditions contained only `request.namespace` — which is never rewritten — and generalised from that single case |
+| C3 | ~~Consequently every exemption label must exist on the **controller's own** metadata~~ | ❌ **REFUTED** | Followed from C2 and falls with it. One pod-level expression covers every kind, because autogen retargets it per kind |
 | C4 | The 5 backup CronJobs carry `app` **only on their pod template** | ✅ | Their own metadata has just Flux's kustomize labels |
 | C5 | `object.metadata.labels[?'k'].orValue('')` is valid CEL here | ✅ | Server dry-run accepted it; a deliberately broken expression was rejected, so the check is real |
 | C6 | `--dry-run=server` exercises the Kyverno webhook | ✅ | Control probe in `home-assistant` denied with this policy's message |
 | C7 | PSA evaluates before Kyverno and masks it in `restricted`/`baseline` namespaces | ✅ | First probe attempt was rejected by PodSecurity, never reaching Kyverno |
 | C8 | A label exemption is spoofable by anyone able to create pods in those namespaces | ⚠️ | Accepted: narrows blast radius from 5 namespaces to 9 identities, does not seal it. Sealing needs a path allowlist, but node-exporter legitimately mounts `/`, so paths buy little there |
-| C9 | Jobs created from these CronJobs carry `app` on their **own** metadata by the time Kyverno sees them | ✅ | Three live Jobs have it despite `jobTemplate.metadata` being empty; `kubectl create job --from=cronjob --dry-run=server` returns it too, so API-server defaulting supplies it ahead of admission. **But only while the Job's own labels are nil** — see below |
+| C9 | Jobs created from these CronJobs carry `app` on their **own** metadata by the time Kyverno sees them | ✅ but moot | True — API-server defaulting copies pod-template labels onto a Job while `Job.metadata.labels` is nil, verified with `kubectl create job --from=cronjob --dry-run=server`. Irrelevant to this policy once C2 fell: autogen's Job rule reads `object.spec.template.metadata.labels`, never the Job's own |
 
 ## What ships
 
@@ -47,15 +47,12 @@ and `exclude-hostpath-workloads` (label-keyed, per namespace). `couchdb` dropped
 | `databases` | `app` | `couchdb-backup`, `mysql-backup`, `postgres-backup`, `couchrestore` |
 | `backup-replication` | `app` | `backup-replication`, `immich-backup` |
 
-**2. Five CronJob manifests** get an `app` label in **two** places, neither cosmetic:
+**2. Nothing else.** The policy is the whole change.
 
-- `metadata.labels` — required by C3, or autogen's CronJob rule denies the CronJob itself.
-- `spec.jobTemplate.metadata.labels` — the Job would inherit this from the pod template anyway
-  (C9), but Kubernetes only performs that copy while the Job's own labels are nil. Adding any
-  unrelated label to `jobTemplate.metadata` later would suppress the copy, strip `app` from the
-  Job, and deny the backup — with nothing in the diff to suggest why. Setting it explicitly
-  removes the trap. Raised by Codex as "Jobs are unlabelled"; that part was wrong, the latent
-  fragility is real.
+Five CronJobs briefly gained `app` labels on `metadata` and `jobTemplate.metadata`, justified by
+C2/C3. Both assumptions were refuted the same day and the labels were removed: autogen retargets
+the pod-level expression per kind, and the pod templates already carried `app`. The labels were
+harmless but bought nothing, and the comments explaining them asserted something false.
 
 `couchrestore` is in the allowlist but has no running workload: it is the one-shot DR Job in
 `.backup/README.md`. A live pod scan cannot see it. Omitting it re-breaks the restore path that
@@ -63,8 +60,16 @@ ultrareview H2 closed on 2026-07-24.
 
 ## Proof
 
-Kyverno CLI 1.18.2, offline, plus live server dry-run. Autogen rules reproduced from the live
-`status.autogen` shape, so the CronJob and controller rules are the real ones.
+Kyverno CLI 1.18.2, offline, plus live server dry-run.
+
+> **The offline autogen rows below are unsound.** They were run against autogen rules
+> hand-reproduced with `yq`, and that reproduction rewrote only `validations` while copying
+> `matchConditions` verbatim — a shape Kyverno never emits (see C2). The pod-level rows and every
+> live probe stand; the two CronJob/controller rows measured the wrong policy. What actually
+> validates this change is the **live** verification after deploy: all five backup CronJobs
+> produced admittable Jobs, all three hostPath controllers still admitted, and a hostPath pod was
+> denied in each of the five namespaces. Re-derive autogen from
+> `kubectl get vpol <name> -o json | jq .status.autogen` rather than reconstructing it.
 
 Every check is run in **both directions** — a `skip` alone is ambiguous between "exempted" and
 "never matched", so each exemption is paired with a stripped-label control that must fail.
@@ -82,9 +87,9 @@ Every check is run in **both directions** — a `skip` alone is ambiguous betwee
 | Policy CEL against live cluster | compiles | ok |
 | yamllint · kubeconform · kustomize build | clean | ok |
 
-The second row is the one that mattered: **without the CronJob label change, all five backup
-CronJobs are denied at apply time** and Flux cannot reconcile `infrastructure-configs`. That is
-the failure the 2026-07-25 deferral feared, and it is now excluded by test rather than by soak.
+Rows 1–4 are void per the note above. The `app` labels they appeared to justify were added to the
+five CronJobs and then removed on 2026-07-26 once autogen's real behaviour was read from the live
+policy: the pod templates already carried `app`, so the exemption always covered them.
 
 ## Why no Audit soak
 

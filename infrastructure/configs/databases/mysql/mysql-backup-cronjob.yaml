@@ -3,10 +3,6 @@ kind: CronJob
 metadata:
   name: mysql-backup
   namespace: databases
-  labels:
-    # Must be on the CronJob itself, not only the pod template: Kyverno autogen copies
-    # disallow-host-path's pod-level exemption verbatim into its CronJob rule.
-    app: mysql-backup
 spec:
   schedule: "15 3 * * *"  # 3:15 AM UTC daily (after PostgreSQL backup at 3:00 AM)
   timeZone: "UTC"
@@ -15,12 +11,6 @@ spec:
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid  # Don't run concurrent backups
   jobTemplate:
-    metadata:
-      labels:
-        # Explicit, though Kubernetes would copy it from the pod template: that copy only
-        # happens while the Job's own labels are nil, so adding any other label here would
-        # silently drop the hostPath exemption and deny the backup.
-        app: mysql-backup
     spec:
       backoffLimit: 2
       ttlSecondsAfterFinished: 86400  # Keep job for 24h for debugging

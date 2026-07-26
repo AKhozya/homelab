@@ -7,10 +7,6 @@ metadata:
   # nas-rsync-credentials secret + the ns-wide egress NetworkPolicy
   # (podSelector:{}, :50555 allowed) + known-hosts — no duplicated secret, no new NP.
   namespace: backup-replication
-  labels:
-    # Must be on the CronJob itself, not only the pod template: Kyverno autogen copies
-    # disallow-host-path's pod-level exemption verbatim into its CronJob rule.
-    app: immich-backup
 spec:
   schedule: "0 3 * * 0"  # Sunday 03:00 UTC — 30min before backup-replication (03:30).
                          # backup-replication Step 4b enforces pool keep-2 for immich/,
@@ -21,12 +17,6 @@ spec:
   failedJobsHistoryLimit: 3
   concurrencyPolicy: Forbid
   jobTemplate:
-    metadata:
-      labels:
-        # Explicit, though Kubernetes would copy it from the pod template: that copy only
-        # happens while the Job's own labels are nil, so adding any other label here would
-        # silently drop the hostPath exemption and deny the backup.
-        app: immich-backup
     spec:
       backoffLimit: 2
       ttlSecondsAfterFinished: 86400
