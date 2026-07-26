@@ -117,7 +117,7 @@ cert-manager).
 
 **`sops-age`** is the root of the whole scheme — losing it makes every encrypted file in this repo unreadable, and leaking it makes all of them readable. It is deliberately *not* on a rotation clock: rotating it means re-encrypting every SOPS file in one commit. Keep an offline copy.
 
-**`alertmanager-basic-auth`** holds only the htpasswd `users` key — Traefik rejects a basicAuth Secret with more than one key. The generating plaintext lives in the separate `alertmanager-basic-auth-credential` Secret, which should be moved to 1Password and then deleted.
+**`alertmanager-basic-auth`** holds only the htpasswd `users` key — Traefik rejects a basicAuth Secret with more than one key. `users` is bcrypt and one-way, so the readable credential lives in 1Password: `op read 'op://Personal/alertmanager-homelab/password'`. Do not add a second key to this Secret to keep a copy in-cluster; the middleware then fails to build and the host returns 404 rather than 401, silently.
 
 **`claude-telegram-ssh` (2026-06-12)**: rotated after the old key was found in pre-rewrite git history (an account-wide GitHub auth key that doubled as a node SSH key). Procedure: new key added to GitHub + the 3 nodes' `authorized_keys` + SOPS secret → bot restart → verified GitHub and node auth → old key removed everywhere. The bot also reaches GitHub over `ssh.github.com:443`, since the cluster's egress firewall blocks outbound `:22`.
 
@@ -437,20 +437,19 @@ If compromised:
 
 ### 2026 Q3 (Jul-Sep)
 - [x] 2026-07-02: Cadence change — 90-day High tier retired, all scheduled rotations now 180-day. Ex-High secrets (PG authentik/immich/n8n, MySQL HA, Redis immich) folded into the 2026-10-01 batch; Redis admin → 2026-10-26.
-- [ ] **2026-08-06: move the Alertmanager basicAuth password to 1Password, then delete the `alertmanager-basic-auth-credential` Secret.** Created 2026-07-25 with the `am.h0melab.work` basicAuth work. The plaintext currently sits in SOPS purely so it can be retrieved once — it is not read by anything, so deleting it breaks nothing. Nothing reminds you automatically; this checklist is the reminder.
+- [x] **2026-07-26: Alertmanager basicAuth password moved to 1Password** (`alertmanager-homelab`,
+  Personal vault) and the `alertmanager-basic-auth-credential` Secret deleted. Done 11 days ahead
+  of the 2026-08-06 deadline set on 07-25.
   ```bash
-  kubectl -n monitoring get secret alertmanager-basic-auth-credential \
-    -o jsonpath='{.data.username}' | base64 -d; echo
-  kubectl -n monitoring get secret alertmanager-basic-auth-credential \
-    -o jsonpath='{.data.password}' | base64 -d; echo
+  op read 'op://Personal/alertmanager-homelab/password'
   ```
-  Store it in 1Password, then delete **only the second Secret document** from
-  `monitoring/configs/kube-prometheus-stack/alertmanager-basic-auth-secret.yaml` — that
-  one file holds *both* Secrets, and the first one (`alertmanager-basic-auth`, the htpasswd
-  `users` key) is what Traefik actually reads. Deleting the whole file, or its kustomization
-  entry, takes Alertmanager's auth down with it. Leave the file and the entry in place.
-  Flux prunes the removed Secret on the next reconcile; confirm with a `401` on
-  `https://am.h0melab.work` and a `200` with the credentials.
+  Two things to know if this ever needs redoing. The one file
+  `monitoring/configs/kube-prometheus-stack/alertmanager-basic-auth-secret.yaml` held **both**
+  Secrets, and the surviving one (`alertmanager-basic-auth`, htpasswd `users`) is what Traefik
+  reads — deleting the file or its kustomization entry takes Alertmanager's auth down. And both
+  documents shared a **single SOPS MAC covering the whole file**, so truncating the second
+  document produced `MAC mismatch` on decrypt; the working sequence is `sops -d` → drop the
+  document with `yq` → `sops -e`, never a partial edit of the ciphertext.
 
 ### 2026 Q4 (Oct-Dec)
 - [ ] 2026-10-01: 180-day rotation — ALL scheduled secrets (PG, MySQL, Redis, CouchDB, OIDC, Django key; ex-High included)
