@@ -28,6 +28,8 @@ spec:
         - name: meilisearch
           image: getmeili/meilisearch:v1.51.0
           command: ["meilisearch"]
+          args:
+            - "--upgrade-db"
           ports:
             - containerPort: 7700
               name: http
