@@ -17,6 +17,45 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-27 — Replication was uploading 129G to the NAS every night and deleting it minutes later
+
+Found while verifying the first full backup cycle after the couchbackup `--parallelism 1` fix.
+That cycle was clean, but the replication log showed `sent 138,678,853,989 bytes` with
+`speedup is 1.00`, then `pruning dir: immich/20260712_030000` and `immich/20260705_030002` a few
+lines later. Same job, same run: upload 129G, delete 129G.
+
+**Two jobs were fighting.** `immich-backup` (weekly) writes to `/mnt/extra-storage/immich-backup`
+and publishes to the NAS **itself** (`POOL=…/backups/homelab/immich`), keeping 2 local
+generations. `backup-replication` (nightly) syncs a *different* hostPath,
+`/mnt/k8s-storage/backups/`, to the same NAS root — and that directory still held 129G of stale
+generations from before immich-backup moved to extra-storage. Step 4's `rm -rf` covers only
+postgres/couchdb/mysql/pvc, so nothing ever cleaned it. Each night Step 2 re-uploaded those dirs
+(genuinely absent on the NAS), and Step 4b's `keep-2` pruned them again because the two newest are
+the ones immich-backup pushed directly.
+
+`speedup is 1.00` was the tell, and it is **not** an rsync tuning problem — the files really were
+missing at the destination. No flag was missing; the pipeline was circular. (Not to be confused
+with the retracted 2026-07-26 claim about `-r` without `-t`, which was wrong — see `e4c3eed7`.)
+
+**Fix:** `--exclude='/immich/'` on the Step 2 rsync. Replication has no business touching a path
+another job owns.
+
+**Anchored deliberately.** `immich/` unanchored matches at any depth and would silently drop a
+future `pvc/<ts>/immich/…` if that namespace ever gains a critical PVC — it has none today, which
+is exactly why the mistake would go unnoticed. Codex catch; proved both ways with a local rsync
+fixture before shipping.
+
+Coverage is unchanged: the immich **database** is dumped nightly by `postgres-backup` into
+`/source-backups/postgres/` (verified in the same run), and the immich **library** reaches the NAS
+weekly from immich-backup's own push. Step 1 validates only postgres/couchdb/mysql/pvc — the "4
+validated artifact(s)" — so the exclude cannot affect validation or the Step 3 NAS check.
+
+**Still open:** 129G of stale dirs remain on worker-node at `/mnt/k8s-storage/backups/immich/`.
+Not urgent — nodefs is 178G used of 4255G, DiskPressure False — but it is dead weight and wants a
+one-off manual delete.
+
+---
+
 ### 2026-07-26 — cert-manager PDBs enabled; and a same-day correction to the B6-2 autogen claim
 
 **Correction first, because it invalidates something written earlier today.** The B6-2 entry below

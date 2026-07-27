@@ -259,9 +259,27 @@ spec:
                   echo "=== Step 2: Syncing to NAS ==="
                   # No -z: backups are .tar.gz (already compressed) and transfers are
                   # LAN — compression just burns CPU on both ends for ~0 size gain (2026-06-28).
+                  #
+                  # immich/ is EXCLUDED because immich-backup publishes to the same NAS path
+                  # itself (its POOL=…/backups/homelab/immich) from a different source dir,
+                  # /mnt/extra-storage/immich-backup. What lives under /source-backups/immich/
+                  # here is 129G of stale generations from before that move, and Step 4 has
+                  # never cleaned it. Without this exclude the two jobs fight nightly: Step 2
+                  # uploads those stale dirs (129G — they really are absent on the NAS), then
+                  # Step 4b's keep-2 prunes them again minutes later because the two newest
+                  # are the ones immich-backup pushed directly. `speedup is 1.00` in the log
+                  # was that, not an rsync tuning problem. Observed 2026-07-27.
+                  #
+                  # ANCHORED (`/immich/`, not `immich/`): an unanchored rsync pattern matches at
+                  # ANY depth, so it would also silently drop a future `pvc/<ts>/immich/…` if
+                  # that namespace ever gains a critical PVC. It has none today (the 10 backed-up
+                  # namespaces are audiobookshelf, home-assistant, homehub, linkwarden, mealie,
+                  # n8n, paperless-ngx, pricebuddy, rustdesk, stirling-pdf), which is exactly why
+                  # the mistake would go unnoticed.
                   RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync -av \
                     --exclude='*.tmp' \
                     --exclude='.*.swp' \
+                    --exclude='/immich/' \
                     --port=50555 \
                     /source-backups/ \
                     "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/"
