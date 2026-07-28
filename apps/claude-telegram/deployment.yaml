@@ -70,6 +70,11 @@ spec:
               # .chezmoiignore excludes .ssh
               chezmoi apply --force --no-tty || true
 
+              # ~/.claude/settings.json is .chezmoiignore'd on linux (it carries macOS /Users paths),
+              # so chezmoi never sets model/effort here — the PVC copy would drift forever otherwise.
+              # ANTHROPIC_MODEL below also pins the model; this keeps the file honest if that env is lost.
+              node -e 'const fs=require("fs"),d=process.env.HOME+"/.claude",p=d+"/settings.json";let s={};try{s=JSON.parse(fs.readFileSync(p,"utf8"))}catch(e){}s.model="claude-opus-5";s.effortLevel="xhigh";fs.mkdirSync(d,{recursive:true});fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n")' || echo "WARN: claude model/effort pin failed"
+
               # Reconcile bot plugin state to the chezmoi SOURCE (fresh from git), NOT ~/.claude/plugins:
               # that tree is .chezmoiignore'd on linux, so the PVC seed never self-updates. PRUNE what
               # source no longer declares (handles renames like everything-claude-code -> ecc, whose stale
@@ -225,8 +230,12 @@ spec:
               value: /home/akhozya/data/restart.json
             - name: AUDIT_LOG_PATH
               value: /home/akhozya/data/audit.log
-            - name: CLAUDE_CODE_DEFAULT_MODEL
+            # CLAUDE_CODE_DEFAULT_MODEL was inert — no consumer in the CLI, SDK or bot.
+            # ANTHROPIC_MODEL overrides ~/.claude/settings.json (verified against CLI 2.1.220).
+            - name: ANTHROPIC_MODEL
               value: "claude-opus-5"
+            - name: CLAUDE_CODE_EFFORT_LEVEL
+              value: "xhigh"
             - name: CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC
               value: "1"
             - name: DISABLE_AUTO_UPDATES
