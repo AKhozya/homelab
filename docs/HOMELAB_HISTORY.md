@@ -50,9 +50,16 @@ Coverage is unchanged: the immich **database** is dumped nightly by `postgres-ba
 weekly from immich-backup's own push. Step 1 validates only postgres/couchdb/mysql/pvc — the "4
 validated artifact(s)" — so the exclude cannot affect validation or the Step 3 NAS check.
 
-**Still open:** 129G of stale dirs remain on worker-node at `/mnt/k8s-storage/backups/immich/`.
-Not urgent — nodefs is 178G used of 4255G, DiskPressure False — but it is dead weight and wants a
-one-off manual delete.
+**Verified 2026-07-28** on the first unattended run after the fix (`backup-replication-29753490`):
+`sent 126,326,404 bytes` — 120 MiB against the previous 129 GiB, a ~1,100× drop. Step 4b pruned
+only `pvc/20260628_135136` (ordinary 30-day retention); no `immich/` dir was pruned, which is the
+direct evidence the upload-then-delete cycle is gone. Step 3 still reported all 4 validated
+artifacts on the NAS and Step 4 still cleaned the source. The NAS immich pool holds exactly
+`20260719_030004` and `20260726_030007` — keep-2 intact, and the 07-26 generation arrived from
+immich-backup's own push, so excluding it from replication costs nothing.
+
+The 129G of stale worker-node dirs were deleted manually the same day; `/source-backups/immich/`
+now measures 4.0K in the replication log. Nothing further is open here.
 
 ---
 
