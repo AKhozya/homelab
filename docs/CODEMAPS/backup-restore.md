@@ -32,10 +32,12 @@ Whitelist (CRITICAL_PVCS) + `nodeSelector: worker-node` + `hostPath /mnt/k8s-sto
 Source: `infrastructure/configs/backup-replication/cronjob.yaml` (script inline; NAS rsync creds + Telegram = SOPS secrets alongside).
 ```text
 W1 /mnt/k8s-storage/backups
-  └─ rsync (no --delete) :50555 (rsync daemon)
+  └─ rsync (no --delete, --exclude='/immich/') :50555 (rsync daemon)
        → NAS (192.168.1.136, /akhozya-pool1/backups/homelab/) — 30-day history; 500GB cap (warn 400 / crit 450)
 ```
-Validate BEFORE the sync (postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then push to NAS, then clean source on W1. Immich is not a W1 source — produced on W2, pushed straight to the NAS pool. The temporary W1→W2 SSH safety-net leg (single-day `--delete` copy) was removed 2026-07-17 — NAS is the sole sink.
+Validate BEFORE the sync (postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then push to NAS, then clean source on W1. Immich is not a W1 source — produced on W2, pushed straight to the NAS pool.
+
+**`--exclude='/immich/'` is load-bearing — do not drop it when editing the Step 2 rsync.** immich-backup owns that destination path; without the exclude, replication re-uploads whatever stale generations sit under W1's `immich/` (Step 4's `rm -rf` covers only postgres/couchdb/mysql/pvc) and Step 4b's keep-2 deletes them minutes later — 129G/night, both ways, for as long as the directory exists (`5f76db93`, verified 2026-07-28: 129 GiB → 120 MiB). The **leading slash anchors it to the transfer root**: unanchored `immich/` would also match a future `pvc/<ts>/immich/`. The exclude is on the *transfer* only — Step 4b still prunes the NAS immich pool to keep-2, which is the sole retention on that path (immich-backup's own keep-2 sweeps only its W2 copies). The temporary W1→W2 SSH safety-net leg (single-day `--delete` copy) was removed 2026-07-17 — NAS is the sole sink.
 
 **Retention prune (after validate + clean):**
 - 30d postgres/mysql/couchdb — `prune_nas_file()`: rsync include-filter file-prune against empty source, targets `<cat>/<cat>_YYYYMMDD_HHMMSS.tar.gz` older than 30d
