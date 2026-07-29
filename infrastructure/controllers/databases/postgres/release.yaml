@@ -41,7 +41,7 @@ spec:
             patch: |-
               - op: add
                 path: /spec/revisionHistoryLimit
-                value: 3
+                value: 2
   values:
     # critical tier: operator controls CNPG failover/promotion — outage = no DB recovery
     priorityClassName: homelab-critical

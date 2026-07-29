@@ -42,7 +42,7 @@ spec:
               # unset, so the K8s default of 10 applies.
               - op: add
                 path: /spec/revisionHistoryLimit
-                value: 3
+                value: 2
           # seccomp RuntimeDefault (UR2-4 soak) — chart 1.2.0 has no securityContext hook.
           - target:
               kind: Deployment

@@ -17,4 +17,4 @@ patches:
       # unset, so the K8s default of 10 applies.
       - op: add
         path: /spec/revisionHistoryLimit
-        value: 3
+        value: 2

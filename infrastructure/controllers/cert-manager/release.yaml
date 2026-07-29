@@ -63,7 +63,7 @@ spec:
             patch: |-
               - op: add
                 path: /spec/revisionHistoryLimit
-                value: 3
+                value: 2
   values:
     # Install CRDs as part of the Helm release
     # Uses new crds section (installCRDs deprecated since cert-manager v1.15.0)
