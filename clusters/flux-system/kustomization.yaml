@@ -13,3 +13,8 @@ patches:
       - op: add
         path: /spec/template/spec/priorityClassName
         value: system-cluster-critical
+      # Cap retained zero-replica ReplicaSets — gotk-components leaves the field
+      # unset, so the K8s default of 10 applies.
+      - op: add
+        path: /spec/revisionHistoryLimit
+        value: 3

@@ -38,6 +38,11 @@ spec:
               - op: add
                 path: /spec/template/spec/priorityClassName
                 value: homelab-critical
+              # Cap retained zero-replica ReplicaSets — chart leaves the field
+              # unset, so the K8s default of 10 applies.
+              - op: add
+                path: /spec/revisionHistoryLimit
+                value: 3
           # seccomp RuntimeDefault (UR2-4 soak) — chart 1.2.0 has no securityContext hook.
           - target:
               kind: Deployment

@@ -55,6 +55,15 @@ spec:
               - op: add
                 path: /spec/template/spec/priorityClassName
                 value: homelab-standard
+          # Cap retained zero-replica ReplicaSets — chart leaves the field unset, so
+          # the K8s default of 10 applies. Nameless target = all 3 chart Deployments
+          # (cert-manager, -cainjector, -webhook; startupapicheck is a Job).
+          - target:
+              kind: Deployment
+            patch: |-
+              - op: add
+                path: /spec/revisionHistoryLimit
+                value: 3
   values:
     # Install CRDs as part of the Helm release
     # Uses new crds section (installCRDs deprecated since cert-manager v1.15.0)

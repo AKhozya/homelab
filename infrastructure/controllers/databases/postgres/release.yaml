@@ -28,6 +28,20 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
+  # Cap retained zero-replica ReplicaSets — chart 0.29.0 has no revisionHistoryLimit
+  # value and leaves the field unset, so the K8s default of 10 applies. Operator
+  # Deployment only; the CNPG-owned main-postgres-rw-pooler Deployment is left alone
+  # (the operator reconciles its spec — patching it would fight the controller).
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: cnpg-operator-cloudnative-pg
+            patch: |-
+              - op: add
+                path: /spec/revisionHistoryLimit
+                value: 3
   values:
     # critical tier: operator controls CNPG failover/promotion — outage = no DB recovery
     priorityClassName: homelab-critical

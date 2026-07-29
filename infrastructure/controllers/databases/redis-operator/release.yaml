@@ -30,6 +30,18 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
+  # Cap retained zero-replica ReplicaSets — chart 0.25.0 has no revisionHistoryLimit
+  # value and leaves the field unset, so the K8s default of 10 applies.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: redis-operator
+            patch: |-
+              - op: add
+                path: /spec/revisionHistoryLimit
+                value: 3
   values:
     # critical tier: operator coordinates Redis Sentinel + CR reconcile
     priorityClassName: homelab-critical
