@@ -237,7 +237,7 @@ spec:
             - name: TEMP_REAP_INTERVAL_MS
               value: "3600000" # hourly sweep
             - name: TEMP_RETENTION_HOURS
-              value: "24" # must exceed the longest ask_user pause, which holds a turn open
+              value: "24" # an ask_user pause holds a download open; a longer pause loses it
             # CLAUDE_CODE_DEFAULT_MODEL was inert — no consumer in the CLI, SDK or bot.
             # ANTHROPIC_MODEL overrides ~/.claude/settings.json (verified against CLI 2.1.220).
             - name: ANTHROPIC_MODEL
@@ -378,8 +378,9 @@ spec:
             defaultMode: 0400
         - name: tmp
           # Circuit breaker, not a quota: breaching this evicts the Pod, it never prunes.
-          # Routine cleanup is the app's reaper (TEMP_REAP_* above) — this only stops a
-          # runaway from filling node ephemeral storage and evicting its neighbours too.
+          # Routine cleanup is the app's reaper (TEMP_REAP_INTERVAL_MS and
+          # TEMP_RETENTION_HOURS above) — this only stops a runaway from filling node
+          # ephemeral storage and evicting its neighbours too.
           # 4Gi is ~80 max-size (50MB) videos, so lowering it means lowering the
           # retention window with it. Only in-flight media is lost; state is on the PVC.
           emptyDir:
