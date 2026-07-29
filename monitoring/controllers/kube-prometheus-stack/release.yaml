@@ -346,7 +346,7 @@ spec:
           memory: 256Mi
 
     kube-state-metrics:
-      revisionHistoryLimit: 3
+      revisionHistoryLimit: 2
       resources:
         requests:
           cpu: 50m
