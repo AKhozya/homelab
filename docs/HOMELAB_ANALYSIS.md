@@ -8,7 +8,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 
 | Area | Status |
 |---|---|
-| **Security** | Pod Security Standards enforced; 12 Kyverno CEL ValidatingPolicies (all Deny-enforcing); default-deny NetworkPolicies; secrets SOPS-encrypted in Git; monthly image-CVE scan (trivy CronJob, 1st 08:00 UTC — replaced always-on trivy-operator 2026-07-14) |
+| **Security** | Pod Security Standards enforced; 12 Kyverno CEL ValidatingPolicies (all Deny-enforcing); default-deny NetworkPolicies; secrets SOPS-encrypted in Git; monthly image-CVE scan (trivy CronJob, 08:00 UTC — 8th for August 2026, back to the 1st after; replaced always-on trivy-operator 2026-07-14) |
 | **Backup / DR** | Daily logical backups (Postgres, MySQL, CouchDB, app PVCs), 30-day retention, off-node + NAS replication, documented restore runbook |
 | **Observability** | VictoriaMetrics + Grafana + Loki/Alloy; Alertmanager → Telegram; weekly Popeye hygiene scan |
 | **Networking** | Dual ingress (LAN Traefik + Cloudflare Tunnel), zero inbound ports, Blocky DNS + ad-block |
@@ -99,7 +99,7 @@ Worker self-heal watchdogs: `clusterip_heal` (post-reboot kube-proxy DNAT wedge 
 
 ### Upcoming deadlines
 
-Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md) is authoritative for rotation specifics; this table is the at-a-glance roll-up. Recurring timers (sync 10 min, drift-heal 03:00, weekly update Sat, security scan 1st) are not listed.
+Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md) is authoritative for rotation specifics; this table is the at-a-glance roll-up. Recurring timers (sync 10 min, drift-heal 03:00, weekly update Sat, security scan 1st — 8th for August 2026) are not listed.
 
 | Due | Item |
 |---|---|
@@ -112,5 +112,6 @@ Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md
 | ~~2026-07-20~~ ✅ | Worker-2 backup replication-step drop DONE 2026-07-17 (early): W2 sync step + SSH setup removed from `backup-replication/cronjob.yaml` (steps renumbered), `backup-replication-ssh-key` Secret + `ssh-known-hosts` ConfigMap deleted (Flux prune), NP W2:65300 egress rule dropped, DR scripts + docs updated. NAS = sole replication sink. Stale W2 copy at `/mnt/extra-storage/backups/` cleaned manually |
 | ~~≥2026-07-11~~ ✅ | Kyverno CP→VP migration **Phases 2-4 DONE 2026-07-12** (`abf5d2c5` Deny flip → CP delete → `fc45be04` canary+parity retire): 8-day parity soak clean, Gate A (canary dry-run deny) + Gate B (per-policy live admission, 12/12 attributed despite fine-grained webhook short-circuit / PSA / LimitRange interplay) passed. Codex catch: autogen rewrites `object.metadata` to pod-template path, voiding deletionTimestamp checks — `require-networkpolicy` now direct controller match + autogen off. See HISTORY 2026-07-12 |
 | ~~2026-10~~ ✅ | `kyverno.io/v1` ClusterPolicy removal deadline (Kyverno 1.20, ~Oct 2026) MET EARLY 2026-07-12 — zero ClusterPolicies remain; kyverno chart bumps shipping 1.20 no longer held |
+| 2026-08-08 | **August-only shift** (owner request): monthly review (watches n8n #25705, k8s-sidecar#531, Stirling#6211), trivy image-CVE scan, node security scan — all three pulled off 08-01/08-04 onto 08-08. **Revert after the 8th**: `monitoring/configs/trivy-scan/cronjob.yaml` schedule → `0 8 1 * *`; `security_scan` role timer → `OnCalendar=*-*-01` + `Persistent=true`. Both 08-01 and 08-08 are Saturdays, so overlap with the Sat 04:30 UTC reboot window is unchanged. If the revert is missed, both keep running monthly on the 8th — no scan is skipped |
 | 2026-10-01 | 180-day secret rotation — ALL scheduled secrets: PG/MySQL/Redis, CouchDB, OIDC, Authentik Django key (90-day High tier retired 2026-07-02, ex-High folded in; Redis admin+blocky follow 2026-10-26) |
 | 2026-12-31 | `cloudflare-tunnel-mgmt-token` rotation |
