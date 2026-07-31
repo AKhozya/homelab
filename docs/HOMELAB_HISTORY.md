@@ -17,6 +17,70 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-07-31 — A chart bump silently stopped the VM operator reconciling for two hours
+
+Renovate merged `b1116022` (victoria-metrics-operator chart 0.66.3 → 0.67.0, operator v0.73.1 →
+v0.74.0). Flux applied it at 10:30 UTC. From 10:31:35 the operator logged nothing but
+
+```
+Failed to watch  type=*v1.NetworkPolicy
+error=... networkpolicies.networking.k8s.io is forbidden: User
+"system:serviceaccount:monitoring:victoria-metrics-operator" cannot list resource
+"networkpolicies" ... at the cluster scope
+```
+
+393 times, and `controller_runtime_reconcile_total` sat flat at 3 until 12:35 — 124 minutes in
+which every VM CR change was ignored.
+
+**Why nothing else caught it.** All 25 controllers logged `Starting workers` normally, then parked.
+The pod held `Ready 1/1`, `up=1`, `restartCount 0`, `:8081` probes green and a renewing leader
+lease the whole time. `controller_runtime_reconcile_errors_total` stayed at **0** — the reconciles
+never failed, they never returned. `VMOperatorReconcileStalled`
+(`sum(rate(controller_runtime_reconcile_total[15m])) == 0`) was the sole signal, and it fired. This
+is the opposite failure mode to the 2026-06-15 metrics-wedge (`up=0`, no scrape at all); an alert
+written for one caught the other.
+
+**Root cause — chart-vs-operator RBAC drift.** Operator v0.74.0 added `.spec.networkPolicy` to every
+VM CRD ([helm-charts#2977](https://github.com/VictoriaMetrics/helm-charts/issues/2977)) and grants
+itself `networkpolicies` in its own `config/rbac/role.yaml`; the v0.74.0 notes ship that grant as a
+BUGFIX. Chart 0.67.0's `templates/role.yaml` still grants only `ingresses`/`ingresses/finalizers`,
+on `master` too. The read is not gated on the feature: nine factories take a
+`if cr.Spec.NetworkPolicy == nil { objsToRemove = append(…) }` branch unconditionally, and
+`finalize.SafeDeleteWithFinalizer` opens with a cached `Get` — so controller-runtime starts a
+NetworkPolicy informer that can never sync, and every reconcile parks on it.
+
+**Fix** (`63c456a2`) — supplementary ClusterRole + ClusterRoleBinding at
+`monitoring/controllers/victoria-metrics/operator-networkpolicy-rbac.yaml` granting
+`networkpolicies` `get/list/watch`. Read-only is enough because nothing here sets
+`.spec.networkPolicy`, so the operator only ever `Get`s and `SafeDeleteWithFinalizer` returns early
+on `NotFound`. RBAC was picked up live — no pod restart. Counter 3 → 72 within six minutes,
+rate back to the 0.05/s baseline, alert cleared.
+
+**Removing the workaround is two commits, not one.** kustomize-controller prunes the file the moment
+it applies, while the chart's own grant only lands when helm-controller finishes the upgrade. Bump
+the chart, confirm `kubectl get clusterrole victoria-metrics-operator` lists `networkpolicies`, then
+delete the file.
+
+**Follow-on** (`35dfcf57`) — the same operator upgrade added a second endpoint (`targetPort: 8435`)
+to the VMServiceScrape it generates for VMAlert, pointing at the `config-reloader` sidecar.
+`vmalert-network-policy` allowed only 8080, so the new scrape came back `connection refused`
+(kube-router REJECT) and `ScrapeTargetDown` fired. Opened 8435 on the existing ingress block.
+vmagent's own reloader target was healthy throughout because that scrape is same-pod traffic, which
+NetworkPolicy never evaluates — a reminder that "one of the two identical targets is up" says
+nothing about the policy.
+
+**Process note.** `63c456a2` was shipped from a Telegram bot session that skipped the pre-commit
+review loop. The retro-active Codex review returned APPROVE-WITH-LOW; its one finding was the
+two-commit removal ordering above. The incident summary written in that session also had two facts
+wrong — "no controllers started" (all 25 did) and "flat at 1 for 105 min" (flat at 3 for 124) —
+both corrected here against live metrics.
+
+Upstream: reported to VictoriaMetrics/helm-charts. Same class as
+[#3102](https://github.com/VictoriaMetrics/helm-charts/issues/3102) (chart ClusterRole missing the
+VPA grant), fixed in chart 0.66.3 ten days earlier.
+
+---
+
 ### 2026-07-27 — Replication was uploading 129G to the NAS every night and deleting it minutes later
 
 Found while verifying the first full backup cycle after the couchbackup `--parallelism 1` fix.
