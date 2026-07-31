@@ -170,7 +170,11 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Metrics scraping
+    # Metrics scraping. 8435 = the config-reloader sidecar: operator v0.74.0
+    # added a second endpoint (targetPort 8435) to the VMServiceScrape it
+    # generates for VMAlert, so vmagent scrapes the sidecar from its own pod and
+    # needs the port opened. vmagent's own reloader is exempt — that scrape is
+    # same-pod traffic, which NetworkPolicy never sees.
     - from:
         - namespaceSelector:
             matchLabels:
@@ -178,6 +182,8 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
+        - protocol: TCP
+          port: 8435
   egress:
     # DNS
     - to:
