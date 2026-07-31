@@ -8,7 +8,8 @@
 # start a NetworkPolicy informer. The chart's templates/role.yaml grants only
 # `ingresses`/`ingresses/finalizers` under networking.k8s.io, so that informer
 # can never sync. The operator repo's own config/rbac/role.yaml DOES grant
-# `networkpolicies` — the chart never mirrored it, master included.
+# `networkpolicies` — the chart never mirrored it; master still lacked it when
+# checked on 2026-07-31.
 #
 # 2026-07-31: workers all started, then parked on the unsyncable informer —
 # reconcile_total flat at 3 for 124 min while the pod held Ready 1/1, up=1,

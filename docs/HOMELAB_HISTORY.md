@@ -64,7 +64,9 @@ delete the file.
 **Follow-on** (`35dfcf57`) — the same operator upgrade added a second endpoint (`targetPort: 8435`)
 to the VMServiceScrape it generates for VMAlert, pointing at the `config-reloader` sidecar.
 `vmalert-network-policy` allowed only 8080, so the new scrape came back `connection refused`
-(kube-router REJECT) and `ScrapeTargetDown` fired. Opened 8435 on the existing ingress block.
+(kube-router REJECT) and `ScrapeTargetDown` fired. Added an 8435 ingress rule scoped to
+`podSelector: app.kubernetes.io/name: vmagent` — the only scraper of that port — rather than
+widening the existing namespace-wide 8080 block.
 vmagent's own reloader target was healthy throughout because that scrape is same-pod traffic, which
 NetworkPolicy never evaluates — a reminder that "one of the two identical targets is up" says
 nothing about the policy.
