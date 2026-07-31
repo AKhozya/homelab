@@ -1,0 +1,54 @@
+---
+# Supplementary RBAC for victoria-metrics-operator.
+#
+# operator v0.74.0 (chart 0.67.0) added a `networkPolicy` field to every VM CRD
+# and watches NetworkPolicy UNCONDITIONALLY, but the chart's templates/role.yaml
+# grants only `ingresses`/`ingresses/finalizers` under networking.k8s.io. The
+# operator repo's own config/rbac/role.yaml DOES grant `networkpolicies` (the
+# v0.74.0 notes ship it as a BUGFIX) — the chart never mirrored it, on master
+# too. Without the grant the NetworkPolicy informer never syncs, so
+# controller-runtime never starts ANY controller: the pod stays Ready 1/1 with
+# up=1 and 0 restarts while reconciling nothing. Only VMOperatorReconcileStalled
+# catches it.
+#
+# Read-only on purpose: no VM CR here sets .spec.networkPolicy, and our
+# NetworkPolicies are GitOps-owned — get/list/watch is all the informer needs,
+# so the operator cannot author NetworkPolicies outside git. Upstream grants
+# verbs "*"; widen to create/update/patch/delete ONLY if we ever adopt
+# .spec.networkPolicy on a VM CR.
+#
+# DELETE THIS FILE once the chart ships the grant itself (watch
+# charts/victoria-metrics-operator/templates/role.yaml upstream) — the chart's
+# own rule then supersedes it.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: victoria-metrics-operator-networkpolicy-reader
+  labels:
+    app.kubernetes.io/name: victoria-metrics-operator
+    app.kubernetes.io/component: rbac-workaround
+rules:
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - networkpolicies
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: victoria-metrics-operator-networkpolicy-reader
+  labels:
+    app.kubernetes.io/name: victoria-metrics-operator
+    app.kubernetes.io/component: rbac-workaround
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: victoria-metrics-operator-networkpolicy-reader
+subjects:
+  - kind: ServiceAccount
+    name: victoria-metrics-operator
+    namespace: monitoring

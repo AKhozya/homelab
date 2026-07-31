@@ -3,3 +3,4 @@ kind: Kustomization
 resources:
   - repository.yaml
   - operator-release.yaml
+  - operator-networkpolicy-rbac.yaml
