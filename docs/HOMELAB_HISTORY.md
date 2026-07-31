@@ -77,7 +77,25 @@ two-commit removal ordering above. The incident summary written in that session 
 wrong — "no controllers started" (all 25 did) and "flat at 1 for 105 min" (flat at 3 for 124) —
 both corrected here against live metrics.
 
-Upstream: reported to VictoriaMetrics/helm-charts. Same class as
+**Closed the same day.** Upstream issue
+[#3129](https://github.com/VictoriaMetrics/helm-charts/issues/3129) + PR
+[#3130](https://github.com/VictoriaMetrics/helm-charts/pull/3130) (`- networkpolicies` added to
+`templates/role.yaml`) were filed at ~13:0x UTC, merged by a maintainer at 13:21, and chart
+**0.67.1** was published at 13:24 — appVersion unchanged at v0.74.0, so the bump carries the RBAC
+fix and nothing else (proved by a `dyff` of both rendered charts: only the ClusterRole rule and the
+`helm.sh/chart` label differ). Bumped in `6ef450ac`, workaround deleted in the follow-up commit.
+
+**The two-commit rule paid for itself on the first try.** After merging the bump, the chart-owned
+ClusterRole still did NOT list `networkpolicies` — the HelmRelease was stuck on
+`no 'victoria-metrics-operator' chart with version matching '0.67.1' found`, because
+source-controller's cached HelmRepository index predated the release. A same-commit removal would
+have pruned the workaround into exactly that gap and re-opened the outage. `flux reconcile source
+helm victoriametrics -n monitoring` refreshed the index, the upgrade went through (release v21),
+and only then did the gate command show `[ingresses, ingresses/finalizers, networkpolicies]`.
+**Generalises: a Helm chart version bump is not applied until source-controller has re-indexed the
+repo — check `lastAppliedRevision`, never assume the merge did it.**
+
+Same class as
 [#3102](https://github.com/VictoriaMetrics/helm-charts/issues/3102) (chart ClusterRole missing the
 VPA grant), fixed in chart 0.66.3 ten days earlier.
 
