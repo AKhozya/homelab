@@ -150,8 +150,18 @@ spec:
               CLI=$("$CC" --version 2>/dev/null || echo "unknown")
               SDK=$(node -e "console.log(require('/app/node_modules/@anthropic-ai/claude-agent-sdk/package.json').version)" 2>/dev/null || echo "unknown")
               CODEX=$(codex --version 2>/dev/null || echo "missing")
+              # The seed above is only-if-absent, so a stale PVC copy shadows a rotated secret
+              # and no restart ever repairs it — auth was dead from ~Jul 6 to Jul 31 in silence.
+              # `codex login status` writes its answer to STDERR and leaves stdout empty, so
+              # 2>&1 rather than 2>/dev/null — discarding stderr reports NOT LOGGED IN on a
+              # perfectly good login. Capture first, then branch on emptiness: in
+              # `cmd | head -1 || echo`, the status is head's, and head succeeds on empty
+              # input, so the fallback never fires and a blank cell ships instead.
+              CODEX_AUTH=$(codex login status 2>&1 | head -1)
+              [ -n "$CODEX_AUTH" ] || CODEX_AUTH="NOT LOGGED IN"
 
-              MSG=$(printf '## 🤖 Claude Bot Restarted\n\n| Component | Version |\n|---|---|\n| CLI | `%s` |\n| SDK | `%s` |\n| Codex | `%s` |' "$CLI" "$SDK" "$CODEX")
+              MSG=$(printf '## 🤖 Claude Bot Restarted\n\n| Component | Version |\n|---|---|\n| CLI | `%s` |\n| SDK | `%s` |\n| Codex | `%s` |\n| Codex auth | `%s` |' \
+                "$CLI" "$SDK" "$CODEX" "$CODEX_AUTH")
 
               if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
                 # Bot API 10.1 rich message (Markdown). node fetch has the keys via env to dodge quoting.
