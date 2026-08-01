@@ -17,6 +17,58 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-08-01 — A cached tarball no upstream fix could displace skipped a whole patch week
+
+The weekly `node-maintenance.timer` fired at 05:30:58. `node-maintenance-phase1.service` died at
+05:32:52, `status=2`, on the `yay -Syyu` task:
+
+```
+flux-bin-2.9.3_linux_amd64.tar.gz ... FAILED
+==> ERROR: One or more files did not pass the validity check!
+```
+
+phase1 is fail-fast by design, so it never created `phase2-pending`, its
+`ExecStartPost=systemctl reboot` never fired, and phase2 — worker updates and the rolling reboot —
+never ran at all. Telegram got the `❌ ... No reboot` notice; nothing else complained for six hours.
+
+**Why the checksum could never be satisfied.** AUR `flux-bin` carried a hardcoded `_srcver=2.8.6` in
+its source URL while `pkgver` advanced to 2.9.3, and the local filename derives from `${pkgver}`. So
+every weekly "upgrade" since 2.8.7 downloaded the *same v2.8.6 tarball* and parked it under a new
+name — `flux-bin-2.9.0/2.9.1/2.9.2/2.9.3_linux_amd64.tar.gz` all sha `c53cc990…`, which is upstream's
+`flux_2.8.6_linux_amd64.tar.gz`. `pacman -Q flux-bin` read `2.9.3-1` while `flux version --client`
+read `v2.8.6`. AUR commit `45c0b65` "Fix versioning" (2026-07-25 11:44 PDT) corrected the URL and
+bumped `pkgrel=2` with the real sum `eae4e860…`. Our 2026-07-25 run had gone through ~6h *before*
+that. The next run validated the already-present file against the corrected sum and aborted —
+**makepkg does not re-download a source that already exists**, so no amount of upstream correction
+could dislodge it.
+
+**Blast radius.** CP took its repo upgrades (incl. `linux-lts 6.18.39 → 6.18.41`) then stopped before
+the reboot, leaving a running/installed kernel mismatch. All three other nodes were untouched — still
+`6.18.39-1`, uptime 7d 6h. `AlloyLogDeliveryFailing` then fired on 3 alloy pods as a *downstream*
+effect: Loki rejects entries older than 168h, idle pods (svclb-\*, node-exporter, kube-state-metrics)
+had emitted nothing since the Jul 25 boot, and alloy re-opens those streams from the same offset
+forever. The weekly reboot had been implicitly preventing that; one missed cycle surfaced it.
+
+**The second bite.** Clearing the CP's cached tarball let phase1 succeed and the full cycle ran — but
+phase2's worker upgrades failed on the *same* stale file, because workers redirect
+`SRCDEST=/var/lib/node-maintenance/.cache/makepkg/sources`, which the CP has no override for. PLAY 1's
+rescue swallowed it (correctly — a hard failure there strands `phase2-pending` and gates drift-heal
+cluster-wide, 2026-06-20). `node_pkg_upgrade_success` was the only thing that saw it: CP=1,
+worker-node=0, worker-node-2=0. That metric exists because immich-vm went two weeks unpatched
+undetected in July; it paid for itself here.
+
+**Fix** (`db048f3c`). `yay_cmd` gains `--cleanafter`, and the worker `makepkg.conf` template drops its
+`SRCDEST` override. Both are needed: measured on the workers, `--cleanafter` logged
+`Cleaning (1/1): .cache/yay/flux-bin` while the tarball survived in `.cache/makepkg/sources` — it
+cleans only yay's own per-package tree, so it covers sources *only* while `SRCDEST` is unset. No
+system-wide `SRCDEST` exists in `/etc/makepkg.conf{,.d/}` on any node, and the CP has never had a user
+override, so unset falls back to the CP's proven-working behaviour.
+
+**Residual.** `--cleanafter` only fires after a *successful* install, so a failed build still leaves a
+shadowing source — accepted, since the failure is now visible via `NodePackageUpgradeFailed`.
+
+---
+
 ### 2026-07-31 — A chart bump silently stopped the VM operator reconciling for two hours
 
 Renovate merged `b1116022` (victoria-metrics-operator chart 0.66.3 → 0.67.0, operator v0.73.1 →
