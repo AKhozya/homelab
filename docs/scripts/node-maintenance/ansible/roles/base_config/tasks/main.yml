@@ -263,9 +263,16 @@
   tags: [base-config, user, authorized-keys]
 
 # node-maintenance user-scoped makepkg override: phase2 AUR yay runs need a writable
-# BUILDDIR/SRCDEST/PKGDEST. A user-scope ~/.config/pacman/makepkg.conf wins over any
+# BUILDDIR/PKGDEST. A user-scope ~/.config/pacman/makepkg.conf wins over any
 # system-wide /etc/makepkg.conf.d/ entry for this user (yay otherwise hits
 # "Failed to create the directory $BUILDDIR" against a non-writable system path).
+# SRCDEST is deliberately NOT set: `yay --cleanafter` only cleans its own per-package
+# tree under .cache/yay/, so a redirected SRCDEST accumulates source tarballs it never
+# touches. Left unset, sources land in the package dir and get cleaned. Measured
+# 2026-08-01 — with SRCDEST set, --cleanafter logged "Cleaning .cache/yay/flux-bin"
+# while the tarball survived in .cache/makepkg/sources. A surviving tarball shadows
+# the URL: makepkg validates the file on disk and never re-downloads, so an upstream
+# checksum correction can never be satisfied. That is what broke phase1 on 2026-08-01.
 - name: Ensure node-maintenance user pacman config dir
   ansible.builtin.file:
     path: /var/lib/node-maintenance/.config/pacman
@@ -286,7 +293,6 @@
       # Writable makepkg dirs for node-maintenance yay (phase2 AUR upgrade);
       # overrides any restrictive system-wide /etc/makepkg.conf.d/ entry.
       BUILDDIR=/tmp/makepkg-node-maintenance
-      SRCDEST=/var/lib/node-maintenance/.cache/makepkg/sources
       PKGDEST=/var/lib/node-maintenance/.cache/makepkg/packages
       SRCPKGDEST=/var/lib/node-maintenance/.cache/makepkg/srcpackages
       LOGDEST=/var/lib/node-maintenance/.cache/makepkg/logs
@@ -301,7 +307,6 @@
     group: node-maintenance
     mode: "0755"
   loop:
-    - /var/lib/node-maintenance/.cache/makepkg/sources
     - /var/lib/node-maintenance/.cache/makepkg/packages
     - /var/lib/node-maintenance/.cache/makepkg/srcpackages
     - /var/lib/node-maintenance/.cache/makepkg/logs

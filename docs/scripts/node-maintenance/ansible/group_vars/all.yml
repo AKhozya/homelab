@@ -46,7 +46,15 @@ flux_kustomizations:
 # yay command (used in both phases)
 # -Syyu (double y) forces re-download of mirror DB even if cache appears fresh —
 # catches mirror-staleness where DB lists package files that have rotated.
-yay_cmd: "sudo -u node-maintenance yay -Syyu --noconfirm --answerdiff=None --answerclean=None --removemake"
+# --cleanafter clears the per-package tree under .cache/yay/ after a successful
+# install, sources included. It cleans nothing outside that tree, so it only
+# covers sources while SRCDEST stays unset (see base_config makepkg.conf). A
+# surviving source shadows the URL — makepkg validates the file already on disk
+# and never re-downloads, so a checksum corrected upstream can never be
+# satisfied. Cost us 2026-08-01: flux-bin pkgrel=2 fixed a stale _srcver, the
+# old tarball was still parked under the new pkgver filename, validity check
+# failed, phase1 died fail-fast — no reboot, phase2 never ran, workers unpatched.
+yay_cmd: "sudo -u node-maintenance yay -Syyu --noconfirm --answerdiff=None --answerclean=None --removemake --cleanafter"
 
 # Phase2 post-rollout Failed-pod GC scope. Limited to system + infra namespaces;
 # user-app namespaces (immich, paperless, n8n, mealie, etc.) are skipped so
