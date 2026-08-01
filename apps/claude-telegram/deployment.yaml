@@ -248,6 +248,12 @@ spec:
               value: "3600000" # hourly sweep
             - name: TEMP_RETENTION_HOURS
               value: "24" # an ask_user pause holds a download open; a longer pause loses it
+            # Tracks the CPU limit below. nproc reports the node's 16 cores inside a capped
+            # pod, so whisper.cpp cannot derive this itself; left at its default of 2 the
+            # extra core would go unused. Matching threads to the cap beats oversubscribing —
+            # measured at the old 2-core cap, where -t 2 beat -t 4 by 44%.
+            - name: WHISPER_THREADS
+              value: "3"
             # CLAUDE_CODE_DEFAULT_MODEL was inert — no consumer in the CLI, SDK or bot.
             # ANTHROPIC_MODEL overrides ~/.claude/settings.json (verified against CLI 2.1.220).
             - name: ANTHROPIC_MODEL
@@ -295,8 +301,8 @@ spec:
               cpu: 100m
               memory: 256Mi
             limits:
-              cpu: 2000m
-              memory: 2Gi
+              cpu: 3000m
+              memory: 3Gi
           volumeMounts:
             - name: home
               mountPath: /home/akhozya
