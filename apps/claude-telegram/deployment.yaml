@@ -302,7 +302,10 @@ spec:
               memory: 256Mi
             limits:
               cpu: 3000m
-              memory: 3Gi
+              # Raised from 3Gi to benchmark the larger whisper models: large-v3-turbo peaked
+              # at exactly the old 3Gi ceiling, so its results were unusable. Drop this back
+              # once a model is chosen and its measured peak is known.
+              memory: 5Gi
           volumeMounts:
             - name: home
               mountPath: /home/akhozya
