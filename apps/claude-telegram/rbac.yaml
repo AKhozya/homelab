@@ -4,16 +4,27 @@ metadata:
   name: claude-telegram-ops
   labels:
     app: claude-telegram
-# EFFECTIVE PRIVILEGE = CLUSTER-ADMIN-EQUIVALENT. The `secrets` exclusion below is defence-in-depth,
-# NOT a security boundary: cluster-wide `pods/exec create` lets this bot exec into any pod (e.g. a
-# flux-system controller) and read that pod's ServiceAccount token, and cluster-wide `deployments patch`
-# lets it alter privileged workloads — either path reaches full cluster control. Treat a bot compromise
-# as a cluster compromise. Real controls: Telegram sender allowlist, the safety hook, image supply chain
-# (SHA-pinned build + SOPS), and GitOps drift-heal reverting out-of-band changes. Do NOT rely on the
-# secrets exclusion to bound blast radius. (Ultrareview 2026-07-03; supersedes the UR2 P3-7 framing.)
+# Cluster-wide READ, plus two low-damage cleanup verbs. The verbs that amount to code execution
+# — pods/exec, jobs create, and workload patch — live in `claude-telegram-exec` below and are
+# bound per namespace, not cluster-wide.
+#
+# This split replaces the previous posture ("EFFECTIVE PRIVILEGE = CLUSTER-ADMIN-EQUIVALENT …
+# treat a bot compromise as a cluster compromise", ultrareview 2026-07-03). Two findings on
+# 2026-08-02 moved it:
+#   - `patch` on the Flux CRDs was cluster-wide, and all 7 Kustomizations live in flux-system
+#     alongside `sops-age`, the key that decrypts every SOPS secret in the repo. One patch
+#     repointing a Kustomization's sourceRef/path makes kustomize-controller apply arbitrary
+#     manifests. It also contradicted the old header, which named GitOps drift-heal as a real
+#     control while leaving the bot able to suspend it. Flux is now read-only here.
+#   - `pods/exec create` cluster-wide reached any pod's mounted Secrets and SA token, which made
+#     the `secrets` exclusion below cosmetic rather than a boundary.
+#
+# Still NOT a hard boundary: the pod runs with BASH_SANDBOX_ENABLED=false and ships an
+# authenticated `codex` binary configured `sandbox_mode = "danger-full-access"`, so anything
+# reachable from this pod's own filesystem and network is reachable by an injected prompt. What
+# this split bounds is reach into OTHER namespaces. See SECURITY.md in the bot repo.
 rules:
-  # Read core resources — secrets excluded so casual `get secret` fails, but see the header: exec+patch
-  # make this cosmetic, not a boundary. The old resources:["*"] in the core group also granted secrets.
+  # Read core resources — secrets excluded.
   - apiGroups: [""]
     resources:
       - pods
@@ -34,27 +45,20 @@ rules:
   - apiGroups: ["apps", "batch", "networking.k8s.io"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
-  # Flux operations (reconcile = patch)
-  - apiGroups: ["kustomize.toolkit.fluxcd.io", "helm.toolkit.fluxcd.io", "source.toolkit.fluxcd.io"]
+  # Flux: READ ONLY. `patch` is what `flux reconcile` needs, and it is also what repoints a
+  # Kustomization at arbitrary manifests — RBAC cannot restrict patch to one annotation. Forcing a
+  # reconcile is a release-time action from a workstation, not phone-driven alert triage; the
+  # controllers reconcile on their own interval regardless.
+  - apiGroups:
+      ["kustomize.toolkit.fluxcd.io", "helm.toolkit.fluxcd.io", "source.toolkit.fluxcd.io"]
     resources: ["*"]
-    verbs: ["get", "list", "watch", "patch"]
+    verbs: ["get", "list", "watch"]
   # Pod logs
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
-  # Pod exec (kubectl exec diagnostics)
-  - apiGroups: [""]
-    resources: ["pods/exec"]
-    verbs: ["create"]
-  # Rollout restart (patch deployments/statefulsets/daemonsets)
-  - apiGroups: ["apps"]
-    resources: ["deployments", "statefulsets", "daemonsets"]
-    verbs: ["patch"]
-  # Jobs (manual Popeye scans, backup triggers)
-  - apiGroups: ["batch"]
-    resources: ["jobs"]
-    verbs: ["create", "delete"]
-  # Cleanup completed pods and stale replicasets
+  # Deleting a pod is the commonest "fix a stuck app" action and the least damaging: a Deployment,
+  # StatefulSet or operator recreates it from the spec in git. Left cluster-wide deliberately.
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["delete"]
@@ -146,3 +150,41 @@ subjects:
   - kind: ServiceAccount
     name: claude-telegram
     namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: claude-telegram-exec
+  labels:
+    app: claude-telegram
+# The three verbs that are code execution by another name. Defined once as a ClusterRole, then
+# bound with a RoleBinding per namespace below — a ClusterRoleBinding here would restore exactly
+# what this change removes.
+#
+# Namespaces deliberately WITHOUT these bindings, and why:
+#   kube-system         cluster control plane
+#   flux-system         sops-age (decrypts every secret in the repo) + the git deploy key
+#   kyverno             patching it disables every admission policy at once
+#   cert-manager        TLS private keys
+#   cloudflare-tunnel   the tunnel credential, i.e. the public ingress path
+#   authentik           SSO — owning it means owning everything behind it
+#   databases           Postgres/CouchDB data and credentials
+#   percona-mysql       MySQL data and credentials
+#   obsidian            CouchDB data (LiveSync)
+#   traefik             the ingress controller; patching it intercepts all cluster traffic
+# The bot keeps full READ on all of them, plus `pods delete`, so alert triage still works there —
+# it just cannot execute inside them. Add a binding back if a real workflow needs it; that is a
+# one-line change and a deliberate one.
+rules:
+  # kubectl exec — diagnostics inside a running container
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+  # kubectl rollout restart
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+    verbs: ["patch"]
+  # Manual Popeye scans, backup triggers
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "delete"]

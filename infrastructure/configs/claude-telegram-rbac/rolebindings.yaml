@@ -1,0 +1,319 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: audiobookshelf
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: backup-replication
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: blocky
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: claude-telegram
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: home-assistant
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: homehub
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: homepage
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: immich
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: linkwarden
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: loki
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: mealie
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: monitoring
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: n8n
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: paperless-ngx
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: popeye
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: pricebuddy
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: rustdesk
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: stirling-pdf
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: trivy-scan
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-exec
+  namespace: uptime-kuma
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram

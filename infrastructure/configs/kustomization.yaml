@@ -8,4 +8,5 @@ resources:
   - backup
   - backup-replication
   - resource-governance
+  - claude-telegram-rbac
   - intel-gpu-plugin
