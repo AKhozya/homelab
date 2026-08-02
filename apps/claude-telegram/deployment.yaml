@@ -37,7 +37,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: chezmoi-init
-          image: ghcr.io/akhozya/claude-telegram-bot:1.31.1
+          image: ghcr.io/akhozya/claude-telegram-bot:1.31.3
           command:
             - /bin/bash
             - -c
@@ -113,12 +113,28 @@ spec:
               # .chezmoiignore excludes .ssh
               chezmoi apply --force --no-tty || true
 
+              # The hook scripts now ship in the image, where the read-only rootfs puts them
+              # beyond anything the model runs. Assert before rewiring: without this a
+              # packaging slip would delete the PVC copies below and leave nothing behind.
+              for h in validate-safe-bash.sh flux-push-reminder.sh session-pull.sh context-mode-cache-heal.mjs; do
+                [ -x "/app/hooks/$h" ] || { echo "FATAL: /app/hooks/$h missing or not executable" >&2; exit 1; }
+              done
+
               # ~/.claude/settings.json is .chezmoiignore'd on linux (it carries macOS /Users paths),
               # so chezmoi never sets model/effort here — the PVC copy would drift forever otherwise.
               # ANTHROPIC_MODEL below also pins the model; this keeps the file honest if that env is lost.
               # Unguarded on purpose, unlike the || true below: only ENOENT is tolerated, so malformed
-              # JSON aborts init rather than rewriting the PVC-only file (not in git) down to two keys.
-              node -e 'const fs=require("fs"),d=process.env.HOME+"/.claude",p=d+"/settings.json";let s={};try{s=JSON.parse(fs.readFileSync(p,"utf8"))}catch(e){if(e.code!=="ENOENT")throw e}s.model="claude-opus-5";s.effortLevel="xhigh";fs.mkdirSync(d,{recursive:true});fs.writeFileSync(p,JSON.stringify(s,null,2)+"\n")'
+              # JSON aborts init rather than rewriting the PVC-only file (not in git) down to three keys.
+              # hooks is REPLACED, never merged — a merge would keep an injected entry forever. The
+              # Bash denylist is deliberately absent: SAFETY_HOOK runs it from bot code instead, so
+              # deleting this key cannot disarm it. What is left denies nothing.
+              # Temp file plus rename because an interrupted write leaves malformed JSON, which the
+              # throw above then turns into a pod that never starts.
+              node -e 'const fs=require("fs"),d=process.env.HOME+"/.claude",p=d+"/settings.json";let s={};try{s=JSON.parse(fs.readFileSync(p,"utf8"))}catch(e){if(e.code!=="ENOENT")throw e}s.model="claude-opus-5";s.effortLevel="xhigh";s.hooks={PostToolUse:[{matcher:"Bash",hooks:[{type:"command",command:"/app/hooks/flux-push-reminder.sh"}]}],SessionStart:[{hooks:[{type:"command",command:"/app/hooks/session-pull.sh"}]},{hooks:[{type:"command",command:"/app/hooks/context-mode-cache-heal.mjs"}]}]};fs.mkdirSync(d,{recursive:true});fs.writeFileSync(p+".tmp",JSON.stringify(s,null,2)+"\n");fs.renameSync(p+".tmp",p)'
+
+              # Nothing references the PVC copies now. Left in place they invite an edit that
+              # silently does nothing, and they stay writable while the image copies do not.
+              rm -rf ~/.claude/hooks
 
               # Reconcile bot plugin state to the chezmoi SOURCE (fresh from git), NOT ~/.claude/plugins:
               # that tree is .chezmoiignore'd on linux, so the PVC seed never self-updates. PRUNE what
@@ -252,7 +268,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: claude-telegram
-          image: ghcr.io/akhozya/claude-telegram-bot:1.31.1
+          image: ghcr.io/akhozya/claude-telegram-bot:1.31.3
           env:
             - name: HOME
               value: /home/akhozya
@@ -285,6 +301,10 @@ spec:
             # NetworkPolicy. env-secret scrub, strictMcpConfig, and the native-tool gates stay on.
             - name: BASH_SANDBOX_ENABLED
               value: "false"
+            # Arms the external Bash denylist. Unset would silently switch that layer off,
+            # so the init assertion above fails the pod rather than let the path go stale.
+            - name: SAFETY_HOOK
+              value: /app/hooks/validate-safe-bash.sh
             - name: SESSION_FILE_PATH
               value: /home/akhozya/data/session.json
             - name: RESTART_FILE_PATH
@@ -362,7 +382,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync
-          image: ghcr.io/akhozya/claude-telegram-bot:1.31.1
+          image: ghcr.io/akhozya/claude-telegram-bot:1.31.3
           command:
             - /bin/bash
             - -c
