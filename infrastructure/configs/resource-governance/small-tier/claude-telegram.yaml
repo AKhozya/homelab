@@ -33,10 +33,10 @@ spec:
     requests.cpu: 200m
     requests.memory: 512Mi
     limits.cpu: 3500m
-    # 8Gi, not 4: the pod's own limit went to 5Gi to benchmark the larger whisper models, and
-    # quota counts the whole pod — 5Gi main plus 128Mi sync — so a 4Gi ceiling rejected it
-    # outright. Deployment strategy is Recreate, so that rejection took the bot down rather
-    # than leaving the old pod running. Trim both together once a model is chosen.
+    # 8Gi, not 4: quota counts the whole pod — 5Gi main plus 128Mi sync — and the main
+    # container needs 5Gi to survive two concurrent transcriptions. Raising the pod limit
+    # without raising this rejects pod creation outright, and with strategy: Recreate that
+    # takes the bot down rather than failing the rollout.
     limits.memory: 8Gi
     pods: "4"
     services: "10"

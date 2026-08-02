@@ -37,7 +37,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: chezmoi-init
-          image: ghcr.io/akhozya/claude-telegram-bot:1.29.0
+          image: ghcr.io/akhozya/claude-telegram-bot:1.30.0
           command:
             - /bin/bash
             - -c
@@ -209,7 +209,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: claude-telegram
-          image: ghcr.io/akhozya/claude-telegram-bot:1.29.0
+          image: ghcr.io/akhozya/claude-telegram-bot:1.30.0
           env:
             - name: HOME
               value: /home/akhozya
@@ -302,9 +302,10 @@ spec:
               memory: 256Mi
             limits:
               cpu: 3000m
-              # Raised from 3Gi to benchmark the larger whisper models: large-v3-turbo peaked
-              # at exactly the old 3Gi ceiling, so its results were unusable. Drop this back
-              # once a model is chosen and its measured peak is known.
+              # 5Gi, not 3: whisper-small peaks at 1646MB, and index.ts only sequentializes
+              # per chat — one allowed user posting from a private chat and a group can
+              # transcribe concurrently, so two peaks land at once and 3Gi OOMKills. A limit
+              # reserves nothing (requests stay at 256Mi), so the headroom is free.
               memory: 5Gi
           volumeMounts:
             - name: home
@@ -312,7 +313,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync
-          image: ghcr.io/akhozya/claude-telegram-bot:1.29.0
+          image: ghcr.io/akhozya/claude-telegram-bot:1.30.0
           command:
             - /bin/bash
             - -c
