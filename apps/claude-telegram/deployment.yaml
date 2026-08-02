@@ -230,8 +230,14 @@ spec:
             - name: ALLOWED_PATHS
               value: "/home/akhozya"
             # OS-level Bash sandbox off in-pod: its Linux backend is bubblewrap, which needs
-            # unprivileged user namespaces that this pod's seccompProfile RuntimeDefault blocks
-            # (same reason codex runs danger-full-access above). The pod IS the sandbox —
+            # unprivileged user namespaces. Blocked by seccompProfile RuntimeDefault COMBINED WITH
+            # capabilities.drop ALL — containerd builds its default profile from the bounding
+            # capability set and allowlists unshare/mount/clone3 only under CAP_SYS_ADMIN, while
+            # pivot_root is absent from that profile entirely, so bwrap fails even with the
+            # capability. Same reason codex runs danger-full-access above — true for codex >= 0.115,
+            # which moved the Linux backend from Landlock to bwrap, so re-verify on a major bump.
+            # Running codex danger-full-access inside a container is OpenAI's own documented
+            # guidance when the container is the intended boundary. The pod IS the sandbox —
             # readOnlyRootFilesystem confines writes to the mounted paths, caps dropped, egress
             # NetworkPolicy. env-secret scrub, strictMcpConfig, and the native-tool gates stay on.
             - name: BASH_SANDBOX_ENABLED

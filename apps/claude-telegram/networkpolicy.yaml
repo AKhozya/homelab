@@ -29,12 +29,25 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
-    # Port 22 egress removed: bot does not initiate SSH from inside cluster
-    # (SSH config in the bot is for outside-to-bot, not bot-to-outside).
-    # SSH to homelab nodes (port 65300)
+    # Port 22 egress stays removed — nothing here uses it. The neighbouring claim that the bot
+    # "does not initiate SSH from inside cluster" was wrong and is deleted: the pod's own
+    # transcripts show ~3350 `ssh -p 65300` calls, mostly to the control plane, for the node-OS
+    # diagnostics kubectl cannot serve (journalctl, systemctl --failed, dmesg, iostat).
+    #
+    # /32s per node rather than the /24: 254 reachable hosts to talk to 4 is not least privilege,
+    # and the pod has no business reaching the NAS or anything else on the LAN. This bounds the
+    # POD, not a stolen key — a key exfiltrated from the PVC gets used from somewhere this policy
+    # does not apply. What bounds that is the absence of passwordless sudo on the nodes, and a
+    # forced-command authorized_keys entry if it ever needs to be tighter.
     - to:
         - ipBlock:
-            cidr: 192.168.1.0/24
+            cidr: 192.168.1.127/32 # gmk-k3s-control-plane
+        - ipBlock:
+            cidr: 192.168.1.129/32 # worker-node
+        - ipBlock:
+            cidr: 192.168.1.126/32 # worker-node-2
+        - ipBlock:
+            cidr: 192.168.1.231/32 # immich-vm (GPU worker)
       ports:
         - protocol: TCP
           port: 65300
