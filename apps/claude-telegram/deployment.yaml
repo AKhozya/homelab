@@ -45,6 +45,49 @@ spec:
               set -e
               export HOME=/home/akhozya
 
+              # Repo metadata is a code-execution surface nothing else heals. Every key below names
+              # a program git runs, or points at another config that can; .git/info/attributes is
+              # what arms a filter driver, and a hook may be a symlink (hence `! -type d`, not
+              # `-type f`). The sync sidecar calls `git status` in both checkouts every 30 min, so
+              # a planted value executes on a timer. A hard reset never touches .git/config,
+              # .git/hooks or .git/info, and chezmoi manages none of them on Linux — nothing else
+              # here removes them. Must run before any other git command; `git config` does not
+              # refresh the index, so it cannot fire fsmonitor itself. Matched by regex rather than
+              # a fixed key list because includeIf/filter/diff/merge keys carry a caller-chosen
+              # subsection name.
+              GIT_EXEC_RE='^(core\.(fsmonitor|hooksPath|sshCommand|pager|editor|askPass|gitProxy)|include\.path|includeIf\..+\.path|alias\..+|filter\..+\.(clean|smudge|process)|diff\.external|diff\..+\.textconv|merge\..+\.driver|credential\.(.+\.)?helper|sequence\.editor)$'
+              # Per FILE, not per scope: `--global` reads ~/.gitconfig AND ~/.config/git/config but
+              # writes only one, so a key planted in the other survives a --global --unset-all.
+              # Same for worktree scope, which --local does not reach.
+              # Fail CLOSED at both ends — a sweep that silently removes nothing is worse than none.
+              # An unparseable file aborts init, and so does a failed unset: a planted config.lock
+              # makes every write fail, which a `|| true` would hide while the key stays live.
+              # The loop reads from a process substitution, not a pipe, so `exit` leaves the script
+              # rather than a subshell.
+              scrub_git_config() {
+                [ -f "$1" ] || return 0
+                local keys k
+                keys=$(git config --file "$1" --name-only --list) || { echo "FATAL: git config read failed while scrubbing $1 — see git error above for the offending file" >&2; exit 1; }
+                while IFS= read -r k; do
+                  [ -n "$k" ] || continue
+                  git config --file "$1" --unset-all "$k" || { echo "FATAL: cannot unset $k in $1" >&2; exit 1; }
+                done < <(printf '%s\n' "$keys" | grep -iE "$GIT_EXEC_RE" | sort -u)
+              }
+              rm -f ~/.gitconfig.lock ~/.config/git/config.lock
+              scrub_git_config ~/.gitconfig
+              scrub_git_config ~/.config/git/config
+              for r in ~/.local/share/chezmoi ~/source-code/homelab; do
+                [ -d "$r/.git" ] || continue
+                # Nothing else holds these repos at init — the bot and the sync sidecar start after
+                # this container exits — so any lock here is stale, or planted to block the sweep.
+                rm -f "$r/.git/config.lock" "$r/.git/config.worktree.lock" "$r"/.git/worktrees/*/config.worktree.lock
+                for c in "$r/.git/config" "$r"/.git/config.worktree "$r"/.git/worktrees/*/config.worktree; do
+                  scrub_git_config "$c"
+                done
+                find "$r/.git/hooks" ! -type d ! -name '*.sample' -delete 2>/dev/null || true
+                rm -rf "$r/.git/info/attributes" # -rf: a directory planted here would fail rm -f and abort init
+              done
+
               # Secret mounts are read-only; SSH needs writable known_hosts — stage keys onto PVC
               rm -rf ~/.ssh
               install -d -m 700 ~/.ssh

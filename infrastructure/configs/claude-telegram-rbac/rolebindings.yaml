@@ -1,24 +1,15 @@
+# Exec is deliberately NOT bound in backup-replication, home-assistant, n8n and trivy-scan.
+# Those four are the namespaces whose pods hold a 0.0.0.0/0 egress NetworkPolicy, so exec into
+# one of them hands over unrestricted internet and routes around every egress control on the
+# bot's own pod. The bot's transcripts show zero exec calls into any of the four, so removing
+# them costs nothing measured. immich is the fifth such namespace and DOES stay — 55 recorded
+# exec calls — which is the one accepted hole.
+# Re-adding any of the four re-opens that bypass; check the namespace's NetworkPolicy first.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: claude-telegram-exec
   namespace: audiobookshelf
-  labels:
-    app: claude-telegram
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: claude-telegram-exec
-subjects:
-  - kind: ServiceAccount
-    name: claude-telegram
-    namespace: claude-telegram
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: claude-telegram-exec
-  namespace: backup-replication
   labels:
     app: claude-telegram
 roleRef:
@@ -51,22 +42,6 @@ kind: RoleBinding
 metadata:
   name: claude-telegram-exec
   namespace: claude-telegram
-  labels:
-    app: claude-telegram
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: claude-telegram-exec
-subjects:
-  - kind: ServiceAccount
-    name: claude-telegram
-    namespace: claude-telegram
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: claude-telegram-exec
-  namespace: home-assistant
   labels:
     app: claude-telegram
 roleRef:
@@ -194,22 +169,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: claude-telegram-exec
-  namespace: n8n
-  labels:
-    app: claude-telegram
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: claude-telegram-exec
-subjects:
-  - kind: ServiceAccount
-    name: claude-telegram
-    namespace: claude-telegram
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: claude-telegram-exec
   namespace: paperless-ngx
   labels:
     app: claude-telegram
@@ -275,22 +234,6 @@ kind: RoleBinding
 metadata:
   name: claude-telegram-exec
   namespace: stirling-pdf
-  labels:
-    app: claude-telegram
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: claude-telegram-exec
-subjects:
-  - kind: ServiceAccount
-    name: claude-telegram
-    namespace: claude-telegram
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: claude-telegram-exec
-  namespace: trivy-scan
   labels:
     app: claude-telegram
 roleRef:
