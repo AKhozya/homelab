@@ -33,7 +33,11 @@ spec:
     requests.cpu: 200m
     requests.memory: 512Mi
     limits.cpu: 3500m
-    limits.memory: 4Gi
+    # 8Gi, not 4: the pod's own limit went to 5Gi to benchmark the larger whisper models, and
+    # quota counts the whole pod — 5Gi main plus 128Mi sync — so a 4Gi ceiling rejected it
+    # outright. Deployment strategy is Recreate, so that rejection took the bot down rather
+    # than leaving the old pod running. Trim both together once a model is chosen.
+    limits.memory: 8Gi
     pods: "4"
     services: "10"
     persistentvolumeclaims: "5"
