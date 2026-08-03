@@ -262,6 +262,42 @@
   when: "'workers' in group_names"
   tags: [base-config, user, authorized-keys]
 
+# ---- claude-telegram bot: forced command on its SSH key ----
+# The bot pod holds its own key on these accounts and uses it for the node-OS diagnostics the
+# Kubernetes API cannot serve. Unrestricted that key is a full shell, which is a way around the
+# pod's egress NetworkPolicy — curl from a node reaches the internet the pod may not. agent-diag
+# allows a fixed set of read-only commands and nothing else.
+#
+# Both tasks are gated on the pubkey being set for the host, so a node without a bot key (immich-vm
+# — its authorized_keys is exclusive and carries no bot key) is untouched. Set it in host_vars.
+#
+# Drift-heal is the reason this lives here rather than in a one-off script: a `command=` entry
+# edited by hand disappears silently the moment anything rewrites the file, and a security control
+# that can vanish without a signal is the failure this is meant to prevent.
+- name: Install agent-diag forced command wrapper
+  ansible.builtin.copy:
+    src: agent-diag
+    dest: /usr/local/bin/agent-diag
+    owner: root
+    group: root
+    mode: "0755"
+  when: agent_diag_bot_pubkey | default('') | length > 0
+  tags: [base-config, user, authorized-keys]
+
+# authorized_key, not lineinfile: it matches a key by its key material. A regexp over the comment
+# that misses would APPEND the restricted line and leave the unrestricted one in place — the
+# restriction voids while the run reports changed. exclusive:false so the operator's own key on
+# the same account is never touched; that key is the way back in if this entry is ever wrong.
+- name: Restrict the claude-telegram bot key to agent-diag
+  ansible.posix.authorized_key:
+    user: "{{ admin_user }}"
+    key: "{{ agent_diag_bot_pubkey }}"
+    key_options: 'command="/usr/local/bin/agent-diag",restrict'
+    exclusive: false
+    state: present
+  when: agent_diag_bot_pubkey | default('') | length > 0
+  tags: [base-config, user, authorized-keys]
+
 # node-maintenance user-scoped makepkg override: phase2 AUR yay runs need a writable
 # BUILDDIR/PKGDEST. A user-scope ~/.config/pacman/makepkg.conf wins over any
 # system-wide /etc/makepkg.conf.d/ entry for this user (yay otherwise hits

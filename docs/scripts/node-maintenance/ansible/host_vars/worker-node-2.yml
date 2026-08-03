@@ -50,3 +50,10 @@ primary_network_file: 20-wired-static.network
 # two workers never self-reboot together. W2 = the Realtek r8169 node that lost the
 # 2026-07-10 reload↔tunnel race → the primary beneficiary of this watchdog.
 node_isolation_reboot_index: 1
+
+# ---- claude-telegram bot SSH key (base_config forced command) ----
+# Public key of the bot pod's identity. Setting this makes base_config install
+# /usr/local/bin/agent-diag and pin this key to it with command=…,restrict, so the key serves
+# read-only diagnostics instead of a shell. Unset on a host = the tasks skip (immich-vm carries
+# no bot key). Public keys are not secret; the operator's own key on this account is untouched.
+agent_diag_bot_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII6y/bDuSaR/mRuwgRj0Amuzcwev30tNoenExFvFjCIM claude-telegram-bot"

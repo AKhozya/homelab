@@ -1,0 +1,119 @@
+#!/bin/bash
+# Forced command for the claude-telegram bot's SSH key. The bot reaches these nodes to read
+# things the Kubernetes API does not carry (journal, units, load). Without this it gets a full
+# shell as the login user, which is a way around the pod's own egress NetworkPolicy: curl from a
+# node reaches the internet the pod is not allowed to reach.
+#
+# Two allowlists, no denylists anywhere:
+#   1. a character set the whole command must fit inside, so no shell ever parses it;
+#   2. per-verb: every token starting with `-` must match an entry exactly.
+#
+# Rule 2 is not fussiness. Naming the dangerous options instead does not work, because the tools
+# accept spellings a pattern list never covers — all verified on the node:
+#   systemctl status k3s -qHhost      clustered short options; `-H*` never sees it
+#   systemctl --hos=host status k3s   getopt_long accepts any unambiguous abbreviation
+#   journalctl --vacuum-siz=100G      same, and it really does delete archived journals
+#   journalctl -n1 --cursor-file=/f   writes a caller-named file
+# The first two spawn ssh. An allowlist is immune to all four: an unlisted spelling is unlisted.
+#
+# `sar` is absent for the same reason it cannot be made safe cheaply: `sar -o <file>` writes an
+# arbitrary file, and the 30-day transcript corpus contains no use of it.
+set -u
+
+cmd=${SSH_ORIGINAL_COMMAND-}
+[ -n "$cmd" ] || { echo "agent-diag: no interactive shell" >&2; exit 1; }
+
+# Rejects pipes, redirects, quotes, $, backticks, globs, newlines, backslashes — everything a
+# shell would treat as syntax. What survives cannot be anything but a plain argv.
+case $cmd in
+  *[!A-Za-z0-9\ ._:/,=+@-]*)
+    echo "agent-diag: illegal character in command" >&2; exit 1 ;;
+esac
+
+# Safe only because of the charset check above: no globs survive it, so pathname expansion during
+# the split below has nothing to expand.
+# shellcheck disable=SC2086
+set -- $cmd
+verb=$1
+shift
+
+# Exact match or nothing. Options that carry a value are listed with `=*`, which still pins the
+# option name; the separate-argument forms (`-u k3s`) pass because the value does not start with
+# a dash and is therefore an operand.
+opt_ok() {
+  case $1 in
+    journalctl)
+      case $2 in
+        -u|-n|-p|-o|-S|-U|-b|-k|-r|-x|-q) return 0 ;;
+        -n[0-9]*|-p[0-7]) return 0 ;;
+        --unit=*|--lines=*|--since=*|--until=*|--priority=*|--output=*|--grep=*) return 0 ;;
+        --boot|--dmesg|--reverse|--catalog|--no-pager|--no-hostname|--quiet|--system|--utc|--full)
+          return 0 ;;
+      esac ;;
+    systemctl)
+      case $2 in
+        -l|-a|-q|-n|-o|-p|-t) return 0 ;;
+        --lines=*|--output=*|--property=*|--type=*|--state=*) return 0 ;;
+        --full|--all|--plain|--no-legend|--no-pager|--quiet|--value) return 0 ;;
+      esac ;;
+    ls)
+      case $2 in -l|-a|-A|-h|-t|-r|-1|-la|-lh|-lt|-ltr|-lah|-lart|--full-time) return 0 ;; esac ;;
+    ps)
+      case $2 in -e|-f|-ef|-o|-eo|--sort=*) return 0 ;; esac ;;
+    ps-operand)
+      # procps takes BSD options with no dash, so an operand check that only looks at tokens
+      # starting with `-` never sees them. `ps e` is refused by this build, but relying on that
+      # is relying on a version. Only the two shapes actually used are accepted.
+      case $2 in aux|auxww) return 0 ;; esac ;;
+    vmstat)
+      case $2 in -a|-d|-s|-t|-w) return 0 ;; esac ;;
+    uptime)
+      case $2 in -p|-s) return 0 ;; esac ;;
+    cat) ;;
+  esac
+  return 1
+}
+
+case $verb in
+  journalctl) bin=/usr/bin/journalctl ;;
+  systemctl)
+    bin=/usr/bin/systemctl
+    # The subcommand must come first. Scanning for "the first token that is not an option" would
+    # pick up the value of a separated option instead (`-p Type show` → `Type`), so this stays
+    # positional and the documented call shape is `systemctl <verb> <unit> [options]`.
+    case ${1-} in
+      status|show|cat|is-active|is-enabled|is-failed|list-units|list-unit-files|list-timers) ;;
+      *) echo "agent-diag: systemctl ${1-} not permitted" >&2; exit 1 ;;
+    esac
+    ;;
+  uptime)     bin=/usr/bin/uptime ;;
+  vmstat)     bin=/usr/bin/vmstat ;;
+  ps)         bin=/usr/bin/ps ;;
+  ls)         bin=/usr/bin/ls ;;
+  cat)        bin=/usr/bin/cat ;;
+  *)
+    echo "agent-diag: $verb not permitted" >&2; exit 1 ;;
+esac
+
+for a in "$@"; do
+  case $a in
+    -*) opt_ok "$verb" "$a" || {
+          echo "agent-diag: $verb option $a not permitted" >&2; exit 1; } ;;
+    *)
+      # Operands are free for the tools that take paths or counts. `ps` is the exception: its
+      # BSD syntax makes a bare word an option.
+      if [ "$verb" = ps ] && ! opt_ok ps-operand "$a"; then
+        echo "agent-diag: ps operand $a not permitted" >&2; exit 1
+      fi ;;
+  esac
+done
+
+# `restrict` already denies a pty, and without one neither tool pages — verified: `tty` reports
+# "not a tty" and journalctl returns its output directly. This makes that independent of the
+# authorized_keys options staying correct, because a pager is an interactive `!sh` away from a
+# shell.
+case $verb in
+  journalctl|systemctl) set -- "$@" --no-pager ;;
+esac
+
+exec "$bin" "$@"

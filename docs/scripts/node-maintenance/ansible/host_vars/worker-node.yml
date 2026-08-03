@@ -51,3 +51,10 @@ primary_network_file: 20-ethernet.network
 # Reboot stagger index 0 → self-reboots at 15min isolated. W2 is index 1 (23min), so the
 # two workers never self-reboot together (leaderless rolling reboot; HA DBs lose ≤1 replica).
 node_isolation_reboot_index: 0
+
+# ---- claude-telegram bot SSH key (base_config forced command) ----
+# Public key of the bot pod's identity. Setting this makes base_config install
+# /usr/local/bin/agent-diag and pin this key to it with command=…,restrict, so the key serves
+# read-only diagnostics instead of a shell. Unset on a host = the tasks skip (immich-vm carries
+# no bot key). Public keys are not secret; the operator's own key on this account is untouched.
+agent_diag_bot_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII6y/bDuSaR/mRuwgRj0Amuzcwev30tNoenExFvFjCIM claude-telegram-bot"

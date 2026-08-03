@@ -1,8 +1,14 @@
 ---
 # kubernetes.core: k8s_info / k8s modules (weekly node-maintenance playbooks).
 # community.general: ufw module (firewall role).
+# ansible.posix: authorized_key module (base_config, claude-telegram forced command). Worth a
+# collection because it matches a key by its key material; lineinfile matches by a regexp over
+# the comment, and a regexp that misses APPENDS the restricted line while the unrestricted one
+# stays — the restriction silently voids and the run still reports changed.
 collections:
   - name: kubernetes.core
     version: ">=6.0.0,<7.0.0"
   - name: community.general
     version: ">=9.0.0,<14.0.0"
+  - name: ansible.posix
+    version: ">=1.5.0,<3.0.0"
