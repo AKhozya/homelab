@@ -6,7 +6,6 @@ resources:
   - networkpolicy.yaml
   - ingress.yaml
   - certificate.yaml
-  - servicemonitor.yaml
   - pdb.yaml
   # Staging extras
   - serviceaccount.yaml

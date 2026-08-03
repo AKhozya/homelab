@@ -7,7 +7,6 @@ resources:
   - cluster.yaml
   - networkpolicy.yaml
   - exporter.yaml
-  - servicemonitor.yaml
   - pdb.yaml
   # Staging extras
   - jobs-serviceaccount.yaml     # mysql-jobs (backup SA; was staging serviceaccount.yaml)
