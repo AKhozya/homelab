@@ -93,6 +93,7 @@ spec:
               install -d -m 700 ~/.ssh
               cp /etc/ssh-keys/* ~/.ssh/
               chmod 600 ~/.ssh/id_ed25519 ~/.ssh/config
+              chmod 600 ~/.ssh/gh-homelab ~/.ssh/gh-dotfiles ~/.ssh/gh-fork
               chmod 644 ~/.ssh/id_ed25519.pub ~/.ssh/known_hosts 2>/dev/null || true
 
               echo "Scanning node SSH fingerprints..."
@@ -178,6 +179,19 @@ spec:
                 mkdir -p ~/source-code
                 git clone git@github.com:AKhozya/homelab.git ~/source-code/homelab
               fi
+
+              # Remotes are drift-healed here rather than left to whatever a clone or a hand edit
+              # set, because init only clones when a checkout is ABSENT — an existing PVC checkout
+              # would otherwise keep its old remote for ever. Targets currently match what the
+              # checkouts already have, so this is a deliberate no-op: the mechanism ships and runs
+              # before it is used to move anything.
+              set_remote() {
+                [ -d "$1/.git" ] || return 0   # the fork checkout is unmanaged PVC state, may be absent
+                git -C "$1" remote set-url origin "$2"
+              }
+              set_remote ~/source-code/homelab             git@github.com:AKhozya/homelab.git
+              set_remote ~/.local/share/chezmoi            git@github.com:AKhozya/dotfiles.git
+              set_remote ~/source-code/claude-telegram-bot git@github.com:AKhozya/claude-telegram-bot.git
 
               mkdir -p ~/data
 
