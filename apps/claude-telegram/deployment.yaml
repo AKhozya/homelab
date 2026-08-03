@@ -108,7 +108,7 @@ spec:
                 git -C ~/.local/share/chezmoi reset --hard "@{u}" || true
               else
                 echo "Cloning dotfiles..."
-                git clone git@github.com:AKhozya/dotfiles.git ~/.local/share/chezmoi
+                git clone git@gh-dotfiles:AKhozya/dotfiles.git ~/.local/share/chezmoi
               fi
 
               # .chezmoiignore excludes .ssh
@@ -177,21 +177,24 @@ spec:
               else
                 echo "Cloning homelab repo..."
                 mkdir -p ~/source-code
-                git clone git@github.com:AKhozya/homelab.git ~/source-code/homelab
+                git clone git@gh-homelab:AKhozya/homelab.git ~/source-code/homelab
               fi
 
               # Remotes are drift-healed here rather than left to whatever a clone or a hand edit
               # set, because init only clones when a checkout is ABSENT — an existing PVC checkout
-              # would otherwise keep its old remote for ever. Targets currently match what the
-              # checkouts already have, so this is a deliberate no-op: the mechanism ships and runs
-              # before it is used to move anything.
+              # would otherwise keep its old remote for ever.
+              #
+              # The aliases are per-repo deploy keys (ssh config lives in the secret); only
+              # gh-homelab carries write. Roll back by pointing these AND the two clone URLs above
+              # back at git@github.com: — a plain revert would strip the aliases from the ssh config
+              # while the checkouts still referenced them, breaking every fetch.
               set_remote() {
                 [ -d "$1/.git" ] || return 0   # the fork checkout is unmanaged PVC state, may be absent
                 git -C "$1" remote set-url origin "$2"
               }
-              set_remote ~/source-code/homelab             git@github.com:AKhozya/homelab.git
-              set_remote ~/.local/share/chezmoi            git@github.com:AKhozya/dotfiles.git
-              set_remote ~/source-code/claude-telegram-bot git@github.com:AKhozya/claude-telegram-bot.git
+              set_remote ~/source-code/homelab             git@gh-homelab:AKhozya/homelab.git
+              set_remote ~/.local/share/chezmoi            git@gh-dotfiles:AKhozya/dotfiles.git
+              set_remote ~/source-code/claude-telegram-bot git@gh-fork:AKhozya/claude-telegram-bot.git
 
               mkdir -p ~/data
 
