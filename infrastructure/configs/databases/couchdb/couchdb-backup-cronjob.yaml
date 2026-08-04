@@ -106,7 +106,7 @@ spec:
                   memory: "64Mi"
           containers:
             - name: backup
-              image: node:24.18.1-alpine
+              image: node:24.19.0-alpine
               command:
                 - /bin/sh
                 - -c
