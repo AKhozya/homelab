@@ -28,6 +28,10 @@ spec:
         - name: meilisearch
           image: getmeili/meilisearch:v1.52.0
           command: ["meilisearch"]
+          # Permanent, not one-time: meilisearch refuses to start when the DB
+          # format lags the engine, so every renovate tag bump needs this to
+          # self-migrate. Removing it CrashLoops on the next bump (2026-07-27,
+          # 2026-08-04). Named --experimental-dumpless-upgrade before v1.51.0.
           args:
             - "--upgrade-db"
           ports:
