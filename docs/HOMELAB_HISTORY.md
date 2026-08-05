@@ -17,6 +17,65 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-08-05 — A one-line Renovate tag bump made the MySQL replica unrebuildable
+
+Renovate PRs #1008 and #1007 merged at 19:31 UTC, nine seconds apart:
+`percona/percona-server` `8.4.10-10.1 → 9.7.1-1.1` and `percona/percona-mysql-router`
+`8.4.10 → 9.7.1`. Flux applied, the StatefulSet recreated `main-mysql-mysql-0` at 19:35 on the
+9.7 image, and it never came up:
+
+```
+[Clone] Client: Command COM_INIT: error: 3864: Clone Donor MySQL version: 8.4.10-10
+        is different from Recipient MySQL version 9.7.1-1..
+[Server] Received SHUTDOWN from user <via user signal>. Shutting down mysqld
+```
+
+The clone plugin refuses a cross-major donor, so the operator's bootstrap shut mysqld down —
+cleanly, exit 0, which is why the pod looked like a graceful restart rather than a crash. 51
+restarts and ~90 minutes later `PodCrashLooping` fired. Apps never noticed: HAProxy kept routing to
+`main-mysql-mysql-1`, still on 8.4, so the visible damage was `mysql.ready 1/2` — HA gone, single
+copy of the data.
+
+**What made it worse than a bad pod.** Two things. First, the StatefulSet is
+`updateStrategy: OnDelete`, which is the *only* reason the primary survived — its live template said
+`9.7.1-1.1`, so any `delete pod`, drain, or reboot of `worker-node` would have rebuilt the primary
+on 9.7 and taken MySQL down entirely. Second, 9.7 mysqld upgraded pod-0's data dictionary in place
+before dying, so the revert alone could not fix it:
+
+```
+[ERROR] [MY-014061] [InnoDB] Invalid MySQL server downgrade:
+        Cannot downgrade from 90701 to 80410. Downgrade is only permitted between patch releases.
+```
+
+MySQL has no downgrade path, so that datadir became 9.x-only — the replica had to be rebuilt from
+its PVC up, re-cloning from the 8.4 primary.
+
+**Why nothing caught it.** The server image is not chart-managed: `ps-operator` (chart 1.2.0) ships
+only the operator Deployment and CRDs, and every data-plane image lives in the
+`PerconaServerMySQL` CR. So Renovate's `kubernetes` manager — pointed at `/\.yaml$/` — saw a bare
+`image: percona/percona-server:…`, resolved the newest docker tag, and opened a PR with no notion
+that the tag must satisfy `crVersion: "1.2.0"`'s support matrix (8.0/8.4 only). The coupling existed
+only as a YAML comment. CI cannot see it either: the tag is pinned and well-formed, so `image-pin`
+and `kubeconform` both pass; the failure is runtime-only. The major-update rule assigned a reviewer
+but set no version ceiling, and a human merge was all it took.
+
+**Fix** (`b43b0cc7`). Pins reverted to `8.4.10-10.1` / router `8.4.10`, plus `allowedVersions`
+ceilings so the class cannot recur: `/^8\.4\./` on `percona-server` + `percona-mysql-router`
+(later `percona-xtrabackup`) and `/^18\./` on `ghcr.io/cloudnative-pg/postgresql`, which had the
+identical exposure via the `imageName` customManager. Patch PRs still flow; majors are invisible
+until someone widens the ceiling on purpose, alongside the operator bump and a real upgrade path.
+
+**Rejected:** flipping `upgradeOptions.apply` from `disabled` to `8.4-recommended`. Percona's Version
+Service is matrix-aware, which is exactly the missing check, but it patches `.spec.mysql.image` in
+the CR — a field Flux owns — and would upgrade the database with no PR, no diff, and no review.
+Whoever set `disabled` was right.
+
+**Also found:** `backup.image` had been on `percona-xtrabackup:9.7.1` since #928 (2026-07-15), three
+weeks before the server bump. Inert — `backup.enabled: false`, zero `ps-backup` objects — but a 9.x
+XtraBackup cannot back up an 8.4 server, so it was wrong-by-default for whoever enabled it. Repinned
+to `8.4.0-6.1`. A ceiling alone would not have fixed this one: Renovate never downgrades, so the
+stale-high pin needed a deliberate tag pick.
+
 ### 2026-08-01 — A cached tarball no upstream fix could displace skipped a whole patch week
 
 The weekly `node-maintenance.timer` fired at 05:30:58. `node-maintenance-phase1.service` died at
