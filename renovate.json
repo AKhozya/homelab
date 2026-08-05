@@ -128,6 +128,12 @@
       "allowedVersions": "/^18\\./"
     },
     {
+      "description": "Postgres backup client: track the CNPG server's 18 line. A newer pg_dump writes dumps the 18 server cannot restore, and dumps are the only recovery path (no PITR)",
+      "matchPackageNames": ["postgres"],
+      "matchFileNames": ["**/postgres-backup-cronjob.yaml"],
+      "allowedVersions": "/^18\\./"
+    },
+    {
       "description": "MySQL backup client: track the Percona server's 8.4 line, not frozen",
       "matchPackageNames": ["mysql"],
       "matchFileNames": ["**/mysql-backup-cronjob.yaml"],
