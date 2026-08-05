@@ -114,6 +114,19 @@
       "groupName": "Percona MySQL"
     },
     {
+      "description": "Server + router stay on 8.4 LTS: ps-operator 1.2.0 supports 8.0/8.4 only, and a 9.x pod cannot clone from an 8.4 donor (2026-08-05 crashloop)",
+      "matchPackageNames": [
+        "percona/percona-server",
+        "percona/percona-mysql-router"
+      ],
+      "allowedVersions": "/^8\\.4\\./"
+    },
+    {
+      "description": "CNPG Postgres stays on 18: a major needs a deliberate pg_upgrade path plus a matching operator, never an overnight tag bump. Widen this when upgrading on purpose",
+      "matchPackageNames": ["ghcr.io/cloudnative-pg/postgresql"],
+      "allowedVersions": "/^18\\./"
+    },
+    {
       "description": "MySQL backup client: track the Percona server's 8.4 line, not frozen",
       "matchPackageNames": ["mysql"],
       "matchFileNames": ["**/mysql-backup-cronjob.yaml"],
