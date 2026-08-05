@@ -65,7 +65,9 @@ spec:
   # Backup configuration (required even if not using backups)
   backup:
     enabled: false
-    image: percona/percona-xtrabackup:9.7.1
+    # XtraBackup major must match the server's: a 9.x binary cannot back up 8.4.
+    # Inert while enabled=false, but wrong-by-default is a trap for whoever flips it.
+    image: percona/percona-xtrabackup:8.4.0-6.1
     imagePullPolicy: IfNotPresent
 
   # Toolkit sidecar (required for MySQL pods)
