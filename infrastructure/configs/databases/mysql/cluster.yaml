@@ -87,7 +87,7 @@ spec:
     size: 2
     # Grace period for draining connections during rolling updates
     gracePeriod: 30
-    image: percona/percona-server:8.4.10-10.1
+    image: percona/percona-server:9.7.1-1.1
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
     priorityClassName: homelab-critical  # critical tier (primary DB)
