@@ -12,8 +12,6 @@
       "Bash(flux resume *)",
       "Bash(flux suspend *)",
       "Bash(flux tree *)",
-      "Bash(bash ~/.agents/skills/*)",
-      "Bash(bash ~/.claude/skills/*)",
       "Bash(dyff between *)",
       "Bash(helm history *)",
       "Bash(helm list *)",
@@ -23,16 +21,13 @@
       "Bash(kubectl apply --dry-run=server *)",
       "Bash(kubectl auth can-i *)",
       "Bash(kubectl cluster-info *)",
-      "Bash(kubectl create job *)",
       "Bash(kubectl delete pod *)",
       "Bash(kubectl describe *)",
       "Bash(kubectl diff *)",
       "Bash(kubectl events *)",
-      "Bash(kubectl exec *)",
       "Bash(kubectl explain *)",
       "Bash(kubectl get *)",
       "Bash(kubectl logs *)",
-      "Bash(kubectl port-forward *)",
       "Bash(kubectl rollout restart *)",
       "Bash(kubectl rollout status *)",
       "Bash(kubectl top *)",
@@ -46,7 +41,9 @@
     ],
     "deny": [
       "Bash(kubectl create job *--from=cronjob/backup-replication*)",
-      "Bash(kubectl create job *--from=cronjob/immich-backup*)"
+      "Bash(kubectl create job *--from cronjob/backup-replication*)",
+      "Bash(kubectl create job *--from=cronjob/immich-backup*)",
+      "Bash(kubectl create job *--from cronjob/immich-backup*)"
     ]
   },
   "hooks": {
