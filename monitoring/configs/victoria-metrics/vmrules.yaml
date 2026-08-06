@@ -260,14 +260,19 @@ spec:
   - name: pod-alerts
     interval: 60s
     rules:
+    # State, not restart count — increase(kube_pod_container_status_restarts_total)
+    # false-fired x4 on a kube-state-metrics reschedule: the new KSM series is counted
+    # from 0, so the whole restart history replays as fresh restarts past any threshold.
+    # max_over_time bridges the Running gaps between kubelet retries; without it the
+    # `for` timer resets on every retry attempt and the alert can never fire.
     - alert: PodCrashLooping
-      expr: increase(kube_pod_container_status_restarts_total[15m]) > 2
-      for: 5m
+      expr: max_over_time(kube_pod_container_status_waiting_reason{reason="CrashLoopBackOff"}[5m]) >= 1
+      for: 15m
       labels:
         severity: warning
       annotations:
         summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
-        description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has restarted {{ printf \"%.0f\" $value }} times in the last 15 minutes"
+        description: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} has been in CrashLoopBackOff for more than 15 minutes"
 
     # Phase, not readiness — renamed from PodNotReady 2026-07-26 because the old name
     # described something it never measured. Catches Pending/Failed/Unknown only.
