@@ -44,12 +44,28 @@ Do **not** duplicate cluster facts here; add them to `AGENTS.md` instead.
 
 `settings.json` pre-allows read-mostly `kubectl`/`flux`/`helm`/`chezmoi` verbs
 plus the local validation tools (`kubeconform`, `kustomize build`, `yamllint`,
-`shellcheck`, `dyff`, `stern`). The write-ish verbs it allows are the safe
-GitOps-compatible ones only: `kubectl rollout restart`, `delete pod`,
-`create job`, `apply --dry-run=server`. It explicitly **denies** re-running the
-destructive DR restore CronJobs. This allowlist is a permission-prompt
-convenience — it does **not** relax the **GitOps-only** invariant in `AGENTS.md`
-(live mutation still goes through Git → Flux, never `kubectl edit/patch/replace`).
+`shellcheck`, `dyff`, `stern`). The write-ish verbs it allows are
+`kubectl rollout restart`, `delete pod`, `apply --dry-run=server`, and
+`flux reconcile` / `resume` / `suspend` — the last three do mutate live Flux
+resources, and a forgotten `suspend` silently stops reconciliation, so treat
+them as write verbs even though they change no manifest.
+
+Nothing that executes code is on the allow list. `kubectl exec`, `port-forward`
+and `create job` are each in-cluster code execution under the operator's
+cluster-admin kubeconfig — the reach that `apps/claude-telegram/rbac.yaml`
+exists to take away from the bot — so they prompt every time. Nor is `bash`
+against the `~/.claude/skills` or `~/.agents/skills` trees: those live in the
+dotfiles repo, outside this repo's pre-commit review gate, and one of them
+rewrites live database passwords.
+
+The `deny` entries name the two backup CronJobs whose re-run is destructive, in
+both the `--from=` and `--from ` spellings, because the rules match command text
+and a pattern list never covers every spelling a tool accepts. Treat them as a
+backstop on a verb that already prompts, not as the control.
+
+This allowlist is a permission-prompt convenience — it does **not** relax the
+**GitOps-only** invariant in `AGENTS.md` (live mutation still goes through
+Git → Flux, never `kubectl edit/patch/replace`).
 
 ### Review loop
 

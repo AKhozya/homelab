@@ -184,7 +184,8 @@ rules:
   - apiGroups: ["apps"]
     resources: ["deployments", "statefulsets", "daemonsets"]
     verbs: ["patch"]
-  # Manual Popeye scans, backup triggers
+  # Manual Popeye scans. Not backups: every backup CronJob lives in databases,
+  # backup-replication or kube-system, and none of those namespaces is bound.
   - apiGroups: ["batch"]
     resources: ["jobs"]
     verbs: ["create", "delete"]

@@ -1,8 +1,8 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 # Deliberately NO `namespace:` transformer. These RoleBindings each name their own target
-# namespace; a transformer here would rewrite all 20 to the same namespace and kustomize would
-# reject the build with an ID conflict. That is why they live here rather than in
+# namespace; a transformer here would rewrite every one of them to the same namespace and
+# kustomize would reject the build with an ID conflict. That is why they live here rather than in
 # apps/claude-telegram/, whose kustomization sets `namespace: claude-telegram`.
 resources:
   - rolebindings.yaml

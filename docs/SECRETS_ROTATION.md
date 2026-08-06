@@ -1,6 +1,6 @@
 # Secrets Rotation Playbook
 
-**Cluster**: K3s Homelab (k3s v1.36.2+k3s1, 4 nodes) | **Last Updated**: 2026-07-14
+**Cluster**: K3s Homelab (k3s v1.36.2+k3s1, 4 nodes) | **Last Updated**: 2026-08-06
 **Audit Trail**: rotation dates in git commit history
 
 Every secret in this cluster lives encrypted in Git using SOPS with an age key. The
@@ -108,12 +108,22 @@ cert-manager).
 | `cloudflare-tunnel-mgmt-token` | CF Tunnel Mgmt | 2026-02-19 | 2026-12-31 | Medium |
 | `node-maintenance-ssh` | Node Auto-Update (CP → workers) | 2026-04-17 | 2027-04-17 | High |
 | `homelab-deploy` (GitHub deploy key) | Node-Maintenance git sync (CP `/root/.ssh/homelab-deploy`, read-only) | 2026-04-18 | 2027-04-18 | Medium |
-| `claude-telegram-ssh` (id_ed25519) | Telegram bot — GitHub account auth + node SSH | 2026-06-12 (compromise) | 2027-06-12 | High |
+| `claude-telegram-ssh` → `id_ed25519` | Telegram bot — node SSH only (pinned to the `agent-diag` forced command since 2026-08-03, read-only diagnostics) | 2026-06-12 (compromise) | 2027-06-12 | High |
+| `claude-telegram-ssh` → `gh-homelab` | Telegram bot — GitHub deploy key, repo `homelab`, **WRITE** (`read_only=false`) | 2026-08-03 | 2027-01-30 | Critical |
+| `claude-telegram-ssh` → `gh-dotfiles` | Telegram bot — GitHub deploy key, repo `dotfiles`, read-only | 2026-08-03 | 2027-08-03 | Medium |
+| `claude-telegram-ssh` → `gh-fork` | Telegram bot — GitHub deploy key, repo `claude-telegram-bot`, read-only | 2026-08-03 | 2027-08-03 | Low |
 | `cloudflare-api-token` (`cert-manager` ns) | cert-manager DNS-01 for `*.h0melab.work` | 2025-10-19 | 2026-10-19 | Critical |
 | `sops-age` (`flux-system` ns) | SOPS decryption key for every secret in this repo | 2025-10-19 (bootstrap) | Never* | Critical |
 | `alertmanager-basic-auth` (`monitoring` ns) | Traefik basicAuth on `am.h0melab.work` | 2026-07-25 | 2027-07-25 | Medium |
 
 \* Rotate only if compromised
+
+**`gh-homelab`** is the only key here that can change what runs in the cluster. Flux reconciles
+`main` every 5 minutes, so a push with this key is a deploy — which is why it carries a 180-day
+deadline rather than the annual one the other deploy keys get. The three `gh-*` keys and
+`id_ed25519` all live in the single `claude-telegram-ssh` Secret; rotating one means re-encrypting
+that file, not replacing it. Confirm scope against GitHub rather than this table before trusting
+it: `gh api repos/AKhozya/<repo>/keys --jq '.[] | "\(.title) read_only=\(.read_only)"'`.
 
 **`sops-age`** is the root of the whole scheme — losing it makes every encrypted file in this repo unreadable, and leaking it makes all of them readable. It is deliberately *not* on a rotation clock: rotating it means re-encrypting every SOPS file in one commit. Keep an offline copy.
 
@@ -436,6 +446,14 @@ If compromised:
   - Authentik Django secret key
 
 ### 2026 Q3 (Jul-Sep)
+- [x] **2026-07-31: claude-telegram credentials rotated after a transcript leak** — bot token
+  (`7300db42`), Claude oauth token and the HTTP trigger secret (`c0301bcb`), and the Codex
+  `auth.json` refreshed from the current CLI session (`3c6e26bc`). All three live in
+  `claude-telegram-env-secret.yaml` / `claude-telegram-codex-secret.yaml`.
+- [x] **2026-08-03: three per-repo GitHub deploy keys added** to `claude-telegram-ssh`
+  (`15907135`), replacing the bot's use of the account key for git. `gh-homelab` is write-capable;
+  `gh-dotfiles` and `gh-fork` are read-only. `id_ed25519` keeps node SSH only and is now pinned to
+  the `agent-diag` forced command (`cb79cdfa`).
 - [x] 2026-07-02: Cadence change — 90-day High tier retired, all scheduled rotations now 180-day. Ex-High secrets (PG authentik/immich/n8n, MySQL HA, Redis immich) folded into the 2026-10-01 batch; Redis admin → 2026-10-26.
 - [x] **2026-07-26: Alertmanager basicAuth password moved to 1Password** (`alertmanager-homelab`,
   Personal vault) and the `alertmanager-basic-auth-credential` Secret deleted. Done 11 days ahead
