@@ -39,7 +39,8 @@ shift
 
 # Exact match or nothing. Options that carry a value are listed with `=*`, which still pins the
 # option name; the separate-argument forms (`-u k3s`) pass because the value does not start with
-# a dash and is therefore an operand.
+# a dash and is therefore an operand. A value that DOES start with a dash has to be attached to
+# its option — `-b-1`, never `-b -1` — because a lone `-1` is a dash token and is matched as one.
 opt_ok() {
   case $1 in
     journalctl)
@@ -49,6 +50,10 @@ opt_ok() {
         --unit=*|--lines=*|--since=*|--until=*|--priority=*|--output=*|--grep=*) return 0 ;;
         --boot|--dmesg|--reverse|--catalog|--no-pager|--no-hostname|--quiet|--system|--utc|--full)
           return 0 ;;
+        # Crash forensics needs the boot BEFORE the one that is running. `-b` takes an optional
+        # argument, so the offset must be attached — the separated `-b -1` cannot work here and
+        # is not meant to: a lone `-1` is a dash token, and no dash token is ever an operand.
+        -b-[0-9]*|--boot=-[0-9]*|--boot=[0-9a-f]*|--list-boots) return 0 ;;
       esac ;;
     systemctl)
       case $2 in
@@ -59,7 +64,10 @@ opt_ok() {
     ls)
       case $2 in -l|-a|-A|-h|-t|-r|-1|-la|-lh|-lt|-ltr|-lah|-lart|--full-time) return 0 ;; esac ;;
     ps)
-      case $2 in -e|-f|-ef|-o|-eo|--sort=*) return 0 ;; esac ;;
+      # No -o/-eo: both need a format list as the next argument, which the operand check below
+      # refuses, so every -eo call died anyway. `ps aux` already carries RSS and the corpus shows
+      # no other use — the same reasoning that keeps `sar` out.
+      case $2 in -e|-f|-ef|--sort=*) return 0 ;; esac ;;
     ps-operand)
       # procps takes BSD options with no dash, so an operand check that only looks at tokens
       # starting with `-` never sees them. `ps e` is refused by this build, but relying on that
@@ -70,6 +78,25 @@ opt_ok() {
     uptime)
       case $2 in -p|-s) return 0 ;; esac ;;
     cat) ;;
+    path-operand)
+      # cat and ls take a path, and until this existed they took ANY path — the forced command
+      # read anything the login user could, which is the same account the operator logs in with.
+      # Prefixes cover what the 30-day corpus actually reads: unit files and k3s config under
+      # /etc, node-maintenance state, journald spill in /var/log, per-process data in /proc.
+      # `..` is refused outright rather than resolved: the charset gate passes `.` and `/`, so
+      # /etc/../home/user/.ssh/id_ed25519 would otherwise satisfy any prefix test.
+      case $2 in *..*) return 1 ;; esac
+      # /proc is not a prefix like the others. /proc/self/root is a symlink to /, and
+      # /proc/<pid>/cwd is one to wherever that process sits, so `/proc/` as a bare prefix hands
+      # back the whole filesystem. Only the system-wide files (one component: meminfo, loadavg,
+      # stat …), the pressure trio, and the per-process files that carry no path are listed.
+      case $2 in
+        /proc/pressure/cpu|/proc/pressure/io|/proc/pressure/memory) return 0 ;;
+        /proc/[0-9]*/status|/proc/[0-9]*/stat|/proc/[0-9]*/cmdline|/proc/[0-9]*/io|/proc/[0-9]*/limits) return 0 ;;
+        /proc/*/*) return 1 ;;
+        /proc/*) return 0 ;;
+      esac
+      case $2 in /etc/*|/sys/*|/var/log/*|/usr/local/bin/*|/usr/local/sbin/*) return 0 ;; esac ;;
   esac
   return 1
 }
@@ -100,11 +127,15 @@ for a in "$@"; do
     -*) opt_ok "$verb" "$a" || {
           echo "agent-diag: $verb option $a not permitted" >&2; exit 1; } ;;
     *)
-      # Operands are free for the tools that take paths or counts. `ps` is the exception: its
-      # BSD syntax makes a bare word an option.
-      if [ "$verb" = ps ] && ! opt_ok ps-operand "$a"; then
-        echo "agent-diag: ps operand $a not permitted" >&2; exit 1
-      fi ;;
+      # Operands are free for the tools whose operand is a unit name or a count. The two
+      # exceptions are the ones where a bare word decides what gets read: `ps`, whose BSD syntax
+      # makes a bare word an option, and cat/ls, whose bare word is a path.
+      case $verb in
+        ps)
+          opt_ok ps-operand "$a" || { echo "agent-diag: ps operand $a not permitted" >&2; exit 1; } ;;
+        cat|ls)
+          opt_ok path-operand "$a" || { echo "agent-diag: $verb path $a not permitted" >&2; exit 1; } ;;
+      esac ;;
   esac
 done
 
