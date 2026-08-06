@@ -17,6 +17,60 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-08-06 — The bot could patch the Deployment that sanitized the bot
+
+Following the remediation below, an RBAC audit found the control loop closed on itself. The
+`claude-telegram-exec` ClusterRole bundled three verbs and was bound in 16 namespaces **including
+`claude-telegram` itself**, so the bot's ServiceAccount could `patch` its own Deployment — and
+`patch` on a Deployment is `patch` on `spec.template`: command, image, `serviceAccountName`, mounts.
+That reaches the init container carrying the git-config sweep. The thing the control constrains
+could edit the control. Flux reverts within its 1m interval, which bounds the spec's lifetime but
+not what ran in the meantime.
+
+```
+kubectl auth can-i --as=system:serviceaccount:claude-telegram:claude-telegram \
+  -n claude-telegram patch deployment/claude-telegram   → yes
+```
+
+**Fixing only that would have been theatre.** The same binding granted `jobs create`, and a Job
+starts a fresh admission-compliant Pod with any ServiceAccount and any mounts, bypassing the init
+container entirely. So all three verbs were re-scoped:
+
+| verb | before | after |
+|---|---|---|
+| `pods/exec` create | 16 namespaces | 14 — `claude-telegram` and `popeye` unbound |
+| `apps` patch | 16 namespaces | removed entirely |
+| `batch/jobs` create,delete | 16 namespaces | `popeye` only, via a separate `claude-telegram-jobs` role |
+
+Evidence for the removals: 45 transcript files in the pod contain **zero** `rollout restart` and
+**zero** `create job` calls, against 113 `exec` calls (monitoring 77, databases 15, paperless-ngx 10,
+loki 5, immich 5, stirling-pdf 1). The corpus spans the pre-restriction era, so it shows what the
+bot did when *less* constrained — which is why zero use of two verbs is the strong signal.
+
+**Correction to an earlier reading of this.** "`rollout restart` is an operator action, so the bot
+losing it changes nothing" is wrong, and the Codex review caught it. The dotfiles skills the bot
+installs at init do prescribe it — `monitoring-check` names
+`kubectl rollout restart deploy vmagent-vmagent -n monitoring` as a numbered step, and `cluster-roll`
+is built on it as its primitive — across 32 call sites. What makes the removal safe anyway: the bot
+has `pods delete` **cluster-wide** via `claude-telegram-ops`, which restarts a Deployment-managed pod
+without the power to rewrite what it runs, and `cluster-roll` already implements delete-pod as its
+documented fallback. The failure mode is a visible `Forbidden`, not silence. Follow-up, in the
+dotfiles repo: point the bot-facing skill paths at delete-pod. `AGENTS.md`'s DB guidance stays as
+written — that one really is an operator action from a workstation.
+
+The reason for removing the grant is least-privilege plus zero observed use, not the GitOps
+invariant — RBAC simply cannot express "patch only the restartedAt annotation".
+
+`GIT_EXEC_RE` moved to a ConfigMap (`claude-telegram-git-exec`) in the same change. It had been
+duplicated as inline literals in the init and sync containers, byte-identical with nothing enforcing
+it. The bot can `get` ConfigMaps in its own namespace but not `patch` them, so the pattern is now
+read-only to the thing the sweep constrains. Both containers guard on it being non-empty rather than
+defaulting — an empty pattern would make every sweep match nothing and report success.
+
+**Verification trap worth keeping:** `kubectl auth can-i ... create pods/exec` returns **no** even
+when the grant exists. The subresource form is `create pods --subresource=exec`. The slash form is a
+false clean.
+
 ### 2026-08-06 — The DR script was the only thing holding the bootstrap together
 
 A max-effort review of `33183ce1..bdaab827` (67 files — the claude-telegram hardening campaign,

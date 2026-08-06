@@ -5,6 +5,14 @@
 # them costs nothing measured. immich is the fifth such namespace and DOES stay — 55 recorded
 # exec calls — which is the one accepted hole.
 # Re-adding any of the four re-opens that bypass; check the namespace's NetworkPolicy first.
+#
+# claude-telegram is not bound either (removed 2026-08-06). Binding the bot in its own namespace
+# let it patch the Deployment that carries its own init-time git sanitization — the control was
+# editable by the thing it constrains. Exec into itself was never useful: the bot already runs
+# there.
+#
+# popeye lost its exec binding the same day and keeps only claude-telegram-jobs: the manual scan
+# creates a Job and reads the pod's logs, which needs no exec, and the transcript corpus has none.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -26,22 +34,6 @@ kind: RoleBinding
 metadata:
   name: claude-telegram-exec
   namespace: blocky
-  labels:
-    app: claude-telegram
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: claude-telegram-exec
-subjects:
-  - kind: ServiceAccount
-    name: claude-telegram
-    namespace: claude-telegram
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: claude-telegram-exec
-  namespace: claude-telegram
   labels:
     app: claude-telegram
 roleRef:
@@ -185,22 +177,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: claude-telegram-exec
-  namespace: popeye
-  labels:
-    app: claude-telegram
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: claude-telegram-exec
-subjects:
-  - kind: ServiceAccount
-    name: claude-telegram
-    namespace: claude-telegram
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: claude-telegram-exec
   namespace: pricebuddy
   labels:
     app: claude-telegram
@@ -256,6 +232,25 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: claude-telegram-exec
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
+# Job creation, popeye only. Separate from the exec bindings above so that widening it is a
+# deliberate edit; a Job picks its own ServiceAccount and mounts, so binding it beside exec
+# everywhere would have made removing the apps-patch grant pointless.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-jobs
+  namespace: popeye
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: claude-telegram-jobs
 subjects:
   - kind: ServiceAccount
     name: claude-telegram

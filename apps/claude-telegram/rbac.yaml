@@ -4,9 +4,11 @@ metadata:
   name: claude-telegram-ops
   labels:
     app: claude-telegram
-# Cluster-wide READ, plus two low-damage cleanup verbs. The verbs that amount to code execution
-# — pods/exec, jobs create, and workload patch — live in `claude-telegram-exec` below and are
-# bound per namespace, not cluster-wide.
+# Cluster-wide READ, plus two low-damage cleanup verbs (`pods delete`, `replicasets delete`) —
+# enough to restart a wedged workload without being able to rewrite what it runs.
+# The verbs that amount to code execution are bound per namespace, never cluster-wide:
+# `pods/exec` in `claude-telegram-exec`, Job creation in `claude-telegram-jobs`, both below.
+# Workload patch used to be a third; it is gone entirely (2026-08-06) — see that role's header.
 #
 # This split replaces the previous posture ("EFFECTIVE PRIVILEGE = CLUSTER-ADMIN-EQUIVALENT …
 # treat a bot compromise as a cluster compromise", ultrareview 2026-07-03). Two findings on
@@ -157,21 +159,38 @@ metadata:
   name: claude-telegram-exec
   labels:
     app: claude-telegram
-# The three verbs that are code execution by another name. Defined once as a ClusterRole, then
-# bound with a RoleBinding per namespace below — a ClusterRoleBinding here would restore exactly
-# what this change removes.
+# `kubectl exec` is code execution by another name. Defined once as a ClusterRole, then bound with
+# a RoleBinding per namespace below — a ClusterRoleBinding here would restore exactly what this
+# change removes.
+#
+# Two verbs that used to sit in this role are gone (2026-08-06):
+#   apps patch   RBAC cannot express "only the restartedAt annotation", so the grant was really
+#                "rewrite the whole pod template" — command, image, serviceAccountName, mounts.
+#                That reaches the init container which sanitizes this bot's own git config, i.e.
+#                the control was patchable by the thing it constrains. Flux reverts within its 1m
+#                interval, which bounds the spec's lifetime but not what ran in the meantime.
+#                30 days of bot transcripts contain zero `rollout restart` calls. The dotfiles
+#                skills DO prescribe it in 32 places, so those bot-facing paths must move to
+#                `kubectl delete pod` — which claude-telegram-ops grants cluster-wide and which
+#                restarts a Deployment-managed pod without rewriting what it runs.
+#   batch jobs   moved to claude-telegram-jobs below, bound only in popeye — the one workflow the
+#                rule was ever written for. A Job creates a fresh Pod with any ServiceAccount and
+#                any mounts, so leaving it bound everywhere made the apps-patch removal pointless.
 #
 # Namespaces deliberately WITHOUT these bindings, and why:
+#   claude-telegram     its own namespace — self-restart kills the session, and exec into itself is
+#                       meaningless from inside the pod
 #   kube-system         cluster control plane
 #   flux-system         sops-age (decrypts every secret in the repo) + the git deploy key
-#   kyverno             patching it disables every admission policy at once
+#   kyverno             exec into it reaches the admission controller's own process
 #   cert-manager        TLS private keys
 #   cloudflare-tunnel   the tunnel credential, i.e. the public ingress path
 #   authentik           SSO — owning it means owning everything behind it
 #   databases           Postgres/CouchDB data and credentials
 #   percona-mysql       MySQL data and credentials
 #   obsidian            CouchDB data (LiveSync)
-#   traefik             the ingress controller; patching it intercepts all cluster traffic
+#   traefik             the ingress controller; exec into it reaches everything routed through
+#                       ingress, plus its mounted TLS credentials
 # The bot keeps full READ on all of them, plus `pods delete`, so alert triage still works there —
 # it just cannot execute inside them. Add a binding back if a real workflow needs it; that is a
 # one-line change and a deliberate one.
@@ -180,12 +199,19 @@ rules:
   - apiGroups: [""]
     resources: ["pods/exec"]
     verbs: ["create"]
-  # kubectl rollout restart
-  - apiGroups: ["apps"]
-    resources: ["deployments", "statefulsets", "daemonsets"]
-    verbs: ["patch"]
-  # Manual Popeye scans. Not backups: every backup CronJob lives in databases,
-  # backup-replication or kube-system, and none of those namespaces is bound.
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: claude-telegram-jobs
+  labels:
+    app: claude-telegram
+# Manual Popeye scans, and nothing else — bound in `popeye` alone. Not backups: every backup
+# CronJob lives in databases, backup-replication or kube-system, none of which is bound.
+# Creating a Job is creating a Pod, so this is the same class of grant as exec: it picks its own
+# ServiceAccount and mounts. Kept separate from claude-telegram-exec precisely so widening the
+# namespace list is a deliberate edit rather than a side effect of wanting exec somewhere.
+rules:
   - apiGroups: ["batch"]
     resources: ["jobs"]
     verbs: ["create", "delete"]

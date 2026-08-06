@@ -14,5 +14,10 @@ resources:
   - claude-telegram-codex-secret.yaml
   - claude-telegram-ghcr-secret.yaml
 
+configMapGenerator:
+  - name: claude-telegram-git-exec
+    envs:
+      - git-exec-re.properties
+
 components:
   - ../components/allow-dns-egress

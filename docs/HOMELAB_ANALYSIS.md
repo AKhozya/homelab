@@ -46,7 +46,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 | Uptime Kuma | — | Uptime monitor; MySQL |
 | PriceBuddy | — | Price tracker; MySQL |
 | Blocky | — | DNS resolver + ad-block; HA (2 replicas, W1+W2); serves LAN clients only |
-| claude-telegram | — | Telegram bot bridge for ops (Claude engine + Codex review gate) |
+| claude-telegram | — | Telegram bot bridge for ops (Claude engine + Codex review gate). RBAC boundary as of 2026-08-06: cluster-wide READ plus `pods`/`replicasets` delete; `pods/exec` in 14 namespaces (not its own, and not the four with 0.0.0.0/0 egress); Job creation in `popeye` only; **no workload patch anywhere**. Node SSH is the `agent-diag` forced command, read-only |
 | RustDesk | — | Self-hosted remote desktop relay (hbbs + hbbr); LAN-only on the W1 LoadBalancer, deny-all egress |
 
 ## Databases
