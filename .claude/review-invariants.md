@@ -68,7 +68,32 @@ For any pre-commit reviewer (opposite-family peer static loop — see AGENTS.md;
 - `commonLabels` mutates `spec.selector.matchLabels`, which is immutable on existing Deployments → `kubectl apply`/Flux fails. Use the `labels` transformer with `includeSelectors: false` for metadata-only labels. (Kustomize docs)
 - `namePrefix`/`nameSuffix` auto-rewrites built-in name refs (Service selectors, configMapKeyRef) but NOT custom-resource refs, `patchesJson6902` targets, or external consumers — those break silently. configMap/secretGenerator append a content-hash suffix that breaks any consumer outside the same kustomization referencing a literal name. (Kustomize #972)
 
+### RBAC
+- **`patch` on a workload is `patch` on the whole pod template**, not on one annotation. RBAC has no
+  verb for "may set `restartedAt`", so a grant added for `kubectl rollout restart` also permits
+  rewriting `command`, `image`, `serviceAccountName` and volume mounts. Where that template carries
+  a security control (the claude-telegram init sweep), the control becomes editable by the thing it
+  constrains. `pods delete` achieves a restart with strictly less reach. (2026-08-06)
+- **A binding in the workload's OWN namespace closes the loop.** Check whether an exec/jobs/patch
+  RoleBinding lists the app's own namespace — that is how a workload reaches its own Deployment.
+- **`kubectl auth can-i ... create pods/exec` returns a FALSE `no`.** The subresource form is
+  `create pods --subresource=exec`. The slash form silently reports no access where access exists,
+  so an RBAC change verified with it looks tighter than it is.
+
 ### Shell
+- **In a safety check, a failed read must not become the permissive answer.** This is the recurring
+  bug class in this repo's inline container shell, found five times in one script on 2026-08-06:
+  `jq` exits **0** on EMPTY input and prints nothing, so a `kubectl` that exits 0 with an empty body
+  yields "no pods" / "no budgets" / "not covered" — every one the allow answer. Gate every payload:
+  `jq -e 'type == "object" and (.items | type) == "array"'` (exits 4 on empty, 1 on false; a real
+  `.items: []` still passes, because "none" is an answer and `""` is not). Checking only the
+  command's exit status is not enough.
+- **`set -e` is suppressed inside a function invoked as a condition** (`if pred; then`), and for
+  everything it calls — failures fall through to the function's final `return`. Compounding it, a
+  helper that `exit 1`s inside `var="$(helper)"` only kills the subshell and leaves the caller
+  running on an empty string. A predicate meant to fail CLOSED therefore returns "allowed" on any
+  read error. Wrap each call as `if ! var="$(...)"; then return <blocked>; fi`; have helpers
+  `return`, never `exit`.
 - `A | grep -q X && echo Y || echo Z` — the pipe binds tighter than `||`, so the middle branch breaks; shellcheck misses the logic. Use `set -euo pipefail`, not bare `set -e`. (F-27 setup-node.sh, F-28 analyze-update.sh)
 - **Backup/dump success-theater (embedded CronJob shell — invisible to CI shellcheck).** Three patterns make a partial/failed backup report success, and all alerting keys on job-exit-status so the loss is silent: (a) `cmd 2>&1 | tee file` under `set -e` **without** pipefail — the pipeline's exit is tee's (always 0), so a failed `pg_dump`/`mysqldump` never trips `set -e` and the following `if [ $? -eq 0 ]` tests tee, not the dump. Fix: `set -eo pipefail` + `if cmd | tee …; then` (the `if` keeps set -e from aborting mid-loop). (b) `mysqldump … > out.sql 2>&1` redirects **stderr into the dump file** — the `[Warning] Using a password…` line becomes line 1 and `mysql < out.sql` chokes at restore. Fix: `2>err` sidecar (or `MYSQL_PWD` to kill the warning). (c) a missing required input handled by a bare `continue`/warning that does NOT increment a failure counter → the job still exits 0 with a silent gap. Fix: count the failure + `exit 1` before packaging. (2026-07-03 ultrareview: postgres/mysql/pvc backup jobs all three.)
 - **An rsync `--exclude`/`--include` pattern without a leading `/` matches at EVERY depth.** `--exclude='immich/'` drops `immich/` at the transfer root and also any `pvc/<ts>/immich/…` a future app might create — silently, with no error and no log line. Anchor anything meant for the root: `--exclude='/immich/'`. Reviewer check on any filter added to a backup/replication rsync: is the pattern anchored, and would an unanchored match hit a path the job is supposed to carry? (2026-07-27 Codex catch, proved both ways on a local fixture before shipping.)

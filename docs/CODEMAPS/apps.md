@@ -19,7 +19,7 @@ Application stacks, one dir each under `apps/<name>/` (flat, single-env). Image 
 | **audiobookshelf** | audiobookshelf | 2 PVCs | sqlite | OIDC | both | Audio library |
 | **obsidian** | obsidian | — | CouchDB (`databases` ns) | — | both | LiveSync (LAN-only client cert); external hostname is `couchdb.h0melab.work` |
 | **pricebuddy** | pricebuddy | PVC | MySQL | — | int | Price tracking; sidecars `seleniumbase-scrapper` (CI image-pin allowlisted — upstream has no patch tags) + `apprise` |
-| **claude-telegram** | claude-telegram | none | — | — | TG only | AI bot; HTTP `/trigger` loopback hook |
+| **claude-telegram** | claude-telegram | PVC 2Gi (`claude-telegram-home-pvc`: dotfiles, checkouts, plugin + Codex state) | — | — | TG only | AI bot; HTTP `/trigger` loopback hook. RBAC is per-namespace, not cluster-wide — see `apps/claude-telegram/rbac.yaml` |
 | **rustdesk** | rustdesk | PVC (100Mi, ed25519 key + sqlite) | — | — | LAN :21115-21117 | Self-hosted remote desktop (hbbs+hbbr, 1 pod/2 containers); single mixed-proto LB on W1 (192.168.1.129); `-k _` gates only the connect-to-peer path, NOT registration or the CVE-670 UDP-reflection handlers; LAN-only (21116/UDP can't traverse tunnel) |
 
 External = hostname entry in the central Cloudflare tunnel config — see [networking.md](networking.md), never a second Ingress. Grafana (monitoring ns) is also OIDC + dual-ingress — see [monitoring.md](monitoring.md).

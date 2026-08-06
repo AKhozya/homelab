@@ -171,6 +171,15 @@ Called out so they are choices, not accidents:
 - **Age-key bootstrap not drawn.** The decryption chain is: `sops-age` Secret in `flux-system` → kustomize-controller reads it → decrypts SOPS-encrypted manifests on apply. Lose the key and you can't reconcile new secrets (see Failure modes).
 - **Cluster boundary is implicit.** In-scope: the 4 nodes + the workloads they run (incl. the `immich-vm` guest OS). Out-of-scope but referenced: the NAS appliance itself (backup sink + `immich-vm` hypervisor), the home router (forwards nothing inbound — CF tunnel is outbound), the Cloudflare edge.
 - **Reconcile cascade timing not in diagrams.** Full chain ~5 min post-push; not worth drawing.
+- **Cold DR is not a single command.** `require-networkpolicy` (Deny) counts NetworkPolicies *live*
+  in the target namespace, and kustomize-controller server-side dry-runs its whole apply set before
+  persisting any of it — so on a rebuild every workload is rejected while the policy that would
+  satisfy it is still unwritten in the same set. Restoring therefore needs a manual
+  namespaces-and-policies pass before `apps` can converge ([.backup/README.md](../.backup/README.md)
+  Step 6 carries the tested command). This is the documented 2-commit new-namespace dance
+  ([.claude/review-invariants.md](../.claude/review-invariants.md)) hitting every namespace at once.
+  An ordered bootstrap layer would fix it properly; not built, because the path is rare and the
+  ownership split it needs is real work.
 
 ---
 
