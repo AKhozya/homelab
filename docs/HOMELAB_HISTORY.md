@@ -44,7 +44,14 @@ container entirely. So all three verbs were re-scoped:
 
 Evidence for the removals: 45 transcript files in the pod contain **zero** `rollout restart` and
 **zero** `create job` calls, against 113 `exec` calls (monitoring 77, databases 15, paperless-ngx 10,
-loki 5, immich 5, stirling-pdf 1). The corpus spans the pre-restriction era, so it shows what the
+loki 5, immich 5, stirling-pdf 1).
+
+**Nine further exec namespaces were considered and deliberately KEPT** — audiobookshelf, blocky,
+homehub, homepage, linkwarden, mealie, pricebuddy, rustdesk, uptime-kuma — despite showing zero
+recorded exec calls. Do not re-propose removing them on that evidence alone. `popeye` was dropped
+because its documented workflow provably needs no exec (create a Job, read its logs); for ordinary
+apps, zero use across a 30-day window is not evidence of no need, and exec is the standard tool when
+one misbehaves. Revisit with a longer window, not a repeat of the same query. The corpus spans the pre-restriction era, so it shows what the
 bot did when *less* constrained — which is why zero use of two verbs is the strong signal.
 
 **Correction to an earlier reading of this.** "`rollout restart` is an operator action, so the bot

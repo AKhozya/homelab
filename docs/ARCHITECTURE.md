@@ -178,8 +178,17 @@ Called out so they are choices, not accidents:
   namespaces-and-policies pass before `apps` can converge ([.backup/README.md](../.backup/README.md)
   Step 6 carries the tested command). This is the documented 2-commit new-namespace dance
   ([.claude/review-invariants.md](../.claude/review-invariants.md)) hitting every namespace at once.
-  An ordered bootstrap layer would fix it properly; not built, because the path is rare and the
-  ownership split it needs is real work.
+  An ordered bootstrap layer would fix it properly — and would also collapse the incremental
+  2-commit dance to one commit — but it is **deliberately not built**, and the reason is sharper
+  than "it is work": `clusters/apps.yaml` sets `prune: true` and the `apps` Kustomization owns all
+  17 `namespace.yaml` files. Moving them into another Kustomization makes kustomize-controller
+  prune the Namespace objects, which cascades to every workload and PVC inside them, with no
+  ordering guarantee that the new layer recreates them first. This repo already has a scar from
+  prune-on-path-change (HISTORY 2026-06: "removing the workaround is two commits, not one").
+  39 files across 17 apps, worst case 17 namespaces deleted, to save two lines in a DR script and
+  one commit per new app — a bad trade while the documented workaround works. Revisit only on
+  evidence the workaround fails: a DR drill where the manual pass proves error-prone, or app
+  additions frequent enough that the 2-commit dance actually hurts.
 
 ---
 
