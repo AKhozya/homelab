@@ -55,7 +55,15 @@ spec:
               # refresh the index, so it cannot fire fsmonitor itself. Matched by regex rather than
               # a fixed key list because includeIf/filter/diff/merge keys carry a caller-chosen
               # subsection name.
-              GIT_EXEC_RE='^(core\.(fsmonitor|hooksPath|sshCommand|pager|editor|askPass|gitProxy)|include\.path|includeIf\..+\.path|alias\..+|filter\..+\.(clean|smudge|process)|diff\.external|diff\..+\.textconv|merge\..+\.driver|credential\.(.+\.)?helper|sequence\.editor)$'
+              # Three entries are not program names and are here anyway: protocol.ext.allow arms
+              # ext:: remote URLs, which run an arbitrary command on fetch; uploadpack keys only
+              # fire when this side SERVES a fetch; and url.*.insteadOf silently redirects a fetch
+              # to an attacker's repo, whose TRACKED run_* scripts chezmoi would then execute — a
+              # hijack no amount of cleaning the working tree can catch. All cheap to strip, and
+              # the sync sidecar makes every one of them reachable on a timer.
+              # gpg.ssh.defaultKeyCommand is the non-obvious one: harmless until gpg.format=ssh
+              # and commit.gpgSign=true, at which point the next commit runs it.
+              GIT_EXEC_RE='^(core\.(fsmonitor|hooksPath|sshCommand|pager|editor|askPass|gitProxy|alternateRefsCommand)|include\.path|includeIf\..+\.path|alias\..+|filter\..+\.(clean|smudge|process)|diff\.external|diff\..+\.(textconv|command)|merge\..+\.driver|(difftool|mergetool)\..+\.(cmd|path)|credential\.(.+\.)?helper|sequence\.editor|gpg\.(.+\.)?(program|defaultKeyCommand)|remote\..+\.(uploadpack|receivepack)|url\..+\.(insteadOf|pushInsteadOf)|submodule\..+\.update|uploadpack\.packObjectsHook|protocol\.ext\.allow|pager\..+|interactive\.diffFilter)$'
               # Per FILE, not per scope: `--global` reads ~/.gitconfig AND ~/.config/git/config but
               # writes only one, so a key planted in the other survives a --global --unset-all.
               # Same for worktree scope, which --local does not reach.
@@ -76,7 +84,7 @@ spec:
               rm -f ~/.gitconfig.lock ~/.config/git/config.lock
               scrub_git_config ~/.gitconfig
               scrub_git_config ~/.config/git/config
-              for r in ~/.local/share/chezmoi ~/source-code/homelab; do
+              for r in ~/.local/share/chezmoi ~/source-code/homelab ~/source-code/claude-telegram-bot; do
                 [ -d "$r/.git" ] || continue
                 # Nothing else holds these repos at init — the bot and the sync sidecar start after
                 # this container exits — so any lock here is stale, or planted to block the sweep.
@@ -84,9 +92,35 @@ spec:
                 for c in "$r/.git/config" "$r"/.git/config.worktree "$r"/.git/worktrees/*/config.worktree; do
                   scrub_git_config "$c"
                 done
-                find "$r/.git/hooks" ! -type d ! -name '*.sample' -delete 2>/dev/null || true
+                # The whole directory, not its contents: removing it needs write permission on
+                # .git rather than on hooks/, so it still succeeds when an attacker has chmodded
+                # hooks/ shut — and fails loudly (set -e) when .git itself is blocked. Verified
+                # both ways in-pod. git needs no hooks directory; the .sample files go with it.
+                rm -rf "$r/.git/hooks"
                 rm -rf "$r/.git/info/attributes" # -rf: a directory planted here would fail rm -f and abort init
               done
+
+              # Remotes are drift-healed here rather than left to whatever a clone or a hand edit
+              # set, because init only clones when a checkout is ABSENT — an existing PVC checkout
+              # would otherwise keep its old remote for ever.
+              #
+              # This runs BEFORE the first fetch, not after it. A remote URL is PVC state the
+              # sweep above cannot judge: it is not a program name, so stripping it by regex would
+              # take the legitimate one with it. Fetching first would mean fetching from whatever
+              # the URL happens to say, and the run_* scripts in an attacker's repo are TRACKED —
+              # past the reset, past the clean, straight into `chezmoi apply`.
+              #
+              # The aliases are per-repo deploy keys (ssh config lives in the secret); only
+              # gh-homelab carries write. Roll back by pointing these AND the two clone URLs below
+              # back at git@github.com: — a plain revert would strip the aliases from the ssh config
+              # while the checkouts still referenced them, breaking every fetch.
+              set_remote() {
+                [ -d "$1/.git" ] || return 0   # the fork checkout is unmanaged PVC state, may be absent
+                git -C "$1" remote set-url origin "$2"
+              }
+              set_remote ~/source-code/homelab             git@gh-homelab:AKhozya/homelab.git
+              set_remote ~/.local/share/chezmoi            git@gh-dotfiles:AKhozya/dotfiles.git
+              set_remote ~/source-code/claude-telegram-bot git@gh-fork:AKhozya/claude-telegram-bot.git
 
               # Secret mounts are read-only; SSH needs writable known_hosts — stage keys onto PVC
               rm -rf ~/.ssh
@@ -102,17 +136,53 @@ spec:
               mkdir -p ~/.config/chezmoi
               cp /etc/chezmoi-config/chezmoi.toml ~/.config/chezmoi/chezmoi.toml
 
+              # Never a bare `fetch`, never `@{u}`: both resolve through branch.<name>.remote and
+              # branch.<name>.merge, which are ordinary config no regex can strip without breaking
+              # the legitimate case. Pointing branch.master.remote at a second, attacker-added
+              # remote redirects the fetch even though origin itself is pinned — and the run_*
+              # scripts in that repo would be TRACKED, so neither the reset nor the clean below
+              # touches them.
+              # The refspec carries an explicit DESTINATION for the same reason. A source-only
+              # `fetch origin master` leaves the remote-tracking ref to remote.origin.fetch, so
+              # tampering with that mapping lets a pre-forged refs/remotes/origin/master survive
+              # the fetch and be exactly what the reset below lands on. Spelling the destination
+              # out overrides the config. The dotfiles repo is on master, not main.
+              dotfiles_synced=0
               if [ -d ~/.local/share/chezmoi/.git ]; then
                 echo "Dotfiles exist, syncing (hard reset — survives force-push/rewrite)..."
-                git -C ~/.local/share/chezmoi fetch --quiet || true
-                git -C ~/.local/share/chezmoi reset --hard "@{u}" || true
+                if git -C ~/.local/share/chezmoi fetch --quiet origin '+refs/heads/master:refs/remotes/origin/master' &&
+                   git -C ~/.local/share/chezmoi reset --hard origin/master; then
+                  dotfiles_synced=1
+                else
+                  echo "WARN: dotfiles fetch/reset failed — skipping chezmoi apply, source is whatever the PVC holds" >&2
+                fi
+                # chezmoi's source state is the DIRECTORY, not the git index, so `chezmoi apply`
+                # executes any run_* script sitting here whether or not git tracks it — and a hard
+                # reset leaves untracked files by definition. -x as well: .gitignore already covers
+                # names an attacker could pick (*.local, *secret*.txt). Not `|| true` — this is
+                # local, so a failure means something is holding the tree, which is the case the
+                # sweep exists for.
+                git -C ~/.local/share/chezmoi clean -ffdx
               else
                 echo "Cloning dotfiles..."
                 git clone git@gh-dotfiles:AKhozya/dotfiles.git ~/.local/share/chezmoi
+                dotfiles_synced=1
               fi
 
               # .chezmoiignore excludes .ssh
-              chezmoi apply --force --no-tty || true
+              if [ "$dotfiles_synced" = 1 ]; then
+                chezmoi apply --force --no-tty || true
+              else
+                echo "Skipping chezmoi apply — the source was not verified against origin/master" >&2
+              fi
+
+              # dot_gitconfig.tmpl is not ignored on linux, so the apply above puts back every key
+              # class the sweep removed — aliases, the lfs filter trio, core.editor/pager. Without
+              # this second pass the sweep would be undone inside the same init, which is worse
+              # than not sweeping: the guarantee reads as held. Nothing here needs those keys —
+              # no .gitattributes in either checkout uses lfs, and there is no tty.
+              scrub_git_config ~/.gitconfig
+              scrub_git_config ~/.config/git/config
 
               # The hook scripts now ship in the image, where the read-only rootfs puts them
               # beyond anything the model runs. Assert before rewiring: without this a
@@ -131,7 +201,11 @@ spec:
               # deleting this key cannot disarm it. What is left denies nothing.
               # Temp file plus rename because an interrupted write leaves malformed JSON, which the
               # throw above then turns into a pod that never starts.
-              node -e 'const fs=require("fs"),d=process.env.HOME+"/.claude",p=d+"/settings.json";let s={};try{s=JSON.parse(fs.readFileSync(p,"utf8"))}catch(e){if(e.code!=="ENOENT")throw e}s.model="claude-opus-5";s.effortLevel="xhigh";s.hooks={PostToolUse:[{matcher:"Bash",hooks:[{type:"command",command:"/app/hooks/flux-push-reminder.sh"}]}],SessionStart:[{hooks:[{type:"command",command:"/app/hooks/session-pull.sh"}]},{hooks:[{type:"command",command:"/app/hooks/context-mode-cache-heal.mjs"}]}]};fs.mkdirSync(d,{recursive:true});fs.writeFileSync(p+".tmp",JSON.stringify(s,null,2)+"\n");fs.renameSync(p+".tmp",p)'
+              # PARSEABLE is not the same as USABLE: `[]`, `5`, `"oops"` and `true` all parse, and
+              # assigning a property to a primitive is a silent no-op in sloppy mode while
+              # JSON.stringify drops properties added to an array — so each one wrote the junk back
+              # with no hooks and exit 0. Anything that is not a plain object is discarded.
+              node -e 'const fs=require("fs"),d=process.env.HOME+"/.claude",p=d+"/settings.json";let s={};try{s=JSON.parse(fs.readFileSync(p,"utf8"))}catch(e){if(e.code!=="ENOENT")throw e}if(typeof s!=="object"||s===null||Array.isArray(s))s={};s.model="claude-opus-5";s.effortLevel="xhigh";s.hooks={PostToolUse:[{matcher:"Bash",hooks:[{type:"command",command:"/app/hooks/flux-push-reminder.sh"}]}],SessionStart:[{hooks:[{type:"command",command:"/app/hooks/session-pull.sh"}]},{hooks:[{type:"command",command:"/app/hooks/context-mode-cache-heal.mjs"}]}]};fs.mkdirSync(d,{recursive:true});fs.writeFileSync(p+".tmp",JSON.stringify(s,null,2)+"\n");fs.renameSync(p+".tmp",p)'
 
               # Nothing references the PVC copies now. Left in place they invite an edit that
               # silently does nothing, and they stay writable while the image copies do not.
@@ -143,25 +217,36 @@ spec:
               # entry shadows the new name and blocks its install), THEN add marketplaces + install keys.
               # Guarded so any marketplace/plugin hiccup never wedges bot init. node (not jq) parses JSON.
               # CC = SDK-vendored engine binary; npx and image npm-global both resolve stale/PVC-shadowed copies.
-              CC=/app/node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl/claude
-              [ -x "$CC" ] || echo "WARN: vendored claude binary missing at $CC — plugin sync will no-op"
-              export SRC="$HOME/.local/share/chezmoi/dot_claude/private_plugins"
-              # Prune plugins, then marketplaces, not present in source (plugins first so marketplace removal isn't blocked).
-              keepP=$(node -e 'const p=require(process.env.SRC+"/installed_plugins.json").plugins;console.log(Object.keys(p).join(" "))' 2>/dev/null || true)
-              if [ -n "$keepP" ]; then for k in $(node -e 'try{const p=require(process.env.HOME+"/.claude/plugins/installed_plugins.json").plugins;console.log(Object.keys(p).join("\n"))}catch(e){}' 2>/dev/null || true); do
-                case " $keepP " in *" $k "*) : ;; *) $CC plugin uninstall "$k" 2>&1 | tail -1 || true ;; esac
-              done; fi
-              keepM=$(node -e 'const m=require(process.env.SRC+"/known_marketplaces.json");console.log(Object.keys(m.marketplaces||m).join(" "))' 2>/dev/null || true)
-              if [ -n "$keepM" ]; then for mp in $(node -e 'try{const m=require(process.env.HOME+"/.claude/plugins/known_marketplaces.json");console.log(Object.keys(m.marketplaces||m).join("\n"))}catch(e){}' 2>/dev/null || true); do
-                case " $keepM " in *" $mp "*) : ;; *) $CC plugin marketplace remove "$mp" 2>&1 | tail -1 || true ;; esac
-              done; fi
-              for repo in $(node -e 'const m=require(process.env.SRC+"/known_marketplaces.json");const o=m.marketplaces||m;for(const v of Object.values(o)){const r=v&&(v.repo||(v.source&&v.source.repo));if(r)console.log(r)}' 2>/dev/null || true); do
-                $CC plugin marketplace add "$repo" 2>&1 | tail -1 || true
-              done
-              $CC plugin marketplace update 2>&1 | tail -1 || true
-              for key in $(node -e 'const p=require(process.env.SRC+"/installed_plugins.json").plugins;for(const k of Object.keys(p))console.log(k)' 2>/dev/null || true); do
-                $CC plugin install "$key" 2>&1 | tail -1 || true
-              done
+              #
+              # Gated on dotfiles_synced for the same reason `chezmoi apply` is: this reads
+              # known_marketplaces.json and installed_plugins.json out of the same source tree and
+              # turns them into `marketplace add` and `plugin install`, which fetch and run code.
+              # Those files are TRACKED, so an unverified checkout keeps a tampered copy through
+              # the clean — skipping the apply while still installing from it would close one door
+              # and leave the other open.
+              if [ "$dotfiles_synced" = 1 ]; then
+                CC=/app/node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl/claude
+                [ -x "$CC" ] || echo "WARN: vendored claude binary missing at $CC — plugin sync will no-op"
+                export SRC="$HOME/.local/share/chezmoi/dot_claude/private_plugins"
+                # Prune plugins, then marketplaces, not present in source (plugins first so marketplace removal isn't blocked).
+                keepP=$(node -e 'const p=require(process.env.SRC+"/installed_plugins.json").plugins;console.log(Object.keys(p).join(" "))' 2>/dev/null || true)
+                if [ -n "$keepP" ]; then for k in $(node -e 'try{const p=require(process.env.HOME+"/.claude/plugins/installed_plugins.json").plugins;console.log(Object.keys(p).join("\n"))}catch(e){}' 2>/dev/null || true); do
+                  case " $keepP " in *" $k "*) : ;; *) $CC plugin uninstall "$k" 2>&1 | tail -1 || true ;; esac
+                done; fi
+                keepM=$(node -e 'const m=require(process.env.SRC+"/known_marketplaces.json");console.log(Object.keys(m.marketplaces||m).join(" "))' 2>/dev/null || true)
+                if [ -n "$keepM" ]; then for mp in $(node -e 'try{const m=require(process.env.HOME+"/.claude/plugins/known_marketplaces.json");console.log(Object.keys(m.marketplaces||m).join("\n"))}catch(e){}' 2>/dev/null || true); do
+                  case " $keepM " in *" $mp "*) : ;; *) $CC plugin marketplace remove "$mp" 2>&1 | tail -1 || true ;; esac
+                done; fi
+                for repo in $(node -e 'const m=require(process.env.SRC+"/known_marketplaces.json");const o=m.marketplaces||m;for(const v of Object.values(o)){const r=v&&(v.repo||(v.source&&v.source.repo));if(r)console.log(r)}' 2>/dev/null || true); do
+                  $CC plugin marketplace add "$repo" 2>&1 | tail -1 || true
+                done
+                $CC plugin marketplace update 2>&1 | tail -1 || true
+                for key in $(node -e 'const p=require(process.env.SRC+"/installed_plugins.json").plugins;for(const k of Object.keys(p))console.log(k)' 2>/dev/null || true); do
+                  $CC plugin install "$key" 2>&1 | tail -1 || true
+                done
+              else
+                echo "Skipping plugin reconciliation — the chezmoi source was not verified against origin/master" >&2
+              fi
 
               # Fix CLAUDE_PLUGIN_ROOT paths for this environment
               for f in ~/.claude/plugins/cache/*/*/hooks/hooks.json; do
@@ -172,29 +257,14 @@ spec:
 
               if [ -d ~/source-code/homelab/.git ]; then
                 echo "Homelab repo exists, syncing to origin/main (hard reset — survives force-push/rewrite)..."
-                git -C ~/source-code/homelab fetch --quiet origin main || true
+                # Explicit destination refspec — see the dotfiles fetch above for why.
+                git -C ~/source-code/homelab fetch --quiet origin '+refs/heads/main:refs/remotes/origin/main' || true
                 git -C ~/source-code/homelab reset --hard origin/main || true
               else
                 echo "Cloning homelab repo..."
                 mkdir -p ~/source-code
                 git clone git@gh-homelab:AKhozya/homelab.git ~/source-code/homelab
               fi
-
-              # Remotes are drift-healed here rather than left to whatever a clone or a hand edit
-              # set, because init only clones when a checkout is ABSENT — an existing PVC checkout
-              # would otherwise keep its old remote for ever.
-              #
-              # The aliases are per-repo deploy keys (ssh config lives in the secret); only
-              # gh-homelab carries write. Roll back by pointing these AND the two clone URLs above
-              # back at git@github.com: — a plain revert would strip the aliases from the ssh config
-              # while the checkouts still referenced them, breaking every fetch.
-              set_remote() {
-                [ -d "$1/.git" ] || return 0   # the fork checkout is unmanaged PVC state, may be absent
-                git -C "$1" remote set-url origin "$2"
-              }
-              set_remote ~/source-code/homelab             git@gh-homelab:AKhozya/homelab.git
-              set_remote ~/.local/share/chezmoi            git@gh-dotfiles:AKhozya/dotfiles.git
-              set_remote ~/source-code/claude-telegram-bot git@gh-fork:AKhozya/claude-telegram-bot.git
 
               mkdir -p ~/data
 
@@ -407,15 +477,67 @@ spec:
               export HOME=/home/akhozya
               echo "Sync sidecar started (30m interval)"
 
+              # The init container's sweep is a point-in-time guarantee, and everything it removes
+              # is PVC state the bot can write back the moment init exits. This loop then runs git
+              # and `chezmoi apply` against that state every 30 minutes, so a key planted at 00:01
+              # executes at 00:30 — the sweep would be a control that holds only until the pod
+              # finishes starting. Re-run it here before every cycle, and skip the cycle rather
+              # than sync unhardened.
+              #
+              # Duplicated from the init container rather than shared: the two are separate
+              # containers with separate inline scripts and no file between them. Keep them in
+              # step — a divergence here is a hole, not a style problem.
+              GIT_EXEC_RE='^(core\.(fsmonitor|hooksPath|sshCommand|pager|editor|askPass|gitProxy|alternateRefsCommand)|include\.path|includeIf\..+\.path|alias\..+|filter\..+\.(clean|smudge|process)|diff\.external|diff\..+\.(textconv|command)|merge\..+\.driver|(difftool|mergetool)\..+\.(cmd|path)|credential\.(.+\.)?helper|sequence\.editor|gpg\.(.+\.)?(program|defaultKeyCommand)|remote\..+\.(uploadpack|receivepack)|url\..+\.(insteadOf|pushInsteadOf)|submodule\..+\.update|uploadpack\.packObjectsHook|protocol\.ext\.allow|pager\..+|interactive\.diffFilter)$'
+
+              scrub_git_config() {
+                [ -f "$1" ] || return 0
+                local keys k
+                keys=$(git config --file "$1" --name-only --list) || return 1
+                while IFS= read -r k; do
+                  [ -n "$k" ] || continue
+                  git config --file "$1" --unset-all "$k" || return 1
+                done < <(printf '%s\n' "$keys" | grep -iE "$GIT_EXEC_RE" | sort -u)
+              }
+
+              set_remote() {
+                [ -d "$1/.git" ] || return 0
+                git -C "$1" remote set-url origin "$2"
+              }
+
+              # Remotes are re-pinned BEFORE the fetch below for the same reason init does it:
+              # a redirected origin serves TRACKED run_* scripts, which survive both the reset and
+              # any cleaning of the working tree.
+              harden() {
+                rm -f ~/.gitconfig.lock ~/.config/git/config.lock || return 1
+                scrub_git_config ~/.gitconfig || return 1
+                scrub_git_config ~/.config/git/config || return 1
+                for r in ~/.local/share/chezmoi ~/source-code/homelab ~/source-code/claude-telegram-bot; do
+                  [ -d "$r/.git" ] || continue
+                  rm -f "$r/.git/config.lock" "$r/.git/config.worktree.lock" || return 1
+                  for c in "$r/.git/config" "$r"/.git/config.worktree; do
+                    scrub_git_config "$c" || return 1
+                  done
+                  rm -rf "$r/.git/hooks" "$r/.git/info/attributes" || return 1
+                done
+                set_remote ~/source-code/homelab             git@gh-homelab:AKhozya/homelab.git || return 1
+                set_remote ~/.local/share/chezmoi            git@gh-dotfiles:AKhozya/dotfiles.git || return 1
+                set_remote ~/source-code/claude-telegram-bot git@gh-fork:AKhozya/claude-telegram-bot.git || return 1
+              }
+
+              # Remote, branch AND destination ref all spelled out: a bare `fetch` and `@{u}`
+              # resolve through branch.<name>.remote / .merge, and a source-only refspec leaves
+              # the remote-tracking destination to remote.origin.fetch — each one a config key an
+              # attacker can repoint without touching the pinned origin URL.
+              # dotfiles is on master, homelab on main.
               run_pull() {
-                local label="$1" dir="$2"
+                local label="$1" dir="$2" branch="$3"
                 local before after
                 before=$(git -C "$dir" rev-parse HEAD 2>/dev/null || echo "?")
-                if ! git -C "$dir" fetch --quiet 2>&1; then
+                if ! git -C "$dir" fetch --quiet origin "+refs/heads/$branch:refs/remotes/origin/$branch" 2>&1; then
                   echo "[$label] FETCH FAILED"
                   return 1
                 fi
-                after=$(git -C "$dir" rev-parse "@{u}" 2>/dev/null || echo "?")
+                after=$(git -C "$dir" rev-parse "origin/$branch" 2>/dev/null || echo "?")
                 if [ "$before" = "$after" ]; then
                   echo "[$label] up-to-date $after"
                   return 0
@@ -426,10 +548,11 @@ spec:
                   echo "[$label] upstream moved $before -> $after but tree DIRTY — skip reset (in-flight work)"
                   return 0
                 fi
-                if git -C "$dir" reset --hard "@{u}" --quiet; then
+                if git -C "$dir" reset --hard "origin/$branch" --quiet; then
                   echo "[$label] reset $before -> $after"
                 else
                   echo "[$label] RESET FAILED"
+                  return 1
                 fi
                 return 0
               }
@@ -437,14 +560,25 @@ spec:
               while true; do
                 sleep 1800
                 echo "--- Sync $(date -Iseconds) ---"
-                run_pull chezmoi ~/.local/share/chezmoi || true
-                chezmoi apply --force --no-tty 2>&1 || echo "[chezmoi] apply FAILED"
+                if ! harden; then
+                  echo "[harden] FAILED — skipping this sync cycle rather than running git against unswept config"
+                  continue
+                fi
+                if run_pull chezmoi ~/.local/share/chezmoi master; then
+                  chezmoi apply --force --no-tty 2>&1 || echo "[chezmoi] apply FAILED"
+                  # dot_gitconfig.tmpl puts the whole exec-capable key set back on every apply, so
+                  # without this the sweep above is undone before the next line runs.
+                  scrub_git_config ~/.gitconfig || echo "[harden] post-apply scrub FAILED"
+                  scrub_git_config ~/.config/git/config || echo "[harden] post-apply scrub FAILED"
+                else
+                  echo "[chezmoi] pull failed — skipping apply rather than executing an unverified source"
+                fi
                 for f in ~/.claude/plugins/cache/*/*/hooks/hooks.json; do
                   [ -f "$f" ] || continue
                   plugin_root="$(cd "$(dirname "$f")/.." && pwd)"
                   sed -i "s|\${CLAUDE_PLUGIN_ROOT}|$plugin_root|g" "$f" 2>/dev/null
                 done
-                run_pull homelab ~/source-code/homelab || true
+                run_pull homelab ~/source-code/homelab main || true
                 echo "Sync done"
               done
           env:
