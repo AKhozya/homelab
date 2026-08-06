@@ -285,6 +285,32 @@ fi
 echo "   ✅ OIDC integration secrets restored"
 
 # =============================================================================
+# Namespaces this script restores nothing into — bootstrap prerequisite
+# =============================================================================
+# Every namespace above is created as a side effect of restoring a secret into
+# it. homepage restores nothing, and rustdesk's only secret (beacon-key) is
+# SOPS-encrypted in git rather than backed up here, so neither was ever created
+# — but infrastructure-configs still applies namespaced objects into both
+# (resource-governance ResourceQuota/LimitRange, claude-telegram RoleBindings).
+# The apps Kustomization that owns apps/*/namespace.yaml declares
+# dependsOn: infrastructure-configs, so on a bare cluster infrastructure-configs
+# fails with `namespaces "homepage" not found`, never goes Ready, and apps never
+# runs to create them — a deadlock no retry can clear. Pre-creating them here
+# breaks the cycle before Flux is bootstrapped.
+#
+# This is NOT the whole DR ordering story. `require-networkpolicy` is a Deny
+# ValidatingPolicy that counts LIVE NetworkPolicies in the target namespace, and
+# Flux server-side dry-runs its whole apply set before persisting any of it — so
+# a workload and the NetworkPolicy that satisfies it, arriving in the same set,
+# still fail. That is the documented 2-commit new-namespace dance
+# (.claude/review-invariants.md) hitting every namespace at once on a rebuild.
+# Unsolved here; see .backup/README.md before attempting a full restore.
+echo "📦 Pre-creating namespaces with nothing to restore (Flux bootstrap ordering)..."
+kubectl create namespace homepage --dry-run=client -o yaml | kubectl apply -f -
+kubectl create namespace rustdesk --dry-run=client -o yaml | kubectl apply -f -
+echo "   ✅ homepage, rustdesk"
+
+# =============================================================================
 # Summary
 # =============================================================================
 echo ""

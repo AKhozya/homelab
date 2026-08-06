@@ -73,7 +73,7 @@ sudo ansible-playbook -t firmware -e ad_hoc_firmware_apply=true \
 
 Parallel pipeline, runs **each node locally** (no orchestration).
 
-**Schedule**: 1st of month 04:00 UTC, ±1h jitter (RandomizedDelaySec=3600). Temporarily the **8th** for August 2026 (`Persistent=false` while shifted) — reverts to the 1st after 2026-08-08.
+**Schedule**: 1st of month 04:00 UTC, ±1h jitter (RandomizedDelaySec=3600). Temporarily the **9th** for August 2026 (`Persistent=false` while shifted) — reverts to the 1st after 2026-08-09. The 9th, not the 8th, because 2026-08-08 is a Saturday: the weekly reboot at Sat 04:30 UTC lands inside the 04:00-05:00 window, and `Persistent=false` cannot catch a scan lost to it.
 **Unit**: `node-maintenance-security-scan.timer` → `node-maintenance-security-scan.service`
 **Script**: `/usr/local/sbin/node-maintenance-security-scan.sh` (canonical: `ansible/roles/security_scan/files/security-scan.sh`)
 **Tools**: `lynis audit system --quick` + `rkhunter --check --sk --rwo --nocolors`

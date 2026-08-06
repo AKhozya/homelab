@@ -198,6 +198,50 @@ flux get kustomizations -A
 kubectl get helmrelease -A
 ```
 
+**Expect `apps` to fail here on a bare cluster, and do not treat it as a broken
+restore.** `require-networkpolicy` is a Deny ValidatingPolicy that counts the
+NetworkPolicies *live in the target namespace*, and kustomize-controller
+server-side dry-runs its entire apply set before persisting any of it. A
+workload and the NetworkPolicy that would satisfy it arrive in the same set, so
+the workload is rejected while the policy is still unwritten:
+
+```
+admission webhook denied the request: Namespace must declare at least one NetworkPolicy
+```
+
+This is the documented two-commit new-namespace dance
+(`.claude/review-invariants.md`) hitting every namespace at once, and it has no
+in-repo fix yet. Unblock it by applying the namespaces and NetworkPolicies on
+their own — that is the only thing the workloads are waiting on — then let Flux
+reconcile everything else normally.
+
+This runs **after** `flux bootstrap`, not before: it is remediation for a
+reconcile that has already failed, not part of the pre-Flux secret restore.
+Flux converges on the next interval once the policies exist.
+
+```bash
+# Run from a checkout of this repo, not from the cluster.
+# Namespaces AND policies together: trivy-scan and popeye each ship their own
+# namespace, so a policies-only pass would have nowhere to put them.
+# The `echo ---` is load-bearing: kustomize build emits no trailing separator,
+# so without it the last document of one root merges into the first of the next
+# and you get a Namespace carrying someone else's roleRef.
+extract() {
+  for d in apps/*/ monitoring/configs/*/ monitoring/controllers/*/ infrastructure/configs/*/; do
+    kustomize build "$d" 2>/dev/null
+    echo "---"
+  done | yq 'select(.kind == "Namespace" or .kind == "NetworkPolicy")'
+}
+
+extract | kubectl apply --dry-run=server -f -    # expect 23 namespaces + 58 policies (2026-08-06)
+extract | kubectl apply -f -
+```
+
+Then `flux reconcile kustomization apps --with-source` and watch
+`flux get kustomizations -A` go Ready. If a future change adds a bootstrap layer
+that reconciles NetworkPolicies before enforcement, this step goes away — check
+the Kustomization graph rather than assuming it is still needed.
+
 #### Step 7: Restore Databases from Backups
 
 Backups from 2 sources (preference order):

@@ -3,12 +3,19 @@ Description=Node maintenance — monthly security scan trigger
 Documentation=file:///etc/node-maintenance/README.md
 
 [Timer]
-# TEMPORARY (August 2026): shifted 1st → 8th. Revert OnCalendar to *-*-01 and
-# Persistent to true together after 2026-08-08.
+# TEMPORARY (August 2026): shifted 1st → 9th. Revert OnCalendar to *-*-01 and
+# Persistent to true together after 2026-08-09.
+# The 9th rather than the 8th: 2026-08-08 is a Saturday, and the weekly reboot
+# fires Sat 04:30 UTC — inside this timer's 04:00-05:00 randomized window. The
+# steady-state config survives that collision because Persistent=true catches a
+# missed run up on the next boot; while shifted it cannot, so a node rebooted
+# mid-window would lose August's scan outright.
 # Persistent=false while shifted — the on-disk stamp still reads the 2026-07-01
-# run, so a persistent timer can treat the 2026-07-08 occurrence as missed and
-# fire immediately on daemon-reload instead of waiting for the 8th.
-OnCalendar=*-*-08 04:00:00 UTC
+# run, so a persistent timer can treat the 2026-07-09 occurrence as missed and
+# fire immediately on daemon-reload instead of waiting for the 9th.
+# Glob form, not an absolute 2026-08-09: if the revert is missed the scan keeps
+# running monthly on the 9th, where a one-shot date would silently never fire again.
+OnCalendar=*-*-09 04:00:00 UTC
 Persistent=false
 RandomizedDelaySec=3600
 Unit=node-maintenance-security-scan.service
