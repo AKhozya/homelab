@@ -17,6 +17,27 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-08-07 — Poller wedge: the bot survived the outage but not its own backoff
+
+A morning WAN/DNS outage (~06:40–11:15 UTC, multi-node: bot `getUpdates` failing
+`FailedToOpenSocket`, its sync sidecar unable to resolve `ssh.github.com`, source-controller
+failing GitHub/Helm fetches until 11:03) ended on its own — and the bot stayed dead. The grammY
+runner's retry was asleep on an hours-long exponential backoff, so the pod sat 2/2 Ready with a
+`pgrep` liveness probe green while 7 updates queued server-side (`getWebhookInfo
+pending_update_count` — the passive probe that proved it). Manual rollout restart drained the queue.
+
+Fixes shipped as bot **1.32.0** + deployment change:
+
+- **Poll heartbeat liveness.** A grammY transformer touches `/tmp/claude-telegram-poll-heartbeat`
+  on every successful `getUpdates`; the livenessProbe now checks file freshness (10 min,
+  `find -mmin`) instead of process existence, so a wedged poller restarts ~13 min after polling
+  dies. A restart loop during a real outage surfaces via `PodCrashLooping`.
+- **Console secret redaction.** The failed-poll logs printed the full bot token — Bun fetch errors
+  carry the request URL as an error property and the Telegram API puts the token in the URL. The
+  bot now scrubs known secrets from every console argument (depth-unlimited inspect; Bun renders
+  error chains at any depth but cuts plain objects at 2). Token rotation required (Loki retains
+  the leak 720h) — second rotation after the 2026-07-31 transcript leak.
+
 ### 2026-08-06 — The bot could patch the Deployment that sanitized the bot
 
 Following the remediation below, an RBAC audit found the control loop closed on itself. The

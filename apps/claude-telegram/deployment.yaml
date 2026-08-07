@@ -43,7 +43,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: chezmoi-init
-          image: ghcr.io/akhozya/claude-telegram-bot:1.31.7
+          image: ghcr.io/akhozya/claude-telegram-bot:1.32.0
           command:
             - /bin/bash
             - -c
@@ -363,7 +363,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: claude-telegram
-          image: ghcr.io/akhozya/claude-telegram-bot:1.31.7
+          image: ghcr.io/akhozya/claude-telegram-bot:1.32.0
           env:
             - name: HOME
               value: /home/akhozya
@@ -404,6 +404,9 @@ spec:
               value: /home/akhozya/data/session.json
             - name: RESTART_FILE_PATH
               value: /home/akhozya/data/restart.json
+            # Coupled to the livenessProbe below — both must name the same path.
+            - name: POLL_HEARTBEAT_PATH
+              value: /tmp/claude-telegram-poll-heartbeat
             - name: AUDIT_LOG_PATH
               value: /home/akhozya/data/audit.log
             # Pinned here rather than left on the code defaults so the cadence is
@@ -446,11 +449,21 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          # Poll-heartbeat freshness (the bot touches the file on every successful
+          # getUpdates), not process-aliveness: on 2026-08-07 the poller slept out an
+          # hours-long retry backoff after a network outage while a pgrep-style check
+          # stayed green and 7 updates queued server-side. 10min staleness + 3 failures
+          # restarts ~13min after polling dies; polling continues during long Claude
+          # queries, so a busy bot is not a stale bot.
           livenessProbe:
             exec:
-              command: ["pgrep", "-f", "bun"]
-            initialDelaySeconds: 30
-            periodSeconds: 30
+              command:
+                - sh
+                - -c
+                - find /tmp/claude-telegram-poll-heartbeat -mmin -10 | grep -q .
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 5
             failureThreshold: 3
           # Trigger server binds 127.0.0.1 — exec probe required (kubelet can't reach localhost)
           readinessProbe:
@@ -477,7 +490,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync
-          image: ghcr.io/akhozya/claude-telegram-bot:1.31.7
+          image: ghcr.io/akhozya/claude-telegram-bot:1.32.0
           command:
             - /bin/bash
             - -c
