@@ -43,7 +43,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: chezmoi-init
-          image: ghcr.io/akhozya/claude-telegram-bot:1.31.6
+          image: ghcr.io/akhozya/claude-telegram-bot:1.31.7
           command:
             - /bin/bash
             - -c
@@ -363,7 +363,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: claude-telegram
-          image: ghcr.io/akhozya/claude-telegram-bot:1.31.6
+          image: ghcr.io/akhozya/claude-telegram-bot:1.31.7
           env:
             - name: HOME
               value: /home/akhozya
@@ -477,7 +477,7 @@ spec:
             - name: tmp
               mountPath: /tmp
         - name: sync
-          image: ghcr.io/akhozya/claude-telegram-bot:1.31.6
+          image: ghcr.io/akhozya/claude-telegram-bot:1.31.7
           command:
             - /bin/bash
             - -c
