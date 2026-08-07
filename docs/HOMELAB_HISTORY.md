@@ -17,6 +17,54 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-08-07 — The sync path ran the drift-heal playbook twice on every push
+
+`node-maintenance-sync.service` needed 12min59s to deploy one commit (`fe0ff835`). It ran the full
+`node-config` ansible playbook across all four hosts twice.
+
+| Fact | Value |
+|---|---|
+| Run 1 — `install.sh:163` starts `node-maintenance-config.service` unconditionally | 18:30:29 → 18:38:22 BST (7min53s) |
+| Run 2 — `sync-from-git.sh:63-66` starts the same unit once `install.sh --sync-only` returns | 18:38:22 → 18:43:24 BST (5min02s) |
+| `node-maintenance-sync.service` `TimeoutStartSec` | 20min |
+| `node-maintenance-config.service` `TimeoutStartSec` | 15min |
+| Callers of `install.sh` | `sync-from-git.sh:57` (always `--sync-only`), plus a flagless manual bootstrap |
+
+A 2026-06-05 entry already recorded the doubling as a gotcha. It drift-healed every host at once and
+so bypassed a staged W2→W1→CP rollout. That entry told operators to stage with a manual `rsync` plus
+`ansible-playbook --limit`, never `install.sh --sync-only`. The doubling itself stayed for two months.
+
+Fix: gate the `install.sh` run on `SYNC_ONLY -eq 0`.
+
+| Path | Playbook runs, before → after |
+|---|---|
+| Flagless manual bootstrap | 1 → 1, from `install.sh` |
+| Sync timer, HEAD changed | 2 → 1, from `sync-from-git.sh` |
+| Sync timer, fresh clone | 2 → 1 — `sync-from-git.sh` passes `--sync-only` on this path too |
+| Standalone `install.sh --sync-only` | 1 → 0 — the behaviour the 2026-06-05 gotcha warns against |
+
+`README.md:35` and `:117` already described the fixed shape: `install.sh --sync-only` does
+daemon-reload and file perms, then `node-maintenance-config.service` re-applies. The guard took
+effect on the run that deployed it, because `sync-from-git.sh` invokes `install.sh` from the freshly
+pulled repo.
+
+The doubling cost time, not correctness. The playbook is safe to repeat, and the second run reported
+`changed=0`. If one host had run slow, systemd would have killed the deploy: two ~6min runs plus the
+git fetch left roughly 7min of the 20min limit.
+
+Error propagation is unchanged. `sync-from-git.sh` sets `set -euo pipefail`, so a failed `systemctl
+start --wait` still fails the unit and fires the `ExecStopPost` Telegram alert.
+
+The 18:30 run also caused a 3-minute disruption, which is what surfaced all of the above:
+
+| Symptom | Detail |
+|---|---|
+| Readiness and liveness probe timeouts | `worker-node`, `worker-node-2`, `immich-vm` — 17:32:30 → 17:35:39 UTC, one event each |
+| Flux `apps` dry-run failure | `vpol.validate.kyverno.svc-fail-finegrained-require-labels`: `EOF`, recovered on retry at the same revision |
+
+The per-host `ufw reload` caused both. `1a1b36ac` added immich-vm's missing `ufw_rules_base` entry,
+and the drift-heal applies it one node at a time. The doubling did not cause it.
+
 ### 2026-08-07 — A comment sweep found three live defects, including a boot barrier guarding nothing
 
 A repo-wide comment and Markdown pass (`fb62fa8c`, `7ae66800`, `03af5ed1` — every comment-bearing

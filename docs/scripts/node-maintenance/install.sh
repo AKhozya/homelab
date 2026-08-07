@@ -160,7 +160,10 @@ systemctl enable --now node-maintenance-config.timer
 
 # ── run initial node-config drift-heal (ansible owns logrotate/journald/sudoers/user) ──
 # Synchronous — fails install.sh if ansible fails, surfaces issue immediately.
-if [ -x /usr/bin/ansible-playbook ] && [ -f /etc/node-maintenance/ansible/node-config.yml ]; then
+# If the caller passes --sync-only, sync-from-git.sh starts this unit itself once
+# install.sh returns. Starting it here too runs the playbook twice per push, which
+# uses 13min of node-maintenance-sync.service's 20min TimeoutStartSec.
+if [ "$SYNC_ONLY" -eq 0 ] && [ -x /usr/bin/ansible-playbook ] && [ -f /etc/node-maintenance/ansible/node-config.yml ]; then
   echo "==> Running initial node-config drift-heal"
   systemctl start --wait node-maintenance-config.service || {
     echo "ERROR: initial node-config run failed; see journalctl -u node-maintenance-config.service" >&2
