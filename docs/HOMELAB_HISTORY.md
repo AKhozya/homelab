@@ -17,6 +17,56 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-08-07 — A comment sweep found three live defects, including a boot barrier guarding nothing
+
+A repo-wide comment and Markdown pass (`fb62fa8c`, `7ae66800`, `03af5ed1` — every comment-bearing
+file, ~330 of them, read comment by comment) meant checking each claim against the live system.
+Three claims turned out to be code defects rather than stale prose; fixed in `1a1b36ac`.
+
+**`k3s-wait-ready.sh` settled nothing on the control plane.** The barrier exists so
+`ufw-heal-post-k3s` does not race kube-proxy and kube-router still writing iptables, and gates on
+`/run/k3s-ready`. Phase 2 waited for pods matching `k8s-app=kube-router` — but K3s runs kube-router
+inside the k3s process, so that selector matches zero pods and the wait could only time out. All
+three phases then shared one deadline, so the dead wait ate the whole 300s and phase 3 — the
+ufw-chain stability check the barrier exists for — ran already expired and took zero samples. The
+CP journal had been printing the proof at every boot:
+
+```
+pods: timeout / WARN: critical pods not ready
+iptables: timeout (last_stable=0/3) / WARN: iptables not stable
+complete (elapsed=304s, sentinel=/run/k3s-ready)
+```
+
+Fix: drop the kube-router selector (`CRITICAL_POD_LABELS` is coredns only) and give each phase its
+own budget clamped to the global deadline (90 + 60 + 120 ≤ 300), so a timed-out phase cannot starve
+the ones after it. New `roles/k3s_config/tests/test-wait-ready.sh` pins both; three mutants confirm
+it goes red when either is undone. Takes effect at each node's next boot.
+
+**immich-vm had no UFW node-allow rule.** `ufw_rules_base` carried `.127`, `.129` and `.126` but
+never gained `.231` when the node joined 2026-07-10. Traffic mostly worked because 8472/udp and
+10250/tcp are open from anywhere. Added in its siblings' shape; applies on the next drift-heal, one
+node at a time, with a ufw reload each.
+
+**Two helpers in the drift-heal alert path were dead code.** `extract_fatal_summary()` and
+`extract_journal_window()` were defined and never called, so the fatal dump carried no journalctl
+time window and only a 300-char-trimmed raw fatal line. Both are wired into the dump now; the
+script's paths became env-overridable so `lib/tests/test-notify.sh` can drive all five branches in
+a temp dir.
+
+The sweep also corrected facts that had drifted: coredns-ha described as a "Deployment (3 spread
+replicas)" in three places when it is a DaemonSet; both worker `host_vars` headers understating
+their hardware by half (W1 is 16c/32t 64GB, W2 8c/16t 32GB); `kustomize-controller v1.9.1` against
+a live v1.9.4 (the `KUSTOMIZE_VERSION` pin it justifies is still correct — v1.9.4 embeds the same
+kustomize/api v0.21.1); a "pre-commit gitleaks hook" that does not exist, the coverage being
+`gitleaks.yaml`; and two Alertmanager inhibit-rule comments describing matchers the rules do not
+use. A semantic render proof — all 7 kustomize roots built, comments stripped from string values,
+diffed against the pre-sweep tree — came back identical on every root, so nothing reaching the
+cluster changed.
+
+Worth keeping: none of the three defects could fail a check. A barrier waiting on a pod that cannot
+exist still exits 0, still touches its sentinel, and boot proceeds; CI sees a passing shellcheck.
+They surfaced only because a comment asserted something checkable and the check got run.
+
 ### 2026-08-07 — NAS reboot → dead CoreDNS endpoint blackholed a quarter of cluster DNS
 
 The NAS went down ~12:52 local (outside any scrub; cause unread — journal needs sudo) and came
