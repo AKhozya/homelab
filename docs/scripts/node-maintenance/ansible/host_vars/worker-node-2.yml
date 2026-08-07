@@ -1,5 +1,7 @@
 ---
-# worker-node-2 (192.168.1.126) — 4c/16G AMD HawkPoint + Radeon iGPU, lower cap after DPDK OOM incident.
+# worker-node-2 (192.168.1.126) — AMD Ryzen 7 8745H, 8c/16t, 32GB, Radeon 780M iGPU.
+# Workload memory limits here were cut after repeated OOM incidents (2026-02-21 DPDK
+# build, 2026-04-26 host OOM). Their driver, rebuilderd, was removed 2026-07-06.
 
 # Cluster LAN IP for /etc/hosts block (mirrors ansible_host but explicit).
 node_ip: 192.168.1.126
@@ -33,8 +35,7 @@ ufw_rules_host:
   - { comment: "Flannel VXLAN", rule: allow, from_ip: 192.168.1.0/24, to_port: 8472, proto: udp }
 
 # W2 route rules: pod-to-node (diff comment vs CP/W1) + 2 legacy broad forwards.
-# Broad routes are supersets of pod-to-pod but left in place to match live state;
-# cleanup tracked as followup.
+# Broad routes are supersets of pod-to-pod, left in place to match live state.
 ufw_route_rules_host:
   - { comment: "K3s pod to nodes", rule: allow, from_ip: 10.42.0.0/16, to_ip: 192.168.1.0/24 }
   - { rule: allow, from_ip: 10.42.0.0/16 }

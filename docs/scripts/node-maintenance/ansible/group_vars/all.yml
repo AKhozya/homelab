@@ -14,10 +14,11 @@ telegram_chat_id_file: /etc/node-maintenance/telegram-chat-id
 # Kubernetes
 kubeconfig_path: /etc/rancher/k3s/k3s.yaml
 
-# Alertmanager — accessed via `kubectl exec` + amtool in the alertmanager pod.
-# (CP host can't reach pod CIDR; API-server-proxy 502's on pod dial. Earlier
-# approach used kubectl proxy + wget, now obsolete — kubectl-proxy.service kept
-# installed for potential rollback but not used by playbooks.)
+# Alertmanager — reached with `kubectl exec` + amtool in the alertmanager pod.
+# The CP host cannot reach the pod CIDR and the API-server proxy 502s on a pod
+# dial. The earlier approach curled the API through `kubectl proxy` + wget;
+# `node-maintenance-kubectl-proxy.service` stays installed and enabled so that
+# path can be rolled back to, but no playbook uses it now.
 silence_duration_seconds: 5400   # 90 minutes (covers phase1 + CP reboot + phase2 typical runtime)
 silence_alertnames: "KubeletDown|KubernetesAPIServerDown|DeploymentReplicasMismatch|StatefulSetReplicasMismatch|CloudflareTunnelDown|CloudflareTunnelPodNotRunning|CloudflareTunnelNoConnections|CouchDBDown|CouchDBPodNotRunning|FluxReconciliationFailure|FluxSourceNotReady|KyvernoAdmissionControllerDown|LokiDown|LokiCompactorNotRunning|MySQLDown|MySQLHAProxyNotRunning|MySQLOrchestratorNotRunning|RedisDown|RedisPodNotRunning|AlertmanagerFailedToSendAlerts|AlloyDown|AlloyLogDeliveryFailing|DaemonSetNotScheduled|TraefikDown|PrometheusTargetDown|KubePodCrashLooping|KubePodNotReady|PodRunningNotReady|PodPhaseNotRunning|TargetDown|TooManyPodsPending|JobFailed"
 
@@ -34,7 +35,6 @@ cp_stabilize_minutes: 4
 per_node_stabilize_minutes: 4
 final_stabilize_minutes: 5
 
-# Flux kustomizations to reconcile
 flux_kustomizations:
   - flux-system
   - infrastructure-controllers
@@ -43,7 +43,7 @@ flux_kustomizations:
   - monitoring-configs
   - monitoring-controllers
 
-# yay command (used in both phases)
+# Used by phase1 and phase2.
 # -Syyu (double y) forces re-download of mirror DB even if cache appears fresh —
 # catches mirror-staleness where DB lists package files that have rotated.
 # --cleanafter clears the per-package tree under .cache/yay/ after a successful
@@ -56,9 +56,6 @@ flux_kustomizations:
 # failed, phase1 died fail-fast — no reboot, phase2 never ran, workers unpatched.
 yay_cmd: "sudo -u node-maintenance yay -Syyu --noconfirm --answerdiff=None --answerclean=None --removemake --cleanafter"
 
-# Phase2 post-rollout Failed-pod GC scope. Limited to system + infra namespaces;
-# user-app namespaces (immich, paperless, n8n, mealie, etc.) are skipped so
-# operator-investigated Failed pods aren't silently nuked. Add new infra ns here.
 # Expected kernel cmdline params, universal across all nodes. Set by
 # bootloader (systemd-boot) at install via setup-node.sh — bootstrap-only,
 # never re-applied. base_config asserts presence in /proc/cmdline; drift =
@@ -70,6 +67,10 @@ expected_kernel_params:
   - printk.always_kmsg_dump=Y
   - panic=10
 
+# Phase2 post-rollout Failed-pod GC scope. System and infra namespaces only.
+# User-app namespaces (immich, paperless, n8n, mealie, …) stay out, so an
+# operator-investigated Failed pod is never deleted underneath you. Add new
+# infra namespaces here.
 phase2_pod_gc_namespaces:
   - kube-system
   - kube-public
@@ -84,7 +85,7 @@ phase2_pod_gc_namespaces:
   - node-maintenance
 
 # ---- UFW firewall ----
-# Policies: default-deny incoming/routed, allow outgoing. Logging low = user.log noise-free.
+# Keep logging low so user.log stays free of noise.
 ufw_policy_incoming: deny
 ufw_policy_outgoing: allow
 ufw_policy_routed: deny
@@ -169,7 +170,7 @@ pacman_packages_base:
 #   packagekit, pkgstats, udisks2      — dependency leftovers on W1/W2, not deliberate installs.
 # Node-local extras beyond this list are tolerated drift; the list is a floor, not a whitelist.
 
-# Base rules common to all 3 nodes.
+# Base rules common to all 4 nodes.
 # Order preserved as UFW orders rules internally by insertion; module idempotency
 # compares rule match (not comment), so minor comment drift is tolerated as no-op.
 # Duplicate-looking entries (e.g. port 80 vs 80/tcp) are intentional — UFW treats
@@ -188,11 +189,10 @@ ufw_rules_base:
   - { comment: "HTTPS from LAN", rule: allow, from_ip: 192.168.1.0/24, to_port: 443, proto: tcp }
   - { rule: allow, from_ip: 10.42.0.0/16, to_port: 8000, proto: tcp }
 
-# Base route rules common to all 3 nodes.
+# Base route rules common to all 4 nodes.
 ufw_route_rules_base:
   - { comment: "K3s pod-to-pod traffic", rule: allow, from_ip: 10.42.0.0/16, to_ip: 10.42.0.0/16 }
 
-# Per-group / per-host overrides (fill ufw_rules_group/host + ufw_route_rules_group/host).
 ufw_rules_group: []
 ufw_rules_host: []
 ufw_route_rules_group: []

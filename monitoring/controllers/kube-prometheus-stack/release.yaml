@@ -64,8 +64,9 @@ spec:
               - op: add
                 path: /spec/template/spec/priorityClassName
                 value: homelab-standard
-          # seccomp RuntimeDefault (UR2-4 soak) — node-exporter uses hostNetwork/hostPID + /proc,/sys
-          # file reads, none of which RuntimeDefault blocks. Strategic-merge preserves chart securityContext.
+          # seccomp RuntimeDefault (UR2-4) — node-exporter uses hostNetwork/hostPID and reads
+          # /proc,/sys. RuntimeDefault blocks none of that. Strategic-merge keeps the chart's
+          # own securityContext; a JSON6902 replace would clobber it.
           - target:
               kind: DaemonSet
               name: kube-prometheus-stack-prometheus-node-exporter
@@ -104,9 +105,8 @@ spec:
           enabled: true
         datasources:
           enabled: true
-          # Disable auto-created Prometheus datasource (Prometheus server disabled)
+          # No Prometheus server runs here for the auto-created datasource to point at.
           defaultDatasourceEnabled: false
-      # Datasources: VictoriaMetrics (default) + Loki
       additionalDataSources:
         - name: VictoriaMetrics
           type: prometheus
@@ -132,7 +132,6 @@ spec:
         existingSecret: grafana-admin-secret
         userKey: admin-user
         passwordKey: admin-password
-      # Authentik SSO configuration
       extraSecretMounts:
         - name: grafana-oidc
           secretName: grafana-oidc
@@ -159,9 +158,8 @@ spec:
           api_url: $__file{/etc/secrets/grafana-oidc/userinfo-url}
           role_attribute_path: contains(groups, 'Grafana Admins') && 'Admin' || contains(groups, 'Grafana Editors') && 'Editor' || 'Viewer'
           allow_sign_up: true
-      # Ingress enabled for internal network access via grafana.h0melab.work
-      # DNS points to internal IPs only (192.168.1.127, 192.168.1.129)
-      # NOT exposed to the internet - NetworkPolicy restricts external access
+      # LAN only. h0melab.work resolves to 192.168.1.127 / .129, and no Cloudflare
+      # Tunnel route carries this host.
       ingress:
         enabled: true
         ingressClassName: traefik
@@ -216,19 +214,16 @@ spec:
               - alertname =~ "^(BackupJobFailed|BackupCronJobMissedSchedule|BackupJobRunningTooLong|NoRecentBackups|NoRecentImmichBackup)$"
             receiver: 'telegram-backup'
             continue: false
-          # K3s component alerts disabled in defaultRules (embedded architecture)
         inhibit_rules:
           # NodeDown inhibit removed 2026-07-25: it never matched. NodeDown comes from
           # up{job="...node-exporter"}, whose `instance` is 192.168.1.x:9100, while the
           # pod/container alerts it was meant to suppress carry kube-state-metrics'
           # instance (10.42.x.x:8080) — equal:[instance] can never be satisfied.
-          # Suppress warning alerts when a critical alert fires for same namespace/pod
           - source_matchers:
               - severity = critical
             target_matchers:
               - severity = warning
             equal: [namespace, alertname]
-          # Suppress info alerts when warning or critical fires
           - source_matchers:
               - alertname = InfoInhibitor
             target_matchers:
@@ -271,9 +266,8 @@ spec:
               <code>{{ if $a.Labels.namespace }}{{ $a.Labels.namespace }}{{ end }}{{ if $a.Labels.instance }}{{ if $a.Labels.namespace }} · {{ end }}{{ $a.Labels.instance }}{{ end }}</code>{{ end }}
               {{ $a.Annotations.summary }}{{ end }}{{ end }}{{ if gt (len .Alerts) 5 }}
               <i>…and more ({{ len .Alerts }} total)</i>{{ end }}
-      # Ingress enabled for internal network access via am.h0melab.work
-      # DNS points to internal IPs only (192.168.1.127, 192.168.1.129)
-      # NOT exposed to the internet - NetworkPolicy restricts external access
+      # LAN only. h0melab.work resolves to 192.168.1.127 / .129, and no Cloudflare
+      # Tunnel route carries this host.
       ingress:
         enabled: true
         ingressClassName: traefik
@@ -290,11 +284,10 @@ spec:
       alertmanagerSpec:
         # standard-tier — Prometheus Operator propagates to the generated STS.
         priorityClassName: homelab-standard
-        # HA configuration - 2 replicas with anti-affinity
         replicas: 2
         podAntiAffinity: "hard"
-        # Configure external URL so Alert Manager generates HTTPS links
-        # This prevents mixed content warnings in browsers
+        # Alertmanager builds its silence and alert links from this. Without it they
+        # point at the pod address, which no browser outside the cluster can reach.
         externalUrl: https://am.h0melab.work
         secrets:
           - alertmanager-telegram
@@ -327,8 +320,6 @@ spec:
             limits:
               cpu: 100m
               memory: 64Mi
-      # Note: Prometheus Operator runs as single instance by design (uses leader election)
-      # The replicas field is hardcoded to 1 in the chart
       prometheusConfigReloader:
         resources:
           requests:

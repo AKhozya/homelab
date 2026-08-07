@@ -7,10 +7,10 @@
 #
 # Three-play split:
 #   Play 1 (parallel): non-disruptive roles (file copies, package state).
-#   Play 2 (serial:1): firewall — UFW reload races with k3s/flannel chain rebuild.
-#                      Limit blast radius to 1 node at a time. Quorum (2/3) preserved.
-#                      Coupled with firewall role's drift fingerprint gate, the
-#                      rules block runs only when actual drift is detected.
+#   Play 2 (serial:1): firewall — UFW reload races with the k3s/flannel chain
+#                      rebuild, so heal one node at a time. Paired with the
+#                      firewall role's drift fingerprint gate, the rules block
+#                      runs only when the role detects real drift.
 #   Play 3 (parallel): post-firewall roles + workers-only tail.
 
 - name: Node config drift-heal — non-disruptive (all hosts, parallel)

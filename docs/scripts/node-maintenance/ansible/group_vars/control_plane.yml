@@ -1,13 +1,13 @@
 ---
 # control_plane group overrides (CP = gmk-k3s-control-plane, 192.168.1.127).
 
-# ---- K3s config (Step 5 — §A) ----
+# ---- K3s config ----
 # Drift-alert only, no auto-restart. Restart via: sudo systemctl restart k3s.
 k3s_default_storage_path: /mnt/k8s-storage
 k3s_disable_helm_controller: true
 k3s_disable:
   - traefik
-  # coredns disabled: CoreDNS self-managed via Flux (infrastructure/coredns/ — coredns-ha Deployment +
+  # coredns disabled: CoreDNS self-managed via Flux (infrastructure/coredns/ — coredns-ha DaemonSet +
   # kube-dns Service/CM/SA/RBAC; now owner-label-free so k3s --disable can't delete them).
   # DNS-DEADLOCK GOTCHA (2026-05-31 cutover): on the FIRST CP restart, k3s --disable deleted the still-
   # addon-owned Service/CM/SA/RBAC, and Flux could NOT recreate them — kustomize-controller resolves
@@ -17,7 +17,7 @@ k3s_disable:
   # break-glass `kubectl apply -k infrastructure/coredns/` (recreates from git → DNS up → Flux adopts).
   # The recreated objects carry NO objectset.rio.cattle.io/owner label, so FUTURE --disable restarts no
   # longer delete them → deadlock is a one-time transition cost. Steady state: Flux owns DNS, addon off,
-  # coredns-ha (3 spread replicas) serves.
+  # coredns-ha (one pod per node) serves.
   - coredns
 k3s_node_taints:
   - "node-role.kubernetes.io/control-plane:NoSchedule"
@@ -26,8 +26,8 @@ k3s_node_labels:
 k3s_terminated_pod_gc_threshold: 20
 k3s_secrets_encryption: true
 
-# CoreDNS HA: handled by the Flux-managed `coredns-ha` Deployment (infrastructure/coredns/,
-# 3 spread replicas) since the 2026-05-31 --disable=coredns convergence. The old
+# CoreDNS HA: handled by the Flux-managed `coredns-ha` DaemonSet (infrastructure/coredns/,
+# one pod per node) since the 2026-05-31 --disable=coredns convergence. The old
 # `coredns_replicas` var + k3s_config addon-manifest patch were removed (the addon manifest
 # no longer exists → the patch task failed every drift-heal run). See the k3s_disable comment above.
 
@@ -42,7 +42,6 @@ k3s_node_monitor_grace_period: 75s
 
 # API-server cert SANs. Restart K3s after change to regenerate cert.
 # Cert lifetime: K3s rotates internally, but SAN list is set once at install.
-# This block makes SANs declarative; drift-heal alerts on diff.
 k3s_tls_san:
   - 127.0.0.1
   - localhost
@@ -60,7 +59,7 @@ ufw_rules_group:
   - { comment: "K8s pod network worker-node-2", rule: allow, from_ip: 10.42.2.0/24 }
   - { comment: "Kubernetes API server", rule: allow, to_port: 6443, proto: tcp }
 
-# UFW route rules specific to CP (pod-to-node + node-to-pod).
+# UFW route rules specific to CP.
 ufw_route_rules_group:
   - { comment: "K3s pod-to-node traffic (API server)", rule: allow, from_ip: 10.42.0.0/16, to_ip: 192.168.1.0/24 }
   - { comment: "K3s node-to-pod traffic", rule: allow, from_ip: 192.168.1.0/24, to_ip: 10.42.0.0/16 }

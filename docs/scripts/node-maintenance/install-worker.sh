@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # install-worker.sh — per-worker bootstrap (idempotent).
-# Run as root on each worker (worker-node, worker-node-2).
+# Run as root on each worker node.
 # install.sh on CP substitutes PUB_KEY placeholder before scp.
 #
 # Scope (bootstrap-critical only — everything else moved to ansible node-config.yml):
@@ -20,8 +20,6 @@ esac
 [ "$(id -u)" = "0" ] || { echo "Run as root" >&2; exit 1; }
 
 # ── node-maintenance user ──
-# (logrotate + all other pkgs installed by ansible base_config / packages roles
-# on first CP → worker apply.)
 # Shell = /bin/bash required for SSH command execution (ansible).
 # Security: SSH key auth + sudoers; no password set.
 if id node-maintenance >/dev/null 2>&1; then
@@ -48,9 +46,8 @@ EOF
 chmod 0440 /etc/sudoers.d/node-maintenance
 visudo -c -f /etc/sudoers.d/node-maintenance
 
-# security-scan.sh + service + timer: owned by ansible roles/security_scan (deployed
-# from CP after first node-config.yml run on this worker).
-# Log dir /var/log/node-maintenance created by ansible role.
+# security-scan.sh, its service/timer and /var/log/node-maintenance belong to ansible
+# roles/security_scan, deployed from CP on the first node-config.yml run here.
 
 echo "Worker bootstrap complete on ${HOSTNAME:-$(cat /etc/hostname 2>/dev/null || echo unknown)}."
 echo "Next: ansible node-config.yml will deploy security-scan + logrotate + journald."

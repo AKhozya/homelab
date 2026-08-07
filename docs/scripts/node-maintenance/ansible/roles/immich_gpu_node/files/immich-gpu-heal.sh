@@ -26,7 +26,7 @@ STATE="/var/lib/node-maintenance/immich-gpu-heal.state" # "win count total last_
 METRIC_DIR="/var/lib/node_exporter/textfile"
 METRIC="${METRIC_DIR}/immich_gpu_heal.prom"
 RENDER_NODE="/dev/dri/renderD129"       # Intel iGPU render node (virtio-gpu is renderD128)
-LIBRARY_MOUNT="/var/lib/immich-library" # virtiofs library mount (added step 3); healed only if a unit exists
+LIBRARY_MOUNT="/var/lib/immich-library" # virtiofs library mount; healed only when a mount unit exists
 
 COOLDOWN=300      # min seconds between load-i915 restarts (let the last settle)
 WINDOW=1800       # give-up window (s)
@@ -241,7 +241,6 @@ elif render_present && [ "$((now - last_qsv))" -ge "$QSV_INTERVAL" ]; then
 	last_qsv="$now"
 fi
 
-# Healthy render → clear + exit.
 if i915_loaded && render_present; then
 	emit_metric 1 "$qsv_metric" "$vfs_ok" "$total" 0 "$qsv_stuck"
 	write_state "$win" "$count" "$total" "$last" "$last_qsv"
@@ -267,7 +266,6 @@ cooldown)
 	;;
 esac
 
-# Heal: restart load-i915.service to reload the i915 render driver.
 log "restarting load-i915.service to reload i915 render driver."
 if systemctl restart load-i915.service; then
 	count="$((count + 1))"

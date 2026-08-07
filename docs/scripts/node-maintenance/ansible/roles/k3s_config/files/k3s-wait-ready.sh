@@ -5,7 +5,7 @@
 # "Truly ready" means:
 #   - (CP only) API server returns /healthz OK
 #   - (CP only) Critical kube-system pods Ready (kube-router, coredns)
-#   - All nodes: iptables-save sha256 stable across 3× 5s windows
+#   - All nodes: ufw-chain sha256 stable across 3× 5s windows
 #
 # Why: systemd `After=k3s.service` only guarantees k3s.service STARTED, not
 # that K3s/kube-router/kube-proxy have finished writing iptables rules.
@@ -16,7 +16,7 @@
 # Downstream services use ConditionPathExists=/run/k3s-ready to gate.
 #
 # Tunables (env):
-#   K3S_READY_TIMEOUT  total budget seconds (default 180)
+#   K3S_READY_TIMEOUT  total budget seconds (default 300)
 
 set -uo pipefail
 

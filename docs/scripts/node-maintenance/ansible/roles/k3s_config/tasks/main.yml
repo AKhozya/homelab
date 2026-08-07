@@ -110,5 +110,5 @@
 # addon manifest /var/lib/rancher/k3s/server/manifests/coredns.yaml, so the old
 # `ansible.builtin.replace` insert-replicas task failed every drift-heal run
 # (exit=2 INVALIDARGUMENT on the missing file). HA is now the Flux-managed
-# `coredns-ha` Deployment (infrastructure/coredns/, 3 spread replicas). See
-# [[coredns-disable-deadlock]].
+# `coredns-ha` DaemonSet (infrastructure/coredns/, one pod per node). The
+# deadlock itself is written up in ansible/group_vars/control_plane.yml.

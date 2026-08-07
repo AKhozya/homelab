@@ -230,10 +230,9 @@
   tags: [hardening, power]
 
 # ---------- fail2ban ----------
-# fail2ban package is in `pacman_packages_base` (group_vars/all.yml). Already
-# installed + active on all 3 nodes (live audit 2026-04-28). Standardize on
-# systemd backend (reads journald — Arch has no /var/log/auth.log w/o rsyslog).
-# W2 had stray `logpath = /var/log/auth.log` — drift-heal removes it.
+# fail2ban package is in `pacman_packages_base` (group_vars/all.yml). Standardize on the
+# systemd backend: it reads journald, and Arch has no /var/log/auth.log without rsyslog.
+# W2 carried a stray `logpath = /var/log/auth.log` — drift-heal removes it.
 - name: Deploy fail2ban jail.local
   ansible.builtin.copy:
     src: fail2ban-jail.local

@@ -67,7 +67,7 @@ spec:
         ['backup-replication', 'immich-backup'])
         ))
   validations:
-    # X(hostPath) parity: volumes list optional; any present volume must not be hostPath.
+    # `volumes` is optional; any volume it does hold must not be a hostPath.
     - expression: >-
         object.spec.?volumes.orValue([]).all(v, !has(v.hostPath))
       message: "hostPath volumes are not allowed"

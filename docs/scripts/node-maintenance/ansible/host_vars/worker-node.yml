@@ -1,5 +1,5 @@
 ---
-# worker-node (192.168.1.129) — 8c/32G AMD Granite Ridge + Radeon iGPU, heavy lifter for LTO builds.
+# worker-node (192.168.1.129) — AMD Ryzen 9 9955HX, 16c/32t, 64GB, Radeon iGPU.
 
 # Cluster LAN IP for /etc/hosts block (mirrors ansible_host but explicit).
 node_ip: 192.168.1.129
@@ -37,7 +37,7 @@ k3s_data_dir: /mnt/k8s-storage/rancher/k3s
 ufw_rules_host:
   - { comment: "K8s pod network worker-node-2", rule: allow, from_ip: 10.42.2.0/24 }
 
-# W1 route rules: pod-to-node + node-to-pod (same as CP).
+# W1 route rules — the same pair the CP group carries.
 ufw_route_rules_host:
   - { comment: "K3s pod-to-node traffic (API server)", rule: allow, from_ip: 10.42.0.0/16, to_ip: 192.168.1.0/24 }
   - { comment: "K3s node-to-pod traffic", rule: allow, from_ip: 192.168.1.0/24, to_ip: 10.42.0.0/16 }

@@ -5,7 +5,8 @@ on:
     branches: [main]
     # Docs/assets touch no validate job (yaml/shell/sops/manifest). Skip on pure
     # doc-only changes; mixed md+yaml pushes still run (paths-ignore skips only when
-    # EVERY changed file matches). Markdown secret coverage = pre-commit gitleaks hook.
+    # EVERY changed file matches). Markdown secret coverage = gitleaks.yaml, which
+    # carries no paths-ignore.
     # docs/scripts/** (shell) deliberately NOT ignored — shellcheck job scans it.
     paths-ignore: ['**.md', 'docs/images/**']
   push:
@@ -23,7 +24,7 @@ concurrency:
 env:
   KUBECONFORM_VERSION: v0.6.7
   # Must match what kustomize-controller embeds, or CI renders a different tree
-  # than the cluster does. Chain: controller v1.9.1 -> sigs.k8s.io/kustomize/api
+  # than the cluster does. Chain: controller v1.9.4 -> sigs.k8s.io/kustomize/api
   # v0.21.1 -> kustomize CLI v5.8.1. Re-derive from the controller's go.mod on
   # any Flux bump; v5.5.0 (api v0.18.0) had drifted three minors behind.
   KUSTOMIZE_VERSION: v5.8.1
@@ -123,10 +124,10 @@ jobs:
       fail-fast: false
       matrix:
         root:
-          # clusters/ holds the Flux Kustomization CRs themselves, unvalidated until
-          # 2026-07-24. Structural only: the CRD types healthChecks/dependsOn entries
-          # as strings, so a name or GVK that matches nothing still passes here —
-          # that stays a manual check (.claude/review-invariants.md).
+          # clusters/ holds the Flux Kustomization CRs themselves. Structural only: the
+          # CRD types healthChecks/dependsOn entries as strings, so a name or GVK that
+          # matches nothing still passes here — that stays a manual check
+          # (.claude/review-invariants.md).
           - clusters
           - apps
           - infrastructure/configs

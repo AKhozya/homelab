@@ -60,7 +60,6 @@ extract_recap() {
   [ -n "${recap:-}" ] && sed -n "${recap},$((recap + 5))p" "$LOG"
 }
 
-# Distinct failing hosts from `fatal: [<host>]:` and `failed: [<host>]:` lines.
 extract_failed_hosts() {
   grep -oE '^(fatal|failed): \[[^]]+\]' "$LOG" 2>/dev/null \
     | sed -E 's/^(fatal|failed): \[([^]]+)\]/\2/' \

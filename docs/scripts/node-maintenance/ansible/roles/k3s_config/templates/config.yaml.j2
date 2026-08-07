@@ -5,7 +5,6 @@
 # Applies on next K3s restart (no auto-restart — manual control over API/pod disruption).
 {% if is_cp and k3s_default_storage_path is defined %}
 
-# Storage: LVM on worker node for all PVCs
 default-local-storage-path: {{ k3s_default_storage_path }}
 {% endif %}
 {% if k3s_data_dir is defined %}
@@ -40,7 +39,6 @@ node-taint:
 
 {% if k3s_node_labels is defined and k3s_node_labels | length > 0 %}
 
-# Node labels
 node-label:
 {% for l in k3s_node_labels %}
   - "{{ l }}"
@@ -55,7 +53,7 @@ kubelet-arg:
 # v1.8.13 (nft backend) with mixed nft_compat + legacy ip_tables modules hits stale-chain
 # "CHAIN_USER_ADD/RULE_APPEND File exists" on reboot, so kube-proxy's atomic iptables-restore
 # fails and KUBE-SERVICES (10.43.0.1 DNAT) never gets programmed → ClusterIP wedged until a
-# k3s restart. Bundled bins avoid that conflict. See gotcha_k3s_reboot_ordering (2026-05-25).
+# k3s restart. Bundled bins avoid that conflict. See HOMELAB_HISTORY, 2026-05-25.
 prefer-bundled-bin: true
 {% endif %}
 {% if is_cp %}

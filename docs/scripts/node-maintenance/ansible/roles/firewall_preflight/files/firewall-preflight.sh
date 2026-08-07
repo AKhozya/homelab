@@ -10,10 +10,12 @@
 #   - New signal: `flock -n /run/xtables.lock` probe + ufw-chain hash stable
 #     across N consecutive windows. Lock-free + hash-stable = real quiescence.
 #
-# Sequence:
+# Sequence (see main() — this is the order it runs):
 #   1. Settle: xtables-lock-free + ufw-hash-stable (3× 5s windows). Max 90s.
 #   2. Modprobe expanded netfilter module set
-#   3. Per-chain repair (idempotent iptables -N)
+#   3. Recover ufw when ufw.conf says ENABLED=yes but ufw reports inactive
+#   4. Per-chain repair (idempotent iptables -N)
+#   5. Probe `ufw status verbose` and count failures per node
 #
 # Always exits 0 — preflight is best-effort. Hard failures surface in
 # subsequent ufw tasks. Settle outcome (ok/timeout) emitted as a metric line
@@ -94,7 +96,7 @@ xtables_lock_free() {
     return 1
 }
 
-# Phase 1: settle wait — gate on xtables-lock-free AND ufw-hash stability.
+# Settle wait — gate on xtables-lock-free AND ufw-hash stability.
 phase_settle() {
     log "settle: max=${SETTLE_MAX_SEC}s window=${SETTLE_WINDOW_SEC}s stable=${SETTLE_STABLE_WINDOWS} (signal=xtables-lock+ufw-hash)"
     local start
@@ -172,7 +174,7 @@ phase_chain_repair() {
     log "chain-repair: repaired=$repaired"
 }
 
-# Phase 4: probe `ufw status verbose` end-to-end (the exact call
+# Probe `ufw status verbose` end-to-end (the exact call
 # community.general.ufw makes internally). Increments a persistent counter
 # on failure. Used to compare per-node failure rates over time.
 phase_probe_ufw_status() {
@@ -213,7 +215,7 @@ phase_probe_ufw_status() {
     log "probe: ufw status verbose=${probe_state} (total=${total} fails=${fails})"
 }
 
-# Phase 2.5: detect ufw state mismatch (ENABLED=yes in /etc/ufw/ufw.conf but
+# Detect ufw state mismatch (ENABLED=yes in /etc/ufw/ufw.conf but
 # `ufw status` returns inactive) and recover via flush-all + force-enable.
 # Triggers when ufw silently flipped to disabled mid-runtime (e.g. post-pacman
 # kernel-module wipe → ip6tables errors). Stale kernel chains from prior

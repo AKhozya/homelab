@@ -28,8 +28,8 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
-  # (18.x: priorityClassName via values, seccompProfile RuntimeDefault chart-native
-  # on all 3 workloads — the 7.0.0-era postRenderers block is gone.)
+  # No postRenderer here: the chart reads priorityClassName from values and sets
+  # seccompProfile RuntimeDefault on its workloads itself.
   values:
     loki:
       revisionHistoryLimit: 2
@@ -45,7 +45,6 @@ spec:
           chunks_directory: /var/loki/chunks
           rules_directory: /var/loki/rules
 
-      # Schema configuration
       schemaConfig:
         configs:
           - from: "2024-01-01"
@@ -56,7 +55,6 @@ spec:
               prefix: index_
               period: 24h
 
-      # Retention configuration - keep logs for 30 days
       limits_config:
         retention_period: 720h  # 30 days
         ingestion_rate_mb: 10
@@ -64,7 +62,6 @@ spec:
         max_query_series: 10000
         max_query_lookback: 720h
 
-      # Compactor for log retention
       compactor:
         working_directory: /var/loki/compactor
         compaction_interval: 10m
@@ -73,7 +70,7 @@ spec:
         retention_delete_worker_count: 150
         delete_request_store: filesystem
 
-    # Single-binary mode for simplicity (18.x name; SingleBinary = deprecated alias)
+    # 18.x spelling of single-binary mode; SingleBinary is the deprecated alias.
     deploymentMode: Monolithic
 
     # SSD components MUST be zeroed explicitly — chart validate.yaml rejects
@@ -88,7 +85,6 @@ spec:
     singleBinary:
       replicas: 1
 
-      # Resource limits
       resources:
         requests:
           cpu: 100m
@@ -97,13 +93,11 @@ spec:
           cpu: 500m
           memory: 1Gi
 
-      # Persistent storage for logs
       persistence:
         enabled: true
         size: 10Gi
         storageClass: local-path
 
-    # Gateway (nginx) configuration
     gateway:
       enabled: true
       replicas: 1
@@ -126,7 +120,6 @@ spec:
       metrics:
         enabled: false
 
-    # Sidecar containers configuration
     sidecar:
       resources:
         requests:
@@ -147,7 +140,6 @@ spec:
       livenessProbe:
         enabled: false
 
-    # Loki canary configuration
     lokiCanary:
       enabled: true
       resources:
@@ -163,7 +155,9 @@ spec:
       serviceMonitor:
         enabled: true
         labels:
-          release: kube-prometheus-stack  # Required for Prometheus discovery
+          # Prometheus-Operator-era selector. VMAgent's serviceScrapeSelector is
+          # empty, so the converted VMServiceScrape is picked up without it.
+          release: kube-prometheus-stack
 
     # Disable caching for single binary mode
     chunksCache:

@@ -34,8 +34,8 @@ ExecStartPre=/bin/sh -c 'install -d -m 0750 -o root -g adm /var/log/node-mainten
 # skip this run (exit 0) instead of overlapping. Two concurrent ansible heals raced before — the
 # 10-min sync re-triggers this ~9-min heal, and the config timer + sync could overlap (2026-05-25).
 ExecStart=/usr/local/sbin/node-maintenance-lock.sh skip -- /usr/bin/ansible-playbook -D /etc/node-maintenance/ansible/node-config.yml -i /etc/node-maintenance/ansible/inventory.yml
-# Archive each run's log + retain 50 most recent. Pre-edit: only config-latest.log
-# existed and overwrote each run, making "always W2" claims unverifiable.
+# Archive each run's log, keep the 50 most recent. config-latest.log on its own is
+# overwritten every run, so a per-node claim cannot be checked after the fact.
 ExecStopPost=/bin/sh -c 'cp -f /var/log/node-maintenance/config-latest.log /var/log/node-maintenance/config-archive/config-$(date -u +%%Y%%m%%dT%%H%%M%%SZ).log 2>/dev/null; ls -1t /var/log/node-maintenance/config-archive/config-*.log 2>/dev/null | tail -n +51 | xargs -r rm -f --'
 ExecStopPost=/usr/local/sbin/node-maintenance-config-notify.sh ${SERVICE_RESULT}
 StandardOutput=append:/var/log/node-maintenance/config-latest.log
