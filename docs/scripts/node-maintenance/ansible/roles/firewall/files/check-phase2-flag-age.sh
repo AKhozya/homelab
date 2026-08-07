@@ -4,13 +4,13 @@
 # Replaces static ConditionPathExists=!/var/lib/node-maintenance/phase2-pending.
 # Behaviour:
 #   - No flag → exit 0 (proceed with drift-heal)
-#   - Flag < MAX_AGE_SEC → exit 1 (skip gracefully, maintenance in progress)
+#   - Flag < MAX_AGE_SEC → exit 1 (skip, maintenance in progress)
 #   - Flag >= MAX_AGE_SEC + Flux healthy → rm flag, notify, exit 0 (auto-clear)
 #   - Flag >= MAX_AGE_SEC + Flux unhealthy → exit 1 (keep blocking)
 #
 # Exit codes per systemd ExecCondition semantics (systemd >= 243):
 #   0       = proceed (start the service)
-#   1-254   = skip gracefully (not a failure)
+#   1-254   = skip (not a failure)
 #   255     = hard failure
 #
 # Deployed by firewall ansible role → /usr/local/sbin/check-phase2-flag-age.sh
@@ -34,7 +34,7 @@ AGE=$(( NOW - FLAG_MTIME ))
 
 if [ "$AGE" -lt "$MAX_AGE_SEC" ]; then
     echo "phase2-pending flag exists (age: ${AGE}s < ${MAX_AGE_SEC}s) — skipping drift-heal"
-    exit 1  # skip gracefully
+    exit 1  # skip, not a failure
 fi
 
 # Flag is stale (>2h). Verify Flux is healthy before clearing.
@@ -48,5 +48,5 @@ if kubectl --kubeconfig="$KUBECONFIG" get kustomization -n flux-system -o json 2
     exit 0  # proceed with drift-heal
 else
     echo "phase2-pending flag is stale (${AGE}s) but Flux is NOT healthy — keeping flag, skipping drift-heal"
-    exit 1  # skip gracefully
+    exit 1  # skip, not a failure
 fi

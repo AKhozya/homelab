@@ -55,7 +55,7 @@ spec:
                       seccompProfile:
                         type: RuntimeDefault
   values:
-    # DaemonSet to run on all nodes (same as Promtail)
+    # DaemonSet: one log reader per node.
     controller:
       type: daemonset
       tolerations:
@@ -73,9 +73,7 @@ spec:
               type: File
 
     alloy:
-      # Resource limits
-      # Alloy uses ~2x memory vs Promtail due to broader feature set
-      # Promtail peak was 181Mi; Alloy expected peak ~300-350Mi
+      # Alloy uses roughly twice the memory of a plain log shipper.
       # 768Mi: working_set counts tailed-log page cache — on the busiest node
       # (W1, ~70 pods) anon is only ~200Mi but cache pins working_set at ~430Mi,
       # flapping ContainerMemoryNearLimit at the old 512Mi limit.
@@ -190,8 +188,7 @@ spec:
             }
           }
 
-    # Config reloader sidecar resource limits
-    # Actual usage: 0m CPU, 8-9Mi memory
+    # Config-reloader sidecar. Measured usage: 0m CPU, 8-9Mi memory.
     configReloader:
       resources:
         requests:

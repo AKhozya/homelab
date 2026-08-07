@@ -23,7 +23,7 @@ spec:
       ports:
         - protocol: TCP
           port: 10250  # webhook container port
-    # Prometheus scraping metrics
+    # Metrics scrape
     - from:
         - namespaceSelector:
             matchLabels:

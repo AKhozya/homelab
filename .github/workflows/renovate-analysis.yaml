@@ -13,7 +13,6 @@ jobs:
     name: Detect Version Changes
     runs-on: ubuntu-latest
 
-    # Only run for Renovate PRs
     if: github.actor == 'renovate[bot]' || github.actor == 'app/renovate'
 
     steps:
@@ -31,11 +30,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # Make scripts executable
           chmod +x scripts/analyze-update.sh
           chmod +x scripts/analyze-update-gh.sh
 
-          # Run GitHub-friendly analysis and save output
           ./scripts/analyze-update-gh.sh ${{ github.event.pull_request.number }} > analysis.txt 2>&1
 
       - name: Post comment on PR

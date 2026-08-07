@@ -94,7 +94,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Prometheus scraping
+    # Metrics scrape
     - from:
         - namespaceSelector:
             matchLabels:
@@ -218,7 +218,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # VictoriaMetrics scraping
+    # Metrics scrape
     - from:
         - namespaceSelector:
             matchLabels:

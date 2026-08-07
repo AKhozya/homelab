@@ -1,14 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  # CNPG postgres cluster config (formerly base/)
+  # CNPG cluster and its cluster-wide objects
   - cluster.yaml
   - pooler.yaml
   - networkpolicy.yaml
   - podmonitor.yaml
   - postgres-admin-user.yaml
   - pdb.yaml
-  # Staging extras
   - serviceaccount.yaml
   - postgres-backup-cronjob.yaml
   # App-specific database users and databases

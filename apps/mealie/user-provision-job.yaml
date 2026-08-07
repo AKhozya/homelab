@@ -36,7 +36,6 @@ spec:
               cpu: 500m
               memory: 512Mi
           env:
-            # User credentials to provision
             - name: MEALIE_USER_EMAIL
               valueFrom:
                 secretKeyRef:
@@ -57,7 +56,6 @@ spec:
                 secretKeyRef:
                   name: mealie-user-credentials
                   key: password
-            # Database connection details
             - name: POSTGRES_SERVER
               valueFrom:
                 secretKeyRef:
