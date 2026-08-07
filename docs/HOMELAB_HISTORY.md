@@ -46,7 +46,14 @@ Fix: gate the `install.sh` run on `SYNC_ONLY -eq 0`.
 `README.md:35` and `:117` already described the fixed shape: `install.sh --sync-only` does
 daemon-reload and file perms, then `node-maintenance-config.service` re-applies. The guard took
 effect on the run that deployed it, because `sync-from-git.sh` invokes `install.sh` from the freshly
-pulled repo.
+pulled repo. That run confirmed it:
+
+| Measure | Before (`fe0ff835`) | After (`4aa51ae5`) |
+|---|---|---|
+| `install.sh --sync-only` | 7min53s, drift-heal included | 2s |
+| Playbook runs | 2 | 1 |
+| Sync unit wall clock | 12min59s | 4min37s (`Result=success`) |
+| Unused share of the 20min `TimeoutStartSec` | ~7min | ~15min |
 
 The doubling cost time, not correctness. The playbook is safe to repeat, and the second run reported
 `changed=0`. If one host had run slow, systemd would have killed the deploy: two ~6min runs plus the
