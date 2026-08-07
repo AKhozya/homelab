@@ -4,7 +4,7 @@
 #
 # "Truly ready" means:
 #   - (CP only) API server returns /healthz OK
-#   - (CP only) Critical kube-system pods Ready (kube-router, coredns)
+#   - (CP only) coredns pods Ready
 #   - All nodes: ufw-chain sha256 stable across 3× 5s windows
 #
 # Why: systemd `After=k3s.service` only guarantees k3s.service STARTED, not
@@ -16,12 +16,25 @@
 # Downstream services use ConditionPathExists=/run/k3s-ready to gate.
 #
 # Tunables (env):
-#   K3S_READY_TIMEOUT  total budget seconds (default 300)
+#   K3S_READY_TIMEOUT         total budget seconds (default 300)
+#   K3S_READY_API_TIMEOUT     phase-1 budget (default 90)
+#   K3S_READY_PODS_TIMEOUT    phase-2 budget (default 60)
+#   K3S_READY_SETTLE_TIMEOUT  phase-3 budget (default 120)
 
 set -uo pipefail
 
 SENTINEL=/run/k3s-ready
 TIMEOUT_SEC=${K3S_READY_TIMEOUT:-300}
+# Per-phase budgets. They must sum to less than TIMEOUT_SEC so a phase that times out
+# still leaves the phases after it a window — see phase_deadline().
+API_TIMEOUT_SEC=${K3S_READY_API_TIMEOUT:-90}
+PODS_TIMEOUT_SEC=${K3S_READY_PODS_TIMEOUT:-60}
+SETTLE_TIMEOUT_SEC=${K3S_READY_SETTLE_TIMEOUT:-120}
+GLOBAL_DEADLINE=0
+# Pod selectors phase 2 waits on. coredns proves the DNS path works. kube-router is NOT here:
+# K3s runs it inside the k3s process, so `k8s-app=kube-router` matches zero pods and the wait
+# could only ever time out.
+CRITICAL_POD_LABELS=("k8s-app=kube-dns")
 KUBECONFIG_PATH=/etc/rancher/k3s/k3s.yaml
 K3S_BIN=/usr/local/bin/k3s
 IPTABLES_SAVE=/usr/sbin/iptables-save
@@ -31,6 +44,17 @@ LOG_TAG=k3s-wait-ready
 log() {
     logger -t "$LOG_TAG" -- "$*"
     echo "[$LOG_TAG] $*" >&2
+}
+
+# Deadline for one phase: its own budget, never past the global deadline. Each phase gets a
+# private budget because they used to share one — on 2026-08-07 the CP's phase-2 selector
+# matched nothing, burned all 300s, and phase 3 (the ufw settle this barrier exists for) ran
+# with an already-expired deadline and never took a single sample.
+phase_deadline() {
+    local budget=$1 d
+    d=$(( $(date +%s) + budget ))
+    [ "$d" -gt "$GLOBAL_DEADLINE" ] && d=$GLOBAL_DEADLINE
+    echo "$d"
 }
 
 is_control_plane() {
@@ -57,10 +81,9 @@ wait_api() {
 }
 
 # Phase 2 — wait for critical kube-system pods Ready (CP only)
-# kube-router writes iptables; coredns proves DNS path works.
 wait_critical_pods() {
     local deadline=$1
-    local labels=("k8s-app=kube-dns" "k8s-app=kube-router")
+    local labels=("${CRITICAL_POD_LABELS[@]}")
     log "pods: waiting for critical kube-system pods"
     while [ "$(date +%s)" -lt "$deadline" ]; do
         local all_ready=1
@@ -130,17 +153,17 @@ main() {
     log "starting (pid=$$, timeout=${TIMEOUT_SEC}s)"
     local start
     start=$(date +%s)
-    local deadline=$((start + TIMEOUT_SEC))
+    GLOBAL_DEADLINE=$((start + TIMEOUT_SEC))
 
     local mode="worker"
     if is_control_plane; then
         mode="control-plane"
-        wait_api "$deadline" || log "WARN: api not ready"
-        wait_critical_pods "$deadline" || log "WARN: critical pods not ready"
+        wait_api "$(phase_deadline "$API_TIMEOUT_SEC")" || log "WARN: api not ready"
+        wait_critical_pods "$(phase_deadline "$PODS_TIMEOUT_SEC")" || log "WARN: critical pods not ready"
     fi
     log "mode=$mode"
 
-    wait_iptables_stable "$deadline" || log "WARN: iptables not stable"
+    wait_iptables_stable "$(phase_deadline "$SETTLE_TIMEOUT_SEC")" || log "WARN: iptables not stable"
 
     # Always touch sentinel — boot must proceed even on timeout.
     # Downstream services treat sentinel as "best-effort wait done", not
@@ -151,4 +174,6 @@ main() {
     log "complete (elapsed=${elapsed}s, sentinel=$SENTINEL)"
 }
 
-main "$@"
+# tests/test-wait-ready.sh sources this with K3S_WAIT_READY_LIB=1 to exercise phase_deadline
+# without running the barrier.
+[ "${K3S_WAIT_READY_LIB:-0}" = 1 ] || main "$@"

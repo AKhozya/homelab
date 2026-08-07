@@ -180,6 +180,7 @@ ufw_rules_base:
   - { comment: "K3s control-plane", rule: allow, from_ip: 192.168.1.127 }
   - { comment: "K3s worker-node", rule: allow, from_ip: 192.168.1.129 }
   - { comment: "K3s worker-node-2", rule: allow, from_ip: 192.168.1.126 }
+  - { comment: "K3s immich-vm", rule: allow, from_ip: 192.168.1.231 }
   - { rule: allow, from_ip: 192.168.1.0/24, to_port: 80 }
   - { comment: "K3s pod network", rule: allow, from_ip: 10.42.0.0/16 }
   - { comment: "K3s service network", rule: allow, from_ip: 10.43.0.0/16 }

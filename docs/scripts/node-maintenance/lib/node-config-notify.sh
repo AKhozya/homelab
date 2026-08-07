@@ -11,11 +11,16 @@
 # (first body line) so target nodes are unambiguous.
 set -uo pipefail
 
-LOG=/var/log/node-maintenance/config-latest.log
+# Paths are env-overridable so tests/test-notify.sh can drive the whole dump path in a
+# temp dir. Production passes none of these and gets the defaults.
+LOG="${NODE_CONFIG_LOG:-/var/log/node-maintenance/config-latest.log}"
+DUMP="${NODE_CONFIG_DUMP:-/var/log/node-maintenance/last-fatal.dump}"
+ARCHIVE_DIR="${NODE_CONFIG_ARCHIVE_DIR:-/var/log/node-maintenance/fatal-archive}"
+NOTIFY_BIN="${NODE_CONFIG_NOTIFY_BIN:-/usr/local/sbin/telegram-notify.sh}"
 RESULT="${1:-unknown}"   # $SERVICE_RESULT passed from systemd
 
 if [ ! -r "$LOG" ]; then
-  /usr/local/sbin/telegram-notify.sh "❌ node-config drift-heal: log missing ($LOG). result=$RESULT"
+  "$NOTIFY_BIN" "❌ node-config drift-heal: log missing ($LOG). result=$RESULT"
   exit 0
 fi
 
@@ -113,8 +118,6 @@ if [ "$RESULT" != "success" ] || [ "${FAILED:-0}" -gt 0 ]; then
   # Dump the FULL fatal context to a stable path the operator can fetch.
   # Telegram has a 4096-char message limit + UI truncates long blocks; richer
   # debug data lives here. Overwritten on each fatal (last-fatal pattern).
-  DUMP=/var/log/node-maintenance/last-fatal.dump
-  ARCHIVE_DIR=/var/log/node-maintenance/fatal-archive
   install -d -m 0750 -o root -g adm "$ARCHIVE_DIR" 2>/dev/null || true
   ARCHIVE="${ARCHIVE_DIR}/fatal-$(date -u +%Y%m%dT%H%M%SZ).dump"
   {
@@ -122,7 +125,10 @@ if [ "$RESULT" != "success" ] || [ "${FAILED:-0}" -gt 0 ]; then
     printf 'controller: %s\n' "$CTRL"
     printf 'failed_hosts: %s\n' "${HOSTS:-<unattributed>}"
     printf 'result: %s   changed: %s   failed: %s\n' "$RESULT" "$CHANGED" "$FAILED"
+    extract_journal_window
     printf '\n--- Failing TASK header ---\n%s\n' "${TASK_HDR:-(missing)}"
+    printf '\n--- Parsed fatal (host / attempts / cmd / msg) ---\n'
+    if [ -n "${LAST_FATAL:-}" ]; then extract_fatal_summary "$LAST_FATAL"; else echo "(no fatal line)"; fi
     printf '\n--- Full fatal line(s) ---\n'
     grep -nE '^(fatal|failed):' "$LOG" | tail -3
     printf '\n--- Full PLAY RECAP ---\n'
@@ -142,7 +148,7 @@ if [ "$RESULT" != "success" ] || [ "${FAILED:-0}" -gt 0 ]; then
     "${FATAL_MSG:-(no msg parsed)}" \
     "${RECAP:-(recap missing)}")
 
-  /usr/local/sbin/telegram-notify.sh "$(printf '❌ node-config drift-heal FAILED (result=%s changed=%s failed=%s)\n%s\n\n%s\n\n📄 Full dump: %s\n📦 Archive: %s\n🔎 journalctl -u node-maintenance-config.service --no-pager -n 200\n📂 Live log: %s\n📸 ufw-diag: ls -lt /var/log/node-maintenance/ufw-diag-*.txt' \
+  "$NOTIFY_BIN" "$(printf '❌ node-config drift-heal FAILED (result=%s changed=%s failed=%s)\n%s\n\n%s\n\n📄 Full dump: %s\n📦 Archive: %s\n🔎 journalctl -u node-maintenance-config.service --no-pager -n 200\n📂 Live log: %s\n📸 ufw-diag: ls -lt /var/log/node-maintenance/ufw-diag-*.txt' \
     "$RESULT" "$CHANGED" "$FAILED" "$HOSTS_LINE" "$TG_BODY" "$DUMP" "$ARCHIVE" "$LOG")"
 elif [ "${CHANGED:-0}" -gt 0 ]; then
   # Per-host breakdown from PLAY RECAP (e.g. "worker-node: 2, worker-node-2: 1")
@@ -150,5 +156,5 @@ elif [ "${CHANGED:-0}" -gt 0 ]; then
     | grep -E 'changed=[1-9]' \
     | sed -E 's/^([^ ]+) .* changed=([0-9]+).*/\1: \2/' \
     | paste -sd', ' -)
-  /usr/local/sbin/telegram-notify.sh "⚙️ node-config drift-heal applied $CHANGED change(s) [${HOSTS_DETAIL:-unknown}]. journalctl -u node-maintenance-config.service -n 80"
+  "$NOTIFY_BIN" "⚙️ node-config drift-heal applied $CHANGED change(s) [${HOSTS_DETAIL:-unknown}]. journalctl -u node-maintenance-config.service -n 80"
 fi
