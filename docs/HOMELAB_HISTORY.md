@@ -17,6 +17,26 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-08-07 — NAS reboot → dead CoreDNS endpoint blackholed a quarter of cluster DNS
+
+The NAS went down ~12:52 local (outside any scrub; cause unread — journal needs sudo) and came
+back 13:11. immich-vm died with it and did not auto-start. The invisible part: coredns-ha is a
+DaemonSet, DS pods tolerate `unreachable` forever, so the dead node's CoreDNS pod stayed
+`Running`/`ready=true` in the kube-dns EndpointSlice — kube-proxy kept sending ~25% of cluster DNS
+queries to a dead IP. Authentik (→ `home.h0melab.work` 500), paperless, uptime-kuma, pricebuddy,
+linkwarden and mysql-haproxy crash-looped on `failed to resolve *.svc.cluster.local` for ~2h while
+nodes and Flux looked healthy; uptime-kuma being a casualty muted the obvious pager.
+
+Fixes applied live (no manifest change): deleted the dead coredns pod (deletionTimestamp flips the
+endpoint `ready=false` even though the kubelet never confirms) → DNS healed instantly; deleted the
+crash-looped pods to skip their 5-min backoffs; deleted the wedged `immich-vm-heal` Job — it had
+launched at the exact NAS boot moment, hung ~50min, and `concurrencyPolicy: Forbid` blocked every
+subsequent heal. The next heal tick started the VM; node Ready, fleet fully green after.
+
+Follow-ups: `activeDeadlineSeconds` on the heal CronJob (a hung run must not block the healer);
+NAS reboot cause unread — if the NAS drops outside a scrub again, the failing-`sdb` question
+escalates past scrub-only. Gotcha recorded in memory (`gotchas.md` 2026-08-07).
+
 ### 2026-08-07 — Poller wedge: the bot survived the outage but not its own backoff
 
 A morning WAN/DNS outage (~06:40–11:15 UTC, multi-node: bot `getUpdates` failing
