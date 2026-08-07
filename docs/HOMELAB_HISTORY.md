@@ -53,6 +53,21 @@ time window and only a 300-char-trimmed raw fatal line. Both are wired into the 
 script's paths became env-overridable so `lib/tests/test-notify.sh` can drive all five branches in
 a temp dir.
 
+**A fourth defect fell out of deploying the first three** (`76494c76`). The drift-heal that shipped
+them alerted `applied 9 change(s) [gmk-k3s-control-plane: 3,immich-vm: 3 worker-node: 3,worker-node-2: 3]` —
+nine reported against twelve listed, and an alternating separator. Both from the same function.
+The counts came from `grep -oE 'changed=[0-9]+' "$LOG" | tail -3`, the last **three** matches in the
+whole log: written for a 3-node cluster, so the first host has been dropping off every alert since
+immich-vm joined 2026-07-10. `FAILED` used the identical formula, so a failure on the
+first-listed host would not have reached the count either. The separator was `paste -sd', ' -` —
+`paste -d` reads its argument as a round-robin *list* of delimiters, so fields joined with `,` then
+` ` alternately. Fix: `recap_body()`/`recap_rows()` anchor every count to the actual `PLAY RECAP`
+host rows matching ansible's canonical `ok= changed= unreachable= failed=` sequence, which also
+retired a third hardcoded ceiling (`extract_recap()` printed `recap+5` lines — fine at 4 hosts,
+silently truncating at 6). The row match deliberately stops after `failed=` rather than anchoring
+the trailing `skipped/rescued/ignored` set: coupling to the exact field list would zero every count
+if a callback ever changed it, which is worse than the stray-line collision it would prevent.
+
 The sweep also corrected facts that had drifted: coredns-ha described as a "Deployment (3 spread
 replicas)" in three places when it is a DaemonSet; both worker `host_vars` headers understating
 their hardware by half (W1 is 16c/32t 64GB, W2 8c/16t 32GB); `kustomize-controller v1.9.1` against
@@ -63,9 +78,13 @@ use. A semantic render proof — all 7 kustomize roots built, comments stripped 
 diffed against the pre-sweep tree — came back identical on every root, so nothing reaching the
 cluster changed.
 
-Worth keeping: none of the three defects could fail a check. A barrier waiting on a pod that cannot
-exist still exits 0, still touches its sentinel, and boot proceeds; CI sees a passing shellcheck.
-They surfaced only because a comment asserted something checkable and the check got run.
+Worth keeping: none of the four could fail a check. A barrier waiting on a pod that cannot exist
+still exits 0, still touches its sentinel, and boot proceeds; CI sees a passing shellcheck. The
+first three surfaced only because a comment asserted something checkable and the check got run. The
+fourth is the sharper lesson — it was on screen in every drift-heal alert for a month, and reading
+the numbers rather than the headline is what caught it. Two of the four — the missing UFW rule and
+the alert counts — share a root with most of the stale comments above: a hardcoded 3 that nobody
+revisited when immich-vm made this a 4-node cluster on 2026-07-10.
 
 ### 2026-08-07 — NAS reboot → dead CoreDNS endpoint blackholed a quarter of cluster DNS
 
