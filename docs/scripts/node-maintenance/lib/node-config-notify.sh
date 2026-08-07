@@ -24,8 +24,23 @@ if [ ! -r "$LOG" ]; then
   exit 0
 fi
 
-CHANGED=$(grep -oE 'changed=[0-9]+' "$LOG" | tail -3 | awk -F= '{s+=$2} END{print s+0}')
-FAILED=$(grep -oE 'failed=[0-9]+' "$LOG" | tail -3 | awk -F= '{s+=$2} END{print s+0}')
+# Everything from the LAST `PLAY RECAP` line to EOF. Scoping to the recap is what makes the
+# counts below node-count-agnostic: the old `grep … | tail -3` summed the last three matches in
+# the whole log, so the first host silently dropped out once immich-vm made this a 4-node cluster
+# (2026-08-07: a 12-change run alerted as 9).
+recap_body() {
+  awk '/^PLAY RECAP/ {buf=$0 "\n"; cap=1; next} cap {buf=buf $0 "\n"} END {printf "%s", buf}' "$LOG"
+}
+
+# Just the per-host rows of that block. The counts read from HERE, not from recap_body: systemd
+# appends this unit's stderr to the same file, so anything printed after the recap that happens to
+# contain `changed=`/`failed=` would otherwise be summed in.
+recap_rows() {
+  recap_body | grep -E '^[^ ]+ +: +ok=[0-9]+ +changed=[0-9]+ +unreachable=[0-9]+ +failed=[0-9]+'
+}
+
+CHANGED=$(recap_rows | grep -oE 'changed=[0-9]+' | awk -F= '{s+=$2} END{print s+0}')
+FAILED=$(recap_rows | grep -oE 'failed=[0-9]+' | awk -F= '{s+=$2} END{print s+0}')
 
 # Pair the *correct* TASK header to the fatal line — the TASK on or before
 # the fatal's line number, NOT the last TASK in the log. A naive `last TASK`
@@ -57,12 +72,6 @@ extract_fatal_summary() {
   else
     printf '%s' "$fatal_line" | cut -c1-300
   fi
-}
-
-extract_recap() {
-  local recap
-  recap=$(grep -nE '^PLAY RECAP' "$LOG" | tail -1 | cut -d: -f1 || true)
-  [ -n "${recap:-}" ] && sed -n "${recap},$((recap + 5))p" "$LOG"
 }
 
 extract_failed_hosts() {
@@ -132,7 +141,7 @@ if [ "$RESULT" != "success" ] || [ "${FAILED:-0}" -gt 0 ]; then
     printf '\n--- Full fatal line(s) ---\n'
     grep -nE '^(fatal|failed):' "$LOG" | tail -3
     printf '\n--- Full PLAY RECAP ---\n'
-    extract_recap
+    recap_body
     printf '\n--- Tail (last 100 log lines) ---\n'
     tail -n 100 "$LOG"
     printf '\n--- ufw-diag-snapshot listing (last 5) ---\n'
@@ -140,7 +149,7 @@ if [ "$RESULT" != "success" ] || [ "${FAILED:-0}" -gt 0 ]; then
   } > "$DUMP" 2>&1
   cp -f "$DUMP" "$ARCHIVE" 2>/dev/null || true
 
-  RECAP=$(extract_recap | tr -d '`' | head -c 400)
+  RECAP=$(recap_body | tr -d '`' | head -c 400)
 
   TG_BODY=$(printf '%s\n\n%s\nmsg: %s\n\n%s' \
     "${TASK_HDR:-(task header missing)}" \
@@ -152,9 +161,11 @@ if [ "$RESULT" != "success" ] || [ "${FAILED:-0}" -gt 0 ]; then
     "$RESULT" "$CHANGED" "$FAILED" "$HOSTS_LINE" "$TG_BODY" "$DUMP" "$ARCHIVE" "$LOG")"
 elif [ "${CHANGED:-0}" -gt 0 ]; then
   # Per-host breakdown from PLAY RECAP (e.g. "worker-node: 2, worker-node-2: 1")
-  HOSTS_DETAIL=$(grep -A5 '^PLAY RECAP' "$LOG" | tail -n +2 \
+  # Joined with awk, not `paste -sd', '` — paste reads its argument as a round-robin LIST of
+  # delimiters, so that spelling alternated comma and space between fields.
+  HOSTS_DETAIL=$(recap_rows \
     | grep -E 'changed=[1-9]' \
     | sed -E 's/^([^ ]+) .* changed=([0-9]+).*/\1: \2/' \
-    | paste -sd', ' -)
+    | awk 'NR>1 {printf ", "} {printf "%s", $0} END {if (NR) printf "\n"}')
   "$NOTIFY_BIN" "⚙️ node-config drift-heal applied $CHANGED change(s) [${HOSTS_DETAIL:-unknown}]. journalctl -u node-maintenance-config.service -n 80"
 fi

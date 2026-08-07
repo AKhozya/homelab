@@ -83,6 +83,47 @@ write_log 0 1 yes
 bash "$SCRIPT" exec-condition >/dev/null 2>&1
 chk "exec-condition: silent" 0 "$(wc -c <"$MOCK_TG" | tr -d ' ')"
 
+# --- 4-host recap: every host counts, including the first ---
+# The counts used to come from `grep … | tail -3`, which dropped the first host once immich-vm
+# made this a 4-node cluster. Live proof 2026-08-07: a 12-change run alerted as "9 change(s)".
+write_recap_4() { # $1 changed-per-host  $2 failed-per-host
+	{
+		echo "=== start: 2026-08-07T17:30:00+00:00 ==="
+		echo "PLAY RECAP ****"
+		for h in gmk-k3s-control-plane immich-vm worker-node worker-node-2; do
+			echo "$h   : ok=116 changed=$1 unreachable=0 failed=$2"
+		done
+	} >"$NODE_CONFIG_LOG"
+}
+
+: >"$MOCK_TG"
+write_recap_4 3 0
+bash "$SCRIPT" success >/dev/null 2>&1
+has "4 hosts: all 12 changes counted" "applied 12 change(s)" "$MOCK_TG"
+has "4 hosts: first host present in detail" "gmk-k3s-control-plane: 3" "$MOCK_TG"
+has "4 hosts: last host present in detail" "worker-node-2: 3" "$MOCK_TG"
+# `paste -d` cycles its argument as a delimiter LIST, so ', ' alternated comma and space.
+chk "4 hosts: one separator style" 0 "$(grep -c '3 worker-node' "$MOCK_TG")"
+
+# systemd appends this unit's own stderr to the same log, so text after the recap must not be
+# summed in — the counts read the host rows, not everything below the PLAY RECAP header.
+: >"$MOCK_TG"
+write_recap_4 3 0
+{
+	echo "some trailing task output mentioning changed=99 failed=99"
+	echo "ERROR: unrelated stderr line, changed=7"
+	# Shaped like a recap row but missing `unreachable=`, so the canonical-sequence match rejects it.
+	echo "diagnostic                 : ok=1 changed=99 failed=99"
+} >>"$NODE_CONFIG_LOG"
+bash "$SCRIPT" success >/dev/null 2>&1
+has "post-recap noise ignored" "applied 12 change(s)" "$MOCK_TG"
+
+# A failure on the FIRST host must reach the count, not fall off the front.
+: >"$MOCK_TG"
+write_recap_4 0 1
+bash "$SCRIPT" success >/dev/null 2>&1
+has "4 hosts: failures counted from the first host" "failed=4" "$MOCK_TG"
+
 # --- missing log: still alerts ---
 : >"$MOCK_TG"
 rm -f "$NODE_CONFIG_LOG"
