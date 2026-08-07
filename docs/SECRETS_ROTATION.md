@@ -446,6 +446,10 @@ If compromised:
   - Authentik Django secret key
 
 ### 2026 Q3 (Jul-Sep)
+- [x] **2026-08-07: claude-telegram bot token rotated after a pod-log leak** (`aac32751`) — failed
+  `getUpdates` errors printed the token in the request URL during the morning WAN outage (Loki
+  retains 720h). Bot 1.32.0 now redacts secrets from console output, so this leak class is closed
+  going forward; token lives in 1Password `TG HomelabBot Token` + `claude-telegram-env-secret.yaml`.
 - [x] **2026-07-31: claude-telegram credentials rotated after a transcript leak** — bot token
   (`7300db42`), Claude oauth token and the HTTP trigger secret (`c0301bcb`), and the Codex
   `auth.json` refreshed from the current CLI session (`3c6e26bc`). All three live in
