@@ -11,7 +11,6 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from Prometheus
     - from:
         - podSelector:
             matchLabels:
@@ -21,21 +20,21 @@ spec:
           port: 9093
         - protocol: TCP
           port: 8080  # config-reloader metrics
-    # Allow ingress from within the cluster (internal access only)
+    # Internal access, any namespace
     - from:
         - namespaceSelector: {}
       ports:
         - protocol: TCP
           port: 9093
-    # Allow ingress from host network (K3s API server proxy — used by node-maintenance
-    # on CP to POST/DELETE silences via `kubectl proxy` → service proxy → alertmanager)
+    # Host network. node-maintenance on the CP posts and deletes silences through
+    # `kubectl proxy`, which reaches alertmanager via the service proxy.
     - from:
         - ipBlock:
             cidr: 192.168.1.0/24
       ports:
         - protocol: TCP
           port: 9093
-    # Allow Alertmanager cluster gossip (HA mesh communication)
+    # Cluster gossip (HA mesh)
     - from:
         - podSelector:
             matchLabels:
@@ -46,7 +45,7 @@ spec:
         - protocol: UDP
           port: 9094
   egress:
-    # Allow DNS resolution
+    # DNS
     - to:
         - namespaceSelector:
             matchLabels:
@@ -54,7 +53,7 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow Alertmanager cluster gossip (HA mesh communication)
+    # Cluster gossip (HA mesh)
     - to:
         - podSelector:
             matchLabels:
@@ -64,11 +63,10 @@ spec:
           port: 9094
         - protocol: UDP
           port: 9094
-    # Allow HTTPS for webhook notifications (Telegram API, etc.)
+    # Webhook notifications (Telegram API)
     - ports:
         - protocol: TCP
           port: 443
-    # Allow HTTP for webhook notifications
     - ports:
         - protocol: TCP
           port: 80

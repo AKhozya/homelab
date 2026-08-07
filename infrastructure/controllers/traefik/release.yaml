@@ -35,13 +35,13 @@ spec:
       replicas: 2
       revisionHistoryLimit: 2
 
-    # Allow scheduling on control plane for HA
+    # Tolerate the control-plane taint so the anti-affine replicas below can also use the CP node.
     tolerations:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
 
-    # Pod anti-affinity: spread across both nodes (control plane + worker)
+    # Preferred anti-affinity: the scheduler tries to spread the replicas one per node.
     affinity:
       podAntiAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
@@ -85,7 +85,6 @@ spec:
         exposedPort: 443
         # TLS enabled by default in v39+
 
-    # Enable Prometheus metrics
     metrics:
       prometheus:
         service:

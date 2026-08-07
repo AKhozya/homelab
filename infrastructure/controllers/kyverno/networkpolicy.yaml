@@ -22,12 +22,11 @@ spec:
             cidr: 192.168.1.126/32
       ports:
         # Every kyverno controller (admission, background, cleanup, reports) serves its
-        # webhook on 9443 — verified against the live pods. The 443 entry removed here
-        # matched no container port at all; NetworkPolicy ports are container ports, not
-        # service ports.
+        # webhook on 9443 — verified against the live pods. Do not add 443: NetworkPolicy
+        # ports are container ports, not service ports, and no container listens on 443.
         - protocol: TCP
           port: 9443
-    # Prometheus scraping metrics
+    # Metrics scrape
     - from:
         - namespaceSelector:
             matchLabels:
@@ -36,7 +35,7 @@ spec:
         - protocol: TCP
           port: 8000
   egress:
-    # DNS resolution
+    # DNS
     - to:
         - namespaceSelector:
             matchLabels:

@@ -11,13 +11,13 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow validating/mutating webhook traffic from Kubernetes API server
-    # API server source IPs vary (control-plane nodes), so we allow all sources on webhook port
+    # Webhook traffic from the API server. Its source IP varies, so this rule admits
+    # any source on the webhook port.
     - ports:
         - protocol: TCP
           port: 9443
 
-    # Allow Prometheus metrics scraping from monitoring namespace
+    # Metrics scrape
     - from:
         - namespaceSelector:
             matchLabels:
@@ -27,7 +27,7 @@ spec:
           port: 8080  # Metrics endpoint
 
   egress:
-    # Allow DNS resolution to kube-system
+    # DNS
     - to:
         - namespaceSelector:
             matchLabels:
@@ -36,8 +36,8 @@ spec:
         - protocol: UDP
           port: 53
 
-    # Allow HTTPS access to Kubernetes API server
-    # API server runs on control-plane node, not as a pod, so we use ipBlock
+    # K8s API. The API server runs on the control-plane node, not as a pod, so this
+    # rule needs an ipBlock rather than a selector.
     - to:
         - ipBlock:
             cidr: 192.168.1.127/32  # control-plane node
@@ -45,7 +45,7 @@ spec:
         - protocol: TCP
           port: 6443  # Kubernetes API server port
 
-    # Allow access to PostgreSQL instances in databases namespace
+    # CNPG instances
     - to:
         - podSelector:
             matchLabels:
@@ -56,7 +56,7 @@ spec:
         - protocol: TCP
           port: 8000  # CNPG instance manager status API
 
-    # Allow access to PostgreSQL pooler
+    # CNPG pooler
     - to:
         - podSelector:
             matchLabels:

@@ -34,7 +34,6 @@ spec:
                 - sh
                 - -c
                 - |
-                  # Ensure backup directory exists with correct permissions
                   mkdir -p /backup
                   chmod 755 /backup
                   echo "Backup directory ready"
@@ -74,8 +73,7 @@ spec:
                   echo "Backup location: $BACKUP_ROOT"
                   echo ""
 
-                  # Define critical PVCs to backup (one per line)
-                  # Format: namespace/pvc-name/source-pattern
+                  # One per line, format namespace/pvc-name/source-pattern.
                   # Excluded by design (do not add back without explicit reason):
                   #   - CouchDB / PostgreSQL / MySQL data dirs — DB-native dumps (separate CronJobs)
                   #   - immich/immich-library — weekly via immich-backup CronJob (63G, too big for daily)
@@ -102,8 +100,7 @@ spec:
                   rustdesk/rustdesk-data/*rustdesk-data*
                   "
 
-                  # PVCs containing already-compressed media files (audio)
-                  # Skip compression for these - saves time with minimal space benefit
+                  # Already-compressed media. Gzip costs time here for almost no space.
                   NO_COMPRESS_PVCS="
                   audiobookshelf-audiobooks
                   audiobookshelf-podcasts
@@ -113,9 +110,9 @@ spec:
                   success_count=0
                   failed_count=0
 
-                  # Process each PVC entry (using for loop to avoid subshell)
+                  # A `for` loop, not `while read`: a pipeline would run the body in a
+                  # subshell and lose the counters below.
                   for PVC_ENTRY in $CRITICAL_PVCS; do
-                    # Skip empty lines
                     [ -z "$PVC_ENTRY" ] && continue
 
                     NAMESPACE=$(echo "$PVC_ENTRY" | cut -d/ -f1)
@@ -126,7 +123,6 @@ spec:
                     echo "📦 Backing up: $NAMESPACE/$PVC_NAME"
                     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-                    # Find matching PVC directory
                     SOURCE_DIR=$(find /mnt/k8s-storage -maxdepth 1 -type d -name "$PATTERN" | head -1)
 
                     if [ -z "$SOURCE_DIR" ]; then
@@ -140,7 +136,6 @@ spec:
                       continue
                     fi
 
-                    # Check if source has data
                     DATA_SIZE=$(du -sb "$SOURCE_DIR" 2>/dev/null | cut -f1 || echo "0")
                     if [ "$DATA_SIZE" -eq 0 ]; then
                       # A FAILURE, not an informational skip — same reasoning as the
@@ -159,7 +154,6 @@ spec:
                     echo "Source: $SOURCE_DIR"
                     echo "Size: $(du -sh "$SOURCE_DIR" | cut -f1)"
 
-                    # Check if this PVC should skip compression
                     SKIP_COMPRESSION=false
                     for NO_COMPRESS_PVC in $NO_COMPRESS_PVCS; do
                       if echo "$PVC_NAME" | grep -q "$NO_COMPRESS_PVC"; then
@@ -181,7 +175,6 @@ spec:
                         BACKUP_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
                         ORIGINAL_SIZE=$(du -sh "$SOURCE_DIR" | cut -f1)
 
-                        # Generate SHA256 checksum for backup integrity
                         echo "Generating SHA256 checksum..."
                         CHECKSUM_FILE="${BACKUP_FILE}.sha256"
                         (cd "$DEST_DIR" && sha256sum "$(basename "$BACKUP_FILE")" > "$(basename "$CHECKSUM_FILE")")
@@ -212,7 +205,6 @@ spec:
                         COMPRESSED_SIZE=$(du -h "$BACKUP_FILE" | cut -f1)
                         ORIGINAL_SIZE=$(du -sh "$SOURCE_DIR" | cut -f1)
 
-                        # Generate SHA256 checksum for backup integrity
                         echo "Generating SHA256 checksum..."
                         CHECKSUM_FILE="${BACKUP_FILE}.sha256"
                         (cd "$DEST_DIR" && sha256sum "$(basename "$BACKUP_FILE")" > "$(basename "$CHECKSUM_FILE")")
@@ -246,7 +238,6 @@ spec:
                   echo "📦 Total size: $(echo $total_size | awk '{print $1/1024/1024/1024 " GB"}')"
                   echo ""
 
-                  # Create manifest
                   cat > "$BACKUP_ROOT/MANIFEST.txt" <<EOF
                   PVC Backup Manifest
                   Timestamp: $(date)

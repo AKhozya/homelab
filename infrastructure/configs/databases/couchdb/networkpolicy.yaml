@@ -11,7 +11,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from Cloudflare tunnel
+    # External access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -22,7 +22,7 @@ spec:
       ports:
         - protocol: TCP
           port: 5984
-    # Allow ingress from Traefik ingress controller
+    # Internal access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -30,13 +30,13 @@ spec:
       ports:
         - protocol: TCP
           port: 5984
-    # Allow ingress from within the same namespace (for backups, monitoring)
+    # Same namespace: backups, monitoring
     - from:
         - podSelector: {}
       ports:
         - protocol: TCP
           port: 5984
-    # Allow ingress from Obsidian namespace (for init jobs)
+    # Obsidian init Jobs
     - from:
         - namespaceSelector:
             matchLabels:
@@ -44,7 +44,7 @@ spec:
       ports:
         - protocol: TCP
           port: 5984
-    # Allow ingress from Prometheus for monitoring
+    # Metrics scrape
     - from:
         - namespaceSelector:
             matchLabels:
@@ -52,7 +52,7 @@ spec:
       ports:
         - protocol: TCP
           port: 5984
-    # Allow CouchDB cluster inter-node communication
+    # CouchDB inter-node
     - from:
         - podSelector:
             matchLabels:
@@ -65,7 +65,7 @@ spec:
         - protocol: TCP
           port: 9100  # Erlang distribution
   egress:
-    # Allow DNS resolution
+    # DNS
     - to:
         - namespaceSelector:
             matchLabels:
@@ -73,7 +73,7 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow CouchDB cluster inter-node communication
+    # CouchDB inter-node
     - to:
         - podSelector:
             matchLabels:

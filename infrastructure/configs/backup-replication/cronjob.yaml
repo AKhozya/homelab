@@ -4,7 +4,7 @@ metadata:
   name: backup-replication
   namespace: backup-replication
 spec:
-  # Run at 3:30 AM UTC daily (after all backups complete at 3:00-3:16 AM)
+  # 03:30 UTC, after the source backups finish between 03:00 and 03:16.
   schedule: "30 3 * * *"
   timeZone: "UTC"
   startingDeadlineSeconds: 3600
@@ -13,9 +13,9 @@ spec:
   failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
-      ttlSecondsAfterFinished: 86400  # auto-cleanup after 24h
+      ttlSecondsAfterFinished: 86400
       backoffLimit: 2
-      activeDeadlineSeconds: 7200  # 2 hour timeout
+      activeDeadlineSeconds: 7200
       template:
         metadata:
           labels:
@@ -25,7 +25,7 @@ spec:
           automountServiceAccountToken: false
           restartPolicy: OnFailure
           priorityClassName: homelab-batch
-          # Run on worker-node (source of backups)
+          # worker-node holds the source backups.
           nodeSelector:
             kubernetes.io/hostname: worker-node
           securityContext:
@@ -98,7 +98,6 @@ spec:
                     tg_rich "$(cat "$MSG_FILE")"
                   }
 
-                  # Send Telegram failure notification on unexpected exit
                   send_failure() {
                     MSG=$(printf '## ❌ Backup Replication FAILED\n\nFailed at step: `%s`\nDate: %s\n\nSource backups preserved (not cleaned).' "$CURRENT_STEP" "$(date +%Y-%m-%d)")
                     tg_rich "$MSG"
@@ -107,24 +106,21 @@ spec:
 
                   echo "=== Backup Replication Started: $(date) ==="
 
-                  # Install rsync and curl
                   CURRENT_STEP="Installing dependencies"
                   apk add --no-cache rsync curl jq
 
-                  # Show source backup status
                   echo "=== Source Backups ==="
                   du -sh /source-backups/*/ 2>/dev/null || echo "No backups found"
 
                   # Step 1: Validate source backups BEFORE syncing — a corrupt/stale
-                  # backup must not land on the NAS. (Reordered 2026-07-03; was Step 4,
-                  # after the sync.)
+                  # backup must not land on the NAS.
                   CURRENT_STEP="Step 1: Validating source backups"
                   echo ""
                   echo "=== Step 1: Validating source backups (before any sync) ==="
                   REPORT_FILE="/tmp/backup-report.txt"
                   : > "$REPORT_FILE"
-                  # Artifacts that PASSED Step 1, as "<type>/<basename>". Step 3 proves
-                  # each one actually landed on the NAS before Step 4 deletes the source.
+                  # Artifacts that PASSED Step 1, as paths relative to /source-backups.
+                  # Step 3 proves each one landed on the NAS before Step 4 deletes the source.
                   VALIDATED_LIST="/tmp/validated-artifacts.txt"
                   : > "$VALIDATED_LIST"
                   # Appended to NAS_STATUS at report time so a mid-run failure reason
@@ -147,7 +143,6 @@ spec:
 
                     echo "--- Checking $label ---"
 
-                    # Find latest .tar.gz
                     local latest
                     latest=$(find "$dir" -name "*.tar.gz" -type f 2>/dev/null | sort -r | head -1)
 
@@ -165,7 +160,6 @@ spec:
 
                     echo "  File: $(basename "$latest") ($size_human)"
 
-                    # Check age (< 25 hours)
                     local file_epoch
                     file_epoch=$(stat -c%Y "$latest" 2>/dev/null || stat -f%m "$latest" 2>/dev/null)
                     local now_epoch
@@ -180,7 +174,6 @@ spec:
                       echo "  OK: Age ${age_hours}h"
                     fi
 
-                    # Check SHA256
                     local sha_file="${latest}.sha256"
                     if [ -f "$sha_file" ]; then
                       local expected
@@ -200,7 +193,6 @@ spec:
                       checks="${checks:+$checks, }no checksum"
                     fi
 
-                    # Check tar integrity
                     if tar -tzf "$latest" >/dev/null 2>&1; then
                       echo "  OK: tar integrity"
                       checks="${checks:+$checks, }tar OK"
@@ -210,7 +202,6 @@ spec:
                       failed=true
                     fi
 
-                    # Check minimum size
                     if [ "$size" -lt "$min_size" ]; then
                       echo "  FAIL: Size ${size_human} below minimum"
                       checks="${checks:+$checks, }too small"
@@ -250,8 +241,7 @@ spec:
                     exit 1
                   fi
 
-                  # (W1→W2 safety-net sync removed 2026-07-17 — NAS leg validated since
-                  # 2026-05; NAS is the sole replication sink.)
+                  # The NAS is the sole replication sink. There is no second copy on a worker.
 
                   # Step 2: Sync to NAS (no --delete, NAS accumulates full history)
                   CURRENT_STEP="Step 2: Syncing to NAS"
@@ -356,10 +346,10 @@ spec:
                   rm -rf /source-backups/postgres/* /source-backups/couchdb/* /source-backups/mysql/* /source-backups/pvc/*
                   echo "Source cleaned (data on NAS)"
 
-                  # Step 4b: Enforce NAS retention (30d for daily backups, keep-2 for immich weekly).
-                  # Set 2026-05-22. rsync daemon supports push, so it should accept push of empty
-                  # tree with --delete to clear out old dirs. Soft-fail (|| true) if the module
-                  # config refuses delete — replication itself must not break on prune failure.
+                  # Step 4b: Enforce NAS retention — 30 days for daily backups, keep-2 for the
+                  # weekly immich set. Pruning pushes an empty tree with --delete. Every prune
+                  # soft-fails: if the rsync module config refuses delete, replication itself
+                  # must still succeed.
                   CURRENT_STEP="Step 4b: Pruning NAS retention"
                   echo ""
                   echo "=== Step 4b: Pruning NAS retention (30d daily / keep-2 immich) ==="
@@ -401,8 +391,8 @@ spec:
                       2>&1 | tail -3 || echo "  (delete refused — manual prune via NAS UI)"
                   }
 
-                  # A failed listing used to yield an empty NAS_LIST, which silently means
-                  # "nothing matched retention" — the sweep would no-op forever unnoticed.
+                  # The listing MUST be able to fail here. An empty NAS_LIST reads as "nothing
+                  # matched retention", so a silent listing failure no-ops the sweep for ever.
                   if ! NAS_LIST=$(nas_list); then
                     echo "FAIL: could not list the NAS for the retention sweep"
                     cat /tmp/nas-list.err 2>/dev/null || true
@@ -452,10 +442,10 @@ spec:
                   # Step 5: Check NAS storage usage (500GB hard limit)
                   echo ""
                   echo "=== Step 5: Checking NAS storage ==="
-                  # Capture the listing and check ITS status before measuring: the script
-                  # has set -e but no pipefail, and the pipeline ended in awk, so a failed
-                  # rsync produced 0GB — indistinguishable from a healthy empty NAS, and
-                  # the 400/450GB tiers below could never fire.
+                  # Capture the listing and check ITS status before measuring. The script sets
+                  # -e but not pipefail, so a pipeline ending in awk hides a failed rsync as 0GB
+                  # — indistinguishable from a healthy empty NAS, and the 400/450GB tiers below
+                  # can then never fire.
                   NAS_SIZE_LIST="/tmp/nas-size.txt"
                   if nas_list > "$NAS_SIZE_LIST"; then
                     NAS_SIZE_GB=$(awk '/^-/{gsub(",", "", $2); sum+=$2} END{printf "%d", sum/1073741824}' "$NAS_SIZE_LIST")
@@ -493,7 +483,6 @@ spec:
                     exit 1
                   fi
 
-                  # Clear failure trap on success
                   trap - EXIT
 
                   echo ""

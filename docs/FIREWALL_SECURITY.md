@@ -33,7 +33,7 @@ Services via Cloudflare Tunnel or local network **only**:
 ### Management & Monitoring
 - **Kubernetes API (6443)**: local only
 - **Kubelet API (10250)**: localhost only
-- **etcd (2379-2380)**: localhost only (control-plane)
+- **etcd (2379-2380)**: no listener — this K3s server embeds SQLite through kine
 - **Prometheus (9090)**: local only
 - **Alertmanager (9093)**: internal only
 - **Grafana (3000)**: Cloudflare Tunnel only
@@ -140,8 +140,10 @@ curl https://authentik.h0melab.work  # Should work
 ```bash
 # From your workstation on 192.168.1.0/24:
 curl -k https://192.168.1.127:6443  # Kubernetes API - should work
-curl http://192.168.1.127:9090      # Prometheus - should work
 ```
+
+There is no Prometheus listener to test: VictoriaMetrics is ClusterIP-only and the chart runs
+with `prometheus.enabled: false`.
 
 ## Maintenance
 

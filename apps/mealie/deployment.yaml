@@ -41,7 +41,6 @@ spec:
               MAX_RETRIES=60
               RETRY_COUNT=0
 
-              # Wait for database to be accessible (created by Database CRD)
               until pg_isready -h "$POSTGRES_SERVER" -p "$POSTGRES_PORT" -U "$POSTGRES_USER" -d "$POSTGRES_DB" > /dev/null 2>&1; do
                 RETRY_COUNT=$((RETRY_COUNT + 1))
                 if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then

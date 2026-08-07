@@ -35,11 +35,9 @@ spec:
               kind: Deployment
               name: immich-server
             patch: |-
-              # standard-tier
               - op: add
                 path: /spec/template/spec/priorityClassName
                 value: homelab-standard
-              # Limit old ReplicaSets to prevent buildup
               - op: add
                 path: /spec/revisionHistoryLimit
                 value: 2
@@ -77,7 +75,6 @@ spec:
               kind: Deployment
               name: immich-machine-learning
             patch: |-
-              # standard-tier
               - op: add
                 path: /spec/template/spec/priorityClassName
                 value: homelab-standard
@@ -103,10 +100,9 @@ spec:
                 path: /spec/template/spec/containers/0/volumeMounts/-
                 value:
                   name: rapidocr-models
-                  # Hardcoded Python version - update when Immich ML updates Python
-                  # Attempted version-independent symlink approach but failed due to permission issues
-                  # (can't create symlink in root-owned /opt/venv as user 1000)
-                  # Manual update needed ~annually when Python minor version changes
+                  # The Python minor version is hardcoded in this path. Bump it when Immich ML
+                  # moves Python, roughly once a year. A version-independent symlink does not
+                  # work: /opt/venv is root-owned and the container runs as uid 1000.
                   mountPath: /opt/venv/lib/python3.11/site-packages/rapidocr/models
           # Strategic merge patch: bump readiness timeoutSeconds 1→5.
           # JSON patch op in the block above silently failed (Kustomize
@@ -132,13 +128,11 @@ spec:
   # hostPath. Library on the NAS via virtiofs hostPath (postRenderer above). immich ns
   # stays PSS privileged (hostPath library) but the pod is non-root, drop-ALL.
   values:
-    # Shared configuration for all Immich components
     controllers:
       main:
         containers:
           main:
             env:
-              # Database configuration (using PgBouncer pooler for runtime connections)
               DB_HOSTNAME: main-postgres-rw-pooler.databases.svc.cluster.local
               DB_PORT: "5432"
               DB_DATABASE_NAME: immich
@@ -162,10 +156,8 @@ spec:
                   secretKeyRef:
                     name: immich-redis-url
                     key: redis-url
-              # Immich-specific settings
               IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
 
-    # Immich shared configuration
     immich:
       metrics:
         enabled: true
@@ -178,11 +170,10 @@ spec:
           # patches volume[0] by index.
           existingClaim: immich-library
 
-    # Disable built-in Valkey (using external Redis)
+    # External Redis replaces the chart's bundled Valkey.
     valkey:
       enabled: false
 
-    # Immich Server component
     server:
       enabled: true
       serviceMonitor:
@@ -222,7 +213,6 @@ spec:
                   MAX_RETRIES=60
                   RETRY_COUNT=0
 
-                  # Wait for database to be accessible with correct password
                   until pg_isready -h "$DB_HOSTNAME" -p "$DB_PORT" -U "$DB_USERNAME" -d "$DB_DATABASE_NAME" > /dev/null 2>&1; do
                     RETRY_COUNT=$((RETRY_COUNT + 1))
                     if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
@@ -318,8 +308,6 @@ spec:
                 capabilities:
                   drop:
                     - ALL
-      # GPU via the Intel device-plugin (gpu.intel.com/i915) — see resources above.
-      # Service port: uses chart default (2283) — no override needed
 
     machine-learning:
       enabled: true

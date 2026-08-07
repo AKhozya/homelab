@@ -11,7 +11,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from traefik namespace for internal access
+    # Internal access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -19,7 +19,7 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-    # Allow ingress from cloudflare-tunnel namespace for external access
+    # External access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -27,7 +27,7 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-    # Allow ingress from uptime-kuma namespace for monitoring
+    # Uptime-kuma probes
     - from:
         - namespaceSelector:
             matchLabels:
@@ -36,7 +36,7 @@ spec:
         - protocol: TCP
           port: 8080
   egress:
-    # Allow HTTPS for Authentik OIDC
+    # Authentik OIDC
     - ports:
         - protocol: TCP
           port: 443

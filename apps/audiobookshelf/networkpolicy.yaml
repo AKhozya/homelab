@@ -11,13 +11,13 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from same namespace (init job, etc.)
+    # Init Job (same namespace)
     - from:
         - podSelector: {}
       ports:
         - protocol: TCP
           port: 3005
-    # Allow ingress from traefik namespace for local access
+    # Internal access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -25,7 +25,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3005
-    # Allow ingress from cloudflare-tunnel namespace for external access
+    # External access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -33,7 +33,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3005
-    # Allow ingress from uptime-kuma namespace for monitoring
+    # Uptime-kuma probes
     - from:
         - namespaceSelector:
             matchLabels:
@@ -42,7 +42,7 @@ spec:
         - protocol: TCP
           port: 3005
   egress:
-    # Allow HTTPS for metadata fetching (Audible, Google Books, OpenLibrary use HTTPS)
+    # Metadata fetch: Audible, Google Books, OpenLibrary
     - ports:
         - protocol: TCP
           port: 443

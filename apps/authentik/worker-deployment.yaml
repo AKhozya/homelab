@@ -26,7 +26,7 @@ spec:
       serviceAccountName: authentik
       automountServiceAccountToken: false
       priorityClassName: homelab-critical  # critical tier (SSO worker)
-      # Allow scheduling on control plane for HA (rolling updates need 3 nodes)
+      # Tolerate the control-plane taint so the anti-affine replicas below can also use the CP node.
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists

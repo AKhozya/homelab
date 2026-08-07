@@ -1,116 +1,56 @@
-# Monitoring Stack — Internal Network Access
+# Monitoring Stack — access model
 
-Grafana, Prometheus, Alertmanager = **internal-only** for security.
+Config objects for the `kube-prometheus-stack` HelmRelease: Grafana and Alertmanager
+ingress, TLS, auth, and the per-component NetworkPolicies.
 
-## DNS Configuration (Cloudflare)
+**There is no Prometheus pod.** `prometheus.enabled: false` in
+`monitoring/controllers/kube-prometheus-stack/release.yaml` — VictoriaMetrics (VMSingle +
+VMAgent + VMAlert) replaced it. The chart stays for Grafana, Alertmanager, the operator,
+kube-state-metrics, and node-exporter.
 
-Access Grafana via `grafana.h0melab.work` on internal network:
+## Ingress
 
-1. **Create A record in Cloudflare DNS:**
-   - Name: `grafana`
-   - Type: `A`
-   - Content: `192.168.1.127` (or `192.168.1.129`)
-   - Proxy status: **DNS only** (gray cloud, NOT orange)
-   - TTL: Auto
+Both hostnames terminate at Traefik on the LAN. Hosts, TLS secrets, and the middleware
+chains are set in the HelmRelease values, not here.
 
-2. **Alternative: two A records for redundancy:**
-   ```
-   grafana.h0melab.work -> 192.168.1.127
-   grafana.h0melab.work -> 192.168.1.129
-   ```
+| Host | Component | Middleware chain |
+|---|---|---|
+| `grafana.h0melab.work` | Grafana | redirect-https · security-headers · rate-limit-standard · csp |
+| `am.h0melab.work` | Alertmanager | redirect-https · security-headers · rate-limit-standard · **basic-auth** · csp |
 
-## Security Configuration
+Alertmanager's basic-auth sits after rate-limit on purpose: a 401 short-circuits the
+chain, so auth placed earlier would leave brute-force attempts unthrottled.
 
-**NetworkPolicies Applied:**
-- Grafana: cluster-only access
-- Prometheus: cluster-only access
-- Alertmanager: cluster-only access
+Certificates come from cert-manager over DNS-01 (`grafana-certificate.yaml`,
+`alertmanager-certificate.yaml`). The `cloudflared` NetworkPolicy permits egress to
+`monitoring` on 3000 and 9093, so a tunnel hostname can reach either component; the
+hostname list itself lives in the SOPS-encrypted tunnel config.
 
-**Ingress Enabled (Internal DNS Only):**
-- Grafana via internal DNS at grafana.h0melab.work
-- DNS points to internal IPs (192.168.1.127, 192.168.1.129)
-- NOT exposed to internet (DNS only, no proxy)
+## Authentication
 
-**Egress Restricted:**
-- DNS resolution allowed
-- Inter-component comms allowed
-- Internet for plugins/updates (Grafana)
-- Telegram API for alerts (Alertmanager)
+- **Grafana** — Authentik OIDC only. The HelmRelease values set
+  `auth.disable_login_form: true`, which hides the UI login form, and
+  `auth.basic.enabled: false`, which closes the API basic-auth path. The local admin user
+  that `grafana-admin-secret.yaml` provisions therefore has no way in while both hold.
+- **Alertmanager** — Traefik basic-auth middleware (`alertmanager-basic-auth-secret.yaml`).
 
-## Accessing Monitoring Stack
+Read the local Grafana admin credentials:
 
-### Grafana
-
-**Via Internal DNS (recommended):**
-```
-https://grafana.h0melab.work
-```
-
-**Via kubectl port-forward (alt):**
-```bash
-kubectl port-forward -n monitoring svc/kube-prometheus-stack-grafana 3000:80
-# Access at: http://localhost:3000
-```
-
-**Default credentials:**
-- Username: secret `grafana-admin-secret`
-- Password: secret `grafana-admin-secret`
-
-Retrieve creds:
 ```bash
 kubectl get secret -n monitoring grafana-admin-secret -o jsonpath='{.data.admin-user}' | base64 -d
 kubectl get secret -n monitoring grafana-admin-secret -o jsonpath='{.data.admin-password}' | base64 -d
 ```
 
-### Prometheus
+## NetworkPolicies
 
-**Quick access:**
-```bash
-kubectl port-forward -n monitoring svc/kube-prometheus-stack-prometheus 9090:9090
-# Access at: http://localhost:9090
-```
+| File | Scope |
+|---|---|
+| `grafana-networkpolicy.yaml` | ingress from any namespace on 3000; egress to DNS, the K8s API (dashboard sidecar), VictoriaMetrics, Alertmanager, Loki, and plugin downloads |
+| `alertmanager-networkpolicy.yaml` | ingress on 9093 from any namespace and from the LAN (the CP `kubectl proxy` path for silences), plus cluster gossip on 9094; egress to DNS, gossip, and webhook notifications |
+| `kube-state-metrics-networkpolicy.yaml` | metrics scrape only |
+| `prometheus-operator-networkpolicy.yaml` | metrics scrape only |
 
-### Alertmanager
+## Access away from home
 
-**Quick access:**
-```bash
-kubectl port-forward -n monitoring svc/kube-prometheus-stack-alertmanager 9093:9093
-# Access at: http://localhost:9093
-```
-
-## Remote Access (Away from Home)
-
-Secure options:
-
-1. **VPN** (most secure)
-   - WireGuard or Tailscale to home net
-   - Access as if home
-
-2. **SSH Tunnel**
-   - SSH to homelab machine
-   - Port forwarding via SSH
-
-3. **Bastion Host**
-   - Secure jump host
-
-**WARNING: Do NOT expose Grafana/Prometheus/Alertmanager directly to internet!**
-
-## What Changed
-
-- Removed external Ingress for Grafana (was: `grafana.h0melab.work`)
-- Removed external Ingress for Alertmanager (was: `am.h0melab.work`)
-- Added NetworkPolicy for Grafana
-- Added NetworkPolicy for Prometheus
-- Added NetworkPolicy for Alertmanager
-- Certificates remain (can re-enable)
-
-## Re-enabling External Access (Not Recommended)
-
-If external access truly needed:
-
-1. Edit `monitoring/controllers/kube-prometheus-stack/release.yaml`
-2. Set `grafana.ingress.enabled: true` and/or `alertmanager.ingress.enabled: true`
-3. TLS certs still configured, will work
-4. **WARNING: increases attack surface significantly**
-
-Better: VPN or Cloudflare tunnel with auth middleware.
+Do not publish Grafana or Alertmanager on a bare public hostname. Use the Cloudflare
+Tunnel with an Access policy, or a VPN back to the LAN.

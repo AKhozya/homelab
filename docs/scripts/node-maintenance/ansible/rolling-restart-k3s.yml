@@ -8,7 +8,7 @@
 #     -i /etc/node-maintenance/ansible/inventory.yml
 #
 # CP first (CM grace-period change applies on k3s.service restart), then workers
-# serially. serial: 1 = max 1 node disrupted at a time. Quorum (2/3) preserved.
+# serially. serial: 1 = at most one node disrupted at a time.
 #
 # Verifies kubelet config landed via /api/v1/nodes/<n>/proxy/configz.
 # Fails play if expected fields missing — surfaces silent K3s field-stripping

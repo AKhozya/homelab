@@ -1,5 +1,5 @@
 #!/bin/bash
-# ufw-heal-post-k3s.sh  (v5 — 2026-05-16)
+# ufw-heal-post-k3s.sh
 # Heals UFW state when K3s (kube-proxy + flannel) + fail2ban race-mutate
 # kernel netfilter state against UFW's iptables-restore.
 #
@@ -10,15 +10,7 @@
 # /etc/ufw/before6.rules / user6.rules. Symptom: `ufw status verbose` returns
 # "ERROR: problem running ip6tables" → wedged half-state.
 #
-# v5 changes (2026-05-16 incident — kernel 6.18.29→31 reboot):
-#   - Phase B: after successful --force enable, pin ENABLED=yes in config AND
-#     verify ufw status immediately (K3s races can undo the enable within 1s)
-#   - Phase E: SKIP if phase-b just recovered (the enable already loaded rules;
-#     a second reload during K3s boot-storm races and flips config back)
-#   - Phase F: if phase-b recovered, inactive = FAIL (exit 1 → alert fires)
-#   - Support --watchdog mode: skip phase-a settle (for periodic timer calls)
-#
-# Sequence (revised 2026-05-16):
+# Sequence (the letters are historical; this is the run order):
 #   A. Settle wait — nft monitor + iptables-save sha256 stability (3x 5s
 #      consecutive identical windows). Max 90s. Skipped in --watchdog mode.
 #   C. Per-chain repair FIRST — single-syscall `iptables -N` is race-free,
@@ -27,14 +19,9 @@
 #      pins config + verifies state survived.
 #   E. Final reload (skipped if phase-b recovered — avoids re-race)
 #   D. Verify probe set — v4 + v6 canary chains
+#   G. CNI nat repair — worker-only, only after a disabled-recovery (see phase_g_cni_heal)
 #   F. Status check (authoritative). FAIL if recovery was attempted but
 #      UFW is inactive.
-#
-# v6 changes (2026-05-30 reboot wedge):
-#   - Phase G: if phase-b's `flush-all` ran (RECOVERED_FROM_DISABLED) it also flushed nat
-#     POSTROUTING, deleting -j CNI-HOSTPORT-MASQ; portmap CNI is not a daemon (k8s#93091) so it
-#     never returns → pod→ClusterIP/DNS wedged until k3s restart. Worker-only: restart k3s-agent
-#     to rebuild CNI nat chains (CP k3s restart HANGS — skipped there). Runs before phase-f.
 #
 # Never exits non-zero from Phase A timeout — boot must proceed.
 # Exits non-zero from Phase F if UFW should be active but isn't → systemd
@@ -74,7 +61,7 @@ extract_chains() {
     grep -E '^:[a-zA-Z0-9_-]+' "$file" 2>/dev/null | awk -F'[: ]' '{print $2}'
 }
 
-# Idempotent chain ensure: create if missing, no-op if exists.
+# Idempotent: no-op when the chain already exists.
 ensure_chain() {
     local iptables_bin="$1"
     local chain="$2"
@@ -188,8 +175,8 @@ pin_ufw_enabled() {
 # session that block re-enable with "iptables-restore line 2: No chain/target")
 # + `ufw --force enable`. Pattern observed 2026-05-02 W1 incident.
 #
-# v5 fix: after force-enable succeeds, immediately pin config + verify status
-# survives (K3s can race the enable and flip it back within <1s).
+# After a force-enable succeeds, pin the config and verify the status survives:
+# K3s can race the enable and flip it back inside 1s (2026-05-16).
 phase_b_reload() {
     for attempt in 1 2 3; do
         log "phase-b: ufw reload attempt $attempt/3"
@@ -236,7 +223,7 @@ phase_b_reload() {
 }
 
 # Phase E — final reload attempt.
-# v5: SKIP if phase-b just recovered from disabled. The `--force enable` already
+# SKIP if phase-b just recovered from disabled. The `--force enable` already
 # loaded all rules. A second `ufw reload` during K3s boot-storm races
 # iptables-restore and can fail, which causes UFW to flip ENABLED=no in config
 # (observed 2026-05-16 05:45:39). Skipping avoids the race entirely.
@@ -272,9 +259,9 @@ phase_d_verify() {
 }
 
 # Phase F — status check (authoritative).
-# v5: if we recovered from disabled (phase-b set RECOVERED_FROM_DISABLED=1),
-# then inactive is NOT acceptable — it means the recovery failed and UFW is
-# down. Exit non-zero → systemd marks failed → alert fires.
+# If phase-b set RECOVERED_FROM_DISABLED=1, inactive is NOT acceptable: the recovery
+# failed and the firewall is down. Exit non-zero so systemd marks the unit failed and
+# the alert fires.
 phase_f_status() {
     local status
     status=$("$UFW_BIN" status 2>&1 || true)
@@ -287,7 +274,7 @@ phase_f_status() {
             log "phase-f: FAIL — recovery was attempted but ufw is INACTIVE (firewall down!)"
             return 1
         fi
-        # Config says ENABLED=no and we didn't try to recover → user-disabled, not our problem
+        # ENABLED=no with no recovery attempt means an operator disabled it deliberately.
         log "phase-f: ufw inactive (ENABLED=no, no recovery attempted) — exiting clean"
         return 0
     fi
@@ -321,13 +308,11 @@ phase_g_cni_heal() {
 }
 
 main() {
-    # Parse args
     if [[ "${1:-}" == "--watchdog" ]]; then
         WATCHDOG_MODE=1
     fi
 
     if [ "$WATCHDOG_MODE" -eq 1 ]; then
-        # Quick-check: if UFW is already active, exit immediately (no-op for timer)
         local quick_status
         quick_status=$("$UFW_BIN" status 2>&1 || true)
         if echo "$quick_status" | grep -qi "Status: active"; then

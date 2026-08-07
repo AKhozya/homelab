@@ -10,7 +10,6 @@ data:
 
     echo "Starting CouchDB database initialization..."
 
-    # Wait for CouchDB to be ready
     echo "Waiting for CouchDB to be available..."
     until curl -sf -u "$ADMIN_USER:$ADMIN_PASSWORD" "$COUCHDB_URL/_up" > /dev/null 2>&1; do
       echo "CouchDB not ready yet, waiting..."
@@ -18,7 +17,7 @@ data:
     done
     echo "CouchDB is ready!"
 
-    # Ensure _users database exists (required for authentication)
+    # CouchDB serves authentication out of _users; it must exist first.
     echo "Checking if _users database exists..."
     if curl -sf -u "$ADMIN_USER:$ADMIN_PASSWORD" "$COUCHDB_URL/_users" > /dev/null 2>&1; then
       echo "_users database already exists"
@@ -28,7 +27,6 @@ data:
       echo "_users database created successfully"
     fi
 
-    # Check if database exists
     echo "Checking if database '$DB_NAME' exists..."
     if curl -sf -u "$ADMIN_USER:$ADMIN_PASSWORD" "$COUCHDB_URL/$DB_NAME" > /dev/null 2>&1; then
       echo "Database '$DB_NAME' already exists, skipping creation"
@@ -38,7 +36,6 @@ data:
       echo "Database '$DB_NAME' created successfully"
     fi
 
-    # Check if user exists
     echo "Checking if user '$DB_USER' exists..."
     if curl -sf -u "$ADMIN_USER:$ADMIN_PASSWORD" "$COUCHDB_URL/_users/org.couchdb.user:$DB_USER" > /dev/null 2>&1; then
       echo "User '$DB_USER' already exists, skipping creation"
@@ -51,7 +48,7 @@ data:
       echo "User '$DB_USER' created successfully"
     fi
 
-    # Set database permissions (user as DB admin for LiveSync operations)
+    # LiveSync needs the sync user to be a DB admin, not just a member.
     echo "Setting DB admin permissions for user '$DB_USER' on database '$DB_NAME'..."
     curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
       "$COUCHDB_URL/$DB_NAME/_security" \
@@ -59,7 +56,6 @@ data:
       -d "{\"admins\":{\"names\":[\"$DB_USER\"],\"roles\":[]},\"members\":{\"names\":[\"$DB_USER\"],\"roles\":[]}}"
     echo "DB admin permissions set successfully"
 
-    # Apply LiveSync recommended CouchDB settings
     echo "Applying LiveSync recommended settings..."
     curl -sf -X PUT -u "$ADMIN_USER:$ADMIN_PASSWORD" \
       "$COUCHDB_URL/_node/_local/_config/chttpd/require_valid_user" -d '"true"'

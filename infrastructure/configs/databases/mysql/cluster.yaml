@@ -6,16 +6,18 @@ metadata:
   finalizers:
     - percona.com/delete-mysql-pods-in-order
 spec:
-  # Matches ps-operator chart 1.2.0 (bumped from 1.0.0 2026-07-03). crVersion tracks the
-  # operator minor; SmartUpdate rolls replicas first, primary last (HA held by PDB minAvailable:1).
+  # crVersion tracks the ps-operator chart minor (bumped from 1.0.0 on 2026-07-03).
+  # SmartUpdate rolls replicas first and the primary last; the PDB (minAvailable: 1)
+  # holds HA through the roll.
   crVersion: "1.2.0"
 
-  # Enable dynamic storage expansion without downtime
-  # (spec.enableVolumeExpansion deprecated in operator 1.2.0, removed 1.5.0)
+  # Online volume expansion. The older spec.enableVolumeExpansion was deprecated in
+  # operator 1.2.0 and is removed in 1.5.0.
   storageScaling:
     enableVolumeScaling: true
 
-  # Allow 2 replicas and simplified orchestrator (homelab setup)
+  # unsafeFlags permit the 2-node MySQL cluster below, under the operator's 3-node
+  # minimum. Deliberate for a homelab.
   unsafeFlags:
     mysqlSize: true
     orchestrator: true
@@ -23,20 +25,19 @@ spec:
 
   secretsName: mysql-cluster-secrets
 
-  # Update strategy: SmartUpdate for zero-downtime (updates replicas first, primary last)
-  # Requires orchestrator.enabled=true for async replication
+  # SmartUpdate needs orchestrator.enabled=true for the async-replication failover.
   updateStrategy: SmartUpdate
   upgradeOptions:
     apply: disabled
 
-  # Orchestrator for async replication failover (3 for quorum on all nodes)
+  # Orchestrator drives async-replication failover. 3 pods so it keeps quorum at 2.
   orchestrator:
     enabled: true
     size: 3
     image: percona/percona-orchestrator:3.2.6-19
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
-    priorityClassName: homelab-critical  # critical tier
+    priorityClassName: homelab-critical
     # Pod-level seccomp baseline (require-seccomp-runtimedefault Kyverno policy)
     podSecurityContext:
       seccompProfile:
@@ -58,8 +59,8 @@ spec:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
-    # NOTE: orchestrator.configuration field exists in CRD but is not implemented
-    # by the operator (v1.0.0). Custom orchestrator settings cannot be applied.
+    # orchestrator.configuration exists in the CRD but the operator does not implement it
+    # (last checked on operator 1.0.0), so custom orchestrator settings cannot be applied.
     # See: https://github.com/percona/percona-server-mysql-operator
 
   # Backup configuration (required even if not using backups)
@@ -82,7 +83,6 @@ spec:
         cpu: "100m"
         memory: "64Mi"
 
-  # MySQL cluster configuration
   mysql:
     clusterType: async
     autoRecovery: true
@@ -94,24 +94,23 @@ spec:
     image: percona/percona-server:8.4.10-10.1
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
-    priorityClassName: homelab-critical  # critical tier (primary DB)
+    priorityClassName: homelab-critical
     # Pod-level seccomp baseline (require-seccomp-runtimedefault Kyverno policy)
     podSecurityContext:
       seccompProfile:
         type: RuntimeDefault
 
-    # Environment variables for longer timeouts during clone/recovery
-    # These prevent "query interrupted" errors during large data transfers
+    # Longer than the defaults: a large clone hits "query interrupted" at the stock timeouts.
     env:
       - name: BOOTSTRAP_CLONE_TIMEOUT
         value: "7200"  # 2 hours (default 3600s, increased for stability)
       - name: BOOTSTRAP_READ_TIMEOUT
-        value: "3600"  # 1 hour (explicit setting)
+        value: "3600"
       - name: BOOTSTRAP_WRITE_TIMEOUT
-        value: "3600"  # 1 hour (explicit setting)
+        value: "3600"
 
-    # Probe configurations - more lenient to handle recovery scenarios
-    # Default failureThreshold=3 causes premature restarts during recovery
+    # The default failureThreshold of 3 restarts the pod mid-recovery, so readiness and
+    # liveness both run at 6. The startupProbe buys its time from a very long timeout instead.
     startupProbe:
       failureThreshold: 1
       initialDelaySeconds: 15
@@ -128,7 +127,6 @@ spec:
       periodSeconds: 10
       timeoutSeconds: 5
 
-    # PodDisruptionBudget - ensure at least 1 replica during maintenance
     podDisruptionBudget:
       minAvailable: 1
 
@@ -143,16 +141,13 @@ spec:
         cpu: "1000m"
         memory: "1536Mi"
 
-    # Anti-affinity for HA
     affinity:
       antiAffinityTopologyKey: kubernetes.io/hostname
 
-    # Expose primary service
     exposePrimary:
       enabled: true
       type: ClusterIP
 
-    # Storage
     volumeSpec:
       persistentVolumeClaim:
         accessModes:
@@ -190,7 +185,7 @@ spec:
       image: percona/haproxy:2.8.26
       imagePullPolicy: IfNotPresent
       serviceAccountName: main-mysql
-      priorityClassName: homelab-critical  # critical tier (DB front)
+      priorityClassName: homelab-critical
       # Pod-level seccomp baseline (require-seccomp-runtimedefault Kyverno policy)
       podSecurityContext:
         seccompProfile:

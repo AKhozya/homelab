@@ -130,7 +130,7 @@ Deployment avoids:
 **Justification:**
 - Root **architecturally required** by HA
 - Elevated caps **functionally necessary** for integrations
-- Security controls **significantly reduce** attack surface
+- Security controls reduce the attack surface
 - Blast radius **contained** to pod scope (no host access)
 - HA = **smart home controller** needing hardware-level access
 

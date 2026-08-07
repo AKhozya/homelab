@@ -68,7 +68,7 @@ spec:
       replicas: 2
       revisionHistoryLimit: 2
 
-      # Allow scheduling on control plane for HA
+      # Tolerate the control-plane taint so the anti-affine replicas below can also use the CP node.
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists

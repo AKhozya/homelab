@@ -38,7 +38,7 @@ pacman -Q python-kubernetes >/dev/null 2>&1 \
 
 if [ "$SYNC_ONLY" -eq 0 ]; then
   # ── SSH key source (expect plain decrypted key from Mac) ──
-  # Skip gracefully if key already installed (idempotent re-run without key).
+  # Idempotent re-run without a key: skip when the key is already installed.
   KEY_SRC="${NODE_MAINT_KEY_SRC:-/tmp/node-maintenance-ssh-key}"
   if [ ! -r "$SSH_KEY_PATH" ] && [ ! -r "$KEY_SRC" ]; then
     cat >&2 <<ERR

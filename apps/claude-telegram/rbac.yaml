@@ -8,7 +8,7 @@ metadata:
 # enough to restart a wedged workload without being able to rewrite what it runs.
 # The verbs that amount to code execution are bound per namespace, never cluster-wide:
 # `pods/exec` in `claude-telegram-exec`, Job creation in `claude-telegram-jobs`, both below.
-# Workload patch used to be a third; it is gone entirely (2026-08-06) — see that role's header.
+# Workload patch is granted nowhere at all since 2026-08-06 — see that role's header.
 #
 # This split replaces the previous posture ("EFFECTIVE PRIVILEGE = CLUSTER-ADMIN-EQUIVALENT …
 # treat a bot compromise as a cluster compromise", ultrareview 2026-07-03). Two findings on
@@ -55,7 +55,6 @@ rules:
       ["kustomize.toolkit.fluxcd.io", "helm.toolkit.fluxcd.io", "source.toolkit.fluxcd.io"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
-  # Pod logs
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
@@ -195,7 +194,6 @@ metadata:
 # it just cannot execute inside them. Add a binding back if a real workflow needs it; that is a
 # one-line change and a deliberate one.
 rules:
-  # kubectl exec — diagnostics inside a running container
   - apiGroups: [""]
     resources: ["pods/exec"]
     verbs: ["create"]

@@ -11,14 +11,14 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from within the cluster only (internal access)
+    # Internal access, any namespace
     - from:
         - namespaceSelector: {}
       ports:
         - protocol: TCP
           port: 3000  # Grafana default port
   egress:
-    # Allow DNS resolution
+    # DNS
     - to:
         - namespaceSelector:
             matchLabels:
@@ -26,15 +26,14 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow access to Kubernetes API server (for dashboard sidecar)
-    # API server endpoint: 192.168.1.127:6443 (control plane node)
+    # K8s API for the dashboard sidecar. The CIDR is the control-plane node.
     - to:
         - ipBlock:
             cidr: 192.168.1.127/32
       ports:
         - protocol: TCP
           port: 6443
-    # Allow access to VictoriaMetrics (provisioned datasource) in the same namespace
+    # VictoriaMetrics datasource
     - to:
         - podSelector:
             matchLabels:
@@ -42,7 +41,6 @@ spec:
       ports:
         - protocol: TCP
           port: 8429
-    # Allow access to Alertmanager in the same namespace
     - to:
         - podSelector:
             matchLabels:
@@ -50,7 +48,7 @@ spec:
       ports:
         - protocol: TCP
           port: 9093
-    # Allow access to Loki (if in different namespace)
+    # Loki datasource
     - to:
         - namespaceSelector:
             matchLabels:
@@ -58,11 +56,10 @@ spec:
       ports:
         - protocol: TCP
           port: 3100
-    # Allow HTTPS for plugin downloads and updates
+    # Plugin downloads and updates
     - ports:
         - protocol: TCP
           port: 443
-    # Allow HTTP for plugin downloads
     - ports:
         - protocol: TCP
           port: 80

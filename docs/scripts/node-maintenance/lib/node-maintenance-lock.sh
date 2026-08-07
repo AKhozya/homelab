@@ -26,7 +26,7 @@ shift
 
 case "$mode" in
 skip)
-	# -E 75: a distinct exit code when the lock is BUSY, so we can tell "lock held" apart from
+	# -E 75: a distinct exit code when the lock is BUSY, so a caller can tell "lock held" apart from
 	# the wrapped command's own failures (which must still propagate + alert).
 	rc=0
 	flock -n -E 75 "$LOCK" "$@" || rc=$?

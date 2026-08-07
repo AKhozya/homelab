@@ -11,7 +11,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from traefik namespace for local access
+    # Internal access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -19,7 +19,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
-    # Allow ingress from cloudflare-tunnel namespace for external access
+    # External access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -27,7 +27,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
-    # Allow ingress from uptime-kuma namespace for monitoring
+    # Uptime-kuma probes
     - from:
         - namespaceSelector:
             matchLabels:
@@ -36,7 +36,6 @@ spec:
         - protocol: TCP
           port: 3000
   egress:
-    # Allow PostgreSQL database access
     - to:
         - namespaceSelector:
             matchLabels:
@@ -47,7 +46,6 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
-    # Allow Meilisearch access (same namespace)
     - to:
         - podSelector:
             matchLabels:
@@ -55,7 +53,7 @@ spec:
       ports:
         - protocol: TCP
           port: 7700
-    # Allow HTTPS for external APIs (web archiving, metadata fetching)
+    # Web archiving and metadata fetch
     - ports:
         - protocol: TCP
           port: 443
@@ -73,7 +71,6 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from LinkWarden app only
     - from:
         - podSelector:
             matchLabels:

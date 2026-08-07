@@ -77,7 +77,7 @@ spec:
         operator: Exists
         effect: NoSchedule
 
-    # Update strategy: delete old pod before creating new (required with anti-affinity + 2 nodes)
+    # Delete-then-create roll (maxSurge 0), paired with the hard anti-affinity above.
     updateStrategy:
       type: RollingUpdate
       rollingUpdate:

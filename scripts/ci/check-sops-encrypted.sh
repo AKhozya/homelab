@@ -62,7 +62,7 @@ for f in "${candidates[@]}"; do
     BEGIN { docn = 1; seenContent = 0 }
     # `--- # comment` and `--- !!map` are valid separators, so match the marker
     # plus a boundary rather than end-of-line. [[:space:]] not [ \t] so a CRLF
-    # file s trailing \r still terminates the marker. A leading separator opens
+    # file keeps a trailing \r that still terminates the marker. A leading separator opens
     # document 1 rather than closing an empty document 0.
     /^---([[:space:]]|$)/ {
       if (seenContent) { flush(); docn++ } else { isSecret = 0; hasEnc = 0 }

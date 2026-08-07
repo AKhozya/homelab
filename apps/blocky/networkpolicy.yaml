@@ -15,7 +15,7 @@ spec:
     - ports:
         - { protocol: TCP, port: 53 }
         - { protocol: UDP, port: 53 }
-    # Prometheus scrape from monitoring ns
+    # Metrics scrape
     - from:
         - namespaceSelector:
             matchLabels:
@@ -34,7 +34,6 @@ spec:
       ports:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
-    # Redis (databases ns)
     - to:
         - namespaceSelector:
             matchLabels:
@@ -54,7 +53,7 @@ spec:
               cnpg.io/cluster: main-postgres
       ports:
         - { protocol: TCP, port: 5432 }
-    # Public DNS resolvers - DoT 853 + plain bootstrap 53
+    # Public resolvers: DoT on 853, plain 53 for bootstrap
     - to:
         - { ipBlock: { cidr: 1.1.1.2/32 } }
         - { ipBlock: { cidr: 1.0.0.2/32 } }
@@ -64,6 +63,6 @@ spec:
         - { protocol: UDP, port: 53 }
         - { protocol: TCP, port: 53 }
         - { protocol: TCP, port: 853 }
-    # HTTPS for DoH + blocklist downloads (CDNs cannot be IP-pinned)
+    # DoH and blocklist downloads. The CDNs behind them cannot be IP-pinned.
     - ports:
         - { protocol: TCP, port: 443 }

@@ -12,10 +12,9 @@ spec:
     - Egress
   ingress:
     # HA is LOCAL-ONLY — not in the cloudflared route table, so no cloudflare-tunnel rule.
-    # `namespaceSelector: {}` (admit every namespace) was over-broad; the only in-cluster
-    # consumers of 8123 are Traefik (ingress ha.h0melab.work), the uptime-kuma probe, and
-    # the same-namespace admin-setup Job. UR2 P3-8.
-    # Local UI access via Traefik ingress
+    # Do not widen this to `namespaceSelector: {}`. Admit only the three consumers
+    # below. UR2 P3-8.
+    # Traefik ingress (ha.h0melab.work)
     - from:
         - namespaceSelector:
             matchLabels:
@@ -31,7 +30,7 @@ spec:
       ports:
         - protocol: TCP
           port: 8123
-    # admin-setup Job (same namespace) — onboarding/OIDC bootstrap calls the HA API
+    # admin-setup Job — onboarding/OIDC bootstrap calls the HA API
     - from:
         - podSelector:
             matchLabels:
@@ -40,12 +39,11 @@ spec:
         - protocol: TCP
           port: 8123
   egress:
-    # Allow HTTPS/HTTP for internet access (integrations, updates, etc.).
-    # RFC1918 excluded so a compromised HA pod (malicious HACS integration
-    # or poisoned upstream) can't reach cluster pods/ClusterIPs or LAN hosts
-    # over 443/80 — same reasoning as the 10/8 removal on the LAN rule below.
-    # LAN 443/80 (local device web UIs, ESPHome) stays reachable via the
-    # explicit 192.168.0.0/16 all-port rule; in-cluster MySQL via port 3306.
+    # Internet access for integrations and updates. RFC1918 is excluded so a compromised
+    # HA pod (malicious HACS integration, poisoned upstream) cannot reach cluster
+    # pods/ClusterIPs or LAN hosts over 443/80. LAN 443/80 (device web UIs, ESPHome)
+    # stays reachable through the 192.168.0.0/16 all-port rule below; in-cluster MySQL
+    # through the port-3306 rule.
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -58,17 +56,15 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
-    # Allow mDNS for local device discovery (broadcast)
+    # mDNS device discovery
     - ports:
         - protocol: UDP
           port: 5353
-    # Allow access to common IoT device ports on local network
     - ports:
         - protocol: TCP
           port: 1883  # MQTT
         - protocol: TCP
           port: 8883  # MQTT over TLS
-    # Allow MySQL HAProxy access (Percona)
     - to:
         - namespaceSelector:
             matchLabels:
@@ -76,11 +72,10 @@ spec:
       ports:
         - protocol: TCP
           port: 3306
-    # Allow access to local network devices (for integrations).
-    # Scoped to the home LAN only. 10.0.0.0/8 + 172.16.0.0/12 were removed: 10/8 contains the
-    # cluster pod CIDR (10.42.0.0/16) and service CIDR (10.43.0.0/16), so the old rule let a
-    # compromised HA pod reach every pod/ClusterIP in the cluster (lateral movement). In-cluster
-    # MySQL is granted by the port-3306 rule above; DNS via the allow-dns-egress component.
+    # Local devices, home LAN only. Do not re-add 10.0.0.0/8: it contains the cluster pod
+    # CIDR (10.42.0.0/16) and service CIDR (10.43.0.0/16), so a compromised HA pod could
+    # reach every pod and ClusterIP in the cluster. The port-3306 rule above grants
+    # in-cluster MySQL; the allow-dns-egress component grants DNS.
     - to:
         - ipBlock:
             cidr: 192.168.0.0/16

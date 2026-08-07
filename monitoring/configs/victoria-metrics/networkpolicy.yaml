@@ -69,7 +69,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Prometheus scraping VMAgent metrics
+    # Metrics scrape
     - from:
         - namespaceSelector:
             matchLabels:

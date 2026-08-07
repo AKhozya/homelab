@@ -30,7 +30,7 @@ spec:
       # 1. Read custom config from ConfigMap (services, widgets, etc.)
       # 2. Write dynamic files (docker.yaml, logs) to /app/config
       #
-      # ConfigMaps are read-only, so we copy to emptyDir which is writable.
+      # A ConfigMap mount is read-only, so the init container copies it to a writable emptyDir.
       initContainers:
         - name: copy-config
           image: busybox:1.38.0

@@ -356,10 +356,10 @@
 # ──────────────────────────────────────────────────────────────
 # The `virtual` group is excluded from PLAY 1's reboot rollout. It still gets weekly package
 # updates here — but NEVER an in-guest reboot (that wedges the passed-through iGPU → NAS host
-# crash). If a kernel bump lands, we cold-cycle it the ONLY reset-bug-safe way: a graceful in-guest
+# crash). A kernel bump triggers a cold-cycle the ONLY reset-bug-safe way: a graceful in-guest
 # poweroff (== `virsh shutdown --mode acpi`; domain → "shut off") then let the existing immich-vm-heal
 # watchdog cold-`virsh start` it (that watchdog holds the NAS key + only ever starts a shut-off
-# domain — ansible never touches the NAS). We nudge the watchdog immediately for a short RTO; its
+# domain — ansible never touches the NAS). PLAY 1b nudges the watchdog at once for a short RTO; its
 # 5-min CronJob schedule is the backstop if the nudge races. No cordon/drain: the VM is a leaf node.
 - name: Node maintenance — Phase 2 (GPU VM update, no reboot)
   hosts: virtual
@@ -452,7 +452,7 @@
           ignore_errors: true   # noqa: ignore-errors  (SSH tears down mid-launch; expected)
 
         # Confirm the poweroff took effect BEFORE nudging the watchdog: the watchdog only starts a
-        # "shut off" domain, so we wait for the node to leave Ready (kubelet gone = VM down) as the
+        # "shut off" domain, so this waits for the node to leave Ready (kubelet gone = VM down) as the
         # NAS-free proxy for "domain reached shut off". If it never drops (poweroff failed), the retry
         # loop exhausts → block fails → rescue alerts (VM stays up on the old kernel, same as before).
         - name: Wait for immich-vm node to leave Ready (poweroff took effect)

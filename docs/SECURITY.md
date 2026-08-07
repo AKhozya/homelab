@@ -25,9 +25,10 @@ This homelab leans on defense-in-depth rather than any single control. Secrets a
 **Strengths:**
 - Centralized SSO with Authentik — 7 of 17 apps via OIDC, plus homepage via forward-auth
 - Admin user 2FA enabled (TOTP)
-- OIDC-only (passwords disabled most apps)
-- NetworkPolicy default-deny across all 28 namespaces (64 policy resources)
-- Kyverno admission policies enforced (12 ClusterPolicies: 9 Enforce, 3 in Audit soak)
+- OIDC on the integrated apps; most also have their local password login disabled (the
+  table below names the exceptions)
+- NetworkPolicy default-deny in every namespace (live counts in HOMELAB_ANALYSIS.md)
+- 12 Kyverno CEL ValidatingPolicies, every one `validationActions: [Deny]`
 - Secrets SOPS/age encrypted
 - TLS on all ingresses
 - Emergency admin accounts for critical apps
@@ -64,14 +65,17 @@ Internet/LAN → Authentik Login → 2FA → Application Access
 - No evidence of targeted attacks
 - **Trade-off**: convenience vs defense-in-depth
 
-### OIDC-Integrated Applications (7 of 16)
+### OIDC-Integrated Applications (7 of the 17 apps, plus Grafana)
+
+Grafana is monitoring infrastructure rather than a listed app, but uses the same integration.
 
 | Application | Auth Method | Local Admin | Notes |
 |-------------|-------------|-------------|-------|
 | **Grafana** | OIDC | Disabled | SSO-only |
 | **Immich** | OIDC | Via Web UI | Configured post-deployment |
 | **Paperless-NGX** | OIDC | Disabled | Env var config |
-| **Linkding** | OIDC | Disabled | Env var config |
+| **Linkwarden** | OIDC | Disabled | Env var config |
+| **Stirling-PDF** | OIDC | Disabled | Env var config |
 | **Mealie** | OIDC | Disabled | Env var config |
 | **Audiobookshelf** | OIDC | Via Web UI | Configured post-deployment |
 | **Home Assistant** | OIDC + Local | ✅ Backup | Emergency access |
@@ -107,7 +111,7 @@ Internet/LAN → Authentik Login → 2FA → Application Access
 
 All apps have egress + ingress rules:
 - DNS allowed
-- Monitoring endpoints allowed (Prometheus)
+- Metrics scrape from the monitoring namespace allowed
 - App-specific rules (DB, cache)
 - Default deny other traffic
 

@@ -11,7 +11,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from traefik namespace for internal access
+    # Internal access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -21,7 +21,7 @@ spec:
           port: 9000
         - protocol: TCP
           port: 9443
-    # Allow ingress from Cloudflare Tunnel for external access
+    # External access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -31,7 +31,7 @@ spec:
           port: 9000
         - protocol: TCP
           port: 9443
-    # Allow communication between server and worker
+    # Server ↔ worker (both carry app: authentik)
     - from:
         - podSelector:
             matchLabels:
@@ -54,11 +54,11 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
-    # Allow HTTPS for external auth providers and updates
+    # External auth providers and updates
     - ports:
         - protocol: TCP
           port: 443
-    # Allow SMTP for email notifications (Gmail: smtp.gmail.com:587)
+    # Email notifications (Gmail: smtp.gmail.com:587)
     - ports:
         - protocol: TCP
           port: 587

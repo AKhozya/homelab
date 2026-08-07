@@ -32,7 +32,7 @@ spec:
       ports:
         - protocol: TCP
           port: 2283
-    # Allow Prometheus/VMAgent metrics scraping
+    # Metrics scrape
     - from:
         - namespaceSelector:
             matchLabels:
@@ -59,7 +59,6 @@ spec:
         - protocol: TCP
           port: 2283
   egress:
-    # Allow PostgreSQL database access
     - to:
         - namespaceSelector:
             matchLabels:
@@ -70,9 +69,8 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
-    # Allow Redis access via the operator's master-following Service
-    # (redis-replication-master → redis-replication pods, 6379). Sentinel (26379)
-    # egress dropped 2026-06-28: immich is a plain client now, no Sentinel discovery.
+    # Redis through the operator's master-following Service (redis-replication-master).
+    # No Sentinel egress on 26379: immich is a plain client and does no Sentinel discovery.
     - to:
         - namespaceSelector:
             matchLabels:
@@ -83,7 +81,7 @@ spec:
       ports:
         - protocol: TCP
           port: 6379
-    # Allow inter-pod communication (ML <-> Server)
+    # ML container to server
     - to:
         - podSelector:
             matchLabels:
@@ -93,8 +91,8 @@ spec:
           port: 3003
         - protocol: TCP
           port: 2283
-    # Allow HTTPS for ML model downloads (modelscope.cn, huggingface.co)
-    # RFC1918 excluded so ML container can't reach cluster-internal services.
+    # ML model downloads (modelscope.cn, huggingface.co). RFC1918 is excluded so the ML
+    # container cannot reach cluster-internal services.
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0

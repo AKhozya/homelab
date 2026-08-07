@@ -10,7 +10,6 @@ spec:
     - Egress
   ingress: []
   egress:
-    # Allow DNS resolution
     - to:
         - namespaceSelector:
             matchLabels:
@@ -18,9 +17,9 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow access to CouchDB in databases namespace
-    # Scoped to the couchdb pods rather than the whole databases namespace. podSelector
-    # under the SAME list item as namespaceSelector = AND (separate items would be OR).
+    # CouchDB, scoped to the couchdb pods and not the whole databases namespace.
+    # podSelector under the SAME list item as namespaceSelector means AND. As a separate
+    # `-` item it would mean OR and grant 5984 to every pod anywhere.
     - to:
         - namespaceSelector:
             matchLabels:

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
-# Run node-maintenance (sync + drift-heal) and restart k3s across all nodes.
+# Run node-maintenance (sync + drift-heal) and restart k3s on the control plane and the
+# two general-purpose workers. immich-vm is a k3s node too, but it is excluded here.
 #
-# Order: CP → W1 → W2. Stops on first failure (set -e).
-# Each ssh -t opens a TTY so sudo password prompts work interactively.
+# Order: CP, then W1, then W2. Stops on the first failure (set -e).
+# Each ssh -t opens a TTY so the sudo password prompt works interactively.
 #
 # Usage: ./scripts/cluster-maintenance-run.sh
 

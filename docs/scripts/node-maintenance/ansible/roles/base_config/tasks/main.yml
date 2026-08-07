@@ -383,9 +383,10 @@
   tags: [base-config, kernel-cmdline]
 
 # Swap state assertion. Each host has different mechanism (CP=swapfile,
-# W1=partition, W2=LVM-LV) → host_vars carry path + fstab entry. We DO NOT
-# create swap (init-time concern); we only assert active + fstab entry present
-# so reboots restore swap. Drift = no swap → fail task → telegram alert.
+# W1=partition, W2=LVM-LV) → host_vars carry path + fstab entry. This role does
+# NOT create swap (an init-time concern). It asserts only that swap is active and
+# that the fstab entry is present, so a reboot restores swap. Drift = no swap →
+# fail task → telegram alert.
 - name: Assert swap fstab entry present (host-specific)
   ansible.builtin.lineinfile:
     path: /etc/fstab

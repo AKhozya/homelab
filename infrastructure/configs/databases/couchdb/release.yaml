@@ -109,14 +109,12 @@ spec:
       type: ClusterIP
       externalPort: 5984
 
-    # Enable clustering
     enableSearch: false
 
     # Monitoring: metrics scraped via external ServiceMonitor on port 5984 with basic auth
-    # (chart key is prometheusPort, not prometheus - but we don't need the standalone
-    # unauthenticated metrics port since ServiceMonitor already handles this)
+    # (the chart key is prometheusPort, not prometheus. The standalone unauthenticated
+    # metrics port stays off — the ServiceMonitor already covers scraping.)
 
-    # Health checks for auto-recovery and resilience
     livenessProbe:
       enabled: true
       failureThreshold: 3

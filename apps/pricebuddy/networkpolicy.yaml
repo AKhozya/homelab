@@ -11,7 +11,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from traefik namespace for internal access
+    # Internal access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -19,7 +19,7 @@ spec:
       ports:
         - protocol: TCP
           port: 80
-    # Allow ingress from uptime-kuma for monitoring
+    # Uptime-kuma probes
     - from:
         - namespaceSelector:
             matchLabels:
@@ -28,7 +28,6 @@ spec:
         - protocol: TCP
           port: 80
   egress:
-    # Allow MySQL HAProxy access (Percona)
     - to:
         - namespaceSelector:
             matchLabels:
@@ -36,7 +35,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3306
-    # Allow HTTPS for scraping external product pages (e-commerce sites use HTTPS)
+    # Scraping external product pages
     - ports:
         - protocol: TCP
           port: 443

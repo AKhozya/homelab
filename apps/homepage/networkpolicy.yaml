@@ -11,7 +11,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from traefik namespace for internal access
+    # Internal access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -19,7 +19,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
-    # Allow ingress from uptime-kuma namespace for monitoring
+    # Uptime-kuma probes
     - from:
         - namespaceSelector:
             matchLabels:
@@ -28,15 +28,15 @@ spec:
         - protocol: TCP
           port: 3000
   egress:
-    # Allow Kubernetes API access for service discovery (cluster mode)
-    # API server endpoint: 192.168.1.127:6443 (control plane node)
+    # K8s API for service discovery (homepage cluster mode). The CIDR is the
+    # control-plane node.
     - to:
         - ipBlock:
             cidr: 192.168.1.127/32
       ports:
         - protocol: TCP
           port: 6443
-    # Allow access to app services for status checks (port 443)
+    # App status checks
     - to:
         - namespaceSelector: {}
       ports:

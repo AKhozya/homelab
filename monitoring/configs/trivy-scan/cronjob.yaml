@@ -1,7 +1,7 @@
 # Monthly image-CVE scan — replaced the always-on trivy-operator (2026-07-14).
 # Rationale: the operator burned ~650Mi RAM 24/7 to re-scan images that only
 # change when Renovate bumps them; 88 VulnerabilityReports on upstream images
-# we don't own = noise. This job prints a per-image table to stdout (Loki
+# this repo does not build = noise. This job prints a per-image table to stdout (Loki
 # captures it) for review during the monthly security scan cadence.
 apiVersion: batch/v1
 kind: CronJob

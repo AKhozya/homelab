@@ -10,7 +10,6 @@ data:
 
     echo "Starting n8n user provisioning..."
 
-    # Wait for n8n to be ready
     echo "Waiting for n8n to be available..."
     MAX_RETRIES=60
     RETRY_COUNT=0
@@ -29,7 +28,6 @@ data:
       exit 1
     fi
 
-    # Check if owner already exists (n8n will return 400 if owner exists)
     echo "Checking if n8n owner already exists..."
     OWNER_EXISTS=$(curl -sf http://n8n:5678/rest/owner 2>/dev/null || echo "not_found")
 
@@ -38,7 +36,6 @@ data:
       exit 0
     fi
 
-    # Create owner user via API
     echo "Creating n8n owner user: $N8N_USER_EMAIL"
     RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://n8n:5678/rest/owner/setup \
       -H "Content-Type: application/json" \

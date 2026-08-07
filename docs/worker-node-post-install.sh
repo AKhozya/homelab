@@ -121,31 +121,24 @@ systemctl restart systemd-networkd
 if [ -n "$LVM_DEVICES" ]; then
     echo "[6/10] Configuring LVM storage..."
 
-    # Create PVs
     for dev in $LVM_DEVICES; do
         echo "Creating PV on $dev..."
         pvcreate "$dev"
     done
 
-    # Create VG
     echo "Creating VG k8s-storage..."
     vgcreate k8s-storage $LVM_DEVICES
 
-    # Create LV using all space
     echo "Creating LV k8s-data..."
     lvcreate -l 100%FREE -n k8s-data k8s-storage
 
-    # Format
     echo "Formatting with ext4..."
     mkfs.ext4 /dev/k8s-storage/k8s-data
 
-    # Mount point
     mkdir -p /mnt/k8s-storage
 
-    # Add to fstab
     echo '/dev/k8s-storage/k8s-data /mnt/k8s-storage ext4 defaults 0 2' >> /etc/fstab
 
-    # Mount
     mount -a
 
     echo "LVM storage configured:"

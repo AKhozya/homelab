@@ -11,14 +11,14 @@ spec:
     - Ingress
     - Egress
   egress:
-    # Allow access to Kubernetes API server (for cluster configuration)
-    # API server runs on control-plane node, not as a pod, so we use ipBlock
+    # K8s API for cluster configuration. The API server runs on the control-plane node,
+    # not as a pod, so this rule needs an ipBlock rather than a selector.
     - to:
       - ipBlock:
           cidr: 192.168.1.127/32  # control-plane node
       ports:
       - protocol: TCP
-        port: 6443  # Kubernetes API server port
+        port: 6443
 
     # DNS resolution
     - to:
@@ -31,7 +31,7 @@ spec:
       - protocol: TCP
         port: 53
 
-    # Intra-cluster replication (PostgreSQL pods talking to each other)
+    # Replication between instances
     - to:
       - podSelector:
           matchLabels:
@@ -42,7 +42,7 @@ spec:
       - protocol: TCP
         port: 8000  # CNPG instance manager status API
 
-    # CNPG operator communication (reports status, receives commands)
+    # CNPG operator: status reports and commands
     - to:
       - podSelector:
           matchLabels:
@@ -54,7 +54,7 @@ spec:
         port: 8080  # Metrics
 
   ingress:
-    # Allow from app namespaces (authentik, immich, paperless, etc.)
+    # Any namespace owned by the `apps` Flux Kustomization
     - from:
       - namespaceSelector:
           matchLabels:
@@ -63,7 +63,7 @@ spec:
       - protocol: TCP
         port: 5432
 
-    # Allow from monitoring namespace (Prometheus metrics scraping)
+    # Metrics scrape from the `monitoring-controllers` Kustomization
     - from:
       - namespaceSelector:
           matchLabels:
@@ -72,14 +72,14 @@ spec:
       - protocol: TCP
         port: 9187
 
-    # Allow from same namespace (maintenance jobs like immich-init-extensions)
+    # Same namespace: maintenance Jobs such as immich-init-extensions
     - from:
       - podSelector: {}
       ports:
       - protocol: TCP
         port: 5432
 
-    # Allow CNPG operator to access status API for health monitoring
+    # CNPG operator health checks
     - from:
       - podSelector:
           matchLabels:
@@ -88,7 +88,7 @@ spec:
       - protocol: TCP
         port: 8000  # CNPG instance manager status API
 
-    # Allow intra-cluster replication (PostgreSQL pods talking to each other)
+    # Replication between instances
     - from:
       - podSelector:
           matchLabels:

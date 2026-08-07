@@ -68,7 +68,8 @@ check_tag() {
   fi
 }
 
-# Authored manifest roots only (HelmRelease values live here too but we filter by kind below).
+# Every YAML file under $root. The per-doc kind filters below split HelmRelease values
+# from workloads.
 while IFS= read -r -d '' file; do
   # Skip SOPS-encrypted files.
   if grep -q 'ENC\[AES256_GCM' "$file" 2>/dev/null; then

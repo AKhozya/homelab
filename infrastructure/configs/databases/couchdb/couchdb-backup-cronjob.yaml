@@ -36,7 +36,6 @@ spec:
                 - sh
                 - -c
                 - |
-                  # Ensure backup directory exists and has correct permissions
                   mkdir -p /backup
                   chown -R 1000:1000 /backup
                   chmod 755 /backup
@@ -120,17 +119,15 @@ spec:
                   echo "=== CouchDB Backup Started ==="
                   echo "Timestamp: $(date)"
 
-                  # Clean up orphaned directories from failed previous attempts
                   echo "[$(elapsed)] Cleaning orphaned backup directories..."
                   find /backup -maxdepth 1 -type d -name "2*" -mmin +60 -exec rm -rf {} \; 2>/dev/null || true
 
-                  # Configure npm for reliability
+                  # Retry/timeout settings — the registry fetch below has failed on a slow link.
                   npm config set fetch-retries 3
                   npm config set fetch-retry-mintimeout 10000
                   npm config set fetch-retry-maxtimeout 60000
                   npm config set fetch-timeout 120000
 
-                  # Install couchbackup
                   echo "[$(elapsed)] Installing couchbackup..."
                   NPM_START=$(date +%s)
                   # Pinned: an unpinned install floats the tool that produces the DR
@@ -242,7 +239,6 @@ spec:
                     echo "[$(elapsed)] ✅ $DB completed ($SIZE, ${DB_DURATION}s)"
                   done
 
-                  # Create manifest
                   cat > "$BACKUP_DIR/MANIFEST.txt" <<EOF
                   CouchDB Backup Manifest
                   Timestamp: $(date)
@@ -265,10 +261,8 @@ spec:
                   COMPRESSED_SIZE=$(du -h "couchdb_${TIMESTAMP}.tar.gz" | cut -f1)
                   echo "[$(elapsed)] Compression completed in $(($(date +%s) - COMPRESS_START))s ($COMPRESSED_SIZE)"
 
-                  # Generate SHA256 checksum
                   sha256sum "couchdb_${TIMESTAMP}.tar.gz" > "couchdb_${TIMESTAMP}.tar.gz.sha256"
 
-                  # Remove uncompressed directory
                   rm -rf "$TIMESTAMP"
 
                   # Keep only last 30 days of backups

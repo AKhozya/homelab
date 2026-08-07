@@ -93,7 +93,7 @@ if ! LIVE_XML="$(vsh "dumpxml --inactive $DOMAIN" 2>/tmp/virsh.err)"; then
 fi
 
 # 4. Drift = the appliance/UI regenerated the domain from its template (C2/C5),
-#    dropping our passthrough edits. libvirt re-emits dumpxml with runtime <address>
+#    dropping the passthrough edits. libvirt re-emits dumpxml with runtime <address>
 #    elements, so a byte-diff false-drifts every run — match the load-bearing markers
 #    instead. Any missing marker = clobber → re-define from Git.
 drift=0

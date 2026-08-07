@@ -20,7 +20,8 @@ spec:
       automountServiceAccountToken: false
       priorityClassName: homelab-standard
       securityContext:
-        # Home Assistant runs as root but we add security constraints
+        # Home Assistant requires root — an upstream limitation. See
+        # apps/home-assistant/SECURITY.md for the assessment and compensating controls.
         runAsUser: 0
         runAsGroup: 0
         fsGroup: 0
@@ -33,7 +34,6 @@ spec:
             - /bin/sh
             - -c
             - |
-              # Copy configuration.yaml from ConfigMap to PVC if it doesn't exist or is different
               if [ ! -f /config/configuration.yaml ] || ! cmp -s /config-template/configuration.yaml /config/configuration.yaml; then
                 echo "Updating configuration.yaml from ConfigMap..."
                 cp /config-template/configuration.yaml /config/configuration.yaml
@@ -42,7 +42,7 @@ spec:
                 echo "Configuration.yaml is up to date"
               fi
 
-              # Create empty YAML files if they don't exist (required by configuration.yaml)
+              # configuration.yaml includes these three files, so they must exist.
               for file in automations.yaml scripts.yaml scenes.yaml; do
                 if [ ! -f /config/$file ]; then
                   echo "Creating empty $file..."
@@ -105,8 +105,8 @@ spec:
               rm /tmp/hacs.zip
               sync
 
-              # Verify real artifacts. The previous check tested the directory, which the
-              # mkdir -p above had already created, so it could never fail.
+              # Test the files, not the directory: the mkdir -p above already created the
+              # directory, so a directory test can never fail.
               if [ ! -f "$HACS_DIR/__init__.py" ] || [ ! -f "$HACS_DIR/manifest.json" ]; then
                 echo "❌ ERROR: HACS install failed (no __init__.py/manifest.json at $HACS_DIR)"
                 ls -la "$HACS_DIR" || true
@@ -156,7 +156,6 @@ spec:
               echo "Installing hass-oidc-auth $OIDC_VERSION..."
               apk add --no-cache wget unzip
 
-              # Clean any prior version, fresh install
               rm -rf "$OIDC_DIR"
               mkdir -p "$OIDC_DIR"
 
@@ -170,7 +169,6 @@ spec:
               echo "$OIDC_VERSION" > "$OIDC_DIR/.installed-version"
               sync
 
-              # Verify the component landed
               if [ ! -f "$OIDC_DIR/__init__.py" ]; then
                 echo "❌ ERROR: hass-oidc-auth install failed (no __init__.py at $OIDC_DIR)"
                 ls -la "$OIDC_DIR" || true
@@ -206,14 +204,11 @@ spec:
             - name: TZ
               value: "Europe/London"
           securityContext:
-            # Allow specific capabilities needed for Home Assistant
             allowPrivilegeEscalation: false
             capabilities:
               drop:
                 - ALL
               add:
-                # NOTE: Running as root is required by Home Assistant (official limitation)
-                # See SECURITY.md for full security assessment and rationale
                 - NET_BIND_SERVICE  # Bind to ports < 1024
                 - NET_RAW          # Raw socket access for Ping integration, Bluetooth
                 - NET_ADMIN        # Network administration for Bluetooth, device discovery

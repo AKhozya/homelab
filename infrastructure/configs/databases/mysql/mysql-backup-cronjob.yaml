@@ -36,7 +36,6 @@ spec:
                 - sh
                 - -c
                 - |
-                  # Ensure backup directory exists and has correct permissions
                   mkdir -p /backup
                   chown -R 999:999 /backup
                   chmod 755 /backup
@@ -125,7 +124,6 @@ spec:
                     exit 1
                   fi
 
-                  # Create manifest
                   cat > "$BACKUP_DIR/MANIFEST.txt" <<EOF
                   MySQL Backup Manifest
                   Timestamp: $(date)
@@ -147,13 +145,11 @@ spec:
                   COMPRESSED_SIZE=$(du -h "mysql_${TIMESTAMP}.tar.gz" | cut -f1)
                   echo "✅ Compressed backup: mysql_${TIMESTAMP}.tar.gz ($COMPRESSED_SIZE)"
 
-                  # Generate SHA256 checksum for backup integrity
                   echo "Generating SHA256 checksum for backup integrity..."
                   sha256sum "mysql_${TIMESTAMP}.tar.gz" > "mysql_${TIMESTAMP}.tar.gz.sha256"
                   echo "✅ Checksum saved: mysql_${TIMESTAMP}.tar.gz.sha256"
                   cat "mysql_${TIMESTAMP}.tar.gz.sha256"
 
-                  # Remove uncompressed directory
                   rm -rf "$TIMESTAMP"
 
                   # Keep only last 30 days of backups (including checksums)

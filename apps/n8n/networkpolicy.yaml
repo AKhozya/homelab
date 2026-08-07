@@ -11,7 +11,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from traefik namespace for local access
+    # Internal access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -19,7 +19,7 @@ spec:
       ports:
         - protocol: TCP
           port: 5678
-    # Allow ingress from cloudflare-tunnel namespace for external access
+    # External access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -27,7 +27,7 @@ spec:
       ports:
         - protocol: TCP
           port: 5678
-    # Allow ingress from uptime-kuma namespace for monitoring
+    # Uptime-kuma probes
     - from:
         - namespaceSelector:
             matchLabels:
@@ -35,14 +35,13 @@ spec:
       ports:
         - protocol: TCP
           port: 5678
-    # Allow ingress from same namespace for user provisioning Job
+    # User-provisioning Job (same namespace)
     - from:
         - podSelector: {}
       ports:
         - protocol: TCP
           port: 5678
   egress:
-    # Allow PostgreSQL database access
     - to:
         - namespaceSelector:
             matchLabels:
@@ -53,8 +52,8 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
-    # Allow HTTPS for webhooks and external integrations
-    # n8n calls third-party APIs; RFC1918 excluded to prevent lateral movement to cluster-internal services.
+    # Webhooks and third-party APIs. RFC1918 is excluded to stop lateral movement to
+    # cluster-internal services.
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0

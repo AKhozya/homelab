@@ -237,7 +237,7 @@
       delay: 20
 
     # Marker fact: block completed without rescue. Gates fingerprint cache
-    # update — we only cache when state ended cleanly.
+    # update: the state is cached only when the block ended cleanly.
     - name: Mark UFW block clean (no rescue)
       ansible.builtin.set_fact:
         ufw_block_clean: true

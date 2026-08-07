@@ -11,7 +11,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow Alloy to send logs to loki-gateway and loki
+    # Alloy log push
     - from:
         - namespaceSelector:
             matchLabels:
@@ -24,7 +24,7 @@ spec:
           port: 8080
         - protocol: TCP
           port: 3100
-    # Allow Grafana and Prometheus to query loki and scrape canary metrics
+    # Grafana queries and metrics scrape
     - from:
         - namespaceSelector:
             matchLabels:
@@ -38,7 +38,7 @@ spec:
           port: 3500  # loki-canary metrics
         - protocol: TCP
           port: 9095
-    # Allow internal loki communication (memberlist, canary, gateway)
+    # Loki-internal: memberlist, canary, gateway
     - from:
         - namespaceSelector:
             matchLabels:
@@ -58,7 +58,6 @@ spec:
         - protocol: TCP
           port: 9095
   egress:
-    # Allow DNS resolution
     - to:
         - namespaceSelector:
             matchLabels:
@@ -66,7 +65,7 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow internal loki communication (memberlist, gateway to loki)
+    # Loki-internal: memberlist, gateway
     - to:
         - namespaceSelector:
             matchLabels:
@@ -85,8 +84,7 @@ spec:
           port: 7946
         - protocol: TCP
           port: 9095
-    # Allow loki-sc-rules sidecar to access Kubernetes API for secret sync
-    # API server endpoint: 192.168.1.127:6443 (control plane node)
+    # K8s API for the loki-sc-rules sidecar. The CIDR is the control-plane node.
     - to:
         - ipBlock:
             cidr: 192.168.1.127/32
@@ -107,7 +105,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow Prometheus to scrape Alloy metrics
+    # Metrics scrape
     - from:
         - namespaceSelector:
             matchLabels:
@@ -116,7 +114,6 @@ spec:
         - protocol: TCP
           port: 12345
   egress:
-    # Allow DNS resolution
     - to:
         - namespaceSelector:
             matchLabels:
@@ -124,7 +121,7 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow Alloy to send logs to loki-gateway (nginx on port 8080)
+    # Log push to loki-gateway (nginx)
     - to:
         - namespaceSelector:
             matchLabels:
@@ -135,8 +132,7 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-    # Allow Alloy to access Kubernetes API for log discovery
-    # API server endpoint: 192.168.1.127:6443 (control plane node)
+    # K8s API for log discovery. The CIDR is the control-plane node.
     - to:
         - ipBlock:
             cidr: 192.168.1.127/32

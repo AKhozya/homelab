@@ -11,7 +11,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow external traffic (LoadBalancer) on HTTP/HTTPS
+    # LoadBalancer traffic
     - ports:
         - protocol: TCP
           port: 80
@@ -19,7 +19,7 @@ spec:
           port: 443
         - protocol: TCP
           port: 8443
-    # Allow Prometheus to scrape metrics
+    # Metrics scrape
     - from:
         - namespaceSelector:
             matchLabels:
@@ -28,7 +28,6 @@ spec:
         - protocol: TCP
           port: 9100
   egress:
-    # Allow DNS resolution
     - to:
         - namespaceSelector:
             matchLabels:
@@ -36,15 +35,13 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow Kubernetes API access for IngressRoute/Ingress CRD watching
-    # API server endpoint: 192.168.1.127:6443 (control plane node)
+    # K8s API for Ingress/IngressRoute watches. The CIDR is the control-plane node.
     - to:
         - ipBlock:
             cidr: 192.168.1.127/32
       ports:
         - protocol: TCP
           port: 6443
-    # Allow access to Authentik
     - to:
         - namespaceSelector:
             matchLabels:
@@ -52,7 +49,6 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
-    # Allow access to Audiobookshelf
     - to:
         - namespaceSelector:
             matchLabels:
@@ -60,7 +56,7 @@ spec:
       ports:
         - protocol: TCP
           port: 3005
-    # Allow access to Databases (CouchDB)
+    # CouchDB
     - to:
         - namespaceSelector:
             matchLabels:
@@ -68,7 +64,6 @@ spec:
       ports:
         - protocol: TCP
           port: 5984
-    # Allow access to Home Assistant
     - to:
         - namespaceSelector:
             matchLabels:
@@ -76,7 +71,6 @@ spec:
       ports:
         - protocol: TCP
           port: 8123
-    # Allow access to HomeHub
     - to:
         - namespaceSelector:
             matchLabels:
@@ -84,7 +78,6 @@ spec:
       ports:
         - protocol: TCP
           port: 5000
-    # Allow access to Homepage
     - to:
         - namespaceSelector:
             matchLabels:
@@ -92,7 +85,6 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
-    # Allow access to Immich
     - to:
         - namespaceSelector:
             matchLabels:
@@ -100,7 +92,6 @@ spec:
       ports:
         - protocol: TCP
           port: 2283
-    # Allow access to LinkWarden
     - to:
         - namespaceSelector:
             matchLabels:
@@ -108,7 +99,6 @@ spec:
       ports:
         - protocol: TCP
           port: 3000
-    # Allow access to Mealie
     - to:
         - namespaceSelector:
             matchLabels:
@@ -116,7 +106,7 @@ spec:
       ports:
         - protocol: TCP
           port: 9000
-    # Allow access to Monitoring (Grafana, Alertmanager)
+    # Grafana, Alertmanager
     - to:
         - namespaceSelector:
             matchLabels:
@@ -126,7 +116,6 @@ spec:
           port: 3000
         - protocol: TCP
           port: 9093
-    # Allow access to N8N
     - to:
         - namespaceSelector:
             matchLabels:
@@ -134,7 +123,6 @@ spec:
       ports:
         - protocol: TCP
           port: 5678
-    # Allow access to Paperless-NGX
     - to:
         - namespaceSelector:
             matchLabels:
@@ -142,7 +130,6 @@ spec:
       ports:
         - protocol: TCP
           port: 8000
-    # Allow access to PriceBuddy
     - to:
         - namespaceSelector:
             matchLabels:
@@ -150,7 +137,6 @@ spec:
       ports:
         - protocol: TCP
           port: 80
-    # Allow access to Stirling PDF
     - to:
         - namespaceSelector:
             matchLabels:
@@ -158,7 +144,6 @@ spec:
       ports:
         - protocol: TCP
           port: 8080
-    # Allow access to Uptime Kuma
     - to:
         - namespaceSelector:
             matchLabels:

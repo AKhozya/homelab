@@ -10,13 +10,11 @@ data:
 
     echo "Starting mealie user provisioning..."
 
-    # Install required packages
     echo "Installing dependencies (curl, postgresql-client, bcrypt)..."
     apt-get update -qq > /dev/null 2>&1
     apt-get install -y curl postgresql-client > /dev/null 2>&1
     pip install bcrypt > /dev/null 2>&1
 
-    # Wait for mealie to be ready
     echo "Waiting for mealie to be available..."
     MAX_RETRIES=60
     RETRY_COUNT=0
@@ -35,7 +33,7 @@ data:
       exit 1
     fi
 
-    # Check if credentials are already updated (idempotency check)
+    # Idempotency gate: if the target credentials already work, there is nothing to do.
     echo "Checking if credentials are already updated..."
     LOGIN_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
       -H "Content-Type: application/x-www-form-urlencoded" \
@@ -50,7 +48,6 @@ data:
 
     echo "Credentials not yet updated, proceeding with database update..."
 
-    # Verify default credentials still exist
     echo "Verifying default user exists..."
     DEFAULT_AUTH=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
       -H "Content-Type: application/x-www-form-urlencoded" \
@@ -66,7 +63,6 @@ data:
 
     echo "Default user verified, proceeding with credential update..."
 
-    # Generate bcrypt hash for the new password
     echo "Generating bcrypt hash for new password..."
     BCRYPT_HASH=$(python3 -c "import bcrypt; print(bcrypt.hashpw(b'${MEALIE_USER_PASSWORD}', bcrypt.gensalt()).decode())")
 
@@ -77,7 +73,6 @@ data:
 
     echo "Bcrypt hash generated successfully"
 
-    # Update database directly
     echo "Updating user credentials in database..."
     export PGPASSWORD="${POSTGRES_PASSWORD}"
 
@@ -97,7 +92,6 @@ data:
       exit 1
     fi
 
-    # Verify the update worked by trying to login
     echo "Verifying new credentials work..."
     VERIFY_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
       -H "Content-Type: application/x-www-form-urlencoded" \

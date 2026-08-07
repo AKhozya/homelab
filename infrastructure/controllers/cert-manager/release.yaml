@@ -65,7 +65,6 @@ spec:
                 path: /spec/revisionHistoryLimit
                 value: 2
   values:
-    # Install CRDs as part of the Helm release
     # Uses new crds section (installCRDs deprecated since cert-manager v1.15.0)
     crds:
       enabled: true
@@ -96,7 +95,7 @@ spec:
         maxSurge: 0
         maxUnavailable: 1
 
-    # Allow scheduling on control plane for HA
+    # Tolerate the control-plane taint so the anti-affine replicas below can also use the CP node.
     tolerations:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
@@ -206,7 +205,6 @@ spec:
           cpu: 200m
           memory: 256Mi
 
-    # Enable Prometheus metrics
     prometheus:
       enabled: true
       servicemonitor:

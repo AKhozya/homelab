@@ -36,7 +36,7 @@ sudo ansible-playbook --tags logrotate -D \
 
 ### Rolling restart of k3s (apply config.yaml / kubelet.yaml drift)
 
-`config.yaml` and `kubelet.yaml` are drift-alert-only (no auto-restart). To apply pending kubelet/CM config changes across all 3 nodes serially, with per-node Ready + configz verification:
+`config.yaml` and `kubelet.yaml` are drift-alert-only (no auto-restart). To apply pending kubelet/CM config changes across all 4 nodes serially, with per-node Ready + configz verification:
 
 ```bash
 sudo systemctl start node-maintenance-rolling-restart.service
@@ -90,7 +90,7 @@ journalctl -fu node-maintenance-security-scan.service
 sudo cat /var/log/node-maintenance/security-scan-$(date -u +%Y-%m).log
 ```
 
-When `security-scan.sh` changes: CP auto-syncs (sync timer), ansible `security_scan` role deploys to 3 nodes on next `node-maintenance-config.service` run (daily, or `sudo systemctl start node-maintenance-config.service`).
+When `security-scan.sh` changes: CP auto-syncs (sync timer), ansible `security_scan` role deploys to all 4 nodes on the next `node-maintenance-config.service` run (daily, or `sudo systemctl start node-maintenance-config.service`).
 
 ---
 

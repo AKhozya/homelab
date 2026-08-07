@@ -12,24 +12,20 @@ HOSTNAME=$(cat /etc/hostname)
 echo "=== Firmware Update: ${HOSTNAME} ==="
 echo ""
 
-# Install fwupd if missing
 if ! command -v fwupdmgr &>/dev/null; then
     echo "Installing fwupd..."
     pacman -S --noconfirm fwupd
     echo ""
 fi
 
-# Show detected devices
 echo "=== Detected Devices ==="
 fwupdmgr get-devices --no-unreported-check 2>/dev/null || true
 echo ""
 
-# Refresh metadata
 echo "=== Refreshing Metadata ==="
 fwupdmgr refresh --force 2>/dev/null || true
 echo ""
 
-# Check for updates
 echo "=== Available Updates ==="
 if fwupdmgr get-updates --no-unreported-check 2>/dev/null; then
     echo ""

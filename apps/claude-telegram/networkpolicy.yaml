@@ -29,14 +29,14 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
-    # Port 22 egress stays removed — nothing here uses it. The neighbouring claim that the bot
-    # "does not initiate SSH from inside cluster" was wrong and is deleted: the pod really does
-    # SSH the nodes for the OS diagnostics kubectl cannot serve (journalctl, systemctl, uptime).
-    # 213 calls in the 30 days of transcripts the PVC keeps. An earlier revision of this comment
-    # said ~3350: that was `grep -c` over the JSONL, which also counts the AGENTS.md cluster table
-    # quoting `ssh -p 65300 …` back into every session that reads it. Count `tool_use` records.
+    # No port-22 egress: node SSH runs on 65300. The pod DOES ssh the nodes for the OS
+    # diagnostics kubectl cannot serve (journalctl, systemctl, uptime) — 213 calls in the 30
+    # days of transcripts the PVC keeps. Count `tool_use` records to measure that, not
+    # `grep -c` over the JSONL: the JSONL also holds the AGENTS.md cluster table, which
+    # quotes `ssh -p 65300 …` back into every session that reads it, and inflates the count
+    # to ~3350.
     #
-    # /32s per node rather than the /24: 254 reachable hosts to talk to 4 is not least privilege,
+    # /32 per node rather than the /24: 254 reachable hosts to talk to 4 is not least privilege,
     # and the pod has no business reaching the NAS or anything else on the LAN. This bounds the
     # POD, not a stolen key — a key exfiltrated from the PVC gets used from somewhere this policy
     # does not apply. What bounds that is the absence of passwordless sudo, plus the

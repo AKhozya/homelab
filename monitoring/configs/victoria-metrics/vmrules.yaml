@@ -66,7 +66,7 @@ spec:
 
     - alert: ClusterIPHealGaveUp
       # Watchdog hit MAX_RESTARTS within its window and backed off — a wedge that
-      # restart-k3s-agent does NOT fix = deeper fault, needs a human (the safety net's net).
+      # restart-k3s-agent does NOT fix = deeper fault, needs a human.
       expr: node_clusterip_heal_giveup == 1
       for: 1m
       labels:
@@ -191,7 +191,6 @@ spec:
         description: "node_filesystem metrics for /var/lib/immich-library have been absent for 10m — the virtiofs mount from the NAS is gone, or immich-vm's node-exporter is not scraping. Capacity alerting for this mount is blind while this fires."
 
     - alert: NodeHighIOWait
-      # Average I/O wait across all CPUs (node-wide, not per-core)
       expr: avg by(instance) (rate(node_cpu_seconds_total{mode="iowait"}[5m])) * 100 > 10
       for: 10m
       labels:
@@ -635,7 +634,7 @@ spec:
     # PostgreSQLConnectionFailure removed 2026-07-25: the `and` compared a
     # by(namespace,pod) aggregate against a bare sum() with no matching labels, so it
     # evaluated to nothing. Zero committed transactions is idle, not broken, either way.
-    # Real availability is covered by PostgreSQLDown (cnpg_collector_up == 0) below.
+    # Real availability is covered by PostgreSQLDown (cnpg_collector_up == 0).
 
     - alert: PostgreSQLTooManyConnections
       expr: sum by (namespace, pod) (cnpg_backends_total) > 80
@@ -686,7 +685,7 @@ spec:
         description: "Redis is unreachable. Applications using Redis cache/session storage will fail!"
 
     - alert: RedisPodNotRunning
-      # ponytail: exclude operator pods (Completed=normal) and Succeeded phase
+      # Exclude operator pods (Completed = normal) and the Succeeded phase.
       expr: kube_pod_status_phase{namespace="databases",pod=~"redis-(replication|sentinel).*", phase!~"Running|Succeeded"} > 0
       for: 5m
       labels:
@@ -736,7 +735,7 @@ spec:
 
     # RedisConnectionFailure removed 2026-07-25: same dead `and` (exporter labels never
     # match kube_pod_status_phase labels), and zero connected clients is idle, not down.
-    # Real availability is covered by the redis_up == 0 alert below.
+    # Real availability is covered by RedisDown (redis_up == 0).
 
   - name: couchdb-alerts
     interval: 60s
@@ -880,11 +879,6 @@ spec:
         summary: "Target {{ $labels.job }} ({{ $labels.instance }}) is down"
         description: "Cannot scrape {{ $labels.job }} on {{ $labels.instance }}. Monitoring data may be incomplete."
 
-    # Weak-surface backstop (2026-06-15): vm-operator's :8081 health probe is independent of its :8080
-    # reconcile/metrics surface, so the loop can wedge while the pod stays Ready. ScrapeTargetDown only
-    # catches a full :8080 outage (up==0); this catches "up but not reconciling". Baseline rate is a
-    # steady ~0.05/s (never 0 over 6h observed), so ==0 for 30m is low-false-positive. sum() (not by job)
-    # = whole-operator stall; absent-series (full wedge) yields empty, not 0, so no double-fire with above.
     - alert: VMAgentIngestionDown
       # A dedicated liveness arm: if vmagent stops being scraped entirely its `up` series
       # vanishes, so any rule of the form `up{...} == 0` goes quiet instead of firing.
@@ -897,6 +891,11 @@ spec:
         summary: "VMAgent is not being scraped — metric ingestion may be stopped"
         description: "up{job=\"vmagent-vmagent\"} has been absent for 10m. Nothing is confirming that metrics are still being ingested; most other alerts will fall silent rather than fire while this is true."
 
+    # Weak-surface backstop (2026-06-15): vm-operator's :8081 health probe is independent of its :8080
+    # reconcile/metrics surface, so the loop can wedge while the pod stays Ready. ScrapeTargetDown only
+    # catches a full :8080 outage (up==0); this catches "up but not reconciling". Baseline rate is a
+    # steady ~0.05/s (never 0 over 6h observed), so ==0 for 30m is low-false-positive. sum() (not by job)
+    # = whole-operator stall; absent-series (full wedge) yields empty, not 0, so no double-fire with above.
     - alert: VMOperatorReconcileStalled
       expr: sum(rate(controller_runtime_reconcile_total{job="victoria-metrics-operator"}[15m])) == 0
       for: 30m
@@ -968,7 +967,7 @@ spec:
         severity: warning
       annotations:
         summary: "High rate of rate-limited requests on {{ $labels.exported_service }}"
-        description: "{{ $labels.exported_service }} is rejecting {{ printf \"%.1f\" $value }} requests/sec due to rate limiting. This may indicate: (1) an attack in progress, or (2) rate limits are too strict for legitimate use. Current limits: Standard apps (100 req/min + 150 burst), High-frequency apps (200 req/min + 300 burst)."
+        description: "{{ $labels.exported_service }} is rejecting {{ printf \"%.1f\" $value }} requests/sec due to rate limiting. This may indicate: (1) an attack in progress, or (2) rate limits are too strict for legitimate use. Current limits: standard apps 300 req/min + 150 burst, high-frequency apps 600 req/min + 300 burst."
 
     - alert: RateLimitPossibleBruteForce
       expr: sum(rate(traefik_service_requests_total{code="429",exported_service=~".*authentik.*"}[2m])) > 1
@@ -986,7 +985,7 @@ spec:
         severity: warning
       annotations:
         summary: "CouchDB sync may be blocked by rate limiting"
-        description: "CouchDB is experiencing {{ printf \"%.1f\" $value }} rate-limited requests/sec. This may block Obsidian vault syncing. If this persists during normal sync operations, consider increasing CouchDB rate limit (current: 200 req/min + 300 burst)."
+        description: "CouchDB is experiencing {{ printf \"%.1f\" $value }} rate-limited requests/sec. This may block Obsidian vault syncing. If this persists during normal sync operations, consider increasing the CouchDB rate limit (current: 600 req/min + 300 burst)."
 
     - alert: RateLimitAPIClientsBlocked
       expr: sum(rate(traefik_service_requests_total{code="429",exported_service=~".*n8n.*|.*immich.*"}[5m])) by (exported_service) > 0.3
@@ -995,7 +994,7 @@ spec:
         severity: warning
       annotations:
         summary: "API service {{ $labels.exported_service }} rate limiting clients"
-        description: "{{ $labels.exported_service }} is rejecting {{ printf \"%.1f\" $value }} requests/sec. This may block API clients, webhooks, or automation. Check if limits need adjustment (current: 200 req/min + 300 burst)."
+        description: "{{ $labels.exported_service }} is rejecting {{ printf \"%.1f\" $value }} requests/sec. This may block API clients, webhooks, or automation. Check if the limits need adjustment (current: 600 req/min + 300 burst)."
 
     - alert: RateLimitSuddenSpike
       expr: (sum(rate(traefik_service_requests_total{code="429"}[1m])) - sum(rate(traefik_service_requests_total{code="429"}[30m]))) > 5
@@ -1013,13 +1012,11 @@ spec:
         severity: info
       annotations:
         summary: "{{ $labels.exported_service }} has persistent rate limiting"
-        description: "{{ $labels.exported_service }} rejected {{ $value }} requests in the last hour due to rate limiting. If this is not an attack, rate limits may need to be relaxed. Current limits: Standard (100 req/min), High-frequency (200 req/min)."
+        description: "{{ $labels.exported_service }} rejected {{ $value }} requests in the last hour due to rate limiting. If this is not an attack, rate limits may need to be relaxed. Current limits: standard 300 req/min, high-frequency 600 req/min."
 
-    # NOTE: These alerts depend on Traefik metrics being properly collected by Prometheus
-    # If alerts don't fire despite rate limiting occurring, check:
-    # 1. Traefik ServiceMonitor configuration
-    # 2. Prometheus scraping Traefik metrics endpoint
-    # 3. Query: traefik_service_requests_total{code="429"} should return data
+    # These alerts need Traefik metrics in the scrape config. If 429s occur but no alert
+    # fires, check the Traefik ServiceMonitor and that the query
+    # traefik_service_requests_total{code="429"} returns data.
 
   - name: resource-exhaustion-alerts
     interval: 1m
@@ -1181,8 +1178,8 @@ spec:
         summary: "Traefik is down"
         description: "Traefik instance {{ $labels.instance }} has been down for more than 2 minutes. Ingress routing is affected."
 
-    # NOTE: traefik_service_server_up metric not exposed by Traefik in this configuration.
-    # Backend health is covered by TraefikHighErrorRate (5xx detection) and app-level pod alerts.
+    # There is no backend-health alert: Traefik does not expose traefik_service_server_up
+    # in this configuration. TraefikHighErrorRate (5xx) and the pod alerts cover it.
 
     - alert: TraefikHighErrorRate
       expr: sum(rate(traefik_service_requests_total{code=~"5.."}[5m])) by (exported_service) / sum(rate(traefik_service_requests_total[5m])) by (exported_service) * 100 > 10
@@ -1194,7 +1191,7 @@ spec:
         description: "Service {{ $labels.exported_service }} has {{ printf \"%.1f\" $value }}% error rate (5xx responses) over the last 5 minutes."
 
     - alert: TraefikHighLatency
-      # Exclude WebSocket connections (code="0") as they are long-lived by design
+      # The code filter drops WebSocket connections (code="0"); they are long-lived by design.
       expr: histogram_quantile(0.99, sum(rate(traefik_service_request_duration_seconds_bucket{code=~"[1-5].."}[5m])) by (le, exported_service)) > 2
       for: 5m
       labels:
@@ -1256,12 +1253,11 @@ spec:
         summary: "UFW primary chains missing on {{ $labels.node }}"
         description: "UFW canary chains (ufw-logging-deny, ufw-user-input, v6 equivalents) absent on {{ $labels.node }}. Indicates partial ip6tables-restore load. ufw-heal-post-k3s.service should repair; drift-heal pre-heal also catches within 10 min."
 
-  # NOTE: No etcd alerts needed - K3s single-master uses embedded SQLite, not etcd
+  # No etcd alerts: this K3s single-server cluster uses embedded SQLite, not etcd.
 
   # ==========================================================================
-  # OVERRIDES - Previously in kube-prometheus-stack additionalPrometheusRulesMap
-  # Adjusted thresholds for homelab workloads. (defaultRules disabled, so these
-  # are the only copy of these alerts — keep them, tuned for this cluster.)
+  # OVERRIDES - kube-prometheus-stack defaults with homelab-tuned thresholds.
+  # defaultRules is disabled, so these are the only copy of these alerts.
   # ==========================================================================
   - name: node-overrides
     rules:

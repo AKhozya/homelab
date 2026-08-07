@@ -10,7 +10,7 @@ spec:
     - Egress
   ingress: []
   egress:
-    # Allow DNS resolution
+    # DNS
     - to:
         - namespaceSelector:
             matchLabels:
@@ -18,8 +18,7 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # Allow access to Kubernetes API server
-    # API server endpoint: 192.168.1.127:6443 (control plane node)
+    # K8s API. The CIDR is the control-plane node.
     - to:
         - ipBlock:
             cidr: 192.168.1.127/32

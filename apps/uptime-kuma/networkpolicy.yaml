@@ -11,7 +11,7 @@ spec:
     - Ingress
     - Egress
   ingress:
-    # Allow ingress from traefik namespace for internal access
+    # Internal access
     - from:
         - namespaceSelector:
             matchLabels:
@@ -19,22 +19,20 @@ spec:
       ports:
         - protocol: TCP
           port: 3001
-    # Allow ingress from same namespace (for setup job)
+    # Setup Job (same namespace)
     - from:
         - podSelector: {}
       ports:
         - protocol: TCP
           port: 3001
   egress:
-    # Allow HTTPS for monitoring external services
     - ports:
         - protocol: TCP
           port: 443
-    # Allow HTTP for monitoring services
     - ports:
         - protocol: TCP
           port: 80
-    # Allow DB probes restricted to databases namespace
+    # DB probes
     - to:
         - namespaceSelector:
             matchLabels:
@@ -48,7 +46,7 @@ spec:
           port: 6379        # Redis
         - protocol: TCP
           port: 26379       # Redis Sentinel HA
-    # Allow monitoring services in other namespaces (non-DB ports)
+    # App probes, any namespace
     - to:
         - namespaceSelector: {}
       ports:
@@ -84,8 +82,7 @@ spec:
           port: 8429        # VictoriaMetrics VMSingle (HTTP API + /health)
         - protocol: TCP
           port: 9093        # Alertmanager
-    # Allow monitoring K8s node infrastructure (host network)
-    # Nodes: control-plane (.127), worker-node (.129), worker-node-2 (.126)
+    # Node infrastructure on host network
     - to:
         - ipBlock:
             cidr: 192.168.1.0/24
@@ -105,8 +102,6 @@ spec:
       ports:
         - protocol: TCP
           port: 50555       # NAS rsync daemon
-    # NOTE: the old all-ports `192.168.1.0/24` egress rule (nominally for ICMP
-    # ping) was removed 2026-07-03 — there are zero `ping`-type monitors; every
-    # active monitor is http/port/dns and covered by the scoped ports above.
-    # NetworkPolicy can't express ICMP anyway; re-add a scoped rule ONLY if a
-    # real ping monitor is added, and prefer /32 targets + explicit ports.
+    # There is deliberately no all-ports 192.168.1.0/24 rule. Every monitor is
+    # http/port/dns and the scoped ports above cover them, and NetworkPolicy cannot
+    # express ICMP. Add a ping-type monitor only with a /32 target and explicit ports.

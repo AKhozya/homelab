@@ -22,7 +22,7 @@
 ```mermaid
 flowchart TB
   subgraph LAN["Home LAN — 192.168.1.0/24, SSH :65300"]
-    CP["gmk-k3s-control-plane · .127<br/>control-plane + etcd<br/>NIC I225-V forced 1Gbps, EEE off"]
+    CP["gmk-k3s-control-plane · .127<br/>control-plane + embedded SQLite datastore<br/>NIC I225-V forced 1Gbps, EEE off"]
     W1["worker-node (W1) · .129<br/>/mnt/k8s-storage (0700)<br/>hosts most app PVs (local-path)"]
     W2["worker-node-2 (W2) · .126<br/>/mnt/extra-storage<br/>SSH user z3us (not akhozya)"]
     NAS["NAS<br/>rsync daemon :50555"]
@@ -91,7 +91,7 @@ flowchart LR
 
 An externally-reachable app has **two ingress rules** (internal hostname + Cloudflare hostname) but **one NetworkPolicy**. cert-manager issues TLS via DNS-01 (Cloudflare API token) for `*.h0melab.work`. The Cloudflare Tunnel is outbound-initiated → home router opens **zero** inbound ports.
 
-**Consequence (often missed):** Traefik middleware applies **only on the internal path.** External traffic via Cloudflare Tunnel hops `cloudflared → Service` directly (per `infrastructure/configs/cloudflare/networkpolicy.yaml`: per-app `Service:port` egress to 9 apps, zero egress to the `traefik` namespace). Externally-reached apps get Cloudflare's WAF + TLS, **not** the Traefik CSP/headers/rate-limit middlewares. The tier-based CSP rollout therefore covers internal browsing only; CF-tunnel browsers see whatever CSP the app itself sets.
+**Consequence (often missed):** Traefik middleware applies **only on the internal path.** External traffic via Cloudflare Tunnel hops `cloudflared → Service` directly (per `infrastructure/configs/cloudflare/networkpolicy.yaml`: per-app `Service:port` egress to 10 app namespaces, zero egress to the `traefik` namespace). Externally-reached apps get Cloudflare's WAF + TLS, **not** the Traefik CSP/headers/rate-limit middlewares. The tier-based CSP rollout therefore covers internal browsing only; CF-tunnel browsers see whatever CSP the app itself sets.
 
 **Cloudflare Access posture — per hostname.** Access policies live in the Cloudflare zone, not in this repo, so nothing here can drift-check them; this table is the record of what was decided and why.
 
@@ -145,7 +145,7 @@ Backups: per-engine CronJobs in `infrastructure-configs` → nightly replication
 | Cloudflare edge or tunnel down | Externally-published apps unreachable | LAN access via Traefik fully unaffected | Wait CF; LAN keeps working |
 | Authentik down | SSO apps lose login | Non-SSO apps; non-OIDC paths | Restart Authentik Pod or rollout |
 | GitHub down | No new commits reconciled | Cluster state frozen at last sync; everything keeps running | Wait GitHub |
-| Age key (`sops-age` Secret in flux-system) lost | Encrypted secrets unreadable; new SOPS reconciles fail | Already-applied secrets in etcd keep working | Restore key from secure backup (NOT in this repo) |
+| Age key (`sops-age` Secret in flux-system) lost | Encrypted secrets unreadable; new SOPS reconciles fail | Secrets already applied to the cluster keep working | Restore key from secure backup (NOT in this repo) |
 
 ## Single-environment reality
 

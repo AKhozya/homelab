@@ -1,20 +1,15 @@
 #!/bin/bash
 #
-# Analyze Renovate PR - Detect Version Changes and Breaking Changes
+# Analyze a Renovate PR: version change, update type, and breaking-change signals.
 #
 # Usage: ./scripts/analyze-update.sh <PR_NUMBER>
 #
-# This script analyzes dependency updates (NOT code review):
-# 1. Detects what changed: Docker image, Helm chart, or Flux component
-# 2. Extracts version change (old → new)
-# 3. Identifies update type: major/minor/patch
-# 4. Fetches documentation from multiple sources (GitHub API, changelog files, UPGRADE.md)
-# 5. Detects breaking changes using standard patterns
-# 6. Generates actionable review checklist
+# It reviews the DEPENDENCY UPDATE, not the code. Upstream release notes come from the
+# GitHub release API, then changelog files, then UPGRADE.md for Helm charts.
 #
 
 set -eu
-# Note: pipefail disabled to avoid SIGPIPE when awk exits early on large content
+# pipefail stays off: awk exits early on large content and would SIGPIPE the pipeline.
 
 PR_NUMBER="${1:-}"
 
@@ -33,7 +28,6 @@ echo "Analyzing Renovate PR #$PR_NUMBER"
 echo "==================================="
 echo ""
 
-# Fetch PR details
 echo "📥 Fetching PR details..."
 PR_JSON=$(gh pr view "$PR_NUMBER" --json title,body,files,state)
 PR_TITLE=$(echo "$PR_JSON" | jq -r '.title')
@@ -44,21 +38,17 @@ echo "Title: $PR_TITLE"
 echo "State: $PR_STATE"
 echo ""
 
-# Extract package and version info from PR body or title
 echo "📦 Extracting package information..."
 
-# Try to extract from PR body table
 PACKAGE_INFO=$(echo "$PR_BODY" | grep "^|" | grep -v "Package\|---" | head -n 1 || echo "")
 
 if [ -n "$PACKAGE_INFO" ]; then
-    # Parse from table format
     PACKAGE_NAME=$(echo "$PACKAGE_INFO" | awk -F'|' '{print $2}' | xargs | sed 's/\[//' | sed 's/\].*//')
     UPDATE_TYPE=$(echo "$PACKAGE_INFO" | awk -F'|' '{print $3}' | xargs)
     VERSION_CHANGE=$(echo "$PACKAGE_INFO" | awk -F'|' '{print $4}' | xargs)
     OLD_VERSION=$(echo "$VERSION_CHANGE" | awk '{print $1}' | sed 's/`//g' | sed 's/->.*//')
     NEW_VERSION=$(echo "$VERSION_CHANGE" | awk '{print $3}' | sed 's/`//g')
 else
-    # Fall back to parsing title
     PACKAGE_NAME=$(echo "$PR_TITLE" | sed 's/chore(deps): update //' | sed 's/ Docker tag.*//' | sed 's/ to.*//')
     OLD_VERSION="unknown"
     NEW_VERSION=$(echo "$PR_TITLE" | grep -oE 'to v?[0-9.]+' | sed 's/to v\?//' || echo "unknown")
@@ -76,7 +66,7 @@ echo "Update Type: $UPDATE_TYPE"
 echo "Version Change: $OLD_VERSION → $NEW_VERSION"
 echo ""
 
-# Show changed files and detect update category EARLY (needed for conditional logic)
+# Category is needed by the branches below, so derive it before fetching anything.
 CHANGED_FILES=$(echo "$PR_JSON" | jq -r '.files[].path')
 
 UPDATE_CATEGORY="unknown"
@@ -90,13 +80,12 @@ else
     UPDATE_CATEGORY="Configuration"
 fi
 
-# Extract source repository from PR body (markdown format: [source](url))
+# Renovate writes the source as a markdown link: [source](url).
 SOURCE_REPO=""
 if echo "$PR_BODY" | grep -qE '\[source\]'; then
     SOURCE_REPO=$(echo "$PR_BODY" | grep -oE '\[source\]\(https://[^)]+\)' | sed 's|\[source\](||' | sed 's|)||' | sed 's|redirect.github.com|github.com|' | head -1)
 fi
 
-# Extract various documentation links from PR body
 RELEASE_LINK=$(echo "$PR_BODY" | grep -oE 'https://[^)]+/releases/tag/[^)]+' | head -n 1 | sed 's|redirect.github.com|github.com|' || echo "")
 CHANGELOG_LINK=$(echo "$PR_BODY" | grep -oE 'https://[^)]+/CHANGELOG[^)]*' | head -n 1 | sed 's|redirect.github.com|github.com|' || echo "")
 COMPARE_LINK=$(echo "$PR_BODY" | grep -oE 'https://[^)]+/compare/[^)]+' | head -n 1 | sed 's|redirect.github.com|github.com|' || echo "")
@@ -107,7 +96,6 @@ echo ""
 echo "📦 Update Type: $UPDATE_CATEGORY"
 echo ""
 
-# Display detected links
 if [ -n "$RELEASE_LINK" ]; then
     echo "📝 Release Notes: $RELEASE_LINK"
 fi
@@ -122,30 +110,25 @@ if [ -n "$SOURCE_REPO" ]; then
 fi
 echo ""
 
-# Function to extract repo path from GitHub URL
 extract_repo_path() {
     local url="$1"
     echo "$url" | sed -E 's|https?://(redirect\.)?github\.com/||' | sed 's|/releases.*||' | sed 's|/blob.*||' | sed 's|/compare.*||'
 }
 
-# Function to fetch GitHub release via API
 fetch_github_release() {
     local repo="$1"
     local tag="$2"
     local package_name="${3:-}"
 
-    # Try various tag formats
+    # Tag-format ladder: exact, then v-prefixed, then the monorepo package@version form.
     local content=""
 
-    # 1. Try exact tag
     content=$(curl -sL "https://api.github.com/repos/$repo/releases/tags/$tag" 2>/dev/null | jq -r '.body // empty' 2>/dev/null || echo "")
 
-    # 2. Try with 'v' prefix
     if [ -z "$content" ] && [[ ! "$tag" =~ ^v ]]; then
         content=$(curl -sL "https://api.github.com/repos/$repo/releases/tags/v$tag" 2>/dev/null | jq -r '.body // empty' 2>/dev/null || echo "")
     fi
 
-    # 3. Try monorepo format: package@version (e.g., n8n@1.123.4)
     if [ -z "$content" ] && [ -n "$package_name" ]; then
         local short_name
         short_name=$(echo "$package_name" | sed 's|.*/||')  # n8nio/n8n -> n8n
@@ -155,13 +138,11 @@ fetch_github_release() {
     echo "$content" | head -c "$MAX_CONTENT_LENGTH"
 }
 
-# Function to fetch raw file from GitHub
 fetch_raw_file() {
     local repo="$1"
     local filepath="$2"
     local branch="${3:-main}"
 
-    # Try main, then master
     local content=""
     content=$(curl -sL "https://raw.githubusercontent.com/$repo/$branch/$filepath" 2>/dev/null || echo "")
 
@@ -169,7 +150,6 @@ fetch_raw_file() {
         content=$(curl -sL "https://raw.githubusercontent.com/$repo/master/$filepath" 2>/dev/null || echo "")
     fi
 
-    # Check if we got valid content (not 404 page)
     if echo "$content" | grep -q "404: Not Found"; then
         echo ""
     else
@@ -177,7 +157,6 @@ fetch_raw_file() {
     fi
 }
 
-# Function to search for changelog files
 find_changelog() {
     local repo="$1"
 
@@ -197,16 +176,13 @@ find_changelog() {
     echo ""
 }
 
-# Function to extract version-specific section from changelog
 extract_version_section() {
     local content="$1"
     local version="$2"
 
-    # Remove 'v' prefix for matching
     local clean_version="${version#v}"
 
-    # Try to extract section between this version header and next version header
-    # Common formats: ## [1.2.3], ## v1.2.3, ### v1.2.3, ## 1.2.3
+    # Header formats the awk below matches: ## [1.2.3], ## v1.2.3, ### v1.2.3, ## 1.2.3
     local section
     section=$(echo "$content" | awk -v ver="$clean_version" '
         BEGIN { found=0; printing=0 }
@@ -220,12 +196,10 @@ extract_version_section() {
     if [ -n "$section" ]; then
         echo "$section"
     else
-        # Fallback: just return first 100 lines
         echo "$content" | head -100
     fi
 }
 
-# Fetch documentation from multiple sources
 echo "🔍 Fetching documentation..."
 echo ""
 
@@ -234,7 +208,6 @@ CHANGELOG_CONTENT=""
 UPGRADE_CONTENT=""
 BREAKING_CHANGES_CONTENT=""
 
-# Determine repository path
 REPO_PATH=""
 if [ -n "$SOURCE_REPO" ]; then
     REPO_PATH=$(extract_repo_path "$SOURCE_REPO")
@@ -247,7 +220,7 @@ fi
 if [ -n "$REPO_PATH" ]; then
     echo "   Repository: $REPO_PATH"
 
-    # 1. Try GitHub Release API first (cleanest source)
+    # The release API first — it is the cleanest source.
     if [ -n "$RELEASE_LINK" ]; then
         TAG=$(echo "$RELEASE_LINK" | sed -E 's|.*/releases/tag/||')
         echo "   Fetching GitHub release for tag: $TAG"
@@ -256,7 +229,6 @@ if [ -n "$REPO_PATH" ]; then
             echo "   ✓ Found GitHub release notes"
         fi
     elif [ -n "$NEW_VERSION" ] && [ "$NEW_VERSION" != "unknown" ]; then
-        # No explicit release link, try to fetch release by version
         echo "   Fetching GitHub release for version: $NEW_VERSION"
         RELEASE_CONTENT=$(fetch_github_release "$REPO_PATH" "$NEW_VERSION" "$PACKAGE_NAME")
         if [ -n "$RELEASE_CONTENT" ]; then
@@ -264,17 +236,16 @@ if [ -n "$REPO_PATH" ]; then
         fi
     fi
 
-    # 2. Try changelog files if no release content
+    # Changelog files only when the release API returned nothing.
     if [ -z "$RELEASE_CONTENT" ]; then
         echo "   Searching for changelog files..."
         CHANGELOG_CONTENT=$(find_changelog "$REPO_PATH")
         if [ -n "$CHANGELOG_CONTENT" ]; then
-            # Extract version-specific section
             CHANGELOG_CONTENT=$(extract_version_section "$CHANGELOG_CONTENT" "$NEW_VERSION")
         fi
     fi
 
-    # 3. For Helm charts, also fetch UPGRADE.md and BREAKING_CHANGES.md
+    # Helm charts carry their upgrade notes in separate files.
     if [ "$UPDATE_CATEGORY" = "Helm Chart" ] || echo "$PACKAGE_NAME" | grep -qi "helm\|chart\|prometheus-stack"; then
         echo "   Checking for Helm-specific documentation..."
 
@@ -300,10 +271,9 @@ fi
 
 echo ""
 
-# Combine all content for analysis
 ALL_CONTENT="${RELEASE_CONTENT}${CHANGELOG_CONTENT}"
 
-# Initialize breaking change flags (must be defined before use)
+# set -u is on, so every flag must exist before the branches below read it.
 HAS_BREAKING=false
 HAS_MIGRATION=false
 HAS_REMOVAL=false
@@ -311,42 +281,34 @@ HAS_SECURITY=false
 HAS_DEPRECATED=false
 HAS_CONFIG_CHANGE=false
 
-# Analyze for breaking changes
 if [ -n "$ALL_CONTENT" ]; then
-    # Clean content (strip HTML if any)
     CLEAN_CONTENT=$(echo "$ALL_CONTENT" | sed 's/<[^>]*>//g' | sed 's/&lt;/</g' | sed 's/&gt;/>/g' | sed 's/&amp;/\&/g' | sed 's/&quot;/"/g')
 
-    # Check for breaking change patterns (Conventional Commits + Common Changelog)
+    # Patterns follow Conventional Commits and Common Changelog.
     if echo "$CLEAN_CONTENT" | grep -qiE "breaking.?change|BREAKING:|^\*\*Breaking:"; then
         HAS_BREAKING=true
     fi
 
-    # Check for migration requirements
     if echo "$CLEAN_CONTENT" | grep -qiE "migration.?required|action.?required|migrate|upgrade.?note"; then
         HAS_MIGRATION=true
     fi
 
-    # Check for removals
     if echo "$CLEAN_CONTENT" | grep -qiE "removed|no longer|drop.*support|deprecated.*removed"; then
         HAS_REMOVAL=true
     fi
 
-    # Check for security fixes
     if echo "$CLEAN_CONTENT" | grep -qiE "security|vulnerability|CVE-|insecure|exploit"; then
         HAS_SECURITY=true
     fi
 
-    # Check for deprecations
     if echo "$CLEAN_CONTENT" | grep -qiE "deprecated|deprecating"; then
         HAS_DEPRECATED=true
     fi
 
-    # Check for config changes
     if echo "$CLEAN_CONTENT" | grep -qiE "configuration.?change|config.?change|environment.?variable|breaking.*config"; then
         HAS_CONFIG_CHANGE=true
     fi
 
-    # Display findings
     if [ "$HAS_BREAKING" = true ] || [ "$HAS_MIGRATION" = true ] || [ "$HAS_REMOVAL" = true ] || [ "$HAS_SECURITY" = true ] || [ "$HAS_DEPRECATED" = true ]; then
         echo "🚨 IMPORTANT FINDINGS:"
         echo ""
@@ -390,11 +352,9 @@ if [ -n "$ALL_CONTENT" ]; then
         echo ""
     fi
 
-    # Show release content summary
     if [ -n "$RELEASE_CONTENT" ]; then
         echo "📋 Release Notes Summary:"
         echo "---"
-        # Show first 50 lines of release notes
         echo "$RELEASE_CONTENT" | head -50
         echo "---"
         echo ""
@@ -410,19 +370,16 @@ else
     echo ""
 fi
 
-# Display UPGRADE.md content for Helm charts
 if [ -n "$UPGRADE_CONTENT" ]; then
     echo "📦 Helm Chart Upgrade Notes:"
     echo "---"
 
-    # Try to extract version-specific upgrade section
-    # kube-prometheus-stack uses "From 79.x to 80.x" format
+    # kube-prometheus-stack heads its sections "From 79.x to 80.x".
     VERSION_SECTION=""
     if [ -n "$OLD_VERSION" ] && [ "$OLD_VERSION" != "unknown" ]; then
         OLD_MAJOR=$(echo "$OLD_VERSION" | cut -d. -f1)
         NEW_MAJOR=$(echo "$NEW_VERSION" | cut -d. -f1)
 
-        # Look for section like "From 79.x to 80.x" or "## 80.0.0"
         VERSION_SECTION=$(echo "$UPGRADE_CONTENT" | awk -v old="$OLD_MAJOR" -v new="$NEW_MAJOR" '
             BEGIN { found=0; printing=0 }
             /^##+ *(From|Upgrading)/ {
@@ -442,14 +399,12 @@ if [ -n "$UPGRADE_CONTENT" ]; then
     if [ -n "$VERSION_SECTION" ]; then
         echo "$VERSION_SECTION"
     else
-        # Just show recent upgrade notes
         echo "$UPGRADE_CONTENT" | head -60
     fi
     echo "---"
     echo ""
 fi
 
-# Display BREAKING_CHANGES.md if found
 if [ -n "$BREAKING_CHANGES_CONTENT" ]; then
     echo "⚠️  Helm Chart Breaking Changes:"
     echo "---"
@@ -458,7 +413,6 @@ if [ -n "$BREAKING_CHANGES_CONTENT" ]; then
     echo ""
 fi
 
-# Priority assessment
 PRIORITY="MEDIUM"
 if [ "$UPDATE_TYPE" = "major" ]; then
     PRIORITY="HIGH"
@@ -475,7 +429,6 @@ else
 fi
 echo ""
 
-# Package-specific guidance
 echo "📋 Package-Specific Checklist:"
 echo ""
 
@@ -538,7 +491,6 @@ echo "  flux reconcile source git flux-system --timeout 45s --force"
 echo "  flux reconcile kustomization apps --timeout 45s --force"
 echo ""
 
-# Show documentation links
 if [ -n "$RELEASE_LINK" ] || [ -n "$CHANGELOG_LINK" ]; then
     echo "📖 Documentation:"
     [ -n "$RELEASE_LINK" ] && echo "  Release: $RELEASE_LINK"
