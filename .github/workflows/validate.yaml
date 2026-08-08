@@ -55,10 +55,18 @@ jobs:
           # Repo-wide, not scripts/-only: shell also lives in apps/ (immich-vm-heal.sh),
           # .backup/ (DR scripts) and .claude/hooks/. Anchoring to scripts/ left those
           # unchecked. Prune .git and any local worktrees (absent in CI checkouts).
-          mapfile -t files < <(find . \
+          # Run find separately so set -e observes its status.
+          # Process substitution disconnects find's exit status from mapfile.
+          # Preserve stderr so find reports its failure.
+          # If an unreadable directory makes find exit 1, the old form still
+          # reports success having checked fewer files.
+          list=$(mktemp)
+          trap 'rm -f "$list"' EXIT
+          find . \
             -path './.git' -prune -o \
             -path './.claude/worktrees' -prune -o \
-            -type f \( -name '*.sh' -o -name '*.bash' \) -print 2>/dev/null)
+            -type f \( -name '*.sh' -o -name '*.bash' \) -print0 > "$list"
+          mapfile -d '' -t files < "$list"
           if [ "${#files[@]}" -eq 0 ]; then
             echo "no shell scripts found"
             exit 0
