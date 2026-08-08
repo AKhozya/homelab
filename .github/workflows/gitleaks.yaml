@@ -18,11 +18,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: secret-scan-${{ github.ref }}
+  # A push range starts at the previous tip, so a superseded push run leaves those
+  # commits unscanned for good. A group cancels a queued run as readily as a running
+  # one, so push runs take a unique group and never contend. A PR range spans the
+  # whole PR every run, so cancelling a superseded PR run loses nothing.
+  group: secret-scan-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: true
 
 env:
   GITLEAKS_VERSION: "8.30.1"
+  GITLEAKS_SHA256: "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
 
 jobs:
   gitleaks:
@@ -30,13 +35,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # The range scan below reads the commits this change adds. Checkout is
+          # shallow by default and does not contain them.
+          fetch-depth: 0
       - name: Install gitleaks
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
-            | tar xz -C "$HOME/.local/bin" gitleaks
+          base="https://github.com/gitleaks/gitleaks/releases/download"
+          tgz="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSL -o "$tgz" "$base/v${GITLEAKS_VERSION}/$tgz"
+          # A release tag is mutable, so verify bytes before extracting them.
+          echo "${GITLEAKS_SHA256}  $tgz" | sha256sum -c -
+          tar xz -C "$HOME/.local/bin" gitleaks < "$tgz"
+          rm -f "$tgz"
           "$HOME/.local/bin/gitleaks" version
       - name: Scan working tree
         run: |
@@ -48,3 +62,59 @@ jobs:
           # that would red this gate forever. Per-commit coverage = the pre-commit
           # gitleaks hook (.pre-commit-config.yaml); config = .gitleaks.toml.
           gitleaks dir . --config .gitleaks.toml --no-banner --redact
+      - name: Scan commits this change adds
+        env:
+          EVENT: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          # The tree scan misses a secret that one commit adds and a later commit in
+          # the same range removes. A 2026-08-08 test confirms it: the tree scan
+          # exits 0 on that history, this range scan exits 1. Renovate and the
+          # GitHub web editor do not run the pre-commit hook, so it misses it too.
+          # Scanning full history instead finds rotated values and fails every run.
+          case "$EVENT" in
+            push)
+              base=$PUSH_BEFORE
+              head=$PUSH_AFTER
+              ;;
+            pull_request)
+              # github.event.before is absent on pull_request events. github.sha
+              # names the synthetic merge commit, whose first parent tracks the base
+              # tip, so a range ending there can span base commits pushed after the
+              # PR opened. base.sha..head.sha selects the PR's commits alone.
+              base=$PR_BASE
+              head=$PR_HEAD
+              ;;
+            *)
+              echo "$EVENT carries no commit range; the tree scan is the only coverage"
+              exit 0
+              ;;
+          esac
+          # If the push created the ref, before is all zeros and no prior tip exists.
+          # On `branches: [main]` that means someone deleted and recreated main, so
+          # fail: no range can cover it and the event itself needs a look.
+          zero="0000000000000000000000000000000000000000"
+          if [ -z "$base" ] || [ "$base" = "$zero" ]; then
+            echo "::error::no prior tip on $EVENT; main was recreated, so this push went unscanned"
+            exit 1
+          fi
+          for sha in "$base" "$head"; do
+            if git cat-file -e "${sha}^{commit}" 2>/dev/null; then
+              continue
+            fi
+            # A ref-only fetch skips a commit that a force-push orphaned, so ask for
+            # it by SHA.
+            git fetch --no-tags --quiet origin "$sha" 2>/dev/null || true
+            if ! git cat-file -e "${sha}^{commit}" 2>/dev/null; then
+              # Fail rather than exit 0. A silent skip is what this step removes.
+              echo "::error::$sha unreachable; this range went unscanned"
+              exit 1
+            fi
+          done
+          printf 'Scanning range %s..%s\n' "$base" "$head"
+          gitleaks git --log-opts="$base..$head" --config .gitleaks.toml \
+            --no-banner --redact
