@@ -57,13 +57,15 @@ selects by owner now — terminal pods controlled by a ReplicaSet, StatefulSet o
 cluster-wide — and re-tests the phase server-side at delete time, since StatefulSet names are stable.
 Job-owned pods stay, and so do pods with no controller. `phase2_pod_gc_namespaces` is gone.
 
-**The CouchDB size floor stopped the night's replication.** `backup-replication` aborts at Step 1 if
-any source backup fails validation. A client-side LiveSync rebuild recreated `obsidian-personal` on
-2026-08-06 15:52 UTC, the nightly dump went from 15.8M to 88K, and the 100KB CouchDB floor stopped the
-2026-08-08 run before the rsync. Nothing reached the NAS that night and the source backups stayed on
-worker-node, which is what the abort is for. A size floor catches a truncated dump; it cannot also
-track how much data the vault holds. It is 20KB now, and per-database completeness stays the
-`couchdb-backup` job's own check.
+**The CouchDB size floor stopped two nights of replication.** `backup-replication` aborts at Step 1
+if any source backup fails validation. A client-side LiveSync rebuild recreated `obsidian-personal`
+on 2026-08-06 15:52 UTC, after that morning's dump. Every dump from 2026-08-07 on came out at 88K
+instead of 15.8M, under the 100KB CouchDB floor, so both the 08-07 and 08-08 runs stopped before the
+rsync — `kube_cronjob_status_last_successful_time` for `backup-replication` still pointed at
+2026-08-06 03:30 UTC. The source backups stayed on worker-node, which is what the abort is for, and
+both nights sent the "Backup Validation FAILED" Telegram report. A size floor catches a truncated
+dump; it cannot also track how much data the vault holds. It is 20KB now, and per-database
+completeness stays the `couchdb-backup` job's own check.
 
 ---
 

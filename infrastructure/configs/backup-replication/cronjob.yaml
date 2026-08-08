@@ -228,8 +228,8 @@ spec:
                   # CouchDB floor is 20KB, not 100KB, since 2026-08-08. Its only database is
                   # Obsidian LiveSync's obsidian-personal. A client-side "rebuild everything"
                   # on 2026-08-06 recreated it, and the nightly dump went from 15.8M to 88K.
-                  # The 100KB floor then aborted the 2026-08-08 run at Step 1, so nothing
-                  # reached the NAS that night. A size floor catches a truncated dump; it
+                  # The 100KB floor then aborted the 08-07 and 08-08 runs at Step 1, so
+                  # nothing reached the NAS for two nights. A floor catches a truncated dump; it
                   # cannot also track how much data the vault holds. The couchdb-backup job
                   # checks each database separately.
                   validate_backup "postgres" 1048576 "PostgreSQL" || true
