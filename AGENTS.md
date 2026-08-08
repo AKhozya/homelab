@@ -29,7 +29,39 @@ Read cluster state with `kubectl` (+ `jq`) — never SSH a node to curl its `kub
 - **Kyverno enforce resource limits** all containers (init included), PSS, NetworkPolicy, image-pin.
 - **`readOnlyRootFilesystem`** needs `/tmp` emptyDir volume.
 - **CI validation — a signal, NOT a merge gate.** `.github/workflows/validate.yaml` runs yamllint + shellcheck + sops-check + init-resources + image-pin + kubeconform × 7 kustomize roots on every push (~45s p95; `paths-ignore` skips docs/markdown-only pushes). gitleaks lives in its own `gitleaks.yaml` with **no** `paths-ignore`, so a credential pasted into a markdown runbook is still caught. Branch protection is unavailable (private repo on the Free plan), so **nothing mechanically stops a validate-red commit from reaching prod**: Flux syncs `main` every 5 min whatever CI says, and `/gitops-workflow` step 3c blocking `fr` on red only withholds the manual nudge. The gates that actually hold are the pre-commit review loop below and `/homelab-yaml-validate` — both run before the commit exists.
-- **Pre-commit review loop (substantive code/config — gate-of-record).** Before committing a non-trivial diff: (1) dispatch the opposite-family peer (resolve via `peer-reviewed-implementation/scripts/reviewer-peer`; from Claude = Codex `codex-rescue`, from Codex = Claude) for a **STATIC git-only** review — allowed `git diff/show/log` + file reads, FORBIDDEN run-anything (state gates already ran green; unconstrained it re-runs the full local gate and stalls ~14min with no verdict), demand a **one-message verdict** (no loop), point it at `.claude/review-invariants.md`. Codex runs `xhigh` reasoning (global `~/.codex/config.toml`). (2) Process findings via `superpowers:receiving-code-review` — verify each against the code, push back on wrong/YAGNI, fix in severity order, test each. (3) Re-review **delta-scoped** WHILE the latest round returns CRITICAL/HIGH, **cap 3 rounds**; a clean/nits-only round → commit. **No Gemini, no PR-babysitting.** Docs/markdown-only commits are exempt. Replaces the retired cavecrew pre-push gate.
+- **Pre-commit review loop (substantive code/config — gate-of-record).** Before committing a non-trivial diff: (1) dispatch the opposite-family peer (resolve via `peer-reviewed-implementation/scripts/reviewer-peer`; from Claude = Codex `codex-rescue`, from Codex = Claude) for a **STATIC git-only** review — allowed `git diff/show/log` + file reads, FORBIDDEN run-anything (state gates already ran green; unconstrained it re-runs the full local gate and stalls ~14min with no verdict), demand a **one-message verdict** (no loop), point it at `.claude/review-invariants.md`. Codex runs `xhigh` reasoning (global `~/.codex/config.toml`). (2) Process findings via `superpowers:receiving-code-review` — verify each against the code, push back on wrong/YAGNI, fix in severity order, test each. (3) Re-review **delta-scoped**. Severity decides whether you may commit. The round count
+decides when to escalate to the user.
+
+| Round returns | Rounds 1-5 | Round 6 |
+|---|---|---|
+| CRITICAL, HIGH or MEDIUM | fix, then re-review. Reset the LOW streak to zero | do not commit. Hand the open findings to the user |
+| only LOW or NIT, first in a row | fix, then re-review | fix, then commit |
+| only LOW or NIT, second in a row | fix, then commit. Those fixes ship unreviewed. That is the accepted cost | fix, then commit |
+| nothing | commit | commit |
+
+If a dispatch returns no verdict, re-dispatch it. That is not a round. It never counts as
+clean. If three dispatches in a row return no verdict, stop and tell the user.
+
+A round count alone is the wrong gate. A 3-round cap that permitted a commit shipped two real
+defects on 2026-08-08:
+
+| Defect | Why it mattered |
+|---|---|
+| a helper documented as comparing bytes used `$(cat f)` | command substitution strips trailing newlines, so it never compared bytes |
+| a rule named `bash -e {0}` as GitHub's shell command | an explicit `shell: bash` resolves to `bash --noprofile --norc -eo pipefail {0}`. The added `-o pipefail` changes a piped command's exit code |
+
+Rounds 4 and 5 found them. The severity rule requires both rounds. If a 3-round cap applies, it permits an earlier commit:
+
+| Round | CRITICAL | HIGH | MEDIUM | LOW/NIT | Rule says |
+|---|---|---|---|---|---|
+| 1 | 0 | 3 | 5 | 2 | continue |
+| 2 | 0 | 2 | 3 | 3 | continue |
+| 3 | 0 | 0 | 2 | 5 | continue |
+| 4 | 0 | 0 | 1 | 3 | continue |
+| 5 | 0 | 0 | 1 | 3 | continue |
+| 6 | 0 | 0 | 0 | 0 | commit |
+
+**No Gemini, no PR-babysitting.** Docs/markdown-only commits are exempt. Replaces the retired cavecrew pre-push gate.
 - **Review rubric.** Any reviewer (Codex, ECC/security) MUST check the diff against `.claude/review-invariants.md` — semantic bug-classes CI misses (Flux healthCheck GVK, Kyverno `=()` soft-anchor, NetworkPolicy AND/OR, PSS Baseline hostPath, external-access = central `cloudflared.yaml` not a 2nd Ingress, etc.). Grep the target file to confirm name/GVK claims before flagging.
 
 ## Sessions & Worktrees (blast radius = uncommitted files)
