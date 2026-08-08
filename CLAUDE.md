@@ -70,7 +70,8 @@ Git → Flux, never `kubectl edit/patch/replace`).
 ### Review loop
 
 The pre-commit gate-of-record is in `AGENTS.md` (opposite-family peer, static
-git-only, ≤3 delta-scoped rounds). Any reviewer — that peer, the
+git-only, delta-scoped re-review). Its state table decides when to commit. Any
+reviewer — that peer, the
 `k8s-devops-reviewer` sub-agent, or a security pass — checks the diff against
 `.claude/review-invariants.md` first. Docs/markdown-only commits are exempt.
 
