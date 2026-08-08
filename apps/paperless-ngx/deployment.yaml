@@ -79,15 +79,16 @@ spec:
             capabilities:
               drop: ["ALL"]
           startupProbe:
-            # Paperless v3 init: Django migrations + Redis/Postgres waits + tesseract + search index.
-            # Observed v3 cold-start: ~125s. failureThreshold 30 × periodSeconds 10 = 300s budget.
+            # The probe covers migrations, dependency waits, tesseract setup, and search indexing.
+            # If a node reboot leaves a cold page cache, init runs past 290s, so allow 600s of
+            # probing after the 60s delay.
             httpGet:
               path: /
               port: 8000
             initialDelaySeconds: 60
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 30
+            failureThreshold: 60
           livenessProbe:
             httpGet:
               path: /
@@ -107,7 +108,9 @@ spec:
               cpu: "100m"
               memory: "704Mi"
             limits:
-              cpu: "500m"
+              # If the limit is 500m, CFS counters show throttling in every period
+              # (nr_throttled == nr_periods, 2026-08-09). Three 5s liveness timeouts then restart the pod.
+              cpu: "1000m"
               memory: "1536Mi"
           volumeMounts:
             - name: paperless-storage
