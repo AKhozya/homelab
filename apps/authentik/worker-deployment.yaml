@@ -133,7 +133,9 @@ spec:
               cpu: "100m"
               memory: "600Mi"
             limits:
-              cpu: "500m"
+              # 500m throttled ~40% of CFS periods at ~110m average use — the
+              # task workers burst well above their mean inside a 100ms slice.
+              cpu: "1000m"
               memory: "800Mi"
           volumeMounts:
             - name: media
