@@ -17,6 +17,49 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-08-08 — k3s v1.36.2 → v1.36.3, and the rolling restart that ran without its lock
+
+Same-minor patch on the stable channel — `stable` and `latest` both return `v1.36.3+k3s1`. Binary
+swap via the `k3s-upgrade` skill: a sha256-verified download staged to all four nodes, previous
+binary kept at `k3s.prev`. The sanctioned serial restart then ran CP → W1 → W2 → immich-vm at
+13:34:57, 13:35:42, 13:36:20, 13:36:58. No repo commit covers the upgrade itself — k3s is a manual
+`/usr/local/bin/k3s` binary, not Flux- or pacman-managed. Pods held at 108 total / 0 unhealthy,
+Flux stayed 7/7, and the Watchdog dead-man stayed the only firing alert. `k3s.prev` was removed the
+same day by choice: a patch downgrade means re-staging the binary, a minor one means
+restore-from-backup.
+
+The rolling restart still exited 4 and sent its Telegram failure alert.
+
+| Fact | Value |
+|---|---|
+| Drift-heal run | 13:30:33–13:36:54, triggered by the sync timer pulling `cae7d3d2` |
+| Rolling restart run | started 13:34:41, no lock held |
+| immich-vm restart module | ran 13:36:52, node up on v1.36.3 at 13:37:00 |
+| Ansible verdict | `UNREACHABLE: Data could not be sent to remote host "192.168.1.231"`, exit 4 |
+| node-maintenance SSH masters to immich-vm | two, ports 41928 and 31690, both the drift-heal's |
+
+Two ansible runs executed as root on the control plane at once. Ansible defaults there are
+`ssh_args = -C -o ControlMaster=auto -o ControlPersist=60s` with `control_path_dir = ~/.ansible/cp`,
+so both runs share one SSH master per host. For immich-vm the rolling restart opened no master of
+its own; it attached to the drift-heal's. immich-vm was its last host, and the drift-heal finished
+two seconds after the restart module ran. Closing that master killed the in-flight channel. W1 and
+W2 were unaffected because their restarts finished before 13:36:54.
+
+The restart itself succeeded, and the checkpoint matched before and after. What was lost is the gate: immich-vm
+skipped its Ready wait and kubelet-configz verify. Both were run by hand afterwards — all four nodes
+report `leaseDuration=60 reportFrequency=1m0s`.
+
+`node-maintenance-lock.sh` has existed since 2026-05-25 for this case, and `config`, `phase1` and
+`phase2` all use it. `rolling-restart` was added later and never wrapped. It now runs under
+`node-maintenance-lock.sh wait --` (`f3c6abd7`) — `wait`, not `skip`, because an operator triggers it
+by hand and a silent no-op would read as "restart done". `TimeoutStartSec` went 15min → 25min: `wait`
+mode is `flock -w 900`, so a 15-minute cap could expire on a queued run before ansible started.
+Verified live on the control plane — the wrapper blocks while the lock is held and acquires once it
+is released.
+
+`KUBERNETES_VERSION` in `.github/workflows/validate.yaml` moved 1.36.2 → 1.36.3 to track the cluster,
+as that file's own comment instructs; the `v1.36.3-standalone-strict` schemas are present upstream.
+
 ### 2026-08-08 — The maintenance trigger answered 403 for two weeks
 
 Phase 1 and phase 2 both completed. All four nodes rebooted in order, `PLAY RECAP` reported

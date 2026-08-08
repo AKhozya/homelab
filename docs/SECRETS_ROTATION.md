@@ -1,6 +1,6 @@
 # Secrets Rotation Playbook
 
-**Cluster**: K3s Homelab (k3s v1.36.2+k3s1, 4 nodes) | **Last Updated**: 2026-08-06
+**Cluster**: K3s Homelab (k3s v1.36.3+k3s1, 4 nodes) | **Last Updated**: 2026-08-06
 **Audit Trail**: rotation dates in git commit history
 
 Every secret in this cluster lives encrypted in Git using SOPS with an age key. The

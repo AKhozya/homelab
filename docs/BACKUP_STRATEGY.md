@@ -478,7 +478,7 @@ sudo systemctl start node-maintenance-config.service
 
 **On control-plane node (192.168.1.127):**
 ```bash
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.2+k3s1" sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.3+k3s1" sh -
 sudo cat /var/lib/rancher/k3s/server/node-token
 ```
 
@@ -486,7 +486,7 @@ sudo cat /var/lib/rancher/k3s/server/node-token
 ```bash
 export K3S_URL=https://192.168.1.127:6443
 export K3S_TOKEN=<token-from-control-plane>
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.2+k3s1" sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.3+k3s1" sh -
 ```
 
 **Get kubeconfig:**
