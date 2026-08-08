@@ -67,23 +67,6 @@ expected_kernel_params:
   - printk.always_kmsg_dump=Y
   - panic=10
 
-# Phase2 post-rollout Failed-pod GC scope. System and infra namespaces only.
-# User-app namespaces (immich, paperless, n8n, mealie, …) stay out, so an
-# operator-investigated Failed pod is never deleted underneath you. Add new
-# infra namespaces here.
-phase2_pod_gc_namespaces:
-  - kube-system
-  - kube-public
-  - flux-system
-  - kyverno
-  - monitoring
-  - traefik
-  - cert-manager
-  - databases
-  - cloudflare-tunnel
-  - backup-replication
-  - node-maintenance
-
 # ---- UFW firewall ----
 # Keep logging low so user.log stays free of noise.
 ufw_policy_incoming: deny

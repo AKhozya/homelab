@@ -128,6 +128,9 @@ fi
 
 # ── notify helper + sync helper + systemd units ──
 install -m 0750 -o root -g root "$REPO_DIR/lib/telegram-notify.sh" /usr/local/sbin/telegram-notify.sh
+# No install line until 2026-08-08, so the CP copy stayed at its hand-placed 2026-04-27
+# content and an edit to the file in git deployed nothing. phase2's ExecStopPost runs it.
+install -m 0750 -o root -g root "$REPO_DIR/lib/telegram-notify-claude.sh" /usr/local/sbin/telegram-notify-claude.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/sync-from-git.sh"   /usr/local/sbin/node-maintenance-sync-from-git.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/node-config-notify.sh" /usr/local/sbin/node-maintenance-config-notify.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/node-maintenance-lock.sh" /usr/local/sbin/node-maintenance-lock.sh

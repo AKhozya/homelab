@@ -17,6 +17,56 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-08-08 — The maintenance trigger answered 403 for two weeks
+
+Phase 1 and phase 2 both completed. All four nodes rebooted in order, `PLAY RECAP` reported
+`failed=0` on every host, and `node_maintenance_last_run_unixtime` was written. The last line of the
+run was `curl: (22) The requested URL returned error: 403` — the `ExecStopPost` that asks Claude to
+review the post-reboot alerts. `ExecStopPost=… || true` discarded it.
+
+| Fact | Value |
+|---|---|
+| Reboot window | 04:33–05:26 UTC |
+| Trigger secret in SOPS | rotated 2026-07-31 (`c0301bcb`) |
+| Trigger secret on the CP | `/etc/node-maintenance/claude-trigger-secret`, mtime 2026-04-27 |
+| Bot response | HTTP 403 — the secret check rejects before the body is read |
+| Runs with no alert review | 2026-08-01 and 2026-08-08, `curl: (22) … 403` in both journals |
+
+One secret, two copies, one of them rotated. `install.sh` also had no line for
+`telegram-notify-claude.sh`: someone placed the CP copy by hand in April and no sync path touched it,
+so editing the file in git would have deployed nothing.
+
+`telegram-notify-claude.sh` now reads the secret from the bot's own `$TRIGGER_SECRET` inside the pod,
+and the CP keeps no copy. Reading it grants nothing new — whoever can `kubectl exec` into that
+container can already read the variable. The script sends its own Telegram alert if the POST fails,
+because its caller's `|| true` discards a non-zero exit. `install.sh` installs it now, in both full
+and `--sync-only` mode.
+
+Three more faults, same unit and same run:
+
+**`StartLimitIntervalSec` and `StartLimitBurst` sat under `[Service]`.** Both belong in `[Unit]`.
+systemd logged `Unknown key 'StartLimitIntervalSec' in section [Service], ignoring` on every reload,
+so the 3-attempts-in-2h cap the file documents never applied to the phase 2 retry. Moved.
+
+**Nothing removes the pods a graceful node shutdown leaves behind.** Each evicted pod ends in a
+terminal phase. The ReplicaSet controller ignores terminal pods it owns, and the pod-GC controller
+acts only past `--terminated-pod-gc-threshold`, default 12500. This run left 11 — 10 `Succeeded`, 1
+`Failed`, which kept `PodPhaseNotRunning` firing; 2026-08-01 left 14 and 4 alerts. Phase 2's GC missed
+them twice over: it matched `status.phase=Failed` only, and only inside `phase2_pod_gc_namespaces`. It
+selects by owner now — terminal pods controlled by a ReplicaSet, StatefulSet or DaemonSet,
+cluster-wide — and re-tests the phase server-side at delete time, since StatefulSet names are stable.
+Job-owned pods stay, and so do pods with no controller. `phase2_pod_gc_namespaces` is gone.
+
+**The CouchDB size floor stopped the night's replication.** `backup-replication` aborts at Step 1 if
+any source backup fails validation. A client-side LiveSync rebuild recreated `obsidian-personal` on
+2026-08-06 15:52 UTC, the nightly dump went from 15.8M to 88K, and the 100KB CouchDB floor stopped the
+2026-08-08 run before the rsync. Nothing reached the NAS that night and the source backups stayed on
+worker-node, which is what the abort is for. A size floor catches a truncated dump; it cannot also
+track how much data the vault holds. It is 20KB now, and per-database completeness stays the
+`couchdb-backup` job's own check.
+
+---
+
 ### 2026-08-07 — The sync path ran the drift-heal playbook twice on every push
 
 `node-maintenance-sync.service` needed 12min59s to deploy one commit (`fe0ff835`). It ran the full

@@ -600,16 +600,45 @@
       changed_when: false
       failed_when: false
 
-    # Restricted to system/infra namespaces. User-app namespaces (immich,
-    # paperless, n8n, mealie, etc.) excluded so a Failed pod the user is
-    # investigating isn't silently nuked. Eviction artifacts in app ns get
-    # GC'd by their controllers (Deployment/StatefulSet) on next sync.
-    - name: Delete Failed/Evicted pods (system + infra namespaces only)
+    # A graceful node shutdown leaves each evicted pod in a terminal phase and no controller
+    # removes it. The ReplicaSet controller ignores terminal pods it owns, and the pod-GC
+    # controller acts only past --terminated-pod-gc-threshold, which defaults to 12500. Every
+    # reboot round therefore adds one leftover pod per evicted pod, and those keep
+    # PodPhaseNotRunning and the replica-mismatch alerts firing: 14 leftovers and 4 alerts on
+    # 2026-08-01, 11 more on 2026-08-08. Succeeded as well as Failed — 10 of those 11 exited 0.
+    #
+    # Selection is by owner, not by namespace. The namespace allowlist this replaces skipped
+    # app namespaces and matched Failed only. A terminal pod whose controller already replaced
+    # it holds no state, and Alloy has shipped its logs to Loki, so deleting it costs nothing.
+    # Job-owned pods stay — that history belongs to the CronJob, and ttlSecondsAfterFinished
+    # clears it. Pods with no controller stay too.
+    #
+    # The delete re-tests the phase server-side with --field-selector instead of trusting the
+    # listing. StatefulSet pod names are stable, so if anything else deletes a terminal pod
+    # between the two steps, the controller recreates it under the same name and a delete by
+    # name alone would remove the new Running pod.
+    - name: Delete controller-owned terminal pods (cluster-wide)
       ansible.builtin.shell: |
-        kubectl --kubeconfig={{ kubeconfig_path }} -n {{ item }} delete pod \
-          --field-selector=status.phase=Failed --ignore-not-found
-      loop: "{{ phase2_pod_gc_namespaces }}"
+        set -o pipefail
+        kubectl --kubeconfig={{ kubeconfig_path }} get pods -A -o json \
+          | jq -r '.items[]
+              | select(.status.phase == "Failed" or .status.phase == "Succeeded")
+              | select(any(.metadata.ownerReferences[]?;
+                  .controller == true
+                  and (.kind == "ReplicaSet" or .kind == "StatefulSet" or .kind == "DaemonSet")))
+              | "\(.metadata.namespace) \(.status.phase) \(.metadata.name)"' \
+          | while read -r ns phase name; do
+              kubectl --kubeconfig={{ kubeconfig_path }} -n "$ns" delete pod \
+                --field-selector="metadata.name=$name,status.phase=$phase" --ignore-not-found \
+                || echo "pod-GC: delete failed for $ns/$name" >&2
+            done
+      args:
+        executable: /bin/bash
       changed_when: false
+      # A failed delete here is cosmetic and PodPhaseNotRunning latches it. A hard failure
+      # would strand phase2-pending, which gates the sync and config drift-heal cluster-wide
+      # until the 2h age-clear (2026-06-20, ~1.7h).
+      failed_when: false
 
     - name: Trigger Flux source GC
       ansible.builtin.command: flux reconcile source git flux-system --timeout=180s

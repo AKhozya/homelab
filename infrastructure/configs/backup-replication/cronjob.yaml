@@ -225,9 +225,15 @@ spec:
                     fi
                   }
 
-                  # Validate each backup type (min sizes: postgres >1MB, couchdb/mysql/pvc >100KB)
+                  # CouchDB floor is 20KB, not 100KB, since 2026-08-08. Its only database is
+                  # Obsidian LiveSync's obsidian-personal. A client-side "rebuild everything"
+                  # on 2026-08-06 recreated it, and the nightly dump went from 15.8M to 88K.
+                  # The 100KB floor then aborted the 2026-08-08 run at Step 1, so nothing
+                  # reached the NAS that night. A size floor catches a truncated dump; it
+                  # cannot also track how much data the vault holds. The couchdb-backup job
+                  # checks each database separately.
                   validate_backup "postgres" 1048576 "PostgreSQL" || true
-                  validate_backup "couchdb" 102400 "CouchDB" || true
+                  validate_backup "couchdb" 20480 "CouchDB" || true
                   validate_backup "mysql" 102400 "MySQL" || true
                   validate_backup "pvc" 102400 "PVC" || true
 

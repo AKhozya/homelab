@@ -4,6 +4,11 @@ ConditionPathExists=/var/lib/node-maintenance/phase2-pending
 Wants=network-online.target
 After=network-online.target k3s.service
 Documentation=file:///etc/node-maintenance/README.md
+# Rate limit for the Restart= below. Both keys belong in [Unit]; systemd logged
+# "Unknown key 'StartLimitIntervalSec' in section [Service], ignoring" on every
+# reload while they sat under [Service], so the 3-attempt cap did nothing.
+StartLimitIntervalSec=7200
+StartLimitBurst=3
 
 [Service]
 Type=oneshot
@@ -24,8 +29,6 @@ ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" = "success" ] && /usr/local/sbin/te
 # L3 stale-flag auto-clear in config.service takes over after 2h.
 Restart=on-failure
 RestartSec=900
-StartLimitIntervalSec=7200
-StartLimitBurst=3
 TimeoutStartSec=90min
 Nice=10
 
