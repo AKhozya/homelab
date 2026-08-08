@@ -489,6 +489,45 @@ export K3S_TOKEN=<token-from-control-plane>
 curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.3+k3s1" sh -
 ```
 
+**On immich-vm (192.168.1.231) — the GPU worker VM on the NAS:**
+
+Never reboot this guest from inside it, and never `virsh reboot`, `reset` or `destroy` it. Each one
+hits the GPU reset bug and crashes the NAS host. The only safe restart runs on the NAS host:
+
+```bash
+virsh shutdown immich-vm --mode acpi
+virsh domstate immich-vm     # wait for "shut off" before the next line
+virsh start immich-vm
+```
+
+The NAS host supplies the iGPU and the virtiofs library mount, so start the guest before installing
+k3s. Step 1 already wrote `/etc/rancher/k3s/config.yaml`, which the agent reads at first
+registration:
+
+| Setting | Value |
+|---|---|
+| `data-dir` | `/home/k3s` |
+| `node-name` | `immich-vm` |
+| `node-ip` | `192.168.1.231` |
+| `node-label` | `homelab/gpu=intel` |
+
+```bash
+export K3S_URL=https://192.168.1.127:6443
+export K3S_TOKEN=<token-from-control-plane>
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.3+k3s1" sh -
+```
+
+Verify from the control-plane node — it holds a kubeconfig before the operator does:
+
+```bash
+sudo k3s kubectl wait --for=condition=Ready node/immich-vm --timeout=5m
+sudo k3s kubectl get node immich-vm -o jsonpath='{.metadata.labels.homelab/gpu}{"\n"}'
+# expect: intel
+```
+
+Flux recreates the `intel-gpu-plugin` DaemonSet through the `infrastructure-configs` Kustomization,
+and that DaemonSet advertises `gpu.intel.com/i915`. Do not install the plugin by hand.
+
 **Get kubeconfig:**
 ```bash
 sudo cat /etc/rancher/k3s/k3s.yaml
