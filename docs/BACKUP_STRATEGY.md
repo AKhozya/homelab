@@ -1,6 +1,6 @@
 # Homelab Backup Strategy
 
-**Last Updated:** 2026-07-03
+**Last Updated:** 2026-08-08
 **Status:** Fully operational (NAS replication active)
 
 ---
