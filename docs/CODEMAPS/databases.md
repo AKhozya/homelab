@@ -14,6 +14,7 @@ Backup CronJobs (schedules, auto-discovery, mechanics): [backup-restore.md](back
 - **Pooler**: PgBouncer Deployment `main-postgres-rw-pooler` (2 replicas; `configs/databases/postgres/pooler.yaml` — separate CR from the Cluster)
 - **Backup**: daily logical pg_dump ONLY (auto-discovers via `pg_database`) — **no WAL archiving/PITR by decision**; streaming replication = HA, not backup
 - **Managed roles** (`cluster.yaml` `spec.managed.roles`): `postgres-admin` (superuser — backup + extension jobs) + per-app login roles `n8n`, `mealie`, `authentik`, `paperless`, `immich`, `linkwarden`, `blocky`
+- **Extension updates** (immich DB): `immich-init-extensions` Job on every CNPG image bump + `postgres-update-extensions` CronJob daily 06:00 UTC, both running one shared `update-extensions.sh` from the `postgres-extension-update` ConfigMap (`configMapGenerator`, so a script edit re-hashes the name and Flux re-creates the forced Job). Immich cannot raise pgvector itself — it connects as `immich`, which does not own the extension, and PG 18 has no `ALTER EXTENSION … OWNER TO`. The Job waits for the primary to report its own image's `server_version` first, or it reads the outgoing primary's catalogue (see HOMELAB_HISTORY 2026-08-13)
 - **Reload trigger**: Secret label `cnpg.io/reload: "true"` for password updates (NOT role creation)
 
 ## MySQL — Percona Server for MySQL
