@@ -15,7 +15,7 @@ spec:
   inheritedMetadata:
     labels:
       release: kube-prometheus-stack
-  imageName: ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie
   # false: the PgBouncer Pooler does NOT need this — the operator creates
   # cnpg_pooler_pgbouncer via local instance-manager SQL and PgBouncer auths
   # with an operator-issued TLS client cert (CNPG 1.30 connection_pooling docs).
