@@ -59,21 +59,40 @@ spec:
                 sleep 2
               done
 
-              echo "Database 'immich' exists. Creating extensions..."
+              # Renovate bumps the CNPG tag here and on the Cluster in one commit, and
+              # kustomize.toolkit.fluxcd.io/force re-creates this immutable Job, so Flux
+              # starts this Job and the rolling upgrade together. If this Job reads
+              # main-postgres-rw before the switchover, it sees the extension versions the
+              # outgoing image provides. Wait for the primary to report this image's own
+              # server version first.
+              WANT_VERSION=$(postgres --version | sed 's/^postgres (PostgreSQL) //')
+              echo "Waiting for primary to report server_version '$WANT_VERSION'..."
+              RETRY_COUNT=0
+              ROLL_MAX_RETRIES=120
+
+              until [ "$(psql -h main-postgres-rw -U postgres-admin -d postgres -tAc 'SHOW server_version' 2>/dev/null)" = "$WANT_VERSION" ]; do
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -ge $ROLL_MAX_RETRIES ]; then
+                  echo "ERROR: primary never reported '$WANT_VERSION' after ${ROLL_MAX_RETRIES} attempts"
+                  exit 1
+                fi
+                echo "Waiting for CNPG rolling upgrade (attempt $RETRY_COUNT/$ROLL_MAX_RETRIES)..."
+                sleep 5
+              done
+
+              echo "Primary runs '$WANT_VERSION'. Creating extensions..."
 
               psql -h main-postgres-rw -U postgres-admin -d immich <<-EOSQL
                 -- Create extensions if they don't exist
                 CREATE EXTENSION IF NOT EXISTS vector CASCADE;
                 CREATE EXTENSION IF NOT EXISTS cube CASCADE;
                 CREATE EXTENSION IF NOT EXISTS earthdistance CASCADE;
-
-                -- Verify extensions were created
-                SELECT extname, extversion FROM pg_extension
-                WHERE extname IN ('vector', 'cube', 'earthdistance')
-                ORDER BY extname;
               EOSQL
 
-              echo "✅ Extensions created successfully!"
+              # CREATE EXTENSION IF NOT EXISTS never raises an installed version. The shared
+              # script updates installed versions; the postgres-update-extensions CronJob
+              # mounts the same ConfigMap and runs it too.
+              sh /scripts/update-extensions.sh
           env:
             - name: PGPASSWORD
               valueFrom:
@@ -97,6 +116,12 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
       volumes:
         - name: tmp
           emptyDir: {}
+        - name: scripts
+          configMap:
+            name: postgres-extension-update

@@ -27,3 +27,16 @@ resources:
   - paperless-db-user.yaml
   - paperless-database.yaml
   - update-extensions-job.yaml
+
+# Generated, not a static ConfigMap: the content hash renames it on every script edit, so
+# kustomize rewrites both volume references and Flux re-creates the forced init Job. A fixed
+# name leaves that Job holding the previous script.
+# Accepted race: if the CronJob controller creates a Job from the old template in the seconds
+# before Flux prunes the old ConfigMap, that Pod cannot mount it and the day's run stalls.
+# The next daily run repairs it, so pinning the ConfigMap against pruning is not worth the
+# manual cleanup it needs.
+configMapGenerator:
+  - name: postgres-extension-update
+    namespace: databases
+    files:
+      - update-extensions.sh

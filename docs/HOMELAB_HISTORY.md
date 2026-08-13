@@ -17,6 +17,66 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-08-13 — a CNPG minor bump left Immich crashlooping, and the job that repairs it ran 3m35s too early
+
+Renovate's `4607a47a` moved `ghcr.io/cloudnative-pg/postgresql` from `18.4-standard-trixie` to
+`18.6-standard-trixie` across eight files, the CNPG `Cluster` among them. The 18.6 image ships
+pgvector **0.8.6**; the `immich` database still held **0.8.2**. Immich updates pgvector itself at
+startup, but connects as DB user `immich`, which does not own the extension, so
+`ALTER EXTENSION vector UPDATE TO '0.8.6'` failed with `must be owner of extension vector`
+(SQLSTATE 42501), the microservices worker exited 1, and `immich-server` crashlooped. PG 18 has no
+`ALTER EXTENSION … OWNER TO` form, so immich can never hold that ownership and only a
+`postgres-admin` connection can raise the installed version.
+
+Postgres itself was never down. The page read `ScrapeTargetDown{job="immich-server"}`, and the
+cluster reported `Cluster in healthy state` throughout.
+
+`postgres-update-extensions` already repairs exactly this as `postgres-admin`, but ran weekly on
+Sunday 06:00 UTC. The commit merged on a Thursday, so immich would have remained unavailable for
+about three more days. Running that CronJob manually raised vector to 0.8.6 and immich recovered.
+
+`immich-init-extensions` should have prevented the outage on its own: renovate edits its image tag
+in the same commit, and `kustomize.toolkit.fluxcd.io/force` re-creates the immutable Job. It did
+re-run — 3m35s too early, because Flux starts the Job and the rolling upgrade together.
+
+| Time (UTC) | Event |
+|---|---|
+| 18:03:37 | `immich-init-extensions` pod starts |
+| 18:03:39 | `main-postgres-11` starts on 18.6 |
+| 18:07:12 | `main-postgres-12` starts on 18.6 and becomes primary |
+
+The Job therefore read the extension catalogue from the outgoing 18.4 primary, and its
+`CREATE EXTENSION IF NOT EXISTS` never raises an installed version in any case.
+
+These changes fix both causes. The Job waits for the primary to report its own image's
+`server_version` before it touches extensions. `postgres --version` minus its
+`postgres (PostgreSQL) ` prefix is that string exactly, so the wait is a string compare with no
+version parsing. The CronJob runs daily, because if a CNPG rebuild ships a newer extension under an
+unchanged tag, renovate has nothing to bump and nothing re-creates the Job.
+
+The per-extension `ALTER … UPDATE` loop now lives in `update-extensions.sh`, which
+`configMapGenerator` packages as the `postgres-extension-update` ConfigMap that both workloads
+mount. The first attempt duplicated the loop and the peer review rejected that: two prior
+corrections already fixed this loop for reporting success on a failed update, and a third
+correction reaching one copy and not the other is the likely failure. A generated name carries a
+content hash, so editing the script renames the ConfigMap, kustomize rewrites both volume
+references, and Flux re-creates the forced init Job. A standalone `.sh` also brings the script
+under the repo-wide shellcheck job, which never saw it inside a YAML block scalar.
+
+These checks extracted the Job's script with `yq`, took the shared script as it stands, and ran
+both under `/bin/dash` (the CNPG image's `/bin/sh`) against stubbed `psql`/`postgres`.
+
+| Check | Result |
+|---|---|
+| Roll completes after 3 polls | Job waits, then updates all 3 extensions, exit 0 |
+| Extension name containing a space | survives the read loop unsplit |
+| One `ALTER` fails | siblings' successes persist, `FAILED vector` reported, exit 1 |
+| Empty extension list | exit 1 rather than a silent success |
+| Roll never completes | exit 1 at 120 attempts |
+| Mutant: remove the `sed` prefix strip | KILLED |
+| Mutant: `RC=1` → `RC=0` | KILLED |
+| Mutant: Job stops calling the shared script | KILLED |
+
 ### 2026-08-08 — k3s v1.36.2 → v1.36.3, and the rolling restart that ran without its lock
 
 Same-minor patch on the stable channel — `stable` and `latest` both return `v1.36.3+k3s1`. Binary
