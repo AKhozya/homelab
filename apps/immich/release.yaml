@@ -137,6 +137,10 @@ spec:
               DB_PORT: "5432"
               DB_DATABASE_NAME: immich
               DB_USERNAME: immich
+              # Immich prefers vchord if the CNPG image exposes it in pg_available_extensions.
+              # The immich role cannot create that superuser-only extension, so startup fails.
+              # Pin pgvector so a CNPG image update cannot switch extensions.
+              DB_VECTOR_EXTENSION: pgvector
               DB_PASSWORD:
                 valueFrom:
                   secretKeyRef:
