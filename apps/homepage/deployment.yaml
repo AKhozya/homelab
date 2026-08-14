@@ -99,10 +99,16 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
+          # homepage v2 validates the Host header against HOMEPAGE_ALLOWED_HOSTS.
+          # Kubelet probes default to the pod IP, which can never be allowlisted
+          # (it changes every restart), so send the ingress host instead.
           livenessProbe:
             httpGet:
               path: /
               port: 3000
+              httpHeaders:
+                - name: Host
+                  value: home.h0melab.work
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 5
@@ -111,6 +117,9 @@ spec:
             httpGet:
               path: /
               port: 3000
+              httpHeaders:
+                - name: Host
+                  value: home.h0melab.work
             initialDelaySeconds: 10
             periodSeconds: 5
             timeoutSeconds: 3
