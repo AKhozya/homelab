@@ -17,6 +17,47 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-08-14 — extension ownership cannot be given to the app role, and immich picks its vector extension by availability
+
+Yesterday's crashloop raised the obvious question: which other extensions does a superuser own
+rather than the app that needs them, and can that be handed over? An audit of every extension in
+all eight databases answers the first part — only immich's `vector`, `cube` and `earthdistance` are
+owned by `postgres-admin`. `mealie.pg_trgm`, `n8n.uuid-ossp` and immich's
+`pg_trgm`/`unaccent`/`uuid-ossp` are owned by their app role, and `plpgsql` is `postgres`-owned in
+every database and inert, because no app updates it. Of the three, only `vector` matters: immich
+v3.1.0 only ever runs `ALTER EXTENSION` against the vector-family extension, so `cube` and
+`earthdistance` are create-once.
+
+Handing ownership over fails twice, both checked against the live cluster on PostgreSQL 18.6:
+
+| Attempt | Result |
+|---|---|
+| `ALTER EXTENSION vector OWNER TO immich` | `syntax error at or near "OWNER"` — PostgreSQL has no `OWNER TO` form for extensions |
+| move `pg_extension.extowner` by hand, then update as the owner | `permission denied to update extension` / `Must be superuser to update this extension.` |
+
+The second is the decisive one. `vector` is `superuser=t, trusted=f`, and PostgreSQL demands
+superuser to run an untrusted extension's update script whatever the owner is. The check ran in a
+rolled-back transaction against `pageinspect`, which carries the same two flags and ships real
+upgrade scripts. So a privileged job that runs the `ALTER` before the app starts is the only design
+that works, which is what `postgres-update-extensions` and `immich-init-extensions` already are.
+
+CNPG 1.30's declarative `Database.spec.extensions` does not replace them. `updateDatabaseExtension`
+emits `ALTER EXTENSION … UPDATE TO` only if `spec.version` is set and differs from the installed
+version, so an entry without a `version` creates the extension once and never updates it, and a
+pinned version is a manual bump renovate cannot see.
+
+The audit did surface the next instance of this class. Immich selects its vector extension by
+availability rather than by what is installed — `VECTOR_EXTENSIONS = [VectorChord, Vector]`, first
+name present in `pg_available_extensions` wins. If a CNPG image ever ships `vchord`, immich runs
+`CREATE EXTENSION vchord` as the non-superuser `immich` role, which is fatal for an untrusted
+extension, and then tries to drop `vector`. The `standard` image ships pgvector and no vchord today,
+so `0e00822a` pins `DB_VECTOR_EXTENSION: pgvector` to keep an upstream image change from switching
+extensions. A migration to VectorChord now needs that value changed on purpose.
+
+One residual has no automated repair: if an image ever ships pgvector older than the installed
+version, immich throws `invalidDowngrade` at bootstrap, and no job can fix it, because
+`ALTER EXTENSION` cannot downgrade. The remedy is pinning the image back.
+
 ### 2026-08-13 — a CNPG minor bump left Immich crashlooping, and the job that repairs it ran 3m35s too early
 
 Renovate's `4607a47a` moved `ghcr.io/cloudnative-pg/postgresql` from `18.4-standard-trixie` to
