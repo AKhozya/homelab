@@ -163,7 +163,7 @@ spec:
           mountPath: /tmp
       containers:
       - name: cloudflared
-        image: cloudflare/cloudflared:2026.8.1
+        image: cloudflare/cloudflared:2026.8.2
         args:
         - tunnel
         - --config
