@@ -15,6 +15,11 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0          # one attempt per tick; the next tick is the retry
+      # ssh -o ConnectTimeout bounds the CONNECT only — a session that connects and then
+      # hangs (NAS mid-maintenance, 2026-08-15) runs forever and pins a pod, because
+      # nothing else caps a Job's runtime. Kept under the 5-min tick so a killed run
+      # cannot overlap the next; a healthy run is ~5-20s, so it fires only on a real hang.
+      activeDeadlineSeconds: 240
       ttlSecondsAfterFinished: 3600
       template:
         metadata:
