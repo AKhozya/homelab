@@ -91,7 +91,7 @@ spec:
     gracePeriod: 30
     # Stay on the 8.4 LTS line: ps-operator 1.2.0 supports 8.0/8.4 only, and a 9.x
     # pod cannot clone from an 8.4 donor (error 3864) — cause of the 2026-08-05 crashloop.
-    image: percona/percona-server:8.4.10-10.1
+    image: percona/percona-server:8.4.11-11.1
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
     priorityClassName: homelab-critical
