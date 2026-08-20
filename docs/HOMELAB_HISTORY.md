@@ -17,6 +17,29 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-08-20 — A power cut, and both workers rebooted themselves an hour after the power returned
+
+Mains power died at 12:35 and came back at 16:03. All four nodes and the NAS booted on their own. What needed explaining was not the outage — it was the hour after it, in which both workers rebooted themselves and the control-plane restarted `k3s` eight times, with nobody logged in.
+
+The control-plane booted at 16:03:17 with its kube-proxy ClusterIP DNAT wedged — the failure class `clusterip_heal_cp` exists for. That watchdog restarted `k3s` at 16:05 (recovered), at 16:24 (probe rc=1, not confirmed healthy) and at 17:18 (probe rc=2); `k3s` settled at 17:20:45. While the apiserver flapped, both workers scored themselves CP-isolated (`cp_direct=0 kubelet=0 gw=1`), escalated through L1 `k3s-agent` restarts, and reached the self-reboot rung of `node_isolation_heal`. The staggered index worked: worker-node (index 0) went first, worker-node-2 (index 1) seventeen minutes later, so the two workers never rebooted together.
+
+| Time (BST) | Event |
+|---|---|
+| 12:35–12:42 | power lost — CP 12:36:06, worker-node 12:36:25, worker-node-2 12:35:44, immich-vm 12:42:14 |
+| 16:03 | power restored, all four nodes and the NAS boot |
+| 16:05 | CP ClusterIP DNAT wedged → `clusterip-heal-cp` restarts `k3s` #1, recovered |
+| 16:24 | wedged again → `k3s` restart #2, probe rc=1, not confirmed |
+| 16:39:52 | worker-node SELF-REBOOT after 1177s isolated, L1 restarts did not recover it |
+| 16:56:49 | worker-node-2 SELF-REBOOT after 1501s isolated (stagger index=1) |
+| 17:18 | CP wedged a third time → `k3s` restart, up at 17:20:45 |
+| 17:21 | both workers log `recovered (tunnel up; cp=1 kubelet=1 gw=1)` — stable since |
+
+Every recovery step was automatic. The manual work was clearing the residue the outage left behind: two terminal authentik pods (`Error` and `Init:Error`, from the 16:03 boot — the reboot-leftover class that nothing reaps), and two `immich-vm-heal` Jobs that hit `DeadlineExceeded` while immich-vm was still booting. Both alert pairs cleared on deletion. `NodeIsolationHealRebooted` is not clearable by hand — its rule is `time() - node_isolation_heal_last_reboot_timestamp < 3600`, so it expired by itself at 17:56:49.
+
+**Open item.** The third CP wedge fired at 17:18, 75 minutes after boot. The first two fit the cold-start race; this one does not, so the wedge is not purely a boot artifact. The nftables root fix stays deferred on kubernetes#136786. If it recurs outside a boot window, that is the thing to chase.
+
+Verified after recovery, with no configuration change made: no pstore blobs and no filesystem errors on any node after the hard power loss; Postgres 2/2 (primary `main-postgres-12`), MySQL 2/2 with haproxy 2/2 and orchestrator 3/3, CouchDB 2, Redis replication 2 plus 3 sentinels; Flux 7/7; all 16 ingress hosts answering through LAN Traefik; NAS `md1` raid6 `[6/6]` and `md0` `[2/2]`, with the known SMART-failed `sdb` unchanged and still awaiting its RMA replacement.
+
 ### 2026-08-14 — extension ownership cannot be given to the app role, and immich picks its vector extension by availability
 
 Yesterday's crashloop raised the obvious question: which other extensions does a superuser own
