@@ -106,7 +106,7 @@ spec:
         # spelled out or Renovate cannot resolve a bare tag, which is how this drifted
         # a patch behind the same image in apps/rustdesk/beacon-deployment.yaml.
         repository: nginxinc/nginx-unprivileged
-        tag: "1.31.3-alpine"
+        tag: "1.31.4-alpine"
       resources:
         requests:
           cpu: 10m
