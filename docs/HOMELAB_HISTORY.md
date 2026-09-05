@@ -17,6 +17,62 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-09-05 — An aliased preflight skipped the weekly reboot, and Loki began rejecting a week-old log line every hour
+
+`AlloyLogDeliveryFailing` fired hourly on both workers from 04:48Z. Nothing was
+wrong with Alloy or with Loki. Two unrelated defects lined up, and the weekly
+reboot had been hiding the second one for months.
+
+phase1 gates the reboot on every Flux Kustomization reporting `Ready=True`. Flux
+reports `Ready=Unknown/Progressing` for roughly one second of each 60s reconcile,
+so a single sample finds all-True only 76-83% of the time — measured against the
+live healthy cluster at 5 failures in 30 samples. The retry cadence was
+`retries: 3, delay: 30`. The trap is `gcd(delay, interval)`, not the tempting
+"delay must not divide 60":
+
+| delay | gcd(delay,60) | distinct phases sampled |
+|---|---|---|
+| 7s | 1 | 60 |
+| 24s | 12 | 5 |
+| 30s | 30 | 2 |
+
+At `delay: 30` the four attempts behaved like two. All four hit `Progressing`,
+phase1 exited 2, and no node rebooted.
+
+That mattered because of a coincidence nobody had noticed. `OnCalendar=Sat
+*-*-* 04:30:00 UTC` is a 168h cycle, and Loki's chart-default
+`reject_old_samples_max_age` is also 168h. Alloy's `loki.source.kubernetes`
+re-opens every tailer hourly and replays the last log line of each idle
+container — svclb, config-reloader, metrics-server, cainjector, kyverno. The
+weekly reboot refreshed those lines about an hour before they aged out, every
+week. The first skipped reboot let them cross 168h, and Loki answered
+`has timestamp too old`.
+
+No logs were lost. Loki discarded 480 entries per 12h; Alloy reported 6143
+against 1,228,685 sent, because its client marks a whole batch dropped on a 400
+and the co-batched fresh entries were stored. Read
+`loki_discarded_samples_total` for the true figure —
+`loki_write_dropped_entries_total` is an upper bound.
+
+| Fix | Change |
+|---|---|
+| preflight aliasing | `retries: 20, delay: 7`; 7 is coprime with 60, so the 21 attempts sample distinct phases. Measured longest failure run: 2 |
+| zero-margin reject window | `reject_old_samples_max_age: 720h`, matching `retention_period` |
+
+The predicate itself stayed `!= "True"`. An earlier draft relaxed it to
+`== "False"` so that `Unknown` would pass; review caught that this fails open,
+because a kustomize-controller that dies mid-reconcile leaves `Unknown` set
+forever and the gate would then wave a reboot through on a broken cluster.
+
+Shipped in `0e78e618`. The re-run that night passed the preflight on its first
+attempt with no retries, rebooted all four nodes cleanly (`failed=0
+unreachable=0 rescued=0`, `pkg-upgrade: OK` on every node), and the alert
+cleared. immich-server needed three restarts to pass its startup probe on the
+GPU VM cold start before going Ready — its startup budget is tight, and is worth
+widening separately.
+
+---
+
 ### 2026-08-20 — A power cut, and both workers rebooted themselves an hour after the power returned
 
 Mains power died at 12:35 and came back at 16:03. All four nodes and the NAS booted on their own. What needed explaining was not the outage — it was the hour after it, in which both workers rebooted themselves and the control-plane restarted `k3s` eight times, with nobody logged in.
