@@ -40,9 +40,12 @@
         fail_msg: "Disk preflight failed: {{ disk_check.stdout }}"
 
     - name: Preflight — Flux kustomizations all Ready
-      # Single-shot check false-positived on a Kustomization caught mid-reconcile
-      # (Ready=Unknown reads as != "True"). Retry to let in-flight reconciles
-      # settle; fail only if still not-Ready after all attempts (real stall).
+      # Kustomizations reconcile every 60s and report Ready=Unknown while in
+      # flight. Unknown is indeterminate rather than healthy, so the check
+      # requires every Ready condition to be True and retries instead. Keep the
+      # delay coprime with the 60s interval: a shared factor samples only
+      # 60/gcd distinct phases, so a healthy cluster can fail every attempt and
+      # abort the reboot.
       ansible.builtin.shell: |
         set -o pipefail
         kubectl --kubeconfig={{ kubeconfig_path }} get kustomization -n flux-system -o json \
@@ -51,8 +54,8 @@
         executable: /bin/bash
       register: flux_ready
       until: flux_ready.rc == 0
-      retries: 3
-      delay: 30
+      retries: 20
+      delay: 7
       changed_when: false
       check_mode: false
 
