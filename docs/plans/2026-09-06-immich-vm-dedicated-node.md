@@ -14,7 +14,7 @@
 
 - GitOps only. No `kubectl edit/patch/replace`. Two imperative steps are sanctioned by this plan and nothing else: `kubectl taint` on the Node object, which Flux does not manage and whose source of truth becomes `host_vars/immich-vm.yml`; and `kubectl delete pod` on the two DaemonSet pods that must leave the node.
 - Order is load-bearing: Task 1 (ansible) must be **applied on the VM** before Task 2 merges, or local-path creates the cache directory on the VM's 32 G root.
-- Every non-docs commit goes through the pre-commit review loop in `AGENTS.md`: Codex static review via `~/.agents/skills/_shared/codex-review.sh --diff <file> --prompt <file>`, findings processed with `superpowers:receiving-code-review`, delta-scoped re-review, severity table decides the commit. Docs-only commits are exempt.
+- Every non-docs change is reviewed **before** it is committed, per the pre-commit loop in `AGENTS.md`: the implementer leaves the diff uncommitted in the worktree; the coordinator reviews `git diff HEAD` via `~/.agents/skills/_shared/codex-review.sh --diff <file> --prompt <file>`, processes findings with `superpowers:receiving-code-review`, re-reviews delta-scoped, and commits only when the severity table allows. Docs-only commits are exempt.
 - Work happens in worktree `.claude/worktrees/immich-vm-taint` on branch `wt-immich-vm-taint`. Merge with `bash ~/.agents/skills/_shared/merge-worktree.sh wt-immich-vm-taint` (no `--teardown` until Task 4).
 - Commit messages: single line, no Claude mention.
 - Comments earn their place only by naming a coupling, constraint, gotcha or rejected alternative. Docs: tables for enumerable facts, active voice, one idea per sentence.
@@ -69,9 +69,12 @@
 
 ### Accepted trade-offs
 
-- All of Immich now shares the NAS-backed VM disk. A scrub-class stall takes ML and the admin-setup Job down with the server. The Job is idempotent and re-runs daily.
-- The old ML cache on worker-node is deleted by the Helm upgrade. Models re-download on first use over the existing `0.0.0.0/0:443` egress rule.
-- The `k3s_node_taints` line in `config.yaml` is consumed only at registration. The drift-heal writes it and raises the usual "restart k3s" drift alert; the weekly reboot on 2026-09-12 absorbs it. No manual restart.
+| Trade-off | Consequence | Why accepted |
+|---|---|---|
+| All of Immich shares the NAS-backed VM disk | a scrub-class stall takes ML and the admin-setup Job down with the server | the operator asked for it; the Job is idempotent and re-runs daily |
+| The old ML cache on worker-node is deleted by the Helm upgrade | models re-download on first use over the existing `0.0.0.0/0:443` egress rule | the cache is regenerable and excluded from backup by design |
+| `k3s_node_taints` is consumed only at registration | the drift-heal writes it and raises the usual "restart k3s" drift alert; the weekly reboot on 2026-09-12 absorbs it | no manual k3s restart on the GPU VM |
+| k3s-agent gains `RequiresMountsFor=/mnt/k8s-storage` | if the bind mount fails at boot, the node stays NotReady (alert `NodeDown`) instead of local-path writing PVs to the 32 G root LV | a NotReady node is visible; a silent wrong-volume PV is not. The guest still reaches a shell |
 
 ---
 
@@ -104,6 +107,7 @@ Tiers: ✅ verified (official docs or a probe against the live system) · 🟡 s
 | A21 | Leaving coredns-ha off the node does not affect DNS for pods on it | ✅ | `kube-dns` `internalTrafficPolicy=Cluster` |
 | A22 | The ML image stays CPU-only `v3.1.0` for this change | ⚠️ | keeps the move verifiable on its own; `-openvino` is a follow-up |
 | A23 | The taint key is `homelab/dedicated=immich`, not the `homelab/gpu` label key | ⚠️ | says "reserved", not "has a GPU" |
+| A24 | `RequiresMountsFor=` in a unit drop-in adds `Requires=` and `After=` on the mount unit for that path, so k3s-agent cannot start while `/mnt/k8s-storage` is unmounted | ✅ | systemd.unit(5); the hardening role already ships k3s drop-ins this way (`roles/hardening/tasks/main.yml:96-108`, no restart handler, applies on the next k3s start) |
 
 **Validate before build:** A17 and A18 are verified during execution at the steps named; both have a stated fallback.
 
@@ -116,6 +120,7 @@ Tiers: ✅ verified (official docs or a probe against the live system) · 🟡 s
 | `docs/scripts/node-maintenance/ansible/host_vars/immich-vm.yml` | 1 | `k3s_node_taints` for re-registration |
 | `docs/scripts/node-maintenance/ansible/roles/k3s_config/templates/config.yaml.j2` | 1 | generic comment above `node-taint:` |
 | `docs/scripts/node-maintenance/ansible/roles/immich_gpu_node/files/mnt-k8s-storage.mount` | 1 | new: bind-mount unit |
+| `docs/scripts/node-maintenance/ansible/roles/immich_gpu_node/files/k3s-agent-local-path-mount.conf` | 1 | new: k3s-agent drop-in `RequiresMountsFor=/mnt/k8s-storage` |
 | `docs/scripts/node-maintenance/ansible/roles/immich_gpu_node/tasks/main.yml` | 1 | three tasks: dirs, unit file, enable+start |
 | `apps/immich/ml-cache-pvc.yaml` | 2 | new: `immich-ml-cache` PVC |
 | `apps/immich/kustomization.yaml` | 2 | register the PVC |
@@ -156,10 +161,11 @@ Codex review prompt, written once to `$SCRATCH/codex-prompt.md` by the coordinat
 - Modify: `docs/scripts/node-maintenance/ansible/host_vars/immich-vm.yml` (after the `k3s_node_labels` block, line 71)
 - Modify: `docs/scripts/node-maintenance/ansible/roles/k3s_config/templates/config.yaml.j2:33`
 - Create: `docs/scripts/node-maintenance/ansible/roles/immich_gpu_node/files/mnt-k8s-storage.mount`
+- Create: `docs/scripts/node-maintenance/ansible/roles/immich_gpu_node/files/k3s-agent-local-path-mount.conf`
 - Modify: `docs/scripts/node-maintenance/ansible/roles/immich_gpu_node/tasks/main.yml` (insert after the "Enable + start immich-library virtiofs mount" task, before the `# ---- Heal watchdog` banner)
 
 **Interfaces:**
-- Produces: `/mnt/k8s-storage` mounted on immich-vm (bind of `/home/k8s-storage`); `node-taint: ["homelab/dedicated=immich:NoSchedule"]` in the VM's `/etc/rancher/k3s/config.yaml`. Task 2 depends on the mount.
+- Produces: `/mnt/k8s-storage` mounted on immich-vm (bind of `/home/k8s-storage`); k3s-agent depends on that mount; `node-taint: ["homelab/dedicated=immich:NoSchedule"]` in the VM's `/etc/rancher/k3s/config.yaml`. Task 2 depends on the mount.
 
 - [ ] **Step 1 (Implementer): host_vars** — append after the `k3s_node_labels` list:
 
@@ -188,14 +194,25 @@ Type=none
 Options=bind
 # local-path-provisioner writes every PV under /mnt/k8s-storage on every node (nodePathMap default).
 # Without this bind the helper pod mkdir -p's the path on the 32 G root LV; the 125 G home LV is
-# where the k3s data-dir already lives. WantedBy, not RequiredBy: a mount failure must never wedge
-# boot on this VM (GPU reset-bug — the guest must always reach a shell).
+# where the k3s data-dir already lives. WantedBy, not RequiredBy: a mount failure must never prevent
+# boot from reaching a shell on this VM (GPU reset-bug). k3s-agent carries RequiresMountsFor= on this
+# path (drop-in), so a failed mount leaves the node NotReady instead of writing PVs to root.
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-- [ ] **Step 4 (Implementer): role tasks** — insert after the `Enable + start immich-library virtiofs mount` task:
+- [ ] **Step 4 (Implementer): k3s-agent drop-in file** — create `roles/immich_gpu_node/files/k3s-agent-local-path-mount.conf`:
+
+```ini
+[Unit]
+# local-path PVs live under /mnt/k8s-storage (bind of the home LV). Without this dependency a boot
+# with the mount absent lets the kubelet create PV directories on the 32 G root LV. Mirrors the
+# hardening role's k3s drop-ins: no restart handler, takes effect on the next k3s-agent start.
+RequiresMountsFor=/mnt/k8s-storage
+```
+
+- [ ] **Step 5 (Implementer): role tasks** — insert after the `Enable + start immich-library virtiofs mount` task:
 
 ```yaml
 
@@ -230,9 +247,36 @@ WantedBy=multi-user.target
     state: started
     daemon_reload: true
   tags: [immich-gpu-node, local-path]
+
+# k3s-agent must not start without the mount (see the drop-in). No restart here: the mount is
+# already active on this run, and a k3s restart on the GPU VM is a human gate (k3s_config rationale).
+- name: Ensure k3s-agent service.d drop-in dir
+  ansible.builtin.file:
+    path: /etc/systemd/system/k3s-agent.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [immich-gpu-node, local-path]
+
+- name: Deploy k3s-agent RequiresMountsFor drop-in
+  ansible.builtin.copy:
+    src: k3s-agent-local-path-mount.conf
+    dest: /etc/systemd/system/k3s-agent.service.d/local-path-mount.conf
+    owner: root
+    group: root
+    mode: "0644"
+  register: immich_gpu_k3s_mount_dropin
+  tags: [immich-gpu-node, local-path]
+
+- name: Reload systemd for the k3s-agent drop-in
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+  when: immich_gpu_k3s_mount_dropin.changed
+  tags: [immich-gpu-node, local-path]
 ```
 
-- [ ] **Step 5 (Implementer): lint** — from the worktree root:
+- [ ] **Step 6 (Implementer): lint** — from the worktree root:
 
 ```bash
 yamllint docs/scripts/node-maintenance/ansible/host_vars/immich-vm.yml docs/scripts/node-maintenance/ansible/roles/immich_gpu_node/tasks/main.yml
@@ -241,16 +285,16 @@ yamllint docs/scripts/node-maintenance/ansible/host_vars/immich-vm.yml docs/scri
 ```
 Expected: yamllint and syntax-check clean (the syntax-check prints a harmless "Could not match supplied host pattern" warning). `ansible-lint` baseline on 2026-09-06 before this change: exactly one pre-existing failure, `roles/immich_gpu_node/handlers/main.yml:24` command-instead-of-module. Any new finding is yours.
 
-- [ ] **Step 6 (Implementer): commit** — `git status --short` must list only the four files above. Then `git add` them and `git commit -m 'feat(immich-vm): local-path bind mount + registration-time dedicated taint' -- <the four paths>`.
+- [ ] **Step 7 (Implementer): hand over uncommitted** — `git status --short` must list exactly the five files above (two new, three modified) and nothing else. Do not commit. Report the file list and the lint output.
 
-- [ ] **Step 7 (Coordinator): review loop** — `git diff main..HEAD -- docs/scripts > $SCRATCH/t1.diff`, dispatch Codex with the shared prompt, process findings, re-review delta-scoped, commit per the severity table. Then `bash ~/.agents/skills/_shared/merge-worktree.sh wt-immich-vm-taint`.
+- [ ] **Step 8 (Coordinator): review loop, then commit** — `git diff HEAD -- docs/scripts > $SCRATCH/t1.diff` (new files: `git add -N` them first so they appear), dispatch Codex with the shared prompt, process findings, re-review delta-scoped. When the severity table allows: `git add` the five paths and `git commit -m 'feat(immich-vm): local-path bind mount + registration-time dedicated taint' -- <the five paths>`. Then `bash ~/.agents/skills/_shared/merge-worktree.sh wt-immich-vm-taint`.
 
-- [ ] **Step 8 (Coordinator): confirm the drift-heal applied it (A18)** — poll up to 25 min:
+- [ ] **Step 9 (Coordinator): confirm the drift-heal applied it (A18)** — poll up to 25 min:
 
 ```bash
-ssh -p 65300 akhozya@immich-vm 'systemctl is-active "mnt-k8s\x2dstorage.mount"; findmnt -no SOURCE,TARGET /mnt/k8s-storage; grep -A1 "^node-taint" /etc/rancher/k3s/config.yaml'
+ssh -p 65300 akhozya@immich-vm 'systemctl is-active "mnt-k8s\x2dstorage.mount"; findmnt -no SOURCE,TARGET /mnt/k8s-storage; systemctl show k3s-agent -p RequiresMountsFor; grep -A1 "^node-taint" /etc/rancher/k3s/config.yaml'
 ```
-Expected: `active`, `/dev/mapper/ArchinstallVg-home[/k8s-storage] /mnt/k8s-storage`, and the taint line. Fallback if nothing changed after 25 min: ask the operator to run on the CP `sudo systemctl start node-maintenance-sync.service && sudo systemctl start node-maintenance-config.service`. A Telegram "k3s config drift" alert for immich-vm is expected and needs no action.
+Expected: `active`, `/dev/mapper/ArchinstallVg-home[/k8s-storage] /mnt/k8s-storage`, `RequiresMountsFor=/mnt/k8s-storage`, and the taint line. Fallback if nothing changed after 25 min: ask the operator to run on the CP `sudo systemctl start node-maintenance-sync.service && sudo systemctl start node-maintenance-config.service`. A Telegram "k3s config drift" alert for immich-vm is expected and needs no action.
 
 ---
 
@@ -352,9 +396,9 @@ yq 'select(.kind=="PersistentVolumeClaim") | .metadata.name' $SCRATCH/r.yaml
 ```
 Expected: lint clean; `immich-server tol=1 ns={"homelab/gpu":"intel"}`, `immich-machine-learning tol=1 ns={"homelab/gpu":"intel"}`; the PVC query prints nothing (chart no longer owns one). `kubectl apply --dry-run=server -f apps/immich/ml-cache-pvc.yaml` must also pass.
 
-- [ ] **Step 10 (Implementer): commit** — `git status --short` must list exactly the six files. `git commit -m 'feat(immich): pin every Immich workload to immich-vm, relocate the ML cache, tolerate the dedicated taint' -- <paths>`.
+- [ ] **Step 10 (Implementer): hand over uncommitted** — `git status --short` must list exactly the six files (one new, five modified) and nothing else. Do not commit. Report the file list and the validation output.
 
-- [ ] **Step 11 (Coordinator): review loop** — `git diff main..HEAD -- apps infrastructure > $SCRATCH/t2.diff`, Codex dispatch, findings, delta re-review, commit per the table. Merge with `merge-worktree.sh`. Then `flux reconcile source git flux-system && flux reconcile kustomization infrastructure-configs && flux reconcile kustomization apps && flux reconcile helmrelease immich -n immich`.
+- [ ] **Step 11 (Coordinator): review loop, then commit** — `git add -N apps/immich/ml-cache-pvc.yaml && git diff HEAD -- apps infrastructure > $SCRATCH/t2.diff`, Codex dispatch, findings, delta re-review. When the table allows: `git add` the six paths and `git commit -m 'feat(immich): pin every Immich workload to immich-vm, relocate the ML cache, tolerate the dedicated taint' -- <paths>`. Merge with `merge-worktree.sh`. Then `flux reconcile source git flux-system && flux reconcile kustomization infrastructure-configs && flux reconcile kustomization apps && flux reconcile helmrelease immich -n immich`.
 
 - [ ] **Step 12 (Coordinator): verify live** — all must hold before Task 3:
 
@@ -399,12 +443,12 @@ Expected pods on the node: immich-server, immich-machine-learning, intel-gpu-plu
 - [ ] **Step 5: docs** in the worktree (docs-only, review-exempt):
   - `docs/ARCHITECTURE.md:29` mermaid node text → `runs immich-server + ML; dedicated node (NoSchedule taint); library via NAS virtiofs`.
   - `docs/ARCHITECTURE.md:38` replace `the ML PV (\`...immich-machine-learning\`) stays W1-bound, so ML still follows W1` with `ML moved to immich-vm on 2026-09-06 with a git-declared cache PVC on the VM's local-path bind mount; immich-vm carries a \`homelab/dedicated=immich:NoSchedule\` taint, so only Immich pods and the per-node agents run there`.
-  - `docs/ARCHITECTURE.md:142` drop `Immich ML PV still here — the server moved to \`immich-vm\` 2026-07-12` and `immich-server (on \`immich-vm\`, minus ML)` → `Immich (all on \`immich-vm\`)`; `:143` first cell → `Immich web/API + ML down (every Immich pod is pinned there)`.
+  - `docs/ARCHITECTURE.md:142` drop `Immich ML PV still here — the server moved to \`immich-vm\` 2026-07-12` and `immich-server (on \`immich-vm\`, minus ML)` → `Immich (all on \`immich-vm\`)`; `:143` first cell → `Immich web/API + ML down (server, ML and admin-setup are pinned there; heal, backup and DB-init jobs stay off it)`.
   - `docs/HOMELAB_ANALYSIS.md:5` append after `joined 2026-07-10` → `, dedicated to Immich via a NoSchedule taint since 2026-09-06`.
   - `docs/CODEMAPS/apps.md:13` → `server + ML pods on \`immich-vm\` (dedicated node, taint \`homelab/dedicated=immich\`)`.
   - `docs/setup/K3S_SETUP.md` Node Scheduling list: add `- **immich-vm**: tainted \`homelab/dedicated=immich:NoSchedule\` — Immich pods + per-node agents only (\`host_vars/immich-vm.yml\`)`.
   - `docs/scripts/node-maintenance/README.md:11` role phrase → `immich_gpu_node\` (immich-vm only: GPU-node substrate — heal script, watchdog units, sysctl/cmdline guards, local-path bind mount)`.
-  - `docs/HOMELAB_HISTORY.md`: in the 2026-09-06 entry's follow-up table, replace the fence row status with `shipped <sha-task1>, <sha-task2>; taint applied <time>`; add one paragraph after the table naming the mechanics (taint, tolerations, ML cache relocation, the two DaemonSet pods that left, the four exceptions).
+  - `docs/HOMELAB_HISTORY.md`: in the 2026-09-06 entry's follow-up table, replace the fence row status with `shipped <sha-task1>, <sha-task2>; taint applied <time>`; add a two-column table after it (`Change | Detail`) with rows for the taint, the tolerations, the ML cache relocation, the two DaemonSet pods that left, and the four exceptions.
   - Commit: `docs: immich-vm is a dedicated Immich node`. Merge with `merge-worktree.sh`.
 
 - [ ] **Step 6: memory** — update `project_immich_gpu_transcode.md` and `gotcha_nas_sdb_failing_scrub_only.md` (fence shipped; ML on the VM; `-openvino` follow-up open), and the MEMORY.md index lines.
@@ -423,9 +467,22 @@ Expected pods on the node: immich-server, immich-machine-learning, intel-gpu-plu
 
 ## Rollback
 
-| Symptom | Action |
+What `kubectl taint node immich-vm homelab/dedicated:NoSchedule-` does and does not do:
+
+| Effect | Taint removal |
 |---|---|
-| ML pod Pending on immich-vm (PVC unbound) | `kubectl -n immich describe pvc immich-ml-cache`; if the helper failed on `/mnt/k8s-storage`, fix the mount (Task 1) and let the provisioner retry |
-| immich-server not Ready after the roll | revert Task 2's server toleration only if the failure is in the toleration; a startup-probe timeout is the known cold-start issue, wait one more restart |
-| A component evicted or missing on the node | `kubectl taint node immich-vm homelab/dedicated:NoSchedule-` restores the previous state instantly; manifests stay, nothing else changes |
-| Old ML PVC survived (A8) | report to the operator; deletion is theirs to approve |
+| Other pods may schedule on immich-vm again | yes, on the scheduler's next pass (asynchronous) |
+| ML placement | unchanged: its nodeSelector still pins it to the VM |
+| Old ML cache on worker-node | already deleted by the Helm upgrade; not restored |
+| Tolerations in git | unchanged; harmless without the taint |
+
+**Never `git revert` the whole Task 2 commit while the taint is present.** That commit also carries the tolerations for immich-server, the admin-setup Job and intel-gpu-plugin; without them the server's replacement pod cannot schedule onto the tainted node it is pinned to, and Immich goes down. Rollbacks below are targeted edits, or remove the taint first.
+
+| Symptom | Action | Readiness check |
+|---|---|---|
+| ML pod Pending on immich-vm (PVC unbound) | `kubectl -n immich describe pvc immich-ml-cache`; if the helper failed on `/mnt/k8s-storage`, fix the mount (Task 1) and let the provisioner retry | PVC `Bound`, `kubectl -n immich rollout status deploy/immich-machine-learning` |
+| immich-server not Ready after the roll | a startup-probe timeout is the known cold-start issue: wait one more restart. Revert the server toleration only if the failure is in the toleration, and only after removing the taint | `kubectl -n immich rollout status deploy/immich-server` |
+| A per-node agent missing from the node after the taint | remove the taint (command above), fix its toleration in git, merge, then re-taint | `kubectl get pods -A --field-selector spec.nodeName=immich-vm -o wide` lists a `Running` `1/1` pod for intel-gpu-plugin, node-exporter and alloy, checked again after the taint is re-applied. Aggregate DaemonSet counts do not prove the node is covered |
+| Undo the ML relocation only | targeted git change; the server, Job and intel-gpu-plugin tolerations stay. Delete the ML `pod:` block (Task 2 step 4), which removes ML's nodeSelector and its toleration together, as intended: ML must leave the tainted node; restore the cache item to `type: persistentVolumeClaim`, `size: 10Gi`, `storageClass: local-path`, `accessMode: ReadWriteOnce` and drop `existingClaim`; delete `apps/immich/ml-cache-pvc.yaml` and its kustomization line. Merge. Flux prunes the git PVC (its PV on the VM is deleted); the chart recreates its own 10 Gi PVC, bound to whichever node schedules ML first; models re-download | `kubectl -n immich get pvc` shows `immich-machine-learning` `Bound`; `kubectl -n immich rollout status deploy/immich-machine-learning` green; immich-server untouched |
+| Undo the node-side change | `git revert` the Task 1 commit and merge; the drift-heal removes nothing on its own, so the mount unit and drop-in stay until an operator removes them. Both are harmless with no PV under the path | `systemctl show k3s-agent -p RequiresMountsFor` (informational) |
+| Old ML PVC survived (A8) | report to the operator; deletion is theirs to approve | — |
