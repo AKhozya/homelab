@@ -17,6 +17,19 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-09-06 — Immich ML inference moves to the immich-vm iGPU (OpenVINO)
+
+Immich ML moved to immich-vm earlier on 2026-09-06 and ran there on the CPU. The `-openvino` image puts inference on the VM's Meteor Lake Arc iGPU through ONNX Runtime's OpenVINO execution provider. Commit `4a5255cf`; plan `docs/plans/2026-09-06-immich-ml-openvino.md`.
+
+| Change | Detail |
+|---|---|
+| Image | `immich-machine-learning:v3.1.0-openvino` (Python 3.13, onnxruntime-openvino 1.24.1, intel-opencl-icd 26.22) |
+| GPU access | `gpu.intel.com/i915: "1"` via the Intel device plugin; pod `supplementalGroups` 983 (video), 987 (render) |
+| Memory limit | 2355Mi → 4Gi (OpenVINO keeps model buffers in system RAM); requests unchanged |
+| rapidocr mount path | `python3.11` → `python3.13`, tied to the image variant |
+| Gate | `get_available_openvino_device_ids()` = `['CPU', 'GPU']`; first `/predict` `4.52 s` (first-request latency, includes the GPU compile), warm `0.022 s`; the ML worker's i915 `drm-engine-compute` counter rose 112240128 ns → 124969624 ns (12.73 ms) across one /predict while render/copy/video/video-enhance stayed at 0 ns; a cold session reload from the compiled blob answered in 1.09 s; GPU clock peaked at 1517 MHz; journal clean |
+| Follow-ups | trim the memory limit after a week of metrics; FP16 (`MACHINE_LEARNING_OPENVINO_PRECISION`) and a larger CLIP model are separate changes |
+
 ### 2026-09-06 — The NAS scrub stalled immich-vm again, and five unrelated init Jobs waited on it
 
 At 18:23 local, `PodsPending` and `PodPhaseNotRunning` fired for five pods at

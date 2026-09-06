@@ -33,7 +33,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 |---|---|---|
 | Authentik | Provider | Identity provider; PostgreSQL backend; passkey-first login |
 | Home Assistant | OIDC | Smart home; MySQL |
-| Immich | OIDC | Photo & video management; GPU-accelerated ML |
+| Immich | OIDC | Photo & video management; Intel QSV transcoding and OpenVINO ML inference on the immich-vm iGPU |
 | Audiobookshelf | OIDC | Audiobook & podcast library |
 | Paperless-NGX | OIDC | Document archive with OCR |
 | Linkwarden | OIDC | Bookmarks + Meilisearch |

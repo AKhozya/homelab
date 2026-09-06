@@ -26,7 +26,7 @@ flowchart TB
     W1["worker-node (W1) · .129<br/>/mnt/k8s-storage (0700)<br/>hosts most app PVs (local-path)"]
     W2["worker-node-2 (W2) · .126<br/>/mnt/extra-storage<br/>SSH user z3us (not akhozya)"]
     NAS["NAS<br/>rsync daemon :50555"]
-    VM["immich-vm · .231<br/>GPU worker (Arch VM on the NAS, Intel QSV passthrough)<br/>runs immich-server + ML; dedicated node (NoSchedule taint); library via NAS virtiofs"]
+    VM["immich-vm · .231<br/>GPU worker (Arch VM on the NAS, Intel QSV passthrough)<br/>runs immich-server + ML (OpenVINO on the iGPU); dedicated node (NoSchedule taint); library via NAS virtiofs"]
   end
   CP -. k3s API .-> W1
   CP -. k3s API .-> W2

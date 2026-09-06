@@ -10,7 +10,7 @@ Application stacks, one dir each under `apps/<name>/` (flat, single-env). Image 
 | **blocky** | blocky | none (Secret config) | PG `blocky` (query log) + Redis HA db1 | — | LAN DNS :53 | 2 replicas, single LB Service on W1+W2 IPs; LAN clients only — nodes + CoreDNS use public DNS |
 | **stirling-pdf** | stirling-pdf | PVC | — | OIDC | both | PDF tools; `-fat` image variant |
 | **homehub** | homehub | PVC | — | — | int | Family dashboard |
-| **immich** | immich | NAS library (virtiofs hostPath) | PostgreSQL + Redis (static master Service) | OIDC | both | Helm chart `immich` (`apps/immich/release.yaml`); server + ML pods on `immich-vm` (dedicated node, taint `homelab/dedicated=immich`) |
+| **immich** | immich | NAS library (virtiofs hostPath) | PostgreSQL + Redis (static master Service) | OIDC | both | Helm chart `immich` (`apps/immich/release.yaml`); server + ML pods on `immich-vm` (dedicated node, taint `homelab/dedicated=immich`); ML inference on the iGPU via the `-openvino` image (2026-09-06) |
 | **paperless-ngx** | paperless-ngx | PVC | PostgreSQL + Redis (static master Service) | OIDC | both | Doc mgmt |
 | **home-assistant** | home-assistant | PVC | MySQL | OIDC | int | Smart home; not in Cloudflare tunnel config (verified 2026-07-16 from SOPS) |
 | **linkwarden** | linkwarden | PVC + Meilisearch PVC | PostgreSQL | OIDC | both | Bookmarks |
