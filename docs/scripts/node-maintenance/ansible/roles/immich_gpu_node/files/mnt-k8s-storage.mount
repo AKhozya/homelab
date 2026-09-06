@@ -1,0 +1,17 @@
+[Unit]
+Description=local-path-provisioner volume root (bind of /home/k8s-storage)
+Documentation=https://github.com/AKhozya/homelab
+
+[Mount]
+What=/home/k8s-storage
+Where=/mnt/k8s-storage
+Type=none
+Options=bind
+# local-path-provisioner writes every PV under /mnt/k8s-storage on every node (nodePathMap default).
+# If this bind is absent, the helper pod mkdir -p's the path on the 32 G root LV; the 125 G home LV is
+# where the k3s data-dir already lives. WantedBy, not RequiredBy: a mount failure must never prevent
+# boot from reaching a shell on this VM (GPU reset-bug). k3s-agent carries RequiresMountsFor= on this
+# path (drop-in), so a failed mount leaves the node NotReady instead of writing PVs to root.
+
+[Install]
+WantedBy=multi-user.target

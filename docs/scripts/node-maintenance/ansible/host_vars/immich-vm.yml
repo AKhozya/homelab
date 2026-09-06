@@ -70,6 +70,13 @@ k3s_data_dir: /home/k3s
 k3s_node_labels:
   - "homelab/gpu=intel"
 
+# Registration-time taint: blocks new pods that lack a matching toleration from the NAS-backed
+# VM (the 2026-09-06 scrub stall caught five foreign init Jobs here). k3s reads node-taint only
+# when the node first joins, so the live node was tainted once with `kubectl taint`; this line
+# covers a re-join.
+k3s_node_taints:
+  - "homelab/dedicated=immich:NoSchedule"
+
 # NOTE: k3s_prefer_bundled_bin is NOT set here — it is inherited as `true` from group_vars/workers.yml
 # (the VM is a `workers` member), which is the desired value (iptables-nft stale-chain avoidance,
 # gotcha_k3s_reboot_ordering). Re-declaring it would be redundant.

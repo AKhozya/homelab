@@ -266,6 +266,59 @@
     daemon_reload: true
   tags: [immich-gpu-node, virtiofs]
 
+# ---- local-path volume root ----
+# local-path-provisioner uses /mnt/k8s-storage on every node. The VM has no separate data volume,
+# so bind the path onto the home LV (same reasoning as k3s_data_dir=/home/k3s in host_vars).
+# 0700 matches what local-path's helper enforces on the volume root (chmod 700 on the parent).
+- name: Ensure local-path source and mountpoint dirs
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  loop:
+    - /home/k8s-storage
+    - /mnt/k8s-storage
+  tags: [immich-gpu-node, local-path]
+
+- name: Deploy local-path bind mount unit
+  ansible.builtin.copy:
+    src: mnt-k8s-storage.mount
+    dest: '/etc/systemd/system/mnt-k8s\x2dstorage.mount'
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [immich-gpu-node, local-path]
+
+# k3s-agent must not start without the mount (see the drop-in). The bind-mount task below runs
+# daemon_reload, which loads this drop-in. No k3s restart: that is a human gate on the GPU VM.
+- name: Ensure k3s-agent service.d drop-in dir
+  ansible.builtin.file:
+    path: /etc/systemd/system/k3s-agent.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [immich-gpu-node, local-path]
+
+- name: Deploy k3s-agent RequiresMountsFor drop-in
+  ansible.builtin.copy:
+    src: k3s-agent-local-path-mount.conf
+    dest: /etc/systemd/system/k3s-agent.service.d/local-path-mount.conf
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [immich-gpu-node, local-path]
+
+- name: Enable + start local-path bind mount
+  ansible.builtin.systemd_service:
+    name: 'mnt-k8s\x2dstorage.mount'
+    enabled: true
+    state: started
+    daemon_reload: true
+  tags: [immich-gpu-node, local-path]
+
 # ---- Heal watchdog (mirrors clusterip_heal) ----
 
 # /var/lib/node-maintenance is node-maintenance's HOME (owned by base_config, 0751). Do NOT re-assert
