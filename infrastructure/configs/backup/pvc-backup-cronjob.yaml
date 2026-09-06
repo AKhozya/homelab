@@ -77,7 +77,7 @@ spec:
                   # Excluded by design (do not add back without explicit reason):
                   #   - CouchDB / PostgreSQL / MySQL data dirs — DB-native dumps (separate CronJobs)
                   #   - immich/immich-library — weekly via immich-backup CronJob (63G, too big for daily)
-                  #   - immich/immich-machine-learning — regenerable ML cache
+                  #   - immich/immich-ml-cache — regenerable ML cache (on immich-vm since 2026-09-06)
                   #   - uptime-kuma — removed 2026-05-22 (UK switched to emptyDir, state lives in MySQL)
                   #   - claude-telegram/claude-telegram-home-pvc — expendable (session-only state,
                   #     bot self-rebuilds on restart, secrets live in SOPS)

@@ -6,6 +6,7 @@ resources:
   - serviceaccount.yaml
   - repository.yaml
   - release.yaml
+  - ml-cache-pvc.yaml
   - admin-setup-job-networkpolicy.yaml
   - admin-setup-job.yaml
   - networkpolicy.yaml

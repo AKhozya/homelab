@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-ml-cache
+  namespace: immich
+  labels:
+    app.kubernetes.io/name: immich-machine-learning
+    app.kubernetes.io/instance: immich
+spec:
+  # Declared here, not by the chart: local-path binds a PV to the node of first use, and the chart's
+  # own PVC was bound to worker-node. A new claim lets ML follow the immich-vm nodeSelector.
+  # Regenerable model cache — excluded from pvc-backup by design.
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi

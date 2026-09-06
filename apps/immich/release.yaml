@@ -190,6 +190,11 @@ spec:
             # Pin the server to the immich-vm GPU node (Intel iGPU + NAS virtiofs library).
             nodeSelector:
               homelab/gpu: intel
+            tolerations:
+              - key: homelab/dedicated
+                operator: Equal
+                value: immich
+                effect: NoSchedule
             securityContext:
               runAsUser: 1000
               runAsGroup: 1000
@@ -376,6 +381,15 @@ spec:
                     timeoutSeconds: 5
                     failureThreshold: 5
           pod:
+            # Follows the server onto immich-vm (dedicated node). CPU inference for now; the
+            # -openvino image is a separate change.
+            nodeSelector:
+              homelab/gpu: intel
+            tolerations:
+              - key: homelab/dedicated
+                operator: Equal
+                value: immich
+                effect: NoSchedule
             securityContext:
               runAsUser: 1000
               runAsGroup: 1000
@@ -386,9 +400,9 @@ spec:
         cache:
           enabled: true
           type: persistentVolumeClaim
-          size: 10Gi
-          storageClass: local-path
-          accessMode: ReadWriteOnce
+          # existingClaim excludes size/storageClass/accessMode (chart schema oneOf). The claim is
+          # apps/immich/ml-cache-pvc.yaml; Helm deletes the old chart-owned PVC on worker-node during this upgrade.
+          existingClaim: immich-ml-cache
         tmp:
           enabled: true
           type: emptyDir

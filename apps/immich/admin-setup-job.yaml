@@ -16,6 +16,15 @@ spec:
       serviceAccountName: immich
       automountServiceAccountToken: false
       priorityClassName: homelab-standard
+      # Immich-only node. Trade-off accepted 2026-09-06: a scrub-class stall on the VM holds this
+      # Job too; it is idempotent and the daily force re-run retries it.
+      nodeSelector:
+        homelab/gpu: intel
+      tolerations:
+        - key: homelab/dedicated
+          operator: Equal
+          value: immich
+          effect: NoSchedule
       restartPolicy: OnFailure
       securityContext:
         runAsUser: 65534
