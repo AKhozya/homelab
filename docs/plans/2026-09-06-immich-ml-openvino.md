@@ -119,6 +119,7 @@ Codex rounds on this file, contract in the Appendix. Round log:
 |---|---|---|
 | 1 | REQUEST-CHANGES | MEDIUM ×3: the clock cannot attribute GPU activity to ML (immich-server shares the GPU); the blob check accepted an empty directory; `rollout status` can pass against the previous Deployment revision. LOW: "the time is the GPU compile" overstated what curl measures. NIT: tech stack in prose; "when" for a condition. All folded in |
 | 2 | REQUEST-CHANGES | MEDIUM: the image-wait loop fell through to `rollout status` after 60 misses. NIT: step 7 expectations in prose. Both folded in (explicit fail after 10 min; table) |
+| 3 | REQUEST-CHANGES | MEDIUM: `false` after the loop does not stop a pasted block, so `rollout status` still ran on timeout. Folded in: the two follow-up commands are gated on the flag; both paths executed |
 
 ## Task 1: Manifest change
 
@@ -248,12 +249,13 @@ Expected: lint clean; one grep hit; the jq line is exactly
 ```bash
 flux reconcile kustomization apps --with-source
 flux reconcile helmrelease immich -n immich
-ok=0; for i in $(seq 1 60); do kubectl -n immich get deploy immich-machine-learning -o jsonpath='{.spec.template.spec.containers[0].image}' | grep -q -- '-openvino' && { echo "new template on iteration $i"; ok=1; break; }; sleep 10; done; [ "$ok" = 1 ] || { echo "no new template after 10 min: stop; check flux get helmrelease immich -n immich"; false; }
-flux get helmrelease immich -n immich
-kubectl -n immich rollout status deploy/immich-machine-learning --timeout=900s
+ok=0; for i in $(seq 1 60); do kubectl -n immich get deploy immich-machine-learning -o jsonpath='{.spec.template.spec.containers[0].image}' | grep -q -- '-openvino' && { echo "new template on iteration $i"; ok=1; break; }; sleep 10; done
+[ "$ok" = 1 ] || echo "no new template after 10 min: stop; check flux get helmrelease immich -n immich"
+[ "$ok" = 1 ] && flux get helmrelease immich -n immich
+[ "$ok" = 1 ] && kubectl -n immich rollout status deploy/immich-machine-learning --timeout=900s
 ```
 
-`rollout status` on its own can return green against the previous Deployment revision before helm-controller applies the upgrade, so the loop waits for the new pod template first and fails loudly after 10 minutes. If it prints the `stop` line, do not run `rollout status` and do not record completion: read `flux get helmrelease immich -n immich` and `kubectl -n immich describe helmrelease immich`, fix the cause, and rerun the block. Expected: the loop prints an iteration number; `flux get` shows `Helm upgrade succeeded` with a release revision one higher than before (`immich.v43` on 2026-09-06); the old pod terminates; the new pod pulls and passes its startup probe (up to 600 s budget). Append `Task 1: complete <sha>` to the ledger and copy it outside the worktree.
+`rollout status` on its own can return green against the previous Deployment revision before helm-controller applies the upgrade, so the loop waits for the new pod template first, and the two commands after it run only if the flag is set. Both paths were executed on 2026-09-06. If the block prints the `stop` line, do not record completion: read `flux get helmrelease immich -n immich` and `kubectl -n immich describe helmrelease immich`, fix the cause, and rerun the block. Expected: the loop prints an iteration number; `flux get` shows `Helm upgrade succeeded` with a release revision one higher than before (`immich.v43` on 2026-09-06); the old pod terminates; the new pod pulls and passes its startup probe (up to 600 s budget). Append `Task 1: complete <sha>` to the ledger and copy it outside the worktree.
 
 ## Task 2: Verification (read-only)
 
