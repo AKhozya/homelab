@@ -100,10 +100,10 @@ spec:
                 path: /spec/template/spec/containers/0/volumeMounts/-
                 value:
                   name: rapidocr-models
-                  # The Python minor version is hardcoded in this path. Bump it when Immich ML
-                  # moves Python, roughly once a year. A version-independent symlink does not
-                  # work: /opt/venv is root-owned and the container runs as uid 1000.
-                  mountPath: /opt/venv/lib/python3.11/site-packages/rapidocr/models
+                  # This path must match the image variant's Python minor: the -openvino image builds
+                  # on python:3.13, the CPU image on 3.11. Bump it with the tag. A version-independent
+                  # symlink does not work: root owns /opt/venv and the container runs as uid 1000.
+                  mountPath: /opt/venv/lib/python3.13/site-packages/rapidocr/models
           # Strategic merge patch: bump readiness timeoutSeconds 1→5.
           # JSON patch op in the block above silently failed (Kustomize
           # treats multi-doc JSON-patch arrays as SMP when target lacks
@@ -326,7 +326,10 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-machine-learning
-                tag: v3.1.0  # CPU-only (ROCm gfx1036 not supported)
+                # -openvino: ONNX Runtime with the OpenVINO execution provider on the VM's Meteor Lake
+                # iGPU. The version part must match the server tag; Renovate keeps the suffix on bumps.
+                # This variant runs Python 3.13, which the rapidocr mountPath in the postRenderer follows.
+                tag: v3.1.0-openvino
                 pullPolicy: IfNotPresent
               env:
                 TRANSFORMERS_CACHE: /cache
@@ -336,15 +339,18 @@ spec:
                 # at boot (observed 2026-05-31 reboot recovery). immich doesn't use gunicorn's
                 # control CLI, so disable it — eliminates the error while keeping readOnlyRootFilesystem.
                 GUNICORN_CMD_ARGS: "--no-control-socket"
-              # ML resources bumped 2026-06-28: CPU limit 2x (2000m→4000m) for inference throughput;
-              # RAM limit +15% (2Gi→2355Mi) — 7d peak hit ~78% of 2Gi, too close to OOM headroom.
+              # gpu.intel.com/i915: the Intel device plugin injects /dev/dri (10 shares per node, the
+              # server holds one). OpenVINO keeps model buffers in system RAM charged to this cgroup;
+              # the CPU-path 7d peak was ~1.45 GiB, so 4Gi is headroom to trim after a week of metrics.
               resources:
                 requests:
                   cpu: 200m
                   memory: 512Mi
+                  gpu.intel.com/i915: "1"
                 limits:
                   cpu: 4000m
-                  memory: 2355Mi
+                  memory: 4Gi
+                  gpu.intel.com/i915: "1"
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
@@ -381,8 +387,7 @@ spec:
                     timeoutSeconds: 5
                     failureThreshold: 5
           pod:
-            # Follows the server onto immich-vm (dedicated node). CPU inference for now; the
-            # -openvino image is a separate change.
+            # Follows the server onto immich-vm (dedicated node); inference runs on its iGPU.
             nodeSelector:
               homelab/gpu: intel
             tolerations:
@@ -394,6 +399,11 @@ spec:
               runAsUser: 1000
               runAsGroup: 1000
               fsGroup: 1000
+              # The injected /dev/dri nodes are root:video (card*) and root:render (renderD*) on
+              # immich-vm; the GIDs let the non-root pod open them. Same block as the server.
+              supplementalGroups:
+                - 983  # video group on immich-vm
+                - 987  # render group on immich-vm
               seccompProfile:
                 type: RuntimeDefault
       persistence:
