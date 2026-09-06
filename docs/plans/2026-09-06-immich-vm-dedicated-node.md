@@ -334,10 +334,9 @@ spec:
 
 - [ ] **Step 3 (Implementer): server toleration** — in `apps/immich/release.yaml`, under `server.controllers.main.pod`, directly after the two `nodeSelector` lines (`homelab/gpu: intel`), insert the shared toleration block at the same indentation as `nodeSelector`.
 
-- [ ] **Step 4 (Implementer): ML pin** — under `machine-learning.controllers.main`, insert a `pod:` block before `containers:` at the same indentation:
+- [ ] **Step 4 (Implementer): ML pin** — `machine-learning.controllers.main` already has a `pod:` block (after `containers:`, holding `securityContext`). Add these keys at the top of that existing block; a second `pod:` key would be a duplicate mapping that yamllint rejects and yq silently collapses:
 
 ```yaml
-          pod:
             # Follows the server onto immich-vm (dedicated node). CPU inference for now; the
             # -openvino image is a separate change.
             nodeSelector:
@@ -356,7 +355,7 @@ spec:
           enabled: true
           type: persistentVolumeClaim
           # existingClaim excludes size/storageClass/accessMode (chart schema oneOf). The claim is
-          # apps/immich/ml-cache-pvc.yaml; the old chart-owned PVC on worker-node is deleted by this upgrade.
+          # apps/immich/ml-cache-pvc.yaml; Helm deletes the old chart-owned PVC on worker-node during this upgrade.
           existingClaim: immich-ml-cache
 ```
 
