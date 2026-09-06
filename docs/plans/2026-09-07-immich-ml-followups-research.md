@@ -11,7 +11,7 @@ Tiers: ✅ verified against the live system or primary source · 🟡 single-sou
 | Question | Answer |
 |---|---|
 | Should FP16 go on now? | **No.** Open upstream bug breaks OCR, which is live here. |
-| Should the CLIP model change now? | **Yes, worth doing — `ViT-B-16-SigLIP2__webli`** — but it needs the memory limit at ~6Gi first, it wipes all 5,874 embeddings, and the re-index is manual. Measure before committing to the limit (§6). |
+| Should the CLIP model change now? | **Yes — `ViT-B-16-SigLIP2__webli`, measured at 3,438 Mi.** The limit is already at 6Gi (`bebea4d9`) and both its compiled blobs are cached. The change wipes all 5,874 embeddings and the re-index is manual, ~25 min. |
 | Should the 4Gi limit be trimmed, as the plan said? | **No — that follow-up is wrong.** Measured 2,435 Mi with both CLIP towers loaded. Trimming blocks any model upgrade. |
 
 ## 1. FP16 (`MACHINE_LEARNING_OPENVINO_PRECISION`)
@@ -153,38 +153,53 @@ the same user might search in different languages at different times". `nllb` mo
 query to match a per-user language setting, so they are **out** for mixed EN/RU despite topping the
 Ukrainian table. ✅
 
-### Sizing, corrected
+### Sizing — MEASURED 2026-09-07, superseding the estimates
 
-The docs' "Memory (MiB)" column and the real download size disagree in *rank*, so the docs column
-cannot be used to size a pod. The `ViT-L-16-SigLIP2` models publish `textual/model.onnx` at 1 MiB
-but ship the weights beside it as external data — a **1,000 MiB `text.token_embedding.weight`**
-plus ~80 external MatMul tensors. Counting only `*.onnx` misses ~2 GiB. ✅
+The estimates first written here were extrapolations and they were wrong. Each candidate was
+probe-loaded on the live pod by calling `/predict` with its `modelName`, which loads a model
+**without touching Immich's config** — no embedding is deleted and search keeps serving. ✅
 
-Estimates below use the real `textual/` + `visual/` download size (excluding the `rknpu/` Rockchip
-variants Immich does not fetch) and the measured ratio from the one model we have on the live pod:
-583 MiB on disk → 2,198 Mi attributable resident = **3.77×**. ⚠️ Still an extrapolation from a
-single model, and the docs/disk rank disagreement is a warning that it may not transfer.
+| Model | RU | EN | Est. was | **Measured, both towers** | Verdict |
+|---|---|---|---|---|---|
+| `ViT-B-32__openai` *(current)* | not benchmarked | 69.9% | — | **2,435 Mi** | English-only; collapses on Cyrillic |
+| **`ViT-B-16-SigLIP2__webli`** | **80.9%** | **84.9%** | ~5,757 Mi | **3,438 Mi** | **recommended — fits well inside 6Gi** |
+| `ViT-L-16-SigLIP2-256__webli` | 83.1% | 85.0% | ~13,040 Mi | textual alone 3,275 Mi; **OOMKilled** adding visual at 6Gi | rejected |
 
-| Model | RU | EN | Disk (MiB) | Est. pod | vs 4Gi | Verdict |
-|---|---|---|---|---|---|---|
-| `ViT-B-32__openai` *(current)* | not benchmarked | 69.9% | 583 | 2,435 Mi *(measured)* | fits | English-only; collapses on Cyrillic |
-| **`ViT-B-16-SigLIP2__webli`** | **80.9%** | **84.9%** | 1,464 | ~5,757 Mi (5.6 GiB) | needs ~6Gi | **best mixed EN/RU that could fit** |
-| `ViT-B-32-SigLIP2-256__webli` | 78.1% | 82.3% | 1,471 | ~5,783 Mi | needs ~6Gi | same memory, worse both languages; only wins on latency (3.3 ms) |
-| `XLM-Roberta-Base-ViT-B-32__laion5b` | 76.4% | 76.9% | 1,418 | ~5,583 Mi | needs ~6Gi | worse than the above on both languages |
-| `ViT-L-16-SigLIP2-256__webli` | 83.1% | 85.0% | 3,396 | ~13,040 Mi (12.7 GiB) | **exceeds the node** | docs claim 2,830 MiB — do not believe it |
-| `ViT-L-16-SigLIP2-384__webli` | 83.7% | 85.5% | 3,398 | ~13,048 Mi | **exceeds the node** | same |
+The 3.77× disk-to-resident ratio does not transfer between model families: it over-predicted
+`ViT-B-16-SigLIP2__webli` by 67%. Treat any unmeasured model as unknown, and probe it.
 
-### The recommendation
+### Why `ViT-L-16-SigLIP2-256__webli` is rejected ✅
 
-**`ViT-B-16-SigLIP2__webli`.** Against today's model it is +15 points English (69.9 → 84.9) and
-takes Russian from unusable to 80.9%. English-only models score ~20% on Russian in this benchmark
-(`ViT-B-16-SigLIP__webli`: 81.9% EN, 20.4% RU), and the current model is a weaker English-only CLIP
-that Immich did not even benchmark for Russian — so treat today's Russian search as broken. 🟡
+Two independent measured reasons, neither of which was the one first guessed here:
 
-Cost: the ML memory limit goes 4Gi → ~6Gi. Committed limits on `immich-vm` then reach ~12,314 Mi
-against 11,849 Mi allocatable — about 104% overcommit. Requests stay at 1,439 Mi so scheduling is
-unaffected, and the node is actually using 4,095 Mi, but a simultaneous peak is what overcommit
-turns into an OOM.
+| Reason | Evidence |
+|---|---|
+| Memory | Its textual tower alone holds 3,275 Mi, close to the whole both-tower cost of the recommended model. Loading visual on top `OOMKilled` the container 4.2 s in, at the 6Gi limit |
+| Load time against the liveness probe | The container's liveness probe allows 50 s (`periodSeconds` 10 × `failureThreshold` 5) and the single ML worker cannot answer `/ping` while loading. This model's textual tower takes **39.7 s to load even with its compiled blob already cached** — 79% of the budget before any margin |
+
+A first attempt was killed with `exitCode 143` (SIGTERM) at exactly 49 s, and the obvious reading —
+"the OpenVINO compile exceeds the liveness window, so no blob is ever written and it crashloops
+forever" — is **false**. A 1.66 GiB blob had already been written; only the post-compile load
+overran. The retry with that blob cached returned HTTP 200. A failure at the probe boundary needs a
+second attempt before its mechanism is named.
+
+### The liveness budget is a constraint on model choice ✅
+
+Any model whose load takes more than 50 s kills its own pod, whatever the memory limit says. This
+does not endanger the recommended model: both its compiled blobs are already cached on the PVC
+(`visual` 373 MB, `textual` 1.13 GB, written during the probe), so the first load after a switch
+skips compilation.
+
+### Timings ✅
+
+| Measure | `ViT-B-16-SigLIP2__webli` |
+|---|---|
+| Cold visual, including ~1.5 GiB download and GPU compile | 55.4 s |
+| Cold textual | 25.4 s |
+| **Warm visual** | **0.254 s** |
+
+The warm figure is the re-index proxy: 5,874 assets at 0.254 s is roughly **25 minutes**, which is
+how long smart search stays empty after a model change. Job concurrency is 2, so possibly less.
 
 ### This is where FP16 would have paid for itself
 
