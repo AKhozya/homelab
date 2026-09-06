@@ -17,6 +17,61 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-09-06 — The NAS scrub stalled immich-vm again, and five unrelated init Jobs waited on it
+
+At 18:23 local, `PodsPending` and `PodPhaseNotRunning` fired for five pods at
+once: `audiobookshelf-init`, `home-assistant-admin-setup`, `immich-admin-setup`,
+`n8n-user-provision` and `couchdb-init`. They are the daily Flux force + TTL
+re-run of the init Jobs, created at 18:11. The scheduler put all five on
+`immich-vm`, and every one sat in `ContainerCreating` with
+`FailedCreatePodSandBox … DeadlineExceeded` for 33 minutes. `NodeHighIOWait`
+fired on `192.168.1.231` alongside them.
+
+The cause was the monthly mdadm check on the NAS `md1` array (first Sunday,
+00:57). The SMART-failed member (serial `WS21F7E8`, written up on 2026-08-02)
+had not been swapped: the RMA drive was still in transit. The check ran fast
+until about 06:30, then reached that drive's bad region and each read took up to
+87 s. `immich-vm`'s disk image lives on that array, so containerd on the VM could
+not create a pod sandbox inside its deadline.
+
+| Evidence | Value |
+|---|---|
+| immich-vm iowait | 0-3% overnight, ~50% from 06:30, 73% by 17:30 |
+| Check progress | 66.2% at 853 KB/s, ETA 17 days |
+| Reads queued on the failed drive | 5, later 32 (`/sys/block/sdd/inflight`); every other member 0 |
+| Device letter | `sdb` in August, `sdd` now: the 2026-09-02 NAS reboot shifted it. Identify by serial |
+| `iostat -dx %util` on the members | 0 on all six. Since kernel 5.x `io_ticks` only advances when an IO starts or completes, so one stuck read registers nothing. `inflight` is the tell |
+
+Four of the five Jobs have nothing to do with Immich. They landed on
+`immich-vm` because nothing keeps them off it. `immich-server` pins itself there
+with a `homelab/gpu=intel` nodeSelector, but the node carries no taint, so any
+unpinned pod can be scheduled there, and the scheduler prefers the emptiest
+node:
+
+| Node | Running pods | CPU requested | Memory requested |
+|---|---|---|---|
+| worker-node | 56 | 5170m of 32 | 15.4 Gi of 61 |
+| worker-node-2 | 27 | 2280m of 16 | 6.0 Gi of 30 |
+| immich-vm | 6 | 520m of 4 | 1.1 Gi of 11.6 |
+
+The 2026-08-02 scrub caught `popeye` and `postgres-update-extensions` the same
+way, and that was recorded as a known symptom rather than fixed.
+
+The operator stopped the check with `echo idle > /sys/block/md1/md/sync_action`.
+The write sat in D-state for 2.5 minutes while the 32 queued reads drained at
+about one per 15 s; that wait is expected, not a hang. The check reported `idle`
+at 18:45:07. All five Jobs succeeded within 30 s, without any Job deletion,
+because the kubelet retries sandbox creation on its own. `NodeDown` for
+`192.168.1.231` fired briefly during the drain and cleared. Every alert was
+resolved by 18:47.
+
+| Follow-up | Status |
+|---|---|
+| Swap `WS21F7E8` (RaidDevice slot 2, currently `sdd`) before the next check on 2026-10-04 | replacement expected 2026-09-07/08 |
+| Fence `immich-vm` with a `NoSchedule` taint so only Immich and per-node DaemonSets run there | design under review; plan doc to follow in `docs/plans/` |
+
+---
+
 ### 2026-09-05 — An aliased preflight skipped the weekly reboot, and Loki began rejecting a week-old log line every hour
 
 `AlloyLogDeliveryFailing` fired hourly on both workers from 04:48Z. Nothing was
