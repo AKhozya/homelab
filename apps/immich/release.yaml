@@ -340,8 +340,12 @@ spec:
                 # control CLI, so disable it — eliminates the error while keeping readOnlyRootFilesystem.
                 GUNICORN_CMD_ARGS: "--no-control-socket"
               # gpu.intel.com/i915: the Intel device plugin injects /dev/dri (10 shares per node, the
-              # server holds one). OpenVINO keeps model buffers in system RAM charged to this cgroup;
-              # the CPU-path 7d peak was ~1.45 GiB, so 4Gi is headroom to trim after a week of metrics.
+              # server holds one). OpenVINO keeps model buffers in system RAM charged to this cgroup.
+              # Both CLIP towers resident measure 2435Mi at FP32 on ViT-B-32__openai (2026-09-07) —
+              # a search-time pod carries both, so that is steady state, not a peak. 6Gi sizes the pod
+              # for a ViT-B-16-SigLIP2__webli trial (~5.6Gi estimated) for English and Russian search;
+              # node limits then reach ~12314Mi against 11849Mi allocatable, which requests do not
+              # oversubscribe. Set the final value from the measured footprint.
               resources:
                 requests:
                   cpu: 200m
@@ -349,7 +353,7 @@ spec:
                   gpu.intel.com/i915: "1"
                 limits:
                   cpu: 4000m
-                  memory: 4Gi
+                  memory: 6Gi
                   gpu.intel.com/i915: "1"
               securityContext:
                 allowPrivilegeEscalation: false
