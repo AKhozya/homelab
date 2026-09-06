@@ -248,8 +248,8 @@ RequiresMountsFor=/mnt/k8s-storage
     daemon_reload: true
   tags: [immich-gpu-node, local-path]
 
-# k3s-agent must not start without the mount (see the drop-in). No restart here: the mount is
-# already active on this run, and a k3s restart on the GPU VM is a human gate (k3s_config rationale).
+# k3s-agent must not start without the mount (see the drop-in). The bind-mount task below runs
+# daemon_reload, which loads this drop-in. No k3s restart: that is a human gate on the GPU VM.
 - name: Ensure k3s-agent service.d drop-in dir
   ansible.builtin.file:
     path: /etc/systemd/system/k3s-agent.service.d
@@ -266,15 +266,10 @@ RequiresMountsFor=/mnt/k8s-storage
     owner: root
     group: root
     mode: "0644"
-  register: immich_gpu_k3s_mount_dropin
-  tags: [immich-gpu-node, local-path]
-
-- name: Reload systemd for the k3s-agent drop-in
-  ansible.builtin.systemd_service:
-    daemon_reload: true
-  when: immich_gpu_k3s_mount_dropin.changed
   tags: [immich-gpu-node, local-path]
 ```
+
+Order inside the inserted block: dirs → bind-mount unit file → drop-in dir → drop-in file → `Enable + start local-path bind mount` last, so its `daemon_reload` loads the drop-in. A `register` + conditional reload task was rejected: ansible-lint `no-handler` fires on it and the repo suppresses that rule only with `noqa`.
 
 - [ ] **Step 6 (Implementer): lint** — from the worktree root:
 
@@ -294,7 +289,7 @@ Expected: yamllint and syntax-check clean (the syntax-check prints a harmless "C
 ```bash
 ssh -p 65300 akhozya@immich-vm 'systemctl is-active "mnt-k8s\x2dstorage.mount"; findmnt -no SOURCE,TARGET /mnt/k8s-storage; systemctl show k3s-agent -p RequiresMountsFor; grep -A1 "^node-taint" /etc/rancher/k3s/config.yaml'
 ```
-Expected: `active`, `/dev/mapper/ArchinstallVg-home[/k8s-storage] /mnt/k8s-storage`, `RequiresMountsFor=/mnt/k8s-storage`, and the taint line. Fallback if nothing changed after 25 min: ask the operator to run on the CP `sudo systemctl start node-maintenance-sync.service && sudo systemctl start node-maintenance-config.service`. A Telegram "k3s config drift" alert for immich-vm is expected and needs no action.
+Expected: `active`, `/dev/mapper/ArchinstallVg-home[/k8s-storage] /mnt/k8s-storage`, `RequiresMountsFor=/mnt/k8s-storage`, and the taint line. Fallback if nothing changed after 25 min: ask the operator to run on the CP `sudo systemctl start node-maintenance-sync.service && sudo systemctl start node-maintenance-config.service`. A Telegram "k3s config drift" alert is expected for immich-vm and for the control plane (the template comment change re-renders its config.yaml too); neither needs a restart or any action.
 
 ---
 
