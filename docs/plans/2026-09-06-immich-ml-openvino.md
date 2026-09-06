@@ -118,6 +118,7 @@ Codex rounds on this file, contract in the Appendix. Round log:
 | Round | Verdict | Findings |
 |---|---|---|
 | 1 | REQUEST-CHANGES | MEDIUM ×3: the clock cannot attribute GPU activity to ML (immich-server shares the GPU); the blob check accepted an empty directory; `rollout status` can pass against the previous Deployment revision. LOW: "the time is the GPU compile" overstated what curl measures. NIT: tech stack in prose; "when" for a condition. All folded in |
+| 2 | REQUEST-CHANGES | MEDIUM: the image-wait loop fell through to `rollout status` after 60 misses. NIT: step 7 expectations in prose. Both folded in (explicit fail after 10 min; table) |
 
 ## Task 1: Manifest change
 
@@ -247,12 +248,12 @@ Expected: lint clean; one grep hit; the jq line is exactly
 ```bash
 flux reconcile kustomization apps --with-source
 flux reconcile helmrelease immich -n immich
-for i in $(seq 1 60); do kubectl -n immich get deploy immich-machine-learning -o jsonpath='{.spec.template.spec.containers[0].image}' | grep -q -- '-openvino' && { echo "new template on iteration $i"; break; }; sleep 10; done
+ok=0; for i in $(seq 1 60); do kubectl -n immich get deploy immich-machine-learning -o jsonpath='{.spec.template.spec.containers[0].image}' | grep -q -- '-openvino' && { echo "new template on iteration $i"; ok=1; break; }; sleep 10; done; [ "$ok" = 1 ] || { echo "no new template after 10 min: stop; check flux get helmrelease immich -n immich"; false; }
 flux get helmrelease immich -n immich
 kubectl -n immich rollout status deploy/immich-machine-learning --timeout=900s
 ```
 
-`rollout status` on its own can return green against the previous Deployment revision before helm-controller applies the upgrade, so the loop waits for the new pod template first. Expected: the loop prints an iteration number; `flux get` shows `Helm upgrade succeeded` with a release revision one higher than before (`immich.v43` on 2026-09-06); the old pod terminates; the new pod pulls and passes its startup probe (up to 600 s budget). Append `Task 1: complete <sha>` to the ledger and copy it outside the worktree.
+`rollout status` on its own can return green against the previous Deployment revision before helm-controller applies the upgrade, so the loop waits for the new pod template first and fails loudly after 10 minutes. If it prints the `stop` line, do not run `rollout status` and do not record completion: read `flux get helmrelease immich -n immich` and `kubectl -n immich describe helmrelease immich`, fix the cause, and rerun the block. Expected: the loop prints an iteration number; `flux get` shows `Helm upgrade succeeded` with a release revision one higher than before (`immich.v43` on 2026-09-06); the old pod terminates; the new pod pulls and passes its startup probe (up to 600 s budget). Append `Task 1: complete <sha>` to the ledger and copy it outside the worktree.
 
 ## Task 2: Verification (read-only)
 
@@ -326,7 +327,18 @@ kubectl -n immich logs deploy/immich-machine-learning --since=30m | grep -A1 'Se
 wait; cat $SCRATCH/gpu-max.txt
 ```
 
-Expected: the first exec prints at least one fdinfo path with `drm-engine-*` lines (the OpenVINO session holds the render node open while the model is loaded; the idle TTL is 300 s, so keep the three commands within a minute); the warm call is `HTTP 200` in seconds at most (CPU baseline 0.045 s; a similar or slightly slower number on this small text model is fine); at least one `drm-engine-*` value is higher in the second exec than in the first. That delta is the evidence tied to the ML process; immich-server shares the GPU, so the clock alone cannot attribute activity. The log's second line reads `['OpenVINOExecutionProvider', 'CPUExecutionProvider'], in descending order of`; `gpu-max.txt` holds a number above 0 (the clock range is 800–2200 MHz). If no fdinfo path prints, run the curl and the exec back to back once more; if still none, report it as a finding with the raw output and continue. Record the warm time, the counter delta and the max MHz.
+Keep the three commands within a minute: the OpenVINO session holds the render node open only while the model is loaded, and the idle TTL is 300 s.
+
+| Check | Expected |
+|---|---|
+| first exec | at least one fdinfo path with `drm-engine-*` lines |
+| warm curl | `HTTP 200` in seconds at most (CPU baseline 0.045 s; a similar or slightly slower number on this small text model is fine) |
+| second exec vs first | at least one `drm-engine-*` value is higher. This delta is the evidence tied to the ML process; immich-server shares the GPU, so the clock alone cannot attribute activity |
+| log line after `Setting execution providers to` | `['OpenVINOExecutionProvider', 'CPUExecutionProvider'], in descending order of` |
+| `gpu-max.txt` | a number above 0 (the clock range is 800–2200 MHz) |
+| no fdinfo path in the first exec | run the curl and the exec back to back once more; if still none, report it as a finding with the raw output and continue with the remaining checks |
+
+Record the warm time, the counter values before and after, and the max MHz.
 
 - [ ] **Step 8 (Implementer): compiled blob on the cache PVC**
 
