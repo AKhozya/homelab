@@ -120,6 +120,7 @@ Codex rounds on this file, contract in the Appendix. Round log:
 | 1 | REQUEST-CHANGES | MEDIUM ×3: the clock cannot attribute GPU activity to ML (immich-server shares the GPU); the blob check accepted an empty directory; `rollout status` can pass against the previous Deployment revision. LOW: "the time is the GPU compile" overstated what curl measures. NIT: tech stack in prose; "when" for a condition. All folded in |
 | 2 | REQUEST-CHANGES | MEDIUM: the image-wait loop fell through to `rollout status` after 60 misses. NIT: step 7 expectations in prose. Both folded in (explicit fail after 10 min; table) |
 | 3 | REQUEST-CHANGES | MEDIUM: `false` after the loop does not stop a pasted block, so `rollout status` still ran on timeout. Folded in: the two follow-up commands are gated on the flag; both paths executed |
+| 4 | APPROVE-WITH-NITS | NIT: passive voice in the wait-block note. Folded in |
 
 ## Task 1: Manifest change
 
@@ -255,7 +256,7 @@ ok=0; for i in $(seq 1 60); do kubectl -n immich get deploy immich-machine-learn
 [ "$ok" = 1 ] && kubectl -n immich rollout status deploy/immich-machine-learning --timeout=900s
 ```
 
-`rollout status` on its own can return green against the previous Deployment revision before helm-controller applies the upgrade, so the loop waits for the new pod template first, and the two commands after it run only if the flag is set. Both paths were executed on 2026-09-06. If the block prints the `stop` line, do not record completion: read `flux get helmrelease immich -n immich` and `kubectl -n immich describe helmrelease immich`, fix the cause, and rerun the block. Expected: the loop prints an iteration number; `flux get` shows `Helm upgrade succeeded` with a release revision one higher than before (`immich.v43` on 2026-09-06); the old pod terminates; the new pod pulls and passes its startup probe (up to 600 s budget). Append `Task 1: complete <sha>` to the ledger and copy it outside the worktree.
+`rollout status` on its own can return green against the previous Deployment revision before helm-controller applies the upgrade, so the loop waits for the new pod template first, and the two commands after it run only if the flag is set. The 2026-09-06 check confirms that a timeout skips both gated commands and success runs them. If the block prints the `stop` line, do not record completion: read `flux get helmrelease immich -n immich` and `kubectl -n immich describe helmrelease immich`, fix the cause, and rerun the block. Expected: the loop prints an iteration number; `flux get` shows `Helm upgrade succeeded` with a release revision one higher than before (`immich.v43` on 2026-09-06); the old pod terminates; the new pod pulls and passes its startup probe (up to 600 s budget). Append `Task 1: complete <sha>` to the ledger and copy it outside the worktree.
 
 ## Task 2: Verification (read-only)
 
