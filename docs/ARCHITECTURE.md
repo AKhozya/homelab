@@ -26,7 +26,7 @@ flowchart TB
     W1["worker-node (W1) · .129<br/>/mnt/k8s-storage (0700)<br/>hosts most app PVs (local-path)"]
     W2["worker-node-2 (W2) · .126<br/>/mnt/extra-storage<br/>SSH user z3us (not akhozya)"]
     NAS["NAS<br/>rsync daemon :50555"]
-    VM["immich-vm · .231<br/>GPU worker (Arch VM on the NAS, Intel QSV passthrough)<br/>runs immich-server; library via NAS virtiofs"]
+    VM["immich-vm · .231<br/>GPU worker (Arch VM on the NAS, Intel QSV passthrough)<br/>runs immich-server + ML; dedicated node (NoSchedule taint); library via NAS virtiofs"]
   end
   CP -. k3s API .-> W1
   CP -. k3s API .-> W2
@@ -35,7 +35,7 @@ flowchart TB
   W1 -->|"rsync :50555<br/>(30-day history)"| NAS
 ```
 
-Storage is `local-path-provisioner` (node-local PVs — no distributed storage layer by choice; simpler, faster, and the backup chain provides durability instead). Each PV is bound to the node where it was first allocated via the PV's `nodeAffinity` (the local-path mechanism) — there is no Deployment-level node pinning. **Immich split since the 2026-07-12 Path-B cutover**: immich-server runs on the `immich-vm` GPU worker with the photo library on NAS storage via a virtiofs hostPath (the old W1 `immich-library` PV was **decommissioned 2026-07-14** after the soak; its weekly backup now runs on W2, pulling the NAS library → tar on W2 + a copy in the NAS `akhozya-pool1` pool, keep-2 each); the ML PV (`...immich-machine-learning`) stays W1-bound, so ML still follows W1. Durability comes from the **nightly replication from W1 → NAS** (one CronJob on W1, 30-day history on the NAS; the temporary W2 single-day safety-net leg was retired 2026-07-17 once the NAS sink had proven itself), not from replicated volumes.
+Storage is `local-path-provisioner` (node-local PVs — no distributed storage layer by choice; simpler, faster, and the backup chain provides durability instead). Each PV is bound to the node where it was first allocated via the PV's `nodeAffinity` (the local-path mechanism) — there is no Deployment-level node pinning. **Immich on the dedicated VM** (server since the 2026-07-12 Path-B cutover, ML since 2026-09-06): immich-server runs on the `immich-vm` GPU worker with the photo library on NAS storage via a virtiofs hostPath (the old W1 `immich-library` PV was **decommissioned 2026-07-14** after the soak; its weekly backup now runs on W2, pulling the NAS library → tar on W2 + a copy in the NAS `akhozya-pool1` pool, keep-2 each); ML moved to immich-vm on 2026-09-06 with a git-declared cache PVC on the VM's local-path bind mount; immich-vm carries a `homelab/dedicated=immich:NoSchedule` taint, so only Immich pods and the per-node agents run there. Durability comes from the **nightly replication from W1 → NAS** (one CronJob on W1, 30-day history on the NAS; the temporary W2 single-day safety-net leg was retired 2026-07-17 once the NAS sink had proven itself), not from replicated volumes.
 
 ---
 
@@ -139,8 +139,8 @@ Backups: per-engine CronJobs in `infrastructure-configs` → nightly replication
 | Failure | Effect | What still works | Recovery |
 |---|---|---|---|
 | CP node down | Flux reconcile + admission paused; new pods can't schedule | Running pods + Services keep serving (kube-proxy on workers is independent) | Reboot CP; Flux catches up |
-| worker-node (W1) down | **W1 is the state + durability node**: bulk of app PVCs (local-path node-bound; Immich ML PV still here — the server moved to `immich-vm` 2026-07-12), the 5 daily backup CronJobs (nodeSelector-pinned to W1), and Loki live there → most stateful apps + logs + the daily backup chain down (no failover; local-path is node-bound; the weekly `immich-backup` — W2-producer since 2026-07-14 — keeps running) | Stateless/other-node workloads; metrics + alerting (on W2); immich-server (on `immich-vm`, minus ML) | Reboot/replace; stateful apps + backups resume when W1 returns |
-| immich-vm down (VM on the NAS) | Immich web/API down (server pod pinned there for GPU) | Everything else; Immich data safe (library on NAS storage, DB on CNPG) | `immich-vm-heal` watchdog `virsh start`s a `shut off` domain; wedges = operator-supervised (never `virsh destroy` — GPU reset-bug) |
+| worker-node (W1) down | **W1 is the state + durability node**: bulk of app PVCs (local-path node-bound), the 5 daily backup CronJobs (nodeSelector-pinned to W1), and Loki live there → most stateful apps + logs + the daily backup chain down (no failover; local-path is node-bound; the weekly `immich-backup` — W2-producer since 2026-07-14 — keeps running) | Stateless/other-node workloads; metrics + alerting (on W2); Immich (all on `immich-vm`) | Reboot/replace; stateful apps + backups resume when W1 returns |
+| immich-vm down (VM on the NAS) | Immich web/API + ML down (server, ML and admin-setup are pinned there; heal, backup and DB-init jobs stay off it) | Everything else; Immich data safe (library on NAS storage, DB on CNPG) | `immich-vm-heal` watchdog `virsh start`s a `shut off` domain; wedges = operator-supervised (never `virsh destroy` — GPU reset-bug) |
 | worker-node-2 (W2) down | **All metrics + alerting blind**: the single VMSingle instance's PV is node-bound to W2. Monitoring is self-blind on its own loss — the Watchdog dead-man alert routes to null, so nothing pages about the blindness | Apps, logs, and backups on W1 unaffected | Reboot/replace; monitoring resumes when W2 returns |
 | Cloudflare edge or tunnel down | Externally-published apps unreachable | LAN access via Traefik fully unaffected | Wait CF; LAN keeps working |
 | Authentik down | SSO apps lose login | Non-SSO apps; non-OIDC paths | Restart Authentik Pod or rollout |

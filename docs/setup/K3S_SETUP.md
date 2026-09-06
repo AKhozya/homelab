@@ -83,6 +83,7 @@ by `node-maintenance-config.timer`.
 
 - **CP**: tainted `NoSchedule` — system pods only (kube-system, flux-system, cert-manager)
 - **Workers**: all app workloads, ServiceLB enabled
+- **immich-vm**: tainted `homelab/dedicated=immich:NoSchedule` — Immich pods + per-node agents only (`host_vars/immich-vm.yml`)
 
 ## ServiceLB
 

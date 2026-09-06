@@ -68,7 +68,15 @@ resolved by 18:47.
 | Follow-up | Status |
 |---|---|
 | Swap `WS21F7E8` (RaidDevice slot 2, currently `sdd`) before the next check on 2026-10-04 | replacement expected 2026-09-07/08 |
-| Fence `immich-vm` with a `NoSchedule` taint so only Immich and per-node DaemonSets run there | design under review; plan doc to follow in `docs/plans/` |
+| Fence `immich-vm` with a `NoSchedule` taint so only Immich and per-node DaemonSets run there | shipped `83eb9674` + `230eeb8a`; taint applied 21:27 BST |
+
+| Change | Detail |
+|---|---|
+| Taint | `homelab/dedicated=immich:NoSchedule` applied to immich-vm at 21:27 BST on 2026-09-06 with `kubectl taint`; `k3s_node_taints` in `host_vars/immich-vm.yml` covers a re-join because k3s reads `node-taint` only at first registration |
+| Tolerations | immich-server, immich-machine-learning, the immich-admin-setup Job, intel-gpu-plugin; alloy and node-exporter already tolerated any NoSchedule taint |
+| ML relocation | immich-machine-learning pinned to immich-vm; its model cache is now the git-declared PVC `immich-ml-cache` (10 Gi, local-path) under `/mnt/k8s-storage`, a bind mount of `/home/k8s-storage` on the VM's 125 G home volume; k3s-agent carries `RequiresMountsFor=/mnt/k8s-storage`; Helm deleted the old chart-owned PVC on worker-node |
+| Pods that left the VM | coredns-ha, loki-canary, kube-state-metrics, prometheus-operator (deleted once; NoSchedule never evicts). Five pods remain: immich-server, immich-machine-learning, intel-gpu-plugin, alloy, node-exporter |
+| Stays off the VM by design | immich-vm-heal (starts the VM from outside), immich-backup (148 G on worker-node-2, would land on the same NAS array), immich-init-extensions (databases namespace), Postgres and Redis (shared) |
 
 ---
 
