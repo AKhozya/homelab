@@ -4,9 +4,18 @@
 
 **Goal:** immich-machine-learning runs inference on immich-vm's Intel iGPU through the `-openvino` image, with a gate that proves the GPU is in use.
 
-**Architecture:** One values change in `apps/immich/release.yaml`. The ML image tag gains the `-openvino` suffix; the container requests one `gpu.intel.com/i915` share so the Intel device plugin injects `/dev/dri` without privilege; the pod adds the VM's video and render GIDs; the memory limit grows; the rapidocr mount path in the ML postRenderer follows the image's Python minor. Immich picks the GPU itself: ONNX Runtime's OpenVINO execution provider enumerates devices and the ML code chooses `GPU.0` when one exists, else the OpenVINO CPU plugin.
+**Architecture:** One values change in `apps/immich/release.yaml`. The ML image tag gains the `-openvino` suffix; the container requests one `gpu.intel.com/i915` share so the Intel device plugin injects `/dev/dri` without privilege; the pod adds the VM's video and render GIDs; the memory limit grows; the rapidocr mount path in the ML postRenderer follows the image's Python minor. Immich picks the GPU itself: ONNX Runtime's OpenVINO execution provider enumerates devices and the ML code chooses `GPU.0` if one exists, else the OpenVINO CPU plugin.
 
-**Tech Stack:** k3s v1.36.3, Flux, Helm chart `immich` 0.13.1 (bjw-s common), Intel GPU device plugin 0.36.0 (`-shared-dev-num=10`), Immich v3.1.0. Image `ghcr.io/immich-app/immich-machine-learning:v3.1.0-openvino`: Python 3.13.14, onnxruntime-openvino 1.24.1, intel-opencl-icd 26.22.38646.4, IGC 2.36.3. Codex static review.
+**Tech Stack:**
+
+| Component | Version |
+|---|---|
+| k3s | v1.36.3 |
+| Flux + Helm chart `immich` (bjw-s common) | chart 0.13.1 |
+| Intel GPU device plugin | 0.36.0, `-shared-dev-num=10` |
+| Immich | v3.1.0 |
+| ML image `ghcr.io/immich-app/immich-machine-learning:v3.1.0-openvino` | Python 3.13.14, onnxruntime-openvino 1.24.1, intel-opencl-icd 26.22.38646.4, IGC 2.36.3 |
+| Review | Codex static review |
 
 **Spec:** the *Design* section of this file. There is no separate spec document; the repo keeps plans in `docs/plans/`.
 
@@ -42,11 +51,13 @@ A green rollout proves nothing about the GPU. If OpenVINO enumerates no GPU, Imm
 |---|---|
 | `ort.capi._pybind_state.get_available_openvino_device_ids()` run by `kubectl exec` in the new pod (the call Immich makes in `sessions/ort.py`) | the list contains a `GPU` entry |
 | ML log after one `/predict` call | `Setting execution providers to` followed by `['OpenVINOExecutionProvider', 'CPUExecutionProvider']` |
-| GPU clock sampled on the VM during the first call | `rps_cur_freq_mhz` rises above 0 |
+| i915 per-client engine counters (`drm-engine-*` in the ML worker's `/proc/<pid>/fdinfo`) read before and after the warm call | at least one counter increases. This ties the activity to the ML process; the clock alone cannot, because immich-server shares the GPU |
+| GPU clock sampled on the VM during the first call | `rps_cur_freq_mhz` rises above 0 (supporting evidence only) |
 | second `/predict` call | seconds at most; the first call compiles the model for the GPU and writes the blob under `/cache/<model>/openvino` |
+| compiled blob | a file larger than 1 MiB under `/cache/clip/ViT-B-32__openai/textual/openvino/`, dated at the first call |
 | VM kernel journal after the calls | no `GPU HANG` or reset lines |
 
-The CPU baseline measured on 2026-09-06 with the same call: first call 41.7 s (download of the textual model plus load), warm call 0.045 s. A warm GPU call on a small text model is not expected to beat 0.045 s; the gate is the device listing and the clock, not a speed-up on this model.
+The CPU baseline measured on 2026-09-06 with the same call: first call 41.7 s (download of the textual model plus load), warm call 0.045 s. A warm GPU call on a small text model is not expected to beat 0.045 s; the gate is the device listing and the ML process's engine counters, not a speed-up on this model.
 
 ### Accepted trade-offs
 
@@ -87,6 +98,7 @@ Tiers: ✅ verified against the live system or official source · 🟡 single-so
 | A20 | Intel's compiler cache under `$HOME/.cache` is unwritable in this pod (RoRFS, uid 1000, no home); the runtime disables it silently and OpenVINO's own `cache_dir` on `/cache` carries the compiled blob | 🟡 | Task 2 step 7 checks that the warm call is fast and step 8 that the blob exists; if logs show cache errors, the fix is `NEO_CACHE_DIR=/cache/neo` in a follow-up commit |
 | A21 | The `openvino` Python module may not be importable in the image (onnxruntime-openvino bundles the runtime libraries) | 🟡 | `uv.lock` dependency list; the gate uses ORT's own call, which is what Immich uses |
 | A22 | A GPU hang under compute does not recover in-guest | ⚠️ | memory `gotcha_immich_vm_virtio_gpu_fbdev_wedge` and the reset-bug rule in `AGENTS.md`; mitigated under Rollback |
+| A23 | i915 exposes per-client engine busy time in `/proc/<pid>/fdinfo` (`drm-driver: i915`, `drm-engine-*` in ns), readable by the process owner; the OpenVINO session keeps the render node open while a model is loaded (300 s idle TTL) | 🟡 | kernel DRM fdinfo interface; the container runs as uid 1000 and `/proc/<pid>/fdinfo` is readable inside the pod (spike). Not observable before the new image runs: no process held a DRM fd at spike time. Task 2 step 7 validates; a missing fd is a finding for the coordinator, not a failed gate |
 
 ## File structure
 
@@ -105,6 +117,7 @@ Codex rounds on this file, contract in the Appendix. Round log:
 
 | Round | Verdict | Findings |
 |---|---|---|
+| 1 | REQUEST-CHANGES | MEDIUM ×3: the clock cannot attribute GPU activity to ML (immich-server shares the GPU); the blob check accepted an empty directory; `rollout status` can pass against the previous Deployment revision. LOW: "the time is the GPU compile" overstated what curl measures. NIT: tech stack in prose; "when" for a condition. All folded in |
 
 ## Task 1: Manifest change
 
@@ -229,7 +242,17 @@ Expected: lint clean; one grep hit; the jq line is exactly
 
 - [ ] **Step 8 (Coordinator): review loop, then commit** — `git diff HEAD -- apps/immich > $SCRATCH/t1.diff`; dispatch `bash ~/.agents/skills/_shared/codex-review.sh --diff $SCRATCH/t1.diff --prompt $SCRATCH/codex-prompt.md` (contract from the Appendix); process findings; re-review delta-scoped; commit when the severity table allows: `git commit -m 'feat(immich): run ML inference on the immich-vm iGPU via the -openvino image' -- apps/immich/release.yaml`.
 
-- [ ] **Step 9 (Coordinator): merge and roll** — `bash ~/.agents/skills/_shared/merge-worktree.sh wt-immich-ml-openvino` (no teardown), then `flux reconcile kustomization apps --with-source` and `kubectl -n immich rollout status deploy/immich-machine-learning --timeout=900s`. Expected: the HelmRelease upgrades, the old pod terminates, the new pod pulls and passes its startup probe (up to 600 s budget). Append `Task 1: complete <sha>` to the ledger and copy it outside the worktree.
+- [ ] **Step 9 (Coordinator): merge and roll** — `bash ~/.agents/skills/_shared/merge-worktree.sh wt-immich-ml-openvino` (no teardown), then:
+
+```bash
+flux reconcile kustomization apps --with-source
+flux reconcile helmrelease immich -n immich
+for i in $(seq 1 60); do kubectl -n immich get deploy immich-machine-learning -o jsonpath='{.spec.template.spec.containers[0].image}' | grep -q -- '-openvino' && { echo "new template on iteration $i"; break; }; sleep 10; done
+flux get helmrelease immich -n immich
+kubectl -n immich rollout status deploy/immich-machine-learning --timeout=900s
+```
+
+`rollout status` on its own can return green against the previous Deployment revision before helm-controller applies the upgrade, so the loop waits for the new pod template first. Expected: the loop prints an iteration number; `flux get` shows `Helm upgrade succeeded` with a release revision one higher than before (`immich.v43` on 2026-09-06); the old pod terminates; the new pod pulls and passes its startup probe (up to 600 s budget). Append `Task 1: complete <sha>` to the ledger and copy it outside the worktree.
 
 ## Task 2: Verification (read-only)
 
@@ -292,24 +315,26 @@ kubectl -n immich exec deploy/immich-server -- curl -sS --max-time 600 -o /dev/n
   http://immich-machine-learning:3003/predict
 ```
 
-Expected: `HTTP 200`; the time is the GPU compile of the textual model (the ONNX file is already cached). Record it.
+Expected: `HTTP 200`. The time is the first-request latency: model load, GPU compile, inference and transport (the ONNX file is already cached). Record it.
 
-- [ ] **Step 7 (Implementer): warm call and provider line** — run the same curl again, then:
+- [ ] **Step 7 (Implementer): engine counters, warm call, provider line** — read the ML worker's i915 per-client counters, run the step 6 curl once more, read the counters again, then the log and the sampler result:
 
 ```bash
+kubectl -n immich exec deploy/immich-machine-learning -- sh -c 'for f in /proc/[0-9]*/fdinfo/*; do grep -q "drm-driver: i915" "$f" 2>/dev/null && { echo "$f"; grep "drm-engine" "$f"; }; done'
+# run the step 6 curl again (record its time), then run the exec line above a second time
 kubectl -n immich logs deploy/immich-machine-learning --since=30m | grep -A1 'Setting execution providers' | sed 's/\x1b\[[0-9;]*m//g'
 wait; cat $SCRATCH/gpu-max.txt
 ```
 
-Expected: warm call `HTTP 200` in seconds at most (CPU baseline was 0.045 s; a similar or slightly slower number on this small text model is fine); the log's second line reads `['OpenVINOExecutionProvider', 'CPUExecutionProvider'], in descending order of`; `gpu-max.txt` holds a number above 0 (the clock range is 800–2200 MHz). Record all three.
+Expected: the first exec prints at least one fdinfo path with `drm-engine-*` lines (the OpenVINO session holds the render node open while the model is loaded; the idle TTL is 300 s, so keep the three commands within a minute); the warm call is `HTTP 200` in seconds at most (CPU baseline 0.045 s; a similar or slightly slower number on this small text model is fine); at least one `drm-engine-*` value is higher in the second exec than in the first. That delta is the evidence tied to the ML process; immich-server shares the GPU, so the clock alone cannot attribute activity. The log's second line reads `['OpenVINOExecutionProvider', 'CPUExecutionProvider'], in descending order of`; `gpu-max.txt` holds a number above 0 (the clock range is 800–2200 MHz). If no fdinfo path prints, run the curl and the exec back to back once more; if still none, report it as a finding with the raw output and continue. Record the warm time, the counter delta and the max MHz.
 
 - [ ] **Step 8 (Implementer): compiled blob on the cache PVC**
 
 ```bash
-kubectl -n immich exec deploy/immich-machine-learning -- sh -c 'find /cache -maxdepth 4 -type d -name openvino; du -sh /cache'
+kubectl -n immich exec deploy/immich-machine-learning -- sh -c 'find /cache -path "*/openvino/*" -type f -size +1M -printf "%TY-%Tm-%Td %TH:%TM %s %p\n"; du -sh /cache'
 ```
 
-Expected: at least one `/cache/clip/ViT-B-32__openai/.../openvino` directory (exact depth depends on the model layout) and a cache size in the hundreds of MiB.
+Expected: at least one file larger than 1 MiB under `/cache/clip/ViT-B-32__openai/textual/openvino/` with an mtime at the step 6 call (`cache_dir` is `<model dir>/openvino`); the cache total is in the hundreds of MiB (the textual and visual ONNX files alone are 254 MB and 352 MB). No file, or only an empty `openvino` directory, means no blob was written: report it as a finding.
 
 - [ ] **Step 9 (Implementer): VM kernel journal**
 
@@ -328,7 +353,7 @@ bash ~/.agents/skills/_shared/check-alerts.sh
 
 Expected: ML working set under 4Gi after the two calls; alerts: Watchdog only. Record the working set.
 
-- [ ] **Step 11 (Implementer): report** — a table with: pod node and image, `id` groups, the device list, rapidocr path, first-call seconds, warm-call seconds, max GPU MHz, cache size, journal result, working set, alerts. Status `DONE` only if every expected value held.
+- [ ] **Step 11 (Implementer): report** — a table with: pod node and image, `id` groups, the device list, rapidocr path, first-call seconds, warm-call seconds, engine counter values before and after the warm call, max GPU MHz, blob file and size, cache size, journal result, working set, alerts. Status `DONE` only if every expected value held.
 
 - [ ] **Step 12 (Coordinator): ledger** — append `Task 2: complete` with the five gate results to the ledger and copy it outside the worktree.
 
@@ -359,13 +384,13 @@ Immich ML ran on the CPU since it moved to immich-vm on 2026-09-06. The `-openvi
 | GPU access | `gpu.intel.com/i915: "1"` via the Intel device plugin; pod `supplementalGroups` 983 (video), 987 (render) |
 | Memory limit | 2355Mi → 4Gi (OpenVINO keeps model buffers in system RAM); requests unchanged |
 | rapidocr mount path | `python3.11` → `python3.13`, tied to the image variant |
-| Gate | `get_available_openvino_device_ids()` = `<list>`; first `/predict` `<N> s` (GPU compile), warm `<M> s`; GPU clock peaked at `<MHz>` MHz; journal clean |
+| Gate | `get_available_openvino_device_ids()` = `<list>`; first `/predict` `<N> s` (first-request latency, includes the GPU compile), warm `<M> s`; the ML worker's i915 engine counters rose across the warm call; GPU clock peaked at `<MHz>` MHz; journal clean |
 | Follow-ups | trim the memory limit after a week of metrics; FP16 (`MACHINE_LEARNING_OPENVINO_PRECISION`) and a larger CLIP model are separate changes |
 ```
 
 Fill every `<…>` from the Task 2 report. No placeholder may survive.
 
-- [ ] **Step 5 (Implementer): memory** — in `project_immich_gpu_transcode.md`, the facts-table row `| ML placement | immich-vm, CPU image `v3.1.0`; `-openvino` iGPU inference is an OPEN follow-up …` becomes `| ML placement | immich-vm, `v3.1.0-openvino` on the iGPU since 2026-09-<day> (gate: `get_available_openvino_device_ids()` lists `GPU`; first `/predict` <N> s, warm <M> s; memory limit 4Gi, trim after a week) |`. In `MEMORY.md`, the index line for that file replaces `-openvino OPEN` with `-openvino DONE 2026-09-<day>`. Edit with the Write/Edit tools; nothing to commit.
+- [ ] **Step 5 (Implementer): memory** — in `project_immich_gpu_transcode.md`, the facts-table row `| ML placement | immich-vm, CPU image `v3.1.0`; `-openvino` iGPU inference is an OPEN follow-up …` becomes `| ML placement | immich-vm, `v3.1.0-openvino` on the iGPU since 2026-09-<day> (gate: `get_available_openvino_device_ids()` lists `GPU`, the worker's i915 engine counters rise per call; first `/predict` <N> s first-request latency, warm <M> s; memory limit 4Gi, trim after a week) |`. In `MEMORY.md`, the index line for that file replaces `-openvino OPEN` with `-openvino DONE 2026-09-<day>`. Edit with the Write/Edit tools; nothing to commit.
 
 - [ ] **Step 6 (Implementer): check** — `tail -3` each edited repo file and `grep -n '<' docs/HOMELAB_HISTORY.md | grep -E '<(day|task|list|N|M|MHz)' ` must print nothing. `git status --short` lists exactly the four docs files.
 
