@@ -41,8 +41,8 @@ grep -rl --include="*.yaml" --include="*.yml" -E "HelmRe(lease|pository)" \
 # A producer inside a process substitution cannot fail the script: set -e never sees
 # its status. Every yq pass therefore writes to a file whose exit status is checked,
 # so a malformed manifest fails the run instead of dropping out of the loop unseen.
-# No pipe here: a pipeline puts the loop in a subshell, where `exit 1` ends only that
-# subshell and the run continues with partial data.
+# Keep the loop in the parent shell so its explicit failure terminates the script
+# directly, rather than relying on pipefail to carry the status out of a subshell.
 : > "$tmp/repos.raw"
 while read -r f; do
   yq -N 'select(.kind == "HelmRepository") | .metadata.name + "|" + .spec.url' "$f" \
