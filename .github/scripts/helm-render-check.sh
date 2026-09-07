@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # kubeconform validates the HelmRelease custom resource, never the chart's own
 # templates, so a chart whose templates reject our values passes every other job and
-# fails only in-cluster after Flux applies it. kube-prometheus-stack 90.0.0 did exactly
-# that on 2026-09-07 (see docs/HOMELAB_HISTORY.md).
+# fails only in-cluster after Flux applies it. kube-prometheus-stack 90.0.0 rejects this
+# repo's values that way (2026-09-07, see docs/HOMELAB_HISTORY.md).
 #
 # Every path that renders nothing must fail. A check that silently skips a chart and
 # exits 0 is worse than no check, because it reads as proof the chart is fine.
@@ -38,6 +38,18 @@ grep -rl --include="*.yaml" --include="*.yml" -E "HelmRe(lease|pository)" \
   exit 1
 }
 
+# A producer inside a process substitution cannot fail the script: set -e never sees
+# its status. Every yq pass therefore writes to a file whose exit status is checked,
+# so a malformed manifest fails the run instead of dropping out of the loop unseen.
+# No pipe here: a pipeline puts the loop in a subshell, where `exit 1` ends only that
+# subshell and the run continues with partial data.
+: > "$tmp/repos.raw"
+while read -r f; do
+  yq -N 'select(.kind == "HelmRepository") | .metadata.name + "|" + .spec.url' "$f" \
+    >> "$tmp/repos.raw" || { echo "MALFORMED $f (yq could not parse it)"; exit 1; }
+done < "$candidates"
+sort -u "$tmp/repos.raw" > "$tmp/repos"
+
 declare -A repo_url
 while IFS='|' read -r name url; do
   [ -n "$name" ] || continue
@@ -48,15 +60,17 @@ while IFS='|' read -r name url; do
     exit 1
   fi
   repo_url["$name"]="$url"
-done < <(
-  while read -r f; do
-    yq -N 'select(.kind == "HelmRepository") | .metadata.name + "|" + .spec.url' "$f"
-  done < "$candidates" | sort -u
-)
+done < "$tmp/repos"
+
 
 rc=0
 rendered=0
 while read -r hr; do
+  if ! yq -N 'select(.kind == "HelmRelease") | document_index' "$hr" > "$tmp/idx"; then
+    echo "MALFORMED $hr (yq could not parse it)"
+    rc=1
+    continue
+  fi
   # Pair each release with its own values by document index. A file holding two
   # HelmReleases would otherwise render both against the concatenation of both values.
   while read -r idx; do
@@ -93,7 +107,7 @@ while read -r hr; do
       rc=1
     fi
     rendered=$((rendered + 1))
-  done < <(yq -N 'select(.kind == "HelmRelease") | document_index' "$hr")
+  done < "$tmp/idx"
 done < "$candidates"
 
 if [ "$rendered" -eq 0 ]; then
