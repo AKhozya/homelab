@@ -341,11 +341,12 @@ spec:
                 GUNICORN_CMD_ARGS: "--no-control-socket"
               # gpu.intel.com/i915: the Intel device plugin injects /dev/dri (10 shares per node, the
               # server holds one). OpenVINO keeps model buffers in system RAM charged to this cgroup.
-              # 5Gi follows the measured CLIP ViT-B-16-SigLIP2__webli footprint on 2026-09-07: 3687Mi
-              # with both towers resident at search time, 2140Mi during a re-index, which runs the
-              # visual tower alone. A search-time pod carries both towers, so 3687Mi is the number to
-              # size against. 5Gi also keeps node limits at ~11290Mi under 11849Mi allocatable, so the
-              # node stops oversubscribing memory limits.
+              # This container serves all three model families and caches each for 300s, so size it
+              # for their sum, not for CLIP alone. Measured 2026-09-07 on the OpenVINO path: CLIP both
+              # towers ~3450Mi, OCR detection+recognition ~1151Mi, buffalo_l face ~1088Mi — ~5.9Gi
+              # together, which does not fit 5Gi. Exceeding the limit kills the gunicorn worker rather
+              # than the container, so gunicorn respawns it and restart-count monitoring misses the
+              # failure. The CPU image fits all three in 2355Mi; OpenVINO's GPU buffers inflate them.
               resources:
                 requests:
                   cpu: 200m
@@ -353,7 +354,7 @@ spec:
                   gpu.intel.com/i915: "1"
                 limits:
                   cpu: 4000m
-                  memory: 5Gi
+                  memory: 7Gi
                   gpu.intel.com/i915: "1"
               securityContext:
                 allowPrivilegeEscalation: false
