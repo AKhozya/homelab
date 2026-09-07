@@ -1,0 +1,43 @@
+---
+# Loki ruler rules, shipped by the chart's k8s-sidecar (LABEL=loki_rule, FOLDER=/rules).
+# The sidecar writes flat into its FOLDER, but the ruler's local store expects
+# <directory>/<tenant>/, and auth_enabled is false so the tenant is "fake" — the
+# annotation puts the file where the ruler actually reads it. Without it the rule
+# lands one directory too high and is silently never evaluated.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-alerting-rules
+  namespace: loki
+  labels:
+    loki_rule: "true"
+  annotations:
+    k8s-sidecar-target-directory: /rules/fake
+data:
+  immich-ml.yaml: |
+    groups:
+      - name: immich-machine-learning
+        interval: 1m
+        rules:
+          # When a worker dies without terminating its container, ContainerOOMKilled
+          # cannot detect it: it reads kube_pod_container_status_last_terminated_reason,
+          # and gunicorn respawns the worker so restartCount stays 0. The expression
+          # matches the recorded 2026-09-07 incident and stays silent 30 minutes before
+          # it. Memory exhaustion is the likely cause but not the only one, so the alert
+          # names the signal rather than the diagnosis.
+          - alert: MLWorkerKilled
+            expr: |
+              sum by (namespace, pod) (
+                count_over_time({namespace="immich", app="machine-learning"} |= "was sent SIGKILL" [5m])
+              ) > 0
+            for: 0m
+            labels:
+              severity: warning
+            annotations:
+              summary: "Immich ML worker received SIGKILL in {{ $labels.namespace }}/{{ $labels.pod }}"
+              description: >-
+                The machine-learning worker died and gunicorn respawned it, so the container did not
+                restart and no container-level alert fires. In-flight OCR, face and smart-search
+                requests fail. A cgroup OOM is the usual cause: compare the container memory limit
+                against the sum of the loaded model families rather than any one of them, and check
+                the node journal for `constraint=CONSTRAINT_MEMCG` to confirm.

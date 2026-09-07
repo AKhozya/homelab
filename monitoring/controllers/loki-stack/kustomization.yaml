@@ -5,4 +5,5 @@ resources:
   - repository.yaml
   - release.yaml
   - alloy-release.yaml
+  - alerting-rules.yaml
   - networkpolicy.yaml

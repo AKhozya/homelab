@@ -74,6 +74,25 @@ spec:
         retention_delete_worker_count: 150
         delete_request_store: filesystem
 
+      # Log-based alerting. The metrics path cannot see a worker-process OOM: the
+      # kubelet scrape is 60s and a container can go from normal to OOM inside one
+      # gap (immich ML on 2026-09-07 peaked at 74% in the samples either side of its
+      # kill), so a threshold rule on working-set never sees the crossing.
+      # storage.local.directory must be the sidecar's FOLDER (/rules), not the
+      # common.storage.filesystem rules_directory (/var/loki/rules) the ruler would
+      # otherwise inherit — that mismatch loads zero rules and reports no error.
+      rulerConfig:
+        alertmanager_url: http://kube-prometheus-stack-alertmanager.monitoring.svc.cluster.local:9093
+        enable_alertmanager_v2: true
+        enable_api: true
+        rule_path: /var/loki/ruler-tmp
+        storage:
+          type: local
+          local:
+            directory: /rules
+        wal:
+          dir: /var/loki/ruler-wal
+
     # 18.x spelling of single-binary mode; SingleBinary is the deprecated alias.
     deploymentMode: Monolithic
 

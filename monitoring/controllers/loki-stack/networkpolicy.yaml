@@ -65,6 +65,18 @@ spec:
       ports:
         - protocol: UDP
           port: 53
+    # The ruler posts firing alerts to Alertmanager. Egress is default-deny, so
+    # without this the ruler evaluates rules and drops every notification silently.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: alertmanager
+      ports:
+        - protocol: TCP
+          port: 9093
     # Loki-internal: memberlist, gateway
     - to:
         - namespaceSelector:
