@@ -98,7 +98,7 @@ Tiers: ✅ verified against the live system or official source · 🟡 single-so
 | A20 | Intel's compiler cache under `$HOME/.cache` is unwritable in this pod (RoRFS, uid 1000, no home); the runtime disables it silently and OpenVINO's own `cache_dir` on `/cache` carries the compiled blob | 🟡 | Task 2 step 7 checks that the warm call is fast and step 8 that the blob exists; if logs show cache errors, the fix is `NEO_CACHE_DIR=/cache/neo` in a follow-up commit |
 | A21 | The `openvino` Python module may not be importable in the image (onnxruntime-openvino bundles the runtime libraries) | 🟡 | `uv.lock` dependency list; the gate uses ORT's own call, which is what Immich uses |
 | A22 | A GPU hang under compute does not recover in-guest | ⚠️ | memory `gotcha_immich_vm_virtio_gpu_fbdev_wedge` and the reset-bug rule in `AGENTS.md`; mitigated under Rollback |
-| A23 | i915 exposes per-client engine busy time in `/proc/<pid>/fdinfo` (`drm-driver: i915`, `drm-engine-*` in ns), readable by the process owner; the OpenVINO session keeps the render node open while a model is loaded (300 s idle TTL) | 🟡 | kernel DRM fdinfo interface; the container runs as uid 1000 and `/proc/<pid>/fdinfo` is readable inside the pod (spike). Not observable before the new image runs: no process held a DRM fd at spike time. Task 2 step 7 validates; a missing fd is a finding for the coordinator, not a failed gate |
+| A23 | i915 exposes per-client engine busy time in `/proc/<pid>/fdinfo` (`drm-driver:<TAB>i915`, `drm-engine-*` in ns), readable by the process owner; the OpenVINO session keeps the render node open while a model is loaded (300 s idle TTL) | ✅ | kernel DRM fdinfo interface; the container runs as uid 1000 and `/proc/<pid>/fdinfo` is readable inside the pod (spike). Confirmed on 2026-09-07: the ML worker holds the render node for the session's whole lifetime, and `drm-engine-compute` rises across a call while the video engines stay at 0 |
 
 ## File structure
 
@@ -325,13 +325,15 @@ Expected: `HTTP 200`. The time is the first-request latency: model load, GPU com
 - [ ] **Step 7 (Implementer): engine counters, warm call, provider line** — read the ML worker's i915 per-client counters, run the step 6 curl once more, read the counters again, then the log and the sampler result:
 
 ```bash
-kubectl -n immich exec deploy/immich-machine-learning -- sh -c 'for f in /proc/[0-9]*/fdinfo/*; do grep -q "drm-driver: i915" "$f" 2>/dev/null && { echo "$f"; grep "drm-engine" "$f"; }; done'
+kubectl -n immich exec deploy/immich-machine-learning -- sh -c 'for f in /proc/[0-9]*/fdinfo/*; do grep -qE "drm-driver:[[:space:]]+i915" "$f" 2>/dev/null && { echo "$f"; grep "drm-engine" "$f"; }; done'
 # run the step 6 curl again (record its time), then run the exec line above a second time
 kubectl -n immich logs deploy/immich-machine-learning --since=30m | grep -A1 'Setting execution providers' | sed 's/\x1b\[[0-9;]*m//g'
 wait; cat $SCRATCH/gpu-max.txt
 ```
 
 Keep the three commands within a minute: the OpenVINO session holds the render node open only while the model is loaded, and the idle TTL is 300 s.
+
+> **Corrected 2026-09-07.** The `grep` above originally matched `"drm-driver: i915"` with a space. i915 fdinfo separates key from value with a TAB, so that pattern matched nothing however busy the GPU was, and the step-7 run on 2026-09-06 reported the counters as unobservable. A re-probe with the pattern below found the fd held for the session's lifetime and `drm-engine-compute` rising across a call. If this step reports no fd, suspect the pattern before the GPU.
 
 | Check | Expected |
 |---|---|
