@@ -222,9 +222,15 @@ jobs:
         run: |
           set -euo pipefail
           # helm ships on the runner; yq does not.
+          # -f so an HTTP error page is rejected instead of chmod'd and executed.
+          # Bump YQ_SHA256 with YQ_VERSION — the digest is from that release's
+          # published `checksums` file, SHA-256 column.
+          YQ_VERSION=v4.44.3
+          YQ_SHA256=a2c097180dd884a8d50c956ee16a9cec070f30a7947cf4ebf87d5f36213e9ed7
           mkdir -p "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          curl -sSL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o "$HOME/.local/bin/yq"
+          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o "$HOME/.local/bin/yq"
+          echo "${YQ_SHA256}  $HOME/.local/bin/yq" | sha256sum -c -
           chmod +x "$HOME/.local/bin/yq"
       # KUBERNETES_VERSION comes from the workflow-level env above.
       - name: Render every HelmRelease chart

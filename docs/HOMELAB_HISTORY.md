@@ -35,7 +35,15 @@ The three retained chart ServiceMonitors now carry no `authorization`. If anyone
 Measured against the live 89.2.3 release, the change removes 4 ServiceMonitors, 4 kube-system Services and 4 empty dashboards. Renovate PR #1123 (89.2.4) merged as an empty diff, superseded by #1125.
 
 The `VMServiceScrape ... webhook ... EOF` Flux dry-run alert at 21:22 was unrelated and transient — it landed 14 seconds after commit `4326adbc`, `monitoring-configs` reconciled Ready at the same revision, and the vm-operator shows 0 restarts with no webhook or TLS errors in its log.
-No CI job rendered charts, so this reached prod green: `kubeconform` validates the HelmRelease CR, never the chart's own templates. The `helm-render` job added in `2cdaa5c8` renders all 12 HelmRelease charts at their pinned versions (`.github/scripts/helm-render-check.sh`). It goes red on commit `4326adbc` and green on the fix. Two traps the script encodes: charts gate templates on reported API versions, so `--api-versions monitoring.coreos.com/v1` is required or traefik aborts with "You have to deploy monitoring.coreos.com/v1 first"; and a resolution bug that skips every chart would otherwise exit 0, so rendering zero charts is itself a failure.
+No CI job rendered charts, so every existing job passed: `kubeconform` validates the HelmRelease custom resource, never the chart's own templates. The `helm-render` job added in `2cdaa5c8` renders all 12 HelmRelease charts at their pinned versions (`.github/scripts/helm-render-check.sh`).
+
+| Property | Value |
+|---|---|
+| Result on `4326adbc` (pre-fix) | `FAIL kube-prometheus-stack@90.0.0`, exit 1 |
+| Result on the fix | 12/12 rendered, exit 0 |
+| Runtime | 9 s local, isolated helm repo config |
+| Required flag | `--api-versions monitoring.coreos.com/v1`, or traefik's `servicemonitor.yaml` aborts with "You have to deploy monitoring.coreos.com/v1 first" against a CRD the cluster has |
+| Silent-skip guards | Empty discovery, a HelmRepository name collision, and an incomplete `spec.chart.spec` each exit 1; releases pair with values by document index |
 
 
 ### 2026-09-06 — Immich ML inference moves to the immich-vm iGPU (OpenVINO)
