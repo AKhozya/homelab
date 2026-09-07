@@ -70,6 +70,7 @@ DB role name = app name. Provisioning goes through the operator CRDs (CNPG `Data
 ## Monitoring
 
 - **VictoriaMetrics** — VMSingle + VMAgent + VMOperator; ~113k active series at ~487 MiB (≈71% RAM saving vs Prometheus on the same scrape set). Operator chart pinned ≥0.67.1 — 0.67.0 omitted a `networkpolicies` grant operator v0.74.0 needs on every reconcile, and without it the operator parks silently while looking healthy (2026-07-31, see HISTORY). Do not pin back to 0.67.0.
+- **kube-prometheus-stack** — runs for Grafana, Alertmanager, kube-state-metrics and node-exporter only. `prometheus.enabled: false` and every VM prometheus-converter is off, so the chart's ServiceMonitors are inert and vmagent scrapes through the hand-written VMServiceScrapes in `monitoring/configs/`. Chart 90.0.0 refuses to render if an enabled control-plane component keeps its default `serviceMonitor.authorization` (2026-09-07, see HISTORY).
 - **Grafana** — dashboards, OIDC login.
 - **Loki + Grafana Alloy** — log aggregation (DaemonSet).
 - **Alertmanager** — Telegram alerts.
