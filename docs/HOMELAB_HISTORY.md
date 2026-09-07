@@ -39,7 +39,7 @@ No CI job rendered charts, so every existing job passed: `kubeconform` validates
 
 | Property | Value |
 |---|---|
-| Job / script | `helm-render` in `.github/workflows/validate.yaml`, `.github/scripts/helm-render-check.sh` |
+| Job / script | `helm-render` in `.github/workflows/validate.yaml`, `scripts/ci/helm-render-check.sh` |
 | Added in | `2cdaa5c8`, hardened in `703f3bc5` |
 | Coverage | 12 HelmRelease charts at their pinned versions; 11 HTTP repos and 1 OCI |
 | Result on `4326adbc` (pre-fix) | `FAIL kube-prometheus-stack@90.0.0`, exit 1 |

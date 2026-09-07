@@ -234,4 +234,4 @@ jobs:
           chmod +x "$HOME/.local/bin/yq"
       # KUBERNETES_VERSION comes from the workflow-level env above.
       - name: Render every HelmRelease chart
-        run: ./.github/scripts/helm-render-check.sh .
+        run: scripts/ci/helm-render-check.sh .
