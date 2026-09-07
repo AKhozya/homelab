@@ -30,6 +30,8 @@ Nothing consumed those ServiceMonitors: no `Prometheus` CR exists and every `VM_
 
 The scrapes survive because their selectors never pointed at chart objects: the kubelet VMServiceScrapes target the Service that **prometheus-operator** creates (`prometheusOperator.kubeletService`, gated only on itself), `coredns` targets the addon `kube-dns` Service via `k8s-app=kube-dns`, and `apiserver` targets `default/kubernetes`.
 
+The three retained chart ServiceMonitors now carry no `authorization`. If anyone enables `VM_ENABLEDPROMETHEUSCONVERTER_SERVICESCRAPE` on the vm-operator later, the converter turns them into unauthenticated VMServiceScrapes that duplicate the hand-written ones and fail against kubelet `https-metrics:10250` and `default/kubernetes`, which both require a bearer token. Clear or exclude them before flipping that flag.
+
 Measured against the live 89.2.3 release, the change removes 4 ServiceMonitors, 4 kube-system Services and 4 empty dashboards. Renovate PR #1123 (89.2.4) merged as an empty diff, superseded by #1125.
 
 The `VMServiceScrape ... webhook ... EOF` Flux dry-run alert at 21:22 was unrelated and transient — it landed 14 seconds after commit `4326adbc`, `monitoring-configs` reconciled Ready at the same revision, and the vm-operator shows 0 restarts with no webhook or TLS errors in its log.
