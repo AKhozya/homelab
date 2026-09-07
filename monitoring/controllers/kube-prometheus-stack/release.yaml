@@ -176,6 +176,37 @@ spec:
     prometheus:
       enabled: false
 
+    # Chart 90.0.0 fails the render if an enabled control-plane component keeps its
+    # default serviceMonitor.authorization: prometheus.enabled: false above stops the
+    # chart rendering the Secret that field points at.
+    # Nothing consumes these ServiceMonitors — vmagent scrapes through the hand-written
+    # VMServiceScrapes in monitoring/configs/ and every VM prometheus-converter is off.
+    # Clearing authorization rather than disabling the component keeps each Grafana
+    # dashboard, which the chart gates on the same enabled flag.
+    kubelet:
+      serviceMonitor:
+        authorization: null
+
+    kubeApiServer:
+      serviceMonitor:
+        authorization: null
+
+    coreDns:
+      serviceMonitor:
+        authorization: null
+
+    # No scrape path reaches these four — no VMServiceScrape, VMPodScrape,
+    # VMStaticScrape, VMScrapeConfig or vmagent additionalScrapeConfigs selects them —
+    # so their Services, ServiceMonitors and dashboards carry no data.
+    kubeControllerManager:
+      enabled: false
+    kubeScheduler:
+      enabled: false
+    kubeProxy:
+      enabled: false
+    kubeEtcd:
+      enabled: false
+
     alertmanager:
       config:
         global:
