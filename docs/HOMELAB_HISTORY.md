@@ -17,6 +17,37 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-09-08 — The failed NAS drive was replaced and md1 rebuilt clean
+
+`WS21F7E8`, the SMART-failed `md1` member written up on 2026-08-02 and still in
+the array when it stalled the 2026-09-06 scrub, was swapped on 2026-09-08. The
+NAS came back up at 21:14 BST and rebuilt into the same RaidDevice slot 2. As of
+2026-09-10 the array is `[6/6] [UUUUUU]`, `degraded=0`, `array_state=clean`,
+`last_sync_action=recover`, `sync_action=idle`, all six members `in_sync`.
+
+| Fact | Value |
+|---|---|
+| Out | `WS21F7E8` — `ST4000NE001-2MA101`, SMART FAILED, `Reallocated_Sector_Ct` 49152, `Reported_Uncorrect` 65535, `Command_Timeout` 983057 |
+| In | `WS24PTRD` — `ST4000NE001-2EN112`, firmware TN05. The Seagate warranty replacement; its model suffix differs from the five originals (`-2MA101`), so the array is no longer six identical units |
+| Prior runtime | None recorded. `Power_On_Hours` 50, `Power_Cycle_Count` 1, `Start_Stop_Count` 2, and `Head_Flying_Hours` 50h14m — all equal to the elapsed time since the swap |
+| SMART baseline | PASSED. Reallocated 0, Reported_Uncorrect 0, Command_Timeout 0, Current_Pending_Sector 0, Offline_Uncorrectable 0, UDMA_CRC 0, no errors logged |
+| Temperature baseline | 52 °C current, 57 °C max, against the 60 °C `Airflow_Temperature_Cel` threshold — 3 °C of margin at its rebuild peak. Compare at the next check; the sibling drives' temperatures need `sudo smartctl` |
+| `G-Sense_Error_Rate` | 557 in 50 hours — rotational vibration from the other five bays, expected in a 6-bay chassis |
+| Device letter | Now `sdd`, which is the letter the *failing* drive carried after the 2026-09-02 reboot. Same letter, opposite meaning: identify by serial, never by letter |
+
+**A rebuild is not a scrub.** The `recover` read all five surviving members
+end-to-end to reconstruct slot 2, so those five are verified readable. It did
+not read the new drive back, and it does not compute `mismatch_cnt` — the `0`
+in sysfs is uninformative after a `recover`. Both the 2026-08-02 and 2026-09-06
+checks were aborted mid-run, so the last completed check predates August.
+
+The next scheduled check is **2026-10-04 00:57** (`/etc/cron.d/mdadm`, first
+Sunday). It is left to run on schedule rather than triggered early: the drive
+that caused the 87-second read stalls is gone, and the `homelab/dedicated=immich`
+taint applied on 2026-09-06 now caps a scrub-class stall to Immich instead of
+the five init Jobs. An early check would be `echo check > /sys/block/md1/md/sync_action`,
+roughly 8-12 hours for 14.4 TB, on a day the `192.168.1.231` iowait can be watched.
+
 ### 2026-09-07 — kube-prometheus-stack 90.0.0 blocked on control-plane ServiceMonitor auth
 
 Renovate merged the chart bump to `90.0.0` (#1125). The Helm upgrade failed, Flux rolled back, and the release stayed on `89.2.3` while `FluxControllerReconcileErrors` fired. Chart 90.0.0 added a `fail` in `_helpers.tpl`: every enabled control-plane component defaults `serviceMonitor.authorization` to a Secret the chart renders only when `prometheus.enabled`, `prometheus.serviceAccount.create` and `createTokenSecret` are all true. This cluster sets `prometheus.enabled: false`, so the render aborted.
@@ -113,7 +144,7 @@ resolved by 18:47.
 
 | Follow-up | Status |
 |---|---|
-| Swap `WS21F7E8` (RaidDevice slot 2, currently `sdd`) before the next check on 2026-10-04 | replacement expected 2026-09-07/08 |
+| Swap `WS21F7E8` (RaidDevice slot 2, currently `sdd`) before the next check on 2026-10-04 | done 2026-09-08 — `WS24PTRD` rebuilt into slot 2; see the 2026-09-08 entry |
 | Fence `immich-vm` with a `NoSchedule` taint so only Immich and per-node DaemonSets run there | shipped `83eb9674` + `230eeb8a`; taint applied 21:27 BST |
 
 | Change | Detail |
