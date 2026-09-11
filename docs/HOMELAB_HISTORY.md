@@ -17,6 +17,37 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-09-11 — Immich v3.2.0 renamed a sign-up error and failed the admin-setup Job
+
+`immich-admin-setup` decided "an admin already exists" by grepping the
+`POST /api/auth/admin-sign-up` error body for `already has an admin`. Immich
+v3.2.0, deployed 2026-09-10 23:03 UTC, renamed that message to `Admin setup is
+not available`. The grep stopped matching on the next daily re-run, the script
+took its `exit 1` branch on all five attempts, and the Job burned its
+`backoffLimit` and raised `JobFailed`.
+
+The Job now reads `isInitialized` from `GET /api/server/config`, an
+unauthenticated field typed `z.boolean()` in `ServerConfigSchema` at v3.2.0, so
+it is present on a fresh server too. The gate is three-way: `true` skips and
+exits 0, `false` proceeds to sign-up, anything else prints the body and exits 1
+without POSTing. An unreadable state is an error rather than a blind sign-up,
+because a POST at an initialised server returns the same error prose this change
+removes. The DR path keeps working: a restored-empty database reports `false`.
+
+| Fact | Value |
+|---|---|
+| Commit | `a92afa53` |
+| Failing window | 2026-09-11 20:28–20:30 UTC, 5 attempts, all HTTP 400 |
+| Evidence | Loki, `{namespace="immich", pod="immich-admin-setup-bwcq9"}` |
+| Verified after | Job `Complete 1/1`, `kube_job_status_failed` 0, alert resolved in VMAlert and Alertmanager |
+
+Two tooling notes came out of the incident. The grafana-pod `kubectl exec` recipe
+for reading a vanished Job pod's stdout is dead — that image ships neither `sh`
+nor `curl` — so Loki is now read over `kubectl port-forward -n loki svc/loki`.
+Filtering the LogQL with `|= "admin"` also hid the `{"message": …}` line that
+named the cause, because a Job prints its diagnosis on the line after its
+headline.
+
 ### 2026-09-08 — The failed NAS drive was replaced and md1 rebuilt clean
 
 `WS21F7E8`, the SMART-failed `md1` member written up on 2026-08-02 and still in
