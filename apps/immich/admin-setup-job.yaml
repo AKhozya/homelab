@@ -108,11 +108,38 @@ spec:
             - |
               set -e
 
+              API="http://immich-server.immich.svc.cluster.local:2283"
+
+              # Read isInitialized, never the sign-up error prose: v3.2.0 renamed "The server
+              # already has an admin" to "Admin setup is not available", and the prose grep then
+              # failed this Job on every daily re-run.
+              # `|| config=""` keeps set -e from aborting with no message of its own.
+              config=$(curl -sf -m 30 "$API/api/server/config") || config=""
+              if [ -z "$config" ]; then
+                # Distinct from the missing-field branch below: this one is a retryable outage.
+                echo "❌ Could not read $API/api/server/config"
+                exit 1
+              fi
+
+              # BusyBox grep matches within one line.
+              init_true='"isInitialized"[[:space:]]*:[[:space:]]*true'
+              init_false='"isInitialized"[[:space:]]*:[[:space:]]*false'
+
+              if echo "$config" | grep -q "$init_true"; then
+                echo "⏭️  Admin user already exists, skipping creation"
+                exit 0
+              elif ! echo "$config" | grep -q "$init_false"; then
+                # Fail loudly instead of signing up: a POST at an initialised server returns prose
+                # this script must not read, which is the failure mode being removed here.
+                echo "❌ No isInitialized in $API/api/server/config"
+                echo "$config"
+                exit 1
+              fi
+
               echo "Attempting to create admin user..."
 
-              # Try to sign up admin user
               response=$(curl -s -w "\n%{http_code}" -m 30 -X POST \
-                "http://immich-server.immich.svc.cluster.local:2283/api/auth/admin-sign-up" \
+                "$API/api/auth/admin-sign-up" \
                 -H "Content-Type: application/json" \
                 -H "Accept: application/json" \
                 -d "{
@@ -124,18 +151,14 @@ spec:
               http_code=$(echo "$response" | tail -n1)
               body=$(echo "$response" | sed '$d')
 
-              if [ "$http_code" = "201" ]; then
-                echo "✅ Admin user created successfully!"
-                echo "$body"
-              elif echo "$body" | grep -q "already has an admin"; then
-                echo "⏭️  Admin user already exists, skipping creation"
-              else
+              if [ "$http_code" != "201" ]; then
                 echo "❌ Failed to create admin user. HTTP $http_code"
                 echo "$body"
                 exit 1
               fi
 
-              echo "Admin user setup complete!"
+              echo "✅ Admin user created successfully!"
+              echo "$body"
           env:
             - name: IMMICH_ADMIN_EMAIL
               valueFrom:
