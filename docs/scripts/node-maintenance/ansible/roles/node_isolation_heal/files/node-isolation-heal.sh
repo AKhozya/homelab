@@ -45,6 +45,10 @@ MIN_UPTIME_S="${NIH_MIN_UPTIME_S:-1800}"            # boot-loop guard (no reboot
 REBOOT_GAP_S="${NIH_REBOOT_GAP_S:-86400}"           # <= 1 reboot / 24h
 RESTART_COOLDOWN_S="${NIH_RESTART_COOLDOWN_S:-300}" # min seconds between k3s-agent restarts
 CURL_TIMEOUT="${NIH_CURL_TIMEOUT:-5}"
+# Ansible supplies space-separated peer worker addresses excluding this node. If the list is
+# empty, no peer veto protects workers from L2 during a CP outage.
+PEER_HOSTS="${NIH_PEER_HOSTS:-}"
+PEER_PORT="${NIH_PEER_PORT:-10250}"                      # kubelet; a connect proves reachability only
 MAINT_HOLD_MAX_AGE_S="${NIH_MAINT_HOLD_MAX_AGE_S:-3600}" # ignore a stuck hold older than 1h
 
 TUNNEL_URL="https://127.0.0.1:6444/cacerts"
@@ -61,7 +65,7 @@ METRIC_DIR="${NIH_METRIC_DIR:-/var/lib/node_exporter/textfile}"                 
 METRIC="${METRIC_DIR}/node_isolation_heal.prom"
 
 # signal state (set by the probe section; read by emit_metric)
-tunnel_up=0 cp_up=0 kubelet_up=0 gw_up=0
+tunnel_up=0 cp_up=0 kubelet_up=0 gw_up=0 peers_up=0
 
 log() {
 	logger -t node-isolation-heal -- "$*" 2>/dev/null || true
@@ -136,6 +140,16 @@ probe_gw() {
 	[ -n "${NIH_MOCK_GW:-}" ] && return "$NIH_MOCK_GW"
 	ping -c1 -W2 "$GW_HOST" >/dev/null 2>&1
 }
+# If one peer is rebooting, another reachable peer must still veto L2.
+probe_peers() {
+	[ -n "${NIH_MOCK_PEERS:-}" ] && return "$NIH_MOCK_PEERS"
+	[ -z "$PEER_HOSTS" ] && return 1
+	local h
+	for h in $PEER_HOSTS; do
+		timeout "$CURL_TIMEOUT" bash -c "exec 3<>/dev/tcp/${h}/${PEER_PORT}" 2>/dev/null && return 0
+	done
+	return 1
+}
 uptime_s() { echo "${NIH_UPTIME_OVERRIDE:-$(awk '{print int($1)}' /proc/uptime 2>/dev/null || echo 0)}"; } # NIH_UPTIME_OVERRIDE: test
 
 # ── workers-only guard: no k3s-agent unit → this is the CP (or a non-node) → no-op ──
@@ -168,6 +182,7 @@ probe_tunnel && tunnel_up=1
 probe_cp && cp_up=1
 probe_kubelet && kubelet_up=1
 probe_gw && gw_up=1
+probe_peers && peers_up=1
 
 # tunnel up → the agent reaches the CP → node is a functioning member → clear the episode.
 if [ "$tunnel_up" -eq 1 ]; then
@@ -181,7 +196,7 @@ fi
 [ "$first_fail" -eq 0 ] && first_fail="$now"
 consecutive="$((consecutive + 1))"
 wedged_s="$((now - first_fail))"
-log "ISOLATED (tunnel down; cp_direct=$cp_up kubelet=$kubelet_up gw=$gw_up) consecutive=$consecutive wedged=${wedged_s}s dry_run=$DRY_RUN"
+log "ISOLATED (tunnel down; cp_direct=$cp_up kubelet=$kubelet_up gw=$gw_up peers=$peers_up) consecutive=$consecutive wedged=${wedged_s}s dry_run=$DRY_RUN"
 
 # Debounce: need FAIL_MIN consecutive isolated cycles before any action.
 if [ "$consecutive" -lt "$FAIL_MIN" ]; then
@@ -243,6 +258,17 @@ do_l1() {
 # L1 ALWAYS precedes L2: if no L1 tried yet this episode, do it now — even if already past
 # the reboot threshold (try the cheap fix first). This also prevents the infinite-defer loop.
 if [ "$wedged_s" -ge "$RESTART_AFTER_S" ] && [ "$restarted_this_episode" -eq 0 ]; then
+	do_l1
+fi
+
+# Peer check: a reachable peer proves connectivity to that peer only. This policy suppresses
+# L2 because CP unreachability alone does not establish local isolation.
+# do_l1 exits, so this branch prevents execution of L2 below.
+# LIMIT: a fault that drops only CP traffic (a bad route, a one-off firewall rule) also leaves
+# peers reachable, and vetoes L2 for as long as it lasts. L1 keeps retrying and the wedged
+# metric keeps alerting, so that case needs a human rather than a reboot.
+if [ "$wedged_s" -ge "$reboot_threshold" ] && [ "$cp_up" -eq 0 ] && [ "$peers_up" -eq 1 ]; then
+	log "reboot SUPPRESSED: peer reachable, CP is not — retrying L1."
 	do_l1
 fi
 

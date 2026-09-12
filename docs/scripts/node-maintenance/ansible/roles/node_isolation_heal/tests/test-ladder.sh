@@ -124,5 +124,20 @@ run 0 0 1
 chk "recovery: wedged=0" 0 "$(gauge wedged)"
 chk "recovery: episode cleared (consec=0)" 0 "$(awk '{print $2}' "$STATE")"
 
+# T13: If a peer is reachable and the CP is unreachable, suppress L2.
+# Same seed as T11 (which reboots); only the peer signal differs, so it isolates the gate.
+export NIH_MOCK_PEERS=0 # 0 = a peer answered
+seed "$(($(N) - 1000))" 2 "$(($(N) - 500))" 0
+run 1 1 0 2000
+chk "peers up: reboot SUPPRESSED" RESTART "$(cat "$MOCK_ACTIONS" 2>/dev/null)"
+chk "peers up: last_reboot untouched" 0 "$(awk '{print $4}' "$STATE")"
+
+# T14 if the CP and all peers are unreachable, L2 must remain eligible.
+export NIH_MOCK_PEERS=1 # 1 = no peer answered
+seed "$(($(N) - 1000))" 2 "$(($(N) - 500))" 0
+run 1 1 0 2000
+chk "peers down: REBOOT still issued" REBOOT "$(cat "$MOCK_ACTIONS" 2>/dev/null)"
+unset NIH_MOCK_PEERS
+
 echo "---- $pass passed, $fail failed ----"
 [ "$fail" -eq 0 ]

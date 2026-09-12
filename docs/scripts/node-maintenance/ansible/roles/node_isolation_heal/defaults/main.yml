@@ -19,4 +19,7 @@ node_isolation_min_uptime_s: 1800        # boot-loop guard: no reboot if uptime 
 node_isolation_reboot_gap_s: 86400       # <= 1 self-reboot / 24h
 node_isolation_restart_cooldown_s: 300   # min seconds between k3s-agent restarts (shared)
 node_isolation_curl_timeout: 5
+# Peer probe port, reachable worker-to-worker (verified 2026-09-12). A reachable peer vetoes
+# the L2 self-reboot. The template builds the host list from the `workers` group minus this host.
+node_isolation_peer_port: 10250
 node_isolation_maint_hold_max_age_s: 3600  # ignore a stuck maint-hold older than 1h
