@@ -266,7 +266,7 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-server
-                tag: v3.2.1
+                tag: v3.2.2
                 pullPolicy: IfNotPresent
               env:
                 # Hardware acceleration on the immich-vm Intel iGPU. accel (QSV) is set in
