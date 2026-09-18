@@ -25,7 +25,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: apprise-init
-          image: alpine:3.24.1
+          image: alpine:3.24.2
           command: ["/bin/sh", "/scripts/init.sh"]
           env:
             - name: TELEGRAM_BOT_TOKEN
