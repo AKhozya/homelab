@@ -140,6 +140,20 @@ if [ "$drift" -eq 1 ]; then
   STATE="$(vsh "domstate $DOMAIN" 2>/dev/null || echo unknown)"
 fi
 
+# `virsh start` holds the domain `paused` for a beat while QEMU sets up, and ACPI
+# teardown holds it `in shutdown`. A 5-min tick landing inside either window read a
+# transitional state, not a fault: on 2026-09-19 the 04:55 tick read `paused` 6s into
+# the phase2 maintenance nudge's own `virsh start` and failed the Job, paging JobFailed.
+# Re-read once. This does NOT auto-act — a domain still paused/in-shutdown 20s later
+# falls through to the unchanged alert below, and no other state is re-read (a `shut off`
+# domain must be started on THIS tick, not slept on).
+case "$STATE" in
+  paused | "in shutdown")
+    sleep 20
+    STATE="$(vsh "domstate $DOMAIN" 2>/dev/null || echo unknown)"
+    ;;
+esac
+
 # 5. Ensure running. Only a shut-off domain is started (cold start = clean iGPU
 #    reset). This IS the autostart — UI/native autostart is OFF by design (C2/C4).
 case "$STATE" in

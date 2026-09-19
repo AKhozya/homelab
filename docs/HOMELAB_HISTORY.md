@@ -17,6 +17,29 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-09-19 — The immich-vm watchdog read a `paused` domain mid-start and paged
+
+The weekly reboot's `immich-vm` carve-out poweroffs the VM, then nudges the
+watchdog with a one-off Job (`phase2.yml` PLAY "Nudge immich-vm-heal watchdog").
+On 2026-09-19 that nudge ran `virsh start` at 04:55:10. The 5-minute scheduled
+tick started at 04:55:02 and read `domstate` at 04:55:07 — inside the beat where
+QEMU holds a starting domain `paused`. The watchdog treats every state outside
+`running`/`shut off` as operator-only and failed hard, so `JobFailed` paged for a
+VM that was booting normally; the 05:00 tick logged `OK=domain_running`.
+
+The same class was already known on the other side of the reboot: phase2 carries
+a 20 s "Settle before watchdog nudge" pause so the tick would not land on an
+`in shutdown` domain. A settle in the caller cannot cover the window the *nudge
+itself* opens, so the fix belongs in the watchdog: `paused` and `in shutdown` are
+now re-read once after 20 s before being judged.
+
+This deliberately does not soften the C3 safety rule. Nothing new is auto-acted
+on — a domain still `paused` 20 s later fails exactly as before — and no other
+state is re-read, because a `shut off` domain must be started on the tick that
+finds it, not slept through.
+
+---
+
 ### 2026-09-11 — Immich v3.2.0 renamed a sign-up error and failed the admin-setup Job
 
 `immich-admin-setup` decided "an admin already exists" by grepping the
