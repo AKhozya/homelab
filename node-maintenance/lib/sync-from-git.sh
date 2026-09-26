@@ -54,7 +54,7 @@ if [ "$FRESH_CLONE" -eq 1 ]; then
 else
   echo "==> HEAD ${PRE_SHA:0:10} → ${POST_SHA:0:10}; running install.sh --sync-only"
 fi
-bash "$REPO_DIR/docs/scripts/node-maintenance/install.sh" --sync-only
+bash "$REPO_DIR/node-maintenance/install.sh" --sync-only
 echo "==> Sync applied: ${POST_SHA:0:10}"
 
 # ── node-config drift-heal (ansible) ──

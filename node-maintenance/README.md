@@ -64,8 +64,8 @@ sudo ansible-playbook -t firmware -e ad_hoc_firmware_apply=true \
 
 ### Out-of-scope one-shots (not ansible)
 
-- **`docs/scripts/setup-claude-telegram.sh`** — Mac-side bootstrap for Claude Telegram bot on worker-node. Installs chezmoi/Node/Claude CLI as user `akhozya`, interactive GH token read. Run once per deploy; not drift-heal.
-- **`docs/scripts/update-firmware.sh`** — superseded by ad_hoc `firmware` tag. Kept for interactive Mac-less fallback.
+- **`scripts/setup-claude-telegram.sh`** — Mac-side bootstrap for Claude Telegram bot on worker-node. Installs chezmoi/Node/Claude CLI as user `akhozya`, interactive GH token read. Run once per deploy; not drift-heal.
+- **`scripts/update-firmware.sh`** — superseded by ad_hoc `firmware` tag. Kept for interactive Mac-less fallback.
 
 ---
 
@@ -98,7 +98,7 @@ When `security-scan.sh` changes: CP auto-syncs (sync timer), ansible `security_s
 
 1. On CP:
    ```bash
-   sudo bash /path/to/repo/docs/scripts/node-maintenance/install.sh
+   sudo bash /path/to/repo/node-maintenance/install.sh
    ```
 2. Follow printed instructions — scp + run `install-worker-ready.sh` on each worker.
 3. Verify:
@@ -122,7 +122,7 @@ Check: `systemctl list-timers node-maintenance-sync.timer` · `journalctl -u nod
 ### Manual (urgent)
 
 ```bash
-bash docs/scripts/node-maintenance/sync-node-maintenance.sh   # triggers same unit now
+bash node-maintenance/sync-node-maintenance.sh   # triggers same unit now
 ```
 
 Overrides via env: `NODE_MAINT_CP_HOST`, `NODE_MAINT_CP_USER`, `NODE_MAINT_CP_PORT`.
@@ -262,12 +262,12 @@ Tracked in `docs/SECRETS_ROTATION.md` under `node-maintenance-ssh`.
 ```bash
 # On Mac: decrypt SSH key → stream to CP
 sops --decrypt --extract '["stringData"]["ssh-private-key"]' \
-  docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml \
+  node-maintenance/secrets/ssh-key.sops.yaml \
   | ssh -p 65300 akhozya@gmk-k3s-control-plane \
       'cat > /tmp/node-maintenance-ssh-key && chmod 600 /tmp/node-maintenance-ssh-key'
 
 # Copy install folder to CP (if not already)
-scp -P 65300 -r docs/scripts/node-maintenance akhozya@gmk-k3s-control-plane:
+scp -P 65300 -r node-maintenance akhozya@gmk-k3s-control-plane:
 
 # On CP: run install
 ssh -p 65300 akhozya@gmk-k3s-control-plane
@@ -297,8 +297,8 @@ $(sed 's/^/        /' /tmp/new_key)
 EOF
 
 # 3. Encrypt + commit new key version
-sops --encrypt /tmp/new-secret.yaml > docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml
-git add docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml
+sops --encrypt /tmp/new-secret.yaml > node-maintenance/secrets/ssh-key.sops.yaml
+git add node-maintenance/secrets/ssh-key.sops.yaml
 git commit -m "Rotate node-maintenance-ssh (YYYY-MM-DD)"
 git push
 

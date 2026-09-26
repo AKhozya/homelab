@@ -62,6 +62,6 @@ Workers use `ufw-heal-post-k3s.service` (oneshot, after k3s.service) to re-apply
 - `minTlsServeVersion: 1.3` on Blocky is inert — no DoT/DoH server configured; don't "fix" it
 
 ## Host firewall (UFW via ansible)
-- ansible role `firewall` deploys UFW rules per node (`docs/scripts/node-maintenance/`)
+- ansible role `firewall` deploys UFW rules per node (`node-maintenance/`)
 - K3s ports allowlisted (6443, 10250, 8472/UDP flannel); cross-node SSH on port 65300
 - IPv6 ingress blocked by default

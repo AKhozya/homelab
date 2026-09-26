@@ -17,6 +17,25 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-09-26 — node-maintenance moved out of `docs/`
+
+| From | To |
+|---|---|
+| `docs/scripts/node-maintenance/` | `node-maintenance/` |
+| `docs/scripts/*.sh`, `docs/worker-node-post-install.sh` | `scripts/` |
+| `docs/scripts/runbooks/authentik-passkey-rollback.md` | `docs/runbooks/` |
+
+Only the control plane clones the repo, and its installed sync script calls `install.sh` by
+path, so the move ships in two commits:
+
+| Commit | Change |
+|---|---|
+| A | moves the tree, leaves a symlink `docs/scripts/node-maintenance → ../../node-maintenance`, and points `lib/sync-from-git.sh` at the new path. The old installed script follows the symlink and installs the new one |
+| B | deletes the symlink after the control plane shows the new sync script installed |
+
+`renovate.json` now ignores `node-maintenance/**`, because it used to sit under the ignored
+`docs/**`. Entries below this one keep the old path. Plan: `docs/plans/2026-09-26-open-source-prep.md`.
+
 ### 2026-09-26 — Kernel 6.18.54, k3s v1.36.3 → v1.36.4 → v1.37.0, and a certificate rotation that broke `kubectl exec`
 
 **The certificate rotation.** The operator ran `sudo k3s certificate rotate` on the control plane,

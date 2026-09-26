@@ -470,7 +470,7 @@ Traefik + CoreDNS + helm-controller (collide with the Flux-managed ones). K3s
 **Per node, control-plane first:**
 ```bash
 # 1. Bootstrap ansible stack + K3s config directory (script is bootstrap-only)
-sudo bash docs/scripts/setup-node.sh
+sudo bash scripts/setup-node.sh
 # 2. Apply ansible-owned config (k3s config, firewall, sysctls, ...)
 sudo systemctl start node-maintenance-sync.service
 sudo systemctl start node-maintenance-config.service

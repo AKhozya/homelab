@@ -5,7 +5,7 @@
 **Verified:** 6+ drift-heal cycles `failed=0`, idempotent on 2nd run.
 
 **Date:** 2026-04-28
-**Scope:** `docs/scripts/node-maintenance/ansible/` — node OS layer drift-heal.
+**Scope:** `node-maintenance/ansible/` — node OS layer drift-heal.
 **Context:** Setup runs on CP under `node-maintenance` user via systemd timers (sync 10min, drift-heal daily 03:00, weekly Sat 04:30, security-scan monthly).
 
 ## Verified Baseline

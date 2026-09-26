@@ -165,6 +165,7 @@
   "schedule": ["after 6pm and before 11pm"],
   "ignorePaths": [
     "docs/**",
+    "node-maintenance/**",
     "README.md",
     "clusters/flux-system/gotk-components.yaml"
   ]

@@ -13,7 +13,7 @@ K3s **production** (single env — no staging; merge to `main` deploys straight 
 Kustomization deps (branching, not a chain): `flux-system` → `infrastructure-controllers` → { `coredns` | `infrastructure-configs` → `apps` | `monitoring-controllers` → `monitoring-configs` }.
 
 ## SSH / sudo
-Agents do not have sudo. Node-side debug + fix workflow: `homelab-node-fix` skill (SSH+TTY pattern). Persistent fixes via ansible roles at `docs/scripts/node-maintenance/`; trigger via systemd: `sudo systemctl start node-maintenance-sync.service` (git pull) → `sudo systemctl start node-maintenance-config.service` (drift-heal).
+Agents do not have sudo. Node-side debug + fix workflow: `homelab-node-fix` skill (SSH+TTY pattern). Persistent fixes via ansible roles at `node-maintenance/`; trigger via systemd: `sudo systemctl start node-maintenance-sync.service` (git pull) → `sudo systemctl start node-maintenance-config.service` (drift-heal).
 
 Read cluster state with `kubectl` (+ `jq`) — never SSH a node to curl its `kubectl proxy` on `127.0.0.1:8001`. That proxy exists for node-maintenance and Alertmanager silences; the API is reachable directly from anywhere an agent runs. The claude-telegram pod has no `python3` — `jq`, `node` and `bun` are its JSON tools.
 

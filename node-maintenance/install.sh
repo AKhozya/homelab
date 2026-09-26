@@ -47,7 +47,7 @@ SSH private key not found at: $SSH_KEY_PATH (installed) or $KEY_SRC (staged)
 First-time install — run ONCE on Mac before install.sh:
 
   sops --decrypt --extract '["stringData"]["ssh-private-key"]' \\
-    docs/scripts/node-maintenance/secrets/ssh-key.sops.yaml \\
+    node-maintenance/secrets/ssh-key.sops.yaml \\
     | ssh -p 65300 akhozya@gmk-k3s-control-plane \\
         'cat > $KEY_SRC && chmod 600 $KEY_SRC'
 

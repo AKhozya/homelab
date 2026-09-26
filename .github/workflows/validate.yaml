@@ -7,7 +7,6 @@ on:
     # doc-only changes; mixed md+yaml pushes still run (paths-ignore skips only when
     # EVERY changed file matches). Markdown secret coverage = gitleaks.yaml, which
     # carries no paths-ignore.
-    # docs/scripts/** (shell) deliberately NOT ignored — shellcheck job scans it.
     paths-ignore: ['**.md', 'docs/images/**']
   push:
     branches: [main]

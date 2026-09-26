@@ -38,7 +38,7 @@ repos:
     rev: v0.10.0.1
     hooks:
       # No path anchor — shell also lives in apps/, .backup/ and .claude/hooks/,
-      # all of which the old ^(scripts|docs/scripts)/ filter skipped.
+      # and a directory allowlist would miss them.
       - id: shellcheck
         args: ['-S', 'error']
         files: \.(sh|bash)$

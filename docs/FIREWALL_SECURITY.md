@@ -16,8 +16,8 @@ UFW firewall config homelab cluster — services not exposed to internet.
 UFW rules are NOT maintained by hand and NOT listed here — a static listing drifts
 the day a role changes. Source of truth:
 
-- **Role:** `docs/scripts/node-maintenance/ansible/roles/firewall/` (+ `firewall_preflight`)
-- **Per-node rules:** `docs/scripts/node-maintenance/ansible/group_vars/{all,control_plane,workers}.yml` and `host_vars/<node>.yml` (e.g. VXLAN 8472/udp on worker-node-2, route rules)
+- **Role:** `node-maintenance/ansible/roles/firewall/` (+ `firewall_preflight`)
+- **Per-node rules:** `node-maintenance/ansible/group_vars/{all,control_plane,workers}.yml` and `host_vars/<node>.yml` (e.g. VXLAN 8472/udp on worker-node-2, route rules)
 - **Heal / apply:** `sudo systemctl start node-maintenance-config.service` (drift-heal also runs daily via timer)
 - **Inspect live:** `sudo ufw status numbered` on the node
 

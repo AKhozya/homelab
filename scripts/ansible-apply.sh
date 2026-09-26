@@ -3,7 +3,7 @@
 # Run ON the CP node (uses sudo systemctl).
 #
 # Deploy:
-#   scp -P 65300 docs/scripts/ansible-apply.sh akhozya@gmk-k3s-control-plane:~/ansible-apply.sh
+#   scp -P 65300 scripts/ansible-apply.sh akhozya@gmk-k3s-control-plane:~/ansible-apply.sh
 #   ssh -p 65300 -t akhozya@gmk-k3s-control-plane "chmod +x ~/ansible-apply.sh && ~/ansible-apply.sh [host]"
 #
 # Usage (on CP):

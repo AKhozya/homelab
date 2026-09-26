@@ -2,8 +2,8 @@
 # Setup script for claude-telegram on worker-node
 # Run this from your Mac BEFORE deploying the claude-telegram pod
 #
-# Usage: ./docs/scripts/setup-claude-telegram.sh <chezmoi-dotfiles-repo>
-# Example: ./docs/scripts/setup-claude-telegram.sh github.com/akhozya/dotfiles
+# Usage: ./scripts/setup-claude-telegram.sh <chezmoi-dotfiles-repo>
+# Example: ./scripts/setup-claude-telegram.sh github.com/akhozya/dotfiles
 
 set -euo pipefail
 

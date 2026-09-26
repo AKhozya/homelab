@@ -5,7 +5,7 @@
 # Bootstrap-only: AUR firmware, ansible stack (CP), bootloader kernel params,
 # K3s config directory. Everything else — sysctls, sshd, kubelet, udev,
 # tmpfiles, journald, logrotate, UFW, packages, K3s config.yaml — is owned
-# by ansible roles (docs/scripts/node-maintenance/ansible/roles/) and
+# by ansible roles (node-maintenance/ansible/roles/) and
 # drift-healed daily by node-maintenance-config.timer.
 #
 # Sections:
@@ -226,7 +226,7 @@ echo ""
 if [ "$NODE_TYPE" = "control-plane" ]; then
     echo "Next steps:"
     echo "  1. Install node-maintenance:"
-    echo "       sudo bash docs/scripts/node-maintenance/install.sh"
+    echo "       sudo bash node-maintenance/install.sh"
     echo "  2. Reboot to apply bootloader params + restart K3s with templated config.yaml"
     echo "  3. Enable secrets encryption (CP only, one-time):"
     echo "       sudo k3s secrets-encrypt enable"
@@ -237,7 +237,7 @@ if [ "$NODE_TYPE" = "control-plane" ]; then
 else
     echo "Next steps:"
     echo "  1. Install node-maintenance worker bits:"
-    echo "       sudo bash docs/scripts/node-maintenance/install-worker.sh"
+    echo "       sudo bash node-maintenance/install-worker.sh"
     echo "  2. Reboot (or restart k3s-agent) after first CP ansible run picks up new config"
 fi
 echo ""

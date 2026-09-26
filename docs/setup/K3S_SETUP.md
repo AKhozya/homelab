@@ -65,7 +65,7 @@ curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<nod
 
 ## What setup-node.sh Configures (bootstrap-only)
 
-The script (`docs/scripts/setup-node.sh`) is **bootstrap-only** (see its header) and
+The script (`scripts/setup-node.sh`) is **bootstrap-only** (see its header) and
 auto-detects node type. It applies exactly three things:
 
 1. **Bootstrap packages**: ansible stack (CP only) + AUR firmware suppressors
@@ -76,7 +76,7 @@ It does NOT write `config.yaml`/`kubelet.yaml` or apply hardening directly. Ever
 else — K3s `config.yaml` (CP: disables bundled coredns/traefik/helm-controller, secrets
 encryption; worker: node-name, ServiceLB) + `kubelet.yaml` (120s graceful shutdown),
 sysctls, sshd hardening, udev, tmpfiles, journald, logrotate, UFW, packages — is owned
-by ansible roles (`docs/scripts/node-maintenance/ansible/roles/`) and drift-healed daily
+by ansible roles (`node-maintenance/ansible/roles/`) and drift-healed daily
 by `node-maintenance-config.timer`.
 
 ## Node Scheduling
@@ -112,4 +112,4 @@ kubectl get svc traefik -n traefik  # EXTERNAL-IP = worker IPs
 ## Related
 
 - [Homelab Analysis](../HOMELAB_ANALYSIS.md)
-- [Setup Script](../scripts/setup-node.sh)
+- [Setup Script](../../scripts/setup-node.sh)
