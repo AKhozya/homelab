@@ -44,8 +44,12 @@ moved, it then calls `$REPO_DIR/docs/scripts/node-maintenance/install.sh --sync-
 **A failed install is never retried.** The reset moves HEAD before `install.sh` runs, so the
 next timer run sees an unchanged HEAD, prints `No changes … skip install`, and exits 0
 (`sync-from-git.sh:47-50`). The Telegram alert fires once, and `Result=success` ten minutes
-later hides the failure. Only two things re-run the install: a new commit on `main`, or an
-operator running `install.sh` by hand with sudo. Every recovery row below relies on one of them.
+later hides the failure. Every recovery row below relies on one of these two triggers:
+
+| Trigger | Who |
+|---|---|
+| a new commit on `main` | agent or operator |
+| `sudo bash …/install.sh --sync-only` on the CP | operator only (agents have no sudo) |
 
 So the move ships in two commits, with a compatibility symlink between them:
 
@@ -60,7 +64,7 @@ So the move ships in two commits, with a compatibility symlink between them:
 | # | Question | Probe | Result |
 |---|---|---|---|
 | S1 | Who clones the repo on nodes? | read `install-worker.sh`, `sync-from-git.sh` header | ✅ CP only. Workers get config from the CP over ansible; `install-worker.sh` has no clone |
-| S2 | Do node files outside the clone hardcode the path? | `grep -rl docs/scripts` over `/etc/systemd`, `/usr/lib/systemd/system`, `/usr/local/sbin`, `/etc/node-maintenance` on all 4 nodes; `systemctl list-timers --all` on the CP | 🟡 one hit per node: the `Documentation=` URL in `k3s-wait-ready.service` (text only). Grep exits 2 because root-only files are unreadable, so those files stay unscanned. No cron on the CP |
+| S2 | Do node files outside the clone hardcode the path? | `grep -rl docs/scripts` over `/etc/systemd`, `/usr/lib/systemd/system`, `/usr/local/sbin`, `/etc/node-maintenance` on all 4 nodes; `systemctl list-timers --all` on the CP | ✅ one hit per node: the `Documentation=` URL in `k3s-wait-ready.service` (text only). Grep exits 2 because root-only files are unreadable. Those files are safe to skip: on the CP they are installed copies of the repo's `lib/` and `ansible/`, which the repo sweep covers, and workers hold no clone, so the old path does not exist there. No cron on the CP: `crontab` is not installed and `/etc/cron.d` does not exist |
 | S3 | What fires when `k3s-wait-ready.service` changes? | read `roles/k3s_config/tasks/main.yml:43-50` + handlers | ✅ `Reload systemd` → `daemon_reload` only. No k3s restart. Drift-heal reports `changed` for this file after A; that is expected |
 | S4 | Does git swap a directory for a symlink under `--depth=50` fetch + `reset --hard`? | scratch repo mirroring the node flow: one clean clone, one clone with a single untracked file in the directory | 🟡 both `rc=0`, symlink in place, `realpath` lands in the new tree. Ran on macOS git; nodes run Arch git. Rollout step 2 catches a platform difference |
 | S5 | Is it safe for `install.sh` to overwrite the sync script while it runs? | `git log` on `lib/sync-from-git.sh` | 🟡 3 prior edits (`af2994a2`, `c387ffba`, `fc95af34`) shipped through the same self-overwrite. Precedent, not proof: Rollout step 2 checks the chained config run finished |
@@ -82,7 +86,7 @@ So the move ships in two commits, with a compatibility symlink between them:
 | 🟡 | Codex may regenerate `~/.codex/memories/memuser/MEMORY.md` from its own sources and re-introduce the old path. Edit it anyway: it is text, not a code path |
 | ⚠️ | `docs/HOMELAB_HISTORY.md` entries and `docs/plans/*` keep the old path. They are dated records, and rewriting them would falsify history. SP3 decides whether plans stay public |
 | ⚠️ | `~/.codex/memories/memrestore.bHYz8f/` is a restore snapshot. It keeps the old path; leave it alone |
-| ⚠️ | `scripts/worker-node-post-install.sh` (moved as-is) pins `K3S_VERSION="v1.34.2+k3s1"` and `NODE_IP="192.168.1.130"`, both stale. A move commit changes no content, so SP3 decides whether to delete it |
+| ⚠️ | `scripts/worker-node-post-install.sh` (moved as-is) pins `K3S_VERSION="v1.34.2+k3s1"` and `NODE_IP="192.168.1.130"`, both stale. Commit A changes only path strings; deleting a script is a separate decision for SP3 |
 
 ### Files touched by commit A
 
@@ -121,24 +125,36 @@ Doc edits:
 
 ### Gates before commit A
 
-Run from the worktree root. Each line states its pass condition.
+Run from the worktree root. Each comment states the pass condition. The commands sit in a
+code block, not a table, because a table forces `\|` escapes that change the regex.
 
-| Check | Command | Pass |
-|---|---|---|
-| no live old-path text | `rg -n 'docs/scripts\|docs/worker-node-post-install' --hidden -g '!.git' -g '!.claude/worktrees' -g '!docs/HOMELAB_HISTORY.md' -g '!docs/plans/**'` | 0 lines |
-| no broken relative links | `rg -n '\]\((\.\./)*scripts/' docs` | only `../../scripts/…` targets that exist |
-| symlink stored as a link | `git ls-files -s docs/scripts/node-maintenance` | mode `120000` |
-| symlink resolves | `test -f docs/scripts/node-maintenance/install.sh` | exit 0 |
-| new sync script size | `wc -c < node-maintenance/lib/sync-from-git.sh` | `2817` |
-| shell lint, same as CI | `find node-maintenance scripts -type f \( -name '*.sh' -o -name '*.bash' \) -exec shellcheck -S warning {} +` | exit 0 |
-| yaml lint | `yamllint -c .yamllint.yaml node-maintenance renovate.json` | exit 0 |
-| renovate config | `npx --yes --package renovate -- renovate-config-validator renovate.json` | exit 0 |
-| ansible lint | `cd node-maintenance/ansible && ansible-lint` | exit 0. If `ansible-lint` is not installed, say so in the commit report |
+```bash
+# no live old-path text — pass: 0 lines
+rg -n -e 'docs/scripts' -e 'docs/worker-node-post-install' --hidden -g '!.git' \
+  -g '!.claude/worktrees' -g '!docs/HOMELAB_HISTORY.md' -g '!docs/plans/**'
+# no broken relative links — pass: only ../../scripts/… targets, and each exists
+rg -n '\]\((\.\./)*scripts/' docs
+# symlink stored as a link — pass: mode 120000
+git ls-files -s docs/scripts/node-maintenance
+# symlink resolves — pass: exit 0
+test -f docs/scripts/node-maintenance/install.sh
+# new sync script — pass: 2817; record the sha256 for Rollout step 2
+wc -c < node-maintenance/lib/sync-from-git.sh; shasum -a 256 node-maintenance/lib/sync-from-git.sh
+# shell lint, same as CI — pass: exit 0
+find node-maintenance scripts -type f \( -name '*.sh' -o -name '*.bash' \) -exec shellcheck -S warning {} +
+# yaml lint — pass: exit 0
+yamllint -c .yamllint.yaml node-maintenance renovate.json
+# renovate config — pass: exit 0
+npx --yes --package renovate -- renovate-config-validator renovate.json
+# ansible lint — pass: exit 0. If ansible-lint is not installed, say so in the commit report
+(cd node-maintenance/ansible && ansible-lint)
+```
 
-Then the pre-commit review loop: resolve the opposite-family peer with
-`peer-reviewed-implementation/scripts/reviewer-peer` (Codex when Claude implements). Dispatch it
-through `codex-review.sh`: static, git-only, one-message verdict, pointed at
-`.claude/review-invariants.md`. The same rules apply to commit B, with a delta-scoped prompt.
+Then the pre-commit review loop. If Claude implements, `peer-reviewed-implementation/scripts/reviewer-peer`
+resolves the peer to Codex. Dispatch it through `~/.agents/skills/_shared/codex-review.sh`: static,
+git-only, one-message verdict, pointed at `.claude/review-invariants.md`. Codex runs at `xhigh`
+reasoning from the global `~/.codex/config.toml`; confirm that setting before the first dispatch.
+Commit B gets the same rules with a delta-scoped prompt.
 
 ### Rollout
 
@@ -147,15 +163,15 @@ through `codex-review.sh`: static, git-only, one-message verdict, pointed at
 
    | Check | Command | Pass |
    |---|---|---|
-   | sync was not skipped | `systemctl show -p ConditionResult,ActiveState,Result node-maintenance-sync` | `ConditionResult=yes`. If it is `no`, a stuck `phase2-pending` flag is blocking syncs; stop and clear it first |
-   | the run processed the merge | `journalctl -u node-maintenance-sync --since=-15min` | `HEAD … → <main tip after the merge>`, `running install.sh --sync-only`, `Sync applied`, `Deactivated successfully` |
-   | new script installed | `ls -l /usr/local/sbin/node-maintenance-sync-from-git.sh` | **2817** bytes, fresh mtime. This is the pass/fail signal |
-   | chained drift-heal finished | `systemctl show -p ActiveState,Result node-maintenance-config` | `ActiveState=inactive` first (`Result` is stale mid-run), then `Result=success` |
+   | sync was not skipped | `systemctl show -p ConditionResult,ActiveState,Result node-maintenance-sync` | `ConditionResult=yes`. If it is `no`, the `phase2-pending` flag is blocking syncs. Stop and hand to the operator: the flag may belong to a maintenance run still in progress, so nobody clears it without finding out why it exists |
+   | the run processed the merge, including the chained drift-heal | `journalctl -u node-maintenance-sync --since=-15min` | one run, in order: `HEAD … → <main tip after the merge>`, `running install.sh --sync-only`, `Sync applied`, `node-config playbook done`, `Deactivated successfully`. The playbook runs through `systemctl start --wait` under `set -e`, so `node-config playbook done` inside this run proves the config run that A triggered succeeded |
+   | new script installed | `ls -l /usr/local/sbin/node-maintenance-sync-from-git.sh` | **2817** bytes and a fresh mtime |
+   | new script content | operator runs `sudo sha256sum /usr/local/sbin/node-maintenance-sync-from-git.sh` | matches the sha256 recorded at the gate. Size alone cannot rule out a damaged file of the same length |
 
 3. Push the dotfiles updates (Off-repo updates below), then restart the bot pod
    (`kubectl -n claude-telegram delete pod -l app=claude-telegram`) so it re-applies them. Re-run the bot grep:
    0 strict hits.
-4. **Precondition: step 2 shows 2817.** Commit B: `git rm docs/scripts/node-maintenance`, then
+4. **Precondition: step 2 passes every row, including the sha256 match.** Commit B: `git rm docs/scripts/node-maintenance`, then
    `rmdir docs/scripts` if it is empty. Review, merge, push.
 5. Next sync: repeat the step-2 checks. The size stays 2817, and success here proves the new
    script runs without the symlink.
@@ -215,7 +231,7 @@ Spikes still to run before its plan:
 | CODEMAPS → `docs/subsystems/` | link sites: `AGENTS.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/HOMELAB_ANALYSIS.md`, plus the ECC `update-codemaps` convention |
 | `.backup/README.md` → `docs/` | link sites: `docs/ARCHITECTURE.md:133,178,203`, `docs/disaster-recovery/README.md:3`, `AGENTS.md`. CI's sops check prunes `.backup/`; the DR scripts stay there |
 | Disposition to propose | `HOMELAB_HISTORY.md` (4,002 lines), `docs/plans/`, `ANSIBLE_REVIEW_PLAN.md`, `scripts/worker-node-post-install.sh` (stale) |
-| Known rot | every `node-maintenance/systemd/*` unit carries `Documentation=file:///etc/node-maintenance/README.md`, and `install.sh` never installs that README |
+| Known doc errors | every `node-maintenance/systemd/*` unit carries `Documentation=file:///etc/node-maintenance/README.md`, and `install.sh` never installs that README |
 | Gate | SP1's old-path sweep plus the relative-link grep, for each renamed path |
 
 ## SP4 — pre-public gate (outline)
@@ -223,14 +239,14 @@ Spikes still to run before its plan:
 | Item | Detail |
 |---|---|
 | History secret scan | `gitleaks git` over full history. Pass = exactly the 11 known inert findings (audited 2026-07-26), 0 new. `git log -S<value>` for every previously rotated value. Sample `refs/pull/*/head` tips |
-| `claude.yml` public triggers | `.github/workflows/claude.yml:3-21` fires on `issue_comment`, `issues` and `pull_request_review*`. Its `if:` checks only for `@claude` and excludes Renovate; it has no actor or `author_association` guard. It uses `secrets.CLAUDE_CODE_OAUTH_TOKEN`. Spike what `anthropics/claude-code-action@v1` enforces for users without write access, then add `github.actor == 'AKhozya'` or drop the `issues`/`issue_comment` triggers |
+| `claude.yml` public triggers | `.github/workflows/claude.yml:3-21` fires on `issue_comment`, `issues` and `pull_request_review*`. Its `if:` checks only for `@claude` and excludes Renovate; it has no actor or `author_association` guard. It uses `secrets.CLAUDE_CODE_OAUTH_TOKEN`. Spike what `anthropics/claude-code-action@v1` enforces for users without write access. Then add `github.actor == 'AKhozya'` to the condition of **every** trigger that stays, `pull_request_review*` included |
 | Absolute `/Users/akhozya/…` paths | `.claude/hooks/worktree-guard.sh:13`, `.claude/hooks/worktree-session-start.sh:9`, `AGENTS.md:69`, `CLAUDE.md:33`. Decide: keep or make generic |
 | Licence | add MIT `LICENSE` |
 
 ## SP5 — ultrareview
 
-The operator runs `/code-review ultra` on the repo. Every finding that blocks publishing
-(exposed secret, licence problem, unsafe public trigger) is fixed before SP6.
+The operator runs `/code-review ultra` on the repo. The agent fixes every finding that blocks
+publishing (exposed secret, licence problem, unsafe public trigger) before SP6 starts.
 
 ## SP6 — visibility flip
 
