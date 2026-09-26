@@ -138,8 +138,9 @@ rg -n '\]\((\.\./)*scripts/' docs
 git ls-files -s docs/scripts/node-maintenance
 # symlink resolves — pass: exit 0
 test -f docs/scripts/node-maintenance/install.sh
-# new sync script — pass: 2817; record the sha256 for Rollout step 2
-wc -c < node-maintenance/lib/sync-from-git.sh; shasum -a 256 node-maintenance/lib/sync-from-git.sh
+# new sync script — pass: 2817. Review may still change the file, so record the sha256
+# for Rollout step 2 after the merge: git show main:node-maintenance/lib/sync-from-git.sh | shasum -a 256
+wc -c < node-maintenance/lib/sync-from-git.sh
 # shell lint, same as CI — pass: exit 0
 find node-maintenance scripts -type f \( -name '*.sh' -o -name '*.bash' \) -exec shellcheck -S warning {} +
 # yaml lint — pass: exit 0
@@ -164,14 +165,15 @@ Commit B gets the same rules with a delta-scoped prompt.
    | Check | Command | Pass |
    |---|---|---|
    | sync was not skipped | `systemctl show -p ConditionResult,ActiveState,Result node-maintenance-sync` | `ConditionResult=yes`. If it is `no`, the `phase2-pending` flag is blocking syncs. Stop and hand to the operator: the flag may belong to a maintenance run still in progress, so nobody clears it without finding out why it exists |
-   | the run processed the merge, including the chained drift-heal | `journalctl -u node-maintenance-sync --since=-15min` | one run, in order: `HEAD … → <main tip after the merge>`, `running install.sh --sync-only`, `Sync applied`, `node-config playbook done`, `Deactivated successfully`. The playbook runs through `systemctl start --wait` under `set -e`, so `node-config playbook done` inside this run proves the config run that A triggered succeeded |
+   | the run processed the merge, including the chained drift-heal | `journalctl -u node-maintenance-sync --since=-15min` | one run, in order: `HEAD … → <main tip after the merge>`, `running install.sh --sync-only`, `Sync applied`, `node-config playbook done`, `Deactivated successfully`. Lines after `install.sh` returns prove bash kept reading the replaced script correctly (S5). They do **not** prove the playbook ran: if another run holds the lock, `node-maintenance-lock.sh skip` exits 0 without running it (`lib/node-maintenance-lock.sh:28-37`) |
+   | the playbook ran and passed | `grep -A6 -e '^=== start:' -e '^PLAY RECAP' /var/log/node-maintenance/config-latest.log` (readable by the `adm` group, no sudo) | the `=== start:` timestamp falls inside the sync run, and every host row shows `unreachable=0 failed=0`. The unit truncates this file at each start, so it holds only that run. If there is no `PLAY RECAP`, the lock skipped the run: this does not block B, because `install.sh` already rsynced the tree. Re-check after the 03:00 drift-heal |
    | new script installed | `ls -l /usr/local/sbin/node-maintenance-sync-from-git.sh` | **2817** bytes and a fresh mtime |
-   | new script content | operator runs `sudo sha256sum /usr/local/sbin/node-maintenance-sync-from-git.sh` | matches the sha256 recorded at the gate. Size alone cannot rule out a damaged file of the same length |
+   | new script content | operator runs `sudo sha256sum /usr/local/sbin/node-maintenance-sync-from-git.sh` | matches the sha256 recorded after the merge. Size alone cannot rule out a damaged file of the same length |
 
 3. Push the dotfiles updates (Off-repo updates below), then restart the bot pod
    (`kubectl -n claude-telegram delete pod -l app=claude-telegram`) so it re-applies them. Re-run the bot grep:
    0 strict hits.
-4. **Precondition: step 2 passes every row, including the sha256 match.** Commit B: `git rm docs/scripts/node-maintenance`, then
+4. **Precondition: step 2 passes every row, including the sha256 match; the playbook row may defer to the 03:00 drift-heal.** Commit B: `git rm docs/scripts/node-maintenance`, then
    `rmdir docs/scripts` if it is empty. Review, merge, push.
 5. Next sync: repeat the step-2 checks. The size stays 2817, and success here proves the new
    script runs without the symlink.
