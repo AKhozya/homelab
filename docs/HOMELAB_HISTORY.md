@@ -17,6 +17,86 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-09-26 — Kernel 6.18.54, k3s v1.36.3 → v1.36.4 → v1.37.0, and a certificate rotation that broke `kubectl exec`
+
+**The certificate rotation.** The operator ran `sudo k3s certificate rotate` on the control plane,
+W1 and W2 while k3s was running. The command expects k3s to be stopped first. It moves the leaf
+certificates aside, and k3s writes replacements only when it next starts. The running API server
+therefore lost `/var/lib/rancher/k3s/server/tls/client-kube-apiserver.crt`. Every call from the API
+server to a kubelet failed, which broke `kubectl logs`, `exec` and `port-forward` across the cluster.
+
+| Check | Result during the fault |
+|---|---|
+| API server `/readyz` | `ok` |
+| Node Ready, all four nodes | `True` |
+| ClusterIP probes | passed |
+| `kubectl logs` | `open .../tls/client-kube-apiserver.crt: no such file or directory` |
+
+Only a call from the API server to a kubelet showed the fault.
+
+The first manual phase1 run failed on it with `exit=2` and rebooted nothing. Before it
+upgrades anything, it adds an Alertmanager silence through `kubectl exec`. The rotation left the CA
+unchanged (`k3s-server-ca@1759844691`). So `sudo systemctl restart k3s` on the control plane made k3s
+write new leaf certificates, and `kubectl logs` worked again. The k3s agents on W1 and W2 kept the
+certificates they had loaded in memory. The phase2 reboot of each worker restarted its agent, which
+wrote new ones. Each kubelet's `:10250` certificate then showed a `notBefore` from that reboot.
+
+**OS upgrade.** The second phase1 run completed. All four nodes moved from `6.18.53-1-lts` to
+`6.18.54-1-lts`. Phase2 reported `failed=0` on every host.
+
+**k3s patch, v1.36.3 → v1.36.4.** The `stable` channel named v1.36.4. The `k3s-upgrade` skill
+checked the binary against its published sha256 and staged it on all four nodes. The serial rolling
+restart then activated it. The `pre-k3s-v1.36.4` checkpoint matched after the restart: no unhealthy
+pods and Flux 7/7.
+
+**k3s minor, v1.36.4 → v1.37.0.** The `latest` channel named v1.37.0. The skill ran the same steps.
+Checks before staging:
+
+| Check | Result |
+|---|---|
+| k3s v1.37.0 release notes | name no removed flag or config key that this cluster uses |
+| Kubernetes 1.37 "ACTION REQUIRED" notes | none apply. SELinux is not in `/sys/kernel/security/lsm` on any node, and no node kernel lists `selinuxfs`. The API server serves only `scheduling.k8s.io/v1`. `kubelet.yaml` does not set `eventRecordQPS` |
+| `apiserver_requested_deprecated_apis` | no series carries a `removed_release` |
+| Datastore | embedded SQLite. `sqlite3 .backup` copied it to `/var/lib/rancher/k3s/server/db/state.db.pre-v1.37.0` (root, 0600, `integrity_check` = ok) |
+
+The copy exists because the old binaries were already deleted. The `k3s-upgrade` skill treats a
+minor-version downgrade as a restore from backup, not a binary swap.
+
+| After activation | Result |
+|---|---|
+| Kubelet version, all four nodes | `v1.37.0+k3s1` |
+| `pre-k3s-v1.37.0` checkpoint | matched |
+| Unhealthy pods | 0 |
+| Flux Kustomizations | 7/7 Ready |
+| Firing alerts | Watchdog only |
+
+**W1 leftovers removed.** Three files from a k3s server install dated 2025-12-31 remained on W1:
+
+| File | State | Why it went |
+|---|---|---|
+| `/etc/systemd/system/k3s.service` | disabled, never active | W1 runs `k3s-agent.service` |
+| `/etc/systemd/system/k3s.service.env` | empty | belonged to the unit above |
+| `/usr/local/bin/k3s-uninstall.sh` | server uninstaller | if an operator runs it on W1, it deletes `/etc/rancher/k3s` and `/var/lib/kubelet` on a working agent |
+
+`k3s-image-gc.service` and `k3s-wait-ready.service` name `k3s.service` only in `After=`. Both
+units already run on W2 and immich-vm, where no `k3s.service` exists. `k3s-agent-uninstall.sh` stays.
+
+**CI tracks the cluster.** `KUBERNETES_VERSION` in `.github/workflows/validate.yaml` and the default
+in `scripts/ci/helm-render-check.sh` moved 1.36.3 → 1.37.0. `yannh/kubernetes-json-schema`
+publishes `v1.37.0-standalone-strict`. The account had used its GitHub Actions minutes, so every gate
+ran locally:
+
+| Gate | Result |
+|---|---|
+| kubeconform, 7 roots | 552 resources, 0 invalid, at both 1.36.3 and 1.37.0 |
+| helm-render at 1.37.0 | 12 charts render |
+| yamllint, shellcheck (46 scripts), sops-check, init-resources, image-pin, gitleaks dir | all exit 0 |
+
+The first local kubeconform run reported `0 resource found` and exited 0. The script passed it a
+`mktemp` path, and kubeconform skipped that extensionless file. CI pipes the render through stdin,
+so the local copy now does the same. If image-pin passes, it prints nothing. A copy of
+`apps/paperless-ngx/deployment.yaml` with its tags set to `:latest` made it exit 1.
+
 ### 2026-09-19 — The immich-vm watchdog read a `paused` domain mid-start and paged
 
 The weekly reboot's `immich-vm` carve-out poweroffs the VM, then nudges the

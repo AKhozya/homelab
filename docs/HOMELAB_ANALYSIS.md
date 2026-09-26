@@ -2,7 +2,7 @@
 
 A snapshot of what runs in the cluster and how it's postured. For *why* it's built this way see [ARCHITECTURE.md](ARCHITECTURE.md); for the change log see [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md); for per-subsystem structure see [CODEMAPS/](CODEMAPS/).
 
-**Cluster:** K3s `v1.36.3+k3s1`, single-environment **production** (no staging — a merge to `main` deploys straight to prod), 4 Arch Linux nodes (1 control-plane + 2 workers + 1 GPU-worker VM `immich-vm` on the NAS, joined 2026-07-10, dedicated to Immich via a NoSchedule taint since 2026-09-06), static-DHCP IPv4.
+**Cluster:** K3s `v1.37.0+k3s1`, single-environment **production** (no staging — a merge to `main` deploys straight to prod), 4 Arch Linux nodes (1 control-plane + 2 workers + 1 GPU-worker VM `immich-vm` on the NAS, joined 2026-07-10, dedicated to Immich via a NoSchedule taint since 2026-09-06), static-DHCP IPv4.
 
 ## Platform at a glance
 

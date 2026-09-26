@@ -15,7 +15,7 @@ cd "$repo_root" || exit 1
 # reports. If --api-versions omits monitoring.coreos.com/v1, traefik's servicemonitor.yaml
 # aborts with "You have to deploy monitoring.coreos.com/v1 first" against a CRD the
 # cluster does have.
-KUBE_VERSION="${KUBERNETES_VERSION:-1.36.3}"
+KUBE_VERSION="${KUBERNETES_VERSION:-1.37.0}"
 API_VERSIONS=(
   --api-versions monitoring.coreos.com/v1
   --api-versions monitoring.coreos.com/v1alpha1

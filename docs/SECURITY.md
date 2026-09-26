@@ -1,7 +1,7 @@
 # HOMELAB SECURITY DOCUMENTATION
 
-**Last Updated:** 2026-08-08
-**Infrastructure:** K3s cluster (v1.36.3+k3s1) with Flux GitOps
+**Last Updated:** 2026-09-26
+**Infrastructure:** K3s cluster (v1.37.0+k3s1) with Flux GitOps
 
 This homelab leans on defense-in-depth rather than any single control. Secrets are SOPS/age-encrypted in git, Kyverno admission policies block non-compliant workloads before they schedule, and every namespace runs under default-deny NetworkPolicies plus Pod Security Standards. User-facing access flows through Authentik SSO, and anything reachable from outside the LAN goes over a Cloudflare Tunnel — so the cluster keeps zero inbound ports open to the internet. The sections below document the current posture, the trade-offs accepted for a personal single-admin setup, and the triggers that would justify tightening it further.
 

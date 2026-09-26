@@ -28,9 +28,9 @@ env:
   # v0.21.1 -> kustomize CLI v5.8.1. Re-derive from the controller's go.mod on
   # any Flux bump; v5.5.0 (api v0.18.0) had drifted three minors behind.
   KUSTOMIZE_VERSION: v5.8.1
-  # Track the live cluster (v1.36.3+k3s1). yannh/kubernetes-json-schema ships
-  # v1.36.3 schemas. Bump alongside any k3s upgrade (k3s-upgrade skill checklist).
-  KUBERNETES_VERSION: "1.36.3"
+  # Track the live cluster (v1.37.0+k3s1). yannh/kubernetes-json-schema ships
+  # v1.37.0 schemas. Bump alongside any k3s upgrade (k3s-upgrade skill checklist).
+  KUBERNETES_VERSION: "1.37.0"
 
 jobs:
   yamllint:
