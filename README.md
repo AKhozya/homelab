@@ -185,8 +185,7 @@ because of a billing problem on the account.
 | Authentik | Single sign-on, by OIDC or forward-auth; sign-in is passkey-first. |
 
 A few workloads cannot meet every policy. For example, Home Assistant and Stirling-PDF run as root.
-The [security page](docs/SECURITY.md) and the [host firewall page](docs/FIREWALL_SECURITY.md)
-cover the details.
+The [security page](docs/SECURITY.md) covers the details, including the node firewall.
 
 ## Screenshots
 
@@ -201,8 +200,7 @@ _Grafana and Homepage dashboards: screenshots to come._
 | Doc | What's in it |
 |---|---|
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | Design, principles, diagrams |
-| [SECURITY.md](docs/SECURITY.md) | Security model and controls |
-| [FIREWALL_SECURITY.md](docs/FIREWALL_SECURITY.md) | Host firewall and NetworkPolicy layers |
+| [SECURITY.md](docs/SECURITY.md) | Internet access, sign-in, node firewall, incidents |
 | [BACKUP_STRATEGY.md](docs/BACKUP_STRATEGY.md) | Backup schedule, retention, recovery targets |
 | [disaster-recovery/](docs/disaster-recovery) | Full restore runbook |
 | [SECRETS_ROTATION.md](docs/SECRETS_ROTATION.md) | Rotation schedule and the SOPS/age model |

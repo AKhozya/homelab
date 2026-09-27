@@ -1,386 +1,169 @@
-# HOMELAB SECURITY DOCUMENTATION
+# Security
 
-**Last Updated:** 2026-09-26
-**Infrastructure:** K3s cluster (v1.37.0+k3s1) with Flux GitOps
+This page describes how the cluster is protected: who can reach what, how people sign in, how
+each node's firewall is set, and what went wrong before. The in-cluster layers (admission policy,
+which checks each workload before Kubernetes accepts it; NetworkPolicies; container limits) are in
+[ARCHITECTURE.md](ARCHITECTURE.md#security-layers).
 
-This homelab leans on defense-in-depth rather than any single control. Secrets are SOPS/age-encrypted in git, Kyverno admission policies block non-compliant workloads before they schedule, and every namespace runs under default-deny NetworkPolicies plus Pod Security Standards. User-facing access flows through Authentik SSO, and anything reachable from outside the LAN goes over a Cloudflare Tunnel — so the cluster keeps zero inbound ports open to the internet. The sections below document the current posture, the trade-offs accepted for a personal single-admin setup, and the triggers that would justify tightening it further.
+## Posture
 
----
+| Area | State |
+|---|---|
+| Internet access | The published apps are reachable only through a Cloudflare Tunnel, which the cluster opens from the inside; the home router forwards no ports. Nine hostnames are published; the rest of the apps are LAN-only. On the nodes themselves, only 8472/udp accepts traffic from any source (see [Node firewall](#node-firewall)). |
+| Sign-in | Authentik, passkey-first since 2026-06-05. Seven apps and Grafana use it through OIDC (the app hands sign-in to Authentik); Homepage sits behind Authentik forward-auth. |
+| Admission | 12 Kyverno policies, all `Deny`, plus Pod Security Standards on every app namespace. |
+| Network inside the cluster | Each app's NetworkPolicy lists the connections its pods may make and accept; any other connection to or from those pods is blocked. Kyverno's `require-networkpolicy` policy rejects a workload in an app namespace that has no NetworkPolicy. |
+| Secrets | Encrypted in Git with SOPS and age. |
+| TLS | cert-manager issues the ingress certificates, proving control of the domain through DNS records (a DNS-01 challenge). |
+| Node firewall | UFW on every node denies incoming traffic by default; an Ansible role manages the rules. |
+| Node SSH | Key-only, on port 65300; root login is off. |
+| Updates | Renovate proposes image and chart updates; the nodes update weekly. |
 
-## TABLE OF CONTENTS
+## Reaching the apps from the internet
 
-1. [Current Security Posture](#current-security-posture)
-2. [Authentication & Access Control](#authentication--access-control)
-3. [Network Security](#network-security)
-4. [Admin Access Strategy](#admin-access-strategy)
-5. [When to Revisit Security Decisions](#when-to-revisit-security-decisions)
-6. [Future Enhancements](#future-enhancements)
+Internet traffic to the published apps enters only through the Cloudflare Tunnel. The `cloudflared`
+pod opens the tunnel outward, so the home router forwards nothing inbound. Tunnel traffic goes from
+`cloudflared` straight to each app's Service; it does not pass Traefik. So Traefik's security
+headers, CSP (the rules for what a page may load) and rate limits apply only to LAN traffic.
 
----
+| Hostname | App | Sign-in |
+|---|---|---|
+| `couchdb` | Obsidian sync | Cloudflare Access service token at the edge, then CouchDB's own password |
+| `authentik` | Authentik | Authentik itself; no edge check |
+| `audiobooks`, `immich`, `linkwarden`, `mealie`, `paperless`, `stirling` | those apps | Authentik, through OIDC; no edge check |
+| `n8n` | n8n | n8n's own user accounts; no edge check |
 
-## CURRENT SECURITY POSTURE
+[ARCHITECTURE.md](ARCHITECTURE.md#traffic-flow-two-ways-in) records why each hostname has or lacks
+an edge check. Every sign-in page in the last three rows faces the internet, so a bug in one of
+them is exposed to the internet, not only to the LAN. That is an accepted cost.
 
-### Overall Assessment
+## Sign-in
 
-**Strengths:**
-- Centralized SSO with Authentik — 7 of 17 apps via OIDC, plus homepage via forward-auth
-- Admin user 2FA enabled (TOTP)
-- OIDC on the integrated apps; most also have their local password login disabled (the
-  table below names the exceptions)
-- NetworkPolicy default-deny in every namespace (live counts in HOMELAB_ANALYSIS.md)
-- 12 Kyverno CEL ValidatingPolicies, every one `validationActions: [Deny]`
-- Secrets SOPS/age encrypted
-- TLS on all ingresses
-- Emergency admin accounts for critical apps
+### Authentik
 
-**Current Risk Acceptance:**
-- Apps accessible local network (not public internet)
-- Authentik admin accessible without VPN
-- Single auth layer (OIDC + 2FA, no network layer)
+Authentik is the identity provider. Since 2026-06-05 its main sign-in flow has no password step:
 
----
+| Step | How |
+|---|---|
+| Normal sign-in | A passkey (WebAuthn) |
+| Lost passkey | Username and a TOTP code (from an authenticator app), then enrol a new passkey |
+| Lost passkey and TOTP | Authentik's email recovery flow |
 
-## AUTHENTICATION & ACCESS CONTROL
+A TOTP code can be phished; a passkey cannot. The owner keeps TOTP anyway, for account recovery
+after losing a device. The blueprints that set this up are in `apps/authentik/blueprints/`, and
+[runbooks/authentik-passkey-rollback.md](runbooks/authentik-passkey-rollback.md) undoes them.
 
-### Authentik SSO Configuration
+The admin account is `akadmin`. The `authentik` hostname has no edge check, so its sign-in page,
+including the TOTP and email recovery paths, is reachable from the internet.
 
-**Admin User:**
-- Username: `akadmin`
-- 2FA: Enabled (TOTP)
-- Access: full admin to Authentik
-- **Decision**: public access allowed with 2FA protection
+### Apps that sign in through Authentik
 
-**Security Model:**
-```
-Internet/LAN → Authentik Login → 2FA → Application Access
-├─ Layer 1: None (no network restriction)
-├─ Layer 2: ✅ Password + TOTP (2FA)
-└─ Layer 3: ✅ Application RBAC
-```
+| App | Method | App's own password login |
+|---|---|---|
+| Grafana | OIDC | off (`disable_login_form: true`, `auth.basic.enabled: false`) |
+| Immich | OIDC | set in the app's web UI, not in Git |
+| Paperless-NGX | OIDC | off (`PAPERLESS_DISABLE_REGULAR_LOGIN`) |
+| Linkwarden | OIDC | off (`NEXT_PUBLIC_CREDENTIALS_ENABLED: false`) |
+| Stirling-PDF | OIDC | off (`loginMethod: oauth2`) |
+| Mealie | OIDC | off (`ALLOW_PASSWORD_LOGIN: false`) |
+| Audiobookshelf | OIDC | set in the app's web UI, not in Git |
+| Home Assistant | OIDC | on, for one emergency account |
+| Homepage | forward-auth: Traefik asks Authentik before it passes each request on | — |
 
-**Rationale:**
-- 2FA strong protection vs credential compromise
-- Personal homelab, limited users (not enterprise)
-- Authentik kept updated
-- No evidence of targeted attacks
-- **Trade-off**: convenience vs defense-in-depth
+n8n has no SSO, because SSO is a paid n8n feature; its own user accounts apply.
 
-### OIDC-Integrated Applications (7 of the 17 apps, plus Grafana)
+### If Authentik is down
 
-Grafana is monitoring infrastructure rather than a listed app, but uses the same integration.
+| App | Way in |
+|---|---|
+| Home Assistant | The local emergency account `akhozya`. Its password is in 1Password, not in this repo, and 1Password keeps it available offline. This matters because Home Assistant controls physical devices. |
+| Apps whose own login is still on | Their own login |
+| Apps with password login off | Wait for Authentik, or restore it from backup |
 
-| Application | Auth Method | Local Admin | Notes |
-|-------------|-------------|-------------|-------|
-| **Grafana** | OIDC | Disabled | SSO-only |
-| **Immich** | OIDC | Via Web UI | Configured post-deployment |
-| **Paperless-NGX** | OIDC | Disabled | Env var config |
-| **Linkwarden** | OIDC | Disabled | Env var config |
-| **Stirling-PDF** | OIDC | Disabled | Env var config |
-| **Mealie** | OIDC | Disabled | Env var config |
-| **Audiobookshelf** | OIDC | Via Web UI | Configured post-deployment |
-| **Home Assistant** | OIDC + Local | ✅ Backup | Emergency access |
+## Node firewall
 
-### Emergency Access Strategy
+### Where the rules live
 
-**Home Assistant:**
-- OIDC User: primary admin (daily)
-- Local User: `akhozya` (emergency backup)
-- Password: complex, stored in 1Password
-- **Rationale**: physical device control needs backup if OIDC fails
+UFW runs on every node. Ansible manages the rules: the role
+[`node-maintenance/ansible/roles/firewall/`](../node-maintenance/ansible/roles/firewall/) applies
+them, and the `firewall_preflight` role runs first to settle the kernel's packet-filter state.
 
----
+| File, under `node-maintenance/ansible/` | Rules |
+|---|---|
+| `group_vars/all.yml` | `ufw_rules_base` (every node) and `ufw_rules_absent` (rules to delete) |
+| `group_vars/control_plane.yml` | the control plane's extra rules |
+| `group_vars/workers.yml`, `group_vars/virtual.yml` | worker and VM group rules (none today) |
+| `host_vars/<node>.yml` | per-node rules |
 
-## NETWORK SECURITY
+The drift-heal run (the Ansible run that puts each node back to its declared state) applies them
+at 03:00 and 15:00 UTC and after every merge to `main`.
 
-### Current Network Exposure
+The role only adds rules. If you drop a rule from a list, the live rule stays; name it in
+`ufw_rules_absent` to delete it. If a list still declares a rule that someone deleted by hand, the
+next run restores it. Never run `ufw --force reset`: it removes every rule the role added. To repair a
+broken firewall, run `sudo systemctl start node-maintenance-config.service`.
 
-**Internal Only (*.h0melab.work):**
-- All apps accessible local network only
-- Not exposed via Cloudflare tunnel
-- Traefik ingress + TLS certs
-- NetworkPolicy on all pods
+### Defaults and rules
 
-**No VPN Layer:**
-- Apps accessible without VPN from LAN
-- Admin interfaces no extra network restriction
-- **Decision**: accepted risk for personal use
+| Policy | Value |
+|---|---|
+| Incoming | deny |
+| Outgoing | allow |
+| Routed | deny |
 
-### NetworkPolicy Coverage
+| Allowed in | From | Nodes |
+|---|---|---|
+| SSH, 65300/tcp | LAN (192.168.1.0/24) | all |
+| any port | the four node IPs | all |
+| any port | pod network 10.42.0.0/16 and service network 10.43.0.0/16 | all |
+| port 80, TCP and UDP | LAN | all |
+| 443/tcp | LAN | all |
+| 8472/udp (flannel VXLAN, which carries pod traffic between nodes) | any source | all |
+| Kubernetes API, 6443/tcp | LAN | control plane |
 
-**Status**: default-deny NetworkPolicies across every namespace, covering all apps (live inventory count in HOMELAB_ANALYSIS.md)
+So SSH is open to the LAN, to the other nodes and to pods, not to the internet.
 
-All apps have egress + ingress rules:
-- DNS allowed
-- Metrics scrape from the monitoring namespace allowed
-- App-specific rules (DB, cache)
-- Default deny other traffic
+**IPv6.** Every node has a public IPv6 address, and a UFW rule with no source opens its port over
+IPv6 as well. 8472/udp is the only rule with no source today, so it is the only port that accepts
+traffic from anywhere, over IPv4 or IPv6.
 
----
+### SSH
 
-## ADMIN ACCESS STRATEGY
+`roles/hardening/files/sshd-99-hardening.conf` sets these on every node:
 
-### Current: **2FA Without Network Restriction**
+| Setting | Value |
+|---|---|
+| Password and keyboard-interactive login | off; keys only |
+| Root login | off |
+| Tries per connection | 3 |
+| Key exchange | post-quantum `mlkem768x25519-sha256` first |
 
-**Decision Date**: 2025-10-22
-**Decision**: keep Authentik admin accessible from LAN with 2FA
+fail2ban watches port 65300 and bans a source after 3 failures.
 
-### Security Layers
+### Check a node
 
-**Current Protection:**
-1. Strong password (unique, complex)
-2. TOTP 2FA (time-based)
-3. Session management (Authentik)
-4. Updates (via Renovate)
-
-**Not Implemented:**
-- IP-based restrictions (no Tailscale)
-- Separate admin domain
-- Network-layer protection
-
-### Risk Analysis
-
-**Threats Mitigated:**
-- Brute force (2FA required)
-- Credential stuffing (2FA required)
-- Password leaks (2FA protects)
-- Weak passwords (enforced strong)
-
-**Remaining Attack Vectors:**
-- Authentik 0-day (mitigated by updates)
-- Phishing (harder with 2FA)
-- Session hijacking (mitigated by secure sessions)
-- Social engineering (user awareness)
-
-**Likelihood:**
-- Personal homelab (not high-value target)
-- Not publicly exposed
-- Single admin
-- **Overall Risk**: Low to Medium
-
----
-
-## WHEN TO REVISIT SECURITY DECISIONS
-
-### Triggers for VPN Layer (Tailscale)
-
-**IMMEDIATE — Revisit if:**
-1. Apps exposed to public internet (Cloudflare tunnel)
-2. Authentik shows suspicious logins
-3. Store highly sensitive data (financial, medical)
-4. Multiple users access homelab
-5. Compliance requirements change
-
-**CONSIDER — Revisit if:**
-1. Uncomfortable with current risk
-2. Authentik major vuln
-3. Want remote access (off home network)
-4. Add more critical apps
-5. Threat model changes (targeted attacks)
-
-**PROBABLY NOT NEEDED if:**
-1. Apps stay local network only
-2. 2FA stays enabled
-3. Security updates applied
-4. No suspicious activity
-5. Risk tolerance maintained
-
-### Monitoring & Review
-
-**Monthly:**
-- Authentik access logs — suspicious activity
-- Verify 2FA still on admin
-- Review failed logins
-
-**Quarterly:**
-- Re-assess threat model
-- Review this doc
-- Evaluate new Authentik features
-- Check security advisories
-
-**Annually:**
-- Full security audit
-- Pen testing consideration
-- Update risk assessment
-- Review emergency access procedures
-
----
-
-## FUTURE ENHANCEMENTS
-
-### When to Implement Tailscale + IP Policies
-
-#### Step 1: Install Tailscale on K3s Cluster
-
-```yaml
-# apps/tailscale/deployment.yaml
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: tailscale
-  namespace: kube-system
-spec:
-  selector:
-    matchLabels:
-      app: tailscale
-  template:
-    spec:
-      hostNetwork: true
-      containers:
-        - name: tailscale
-          image: tailscale/tailscale:latest
-          env:
-            - name: TS_AUTHKEY
-              valueFrom:
-                secretKeyRef:
-                  name: tailscale-auth
-                  key: authkey
-            - name: TS_ROUTES
-              value: "10.42.0.0/16,10.43.0.0/16"
-            - name: TS_STATE_DIR
-              value: /var/lib/tailscale
-```
-
-#### Step 2: Create Authentik IP Reputation Policy
-
-1. **In Authentik Admin:**
-   - Navigate: **Policies → Create → Reputation Policy**
-   - Name: `Admin Tailscale Only`
-   - **IP Allowlist**: `100.64.0.0/10` (Tailscale range)
-   - Check: "Check IP"
-   - Save
-
-2. **Create Admin Group:**
-   - Navigate: **Directory → Groups → Create**
-   - Name: `Authentik Admins`
-   - Add `akadmin`
-
-3. **Bind Policy to Admin Flow:**
-   - Navigate: **Flows & Stages → Flows**
-   - Edit: `default-authentication-flow`
-   - Add Stage: **Reputation Policy: Admin Tailscale Only**
-   - Bind to: Group "Authentik Admins"
-
-#### Step 3: Test Access
+The rule files are readable without sudo:
 
 ```bash
-# Without Tailscale - Should FAIL
-curl -I https://authentik.h0melab.work/if/admin
-
-# With Tailscale - Should SUCCEED
-tailscale up
-curl -I https://authentik.h0melab.work/if/admin
+cat /etc/ufw/user.rules /etc/ufw/user6.rules
 ```
 
-**Result:**
-- Regular users: log in from anywhere
-- Admin users: must connect via Tailscale first
+With sudo, `ufw status numbered` lists the rules and `ss -tulpn` lists the listening ports.
 
-### Alternative: Separate Admin Domain
+## Incidents
 
-Domain-based separation:
+| Date | What was open | Fix |
+|---|---|---|
+| 2025-10-30 | A firewall audit found the Kubernetes API (6443/tcp) open to any source, and SSH (65300) and Prometheus (9090) open over IPv6. The rules dated from the first setup. The API needs authentication, so the risk was medium. | The three rules were deleted by hand the same day. |
+| 2026-09-27 | The Ansible lists still declared 6443/tcp and 10250/tcp (the kubelet API) with no source, and immich-vm kept a 22/tcp rule from its build; with no source, each was open over IPv6. immich-vm also still accepted SSH passwords. Requests without credentials to the API server and the kubelet were refused (HTTP 401), before and after. | `ufw_rules_absent` deletes the three rules on every drift-heal run, and the SSH settings above now apply to every node (`fd6dc2e2`). |
 
-```yaml
-# Separate ingress for admin interface
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: authentik-admin
-  annotations:
-    # IP allowlist middleware (Tailscale IPs only)
-    traefik.ingress.kubernetes.io/router.middlewares: default-tailscale-ips@kubernetescrd
-spec:
-  rules:
-    - host: admin-authentik.h0melab.work
-      http:
-        paths:
-          - path: /if/admin
-            pathType: Prefix
-            backend:
-              service:
-                name: authentik
-                port: 9000
-```
+## Accepted risks and when to revisit
 
----
+| Risk | Accepted because | Revisit if |
+|---|---|---|
+| App sign-in pages face the internet | Each app has its own sign-in, most through Authentik | If an app's sign-in has a published vulnerability, or the logs show attacks on it |
+| No VPN in front of admin pages | Passkey sign-in; one admin | If Authentik shows suspicious sign-ins, a second person gets admin access, or the cluster starts holding financial or medical data |
+| TOTP as a recovery path | Keeps account recovery possible after losing a passkey | If the owner detects a TOTP phishing attempt |
+| No offsite backup | The nodes and the NAS share one building; the owner accepts that ([ARCHITECTURE.md](ARCHITECTURE.md#deliberate-simplifications)) | See [BACKUP_STRATEGY.md](BACKUP_STRATEGY.md) |
 
-## SECURITY POSTURE BY AREA
-
-| Area | State | Notes |
-|------|-------|-------|
-| Authentication | Strong | 2FA (TOTP) on admin |
-| Network Security | Moderate | LAN-only, no VPN layer |
-| Access Control | Strong | OIDC + RBAC |
-| Secrets | Strong | SOPS/age encryption |
-| Updates | Strong | Automated via Renovate |
-
-The main gap is the absence of a network-layer (VPN) control in front of admin interfaces. That is a deliberate trade-off for a personal, LAN-only setup — see the triggers below for when it should be revisited.
-
----
-
-## DECISION LOG
-
-### 2025-10-22: Admin Access Without VPN
-
-**Decision**: Keep Authentik admin accessible from LAN with 2FA protection (no Tailscale requirement)
-
-**Rationale:**
-- 2FA strong protection vs most attacks
-- Personal homelab (not enterprise/high-value)
-- Apps not publicly exposed
-- Convenience vs security trade-off justified
-- Can revisit if threat model changes
-
-**Accepted Risks:**
-- Authentik vulns (mitigated by updates)
-- No network-layer defense in depth
-- Single auth factor type (know + have)
-
-**Review Date**: 2025-11-22 (1 month)
-
----
-
-## INCIDENT RESPONSE
-
-### If Admin Account Compromised
-
-1. **Immediate:**
-   - Access Authentik from trusted device
-   - Change admin password
-   - Regenerate 2FA (new TOTP)
-   - Revoke all sessions
-   - Review audit logs
-
-2. **Investigation:**
-   - Check Authentik access logs
-   - Review recent config changes
-   - Check all app access logs
-   - Identify breach source
-
-3. **Recovery:**
-   - Rotate OIDC client secrets
-   - Force re-auth on all apps
-   - Review user accounts for unauthorized adds
-   - Consider VPN layer post-incident
-
-### Emergency Access
-
-**If Authentik Down:**
-- Home Assistant: local admin (`akhozya`)
-- Other apps: restore from backup or redeploy
-
-**Backup Admin Credentials:**
-- Stored in: 1Password vault
-- Emergency access: available offline
-
----
-
-## REFERENCES
-
-- [Authentik Security Best Practices](https://goauthentik.io/docs/security/)
-- [OWASP Authentication Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)
-- [Tailscale Security Model](https://tailscale.com/security/)
-- [NIST Digital Identity Guidelines](https://pages.nist.gov/800-63-3/)
-
----
-
-**Next Review**: 2026-07-04
+This page has no review date of its own. The monthly review checks the nodes' security scans.
