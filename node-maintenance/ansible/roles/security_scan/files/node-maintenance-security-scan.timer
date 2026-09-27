@@ -1,21 +1,17 @@
 [Unit]
 Description=Node maintenance — monthly security scan trigger
-Documentation=file:///etc/node-maintenance/README.md
+Documentation=https://github.com/AKhozya/homelab/tree/main/node-maintenance
 
 [Timer]
-# TEMPORARY (August 2026): shifted 1st → 9th. Revert OnCalendar to *-*-01 and
-# Persistent to true together after 2026-08-09.
-# The 9th rather than the 8th: 2026-08-08 is a Saturday, and the weekly reboot
-# fires Sat 04:30 UTC — inside this timer's 04:00-05:00 randomized window. The
-# steady-state config survives that collision because Persistent=true catches a
-# missed run up on the next boot; while shifted it cannot, so a node rebooted
-# mid-window would lose August's scan outright.
-# Persistent=false while shifted — the on-disk stamp still reads the 2026-07-01
-# run, so a persistent timer can treat the 2026-07-09 occurrence as missed and
-# fire immediately on daemon-reload instead of waiting for the 9th.
-# Glob form, not an absolute 2026-08-09: if the revert is missed the scan keeps
-# running monthly on the 9th, where a one-shot date would silently never fire again.
-OnCalendar=*-*-09 04:00:00 UTC
+# Persistent=false never writes the stamp under /var/lib/systemd/timers/, so
+# each node's stamp stays at its July 2026 date. If you set Persistent=true,
+# first remove the stamp on each node or set it to now; otherwise the next
+# restart of this timer (the weekly reboot is one) starts a catch-up scan
+# within the RandomizedDelaySec hour. The cost of false: if a node is down at
+# 04:00 on the 1st, it skips that month's scan. If the 1st is a Saturday, the
+# 04:00-05:00 window overlaps the Sat 04:30 UTC reboot; if a node reboots
+# before its random start, it skips that month too.
+OnCalendar=*-*-01 04:00:00 UTC
 Persistent=false
 RandomizedDelaySec=3600
 Unit=node-maintenance-security-scan.service

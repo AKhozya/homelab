@@ -3,7 +3,7 @@ Description=Node maintenance — Phase 1 (CP self-update)
 ConditionPathExists=!/var/lib/node-maintenance/phase2-pending
 Wants=network-online.target
 After=network-online.target k3s.service
-Documentation=file:///etc/node-maintenance/README.md
+Documentation=https://github.com/AKhozya/homelab/tree/main/node-maintenance
 
 [Service]
 Type=oneshot

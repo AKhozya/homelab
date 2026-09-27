@@ -1,6 +1,6 @@
 [Unit]
 Description=node-config drift-heal (ansible) — 2x/day
-Documentation=file:///etc/node-maintenance/README.md
+Documentation=https://github.com/AKhozya/homelab/tree/main/node-maintenance
 
 [Timer]
 OnCalendar=*-*-* 03:00:00 UTC

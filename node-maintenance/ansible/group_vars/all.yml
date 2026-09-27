@@ -174,15 +174,18 @@ ufw_rules_base:
 
 # Rules to delete. If you drop a rule from the lists above, the live rule stays;
 # name it here to delete it. A rule with no source opens the port
-# over IPv6 as well, and every node has a public IPv6 address. Each entry must
-# carry no `from_ip` and no `comment`: `ufw delete` then matches the rule
-# whatever its comment and removes the IPv4 and IPv6 copies together. Every
-# caller of these ports is covered by a node-IP, pod-network or LAN-only rule.
-# Deleting a rule that is not there is a no-op.
+# over IPv6 as well, and every node has a public IPv6 address. No entry
+# carries a `comment`: `ufw delete` then matches the rule whatever its comment.
+# An entry for a no-source rule carries no `from_ip`, so the delete removes its
+# IPv4 and IPv6 copies together; an entry for a rule with a source names that
+# source. Each no-source port here keeps a node-IP, pod-network or LAN-only
+# rule for its real callers; 9090 has no listener. Deleting a rule that is not
+# there is a no-op.
 ufw_rules_absent:
   - { rule: allow, to_port: 6443, proto: tcp }    # was "Kubernetes API server" on the CP
   - { rule: allow, to_port: 10250, proto: tcp }   # was "Kubelet API"
   - { rule: allow, to_port: 22, proto: tcp }      # immich-vm build-time rule
+  - { rule: allow, from_ip: 192.168.1.0/24, to_port: 9090, proto: tcp }  # CP: Prometheus, removed; no listener
 
 # Base route rules common to all 4 nodes.
 ufw_route_rules_base:

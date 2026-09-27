@@ -1,6 +1,6 @@
 [Unit]
 Description=Node maintenance kubectl proxy (localhost-only API proxy for Alertmanager access)
-Documentation=file:///etc/node-maintenance/README.md
+Documentation=https://github.com/AKhozya/homelab/tree/main/node-maintenance
 After=network-online.target k3s.service
 Wants=network-online.target
 

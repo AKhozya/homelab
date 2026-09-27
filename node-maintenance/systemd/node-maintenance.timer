@@ -1,6 +1,6 @@
 [Unit]
 Description=Node maintenance — weekly trigger
-Documentation=file:///etc/node-maintenance/README.md
+Documentation=https://github.com/AKhozya/homelab/tree/main/node-maintenance
 
 [Timer]
 OnCalendar=Sat *-*-* 04:30:00 UTC

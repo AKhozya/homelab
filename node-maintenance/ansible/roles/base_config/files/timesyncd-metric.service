@@ -1,7 +1,7 @@
 [Unit]
 Description=Emit time-sync health metrics for node-exporter
 After=systemd-timesyncd.service
-Documentation=file:///etc/node-maintenance/README.md
+Documentation=https://github.com/AKhozya/homelab/tree/main/node-maintenance
 
 [Service]
 Type=oneshot

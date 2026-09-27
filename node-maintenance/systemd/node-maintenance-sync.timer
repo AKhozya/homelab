@@ -1,6 +1,6 @@
 [Unit]
 Description=Node maintenance — sync from git timer (every 10 min)
-Documentation=file:///etc/node-maintenance/README.md
+Documentation=https://github.com/AKhozya/homelab/tree/main/node-maintenance
 
 [Timer]
 # Every 10 min, offset by 30s jitter to avoid exact-boundary load spikes

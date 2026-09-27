@@ -1,6 +1,6 @@
 [Unit]
 Description=Periodic time-sync metric emission
-Documentation=file:///etc/node-maintenance/README.md
+Documentation=https://github.com/AKhozya/homelab/tree/main/node-maintenance
 
 [Timer]
 OnBootSec=2min

@@ -227,19 +227,20 @@
       retries: 10
       delay: 20
 
-    # No comment and no from_ip: `ufw delete` then matches the rule whatever
-    # its comment, and removes the IPv4 and IPv6 copies of a no-source rule.
+    # No comment: `ufw delete` then matches the rule whatever its comment. If
+    # from_ip is omitted, it removes the IPv4 and IPv6 copies of a no-source rule.
     # A delete re-applies only UFW's user chains, as an add does; it is not a
     # full `ufw reload`.
     - name: Delete UFW rules listed in ufw_rules_absent
       community.general.ufw:
         rule: "{{ item.rule }}"
+        from_ip: "{{ item.from_ip | default(omit) }}"
         to_port: "{{ item.to_port | default(omit) }}"
         proto: "{{ item.proto | default(omit) }}"
         delete: true
       loop: "{{ ufw_rules_absent }}"
       loop_control:
-        label: "delete {{ item.rule }} to={{ item.to_port | default('any') }}/{{ item.proto | default('any') }}"
+        label: "delete {{ item.rule }} from={{ item.from_ip | default('any') }} to={{ item.to_port | default('any') }}/{{ item.proto | default('any') }}"
       register: ufw_rules_delete
       until: ufw_rules_delete is not failed
       retries: 10
