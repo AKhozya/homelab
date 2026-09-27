@@ -1,8 +1,8 @@
 # Open-source prep — plan (2026-09-26)
 
 Goal: make `AKhozya/homelab` fit to publish. Six sub-projects run in order. Each one gets
-its own spikes and operator approval before work starts. This file plans SP1 and SP2 in full.
-For SP3–SP6 it records the decisions already made and the spikes still to run.
+its own spikes and operator approval before work starts. This file plans SP1, SP2 and SP3 in
+full. For SP4–SP6 it records the decisions already made and the spikes still to run.
 
 ## Decisions (operator, 2026-09-26)
 
@@ -24,13 +24,22 @@ For SP3–SP6 it records the decisions already made and the spikes still to run.
 | 14 | Reasoning effort (2026-09-27) | Codex `high` and Opus `high`, recorded in docs only. The global Claude `effortLevel: xhigh` setting stays |
 | 15 | NAS SSH port and key file name in skills (2026-09-27) | Keep, as decision 4 does for the cluster |
 | 16 | The bot's Telegram handle in `claude-telegram-release` (2026-09-27) | Keep. The bot answers one allowlisted Telegram ID: `authGate` runs before every handler and drops any other sender without a reply |
+| 17 | SP3 rewrite depth (2026-09-27) | Plain-English rewrite of the public-facing docs. Every other current doc gets fact fixes and slop-word fixes only |
+| 18 | `HOMELAB_HISTORY.md` (2026-09-27) | A rolling 3-month window. SP3 keeps the entries dated 2026-06-27 or later; each monthly review then deletes entries older than 3 months. Git keeps them, as `593d2dd5` did for 2025. The Milestones table stays as the summary of the older months |
+| 19 | Kept HISTORY entries (2026-09-27) | Rewrite them in plain English too |
+| 20 | `docs/plans/` (2026-09-27) | Keep only open plans: this one and `2026-09-07-immich-ml-followups-research.md`. Delete the 8 finished plans and `node-maintenance/ANSIBLE_REVIEW_PLAN.md` |
+| 21 | Merges (2026-09-27) | One security page, with each app's `SECURITY.md` renamed so it no longer shares the name; one DR runbook; delete `scripts/worker-node-post-install.sh`; retire `ANSIBLE_REVIEW_PLAN.md` |
+| 22 | Config bugs the SP3 spikes found (2026-09-27) | Fix in the session. Done in `fd6dc2e2`: UFW rules with no source on 6443, 10250 and 22 deleted; SSH key-only on every node. The `victoria-metrics-operator` release was not a bug: Flux's 6-hour chart index had not yet seen 0.68.0, and it went Ready at 18:04 UTC |
+| 23 | Remaining config drift (approved 2026-09-27) | SP3 commit C0 |
+| 24 | Doc removals beyond decisions 20–21 (approved 2026-09-27) | Delete `apps/home-assistant/README.md` (wrong DNS advice, S31) and drop HOMELAB_ANALYSIS's tables that copy README and `subsystems/apps.md` |
+| 25 | Supply-chain pins (2026-09-27) | Pin every GitHub Action to a commit SHA (SP4). Images and Helm charts stay tag-pinned: the `renovate.json` rule from `6c03f930` sets `pinDigests: false` for them, and digest pins would add a Renovate PR for each same-tag rebuild |
 
 ## Roadmap
 
 | SP | Scope | Depends on |
 |---|---|---|
 | SP1 | Move node-maintenance tree + loose scripts out of `docs/`. **Done** 2026-09-26: `7a307ab4`, `8a146a09` | — |
-| SP2 | Snapshot skills, `_shared/` helpers and sanitized rules into the repo; monthly re-sync step | SP1 (skills cite the new path) |
+| SP2 | Snapshot skills, `_shared/` helpers and sanitized rules into the repo; monthly re-sync step. **Done** 2026-09-27: `11a9ef29`, `a1ee146d`, `d61d9e12` | SP1 (skills cite the new path) |
 | SP3 | Docs pass: staleness, duplication, `avoid-ai-writing`, README + mermaid, CODEMAPS rename | SP1, SP2 |
 | SP4 | Pre-public gate: history secret scan, `claude.yml` trigger lockdown, MIT `LICENSE` | SP3 |
 | SP5 | Ultrareview (`/code-review ultra`, operator-triggered); fix every finding that blocks publishing | SP4 |
@@ -160,8 +169,9 @@ npx --yes --package renovate -- renovate-config-validator renovate.json
 
 Then the pre-commit review loop. If Claude implements, `peer-reviewed-implementation/scripts/reviewer-peer`
 resolves the peer to Codex. Dispatch it through `~/.agents/skills/_shared/codex-review.sh`: static,
-git-only, one-message verdict, pointed at `.claude/review-invariants.md`. Codex runs at `xhigh`
-reasoning from the global `~/.codex/config.toml`; confirm that setting before the first dispatch.
+git-only, one-message verdict, pointed at `.claude/review-invariants.md`. Codex runs at the
+reasoning effort that the global `~/.codex/config.toml` sets (`high` since 2026-09-27, decision
+14); confirm that setting before the first dispatch.
 Commit B gets the same rules with a delta-scoped prompt.
 
 ### Rollout
@@ -266,7 +276,7 @@ The review loop the operator asked to showcase is already in scope:
 | S19 | What does the rules export need? | read `~/.claude/CLAUDE.md` (200 lines, 27,922 B) and `~/.codex/AGENTS.md` (34 lines, 1,760 B) in full | 🟡 AGENTS.md needs no edit. CLAUDE.md needs the edits in the table below. Several passages retell private-project incidents without naming the project, so a name search alone misses them. The edit is by hand, and the export gets a prose review |
 | S20 | Can the check run inside the Telegram bot? | `kubectl exec` into the bot pod | ✅ no. The pod holds 38 skills and a 7,088 B `CLAUDE.md` from April, so a check there reports drift that is not real. The script refuses any host that is not macOS |
 | S21 | Does Renovate or Flux pick up `agents/`? | Renovate 44.115.12 local extract; `clusters/` Kustomization paths | ✅ Renovate finds no manifest in scope today. Flux applies only `./clusters`. Flux still packs `agents/` into its source archive: +637 KB on the 3.2 MB of tracked files |
-| S22 | Which `rsync` flags give a correct copy and a correct drift check? | scratch trees; `/usr/bin/rsync` is openrsync (protocol 29) | ✅ `-r -c -n -i --delete --no-links` prints a line for a changed byte at the same mtime and for an extra file, and prints nothing for a new mtime or a 644 → 664 mode change; git records neither. It misses a lost exec bit, so the check compares exec bits separately. `-E` means extended attributes in openrsync and copies `._` AppleDouble files, so the script does not use it. `--no-links` skips a symlink with a message and exit 0, so the script finds symlinks itself |
+| S22 | Which `rsync` flags give a correct copy and a correct drift check? | scratch trees; `/usr/bin/rsync` is openrsync (protocol 29) | ✅ `-r -c -n -i --delete --no-links` prints a line for a changed byte at the same mtime and for an extra file. For a new mtime alone it prints a `.f..T....` line, which the script ignores because the line starts with `.`; it prints nothing for a 644 → 664 mode change. Git records neither. It misses a lost exec bit, so the check compares exec bits separately. `-E` means extended attributes in openrsync and copies `._` AppleDouble files, so the script does not use it. `--no-links` skips a symlink with a message and exit 0, so the script finds symlinks itself |
 | S23 | Do the copied files retell private matters without names? | a full read of all 119 files (89 skill files, 29 helpers, `~/.codex/AGENTS.md`), then a keyword sweep and a comparison with every folder name under `~/source-code` | ✅ none beyond S18's named project. `pii-scrub/SKILL.md:32` calls the kept IPs and domain "part of the portfolio story"; rollout step 1 rewords it. About 26 mentions of the operator's private memory files, hooks and older skill names stay, because the live skills use them; `agents/README.md` explains them. The NAS SSH port, key file name and the bot handle stay (decisions 15, 16) |
 | S24 | Does the fake key in the tests trip gitleaks with the repo config? | `gitleaks dir -c .gitleaks.toml` on one file each | ✅ a random `AKIA` + 16 base32 characters exits 1. The AWS docs key `AKIAIOSFODNN7EXAMPLE` exits 0, because gitleaks allowlists it. So `.gitleaks.toml` keeps the default rules, and the tests use a random key |
 | S25 | Three contract details | scratch trees and the S17 trial copy | ✅ `rsync -r -p -c` restores a lost exec bit on a file whose bytes already match. `grep -Fw` finds none of the three denylisted helper names in the 118 in-scope files, so phase 4 passes on day one. `.gitignore` line 2 ignores `.DS_Store`, so `git add -A agents` skips an untracked Finder file. `.gitleaks.toml` adds one rule of its own, `sql-identified-by`, which the default rules lack |
@@ -456,17 +466,251 @@ any `--update` a row below asks for:
 `git revert` the merged commits. Nothing live reads `agents/`. Also remove the monthly-review
 step, because it calls the reverted script.
 
-## SP3 — docs pass (outline)
+## SP3 — docs pass
 
-| Item | Detail |
+SP3 makes every current doc true, removes the copies, and rewrites the pages a visitor reads
+first in plain English. It also fixes the config drift that the spikes found. The live
+firewall and SSH findings shipped on their own in `fd6dc2e2` (see HISTORY, 2026-09-27).
+
+### What happens to each doc
+
+"Rewrite" means a plain-English rewrite to the writing rules, with every fact re-derived.
+"Facts" means fact fixes and slop-word fixes only, with the prose kept.
+
+| Doc today | Action | Path after SP3 |
+|---|---|---|
+| `README.md` | rewrite; refresh the mermaid diagram and the repo-layout tree | same |
+| `docs/ARCHITECTURE.md` | rewrite; refresh the four diagrams; drop its docs map (README keeps the public one) | same |
+| `docs/SECURITY.md` + `docs/FIREWALL_SECURITY.md` | rewrite as one page: posture, the layers (link ARCHITECTURE), the host firewall model and the role that owns it, the 2025-10-30 incident, Authentik access. The Tailscale how-to is deleted | `docs/SECURITY.md` |
+| `.backup/README.md` + `docs/disaster-recovery/README.md` | move and rewrite as the one DR runbook. The 5-line index is deleted; the MySQL restore step names `mysql-create-dbs.sql`. The DR scripts stay in `.backup/` | `docs/disaster-recovery/README.md` |
+| `docs/BACKUP_STRATEGY.md` | rewrite as the policy page: RPO/RTO, one schedule table, tiers. Its restore and rebuild sections become links to the runbook. Its own changelog (2025-12 to 2026-02) is deleted, as HISTORY's older entries are | same |
+| `docs/setup/K3S_SETUP.md` | rewrite as the one node-install page, immich-vm included. The DR runbook links to it | same |
+| `docs/CODEMAPS/*.md` (6) | move and rewrite (decision 5) | `docs/subsystems/*.md` |
+| `node-maintenance/README.md` | rewrite | same |
+| `.github/workflows/README.md` | rewrite to cover all six workflows, as the page that documents CI | same |
+| `docs/HOMELAB_HISTORY.md` | keep entries dated 2026-06-27 or later as one newest-first list, then rewrite them (decisions 18, 19) | same |
+| `AGENTS.md`, `CLAUDE.md`, `docs/HOMELAB_ANALYSIS.md`, `docs/SECRETS_ROTATION.md`, `docs/runbooks/authentik-passkey-rollback.md`, `apps/home-assistant/OIDC_SETUP.md`, `apps/immich/gpu-node/README.md`, `monitoring/configs/kube-prometheus-stack/README.md`, `scripts/macos/README.md`, `.claude/review-invariants.md`, `.claude/agents/k8s-devops-reviewer.md`, `docs/plans/2026-09-07-immich-ml-followups-research.md` | facts. HOMELAB_ANALYSIS also drops the tables that copy README and `apps.md`, and keeps the lines with `NetworkPolicy resources`, `SOPS secrets` and `Kyverno CEL`, which `validate.yaml` greps | same |
+| `apps/home-assistant/SECURITY.md`, `apps/stirling-pdf/SECURITY.md` | facts; drop the tables that compare other apps | `apps/<app>/PSS_EXCEPTION.md` |
+| `apps/home-assistant/README.md` | delete: its DNS advice points at the CP, which runs no Traefik load balancer | — |
+| 8 finished plans in `docs/plans/`, `node-maintenance/ANSIBLE_REVIEW_PLAN.md` | delete (decision 20) | — |
+| `scripts/worker-node-post-install.sh` | delete (decision 21) | — |
+| this plan | fix S22 and the Codex effort line; mark SP2 and SP3 done | same |
+
+`agents/` is out of scope: its files are byte copies. Its four skills that name a moved path
+change in dotfiles, and `--update` copies them in (C1).
+
+### Spike results
+
+| # | Question | Probe | Result |
+|---|---|---|---|
+| S27 | Which docs does the slop detector flag? | `avoid-ai-writing` detector, `--context technical --source-mode rendered-markdown`, on all 42 docs | ✅ every doc scores `HUMAN_ONLY`, 0 to 11. The detector only ranks files for reading order; it is not a gate. The writing rules are the standard |
+| S28 | Do the mermaid diagrams render? | `mmdc` from `@mermaid-js/mermaid-cli` with Brave as the browser, on the 5 blocks; a broken block as control | ✅ all 5 render; the broken block exits 1 |
+| S29 | Do private terms appear outside `agents/`? | `grep -I -i -F -f private-terms.txt` over the 691 tracked files; the file against itself as control | ✅ 0 hits; the control matches all 9 lines |
+| S30 | Which facts are stale? | 219 drift-prone claims in 29 docs, checked against the cluster (`kubectl`, `flux`, `gh`) and the owning repo file | ✅ 125 OK, 53 stale, 34 wrong, 7 not checkable. The rows that matter are in the table below |
+| S31 | Where do docs repeat or contradict each other? | full read of every current doc; the owning manifest settles each conflict | ✅ 33 topics, 47 contradictions, 11 merge or delete candidates |
+| S32 | Links | a link checker (Markdown, reference and HTML links, GitHub heading slugs) with a known-bad control | ✅ 3 dead targets: the two commented-out screenshots in README, and HISTORY's link to the deleted 2025 archive |
+| S33 | Plans, HISTORY and the old helpers | `git log`, HISTORY entries, reference greps | ✅ 8 plans done, this plan open, `immich-ml-followups-research` has open follow-ups. HISTORY: 4,036 lines, 189 dated entries from 2026-01-06; entries dated 2026-06-27 or later are 81 headings and about 247 KB. Its Milestones table already covers Oct 2025 to Q2 2026. `ANSIBLE_REVIEW_PLAN` closed 2026-04-28. `worker-node-post-install.sh` has no caller and contradicts the firewall and hardening roles |
+| S34 | What reads a doc path? | `git grep` over `.github`, `scripts`, `.claude/hooks`, `node-maintenance/{install.sh,lib}`, `renovate.json`, `.pre-commit-config.yaml` | ✅ only `validate.yaml` (its warn-only drift job greps HOMELAB_ANALYSIS for `NetworkPolicy resources`, `SOPS secrets` or `Kyverno CEL`; today the file has the first and the third) and the analysis-reminder hook (HOMELAB_ANALYSIS path). Nothing reads `CODEMAPS` or `.backup/README.md`. `.pre-commit-config.yaml` still excludes `docs/superpowers/`, which no longer exists |
+| S35 | Who links the paths that move or go? | `git grep` for each path and basename | ✅ `CODEMAPS`: AGENTS, README, ARCHITECTURE, HOMELAB_ANALYSIS, three plans, and in dotfiles `backup-nightly-verify` and `homelab-monthly-review`. `.backup/README.md`: AGENTS, ARCHITECTURE, `docs/disaster-recovery/README.md`, `.backup/secrets-restore.sh:307`, `couchdb-backup-cronjob.yaml:176`, `disallow-host-path-vp.yaml:45`, and in dotfiles `backup-restore-drill` and `k3s-upgrade`. Deleted plans: `apps/immich/gpu-node/{README.md,immich-vm-heal.sh}` (substrate-heal), the three `node_isolation_heal` role files (node-isolation-heal), `immich-ml-followups-research` (openvino). `apps/home-assistant/SECURITY.md`: `apps/home-assistant/deployment.yaml:24`. `FIREWALL_SECURITY`: README |
+| S36 | Does the ECC `update-codemaps` command follow the rename? | read `commands/update-codemaps.md` (ECC 2.2.2) | ✅ no: it writes `docs/CODEMAPS/`. Nobody runs it here; the monthly review verifies the maps and never regenerates them |
+| S37 | Is Grafana behind the tunnel? | `sops -d` of the tunnel config, hostnames only | ✅ no. The tunnel serves 9 hostnames: audiobooks, authentik, couchdb, immich, linkwarden, mealie, n8n, paperless, stirling |
+| S38 | Config drift the docs describe | files, nodes, git history | ✅ the August scan shift was never reverted: trivy runs `0 8 8 * *` (namespace `trivy-scan`), and the security-scan timer runs `*-*-09` with `Persistent=false`. Before the shift (`1f1cda12`, then `67da4c30`) the timer ran `*-*-01 04:00 UTC` with `Persistent=true`. UFW opens 9090 to the LAN for a Prometheus that no longer exists; `ss` finds no listener on the CP. `roles/nic_tuning/files/igc-tune.service` has no task that copies it. All 9 units in `node-maintenance/systemd/` and 4 role units carry `Documentation=file:///etc/node-maintenance/README.md`, a file nothing installs |
+| S39 | Can the firewall role delete a rule that has a source? | Debian container, ufw 0.36.2, ansible-core 2.21.4, community.general 13.4.0; seeded 9090 from the LAN with no comment, as `control_plane.yml` declares it and the CP's `user.rules` holds it, plus a no-source 9090 decoy | ✅ the delete with `from_ip` removes only the LAN rule; the decoy stays; the second run reports `changed=0`. The shipped delete task omits `from_ip`, so C0 adds it |
+| S40 | Does reverting the scan timer start a scan? | user-scope timers on worker-node (systemd 262, the nodes' version), `OnCalendar=*-*-01`, a stamp dated 2026-07-01 as the nodes hold today (`/var/lib/systemd/timers/stamp-node-maintenance-security-scan.timer`: 07-01 on CP, W1, W2; 07-10 on immich-vm) | ✅ switching to `Persistent=true` with a daemon-reload only (the role's path) runs nothing, but the next restart of the timer runs the scan at once, and the weekly reboot restarts it. A stamp removed or set to now runs nothing. With `Persistent=false`, no stamp is read. So C0 keeps `Persistent=false` and changes only the calendar |
+| S41 | Does the trivy schedule change start a Job? | `kubectl get cronjob -n trivy-scan` | ✅ `lastScheduleTime` is 2026-09-08. With `0 8 1 * *`, no scheduled time falls between then and now, so the controller starts nothing until 2026-10-01 |
+| S42 | Do C1's manifest comment edits change live objects? | read each file around the line | ✅ `couchdb-backup-cronjob.yaml:176` sits inside the job's shell script (the `- \|` block at line 112), so the CronJob spec changes; the next backup Job runs a script that differs only in a shell comment. `apps/home-assistant/deployment.yaml:24` and `disallow-host-path-vp.yaml:45` are YAML comments outside any block scalar, so their objects do not change |
+| S43 | Does a daemon-reload alone move a running timer to an edited `OnCalendar`? | user-scope timer on worker-node, `*-*-09` edited to `*-*-01`, `Persistent=false`, daemon-reload only | ✅ yes: the next elapse moved from 2026-10-09 to 2026-10-01 and the timer stayed active. The role needs no restart |
+
+### Wrong facts to fix
+
+C2 and C3 re-derive each row at edit time. The table records what the spikes found. It leaves
+out stale counts (NetworkPolicies, SOPS files, HelmReleases, PSS levels), because C2 re-counts
+them. If a rewrite keeps one of S30's 7 not-checkable claims, the rewrite either measures it
+or says it was not measured.
+
+| Doc | Claim | Truth, and where it lives |
+|---|---|---|
+| README, ARCHITECTURE, DR runbook | K3s v1.36 | v1.37.0+k3s1 on all nodes. ARCHITECTURE states no version (its own rule); README drops the minor from the badge |
+| README, ARCHITECTURE, AGENTS, DR runbook | Flux applies a commit in 60 s | Flux fetches the Git source every 5 min (`gotk-sync.yaml`) and runs each Kustomization every 1 min |
+| README (text and diagram) | CI validates every push; the diagram's CI box sits between the repo and Flux | 8 validate jobs plus 5 more workflows. Flux does not wait for CI. No job has started since 2026-09-10 (billing). SP6 re-checks once the repo is public |
+| README | CouchDB is single-instance; W1 holds the Postgres replica | CouchDB `clusterSize: 2`. W1 is the primary's pin target; the role moves on failover |
+| README | repo-layout tree | add `node-maintenance/`, `scripts/`, `agents/` |
+| ARCHITECTURE | the Watchdog alert routes to null | it routes to receiver `deadman` (healthchecks.io); the "monitoring is blind" trade-off changes |
+| ARCHITECTURE, HOMELAB_ANALYSIS | Percona `User` CR | no such CRD; users come from SQL |
+| HOMELAB_ANALYSIS, BACKUP_STRATEGY | Grafana, Audiobookshelf and `app` are Postgres databases | both apps use SQLite. The databases are authentik, blocky, immich, linkwarden, mealie, n8n, paperless |
+| HOMELAB_ANALYSIS, `subsystems/monitoring`, node-maintenance README | the scans go back to the 1st after August | true after C0 |
+| SECURITY | apps are LAN-only; admin login is password + TOTP | 9 apps are on the tunnel; login is passkey-only since 2026-06-05, with TOTP as recovery |
+| FIREWALL_SECURITY | 6443 local only, 10250 localhost only, Grafana tunnel-only, Linkding and Wallabag tunneled, tunnel → Traefik | after `fd6dc2e2`: 6443 from the LAN, node IPs and pod network; 10250 from node IPs and pod network; Grafana is LAN-only; cloudflared calls each Service directly |
+| BACKUP_STRATEGY | CouchDB backup in namespace `couchdb`; restore via `main-postgres-1`; 13 PVCs; NAS pruned by hand, no SSH; n8n has OIDC; backup alerts are future work | `databases`; primary found by label; 14 PVCs; Step 4b prunes, NAS SSH on :56634; n8n has none; five backup alerts exist |
+| BACKUP_STRATEGY restore blocks | paths and tools | wrong against the drilled runbook (`couchrestore` is not in the image; no `mysql_` prefix on per-DB files). Replaced by links |
+| DR runbook | step 1 runs `docs/scripts/setup-node.sh`; three rollback tags; `.backup/` is git-ignored; critical PVCs = 3 apps | `scripts/setup-node.sh`; only `pre-ultrareview-2026-07-03` exists; only `.backup/secrets/` outputs are ignored; 14 PVCs |
+| node-maintenance README | 3 nodes; `igc-tune@`; isolation heal is dry-run; drift-heal daily 03:00; no Telegram on scan failure; `install-worker-ready.sh` | 4 nodes; `nic-tune@`; active since 2026-07-23; 03:00 and 15:00; failures notify; `install-worker.sh` |
+| `.github/workflows/README.md` | two workflows; a `.disabled` file | six workflow files; no `.disabled` file |
+| SECRETS_ROTATION | ten Secret names such as `mealie-db-password`; Blocky rotation reconciles `infrastructure-controllers` | live names such as `*-db-user`, `home-assistant-secrets`; `infrastructure-configs` |
+| `subsystems/apps` | uptime-kuma has a PVC; audiobookshelf has 2 PVCs; obsidian is LAN-only | no PVC; 4 PVCs; LiveSync reaches couchdb through the tunnel |
+| `subsystems/databases`, `networking`, `monitoring`, `backup-restore` | CouchDB admin Secret `couchdb-credentials`; pooler users; 4 Job egress policies; per-app certs; cloudflared ServiceMonitor path; `.backup/` scripts ignored; the 2026-05-22 drill covered extraction | `couchdb-couchdb`; authentik, mealie and immich also go direct; 5 including `immich-vm-heal-egress`; 18 Certificates; no ServiceMonitor in git; tracked; the drill checked archives, not extraction |
+| `review-invariants.md` | middleware `traefik-csp@kubernetescrd`; hostnames in `cloudflared.yaml` | apps use `csp-inline-enforced` / `csp-permissive-enforced`; hostnames are in `cloudflared-config-secret.yaml` |
+| `k8s-devops-reviewer.md` vs CLAUDE.md | CLAUDE.md says every reviewer checks `review-invariants.md` first | the agent prompt never names it. Add the instruction to the prompt |
+| `PSS_EXCEPTION` (Home Assistant) | PSS baseline; `home-assistant-oidc` Secret | `privileged`; the client secret is in `home-assistant-secrets` |
+| `PSS_EXCEPTION` (Stirling) | Stirling v2.0; "no Linux caps granted" | image `3.0.0-fat`; four caps are added |
+| passkey rollback runbook | "all 4 phases", 4 blueprints | 5 blueprints; phases 40 and 50 are not covered |
+| `kube-prometheus-stack/README.md` | cloudflared may reach `monitoring` on 3000 and 9093 | no such egress rule |
+
+### Assumptions and limitations
+
+| Tier | Item |
 |---|---|
-| Scope | every `*.md` in the repo |
-| Checks | staleness against the live cluster (re-derive counts and versions), duplication across docs, `avoid-ai-writing`, README + mermaid currency |
-| CODEMAPS → `docs/subsystems/` | link sites: `AGENTS.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/HOMELAB_ANALYSIS.md`, plus the ECC `update-codemaps` convention |
-| `.backup/README.md` → `docs/` | link sites: `docs/ARCHITECTURE.md:133,178,203`, `docs/disaster-recovery/README.md:3`, `AGENTS.md`. CI's sops check prunes `.backup/`; the DR scripts stay there |
-| Disposition to propose | `HOMELAB_HISTORY.md` (4,002 lines), `docs/plans/`, `ANSIBLE_REVIEW_PLAN.md`, `scripts/worker-node-post-install.sh` (stale) |
-| Known doc errors | every `node-maintenance/systemd/*` unit carries `Documentation=file:///etc/node-maintenance/README.md`, and `install.sh` never installs that README |
-| Gate | SP1's old-path sweep plus the relative-link grep, for each renamed path |
+| ⚠️ | The C4 token check compares the token kinds in its table, both ways, with counts. It says nothing about paths outside backticks, word order or meaning. Codex reads source and rewrite side by side for those |
+| ⚠️ | Other sessions append to HISTORY and HOMELAB_ANALYSIS (one open worktree today). C4 starts from a fresh `origin/main`. If `main` gains entries before C4 merges, rebase and keep them |
+| ⚠️ | Every merge to `main` runs drift-heal on all four nodes, because the sync runs the playbook on any new SHA. So SP3 merges four times: C0 alone, then C1–C2, then C3a–C3d, then C4 with C5's plan change. C5's memory edits are outside the repo |
+| ⚠️ | C0 has two deadlines on 2026-10-01, measured when each change reaches the cluster, not when it merges. If a node's timer is not reloaded by 04:00 UTC, that node's next scan is 11-01, so the operator starts its October scan by hand. If Flux applies the CronJob after 08:00 UTC while `lastScheduleTime` still reads 2026-09-08, the controller starts the missed 10-01 run at once, because the CronJob sets no `startingDeadlineSeconds` |
+| 🟡 | GitHub renders mermaid with its own version; S28 used `mmdc`. Check each changed diagram on GitHub after merge |
+| ⚠️ | Old paths stay inside HISTORY entries that predate the move, as history. Only links must resolve |
+| ⚠️ | After the rename, running ECC `update-codemaps` would recreate `docs/CODEMAPS/`. Accepted: nobody runs it here (S36) |
+| ⚠️ | C0 keeps the scan timer at `Persistent=false` (S40). A node that is down at 04:00 on the 1st skips that month's scan; before August, `Persistent=true` ran it on the next boot. Restoring that needs a stale-stamp step in the role; it can follow later. When the 1st is a Saturday (next: 2027-05-01), the 04:00 scan and its random delay of up to an hour overlap the 04:30 maintenance window, as they did before August |
+| ⚠️ | The gate script, its helpers, the link checker and its control, and the S30–S31 reports live in `~/.local/share/homelab-sp3/` (`$T`), outside the repo and outside chezmoi, so a later session can reach them. SP4 decides whether to commit the link checker |
+| ⚠️ | CI starts no job (billing), so every gate below runs locally |
+
+### Commits
+
+Every commit gets the Codex loop, docs included. As in SP2, each review file stays at 30 KB or
+less. If a commit's diff is larger, one round sends one dispatch per chunk, and the round's
+findings are the union of the chunks' findings. Each review file inlines the writing rules,
+the gate output, and the commands used to re-derive the facts it changes.
+
+| Commit | Content | Review file holds |
+|---|---|---|
+| C0 config drift | see the C0 list below | the diff; S38–S41 |
+| C1 moves and links | see the C1 list below | the rename list, the dropped index lines, the link-site diff, `git diff --cached agents/` |
+| C2 facts | the facts-only docs from the first table, fixed row by row | the diff; one re-derive command per changed fact |
+| C3a | README and ARCHITECTURE | the diff; the mermaid output |
+| C3b | the merged SECURITY page; `FIREWALL_SECURITY.md` deleted; README's docs table updated | the diff; the live `ufw` facts from `fd6dc2e2` |
+| C3c | DR runbook, BACKUP_STRATEGY, K3S_SETUP | the diff, chunked; every fenced command of the drilled runbook, before and after, compared byte for byte |
+| C3d | `docs/subsystems/*`, node-maintenance README, workflows README | the diff, chunked |
+| C4a HISTORY trim | keep entries dated 2026-06-27 or later, newest first, under one heading, each byte-identical to its source; keep the Milestones table; fix the header's coverage line. AGENTS.md's HISTORY line says the file keeps the last 3 months, that a new entry goes at the top, and that the monthly review deletes older entries. Every current-doc link to a removed entry names the commit instead | the kept-heading lists and per-entry hashes, before and after; the relinked sites |
+| C4b… HISTORY rewrite | the kept entries in batches of 12 KB or less of source, so source and rewrite fit one review file. Each heading keeps its date prefix; if its text changes, the link gate finds every anchor that broke, and the same commit fixes it. `sp3-gates.sh C4b --src <batch source> --new <batch rewrite>` runs per batch | per batch: source, rewrite, the token-check output |
+| C5 close-out | this plan: roadmap SP3 done, merged with C4. Memory: `reference_homelab_docs.md` (subsystems path; `docs/superpowers/` is gone) and each memory file that the gate script's old-path pattern, plus `FIREWALL_SECURITY` and `docs/superpowers`, finds in the memory folder | memory is outside the repo; the plan change is a one-line diff |
+
+C0, in order:
+
+1. `monitoring/configs/trivy-scan/cronjob.yaml`: schedule `0 8 1 * *`, TEMPORARY comment removed.
+2. `roles/security_scan/files/node-maintenance-security-scan.timer`: `OnCalendar=*-*-01 04:00:00 UTC`,
+   `Persistent=false` kept (S40), TEMPORARY comment removed. A daemon-reload applies it (S43).
+3. The firewall delete task passes `from_ip`. The 9090 LAN rule moves from `control_plane.yml` to
+   `ufw_rules_absent`, whose comment then says: an entry for a no-source rule has no `from_ip`,
+   and no entry has a comment.
+4. `git rm roles/nic_tuning/files/igc-tune.service`.
+5. Each `Documentation=` that names `/etc/node-maintenance/README.md` names
+   `https://github.com/AKhozya/homelab/tree/main/node-maintenance` instead. It resolves if SP6
+   makes the repo public.
+6. HOMELAB_ANALYSIS drops its August-shift rows.
+
+C1, in order:
+
+1. `git rm` the 5-line `docs/disaster-recovery/README.md`, then `git mv .backup/README.md` into
+   its place. The review file lists the dropped lines.
+2. `git mv` the CODEMAPS folder to `docs/subsystems/` and each app `SECURITY.md` to `PSS_EXCEPTION.md`.
+3. `git rm` the 8 finished plans, `ANSIBLE_REVIEW_PLAN.md`, `apps/home-assistant/README.md` and
+   `scripts/worker-node-post-install.sh`.
+4. Update every link site from S35. A comment that named a deleted plan names the plan's title
+   and the commit that last changed it, without the path, for example "the node-isolation-heal
+   design plan, removed after `<sha>`", so the old-path gate stays strict. The edit in
+   `couchdb-backup-cronjob.yaml` changes the CronJob spec (S42).
+5. Delete HISTORY's dead archive link. HISTORY's three links to deleted plans (the 2026-07-24
+   and 2026-07-26 entries) become plain text with the commit. The link check skips HTML
+   comments, so README's commented-out screenshot block stays. The link check then passes
+   from C1.
+6. Drop the `docs/superpowers/` excludes from `.pre-commit-config.yaml` and `.yamllint.yaml`.
+7. Dotfiles: give the four skills from S35 the new paths, and add the rolling trim to
+   `homelab-monthly-review` Phase 5 item 2 (decision 18): after the new HISTORY entry, delete
+   every entry whose `### YYYY-MM-DD` date is more than 3 months before the review date. An
+   entry runs from its heading to the next `## ` or `### ` heading. Git keeps the deleted text.
+   Then find each link to a deleted entry, from other files (`git grep -n 'HOMELAB_HISTORY.md#<date>'`)
+   and inside HISTORY (`grep -n '(#<date>' docs/HOMELAB_HISTORY.md`), and replace it with the
+   entry's commit. Then run `chezmoi-sync` and `scripts/sync-agents.sh --update`; the refreshed
+   `agents/` files join C1.
+
+C1 changes no other prose.
+
+### Gates
+
+`$T/sp3-gates.sh <step>` runs every gate for a step. It needs bash 5 (`#!/usr/bin/env bash`
+finds Homebrew's 5.3; macOS `/bin/bash` 3.2 lacks `mapfile`, and the script exits 2 under it).
+It compares the working tree, untracked files included, with its merge-base against
+`origin/main`. It runs every check, prints `ok:` or `FAIL:` for each, and exits 1 if any
+failed. A search gate passes only on exit code 1 (no match), so an error cannot pass.
+
+| Steps | Gates | Control |
+|---|---|---|
+| all | no private term in a changed file; `pre-commit` on changed files; `gitleaks dir` with `.gitleaks.toml`; `yamllint` on changed YAML; `kubeconform -strict` on each changed file of a built-in kind; each `validate.yaml` phrase that the merge-base's HOMELAB_ANALYSIS has is still there | the terms file has 9 lines and the search matches all 9 |
+| all | every mermaid block in a changed `.md` is extracted at gate time and rendered by `mmdc` from `@mermaid-js/mermaid-cli@12.0.0` (Brave). A fence may be indented and use 3 or more backticks or tildes; it closes on a line of the same character, at least as long; an unclosed fence fails | the extracted count equals the fence count |
+| C0 | in a Debian container at the node versions (ansible-core 2.21.4, community.general 13.4.0), with the lint tools pinned to the baseline's (ansible-lint 26.9.0, kubernetes.core 6.6.0, ansible.posix 2.2.2): `ansible-playbook --syntax-check node-config.yml` exits 0, `ansible-lint roles` exits 0 or 2 (2 means findings; anything else is a crash) and gives the same rule-and-file findings, duplicates included, as `$T/ansible-lint-baseline.txt` (two on `origin/main`) | — |
+| C1 on | the retired paths do not exist, tracked or untracked; the link checker over every tracked and untracked `.md`: it skips HTML comments and fenced code in one pass (a backticked `<!--` opens no comment, and a fence line inside a comment opens no fence), accepts only a target git would publish, spelled as in the index, inside the worktree, and reports a file it cannot read; no `.md` file is untracked, so a doc that passes the link check is also committed; `scripts/sync-agents.sh --check`; the old-path grep, untracked files included, outside HISTORY and this plan; no bare `SECURITY.md` name under `apps/` (a `docs/SECURITY.md` link passes) | the doc list has more than 40 files; the link checker, run first, reports exactly the 15 lines in `$T/linkcheck-control/expected.txt` (a crash also exits 1, so the lines are compared, not counted). They cover a missing file, image and anchor, a wrong-case target, a target outside the folder, anchors that exist only inside a comment or inline code, and links after a backticked `<!--`, a backticked `-->` inside a comment, a comment holding a fence, a fence holding a ```` ```example ```` line, a four-space-indented closer, an empty `<!-->` comment and a line that starts with an inline code span, plus a file that is not UTF-8. A footnote definition and two commented-out links must not appear; a known string matches with the same pathspec |
+| C4a on | at C4a, the sha256 of each entry dated 2026-06-27 or later (`$T/entry-hashes.sh`) is the same in the working tree as at the merge-base, compared sorted, so the entry order does not matter; at C4b, the entry dates, sorted, are the same. At both, every `### ` heading is an entry dated 2026-06-27 or later, so no undated block and no older date remains, and no file outside this plan and `agents/` still calls HISTORY append-only | the helper exits 1 if it finds no entry in the window; the heading check fails if HISTORY has no `### ` heading |
+| C4b | `$T/token-check.py <source> <rewrite>` for the batch (`--src`, `--new`); neither file is empty; every entry in the source is an unchanged entry of the merge-base, and the source has at least one; the rewrite appears verbatim in `docs/HOMELAB_HISTORY.md`. The batch review file holds the diff of the commit as well as source and rewrite | `token-check.py --selftest` runs a built-in sample and rejects six rewrites of it: a SHA in code removed, a prose count changed, a command changed inside an indented four-backtick fence, a prose SHA removed, a date changed, a URL changed |
+
+An entry runs from its `### YYYY-MM-DD` heading to the next `## ` or `### ` heading; deeper
+headings stay inside it. That boundary matters: a `### December 2025 Review Findings` block, which C4a removes, comes right
+after the 2026-07-03 entry, and HISTORY has 87 `####` headings inside entries.
+
+The retired paths and the old-path grep cover `CODEMAPS`, `.backup/README`,
+`ANSIBLE_REVIEW_PLAN`, `worker-node-post-install`, `home-assistant/README`, `apps/…SECURITY.md` and the 8 deleted plan
+names from C1, and `FIREWALL_SECURITY` from C3b.
+
+Tested on `fd6dc2e2`, each run invoked directly:
+
+| Run | Result |
+|---|---|
+| `C0` with a comment line added to the trivy CronJob | PASS: yamllint, `kubeconform -strict` (Valid 1, Skipped 0), the container, syntax and lint checks (`lint exit 2`, the two baseline findings). The same CronJob with `schedule` misspelled fails `kubeconform` |
+| the mermaid extractor on an indented `~~~` block, a four-backtick fence holding a three-backtick line, and an unclosed fence | 3 blocks: the extractor strips the indent, keeps the four-backtick block whole and reports the unclosed fence |
+| `C0` with a temporary doc holding a good and a broken mermaid block | the good one renders; the broken one fails |
+| `C1` | fails on HISTORY's dead archive link (README's two commented-out links no longer count), the retired paths, the old-path grep and `apps/…SECURITY.md`, as expected before C1; every control passes |
+| `C4a` | 81 window entries at the merge-base; the hashes match; the heading check fails on the old headings, as expected before the trim |
+| `C4b` with the 2026-09-26 node-maintenance entry as the batch | with a reworded copy placed in HISTORY, the token, source-subset, verbatim and date checks pass; a reworded rewrite that is not in the tree fails the verbatim check; empty `--src` and `--new` files fail three checks. On a sample batch, rewrites without the SHA, with a digit changed, or with a fenced command changed fail the token check; the self-test rejects its six mutants |
+| `C9`, `--src` with no value, and `/bin/bash` running either script | exit 2 |
+| `entry-hashes.sh` on a copy of HISTORY with one line removed from one entry | output changes |
+
+The C4 token check (`$T/token-check.py`) lists these tokens in a batch's source
+and in its rewrite, and fails if the two lists differ in any token or in how often it occurs:
+
+| Token | Pattern |
+|---|---|
+| commit SHA | 7 to 40 hex characters with at least one of `a`–`f` |
+| date | `YYYY-MM-DD` |
+| number | every run of digits, so versions, IPs, ports and counts are covered |
+| inline code | each backticked span |
+| fenced block | each fenced code block, compared byte for byte |
+| URL | `http://` or `https://` up to the next space, `)`, `>` or `]`, without a final `.`, `,`, `;` or `:` |
+
+### Rollout
+
+1. C0: gates, Codex loop, commit, merge alone, early enough that every node's timer reloads before
+   2026-10-01 04:00 UTC (see Assumptions), and outside Saturday 03:00–07:00 UTC, when the weekly
+   update and reboot run. Flux applies the CronJob. The next
+   sync runs `install.sh --sync-only`, which installs the 9 units in `node-maintenance/systemd/`,
+   and then drift-heal, which installs the role units, deletes the 9090 rule and reloads the
+   timer. Check without sudo:
+
+   | Check | Expect |
+   |---|---|
+   | `kubectl -n trivy-scan get cronjob trivy-scan` | schedule `0 8 1 * *`; no Job created since the merge |
+   | `systemctl list-timers node-maintenance-security-scan.timer`, each node | next run 2026-10-01 |
+   | `systemctl show --property=Documentation node-maintenance-sync.service` on the CP (from `systemd/`), and the same for `node-maintenance-security-scan.service` on a worker (from the role) | the repo URL |
+   | `/etc/ufw/user.rules` (mode 644), CP | no 9090 tuple |
+   | `/var/log/node-maintenance/config-latest.log` (group `adm`) | `failed=0` on every host; the 9090 delete `changed` on the CP |
+2. C1 and C2, then merge. C3a–C3d, then merge. Nothing live reads these files, except the
+   CouchDB CronJob script comment (S42).
+3. C4a and C4b onward from a fresh `origin/main`, and C5's plan change; merge them once, at the
+   end.
+4. C5's memory edits.
+
+### Rollback
+
+`git revert` the commit. For C1, also revert the dotfiles skill commit, run `chezmoi-sync`, then
+`scripts/sync-agents.sh --update`. Two commits have a live effect. Reverting C0 puts back the
+August schedules, the old `Documentation=` lines and the 9090 rule; the role adds the rule again
+on the next drift-heal. Reverting C1 changes the CouchDB backup script comment back (S42), which
+Flux applies to the CronJob.
 
 ## SP4 — pre-public gate (outline)
 
@@ -476,6 +720,7 @@ step, because it calls the reverted script.
 | `claude.yml` public triggers | `.github/workflows/claude.yml:3-21` fires on `issue_comment`, `issues` and `pull_request_review*`. Its `if:` checks only for `@claude` and excludes Renovate; it has no actor or `author_association` guard. It uses `secrets.CLAUDE_CODE_OAUTH_TOKEN`. Spike what `anthropics/claude-code-action@v1` enforces for users without write access. Then add `github.actor == 'AKhozya'` to the condition of **every** trigger that stays, `pull_request_review*` included |
 | Absolute `/Users/akhozya/…` paths | `.claude/hooks/worktree-guard.sh:13`, `.claude/hooks/worktree-session-start.sh:9`, `AGENTS.md:69`, `CLAUDE.md:33`. Decide: keep or make generic |
 | Licence | add MIT `LICENSE` |
+| Action SHA pins (decision 25) | 14 `uses:` references follow a moving tag: `actions/checkout@v7` (11), `anthropics/claude-code-action@v1`, `actions/setup-python@v7`, `actions/github-script@v9`; 7 already name a full SHA. Add `helpers:pinGitHubActionDigests` to `renovate.json` `extends`, pin the 14, keep the version as a comment |
 
 ## SP5 — ultrareview
 
