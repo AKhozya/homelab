@@ -70,4 +70,4 @@ which is a circular pipeline, not a tuning problem.
 
 - `backup-restore-drill` — proving backups RESTORE (monthly/quarterly); this skill only proves they RAN
 - `monitoring-check` — when the alert step itself looks wrong
-- `docs/CODEMAPS/backup-restore.md` — topology, retention, and the exclude
+- `docs/subsystems/backup-restore.md` — topology, retention, and the exclude

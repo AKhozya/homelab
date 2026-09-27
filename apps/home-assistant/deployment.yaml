@@ -21,7 +21,7 @@ spec:
       priorityClassName: homelab-standard
       securityContext:
         # Home Assistant requires root — an upstream limitation. See
-        # apps/home-assistant/SECURITY.md for the assessment and compensating controls.
+        # apps/home-assistant/PSS_EXCEPTION.md for the assessment and compensating controls.
         runAsUser: 0
         runAsGroup: 0
         fsGroup: 0

@@ -16,7 +16,6 @@ repos:
             .*-secrets\.yaml|
             .*credentials.*\.yaml|
             clusters/flux-system/gotk-components\.yaml|
-            docs/superpowers/.*|
             agents/skills/.*|
             agents/rules/AGENTS\.global\.md
           )$
@@ -26,7 +25,6 @@ repos:
         exclude: |
           (?x)^(
             .*\.sops\.yaml|
-            docs/superpowers/.*|
             agents/skills/.*|
             agents/rules/AGENTS\.global\.md
           )$

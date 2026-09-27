@@ -1,6 +1,6 @@
 # Homelab Architecture
 
-**What this is:** the *why* and the *shape* of the cluster — design principles, the diagrams, and the rationale behind each convention. For the current numbers see [HOMELAB_ANALYSIS.md](HOMELAB_ANALYSIS.md); for refreshed component snapshots see [CODEMAPS/](CODEMAPS/); for the changelog see [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md). This file changes only when the *design* changes, not when counts drift.
+**What this is:** the *why* and the *shape* of the cluster — design principles, the diagrams, and the rationale behind each convention. For the current numbers see [HOMELAB_ANALYSIS.md](HOMELAB_ANALYSIS.md); for refreshed component snapshots see [subsystems/](subsystems/); for the changelog see [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md). This file changes only when the *design* changes, not when counts drift.
 
 **Cluster in one line:** single-environment K3s (v1.36.x, 4 Arch nodes — 3 physical + 1 GPU-worker VM on the NAS) run as GitOps — Git is the only write path, Flux reconciles, every secret is SOPS-encrypted, every workload is admission-gated and network-fenced.
 
@@ -130,7 +130,7 @@ Each layer is independent: bypassing admission still leaves the network fence; e
 | CouchDB | Helm | |
 | Redis | Operator (OT) | In-memory; Authentik uses Postgres-only (no Redis) |
 
-Backups: per-engine CronJobs in `infrastructure-configs` → nightly replication W1 → NAS (30-day history). DR runbook in [`.backup/README.md`](../.backup/README.md). Never force-delete a DB pod or drop a DB directly — go through the CRD + `kubectl rollout restart`.
+Backups: per-engine CronJobs in `infrastructure-configs` → nightly replication W1 → NAS (30-day history). DR runbook in [`docs/disaster-recovery/README.md`](disaster-recovery/README.md). Never force-delete a DB pod or drop a DB directly — go through the CRD + `kubectl rollout restart`.
 
 ---
 
@@ -157,16 +157,16 @@ This is a single-environment cluster — and that environment is **production** 
 
 Called out so they are choices, not accidents:
 
-- **Diagrams are logical, not exhaustive.** Individual apps, NetworkPolicies, and namespaces are not drawn — [HOMELAB_ANALYSIS](HOMELAB_ANALYSIS.md) carries the counts, the [codemaps](CODEMAPS/) the structure. This file shows the *pattern*.
+- **Diagrams are logical, not exhaustive.** Individual apps, NetworkPolicies, and namespaces are not drawn — [HOMELAB_ANALYSIS](HOMELAB_ANALYSIS.md) carries the counts, the [subsystem maps](subsystems/) the structure. This file shows the *pattern*.
 - **No offsite backup (3-2-1 ceiling).** W1, W2, and the NAS share one building, power feed, and LAN — a whole-site event (fire, surge, theft) loses every copy at once. No cloud/offsite copy by choice; accepted risk ceiling.
 - **Monitoring is single-node and self-blind.** One VMSingle instance, PV node-bound to W2 → W2 loss blinds all metrics + alerting, and the Watchdog dead-man alert routes to null, so nothing pages about the blindness. Accepted.
 - **No formal threat model.** Trust boundaries are implicit: LAN is semi-trusted, Cloudflare edge is the only external entry, pod-to-pod is default-deny. A written threat model is not maintained.
 - **No distributed storage / no HA control plane.** Single CP node, node-local PVs. Durability is backup-based (replication chain), not replica-based. A CP outage stops reconciliation until the node returns; running workloads keep serving.
 - **Counts live in other docs.** This file avoids hard numbers that drift; where one appears it is approximate and HOMELAB_ANALYSIS is authoritative.
-- **Monitoring + backup internals are summarized.** Full detail in [CODEMAPS/monitoring.md](CODEMAPS/monitoring.md) and [CODEMAPS/backup-restore.md](CODEMAPS/backup-restore.md).
+- **Monitoring + backup internals are summarized.** Full detail in [subsystems/monitoring.md](subsystems/monitoring.md) and [subsystems/backup-restore.md](subsystems/backup-restore.md).
 - **OIDC redirect flow not in the traffic diagram.** SSO apps bounce through Authentik (`/oauth2/*`) on first login; the diagram shows the steady-state request path only.
 - **CNI / kube-proxy / cluster-internal pod networking not drawn.** Pod-to-pod via CoreDNS (`kube-system`) + flannel + ClusterIP DNAT is assumed; the 2026-05-24 ClusterIP wedge incident proves this layer matters operationally even if it's invisible here.
-- **Node + CoreDNS *external* DNS upstream not drawn.** Nodes and CoreDNS resolve external names via public resolvers (1.1.1.1/9.9.9.9), decoupled from Blocky since 2026-06-04 to break a node→Blocky→kube-proxy circular dep; Blocky serves LAN clients only. See [CODEMAPS/networking.md](CODEMAPS/networking.md).
+- **Node + CoreDNS *external* DNS upstream not drawn.** Nodes and CoreDNS resolve external names via public resolvers (1.1.1.1/9.9.9.9), decoupled from Blocky since 2026-06-04 to break a node→Blocky→kube-proxy circular dep; Blocky serves LAN clients only. See [subsystems/networking.md](subsystems/networking.md).
 - **Operator-created NetworkPolicies not enumerated.** Live `kubectl get netpol -A` shows more than git contains — the delta is operators (CNPG, Kyverno) creating their own plus component-generated policies. Codemap counts the file-level breakdown.
 - **Age-key bootstrap not drawn.** The decryption chain is: `sops-age` Secret in `flux-system` → kustomize-controller reads it → decrypts SOPS-encrypted manifests on apply. Lose the key and you can't reconcile new secrets (see Failure modes).
 - **Cluster boundary is implicit.** In-scope: the 4 nodes + the workloads they run (incl. the `immich-vm` guest OS). Out-of-scope but referenced: the NAS appliance itself (backup sink + `immich-vm` hypervisor), the home router (forwards nothing inbound — CF tunnel is outbound), the Cloudflare edge.
@@ -175,7 +175,7 @@ Called out so they are choices, not accidents:
   in the target namespace, and kustomize-controller server-side dry-runs its whole apply set before
   persisting any of it — so on a rebuild every workload is rejected while the policy that would
   satisfy it is still unwritten in the same set. Restoring therefore needs a manual
-  namespaces-and-policies pass before `apps` can converge ([.backup/README.md](../.backup/README.md)
+  namespaces-and-policies pass before `apps` can converge ([disaster-recovery/README.md](disaster-recovery/README.md)
   Step 6 carries the tested command). This is the documented 2-commit new-namespace dance
   ([.claude/review-invariants.md](../.claude/review-invariants.md)) hitting every namespace at once.
   An ordered bootstrap layer would fix it properly — and would also collapse the incremental
@@ -198,7 +198,7 @@ Called out so they are choices, not accidents:
 |---|---|
 | **ARCHITECTURE.md** (this) | How is it organized and *why* |
 | [HOMELAB_ANALYSIS.md](HOMELAB_ANALYSIS.md) | Current state + open action items (live counts) |
-| [CODEMAPS/](CODEMAPS/) | Structural maps per domain — where things live, how they connect |
+| [subsystems/](subsystems/) | Structural maps per domain — where things live, how they connect |
 | [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md) | Append-only changelog |
-| [.backup/README.md](../.backup/README.md) | DR runbook |
+| [disaster-recovery/README.md](disaster-recovery/README.md) | DR runbook |
 | [SECRETS_ROTATION.md](SECRETS_ROTATION.md) | Rotation schedule |

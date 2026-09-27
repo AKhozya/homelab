@@ -167,7 +167,7 @@ _Grafana and Homepage dashboards — screenshots to come._
 | [BACKUP_STRATEGY.md](docs/BACKUP_STRATEGY.md) | Backup cadence, retention, RTO/RPO, restore |
 | [disaster-recovery/](docs/disaster-recovery) | DR runbooks |
 | [SECRETS_ROTATION.md](docs/SECRETS_ROTATION.md) | Rotation schedule + SOPS/age model |
-| [CODEMAPS/](docs/CODEMAPS) | Structural snapshots of each subsystem |
+| [subsystems/](docs/subsystems) | Structural snapshots of each subsystem |
 | [HOMELAB_HISTORY.md](docs/HOMELAB_HISTORY.md) | Milestones + change log |
 
 ## Trade-offs

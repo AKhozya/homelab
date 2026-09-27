@@ -1328,9 +1328,9 @@ the namespaces the policy actually matches. Codex catch.)*
 
 ### 2026-07-26 — B6-2: `disallow-host-path` narrowed from namespace excludes to workload identities
 
-Last open item of the [2026-07-24 ultrareview remediation](plans/2026-07-24-ultrareview-remediation.md).
+Last open item of the 2026-07-24 ultrareview remediation plan (removed after `d6d67c20`).
 Deferred on 07-25 pending a supervised Audit soak; shipped instead on deterministic proof. Plan
-and full test matrix: [2026-07-26-b6-2-hostpath-narrowing.md](plans/2026-07-26-b6-2-hostpath-narrowing.md).
+and full test matrix: the B6-2 hostPath narrowing plan (removed after `0cb04187`).
 
 **The gap was wider than recorded.** The policy excluded six namespaces wholesale. Five of them
 (`monitoring`, `loki`, `databases`, `immich`, `backup-replication`) also enforce PSS
@@ -1627,7 +1627,7 @@ Gates (CI runners are billing-blocked — all jobs 0-step since before this batc
 
 ### 2026-07-24 — Ultrareview remediation Batch 0: token leak, CI-gate claim, DR tarball ignore
 
-First batch of [the 2026-07-24 ultrareview remediation plan](plans/2026-07-24-ultrareview-remediation.md) (58 findings, 0 refuted; H3 CouchDB exposure closed same day via Cloudflare Access Service Auth).
+First batch of the 2026-07-24 ultrareview remediation plan (removed after `d6d67c20`; 58 findings, 0 refuted; H3 CouchDB exposure closed same day via Cloudflare Access Service Auth).
 
 - **`apps/pricebuddy/apprise-configmap.yaml`** — the apprise init script ended with `cat /config/pricebuddy.cfg`, printing the Telegram bot token to init-container stdout and therefore into Loki (**720 h retention — existing lines carry the token for ~30 days after this fix**). Deleted; a comment now names the constraint so it isn't re-added. **Decision: not rotated.** `pricebuddy-telegram` is a dedicated secret separate from claude-telegram, so the blast radius is the price-alert chat, not the ops channel; readers are limited to Grafana/Loki (anonymous off, basic off, login form disabled, Authentik passkey-only OIDC) and anyone with `kubectl logs`.
 - **`AGENTS.md` + `docs/HOMELAB_ANALYSIS.md`** — the "CI gate-of-record" invariant was false. Branch protection is unavailable (private repo on the GitHub Free plan; `gh api …/branches/main/protection` → 403) and Flux syncs `main` every 5 min regardless of the CI verdict, so nothing mechanically stops a validate-red commit from reaching prod; `/gitops-workflow` step 3c blocking `fr` on red only withholds the manual nudge. Reworded to "a signal, NOT a merge gate", naming the pre-commit review loop and `/homelab-yaml-validate` as the gates that actually hold. **Decision: no `ci-green` promotion ref** — repointing a bootstrap-generated `gotk-sync.yaml` is the highest-structural-risk change available here, and the per-batch static review is the control that has actually been catching defects. Stale count corrected in the same line: kubeconform covers 6 roots, not 5 (`validate.yaml:138-144`).
@@ -3004,8 +3004,6 @@ Same-day continuation of Phase 2 Blocky migration. Multiple fixes + cleanup:
 - **Implication**: apps using static `redis-replication-master` Service (Paperless, Blocky) ALWAYS see correct master via K8s endpoints. Apps using Sentinel discovery (Immich `REDIS_URL=ioredis://sentinels[]...`) may briefly target a slave during operator/Sentinel divergence — ioredis client retries and rediscovers via Sentinel HELLO.
 - Immich healthcheck during test: HTTP 200 throughout
 - **Sunday-reboot readiness**: ✅ failover works automatically. Manual Sentinel reset only needed if operator's master-restore creates app reconnect storms (none observed in test).
-
-> 📦 **2025 changelog entries (Oct–Dec) archived** → [archive/HOMELAB_HISTORY_2025.md](archive/HOMELAB_HISTORY_2025.md)
 
 ---
 

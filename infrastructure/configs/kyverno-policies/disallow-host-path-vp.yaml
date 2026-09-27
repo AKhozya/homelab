@@ -42,7 +42,7 @@ spec:
     # `request.namespace` is never rewritten, which is why the namespace test above is safe.
     # Confirmed against the live `status.autogen` after this policy shipped.
     #
-    # `couchrestore` is the one-shot DR Job in .backup/README.md. It is not running, so a
+    # `couchrestore` is the one-shot DR Job in docs/disaster-recovery/README.md. It is not running, so a
     # live pod scan does not reveal it; omitting it would break the restore path at the
     # moment it is needed.
     #

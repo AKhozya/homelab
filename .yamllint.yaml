@@ -14,7 +14,6 @@ ignore: |
   .playwright-mcp/
   .backup/
   clusters/flux-system/gotk-components.yaml
-  docs/superpowers/
   # SOPS-managed files — encrypted blocks rewritten by sops, fighting yamllint here is futile.
   **/*-secret.yaml
   **/*-secrets.yaml

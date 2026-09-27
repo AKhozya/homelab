@@ -10,7 +10,7 @@
 # defense-in-depth for the CLASS — the specific trigger (the firewall role's gratuitous
 # `ufw reload`) is already fixed in ff2b486b.
 #
-# Signals (see docs/plans/2026-07-10-node-isolation-heal.md):
+# Signals (see the node-isolation-heal design plan, removed after e26a42aa):
 #   tunnel   : curl https://127.0.0.1:6444/cacerts   k3s-agent client LB → CP apiserver
 #   cp_direct: TCP 192.168.1.127:6443                CP apiserver, LB-independent
 #   kubelet  : curl http://127.0.0.1:10248/healthz   kubelet local healthz (logged only)

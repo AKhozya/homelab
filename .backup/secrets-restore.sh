@@ -304,7 +304,7 @@ echo "   ✅ OIDC integration secrets restored"
 # a workload and the NetworkPolicy that satisfies it, arriving in the same set,
 # still fail. That is the documented 2-commit new-namespace dance
 # (.claude/review-invariants.md) hitting every namespace at once on a rebuild.
-# Unsolved here; see .backup/README.md before attempting a full restore.
+# Unsolved here; see docs/disaster-recovery/README.md before attempting a full restore.
 echo "📦 Pre-creating namespaces with nothing to restore (Flux bootstrap ordering)..."
 kubectl create namespace homepage --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace rustdesk --dry-run=client -o yaml | kubectl apply -f -

@@ -4,7 +4,8 @@
 # Runs in-cluster as a k8s CronJob scheduled OFF the GPU node, SSHes the zettOS
 # NAS host and drives libvirt via `virsh` (akhozya is in the NAS `libvirt` group —
 # no root). It keeps the immich-vm domain (a) defined from the Git canonical XML
-# and (b) running. Design: docs/plans/2026-07-10-immich-gpu-node-substrate-heal.md.
+# and (b) running. Design: the Immich GPU-node
+# substrate heal design plan, removed after 7a9add14.
 #
 # SAFETY — host-crash class (incident C3, 2026-07-10):
 #   * NEVER `virsh destroy`. Force-destroying this passthrough VM re-binds the

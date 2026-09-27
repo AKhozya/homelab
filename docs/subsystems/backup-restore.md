@@ -61,7 +61,7 @@ Images pinned in each CronJob manifest (`infrastructure/configs/databases/*/`, `
 - All 3: tar.gz + SHA256, 30-day retention (`find -mtime +30 -delete`), `successfulJobsHistoryLimit: 7`, `concurrencyPolicy: Forbid`, `nodeSelector: worker-node`, `hostPath /mnt/k8s-storage/backups/<engine>`
 
 ## DR scripts (`.backup/`)
-**Excluded from git** (`.gitignore`) — force-add when committing edits. Runbook: `.backup/README.md`.
+**Excluded from git** (`.gitignore`) — force-add when committing edits. Runbook: `docs/disaster-recovery/README.md`.
 
 ### secrets-backup.sh covers
 - **CRITICAL:** SOPS age key (gates Flux decrypt of everything)

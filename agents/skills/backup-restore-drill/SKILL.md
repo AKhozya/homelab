@@ -6,7 +6,7 @@ user-invocable: false
 
 # Backup restore drill
 
-Authoritative mechanics: `docs/BACKUP_STRATEGY.md` (per-engine restore commands) + `.backup/README.md` (full DR runbook, secret decrypt, restore ordering). This skill = drill orchestration + safety rails + evidence; do NOT restate the runbook.
+Authoritative mechanics: `docs/BACKUP_STRATEGY.md` (per-engine restore commands) + `docs/disaster-recovery/README.md` (full DR runbook, secret decrypt, restore ordering). This skill = drill orchestration + safety rails + evidence; do NOT restate the runbook.
 
 ## Hard rails
 
@@ -25,7 +25,7 @@ Authoritative mechanics: `docs/BACKUP_STRATEGY.md` (per-engine restore commands)
 
 ## Quarterly — full DR drill
 
-Follow `.backup/README.md` § Full Recovery on **spare cluster/hardware ONLY** — it restores secrets into real namespaces and bootstraps Flux, so it can never run against the prod cluster (scratch namespaces are the monthly-drill tool, invalid here). Order: secrets decrypt (age key from 1Password) → secrets BEFORE Flux bootstrap → per-engine restores → app-level spot checks (login page, one recent record). No cutover of prod traffic.
+Follow `docs/disaster-recovery/README.md` § Full Recovery on **spare cluster/hardware ONLY** — it restores secrets into real namespaces and bootstraps Flux, so it can never run against the prod cluster (scratch namespaces are the monthly-drill tool, invalid here). Order: secrets decrypt (age key from 1Password) → secrets BEFORE Flux bootstrap → per-engine restores → app-level spot checks (login page, one recent record). No cutover of prod traffic.
 
 ## Evidence (mandatory — a drill without a record didn't happen)
 

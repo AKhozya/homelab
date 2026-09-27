@@ -74,7 +74,7 @@ is forbidden). Validated 2026-06-05 (v1.35.3 → v1.36.1, 3 nodes then): zero po
 
 `/usr/local/bin/k3s.prev` holds the previous binary — but **minor-version sqlite/etcd state
 migrations are NOT cleanly reversible**; treat a minor downgrade as restore-from-backup territory
-(`.backup/README.md`). Patch-level rollback: swap back + rolling restart. Cleanup after ~a week
+(`docs/disaster-recovery/README.md`). Patch-level rollback: swap back + rolling restart. Cleanup after ~a week
 stable: `sudo rm /usr/local/bin/k3s.prev` per node.
 
 ## Cross-refs

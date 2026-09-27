@@ -1,7 +1,7 @@
 # Immich ML follow-ups: FP16 and a larger CLIP model — research
 
 Researched 2026-09-07 against the live cluster and Immich v3.1.0 source. Both follow-ups were
-deferred by `docs/plans/2026-09-06-immich-ml-openvino.md` as "separate changes". They are not
+deferred by the Immich ML OpenVINO plan (removed after `aadf03e6`) as "separate changes". They are not
 independent: FP16 is the thing that would make a larger model fit.
 
 Tiers: ✅ verified against the live system or primary source · 🟡 single-source · ⚠️ extrapolation.

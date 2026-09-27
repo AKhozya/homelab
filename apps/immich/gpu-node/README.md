@@ -1,8 +1,8 @@
 # Immich GPU-node — VM substrate (Path B)
 
 Canonical libvirt domain XML for the `immich-vm` GPU-passthrough VM on the zettOS
-NAS (`192.168.1.136`), guest IP `192.168.1.231`. Design:
-[`docs/plans/2026-07-10-immich-gpu-node-substrate-heal.md`](../../../docs/plans/2026-07-10-immich-gpu-node-substrate-heal.md).
+NAS (`192.168.1.136`), guest IP `192.168.1.231`. Design: the Immich GPU-node
+substrate heal design plan, removed after `7a9add14`.
 
 ## Why a libvirt XML under `apps/`
 The zettOS appliance regenerates the VM domain from its own template on **any UI
