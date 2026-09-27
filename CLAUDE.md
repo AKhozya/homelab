@@ -35,7 +35,7 @@ Do **not** duplicate cluster facts here; add them to `AGENTS.md` instead.
   .claude/.allow-main-edits` (solo session) or `WORKTREE_GUARD_SKIP=1` (one-off).
 - **SessionStart `worktree-session-start.sh`** — nudges sessions that start in
   the main tree toward a worktree (it can't move cwd; the PreToolUse guard is
-  what actually enforces).
+  what enforces).
 - **PostToolUse `homelab-analysis-reminder.sh`** — after an edit under
   `apps/`, `infrastructure/`, `monitoring/`, or `clusters/`, reminds you to
   update `docs/HOMELAB_ANALYSIS.md`. Works in the main tree and in worktrees.

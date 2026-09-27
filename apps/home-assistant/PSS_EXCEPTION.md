@@ -2,9 +2,9 @@
 
 ## Pod Security Standards Classification
 
-**Policy Level:** `baseline`
+**Policy Level:** `privileged` (enforce), with `baseline` audit and warn labels (`namespace.yaml`)
 
-HA needs elevated privileges → uses K8s **baseline** PSS policy, not stricter **restricted** used for most apps.
+HA needs elevated privileges. `NET_ADMIN` is outside the **baseline** profile, so the namespace enforces **privileged**. Baseline audit and warn report baseline violations, the added capabilities included.
 
 ## Security Context Configuration
 
@@ -161,26 +161,13 @@ Deployment avoids:
 
 2. **NET_ADMIN Capability:**
    - **Reason:** BT + device discovery need net admin
-   - **Acceptance:** Essential for HomeKit, BT, Zeroconf
+   - **Acceptance:** Needed for HomeKit, BT, Zeroconf
    - **Mitigation:** Pod net namespace isolation (can't affect host net)
 
 3. **DAC_OVERRIDE Capability:**
    - **Reason:** Config file mgmt with varied permissions
    - **Acceptance:** Required for reliable config persistence
    - **Mitigation:** Pod filesystem only, no host access
-
-## Comparison to Other Applications
-
-| Application | Policy | runAsUser | Privileged Capabilities | Rationale |
-|-------------|--------|-----------|------------------------|-----------|
-| **Home Assistant** | baseline | 0 (root) | NET_RAW, NET_ADMIN, SETUID, etc. | Hardware access, Bluetooth, discovery |
-| **AdGuard Home** | baseline | 0 (root) | NET_BIND_SERVICE | DNS service (port 53) |
-| **Wallabag** | baseline | 0 (root) | SETUID, SETGID, CHOWN | PHP user switching |
-| **Authentik** | restricted | 1000 | None | Standard web app |
-| **Immich** | restricted | 1000 | None | Standard web app |
-| **Paperless-NGX** | restricted | 1000 | None | Standard web app |
-
-HA has **most elevated privileges** among homelab apps — **justified by unique role** as smart home controller needing direct hardware + net access.
 
 ## Security Recommendations
 
@@ -217,6 +204,6 @@ Current config **appropriate + necessary** for HA functionality while implementi
 **Security Review:** APPROVED
 **Reviewed By:** Staff DevOps Engineer
 **Date:** 2025-10-26
-**Next Review:** 2026-01-26 (Quarterly)
+**Next Review:** overdue since 2026-01-26 (quarterly)
 
-**Conclusion:** HA elevated privilege requirements **architecturally necessary + appropriately secured** with defense-in-depth. Baseline PSS = correct classification.
+**Conclusion:** HA elevated privilege requirements **architecturally necessary + appropriately secured** with defense-in-depth. Privileged enforce with baseline audit and warn = correct classification.

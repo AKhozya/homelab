@@ -64,7 +64,7 @@ The `home-assistant` OAuth2 provider + application already exist in Authentik (s
 
 **OIDC Issuer:** `https://authentik.h0melab.work/application/o/home-assistant/`
 **Client ID:** `home-assistant`
-**Client Secret:** (in `home-assistant-oidc` secret)
+**Client Secret:** (key `oidc_client_secret` in the `home-assistant-secrets` Secret)
 **Callback URL:** `https://ha.h0melab.work/auth/oidc/callback`
 **Auto-create users:** `true` (on first OIDC login)
 **Username claim:** `email` (OIDC email = HA username)

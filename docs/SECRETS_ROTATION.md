@@ -24,24 +24,24 @@ cert-manager).
 
 | Secret Name | App | Last Rotated | Next Rotation | Priority |
 |-------------|-----|--------------|---------------|----------|
-| `immich-db-password` | Immich | 2026-04-02 | 2026-10-01 | High |
-| `linkwarden-db-password` | Linkwarden | 2026-04-02 | 2026-10-01 | Medium |
-| `mealie-db-password` | Mealie | 2026-04-02 | 2026-10-01 | Medium |
-| `n8n-db-password` | N8N | 2026-04-02 | 2026-10-01 | High |
-| `paperless-db-password` | Paperless-NGX | 2026-04-02 | 2026-10-01 | Medium |
-| `authentik-db-password` | Authentik | 2026-04-02 | 2026-10-01 | Critical |
+| `immich-db-user` (ns `databases`) + `immich-db-password` (ns `immich`) | Immich | 2026-04-02 | 2026-10-01 | High |
+| `linkwarden-db-app-user` | Linkwarden | 2026-04-02 | 2026-10-01 | Medium |
+| `mealie-db-user` | Mealie | 2026-04-02 | 2026-10-01 | Medium |
+| `n8n-db-user` | N8N | 2026-04-02 | 2026-10-01 | High |
+| `paperless-db-user` | Paperless-NGX | 2026-04-02 | 2026-10-01 | Medium |
+| `authentik-db-user` | Authentik | 2026-04-02 | 2026-10-01 | Critical |
 | `blocky-db-user` | Blocky (queryLog) | 2026-06-05 | 2026-12-05 | Low |
 | `trivy-dockerhub` | trivy-scan CronJob (Docker Hub read-only PAT, 1Password `docker_hub_ro`; PAT non-expiring — revoke+reissue) | 2026-07-14 | 2027-07-14 | Low |
-| `grafana-db-password` | Grafana | N/A (SQLite) | N/A | N/A |
-| `audiobookshelf-db-password` | Audiobookshelf | N/A (SQLite) | N/A | N/A |
+
+Grafana and Audiobookshelf use SQLite, so they have no database Secret.
 
 #### MySQL (Percona)
 
 | Secret Name | App | Last Rotated | Next Rotation | Priority |
 |-------------|-----|--------------|---------------|----------|
-| `home-assistant-mysql` | Home Assistant | 2026-04-02 | 2026-10-01 | High |
-| `uptime-kuma-mysql` | Uptime Kuma | 2026-04-02 | 2026-10-01 | Medium |
-| `pricebuddy-mysql` | PriceBuddy | 2026-04-02 | 2026-10-01 | Medium |
+| `home-assistant-secrets` (key `db_url`) | Home Assistant | 2026-04-02 | 2026-10-01 | High |
+| `uptime-kuma-mysql-credentials` | Uptime Kuma | 2026-04-02 | 2026-10-01 | Medium |
+| `pricebuddy-mysql-credentials` | PriceBuddy | 2026-04-02 | 2026-10-01 | Medium |
 
 #### CouchDB
 
@@ -65,8 +65,8 @@ cert-manager).
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
-| `authentik-secret-key` | Authentik | Django Secret | 2026-04-02 | 2026-10-01 | High |
-| `n8n-encryption-key` | N8N | Encryption Key | Never* | N/A | Critical |
+| `authentik` (key `AUTHENTIK_SECRET_KEY`) | Authentik | Django Secret | 2026-04-02 | 2026-10-01 | High |
+| `n8n-env` (key `N8N_ENCRYPTION_KEY`) | N8N | Encryption Key | Never* | N/A | Critical |
 
 \* **N8N encryption key NEVER rotated** — encrypts all workflow credentials
 
@@ -380,7 +380,7 @@ git add infrastructure/configs/databases/redis-ha/passwords-secret.yaml \
 git commit -m "Rotate blocky redis password"
 git push
 flux reconcile source git flux-system --timeout 45s
-flux reconcile kustomization infrastructure-controllers --timeout 60s
+flux reconcile kustomization infrastructure-configs --timeout 60s
 flux reconcile kustomization apps --timeout 60s
 kubectl rollout restart statefulset -n databases redis-replication redis-sentinel-sentinel
 kubectl rollout restart deploy -n blocky blocky
@@ -485,7 +485,7 @@ If compromised:
 2. **Testing**: verify dependent services. Keep prev password 24h for rollback.
 3. **Docs**: update this doc + commit immediately after rotation.
 4. **Monitoring**: watch auth errors 15 min post-rotation. Check Grafana.
-5. **Backup**: ensure secrets backup current before rotation.
+5. **Backup**: check that the secrets backup is current before rotation.
 
 ---
 

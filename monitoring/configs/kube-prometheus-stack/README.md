@@ -22,9 +22,8 @@ Alertmanager's basic-auth sits after rate-limit on purpose: a 401 short-circuits
 chain, so auth placed earlier would leave brute-force attempts unthrottled.
 
 Certificates come from cert-manager over DNS-01 (`grafana-certificate.yaml`,
-`alertmanager-certificate.yaml`). The `cloudflared` NetworkPolicy permits egress to
-`monitoring` on 3000 and 9093, so a tunnel hostname can reach either component; the
-hostname list itself lives in the SOPS-encrypted tunnel config.
+`alertmanager-certificate.yaml`). Both are LAN-only: the SOPS-encrypted tunnel config has
+no hostname for either, and the `cloudflared` NetworkPolicy has no egress rule to `monitoring`.
 
 ## Authentication
 

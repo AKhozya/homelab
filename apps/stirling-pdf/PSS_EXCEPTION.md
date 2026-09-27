@@ -2,7 +2,7 @@
 
 ## Pod Security Standards Classification: BASELINE
 
-**Rationale:** Stirling PDF v2.0 needs root during container startup for system config.
+**Rationale:** Stirling PDF needs root during container startup for system config. The image is `frooodle/s-pdf:3.0.0-fat`; the sections below describe v2.0.
 
 ---
 
@@ -68,7 +68,7 @@ securityContext:
 
 **PSS Compliance with Baseline:**
 - `allowPrivilegeEscalation: false` — prevents gaining privileges
-- `capabilities.drop: ["ALL"]` — no Linux caps granted
+- `capabilities.drop: ["ALL"]`, then four added back (SETGID, SETUID, CHOWN, DAC_OVERRIDE), all within baseline
 - `seccompProfile: RuntimeDefault` — syscall filtering on
 - No host namespaces (no hostNetwork, hostPID, hostIPC)
 - No host path volumes
@@ -95,17 +95,6 @@ securityContext:
 
 ---
 
-## Comparison with Other Apps
-
-| App            | PSS Level   | Root Required | Reason                        |
-|----------------|-------------|---------------|-------------------------------|
-| Stirling PDF   | BASELINE    | Yes           | v2.0 system configuration     |
-| Home Assistant | PRIVILEGED  | Yes           | Bluetooth/network hardware    |
-| Paperless-NGX  | BASELINE    | Yes (init)    | s6-overlay directory ownership|
-| Most others    | RESTRICTED  | No            | Standard applications         |
-
----
-
 ## Risk Assessment
 
 **Risk Level:** MEDIUM
@@ -117,12 +106,12 @@ securityContext:
 
 **Mitigations:**
 - NetworkPolicy restricts lateral movement
-- No capabilities = limited damage even as root
+- Four capabilities only, so limited damage even as root
 - Seccomp filters dangerous syscalls
 - No host access (no hostPath, hostNetwork, etc.)
 - Regular security updates via Renovate
 
-**Acceptable Trade-off:** Root required by app architecture. Security controls (no caps, NetworkPolicy, seccomp) reduce risk to acceptable for homelab.
+**Acceptable Trade-off:** Root required by app architecture. Security controls (four caps only, NetworkPolicy, seccomp) reduce risk to acceptable for homelab.
 
 ---
 

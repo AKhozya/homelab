@@ -66,7 +66,9 @@ kubectl exec -n authentik deploy/authentik-server -- curl -s -X PATCH \
 
 Note: `user_fields` + `sources` must be supplied on every PATCH (serializer validator requires at least one non-empty regardless of partial-update).
 
-## Full rollback (all 4 phases)
+## Full rollback (phases 0-3)
+
+This section reverts phases 0-3 only. It does not revert blueprint `40-remove-password-binding.yaml` (added 2026-06-05, `5a79e178`) or `50-homepage-forward-auth.yaml` (added 2026-07-25, `21071530`).
 
 ```bash
 # Find Phase commits (search commit subject pattern):
@@ -180,5 +182,5 @@ kubectl rollout restart deploy/authentik-worker -n authentik
 ## Known behaviors / gotchas
 
 - **WebAuthn devices API returns `rp_id: null` at registration**: this is a display-only field, populated after first assertion. Credential works regardless. Do NOT treat `rp_id: null` as a broken credential on fresh enrollments.
-- **`/api/v3/managed/blueprints/` is paginated**: default 20/page. Use `?page_size=100` to list all 24+ on a typical install (20 defaults + 4 custom).
+- **`/api/v3/managed/blueprints/` is paginated**: default 20/page. Use `?page_size=100` to list all 25+ on a typical install (20 defaults + 5 custom).
 - **TOTP/WebAuthn pk collision in UI** (#18232): deleting via UI checkboxes can target the wrong device class. Always delete WebAuthn devices via API by UUID / integer pk.
