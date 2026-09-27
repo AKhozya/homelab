@@ -73,7 +73,7 @@ Storage is node-local (`local-path-provisioner`) — no distributed storage laye
 
 ## Maintenance
 
-The cluster is reviewed monthly (security scans, policy reports, alert/backup/cert health, dependency freshness). The agent skills and rules that run these reviews are copied into [agents/](../agents/README.md), and the review runs `scripts/sync-agents.sh --check` to catch a stale copy. The full changelog lives in [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md); every change is a commit, so `git log` is the audit trail.
+The cluster is reviewed monthly (security scans, policy reports, alert/backup/cert health, dependency freshness). The agent skills and rules that run these reviews are copied into [agents/](../agents/README.md), and the review runs `scripts/sync-agents.sh --check` to catch a stale copy. [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md) holds the last three months of changes; every change is a commit, so `git log` is the full audit trail.
 
 Worker self-heal watchdogs: `clusterip_heal` (post-reboot kube-proxy DNAT wedge → k3s-agent restart) and `node_isolation_heal` (CP-isolation ladder — k3s-agent restart at 6 min, staggered self-reboot 15/23 min as last resort; **ACTIVE** since 2026-07-23 after a 13-day dry-run soak). Their k3s-agent restarts are flock-serialized via a shared cooldown; phase2 maintenance reboots set a worker-local hold so orchestrated reboots never count as isolation.
 

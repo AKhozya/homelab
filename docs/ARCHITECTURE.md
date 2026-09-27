@@ -261,8 +261,8 @@ An ordered bootstrap layer would fix both, but it is **deliberately not built**.
 sets `prune: true`, and the `apps` Kustomization owns all 17 `namespace.yaml` files. If those files
 moved to another Kustomization, Flux would prune the Namespace objects, and deleting a Namespace
 deletes every workload and PVC in it. Nothing guarantees that the new layer recreates them
-first. A path change caused unwanted pruning here before (HISTORY, 2026-06: "removing the
-workaround is two commits, not one"). Risking all 17 namespaces to save two lines in a DR
+first. Moving the Redis-HA and CouchDB resources between Kustomizations already needed a
+two-stage move for this reason (HISTORY 2026-07-03, commit `d771464d`). Risking all 17 namespaces to save two lines in a DR
 script and one commit per new app is a bad trade while the workaround works. If a DR drill shows
 the manual pass is error-prone, or new apps arrive often enough that the extra commit slows work,
 revisit this.

@@ -53,7 +53,7 @@ kubelet-arg:
 # v1.8.13 (nft backend) with mixed nft_compat + legacy ip_tables modules hits stale-chain
 # "CHAIN_USER_ADD/RULE_APPEND File exists" on reboot, so kube-proxy's atomic iptables-restore
 # fails and KUBE-SERVICES (10.43.0.1 DNAT) never gets programmed → ClusterIP wedged until a
-# k3s restart. Bundled bins avoid that conflict. See HOMELAB_HISTORY, 2026-05-25.
+# k3s restart. Bundled bins avoid that conflict. See commit 9d8d57a1 (2026-05-25).
 prefer-bundled-bin: true
 {% endif %}
 {% if is_cp %}
