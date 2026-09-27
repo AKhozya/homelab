@@ -8,6 +8,7 @@ ufw_logging: low
 ufw_rules_base: []
 ufw_rules_group: []
 ufw_rules_host: []
+ufw_rules_absent: []
 
 ufw_route_rules_base: []
 ufw_route_rules_group: []

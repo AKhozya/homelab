@@ -168,10 +168,21 @@ ufw_rules_base:
   - { comment: "K3s pod network", rule: allow, from_ip: 10.42.0.0/16 }
   - { comment: "K3s service network", rule: allow, from_ip: 10.43.0.0/16 }
   - { comment: "Flannel VXLAN overlay", rule: allow, to_port: 8472, proto: udp }
-  - { comment: "Kubelet API", rule: allow, to_port: 10250, proto: tcp }
   - { comment: "HTTP from LAN", rule: allow, from_ip: 192.168.1.0/24, to_port: 80, proto: tcp }
   - { comment: "HTTPS from LAN", rule: allow, from_ip: 192.168.1.0/24, to_port: 443, proto: tcp }
   - { rule: allow, from_ip: 10.42.0.0/16, to_port: 8000, proto: tcp }
+
+# Rules to delete. If you drop a rule from the lists above, the live rule stays;
+# name it here to delete it. A rule with no source opens the port
+# over IPv6 as well, and every node has a public IPv6 address. Each entry must
+# carry no `from_ip` and no `comment`: `ufw delete` then matches the rule
+# whatever its comment and removes the IPv4 and IPv6 copies together. Every
+# caller of these ports is covered by a node-IP, pod-network or LAN-only rule.
+# Deleting a rule that is not there is a no-op.
+ufw_rules_absent:
+  - { rule: allow, to_port: 6443, proto: tcp }    # was "Kubernetes API server" on the CP
+  - { rule: allow, to_port: 10250, proto: tcp }   # was "Kubelet API"
+  - { rule: allow, to_port: 22, proto: tcp }      # immich-vm build-time rule
 
 # Base route rules common to all 4 nodes.
 ufw_route_rules_base:

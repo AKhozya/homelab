@@ -17,6 +17,31 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-09-27 — firewall: no-source rules closed over IPv6; key-only SSH everywhere
+
+Every node has a public IPv6 address, and a UFW rule with no source opens its port over
+IPv6 too. The firewall role only adds rules, so these stayed live:
+
+| Rule | Nodes | Now |
+|---|---|---|
+| 6443/tcp from any source | CP | deleted. The LAN-only 6443 rule stays |
+| 10250/tcp from any source | all four | deleted. Node-IP and pod-network rules cover every caller |
+| 22/tcp from any source | immich-vm (build-time rule) | deleted |
+
+`group_vars/all.yml` gains `ufw_rules_absent`, and the role deletes each entry. The list is
+part of the drift fingerprint, so a new entry re-runs the rule block on a healthy node. An
+assert fails the play if a rule is in both lists.
+
+`99-hardening.conf` now sets three sshd options on every node. Before, only immich-vm lacked them:
+
+| Option | immich-vm before | Every node now |
+|---|---|---|
+| `PasswordAuthentication` | `yes` (OpenSSH default; its `sshd_config` had no line) | `no` |
+| `KbdInteractiveAuthentication` | `no` (`99-archlinux.conf`) | `no` |
+| `PermitRootLogin` | `prohibit-password` (default) | `no` |
+
+Anonymous requests to the API server and the kubelet return 401, before and after.
+
 ### 2026-09-27 — skills, helpers and rules copied into `agents/`
 
 `agents/` now holds a read-only copy of the operator's agent setup, for readers of the repo.

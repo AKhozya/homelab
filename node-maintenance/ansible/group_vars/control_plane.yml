@@ -50,14 +50,14 @@ k3s_tls_san:
 
 
 # UFW rules specific to CP.
-# Extras vs base: 6443 LAN dup, 9090 LAN (legacy Prometheus), 6443 anywhere
-# (Kubernetes API server), 10.42.2.0/24 (W2 pod subnet — redundant vs base
-# 10.42.0.0/16 but preserved as live state).
+# Extras vs base: 6443 from the LAN (the operator's kubectl), 9090 LAN (legacy
+# Prometheus), 10.42.2.0/24 (W2 pod subnet — redundant vs base 10.42.0.0/16 but
+# preserved as live state). 6443 from any source is deleted through
+# ufw_rules_absent in all.yml.
 ufw_rules_group:
   - { rule: allow, from_ip: 192.168.1.0/24, to_port: 6443, proto: tcp }
   - { rule: allow, from_ip: 192.168.1.0/24, to_port: 9090, proto: tcp }
   - { comment: "K8s pod network worker-node-2", rule: allow, from_ip: 10.42.2.0/24 }
-  - { comment: "Kubernetes API server", rule: allow, to_port: 6443, proto: tcp }
 
 # UFW route rules specific to CP.
 ufw_route_rules_group:

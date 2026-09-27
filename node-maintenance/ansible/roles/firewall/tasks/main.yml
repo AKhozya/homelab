@@ -3,9 +3,9 @@
 # Applies to: all hosts. Idempotent — community.general.ufw skips rules already
 # present (matched by src/dst/port/proto, ignoring comment).
 #
-# Safety: UFW is already active on all 3 nodes with a working rule set.
-# This role is declarative-additive: it will not delete rules not in the list.
-# To remove a rule, edit live state manually + the var, then re-run.
+# Safety: UFW is already active on all 4 nodes with a working rule set.
+# This role adds rules and never removes one on its own. To remove a rule,
+# drop it from its list and name it in ufw_rules_absent (group_vars/all.yml).
 # Never `ufw reset` here — lockout risk.
 #
 # Resilience layers (2026-04-29 hardening):
@@ -98,7 +98,8 @@
 # Fingerprint inputs (sha256):
 #   - /etc/default/ufw            (default policies + logging)
 #   - `ufw status verbose`         (rules + numbered state)
-#   - sha256 of each ufw_rules_*   (var-side drift detection)
+#   - sha256 of each ufw_rules_*   (var-side drift detection, ufw_rules_absent
+#                                   included, so a new delete entry re-runs the block)
 #
 # To force re-run after manual rule edit: `rm /var/lib/ufw-state/ufw-fingerprint`
 - name: Compute current UFW fingerprint
@@ -113,6 +114,7 @@
         '{{ ufw_policy_routed }}' \
         '{{ ufw_logging }}'
       printf '%s\n' {{ (ufw_rules_base + ufw_rules_group + ufw_rules_host) | to_json | quote }}
+      printf '%s\n' {{ ufw_rules_absent | to_json | quote }}
       printf '%s\n' {{ (ufw_route_rules_base + ufw_route_rules_group + ufw_route_rules_host) | to_json | quote }}
     } | sha256sum | awk '{print $1}'
   args:
@@ -141,6 +143,21 @@
 - name: Log drift gate decision
   ansible.builtin.debug:
     msg: "ufw drift gate: drift_detected={{ ufw_drift_detected }} current_fp={{ ufw_current_fp.stdout[:12] }}"
+  tags: [firewall]
+
+# If both lists hold a rule, one task adds it and the next deletes it, and the
+# lists no longer say what the node runs.
+- name: Assert no rule is both present and absent
+  ansible.builtin.assert:
+    that: >-
+      (ufw_rules_absent | map('dict2items') | map('rejectattr', 'key', 'eq', 'comment')
+       | map('items2dict') | list)
+      | intersect((ufw_rules_base + ufw_rules_group + ufw_rules_host)
+                  | map('dict2items') | map('rejectattr', 'key', 'eq', 'comment')
+                  | map('items2dict') | list)
+      | length == 0
+    fail_msg: "a rule is listed in ufw_rules_absent and in a ufw_rules_* list"
+    quiet: true
   tags: [firewall]
 
 # UFW rule application — wrapped in block/rescue for L3 resilience.
@@ -207,6 +224,24 @@
         label: "{{ item.comment | default('rule') }} / {{ item.rule }} from={{ item.from_ip | default('any') }} to={{ item.to_port | default('any') }}/{{ item.proto | default('any') }}"
       register: ufw_rules_apply
       until: ufw_rules_apply is not failed
+      retries: 10
+      delay: 20
+
+    # No comment and no from_ip: `ufw delete` then matches the rule whatever
+    # its comment, and removes the IPv4 and IPv6 copies of a no-source rule.
+    # A delete re-applies only UFW's user chains, as an add does; it is not a
+    # full `ufw reload`.
+    - name: Delete UFW rules listed in ufw_rules_absent
+      community.general.ufw:
+        rule: "{{ item.rule }}"
+        to_port: "{{ item.to_port | default(omit) }}"
+        proto: "{{ item.proto | default(omit) }}"
+        delete: true
+      loop: "{{ ufw_rules_absent }}"
+      loop_control:
+        label: "delete {{ item.rule }} to={{ item.to_port | default('any') }}/{{ item.proto | default('any') }}"
+      register: ufw_rules_delete
+      until: ufw_rules_delete is not failed
       retries: 10
       delay: 20
 
@@ -304,6 +339,7 @@
         '{{ ufw_policy_routed }}' \
         '{{ ufw_logging }}'
       printf '%s\n' {{ (ufw_rules_base + ufw_rules_group + ufw_rules_host) | to_json | quote }}
+      printf '%s\n' {{ ufw_rules_absent | to_json | quote }}
       printf '%s\n' {{ (ufw_route_rules_base + ufw_route_rules_group + ufw_route_rules_host) | to_json | quote }}
     } | sha256sum | awk '{print $1}'
   args:
