@@ -1,123 +1,180 @@
 # Homelab Architecture
 
-**What this is:** the *why* and the *shape* of the cluster — design principles, the diagrams, and the rationale behind each convention. For the current numbers see [HOMELAB_ANALYSIS.md](HOMELAB_ANALYSIS.md); for refreshed component snapshots see [subsystems/](subsystems/); for the changelog see [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md). This file changes only when the *design* changes, not when counts drift.
+This page explains how the cluster is built and why. For current numbers, see
+[HOMELAB_ANALYSIS.md](HOMELAB_ANALYSIS.md). For a map of each subsystem, see
+[subsystems/](subsystems/). For the change log, see [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md). This
+page changes only when the design changes, so it avoids numbers that drift.
 
-**Cluster in one line:** single-environment K3s (v1.36.x, 4 Arch nodes — 3 physical + 1 GPU-worker VM on the NAS) run as GitOps — Git is the only write path, Flux reconciles, every secret is SOPS-encrypted, every workload is admission-gated and network-fenced.
-
----
-
-## Design principles (the logic)
-
-1. **Git is the only source of truth.** No `kubectl edit/patch/apply` against live objects — the cluster is whatever `main` says. A change is a commit; Flux reconciles it in ≤60s. This makes the cluster reproducible, auditable (git log = change log), and self-healing (drift is reverted on the next reconcile). The cost — no out-of-band hotfix — is accepted deliberately.
-2. **Layered reconciliation, infra before apps.** Resources have a dependency order (CRDs before custom resources, operators before the things they manage, databases before the apps that connect). Flux `dependsOn` encodes it as a dependency graph rooted at the controllers — DNS, infra configs (→ apps), and monitoring branch off in parallel — so apps never reconcile against a half-built platform.
-3. **Secrets are git-native, encrypted at rest.** SOPS + age keeps secrets *in* the repo (one source of truth, PR-reviewable) but unreadable without the cluster's age key. No external secret store to bootstrap or keep available.
-4. **Defense in depth, default-deny.** Four independent layers (admission, network, runtime, identity) each assume the others may fail. A compromised app still hits a NetworkPolicy wall, a non-root RoRFS container, and Kyverno-enforced limits.
-5. **Two front doors, no port-forwards.** Internal traffic stays on the LAN (fast, Blocky DNS → Traefik). External traffic enters only through a Cloudflare Tunnel (outbound-initiated — no inbound ports opened on the router). The LAN is never exposed directly.
-6. **Pin everything, name things after what they are.** Images pinned to `major.minor.patch-variant` (floating tags drift silently). DB role name = app name. These conventions let humans and policy reason about the cluster without lookups.
+**In one line:** one K3s cluster, which is also production, on four Arch Linux nodes (three
+physical machines and a GPU worker VM on the NAS). Git is the only way to change it, Flux applies
+the changes, every secret is encrypted with SOPS, and every workload passes admission policy and
+sits behind a NetworkPolicy.
 
 ---
 
-## Node topology + storage
+## Design principles
+
+| # | Principle | Why | Cost |
+|---|---|---|---|
+| 1 | **Git is the only source of truth.** Nobody runs `kubectl edit`, `patch` or `apply` against live objects; the cluster is whatever `main` says. | The cluster can be rebuilt from the repo, `git log` is the audit trail, and Flux reverts a hand-made change on its next run. | No emergency change made straight to the cluster. A fix is a commit; Flux fetches `main` every 5 minutes and applies it once each dependency reports Ready. |
+| 2 | **Infrastructure before apps.** Flux `dependsOn` orders the Kustomizations (the units Flux applies): CRDs (custom resource types) before the resources that use them, operators before what they manage, databases before the apps that connect. | Flux applies the apps only after the infrastructure they need reports Ready. | A broken layer holds back every layer that depends on it. |
+| 3 | **Secrets live in Git, encrypted.** SOPS with age encrypts each secret in the repo; only the cluster's age key decrypts them. | One source of truth, reviewable in a diff, and no external secret store to bootstrap. | Losing the age key makes every encrypted secret unreadable (see [Failure modes](#failure-modes)). |
+| 4 | **Several independent layers of defence.** Admission policy, NetworkPolicies, container runtime limits and sign-in each assume the others may fail. | A compromised app still meets a NetworkPolicy, a non-root container with a read-only filesystem, and enforced limits. | A few apps need exceptions, each documented. |
+| 5 | **Two ways in, no open ports.** LAN traffic goes through Blocky DNS to Traefik. Internet traffic comes only through a Cloudflare Tunnel, which the cluster opens from the inside. | The home router forwards nothing inbound. | Tunnel traffic skips Traefik, so Traefik's middleware does not apply to it. |
+| 6 | **Pin everything; name things after what they are.** Images are pinned to `major.minor.patch-variant`. A database role has the app's name. | Floating tags change without a commit. Predictable names let people and policies find things without a lookup. | Every version bump is an explicit change; Renovate proposes them. |
+
+---
+
+## Node topology and storage
 
 ```mermaid
 flowchart TB
-  subgraph LAN["Home LAN — 192.168.1.0/24, SSH :65300"]
-    CP["gmk-k3s-control-plane · .127<br/>control-plane + embedded SQLite datastore<br/>NIC I225-V forced 1Gbps, EEE off"]
-    W1["worker-node (W1) · .129<br/>/mnt/k8s-storage (0700)<br/>hosts most app PVs (local-path)"]
-    W2["worker-node-2 (W2) · .126<br/>/mnt/extra-storage<br/>SSH user z3us (not akhozya)"]
-    NAS["NAS<br/>rsync daemon :50555"]
-    VM["immich-vm · .231<br/>GPU worker (Arch VM on the NAS, Intel QSV passthrough)<br/>runs immich-server + ML (OpenVINO on the iGPU); dedicated node (NoSchedule taint); library via NAS virtiofs"]
+  subgraph LAN["Home LAN 192.168.1.0/24, SSH on :65300"]
+    CP["gmk-k3s-control-plane · .127<br/>control plane, cluster state in SQLite<br/>NIC I225-V forced to 1 Gbps, EEE off"]
+    W1["worker-node (W1) · .129<br/>/mnt/k8s-storage<br/>most app volumes, backup jobs, Loki"]
+    W2["worker-node-2 (W2) · .126<br/>/mnt/extra-storage<br/>metrics storage; SSH user z3us"]
+    NAS["NAS<br/>backup target, rsync daemon :50555"]
+    VM["immich-vm · .231<br/>VM on the NAS, Intel GPU passed through<br/>runs Immich and per-node agents (taint homelab/dedicated=immich)"]
   end
   CP -. k3s API .-> W1
   CP -. k3s API .-> W2
   CP -. k3s API .-> VM
-  NAS --- VM
-  W1 -->|"rsync :50555<br/>(30-day history)"| NAS
+  NAS ---|hosts the VM; photo library over virtiofs| VM
+  W1 -->|"nightly rsync :50555<br/>30 days of history"| NAS
 ```
 
-Storage is `local-path-provisioner` (node-local PVs — no distributed storage layer by choice; simpler, faster, and the backup chain provides durability instead). Each PV is bound to the node where it was first allocated via the PV's `nodeAffinity` (the local-path mechanism) — there is no Deployment-level node pinning. **Immich on the dedicated VM** (server since the 2026-07-12 Path-B cutover, ML since 2026-09-06): immich-server runs on the `immich-vm` GPU worker with the photo library on NAS storage via a virtiofs hostPath (the old W1 `immich-library` PV was **decommissioned 2026-07-14** after the soak; its weekly backup now runs on W2, pulling the NAS library → tar on W2 + a copy in the NAS `akhozya-pool1` pool, keep-2 each); ML moved to immich-vm on 2026-09-06 with a git-declared cache PVC on the VM's local-path bind mount; immich-vm carries a `homelab/dedicated=immich:NoSchedule` taint, so only Immich pods and the per-node agents run there. Durability comes from the **nightly replication from W1 → NAS** (one CronJob on W1, 30-day history on the NAS; the temporary W2 single-day safety-net leg was retired 2026-07-17 once the NAS sink had proven itself), not from replicated volumes.
+Storage is `local-path-provisioner`: each volume lives on one node's disk. There is no distributed
+storage layer, by choice: node-local disks are simpler and faster. The volume's `nodeAffinity`
+binds it to the node where it was first created, so its pod always runs there; no Deployment pins
+itself to a node. Durability comes from the backup chain, not from replicas: one CronJob on W1
+copies the nightly backups to the NAS and keeps 30 days of history.
+
+Immich runs on `immich-vm`, the GPU worker:
+
+| Part | Where | Since |
+|---|---|---|
+| immich-server | `immich-vm`, using the Intel GPU for video transcoding | 2026-07-12 |
+| Immich machine learning | `immich-vm`, with OpenVINO on the same GPU; model cache in a PVC (persistent volume claim: a pod's request for storage) declared in Git, on the VM's local-path disk | 2026-09-06 |
+| Photo library | NAS storage, shared into the VM over virtiofs and mounted into the pod as a `hostPath` volume (a directory on the node) | 2026-07-12 |
+| Weekly library backup | `immich-backup` on W2: it pulls the library from the NAS, writes a tar on W2 and a copy to the NAS `akhozya-pool1` pool, and keeps two of each | 2026-07-14 |
+
+The taint `homelab/dedicated=immich:NoSchedule` keeps every other workload off `immich-vm`, apart
+from the per-node agents.
 
 ---
 
 ## GitOps reconciliation order
 
-`flux-system` is the Git source; `infrastructure-controllers` is the root Kustomization, and three branches hang off it — DNS, infra configs (→ apps), and monitoring. It is a dependency graph, not a single chain:
+`flux-system` is the Git source. `infrastructure-controllers` is the root Kustomization, and three
+branches start from it: DNS, the infrastructure configs (then the apps), and monitoring.
 
 ```mermaid
 flowchart TB
-  G["Git repo (main)<br/>SOPS-encrypted secrets"] --> FS["flux-system<br/>GitRepository source + Flux controllers"]
-  FS --> IC["infrastructure-controllers<br/>cert-manager · Traefik · Kyverno<br/>CNPG / Percona / Redis operators"]
+  G["Git repo, branch main<br/>SOPS-encrypted secrets"] --> FS["flux-system<br/>Git source and Flux controllers"]
+  FS --> IC["infrastructure-controllers<br/>cert-manager · Traefik · Kyverno<br/>CNPG, Percona and Redis operators"]
   IC --> CD["coredns"]
-  IC --> ICF["infrastructure-configs<br/>DB Cluster CRs · NetworkPolicy · ResourceQuota<br/>SOPS secrets · backup CronJobs"]
-  IC --> MC["monitoring-controllers<br/>kube-prometheus-stack · VictoriaMetrics op · Loki · Alloy"]
+  IC --> ICF["infrastructure-configs<br/>database clusters · NetworkPolicies · quotas<br/>SOPS secrets · backup CronJobs"]
+  IC --> MC["monitoring-controllers<br/>kube-prometheus-stack · VictoriaMetrics operator · Loki · Alloy"]
   ICF --> APPS["apps<br/>application stacks"]
-  MC --> MCF["monitoring-configs<br/>VMRule · VMServiceScrape · dashboards · alert templates"]
+  MC --> MCF["monitoring-configs<br/>alert rules · scrape configs · dashboards · alert templates"]
 ```
 
-Each edge is a Flux `dependsOn`: a Kustomization waits for its parent to report Ready before it reconciles. The `apps` and `monitoring` branches are independent and reconcile in parallel once their prerequisites are met. `apps` is `wait: false` (it depends on `infrastructure-configs` being Ready, but Flux doesn't health-gate the whole apps stage — each app carries its own readiness).
+The first two arrows show where Flux gets the source. Each arrow below `infrastructure-controllers`
+is a Flux `dependsOn`: a Kustomization waits until its parent reports Ready. If their parents are
+Ready, the apps branch and the monitoring branch run in parallel. `apps` sets
+`wait: false`, so Flux does not wait for every app to become healthy; each app reports its own
+readiness.
 
 | Kustomization | Depends on | Owns |
 |---|---|---|
-| `infrastructure-controllers` | flux-system (source) | Operators + CRDs (cert-manager, Traefik, Kyverno, CNPG/Percona/Redis) |
+| `infrastructure-controllers` | flux-system (source) | Operators and CRDs: cert-manager, Traefik, Kyverno, CNPG, Percona, Redis |
 | `coredns` | infrastructure-controllers | Cluster DNS |
-| `infrastructure-configs` | infrastructure-controllers | DB `Cluster` CRs, NetworkPolicies, quotas, secrets, backups |
-| `apps` | infrastructure-configs | 17 application stacks — DBs + network fences must exist first |
-| `monitoring-controllers` | infrastructure-controllers | Metrics/logging stack (VictoriaMetrics, Loki, Alloy) |
-| `monitoring-configs` | monitoring-controllers | Scrapes, rules, dashboards, alert templates |
+| `infrastructure-configs` | infrastructure-controllers | Database clusters, NetworkPolicies, quotas, secrets, backups |
+| `apps` | infrastructure-configs | The 17 app stacks; their databases and NetworkPolicies must exist first |
+| `monitoring-controllers` | infrastructure-controllers | VictoriaMetrics, Loki, Alloy |
+| `monitoring-configs` | monitoring-controllers | Scrape configs, alert rules, dashboards, alert templates |
 
-**Consequence for DB provisioning:** a CNPG `Database` CR is *infrastructure*, not app config — it belongs in `infrastructure-configs`, in the `databases` namespace alongside its `Cluster` (the CR's `spec.cluster` is a same-namespace `LocalObjectReference`). This is why DB manifests live under `infrastructure/configs/.../databases/postgres/`, not in app dirs.
+**Where a database goes.** A CNPG `Database` resource is infrastructure, not app config. It lives in
+`infrastructure-configs`, in the `databases` namespace next to its `Cluster`, because its
+`spec.cluster` can only point to a cluster in the same namespace. That is why database manifests
+sit under `infrastructure/configs/databases/postgres/`, not in the app directories.
 
 ---
 
-## Traffic flow — two front doors (different paths to the same Pod)
+## Traffic flow: two ways in
 
 ```mermaid
 flowchart LR
-  subgraph EXT["External — internet → tunnel → Service (Traefik NOT in path)"]
-    U1["Internet client"] --> CF["Cloudflare edge<br/>WAF + TLS terminate"]
-    CF -->|"outbound tunnel"| CFD["cloudflared pod<br/>SOPS tunnel config"]
-    CFD -->|"direct to Service:port"| SVCE["app Service<br/>e.g. authentik:9000"]
+  subgraph EXT["Internet: tunnel straight to the Service, no Traefik"]
+    U1["Internet client"] --> CF["Cloudflare edge<br/>WAF, TLS"]
+    CF -->|"tunnel, opened from inside"| CFD["cloudflared pod<br/>tunnel config in SOPS"]
+    CFD -->|"to the Service port"| SVCE["app Service<br/>for example authentik:9000"]
   end
-  subgraph INT["Internal — LAN client → Traefik → Service (middleware applies)"]
-    U2["LAN device"] --> BL["Blocky DNS<br/>W1/W2 LB IP"]
-    BL --> TR["Traefik :443<br/>traefik ns"]
-    TR --> ING["IngressRoute + middleware<br/>security-headers · rate-limit · CSP · redirect-https"]
+  subgraph INT["LAN: Traefik in the path, middleware applies"]
+    U2["LAN device"] --> BL["Blocky DNS<br/>W1 and W2 LoadBalancer IPs"]
+    BL --> TR["Traefik :443"]
+    TR --> ING["Ingress and middleware<br/>security headers · rate limit · CSP · HTTPS redirect"]
     ING --> SVCI["app Service"]
   end
   SVCE --> POD["app Pod"]
   SVCI --> POD
-  NP{{"NetworkPolicy<br/>per ingress + cross-ns egress"}} -. fences .- POD
+  NP{{"NetworkPolicy<br/>allows each path in"}} -. guards .- POD
 ```
 
-An externally-reachable app has **two ingress rules** (internal hostname + Cloudflare hostname) but **one NetworkPolicy**. cert-manager issues TLS via DNS-01 (Cloudflare API token) for `*.h0melab.work`. The Cloudflare Tunnel is outbound-initiated → home router opens **zero** inbound ports.
+An app that is reachable both ways has two ingress rules in its NetworkPolicy: one from Traefik and
+one from the tunnel. cert-manager issues TLS certificates for `*.h0melab.work` through a DNS-01
+challenge with a Cloudflare API token.
 
-**Consequence (often missed):** Traefik middleware applies **only on the internal path.** External traffic via Cloudflare Tunnel hops `cloudflared → Service` directly (per `infrastructure/configs/cloudflare/networkpolicy.yaml`: per-app `Service:port` egress to 10 app namespaces, zero egress to the `traefik` namespace). Externally-reached apps get Cloudflare's WAF + TLS, **not** the Traefik CSP/headers/rate-limit middlewares. The tier-based CSP rollout therefore covers internal browsing only; CF-tunnel browsers see whatever CSP the app itself sets.
+**Traefik middleware applies only on the LAN path.** The `cloudflared` NetworkPolicy
+(`infrastructure/configs/cloudflare/networkpolicy.yaml`) lets the tunnel reach each app's
+Service port directly. It has no egress to the `traefik` namespace:
 
-**Cloudflare Access posture — per hostname.** Access policies live in the Cloudflare zone, not in this repo, so nothing here can drift-check them; this table is the record of what was decided and why.
+| cloudflared may reach | Why |
+|---|---|
+| 8 app namespaces: audiobookshelf, authentik, immich, linkwarden, mealie, n8n, paperless-ngx, stirling-pdf | their tunnel hostnames |
+| `databases` | CouchDB, for Obsidian sync |
+| `rustdesk` | RustDesk clients on Cloudflare WARP (Cloudflare's device VPN) |
+| `kube-system` | DNS |
 
-| Tunnel hostname | Edge gate | Rationale |
+So internet visitors get Cloudflare's WAF (web application firewall) and TLS, but not Traefik's
+CSP, security headers or rate limits; they see whatever CSP the app sets.
+
+**Cloudflare Access, per hostname.** Access policies live in the Cloudflare account, not in this
+repo, so nothing here can check them for drift. This table records what was decided and why.
+
+| Tunnel hostname | Edge gate | Reason |
 |---|---|---|
-| `couchdb` | **CF Access Service Auth** | Obsidian LiveSync is a headless client with a shared CouchDB credential and no interactive login — the only hostname where the app cannot authenticate a human, so the gate has to sit at the edge. Uses the `Service Auth` action (not `Allow`); `Use Internal API` must stay OFF. |
-| `authentik` | None (by design) | It *is* the identity provider — gating it at the edge would lock every other app out of its own login. Passkey-first with no password fallback. |
-| `audiobookshelf`, `immich`, `linkwarden`, `mealie`, `n8n`, `paperless`, `stirling-pdf` | None — app-native OIDC | Each authenticates through Authentik itself, so an edge gate would add a second prompt without adding a factor. **Accepted trade-off:** the app's own login page is internet-reachable, so app-level auth bugs are exposed to the internet rather than to the LAN. |
+| `couchdb` | Cloudflare Access, **Service Auth** action | Obsidian LiveSync is a headless client with a shared CouchDB password and no sign-in page, so the edge has to authenticate it. Use the `Service Auth` action, not `Allow`, and keep `Use Internal API` off. |
+| `authentik` | none, by design | It is the identity provider; a gate at the edge would lock every other app out of its sign-in. Sign-in is passkey-first, with no password. |
+| `audiobooks`, `immich`, `linkwarden`, `mealie`, `n8n`, `paperless`, `stirling` | none; each app signs users in through Authentik (OIDC) | A gate at the edge would add a second prompt without adding a factor. **Accepted cost:** each app's own sign-in page faces the internet, so a bug in its sign-in is exposed to the internet, not only to the LAN. |
 
-Adding a tunnel hostname means picking one of these three rows and recording it here, since the zone config leaves no artifact to review.
+If you add a tunnel hostname, pick one of these three rows and add the hostname to it. The Access
+policies are not stored in this repo, so a Git diff cannot show a change to them.
 
 ---
 
-## Security layers (defense in depth)
+## Security layers
 
 ```mermaid
 flowchart TB
-  L1["1 · Secrets at rest — SOPS + age, encrypted in git"]
-  L2["2 · Admission — Kyverno (12 CEL ValidatingPolicies, all Deny — sole engine since 2026-07-12, ClusterPolicies deleted) + Pod Security Standards"]
-  L3["3 · Network — allow-list NetworkPolicies per workload (per-pod default-deny effect; Kyverno require-networkpolicy (Enforce) denies Pod creation in any non-system ns lacking a NetworkPolicy)"]
-  L4["4 · Runtime — runAsNonRoot · readOnlyRootFilesystem · drop ALL caps · seccomp RuntimeDefault"]
-  L5["5 · Identity + transport — Authentik OIDC + cert-manager TLS"]
+  L1["1 · Secrets at rest: SOPS with age, encrypted in Git"]
+  L2["2 · Admission: 12 Kyverno policies, all Deny, plus Pod Security Standards"]
+  L3["3 · Network: an allow-list NetworkPolicy per workload; Kyverno rejects a workload in a non-system namespace without one"]
+  L4["4 · Runtime, by default: non-root, read-only root filesystem, all capabilities dropped, seccomp RuntimeDefault; documented exceptions"]
+  L5["5 · Identity and transport: Authentik sign-in, cert-manager TLS"]
   L1 --> L2 --> L3 --> L4 --> L5
 ```
 
-Each layer is independent: bypassing admission still leaves the network fence; escaping the network still leaves a non-root, read-only-rootfs container. **PSS** sets the namespace floor (`restricted` where possible, `baseline`/`privileged` only where a workload genuinely needs hostPath/host-namespaces/GPU — each justified). **Kyverno** enforces the per-workload specifics PSS can't (image pinning, resource limits on *every* container including init, NetworkPolicy presence). NetworkPolicy ports are **container ports, not service ports**.
+Each layer works on its own. A workload that got past admission still meets the network policy. A
+process that got past the network policy still runs, by default, as non-root with a read-only root
+filesystem, no extra Linux privileges (capabilities) and the default system-call filter (seccomp).
+Home Assistant and Stirling-PDF are the documented exceptions that run as root.
+
+| Control | Scope |
+|---|---|
+| Pod Security Standards | Sets the floor for each namespace: `restricted` where possible, `baseline` or `privileged` only where a workload needs hostPath, host namespaces, extra capabilities or a GPU. [Home Assistant](../apps/home-assistant/PSS_EXCEPTION.md) and [Stirling-PDF](../apps/stirling-pdf/PSS_EXCEPTION.md) have their exceptions written up. |
+| Kyverno | Checks what PSS cannot: no `:latest` tag or missing tag, resource limits on every container (init containers too), a NetworkPolicy in the namespace. Kyverno CEL `ValidatingPolicy` resources have been the only policy engine since 2026-07-12. |
+| NetworkPolicy ports | Name the container port, not the Service port. |
 
 ---
 
@@ -125,80 +182,87 @@ Each layer is independent: bypassing admission still leaves the network fence; e
 
 | Engine | Operator | Notes |
 |---|---|---|
-| PostgreSQL | CloudNativePG (`main-postgres`) | Shared cluster; per-app `Database` CR + role; PgBouncer pooler; role name = app name |
-| MySQL | Percona | Per-app `User` CR; HAProxy front |
-| CouchDB | Helm | |
-| Redis | Operator (OT) | In-memory; Authentik uses Postgres-only (no Redis) |
+| PostgreSQL | CloudNativePG (`main-postgres`) | One shared cluster, primary and replica. Each app gets a role from `managed.roles` and a `Database` resource; the role has the app's name. A PgBouncer pooler sits in front and reuses database connections. |
+| MySQL | Percona | Primary and replica, HAProxy in front. The operator has no user resource, so app users come from SQL. |
+| CouchDB | Helm chart | Two nodes; serves Obsidian sync. |
+| Redis | OT operator | In memory, with Sentinel. Authentik uses Postgres only. |
 
-Backups: per-engine CronJobs in `infrastructure-configs` → nightly replication W1 → NAS (30-day history). DR runbook in [`docs/disaster-recovery/README.md`](disaster-recovery/README.md). Never force-delete a DB pod or drop a DB directly — go through the CRD + `kubectl rollout restart`.
+Backups run from CronJobs in `infrastructure-configs`, every night (UTC):
+
+| Job | Time |
+|---|---|
+| Postgres export | 03:00 |
+| CouchDB export | 03:05 |
+| App volume backup | 03:10 |
+| MySQL export | 03:15 |
+| Copy to the NAS, from W1 (30 days of history) | 03:30 |
+
+The DR runbook is
+[disaster-recovery/README.md](disaster-recovery/README.md). Never force-delete a database pod or
+drop a database by hand; change the resource in Git, then `kubectl rollout restart`.
 
 ---
 
-## Failure modes (what breaks when X dies)
+## Failure modes
 
 | Failure | Effect | What still works | Recovery |
 |---|---|---|---|
-| CP node down | Flux reconcile + admission paused; new pods can't schedule | Running pods + Services keep serving (kube-proxy on workers is independent) | Reboot CP; Flux catches up |
-| worker-node (W1) down | **W1 is the state + durability node**: bulk of app PVCs (local-path node-bound), the 5 daily backup CronJobs (nodeSelector-pinned to W1), and Loki live there → most stateful apps + logs + the daily backup chain down (no failover; local-path is node-bound; the weekly `immich-backup` — W2-producer since 2026-07-14 — keeps running) | Stateless/other-node workloads; metrics + alerting (on W2); Immich (all on `immich-vm`) | Reboot/replace; stateful apps + backups resume when W1 returns |
-| immich-vm down (VM on the NAS) | Immich web/API + ML down (server, ML and admin-setup are pinned there; heal, backup and DB-init jobs stay off it) | Everything else; Immich data safe (library on NAS storage, DB on CNPG) | `immich-vm-heal` watchdog `virsh start`s a `shut off` domain; wedges = operator-supervised (never `virsh destroy` — GPU reset-bug) |
-| worker-node-2 (W2) down | **All metrics + alerting blind**: the single VMSingle instance's PV is node-bound to W2. Monitoring is self-blind on its own loss — the Watchdog dead-man alert routes to null, so nothing pages about the blindness | Apps, logs, and backups on W1 unaffected | Reboot/replace; monitoring resumes when W2 returns |
-| Cloudflare edge or tunnel down | Externally-published apps unreachable | LAN access via Traefik fully unaffected | Wait CF; LAN keeps working |
-| Authentik down | SSO apps lose login | Non-SSO apps; non-OIDC paths | Restart Authentik Pod or rollout |
-| GitHub down | No new commits reconciled | Cluster state frozen at last sync; everything keeps running | Wait GitHub |
-| Age key (`sops-age` Secret in flux-system) lost | Encrypted secrets unreadable; new SOPS reconciles fail | Secrets already applied to the cluster keep working | Restore key from secure backup (NOT in this repo) |
+| Control-plane node down | Flux and admission stop; new pods cannot be scheduled | Running pods and Services keep serving; kube-proxy on the workers does not need the control plane | Reboot the node; Flux catches up |
+| `worker-node` (W1) down | Most app volumes, the five nightly backup CronJobs (pinned to W1) and Loki are on W1, so most stateful apps, logs and the nightly backups stop. Nothing fails over, because each volume is bound to W1's disk. | Workloads on other nodes; metrics and alerts (on W2); Immich (on `immich-vm`); the weekly Immich backup (on W2) | Reboot or replace W1; apps and backups resume |
+| `immich-vm` down | Immich web, API and machine learning stop | Everything else. Immich data is safe: the library is on the NAS and the database is in CNPG. | If the VM is shut off, the `immich-vm-heal` CronJob starts it. If the VM hangs while running, the operator steps in; never `virsh destroy` it (the GPU does not reset cleanly). |
+| `worker-node-2` (W2) down | Metrics and in-cluster alerting stop: the single VictoriaMetrics instance keeps its volume on W2. The always-firing Watchdog alert then stops, so healthchecks.io stops receiving pings and raises an alert from outside the cluster. | Apps, logs and backups on W1 | Reboot or replace W2; monitoring resumes |
+| Cloudflare edge or tunnel down | Apps published on the tunnel are unreachable from the internet | LAN access through Traefik | Wait for Cloudflare |
+| Authentik down | Apps that use single sign-on cannot sign users in | Apps without SSO, and sign-in paths that do not go through Authentik | Restart the Authentik pod or roll it out |
+| GitHub down | Flux cannot fetch new commits | The cluster keeps running at its last synced state | Wait for GitHub |
+| Age key lost (`sops-age` Secret in `flux-system`) | Flux cannot decrypt secrets, so new secret changes fail | Secrets already in the cluster keep working | Restore the key from its secure backup (not in this repo) |
 
-## Single-environment reality
+## One environment
 
-This is a single-environment cluster — and that environment is **production** (the live homelab). There is no separate staging and no promotion pipeline: a merge to `main` deploys straight to prod. The repo once carried the canonical Flux `base/` + `staging/` overlay shape, but with one and only one environment the split was pure ceremony (overlays were `[../base]` + SOPS secrets — no patches, replicas, or image overrides), and the `staging/` dir name was a Flux-convention artifact, not a second environment. It has been **fully collapsed to flat single-env dirs**: apps (2026-05-29), infra + monitoring controllers, and the configs layer (2026-06-04). Every move was proven render byte-identical (`kustomize build` oracle-diff empty) → Flux re-adopted every object in place, zero churn. **No `base/staging` overlay split remains repo-wide;** a new such split is now the smell, not the norm.
-
----
-
-## Deliberate simplifications (cut corners)
-
-Called out so they are choices, not accidents:
-
-- **Diagrams are logical, not exhaustive.** Individual apps, NetworkPolicies, and namespaces are not drawn — [HOMELAB_ANALYSIS](HOMELAB_ANALYSIS.md) carries the counts, the [subsystem maps](subsystems/) the structure. This file shows the *pattern*.
-- **No offsite backup (3-2-1 ceiling).** W1, W2, and the NAS share one building, power feed, and LAN — a whole-site event (fire, surge, theft) loses every copy at once. No cloud/offsite copy by choice; accepted risk ceiling.
-- **Monitoring is single-node and self-blind.** One VMSingle instance, PV node-bound to W2 → W2 loss blinds all metrics + alerting, and the Watchdog dead-man alert routes to null, so nothing pages about the blindness. Accepted.
-- **No formal threat model.** Trust boundaries are implicit: LAN is semi-trusted, Cloudflare edge is the only external entry, pod-to-pod is default-deny. A written threat model is not maintained.
-- **No distributed storage / no HA control plane.** Single CP node, node-local PVs. Durability is backup-based (replication chain), not replica-based. A CP outage stops reconciliation until the node returns; running workloads keep serving.
-- **Counts live in other docs.** This file avoids hard numbers that drift; where one appears it is approximate and HOMELAB_ANALYSIS is authoritative.
-- **Monitoring + backup internals are summarized.** Full detail in [subsystems/monitoring.md](subsystems/monitoring.md) and [subsystems/backup-restore.md](subsystems/backup-restore.md).
-- **OIDC redirect flow not in the traffic diagram.** SSO apps bounce through Authentik (`/oauth2/*`) on first login; the diagram shows the steady-state request path only.
-- **CNI / kube-proxy / cluster-internal pod networking not drawn.** Pod-to-pod via CoreDNS (`kube-system`) + flannel + ClusterIP DNAT is assumed; the 2026-05-24 ClusterIP wedge incident proves this layer matters operationally even if it's invisible here.
-- **Node + CoreDNS *external* DNS upstream not drawn.** Nodes and CoreDNS resolve external names via public resolvers (1.1.1.1/9.9.9.9), decoupled from Blocky since 2026-06-04 to break a node→Blocky→kube-proxy circular dep; Blocky serves LAN clients only. See [subsystems/networking.md](subsystems/networking.md).
-- **Operator-created NetworkPolicies not enumerated.** Live `kubectl get netpol -A` shows more than git contains — the delta is operators (CNPG, Kyverno) creating their own plus component-generated policies. Codemap counts the file-level breakdown.
-- **Age-key bootstrap not drawn.** The decryption chain is: `sops-age` Secret in `flux-system` → kustomize-controller reads it → decrypts SOPS-encrypted manifests on apply. Lose the key and you can't reconcile new secrets (see Failure modes).
-- **Cluster boundary is implicit.** In-scope: the 4 nodes + the workloads they run (incl. the `immich-vm` guest OS). Out-of-scope but referenced: the NAS appliance itself (backup sink + `immich-vm` hypervisor), the home router (forwards nothing inbound — CF tunnel is outbound), the Cloudflare edge.
-- **Reconcile cascade timing not in diagrams.** Full chain ~5 min post-push; not worth drawing.
-- **Cold DR is not a single command.** `require-networkpolicy` (Deny) counts NetworkPolicies *live*
-  in the target namespace, and kustomize-controller server-side dry-runs its whole apply set before
-  persisting any of it — so on a rebuild every workload is rejected while the policy that would
-  satisfy it is still unwritten in the same set. Restoring therefore needs a manual
-  namespaces-and-policies pass before `apps` can converge ([disaster-recovery/README.md](disaster-recovery/README.md)
-  Step 6 carries the tested command). This is the documented 2-commit new-namespace dance
-  ([.claude/review-invariants.md](../.claude/review-invariants.md)) hitting every namespace at once.
-  An ordered bootstrap layer would fix it properly — and would also collapse the incremental
-  2-commit dance to one commit — but it is **deliberately not built**, and the reason is sharper
-  than "it is work": `clusters/apps.yaml` sets `prune: true` and the `apps` Kustomization owns all
-  17 `namespace.yaml` files. Moving them into another Kustomization makes kustomize-controller
-  prune the Namespace objects, which cascades to every workload and PVC inside them, with no
-  ordering guarantee that the new layer recreates them first. This repo already has a scar from
-  prune-on-path-change (HISTORY 2026-06: "removing the workaround is two commits, not one").
-  39 files across 17 apps, worst case 17 namespaces deleted, to save two lines in a DR script and
-  one commit per new app — a bad trade while the documented workaround works. Revisit only on
-  evidence the workaround fails: a DR drill where the manual pass proves error-prone, or app
-  additions frequent enough that the 2-commit dance actually hurts.
+The cluster has a single environment, and it is production. There is no staging and no promotion
+step: a merge to `main` goes live. The repo once used Flux's `base/` and `staging/` overlay layout,
+but with one environment the overlays only listed `../base` and the SOPS secrets. So the layout was
+collapsed to flat directories: apps on 2026-05-29, the controllers and configs by 2026-06-04. A
+`kustomize build` before and after each move gave identical output, so Flux adopted every object in
+place. A new `base`/`staging` split would break this flat layout.
 
 ---
 
-## Map of the docs
+## Deliberate simplifications
 
-| Doc | Answers |
+These are choices, not accidents:
+
+| Simplification | What it means |
 |---|---|
-| **ARCHITECTURE.md** (this) | How is it organized and *why* |
-| [HOMELAB_ANALYSIS.md](HOMELAB_ANALYSIS.md) | Current state + open action items (live counts) |
-| [subsystems/](subsystems/) | Structural maps per domain — where things live, how they connect |
-| [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md) | Append-only changelog |
-| [disaster-recovery/README.md](disaster-recovery/README.md) | DR runbook |
-| [SECRETS_ROTATION.md](SECRETS_ROTATION.md) | Rotation schedule |
+| Diagrams show the pattern | They leave out individual apps, NetworkPolicies and namespaces. [HOMELAB_ANALYSIS](HOMELAB_ANALYSIS.md) has the counts and the [subsystem maps](subsystems/) have the structure. |
+| No offsite backup | W1, W2 and the NAS share one building, power feed and LAN. A fire, surge or theft loses every copy. There is no cloud copy, by choice. |
+| One metrics instance | VictoriaMetrics runs once, with its volume on W2. Losing W2 stops metrics and in-cluster alerts; only the external healthchecks.io alert reports it. |
+| No written threat model | The trust boundaries are implicit: the LAN is partly trusted, the Cloudflare edge is the only way in from outside, and pods are denied by default. |
+| No distributed storage, one control plane | Each volume lives on one node. Durability comes from backups, not replicas. A control-plane outage stops deploys until the node returns; running workloads keep serving. |
+| Monitoring and backup summarized | [subsystems/monitoring.md](subsystems/monitoring.md) and [subsystems/backup-restore.md](subsystems/backup-restore.md) have the detail. |
+| No sign-in redirect in the traffic diagram | On first sign-in, an SSO app sends the browser to Authentik and back. The diagram shows the steady-state request only. |
+| Pod networking not drawn | Pods reach each other through CoreDNS, flannel and ClusterIP rules. This layer matters: the ClusterIP failure of 2026-05-24 happened here. |
+| External DNS for nodes not drawn | Nodes and CoreDNS use public resolvers (1.1.1.1 and 9.9.9.9). Since 2026-06-04 they no longer use Blocky, which removed a loop from node to Blocky to kube-proxy and back. Blocky serves LAN clients only. See [subsystems/networking.md](subsystems/networking.md). |
+| Operator-made NetworkPolicies not listed | The cluster holds more NetworkPolicies than Git, because operators (CNPG, Kyverno) and shared components create their own. |
+| Age-key chain not drawn | The `sops-age` Secret in `flux-system` holds the key; the kustomize-controller reads it and decrypts each SOPS manifest when it applies it. |
+| Cluster boundary | In scope: the four nodes and what runs on them, including the `immich-vm` guest. Out of scope: the NAS appliance (backup target and VM host), the home router (it forwards nothing inbound, because the tunnel connects outward) and the Cloudflare edge. |
+| Reconcile timing not drawn | A push goes live within about 5 minutes. |
+
+### A cold rebuild is not one command
+
+The `require-networkpolicy` policy counts the NetworkPolicies that exist in a namespace right now.
+Flux's kustomize-controller runs a server-side dry run of its whole set of changes (the API server
+validates them without saving) before it writes any of them. So on a rebuild, the dry run rejects every workload, because the NetworkPolicy that would
+allow it is not written yet. A rebuild therefore needs a manual pass that creates the namespaces and
+policies first; step 6 of [disaster-recovery/README.md](disaster-recovery/README.md) has the tested
+command. Adding one new namespace hits the same problem, which is why a new app takes two commits
+([.claude/review-invariants.md](../.claude/review-invariants.md)).
+
+An ordered bootstrap layer would fix both, but it is **deliberately not built**. `clusters/apps.yaml`
+sets `prune: true`, and the `apps` Kustomization owns all 17 `namespace.yaml` files. If those files
+moved to another Kustomization, Flux would prune the Namespace objects, and deleting a Namespace
+deletes every workload and PVC in it. Nothing guarantees that the new layer recreates them
+first. A path change caused unwanted pruning here before (HISTORY, 2026-06: "removing the
+workaround is two commits, not one"). Risking all 17 namespaces to save two lines in a DR
+script and one commit per new app is a bad trade while the workaround works. If a DR drill shows
+the manual pass is error-prone, or new apps arrive often enough that the extra commit slows work,
+revisit this.
