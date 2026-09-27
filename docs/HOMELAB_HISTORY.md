@@ -19,18 +19,20 @@ The table summarises the months before the dated entries below.
 
 ### 2026-09-27 — firewall: no-source rules closed over IPv6; key-only SSH everywhere
 
-Every node has a public IPv6 address, and a UFW rule with no source opens its port over
-IPv6 too. The firewall role only adds rules, so these stayed live:
+Every node has a public IPv6 address. A UFW rule with no source address opens its port over
+IPv6 too. Before this change, the firewall role only added rules, so these rules stayed open:
 
 | Rule | Nodes | Now |
 |---|---|---|
-| 6443/tcp from any source | CP | deleted. The LAN-only 6443 rule stays |
+| 6443/tcp from any source | control plane | deleted. The LAN-only 6443 rule stays |
 | 10250/tcp from any source | all four | deleted. Node-IP and pod-network rules cover every caller |
 | 22/tcp from any source | immich-vm (build-time rule) | deleted |
 
-`group_vars/all.yml` gains `ufw_rules_absent`, and the role deletes each entry. The list is
-part of the drift fingerprint, so a new entry re-runs the rule block on a healthy node. An
-assert fails the play if a rule is in both lists.
+`group_vars/all.yml` gains `ufw_rules_absent`, and the role deletes each rule in it. The role
+skips its rule tasks while a fingerprint of the rule lists and the live rules is unchanged. The
+new list is part of that drift fingerprint, so adding an entry makes the role run its rule tasks
+again, even on a healthy node. If a rule is in both the list to add and the list to delete, a check
+stops the Ansible run.
 
 `99-hardening.conf` now sets three sshd options on every node. Before, only immich-vm lacked them:
 
@@ -40,19 +42,19 @@ assert fails the play if a rule is in both lists.
 | `KbdInteractiveAuthentication` | `no` (`99-archlinux.conf`) | `no` |
 | `PermitRootLogin` | `prohibit-password` (default) | `no` |
 
-Anonymous requests to the API server and the kubelet return 401, before and after.
+Anonymous requests to the API server and the kubelet return 401, before and after the change.
 
 ### 2026-09-27 — skills, helpers and rules copied into `agents/`
 
 `agents/` now holds a read-only copy of the operator's agent setup, for readers of the repo.
-The authoritative copy stays in dotfiles, and no tool loads `agents/`.
+The operator keeps the original files in a separate dotfiles repository, and no tool loads `agents/`.
 
 | Path | Content |
 |---|---|
 | `agents/skills/` | the skills and `_shared/` helpers named in `agents/sync/allowlist.txt`, byte for byte |
 | `agents/rules/AGENTS.global.md` | a byte copy of `~/.codex/AGENTS.md` |
 | `agents/rules/CLAUDE.global.md` | a hand-edited export of `~/.claude/CLAUDE.md`; line 1 records the source's sha256 |
-| `scripts/sync-agents.sh` | `--update` refreshes the copies; `--check` reports drift, list gaps, forbidden entries, secrets and private terms |
+| `scripts/sync-agents.sh` | `--update` refreshes the copies. `--check` reports copies that differ from dotfiles, gaps in the allowlist, forbidden entries, secrets and private terms |
 
 The monthly review runs `--check`. `renovate.json` ignores `agents/**`, and the two pre-commit
 hooks that rewrite files skip the byte copies. Plan: `docs/plans/2026-09-26-open-source-prep.md`.
@@ -65,7 +67,7 @@ hooks that rewrite files skip the byte copies. Plan: `docs/plans/2026-09-26-open
 | `docs/scripts/*.sh`, `docs/worker-node-post-install.sh` | `scripts/` |
 | `docs/scripts/runbooks/authentik-passkey-rollback.md` | `docs/runbooks/` |
 
-Only the control plane clones the repo, and its installed sync script calls `install.sh` by
+Only the control plane clones the repo. Its installed sync script calls `install.sh` by its old
 path, so the move ships in two commits:
 
 | Commit | Change |
@@ -73,14 +75,16 @@ path, so the move ships in two commits:
 | A | moves the tree, leaves a symlink `docs/scripts/node-maintenance → ../../node-maintenance`, and points `lib/sync-from-git.sh` at the new path. The old installed script follows the symlink and installs the new one |
 | B | deletes the symlink after the control plane shows the new sync script installed |
 
-`renovate.json` now ignores `node-maintenance/**`, because it used to sit under the ignored
-`docs/**`. Entries below this one keep the old path. Plan: `docs/plans/2026-09-26-open-source-prep.md`.
+`renovate.json` now ignores `node-maintenance/**`. Renovate never read the folder before, because
+it sat under the ignored `docs/**`. Entries below this one keep the old path. Plan:
+`docs/plans/2026-09-26-open-source-prep.md`.
 
 ### 2026-09-26 — Kernel 6.18.54, k3s v1.36.3 → v1.36.4 → v1.37.0, and a certificate rotation that broke `kubectl exec`
 
 **The certificate rotation.** The operator ran `sudo k3s certificate rotate` on the control plane,
 W1 and W2 while k3s was running. The command expects k3s to be stopped first. It moves the leaf
-certificates aside, and k3s writes replacements only when it next starts. The running API server
+certificates aside (the certificates issued to each component, as opposed to the certificate
+authority that signs them), and k3s writes replacements only when it next starts. The running API server
 therefore lost `/var/lib/rancher/k3s/server/tls/client-kube-apiserver.crt`. Every call from the API
 server to a kubelet failed, which broke `kubectl logs`, `exec` and `port-forward` across the cluster.
 
@@ -88,25 +92,26 @@ server to a kubelet failed, which broke `kubectl logs`, `exec` and `port-forward
 |---|---|
 | API server `/readyz` | `ok` |
 | Node Ready, all four nodes | `True` |
-| ClusterIP probes | passed |
+| ClusterIP probes (requests through the cluster's internal service addresses) | passed |
 | `kubectl logs` | `open .../tls/client-kube-apiserver.crt: no such file or directory` |
 
 Only a call from the API server to a kubelet showed the fault.
 
-The first manual phase1 run failed on it with `exit=2` and rebooted nothing. Before it
-upgrades anything, it adds an Alertmanager silence through `kubectl exec`. The rotation left the CA
-unchanged (`k3s-server-ca@1759844691`). So `sudo systemctl restart k3s` on the control plane made k3s
-write new leaf certificates, and `kubectl logs` worked again. The k3s agents on W1 and W2 kept the
-certificates they had loaded in memory. The phase2 reboot of each worker restarted its agent, which
-wrote new ones. Each kubelet's `:10250` certificate then showed a `notBefore` from that reboot.
+The first manual phase1 run failed on it with `exit=2` and rebooted nothing: before it upgrades
+anything, it adds an Alertmanager silence through `kubectl exec`. The rotation left the
+certificate authority unchanged (`k3s-server-ca@1759844691`). So `sudo systemctl restart k3s` on the
+control plane made k3s write new leaf certificates, and `kubectl logs` worked again. The k3s agents on W1
+and W2 kept the certificates they had loaded in memory. The phase2 reboot of each worker restarted
+its agent, which wrote new ones. Each kubelet's `:10250` certificate then showed a `notBefore` from
+that reboot.
 
 **OS upgrade.** The second phase1 run completed. All four nodes moved from `6.18.53-1-lts` to
 `6.18.54-1-lts`. Phase2 reported `failed=0` on every host.
 
 **k3s patch, v1.36.3 → v1.36.4.** The `stable` channel named v1.36.4. The `k3s-upgrade` skill
-checked the binary against its published sha256 and staged it on all four nodes. The serial rolling
-restart then activated it. The `pre-k3s-v1.36.4` checkpoint matched after the restart: no unhealthy
-pods and Flux 7/7.
+checked the new program file against its published sha256 checksum and copied it to all four nodes.
+The rolling restart, one node at a time, then started the new version. The `pre-k3s-v1.36.4` checkpoint matched after the
+restart: no unhealthy pods and Flux 7/7.
 
 **k3s minor, v1.36.4 → v1.37.0.** The `latest` channel named v1.37.0. The skill ran the same steps.
 Checks before staging:
@@ -115,7 +120,7 @@ Checks before staging:
 |---|---|
 | k3s v1.37.0 release notes | name no removed flag or config key that this cluster uses |
 | Kubernetes 1.37 "ACTION REQUIRED" notes | none apply. SELinux is not in `/sys/kernel/security/lsm` on any node, and no node kernel lists `selinuxfs`. The API server serves only `scheduling.k8s.io/v1`. `kubelet.yaml` does not set `eventRecordQPS` |
-| `apiserver_requested_deprecated_apis` | no series carries a `removed_release` |
+| `apiserver_requested_deprecated_apis` | no series carries a `removed_release` label (the label names the release that removes a deprecated API that a client still calls) |
 | Datastore | embedded SQLite. `sqlite3 .backup` copied it to `/var/lib/rancher/k3s/server/db/state.db.pre-v1.37.0` (root, 0600, `integrity_check` = ok) |
 
 The copy exists because the old binaries were already deleted. The `k3s-upgrade` skill treats a
@@ -140,8 +145,8 @@ minor-version downgrade as a restore from backup, not a binary swap.
 `k3s-image-gc.service` and `k3s-wait-ready.service` name `k3s.service` only in `After=`. Both
 units already run on W2 and immich-vm, where no `k3s.service` exists. `k3s-agent-uninstall.sh` stays.
 
-**CI tracks the cluster.** `KUBERNETES_VERSION` in `.github/workflows/validate.yaml` and the default
-in `scripts/ci/helm-render-check.sh` moved 1.36.3 → 1.37.0. `yannh/kubernetes-json-schema`
+**CI follows the cluster version.** `KUBERNETES_VERSION` in `.github/workflows/validate.yaml` and the
+default in `scripts/ci/helm-render-check.sh` moved 1.36.3 → 1.37.0. `yannh/kubernetes-json-schema`
 publishes `v1.37.0-standalone-strict`. The account had used its GitHub Actions minutes, so every gate
 ran locally:
 
@@ -152,47 +157,54 @@ ran locally:
 | yamllint, shellcheck (46 scripts), sops-check, init-resources, image-pin, gitleaks dir | all exit 0 |
 
 The first local kubeconform run reported `0 resource found` and exited 0. The script passed it a
-`mktemp` path, and kubeconform skipped that extensionless file. CI pipes the render through stdin,
-so the local copy now does the same. If image-pin passes, it prints nothing. A copy of
-`apps/paperless-ngx/deployment.yaml` with its tags set to `:latest` made it exit 1.
+`mktemp` path, and kubeconform skipped that file because it has no extension. CI sends the rendered
+manifests straight to kubeconform on standard input, with no file in between, so the local copy
+now does the same. If image-pin passes, it prints nothing. A copy
+of `apps/paperless-ngx/deployment.yaml` with its tags set to `:latest` made it exit 1.
 
 ### 2026-09-19 — The immich-vm watchdog read a `paused` domain mid-start and paged
 
-The weekly reboot's `immich-vm` carve-out poweroffs the VM, then nudges the
-watchdog with a one-off Job (`phase2.yml` PLAY "Nudge immich-vm-heal watchdog").
-On 2026-09-19 that nudge ran `virsh start` at 04:55:10. The 5-minute scheduled
-tick started at 04:55:02 and read `domstate` at 04:55:07 — inside the beat where
-QEMU holds a starting domain `paused`. The watchdog treats every state outside
-`running`/`shut off` as operator-only and failed hard, so `JobFailed` paged for a
-VM that was booting normally; the 05:00 tick logged `OK=domain_running`.
+During the weekly reboot, the `immich-vm` step powers the VM off, then starts an early watchdog
+run with a one-off Job (`phase2.yml` PLAY "Nudge immich-vm-heal watchdog"). On 2026-09-19 that Job
+ran `virsh start` at 04:55:10. The watchdog's regular 5-minute run had started at 04:55:02, and it
+read `domstate` at 04:55:07. QEMU shows a domain (the VM, as the virtualization software names it) as `paused` for a moment
+while it starts, and the
+read fell in that moment. The watchdog treats every state other than `running` or `shut off` as
+one only the operator may act on, so the run failed. `JobFailed` paged for a VM that was booting
+normally. The 05:00 run logged `OK=domain_running`.
 
-The same class was already known on the other side of the reboot: phase2 carries
-a 20 s "Settle before watchdog nudge" pause so the tick would not land on an
-`in shutdown` domain. A settle in the caller cannot cover the window the *nudge
-itself* opens, so the fix belongs in the watchdog: `paused` and `in shutdown` are
-now re-read once after 20 s before being judged.
+The same problem was already known from the shutdown step of the reboot. Phase2 has a 20 s "Settle
+before watchdog nudge" pause, so that a run does not check the VM while it is `in shutdown`. A pause
+at that point cannot cover the moment that the early run itself creates, so the fix belongs in the
+watchdog: it now reads a `paused` or `in shutdown` state a second time, 20 s later, before it
+decides.
 
-This deliberately does not soften the C3 safety rule. Nothing new is auto-acted
-on — a domain still `paused` 20 s later fails exactly as before — and no other
-state is re-read, because a `shut off` domain must be started on the tick that
-finds it, not slept through.
+This does not relax the C3 safety rule. The watchdog acts on no new state: a domain still `paused`
+20 s later fails as before. It re-reads no other state, because it must start a `shut off` domain
+on the run that finds it, not wait.
 
 ### 2026-09-11 — Immich v3.2.0 renamed a sign-up error and failed the admin-setup Job
 
-`immich-admin-setup` decided "an admin already exists" by grepping the
-`POST /api/auth/admin-sign-up` error body for `already has an admin`. Immich
-v3.2.0, deployed 2026-09-10 23:03 UTC, renamed that message to `Admin setup is
-not available`. The grep stopped matching on the next daily re-run, the script
-took its `exit 1` branch on all five attempts, and the Job burned its
-`backoffLimit` and raised `JobFailed`.
+`immich-admin-setup` decided that an admin already exists by searching the error body of
+`POST /api/auth/admin-sign-up` for `already has an admin`. Immich v3.2.0, deployed 2026-09-10 23:03
+UTC, changed that message to `Admin setup is
+not available`. The search stopped matching on the next daily run.
+The script ran its error branch, `exit 1`, on all five attempts. The Job exhausted the retries that
+`backoffLimit` allows, and `JobFailed` fired.
 
-The Job now reads `isInitialized` from `GET /api/server/config`, an
-unauthenticated field typed `z.boolean()` in `ServerConfigSchema` at v3.2.0, so
-it is present on a fresh server too. The gate is three-way: `true` skips and
-exits 0, `false` proceeds to sign-up, anything else prints the body and exits 1
-without POSTing. An unreadable state is an error rather than a blind sign-up,
-because a POST at an initialised server returns the same error prose this change
-removes. The DR path keeps working: a restored-empty database reports `false`.
+The Job now reads `isInitialized` from `GET /api/server/config`. The field needs no login, and
+`ServerConfigSchema` at v3.2.0 types it `z.boolean()`, so a fresh server returns it too. The Job
+handles three cases:
+
+| Field value | Job |
+|---|---|
+| `true` | skips and exits 0 |
+| `false` | goes on to sign-up |
+| anything else | prints the body and exits 1, without a POST |
+
+If the Job cannot read the state, it stops with an error rather than sign up without knowing it, because a
+POST to a server that already has an admin returns the same error text that this change stops
+relying on. Disaster recovery still works: a database restored empty reports `false`.
 
 | Fact | Value |
 |---|---|
@@ -201,12 +213,11 @@ removes. The DR path keeps working: a restored-empty database reports `false`.
 | Evidence | Loki, `{namespace="immich", pod="immich-admin-setup-bwcq9"}` |
 | Verified after | Job `Complete 1/1`, `kube_job_status_failed` 0, alert resolved in VMAlert and Alertmanager |
 
-Two tooling notes came out of the incident. The grafana-pod `kubectl exec` recipe
-for reading a vanished Job pod's stdout is dead — that image ships neither `sh`
-nor `curl` — so Loki is now read over `kubectl port-forward -n loki svc/loki`.
-Filtering the LogQL with `|= "admin"` also hid the `{"message": …}` line that
-named the cause, because a Job prints its diagnosis on the line after its
-headline.
+The incident taught two things about tooling. First, the grafana-pod `kubectl exec` recipe for
+reading the standard output of a Job pod that no longer exists does not work: that image has neither `sh`
+nor `curl`. Loki is now read over `kubectl port-forward -n loki svc/loki`. Second, the LogQL filter
+`|= "admin"` hid the `{"message": …}` line that named the cause, because a Job prints its diagnosis
+on the line after its headline.
 
 ### 2026-09-08 — The failed NAS drive was replaced and md1 rebuilt clean
 
