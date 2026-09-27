@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: reviewer-peer [--current AGENT] [--format text|json]
+
+Print the independent reviewer family and required review effort.
+Set CURRENT_AGENT to avoid passing --current.
+
+Exit: 0 a real peer resolved · 2 usage error · 3 degraded to self-review.
+Pass --allow-self-review to accept the degradation and exit 0.
+EOF
+}
+
+current="${CURRENT_AGENT:-}"
+format="text"
+effort="xhigh"
+allow_self=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+  --current)
+    current="${2:-}"
+    shift 2
+    ;;
+  --format)
+    format="${2:-}"
+    shift 2
+    ;;
+  --allow-self-review)
+    allow_self=1
+    shift
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    echo "reviewer-peer: unknown argument: $1" >&2
+    usage >&2
+    exit 2
+    ;;
+  esac
+done
+
+norm() {
+  tr '[:upper:]' '[:lower:]' <<<"$1" | tr -c 'a-z0-9' '-'
+}
+
+detect_current() {
+  local n
+  n="$(norm "${current:-}")"
+  case "$n" in
+  *codex*)
+    echo "codex"
+    return
+    ;;
+  *claude*)
+    echo "claude"
+    return
+    ;;
+  esac
+
+  echo "unknown"
+}
+
+available() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+cur="$(detect_current)"
+reviewer=""
+reason=""
+
+case "$cur" in
+codex)
+  if available claude; then
+    reviewer="claude"
+    reason="opposite-family reviewer available"
+  fi
+  ;;
+claude)
+  if available codex; then
+    reviewer="codex"
+    reason="opposite-family reviewer available"
+  fi
+  ;;
+esac
+
+# Degrading to self-review must be LOUD. This resolver gates the pre-commit peer review, so
+# a silent fallback that still exits 0 lets a caller believe the gate ran when it did not.
+# The usual cause is not a missing install but a PATH one: fnm exposes `codex`/`node` through a
+# per-session multishell dir (~/.local/state/fnm_multishells/<pid>_<ts>/bin) that a freshly
+# spawned subagent shell never inherits, so `command -v codex` succeeds interactively and fails
+# for the agent that actually needs it. Fix the PATH (symlink the stable
+# ~/.local/share/fnm/aliases/default/bin/<tool> into ~/.local/bin) rather than accepting the
+# downgrade. 2026-07-28.
+rc=0
+if [[ -z "$reviewer" ]]; then
+  reviewer="self-review"
+  rc=3
+  if [[ "$cur" == "unknown" ]]; then
+    reason="current agent family unknown; pass --current or set CURRENT_AGENT"
+  else
+    reason="no peer '$([[ $cur == claude ]] && echo codex || echo claude)' on PATH - check PATH before accepting self-review"
+  fi
+fi
+# if/then, not `[[ ... ]] && rc=0`: under `set -e` a false test is a non-zero command and
+# would abort the script on the last line.
+if [[ $allow_self -eq 1 ]]; then
+  rc=0
+fi
+
+case "$format" in
+text)
+  printf '%s\n' "$reviewer"
+  # text callers capture stdout, so the reason has to go to stderr or the downgrade is invisible.
+  if [[ $rc -ne 0 ]]; then
+    printf 'reviewer-peer: %s\n' "$reason" >&2
+  fi
+  ;;
+json)
+  printf '{"current":"%s","reviewer":"%s","effort":"%s","reason":"%s"}\n' "$cur" "$reviewer" "$effort" "$reason"
+  ;;
+*)
+  echo "reviewer-peer: unsupported format: $format" >&2
+  exit 2
+  ;;
+esac
+
+exit "$rc"
