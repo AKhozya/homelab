@@ -16,13 +16,19 @@ repos:
             .*-secrets\.yaml|
             .*credentials.*\.yaml|
             clusters/flux-system/gotk-components\.yaml|
-            docs/superpowers/.*
+            docs/superpowers/.*|
+            agents/skills/.*|
+            agents/rules/AGENTS\.global\.md
           )$
+      # agents/skills and AGENTS.global.md are byte copies from dotfiles, and
+      # scripts/sync-agents.sh --check reports any byte a hook changes as drift.
       - id: end-of-file-fixer
         exclude: |
           (?x)^(
             .*\.sops\.yaml|
-            docs/superpowers/.*
+            docs/superpowers/.*|
+            agents/skills/.*|
+            agents/rules/AGENTS\.global\.md
           )$
       - id: check-merge-conflict
       - id: check-added-large-files

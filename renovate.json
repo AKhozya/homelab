@@ -166,6 +166,7 @@
   "ignorePaths": [
     "docs/**",
     "node-maintenance/**",
+    "agents/**",
     "README.md",
     "clusters/flux-system/gotk-components.yaml"
   ]

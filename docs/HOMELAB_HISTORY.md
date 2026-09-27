@@ -17,6 +17,21 @@ The dated changelog and completed-action-item archive below are the detail behin
 
 ---
 
+### 2026-09-27 — skills, helpers and rules copied into `agents/`
+
+`agents/` now holds a read-only copy of the operator's agent setup, for readers of the repo.
+The authoritative copy stays in dotfiles, and no tool loads `agents/`.
+
+| Path | Content |
+|---|---|
+| `agents/skills/` | the skills and `_shared/` helpers named in `agents/sync/allowlist.txt`, byte for byte |
+| `agents/rules/AGENTS.global.md` | a byte copy of `~/.codex/AGENTS.md` |
+| `agents/rules/CLAUDE.global.md` | a hand-edited export of `~/.claude/CLAUDE.md`; line 1 records the source's sha256 |
+| `scripts/sync-agents.sh` | `--update` refreshes the copies; `--check` reports drift, list gaps, forbidden entries, secrets and private terms |
+
+The monthly review runs `--check`. `renovate.json` ignores `agents/**`, and the two pre-commit
+hooks that rewrite files skip the byte copies. Plan: `docs/plans/2026-09-26-open-source-prep.md`.
+
 ### 2026-09-26 — node-maintenance moved out of `docs/`
 
 | From | To |

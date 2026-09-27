@@ -75,10 +75,12 @@ reviewer — that peer, the
 `k8s-devops-reviewer` sub-agent, or a security pass — checks the diff against
 `.claude/review-invariants.md` first. Docs/markdown-only commits are exempt.
 
-### Slash commands & skills live outside this repo
+### Slash commands & skills load from outside this repo
 
 Homelab skills (`cluster-reboot`, `cluster-roll`, `homelab-node-fix`,
 `cluster-stale-cleanup`, …) and slash commands (`/gitops-workflow`,
-`/homelab-yaml-validate`, …) referenced in `AGENTS.md` are **not** in this
-tree — they live in `~/.claude/` (a separate chezmoi-managed dotfiles repo).
-A worktree isolates this repo's files, not `~/.claude/**`.
+`/homelab-yaml-validate`, …) referenced in `AGENTS.md` load from `~/.claude/`
+(a separate chezmoi-managed dotfiles repo). `agents/` holds a read-only copy
+for readers that no tool loads: edit the dotfiles copy, then refresh `agents/`
+with `scripts/sync-agents.sh --update`. A worktree isolates this repo's files,
+not `~/.claude/**`.
