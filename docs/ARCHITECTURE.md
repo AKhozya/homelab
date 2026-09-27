@@ -122,7 +122,7 @@ flowchart LR
 ```
 
 An app that is reachable both ways has two ingress rules in its NetworkPolicy: one from Traefik and
-one from the tunnel. cert-manager issues TLS certificates for `*.h0melab.work` through a DNS-01
+one from the tunnel. cert-manager issues one TLS certificate per ingress hostname under `h0melab.work`, through a DNS-01
 challenge with a Cloudflare API token.
 
 **Traefik middleware applies only on the LAN path.** The `cloudflared` NetworkPolicy

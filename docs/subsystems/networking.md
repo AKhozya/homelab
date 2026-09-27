@@ -1,4 +1,4 @@
-# Networking Codemap
+# Networking map
 
 ## Ingress
 - **Traefik** (`traefik` ns, chart in `infrastructure/controllers/traefik/release.yaml`) handles all `*.h0melab.work` via K8s `Ingress` (class=traefik); no IngressRoute CRDs in use
@@ -11,8 +11,8 @@
 ## Service endpoints
 | Service | Endpoint | Used by |
 |---------|----------|---------|
-| Postgres pooler (PgBouncer) | `main-postgres-rw-pooler.databases.svc:5432` | most apps |
-| Postgres direct | `main-postgres-rw.databases.svc:5432` | n8n, blocky (queryLog), CNPG admin |
+| Postgres pooler (PgBouncer) | `main-postgres-rw-pooler.databases.svc:5432` | immich server, linkwarden, paperless-ngx (paperless and blocky hosts verified 2026-09-27 with `sops -d <app secret> \| grep -o 'main-postgres-rw[a-z-]*'`) |
+| Postgres direct | `main-postgres-rw.databases.svc:5432` | authentik (server and worker), mealie, n8n, blocky (query log), immich's wait-for-database init container and its admin-setup Job, the backup and extension Jobs |
 | MySQL HAProxy | `main-mysql-haproxy.databases.svc:3306` | uptime-kuma, home-assistant, pricebuddy |
 | Redis HA master (static) | `redis-replication-master.databases.svc:6379` | paperless, blocky, immich |
 | Redis HA Sentinel | `redis-sentinel-sentinel.databases.svc:26379` | operator-internal failover only; no direct app clients |
@@ -20,11 +20,11 @@
 
 ## Traefik middlewares
 Defined in `traefik` ns (referenced as `traefik-<name>@kubernetescrd`):
-`csp`, `csp-strict-enforced`, `csp-inline-enforced`, `csp-permissive-enforced`, `rate-limit-standard`, `rate-limit-high-frequency`, `redirect-https`, `security-headers`
+`csp`, `csp-strict-enforced`, `csp-inline-enforced`, `csp-permissive-enforced`, `rate-limit-standard`, `rate-limit-high-frequency`, `redirect-https`, `security-headers`, `authentik-forward-auth`
 
 CSP tiers are **enforced-only** (report-only middlewares deleted — dead config). `report-uri` omitted everywhere: a cluster-internal report sink is browser-unreachable (Mixed-Content) — verify CSP via browser console, not Loki. Tier membership: [apps.md](apps.md).
 
-Legacy duplicates also live in `monitoring` ns (`csp`, `rate-limit-standard`, `redirect-https`, `security-headers`) for kube-prometheus-stack ingresses.
+Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standard`, `redirect-https`, `security-headers`) for the kube-prometheus-stack ingresses, next to `alertmanager-basic-auth`.
 
 ## NetworkPolicy invariants
 - NP on every ingress + every cross-ns egress (live count: HOMELAB_ANALYSIS.md; gap-finder: `k8s-diagnostics` skill)
@@ -32,12 +32,12 @@ Legacy duplicates also live in `monitoring` ns (`csp`, `rate-limit-standard`, `r
 - **Container port (NOT service port)** in NP `ports:`
 - Dual access (internal + Cloudflare Tunnel) = 2 Ingress rules (Traefik) but 1 NP (covers both via TCP port)
 - **allow-dns-egress** = Kustomize Component (`apps/components/allow-dns-egress/`); pod-selector excludes Jobs (`batch.kubernetes.io/job-name DoesNotExist`) so Jobs don't silently inherit DNS egress
-- Per-Job egress NPs (selector `job-name=<job>`): `audiobookshelf-init-egress`, `home-assistant-admin-setup-egress`, `immich-admin-setup-egress`, `n8n-user-provision-egress`
+- Per-Job egress NPs (selector `batch.kubernetes.io/job-name=<job>`): `audiobookshelf-init-egress`, `home-assistant-admin-setup-egress`, `immich-admin-setup-egress`, `n8n-user-provision-egress`. The `immich-vm-heal` CronJob's pods get `immich-vm-heal-egress`, selected by `app.kubernetes.io/name: immich-vm-heal`
 - mealie + uptime-kuma Jobs deliberately NP-naked (by decision)
 
 ## Cloudflare Tunnel
 - Central config: `infrastructure/configs/cloudflare/cloudflared.yaml` + SOPS Secret `cloudflared-config-secret.yaml` (source of truth for external hostnames). **New external app = entry here, NOT a 2nd Ingress.**
-- Externally exposed (verified 2026-07-16 from SOPS; re-derive: `sops -d infrastructure/configs/cloudflare/cloudflared-config-secret.yaml | grep hostname`): authentik, couchdb, audiobooks, linkwarden, stirling, mealie, paperless, immich, n8n
+- Externally exposed (verified 2026-09-27 from SOPS; re-derive: `sops -d infrastructure/configs/cloudflare/cloudflared-config-secret.yaml | grep hostname`): authentik, couchdb, audiobooks, linkwarden, stirling, mealie, paperless, immich, n8n
 - Config sync via `PUT /accounts/{acct}/cfd_tunnel/{tunnel}/configurations` from the SOPS Secret; account + tunnel IDs inside it
 - Mgmt token in `cloudflare-tunnel-mgmt-token` Secret — expiry tracked in [SECRETS_ROTATION.md](../SECRETS_ROTATION.md)
 - Traffic path gotcha: tunnel hops `cloudflared → Service` directly — Traefik middlewares (CSP/headers/rate-limit) apply to the **internal path only**; external visitors get Cloudflare WAF + whatever the app itself sets (see ARCHITECTURE.md traffic flow)
@@ -56,12 +56,10 @@ Workers use `ufw-heal-post-k3s.service` (oneshot, after k3s.service) to re-apply
 
 ## TLS / certs
 - **cert-manager** with Cloudflare DNS-01 challenge
-- Wildcard cert `*.h0melab.work` for Traefik
-- Per-app certs: grafana, alertmanager (kube-prometheus-stack uses its own)
+- One Certificate per ingress hostname, in the namespace that serves it (for example `authentik/authentik-tls`, `databases/couchdb-tls-cert`, `monitoring/grafana-tls`); no wildcard certificate. Two more (`main-mysql-ca-cert`, `main-mysql-ssl`) are MySQL's internal TLS.
 - HSTS via `traefik-security-headers@kubernetescrd` — `max-age=31536000; includeSubDomains; preload` (customResponseHeaders, not Traefik sts* fields)
 - `minTlsServeVersion: 1.3` on Blocky is inert — no DoT/DoH server configured; don't "fix" it
 
 ## Host firewall (UFW via ansible)
-- ansible role `firewall` deploys UFW rules per node (`node-maintenance/`)
-- K3s ports allowlisted (6443, 10250, 8472/UDP flannel); cross-node SSH on port 65300
-- IPv6 ingress blocked by default
+- The ansible role `firewall` applies the UFW rules on every node (`node-maintenance/ansible/`); the rules, the defaults and the IPv6 behaviour are in [SECURITY.md](../SECURITY.md#node-firewall)
+- 6443 from the LAN (control plane); every port from the node IPs and the pod and service networks; SSH on 65300 from the LAN; 8472/UDP (flannel) from any source, the only rule open over IPv6

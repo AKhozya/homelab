@@ -1,13 +1,19 @@
-# Codemaps
+# Subsystem maps
 
-Structural maps for agents: what's where, how it connects, which gotchas apply. Shape, not live state.
+These maps say where each part of the cluster lives, how the parts connect, and which gotchas apply. They describe the shape, not the live state. They are written for the people and AI agents who change the repo.
 
 ## Content rules
 
-- No image/chart versions — write "pinned in `<path>`". No counts — grep or [HOMELAB_ANALYSIS.md](../HOMELAB_ANALYSIS.md). No changelog — [HOMELAB_HISTORY.md](../HOMELAB_HISTORY.md). Keep the gotcha, drop the story.
-- Every fact names its source path. Freshness = `git log -1 --format=%cs -- <file>`, never a hand-written date.
-- SOPS-derived facts carry "verified <date>" + the decode command.
-- These files drift: verify a path claim before acting on it, fix drift on sight (docs-only commits skip CI + review gate).
+| Rule | Why |
+|---|---|
+| No image or chart versions; write "pinned in `<path>`" | versions change with every Renovate update |
+| No counts; grep, or see [HOMELAB_ANALYSIS.md](../HOMELAB_ANALYSIS.md) | counts drift |
+| No change log; see [HOMELAB_HISTORY.md](../HOMELAB_HISTORY.md) | keep the gotcha, not the story |
+| Every fact names its source path | so a reader can check it |
+| Freshness comes from `git log -1 --format=%cs -- <file>`, never a hand-written date | a hand-written date goes stale |
+| A fact read from a SOPS file carries "verified <date>" and the command that decodes it | nobody can grep an encrypted file |
+
+These files drift. Check a path before you act on it, and fix drift when you see it. CI skips docs-only pushes.
 
 | File | Scope | Read when |
 |------|-------|-----------|

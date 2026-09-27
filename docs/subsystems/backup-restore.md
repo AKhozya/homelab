@@ -1,4 +1,6 @@
-# Backup / Restore Codemap
+# Backup and restore map
+
+The policy (schedules, retention, recovery targets) is in [BACKUP_STRATEGY.md](../BACKUP_STRATEGY.md); the procedures are in the [DR runbook](../disaster-recovery/README.md). This map covers the mechanics.
 
 ## Backup layers
 
@@ -10,7 +12,7 @@
 | **MySQL logical** | `mysqldump --single-transaction` per DB (via HAProxy) | 03:15 daily | YES (`SHOW DATABASES`) |
 | **PG streaming replication** | CNPG 2-instance — HA only, NOT a backup layer (no WAL/PITR by decision) | continuous | n/a |
 | **Immich library** | Uncompressed tar of the NAS-resident library — `immich-backup` CronJob on **W2** pulls via the NAS `personal_folder` rsync module, tars locally, pushes to the NAS `akhozya-pool1` pool | Sun 03:00 weekly | keep-2 on both W2 + NAS pool |
-| **Replication** | rsync W1 → NAS + validation + retention prune (W2 safety-net leg removed 2026-07-17) | 03:30 daily | n/a (path-agnostic) |
+| **Replication** | rsync W1 → NAS + validation + retention prune | 03:30 daily | n/a (path-agnostic) |
 | **SOPS Secrets** | Encrypted in git | every commit | n/a |
 | **DR scripts** | `.backup/secrets-{backup,restore}.sh` | manual | partial (explicit list) |
 
@@ -35,9 +37,9 @@ W1 /mnt/k8s-storage/backups
   └─ rsync (no --delete, --exclude='/immich/') :50555 (rsync daemon)
        → NAS (192.168.1.136, /akhozya-pool1/backups/homelab/) — 30-day history; 500GB cap (warn 400 / crit 450)
 ```
-Validate BEFORE the sync (postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then push to NAS, then clean source on W1. Immich is not a W1 source — produced on W2, pushed straight to the NAS pool.
+Validate BEFORE the sync (postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then push to NAS, then clean source on W1. Immich is not a W1 source: the W2 job writes it and pushes it straight to the NAS pool.
 
-**`--exclude='/immich/'` is load-bearing — do not drop it when editing the Step 2 rsync.** immich-backup owns that destination path; without the exclude, replication re-uploads whatever stale generations sit under W1's `immich/` (Step 4's `rm -rf` covers only postgres/couchdb/mysql/pvc) and Step 4b's keep-2 deletes them minutes later — 129G/night, both ways, for as long as the directory exists (`5f76db93`, verified 2026-07-28: 129 GiB → 120 MiB). The **leading slash anchors it to the transfer root**: unanchored `immich/` would also match a future `pvc/<ts>/immich/`. The exclude is on the *transfer* only — Step 4b still prunes the NAS immich pool to keep-2, which is the sole retention on that path (immich-backup's own keep-2 sweeps only its W2 copies). The temporary W1→W2 SSH safety-net leg (single-day `--delete` copy) was removed 2026-07-17 — NAS is the sole sink.
+**`--exclude='/immich/'` is load-bearing — do not drop it when editing the Step 2 rsync.** immich-backup owns that destination path; without the exclude, replication re-uploads whatever stale generations sit under W1's `immich/` (Step 4's `rm -rf` covers only postgres/couchdb/mysql/pvc) and Step 4b's keep-2 deletes them minutes later — 129G/night, both ways, for as long as the directory exists (`5f76db93`, verified 2026-07-28: 129 GiB → 120 MiB). The **leading slash anchors it to the transfer root**: unanchored `immich/` would also match a future `pvc/<ts>/immich/`. The exclude is on the *transfer* only — Step 4b still prunes the NAS immich pool to keep-2, which is the sole retention on that path (immich-backup's own keep-2 sweeps only its W2 copies). The NAS is the only destination.
 
 **Retention prune (after validate + clean):**
 - 30d postgres/mysql/couchdb — `prune_nas_file()`: rsync include-filter file-prune against empty source, targets `<cat>/<cat>_YYYYMMDD_HHMMSS.tar.gz` older than 30d
@@ -49,7 +51,7 @@ Validate BEFORE the sync (postgres/couchdb/mysql/pvc — age <25h, SHA256, tar i
 Failure handling: trap on EXIT sends Telegram with `CURRENT_STEP`; success is silent.
 
 ## NAS quirks
-- Rsync daemon (no SSH); auth via `RSYNC_PASSWORD` env var
+- Backups go over the rsync daemon (port 50555), not SSH; auth via the `RSYNC_PASSWORD` env var. The NAS also has admin SSH on 56634, which the backup jobs do not use.
 - Push uses no `--delete` (NAS accumulates history); retention only via the prune step
 - Layout: `postgres/`, `mysql/`, `couchdb/` hold FLAT files `<cat>_YYYYMMDD_HHMMSS.tar.gz`; `pvc/` and `immich/` hold nested DIRS — the file-vs-dir distinction is what the prune regex keys on
 
@@ -61,7 +63,7 @@ Images pinned in each CronJob manifest (`infrastructure/configs/databases/*/`, `
 - All 3: tar.gz + SHA256, 30-day retention (`find -mtime +30 -delete`), `successfulJobsHistoryLimit: 7`, `concurrencyPolicy: Forbid`, `nodeSelector: worker-node`, `hostPath /mnt/k8s-storage/backups/<engine>`
 
 ## DR scripts (`.backup/`)
-**Excluded from git** (`.gitignore`) — force-add when committing edits. Runbook: `docs/disaster-recovery/README.md`.
+The scripts are tracked in Git; `.gitignore` excludes only their output (`.backup/secrets/`, the `.tar.gz.gpg` archives, `ENV_VARS.md`). Runbook: `docs/disaster-recovery/README.md`.
 
 ### secrets-backup.sh covers
 - **CRITICAL:** SOPS age key (gates Flux decrypt of everything)
@@ -87,6 +89,6 @@ GPG AES256 symmetric (passphrase prompt or `GPG_PASSPHRASE`); output `secrets-ba
 
 ## Verification
 - Manual run: `kubectl create job -n kube-system --from=cronjob/pvc-backup pvc-backup-manual-$(date +%s)`
-- Full-pipeline drill: `backup-restore-drill` skill. Last full test 2026-05-22 — all PVCs + 4 DB types + immich OK; expectation anchors: immich 62.5G = tar 187s + sha256 914s ≈ 18m; replication with heavy prune ≈ 102s
+- Drill: the `backup-restore-drill` skill. The 2026-05-22 test checked every archive (all PVCs, the 4 database types and Immich: checksums and tar listings); it did not extract them. Timing anchors: Immich 62.5G = tar 187 s + sha256 914 s ≈ 18 min; replication with a heavy prune ≈ 102 s. The CouchDB restore was drilled end to end on 2026-07-24 (runbook).
 - Replication validates 4 backup types daily; failure → Telegram with the failed step
 - Grafana dashboard: `monitoring/configs/grafana-dashboards/backup-monitoring-dashboard.yaml`

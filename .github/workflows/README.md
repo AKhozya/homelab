@@ -1,44 +1,51 @@
 # GitHub Workflows
 
-## Overview
+This folder holds six workflows. CI is a signal, not a merge gate: the repo is private on GitHub's
+Free plan, which has no branch protection, and Flux applies `main` whatever CI reports. No Actions
+job has started since 2026-09-10, because of a billing problem on the account, so today none of
+these workflows runs.
 
-Two workflows:
+| Workflow | Runs on | Does |
+|---|---|---|
+| `validate.yaml` | push to `main`, pull requests to `main`, by hand; skips pushes that change only Markdown or `docs/images/` | the checks below |
+| `gitleaks.yaml` | push to `main`, pull requests to `main`, by hand; no path filter | secret scan |
+| `renovate-analysis.yaml` | pull request opened, updated or reopened; runs only for Renovate | posts a version-change analysis on the PR |
+| `claude.yml` | `@claude` in an issue, a comment or a PR review | runs Claude Code on the request |
+| `flux-update.yaml` | Sunday 06:00 UTC, or by hand | opens a PR to update the Flux components |
+| `claude-telegram-build.yml` | Monday and Thursday 23:00 UTC, or by hand | builds and pushes the Telegram bot image |
 
-1. **renovate-analysis.yaml** — Renovate version change analysis
-2. **claude.yml** — @claude mention responder
+## validate.yaml
 
-**Important:** NO auto code reviews. Renovate workflow detects version + breaking changes only.
+| Job | Checks | Script |
+|---|---|---|
+| `yamllint` | YAML syntax and style | `yamllint .` |
+| `shellcheck` | shell scripts across the repo | inline |
+| `sops-check` | every Secret manifest is SOPS-encrypted | `scripts/ci/check-sops-encrypted.sh` |
+| `init-resources` | every init container sets resource limits | `scripts/ci/check-init-resources.sh` |
+| `image-pin` | every image is pinned to `major.minor.patch`; the script holds a small allowlist | `scripts/ci/image-pin-audit.sh` |
+| `kubeconform` | manifest schemas in all seven Kustomize roots | inline |
+| `homelab-analysis-drift` | key numbers in `docs/HOMELAB_ANALYSIS.md` still match the repo; warn-only (`continue-on-error: true`) | inline |
+| `helm-render` | every HelmRelease chart renders at its pinned version; kubeconform checks only the HelmRelease resource, not the chart's templates | `scripts/ci/helm-render-check.sh` |
 
----
+## gitleaks.yaml
 
-## Renovate Version Change Analysis
+It is separate from `validate.yaml` on purpose. `validate.yaml` skips Markdown-only pushes, so while
+gitleaks lived there, a credential pasted into a runbook or plan reached `main` unscanned (the
+workflow's header comment). The scan takes about 15 seconds, so it has no path filter. It scans the same events as `validate.yaml`; pushes to
+other branches are scanned by neither.
 
-**Workflow:** `renovate-analysis.yaml`
+## renovate-analysis.yaml
 
-### What it does
+For each Renovate pull request, it runs `scripts/analyze-update-gh.sh` and posts or updates one PR
+comment. It runs only if the actor is `renovate[bot]`.
 
-Analyzes version changes in Renovate PRs, posts analysis:
+| It reports | It does not |
+|---|---|
+| the package (Docker image, Helm chart or Flux component) | review code quality |
+| the version change and whether it is major, minor or patch, with a risk level | check syntax or formatting |
+| known breaking changes for that package, and links to the release notes | analyse app logic |
 
-**Detects:**
-- Package: Docker image, Helm chart, Flux component
-- Version change: old → new
-- Update type: major/minor/patch + risk level
-- Package-specific breaking changes
-- Links to release notes
-
-**Does NOT:**
-- Code quality review
-- Syntax/formatting check
-- App logic analysis
-
-### How it works
-
-1. **Trigger:** Renovate PR opened/updated
-2. **Filter:** `github.actor == 'renovate[bot]'`
-3. **Analysis:** Runs `scripts/analyze-update-gh.sh`
-4. **Output:** Posts/updates PR comment
-
-### Example Output
+Example comment:
 
 ```markdown
 ## Version Change Analysis
@@ -69,12 +76,12 @@ Action items:
 </details>
 ```
 
-### Permissions Required
+| Permission | Why |
+|---|---|
+| `pull-requests: write` | post the comment |
+| `contents: read` | check out the repo |
 
-- `pull-requests: write` — post comments
-- `contents: read` — checkout
-
-### Manual Testing
+Run it by hand:
 
 ```bash
 # Analyze specific Renovate PR
@@ -84,101 +91,8 @@ Action items:
 ./scripts/analyze-update-gh.sh <PR_NUMBER>
 ```
 
-### Customization
-
-Add package-specific analysis:
-1. Edit `scripts/analyze-update.sh`
-2. Add new case in package analysis section (line ~110)
-3. Define checks + action items
-4. Commit + push — workflow uses latest
-
----
-
-## Claude Interactive
-
-**Workflow:** `claude.yml`
-
-### What it does
-
-Responds to **@claude mentions** in:
-- Issue comments
-- PR review comments (except Renovate PRs)
-- PR reviews (except Renovate PRs)
-- New issues
-
-### Exclusions
-
-- @claude on Renovate PRs ignored (version analysis instead)
-- @claude works everywhere else
-
-### Usage
-
-Mention `@claude` in comment:
-
-```
-@claude can you explain how this authentication flow works?
-```
-
-```
-@claude what does this function do?
-```
-
-**Note:** Claude reads repo files, runs limited `gh` CLI.
-
----
-
-## Workflow Coordination
-
-| Event | Renovate PR | Regular PR | Issue |
-|-------|-------------|------------|-------|
-| **Opened/Updated** | Version analysis posted | No auto action | N/A |
-| **@claude mention** | Ignored | Claude responds | Claude responds |
-
-**Renovate detection:** Both workflows use `github.actor == 'renovate[bot]'`.
-
----
-
-## Disabled Workflows
-
-### claude-code-review.yml.disabled
-
-**Why disabled:** Avoid auto code reviews on all PRs. Repo focus:
-- Version change analysis (Renovate)
-- Manual @claude when needed
-
-**Re-enable:** Rename `.disabled` → `.yml`, adjust conditions.
-
----
-
-## Troubleshooting
-
-### Renovate Analysis Not Running?
-
-**Check:**
-1. PR author = `renovate[bot]` or `app/renovate`
-2. Workflow runs: Actions → Renovate Version Change Analysis
-3. Workflow logs for errors
-
-### Comment Not Appearing?
-
-**Check:**
-1. Workflow completed (green check)
-2. `GITHUB_TOKEN` has pull-requests write
-3. Scripts executable
-4. Error in "Post comment on PR" step
-
-### Update Analysis?
-
-**Options:**
-1. Push to PR branch → workflow auto-updates comment
-2. Edit `scripts/analyze-update.sh` → affects future PRs
-3. Manual: `./scripts/analyze-update-gh.sh <PR_NUMBER>`
-
----
-
-## Adding New Package Analysis
-
-Edit `scripts/analyze-update.sh`, add case:
+To add checks for a package, edit `scripts/analyze-update.sh` and add a case to its package
+section:
 
 ```bash
 case "$PACKAGE_NAME" in
@@ -195,21 +109,52 @@ case "$PACKAGE_NAME" in
 esac
 ```
 
-Common packages covered:
-- Authentik, Grafana, Prometheus Stack
-- Flux, Traefik, External-DNS
-- PostgreSQL, Redis
-- n8n, Paperless, Immich, Home Assistant
+| It already covers |
+|---|
+| Authentik, Grafana, the Prometheus stack |
+| Flux, Traefik, External-DNS |
+| PostgreSQL, Redis |
+| n8n, Paperless, Immich, Home Assistant |
 
----
+A change to the script applies to the next run.
 
-## Summary
+| Problem | Check |
+|---|---|
+| The analysis does not run | the PR author is `renovate[bot]` or `app/renovate`; the run in Actions → Renovate Version Change Analysis; its logs |
+| No comment appears | the run finished green; `GITHUB_TOKEN` has `pull-requests: write`; the scripts are executable; the "Post comment on PR" step's log |
+| The analysis is out of date | push to the PR branch, which re-runs it and updates the comment |
 
-**Active:** 2
-- Renovate version analysis (auto)
-- @claude mentions (manual)
+## claude.yml
 
-**Disabled:** 1
-- Claude code review (not needed)
+It runs `anthropics/claude-code-action` when `@claude` appears in:
 
-**Focus:** Version + breaking change detection, not code review.
+| Event | Condition |
+|---|---|
+| an issue comment, including a comment on a PR | any author |
+| a PR review comment, or a PR review | the actor is not Renovate (`github.actor != 'renovate[bot]'`) |
+| a new or assigned issue (title or body) | a plain issue, or an actor other than Renovate |
+
+Its job token can read contents, pull requests and issues. The action also requests `actions: read` through `additional_permissions`, to read CI results. Claude reads the repo files and runs a limited set of `gh` commands. For example:
+
+```
+@claude can you explain how this authentication flow works?
+```
+
+```
+@claude what does this function do?
+```
+
+## flux-update.yaml
+
+Every Sunday it reads the `Flux Version:` line in `clusters/flux-system/gotk-components.yaml` and
+the version of the Flux CLI that the `fluxcd/flux2/action` step installs. If they differ, it
+regenerates the file with `flux install --export` and opens a pull request whose body links the
+release notes.
+
+## claude-telegram-build.yml
+
+It checks out the bot's own repository (`AKhozya/claude-telegram-bot`), builds a `linux/amd64`
+image, pushes it to `ghcr.io/akhozya/claude-telegram-bot` with the next patch version (or the
+version given by hand), and pushes a matching `claude-telegram-v<version>` tag to this repo. The
+cluster runs whatever tag `apps/claude-telegram/deployment.yaml` pins, so a new image goes live only
+through a commit that bumps it.

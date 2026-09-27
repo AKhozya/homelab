@@ -1,4 +1,4 @@
-# Databases Codemap
+# Databases map
 
 All in `databases` namespace except the ps-operator (MySQL) in `percona-mysql` ns and obsidian's client-side CouchDB creds. Operators: `infrastructure/controllers/databases/<engine>/`; cluster CRs + config: `infrastructure/configs/databases/<engine>/`. Versions: pinned there.
 
@@ -39,7 +39,7 @@ Backup CronJobs (schedules, auto-discovery, mechanics): [backup-restore.md](back
 
 ## CouchDB
 - **Chart**: `couchdb` → STS `couchdb-couchdb`, pods `couchdb-couchdb-{0,1}` (`configs/databases/couchdb/release.yaml`)
-- **Auth**: Basic (admin from `couchdb-credentials` Secret); obsidian uses a separate read-only `obsidian/couchdb-credentials`
+- **Auth**: Basic; the admin credentials are in the `couchdb-couchdb` Secret (`databases` ns). `obsidian/couchdb-credentials` is the Obsidian namespace's own copy for its clients.
 - **Backup**: daily HTTP dump (auto-discovers via `_all_dbs`)
 
 ## Resources / quotas

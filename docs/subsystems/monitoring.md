@@ -1,4 +1,4 @@
-# Monitoring Codemap
+# Monitoring map
 
 VictoriaMetrics primary stack. **No Prometheus pod** — kube-prometheus-stack chart kept only for grafana/alertmanager/operator/KSM/node-exporter (`prometheus.enabled=false`). Flux paths: `monitoring/controllers/` + `monitoring/configs/`. Chart + image versions: pinned in `monitoring/controllers/*/release.yaml` and the VM CRs.
 
@@ -23,7 +23,7 @@ Chart lineage gotcha: loki chart comes from the **grafana-community** repo (graf
 ## ⚠️ Prometheus converter DISABLED
 Operator values: `operator.disable_prometheus_converter: true` + `enable_converter_ownership: false`. **PrometheusRule and ServiceMonitor are silently ignored** — always use native VMRule + VMServiceScrape.
 
-Oddity: `monitoring/configs/cloudflared/cloudflared-servicemonitor.yaml` is a coreos `ServiceMonitor` (evicted to its own dir to escape the namespace transform). The real scrape is the native VMServiceScrape `cloudflared` in `scrape-apps.yaml`; the ServiceMonitor itself is likely inert.
+The cloudflared scrape is the native VMServiceScrape `cloudflared` in `scrape-apps.yaml`. Git holds no coreos `ServiceMonitor`.
 
 ## Rules (VMRule)
 - `monitoring/configs/victoria-metrics/vmrules.yaml` — `homelab-alerts` (node, pod, mysql, database, redis, kubernetes, certificate, flux, cloudflare-tunnel, kyverno, loki, traefik, firewall/ufw, node-maintenance, immich-gpu-node groups…)

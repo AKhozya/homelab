@@ -1,21 +1,47 @@
 # Node Maintenance
 
-Weekly Arch Linux updates across 3 K3s nodes.
+This folder keeps the four K3s nodes configured and updated. Ansible does the work. Timers on the
+control plane (CP) drive the update, the drift-heal and the sync; each node runs its own security
+scan timer:
 
-**Schedule**: Saturday 04:30 UTC (systemd timer on CP)
-**Flow**: CP phase1 (update + reboot) → CP phase2 on boot (worker rolling update + cleanup)
-**Notifications**: Telegram (reuses `backup-replication/backup-telegram` bot)
+| Job | When (UTC) | What it does |
+|---|---|---|
+| Weekly update | Saturday 04:30 (`node-maintenance.timer`) | Phase 1 updates and reboots the CP. On boot, phase 2 updates the two physical workers one at a time, then `immich-vm` without an in-guest reboot, then cleans up. |
+| Drift-heal | daily 03:00 and 15:00 (`node-maintenance-config.timer`), and after every sync that pulls a new `main` | Puts each node back to the state `ansible/node-config.yml` declares |
+| Sync | every 10 minutes (`node-maintenance-sync.timer`) | Pulls `main` onto the CP and installs changed playbooks and units |
+| Security scan | the 1st of each month, 04:00 plus up to an hour's random delay | lynis and rkhunter on each node |
 
-## Node Config Drift-Heal (ansible)
+Telegram messages reuse the `backup-replication/backup-telegram` bot.
 
-Declarative config via `ansible/node-config.yml`. Roles (apply order, 14): `packages` (pacman-native base + per-host ucode + per-host GPU stack), `base_config` (logrotate, journald caps, sudoers, node-maintenance user, fstrim/paccache timers), `k3s_config` (`/etc/rancher/k3s/config.yaml` templated per group/host; drift-alert only, no auto-restart), `k3s_image_gc` (weekly `crictl rmi --prune`), `firewall_preflight` (settle barrier + sanity checks before firewall changes; runs again before the workers-only tail), `firewall` (UFW rules: policies + base/group/host rules + route rules; idempotent-additive, never resets), `hardening` (sshd drop-in incl. `PermitEmptyPasswords no`, sysctls, kubelet.yaml, systemd watchdog + timeouts, k3s service.d drop-ins, resolved LLMNR, NVMe/SATA udev+modprobe, CPU/NVMe tmpfiles), `nic_tuning` (igc NIC forced 1Gbps + EEE off via `igc-tune@.service` — CP I225-V link-drop fix), `security_scan` (monthly lynis+rkhunter timer + script), `ad_hoc` (on-demand tag-gated: firmware), `clusterip_heal` (workers: ClusterIP-DNAT wedge watchdog — probe fails ⇒ restart `k3s-agent`; journal tag `clusterip-heal`), `clusterip_heal_cp` (CP: nsenter-into-pod-netns CoreDNS probe — pod-netns wedge ⇒ `timeout 120` k3s restart; journal tag `clusterip-heal-cp`), `node_isolation_heal` (workers, physical only: CP-isolation self-recovery ladder — L1 restart `k3s-agent`, L2 staggered self-reboot; dry-run until post-soak flip), `immich_gpu_node` (immich-vm only: GPU-node substrate — heal script, watchdog units, sysctl/cmdline guards, local-path bind mount). Runs from CP, targets 4 nodes (clusterip_heal + node_isolation_heal workers-only, node_isolation_heal excludes immich-vm; clusterip_heal_cp CP-only; immich_gpu_node immich-vm-only).
+## Drift-heal (Ansible)
 
-**Schedule**: daily 03:00 UTC (`node-maintenance-config.timer`)
-**Also runs**: after `node-maintenance-sync.service` pulls new `main` HEAD (post-pull drift apply)
-**Log**: `/var/log/node-maintenance/config-latest.log` (truncated each run; archived via logrotate)
-**Telegram**: fires if `changed>0` or run fails (alert includes counts; silent when idempotent)
+`ansible/node-config.yml` declares each node's configuration. It runs from the CP against all four
+nodes and applies these 14 roles in order:
 
-Manual trigger:
+| Role | Nodes | What it manages |
+|---|---|---|
+| `packages` | all | pacman base packages, per-host CPU microcode, per-host GPU stack |
+| `base_config` | all | logrotate, journald limits, sudoers, the `node-maintenance` user, fstrim and paccache timers |
+| `k3s_config` | all | `/etc/rancher/k3s/config.yaml`, templated per group and host. It only alerts on drift; it never restarts K3s. |
+| `k3s_image_gc` | all | a weekly `crictl rmi --prune` |
+| `firewall_preflight` | all | settles the packet filter and runs sanity checks before any firewall change; it runs again before the workers-only roles |
+| `firewall` | all | UFW policies, base, group and host rules, and route rules. It only adds rules and never resets; see [SECURITY.md](../docs/SECURITY.md#node-firewall) |
+| `hardening` | all | the sshd drop-in, sysctls, `kubelet.yaml`, the systemd watchdog and timeouts, K3s service drop-ins, resolved (LLMNR off), NVMe and SATA udev and modprobe rules, CPU and NVMe tmpfiles |
+| `nic_tuning` | the three physical nodes (each host's `nic_tuning_iface`; `immich-vm` has none) | turns EEE (Energy-Efficient Ethernet) off through `nic-tune@.service`, and on the CP also forces the Intel I225-V NIC to 1 Gbps; it removes the old `igc-tune@` unit |
+| `security_scan` | all | the monthly scan timer and script |
+| `ad_hoc` | on demand | tasks run only by tag, such as firmware (see below) |
+| `clusterip_heal` | workers | a watchdog: if a probe through a ClusterIP fails (a stuck DNAT rule after a reboot), it restarts `k3s-agent`. Journal tag `clusterip-heal`. |
+| `clusterip_heal_cp` | CP | a watchdog that probes CoreDNS from inside a pod's network namespace; if the probe fails, it restarts K3s with `timeout 120`. Journal tag `clusterip-heal-cp`. |
+| `node_isolation_heal` | the two physical workers | if a worker loses the CP, it first restarts `k3s-agent`, then reboots itself on a staggered timer. Active since 2026-07-23. |
+| `immich_gpu_node` | `immich-vm` | the GPU node's heal script, watchdog units, sysctl and kernel-command-line guards, and the local-path bind mount |
+
+| Setting | Value |
+|---|---|
+| Log | `/var/log/node-maintenance/config-latest.log`, rewritten each run and archived by logrotate |
+| Telegram | a message if the run changed anything or failed; silent when nothing changed |
+
+Run it by hand:
+
 ```bash
 sudo systemctl start node-maintenance-config.service
 # Check last run
@@ -25,31 +51,38 @@ sudo ansible-playbook --check -D -i /etc/node-maintenance/ansible/inventory.yml 
   /etc/node-maintenance/ansible/node-config.yml
 ```
 
-Tag-scoped run (debug):
+Run only some tags, for debugging:
+
 ```bash
 sudo ansible-playbook --tags logrotate -D \
   -i /etc/node-maintenance/ansible/inventory.yml \
   /etc/node-maintenance/ansible/node-config.yml
 ```
 
-**Edit workflow**: modify file in `ansible/roles/<role>/files/` or template → `git push` → CP sync timer pulls → `install.sh --sync-only` runs → `node-maintenance-config.service` re-applies → Telegram alert on `changed>0`.
+**To change a node:** edit the role's file or template under `ansible/roles/<role>/`, then push. The
+CP's sync timer pulls the change, runs `install.sh --sync-only`, then runs
+`node-maintenance-config.service`, which applies it. Telegram reports what changed.
 
-### Rolling restart of k3s (apply config.yaml / kubelet.yaml drift)
+### Rolling restart of K3s
 
-`config.yaml` and `kubelet.yaml` are drift-alert-only (no auto-restart). To apply pending kubelet/CM config changes across all 4 nodes serially, with per-node Ready + configz verification:
+Drift-heal does not restart K3s to apply a change to `config.yaml` or `kubelet.yaml`, so such a
+change waits until you apply it. This unit restarts K3s on all four nodes, one at a time, and checks each node is Ready and
+reports the expected config:
 
 ```bash
 sudo systemctl start node-maintenance-rolling-restart.service
 journalctl -u node-maintenance-rolling-restart.service -n 80 --no-pager
 ```
 
-Order: CP first (CM grace-period applies), then workers serially. `serial: 1` = max 1 node disrupted at a time. Aborts before next node if `configz` doesn't reflect expected `nodeLeaseDurationSeconds` + `nodeStatusReportFrequency` (defends against historical k3s field-stripping bugs). Telegram alert on failure.
+The CP goes first, then each worker. `serial: 1` means at most one node is down at a time. Before it
+moves to the next node, the run checks through `configz` that the node reports the expected
+`nodeLeaseDurationSeconds` and `nodeStatusReportFrequency`, and stops if it does not; this guards
+against K3s bugs that dropped those fields in the past. Telegram reports a failure. It takes about
+5 to 7 minutes.
 
-ETA ≈ 5-7 min total (3 × restart + Ready + verify + 30s pauses).
+### On-demand tasks
 
-### Tag catalog (ad-hoc / on-demand)
-
-All `ad_hoc` tasks tagged `never` — daily timer skips. Invoke with `-t <tag>`:
+Every `ad_hoc` task carries the `never` tag, so the scheduled runs skip it. Run one with `-t <tag>`:
 
 ```bash
 # List pending firmware updates (metadata refresh + get-updates, no apply)
@@ -62,26 +95,35 @@ sudo ansible-playbook -t firmware -e ad_hoc_firmware_apply=true \
   /etc/node-maintenance/ansible/node-config.yml --limit worker-node
 ```
 
-### Out-of-scope one-shots (not ansible)
+### One-off scripts outside Ansible
 
-- **`scripts/setup-claude-telegram.sh`** — Mac-side bootstrap for Claude Telegram bot on worker-node. Installs chezmoi/Node/Claude CLI as user `akhozya`, interactive GH token read. Run once per deploy; not drift-heal.
-- **`scripts/update-firmware.sh`** — superseded by ad_hoc `firmware` tag. Kept for interactive Mac-less fallback.
+| Script | Use |
+|---|---|
+| `scripts/setup-claude-telegram.sh` | Mac-side setup for the Claude Telegram bot on worker-node: installs chezmoi, Node and the Claude CLI as user `akhozya` and reads a GitHub token interactively. Run once per deploy; drift-heal does not touch it. |
+| `scripts/update-firmware.sh` | The `firmware` tag above replaces it. It stays as an interactive fallback when no Mac is available. |
 
 ---
 
-## Monthly Security Scan
+## Monthly security scan
 
-Parallel pipeline, runs **each node locally** (no orchestration).
+Each node runs the scan on its own; nothing coordinates them.
 
-**Schedule**: 1st of month 04:00 UTC, ±1h jitter (RandomizedDelaySec=3600). Temporarily the **9th** for August 2026 (`Persistent=false` while shifted) — reverts to the 1st after 2026-08-09. The 9th, not the 8th, because 2026-08-08 is a Saturday: the weekly reboot at Sat 04:30 UTC lands inside the 04:00-05:00 window, and `Persistent=false` cannot catch a scan lost to it.
-**Unit**: `node-maintenance-security-scan.timer` → `node-maintenance-security-scan.service`
-**Script**: `/usr/local/sbin/node-maintenance-security-scan.sh` (canonical: `ansible/roles/security_scan/files/security-scan.sh`)
-**Tools**: `lynis audit system --quick` + `rkhunter --check --sk --rwo --nocolors`
-**Summary log**: `/var/log/node-maintenance/security-scan-YYYY-MM.log` (12mo retention, root:adm 0640)
-**Full logs**: `/var/log/lynis.log` + `/var/log/lynis-report.dat` + `/var/log/rkhunter.log` (6mo retention)
-**No Telegram alerts** — reviewed during monthly HOMELAB_ANALYSIS.md cadence.
+| Item | Value |
+|---|---|
+| Schedule | the 1st of each month, 04:00 UTC, plus up to an hour's random delay (`RandomizedDelaySec=3600`) |
+| Units | `node-maintenance-security-scan.timer` starts `node-maintenance-security-scan.service` |
+| Script | `/usr/local/sbin/node-maintenance-security-scan.sh`; its source is `ansible/roles/security_scan/files/security-scan.sh` |
+| Tools | `lynis audit system --quick`, `rkhunter --check --sk --rwo --nocolors` |
+| Summary log | `/var/log/node-maintenance/security-scan-YYYY-MM.log`, kept 12 months, `root:adm` 0640 |
+| Full logs | `/var/log/lynis.log`, `/var/log/lynis-report.dat`, `/var/log/rkhunter.log`, kept 6 months |
+| Alerts | Telegram if the scan fails to run (the unit's `ExecStopPost`). The monthly review reads the findings. |
 
-Manual trigger (off-schedule):
+The timer keeps `Persistent=false`: if a node is down at the scheduled time, it skips that month's
+scan. The comment in the timer file says why: the stamp files still date from July 2026, so
+`Persistent=true` would start a catch-up scan on the next restart of the timer.
+
+Run it by hand:
+
 ```bash
 sudo systemctl start node-maintenance-security-scan.service
 # Watch progress
@@ -90,46 +132,54 @@ journalctl -fu node-maintenance-security-scan.service
 sudo cat /var/log/node-maintenance/security-scan-$(date -u +%Y-%m).log
 ```
 
-When `security-scan.sh` changes: CP auto-syncs (sync timer), ansible `security_scan` role deploys to all 4 nodes on the next `node-maintenance-config.service` run (daily, or `sudo systemctl start node-maintenance-config.service`).
+If you change `security-scan.sh`, the CP syncs it, and the `security_scan` role deploys it to all
+four nodes on the next drift-heal run.
 
 ---
 
-## Install (one-time)
+## Install (once)
 
-1. On CP:
+1. On the CP:
    ```bash
    sudo bash /path/to/repo/node-maintenance/install.sh
    ```
-2. Follow printed instructions — scp + run `install-worker-ready.sh` on each worker.
-3. Verify:
+2. `install.sh` writes `/tmp/install-worker-ready.sh` (`install-worker.sh` with the CP's public key
+   filled in) and prints the commands that copy and run it on worker-node and worker-node-2. Run
+   the same on `immich-vm`: the inventory reaches it as the `node-maintenance` user too, and the
+   printed commands predate it.
+3. Check:
    ```bash
    sudo -u node-maintenance ssh -p 65300 -i /var/lib/node-maintenance/.ssh/id_ed25519 \
      -o UserKnownHostsFile=/etc/node-maintenance/known_hosts \
      node-maintenance@192.168.1.129 true
    ```
 
-## Sync changes (after editing playbooks / systemd units)
+## Syncing changes
 
-### Automatic (every 10 min)
+### Automatic, every 10 minutes
 
-`node-maintenance-sync.timer` on CP runs every 10 min:
-- `git fetch` + `reset --hard origin/main` in `/var/lib/node-maintenance/homelab`
-- HEAD changed → `install.sh --sync-only` (systemd daemon-reload + file perms)
-- Telegram on failure (`ExecStopPost`)
+`node-maintenance-sync.timer` on the CP runs every 10 minutes:
 
-Check: `systemctl list-timers node-maintenance-sync.timer` · `journalctl -u node-maintenance-sync.service`
+| Step | Action |
+|---|---|
+| 1 | `git fetch` and `reset --hard origin/main` in `/var/lib/node-maintenance/homelab` |
+| 2 | If HEAD changed, `install.sh --sync-only` (systemd daemon-reload and file permissions), then drift-heal |
+| 3 | Telegram on failure (`ExecStopPost`) |
 
-### Manual (urgent)
+Check it with `systemctl list-timers node-maintenance-sync.timer` and
+`journalctl -u node-maintenance-sync.service`.
+
+### By hand, if it is urgent
 
 ```bash
 bash node-maintenance/sync-node-maintenance.sh   # triggers same unit now
 ```
 
-Overrides via env: `NODE_MAINT_CP_HOST`, `NODE_MAINT_CP_USER`, `NODE_MAINT_CP_PORT`.
+Override the target with `NODE_MAINT_CP_HOST`, `NODE_MAINT_CP_USER` and `NODE_MAINT_CP_PORT`.
 
-### Deploy key (one-time setup — enables auto-sync)
+### Deploy key (once; enables the automatic sync)
 
-Auto-sync uses dedicated read-only GitHub deploy key at `/root/.ssh/homelab-deploy`. Setup:
+The sync uses its own read-only GitHub deploy key at `/root/.ssh/homelab-deploy`:
 
 ```bash
 # 1. Generate key on CP
@@ -147,9 +197,9 @@ ssh -p 65300 -t akhozya@gmk-k3s-control-plane \
   "sudo systemctl enable --now node-maintenance-sync.timer && sudo systemctl start node-maintenance-sync.service"
 ```
 
-Rotation tracked in `docs/SECRETS_ROTATION.md` as `homelab-deploy`.
+`docs/SECRETS_ROTATION.md` tracks its rotation as `homelab-deploy`.
 
-## Day-to-day ops
+## Day to day
 
 ```bash
 # Next scheduled run
@@ -173,63 +223,76 @@ ls /var/log/node-maintenance/
 less /var/log/node-maintenance/phase2-18-04-2026.log
 ```
 
-## Resilience — retry policy
+## Retries
 
-Tasks sensitive to transient external failures (pacman mirrors, LVFS firmware metadata, ip6tables kernel races with kube-router/fail2ban, UFW `ufw status verbose` returning "ERROR: problem running ip6tables") carry `until/retries/delay` so drift-heal survives flakes without manual re-runs.
+Tasks that can fail for a moment on an outside service carry `until`, `retries` and `delay`, so a
+brief failure does not need a manual re-run. Examples: pacman mirrors, LVFS firmware metadata, or
+`ip6tables` races with kube-router or fail2ban, where `ufw status verbose` returns "ERROR: problem
+running ip6tables".
 
-| Task class | Retries | Delay | Why |
+| Task | Retries | Delay | Why |
 |------------|---------|-------|-----|
-| `ansible.builtin.package` (pacman) | 3 | 30s | Mirror 5xx/DNS, `/var/lib/pacman/db.lck`, GPG timeout |
-| `community.general.ufw` | 5 | 10s | Transient ip6tables races with kube-router + fail2ban |
-| `fwupdmgr update` (firmware apply) | 3 | 20s | LVFS server 5xx during fetch/verify |
+| `ansible.builtin.package` (pacman) | 3 | 30s | mirror 5xx or DNS errors, `/var/lib/pacman/db.lck`, GPG timeout |
+| `community.general.ufw` | 5 | 10s | brief `ip6tables` races with kube-router and fail2ban |
+| `fwupdmgr update` (firmware apply) | 3 | 20s | LVFS server 5xx during fetch or verify |
 | `systemd-resolved` restart handler | 2 | 5s | DNS churn during CP reboots |
 
-**Not retried** (fail-loud):
-- `sshd -t` config validate — must catch real config errors.
-- Preflight checks (`/readyz`, Flux kustomization Ready, backup active).
-- Local `copy`/`file`/`lineinfile` — atomic writes, failure = real bug.
+These are **not** retried, so they fail at once:
 
-### Drift-heal timeouts (systemd `TimeoutStartSec`)
+| Task | Why |
+|---|---|
+| `sshd -t` config check | it must catch real config errors |
+| Preflight checks (`/readyz`, Flux Kustomization Ready, backup active) | a failure means stop |
+| Local `copy`, `file` and `lineinfile` | the writes are atomic, so a failure is a real bug |
 
-| Unit | Limit | Rationale |
+### Time limits (systemd `TimeoutStartSec`)
+
+| Unit | Limit | Why |
 |------|-------|-----------|
-| `node-maintenance-sync.service` | 20min | Wraps config playbook (max 15min) + git sync + install.sh |
-| `node-maintenance-config.service` | 15min | Playbook ceiling incl. worst-case retries across all roles |
-| `node-maintenance-phase1.service` | 30min | CP yay+reboot staging |
-| `node-maintenance-phase2.service` | 90min | 3 workers serial yay+reboot + stabilize pauses |
+| `node-maintenance-sync.service` | 20min | wraps the config playbook (at most 15 min), the git sync and `install.sh` |
+| `node-maintenance-config.service` | 15min | the playbook's time limit, with worst-case retries across all roles |
+| `node-maintenance-phase1.service` | 30min | the CP's update and reboot |
+| `node-maintenance-phase2.service` | 90min | the two physical workers, one at a time, each updated and rebooted with pauses to settle, then `immich-vm` |
 
-### UFW boot-time healer (`ufw-heal-post-k3s.service`)
+### UFW repair at boot (`ufw-heal-post-k3s.service`)
 
-Every boot, `/usr/local/sbin/ufw-heal-post-k3s.sh` runs once:
+On every boot, `/usr/local/sbin/ufw-heal-post-k3s.sh` runs once:
 
-1. **Phase A** — poll for kube-router quiescence (`KUBE-ROUTER-INPUT` chain exists + ip6tables-save line count stable across 2 samples 5s apart), 120s cap, continue on timeout.
-2. **Phase B** — `ufw reload` ×3 with 10s gap.
-3. **Phase C** — per-chain repair: parse `:<chain>` declarations from UFW rules files, `ip6tables -N` any missing (race-free, atomic per syscall).
-4. **Phase D** — verify probe set: `ufw-logging-deny`, `ufw6-logging-deny`, `ufw-user-input`, `ufw6-user-input` all exist.
-5. **Phase E** — final `ufw reload` once.
-6. **Phase F** — `ufw status verbose` returns `Status: active` (or inactive if `ENABLED=no`, also accepted). Exits non-zero only on real failure.
+| Phase | Action |
+|---|---|
+| A | Wait until kube-router stops changing the rules: the `KUBE-ROUTER-INPUT` chain exists and the `ip6tables-save` line count is the same in two samples 5 s apart. Give up waiting after 120 s and go on. |
+| B | `ufw reload` three times, 10 s apart |
+| C | Repair each chain: read the `:<chain>` lines from the UFW rules files and `ip6tables -N` any that are missing |
+| D | Check that `ufw-logging-deny`, `ufw6-logging-deny`, `ufw-user-input` and `ufw6-user-input` exist |
+| E | One final `ufw reload` |
+| F | Check that `ufw status verbose` says `Status: active` (or inactive if `ENABLED=no`); exit non-zero only on a real failure |
 
-Logs: `journalctl -t ufw-heal` (per-phase markers).
+Logs: `journalctl -t ufw-heal`, with a marker per phase. It replaced `ufw-reload-after-k3s.service`,
+which only slept 15 s and reloaded, and so often ran before kube-router had finished.
 
-Replaces prior `ufw-reload-after-k3s.service` (bare `sleep 15 + ufw reload`, too fragile — ran before kube-router done mutating kernel state).
+### UFW health metrics (`ufw-state-metric.timer`)
 
-### UFW health metrics (`ufw-state-metric.service.timer`)
+Every 60 s it writes three gauges for the node-exporter textfile collector
+(`/var/lib/node_exporter/textfile/ufw_state.prom`):
 
-Emits 3 gauges every 60s via node-exporter textfile collector (`/var/lib/node_exporter/textfile/ufw_state.prom`):
+| Gauge | Meaning |
+|---|---|
+| `ufw_enabled{node}` | the config says `ENABLED=yes` (1) or `no` (0) |
+| `ufw_service_active{node}` | `systemctl is-active ufw.service` |
+| `ufw_chains_healthy{node}` | the probe chains exist in the kernel |
 
-- `ufw_enabled{node}` — config `ENABLED=yes` (1) or `no` (0)
-- `ufw_service_active{node}` — `systemctl is-active ufw.service`
-- `ufw_chains_healthy{node}` — canary probe set present in kernel
+Alerts, in the `firewall-alerts` group of the `homelab-alerts` VMRule:
 
-Alerts (`firewall-alerts` group, VMRule `homelab-alerts`):
-
-- `UfwDisabled` (critical, 5m) — config flipped off
-- `UfwServiceInactive` (critical, 5m) — systemd unit stopped
-- `UfwChainsUnhealthy` (critical, 5m) — partial ip6tables load; heal catch within 10min via drift-heal pre-heal
+| Alert | Fires when |
+|---|---|
+| `UfwDisabled` (critical, 5m) | the config is switched off |
+| `UfwServiceInactive` (critical, 5m) | the systemd unit has stopped |
+| `UfwChainsUnhealthy` (critical, 5m) | the `ip6tables` rules loaded only in part. `ufw-heal-watchdog.timer` runs the repair script every 5 minutes, so it clears within about 10 minutes; drift-heal also repairs it before its firewall step. |
 
 ## Recovery
 
-### Phase 2 failed, flag retained
+### Phase 2 failed and left its flag
+
 ```bash
 journalctl -u node-maintenance-phase2.service -n 500
 # Fix root cause (cordoned node, failed flux kustomization, etc.)
@@ -239,25 +302,27 @@ flux reconcile kustomization <name>
 sudo rm /var/lib/node-maintenance/phase2-pending
 ```
 
-### Node stuck cordoned + unreachable
+### A node stuck cordoned and unreachable
+
 ```bash
 # Physical/IPMI console recovery, then:
 kubectl uncordon <node>
 sudo rm /var/lib/node-maintenance/phase2-pending
 ```
 
-### Rollback a package
+### Roll back a package
+
 ```bash
 ssh -p 65300 <worker> 'sudo pacman -U /var/cache/pacman/pkg/<pkg>-<prev-version>.pkg.tar.zst'
 ```
 
-## Install / SSH key rotation (Mac-driven — no age key on CP)
+## Install and SSH key rotation (from the Mac; the CP has no age key)
 
-All SOPS decryption on Mac. Plain key transits to CP via SSH pipe, lives in `/tmp` only long enough for `install.sh` to copy+shred.
+SOPS decrypts only on the Mac. The plain key reaches the CP through an SSH pipe and stays in
+`/tmp` only until `install.sh` copies and shreds it. `docs/SECRETS_ROTATION.md` tracks it as
+`node-maintenance-ssh`.
 
-Tracked in `docs/SECRETS_ROTATION.md` under `node-maintenance-ssh`.
-
-### Initial install
+### First install
 
 ```bash
 # On Mac: decrypt SSH key → stream to CP
@@ -275,9 +340,10 @@ sudo bash ~/node-maintenance/install.sh
 # Follow printed instructions to scp + run install-worker.sh on both workers
 ```
 
-`install.sh` shreds `/tmp/node-maintenance-ssh-key` after copying to `/var/lib/node-maintenance/.ssh/id_ed25519`.
+`install.sh` shreds `/tmp/node-maintenance-ssh-key` after it copies it to
+`/var/lib/node-maintenance/.ssh/id_ed25519`.
 
-### Rotation (annual)
+### Rotation (yearly)
 
 ```bash
 # 1. On Mac: generate fresh keypair
@@ -323,3 +389,6 @@ gshred -u /tmp/new_key /tmp/new_key.pub /tmp/new-secret.yaml
 
 # 9. Update docs/SECRETS_ROTATION.md with new rotation date
 ```
+
+Step 4 lists worker-node and worker-node-2 only. Add the new public key on `immich-vm` the same way,
+because the CP reaches it as `node-maintenance` too.
