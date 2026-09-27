@@ -1,20 +1,32 @@
-# Homelab Disaster Recovery Guide
+# Disaster Recovery Runbook
 
-This is the disaster-recovery runbook for the homelab K3s cluster — the step-by-step procedure to rebuild from nothing if the cluster is lost. It pairs the scripts in this directory (encrypted secret backup/restore) with the data backups described in `docs/BACKUP_STRATEGY.md`, and walks the full sequence: stand up a fresh cluster, restore secrets, bootstrap GitOps, then restore databases and volumes from backup. The same encryption and ordering rules below apply whether you are recovering one database or the whole fleet.
+This runbook rebuilds the cluster from nothing. The order is: build the nodes, restore the
+secrets, start Flux, then restore the databases and volumes from the backups. The same encryption
+and ordering rules apply whether you restore one database or everything.
 
-## Important: Secret Backups Are Encrypted
+| Page | Covers |
+|---|---|
+| This page | The rebuild, every restore procedure, and configuration rollback |
+| [BACKUP_STRATEGY.md](../BACKUP_STRATEGY.md) | What is backed up, when, for how long, and the recovery targets |
+| [setup/K3S_SETUP.md](../setup/K3S_SETUP.md) | Installing K3s on each node |
 
-**All secrets backups ENCRYPTED with GPG AES256!**
+Start every command block on this page from the root of a checkout of this repo, unless a step says
+to run it on a node. The secret-backup blocks change into `.backup/` themselves.
 
-- **Encrypted:** all backups auto GPG-encrypted
-- **Secure:** unencrypted secrets dir removed after encryption
-- **Gitignored:** `.backup/` in `.gitignore`
-- **No Default:** no default passphrase — MUST set own
-- **Passphrase:** store in 1Password securely!
+## Secret backups
 
-## Backup Process
+The cluster's secrets are backed up by hand, separately from the data. The scripts live in
+`.backup/`, and every archive is encrypted.
 
-### 1. Create Encrypted Backup (run monthly)
+| Rule | Detail |
+|---|---|
+| Encrypted | Each archive is encrypted with GPG (AES256) |
+| No plain copy left | The script deletes the unencrypted secrets directory after encrypting it |
+| Not in Git | `.gitignore` excludes the archives and the `.backup/secrets/` output; the scripts are tracked |
+| No default passphrase | You must choose one |
+| Passphrase | Keep it in 1Password; without it the archive cannot be decrypted |
+
+### 1. Create an encrypted backup (monthly)
 
 ```bash
 cd .backup
@@ -28,13 +40,12 @@ chmod +x secrets-backup.sh
 # WARNING: Store passphrase in 1Password — need to decrypt!
 ```
 
-**Output:** `secrets-backup-YYYYMMDD_HHMMSS.tar.gz.gpg` (encrypted archive)
+**Output:** `secrets-backup-YYYYMMDD_HHMMSS.tar.gz.gpg`, an encrypted archive.
 
-### 2. Decrypt Backup (optional — auto during restore)
+### 2. Decrypt a backup (optional)
 
-**Note:** `secrets-restore.sh` auto-decrypts, manual decrypt rarely needed.
-
-For manual inspection:
+`secrets-restore.sh` decrypts the archive itself, so you rarely need this. To inspect one by hand,
+run this inside `.backup/`, next to the archive:
 
 ```bash
 # Interactive (prompts for passphrase)
@@ -46,160 +57,56 @@ gpg --decrypt --batch --passphrase-file <(echo "$GPG_PASSPHRASE") \
   secrets-backup-20251030_120000.tar.gz.gpg | tar -xzf - -C .
 ```
 
-Extracts to `secrets/` dir with all secret JSON files.
+The archive unpacks to `secrets/`, one JSON file per secret. It holds every secret a full rebuild
+needs:
 
-Extracts **ALL** secrets needed for complete cluster rebuild:
-
-**Critical Infrastructure:**
-- SOPS age encryption key (MOST IMPORTANT — decrypts everything)
-- Cloudflare API token (cert-manager DNS-01)
-- Cloudflare tunnel credentials + config
-
-**Monitoring:**
-- Grafana admin creds
-- Alertmanager Telegram bot token
-
-**Databases:**
-- Redis passwords (all apps)
-- PostgreSQL admin creds + all app DB users
-- MySQL cluster secrets + app creds (Uptime Kuma, PriceBuddy)
-
-**Applications:**
-- Authentik (SSO + identity)
-- Immich (photos)
-- Home Assistant
-- N8N (workflow automation)
-- LinkWarden (bookmarks + read-later)
-- Mealie (recipes)
-- Paperless-NGX (docs)
-- Audiobookshelf
-- Uptime Kuma
-- Stirling PDF (PDF toolkit)
-- HomeHub (family dashboard)
-- PriceBuddy (price tracking)
-- CouchDB (Obsidian sync)
-
-**Backup Replication:**
-- NAS rsync creds (rsync daemon auth)
-- Telegram bot token (backup failure notifications)
-
-Files saved to `.backup/secrets/` (gitignored)
-
-### 3. Automated Backups (Already Configured)
-
-**Daily backups auto-configured:**
-
-- **PostgreSQL:** Daily 3:00 AM → `/mnt/k8s-storage/backups/postgres/` (30 day retention)
-- **CouchDB:** Daily 3:05 AM → `/mnt/k8s-storage/backups/couchdb/` (30 day retention)
-- **MySQL:** Daily 3:15 AM → `/mnt/k8s-storage/backups/mysql/` (30 day retention)
-- **Critical PVCs:** Daily 3:10 AM → `/mnt/k8s-storage/backups/pvc/` (30 day retention, bumped from 7d on 2026-05-22)
-- **Immich library:** Weekly Sunday 3:00 AM — `immich-backup` (`backup-replication` ns) on **worker-node-2** pulls the NAS-resident library (rsync `personal_folder`) → tar+sha on W2 (`/mnt/extra-storage/immich-backup/`) + push to NAS `akhozya-pool1` pool = 2 copies, keep-2 each (~61G uncompressed). Restore: `docs/BACKUP_STRATEGY.md` §5 (extract in-place onto the NAS — virtiofs inode gotcha).
-- **Backup Replication:** Daily 3:30 AM → NAS (30d daily / keep-2 immich, Step 4b prune). W2 safety-net leg removed 2026-07-17.
-
-**Details:** `docs/BACKUP_STRATEGY.md`
-
-**No manual action required** — runs via K8s CronJobs
-
-## Recovery Process
-
-### Full Recovery (from scratch)
-
-#### Step 1: Create Fresh K3s Cluster
-
-**Do NOT run a bare `curl -sfL https://get.k3s.io | sh -`** — that installs an
-unpinned k3s WITH bundled Traefik + CoreDNS + helm-controller, which collide with
-the Flux-managed ones. K3s config (`config.yaml` + `kubelet.yaml`) is
-ansible-owned (`k3s_config` role: disables bundled coredns/traefik/helm-controller,
-enables secrets-encryption) and must be in place BEFORE first k3s start.
-
-**Per node, control-plane first:**
-
-```bash
-# 1. Bootstrap: ansible stack (CP) + K3s config directory (script is bootstrap-only)
-sudo bash docs/scripts/setup-node.sh
-
-# 2. Apply ansible-owned config (k3s config.yaml/kubelet.yaml, firewall, sysctls, ...)
-sudo systemctl start node-maintenance-sync.service
-sudo systemctl start node-maintenance-config.service
-```
-
-**On control-plane node (192.168.1.127):**
-
-```bash
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.3+k3s1" sh -
-sudo cat /var/lib/rancher/k3s/server/node-token
-```
-
-**On worker-node (192.168.1.129) and worker-node-2 (192.168.1.126):**
-
-```bash
-export K3S_URL=https://192.168.1.127:6443
-export K3S_TOKEN=<token-from-control-plane>
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.3+k3s1" sh -
-```
-
-**On immich-vm (192.168.1.231) — the GPU worker VM on the NAS:**
-
-Never reboot this guest from inside it, and never `virsh reboot`, `reset` or `destroy` it. Each one
-hits the GPU reset bug and crashes the NAS host. The only safe restart runs on the NAS host:
-
-```bash
-virsh shutdown immich-vm --mode acpi
-virsh domstate immich-vm     # wait for "shut off" before the next line
-virsh start immich-vm
-```
-
-The NAS host supplies the iGPU and the virtiofs library mount, so start the guest before installing
-k3s. Step 1 already wrote `/etc/rancher/k3s/config.yaml`, which the agent reads at first
-registration:
-
-| Setting | Value |
+| Group | Secrets |
 |---|---|
-| `data-dir` | `/home/k3s` |
-| `node-name` | `immich-vm` |
-| `node-ip` | `192.168.1.231` |
-| `node-label` | `homelab/gpu=intel` |
+| Critical infrastructure | the SOPS age key, which decrypts everything else; the Cloudflare API token (cert-manager DNS-01); the Cloudflare tunnel credentials and config |
+| Monitoring | Grafana admin credentials; the Alertmanager Telegram bot token |
+| Databases | Redis passwords; the PostgreSQL admin and every app database user; the MySQL cluster secrets and app credentials (Uptime Kuma, PriceBuddy) |
+| Apps | Authentik, Immich, Home Assistant, n8n, Linkwarden, Mealie, Paperless-NGX, Audiobookshelf, Uptime Kuma, Stirling-PDF, HomeHub, PriceBuddy, CouchDB (Obsidian sync) |
+| Backup replication | the NAS rsync credentials; the Telegram bot token for backup failure alerts |
 
-```bash
-export K3S_URL=https://192.168.1.127:6443
-export K3S_TOKEN=<token-from-control-plane>
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.36.3+k3s1" sh -
-```
+The files land in `.backup/secrets/`, which Git ignores.
 
-Verify from the control-plane node — it holds a kubeconfig before the operator does:
+## Automated data backups
 
-```bash
-sudo k3s kubectl wait --for=condition=Ready node/immich-vm --timeout=5m
-sudo k3s kubectl get node immich-vm -o jsonpath='{.metadata.labels.homelab/gpu}{"\n"}'
-# expect: intel
-```
+CronJobs run the data backups on the schedules below, without any manual step. [BACKUP_STRATEGY.md](../BACKUP_STRATEGY.md)
+has the full policy.
 
-Flux recreates the `intel-gpu-plugin` DaemonSet through the `infrastructure-configs` Kustomization,
-and that DaemonSet advertises `gpu.intel.com/i915`. Do not install the plugin by hand.
+| Backup | When (UTC) | Where | Kept |
+|---|---|---|---|
+| PostgreSQL | daily 03:00 | `/mnt/k8s-storage/backups/postgres/` on worker-node | 30 days |
+| CouchDB | daily 03:05 | `/mnt/k8s-storage/backups/couchdb/` | 30 days |
+| App volumes (14 PVCs) | daily 03:10 | `/mnt/k8s-storage/backups/pvc/` | 30 days |
+| MySQL | daily 03:15 | `/mnt/k8s-storage/backups/mysql/` | 30 days |
+| Immich library | Sunday 03:00 | `immich-backup` on worker-node-2 pulls the library from the NAS, writes a tar and checksum to `/mnt/extra-storage/immich-backup/` and a copy to the NAS `akhozya-pool1` pool | 2 of each (about 61 GB uncompressed) |
+| Copy to the NAS | daily 03:30 | NAS (`backup-replication` Step 4b prunes it) | 30 days; Immich keeps 2 |
 
-**Get kubeconfig:**
+## Full recovery
 
-```bash
-# On control-plane
-sudo cat /etc/rancher/k3s/k3s.yaml
-# Copy to local at ~/.kube/config
-# Update server IP to 192.168.1.127
-```
+### Step 1: Build the nodes
 
-#### Step 2: Firewall
+Follow [setup/K3S_SETUP.md](../setup/K3S_SETUP.md) for each node: control plane first, then
+worker-node and worker-node-2, then `immich-vm`. It covers the bootstrap script, the Ansible
+config that must exist before K3s first starts, the pinned K3s install, the join token and the
+kubeconfig.
 
-Already applied by the ansible `firewall` role in Step 1 (`node-maintenance-config.service`).
-No manual `ufw` commands — rules are role-managed, additive, never reset.
+### Step 2: Firewall
 
-#### Step 3: Install Flux CLI
+The Ansible `firewall` role already applied the rules in step 1 (`node-maintenance-config.service`).
+Do not run `ufw` by hand; the role owns the rules, only adds them, and never resets them.
+
+### Step 3: Install the Flux CLI
 
 ```bash
 brew install fluxcd/tap/flux  # macOS
 ```
 
-#### Step 4: Restore ALL Secrets
+### Step 4: Restore all secrets
 
-**WARNING: Run BEFORE bootstrapping Flux!**
+**Run this BEFORE you bootstrap Flux.**
 
 ```bash
 cd .backup
@@ -214,9 +121,9 @@ chmod +x secrets-restore.sh
 # Set GPG_PASSPHRASE env var to skip prompt
 ```
 
-Auto-decrypts backup + restores ALL secrets needed for cluster ops.
+The script decrypts the archive and restores every secret the cluster needs.
 
-#### Step 5: Bootstrap Flux
+### Step 5: Bootstrap Flux
 
 ```bash
 flux bootstrap github \
@@ -226,7 +133,7 @@ flux bootstrap github \
   --personal
 ```
 
-#### Step 6: Wait for Reconciliation
+### Step 6: Wait for reconciliation
 
 ```bash
 # Watch deploy
@@ -237,26 +144,23 @@ flux get kustomizations -A
 kubectl get helmrelease -A
 ```
 
-**Expect `apps` to fail here on a bare cluster, and do not treat it as a broken
-restore.** `require-networkpolicy` is a Deny ValidatingPolicy that counts the
-NetworkPolicies *live in the target namespace*, and kustomize-controller
-server-side dry-runs its entire apply set before persisting any of it. A
-workload and the NetworkPolicy that would satisfy it arrive in the same set, so
-the workload is rejected while the policy is still unwritten:
+**On a bare cluster, `apps` fails here. That does not mean the restore is broken.**
+`require-networkpolicy` is a Deny policy that counts the NetworkPolicies that exist in the target
+namespace right now. Flux's kustomize-controller dry-runs its whole set of changes on the server
+before it writes any of them. A workload and the NetworkPolicy that would allow it arrive in the
+same set, so the dry run rejects the workload while its policy is still unwritten:
 
 ```
 admission webhook denied the request: Namespace must declare at least one NetworkPolicy
 ```
 
-This is the documented two-commit new-namespace dance
-(`.claude/review-invariants.md`) hitting every namespace at once, and it has no
-in-repo fix yet. Unblock it by applying the namespaces and NetworkPolicies on
-their own — that is the only thing the workloads are waiting on — then let Flux
-reconcile everything else normally.
+This is the two-commit new-namespace problem (`.claude/review-invariants.md`) hitting every
+namespace at once, and the repo has no fix for it yet. To unblock it, apply the namespaces and
+NetworkPolicies on their own; the workloads wait on nothing else. Then let Flux reconcile the rest.
 
-This runs **after** `flux bootstrap`, not before: it is remediation for a
-reconcile that has already failed, not part of the pre-Flux secret restore.
-Flux converges on the next interval once the policies exist.
+Run this **after** `flux bootstrap`, not before: it repairs a reconcile that has already failed,
+and it is not part of the secret restore. Once the policies exist, Flux converges on its next
+run.
 
 ```bash
 # Run from a checkout of this repo, not from the cluster.
@@ -276,20 +180,22 @@ extract | kubectl apply --dry-run=server -f -    # expect 23 namespaces + 58 pol
 extract | kubectl apply -f -
 ```
 
-Then `flux reconcile kustomization apps --with-source` and watch
-`flux get kustomizations -A` go Ready. If a future change adds a bootstrap layer
-that reconciles NetworkPolicies before enforcement, this step goes away — check
-the Kustomization graph rather than assuming it is still needed.
+Then run `flux reconcile kustomization apps --with-source` and watch `flux get kustomizations -A`
+turn Ready. If a later change adds a layer that applies the NetworkPolicies before the policy
+check, this step is no longer needed; check the Kustomization graph before you assume it still is.
 
-#### Step 7: Restore Databases from Backups
+### Step 7: Restore the data
 
-Backups from 2 sources (preference order):
-1. **NAS** (192.168.1.136) — full history, rsync daemon port 50555
-2. **worker-node** (192.168.1.129) — source cleaned daily, may be empty
+The backups exist in two places. Use them in this order:
 
-**Copy backups from NAS to worker-node:**
+| Source | Notes |
+|---|---|
+| NAS (192.168.1.136), rsync daemon on port 50555 | full history |
+| worker-node (192.168.1.129) | the replication job cleans it daily, so it may be empty |
 
-Either run rsync directly on worker-node (needs a shell there and the password in your env):
+**Copy the backups from the NAS to worker-node.** Either run rsync on worker-node (you need a shell
+there and the password in your environment):
+
 ```bash
 # Get NAS creds from restored secrets or 1Password
 export RSYNC_PASSWORD='<nas-rsync-password>'
@@ -298,11 +204,11 @@ rsync -avz --port=50555 \
   /mnt/k8s-storage/backups/
 ```
 
-…or run it as a Job, which needs neither node SSH nor the password in your shell — it reads
-the existing `nas-rsync-credentials` secret and inherits the namespace's NAS egress policy.
-Prefer this when the SSH key is locked in 1Password mid-incident. Set `SUBDIR` to the backup
-type you need (`couchdb`, `postgres`, `mysql`, `pvc`); it fetches the newest archive plus its
-`.sha256` sidecar. Verified 2026-07-24.
+…or run it as a Job. The Job needs neither node SSH nor the password in your shell: it reads the
+existing `nas-rsync-credentials` Secret and uses the namespace's NAS egress policy. Prefer it if
+the SSH key is locked in 1Password during the incident. Set `SUBDIR` to the backup type you need
+(`couchdb`, `postgres`, `mysql` or `pvc`); the Job fetches the newest archive and its `.sha256`
+file. Last run 2026-07-24.
 
 ```bash
 kubectl apply -f - <<'EOF'
@@ -398,8 +304,8 @@ else
 fi
 ```
 
+#### PostgreSQL
 
-**PostgreSQL restore:**
 ```bash
 # Find latest backup
 LATEST_BACKUP=$(ls -t /mnt/k8s-storage/backups/postgres/postgres_*.tar.gz | head -1)
@@ -424,7 +330,12 @@ for DUMP in "$DUMP_DIR"/*.dump; do
 done
 ```
 
-**MySQL restore:**
+#### MySQL
+
+On a rebuilt cluster the MySQL databases and users do not exist yet. Create them first with
+[`mysql-create-dbs.sql`](mysql-create-dbs.sql) in this folder; replace each `<value>` with the
+password from the restored secrets. Then restore the dumps:
+
 ```bash
 # Find latest backup
 LATEST_MYSQL=$(ls -t /mnt/k8s-storage/backups/mysql/mysql_*.tar.gz | head -1)
@@ -450,53 +361,39 @@ for SQL in "$SQL_DIR"/*.sql; do
 done
 ```
 
-**CouchDB restore:**
+#### CouchDB
 
-> The restore Jobs on this page are applied straight to the cluster rather than committed to
-> Git — the one carve-out from the GitOps-only invariant in AGENTS.md, noted there too.
-> Committing them is not an option: Flux would re-run a destructive restore on every
-> reconcile. They are one-shot, ephemeral, and deleted once complete.
+> The restore Jobs on this page are applied straight to the cluster, not committed to Git. That
+> is the one exception to the GitOps-only rule in AGENTS.md, which notes it too. Committing them
+> would make Flux re-run a destructive restore on every reconcile. They run once and are deleted
+> when complete.
 
-`couchrestore` is NOT in the couchdb image — it ships with `@cloudant/couchbackup` (npm),
-the same tool the backup CronJob uses. Run it as a Job that reads the archive straight off
-the backup hostPath, mirroring how the backup CronJob reaches it. Admin creds come from the
-`couchdb-couchdb` secret, so they never land in shell history or the Job spec. They do reach
-the couchrestore child's argv inside the pod — `--url` is the only way to pass credentials,
-there are no user/password flags — so they are visible to anything that can read that pod's
-process list. The previous version carried the same exposure.
+The CouchDB image does not contain `couchrestore`; it ships with `@cloudant/couchbackup` (npm), the
+same tool the backup CronJob uses. So the restore runs as a Job that reads the archive straight off
+the backup `hostPath`, the way the backup CronJob reaches it. The admin credentials come from the
+`couchdb-couchdb` Secret, so they never appear in shell history or in the Job spec. They do reach the
+`couchrestore` command line inside the pod, because `--url` is its only way to take credentials, so
+anything that can read that pod's process list can see them.
 
-**Status: drilled end-to-end on 2026-07-24.** A full restore of the live Obsidian database
-into a scratch target completed — 1505 document revisions, 1479 docs against 1494 live (the
-gap is edits made after the 03:05 backup), deleted-doc counts matching exactly at 21.
+**Drilled end to end on 2026-07-24.** A full restore of the live Obsidian database into a scratch
+target completed: 1505 document revisions, 1479 documents against 1494 live (the difference is
+edits made after the 03:05 backup), and the deleted-document counts matched exactly at 21.
 
-Four things make a naive `kubectl run` fail here, all found by actually running it — and the
-reason the previous version of this runbook could not have worked:
+Four things make a plain `kubectl run` fail here. Each was found by running it:
 
-1. **Kyverno denies it.** All 12 ValidatingPolicies are Deny-enforcing. Every field below is
-   demanded by one of them: the `app` label (require-labels), requests+limits
-   (require-resource-limits), runAsNonRoot (require-non-root), seccompProfile
-   (require-seccomp-runtimedefault), drop ALL (require-drop-all-capabilities),
-   `allowPrivilegeEscalation: false` (disallow-privilege-escalation), readOnlyRootFilesystem
-   (require-readonly-rootfs), and a non-default serviceAccountName
-   (require-non-default-serviceaccount → `couchdb-jobs`). The webhook names only the FIRST
-   failing policy, so dropping one field gives a single misleading error, not a checklist.
-2. **ResourceQuota denies it a second time.** `namespace-quota` on `databases` leaves only
-   ~800m CPU free on a running cluster, so a 1-CPU limit is rejected even after Kyverno
-   passes. Check headroom first: `kubectl get resourcequota namespace-quota -n databases`.
-   In a real full restore the namespace is mostly empty and headroom is ample.
-3. **`readOnlyRootFilesystem` breaks npm.** Its default `~/.npm` is unwritable, so
-   `npm install` fails and couchrestore ends up simply absent. `HOME` and `npm_config_cache`
-   must point into the `/tmp` emptyDir.
-4. **The default `--parallelism 5` breaks authentication mid-restore.** See the comment on
-   the couchrestore invocation below — this one only shows up after several batches have
-   already succeeded, so it looks like a partial success rather than a broken command.
+| # | Problem | Fix in the Job below |
+|---|---|---|
+| 1 | **Kyverno denies it.** All 12 policies deny. The `app` label (require-labels), requests and limits (require-resource-limits), runAsNonRoot (require-non-root), seccompProfile (require-seccomp-runtimedefault), drop ALL (require-drop-all-capabilities), `allowPrivilegeEscalation: false` (disallow-privilege-escalation), readOnlyRootFilesystem (require-readonly-rootfs) and a non-default serviceAccountName (require-non-default-serviceaccount, so `couchdb-jobs`) are each required by one of them. The webhook names only the first failing policy, so a missing field gives one misleading error, not a list. | every field is set |
+| 2 | **The ResourceQuota denies it too.** `namespace-quota` on `databases` leaves only about 800m CPU free on a running cluster, so a 1-CPU limit is rejected even after Kyverno passes. Check first: `kubectl get resourcequota namespace-quota -n databases`. In a real full restore the namespace is mostly empty, so there is room. | a 500m limit |
+| 3 | **`readOnlyRootFilesystem` breaks npm.** Its default `~/.npm` is not writable, so `npm install` fails and `couchrestore` is simply missing. | `HOME` and `npm_config_cache` point into the `/tmp` emptyDir |
+| 4 | **The default `--parallelism 5` breaks authentication part-way.** It shows up only after several batches succeed, so it looks like a partial success. The comment on the `couchrestore` call explains it. | `--parallelism 1` |
 
-Also: `couchrestore` does NOT create the target database, and this image's busybox wget has
-**no `--method` flag** (only `--post-data`/`--post-file`) — so the pre-create uses Node's
-built-in `fetch` with an Authorization header. HTTP 412 = already exists = fine.
+Also: `couchrestore` does not create the target database, and this image's busybox `wget` has no
+`--method` flag (only `--post-data` and `--post-file`). So the Job creates the database with Node's
+built-in `fetch` and an Authorization header. HTTP 412 means it already exists, which is fine.
 
-The Job selects and checksum-verifies the archive itself, so this needs no node SSH — which
-matters because the key lives in 1Password and may be unavailable mid-incident.
+The Job picks the archive and checks its checksum itself, so it needs no node SSH. That matters
+because the SSH key lives in 1Password and may be unavailable during an incident.
 
 ```bash
 # ARCHIVE: leave EMPTY to use the newest archive; set a filename to pin a specific one.
@@ -664,27 +561,28 @@ else
 fi
 ```
 
-After a drill, drop the scratch databases (they are named `<db>-drill`):
+After a drill, drop the scratch databases (named `<db>-drill`):
+
 ```bash
 kubectl exec -n databases couchdb-couchdb-0 -c couchdb -- \
   curl -sS -X DELETE -u "$ADMIN_USER:$ADMIN_PASS" "http://127.0.0.1:5984/<db>-drill"
 ```
 
+#### App volumes (PVCs)
 
-**PVC restore:**
+The `pvc-backup` CronJob covers **14** PVCs across 10 namespaces. Nothing needs a lookup table:
+local-path names each volume directory `<pv-uuid>_<namespace>_<pvc-name>`, and the owning workload
+can be read from the PVC, so the restore finds both itself. A hardcoded name becomes wrong as soon
+as a PVC is recreated.
 
-The `pvc-backup` CronJob covers **14** PVCs across 10 namespaces, not the three this section used
-to name. Nothing needs a lookup table: local-path names each PV directory
-`<pv-uuid>_<namespace>_<pvc-name>`, and the owning workload is derivable from the PVC, so both
-are discovered at restore time. Hardcoding either goes stale the moment a PVC is recreated.
+Archives sit at `/mnt/k8s-storage/backups/pvc/<timestamp>/<namespace>/<pvc-name>.tar[.gz]`, each
+with a `.sha256` file. `audiobookshelf-audiobooks` and `audiobookshelf-podcasts` are stored
+**uncompressed** (`.tar`), because they hold audio that is already compressed; every other archive
+is `.tar.gz`.
 
-Archive layout is `/mnt/k8s-storage/backups/pvc/<timestamp>/<namespace>/<pvc-name>.tar[.gz]`
-plus a `.sha256` sidecar. `audiobookshelf-audiobooks` and `audiobookshelf-podcasts` are stored
-**uncompressed** (`.tar`) because they hold already-compressed audio; everything else is `.tar.gz`.
-
-Three steps, on two different hosts. Every PV backed up by this job is node-local to
-`worker-node`. Run each block whole — each one is `set -e` so a failed step stops before the
-next, rather than extracting into a running app or restarting on top of a half-extract.
+The restore takes three steps on two hosts. Every volume this job backs up lives on `worker-node`.
+Run each block whole: each one sets `set -e`, so a failed step stops before the next one, not
+after it has extracted into a running app or restarted on top of a half-done extract.
 
 ```bash
 # --- STEP 1 (workstation): stop the workload ---
@@ -776,8 +674,8 @@ kubectl scale "$WORKLOAD" -n "$NS" --replicas=1
 kubectl rollout status "$WORKLOAD" -n "$NS" --timeout=5m
 ```
 
-**If STEP 2 fails partway**, the original data is untouched under `.pre-restore-*`. Leave the
-workload stopped and roll back on the node before restarting anything:
+**If STEP 2 fails part-way**, the original data is untouched under `.pre-restore-*`. Leave the
+workload stopped and roll back on the node before you restart anything:
 
 ```bash
 # --- ROLLBACK (on worker-node) ---
@@ -809,19 +707,65 @@ mv "$SAVED" "$TARGET"
 echo "rolled back to $TARGET"
 ```
 
-Delete the `.pre-restore-*` directory only after the app is verified healthy — it is the
-rollback. `audiobookshelf` (4 PVCs) and `stirling-pdf` (3) share one Deployment each: run
-STEP 1 once, STEP 2 per PVC with `BACKUP_DIR` pinned, then STEP 3 once.
+Delete the `.pre-restore-*` directory only after the app is healthy; it is the rollback.
+`audiobookshelf` (4 PVCs) and `stirling-pdf` (3) each have one Deployment for all their PVCs: run
+STEP 1 once, STEP 2 once per PVC with `BACKUP_DIR` pinned, then STEP 3 once.
 
-> **Not drilled.** The discovery block and the PVC→PV→path→workload mapping were verified
+> **Not drilled.** The discovery block and the PVC → volume → path → workload mapping were checked
 > against the live cluster on 2026-07-25 for all 14 PVCs. The extract itself has **not** been
-> rehearsed end-to-end, unlike the CouchDB restore above. Run the checksum and `tar -tf` steps
-> first; they are the cheap guard against discovering a bad archive after the app is already down.
+> rehearsed end to end, unlike the CouchDB restore. Run the checksum and `tar -tf` steps first;
+> they are the cheap way to find a bad archive before the app is already down.
 
-Immich photos are excluded from PVC backups — they are covered by the weekly `immich-backup`
-CronJob (NAS `akhozya-pool1` pool).
+#### Immich library
 
-#### Step 8: Verify Applications
+The PVC backup leaves out the Immich photos; the weekly `immich-backup` CronJob covers them. The
+library lives on the NAS, mounted into `immich-vm` over virtiofs as a `hostPath` (the container
+sees it at `/data`). There is no library PVC, so a restore writes onto the NAS.
+
+```bash
+# 0) Pick a source tar + verify. The NAS pool is reachable from your workstation over
+#    the rsync daemon; the W2 copy (/mnt/extra-storage/immich-backup/<ts>/) is identical
+#    if you prefer restoring from the node instead.
+NAS=192.168.1.136
+RU=$(kubectl get secret -n backup-replication nas-rsync-credentials -o jsonpath='{.data.rsync-user}' | base64 -d)
+RP=$(kubectl get secret -n backup-replication nas-rsync-credentials -o jsonpath='{.data.rsync-password}' | base64 -d)
+# list available backups (newest last), then pick one:
+RSYNC_PASSWORD="$RP" rsync --port=50555 --list-only "rsync://${RU}@${NAS}/akhozya-pool1/backups/homelab/immich/"
+TS=20260714_100910   # <-- the dir you picked
+
+# 1) Fence writes, then WAIT for the server pod to actually terminate — `scale` is async,
+#    and a still-running pod would write into a half-restored tree.
+kubectl -n immich scale deploy/immich-server --replicas=0
+kubectl -n immich wait --for=delete pod \
+  -l app.kubernetes.io/instance=immich,app.kubernetes.io/name=server --timeout=120s
+
+# 2) On the NAS (akhozya owns /home/akhozya): verify SHA, THEN clear + extract — all in ONE
+#    guarded chain (`set -e` + `&&`) so a failed verify (or unset $TS) never reaches the
+#    delete. The tar's top level is the library's own subdirs (library/ thumbs/
+#    encoded-video/ upload/ profile/), so extract -C the library dir. `-mindepth 1 -delete`
+#    clears contents INCLUDING dotfiles (immich's .immich markers) while preserving the dir
+#    inode (see gotcha). ${TS:?} aborts locally if you forgot to set TS.
+POOL="/zettos/pool/1/teams/akhozya-pool1/DATA/akhozya-pool1/backups/homelab/immich/${TS:?set TS to the chosen backup dir first}" && \
+ssh zl-nas "set -e; cd '$POOL' && sha256sum -c immich-library.tar.sha256 && \
+            find /home/akhozya/immich/library -mindepth 1 -delete && \
+            tar -xf '$POOL/immich-library.tar' -C /home/akhozya/immich/library"
+
+# 3) Fix perms: the library subtrees are setgid group-writable (drwxrwsr-x) so the
+#    server pod (runAsGroup 1000 = group zettos-admins) can write.
+ssh zl-nas "chgrp -R zettos-admins /home/akhozya/immich/library && \
+            find /home/akhozya/immich/library -type d -exec chmod 2775 {} +"
+
+# 4) Bring immich back up, then verify the mount + DB↔disk.
+kubectl -n immich scale deploy/immich-server --replicas=1
+kubectl -n immich exec deploy/immich-server -- sh -c 'ls /data/library >/dev/null && echo "library mounted"'
+```
+
+| Gotcha | Detail |
+|---|---|
+| virtiofs follows the directory's inode | `immich-vm` holds the library directory open, so extract **in place**: clear its contents with `find library -mindepth 1 -delete`, then `tar -x -C library/`. The inode stays the same and the guest sees the new files at once. If you swap the directory instead (`mv library library.bad; mv library.new library`), the guest keeps seeing the old directory's inode until the VM is cold-cycled with `virsh shutdown --mode acpi` then `virsh start`. Never `virsh reboot`, `reset` or `destroy`: the GPU reset bug crashes the NAS host. |
+| Stop Immich first | Step 1 stops the server; without it, Immich writes thumbnails and uploads during the restore. |
+
+### Step 8: Check the apps
 
 ```bash
 # All pods running
@@ -835,33 +779,28 @@ curl -I https://immich.h0melab.work
 # Test OIDC login on all apps
 ```
 
-## Configuration Rollback (Git Tags)
+## Configuration rollback (Git tags)
 
-Distinct from data restore above: when a GitOps change (not a data loss) breaks the
-cluster, roll the **config** back to a known-good commit. A signed annotated tag is
-created before any large multi-commit infrastructure or security change
-(`pre-<name>-<date>`) so there is always a stable point to revert to — these tags
-survive many subsequent commits and act as named rollback handles.
+This is not a data restore. If a GitOps change, rather than lost data, breaks the cluster, roll
+the configuration back to a known-good commit. Before a large multi-commit infrastructure or
+security change, the owner creates a signed annotated tag (`pre-<name>-<date>`), so there is a
+stable point to return to.
 
-**Known rollback handles:**
-
-| Tag | Baseline |
+| Tag | What it marks |
 |---|---|
-| `pre-ultrareview-2026-05-23` | Last known-good commit before a large round of security and reliability changes (Kyverno enforcement, HelmRelease drift fixes, CSP, priority classes). Primary config-rollback handle. |
-| `pre-w7-2026-05-24` | Before the CI gates were added (`validate.yaml`). |
-| `pre-w8-2026-05-24` | Before promoting Kyverno policies from Audit to Enforce. |
+| `pre-ultrareview-2026-07-03` | The state before the fix waves of the 2026-07-03 ultrareview (52 findings) |
 
 ```bash
 # Inspect a handle
-git show pre-ultrareview-2026-05-23 --stat
+git show pre-ultrareview-2026-07-03 --stat
 
 # Roll config back (only if no downstream collaborator commits since the tag)
-git reset --hard pre-ultrareview-2026-05-23
+git reset --hard pre-ultrareview-2026-07-03
 git push --force-with-lease origin main
-# Flux reconciles the reverted manifests within 60s (or force: fr)
+# Flux fetches main every 5 min and applies the reverted manifests (to force it: flux reconcile source git flux-system)
 ```
 
-Create a new handle before the next large change:
+Create a new tag before the next large change:
 
 ```bash
 git tag -a pre-<name>-$(date +%Y-%m-%d) -m "Baseline before <description>"
@@ -869,9 +808,7 @@ git push origin pre-<name>-$(date +%Y-%m-%d)
 # NOTE: must be annotated (-a) — lightweight tags fail under [tag] gpgsign = true
 ```
 
-## Verification
-
-After recovery, verify:
+## Checks after a recovery
 
 ```bash
 # All resources
@@ -897,49 +834,30 @@ kubectl get ingress -A
 # - https://n8n.h0melab.work
 ```
 
-## What Gets Restored
+## What comes back, and how
 
-### Automatically (via GitOps after Flux bootstrap)
-- All K8s manifests (deployments, services, ingresses)
-- All Helm releases (monitoring, databases, apps)
-- NetworkPolicies, RBAC, ConfigMaps
-- VMAlert rules (VMRules)
-- Grafana dashboards (via ConfigMaps)
-- Loki + Alloy log aggregation
+| How | What |
+|---|---|
+| Flux, after bootstrap | every Kubernetes manifest (Deployments, Services, Ingresses), every Helm release, NetworkPolicies, RBAC, ConfigMaps, alert rules, Grafana dashboards, Loki and Alloy |
+| The secret backup scripts, before Flux | the SOPS age key (without it Flux cannot decrypt anything), every app secret, the OIDC secrets for Authentik sign-in (7 apps and Grafana), database credentials, infrastructure secrets (Cloudflare), monitoring credentials, backup replication credentials |
+| The data backups on the NAS, using the procedures above | every PostgreSQL app database; MySQL `homeassistant`, `uptimekuma`, `pricebuddy`; CouchDB `obsidian-personal`; the 14 PVCs; the Immich library |
+| By hand, once | DNS A records for `*.h0melab.work`, only if the node IPs changed. Firewall rules need nothing: the Ansible role applies them in step 1. |
 
-### Via Backup Scripts (run BEFORE Flux bootstrap)
-- **SOPS age encryption key** (CRITICAL — enables Flux to decrypt secrets)
-- **All application secrets** (creds, API keys, env vars)
-- **All OIDC integration secrets** (Authentik SSO for 8 apps)
-- **Database credentials** (Redis, PostgreSQL users, MySQL cluster + app users)
-- **Infrastructure secrets** (Cloudflare tokens, tunnel creds)
-- **Monitoring credentials** (Grafana admin, Telegram bot)
-- **Backup replication credentials** (NAS rsync creds, Telegram)
+## Practices
 
-### Via Automated Backups (restore from NAS)
-- **PostgreSQL databases** — all app DBs backed up daily
-- **MySQL databases** — homeassistant, uptimekuma, pricebuddy backed up daily
-- **CouchDB databases** — obsidian-personal backed up daily
-- **Critical PVCs** — HA, Paperless, Audiobookshelf
-- Use restore procedures in `docs/BACKUP_STRATEGY.md`
+| Practice | Detail |
+|---|---|
+| Encrypt the secret backups | keep `.backup/secrets/` output on encrypted storage |
+| Rotate after a recovery | rotate the sensitive tokens once the cluster is back |
+| Drill | run a restore drill regularly. There is no staging cluster, so restore into scratch databases (the CouchDB Job's `-drill` suffix) or on spare hardware. A scratch namespace alone is not enough: the volume restores write to `hostPath` directories on the node and the Immich restore writes to the NAS library, both shared with production. |
+| Keep this page current | update it when you add a secret or a service |
+| Keep an offline copy | the backup scripts and the secrets, offline (USB, password manager) |
 
-### Manual Steps Required (one-time)
-- **DNS A records** — only if node IPs changed:
-  - `*.h0melab.work` records → node IPs
-- **Firewall rules** — none: ansible `firewall` role applies them (Step 1)
+## If something fails
 
-## Security Best Practices
-
-1. **Encrypt backups:** encrypted storage for `.backup/secrets/`
-2. **Rotate creds:** after recovery, rotate sensitive tokens
-3. **Test recovery:** periodic restore drill (single env — no staging)
-4. **Document changes:** update guide when adding secrets/services
-5. **Offline copy:** backup scripts + secrets offline (USB, password manager)
-
-## Support
-
-Issues:
-1. Flux events: `flux events`
-2. Pod logs: `kubectl logs -n <namespace> <pod>`
-3. Secrets exist: `kubectl get secrets -A`
-4. Reconciliation: `flux get kustomizations -A`
+| Check | Command |
+|---|---|
+| Flux events | `flux events` |
+| Pod logs | `kubectl logs -n <namespace> <pod>` |
+| Secrets present | `kubectl get secrets -A` |
+| Reconciliation | `flux get kustomizations -A` |
