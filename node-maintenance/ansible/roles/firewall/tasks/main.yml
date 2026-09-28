@@ -14,7 +14,9 @@
 #       (unconditional reload wedged W2's k3s tunnel 2026-07-10 — see task below)
 #   L2  per-task retries: until/retries=10 delay=20 → 200s window/task
 #   L3  block/rescue around UFW rule set: on rescue → diag snapshot +
-#       ufw-heal-post-k3s.sh + one re-attempt of the rule batch
+#       ufw-heal-post-k3s.sh. The fingerprint stays uncached, so the next run
+#       re-applies the batch, and the last play of node-config.yml fails the
+#       node so the run alerts.
 #   L4  modules-load.d persistence + systemd ordering
 #   L5  boot-time healer: ufw-heal-post-k3s.service
 
@@ -161,14 +163,14 @@
   tags: [firewall]
 
 # UFW rule application — wrapped in block/rescue for L3 resilience.
-# On rescue: diag snapshot → ufw-heal-post-k3s.sh → single re-attempt.
 # Per-task retries (L2): retries=10 delay=20 = 200s window/task. Survives
 # longer kube-proxy/flannel race bursts (50s window was insufficient
 # 2026-04-29; multiple W2 fatals at attempts=5).
 #
 # Gated on ufw_drift_detected (above). Default-true on first run (no cache).
-- name: UFW rules block (with rescue heal+retry)
+- name: UFW rules block (with rescue heal)
   when: ufw_drift_detected | default(true)
+  tags: [firewall]
   block:
     - name: Ensure SSH rule (lockout-safety, applied before policies)
       community.general.ufw:
@@ -182,31 +184,42 @@
       retries: 10
       delay: 20
 
-    - name: Set UFW default incoming policy + logging
+    # `ufw default` stops and starts the whole firewall on every call, even when the
+    # policy already matches (ufw's frontend.set_default_policy), and the module always
+    # runs it. In check mode the module only parses `ufw status verbose`, so the probe
+    # finds the directions that differ, and the next task sets only those.
+    - name: Probe UFW default policies (check mode)
       community.general.ufw:
-        default: "{{ ufw_policy_incoming }}"
-        direction: incoming
+        default: "{{ item.policy }}"
+        direction: "{{ item.direction }}"
+      loop:
+        - { direction: incoming, policy: "{{ ufw_policy_incoming }}" }
+        - { direction: outgoing, policy: "{{ ufw_policy_outgoing }}" }
+        - { direction: routed, policy: "{{ ufw_policy_routed }}" }
+      check_mode: true
+      register: ufw_default_probe
+      until: ufw_default_probe is not failed
+      retries: 10
+      delay: 20
+
+    - name: Set UFW default policies that differ
+      community.general.ufw:
+        default: "{{ item.item.policy }}"
+        direction: "{{ item.item.direction }}"
+      loop: "{{ ufw_default_probe.results | selectattr('changed') | list }}"
+      loop_control:
+        label: "{{ item.item.direction }} {{ item.item.policy }}"
+      register: ufw_default_set
+      until: ufw_default_set is not failed
+      retries: 10
+      delay: 20
+
+    # Logging changes only the logging chains; it does not restart the firewall.
+    - name: Set UFW logging level
+      community.general.ufw:
         logging: "{{ ufw_logging }}"
-      register: ufw_default_in
-      until: ufw_default_in is not failed
-      retries: 10
-      delay: 20
-
-    - name: Set UFW default outgoing policy
-      community.general.ufw:
-        default: "{{ ufw_policy_outgoing }}"
-        direction: outgoing
-      register: ufw_default_out
-      until: ufw_default_out is not failed
-      retries: 10
-      delay: 20
-
-    - name: Set UFW default routed policy
-      community.general.ufw:
-        default: "{{ ufw_policy_routed }}"
-        direction: routed
-      register: ufw_default_routed
-      until: ufw_default_routed is not failed
+      register: ufw_logging_set
+      until: ufw_logging_set is not failed
       retries: 10
       delay: 20
 
@@ -300,20 +313,11 @@
           heal_rc={{ ufw_rescue_heal.rc | default('?') }}
           heal_stderr={{ (ufw_rescue_heal.stderr_lines | default([]))[-5:] }}
 
-    # Re-attempt the single most-likely-to-fail policy task. If still fails,
-    # play continues to next task (community.general.ufw rule batch is
-    # idempotent on subsequent run).
-    - name: Re-attempt UFW default incoming policy after heal
-      community.general.ufw:
-        default: "{{ ufw_policy_incoming }}"
-        direction: incoming
-        logging: "{{ ufw_logging }}"
-      register: ufw_rescue_retry
-      until: ufw_rescue_retry is not failed
-      retries: 5
-      delay: 15
-      failed_when: false
-  tags: [firewall]
+    # Failing here would stop the serial:1 firewall play for every node after this one.
+    # node-config.yml's last play fails this node instead, once all plays have run.
+    - name: Record that the UFW rule batch needed the rescue
+      ansible.builtin.set_fact:
+        ufw_rescue_ran: true
 
 # Update fingerprint cache after a clean block run. Skipped if rescue ran
 # (state may be partially healed; want next run to re-evaluate, not cache

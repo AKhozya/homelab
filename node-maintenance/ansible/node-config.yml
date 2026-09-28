@@ -91,3 +91,19 @@
     # control-plane wedge. Fixes the gap where a CP-pinned pod (e.g. uptime-kuma) stays DNS-dead
     # post-reboot with no auto-heal.
     - role: clusterip_heal_cp
+
+# The firewall role's rescue lets the serial:1 firewall play go on to the next node. This
+# play fails each node whose UFW rule batch needed that rescue, after every other play has
+# run, so the recap counts it and node-config-notify.sh alerts.
+- name: Node config drift-heal — report a firewall rescue
+  hosts: all
+  gather_facts: false
+  tags: [always]   # a --tags firewall run must still report its rescue
+  tasks:
+    - name: Fail if the UFW rule batch needed the rescue on this node
+      ansible.builtin.fail:
+        msg: >-
+          The UFW rule batch failed and the rescue ran ufw-heal-post-k3s.sh. The fingerprint
+          stays uncached, so the next drift-heal re-applies the batch. Diag snapshots:
+          /var/log/node-maintenance/ufw-diag-*.txt on this node.
+      when: ufw_rescue_ran | default(false)
