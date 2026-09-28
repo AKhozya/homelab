@@ -2616,43 +2616,253 @@ depend on the server key.
 Peer review: Codex static review of the plan (2 rounds) and of the manifests (1 round, verdict SHIP,
 one NIT fixed). Plan: `docs/plans/2026-07-19-rustdesk-server.md`.
 
-### 2026-07-18 — immich-vm modprobe cascade: kernel-modules-hook mislabelled AUR, two weeks of silently-failed patching
+### 2026-07-18 — immich-vm modprobe failure chain: kernel-modules-hook wrongly labelled AUR, and two weeks of package upgrades that failed unnoticed
 
-An operator `yay -Syyu` on immich-vm surfaced 33 pending packages, which should have been impossible on a node in the weekly flow. Four failures had stacked:
+The operator ran `yay -Syyu` on immich-vm and found 33 packages waiting to upgrade. That should have
+been impossible on a node that the weekly upgrade covers. Four failures had built up:
 
-- **`kernel-modules-hook` was mislabelled AUR.** It lives in `extra`, but `base_config/tasks/main.yml` called it "(AUR)" and `setup-node.sh` carried it in `AUR_PKGS`, whose install loop swallowed everything (`2>/dev/null … || true`). immich-vm was bootstrapped 2026-07-10, that step failed, nothing logged it. `phase2.yml:376` meanwhile asserts as fact that "the fleet convention installs kernel-modules-hook" — false for this node.
-- **Truncated packages blocked every upgrade.** `ripgrep` (later `zsh-completions`, `zsh-autosuggestions`) had zero-byte `desc`/`files` in `/var/lib/pacman/local/` plus partial `.zst` files in the cache. pacman could therefore neither tell it owned the installed paths (`ripgrep: /usr/bin/rg exists in filesystem`) nor verify the cached files (PGP invalid on a truncated download). Every `-Syu` aborted at "checking for file conflicts", upgrading nothing.
-- **The failure was invisible.** PLAY 1b's `yay` sits in a rescue with `failed_when: false` — correct, since a hard fail there strands `phase2-pending` and gates drift-heal cluster-wide (2026-06-20, ~1.7h) — so phase2 recorded `failed=0 rescued=1` on both 2026-07-11 and 2026-07-18. Telegram alerted both times, both went unnoticed. `NodeMaintenanceMissedRun` cannot catch this: it tracks whether the *run* completed, not whether each node's packages moved.
-- **The manual upgrade then fired the 2026-05-02 cascade.** `linux-lts 6.18.38-2 → -4` with no hook let `60-mkinitcpio-remove.hook` delete `/usr/lib/modules/6.18.38-2-lts` under the running kernel at 15:01:08. Every subsequent `modprobe` FATAL'd (`br_netfilter not found`). ufw and k3s-agent stayed up only because their modules were already resident — a reload would have reproduced the W1 ufw silent-disable → INPUT chain DROP. Worst node for it: immich-vm never in-guest reboots (reset-bug C3), so the stale-kernel window is long.
+- **`kernel-modules-hook` was wrongly labelled as an AUR package** (AUR: the Arch User Repository,
+  packages built from source). It is in the official `extra` repository. But
+  `base_config/tasks/main.yml` called it "(AUR)", and `setup-node.sh` listed it in `AUR_PKGS`. The
+  install loop for that list hid every error (`2>/dev/null … || true`). When immich-vm was set up on
+  2026-07-10, that step failed, and nothing logged it. Meanwhile, `phase2.yml:376` states as fact
+  that "the fleet convention installs kernel-modules-hook". That was false for this node.
+- **Truncated package records blocked every upgrade.** `ripgrep` (and later `zsh-completions` and
+  `zsh-autosuggestions`) had zero-byte `desc` and `files` entries in `/var/lib/pacman/local/`, and
+  partial `.zst` files in the package cache. So pacman could not tell that it owned the installed
+  paths (`ripgrep: /usr/bin/rg exists in filesystem`). Nor could it verify the cached files: a
+  truncated download fails the PGP signature check. Every `-Syu` stopped at "checking for file
+  conflicts" and upgraded nothing.
+- **The failure did not show.** The `yay` step in PLAY 1b sits in an Ansible rescue block with
+  `failed_when: false`, so its failure does not stop the run. That is correct: a hard failure there
+  leaves the `phase2-pending` marker behind, and the marker blocks drift-heal on every node (this
+  happened on 2026-06-20, for ~1.7h). So phase2 recorded `failed=0 rescued=1` on both 2026-07-11
+  and 2026-07-18. Telegram sent an alert both times, and nobody noticed either one.
+  `NodeMaintenanceMissedRun` cannot catch this, because it tracks whether the *run* completed, not
+  whether each node's packages were upgraded.
+- **The manual upgrade then set off the same chain of failures as on 2026-05-02.**
+  `linux-lts 6.18.38-2 → -4` ran with no hook, so `60-mkinitcpio-remove.hook` deleted
+  `/usr/lib/modules/6.18.38-2-lts` while that kernel was still running, at 15:01:08. After that,
+  every `modprobe` failed with FATAL (`br_netfilter not found`). ufw and k3s-agent stayed up only
+  because their modules were already loaded. A reload would have repeated what happened on W1
+  (worker-node): ufw turned itself off without a message, and the INPUT chain was left on DROP.
+  immich-vm is the worst node for this. It never reboots from inside the guest (because of the GPU
+  reset bug, rule C3), so its running kernel can stay out of step with the installed modules for a
+  long time.
 
-Fixes (`d8ecf27b`, `0fdd88f1`): a fleet-parity audit (immich-vm vs W1/W2) found 19 hand-installed, never-declared packages; the 13 repo-installable ones added to `pacman_packages_base` — `arch-audit bc chezmoi duf dust fd github-cli helm kernel-modules-hook kubectl neovim xclip zoxide`. Excluded with reasons recorded in-file: `flux-bin viddy zsh-you-should-use` (AUR-only, list is pacman-only by design), `packagekit pkgstats udisks2` (dependency leftovers). `kernel-modules-hook` removed from `AUR_PKGS` and the stale "(AUR)" comments corrected, so it is declarative with the role's retries instead of bootstrap-only best-effort. `base_config`'s missing-hook `debug` warn escalated to `fail` (node-config is a separate playbook from phase2, so it cannot wedge `phase2-pending`). New `tasks/pkg-upgrade-metric.yml` emits `node_pkg_upgrade_success` from all three `yay` call sites into its own `.prom` file — deliberately not `metrics_file`, which phase2 post-tasks `copy` wholesale on the CP and would clobber; `failed_when: false` so telemetry can never fail the run it reports on. New `NodePackageUpgradeFailed` alert (`== 0` for 1h) fills the per-node gap; it would have fired 2026-07-11. `setup-node.sh`'s AUR loop no longer discards stderr — failures are collected and reported with a retry command, still non-fatal so an optional firmware blob cannot abort bootstrap.
+Fixes (`d8ecf27b`, `0fdd88f1`):
 
-Recovery: truncated packages repaired with `pacman -S --overwrite '/usr/*'` after clearing zero-byte cache files (the corrupt cache was the actual `-Syu` blocker; targeted delete, not `pacman -Sc` — no reason to discard 460+ good entries), hook installed, `linux-modules-cleanup.service` enabled, then a reset-bug-safe cold-cycle (graceful `poweroff` → `immich-vm-heal` watchdog `virsh start`, ~2 min). Verified back on `6.18.38-4-lts` with 6407 modules, `modprobe` working, GPU passthrough intact (`gpu.intel.com/i915: 10`), immich-server Running, 4/4 nodes Ready, zero not-Running pods. Pre-flight confirmed every other workload on the node was 2/2 or 3/3 with PDB headroom, and that the postgres primary (PDB allows 0 disruptions) sits on worker-node.
+- A comparison of the packages on each node (immich-vm against W1/W2) found 19 packages that were
+  installed by hand and never declared. The 13 that the official repositories carry went into
+  `pacman_packages_base`:
+  `arch-audit bc chezmoi duf dust fd github-cli helm kernel-modules-hook kubectl neovim xclip zoxide`.
+  The file records why the others stay out. `flux-bin viddy zsh-you-should-use` are AUR-only, and
+  the list holds pacman packages only, by design. `packagekit pkgstats udisks2` are leftovers from
+  dependencies.
+- `kernel-modules-hook` left `AUR_PKGS`, and the stale "(AUR)" comments were corrected. So the role
+  now declares the hook and installs it with its retries, instead of one best-effort attempt at
+  first setup.
+- In `base_config`, a missing hook used to raise a `debug` warning; it now raises `fail`.
+  node-config is a separate playbook from phase2, so this failure cannot leave `phase2-pending`
+  stuck.
+- New `tasks/pkg-upgrade-metric.yml` writes `node_pkg_upgrade_success` from all three places that
+  call `yay`, into its own `.prom` file. It avoids `metrics_file` on purpose: the phase2 post-tasks
+  `copy` that whole file on the control plane, which would overwrite the metric. It sets
+  `failed_when: false`, so the metric can never fail the run it reports on.
+- New `NodePackageUpgradeFailed` alert (`== 0` for 1h) reports package-upgrade failures on each
+  node, which the run-completion alert did not. It would have fired on 2026-07-11.
+- The AUR loop in `setup-node.sh` no longer throws away stderr. It collects the failures and reports
+  them with a command to retry. They stay non-fatal, so an optional firmware package cannot stop the
+  first setup.
 
-Likely source of the truncation: `last -x` shows **8 crashes** across 2026-07-10 → 07-13, the VM's build-out window, consistent with unclean shutdowns mid-write (the reset-bug takes the NAS host down with it). Not proven — the current boot mounts clean with no ext4 recovery, and `/usr/bin/rg` is dated Jun 16, predating the cluster join, so that one likely arrived with the image. Detector for recurrence: `find /var/lib/pacman/local -maxdepth 2 -name desc -size 0`. Note zero-byte files alone are **not** a corruption signal — `linux-lts-headers` legitimately ships ~10,900 empty Kconfig marker stubs; the signature is an empty `desc`.
+Recovery, in this order:
 
-**Open:** `NodePackageUpgradeFailed` cannot fire until the metric series exists, so it is inert until the next scheduled run (2026-07-25 05:30). If `node_pkg_upgrade.prom` does not appear on all four nodes after that run, the alert is silently dead and needs checking.
+| Step | Detail |
+|---|---|
+| delete the zero-byte files in the package cache | the corrupt cache was what really blocked `-Syu`. A targeted delete kept 460+ good entries that `pacman -Sc` would have thrown away for no reason |
+| repair the truncated packages | `pacman -S --overwrite '/usr/*'` |
+| install the hook | |
+| enable the cleanup service | `linux-modules-cleanup.service` |
+| power the VM off and on in a way that avoids the reset bug | a clean `poweroff`, then the `immich-vm-heal` watchdog ran `virsh start` (~2 min) |
 
-### 2026-07-17 — claude-telegram 1.27.15: track latest Anthropic SDK/CLI + codex; SDK 0.3.212 tool-gate audit
+| Check after the restart | Result |
+|---|---|
+| kernel | back on `6.18.38-4-lts`, with 6407 modules |
+| `modprobe` | works |
+| GPU passthrough | intact (`gpu.intel.com/i915: 10`) |
+| immich-server | Running |
+| nodes | 4/4 Ready |
+| pods not Running | zero |
 
-Follow-on to 1.27.14 (same day): 7-day supply-chain lag on trusted publishers dropped by decision — the SDK tool-surface tripwire test is the safety net. bunfig gained `minimumReleaseAgeExcludes` for the Anthropic SDK + all 8 platform packages (7-day quarantine kept for the ~117 third-party deps; Codex review caught 2 missing platform names — enumerate from bun.lock). Dockerfile codex install dropped the `--before` gate → `@openai/codex@latest`. SDK 0.3.212 tripwire fired on 3 new built-in tools, classified: RefreshMcpTools allowed; SendFeedback denied (external publish channel); ProposeSkills denied (skill-injection persistence). 179/179 tests green, image built/pushed locally (CI still billing-blocked), pod verified: codex 0.144.5, engine CLI 2.1.212, SDK 0.3.212.
+Before the restart, checks confirmed that every other workload on the node ran 2/2 or 3/3 with room
+under its PodDisruptionBudget (PDB). A PodDisruptionBudget limits voluntary evictions, such as those
+during a node drain (evicting eligible pods before node maintenance). They also confirmed that the postgres primary,
+whose PDB allows 0 disruptions, runs on worker-node.
 
-Base-image review (user question "does alpine still make sense?"): **stay on alpine** — apk carries current gh + chezmoi (debian stable has neither fresh; switch would resurrect `curl | sh` installs), every runtime binary is musl-safe (SDK ships a musl engine variant, codex is static musl, kubectl/flux static Go), and the alpine base is 22–41 MB smaller compressed than slim/debian.
+Likely cause of the truncation: `last -x` shows **8 crashes** from 2026-07-10 to 07-13, while the
+VM was being built. That fits unclean shutdowns in the middle of writes (the reset bug takes the NAS
+host down with the VM). This is not proven. The current boot mounted clean, with no ext4 recovery.
+`/usr/bin/rg` is dated Jun 16, before the node joined the cluster, so that file likely came with the
+image. To detect a repeat: `find /var/lib/pacman/local -maxdepth 2 -name desc -size 0`. Zero-byte
+files alone are **not** a sign of corruption: `linux-lts-headers` ships ~10,900 empty Kconfig marker
+files on purpose. The sign is an empty `desc`.
 
-### 2026-07-17 — claude-telegram 1.27.14: Dockerfile install hardening, shipped via local build (CI billing-blocked)
+**Open:** `NodePackageUpgradeFailed` cannot fire until the metric series exists, so it does nothing
+until the next scheduled run (2026-07-25 05:30). If `node_pkg_upgrade.prom` does not appear on all
+four nodes after that run, the alert cannot fire and nothing reports that, so it needs checking.
 
-Dockerfile linter audit (droast) flagged the flux `curl | bash` install — floating version + pipe-to-shell. Fork rework (`9c56118`): flux pinned `ARG FLUX_VERSION=2.9.2` (cluster minor) with sha256 verify against release checksums; kubectl download now checksum-verified; chezmoi switched from `curl get.chezmoi.io | sh` to `apk add chezmoi`; codex un-pinned to latest behind `npm --before=(now−7d)` gate + BUILD_TS layer-bust — mirrors bunfig `minimumReleaseAge`, closing the codex-not-gated asymmetry. apk RUNs consolidated, unpinned-by-design documented in-file.
+### 2026-07-17 — claude-telegram 1.27.15: follow the latest Anthropic SDK, CLI and codex; audit of the tools in SDK 0.3.212
 
-- **Gate proof**: codex resolved 0.144.1 (0.144.5 was 1 day old — excluded); SDK 0.3.206 vs latest 0.3.212 (same 7-day logic).
-- **Ship**: GitHub Actions still billing-blocked (Jul 16 scheduled run failed in 4s) → local escape hatch: CI replica green (typecheck + compile + 179 tests), amd64 build, GHCR push, tag `claude-telegram-v1.27.14`, deployment bump `9cab06fb`.
-- **Verified in-pod**: engine CLI 2.1.206 / SDK 0.3.206 lockstep, codex 0.144.1, flux 2.9.2, chezmoi v2.62.5 (37 skills applied), bot polling.
-- Codex static review: SHIP, zero findings.
+This followed 1.27.14 on the same day. The operator decided to drop the 7-day wait before installing
+new releases from trusted publishers, a wait that protects against a compromised release. The SDK
+tool-surface tripwire test now provides the safety: it flags the tools that a new SDK version adds.
+bunfig gained `minimumReleaseAgeExcludes` for the Anthropic SDK and all 8 of its platform packages.
+The 7-day wait stays for the ~117 third-party dependencies. Codex review caught 2 missing platform
+names, so the list should be taken from bun.lock. The Dockerfile's codex install dropped the
+`--before` gate and now installs `@openai/codex@latest`.
+
+The SDK 0.3.212 tripwire fired on 3 new built-in tools:
+
+| Tool | Decision |
+|---|---|
+| RefreshMcpTools | allowed |
+| SendFeedback | denied: it publishes to an outside channel |
+| ProposeSkills | denied: it could inject skills that persist |
+
+179/179 tests passed. The image was built and pushed locally, because CI was still blocked by
+billing. Checked in the pod:
+
+| Component | Version |
+|---|---|
+| codex | 0.144.5 |
+| engine CLI | 2.1.212 |
+| SDK | 0.3.212 |
+
+Base image review, after the user asked "does alpine still make sense?": **stay on alpine**.
+
+- apk carries current versions of gh and chezmoi. Debian stable carries neither at a recent version,
+  so a switch would bring back `curl | sh` installs.
+- Every binary the image runs works with musl (Alpine's C standard library). The SDK ships a musl
+  build of its engine, codex is a static musl binary, and kubectl and flux are static Go binaries.
+- The compressed alpine base is 22–41 MB smaller than slim or debian.
+
+### 2026-07-17 — claude-telegram 1.27.14: safer installs in the Dockerfile, shipped from a local build (CI blocked by billing)
+
+A Dockerfile linter (droast) flagged the flux install, `curl | bash`: it took whatever version was
+newest and piped a script into a shell. Changes in the fork (`9c56118`):
+
+| Tool | Change |
+|---|---|
+| flux | pinned with `ARG FLUX_VERSION=2.9.2`, the cluster's minor version, and its sha256 is checked against the release checksums |
+| kubectl | the download is now checked against its checksum |
+| codex | no longer pinned. It installs the latest release that passes an `npm --before=(now−7d)` gate, and a BUILD_TS value forces that layer to rebuild. This matches bunfig's `minimumReleaseAge`. Before, the delay set in bunfig did not cover codex |
+| apk | the RUN steps were merged, and a comment in the file says that the apk packages are unpinned by design |
+
+chezmoi now installs with `apk add chezmoi` instead of `curl get.chezmoi.io | sh`.
+
+Results:
+
+- **Proof that the gate works:** codex resolved to 0.144.1, because 0.144.5 was 1 day old and the
+  gate excluded it. The SDK resolved to 0.3.206, not the latest 0.3.212, by the same 7-day rule.
+- **Shipping:** GitHub Actions was still blocked by billing (the scheduled run on Jul 16 failed in
+  4s). So the release took the local fallback path, in this order:
+
+| Step | Detail |
+|---|---|
+| a local copy of the CI checks | passed: typecheck, compile and 179 tests |
+| build | amd64 |
+| push | GHCR |
+| tag | `claude-telegram-v1.27.14` |
+| deployment update | `9cab06fb` |
+
+Checked in the pod:
+
+| Component | Result |
+|---|---|
+| engine CLI and SDK | engine CLI 2.1.206 with its matching SDK release, 0.3.206 |
+| codex | 0.144.1 |
+| flux | 2.9.2 |
+| chezmoi | v2.62.5, 37 skills applied |
+| bot | polling |
+
+Codex static review: SHIP, zero findings.
 
 ### 2026-07-17 — Redis sentinel "memory leak" root-caused: operator annotation hot loop (live-object fix, no manifest change)
 
-`ContainerMemoryNearLimit` on the sentinel pods had been re-firing through two limit bumps (64→128Mi `1199988d`, 128→192Mi `57bb642a`) and an operator CPU bump (`c214e0cd`) — all symptom-chasing. Actual chain: the 2026-07-03 controllers→configs move (`8595de63`/`d771464d`) put a temporary `kustomize.toolkit.fluxcd.io/prune: disabled` annotation on the Redis CRs for 4 minutes; the opstree operator (v0.24.0) propagated it to its 12 owned children (2 STS, 8 SVC, 2 PDB). After the annotation left the CRs, the operator diffed the children every reconcile but its client-side merge can never delete an annotation → non-convergent update → its own StatefulSet watch re-queued it → self-sustaining ~3.4s loop. Since upstream PR #1533 every sentinel reconcile unconditionally runs SENTINEL MONITOR/SET/RESET, so the sentinels took ~25,400 RESETs/day each (Loki baseline: 5–19/day before Jul 4), each one rewriting `sentinel.conf` (1.5GB written per pod in 2.7d) — the "leak" was ~145Mi of reclaimable dentry/inode slab in the container cgroup (`memory.stat kernel`), process RSS a flat 17Mi. Side effects while looping: sentinel known-replica/sentinel state wiped every 3s (failover-reliability risk), ~76k spurious operator→redis connections/day (`pool.go:380 Conn has unread data`), operator CPU throttling.
+`ContainerMemoryNearLimit` kept firing on the sentinel pods through two raises of the memory limit
+(64→128Mi `1199988d`, then 128→192Mi `57bb642a`) and a raise of the operator's CPU (`c214e0cd`).
+All three treated the symptom, not the cause. The real chain of events:
 
-Fix was live-object metadata cleanup on operator-owned (non-git) objects — `kubectl annotate … kustomize.toolkit.fluxcd.io/prune-` across the 12 children; the loop stopped instantly (0 STS events, 0 resets, 0 operator errors after; verified via watch + Loki). Residual: the accumulated slab doesn't self-reclaim, so sentinels need a sequential pod restart to clear ~154Mi working-set and silence the alert. Gotcha codified in agent memory (incl.: never `rollout restart` an opstree STS — the injected `restartedAt` template annotation re-arms the same loop; and any future prune-dance over operator-parent CRs must sweep the children afterwards). Same-day closure: symptom-bumps reverted (`9fe9ccb7` — sentinel back to 32Mi/64Mi requests/limits + 10m CPU request, operator CPU limit 200m; the pre-loop 300m sentinel CPU limit from `8447338d` and the kyverno half of `c214e0cd` kept); the revert's pod roll cleared the slab (working set 8–17Mi), alert resolved, quorum verified, no loop re-entry. CI was infra-red (GitHub runner outage, all jobs/all SHAs) — local ladder + trivial-revert classification authorized `fr` per gate rules. Upstream issue filed with full forensics + mitigation: [OT-CONTAINER-KIT/redis-operator#1840](https://github.com/OT-CONTAINER-KIT/redis-operator/issues/1840). Observation window to 2026-07-24: sentinel memory flat, reset rate ≤20/day, operator un-throttled at 200m; the 64Mi limit doubles as canary (loop recurrence re-fires the alert in under a day). Operator chart 0.26.0 (2026-07-15) remains unverified for this bug class.
+- The 2026-07-03 move of the Redis resources from controllers to configs (`8595de63`/`d771464d`)
+  put a temporary `kustomize.toolkit.fluxcd.io/prune: disabled` annotation on the Redis custom
+  resources for 4 minutes. (A custom resource is an object of a type that an operator adds to
+  Kubernetes; the opstree operator builds Redis from these.)
+- The opstree operator (v0.24.0) copied that annotation to the 12 child objects it owns (2
+  StatefulSets, 8 Services, 2 PodDisruptionBudgets). A StatefulSet runs pods that keep stable
+  names and storage. A PodDisruptionBudget limits voluntary evictions, such as those during a node
+  drain.
+- After the annotation left the custom resources, the operator compared the children on every
+  reconcile (each pass in which it compares the wanted state with the live objects and fixes
+  differences). But its client-side merge can never delete an annotation, so no update ever reached
+  the wanted state. The operator's own watch on the StatefulSet queued the object again, and that
+  made a loop that kept itself going every ~3.4s. This is the "hot loop" in the heading: the same
+  update repeated without end.
+- Since upstream PR #1533, every sentinel reconcile runs SENTINEL MONITOR/SET/RESET without
+  conditions. So each sentinel took ~25,400 RESETs a day (Loki shows 5–19 a day before Jul 4).
+  Each RESET rewrote `sentinel.conf`: 1.5GB written per pod in 2.7d.
+- The "leak" was ~145Mi of dentry and inode slab (kernel caches of file names and file metadata)
+  in the container's cgroup (the kernel's accounting group for the container), which the kernel can
+  reclaim (`memory.stat kernel`). The process's own
+  memory (RSS) stayed flat at 17Mi.
+
+Side effects while the loop ran:
+
+| Side effect | Detail |
+|---|---|
+| sentinel state wiped | the sentinels' record of known replicas and other sentinels, every 3s, a risk to failover |
+| needless connections from the operator to redis | ~76k a day (`pool.go:380 Conn has unread data`) |
+| operator CPU | throttled |
+
+The fix changed metadata on live objects that the operator owns and git does not hold:
+`kubectl annotate … kustomize.toolkit.fluxcd.io/prune-` on each of the 12 children. The loop
+stopped at once. Afterwards there were 0 StatefulSet events, 0 resets and 0 operator errors (checked
+with a watch and in Loki). One problem remained: the slab that had built up is not reclaimed on its
+own. So the sentinels needed a restart, one pod at a time, to clear the ~154Mi working set and the
+alert. The lesson is recorded in the agent's memory, including two rules. Never run
+`rollout restart` (it restarts every pod of a workload) on an opstree StatefulSet: the
+`restartedAt` annotation it adds to the pod
+template starts the same loop again. And if a future change adds and removes the prune annotation
+on custom resources that an operator manages, it must also remove the annotation from their
+children afterwards.
+
+Closed the same day: the raises that treated the symptom were reverted (`9fe9ccb7`). The sentinel
+went back to 32Mi/64Mi requests/limits and a 10m CPU request, and the operator's CPU limit went back
+to 200m. Two earlier changes stayed: the 300m sentinel CPU limit from `8447338d`, set before the
+loop began, and the Kyverno half of `c214e0cd`. The revert restarted the pods. After that:
+
+| Check | Result |
+|---|---|
+| slab | cleared (working set 8–17Mi) |
+| alert | resolved |
+| sentinel quorum (the number of sentinels that must agree before a failover) | checked |
+| loop | did not return |
+
+CI failed for an infrastructure reason: a GitHub runner outage failed all jobs on all commits.
+Under the gate rules, the local validation steps and the classification of the change as a
+trivial revert allowed running `fr` (the command that tells Flux to sync at once). An upstream
+issue went in with the full evidence and the workaround:
+[OT-CONTAINER-KIT/redis-operator#1840](https://github.com/OT-CONTAINER-KIT/redis-operator/issues/1840).
+
+Watch period until 2026-07-24:
+
+| Measure | Value |
+|---|---|
+| sentinel memory | flat |
+| reset rate | ≤20 a day |
+| operator | not throttled at 200m |
+
+The 64Mi limit also serves as an early warning: if the loop comes back, the alert fires again in
+under a day. Operator chart 0.26.0 (2026-07-15) remains unverified for this class of bug.
 
 ### 2026-07-17 — Backup replication: W2 safety-net leg retired (NAS sole sink)
 
