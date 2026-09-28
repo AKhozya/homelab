@@ -29,8 +29,8 @@ admin_user: z3us
 k3s_data_dir: /mnt/k8s-storage/k3s
 
 # ---- UFW firewall ----
-# W2-specific rules. Extras vs base: 8472/udp from LAN (narrow dup of
-# anywhere rule — preserved to match live state).
+# W2-specific rules. Keep the LAN VXLAN rule to match live state. The node-IP
+# allow-all rules in group_vars already cover flannel peers.
 ufw_rules_host:
   - { comment: "Flannel VXLAN", rule: allow, from_ip: 192.168.1.0/24, to_port: 8472, proto: udp }
 
