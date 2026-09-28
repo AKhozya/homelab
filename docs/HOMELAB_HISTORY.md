@@ -17,6 +17,18 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-09-28 — immich-vm's sshd listens on 65300 only
+
+immich-vm's sshd still listened on port 22 as well as 65300, from a hand edit to
+`/etc/ssh/sshd_config.d/10-port.conf` when the VM joined on 2026-07-10. The 2026-09-27 firewall
+change had already deleted the UFW rule that allowed 22, and a connection test from the Mac on
+the LAN failed. The
+`hardening` role now writes that file with `Port 65300` only, on hosts that set
+`sshd_port_dropin` (immich-vm). The other three nodes set the port in the main `sshd_config`, and
+a second `Port` line for the same port would bind it twice. If sshd fails on immich-vm, use the
+virsh console. The role's `sshd -t` now runs on every drift-heal, not only after a copy, so a
+config that sshd rejects fails every run until someone fixes it.
+
 ### 2026-09-28 — three tokens rotated before the repo goes public
 
 The SP4 secret scan read every ref GitHub serves, not only `main`: `gitleaks git

@@ -3,7 +3,7 @@
 # Applies to all hosts.
 #
 # Safety:
-# - SSH drop-in: `sshd -t` validate after copy, reload (not restart) preserves sessions.
+# - SSH drop-ins: `sshd -t` validate on every run, reload (not restart) only after a copy; a reload keeps sessions.
 # - sysctls: `sysctl --system` handler, non-disruptive.
 # - kubelet.yaml + k3s service.d drop-ins: no restart handler — apply on next k3s restart.
 # - udev: reload + trigger handler, safe for existing devices.
@@ -20,11 +20,28 @@
   register: sshd_dropin
   tags: [hardening, ssh]
 
-- name: Validate sshd config (after drop-in change)  # noqa: no-handler
+- name: Deploy sshd port drop-in
+  # Only where the main sshd_config leaves Port commented out (host var sshd_port_dropin).
+  # sshd adds up every Port line, so on a node whose main file already sets the port a
+  # second line binds it twice and logs an error on each reload. Writing ansible_port keeps
+  # the port this play connects on.
+  ansible.builtin.copy:
+    content: "Port {{ ansible_port }}\n"
+    dest: /etc/ssh/sshd_config.d/10-port.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: sshd_port_dropin | default(false) | bool
+  register: sshd_port
+  tags: [hardening, ssh]
+
+- name: Validate sshd config
   # In-task guard (not handler): validate must fire IMMEDIATELY after copy so a
   # bad config blocks subsequent reload. Handler fires end-of-play — too late.
+  # Runs every time, not only after a copy: a failed validate leaves the copied file
+  # in place, so a later unchanged run would pass and the fault would surface only
+  # when sshd next starts, at a reboot.
   ansible.builtin.command: /usr/sbin/sshd -t
-  when: sshd_dropin.changed
   changed_when: false
   tags: [hardening, ssh]
 
@@ -33,7 +50,7 @@
   ansible.builtin.systemd_service:
     name: sshd
     state: reloaded
-  when: sshd_dropin.changed
+  when: sshd_dropin.changed or sshd_port.changed
   tags: [hardening, ssh]
 
 # ---------- sysctls ----------

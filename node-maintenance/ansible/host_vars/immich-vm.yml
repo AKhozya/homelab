@@ -46,6 +46,12 @@ gpu_vendor: intel
 # ---- Admin user ----
 admin_user: akhozya
 
+# ---- sshd port ----
+# The main sshd_config here still reads `#Port 22`; the other nodes set Port there. The
+# hardening role writes 10-port.conf with ansible_port only. That replaces the join-time
+# hand edit, which also listened on 22.
+sshd_port_dropin: true
+
 # ---- Admin user SSH access (operator + automation pubkeys) ----
 # akhozya's authorized_keys, deployed EXCLUSIVELY by the immich_gpu_node role (drift-heal reconciles
 # adds/removes + de-dups the 3× master-node drift seen 2026-07-12). /home is persistent ext4 LVM (no
