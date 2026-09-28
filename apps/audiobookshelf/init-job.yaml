@@ -33,10 +33,9 @@ spec:
 
               BASE=http://audiobookshelf.audiobookshelf.svc.cluster.local:3005/audiobookshelf
 
-              # Ask the server first rather than reading meaning into the init call's error code:
-              # /status reports isInit without auth, and the init call answers an initialized
-              # server with the same 500 a real failure produces. A server that does not answer
-              # fails the Job, and restartPolicy retries it.
+              # Check /status before calling /init: /init returns HTTP 500 both for an initialized
+              # server and for a real failure, while /status reports isInit without auth. If the
+              # server does not answer, the Job fails and restartPolicy retries it.
               echo "Checking Audiobookshelf init status..."
               STATUS=$(curl -sf --retry 10 --retry-delay 6 --retry-all-errors "$BASE/status")
               echo "Status: $STATUS"

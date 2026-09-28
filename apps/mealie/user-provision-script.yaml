@@ -79,10 +79,15 @@ data:
     export PGPASSWORD="${POSTGRES_PASSWORD}"
 
     # psql expands :'var' only in input it reads, not in -c, hence the here-document.
+    # The hash travels by environment and \getenv, not -v, so it stays out of psql's argv, which
+    # node users and hostPID pods can read. \getenv needs psql 15 or later; the image's Debian
+    # trixie ships psql 17.
+    export BCRYPT_HASH
     UPDATE_RESULT=$(psql -h "${POSTGRES_SERVER}" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -t \
       -v ON_ERROR_STOP=1 \
       -v username="${MEALIE_USER_USERNAME}" -v email="${MEALIE_USER_EMAIL}" \
-      -v full_name="${MEALIE_USER_FULLNAME}" -v password_hash="${BCRYPT_HASH}" 2>&1 <<'SQL'
+      -v full_name="${MEALIE_USER_FULLNAME}" 2>&1 <<'SQL'
+    \getenv password_hash BCRYPT_HASH
     UPDATE users
        SET username = :'username',
            email = :'email',

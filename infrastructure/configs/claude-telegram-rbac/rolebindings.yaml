@@ -26,9 +26,9 @@
 # monitoring is the one namespace with host-namespace pods. node-exporter runs on all four nodes,
 # the control plane included, in the node's own network and PID namespaces. Exec into it
 # therefore reaches every LAN host (the NAS, the router) on every port, and every service bound
-# to that node's loopback, with no NetworkPolicy in the way. hostPID shows it every host process's
-# command line. The image has no shell, but the host root filesystem is mounted read-only (not
-# noexec) at /host/root. The known cluster-admin path through it was the unauthenticated kubectl
+# to that node's loopback. NetworkPolicies do not restrict this traffic. hostPID shows it every
+# host process's command line. The image has no shell, but the host root filesystem is mounted
+# read-only (not noexec) at /host/root. The known cluster-admin path through it was the unauthenticated kubectl
 # proxy on the control plane's 127.0.0.1:8001; node-maintenance no longer runs that proxy. Any
 # other unauthenticated service on a node's loopback or on the LAN stays in reach. The binding
 # stays by operator decision (2026-09-28): the API server's service proxy returns 502 because the

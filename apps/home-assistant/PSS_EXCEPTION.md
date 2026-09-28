@@ -169,7 +169,7 @@ Current config **appropriate + necessary** for HA functionality while implementi
 
 2. **Capability Audit**
    - Periodic review of required caps as HA evolves
-   - Remove caps if integrations are disabled
+   - If you disable integrations, remove their unused capabilities
    - **Frequency:** Quarterly
 
 3. **Runtime Monitoring**
