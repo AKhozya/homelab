@@ -20,8 +20,9 @@ EnvironmentFile=-/run/node-maintenance.env
 #   2. the full repo upgrade, outside any ansible process, so python and ansible upgrade
 #      together. An ansible-core upgrade under a running play makes copy/template tasks load
 #      action plugins from the new core while ConfigManager stays on the old import (TypeError
-#      on `templar=`, seen on 2.20.5 → 2.21.0), and a python upgrade removes the stdlib the play
-#      still imports. Rejected: `pacman -Sy ansible ansible-core` alone, a partial upgrade.
+#      on `templar=`, seen on 2.20.5 → 2.21.0). A python upgrade under a running play removes
+#      the stdlib the play still imports. Rejected: `pacman -Sy ansible ansible-core` alone, a
+#      partial upgrade.
 #   3. the whole playbook, preflight included, so a backup that started during step 2 still
 #      blocks the reboot. If that second preflight fails, the CP stays upgraded but not
 #      rebooted; kernel-modules-hook keeps the running kernel's modules loadable until the

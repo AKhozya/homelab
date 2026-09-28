@@ -248,12 +248,15 @@ phase_ufw_state_recover() {
         log "ufw-state: ufw re-enable failed — $out"
     fi
     # flush-all also removed the portmap CNI entry rules, which nothing re-adds on its own.
-    # The firewall role installs the healer, so a first run on a fresh node has none yet; that
-    # counts as unverified too.
-    if [ ! -x /usr/local/sbin/ufw-heal-post-k3s.sh ]; then
-        log "ufw-state: ufw-heal-post-k3s.sh missing — cannot verify the portmap CNI entry rules"
+    # The firewall role installs the healer after this role runs, so the installed copy can be
+    # missing (fresh node) or older than --cni-heal (the first drift-heal after that change).
+    # An older healer ignores the flag, runs its full heal and exits 0 without restoring the
+    # rules, so preflight must not call it.
+    local healer=/usr/local/sbin/ufw-heal-post-k3s.sh
+    if [ ! -x "$healer" ] || ! grep -qF -- '"--cni-heal"' "$healer"; then
+        log "ufw-state: $healer missing or without --cni-heal — cannot verify the portmap CNI entry rules"
         CNI_HEAL_FAILED=1
-    elif /usr/local/sbin/ufw-heal-post-k3s.sh --cni-heal; then
+    elif "$healer" --cni-heal; then
         log "ufw-state: portmap CNI entry rules verified"
     else
         log "ufw-state: portmap CNI entry rules NOT verified after the flush-all"
