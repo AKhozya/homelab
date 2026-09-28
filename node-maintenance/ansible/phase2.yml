@@ -418,6 +418,12 @@
           changed_when: false
           failed_when: false
 
+        - name: Record the skip for PLAY 2's summary
+          ansible.builtin.set_fact:
+            phase2_skipped_hosts: "{{ (hostvars['localhost']['phase2_skipped_hosts'] | default([])) + [inventory_hostname] }}"
+          delegate_to: localhost
+          delegate_facts: true
+
         - name: Skip the rest of PLAY 1b for immich-vm
           ansible.builtin.meta: end_host
 
@@ -773,7 +779,8 @@
     - name: Build Telegram summary message
       ansible.builtin.set_fact:
         tg_summary: |
-          ✅ Node maintenance complete
+          {{ ('⚠️ Node maintenance INCOMPLETE — skipped: ' ~ (phase2_skipped_hosts | join(', ')))
+             if (phase2_skipped_hosts | default([]) | length > 0) else '✅ Node maintenance complete' }}
           Nodes: {{ groups['all'] | join(', ') }}
           Alerts still firing: {{ firing_alerts_count | default(0) }}
           Log: /var/log/node-maintenance/phase2-{{ '%d-%m-%Y' | strftime(ansible_facts['date_time'].epoch | int) }}.log

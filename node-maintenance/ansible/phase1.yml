@@ -23,6 +23,7 @@
         active_backups.rc != 0
         or (active_backups.stdout | trim) is not match('^[0-9]+$')
         or (active_backups.stdout | int) > 0
+      tags: [preflight]
 
     - name: Preflight — collect / and /var disk space (df-based, avoids ansible_mounts conditional quirks)
       ansible.builtin.shell: |
@@ -35,6 +36,7 @@
       register: disk_check
       changed_when: false
       check_mode: false
+      tags: [preflight]
 
     - name: Preflight — assert disk space thresholds
       ansible.builtin.assert:
@@ -42,6 +44,7 @@
           - "(disk_check.stdout | regex_search('root_gb=(\\d+)', '\\\\1') | first | int) >= (min_free_root_gb | int)"
           - "(disk_check.stdout | regex_search('var_gb=(\\d+)', '\\\\1') | first | int) >= (min_free_var_gb | int)"
         fail_msg: "Disk preflight failed: {{ disk_check.stdout }}"
+      tags: [preflight]
 
     - name: Preflight — Flux kustomizations all Ready
       # Kustomizations reconcile every 60s and report Ready=Unknown while in
@@ -62,6 +65,7 @@
       delay: 7
       changed_when: false
       check_mode: false
+      tags: [preflight]
 
     # Physical workers only. immich-vm lives on the NAS and is down more often. If it is
     # unreachable, phase2's PLAY 1b alerts and skips it, so it must not block the weekly
@@ -75,6 +79,7 @@
       loop: "{{ groups['workers'] | difference(groups['virtual']) | map('extract', hostvars, 'ansible_host') | list }}"
       changed_when: false
       check_mode: false
+      tags: [preflight]
 
     # ── NOTIFY START ──────────────────────────────────────────
     - name: Telegram — run starting
