@@ -2162,40 +2162,222 @@ kubeconform and a live `--dry-run=server`. So the documented commands are the on
 fix first needs a mapping from each workload to its restore target, added to
 `pvc-backup-cronjob.yaml`. It moved to its own batch rather than making this one longer.
 
-### 2026-07-24 — Ultrareview remediation Batch 2: backup integrity + data-loss guards
+### 2026-07-24 — Ultrareview fixes, batch 2: backup integrity and guards against data loss
 
-Closes the audit's highest-severity finding and the silent-loss paths around it. Backups are the only durability substrate here (no PITR, no offsite — both standing decisions), so every one of these failed *quietly*.
+This batch closed the audit's most severe finding and the paths around it that could lose data
+without a warning. Backups are the only way to get data back here: there is no point-in-time
+recovery (PITR) and no offsite copy, and both are standing decisions. So every one of these
+problems failed *quietly*.
 
-- **CouchDB backup success-theater (the HIGH).** `couchbackup … > ${DB}.raw 2>&1 || true` discarded the exit code and merged stderr into the data stream; success was then "any line starts with `[`". A mid-stream fatal produced a **truncated dump that earned a valid sha256, passed replication validation, advanced `lastSuccessfulTime`, and fired no alert** — then 30-day NAS pruning plus source deletion could leave no complete copy of the Obsidian vault. The identical class was fixed for postgres/mysql/pvc on 2026-07-03; couchdb was missed. Now: stderr to its own file, exit code captured, and completeness computed from the `--log` mirroring upstream `includes/logfilesummary.js` — require `:changes_complete` **and** every `:t batchN` cancelled by a `:d batchN` (`:changes_complete` alone only proves spooling). Fails with stderr + log tail *before* packaging. A zero-document database is correctly treated as complete rather than failing the whole run (it fails on `main` today). `@cloudant/couchbackup` pinned to **2.11.18** — it was installing unpinned, floating the tool that produces the DR artifact.
-- **Replication "Verify NAS" could not fail** — `rsync --list-only | head -20 || echo "failed"` (head exits 0; the `||` swallowed the rest), yet Step 4 `rm -rf`s every source backup immediately after. Now each artifact that passed Step 1 is recorded by its **source-relative path** and must appear in the post-sync listing, matched **exactly on the listing's path field** — a substring match let `x.tar.gz.sha256` vouch for a missing `x.tar.gz`, and a flattened name would never match the nested `pvc/<timestamp>/<namespace>/<file>` layout. On any miss: report and `exit 1` **without** cleaning source. A guard also blocks the vacuous case where the list is empty or short, counted from a shell variable rather than re-read from a file so the expectation cannot share a failure mode with what it audits.
-- **Replication reported failures as success.** `OVERALL_OK != true` sent a Telegram message but never exited non-zero, so `kube_job_*` stayed green and every status-keyed alert stayed silent. The retention-sweep and NAS-size listings also hid failures: `set -e` without `pipefail` and pipelines ending in `awk` meant a failed listing read as **0 GB**, indistinguishable from a healthy empty NAS, so the 400/450 GB tiers could never fire.
-- **PVC backup**: an empty critical PVC was an uncounted `continue` → green forever. Now counted as a failure, matching the adjacent missing-PVC branch's own stated reasoning.
-- **17 PVCs across 12 files** annotated `kustomize.toolkit.fluxcd.io/prune: disabled`. `local-path` reclaimPolicy is **Delete** (verified live), so a Kustomization rename or removal would take the data with it.
-- **mysql backup client 8.4.8 → 8.4.10** to match `percona-server:8.4.10-10.1`; the renovate rule changed from blanket `enabled: false` (which is how it drifted) to `allowedVersions: "/^8\\.4\\./"`. Codemap `startingDeadlineSeconds` 600 → 3600 (all three CronJobs say 3600).
+- **CouchDB backups reported success when they had failed (the HIGH finding).** The script ran
+  `couchbackup … > ${DB}.raw 2>&1 || true`. That line threw away the exit code and mixed the error
+  output (stderr) into the backup data. If any line started with `[`, the script then counted the
+  run as a success. So a fatal error partway through the dump produced a **truncated dump**. This
+  is what happened to that dump:
 
-Verification went beyond a green run, because CI cannot see embedded CronJob shell at all. The `:t`/`:d` semantics were read off IBM/couchbackup source; the completeness awk was tested on 6 fixtures **and re-run under busybox awk inside the real `node:24.18.0-alpine` image**; the pinned couchbackup was installed in that image; NAS matching was tested against a realistic rsync listing including the sidecar-vouching case; `flux diff kustomization apps` proved the annotations touch exactly 17 objects with no create/delete/replace. Extracted embedded shell shellchecked against `main`: finding counts identical. Two bugs of my own were caught only by executing: `$(grep -c … || echo 0)` captures *both* outputs, yielding `0\n0` that busybox `test` rejects as a bad number and aborts under `set -e`; and a blanket `|| true` on the JSON filter masked grep exit ≥2 (real I/O error) as well as the intended exit 1. Codex STATIC review, 3 rounds to cap: R1 BLOCK (3 HIGH — empty-DB rejection, wrong PVC path, substring matching), R2 HIGH+MED (filter masking, vacuous list), R3 no HIGH/CRITICAL, one MED fixed anyway.
+  | Check on the truncated dump | Result |
+  |---|---|
+  | checksum | **it got a valid sha256** |
+  | replication validation | **passed** |
+  | `lastSuccessfulTime` | **advanced** |
+  | alert | **none fired** |
 
-### 2026-07-24 — Ultrareview remediation Batch 1: CI validation coverage
+  After that, 30-day pruning on the NAS (the network storage box that holds the backups) together
+  with deletion of the source copy could leave no
+  complete copy of the Obsidian vault. On 2026-07-03 the same class of bug was fixed for the
+  postgres, mysql and pvc backups, but that fix missed couchdb.
+  Now the script writes stderr to its own file and captures the exit code. It decides whether the
+  dump is complete from the `--log` file, in the same way as upstream
+  `includes/logfilesummary.js`. A complete dump needs `:changes_complete` **and** a `:d batchN`
+  line (batch written) for every `:t batchN` line (batch queued). `:changes_complete` alone only
+  proves that couchbackup queued the changes in batches, not that it wrote them. If the check
+  fails, the script prints stderr and the end of the log, and stops *before* it packages the dump.
+  A database with no documents counts as complete, as it should, rather than failing the whole run
+  (on `main` at the time of this entry, it fails). `@cloudant/couchbackup` is now pinned to
+  **2.11.18**. Before, the Job installed it without a pinned version, so the tool that produces the
+  disaster-recovery backup could change from one run to the next.
+- **The replication step "Verify NAS" could never fail.** It ran
+  `rsync --list-only | head -20 || echo "failed"`. head exits 0, and the `||` hid every other
+  failure. Yet right after it, Step 4 runs `rm -rf` on every source backup. Now the script records
+  each backup file that passed Step 1 by its **path relative to the source folder**. Each of those
+  files must appear in the listing taken after the sync, and the match must be **exact on the
+  listing's path field**. A substring match let `x.tar.gz.sha256` stand in for a missing
+  `x.tar.gz`. A name stripped of its folders would never match the nested
+  `pvc/<timestamp>/<namespace>/<file>` layout. If any file is missing, the script reports it and
+  runs `exit 1` **without** deleting the source copies. If the list of expected files is empty or
+  too short, a second check stops the script, because the comparison could then miss a missing
+  backup. That check takes the count from a shell variable, not by reading a file again,
+  so the expected count cannot fail in the same way as the listing it checks.
+- **Replication reported failures as success.** If `OVERALL_OK != true`, the script sent a Telegram
+  message but never exited with an error code. So the `kube_job_*` metrics showed success, and no
+  alert that reads the Job status fired. The listings for the retention sweep (deleting old backups)
+  and for the NAS size also hid failures. The script used `set -e` without `pipefail`, and those
+  pipelines ended in `awk`, so a failed listing read as **0 GB**. That value looks the same as a
+  healthy, empty NAS, so the 400 GB and 450 GB alert levels could never fire.
+- **PVC backup.** If a critical PVC (persistent volume claim: the storage a pod asks for) was
+  empty, the script ran `continue` and counted no failure, so the Job reported success for ever.
+  The script now counts it as a failure. That matches the reason the script itself gives in the
+  branch next to it, which handles a missing PVC.
+- **17 PVCs in 12 files now carry the annotation** `kustomize.toolkit.fluxcd.io/prune: disabled`,
+  which tells Flux not to delete them. The `local-path` storage has reclaimPolicy **Delete**
+  (checked on the live cluster). A Kustomization is the Flux object that applies one folder of
+  manifests. If these annotations were absent and a Kustomization were renamed or removed, the
+  data would be deleted with it.
+- **The mysql backup client moved 8.4.8 → 8.4.10** to match the server,
+  `percona-server:8.4.10-10.1`. The Renovate rule for the client had been `enabled: false` for all
+  updates, which is how the client fell behind. It is now `allowedVersions: "/^8\\.4\\./"`. The
+  codemap (the repo's map of a subsystem) now gives `startingDeadlineSeconds` as 3600, not 600,
+  because all three CronJobs set 3600.
 
-Closes the gaps that let changes ship unvalidated. Sequenced before the fix batches because those edit `clusters/` and `immich-vm-heal.sh`, neither of which CI touched.
+The checks went further than a passing CI run, because CI cannot see the shell scripts embedded in
+CronJob manifests at all:
 
-- **kubeconform matrix + `clusters`** (6 roots → 7). The Flux Kustomization CRs were never schema-validated. Structural only — the CRD types `healthChecks`/`dependsOn` entries as strings, so a name or GVK matching nothing still passes; that stays a manual review item.
-- **shellcheck repo-wide** instead of `find scripts docs/scripts`, pruning `.git` and `.claude/worktrees`; same anchor dropped from the pre-commit hook. Newly covers `apps/immich/gpu-node/immich-vm-heal.sh`, `.backup/secrets-{backup,restore}.sh`, `.claude/hooks/*.sh`, `docs/worker-node-post-install.sh` — 42 files, all clean at `-S warning`. Corrected a **false comment** while there: it claimed `-S warning` catches the SC2015 `A && B || C` class, but shellcheck emits SC2015 at *info* (`Analytics.hs`, `info id 2015`), so the gate never saw it. Threshold left alone — `-S info` surfaces 15 pre-existing findings (SC2016/2162/2086/2012) needing their own pass.
-- **`check-sops-encrypted.sh` gained a per-document content pass.** Filename matching alone let a plaintext `kind: Secret` in an off-pattern file through. Now every `*.yaml`/`*.yml` is split on `^---` in awk and **each document** must carry `ENC[AES256_GCM` — file-wide grep would let an encrypted document 1 vouch for a plaintext document 2. Handles quoted `kind: 'Secret'`/`"Secret"`, trailing `# comment` on both the kind line and the separator, CRLF, and leading-`---` numbering; `kind: SecretStore` correctly ignored. `exit $((missing > 0))` because a raw count wraps mod 256.
-- **gitleaks split into `.github/workflows/gitleaks.yaml`** with no `paths-ignore`. `validate.yaml` skips markdown-only pushes, so a credential pasted into a runbook or plan was reaching main unscanned. Checkout + scan is ~15s.
-- **`KUSTOMIZE_VERSION` v5.5.0 → v5.8.1** — CI was rendering a different tree than the cluster. Chain verified: kustomize-controller `v1.9.1` → `sigs.k8s.io/kustomize/api v0.21.1` → kustomize CLI `v5.8.1` (v5.5.0 pinned api v0.18.0). **`KUBERNETES_VERSION` 1.36.1 → 1.36.2** to match the live cluster, as the file's own comment instructs; v1.36.2 schemas confirmed present upstream.
+| Check | Result |
+|---|---|
+| meaning of `:t` and `:d` | read from the IBM/couchbackup source |
+| completeness check (awk) | tested on 6 sample inputs, **then run again with busybox awk inside the real `node:24.18.0-alpine` image** |
+| pinned couchbackup | installed in that image |
+| NAS matching | tested against a realistic rsync listing, including the case where a checksum file stands in for its missing backup |
+| `flux diff kustomization apps` | the annotations change 17 objects and no others, with no create, delete or replace |
+| shellcheck on the extracted embedded shell, compared with `main` | the same number of findings |
 
-Gates (CI runners are billing-blocked — all jobs 0-step since before this batch — so every job was replicated locally): all 7 kubeconform roots under the new versions, 529 resources, 0 invalid; repo-wide shellcheck; actionlint; yamllint; init-resources; image-pin; gitleaks. The sops checker was proven with 9 behavioural tests, not just a green run. Codex STATIC review, 3 rounds to cap: R1 REQUEST CHANGES (2 MED), R2 CHANGES REQUESTED (the `seen` dedupe still let a *named* secret file hide a plaintext second document — the original bug relocated), R3 BLOCK (3 MED: comment-suffixed kind, CRLF separator, mod-256 exit) — all fixed and retested. One Codex claim contested and withdrawn: the shellcheck severity flag was never in the diff.
+Two bugs in the new code showed up only when it ran:
 
-### 2026-07-24 — Ultrareview remediation Batch 0: token leak, CI-gate claim, DR tarball ignore
+- `$(grep -c … || echo 0)` captures *both* outputs. The result is `0\n0`, which busybox `test`
+  rejects as a bad number, and under `set -e` the script stops.
+- A blanket `|| true` on the JSON filter hid a grep exit code of ≥2 (a real I/O error) as well as
+  the intended exit 1.
 
-First batch of the 2026-07-24 ultrareview remediation plan (removed after `d6d67c20`; 58 findings, 0 refuted; H3 CouchDB exposure closed same day via Cloudflare Access Service Auth).
+Codex ran a static review (it read the diff and ran nothing) for 3 rounds, which reached the round
+limit:
 
-- **`apps/pricebuddy/apprise-configmap.yaml`** — the apprise init script ended with `cat /config/pricebuddy.cfg`, printing the Telegram bot token to init-container stdout and therefore into Loki (**720 h retention — existing lines carry the token for ~30 days after this fix**). Deleted; a comment now names the constraint so it isn't re-added. **Decision: not rotated.** `pricebuddy-telegram` is a dedicated secret separate from claude-telegram, so the blast radius is the price-alert chat, not the ops channel; readers are limited to Grafana/Loki (anonymous off, basic off, login form disabled, Authentik passkey-only OIDC) and anyone with `kubectl logs`.
-- **`AGENTS.md` + `docs/HOMELAB_ANALYSIS.md`** — the "CI gate-of-record" invariant was false. Branch protection is unavailable (private repo on the GitHub Free plan; `gh api …/branches/main/protection` → 403) and Flux syncs `main` every 5 min regardless of the CI verdict, so nothing mechanically stops a validate-red commit from reaching prod; `/gitops-workflow` step 3c blocking `fr` on red only withholds the manual nudge. Reworded to "a signal, NOT a merge gate", naming the pre-commit review loop and `/homelab-yaml-validate` as the gates that actually hold. **Decision: no `ci-green` promotion ref** — repointing a bootstrap-generated `gotk-sync.yaml` is the highest-structural-risk change available here, and the per-batch static review is the control that has actually been catching defects. Stale count corrected in the same line: kubeconform covers 6 roots, not 5 (`validate.yaml:138-144`).
-- **`.gitignore`** — added `.backup/*.tar.gz.gpg`. `secrets-backup.sh:235` writes `${BACKUP_DIR}/secrets-backup-${TIMESTAMP}.tar.gz.gpg` with `BACKUP_DIR="$(dirname "$0")"`, so an encrypted DR bundle landed in a tracked directory with no ignore rule.
+| Round | Findings |
+|---|---|
+| R1 | BLOCK, 3 HIGH: an empty database was rejected, a wrong PVC path, substring matching |
+| R2 | HIGH and MED: the filter hid errors, and the expected list could be empty |
+| R3 | no HIGH or CRITICAL; one MED, fixed anyway |
 
-Gates: yamllint, `kustomize build`, gitleaks (tree mode — history mode's 11 hits are already-rotated values CI deliberately skips, `validate.yaml:91-96`), sops-check (57 files), init-resources, image-pin — all green. Codex STATIC review: APPROVE WITH NITS, one nit (the 5→6 root count) verified against the workflow and fixed.
+### 2026-07-24 — Ultrareview fixes, batch 1: CI validation coverage
+
+This batch closed the gaps that let changes ship without validation. It ran before the fix
+batches, because those batches edit `clusters/` and `immich-vm-heal.sh`, and CI checked neither.
+
+- **kubeconform now also checks `clusters`**, so its list of kustomize roots (the folders
+  kustomize builds from) grew from 6 to 7. No
+  schema check had ever covered the Flux Kustomization custom resources. The check is structural
+  only. The custom resource definition types the entries of `healthChecks` and `dependsOn` as plain
+  strings, so a name or GVK (group, version and kind) that matches nothing still passes. A reviewer
+  still has to check those by hand.
+- **shellcheck now runs over the whole repo** instead of `find scripts docs/scripts`. It skips
+  `.git` and `.claude/worktrees`, and the pre-commit hook dropped the same folder limit. The run
+  covered 42 files, all clean at `-S warning`. Newly covered:
+
+  | Newly covered path |
+  |---|
+  | `apps/immich/gpu-node/immich-vm-heal.sh` |
+  | `.backup/secrets-{backup,restore}.sh` |
+  | `.claude/hooks/*.sh` |
+  | `docs/worker-node-post-install.sh` |
+
+  The change also corrected a **false comment**. The comment claimed that
+  `-S warning` catches the SC2015 class (`A && B || C`). But shellcheck reports SC2015 at *info*
+  level (`Analytics.hs`, `info id 2015`), so the check never saw it. The threshold stayed where it
+  was: `-S info` shows 15 older findings (SC2016/2162/2086/2012) that need a separate review.
+- **`check-sops-encrypted.sh` now also checks the content of each YAML document.** Before, it
+  matched file names only, so a plaintext `kind: Secret` in a file with an unexpected name got
+  through. Now awk splits every `*.yaml` and `*.yml` file on `^---`, and **each document** must
+  contain `ENC[AES256_GCM`. A grep over the whole file would let an encrypted document 1 hide a
+  plaintext document 2. The check handles these inputs:
+
+  | Input | Handled |
+  |---|---|
+  | the kind in quotes | `kind: 'Secret'` and `"Secret"` |
+  | a trailing `# comment` | on the kind line and on the separator |
+  | CRLF line endings | yes |
+  | a file that starts with the separator | documents are numbered correctly after a leading `---` |
+
+  It ignores `kind: SecretStore`, as it should. The script ends with `exit $((missing > 0))`,
+  because an exit code counts mod 256 (past its top value it starts again from zero), so a raw
+  count could wrap round to zero.
+- **gitleaks, the secret scanner, moved to its own workflow, `.github/workflows/gitleaks.yaml`**,
+  with no `paths-ignore`. `validate.yaml` skips pushes that change only markdown, so a credential
+  pasted into a runbook or plan reached main without a scan. Checkout and scan take about 15s.
+- **`KUSTOMIZE_VERSION` v5.5.0 → v5.8.1.** CI had used a different kustomize than the cluster, so it
+  rendered a different set of manifests from the one the cluster applies. The version chain was
+  checked: kustomize-controller `v1.9.1` uses `sigs.k8s.io/kustomize/api v0.21.1`, which kustomize
+  CLI `v5.8.1` also uses. v5.5.0 was pinned to api v0.18.0. **`KUBERNETES_VERSION` 1.36.1 →
+  1.36.2**, to match the live cluster, as the file's own comment says to do. The v1.36.2 schemas
+  were confirmed to exist upstream.
+
+GitHub Actions runners were blocked by an account billing problem: every job had run 0 steps since
+before this batch. So every CI job ran locally instead:
+
+| Gate run locally | Detail |
+|---|---|
+| kubeconform | all 7 roots at the new versions: 529 resources, 0 invalid |
+| shellcheck | the whole repo |
+| actionlint, yamllint, init-resources, image-pin, gitleaks | |
+
+9 tests of its behaviour proved the sops checker, not only a passing run.
+Codex ran a static review for 3 rounds, which reached the round limit:
+
+| Round | Verdict and findings |
+|---|---|
+| R1 | REQUEST CHANGES, 2 MED |
+| R2 | CHANGES REQUESTED: the `seen` check that skips repeated files still let a secret file with an expected *name* hide a plaintext second document. That was the original bug in a new place |
+| R3 | BLOCK, 3 MED: a kind line with a trailing comment, a CRLF separator, and the mod-256 exit code |
+
+All of them were fixed and tested again. Codex withdrew one claim after it was disputed: the diff
+never contained the shellcheck severity flag.
+
+### 2026-07-24 — Ultrareview fixes, batch 0: a leaked token, the CI-gate claim, an ignore rule for DR archives
+
+This was the first batch of the plan to fix the findings of the 2026-07-24 ultrareview, a broad
+review. The plan file was removed after `d6d67c20`. The review had 58 findings,
+and 0 of them were refuted. Finding H3, the exposed CouchDB, was closed the same day with
+Cloudflare Access Service Auth.
+
+- **`apps/pricebuddy/apprise-configmap.yaml`.** The apprise init script (an init container runs
+  before the app starts) ended with `cat /config/pricebuddy.cfg`. That printed the Telegram bot
+  token to the init container's standard output, and so into Loki, the log store. **Loki keeps
+  logs for 720 h, so lines already stored hold the token for about 30 days after this fix.** The
+  line is deleted, and a comment now states why, so nobody adds it back. **Decision: the token
+  was not rotated.** `pricebuddy-telegram` is its own secret, separate from claude-telegram's. So
+  a leak exposes only the price-alert chat, not the operations channel. The only people who can
+  read the token are Grafana/Loki users, and anyone with `kubectl logs`. For Grafana/Loki,
+  anonymous access, basic auth and the login form are all turned off, and sign-in goes only
+  through Authentik with a passkey (OIDC).
+- **`AGENTS.md` and `docs/HOMELAB_ANALYSIS.md`.** Both described CI as the "CI gate-of-record": the
+  check that keeps failing changes out of production. That was false. Branch protection is not
+  available: the repo is private on the GitHub Free plan, and `gh api …/branches/main/protection`
+  returns 403. Flux syncs `main` every 5 min whatever CI says. So nothing automatic stops a commit
+  that fails validation from reaching production. Step 3c of `/gitops-workflow` blocks `fr` when CI
+  is red, but that only holds back the manual command that asks Flux to sync at once. The text now
+  reads "a signal, NOT a merge gate", and it names the pre-commit review loop and
+  `/homelab-yaml-validate` as the checks that stop a bad change before it is committed. **Decision:
+  no `ci-green` promotion ref**, a git ref that Flux would follow and that moves only after CI
+  passes. Pointing Flux at it means changing `gotk-sync.yaml`, which the Flux bootstrap generated,
+  and that is the riskiest structural change available here. The static review of each batch is the
+  control that has been catching defects. The same line also corrected a stale count: kubeconform
+  covers 6 roots, not 5 (`validate.yaml:138-144`).
+- **`.gitignore`.** Added `.backup/*.tar.gz.gpg`. `secrets-backup.sh:235` writes
+  `${BACKUP_DIR}/secrets-backup-${TIMESTAMP}.tar.gz.gpg`, and it sets
+  `BACKUP_DIR="$(dirname "$0")"`, the script's own folder. So each encrypted disaster-recovery
+  bundle landed in a folder that git tracks, with no rule to ignore it.
+
+Gates, all passing:
+
+| Gate | Detail |
+|---|---|
+| yamllint | |
+| `kustomize build` | |
+| gitleaks | tree mode. History mode finds 11 values that were already rotated, and CI does not scan history, on purpose (`validate.yaml:91-96`) |
+| sops-check | 57 files |
+| init-resources, image-pin | |
+
+Codex static review: APPROVE
+WITH NITS. Its one nit was the root count, 5 to 6. The batch checked it against the workflow and
+fixed it.
 
 ### 2026-07-23 — WARP managed-network beacon: home/away device profiles auto-switch
 
