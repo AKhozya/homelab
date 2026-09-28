@@ -6,10 +6,18 @@ metadata:
 spec:
   replicas: 1
   revisionHistoryLimit: 2
-  # Recreate: during a rolling update two n8n mains share one database, so both run schedules
-  # and the new one runs migrations under the old one.
+  # Step 1 of 2 toward Recreate. During a rolling update two n8n mains share one database, so
+  # both run schedules and the new one runs migrations under the old one. Switching straight to
+  # Recreate fails server-side apply: kustomize-controller does not own the defaulted
+  # rollingUpdate block, so the apply never removes it and validation rejects the pair. Stating
+  # the live values here makes kustomize-controller own them. If step 1 is live, prepare step 2:
+  # set type to Recreate and delete rollingUpdate. Run the same server-side dry run before
+  # committing step 2.
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
   selector:
     matchLabels:
       app: n8n
