@@ -20,7 +20,7 @@ mapfile -t files < <(grep -rl 'initContainers:' \
 
 fail=0
 for f in "${files[@]}"; do
-  # A yq error fails the file. Swallowing it would pass a file nobody checked.
+  # A yq error fails the file. Ignoring a yq error would let an unchecked file pass.
   if ! kind=$(yq eval '.kind' "$f"); then
     echo "::error file=$f::yq could not parse the file"
     fail=1

@@ -113,8 +113,8 @@ It runs `anthropics/claude-code-action` only if the actor is the repo owner (`gi
 | a submitted PR review | the review body |
 | a newly opened issue | the title or the body |
 
-It does not run if an issue is assigned. Otherwise the owner assigning someone else's issue would
-pass that person's text to Claude. The owner check also keeps Renovate out.
+If an issue is assigned, the workflow does not run. Otherwise the owner assigning someone else's
+issue would pass that person's text to Claude. The owner check also excludes Renovate.
 
 Its job token can read contents, pull requests and issues. The action also requests `actions: read`
 through `additional_permissions`, to read CI results. The workflow sets no `claude_args`, so Claude

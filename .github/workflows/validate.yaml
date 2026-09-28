@@ -37,7 +37,7 @@ env:
   YQ_VERSION: v4.44.3
   YQ_SHA256: a2c097180dd884a8d50c956ee16a9cec070f30a7947cf4ebf87d5f36213e9ed7
   # A commit, not `main`: an upstream push would otherwise change the CRD schemas this
-  # job validates against. Bump it by hand if a CRD gains fields.
+  # job validates against. If a CRD gains fields, update the catalog commit.
   DATREE_CATALOG_SHA: ad3b08c5045129d7bb1eeffd8e61719b2c8dd1e2
 
 jobs:

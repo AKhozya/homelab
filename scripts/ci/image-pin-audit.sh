@@ -76,7 +76,7 @@ while IFS= read -r -d '' file; do
     continue
   fi
 
-  # A yq error fails the file. Swallowing it would pass a file nobody checked.
+  # A yq error fails the file. Ignoring a yq error would let an unchecked file pass.
   if ! imgs=$(yq ea 'select(tag == "!!map") | select(.kind != "HelmRelease") | .. | select(tag == "!!map" and has("image")) | .image' "$file") ||
     ! vals=$(yq ea 'select(tag == "!!map") | select(.kind == "HelmRelease") | .spec.values | .. | select(tag == "!!map") | select((has("tag") and (((path[-1] | tostring | downcase) | test("image$")) or has("repository"))) or has("imageTag")) | [(.repository // "NONE"), (.tag // .imageTag), (.digest // "NONE")] | @tsv' "$file"); then
     echo "FAIL: $file  (yq could not parse the file)"

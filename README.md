@@ -219,7 +219,7 @@ _Grafana and Homepage dashboards: screenshots to come._
 |---|---|
 | Most apps run one pod | An app's volume lives on one node's disk. If that node fails, the app stays down until the node returns or a restore runs. Among the apps, only Authentik and Blocky run two copies; the databases, Traefik and the tunnel also run two or more. |
 | One control-plane node | If it goes down, running pods and Services keep serving, but nothing new deploys until it returns. Git and the backups can rebuild the cluster. |
-| CI does not gate a merge (as of 2026-09-28) | No rule on `main` requires passing checks. Instead, a second AI model (Codex) reviews each non-trivial change before it is committed. |
+| CI does not gate a merge (as of 2026-09-28) | No rule on `main` requires passing checks. Instead, an AI agent from the other model family (Codex for a Claude change, Claude for a Codex change) reviews each non-trivial change before the author commits it. |
 | Database exports, no point-in-time recovery | Nightly `pg_dump`-style exports, not a continuous copy of the database's write log. A restore goes back to last night, not to a chosen minute. That fits the data volumes here; [BACKUP_STRATEGY.md](docs/BACKUP_STRATEGY.md) has the reasons. |
 | No offsite copy | The nodes and the NAS share one building, so a fire or theft loses every copy. |
 
