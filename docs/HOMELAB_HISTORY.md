@@ -914,113 +914,155 @@ sweep would report success.
 when the grant exists. The correct form for a subresource is `create pods --subresource=exec`. The
 slash form reports a grant as missing when it exists.
 
-### 2026-08-06 — The DR script was the only thing holding the bootstrap together
+### 2026-08-06 — Only a side effect of the disaster-recovery script let an empty cluster bootstrap
 
-A max-effort review of `33183ce1..bdaab827` (67 files — the claude-telegram hardening campaign,
-node-maintenance, monitoring) produced 19 findings that survived adversarial verification, three
-rounds of Codex adjudication, and a first-hand grounding pass. Two were withdrawn on grounding and
-are recorded here so nobody re-files them.
+A review at maximum effort covered `33183ce1..bdaab827`: 67 files from the claude-telegram
+hardening work, node-maintenance and monitoring. It produced 19 findings. Each survived an
+adversarial check (a second reviewer trying to disprove it), three rounds of Codex rulings, and a
+first-hand check against the code. Two findings were withdrawn after that check against the code,
+and are recorded here so that nobody files them again.
 
-**The one that mattered.** `infrastructure-configs` applies namespaced objects into `homepage` and
-`rustdesk` — ResourceQuota and LimitRange from `resource-governance`, plus the claude-telegram
-RoleBindings — but `apps/*/namespace.yaml` belongs to the `apps` Kustomization, and
-`clusters/apps.yaml` declares `dependsOn: infrastructure-configs`. On a bare cluster
-`infrastructure-configs` fails with `namespaces "homepage" not found`, never reaches Ready, `apps`
-never runs, and no retry can supply the missing prerequisite. Steady state hides it completely.
-What kept this theoretical was `.backup/secrets-restore.sh`: it pre-creates 21 namespaces as a side
-effect of restoring secrets into them. `homepage` restores nothing, and `rustdesk`'s only secret
-(the beacon key) is SOPS-managed in git rather than backed up by that script, so they were the two
-it missed:
+**The finding that mattered.** The `infrastructure-configs` Kustomization (a Flux unit that applies one
+folder of manifests) creates objects inside the `homepage` and `rustdesk` namespaces. They are a
+ResourceQuota (a cap on the resources a namespace may use) and a LimitRange (default and maximum
+resource sizes for each container) from `resource-governance`, and the claude-telegram RoleBindings
+(grants of permissions inside a namespace). But the namespaces themselves come from
+`apps/*/namespace.yaml`, which belongs to the `apps` Kustomization. And `clusters/apps.yaml`
+declares `dependsOn: infrastructure-configs`, so the apps Kustomization waits for that one to be
+Ready. On an empty cluster, `infrastructure-configs` fails with `namespaces "homepage" not found`
+and never reaches Ready. So `apps` never runs, and no retry can supply the missing namespace. A
+cluster that is already running hides the problem.
+
+Only `.backup/secrets-restore.sh` kept the problem from happening. The script creates 21 namespaces
+in advance, as a side effect of restoring secrets into them. `homepage` has no secret to restore.
+The only secret of `rustdesk` (the beacon key) lives in git, encrypted with SOPS, and that script
+does not back it up. So those were the two namespaces the script missed:
 
 ```bash
 comm -23 <(ls apps/*/namespace.yaml | sed 's|apps/||;s|/namespace.yaml||' | sort) \
          <(grep -oE 'kubectl create namespace [a-z0-9-]+' .backup/secrets-restore.sh | awk '{print $4}' | sort -u)
 ```
 
-Both namespaces are now pre-created explicitly, as literal lines so that audit grep keeps working.
-The circular dependency itself is deliberate and stays — `.claude/review-invariants.md:18` already
-prescribes the 2-commit workaround for the incremental case.
+The script now creates both namespaces explicitly, as literal lines, so the grep in the audit
+command above keeps working. The circular dependency itself is deliberate and stays. For changes to
+a running cluster, `.claude/review-invariants.md:18` already prescribes the workaround in 2 commits.
 
-**Correction worth keeping.** The review first blamed the new RoleBindings for introducing the
-deadlock. Wrong: `resource-governance` has shipped 54 namespaced objects into the same apps-owned
-namespaces since `17c45cc0` (2026-06-04), two months before the base commit. The RoleBindings
-joined an existing pattern. Attribution changed the fix from "restructure the RBAC layout" to "add
-two lines to the DR script".
+**A correction.** The review first blamed the new RoleBindings for the deadlock. That was wrong.
+`resource-governance` has put 54 namespaced objects into the same namespaces, which the apps layer owns,
+since `17c45cc0` (2026-06-04), two months before the base commit of the review. The RoleBindings
+followed a pattern that already existed. Finding the real cause changed the fix from "restructure
+the RBAC layout" to "add two lines to the DR script".
 
-**Permission surface.** `.claude/settings.json` auto-approved `kubectl exec`, `port-forward` and
-`create job` — in-cluster code execution under the operator's cluster-admin kubeconfig, the same
-reach `apps/claude-telegram/rbac.yaml` exists to deny the bot — plus `bash` against two skills trees
-that live in the dotfiles repo, outside this repo's review gate, one of which rewrites live database
-passwords. All five removed. The two `deny` entries stay and gained their space-separated spellings:
-`--from=cronjob/backup-replication` was blocked while `--from cronjob/backup-replication` ran and
-returned `job.batch/spike-bypass`, because the rules match command text with no getopt awareness.
+**Permissions for the coding agent.** `.claude/settings.json` approved these commands without asking:
 
-**Bot init hardening.** `GIT_EXEC_RE` missed `gpg.program`, `diff.<driver>.command`,
-`remote.<n>.uploadpack`, `core.alternateRefsCommand`, `uploadpack.packObjectsHook` and
-`protocol.ext.allow` (which arms `ext::` remotes); the extended pattern was spiked against 31
-must-match and 13 must-not-match keys. The fork checkout `~/source-code/claude-telegram-bot` was
-never swept although `set_remote` manages it. The hooks sweep was the one fail-open step in a sweep
-documented as fail-closed at both ends — now a recursive remove of `.git/hooks`, which needs write
-permission on `.git` rather than on `hooks/` and so survives the chmod that defeated the original
-(exit codes verified in the running Alpine pod). `chezmoi apply` executes `run_*` scripts from the
-source **directory**, not the git index, so a hard reset that leaves untracked files leaves an
-executable on a 30-minute timer — the source is now cleaned to match git. And the `settings.json`
-rewrite silently no-opped on `[]`, `5`, `"oops"` and `true`: assigning a property to a primitive is
-a no-op in sloppy mode, and `JSON.stringify` drops properties added to an array, so each wrote the
-junk back with no hooks block and exit 0.
+| Entries | Why they were a risk |
+|---|---|
+| `kubectl exec`, `port-forward` and `create job` | together, they gave code execution inside the cluster under the operator's cluster-admin kubeconfig (the file with the operator's full administrator access). That is the same reach that `apps/claude-telegram/rbac.yaml` exists to deny the bot |
+| `bash` against two skills trees | the trees live in the dotfiles repo, outside this repo's review step, and one of them rewrites live database passwords |
 
-Two rounds of Codex review then found that the first pass at this was a control that stopped
-working the moment the pod finished starting. The sweep ran only in the init container, and
-everything it removes is PVC state the bot can write back the second init exits — after which the
-sync sidecar runs git and `chezmoi apply` against that state every 30 minutes. A key planted at
-00:01 executed at 00:30. The sidecar now re-runs the whole sweep before every cycle and skips the
-cycle rather than syncing unhardened. Round two then killed the fix's own assumption: pinning
-`remote.origin.url` is not enough, because a bare `git fetch` and `@{u}` both resolve through
-`branch.<name>.remote` and `branch.<name>.merge` — ordinary config no regex can strip without
-breaking the legitimate case — so an attacker-added second remote redirects the fetch past a
-pinned origin, and the `run_*` scripts in that repo are **tracked**, beyond the reach of any
-cleaning. Both fetches are now explicit `origin <branch>`, and `chezmoi apply` is skipped when the
-fetch or reset fails. Checking that turned up the detail that would have broken dotfiles sync
-outright: the dotfiles repo is on **`master`**, not `main`.
+All five entries are removed. The two `deny` entries stay, and each gained its spelling with a
+space. `--from=cronjob/backup-replication` was blocked, but `--from cronjob/backup-replication` ran
+and returned `job.batch/spike-bypass`. The rules match the command text, and do not know that both
+spellings pass the same option.
 
-Nothing here was remediating a live compromise: all three PVC checkouts carry only `.sample` hooks
-and no exec-capable config keys.
+**Hardening of the bot's start-up.** `GIT_EXEC_RE` missed these git settings that can run commands:
 
-**The DR gap this did not close.** Pre-creating the two namespaces removes one deadlock and exposes
-the next. `require-networkpolicy` is a Deny ValidatingPolicy whose count comes from
-`resource.List(...)` against the **live** namespace, and kustomize-controller server-side dry-runs
-its whole apply set before persisting any of it — so a workload and the NetworkPolicy that would
-satisfy it, arriving in the same set, still fail with `Namespace must declare at least one
-NetworkPolicy`. On a rebuild that is every namespace at once. Building an ordered bootstrap layer
-is a design change and was not made here; instead `.backup/README.md` Step 6 now documents the
-failure and carries a tested namespaces-and-policies-first workaround (23 namespaces, 58 policies,
-server-dry-run clean). Worth doing properly before the next DR drill.
+| Setting |
+|---|
+| `gpg.program` |
+| `diff.<driver>.command` |
+| `remote.<n>.uploadpack` |
+| `core.alternateRefsCommand` |
+| `uploadpack.packObjectsHook` |
+| `protocol.ext.allow` (which enables `ext::` remotes) |
 
-**Node SSH.** `agent-diag` accepted any path operand for `cat` and `ls`, running as the operator's
-own login account — an arbitrary user-readable-file read, exfiltratable over the pod's permitted 443
-egress. Operands are now allowlisted by prefix with `..` refused before the prefix is tested. The
-cluster-admin framing in the original finding is **refuted**: there is no kubeconfig in that
-account's home and `/etc/rancher/k3s/k3s.yaml` is not user-readable. `ps -o`/`-eo` were dead
-allowlist entries — every call died on the operand check — and are gone, since `ps aux` already
-carries RSS. Previous-boot journal spellings (`-b-1`, `--boot=-1`, `--list-boots`) now work; the
-separated `-b -1` cannot, because a lone `-1` is matched as an option.
+A test ran the extended pattern against 31
+keys it must match and 13 keys it must not match.
 
-**Timer.** August's security scan sat on the 8th, a Saturday, with the weekly reboot at Sat 04:30
-UTC inside its 04:00–05:00 window. At the steady-state `Persistent=true` that collision is
-survivable — a missed run catches up on next boot — but the temporary shift also set
-`Persistent=false`, so the scan would have been lost outright. Moved to the 9th, kept in glob form
-so a forgotten revert keeps scanning monthly rather than never firing again.
+The sweep never covered the fork checkout `~/source-code/claude-telegram-bot`, although `set_remote`
+manages it.
 
-**Withdrawn — do not re-file.** (1) "The RoleBindings introduce a bootstrap deadlock" — wrong
-attribution, see above. (2) "The bot lost the sanctioned `rollout restart` in database namespaces" —
-not a defect; `rbac.yaml` lists every excluded namespace with a reason, keeps read plus `pods
-delete` there, and documents the one-line path to re-enable.
+The sweep is documented to stop on any error at both ends (to fail closed). Its hooks step was the
+only one that carried on after an error. That step is now a recursive remove of `.git/hooks`. A
+recursive remove needs write permission on `.git`, not on `hooks/`, so the chmod that defeated the
+old step does not defeat the new one. The exit codes were checked in the running Alpine pod.
 
-Two spikes returned nothing and are recorded as such rather than as results: the
-`bash ~/.claude/skills/../../../x.sh` traversal test ran, but so did its absolute-path control, so
-the session's permission mode auto-approved `bash` either way and the test isolated nothing; and
-`*-*-09` could not be checked with `systemd-analyze calendar` before deploy — no SSH, no local
-systemd, no container runtime — so `systemctl list-timers` after the ansible run is the real proof.
+`chezmoi apply` runs `run_*` scripts from the source **directory**, not from the git index. If a hard
+reset leaves untracked files in place, an untracked script stays there, and the sync can run it on
+its 30-minute timer. The sweep now cleans the source directory to match git.
+
+Last, the step that rewrites `settings.json` did nothing, and reported no error, when the file held
+`[]`, `5`, `"oops"` or `true`. In JavaScript's non-strict mode, setting a property on a primitive
+value does nothing, and `JSON.stringify` drops properties added to an array. So in each case the
+step wrote the bad content back with no hooks block, and exited 0.
+
+Two rounds of Codex review then found that this first version stopped protecting anything as soon as
+the pod finished starting. The sweep ran only in the init container (the container that runs before
+the bot starts). Everything it removes is state on the PVC (the pod's persistent disk), and the bot
+can write that state back as soon as the init container exits. After that, the sync sidecar (the
+helper container that runs beside the bot and syncs its files) runs git and `chezmoi apply` against
+that state every 30 minutes. A key planted at 00:01 ran at 00:30. The sidecar now runs the whole
+sweep again before every cycle. It skips the cycle rather than sync without a completed sweep.
+
+Round two then disproved an assumption of the fix itself: pinning `remote.origin.url` is not
+enough. A bare `git fetch` and `@{u}` both find their remote through `branch.<name>.remote` and
+`branch.<name>.merge`. Those are ordinary settings, and no pattern can strip them without breaking
+normal use. So an attacker can add a second remote and send the fetch there, past the pinned
+origin. And the `run_*` scripts in that repo are **tracked**, so no cleaning can remove them. Both
+fetches now name `origin <branch>` explicitly. If the fetch or reset fails, the sidecar skips
+`chezmoi apply`. Checking that change found a detail that would have broken the dotfiles sync
+completely: the dotfiles repo uses **`master`**, not `main`.
+
+None of this fixed an actual break-in. All three checkouts on the PVC hold only `.sample` hooks and
+no config keys that can run commands.
+
+**The disaster-recovery gap this change did not close.** Creating the two namespaces in advance
+removes one deadlock and exposes the next. `require-networkpolicy` is a Kyverno ValidatingPolicy
+with the Deny action. It counts NetworkPolicies with `resource.List(...)` against the **live** namespace.
+kustomize-controller first runs a server-side dry run (a test apply on the API server) of its whole
+set, before it saves any of it. So if a workload and the NetworkPolicy that would satisfy the rule
+arrive in the same set, they still fail with `Namespace must declare at least one
+NetworkPolicy`. On a rebuild, that happens in every namespace at once. An ordered bootstrap layer
+would be a design change, and this change did not build one. Instead, `.backup/README.md` Step 6
+now documents the failure. It gives a tested workaround that applies namespaces and policies
+first (23 namespaces, 58 policies, clean in a server-side dry run). The proper fix is worth doing
+before the next DR drill.
+
+**SSH to the nodes.** `agent-diag`, the only command the bot's node SSH key may run, accepted any
+path for `cat` and `ls`. It runs as the operator's own login account. So the bot could read any file
+that account can read, and send it out through the outbound port 443 that the pod is allowed to use.
+Paths now must start with an allowed prefix, and a path containing `..` is refused before the prefix
+is tested. The original finding said this gave cluster-admin access, and that claim is
+**refuted**: the account's home holds no kubeconfig, and the account cannot read
+`/etc/rancher/k3s/k3s.yaml`. `ps -o`/`-eo` were allowlist entries that never worked, because every
+call failed the operand check. They are removed, since `ps aux` already shows RSS (memory in use).
+The spellings for the journal of the previous boot (`-b-1`, `--boot=-1`, `--list-boots`) now work.
+The separated form `-b -1` cannot work, because the check treats a lone `-1` as an option.
+
+**Timer.** August's security scan was set for the 8th, a Saturday. The weekly reboot at Sat 04:30
+UTC fell inside the scan's 04:00–05:00 window. With the usual `Persistent=true`, the clash is
+survivable: a missed run catches up at the next boot. But the temporary schedule change also set
+`Persistent=false`, so the scan would have been lost. The scan moved to the 9th. The date stays in
+wildcard form, so if nobody reverts the change, the scan still runs every month rather than never
+again.
+
+**Withdrawn findings. Do not file them again.**
+
+| # | Withdrawn finding | Why |
+|---|---|---|
+| 1 | "The RoleBindings introduce a bootstrap deadlock" | it blamed the wrong change, see above |
+| 2 | "The bot lost the approved `rollout restart` in database namespaces" | not a defect, see below |
+
+For the second finding: `rbac.yaml` lists every excluded namespace
+with a reason. It keeps read access plus `pods
+delete` there, and documents the one-line change that turns the grant back on.
+
+Two test runs proved nothing, and are recorded as such rather than as results:
+
+| Test | Why it proved nothing |
+|---|---|
+| the path-traversal test `bash ~/.claude/skills/../../../x.sh` | it ran, but so did its control with an absolute path. The session's permission mode approved `bash` either way |
+| a check of `*-*-09` with `systemd-analyze calendar` before deploy | it could not run: the session had no SSH, no local systemd and no container runtime. So `systemctl list-timers` after the Ansible run is the real proof |
 
 ### 2026-08-05 — A one-line Renovate tag bump made the MySQL replica unrebuildable
 
