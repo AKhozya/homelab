@@ -31,7 +31,7 @@ that write it need K3s already running:
 
 | Command | Needs | Where that comes from |
 |---|---|---|
-| `scripts/setup-node.sh` | root | It detects the control plane by a running `k3s` service. Before K3s runs, it treats the node as a worker and skips the Ansible stack (`ansible jq rsync logrotate python-kubernetes`). |
+| `scripts/setup-node.sh <role>` | root, and the role (`control-plane` or `worker`) | If K3s is not running, pass the role: there is no unit to read it from, and the script exits without it. For `control-plane` it installs the Ansible stack (`ansible jq rsync logrotate python-kubernetes`). If that install fails, the script stops. |
 | `node-maintenance/install.sh` | the Ansible stack, `kubectl`, `flux`, a readable `/etc/rancher/k3s/k3s.yaml`, the staged SSH key ([node-maintenance README](../../node-maintenance/README.md#install-once)) | K3s must already run. On the live control plane `flux` comes from the AUR package `flux-bin`; nothing in this repo installs it. |
 | `node-maintenance-config.service` (writes `config.yaml`, `kubelet.yaml`, the firewall) | `install.sh` | `install.sh` installs the unit. |
 | `node-maintenance-sync.service` | `install.sh` and the deploy key `/root/.ssh/homelab-deploy` | the node-maintenance README, "Deploy key (once)". A rebuilt control plane has no deploy key yet. |
@@ -49,10 +49,9 @@ costs:
 costs is still open.
 
 ```bash
-# 1. Bootstrap (firmware suppressors + bootloader params + K3s config dir). Before K3s runs it
-#    skips the Ansible stack, so install that too, and `flux-bin` from the AUR.
-sudo bash scripts/setup-node.sh
-sudo pacman -S --needed ansible jq rsync logrotate python-kubernetes
+# 1. Bootstrap. Pass the role, because K3s is not running yet. Also install `flux-bin` from the
+#    AUR: install.sh needs `flux`, and nothing in this repo installs it.
+sudo bash scripts/setup-node.sh control-plane
 
 # 2. Install pinned K3s
 curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.37.0+k3s1" sh -
@@ -116,7 +115,7 @@ SSH. So the worker's `config.yaml` can exist before its first K3s start:
 
 ```bash
 # 1. On the worker: bootstrap
-sudo bash scripts/setup-node.sh
+sudo bash scripts/setup-node.sh worker
 
 # 2. On the worker: create the node-maintenance user and key. install.sh on the control plane
 #    wrote /tmp/install-worker-ready.sh and printed the commands that copy and run it.
@@ -172,8 +171,8 @@ hand.
 
 ## What `setup-node.sh` does
 
-`scripts/setup-node.sh` only bootstraps a node; its header says so. It detects the node type and
-does three things:
+`scripts/setup-node.sh` only bootstraps a node; its header says so. It takes the node role as its
+argument, or reads it from a running `k3s` or `k3s-agent` unit, and does three things:
 
 | # | Step |
 |---|---|
