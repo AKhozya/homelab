@@ -1,6 +1,6 @@
 # Secrets Rotation Playbook
 
-**Cluster**: K3s Homelab (k3s v1.37.0+k3s1, 4 nodes) | **Last Updated**: 2026-09-26
+**Cluster**: K3s Homelab (k3s v1.37.0+k3s1, 4 nodes) | **Last Updated**: 2026-09-28
 **Audit Trail**: rotation dates in git commit history
 
 Every secret in this cluster lives encrypted in Git using SOPS with an age key. The
@@ -39,15 +39,17 @@ Grafana and Audiobookshelf use SQLite, so they have no database Secret.
 
 | Secret Name | App | Last Rotated | Next Rotation | Priority |
 |-------------|-----|--------------|---------------|----------|
-| `home-assistant-secrets` (key `db_url`) | Home Assistant | 2026-04-02 | 2026-10-01 | High |
+| `home-assistant-secrets` (the `db_url` line inside key `secrets.yaml`) | Home Assistant | 2026-04-02 | 2026-10-01 | High |
 | `uptime-kuma-mysql-credentials` | Uptime Kuma | 2026-04-02 | 2026-10-01 | Medium |
 | `pricebuddy-mysql-credentials` | PriceBuddy | 2026-04-02 | 2026-10-01 | Medium |
 
 #### CouchDB
 
-| Secret Name | App | Notes |
-|-------------|-----|-------|
-| `couchdb-admin-credentials` | Obsidian Sync | **MOVED** — see User Login Passwords |
+| Secret Name | App | Last Rotated | Next Rotation | Priority |
+|-------------|-----|--------------|---------------|----------|
+| CouchDB admin, three copies (see [Standard](#standard-180-days--single-cadence-for-all-scheduled-rotations)) | Obsidian Sync | 2026-04-02 | 2026-10-01 | — |
+
+The sync user `couchdb-credentials` is not rotated; it is under User Login Passwords.
 
 ### Redis
 
@@ -77,7 +79,7 @@ Grafana and Audiobookshelf use SQLite, so they have no database Secret.
 | `homehub-password` | HomeHub | User login — NO auto-rotate |
 | `grafana-admin-secret` | Grafana | User login — NO auto-rotate |
 | `audiobookshelf-admin` | Audiobookshelf | User login — NO auto-rotate |
-| `couchdb-admin-credentials` | Obsidian Sync | Client-facing (LiveSync direct) — NO rotate |
+| `couchdb-credentials` (ns `obsidian`) | Obsidian Sync | Sync user that the LiveSync clients log in with — NO rotate |
 
 ### OIDC/OAuth Secrets
 
@@ -90,7 +92,7 @@ Grafana and Audiobookshelf use SQLite, so they have no database Secret.
 | Linkwarden | `linkwarden-secret.yaml` (DATABASE_URL + OIDC combined) | 2026-04-02 | 2026-10-01 | Medium |
 | Audiobookshelf | SQLite on PVC (web UI config) + Authentik API | 2026-04-02 | 2026-10-01 | Medium |
 | Home Assistant | Confidential `!secret` in HA config (hass-oidc-auth v1.1.0, re-enabled 2026-05-31) | 2026-05-31 | 2026-10-01 | Medium |
-| Stirling PDF | `custom-settings-configmap.yaml` (SOPS Secret) | 2026-04-02 | 2026-10-01 | Medium |
+| Stirling PDF | `custom-settings-secret.yaml` (inside key `custom_settings.yml`) | 2026-04-02 | 2026-10-01 | Medium |
 
 **OIDC rotation gotchas:**
 - **Immich**: update Authentik API AND PostgreSQL: `UPDATE system_metadata SET value = jsonb_set(value::jsonb, '{oauth,clientSecret}', '"NEW_SECRET"') WHERE key = 'system-config';` then restart
@@ -112,7 +114,7 @@ Grafana and Audiobookshelf use SQLite, so they have no database Secret.
 | `claude-telegram-ssh` → `gh-homelab` | Telegram bot — GitHub deploy key, repo `homelab`, **WRITE** (`read_only=false`) | 2026-08-03 | 2027-01-30 | Critical |
 | `claude-telegram-ssh` → `gh-dotfiles` | Telegram bot — GitHub deploy key, repo `dotfiles`, read-only | 2026-08-03 | 2027-08-03 | Medium |
 | `claude-telegram-ssh` → `gh-fork` | Telegram bot — GitHub deploy key, repo `claude-telegram-bot`, read-only | 2026-08-03 | 2027-08-03 | Low |
-| `cloudflare-api-token` (`cert-manager` ns) | cert-manager DNS-01 for `*.h0melab.work`; Cloudflare token `dns_and_certs` (Zone.Zone + Zone.DNS, one zone) | 2026-09-28 (compromise) | 2027-09-28 | Critical |
+| `cloudflare-api-token` (`cert-manager` ns) | cert-manager DNS-01 for the `h0melab.work` zone; Cloudflare token `dns_and_certs` (Zone.Zone + Zone.DNS, one zone) | 2026-09-28 (compromise) | 2027-09-28 | Critical |
 | `alertmanager-telegram` (`bot_token`, `token`) + `backup-telegram` (`bot_token`) | Telegram bot @h0melab_alerts_bot: Alertmanager, Flux notifications, backup job | 2026-09-28 (compromise) | Never* | Medium |
 | `claude-telegram-env` → `telegram-bot-token` | Telegram bot @ClaudeSelfHostedBot (claude-telegram) | 2026-09-28 | Never* | High |
 | `sops-age` (`flux-system` ns) | SOPS decryption key for every secret in this repo | 2025-10-19 (bootstrap) | Never* | Critical |
@@ -139,8 +141,8 @@ it: `gh api repos/AKhozya/<repo>/keys --jq '.[] | "\(.title) read_only=\(.read_o
 
 | Certificate | Renewal |
 |-------------|---------|
-| `*.h0melab.work` | Auto (cert-manager, Let's Encrypt) |
-| Individual app certs | Auto (cert-manager) |
+| One per ingress hostname; no wildcard certificate | Auto (cert-manager, Let's Encrypt DNS-01) |
+| MySQL internal TLS (`main-mysql-ca-cert`, `main-mysql-ssl`) | Auto (cert-manager) |
 
 ---
 
@@ -150,7 +152,13 @@ it: `gh api repos/AKhozya/<repo>/keys --jq '.[] | "\(.title) read_only=\(.read_o
 - DB passwords: Immich, Authentik, N8N, Home Assistant, Mealie, Paperless, Linkwarden, Uptime Kuma, PriceBuddy, Blocky
 - Redis: Immich, Paperless, Blocky, HA admin (`redis-acl-secret` rotates with `redis-passwords`)
 - OIDC client secrets (Authentik provider + app-side)
-- CouchDB admin (also update `monitoring/configs/victoria-metrics/couchdb-auth-secret.yaml` for VMAgent)
+- CouchDB admin. Three SOPS files hold it, and all three must match:
+
+  | File | Secret (namespace) | Keys | Reader |
+  |---|---|---|---|
+  | `infrastructure/configs/databases/couchdb/admin-secret.yaml` | `couchdb-couchdb` (`databases`) | `adminUsername`, `adminPassword` | CouchDB, backup CronJob |
+  | `monitoring/configs/victoria-metrics/couchdb-auth-secret.yaml` | `couchdb-couchdb` (`monitoring`) | `adminUsername`, `adminPassword` | VMAgent scrape |
+  | `apps/obsidian/couchdb-admin-credentials.yaml` | `couchdb-admin-credentials` (`obsidian`) | `username`, `password` | Obsidian init Job |
 - Authentik Django secret key
 
 90-day High tier retired 2026-07-02 — Priority column in the inventory ranks blast-radius, not cadence. Annual infrastructure keys (SSH, deploy, CF mgmt token) keep their own dates.
@@ -164,6 +172,32 @@ it: `gh api repos/AKhozya/<repo>/keys --jq '.[] | "\(.title) read_only=\(.read_o
 ---
 
 ## ROTATION PROCEDURES
+
+**Restarting app pods.** Do not use `kubectl rollout restart` on a Flux-managed workload. Flux's
+drift correction removes the `restartedAt` annotation it adds, so the old pod keeps running on the
+old secret (n8n, recorded in `d6d67c20`). Delete the pods instead. `agents/skills/_shared/restart-workload.sh`
+deletes one pod at a time and waits until the workload is Ready again before the next, so a
+two-replica app keeps serving. It refuses databases; Redis has its own step in section 2.
+
+| App | Namespace | Selector | Replicas |
+|---|---|---|---|
+| Authentik | `authentik` | `app=authentik,component=server`, then `app=authentik,component=worker` | 2 each |
+| Blocky | `blocky` | `app=blocky` | 2 |
+| Grafana | `monitoring` | `app.kubernetes.io/name=grafana` | 1 |
+| Home Assistant | `home-assistant` | `app=home-assistant` | 1 |
+| HomeHub | `homehub` | `app=homehub` | 1 |
+| Immich | `immich` | `app.kubernetes.io/name=server` | 1 |
+| Linkwarden | `linkwarden` | `app=linkwarden` | 1 |
+| Mealie | `mealie` | `app=mealie` | 1 |
+| N8N | `n8n` | `app=n8n` | 1 |
+| Paperless-NGX | `paperless-ngx` | `app=paperless-ngx` | 1 |
+| PriceBuddy | `pricebuddy` | `app=pricebuddy` | 1 |
+| Stirling PDF | `stirling-pdf` | `app=stirling-pdf` | 1 |
+| Uptime Kuma | `uptime-kuma` | `app=uptime-kuma` | 1 |
+
+```bash
+agents/skills/_shared/restart-workload.sh <namespace> <selector>
+```
 
 ### 1. PostgreSQL Password (CNPG)
 
@@ -190,7 +224,7 @@ sops --ignore-mac --set '["stringData"]["<PASSWORD_KEY>"] "'${NEW_PASSWORD}'"' \
 #   sops set apps/blocky/config-secret.yaml '["stringData"]["config.yml"]' "$(printf '%s' "$NEWCFG" | jq -Rs .)"
 # Verify both carry the same new pw WITHOUT printing it; confirm CNPG synced the role via
 # `kubectl -n databases get cluster main-postgres -o jsonpath='{.status.managedRolesStatus}'`
-# (role in .reconciled at the new secret resourceVersion) before/after the app rollout restart.
+# (role in .reconciled at the new secret resourceVersion) before/after the app restart.
 
 # 4. Commit and push
 git add infrastructure/configs/databases/postgres/<app>-db-user.yaml \
@@ -203,8 +237,8 @@ flux reconcile source git flux-system --timeout 60s
 flux reconcile kustomization infrastructure-configs --timeout 60s
 flux reconcile kustomization apps --timeout 60s
 
-# 6. Restart affected pods to pick up new secret
-kubectl rollout restart deployment/<app> -n <app>
+# 6. Restart the app's pods so they read the new secret (selector table above)
+agents/skills/_shared/restart-workload.sh <namespace> <selector>
 
 # 7. Verify connectivity
 kubectl logs -n <app> deployment/<app> --tail=20 | grep -i "database\|error"
@@ -222,7 +256,7 @@ git push
 flux reconcile source git flux-system --timeout 60s
 flux reconcile kustomization infrastructure-configs --timeout 60s
 flux reconcile kustomization apps --timeout 60s
-kubectl rollout restart deployment/<app> -n <app>
+agents/skills/_shared/restart-workload.sh <namespace> <selector>
 ```
 
 ---
@@ -234,7 +268,8 @@ each consumer's app-side secret (Authentik has had no Redis since 2025-10-29):
 
 - `infrastructure/configs/databases/redis-ha/passwords-secret.yaml` — `redis-passwords` (per-user: admin, immich, paperless, blocky)
 - `infrastructure/configs/databases/redis-ha/acl-secret.yaml` — `redis-acl-secret`, literal user list mounted at `/etc/redis/user.acl`; contains the SAME passwords — regenerate both, never hand-sync one side
-- Consumers: `apps/immich/immich-redis-url-secret.yaml` (`REDIS_URL=ioredis://<base64(json)>` — password embedded in the JSON) · `apps/paperless-ngx/paperless-env-secret.yaml` (Redis URL env) · Blocky config
+- Consumers: `apps/immich/immich-redis-url-secret.yaml` (key `redis-url`, `ioredis://<base64(json)>` — password embedded in the JSON) · `apps/paperless-ngx/paperless-env-secret.yaml` (key `PAPERLESS_REDIS`, a URL) · Blocky config ([Blocky DNS](#blocky-dns-redis-password-coordinated-rotation))
+- The sentinels read `admin-password` from `redis-passwords`; an admin rotation follows the three passes in step 5.
 
 ```bash
 # 1. Generate new password (per Redis user being rotated)
@@ -249,55 +284,122 @@ sops apps/immich/immich-redis-url-secret.yaml        # rebuild the base64(json) 
 # or: sops apps/paperless-ngx/paperless-env-secret.yaml
 
 # 4. Commit and push
-git add -A
+git add infrastructure/configs/databases/redis-ha/passwords-secret.yaml \
+        infrastructure/configs/databases/redis-ha/acl-secret.yaml \
+        apps/<app>/<secret-file>.yaml
 git commit -m "Rotate Redis <user> password"
 git push
 
-# 5. Reconcile, then rollout restart (NEVER delete pods — Flux reverts restartedAt)
 # infrastructure-configs, not -controllers: the Redis secrets live under
 # infrastructure/configs/databases/redis-ha/, which is the -configs Kustomization's path.
 flux reconcile source git flux-system --timeout 45s
 flux reconcile kustomization infrastructure-configs --timeout 60s
 flux reconcile kustomization apps --timeout 60s
-kubectl rollout restart statefulset/redis-replication -n databases
-kubectl rollout restart deployment/<app> -n <app>
-
-# 6. Verify connectivity
-kubectl logs -n <app> deployment/<app> --tail=20 | grep -i "redis\|error"
 ```
+
+5. Restart the Redis pods one at a time: the replica, then the master. Redis reads `user.acl` only
+   when it starts. The kubelet updates the mounted file, but a running Redis keeps the old
+   passwords.
+   - Never run `kubectl rollout restart` on these StatefulSets. The opstree operator then loops on
+     the `restartedAt` annotation that the restart adds to the pod template (`bf7bf65d`).
+   - Pod roles swap on failover, so the commands read the `redis-role` label each time. The delete
+     carries that label too, so the API server re-checks the role when the delete runs.
+   - `kubectl delete` waits until the old pod is gone, and the `wait` then covers the new pod.
+   - Deleting the master makes the sentinels promote the restarted replica. Writes fail for a few
+     seconds.
+   - The chain stops at the first step that fails: nothing deleted, or no Ready pod within 180 s.
+
+   ```bash
+   redis_restart() {  # $1 = label selector, $2 = pod name
+     out=$(kubectl -n databases delete pod -l "$1" --field-selector="metadata.name=$2") || return 1
+     echo "$out"
+     # A delete that matches nothing still exits 0 and prints "No resources found".
+     case "$out" in *deleted*) ;; *) return 1 ;; esac
+     kubectl -n databases wait --for=create --for=condition=Ready pod/"$2" --timeout=180s
+   }
+   role_pod() { kubectl -n databases get pod -l "app=redis-replication,redis-role=$1" -o jsonpath='{.items[0].metadata.name}'; }
+
+   R=$(role_pod slave) && redis_restart "app=redis-replication,redis-role=slave" "$R" &&
+     M=$(role_pod master) && redis_restart "app=redis-replication,redis-role=master" "$M" &&
+     echo "replica and master restarted"
+   ```
+
+   If `admin-password` changes, rotate it in three passes instead. The sentinels log in to Redis
+   with `admin-password` and read it only when they start. A Redis pod that knows only the new
+   password would lock out the sentinels that still hold the old one, and they could not promote
+   it. Redis accepts several passwords for one ACL user, so the passes overlap the two:
+
+   | Pass | Change, then commit, push and reconcile | Restart |
+   |---|---|---|
+   | 1 | In `acl-secret.yaml`, give the admin line both passwords: `>OLD >NEW` | replica, then master (above) |
+   | 2 | In `passwords-secret.yaml`, set `admin-password` to NEW | each sentinel (below) |
+   | 3 | In `acl-secret.yaml`, remove `>OLD` from the admin line | replica, then master (above) |
+
+   ```bash
+   redis_restart app=redis-sentinel-sentinel redis-sentinel-sentinel-0 &&
+     redis_restart app=redis-sentinel-sentinel redis-sentinel-sentinel-1 &&
+     redis_restart app=redis-sentinel-sentinel redis-sentinel-sentinel-2
+   ```
+
+6. Restart each consumer (selector table under ROTATION PROCEDURES), then check its log:
+
+   ```bash
+   agents/skills/_shared/restart-workload.sh <namespace> <selector>
+   kubectl logs -n <namespace> deployment/<deployment> --tail=20 | grep -i "redis\|error"
+   ```
 
 ---
 
 ### 3. MySQL Password (Percona)
 
+The Percona operator has no user resource. The app users come from SQL
+([`mysql-create-dbs.sql`](disaster-recovery/mysql-create-dbs.sql)), so the password changes with
+`ALTER USER` on the primary. Each app keeps its own copy:
+
+| App | MySQL user | SOPS file | Where the password sits |
+|---|---|---|---|
+| Home Assistant | `homeassistant` | `apps/home-assistant/secrets.yaml` | the `db_url:` DSN inside key `secrets.yaml`, and the separate `db_url` key |
+| Uptime Kuma | `uptimekuma` | `apps/uptime-kuma/mysql-credentials.yaml` | key `password` |
+| PriceBuddy | `pricebuddy` | `apps/pricebuddy/mysql-credentials.yaml` | key `password` |
+
+Home Assistant mounts only the `secrets.yaml` key and reads `db_url: !secret db_url` from that
+file. Nothing in the repo reads the separate `db_url` key; set it to the same DSN so the two never
+disagree.
+
+Deploy the new secret first, then change the user, then restart the app. The app then fails only
+between the `ALTER USER` and its restart. Rotate one app at a time. Take the variables in step 1
+from the table above and from the selector table under ROTATION PROCEDURES.
+
 ```bash
-# 1. Generate new password (32 chars, alphanumeric only)
-NEW_PASSWORD=$(openssl rand -base64 24 | tr -d '+/=' | head -c 32)
+# 1. Pick the app and generate the password (hex: safe inside a DSN and a SQL string)
+APP_NS=uptime-kuma; APP_SEL=app=uptime-kuma; DB_USER=uptimekuma
+SECRET_FILE=apps/uptime-kuma/mysql-credentials.yaml
+NEW_PASSWORD=$(openssl rand -hex 32)
 
-# 2. Update MySQL user password via Percona operator
-# The operator manages users via the PerconaServerMySQL CRD
-# Update the secret referenced by the user definition
+# 2a. Uptime Kuma, PriceBuddy: bare key. The value goes in on stdin, never on the command line.
+printf '"%s"' "$NEW_PASSWORD" | sops set --value-stdin "$SECRET_FILE" '["stringData"]["password"]'
+# 2b. Home Assistant: the password sits inside a DSN, so edit both places by hand
+printf '%s' "$NEW_PASSWORD" | pbcopy   # macOS; paste it in the editor
+sops "$SECRET_FILE"
 
-# 3. Update SOPS-encrypted secret for the app
-# Example for Home Assistant:
-sops apps/home-assistant/admin-credentials-secret.yaml
-# Update the MySQL password value
-
-# 4. Commit and push
-git add apps/home-assistant/admin-credentials-secret.yaml
-git commit -m "Rotate Home Assistant MySQL password"
+# 3. Commit, push, reconcile
+git add "$SECRET_FILE"
+git commit -m "Rotate $APP_NS MySQL password"
 git push
-
-# 5. Reconcile and restart
 flux reconcile source git flux-system --timeout 45s
-flux reconcile kustomization apps --timeout 45s
-kubectl rollout restart deployment/home-assistant -n home-assistant
+flux reconcile kustomization apps --timeout 60s
 
-# 6. Verify connectivity
-kubectl logs -n home-assistant deployment/home-assistant --tail=20 | grep -i "mysql\|database\|error"
+# 4. Change the user on the primary. HAProxy routes the write to the primary; the SQL goes in
+#    on stdin, so the new password stays off the command line.
+MYSQL_ROOT_PWD=$(kubectl get secret -n databases mysql-cluster-secrets -o jsonpath='{.data.root}' | base64 -d)
+printf "ALTER USER '%s'@'%%' IDENTIFIED BY '%s';\n" "$DB_USER" "$NEW_PASSWORD" | \
+  kubectl exec -i -n databases main-mysql-mysql-0 -c mysql -- \
+  mysql -h main-mysql-haproxy.databases.svc.cluster.local -uroot -p"${MYSQL_ROOT_PWD}"
+
+# 5. Restart the app, then check its log
+agents/skills/_shared/restart-workload.sh "$APP_NS" "$APP_SEL"
+kubectl logs -n "$APP_NS" -l "$APP_SEL" --tail=20 | grep -i "mysql\|database\|error"
 ```
-
-**Note**: Percona operator handles password updates through CRDs. User secrets in `databases` namespace, referenced by PerconaServerMySQL resource.
 
 ---
 
@@ -316,24 +418,35 @@ kubectl exec -n authentik deploy/authentik-server -- curl -s -X PATCH \
   -d "{\"client_secret\": \"${NEW_SECRET}\"}" \
   "http://localhost:9000/api/v3/providers/oauth2/<PROVIDER_PK>/"
 
-# 3. Update SOPS-encrypted secret for the app
-# Key name varies: "client-secret" for most apps, check with: sops --ignore-mac -d <file>
-sops --ignore-mac --set '["stringData"]["client-secret"] "'${NEW_SECRET}'"' \
-  apps/<app>/<oidc-secret-file>.yaml
+# 3. Write the app-side copy (file and key per app: table below). For a bare key:
+printf '"%s"' "$NEW_SECRET" | sops set --value-stdin <file> '["stringData"]["<key>"]'
+# For a secret inside a larger value, edit by hand:
+sops <file>
 
 # 4. Commit and push
-git add apps/<app>/<oidc-secret-file>.yaml
+git add <file>
 git commit -m "Rotate <app> OIDC client secret"
 git push
 
-# 5. Reconcile and restart
+# 5. Reconcile the Kustomization that holds the file (table below), then restart
 flux reconcile source git flux-system --timeout 60s
-flux reconcile kustomization apps --timeout 60s
-kubectl rollout restart deployment/<app> -n <app>
+flux reconcile kustomization <kustomization> --timeout 60s
+agents/skills/_shared/restart-workload.sh <namespace> <selector>
 
 # 6. Test SSO login
 # Visit https://<app>.h0melab.work and test login
 ```
+
+| App | File | Where the secret sits | Write with | Kustomization |
+|---|---|---|---|---|
+| Grafana | `monitoring/configs/kube-prometheus-stack/grafana-oidc-secret.yaml` | key `client-secret` | `sops set` | `monitoring-configs` |
+| Mealie | `apps/mealie/mealie-env-secret.yaml` | key `OIDC_CLIENT_SECRET` | `sops set` | `apps` |
+| Linkwarden | `apps/linkwarden/linkwarden-secret.yaml` | key `AUTHENTIK_CLIENT_SECRET` | `sops set` | `apps` |
+| Paperless-NGX | `apps/paperless-ngx/paperless-env-secret.yaml` | inside the JSON in key `PAPERLESS_SOCIALACCOUNT_PROVIDERS` | `sops <file>` | `apps` |
+| Stirling PDF | `apps/stirling-pdf/custom-settings-secret.yaml` | inside the YAML in key `custom_settings.yml` | `sops <file>` | `apps` |
+| Home Assistant | `apps/home-assistant/secrets.yaml` | the `oidc_client_secret:` line inside key `secrets.yaml` | `sops <file>` | `apps` |
+| Immich | PostgreSQL `system_metadata` | see the gotchas above | SQL | — |
+| Audiobookshelf | SQLite on its volume | see the gotchas above | web UI | — |
 
 **Provider PK Reference**:
 - 1: Grafana, 3: Immich, 5: Paperless-NGX, 11: Mealie
@@ -345,20 +458,25 @@ kubectl rollout restart deployment/<app> -n <app>
 ### 5. User Login Passwords (HomeHub)
 
 #### HomeHub
+
+Secret `homehub-password` (`apps/homehub/secret.yaml`) holds the password in plain text, in key
+`password`. The init container copies it into `config.yml`. HomeHub hashes it with SHA-256 when it
+loads the file (`app/config.py` in HomeHub v0.2.4). Do not store a bcrypt hash here: HomeHub would
+treat the hash string itself as the password.
+
 ```bash
-# 1. Generate bcrypt hash
-python3 -c "import bcrypt; print(bcrypt.hashpw(b'YOUR_NEW_PASSWORD', bcrypt.gensalt(rounds=12)).decode())"
+# 1. Type the new password; it stays off the screen and off the command line
+read -rs NEW_PASSWORD
+printf '%s' "$NEW_PASSWORD" | jq -Rs . | sops set --value-stdin \
+  apps/homehub/secret.yaml '["stringData"]["password"]'
 
-# 2. Update SOPS secret
-sops apps/homehub/secret.yaml
-# Update HOMEHUB_PASSWORD with bcrypt hash
-
-# 3. Commit, push, reconcile, restart
+# 2. Commit, push, reconcile, restart
 git add apps/homehub/secret.yaml
 git commit -m "Rotate HomeHub password"
 git push
+flux reconcile source git flux-system --timeout 45s
 flux reconcile kustomization apps --timeout 45s
-kubectl rollout restart deployment/homehub -n homehub
+agents/skills/_shared/restart-workload.sh homehub app=homehub
 ```
 
 #### Blocky DNS (Redis password coordinated rotation)
@@ -377,7 +495,7 @@ sops infrastructure/configs/databases/redis-ha/acl-secret.yaml
 sops apps/blocky/config-secret.yaml
 # Find redis.password: <OLD> → replace with <NEW>
 
-# 5. Commit, push, reconcile, restart
+# 5. Commit, push, reconcile
 git add infrastructure/configs/databases/redis-ha/passwords-secret.yaml \
         infrastructure/configs/databases/redis-ha/acl-secret.yaml \
         apps/blocky/config-secret.yaml
@@ -386,10 +504,11 @@ git push
 flux reconcile source git flux-system --timeout 45s
 flux reconcile kustomization infrastructure-configs --timeout 60s
 flux reconcile kustomization apps --timeout 60s
-kubectl rollout restart statefulset -n databases redis-replication redis-sentinel-sentinel
-kubectl rollout restart deploy -n blocky blocky
 
-# 6. Verify
+# 6. Restart the Redis pods: section 2, step 5 (never `rollout restart` them)
+
+# 7. Restart Blocky one pod at a time (2 replicas), then verify
+agents/skills/_shared/restart-workload.sh blocky app=blocky
 kubectl logs -n blocky -l app=blocky --tail=20 | grep -iE "redis|error"
 ```
 
@@ -429,6 +548,23 @@ edits the checkout it lives in.
    | Flux notifications | the Secret, per event | none |
    | backup job | env, at the next run | none |
    | claude-telegram | env `TELEGRAM_BOT_TOKEN`, at start-up | `kubectl delete pod -n claude-telegram -l app=claude-telegram` (Flux reverts `rollout restart`) |
+   | node-maintenance notices (alerts bot) | the CP file `/etc/node-maintenance/telegram-token`, on each send; drift-heal copies it to every node | the operator refreshes it with sudo on the CP (below) |
+
+   `node-maintenance/install.sh` writes the CP file from the `backup-telegram` Secret only on a
+   full install, so a SOPS rotation leaves the old token there. After Flux applies step 3, run this
+   on the CP. The token stays in a shell variable and a pipe, never on the screen or the command
+   line. The chain stops before it touches the file if the read comes back empty:
+
+   ```bash
+   T=$(sudo kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml get secret -n backup-replication backup-telegram \
+     -o jsonpath='{.data.bot_token}' | base64 -d) && [ -n "$T" ] &&
+     printf '%s' "$T" | sudo tee /etc/node-maintenance/telegram-token >/dev/null &&
+     sudo systemctl start node-maintenance-config.service   # copies the file to the other nodes now
+   unset T
+   sudo /usr/local/sbin/telegram-notify.sh "token refresh test"
+   ```
+
+   Check that the test message reaches the chat. The script's exit code does not show a failed send.
 
 5. Verify. Cloudflare: the script's check shows the token active, and Roll keeps its
    permissions. Certificates that stay `True` in `kubectl get certificates -A` do not test the
@@ -514,6 +650,9 @@ If compromised:
   from 18 PR refs. Verified: Cloudflare reports the new token active; a test alert raised
   Alertmanager's Telegram send count from 24 to 25 with 0 failures; claude-telegram restarted and
   logged `Bot started`. The first certificate renewals with the new token are due 2026-10-31.
+  That pass did not refresh the CP file `/etc/node-maintenance/telegram-token` (still dated
+  2026-04-18 afterwards). node-maintenance notices fail on the revoked token until the operator
+  refreshes that file (section 6, step 4).
 - [x] **2026-08-07: claude-telegram bot token rotated after a pod-log leak** (`aac32751`) — failed
   `getUpdates` errors printed the token in the request URL during the morning WAN outage (Loki
   retains 720h). Bot 1.32.0 now redacts secrets from console output, so this leak class is closed

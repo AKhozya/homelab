@@ -39,7 +39,7 @@ Backup CronJobs (schedules, auto-discovery, mechanics): [backup-restore.md](back
 
 ## CouchDB
 - **Chart**: `couchdb` → STS `couchdb-couchdb`, pods `couchdb-couchdb-{0,1}` (`configs/databases/couchdb/release.yaml`)
-- **Auth**: Basic; the admin credentials are in the `couchdb-couchdb` Secret (`databases` ns). `obsidian/couchdb-credentials` is the Obsidian namespace's own copy for its clients.
+- **Auth**: Basic. The admin credentials are in the `couchdb-couchdb` Secret (`databases` ns), with copies in `monitoring/couchdb-couchdb` (VMAgent scrape) and `obsidian/couchdb-admin-credentials` (Obsidian init Job). `obsidian/couchdb-credentials` holds the sync user that the LiveSync clients log in with, not the admin.
 - **Backup**: daily HTTP dump (auto-discovers via `_all_dbs`)
 
 ## Resources / quotas
