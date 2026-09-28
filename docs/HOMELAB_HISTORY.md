@@ -433,68 +433,83 @@ Every recovery step was automatic. The manual work was clearing the residue the 
 
 Verified after recovery, with no configuration change made: no pstore blobs and no filesystem errors on any node after the hard power loss; Postgres 2/2 (primary `main-postgres-12`), MySQL 2/2 with haproxy 2/2 and orchestrator 3/3, CouchDB 2, Redis replication 2 plus 3 sentinels; Flux 7/7; all 16 ingress hosts answering through LAN Traefik; NAS `md1` raid6 `[6/6]` and `md0` `[2/2]`, with the known SMART-failed `sdb` unchanged and still awaiting its RMA replacement.
 
-### 2026-08-14 — extension ownership cannot be given to the app role, and immich picks its vector extension by availability
+### 2026-08-14 — Extension ownership cannot be given to the app's role, and Immich picks its vector extension by what is available
 
-Yesterday's crashloop raised the obvious question: which other extensions does a superuser own
-rather than the app that needs them, and can that be handed over? An audit of every extension in
-all eight databases answers the first part — only immich's `vector`, `cube` and `earthdistance` are
-owned by `postgres-admin`. `mealie.pg_trgm`, `n8n.uuid-ossp` and immich's
-`pg_trgm`/`unaccent`/`uuid-ossp` are owned by their app role, and `plpgsql` is `postgres`-owned in
-every database and inert, because no app updates it. Of the three, only `vector` matters: immich
-v3.1.0 only ever runs `ALTER EXTENSION` against the vector-family extension, so `cube` and
-`earthdistance` are create-once.
+The previous day's crashloop (a container that crashes and restarts over and over) raised two
+questions. An extension is an add-on module inside a database. Which other extensions does a
+superuser (a database account with every privilege) own, instead of the app that needs them? And
+can that ownership be handed over? An audit of every extension in all eight databases answered the
+first question:
 
-Handing ownership over fails twice, both checked against the live cluster on PostgreSQL 18.6:
+| Owner | Extensions |
+|---|---|
+| `postgres-admin` | only immich's `vector`, `cube` and `earthdistance` |
+| each app's own database role (its database account) | `mealie.pg_trgm`, `n8n.uuid-ossp` and immich's `pg_trgm`/`unaccent`/`uuid-ossp` |
+| `postgres` | `plpgsql`, in every database. This ownership has no effect, because no app updates it |
+
+Of the three extensions in the first row, only `vector` matters. immich v3.1.0 runs
+`ALTER EXTENSION` only against the vector-family extension, so `cube` and `earthdistance` are
+created once and never updated.
+
+Two attempts to hand ownership over failed. Both ran against the live cluster on PostgreSQL 18.6:
 
 | Attempt | Result |
 |---|---|
-| `ALTER EXTENSION vector OWNER TO immich` | `syntax error at or near "OWNER"` — PostgreSQL has no `OWNER TO` form for extensions |
-| move `pg_extension.extowner` by hand, then update as the owner | `permission denied to update extension` / `Must be superuser to update this extension.` |
+| `ALTER EXTENSION vector OWNER TO immich` | `syntax error at or near "OWNER"`. PostgreSQL has no `OWNER TO` form for extensions |
+| change `pg_extension.extowner` by hand, then update as the new owner | `permission denied to update extension` / `Must be superuser to update this extension.` |
 
-The second is the decisive one. `vector` is `superuser=t, trusted=f`, and PostgreSQL demands
-superuser to run an untrusted extension's update script whatever the owner is. The check ran in a
-rolled-back transaction against `pageinspect`, which carries the same two flags and ships real
-upgrade scripts. So a privileged job that runs the `ALTER` before the app starts is the only design
-that works, which is what `postgres-update-extensions` and `immich-init-extensions` already are.
+The second attempt settles the question. `vector` is `superuser=t, trusted=f`: it needs a superuser
+to install, and it is not marked as safe for other users. PostgreSQL requires a superuser to run an
+untrusted extension's update script, whoever the owner is. The test ran inside a transaction that was
+then rolled back, against `pageinspect`, which carries the same two flags and ships real upgrade
+scripts. So the only design that works is a privileged job that runs the `ALTER` before the app
+starts. `postgres-update-extensions` and `immich-init-extensions` already work that way.
 
-CNPG 1.30's declarative `Database.spec.extensions` does not replace them. `updateDatabaseExtension`
-emits `ALTER EXTENSION … UPDATE TO` only if `spec.version` is set and differs from the installed
-version, so an entry without a `version` creates the extension once and never updates it, and a
-pinned version is a manual bump renovate cannot see.
+CNPG 1.30's declarative `Database.spec.extensions` does not replace those jobs. (CNPG, short for
+CloudNativePG, is the operator, the software that manages the Postgres cluster.) If `spec.version` is set and differs
+from the installed version, `updateDatabaseExtension` emits `ALTER EXTENSION … UPDATE TO`; otherwise
+it does not emit that update statement. So an entry without a `version` creates the extension once and never updates it. An entry
+with a fixed version needs a manual update that renovate cannot see.
 
-The audit did surface the next instance of this class. Immich selects its vector extension by
-availability rather than by what is installed — `VECTOR_EXTENSIONS = [VectorChord, Vector]`, first
-name present in `pg_available_extensions` wins. If a CNPG image ever ships `vchord`, immich runs
-`CREATE EXTENSION vchord` as the non-superuser `immich` role, which is fatal for an untrusted
-extension, and then tries to drop `vector`. The `standard` image ships pgvector and no vchord today,
-so `0e00822a` pins `DB_VECTOR_EXTENSION: pgvector` to keep an upstream image change from switching
-extensions. A migration to VectorChord now needs that value changed on purpose.
+The audit did find the next problem of the same kind. Immich picks its vector extension by what is
+available, not by what is installed. In `VECTOR_EXTENSIONS = [VectorChord, Vector]`, the first name
+present in `pg_available_extensions` wins. If a CNPG image ever ships `vchord`, immich will run
+`CREATE EXTENSION vchord` as the `immich` role, which is not a superuser. That is fatal for an
+untrusted extension, and immich then tries to drop `vector`. The `standard` image ships pgvector and
+no vchord today. So `0e00822a` sets `DB_VECTOR_EXTENSION: pgvector`, so that a change in the upstream
+image cannot switch extensions. A move to VectorChord now needs someone to change that value on
+purpose.
 
-One residual has no automated repair: if an image ever ships pgvector older than the installed
-version, immich throws `invalidDowngrade` at bootstrap, and no job can fix it, because
-`ALTER EXTENSION` cannot downgrade. The remedy is pinning the image back.
+One remaining risk has no automatic repair. If an image ever ships a pgvector older than the
+installed version, immich throws `invalidDowngrade` at startup. No job can fix that, because
+`ALTER EXTENSION` cannot downgrade. The fix is to pin the image back to the version it ran before.
 
-### 2026-08-13 — a CNPG minor bump left Immich crashlooping, and the job that repairs it ran 3m35s too early
+### 2026-08-13 — A CNPG minor-version update left Immich crashlooping, and the job that repairs it ran 3m35s too early
 
-Renovate's `4607a47a` moved `ghcr.io/cloudnative-pg/postgresql` from `18.4-standard-trixie` to
-`18.6-standard-trixie` across eight files, the CNPG `Cluster` among them. The 18.6 image ships
-pgvector **0.8.6**; the `immich` database still held **0.8.2**. Immich updates pgvector itself at
-startup, but connects as DB user `immich`, which does not own the extension, so
+Renovate's commit `4607a47a` moved `ghcr.io/cloudnative-pg/postgresql` from `18.4-standard-trixie`
+to `18.6-standard-trixie` across eight files, including the CNPG `Cluster`. The 18.6 image ships
+pgvector **0.8.6**, but the `immich` database still held **0.8.2**. Immich updates pgvector itself at
+startup. It connects as database user `immich`, which does not own the extension. So
 `ALTER EXTENSION vector UPDATE TO '0.8.6'` failed with `must be owner of extension vector`
-(SQLSTATE 42501), the microservices worker exited 1, and `immich-server` crashlooped. PG 18 has no
-`ALTER EXTENSION … OWNER TO` form, so immich can never hold that ownership and only a
+(SQLSTATE 42501). The microservices worker exited 1, and `immich-server` crashlooped (its container
+crashed and restarted over and over). PG 18 has no
+`ALTER EXTENSION … OWNER TO` form. So immich can never own the extension, and only a
 `postgres-admin` connection can raise the installed version.
 
-Postgres itself was never down. The page read `ScrapeTargetDown{job="immich-server"}`, and the
-cluster reported `Cluster in healthy state` throughout.
+Postgres itself never went down. The alert that paged was `ScrapeTargetDown{job="immich-server"}`,
+and the cluster reported `Cluster in healthy state` the whole time.
 
-`postgres-update-extensions` already repairs exactly this as `postgres-admin`, but ran weekly on
-Sunday 06:00 UTC. The commit merged on a Thursday, so immich would have remained unavailable for
-about three more days. Running that CronJob manually raised vector to 0.8.6 and immich recovered.
+`postgres-update-extensions`, a CronJob (a Job that Kubernetes runs on a schedule), already repairs
+this case, as `postgres-admin`, but it ran weekly, on
+Sunday at 06:00 UTC. The commit merged on a Thursday, so immich would have stayed unavailable for
+about three more days. A manual run of that CronJob raised vector to 0.8.6, and immich recovered.
 
-`immich-init-extensions` should have prevented the outage on its own: renovate edits its image tag
-in the same commit, and `kustomize.toolkit.fluxcd.io/force` re-creates the immutable Job. It did
-re-run — 3m35s too early, because Flux starts the Job and the rolling upgrade together.
+`immich-init-extensions`, a one-off Job that prepares the database extensions, should have prevented
+the outage by itself. Renovate edits its image tag in
+the same commit, and `kustomize.toolkit.fluxcd.io/force` makes Flux re-create the Job, because the
+existing Job's pod template, including its image, cannot be changed in place. The Job did run again, but 3m35s too early, because Flux starts the Job
+and the rolling upgrade at the same time. In the rolling upgrade, the Postgres instances restart on
+the new image one at a time, and one of them becomes the primary, the instance that accepts writes.
 
 | Time (UTC) | Event |
 |---|---|
@@ -502,80 +517,106 @@ re-run — 3m35s too early, because Flux starts the Job and the rolling upgrade 
 | 18:03:39 | `main-postgres-11` starts on 18.6 |
 | 18:07:12 | `main-postgres-12` starts on 18.6 and becomes primary |
 
-The Job therefore read the extension catalogue from the outgoing 18.4 primary, and its
+So the Job read the extension catalogue from the outgoing 18.4 primary. And its
 `CREATE EXTENSION IF NOT EXISTS` never raises an installed version in any case.
 
-These changes fix both causes. The Job waits for the primary to report its own image's
-`server_version` before it touches extensions. `postgres --version` minus its
-`postgres (PostgreSQL) ` prefix is that string exactly, so the wait is a string compare with no
-version parsing. The CronJob runs daily, because if a CNPG rebuild ships a newer extension under an
-unchanged tag, renovate has nothing to bump and nothing re-creates the Job.
+These changes fix both causes. First, the Job now waits until the primary reports the
+`server_version` of the Job's own image before it touches extensions. The output of
+`postgres --version`, without its `postgres (PostgreSQL) ` prefix, is that string, character for
+character, so the wait compares two strings and parses no version numbers. Second, the CronJob runs daily. If a CNPG
+rebuild ships a newer extension under an unchanged tag, renovate has nothing to update, and nothing
+re-creates the Job.
 
-The per-extension `ALTER … UPDATE` loop now lives in `update-extensions.sh`, which
-`configMapGenerator` packages as the `postgres-extension-update` ConfigMap that both workloads
-mount. The first attempt duplicated the loop and the peer review rejected that: two prior
-corrections already fixed this loop for reporting success on a failed update, and a third
-correction reaching one copy and not the other is the likely failure. A generated name carries a
-content hash, so editing the script renames the ConfigMap, kustomize rewrites both volume
-references, and Flux re-creates the forced init Job. A standalone `.sh` also brings the script
-under the repo-wide shellcheck job, which never saw it inside a YAML block scalar.
+The loop that runs `ALTER … UPDATE` for each extension now lives in `update-extensions.sh`.
+`configMapGenerator` packages it as the `postgres-extension-update` ConfigMap (a Kubernetes object
+that holds files or settings), which both workloads mount. The first attempt copied the loop into both workloads, and the peer review rejected that. Two
+earlier corrections had already fixed this loop for reporting success on a failed update. The likely
+failure is a third correction that reaches one copy and not the other. A generated ConfigMap name
+carries a hash of the content. So editing the script renames the ConfigMap, kustomize (the tool that builds the
+manifests, the Kubernetes configuration files) rewrites both
+volume references, and Flux re-creates the forced init Job. As a separate `.sh` file, the script
+also falls under the repo-wide shellcheck job, which never saw it inside a YAML block scalar (a
+multi-line string in the YAML).
 
-These checks extracted the Job's script with `yq`, took the shared script as it stands, and ran
-both under `/bin/dash` (the CNPG image's `/bin/sh`) against stubbed `psql`/`postgres`.
+For the checks below, `yq` extracted the Job's script, and the shared script was used as it stands.
+Both ran under `/bin/dash` (the CNPG image's `/bin/sh`) against fake versions of `psql`/`postgres`.
+A mutant is a deliberate break in the code. KILLED means the checks failed on it, as they should.
 
 | Check | Result |
 |---|---|
-| Roll completes after 3 polls | Job waits, then updates all 3 extensions, exit 0 |
-| Extension name containing a space | survives the read loop unsplit |
-| One `ALTER` fails | siblings' successes persist, `FAILED vector` reported, exit 1 |
-| Empty extension list | exit 1 rather than a silent success |
-| Roll never completes | exit 1 at 120 attempts |
-| Mutant: remove the `sed` prefix strip | KILLED |
-| Mutant: `RC=1` → `RC=0` | KILLED |
+| Rolling upgrade completes after 3 polls | Job waits, then updates all 3 extensions, exit 0 |
+| Extension name containing a space | stays whole through the read loop |
+| One `ALTER` fails | the other extensions' successful updates stay, `FAILED vector` reported, exit 1 |
+| Empty extension list | exit 1 rather than a success that reports nothing wrong |
+| Rolling upgrade never completes | exit 1 at 120 attempts |
+| Mutant: remove the `sed` that strips the prefix | KILLED |
+| Mutant: change `RC=1` to `RC=0` | KILLED |
 | Mutant: Job stops calling the shared script | KILLED |
 
 ### 2026-08-08 — k3s v1.36.2 → v1.36.3, and the rolling restart that ran without its lock
 
-Same-minor patch on the stable channel — `stable` and `latest` both return `v1.36.3+k3s1`. Binary
-swap via the `k3s-upgrade` skill: a sha256-verified download staged to all four nodes, previous
-binary kept at `k3s.prev`. The sanctioned serial restart then ran CP → W1 → W2 → immich-vm at
-13:34:57, 13:35:42, 13:36:20, 13:36:58. No repo commit covers the upgrade itself — k3s is a manual
-`/usr/local/bin/k3s` binary, not Flux- or pacman-managed. Pods held at 108 total / 0 unhealthy,
-Flux stayed 7/7, and the Watchdog dead-man stayed the only firing alert. `k3s.prev` was removed the
-same day by choice: a patch downgrade means re-staging the binary, a minor one means
-restore-from-backup.
+This was a patch update within the same minor version, on the stable channel: `stable` and `latest`
+both return `v1.36.3+k3s1`. The `k3s-upgrade` skill swapped the program file. It downloaded the
+new file, checked its sha256 checksum, and copied it to all four nodes. It kept the previous file at
+`k3s.prev`. The approved restart, one node at a time, then ran in this order:
 
-The rolling restart still exited 4 and sent its Telegram failure alert.
+| Node | Restart time |
+|---|---|
+| control plane | 13:34:57 |
+| first worker (W1) | 13:35:42 |
+| second worker (W2) | 13:36:20 |
+| immich-vm | 13:36:58 |
+
+No repo commit covers the upgrade itself, because k3s is a manual `/usr/local/bin/k3s` binary that
+neither Flux nor pacman manages.
+
+| Check during the upgrade | Result |
+|---|---|
+| Pods | held at 108, with 0 unhealthy |
+| Flux | stayed 7/7 |
+| Firing alerts | only the Watchdog dead-man alert, which always fires to prove that alerting works |
+
+`k3s.prev` was deleted the same day, on purpose. A patch
+downgrade means copying the old binary to the nodes again; a minor-version downgrade means a restore
+from backup.
+
+Even so, the rolling restart exited 4 and sent its Telegram failure alert.
 
 | Fact | Value |
 |---|---|
-| Drift-heal run | 13:30:33–13:36:54, triggered by the sync timer pulling `cae7d3d2` |
-| Rolling restart run | started 13:34:41, no lock held |
+| Drift-heal run (the Ansible run that re-applies each node's configuration) | 13:30:33–13:36:54, started by the sync timer after it pulled `cae7d3d2` |
+| Rolling restart run | started 13:34:41, held no lock |
 | immich-vm restart module | ran 13:36:52, node up on v1.36.3 at 13:37:00 |
-| Ansible verdict | `UNREACHABLE: Data could not be sent to remote host "192.168.1.231"`, exit 4 |
-| node-maintenance SSH masters to immich-vm | two, ports 41928 and 31690, both the drift-heal's |
+| Ansible result | `UNREACHABLE: Data could not be sent to remote host "192.168.1.231"`, exit 4 |
+| node-maintenance SSH master connections to immich-vm | two, ports 41928 and 31690, both belonging to the drift-heal |
 
-Two ansible runs executed as root on the control plane at once. Ansible defaults there are
-`ssh_args = -C -o ControlMaster=auto -o ControlPersist=60s` with `control_path_dir = ~/.ansible/cp`,
-so both runs share one SSH master per host. For immich-vm the rolling restart opened no master of
-its own; it attached to the drift-heal's. immich-vm was its last host, and the drift-heal finished
-two seconds after the restart module ran. Closing that master killed the in-flight channel. W1 and
-W2 were unaffected because their restarts finished before 13:36:54.
+Two Ansible runs ran as root on the control plane at the same time. The Ansible defaults there are
+`ssh_args = -C -o ControlMaster=auto -o ControlPersist=60s` with `control_path_dir = ~/.ansible/cp`.
+So both runs share one SSH master connection per host, and each run's SSH sessions to that host
+travel inside it. For immich-vm, the rolling restart opened no master connection of its own; it
+used the drift-heal's. immich-vm was the restart's last host, and the drift-heal finished two seconds
+after the restart module ran. Closing that master connection killed the restart's channel, which was
+still in use. W1 and W2 were not affected, because their restarts finished before 13:36:54.
 
-The restart itself succeeded, and the checkpoint matched before and after. What was lost is the gate: immich-vm
-skipped its Ready wait and kubelet-configz verify. Both were run by hand afterwards — all four nodes
-report `leaseDuration=60 reportFrequency=1m0s`.
+The restart itself succeeded, and the checkpoint (a saved snapshot of cluster state) matched before
+and after. What was lost is the
+check that follows the restart: immich-vm skipped the wait for its node to report Ready, and the
+check of the live configuration of the kubelet, the agent on each node that runs its pods
+(kubelet-configz). Both were run by hand afterwards, and
+all four nodes report `leaseDuration=60 reportFrequency=1m0s`.
 
-`node-maintenance-lock.sh` has existed since 2026-05-25 for this case, and `config`, `phase1` and
-`phase2` all use it. `rolling-restart` was added later and never wrapped. It now runs under
-`node-maintenance-lock.sh wait --` (`f3c6abd7`) — `wait`, not `skip`, because an operator triggers it
-by hand and a silent no-op would read as "restart done". `TimeoutStartSec` went 15min → 25min: `wait`
-mode is `flock -w 900`, so a 15-minute cap could expire on a queued run before ansible started.
-Verified live on the control plane — the wrapper blocks while the lock is held and acquires once it
-is released.
+`node-maintenance-lock.sh` has existed for this case since 2026-05-25, and `config`, `phase1` and
+`phase2` all use it. It holds a lock, so that only one maintenance run works at a time.
+`rolling-restart` was added later, and nobody wrapped it in the lock script. It now runs under
+`node-maintenance-lock.sh wait --` (`f3c6abd7`). It uses `wait`, not `skip`, because an operator
+starts it by hand, and a run that did nothing and reported nothing would look like "restart done".
+`TimeoutStartSec` went from 15min to 25min. `wait` mode is `flock -w 900`, which waits for the lock,
+so with a 15-minute limit a queued run could time out before Ansible started. A live test on the
+control plane confirmed the wrapper: it blocks while another run holds the lock, and takes the lock
+once it is released.
 
-`KUBERNETES_VERSION` in `.github/workflows/validate.yaml` moved 1.36.2 → 1.36.3 to track the cluster,
-as that file's own comment instructs; the `v1.36.3-standalone-strict` schemas are present upstream.
+`KUBERNETES_VERSION` in `.github/workflows/validate.yaml` moved from 1.36.2 to 1.36.3 to match the
+cluster, as that file's own comment instructs. The `v1.36.3-standalone-strict` schemas exist upstream.
 
 ### 2026-08-08 — The maintenance trigger answered 403 for two weeks
 
