@@ -32,7 +32,7 @@ The cloudflared scrape is the native VMServiceScrape `cloudflared` in `scrape-ap
 
 Alert classes worth knowing:
 - **firewall-alerts**: `UfwDisabled`/`UfwServiceInactive`/`UfwChainsUnhealthy` (critical, 5m) — gauges from node-exporter textfile collector via `ufw-state-metric.timer`
-- **Job failure alerts** — both fire only when the Job itself has failed. A pod that failed and then succeeded on a retry does not fire them. The Job pod vanishes with its TTL, so use VM exit-code metrics, not Loki, for the postmortem.
+- **Job failure alerts** — both fire only when the Job itself has failed. A Job that succeeds after a retry does not fire these alerts. The Job pod vanishes with its TTL, so use VM exit-code metrics, not Loki, for the postmortem.
 
   | Alert | Expression |
   |---|---|

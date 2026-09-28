@@ -16,13 +16,15 @@ The policy (schedules, retention, recovery targets) is in [BACKUP_STRATEGY.md](.
 | **SOPS Secrets** | Encrypted in git | every commit | n/a |
 | **DR scripts** | `.backup/secrets-{backup,restore}.sh` | manual | partial (explicit list) |
 
-Namespaces: PG/MySQL/CouchDB CronJobs in `databases`; PVC CronJob in `kube-system`; `immich-backup` + replication in `backup-replication` (immich shares the NAS rsync creds + egress NP there). All backup CronJobs set `startingDeadlineSeconds: 3600`. Retries:
+All backup CronJobs set `startingDeadlineSeconds: 3600`. `immich-backup` shares the NAS rsync credentials and egress NetworkPolicy of the `backup-replication` namespace.
 
-| CronJob | Retries |
-|---|---|
-| `backup-replication`, `pvc-backup` | none: `backoffLimit: 0`, `restartPolicy: Never` |
-| postgres, mysql, `immich-backup` | `backoffLimit: 2` |
-| couchdb | `backoffLimit: 6` |
+| CronJob | Namespace | Retries |
+|---|---|---|
+| `backup-replication` | `backup-replication` | none: `backoffLimit: 0`, `restartPolicy: Never` |
+| `pvc-backup` | `kube-system` | none: `backoffLimit: 0`, `restartPolicy: Never` |
+| postgres, mysql | `databases` | `backoffLimit: 2` |
+| `immich-backup` | `backup-replication` | `backoffLimit: 2` |
+| couchdb | `databases` | `backoffLimit: 6` |
 
 ## PVC backup
 Whitelist (CRITICAL_PVCS) + `nodeSelector: worker-node` + `hostPath /mnt/k8s-storage/backups/pvc`: `infrastructure/configs/backup/pvc-backup-cronjob.yaml`. Compression gzip, except `audiobookshelf-{audiobooks,podcasts}` = uncompressed tar (already-compressed media). Retention: there is no local age sweep. `backup-replication` deletes a type's local files on the night that type passes validation and reaches the NAS. The NAS keeps 30 days.
@@ -61,7 +63,7 @@ Validate BEFORE the sync, per type, then push to the NAS, then clean the source 
 - 30d postgres/mysql/couchdb — `prune_nas_file()`: rsync include-filter file-prune against empty source, targets `<cat>/<cat>_YYYYMMDD_HHMMSS.tar.gz` older than 30d
 - 30d pvc dirs — `prune_nas_dir()`: rsync `-r --delete` from empty dir into `pvc/YYYYMMDD_HHMMSS/` subpaths older than 30d
 - keep-2 immich — sort `immich/YYYYMMDD_HHMMSS/` descending, prune all but newest 2
-- A refused prune does not stop the other prunes, and the offsite copy has already succeeded, but it fails the run and the report counts it; NAS UI prune is the manual fallback
+- If a prune fails, the other prunes still run. The copy to the NAS has already succeeded. The run fails, and the report counts the failed prunes. Use the NAS UI to delete the files or directories that those prunes targeted; the Job log names them.
 - Triple-safe against immich loss: file-prune regex requires a single `/` + DB-category allow-list (immich paths have two `/`s and aren't in `(postgres|mysql|couchdb)`)
 
 Failure handling: trap on EXIT sends Telegram with `CURRENT_STEP`; success is silent.

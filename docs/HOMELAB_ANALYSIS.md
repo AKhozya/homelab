@@ -10,7 +10,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 - **68** NetworkPolicy resources live (54 raw manifests in git — operator- and component-generated policies make up the delta) — default-deny posture; presence enforced by Kyverno
 - **12** Kyverno CEL `ValidatingPolicy` resources (policies.kyverno.io/v1) — **all Deny-enforcing**, sole policy engine since 2026-07-12 (kyverno.io/v1 ClusterPolicies deleted after 8-day parity soak; live admission attribution proven per-policy). `require-networkpolicy` matches controllers directly with autogen off (autogen rewrites void top-level-metadata checks)
 - **58** SOPS-encrypted Secrets in git — no plaintext secret in Git
-- **12** HelmReleases (live = git) — drift detection enabled, with targeted timeouts; rollback on all but immich, which retries a failed upgrade (RetryOnFailure) because its DB migrations cannot be undone
+- **12** HelmReleases (live = git) — drift detection enabled, with targeted timeouts; rollback on all but immich, which retries a failed upgrade (RetryOnFailure) because rollback cannot reverse its DB migrations
 - **3** PriorityClasses (critical / standard / batch) — every workload annotated except `rustdesk`, `warp-beacon` and the `intel-gpu-plugin` DaemonSet (live, 2026-09-28)
 - Monthly image-CVE scan: the `trivy-scan` CronJob, on the 1st at 08:00 UTC (replaced the always-on trivy-operator 2026-07-14)
 - **PSS:** 12 namespaces `restricted`, 10 `baseline`, 6 `privileged` (each justified — GPU, hostPath, host-network)

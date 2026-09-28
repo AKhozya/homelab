@@ -312,16 +312,16 @@ flux reconcile kustomization apps --timeout 60s
    |---|---|
    | Redis reads `user.acl` only when it starts | The kubelet updates the mounted file, but a running Redis keeps the old passwords until it restarts. |
    | The opstree operator loops on the `restartedAt` annotation that `kubectl rollout restart` adds (`bf7bf65d`) | Never run `rollout restart` on these StatefulSets. The helpers delete one pod at a time. |
-   | A StatefulSet pod keeps its name when it is recreated, but gets a new UID | `OLD_UIDS` records every Redis pod's UID after step 4. A pod counts as restarted once its UID is not in that list. |
-   | The delete carries the recorded UID as a precondition | If the pod was replaced after the helper read its UID, the API server refuses the delete, so no pod restarts twice. |
+   | The StatefulSet gives a recreated pod the same name but a new UID | You record every Redis pod's UID in `OLD_UIDS` after step 4. If a pod's UID is not in that list, the helpers treat the pod as restarted. |
+   | `restart_old` sends the recorded UID as a delete precondition | If the StatefulSet replaced the pod after the helper read its UID, the API server refuses the delete, so no pod restarts twice. |
    | A pod whose UID cannot be read | `restart_old` stops rather than delete it. |
    | Roles swap on failover | The chain reads the `redis-role` label again before each restart. `all_restarted` checks at the end that every pod has a new UID and is Ready. |
    | Deleting the master makes the sentinels promote the restarted replica | Writes fail for a few seconds. |
    | Each helper returns non-zero on a failure | The `&&` chain stops at the first failure. |
 
    ```bash
-   # Run once per rotation, after step 4. If you lose this shell, record again: the pods
-   # already restarted then restart once more, which is safe.
+   # Record the UIDs once per restart pass, after step 4. If you lose this shell, record again:
+   # the pods already restarted then restart once more, which is safe.
    OLD_UIDS=$(kubectl -n databases get pod -l 'app in (redis-replication,redis-sentinel-sentinel)' \
      -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}') && [ -n "$OLD_UIDS" ] && echo "UIDs recorded" ||
      { OLD_UIDS=""; echo "UID capture FAILED: do not go on"; }
