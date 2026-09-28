@@ -31,8 +31,8 @@ jobs:
           # Extract versions and normalize (remove 'v' prefix for comparison)
           CURRENT=$(grep -m1 'Flux Version:' clusters/flux-system/gotk-components.yaml | awk '{print $4}' | sed 's/^v//')
           NEW=$(flux --version | awk '{print $NF}')
-          echo "current=$CURRENT" >> $GITHUB_OUTPUT
-          echo "new=$NEW" >> $GITHUB_OUTPUT
+          echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+          echo "new=$NEW" >> "$GITHUB_OUTPUT"
           echo "Current: $CURRENT, New: $NEW"
 
       - name: Generate new manifests
@@ -44,14 +44,17 @@ jobs:
         if: steps.versions.outputs.current != steps.versions.outputs.new
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          # A PR opened with GITHUB_TOKEN starts no workflows, so validate.yaml would not run
+          # on it. FLUX_UPDATE_TOKEN (a PAT with contents and pull-requests write) fixes that;
+          # without it the PR still opens, unvalidated.
+          token: ${{ secrets.FLUX_UPDATE_TOKEN || secrets.GITHUB_TOKEN }}
           commit-message: "chore(deps): update Flux to ${{ steps.versions.outputs.new }}"
           title: "chore(deps): update Flux to ${{ steps.versions.outputs.new }}"
           body: |
             Automated Flux update from `${{ steps.versions.outputs.current }}` to `${{ steps.versions.outputs.new }}`.
 
             ## Release Notes
-            https://github.com/fluxcd/flux2/releases/tag/${{ steps.versions.outputs.new }}
+            https://github.com/fluxcd/flux2/releases/tag/v${{ steps.versions.outputs.new }}
 
             ## Verification
             After merging, verify with:

@@ -30,6 +30,15 @@ env:
   # Track the live cluster (v1.37.0+k3s1). yannh/kubernetes-json-schema ships
   # v1.37.0 schemas. Bump alongside any k3s upgrade (k3s-upgrade skill checklist).
   KUBERNETES_VERSION: "1.37.0"
+  # Each digest is the SHA-256 of the linux amd64 asset, from that release's published
+  # checksums file. Bump a digest together with its version, or the install step fails.
+  KUSTOMIZE_SHA256: 029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d
+  KUBECONFORM_SHA256: 95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73
+  YQ_VERSION: v4.44.3
+  YQ_SHA256: a2c097180dd884a8d50c956ee16a9cec070f30a7947cf4ebf87d5f36213e9ed7
+  # A commit, not `main`: an upstream push would otherwise change the CRD schemas this
+  # job validates against. Bump it by hand if a CRD gains fields.
+  DATREE_CATALOG_SHA: ad3b08c5045129d7bb1eeffd8e61719b2c8dd1e2
 
 jobs:
   yamllint:
@@ -74,7 +83,7 @@ jobs:
           # NOT a full logic gate: SC2015 (A && B || C) is emitted at *info* severity
           # (shellcheck Analytics.hs, `info id 2015`), so -S warning filters it out.
           # That class stays a manual review item (.claude/review-invariants.md).
-          # Lowering to -S info surfaces 15 pre-existing findings (SC2016/2162/2086/2012)
+          # Lowering to -S info surfaces pre-existing findings (SC1091/2016/2162/2086/2012)
           # and needs its own cleanup pass before the threshold can move.
           fail=0
           for f in "${files[@]}"; do
@@ -101,7 +110,8 @@ jobs:
           set -euo pipefail
           mkdir -p "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          curl -sSL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o "$HOME/.local/bin/yq"
+          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o "$HOME/.local/bin/yq"
+          echo "${YQ_SHA256}  $HOME/.local/bin/yq" | sha256sum -c -
           chmod +x "$HOME/.local/bin/yq"
           "$HOME/.local/bin/yq" --version
       - run: scripts/ci/check-init-resources.sh
@@ -116,7 +126,8 @@ jobs:
           set -euo pipefail
           mkdir -p "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          curl -sSL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o "$HOME/.local/bin/yq"
+          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o "$HOME/.local/bin/yq"
+          echo "${YQ_SHA256}  $HOME/.local/bin/yq" | sha256sum -c -
           chmod +x "$HOME/.local/bin/yq"
           "$HOME/.local/bin/yq" --version
       # Closes the gap Kyverno's image-pin policy leaves: it only rejects :latest/no-tag,
@@ -151,13 +162,17 @@ jobs:
           # Avoids both flaky upstream install scripts and pointless sudo.
           mkdir -p "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          curl -sSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" \
-            | tar xz -C "$HOME/.local/bin" kustomize
+          dl=$(mktemp -d)
+          curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize/${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" -o "$dl/kustomize.tgz"
+          echo "${KUSTOMIZE_SHA256}  $dl/kustomize.tgz" | sha256sum -c -
+          tar xzf "$dl/kustomize.tgz" -C "$HOME/.local/bin" kustomize
           "$HOME/.local/bin/kustomize" version
-          curl -sSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" \
-            | tar xz -C "$HOME/.local/bin" kubeconform
+          curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" -o "$dl/kubeconform.tgz"
+          echo "${KUBECONFORM_SHA256}  $dl/kubeconform.tgz" | sha256sum -c -
+          tar xzf "$dl/kubeconform.tgz" -C "$HOME/.local/bin" kubeconform
           "$HOME/.local/bin/kubeconform" -v
-          curl -sSL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o "$HOME/.local/bin/yq"
+          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o "$HOME/.local/bin/yq"
+          echo "${YQ_SHA256}  $HOME/.local/bin/yq" | sha256sum -c -
           chmod +x "$HOME/.local/bin/yq"
       - name: Build + validate
         run: |
@@ -175,7 +190,7 @@ jobs:
               -ignore-missing-schemas \
               -kubernetes-version "${KUBERNETES_VERSION}" \
               -schema-location default \
-              -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' \
+              -schema-location "https://raw.githubusercontent.com/datreeio/CRDs-catalog/${DATREE_CATALOG_SHA}/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json" \
               -summary
 
   homelab-analysis-drift:
@@ -193,13 +208,13 @@ jobs:
           analysis=docs/HOMELAB_ANALYSIS.md
           [ -f "$analysis" ] || { echo "no $analysis"; exit 0; }
 
-          np_files=$(find . -path './.git' -prune -o -name '*.yaml' -print 2>/dev/null \
-            | xargs grep -l '^kind: NetworkPolicy' 2>/dev/null | wc -l | tr -d ' ')
-          np_resources=$(find . -path './.git' -prune -o -name '*.yaml' -print 2>/dev/null \
-            | xargs grep -c '^kind: NetworkPolicy' 2>/dev/null \
+          np_files=$(find . -path './.git' -prune -o -name '*.yaml' -print0 2>/dev/null \
+            | xargs -0 grep -l '^kind: NetworkPolicy' 2>/dev/null | wc -l | tr -d ' ')
+          np_resources=$(find . -path './.git' -prune -o -name '*.yaml' -print0 2>/dev/null \
+            | xargs -0 grep -c '^kind: NetworkPolicy' 2>/dev/null \
             | awk -F: '{s+=$2} END {print s+0}')
-          sops_count=$(find . -path './.git' -prune -o -name '*.yaml' -print 2>/dev/null \
-            | xargs grep -l 'ENC\[AES256_GCM' 2>/dev/null | wc -l | tr -d ' ')
+          sops_count=$(find . -path './.git' -prune -o -name '*.yaml' -print0 2>/dev/null \
+            | xargs -0 grep -l 'ENC\[AES256_GCM' 2>/dev/null | wc -l | tr -d ' ')
           kyverno_count=$(find infrastructure/configs/kyverno-policies -name '*.yaml' \
             -exec grep -l '^kind: ValidatingPolicy' {} \; 2>/dev/null | wc -l | tr -d ' ')
 
@@ -221,11 +236,6 @@ jobs:
         run: |
           set -euo pipefail
           # helm ships on the runner; yq does not.
-          # -f so an HTTP error page is rejected instead of chmod'd and executed.
-          # Bump YQ_SHA256 with YQ_VERSION — the digest is from that release's
-          # published `checksums` file, SHA-256 column.
-          YQ_VERSION=v4.44.3
-          YQ_SHA256=a2c097180dd884a8d50c956ee16a9cec070f30a7947cf4ebf87d5f36213e9ed7
           mkdir -p "$HOME/.local/bin"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o "$HOME/.local/bin/yq"

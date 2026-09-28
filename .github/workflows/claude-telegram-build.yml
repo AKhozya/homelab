@@ -46,8 +46,11 @@ jobs:
 
       - name: Generate version tag
         id: version
+        # The input reaches the script through env, never through ${{ }} inside run:,
+        # so its text cannot become shell code.
+        env:
+          INPUT: ${{ github.event.inputs.version }}
         run: |
-          INPUT="${{ github.event.inputs.version }}"
           if [ -n "$INPUT" ]; then
             if ! echo "$INPUT" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
               echo "::error::version must be major.minor.patch (e.g. 1.25.0), got '$INPUT'"
@@ -67,13 +70,30 @@ jobs:
               # legacy 2-component tag (claude-telegram-v1.NN → 1.NN.0).
               OLD=$(git tag -l 'claude-telegram-v1.*' --sort=-v:refname | head -1)
               if [ -n "$OLD" ]; then
-                NEXT="1.$(echo "$OLD" | sed 's/claude-telegram-v1\.//').0"
+                NEXT="1.${OLD#claude-telegram-v1.}.0"
               else
                 NEXT="1.0.0"
               fi
             fi
           fi
-          echo "tag=${NEXT}" >> $GITHUB_OUTPUT
+          # Check before the build, because the push step overwrites an existing registry tag
+          # that the deployment may pin. The registry check also catches an image pushed by
+          # hand before its git tag existed. A failed lookup stops the run: only a confirmed
+          # absence lets the build go ahead.
+          # The assignment is not piped, so under bash -e a failed ls-remote ends the step.
+          REMOTE_TAG=$(git ls-remote --tags origin "refs/tags/claude-telegram-v${NEXT}")
+          if [ -n "$REMOTE_TAG" ]; then
+            echo "::error::Tag claude-telegram-v${NEXT} already exists. Re-run with a new version input."
+            exit 1
+          fi
+          if INSPECT=$(docker manifest inspect "${REGISTRY}/${IMAGE_NAME}:${NEXT}" 2>&1); then
+            echo "::error::Image ${REGISTRY}/${IMAGE_NAME}:${NEXT} already exists. Re-run with a new version input."
+            exit 1
+          elif ! echo "$INSPECT" | grep -qiE 'manifest unknown|no such manifest'; then
+            echo "::error::Registry lookup for ${NEXT} failed: ${INSPECT}"
+            exit 1
+          fi
+          echo "tag=${NEXT}" >> "$GITHUB_OUTPUT"
           echo "Version: ${NEXT}"
 
       - name: Build and push
@@ -94,9 +114,5 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          if git ls-remote --tags origin "claude-telegram-v${{ steps.version.outputs.tag }}" | grep -q .; then
-            echo "::error::Tag claude-telegram-v${{ steps.version.outputs.tag }} already exists. Re-run with manual version input."
-            exit 1
-          fi
           git tag "claude-telegram-v${{ steps.version.outputs.tag }}"
           git push origin "claude-telegram-v${{ steps.version.outputs.tag }}"

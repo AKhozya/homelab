@@ -1,9 +1,13 @@
 # GitHub Workflows
 
-This folder holds six workflows. CI is a signal, not a merge gate: the repo is private on GitHub's
-Free plan, which has no branch protection, and Flux applies `main` whatever CI reports. No Actions
-job has started since 2026-09-10, because of a billing problem on the account, so today none of
-these workflows runs.
+This folder holds six workflows. CI is a signal, not a merge gate:
+
+| Fact | Effect |
+|---|---|
+| No ruleset or branch protection guards `main` | a commit reaches `main` whatever CI reports |
+| GitHub offers neither on a private Free-plan repo; a public repo gets both for free | a ruleset becomes possible once the repo is public; none is chosen yet |
+| Flux applies `main` every few minutes | a red commit on `main` still deploys |
+| No Actions job has started since 2026-09-10, because of a billing problem on the account | none of these workflows runs today |
 
 | Workflow | Runs on | Does |
 |---|---|---|
@@ -37,7 +41,7 @@ other branches are scanned by neither.
 ## renovate-analysis.yaml
 
 For each Renovate pull request, it runs `scripts/analyze-update-gh.sh` and posts or updates one PR
-comment. It runs only if the actor is `renovate[bot]`.
+comment. It runs only if the actor is `renovate[bot]` or `app/renovate`.
 
 | It reports | It does not |
 |---|---|
@@ -45,36 +49,13 @@ comment. It runs only if the actor is `renovate[bot]`.
 | the version change and whether it is major, minor or patch, with a risk level | check syntax or formatting |
 | known breaking changes for that package, and links to the release notes | analyse app logic |
 
-Example comment:
+The comment has three parts:
 
-```markdown
-## Version Change Analysis
-
-> **Note**: This analyzes version changes and breaking changes, not code quality.
-
-<details>
-<summary>Click to expand full analysis</summary>
-
-Package: ghcr.io/goauthentik/server
-Update Type: minor
-Version Change: v2025.10.0 → v2025.11.0
-Update Category: Docker Image in Kubernetes resource
-
-MINOR UPDATE - Medium risk
-
-Authentik Update
-Check for:
-  - Authentication flow changes
-  - OAuth/OIDC provider changes
-  - Database schema migrations
-  - Redis/cache configuration changes
-
-Action items:
-  1. Review release notes for breaking changes
-  2. Test login flows after deployment
-  [...]
-</details>
-```
+| Part | Holds |
+|---|---|
+| a collapsed block | the output of `scripts/analyze-update.sh`: package, versions, update type and risk, release-note excerpts, and a checklist for that package |
+| Quick Actions | the `gh pr merge` command and the two `flux reconcile` commands |
+| a footer | a link to the workflow runs |
 
 | Permission | Why |
 |---|---|
@@ -91,30 +72,26 @@ Run it by hand:
 ./scripts/analyze-update-gh.sh <PR_NUMBER>
 ```
 
-To add checks for a package, edit `scripts/analyze-update.sh` and add a case to its package
-section:
+To add checks for a package, add an arm above the `*)` default in the `case "$PACKAGE_NAME"`
+block of `scripts/analyze-update.sh`:
 
 ```bash
-case "$PACKAGE_NAME" in
     *your-package*)
-        echo "Your Package Update"
-        echo "Check for:"
-        echo "  - Specific breaking changes"
-        echo "  - Configuration updates"
-        echo ""
-        echo "Action items:"
-        echo "  1. Review release notes"
-        echo "  2. Test functionality"
+        echo "📦 Your Package Update"
+        echo "  - [ ] Check for specific breaking changes"
+        echo "  - [ ] Test functionality after deployment"
         ;;
-esac
 ```
 
-| It already covers |
-|---|
-| Authentik, Grafana, the Prometheus stack |
-| Flux, Traefik, External-DNS |
-| PostgreSQL, Redis |
-| n8n, Paperless, Immich, Home Assistant |
+| Package name matches | Checklist |
+|---|---|
+| `*authentik*` | Authentik |
+| `*prometheus-stack*`, `*grafana*` | monitoring stack |
+| `*flux*`, `*kustomize*`, `*helm-controller*` | Flux |
+| `*traefik*` | Traefik |
+| `*postgres*`, `*couchdb*`, `*mariadb*` | database |
+| `*n8n*`, `*paperless*`, `*immich*`, `*home-assistant*`, `*adguard*` | application |
+| anything else | general |
 
 A change to the script applies to the next run.
 
@@ -126,15 +103,22 @@ A change to the script applies to the next run.
 
 ## claude.yml
 
-It runs `anthropics/claude-code-action` when `@claude` appears in:
+It runs `anthropics/claude-code-action` only if the actor is the repo owner (`github.actor ==
+'AKhozya'`) and `@claude` appears in one of these:
 
-| Event | Condition |
+| Event | Where `@claude` must appear |
 |---|---|
-| an issue comment, including a comment on a PR | any author |
-| a PR review comment, or a PR review | the actor is not Renovate (`github.actor != 'renovate[bot]'`) |
-| a new or assigned issue (title or body) | a plain issue, or an actor other than Renovate |
+| a new issue comment, including a comment on a PR | the comment body |
+| a new PR review comment | the comment body |
+| a submitted PR review | the review body |
+| a newly opened issue | the title or the body |
 
-Its job token can read contents, pull requests and issues. The action also requests `actions: read` through `additional_permissions`, to read CI results. Claude reads the repo files and runs a limited set of `gh` commands. For example:
+It does not run if an issue is assigned. Otherwise the owner assigning someone else's issue would
+pass that person's text to Claude. The owner check also keeps Renovate out.
+
+Its job token can read contents, pull requests and issues. The action also requests `actions: read`
+through `additional_permissions`, to read CI results. The workflow sets no `claude_args`, so Claude
+runs with the action's default tool set. For example:
 
 ```
 @claude can you explain how this authentication flow works?
@@ -149,12 +133,14 @@ Its job token can read contents, pull requests and issues. The action also reque
 Every Sunday it reads the `Flux Version:` line in `clusters/flux-system/gotk-components.yaml` and
 the version of the Flux CLI that the `fluxcd/flux2/action` step installs. If they differ, it
 regenerates the file with `flux install --export` and opens a pull request whose body links the
-release notes.
+release notes. GitHub starts no workflows for a pull request opened with `GITHUB_TOKEN`. So if the
+repo secret `FLUX_UPDATE_TOKEN` is absent, `validate.yaml` does not run on that pull request.
 
 ## claude-telegram-build.yml
 
 It checks out the bot's own repository (`AKhozya/claude-telegram-bot`), builds a `linux/amd64`
 image, pushes it to `ghcr.io/akhozya/claude-telegram-bot` with the next patch version (or the
-version given by hand), and pushes a matching `claude-telegram-v<version>` tag to this repo. The
+version given by hand), and pushes a matching `claude-telegram-v<version>` tag to this repo. If
+that git tag or that image tag already exists, it stops before the build. The
 cluster runs whatever tag `apps/claude-telegram/deployment.yaml` pins, so a new image goes live only
 through a commit that bumps it.
