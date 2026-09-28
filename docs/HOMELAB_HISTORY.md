@@ -100,7 +100,7 @@ hooks that rewrite files skip the byte copies. Plan: `docs/plans/2026-09-26-open
 | From | To |
 |---|---|
 | `docs/scripts/node-maintenance/` | `node-maintenance/` |
-| `docs/scripts/*.sh`, `docs/worker-node-post-install.sh` | `scripts/` |
+| `docs/scripts/*.sh`, `docs/worker-node-post-install.sh` | `scripts/` (`scripts/worker-node-post-install.sh` deleted in `12025040`) |
 | `docs/scripts/runbooks/authentik-passkey-rollback.md` | `docs/runbooks/` |
 
 Only the control plane clones the repo. Its installed sync script calls `install.sh` by its old
@@ -374,7 +374,7 @@ custom resource, never the chart's own templates. The `helm-render` job adds tha
 Earlier on 2026-09-06, the Immich machine-learning (ML) service moved to immich-vm and ran there on
 the CPU. The `-openvino` image runs inference, the model computations, on the VM's Meteor Lake Arc
 integrated GPU through ONNX Runtime's OpenVINO execution provider. Commit: `4a5255cf`. Plan:
-`docs/plans/2026-09-06-immich-ml-openvino.md`.
+`docs/plans/2026-09-06-immich-ml-openvino.md` (removed after `aadf03e6`).
 
 | Change | Detail |
 |---|---|
@@ -1026,7 +1026,6 @@ Follow-ups:
   CronJob, because a hung run must not block the healer.
 - The cause of the NAS reboot is still unread. If the NAS goes down outside a scrub again, the open
   question about the failing disk `sdb` grows beyond "it fails only during a scrub".
-- The trap is recorded in the agent's memory notes (`gotchas.md` 2026-08-07).
 
 ### 2026-08-07 — The Telegram bot's polling stayed stuck after an outage, waiting out its own retry delay
 
@@ -1263,7 +1262,7 @@ kustomize-controller first runs a server-side dry run (a test apply on the API s
 set, before it saves any of it. So if a workload and the NetworkPolicy that would satisfy the rule
 arrive in the same set, they still fail with `Namespace must declare at least one
 NetworkPolicy`. On a rebuild, that happens in every namespace at once. An ordered bootstrap layer
-would be a design change, and this change did not build one. Instead, `.backup/README.md` Step 6
+would be a design change, and this change did not build one. Instead, `.backup/README.md` (now `docs/disaster-recovery/README.md`) Step 6
 now documents the failure. It gives a tested workaround that applies namespaces and policies
 first (23 namespaces, 58 policies, clean in a server-side dry run). The proper fix is worth doing
 before the next DR drill.
@@ -1726,9 +1725,9 @@ has no long-running pods at all, and both of its CronJobs violate the policies.
 **Review, not measurement, caught a third.** The change had removed `paperless-ngx` from the
 `require-non-root` excludes, and review reverted that. `apps/paperless-ngx/deployment.yaml:50` runs a
 `fix-permissions` init container (a container that runs before the app starts) as UID 0, the root
-user. `.claude/review-invariants.md:54` records that the container must run as root; otherwise
+user. `.claude/review-invariants.md` records that the container must run as root; otherwise
 s6-overlay (the process supervisor in the image) crashes in a loop, CrashLoopBackOff (incident
-`ca3891c` to `d3b5036`). The measurement missed it because the check copied the policy's own logic.
+`71cd0765` to `b8cbe170`). The measurement missed it because the check copied the policy's own logic.
 So it answered "does this pass?" rather than "does this run as root?".
 
 That gap is real, and it reaches beyond this change. The first branch of `require-non-root` tests
@@ -1763,7 +1762,7 @@ namespace, `couchdb`, no longer exists; CouchDB runs in `databases`.
 believed to be a hidden danger. It was not; see the correction in the cert-manager entry from the same day, above this one.**
 
 **A scan would have missed `couchrestore`.** That one-shot disaster-recovery Job, described in
-`.backup/README.md`, mounts a hostPath, and no scan of live pods can see it. Without an allowlist
+`.backup/README.md` (now `docs/disaster-recovery/README.md`), mounts a hostPath, and no scan of live pods can see it. Without an allowlist
 entry, the policy denies it. That would break ultrareview finding H2 again, which was closed two
 days earlier. A test confirmed this: with the entry removed, the Job failed.
 
@@ -1785,7 +1784,7 @@ buffered batches that it never wrote. The small databases (`empty`, `zz-dr-drill
 they never open enough connections for the requests to race each other. The fix pins
 `--parallelism 1` (`4d84acc5`).
 
-**`.backup/README.md` already documents the same race for the disaster-recovery restore.** The
+**`.backup/README.md` (now `docs/disaster-recovery/README.md`) already documents the same race for the disaster-recovery restore.** The
 2026-07-24 restore drill found it. The write-up covered `couchrestore`, and nobody linked it to
 `couchbackup`: same library, same symptom, opposite direction. Anything that calls this package
 should assume parallelism 1.
@@ -2659,7 +2658,7 @@ Codex ran a static review for 3 rounds:
 | R2 | BLOCK | a fallback that failed open (HIGH), an alert that fired twice (MED), plan sections (LOW) |
 | R3 | BLOCK | 1 MED: the persisted text file could make an alert fire twice; no HIGH. Fixed after the round, which reached the round limit |
 
-Plan: `docs/plans/2026-07-10-node-isolation-heal.md`.
+Plan: `docs/plans/2026-07-10-node-isolation-heal.md` (removed after `e26a42aa`).
 
 ### 2026-07-20 — Self-hosted RustDesk server (open source) for remote desktop on the LAN
 
@@ -2717,7 +2716,7 @@ depend on the server key.
 | a real RustDesk client on the Mac | reached hbbs over **UDP 21116** (NAT responses on 21116 and 21115, latency 2.7ms, `register_pk` started). This proves the UDP app path and registration against the self-hosted server |
 
 Peer review: Codex static review of the plan (2 rounds) and of the manifests (1 round, verdict SHIP,
-one NIT fixed). Plan: `docs/plans/2026-07-19-rustdesk-server.md`.
+one NIT fixed). Plan: `docs/plans/2026-07-19-rustdesk-server.md` (removed after `92a89d1d`).
 
 ### 2026-07-18 — immich-vm modprobe failure chain: kernel-modules-hook wrongly labelled AUR, and two weeks of package upgrades that failed unnoticed
 
@@ -3239,7 +3238,7 @@ a cold restart for testing on demand.
 ### 2026-07-12 — July overdue items closed: Kyverno CP-to-VP Phases 2-4 complete, a right-sizing pass, and failure alerts for security-scan
 
 One pass in a worktree (`wt-overdue-closeout`; plan
-`docs/superpowers/plans/2026-07-12-monthly-review-overdue-closeout.md`) closed the three real
+`docs/superpowers/plans/2026-07-12-monthly-review-overdue-closeout.md`, removed after `fc94832c`) closed the three real
 overdue items from the July monthly review. Codex reviewed every commit, statically and from git
 only, against the `.claude/review-invariants.md` rubric.
 
@@ -3338,7 +3337,7 @@ GID 987), with no `/dev/dri` hostPath and no privileged container. The namespace
 PSS-privileged only for the library hostPath. A Kustomize **postRenderer** JSON patch (a change
 applied to the chart's rendered output) swaps in the library volume, because the chart's schema
 rejects a native hostPath library. Spec `ba250045`, plan
-`docs/superpowers/plans/2026-07-12-immich-path-b-cutover.md`.
+`docs/superpowers/plans/2026-07-12-immich-path-b-cutover.md` (removed after `865b398b`).
 
 - **Clients were down for ≈ 13 min, not "~1 min".** The cutover blocked ALL client HTTP to `:2283`
   by removing the NetworkPolicy (NP) ingress rules for traefik and cloudflare-tunnel. Cloudflare
@@ -3622,8 +3621,7 @@ The role has three guards:
 | reboot limit | ≤1 reboot per 24 h |
 | maintenance hold | maint-hold |
 
-22 tests cover the steps. The memory note `gotcha_ufw_reload_node_isolation` tracks the follow-ups
-after the soak:
+22 tests cover the steps. Follow-ups after the soak:
 
 | Follow-up |
 |---|
@@ -3711,7 +3709,7 @@ otherwise idle capacity.
 
 A one-shot `rebuilderd_teardown` Ansible role did the removal. It ran as part of the workers'
 drift-heal (the run that puts each node back to its declared configuration), and was itself removed
-after the nodes checked clean. Plan: `docs/superpowers/plans/2026-07-06-rebuilderd-removal-plan.md`.
+after the nodes checked clean. Plan: `docs/superpowers/plans/2026-07-06-rebuilderd-removal-plan.md` (removed after `04b30edc`).
 Codex reviewed it and returned SHIP-WITH-FIXES; every fix was applied.
 
 ### 2026-07-05 — trivy CVE triage: unfixed CVEs ignored, a weekly digest, and 3 upstream issues
@@ -4293,8 +4291,7 @@ rsync from `/tmp/empty/` *into* the dated folder. That clears only the folder's 
 the empty folder itself stayed and piled up on the NAS. The fix runs rsync on the **parent** folder
 and limits `--delete` to the target folder with `--include="/${name}/***" --exclude='*'`, so the
 dated folder itself is removed. `--exclude='*'` protects the folders beside it, in the same way as
-`prune_nas_file`. This ends the long-running build-up of empty folders noted in the operator's
-memory note `reference_nas`. File: `infrastructure/configs/backup-replication/cronjob.yaml`.
+`prune_nas_file`. This ends the long-running build-up of empty dated folders on the NAS. File: `infrastructure/configs/backup-replication/cronjob.yaml`.
 
 **Immich machine-learning resources (`6af4971e`).** The machine-learning container's limits went up:
 
@@ -4321,5 +4318,5 @@ The audit found nothing to act on:
 | Host firewall | none is loaded. `ufw`, `nftables` and `firewalld` are all inactive. The nft ruleset holds only the network for libvirt (the software that manages the VMs), with `INPUT policy accept`, and `iptables-legacy` is empty | so the rule "Allow `192.168.1.0/24`" in the ZettLab UI has no effect |
 | Access from the internet (WAN) | safe regardless of the NAS rule | the router forwards no inbound port |
 | `zettos-postgresql` | the one sensitive service exposed to the LAN (`listen_addresses='*'`), but authentication blocks it | the database's connection rules in `pg_hba.conf` allow only `127.0.0.1`, `::1` and local connections, so the database rejects a LAN connection before any login check. Every real client runs on the NAS itself |
-| Configuration files that the appliance manages | left untouched | ZettLab overwrites them on update. Details are in the operator's memory note `reference_nas` |
+| Configuration files that the appliance manages | left untouched | ZettLab overwrites them on update |
 | The appliance | outside the scope of Ansible, k3s and UFW | so the node-maintenance and node-fix procedures do not apply to it |
