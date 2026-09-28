@@ -14,7 +14,10 @@ spec:
   jobTemplate:
     spec:
       ttlSecondsAfterFinished: 86400
-      backoffLimit: 2
+      # No retry. If a run fails after Step 4 has emptied the sources, a retry finds
+      # nothing to validate and reports every backup as MISSING. If a run fails
+      # before Step 4, the sources stay and the next night's run syncs them.
+      backoffLimit: 0
       activeDeadlineSeconds: 7200
       template:
         metadata:
@@ -23,7 +26,7 @@ spec:
         spec:
           serviceAccountName: backup-replication
           automountServiceAccountToken: false
-          restartPolicy: OnFailure
+          restartPolicy: Never
           priorityClassName: homelab-batch
           # worker-node holds the source backups.
           nodeSelector:
@@ -133,13 +136,93 @@ spec:
                   OVERALL_OK=true
                   TODAY=$(date +%Y-%m-%d)
 
+                  # Runs every check on one archive. Sets CHECKS and SIZE_HUMAN, and returns 1
+                  # if any check failed. If $3 is "sha-required", a missing .sha256 fails too.
+                  check_archive() {
+                    local f="$1"
+                    local min_size="$2"
+                    local sha_rule="$3"
+                    local failed=false
+                    CHECKS=""
+
+                    local size
+                    size=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null)
+                    SIZE_HUMAN=$(du -h "$f" | cut -f1)
+
+                    echo "  File: ${f#/source-backups/} ($SIZE_HUMAN)"
+
+                    local file_epoch
+                    file_epoch=$(stat -c%Y "$f" 2>/dev/null || stat -f%m "$f" 2>/dev/null)
+                    local now_epoch
+                    now_epoch=$(date +%s)
+                    local age_hours=$(( (now_epoch - file_epoch) / 3600 ))
+
+                    if [ "$age_hours" -gt 25 ]; then
+                      echo "  FAIL: Age ${age_hours}h (>25h)"
+                      CHECKS="age ${age_hours}h OLD"
+                      failed=true
+                    else
+                      echo "  OK: Age ${age_hours}h"
+                    fi
+
+                    local sha_file="${f}.sha256"
+                    if [ -f "$sha_file" ]; then
+                      local expected
+                      expected=$(awk '{print $1}' "$sha_file")
+                      local actual
+                      actual=$(sha256sum "$f" | awk '{print $1}')
+                      if [ "$expected" = "$actual" ]; then
+                        echo "  OK: SHA256 matches"
+                        CHECKS="${CHECKS:+$CHECKS, }SHA256 OK"
+                      else
+                        echo "  FAIL: SHA256 mismatch!"
+                        CHECKS="${CHECKS:+$CHECKS, }SHA256 FAIL"
+                        failed=true
+                      fi
+                    elif [ "$sha_rule" = sha-required ]; then
+                      echo "  FAIL: No .sha256 file"
+                      CHECKS="${CHECKS:+$CHECKS, }no checksum"
+                      failed=true
+                    else
+                      echo "  SKIP: No .sha256 file"
+                      CHECKS="${CHECKS:+$CHECKS, }no checksum"
+                    fi
+
+                    # pvc-backup writes the two audiobookshelf media PVCs as plain .tar.
+                    local tar_list="-tzf"
+                    case "$f" in
+                      *.tar) tar_list="-tf" ;;
+                    esac
+                    if tar "$tar_list" "$f" >/dev/null 2>&1; then
+                      echo "  OK: tar integrity"
+                      CHECKS="${CHECKS:+$CHECKS, }tar OK"
+                    else
+                      echo "  FAIL: tar integrity check failed!"
+                      CHECKS="${CHECKS:+$CHECKS, }tar FAIL"
+                      failed=true
+                    fi
+
+                    if [ "$size" -lt "$min_size" ]; then
+                      echo "  FAIL: Size ${SIZE_HUMAN} below minimum"
+                      CHECKS="${CHECKS:+$CHECKS, }too small"
+                      failed=true
+                    else
+                      echo "  OK: Size ${SIZE_HUMAN}"
+                    fi
+
+                    [ "$failed" = false ]
+                  }
+
+                  # Paths go into VALIDATED_LIST RELATIVE to /source-backups, because that
+                  # is exactly how they appear in the recursive rsync listing of the NAS.
+                  # Not "<type>/<basename>": pvc archives nest as
+                  # pvc/<timestamp>/<namespace>/<file>, so a flattened name matches nothing
+                  # and Step 3 would fail every run.
                   validate_backup() {
                     local type="$1"
                     local dir="/source-backups/$type"
                     local min_size="$2"
                     local label="$3"
-                    local failed=false
-                    local checks=""
 
                     echo "--- Checking $label ---"
 
@@ -153,76 +236,71 @@ spec:
                       return 1
                     fi
 
-                    local size
-                    size=$(stat -c%s "$latest" 2>/dev/null || stat -f%z "$latest" 2>/dev/null)
-                    local size_human
-                    size_human=$(du -h "$latest" | cut -f1)
-
-                    echo "  File: $(basename "$latest") ($size_human)"
-
-                    local file_epoch
-                    file_epoch=$(stat -c%Y "$latest" 2>/dev/null || stat -f%m "$latest" 2>/dev/null)
-                    local now_epoch
-                    now_epoch=$(date +%s)
-                    local age_hours=$(( (now_epoch - file_epoch) / 3600 ))
-
-                    if [ "$age_hours" -gt 25 ]; then
-                      echo "  FAIL: Age ${age_hours}h (>25h)"
-                      checks="age ${age_hours}h OLD"
-                      failed=true
-                    else
-                      echo "  OK: Age ${age_hours}h"
-                    fi
-
-                    local sha_file="${latest}.sha256"
-                    if [ -f "$sha_file" ]; then
-                      local expected
-                      expected=$(awk '{print $1}' "$sha_file")
-                      local actual
-                      actual=$(sha256sum "$latest" | awk '{print $1}')
-                      if [ "$expected" = "$actual" ]; then
-                        echo "  OK: SHA256 matches"
-                        checks="${checks:+$checks, }SHA256 OK"
-                      else
-                        echo "  FAIL: SHA256 mismatch!"
-                        checks="${checks:+$checks, }SHA256 FAIL"
-                        failed=true
-                      fi
-                    else
-                      echo "  SKIP: No .sha256 file"
-                      checks="${checks:+$checks, }no checksum"
-                    fi
-
-                    if tar -tzf "$latest" >/dev/null 2>&1; then
-                      echo "  OK: tar integrity"
-                      checks="${checks:+$checks, }tar OK"
-                    else
-                      echo "  FAIL: tar integrity check failed!"
-                      checks="${checks:+$checks, }tar FAIL"
-                      failed=true
-                    fi
-
-                    if [ "$size" -lt "$min_size" ]; then
-                      echo "  FAIL: Size ${size_human} below minimum"
-                      checks="${checks:+$checks, }too small"
-                      failed=true
-                    else
-                      echo "  OK: Size ${size_human}"
-                    fi
-
-                    if [ "$failed" = true ]; then
-                      printf "FAIL|%s|%s, %s\n" "$label" "$size_human" "$checks" >> "$REPORT_FILE"
-                      OVERALL_OK=false
-                    else
-                      printf "OK|%s|%s, %s\n" "$label" "$size_human" "$checks" >> "$REPORT_FILE"
-                      # Path RELATIVE to /source-backups, because that is exactly how it
-                      # appears in the recursive rsync listing of the NAS. Not
-                      # "<type>/<basename>": pvc archives nest as
-                      # pvc/<timestamp>/<namespace>/<file>, so a flattened name matches
-                      # nothing and Step 3 would fail every run.
+                    if check_archive "$latest" "$min_size" sha-optional; then
+                      printf "OK|%s|%s, %s\n" "$label" "$SIZE_HUMAN" "$CHECKS" >> "$REPORT_FILE"
                       printf "%s\n" "${latest#/source-backups/}" >> "$VALIDATED_LIST"
                       VALIDATED_EXPECTED=$((VALIDATED_EXPECTED + 1))
+                    else
+                      printf "FAIL|%s|%s, %s\n" "$label" "$SIZE_HUMAN" "$CHECKS" >> "$REPORT_FILE"
+                      OVERALL_OK=false
                     fi
+                  }
+
+                  # pvc-backup writes one archive per CRITICAL_PVCS entry into
+                  # pvc/<timestamp>/<namespace>/, and writes the .sha256 only after tar
+                  # succeeds. So every archive in the newest timestamp dir needs its
+                  # .sha256, and the archive count must equal PVC_EXPECTED.
+                  # PVC_EXPECTED must equal the number of CRITICAL_PVCS entries in
+                  # infrastructure/configs/backup/pvc-backup-cronjob.yaml.
+                  # A single size floor does not fit these archives: a near-empty PVC such
+                  # as audiobookshelf-podcasts gives a 4 KB archive. tar -t and the
+                  # .sha256 catch truncation instead.
+                  PVC_EXPECTED=14
+                  validate_pvc() {
+                    local label="PVC"
+                    local newest
+                    local f
+                    local count=0
+                    local bad=""
+                    local archives="/tmp/pvc-archives.txt"
+                    local passed="/tmp/pvc-passed.txt"
+
+                    echo "--- Checking $label ---"
+
+                    newest=$(find /source-backups/pvc -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort -r | head -1)
+                    if [ -z "$newest" ]; then
+                      echo "FAIL: No timestamp dir in /source-backups/pvc"
+                      printf "FAIL|%s|MISSING - no backup found!\n" "$label" >> "$REPORT_FILE"
+                      OVERALL_OK=false
+                      return 1
+                    fi
+
+                    find "$newest" -type f | grep -E '\.tar(\.gz)?$' | sort > "$archives"
+                    : > "$passed"
+                    # A redirect, not a pipe, so count and bad survive the loop.
+                    while IFS= read -r f; do
+                      count=$((count + 1))
+                      if check_archive "$f" 1 sha-required; then
+                        printf "%s\n" "${f#/source-backups/}" >> "$passed"
+                      else
+                        bad="${bad}$(basename "$f"): $CHECKS; "
+                      fi
+                    done < "$archives"
+
+                    if [ "$count" -ne "$PVC_EXPECTED" ]; then
+                      echo "  FAIL: $count archives in ${newest#/source-backups/}, expected $PVC_EXPECTED"
+                      bad="${bad}$count of $PVC_EXPECTED archives"
+                    fi
+
+                    if [ -n "$bad" ]; then
+                      printf "FAIL|%s|%s\n" "$label" "${bad%; }" >> "$REPORT_FILE"
+                      OVERALL_OK=false
+                      return 1
+                    fi
+
+                    printf "OK|%s|%s archives, SHA256 OK, tar OK\n" "$label" "$count" >> "$REPORT_FILE"
+                    cat "$passed" >> "$VALIDATED_LIST"
+                    VALIDATED_EXPECTED=$((VALIDATED_EXPECTED + count))
                   }
 
                   # CouchDB floor is 20KB, not 100KB, since 2026-08-08. Its only database is
@@ -235,7 +313,7 @@ spec:
                   validate_backup "postgres" 1048576 "PostgreSQL" || true
                   validate_backup "couchdb" 20480 "CouchDB" || true
                   validate_backup "mysql" 102400 "MySQL" || true
-                  validate_backup "pvc" 102400 "PVC" || true
+                  validate_pvc || true
 
                   # Abort before the sync on validation failure: source preserved for
                   # forensics, NAS history untouched.

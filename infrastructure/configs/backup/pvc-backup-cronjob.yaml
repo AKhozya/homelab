@@ -83,6 +83,7 @@ spec:
                   #     bot self-rebuilds on restart, secrets live in SOPS)
                   #   - loki/storage-loki-0, monitoring/vmsingle-vmsingle — log/metric buffers, ephemeral
                   #   - stirling-pdf/stirling-pdf-{pipeline,tessdata}-pvc — regenerable runtime + downloadable model data
+                  # backup-replication's PVC_EXPECTED must equal the number of entries here.
                   CRITICAL_PVCS="
                   home-assistant/home-assistant-data-pvc/*home-assistant-data-pvc*
                   paperless-ngx/paperless-data-pvc/*paperless-data-pvc*
@@ -276,7 +277,8 @@ spec:
                     echo "❌ PVC Backup FAILED ($failed_count failure(s))"
                     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
                     # Non-zero exit fails the Job → BackupJobFailed alert fires.
-                    # Successful PVCs above are already on disk and still replicate.
+                    # backup-replication then fails its PVC check, because an archive
+                    # is missing or has no .sha256.
                     exit 1
                   fi
                   echo "✅ PVC Backup Complete"
