@@ -270,9 +270,11 @@ spec:
         - name: 'telegram'
           telegram_configs:
           - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot_token
-            # chat_id is an integer field (no _file variant available in Alertmanager)
-            # Not a secret by itself — cannot send messages without bot_token
-            chat_id: 113452686
+            # Alertmanager reads this file when it sends, not on config reload. If the
+            # value is not an integer, every Telegram send fails. That failure shows only
+            # in alertmanager_notifications_failed_total and the Alertmanager log.
+            # Needs Alertmanager >= 0.31.
+            chat_id_file: /etc/alertmanager/secrets/alertmanager-telegram/chat_id
             parse_mode: 'HTML'
             # Limit to 5 alerts max to avoid Telegram 4096 char limit truncation
             message: |
@@ -285,9 +287,7 @@ spec:
         - name: 'telegram-backup'
           telegram_configs:
           - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot_token
-            # chat_id is an integer field (no _file variant available in Alertmanager)
-            # Not a secret by itself — cannot send messages without bot_token
-            chat_id: 113452686
+            chat_id_file: /etc/alertmanager/secrets/alertmanager-telegram/chat_id
             parse_mode: 'HTML'
             # Limit to 5 alerts max to avoid Telegram 4096 char limit truncation
             message: |
