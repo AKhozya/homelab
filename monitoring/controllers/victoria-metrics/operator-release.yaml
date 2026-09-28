@@ -9,7 +9,6 @@ spec:
     mode: enabled
   rollback:
     cleanupOnFail: true
-  # standard-tier — chart 0.63.1 has no top-level priorityClassName template hook.
   postRenderers:
     - kustomize:
         patches:
@@ -17,9 +16,6 @@ spec:
               kind: Deployment
               name: victoria-metrics-operator
             patch: |-
-              - op: add
-                path: /spec/template/spec/priorityClassName
-                value: homelab-standard
               # Cap retained zero-replica ReplicaSets — chart leaves the field
               # unset, so the K8s default of 10 applies.
               - op: add
@@ -45,6 +41,7 @@ spec:
       retries: 3
       remediateLastFailure: true
   values:
+    priorityClassName: homelab-standard
     operator:
       disable_prometheus_converter: true
       enable_converter_ownership: false

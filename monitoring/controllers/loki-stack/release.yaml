@@ -178,8 +178,9 @@ spec:
       serviceMonitor:
         enabled: true
         labels:
-          # Prometheus-Operator-era selector. VMAgent's serviceScrapeSelector is
-          # empty, so the converted VMServiceScrape is picked up without it.
+          # Nothing reads this ServiceMonitor: the VM operator's Prometheus converter is
+          # off (victoria-metrics/operator-release.yaml). VMServiceScrape `loki` in
+          # monitoring/configs/victoria-metrics/scrape-apps.yaml scrapes Loki instead.
           release: kube-prometheus-stack
 
     # Disable caching for single binary mode

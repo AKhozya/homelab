@@ -30,31 +30,9 @@ spec:
   rollback:
     recreate: true
     cleanupOnFail: true
-  # standard-tier — chart 1.20.2 omits priorityClassName template hook for all 3 components.
   postRenderers:
     - kustomize:
         patches:
-          - target:
-              kind: Deployment
-              name: cert-manager
-            patch: |-
-              - op: add
-                path: /spec/template/spec/priorityClassName
-                value: homelab-standard
-          - target:
-              kind: Deployment
-              name: cert-manager-cainjector
-            patch: |-
-              - op: add
-                path: /spec/template/spec/priorityClassName
-                value: homelab-standard
-          - target:
-              kind: Deployment
-              name: cert-manager-webhook
-            patch: |-
-              - op: add
-                path: /spec/template/spec/priorityClassName
-                value: homelab-standard
           # Cap retained zero-replica ReplicaSets — chart leaves the field unset, so
           # the K8s default of 10 applies. Nameless target = all 3 chart Deployments
           # (cert-manager, -cainjector, -webhook; startupapicheck is a Job).
@@ -73,6 +51,8 @@ spec:
     global:
       leaderElection:
         namespace: cert-manager
+      # Reaches the three Deployments and the startupapicheck Job, a post-install-only hook.
+      priorityClassName: homelab-standard
 
     # High availability: 2 replicas with pod anti-affinity
     replicaCount: 2
