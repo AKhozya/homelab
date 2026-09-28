@@ -2222,40 +2222,232 @@ Closed the Path-B follow-up. Two commits, both Codex static-reviewed (`.claude/r
 - **W1 decommission (`a32f6ef8`).** Removed `apps/immich/library-pvc.yaml` + its kustomization line (verified no pod mounts it — server uses the NAS hostPath, ML uses its own PVC). PVC `immich-library` pruned → local-path-provisioner `reclaimPolicy=Delete` auto-deleted PV `pvc-495129ee` + its ~61G on-disk dir (helper pod; no sudo/W1-SSH needed). `existingClaim: immich-library` kept in the HelmRelease as **inert schema filler** (the postRenderer replaces `volumes/0` by index; dropping it changes the persistence shape) — comment updated to say so. immich-server undisturbed (1/1, hostPath). Codex 1 round: SHIP.
 - **Soak waived** at ~40h/48h (operator call): the repoint touches only the backup CronJob, not immich serving, and is fully reversible; the irreversible W1 delete was the one gated step and was explicitly confirmed. Post-change: 4/4 nodes Ready, 0 firing alerts, immich queues 0/0, external ping 200.
 
-### 2026-07-13 — immich-vm auto cold-cycle codified in node-maintenance phase2 (kernel-bump reboots automated)
+### 2026-07-13 — node-maintenance phase2 now cold-restarts immich-vm after a kernel update
 
-Closed the "patched-but-never-rebooted" gap. The `virtual` group (immich-vm) is carved out of the phase2 in-guest reboot rollout — a GPU-passthrough in-guest reboot re-binds the dirty iGPU → NAS host crash (reset-bug C3) — so a kernel bump previously only fired a **manual** operator-Telegram alert. phase2 PLAY 1b (`19d51c19`) now AUTO cold-cycles the reset-bug-safe way: graceful in-guest `/usr/bin/poweroff` (== `virsh shutdown --mode acpi`, never `reboot`) → wait node leaves Ready (NAS-free proxy for domain "shut off"; ansible never touches the NAS) → nudge the existing `immich-vm-heal` watchdog to cold-`virsh start` it → wait node Ready (7min; the watchdog's 5-min CronJob backstops a raced nudge). Wrapped block/rescue so a stall NEVER hard-fails PLAY 1b (a hard-fail leaves `phase2-pending` stuck → cluster-wide sync+config drift-heal ~1.7h). New `group_vars/virtual.yml` adds `vm_cold_cycle_force` for on-demand testing.
+This change closed the gap in which the VM got patched but never rebooted. The phase2 rollout of
+in-guest reboots leaves out the `virtual` group (immich-vm) because of the reset bug, incident C3. A
+reboot inside a guest with a passed-through GPU binds the iGPU again while it is still in a dirty
+state (not properly reset), and the NAS host crashes. So before this change, a kernel update only
+sent the operator a Telegram alert to act on **by hand**.
 
-- **Codex 2-round static review** — round 1 HIGH: the four inline `telegram-notify.sh` tasks lacked `failed_when: false`, so a failing rescue-notify would hard-fail the play → the exact `phase2-pending` wedge; fixed all four (incl. the pre-existing yay-alert). Round 2 SHIP.
-- **Both paths tested PASS** via `sudo ansible-playbook … --limit immich-vm [-e vm_cold_cycle_force=true]` (`--limit immich-vm` isolates PLAY 1b — delegated tasks bypass `--limit` to localhost/CP, so PLAY 0/1/2 skip = no worker reboots, no `phase2-pending` touch). NON-FORCE = gate skips (kernel current → all 7 cold-cycle tasks skipped, zero downtime, `ok=3 changed=1 failed=0`). FORCE = full cold-cycle (VM uptime 1h12m→2min = genuine, heal-maint job Complete 1/1 21s, node Ready ~1min, external 200 ~2.5min, assets 5791, GPU renderD129, fbdev cmdline intact, `ok=10 failed=0 rescued=0`).
-- CI billing-blocked since 07-10 — gates ran locally (yamllint, ansible-lint production profile, `--syntax-check`).
+phase2 PLAY 1b (`19d51c19`) now does a cold restart AUTOMATICALLY, in the order that avoids the
+reset bug:
 
-### 2026-07-12 — July overdue closeout: Kyverno CP→VP Phases 2-4 COMPLETE, right-sizing pass, security-scan failure-notify
+| Step | Detail |
+|---|---|
+| power off | a graceful `/usr/bin/poweroff` inside the guest. It equals `virsh shutdown --mode acpi`, and it is never `reboot` |
+| wait for the node to leave Ready | this stands in for the "shut off" state of the domain (libvirt's name for the VM) without asking the NAS, because Ansible never touches the NAS |
+| start | an early run of the existing `immich-vm-heal` watchdog cold-starts the VM with `virsh start` |
+| wait for the node to be Ready | up to 7min. If the early run does not start the VM in time, the watchdog's regular scheduled run, every 5-min, is the fallback |
 
-Closed the three real overdue items from the July monthly review in one worktree pass (`wt-overdue-closeout`; plan `docs/superpowers/plans/2026-07-12-monthly-review-overdue-closeout.md`). All commits Codex-reviewed (static git-only, `.claude/review-invariants.md` rubric).
+The steps sit in an Ansible block with a rescue section, so a stall NEVER fails PLAY 1b outright. A
+failure there would leave `phase2-pending` stuck, which stalls the sync and config drift-heal
+runs (the jobs that pull the repo and put each node back to its declared configuration) across the
+cluster (~1.7h). A new `group_vars/virtual.yml` adds `vm_cold_cycle_force`, which forces
+a cold restart for testing on demand.
 
-- **Kyverno migration DONE — 12 CEL ValidatingPolicies are the sole policy engine.** Sequence: `abf5d2c5` flip 12 VPs `[Audit]`→`[Deny]` → Gate A (canary dry-run deny attributed per-policy) → CP+canary deletion → `fc45be04` parity-script retire + VP-era review invariants. 8-day parity soak was clean; breaker-drop storm (07-07→07-11, trivy scan-job churn + k3s reboots) ended before flip. **Gate B: all 12 policies attributed via live admission denies** — required working around three interplays: fine-grained VP webhooks short-circuit (deny names only first failing policy → probe with otherwise-compliant pods), PSA enforce=restricted namespaces mask webhook attribution (probe in PSS-privileged ns), LimitRanger injects default limits before validating webhooks (limit-less probe legitimately passes in LimitRange namespaces — probe in trivy-system). The kyverno.io/v1 removal deadline (1.20, ~Oct 2026) is met early; Renovate kyverno bumps unheld.
-  - **Codex catch (HIGH, live-verified):** autogen clones rewrite `object.metadata` → `object.spec.template.metadata`, silently voiding top-level checks like the `skip-terminating` deletionTimestamp matchCondition. `require-networkpolicy-vp` now matches Pods AND controllers directly with `autogen.podControllers.controllers: []`. New review-invariants class added.
-- **Right-sizing pass (07-06 item):** 12 workloads' requests raised to 7d p95 (VictoriaMetrics `quantile_over_time(0.95, …[7d])`), limits untouched. Wave 1 `d4d21e18` (8 stateless: stirling-pdf 768→1408Mi, n8n 256→448Mi, blocky 128→256Mi, pricebuddy-apprise 150→224Mi, paperless 512→704Mi, trivy-operator 128→640Mi, vmsingle 512→768Mi, vm-operator 64→160Mi), wave 2 `6cd4c036` (DB CRs: mysql 768→896Mi, orchestrator+haproxy cpu 50→160m, redis-sentinel cpu 10→50m; Percona SmartUpdate roll). Serialized merges; all rollouts converged. immich excluded (Path B 48h soak); Flux controllers excluded (declared cut). Residual: kyverno reports-controller throttle re-check 2026-07-13 (≥0.25 → limit 500m→800m).
-- **security-scan failure-notify (07-08 item, `89cd65b3`):** missing lynis/rkhunter was a silent SKIP with exit 0 — now `FAIL=1` + `exit $FAIL`; unit gained `ExecStopPost` telegram-notify on any non-success. Root-cause find: `telegram-notify.sh` + creds were CP-only (install.sh installs locally), so EVERY worker-side notify path was dead — `security_scan` role now distributes script + `/etc/node-maintenance/telegram-{token,chat-id}` (0600, no_log) to all hosts. Applies at drift-heal 03:00 UTC.
-- Also closed as already-done: immich-backup Sunday slot verified (`lastSuccessfulTime 2026-07-12T03:07Z`), trivy #2859 soak (closed 07-10 with concurrency 2→1). CI billing-blocked since 07-10 — gates ran locally (yamllint, kubeconform ×5 roots, shellcheck) per plan.
+- **Codex static review, 2 rounds.** Round 1 found a HIGH issue: the four inline
+  `telegram-notify.sh` tasks lacked `failed_when: false`. If a notify in the rescue section failed,
+  the play would fail too, and leave the same stuck `phase2-pending`. All four were fixed,
+  including the older yay alert. Round 2: SHIP.
+- **Both paths passed their tests**, run as
+  `sudo ansible-playbook … --limit immich-vm [-e vm_cold_cycle_force=true]`. `--limit immich-vm`
+  runs PLAY 1b alone. Tasks delegated to localhost or the control plane (CP) get past `--limit`,
+  and PLAY 0/1/2 skip, so no worker rebooted and nothing touched `phase2-pending`.
 
-### 2026-07-12 — Immich Path B cutover (4E): server pod + library moved to immich-vm GPU node
+  | Path | Result |
+  |---|---|
+  | without force | the gate skips: the kernel is current, so all 7 cold-restart tasks skipped, with zero downtime. `ok=3 changed=1 failed=0` |
+  | with force | a full cold restart. VM uptime went from 1h12m to 2min, so the restart was real. The heal-maint Job completed 1/1 in 21s, the node was Ready in ~1min, and external requests returned 200 in ~2.5min. Assets 5791, GPU renderD129, framebuffer device (fbdev) settings intact on the kernel command line. `ok=10 failed=0 rescued=0` |
 
-Moved the `immich-server` pod off `worker-node` (W1, AMD) onto the `immich-vm` k3s node (Meteor Lake iGPU, Intel QSV) and repointed its photo library from the W1 local-path PVC to the NAS via **virtiofs hostPath** (`/var/lib/immich-library` → container `/data`). Placement + storage + GPU only — CNPG (PG18)/Redis/Cloudflare Tunnel/OIDC/Service/Ingress unchanged (NOT the abandoned Path A data-platform migration). Sequence on main: fence `65d5d2a7` → repoint `218f8f20` → unfence `3b4dca01`. GPU via the non-privileged **Intel device-plugin** (`gpu.intel.com/i915`, render GID 987) — no `/dev/dri` hostPath, no privileged container; namespace stays PSS-privileged only for the library hostPath. Library volume swapped by Kustomize **postRenderer** JSON-patch (chart schema rejects a native hostPath library). Spec `ba250045`, plan `docs/superpowers/plans/2026-07-12-immich-path-b-cutover.md`.
+- CI has been blocked by billing since 07-10, so the checks ran locally: yamllint, ansible-lint
+  with the production profile, and `--syntax-check`.
 
-- **Client downtime ≈ 13 min, not "~1 min".** The cutover fenced ALL client HTTP to `:2283` (removed the traefik + cloudflare-tunnel ingress NP rules — cloudflare hits the pod directly, bypassing Traefik, so an app-level fence would leak; NP is the only path-agnostic fence). External returned 502 for the full fenced window `18:22:02 → 18:34:37`. The *data move* was zero-downtime (pre-seeded NAS copy was byte-current — no uploads since Jul-2); the *client outage* was the whole window, incl. the repoint (`18:24`) and the go/no-go pause. uptime-kuma's health ingress was kept during the fence so it didn't false-page.
-- **DB↔disk verified post-cutover.** Every active Immich asset resolves to a file on the NAS-backed disk: `5775` active rows (5337 img + 438 vid), on-disk originals `5779` — checked all 5775 `originalPath`s, **missing=0**. The +4 on-disk extras are the harmless direction (soft-deletes/sidecars).
-- **Latent transcode break — HW-accel config still points at the AMD device.** Immich's stored config (`system_metadata`) is `accel=vaapi`, `preferredHwDevice=/dev/dri/renderD128` — the W1/AMD render node. The immich-vm pod exposes only `renderD129` (Intel i915); `renderD128` does not exist there, so the next video job would fail HW init / silently CPU-fall-back. No transcode has run since cutover (logs empty) so it has not surfaced. **Fix (operator, passkey-gated — password login is disabled, OIDC-only):** Admin → Settings → Video Transcoding → Acceleration = **Quick Sync (QSV)**, Preferred Device = `/dev/dri/renderD129` (or blank/auto), Save; then run a Transcode job and confirm the pod's ffmpeg uses `hevc_qsv` with no software-fallback log line. The cutover's "raw `hevc_qsv` proven in-pod" gave false confidence — it bypassed Immich's own config path.
-- **Backup cronjob is stale post-cutover (T7).** `immich-backup` (kube-system, Sun 03:00 UTC, `nodeSelector: worker-node`) still reads W1 `/mnt/k8s-storage/*immich-library*` — now the frozen pre-cutover copy, not the live NAS library (silent success-theater; loud `exit 1` once the W1 PVC is decommissioned). Next fire `2026-07-19` is after the 48h soak + T7. **T7 must repoint it to pull the NAS library (Task 4 W2-producer design) before 07-19.** Soak-window exposure is negligible: cronjob dormant, current data triply-covered (W1 PVC intact + live NAS + tar `20260712_030000`, sha-verified), uploads OIDC-gated.
-- 48h stability soak running (ends ~2026-07-14 18:35). T7 (W2-producer backup + W1 library-PVC / PV `pvc-495129ee` decommission) held for post-soak.
+### 2026-07-12 — July overdue items closed: Kyverno CP-to-VP Phases 2-4 complete, a right-sizing pass, and failure alerts for security-scan
 
-### 2026-07-12 — immich-vm resilience HOTFIX: two live regressions from the codification (same day)
+One pass in a worktree (`wt-overdue-closeout`; plan
+`docs/superpowers/plans/2026-07-12-monthly-review-overdue-closeout.md`) closed the three real
+overdue items from the July monthly review. Codex reviewed every commit, statically and from git
+only, against the `.claude/review-invariants.md` rubric.
 
-The codification below shipped two regressions to the live cluster, both caught within the hour, root-caused on ground-truth data, Codex-reviewed (2 rounds → CLEAN), fixed forward (main `4ed00d33`, `327d2afa`).
+**Kyverno migration done: 12 CEL ValidatingPolicies (VPs) are now the only policy engine.** The
+steps ran in this order:
 
-- **`on_reboot=preserve` broke the Tier-2 watchdog every cycle.** The QEMU libvirt driver supports **only `destroy|restart`** for `on_reboot`/`on_poweroff` (`preserve` is `on_crash`-only) — the generic `formatdomain.html` lists all four actions but omits the driver restriction, so the spike + Codex both validated against the schema, not the driver matrix. Live `virsh define` rejected it: *"qemu driver doesn't support the 'preserve' action for 'on_reboot'/'on_poweroff'"* → the watchdog failed `define_failed` every 5 min (was `Completed`). **Fix:** reverted to `on_reboot=restart` (the libvirt default and the live value; test-defined on the NAS at rc=0; next watchdog run went `RESULT=OK`). Both QEMU-supported values are imperfect on a slipped in-guest reboot — `restart`=C4 in-place iGPU wedge (NAS-reboot recoverable), `destroy`=C3 managed-reattach host crash — so **on_reboot cannot be the reset-bug belt**; the real guards stay `kernel.panic=0` + HW-watchdog-off + watchdog-never-destroy. The watchdog drift marker was re-pinned to `<on_reboot>restart</on_reboot>` (Codex round-1 HIGH: don't drop it, or a regen to `destroy` goes undetected). `on_crash=preserve` is unaffected (QEMU supports preserve there).
-- **A comment-only edit failed the whole drift-heal.** The Track-2 wording fix to `99-zz-immich-vm-nopanic.conf` made its `copy` task report `changed` → fired its `notify` handler `Apply nopanic sysctl` → `sysctl --system` re-applies **every** `/etc/sysctl.d` file and exits rc=1 on this VM's unsettable `kernel.nmi_watchdog` (*Operation not permitted*) → the immich-vm play failed (the 3 override keys themselves applied fine). **Fix:** the handler now runs `sysctl -p /etc/sysctl.d/99-zz-immich-vm-nopanic.conf` (only its 3 settable keys). Lessons: editing *any* file wired to a `notify:` fires that handler (even a comment), and `sysctl --system` is fragile (one unsettable key → rc=1 for the batch). Runtime state was never wrong (panic/softlockup/hardlockup all stayed 0); no cluster gating (no `phase2-pending`), self-clears on the next config run.
+| Step | Change |
+|---|---|
+| `abf5d2c5` | switched the 12 VPs from `[Audit]` to `[Deny]` |
+| Gate A | a canary dry-run deny, traced to each policy |
+| deletion | the old ClusterPolicies (CPs) and the canary |
+| `fc45be04` | retired the parity script and added review invariants for the VP era |
+
+The 8-day parity soak was clean. A soak is an observation period; in this one, both engines ran and
+their results were compared. A burst of breaker drops (07-07 to 07-11) ended before the switch. It
+came from trivy scan jobs being created and deleted in large numbers, and from k3s reboots.
+
+**Gate B: each of the 12 policies was traced through a live admission deny** (the API server
+refusing an object because a policy failed). That needed
+workarounds for three interactions:
+
+| Interaction | Workaround |
+|---|---|
+| the fine-grained VP webhooks (the calls through which the API server asks Kyverno) stop at the first failure, so a deny names only the first failing policy | probe with pods that pass every other policy |
+| namespaces with PSA (Pod Security Admission) enforce=restricted hide which webhook denied | probe in a PSS-privileged namespace |
+| LimitRanger (the built-in step that applies a namespace's LimitRange defaults) adds default limits before the validating webhooks run, so a probe with no limits rightly passes in namespaces that have a LimitRange | probe in trivy-system |
+
+The kyverno.io/v1 removal deadline (1.20, ~Oct 2026) is met early. Renovate's kyverno updates are
+no longer held back.
+
+**Codex catch (HIGH, confirmed live):** the autogen copies (the rules Kyverno generates for the
+controllers that create Pods) rewrite `object.metadata` to `object.spec.template.metadata`. That
+voids, with no warning, top-level checks such as the `skip-terminating`
+deletionTimestamp matchCondition. `require-networkpolicy-vp` now matches Pods AND controllers
+directly, with `autogen.podControllers.controllers: []`. The review invariants gained a new class
+for this.
+
+**Right-sizing pass (the 07-06 item).** The requests of 12 workloads went up to their 7d p95 (the
+level that all but the highest twentieth of samples stay under), from VictoriaMetrics
+`quantile_over_time(0.95, …[7d])`. Limits did not change. Wave 1, `d4d21e18`, covered 8 stateless
+workloads:
+
+| Workload | Request |
+|---|---|
+| stirling-pdf | 768 to 1408Mi |
+| n8n | 256 to 448Mi |
+| blocky | 128 to 256Mi |
+| pricebuddy-apprise | 150 to 224Mi |
+| paperless | 512 to 704Mi |
+| trivy-operator | 128 to 640Mi |
+| vmsingle | 512 to 768Mi |
+| vm-operator | 64 to 160Mi |
+
+Wave 2, `6cd4c036`, covered the database custom resources (CRs) and included a Percona SmartUpdate
+rolling restart:
+
+| Workload | Request |
+|---|---|
+| mysql | 768 to 896Mi |
+| orchestrator and haproxy | cpu 50 to 160m |
+| redis-sentinel | cpu 10 to 50m |
+
+The merges went in one at a time, and every rollout reached its intended state. immich was left out
+because of its Path B 48h soak. The Flux controllers were left out as a declared cut corner. Still
+open: re-check the kyverno reports-controller throttling on 2026-07-13. If it is ≥0.25, raise the
+limit from 500m to 800m.
+
+**Failure alerts for security-scan (the 07-08 item, `89cd65b3`).** If lynis or rkhunter was
+missing, the scan skipped it, exited 0 and reported nothing. Now it sets `FAIL=1` and ends with
+`exit $FAIL`. The unit also gained an `ExecStopPost` telegram-notify that fires on any result other
+than success. The search for the root cause found a wider problem. `telegram-notify.sh` and its
+credentials existed only on the control plane (CP), because install.sh installs locally. So EVERY
+notify path on the workers did not work. The `security_scan` role now copies the script and
+`/etc/node-maintenance/telegram-{token,chat-id}` (0600, no_log) to all hosts. The change applies at
+the 03:00 UTC drift-heal.
+
+Also closed, because they were already done: the immich-backup Sunday slot was verified
+(`lastSuccessfulTime 2026-07-12T03:07Z`), and the trivy #2859 soak ended (closed 07-10, with
+concurrency reduced from 2 to 1). CI has been blocked by billing since 07-10, so, as the plan said,
+the checks ran locally: yamllint, kubeconform ×5 roots, shellcheck.
+
+### 2026-07-12 — Immich Path B cutover (4E): the server pod and the library moved to the immich-vm GPU node
+
+The `immich-server` pod moved off `worker-node` (W1, AMD) onto the `immich-vm` k3s node (Meteor
+Lake iGPU, Intel QSV). Its photo library moved from the local-path PVC on W1 (a PVC is a pod's
+claim on persistent disk) to the NAS, through a **virtiofs hostPath** (a folder on the node mounted
+into the pod: `/var/lib/immich-library` on the node, `/data` in the container). Only
+placement, storage and the GPU changed. CNPG (PG18), Redis, Cloudflare Tunnel, OIDC, the Service
+and the Ingress stayed as they were. This is NOT the abandoned Path A, which would have migrated the
+data platform.
+
+The commits on main ran in this order: fence (block client access) `65d5d2a7`, repoint (change
+the library location) `218f8f20`, unfence (restore client access) `3b4dca01`. The
+pod gets the GPU through the non-privileged **Intel device-plugin** (`gpu.intel.com/i915`, render
+GID 987), with no `/dev/dri` hostPath and no privileged container. The namespace stays
+PSS-privileged only for the library hostPath. A Kustomize **postRenderer** JSON patch (a change
+applied to the chart's rendered output) swaps in the library volume, because the chart's schema
+rejects a native hostPath library. Spec `ba250045`, plan
+`docs/superpowers/plans/2026-07-12-immich-path-b-cutover.md`.
+
+- **Clients were down for ≈ 13 min, not "~1 min".** The cutover blocked ALL client HTTP to `:2283`
+  by removing the NetworkPolicy (NP) ingress rules for traefik and cloudflare-tunnel. Cloudflare
+  reaches the pod directly and bypasses Traefik, so a block at the app level would let traffic
+  through. An NP is the only block that works whatever path the traffic takes. External requests
+  returned 502 for the whole blocked window, `18:22:02 → 18:34:37`. The *data move* caused no
+  downtime, because the copy seeded on the NAS beforehand was current to the byte; there had been no
+  uploads since Jul-2. But the *client outage* lasted the whole window, including the repoint
+  (`18:24`) and the pause to decide whether to go on. uptime-kuma's health ingress stayed open
+  during the block, so it would not page falsely.
+- **Database and disk checked against each other after the cutover.** Every active Immich asset
+  resolves to a file on the NAS-backed disk. There are `5775` active rows (5337 images and 438
+  videos) and `5779` originals on disk. All 5775 `originalPath` values were checked:
+  **missing=0**. The +4 extra files on disk are in the harmless direction (soft-deleted assets or
+  sidecar files, which hold metadata next to a photo).
+- **A transcode failure is waiting to happen: the hardware-acceleration config still points at the
+  AMD device.** Immich's stored config (`system_metadata`) is `accel=vaapi`,
+  `preferredHwDevice=/dev/dri/renderD128`, the render node of the AMD GPU on W1. The immich-vm pod
+  exposes only `renderD129` (Intel i915), and `renderD128` does not exist there. So the next video
+  job would fail to start hardware acceleration, or fall back to the CPU without warning. No
+  transcode has run since the cutover (the logs are empty), so the problem has not shown up yet.
+
+  **Fix (for the operator).** It needs a passkey. Password login is disabled, and sign-in is
+  OIDC-only. In Admin, open Settings, then Video Transcoding. Set Acceleration to **Quick Sync
+  (QSV)** and Preferred Device to `/dev/dri/renderD129` (or blank/auto), and Save. Then run a
+  Transcode job, and confirm that the pod's ffmpeg uses `hevc_qsv` and logs no line about a
+  software fallback. The cutover's test ("raw `hevc_qsv` proven in-pod") made the setup look
+  ready, but that test bypassed Immich's own config path.
+- **The backup CronJob is out of date after the cutover (T7).** `immich-backup` (kube-system,
+  Sundays 03:00 UTC, `nodeSelector: worker-node`, so it runs only on that node) still reads
+  `/mnt/k8s-storage/*immich-library*` on W1. That folder now holds the frozen copy from before the
+  cutover, not the live NAS library. So the backup reports success while it saves stale data. Once
+  the W1 PVC is decommissioned, it will fail visibly with `exit 1`. The next run, `2026-07-19`,
+  comes after the 48h soak (observation period) and T7. **T7 must point it at the NAS library before
+  07-19, using the Task 4 design in which W2 produces the backup.** The risk during the soak is
+  negligible. The CronJob will not run in that window, and three copies cover the current data: the
+  intact W1 PVC, the live NAS, and the tar `20260712_030000`, whose sha was verified. Uploads also
+  need an OIDC login.
+- A 48h stability soak is running, and it ends ~2026-07-14 18:35. T7 waits until after the soak:
+  the backup produced on W2, and decommissioning the W1 library PVC and its PV `pvc-495129ee`.
+
+### 2026-07-12 — immich-vm resilience HOTFIX: the same day's GitOps change caused two live regressions
+
+The entry below wrote the immich-vm fixes into the repo, and that change shipped two regressions to
+the live cluster. Both were caught within the hour and traced to their root cause from live data.
+Codex reviewed the fixes in 2 rounds and found them CLEAN. They went forward as new commits on main
+(`4ed00d33`, `327d2afa`), not as reverts.
+
+- **`on_reboot=preserve` broke the Tier-2 watchdog on every run.** For `on_reboot` and
+  `on_poweroff`, the QEMU libvirt driver supports **only `destroy|restart`**; `preserve` works only
+  for `on_crash`. The generic `formatdomain.html` lists all four actions but leaves out the driver's
+  restriction. So the spike (a preliminary test) and Codex both checked against the schema, not
+  against the table of what each driver supports. On the NAS, the live `virsh define` rejected it:
+  *"qemu driver doesn't support the 'preserve' action for 'on_reboot'/'on_poweroff'"*. The watchdog
+  then failed with `define_failed` every 5 min, where before it ended `Completed`.
+
+  **Fix:** the setting went back to `on_reboot=restart`, the libvirt default and the live value. A
+  test define on the NAS returned rc=0 (success), and the next watchdog run ended `RESULT=OK`.
+
+  Both values that QEMU supports are imperfect if an in-guest reboot slips through. `restart` gives
+  C4, the iGPU hanging in place, which a NAS reboot recovers. `destroy` gives C3, a host crash when
+  libvirt re-attaches the managed device. So **on_reboot cannot be the safeguard against the reset
+  bug**. The real guards stay `kernel.panic=0`, the hardware watchdog turned off, and a watchdog
+  that never runs a destroy (a forced power-off of the VM). The watchdog's drift marker was pinned
+  again to `<on_reboot>restart</on_reboot>`. Codex's round-1 HIGH finding said not to drop the
+  marker, or a regenerated XML with `destroy` would go unnoticed. `on_crash=preserve` is unaffected,
+  because QEMU supports preserve there.
+- **An edit to a comment failed the whole drift-heal.** The Track-2 wording fix to
+  `99-zz-immich-vm-nopanic.conf` made its `copy` task report `changed`. That fired its `notify`
+  handler, `Apply nopanic sysctl`, which ran `sysctl --system`. That command applies **every**
+  `/etc/sysctl.d` file again. It exits rc=1 on this VM, because `kernel.nmi_watchdog` cannot be set
+  there (*Operation not permitted*). So the immich-vm play failed, although the 3 override keys
+  themselves applied fine.
+
+  **Fix:** the handler now runs `sysctl -p /etc/sysctl.d/99-zz-immich-vm-nopanic.conf`, which
+  applies only that file's 3 keys, all of which can be set.
+
+  Lessons: editing *any* file tied to a `notify:` fires that handler, even if the edit changes only
+  a comment. And `sysctl --system` breaks easily: one key that cannot be set gives rc=1 for the
+  whole batch. The running state was never wrong: panic, softlockup and hardlockup all stayed 0.
+  Nothing blocked the cluster (no `phase2-pending`), and the failure clears by itself on the next
+  config run.
 
 ### 2026-07-12 — immich-vm reboot resilience written into GitOps: the fbdev hang fix and 4 tracks
 
