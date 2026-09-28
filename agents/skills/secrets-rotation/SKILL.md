@@ -15,7 +15,7 @@ Rotate a DB user's password end to end. The mechanical mutations are in
 - **Scheduled** — per `docs/SECRETS_ROTATION.md`.
 - DB user = app name by convention.
 
-## The footgun (read first)
+## Cycling app pods (read first)
 
 After the new password is deployed, land it on the running app by **deleting** its
 pods one at a time, not restarting them:
@@ -46,7 +46,7 @@ S=~/.agents/skills/_shared/rotate-db-user.sh
 #    commit the SOPS change -> merge to main -> push
 flux reconcile source git flux-system && flux reconcile kustomization apps
 
-# 3. cycle pods (DELETE one at a time — see footgun)
+# 3. cycle pods (DELETE one at a time — see Cycling app pods)
 ~/.agents/skills/_shared/restart-workload.sh uptime-kuma app=uptime-kuma
 
 # 4. verify

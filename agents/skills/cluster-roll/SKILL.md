@@ -58,7 +58,7 @@ Data-bearing STS and node-infra DaemonSets:
 reports an orphan, fix the map before any live roll → `reference-mechanics.md` § Why ordered, not blanket.
 
 ## Rules (hard)
-- **Preflight aborts the whole roll** if any check fails:
+- If any check below fails, **preflight aborts the whole roll**:
 
   | Check | Aborts when |
   |---|---|

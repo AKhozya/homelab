@@ -1,6 +1,6 @@
 ---
 name: cluster-stale-cleanup
-description: Use to find and clean stale K8s resources in homelab — failed/evicted pods, completed Jobs lacking ttlSecondsAfterFinished, zero-replica ReplicaSets beyond revisionHistoryLimit, unbound PVCs, released PVs, stuck Helm releases, orphan ConfigMaps. Outputs scan table + GitOps cleanup recommendations. NEVER raw `kubectl delete` for git-managed objects — patches manifests (ttlSecondsAfterFinished, revisionHistoryLimit) then commits via /gitops-workflow. Released PVs and stuck Helm releases are out-of-band by design.
+description: Use to find and clean stale K8s resources in homelab — failed/evicted pods, completed Jobs lacking ttlSecondsAfterFinished, zero-replica ReplicaSets beyond revisionHistoryLimit, unbound PVCs, released PVs, stuck Helm releases, orphan ConfigMaps. Outputs scan table + GitOps cleanup recommendations. NEVER raw `kubectl delete` for git-managed objects — patches manifests (ttlSecondsAfterFinished, revisionHistoryLimit) then commits via /gitops-workflow. Released PVs need cleanup outside GitOps. Fix stuck Helm releases in Git.
 ---
 
 # Cluster Stale Cleanup
@@ -23,7 +23,7 @@ Categories surfaced:
 | Zero-replica RS | count > 5 per Deployment | patch `revisionHistoryLimit: 2` in Deployment spec (the repo convention, `.claude/review-invariants.md`) |
 | Unbound PVCs | any | check StorageClass, PV provisioning errors |
 | Released/Failed PVs | any | out-of-band `kubectl delete pv` after backup verify |
-| Stuck Helm | failed / pending-upgrade | fix the cause in Git → /gitops-workflow. If the release stays `pending-*`: `flux suspend hr <name> -n <ns>` → `helm history` → `helm rollback` → `flux resume hr <name> -n <ns>`. A forgotten suspend silently stops reconciliation |
+| Stuck Helm | failed / pending-upgrade | read `helm history` and `flux get hr -A` for the cause, then fix the values or chart version in Git → /gitops-workflow. The HelmRelease's own `remediation` settings handle rollback; never run `helm rollback` by hand (an out-of-band prod change Flux does not know about) |
 | Orphan ConfigMaps | not owned (top-5 oldest shown, any age) | manual audit, often residue from renamed deploys |
 
 ## Reboot leftovers = terminal pods no controller reaps

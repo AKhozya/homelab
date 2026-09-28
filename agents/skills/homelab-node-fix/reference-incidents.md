@@ -79,7 +79,14 @@ The real failing task name is in there (e.g. `Verify swap active`). The deployed
 
 ## Staged / single-node node-config changes (DNS, NIC, anything load-bearing)
 
-`node-maintenance-config.service` runs `node-config.yml` across **ALL hosts** (push from CP via SSH), and `node-maintenance-sync.service` runs `install.sh --sync-only` which is **NOT file-copy-only** — it re-enables `config.timer` (`systemctl enable --now node-maintenance-config.timer`) + `systemctl start --wait node-maintenance-config.service` in `install.sh` = a full all-host heal (~5 min, blocking). So both the 10-min timer AND a manual sync apply to all 4 nodes at once. To stage one node at a time (verify before the next):
+Both services act on **ALL hosts**:
+
+| Service | What it runs |
+|---|---|
+| `node-maintenance-config.service` | `node-config.yml` across all hosts (push from the CP via SSH) |
+| `node-maintenance-sync.service` | `install.sh --sync-only`, which is **NOT file-copy-only**: it runs `systemctl enable --now node-maintenance-config.timer`, then `systemctl start --wait node-maintenance-config.service` — a full all-host configuration run (~5 min, blocking) |
+
+So both the 10-min timer AND a manual sync apply to all 4 nodes at once. To stage one node at a time (verify before the next):
 
 1. Stop the timers so the auto-heal can't race: `systemctl stop node-maintenance.timer node-maintenance-sync.timer node-maintenance-config.timer`. (`systemctl mask` FAILS — the units are real files in `/etc/systemd/system/`: "File already exists". `stop` + services already `disabled` suffices; just don't reboot mid-window.)
 2. Update the CP checkout WITHOUT triggering a heal (do NOT run `install.sh --sync-only`):

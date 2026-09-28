@@ -152,7 +152,7 @@ Beyond schema/admission, eyeball or grep:
   | Engine | How the user exists |
   |---|---|
   | Postgres | Secret labels `cnpg.io/cluster: main-postgres` + `cnpg.io/reload: "true"`, role in `managed.roles` |
-  | MySQL | no Percona `User` CR exists: create the user by hand with SQL (`CREATE USER` + `GRANT`) through `db-operations/scripts/mysql-exec.sh`, and add its `CREATE USER` line, with a placeholder password, to `docs/disaster-recovery/mysql-create-dbs.sql` |
+  | MySQL | No Percona `User` CR exists. Create the user by hand with SQL (`CREATE USER` + `GRANT`) through `db-operations/scripts/mysql-exec.sh`. Add its `CREATE USER` line, with a placeholder password, to `docs/disaster-recovery/mysql-create-dbs.sql`. |
 - New namespace: add the ResourceQuota (governance entry) in a SECOND commit, after Flux has created the namespace. If the quota comes first, `infrastructure-configs` fails to reconcile, and `apps`, which depends on it, stops reconciling too (2-commit bootstrap, `/app-scaffold`)
 
 Other invariants live in canonical skills:

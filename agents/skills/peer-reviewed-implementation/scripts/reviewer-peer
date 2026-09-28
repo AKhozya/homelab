@@ -15,9 +15,9 @@ EOF
 
 current="${CURRENT_AGENT:-}"
 format="text"
-# Matches model_reasoning_effort in ~/.codex/config.toml. codex-review.sh passes no effort flag,
-# so that file is what a Codex review actually runs at; change both together.
-effort="high"
+# ~/.codex/AGENTS.md requires xhigh for this skill's plan and code reviews. The pre-commit gate
+# (codex-review.sh) passes no effort flag and runs at the ~/.codex/config.toml default, high.
+effort="xhigh"
 allow_self=0
 
 while [[ $# -gt 0 ]]; do

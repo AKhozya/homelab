@@ -31,6 +31,18 @@ Authoritative mechanics: `docs/BACKUP_STRATEGY.md` (per-engine restore commands)
    | `require-resource-limits` | cpu + memory limits on every container, init included |
    | `require-non-root`, `require-readonly-rootfs`, `require-seccomp-runtimedefault`, `require-drop-all-capabilities`, `disallow-privilege-escalation` | `runAsNonRoot` with the image's DB uid, `readOnlyRootFilesystem: true` plus emptyDir mounts for the data dir, socket dir and `/tmp`, `seccompProfile: {type: RuntimeDefault}`, `capabilities.drop: [ALL]`, `allowPrivilegeEscalation: false` |
    | `disallow-latest-tag` | a pinned image tag |
+
+   `runAsNonRoot` also means the DB process cannot write a root-owned emptyDir. Set the pod-level
+   `securityContext.fsGroup` (and `runAsUser`/`runAsGroup`) to the image's DB ids, so the kubelet
+   makes the emptyDir mounts group-writable. The mount point itself stays root-owned. PostgreSQL's
+   `initdb` must own its data dir. So point `PGDATA` at a subdirectory of the mount (for example
+   `/var/lib/postgresql/data/pgdata`).
+
+   | Image (variant checked in its upstream Dockerfile) | uid:gid |
+   |---|---|
+   | `postgres:17-bookworm` (Debian; the Alpine variants use other ids) | 999:999 |
+   | `mysql:8.4-oracle` | 999:999 |
+   | `couchdb:3.4.3` | 5984:5984 |
 4. Validate: row/doc counts vs source (`SELECT count(*)` on 2-3 biggest tables / `_all_dbs` doc counts), schema present, one known-recent record exists (proves dump fresh, not stale husk).
 5. Teardown ns. Record evidence.
 

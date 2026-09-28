@@ -205,6 +205,8 @@ def pod_total(cs, ins, override_name=None, override_bytes=None, where="", fn=Non
     fn = fn or effective
     def eff(c):
         return fn(c, override_name, override_bytes, where)
+    # Ceiling: this omits init containers that run beside an earlier native sidecar, because no
+    # workload here has a native sidecar (none in the repo or live, 2026-09-28).
     sidecars = sum(eff(c) for c in ins if c.get("restartPolicy") == "Always")
     steady = sum(eff(c) for c in cs) + sidecars
     init_effective = max([eff(c) for c in ins] or [0])

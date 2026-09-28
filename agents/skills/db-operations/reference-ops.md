@@ -39,14 +39,16 @@ returns an empty set for `SHOW REPLICA STATUS`, which looks healthy. The replica
 The pod reads the root password from its own mounted users secret, so it appears in no argv,
 neither kubectl's on this host nor mysql's in the pod. MySQL 8.4 deprecates `MYSQL_PWD` but still honours it.
 ```bash
-pods=$(kubectl get pods -n databases -l app.kubernetes.io/instance=main-mysql,app.kubernetes.io/name=mysql -o name)
-[ -n "$pods" ] || echo "ERROR: no mysql pods listed — replication NOT checked"
+rc=0
+pods=$(kubectl get pods -n databases -l app.kubernetes.io/instance=main-mysql,app.kubernetes.io/name=mysql -o name) || pods=""
+[ -n "$pods" ] || { echo "ERROR: no mysql pods listed — replication NOT checked"; rc=1; }
 while IFS= read -r p; do
   [ -n "$p" ] || continue
   # shellcheck disable=SC2016 # expands inside the pod
   if ! out=$(kubectl exec -n databases "$p" -c mysql -- bash -c \
     'MYSQL_PWD=$(</etc/mysql/mysql-users-secret/root); export MYSQL_PWD; exec mysql -h 127.0.0.1 -uroot -e "SHOW REPLICA STATUS\G"'); then
     echo "== $p: query FAILED"
+    rc=1
   elif [ -z "$out" ]; then
     echo "== $p: no replica status (the primary)"
   else
@@ -54,6 +56,7 @@ while IFS= read -r p; do
     printf '%s\n' "$out" | grep -E "(Replica_IO|Replica_SQL|Seconds_Behind)"   # MySQL 8 field names — Slave_* matches nothing
   fi
 done <<<"$pods"   # not `for p in $pods`: zsh does not word-split an unquoted variable
+[ "$rc" = 0 ]   # the snippet's status: non-zero if discovery or any query failed
 ```
 | Output | Meaning |
 |---|---|
@@ -101,12 +104,13 @@ spec:
 
 ### Restart Database Pod (Safe)
 WORKSTATION ONLY. The bot has no workload `patch` since 2026-08-06.
-Delete-pod is not a substitute for databases (AGENTS.md: no force-delete of DB pods).
+Never force-delete a DB pod (`--force`, `--grace-period=0`; AGENTS.md). A graceful delete is the
+Redis method only, as the table says.
 
 | Engine | Restart method |
 |---|---|
 | PostgreSQL (CNPG) | CNPG owns the pods directly, so there is no StatefulSet to restart. Use `bash ~/.agents/skills/cnpg-full-roll/scripts/roll.sh databases main-postgres` |
-| Redis (opstree operator) | NEVER `rollout restart` its StatefulSets: the `restartedAt` template annotation restarts the operator's non-convergent reconcile loop (2026-07-17 incident, upstream OT-CONTAINER-KIT/redis-operator#1840). If a CR spec change in `infrastructure/configs/databases/redis-ha/` deploys through Git, the operator replaces its pods |
+| Redis (opstree operator) | NEVER `rollout restart` its StatefulSets: the `restartedAt` template annotation restarts the operator's non-convergent reconcile loop (2026-07-17 incident, upstream OT-CONTAINER-KIT/redis-operator#1840). Restart by graceful `kubectl delete pod -n databases <pod>`, one pod at a time, the replica before the current master (`redis-master.sh --label` names it). Before the next pod, wait until the new pod is Ready and `redis-master.sh info` shows `connected_slaves:1` with `slave0:…,state=online` (a replica still syncing reports another state and is no failover target). Never `--force` |
 | MySQL (Percona) | The operator owns `main-mysql-mysql`; `cluster-roll` keeps it in SKIP, and this runbook provides no restart procedure. Ask the human operator to do the restart |
 | CouchDB (Helm, 2 replicas) | `kubectl rollout restart statefulset/couchdb-couchdb -n databases`, then confirm `/_membership` lists both nodes before anything else touches it |
 

@@ -12,7 +12,7 @@ echo "=== datasources (sidecar ConfigMaps labelled grafana_datasource) ==="
 # Basic auth via curl returns 401 because the cluster Grafana enforces OIDC-only, and there is no
 # Grafana operator. The grafana-sc-datasources sidecar loads every ConfigMap with this label, so
 # they are the datasource list. Print only name, type and url, because a payload can hold
-# credentials; the url loses any user:password@ part and any query or fragment for the same reason.
+# credentials. For the same reason, strip any user:password@ part, query and fragment from the url.
 # No datasource at all is a failure, not an empty healthy list.
 cms="$(kubectl get cm -A -l grafana_datasource -o json)" || {
   echo "(cannot list datasource ConfigMaps)"

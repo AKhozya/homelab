@@ -73,7 +73,9 @@ git -C ~/.local/share/chezmoi push
 
 **Always use `git -C ~/.local/share/chezmoi`** — `cd && git` breaks safe-bash allow pattern.
 
-**Commit fails `error: 1Password: failed to fill whole buffer` + `fatal: failed to write commit object`** = commit-signing key blocked (1Password locked / no biometric surface from the agent shell). Retry the same commit once unsigned (`git -C ~/.local/share/chezmoi -c commit.gpgsign=false commit ...`), as the global rules direct; do not stop to ask for an unlock, and do not retry-loop. Staging survives; nothing is lost. Seen 2026-07-16.
+**If the commit fails with `error: 1Password: failed to fill whole buffer` + `fatal: failed to write commit object`**, the commit-signing key is blocked (1Password locked / no biometric surface from the agent shell). Staging survives. Seen 2026-07-16.
+1. Retry the same commit once unsigned: `git -C ~/.local/share/chezmoi -c commit.gpgsign=false commit ...` (the global rules say so; do not stop to ask for an unlock first).
+2. If that retry fails too, stop and report it. Do not retry-loop.
 
 ## Gotchas
 

@@ -29,11 +29,11 @@ workflow.
 4. **Pre-Implementation Review**
    - Run `scripts/reviewer-peer --current <current-family> --format json` from
      this skill.
-   - Use `high` effort/reasoning for every Claude or Codex plan review. That is the
-     `model_reasoning_effort` in `~/.codex/config.toml`, which `codex-review.sh` inherits.
+   - Use `xhigh` effort/reasoning for every Claude or Codex plan review (`~/.codex/AGENTS.md`).
+     The repo pre-commit gate (`codex-review.sh`) is separate: it runs at the config default, `high`.
    - Ask the returned reviewer to review the plan, unless it is `self-review`.
    - If the reviewer is unavailable, rate-limited, or explicitly waived by the
-     user, do a self-review at `high` and state that substitution.
+     user, do a self-review at `xhigh` and state that substitution.
    - Load the `receiving-code-review` / `receive-review` skill when available.
    - Receive feedback through that discipline: understand, verify, evaluate,
      then act. Do not blindly implement review comments.
@@ -92,7 +92,7 @@ workflow.
 
 7. **Code Review**
    - Re-run `scripts/reviewer-peer --current <current-family> --format json`.
-   - Use `high` effort/reasoning for every Claude or Codex code review.
+   - Use `xhigh` effort/reasoning for every Claude or Codex code review.
    - Ask the returned reviewer to review the actual diff before commit/push,
      unless it is `self-review`.
    - For Codex diff reviews, dispatch through

@@ -82,11 +82,11 @@ node_ready() {
 cp_loopback_ok() {
   local code rc=0
   # Single-quoted: $code / $(...) expand on the REMOTE CP, not here.
-  # `|| true`, not `|| echo 000`: curl already prints "000" on failure, and the exit stays 0 so
-  # that only an ssh failure sets rc.
+  # A failed curl prints curl-rc-<n>, not its http_code: a transfer that times out after the
+  # headers still prints 200/401. The remote exit stays 0, so only an ssh failure sets rc.
   # shellcheck disable=SC2016
   code="$(ssh -o ConnectTimeout=5 "$CP" \
-    'curl -sS -m5 -k -o /dev/null -w "%{http_code}" https://127.0.0.1:6443/healthz 2>/dev/null || true' \
+    'c=$(curl -sS -m5 -k -o /dev/null -w "%{http_code}" https://127.0.0.1:6443/healthz 2>/dev/null) || c="curl-rc-$?"; echo "$c"' \
     2>/dev/null)" || rc=$?
   if [ "$rc" -ne 0 ]; then
     echo "WEDGED-OR-UNREACHABLE (ssh rc=$rc)"
