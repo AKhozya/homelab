@@ -16,7 +16,9 @@ spec:
           annotations:
             summary: "Blocky DNS pod down on {{ $labels.instance }}"
         - alert: BlockyAllReplicasDown
-          expr: count(up{job="blocky-metrics"} == 1) == 0
+          # `or vector(0)`: count() of nothing is an empty result, not 0, so without it
+          # the alert cannot fire in the one case it exists for.
+          expr: (count(up{job="blocky-metrics"} == 1) or vector(0)) == 0
           for: 1m
           labels:
             severity: critical
