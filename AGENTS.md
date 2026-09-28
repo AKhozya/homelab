@@ -75,7 +75,7 @@ Concurrent agent sessions share one checkout → silent file stomp. So:
 ## Docs (read before acting)
 - `docs/ARCHITECTURE.md` — how it's organized + why (design principles, mermaid diagrams, cut corners). Read first for orientation. Changes only when *design* changes, not counts.
 - `docs/HOMELAB_ANALYSIS.md` — state tracker. Update after meaningful change (PostToolUse hook enforces).
-- `docs/HOMELAB_HISTORY.md` — changelog of the last 3 months. A new entry goes at the top; the monthly review deletes entries older than 3 months, and git keeps them.
+- `docs/HOMELAB_HISTORY.md` — changelog of the last 3 months. A new entry goes at the top; the monthly review deletes entries older than 3 months, and git keeps them. To point another doc at a change, cite its commit, not a HISTORY date.
 - `docs/subsystems/` — structural maps ([index + content rules](docs/subsystems/README.md)): [apps](docs/subsystems/apps.md), [networking](docs/subsystems/networking.md), [databases](docs/subsystems/databases.md), [monitoring](docs/subsystems/monitoring.md), [backup-restore](docs/subsystems/backup-restore.md).
 - `docs/disaster-recovery/README.md` — DR runbook.
 - `docs/SECRETS_ROTATION.md` — rotation schedule.

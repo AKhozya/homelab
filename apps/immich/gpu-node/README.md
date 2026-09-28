@@ -32,7 +32,7 @@ Alerts: VMRule group `immich-gpu-node-alerts` (`ImmichVMHealJobFailing`,
 
 **Go-live requires an operator step**: append the dedicated PUBLIC key to the NAS
 `~akhozya/.ssh/authorized_keys` (the private half is in the SOPS secret; the pubkey
-is printed at build time / in HOMELAB_HISTORY). Until then the watchdog job fails
+is printed at build time and recorded in commit `da6857aa`). Until then the watchdog job fails
 (`ssh_unreachable`) — which is the correct fail-closed signal.
 
 ## The canonical elements (must survive any re-define)

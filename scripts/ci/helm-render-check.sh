@@ -2,7 +2,7 @@
 # kubeconform validates the HelmRelease custom resource, never the chart's own
 # templates, so a chart whose templates reject our values passes every other job and
 # fails only in-cluster after Flux applies it. kube-prometheus-stack 90.0.0 rejects this
-# repo's values that way (2026-09-07, see docs/HOMELAB_HISTORY.md).
+# repo's values that way (2026-09-07, fixed in commit b46d0803).
 #
 # Every path that renders nothing must fail. A check that silently skips a chart and
 # exits 0 is worse than no check, because it reads as proof the chart is fine.
