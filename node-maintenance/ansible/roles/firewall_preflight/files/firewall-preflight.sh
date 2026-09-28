@@ -242,6 +242,11 @@ phase_ufw_state_recover() {
     else
         log "ufw-state: recovery failed — $out"
     fi
+    # flush-all also removed the CNI-HOSTPORT-MASQ jump, which nothing re-adds on its own.
+    # The firewall role installs the healer, so a first run on a fresh node has none yet.
+    if [ -x /usr/local/sbin/ufw-heal-post-k3s.sh ]; then
+        /usr/local/sbin/ufw-heal-post-k3s.sh --cni-heal || log "ufw-state: CNI heal errored"
+    fi
 }
 
 main() {
