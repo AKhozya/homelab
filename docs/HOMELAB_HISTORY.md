@@ -1991,55 +1991,183 @@ MEDIUM issue: the obsidian init script re-applied legacy CouchDB keys.
 | kustomize v5 fields | absent |
 | live API server deprecated-API metric | about zero: one `Endpoints` read, with no removal planned |
 
-### 2026-07-03 — Ultrareview (6-axis: architecture, approaches, solution, quality, docs, security)
+### 2026-07-03 — Ultrareview on 6 axes: architecture, approaches, solution, quality, docs, security
 
-6 dimension reviewers + adversarial verification (52 findings survived) + live-cluster spikes + Codex static review. Fixed in worktree, single-env prod.
+6 reviewers each covered one axis. An adversarial check tried to disprove each finding, and 52
+findings survived. The review also used probes against the live cluster and a Codex static review.
+The fixes were made in a git worktree. The cluster has a single environment, which is production.
 
-| Sev | Finding | Fix |
+| Severity | Finding | Fix |
 |---|---|---|
-| HIGH | pg_dump/mysqldump/pvc backups reported success on partial dumps (`set -e` w/o pipefail; `pg_dump\|tee` masked exit; missing PVC only warned; mysqldump stderr written into `.sql`) | `set -eo pipefail`, per-DB failure accounting + `exit 1` before packaging; mysql `MYSQL_PWD` + stderr→`.err` sidecar + `--set-gtid-purged=OFF`; missing critical PVC now fails the job |
-| HIGH | `NoRecentBackups` structurally dead — 48h threshold vs 24h Job TTL; per-ns `max()` masked a stopped sibling CronJob | Rekeyed on `kube_cronjob_status_last_successful_time` (not TTL-reaped), per-cronjob; split daily (>48h) / immich weekly (>9d). Live-verified |
-| HIGH | Backup replication validated AFTER rsync — a corrupt backup overwrote the last good W2 copy (`--delete`) + wiped W1 source | Reordered: validate → abort-before-sync on failure; source preserved, W2/NAS untouched |
-| HIGH | Grafana egress NP had no 8429 to VMSingle (dead `prometheus:9090` rule) — every metric dashboard silently unreachable | Added 8429→vmsingle, removed dead prometheus rule |
-| HIGH | CI Actions on mutable tags feeding a packages:write / PR-write pipeline | SHA-pinned all third-party + `actions/checkout` in the 2 write-privileged workflows (`# vX.Y.Z` for Renovate) |
-| MED | CNPG `enableSuperuserAccess: true` on a false "pooler needs it" premise — untracked live `postgres` superuser secret | `false` (pooler uses cert auth; no consumer of the secret) |
-| MED | vmsingle `namespaceSelector:{}` on 8429 = cluster-wide metric WRITE/DoS surface | Removed; 4 scoped consumers (vmagent/vmalert/grafana/uptime-kuma) retained |
-| MED | Traefik rate-limits enforcing per-**second** (no `period`) — 60× looser than the "/min" comments | Added `period: 1m`, recalibrated (standard 300, high-freq 600) from measured 7d peaks |
-| MED/LOW | HA + claude-telegram bare 443/80 egress reached cluster/LAN CIDRs; DNS component UDP-only (no TCP fallback); uptime-kuma dead all-ports /24 ICMP rule (zero ping monitors) | RFC1918-`except` on 443/80; DNS TCP/53 added; ICMP rule → scoped NAS `.136/32:50555` |
-| LOW | CI kubeconform schema pinned 1.31 vs live 1.36; dead dependabot.yml (0 PRs, Renovate owns actions); apps automerge no soak | Schema→1.36.1; dependabot deleted; `minimumReleaseAge: 3 days` on apps automerge |
-| docs | DR runbook: wrong NAS rsync module (`akhozya`→`akhozya-pool1`), bare `curl\|sh` k3s install (unpinned + collides with Flux traefik/coredns); no-WAL decision contradicted; serial vs fan-out topology; W1/W2 blast radius understated; stale counts; ufw-reset firewall block | Rewrote DR steps (pinned k3s + ansible config), fan-out topology, honest failure table + no-offsite/self-blind-monitoring ceilings, count refresh |
-| MED | External dead-man switch: W2 loss kills VMSingle/VMAlert → every in-cluster alert (incl. NodeDown) goes silent with no external witness | Watchdog VMRule (`vector(1)` — needed because `defaultRules.create:false` dropped the built-in) → AM `deadman` webhook receiver (`url_file` from SOPS secret) → healthchecks.io ping/10m. Owner chose healthchecks.io; live-verified end-to-end. **Owner action: set the check to Period 15m / Grace 15m** |
-| LOW | `CronJobNotScheduled` + `BackupCronJobMissedSchedule` false-fired on immich-backup — weekly cadence + off-slot runs leave `.status.lastScheduleTime` stale, so KSM `kube_cronjob_next_schedule_time` sits in the past | Excluded `immich-backup` from both daily-tuned rules; `NoRecentImmichBackup` (9d) covers its staleness. Live-verified healthy (lastSuccessful 5d fresh, delta +5.7d) |
-| MED | require-labels/-non-root/-seccomp still Audit (toothless — violators only flagged, not blocked); `validationFailureAction` deprecated since Kyverno 1.13 (live 1.18.1) → silent policy flip on a future chart bump | Pulled the deferred 07-04 item forward: promoted all 3 Audit→Enforce after live soak re-verified clean (199/113/199 pass, 0 fail, 0 live seccomp violators, every CronJob/Job template compliant-or-excluded); migrated all 12 policies to per-rule `validate.failureAction` + updated `check-policy-action.sh`/`prepare-enforce.sh`. Proven live: `--dry-run=server` accepts all 12 + positive admission test denied a labels-only violator |
+| HIGH | The pg_dump, mysqldump and PVC backups (copies of the apps' persistent volume claims, their stored data) reported success on partial dumps. Causes: `set -e` without pipefail; `pg_dump\|tee` hid the exit code; a missing PVC only raised a warning; mysqldump wrote its stderr into the `.sql` file | `set -eo pipefail`. If any database backup fails, the job records the failure and runs `exit 1` before packaging. mysql gets `MYSQL_PWD`, stderr goes to a separate `.err` file, and `--set-gtid-purged=OFF` is set. A missing critical PVC now fails the job |
+| HIGH | `NoRecentBackups` could never fire: its threshold was 48h, but Jobs are deleted after 24h (their TTL). A `max()` per namespace also hid a sibling CronJob that had stopped | The alert now reads `kube_cronjob_status_last_successful_time` per CronJob, a value that the TTL does not delete. It is split into daily (>48h) and the weekly immich backup (>9d). Checked live |
+| HIGH | Backup replication validated the backup after rsync. So a corrupt backup overwrote the last good copy on the second worker, W2 (`--delete`), and wiped the source on the first worker, W1 | New order: validate first, and if that fails, stop before the sync. The source stays, and W2 and the NAS stay untouched |
+| HIGH | Grafana's egress NetworkPolicy (the rules for its outgoing traffic) did not allow port 8429 to VMSingle. It still had an unused rule for `prometheus:9090`. No metric dashboard could reach its data, and nothing reported the fault | Allowed 8429 to vmsingle, and removed the unused prometheus rule |
+| HIGH | CI used GitHub Actions by tags that can move, in a pipeline with packages:write and pull-request write permission | Pinned every third-party action, and `actions/checkout` in the 2 workflows with write permission, to a commit SHA, with a `# vX.Y.Z` comment for Renovate |
+| MED | CNPG had `enableSuperuserAccess: true` because of a false belief that the pooler (the connection pooler in front of PostgreSQL, which lets apps reuse database connections) needs it. That left a live `postgres` superuser secret that nothing tracked | Set to `false`. The pooler uses certificate auth, and nothing reads the secret |
+| MED | vmsingle's `namespaceSelector:{}` on 8429 let any namespace in the cluster write metrics to it, or flood it (denial of service) | Removed. The 4 named clients (vmagent, vmalert, grafana, uptime-kuma) keep their access |
+| MED | Traefik rate limits counted per **second**, because no `period` was set. That is 60 times looser than the "/min" in their comments | Added `period: 1m`, and reset the limits from the measured 7-day peaks: standard 300, high-frequency 600 |
+| MED/LOW | The bare 443/80 egress rules of Home Assistant and claude-telegram reached cluster and LAN address ranges. The DNS component allowed UDP only, with no TCP fallback. uptime-kuma had an unused ICMP rule for all ports on a /24, and it has zero ping monitors | An RFC1918 `except` on 443/80, which blocks the private ranges. Added TCP/53 for DNS. The ICMP rule became a rule scoped to the NAS, `.136/32:50555` |
+| LOW | CI's kubeconform schema was pinned to 1.31 while the cluster ran 1.36. dependabot.yml did nothing (0 PRs; Renovate handles actions). Apps automerged with no waiting period | Schema moved to 1.36.1. Deleted dependabot. Added `minimumReleaseAge: 3 days` to the apps automerge |
+| docs | The disaster recovery (DR) runbook had the wrong NAS rsync module (`akhozya` instead of `akhozya-pool1`). It had a bare `curl\|sh` k3s install, which pins no version and clashes with the traefik and coredns that Flux installs. It contradicted the no-WAL decision (the decision not to archive PostgreSQL's write-ahead log, the record of every change that point-in-time recovery replays), and it described a serial topology, where each copy feeds the next, but the real one is fan-out, where one source feeds every copy. It understated what losing W1 or W2 does, had outdated counts, and had a firewall block that resets ufw | Rewrote the DR steps with a pinned k3s and the Ansible config. Described the fan-out topology. Added an honest failure table and the limits of having no offsite backup and monitoring that cannot see its own failure. Refreshed the counts |
+| MED | No external dead-man switch. If W2 goes down, VMSingle and VMAlert go with it, so every in-cluster alert, NodeDown included, stops, and nothing outside the cluster notices | A Watchdog VMRule (`vector(1)`, needed because `defaultRules.create:false` removed the built-in one) feeds the Alertmanager `deadman` webhook receiver (`url_file` from a SOPS secret), which pings healthchecks.io every 10m. The owner chose healthchecks.io. Checked live from end to end. **Owner action: set the check to Period 15m and Grace 15m** |
+| LOW | `CronJobNotScheduled` and `BackupCronJobMissedSchedule` fired falsely on immich-backup. The weekly schedule and runs outside the usual slot leave `.status.lastScheduleTime` out of date, so the kube-state-metrics value `kube_cronjob_next_schedule_time` stays in the past | Excluded `immich-backup` from both rules, which are tuned for daily jobs. `NoRecentImmichBackup` (9d) catches a stale immich backup. Checked live and healthy: the last success was 5d old, delta +5.7d |
+| MED | require-labels, require-non-root and require-seccomp were still in Audit mode, which only flags violators and does not block them. `validationFailureAction` is deprecated since Kyverno 1.13 (the cluster ran 1.18.1), so a future chart upgrade could change the policy mode with no warning | Brought forward the item deferred to 07-04. Moved all 3 from Audit to Enforce, after a live check again found them clean: 199/113/199 pass, 0 fail, 0 live seccomp violators, and every CronJob and Job template compliant or excluded. Moved all 12 policies to the per-rule `validate.failureAction`, and updated `check-policy-action.sh`/`prepare-enforce.sh`. Proved live: `--dry-run=server` accepts all 12, and an admission test denied a violator that broke only the labels rule |
 
-**Deferred (own change / owner call):** Percona `crVersion` 1.0.0→1.1.0 (rolling restart window); ClusterIssuer `letsencrypt-staging`→`-prod` rename (re-issues 16 certs); Redis/CouchDB instance CRs live in controllers layer vs configs (cross-Kustomization move); monitoring-ns Traefik middleware fork; csp-reporter fork-or-GC; offsite backup (awaiting owner decision — external dead-man switch now shipped, see rows above).
+**Deferred, each to its own change or to an owner decision:**
 
-### 2026-07-02 (secret-rotation cadence: 90-day High tier retired → single 180-day) ✅
-All scheduled secret rotations move to one 180-day cadence (user decision, 2026-07-01 High batch superseded rather than executed). Ex-High secrets (PG authentik/immich/n8n, MySQL home-assistant, Redis immich → 2026-10-01; Redis admin-password → 2026-10-26) folded into the existing Medium batch. Priority column in SECRETS_ROTATION.md now ranks blast-radius only. Annual infra keys (SSH/deploy/CF mgmt token) and never-rotate classes unchanged.
+| Item | Detail |
+|---|---|
+| Percona `crVersion` 1.0.0 → 1.1.0 | needs a window for a rolling restart |
+| Renaming ClusterIssuer `letsencrypt-staging` to `-prod` | re-issues 16 certificates |
+| The Redis and CouchDB instance CRs | they live in the controllers layer, not configs. Moving them is a move between Kustomizations |
+| A fork of the Traefik middleware for the monitoring namespace | no further detail |
+| csp-reporter | fork it or remove it |
+| Offsite backup | waiting on the owner's decision. The external dead-man switch has now shipped; see the findings table above |
 
-### 2026-06-29 (CP ClusterIP-wedge auto-heal + Codex pre-commit review loop) ✅
-**Maintenance reboot** (post heat-shutdown catch-up: phase1→phase2, all 3 nodes updated, boots CP→W1→W2 ~6min apart, clean) surfaced a gap — the post-reboot **kube-proxy ClusterIP DNAT wedge** hits the **control plane** too, where `clusterip_heal` is workers-only (CP excluded: host-netns probe false-reads + "restart-k3s-on-CP hangs"). Symptom: **uptime-kuma** (deliberately CP-pinned via `nodeSelector`) crashlooped `EAI_AGAIN` on MySQL — EVERY ClusterIP (DNS 10.43.0.10, API 10.43.0.1) dead from CP pods while host + workers were fine. Cleared by a manual `systemctl restart k3s` on the CP (reprogrammed the DNAT, returned cleanly ~30-60s → the "CP restart hangs" caveat **disproven**).
-- **Fix** (`c175ab7b`): new `clusterip_heal_cp` ansible role (CP counterpart of `clusterip_heal`). **Pod-netns probe** (nsenter into the coredns-ha pod → curl 10.43.0.1:443/healthz, since host-netns false-reads on the CP) with a **3-state contract** — 0 healthy / 1 wedged **only when EVERY sample is a confirmed connect-failure** / 2 unknown→no-op+preserve-metrics (conservative: the remediation is heavier than a worker's). Remediation = **`timeout 120 systemctl restart k3s`** (hang → give-up+alert, never an indefinite CP wedge). Guards mirror the worker role (cooldown 300s, cap 3/30min, `node_clusterip_heal_giveup` → existing alert); systemd timer OnBoot 2min + every 3min. Deploys on next node-maintenance sync; first live-validates at the next CP reboot.
-- **Review loop adopted** (CLAUDE.md): first homelab change through the new **Codex(`xhigh`) static-review → `receiving-code-review` → fix → delta-scoped re-review (cap 3)** pre-commit loop. Codex flagged 2 real false-positive-restart risks (any-bad-sample→wedged; unprobeable-exits-0 cleared the give-up metric) → fixed → round 2 GO. Retired the cavecrew pre-push gate; no Gemini / no PR-babysitting.
+### 2026-07-02 — Secret rotation: the 90-day High tier retired for a single 180-day cadence
 
-### 2026-06-28 (backup-replication: drop rsync `-z` — wasted CPU on LAN) ✅
-Step 1 (→worker-node-2 over SSH) + Step 2 (→NAS daemon) used `rsync -avz`. Backups are `.tar.gz` (already compressed) and both hops are LAN → `-z` re-compresses incompressible data, burning CPU on both ends for ~0 size gain. Dropped to `-av`. `infrastructure/configs/backup-replication/cronjob.yaml`.
+All scheduled secret rotations now follow one 180-day cadence. The user decided this, and the
+2026-07-01 High batch was replaced rather than carried out. The former High secrets joined the
+existing Medium batch:
 
-### 2026-06-28 (backup CronJobs startingDeadlineSeconds 600→3600 — reboot-overrun skip hardening) ✅
-6 backup CronJobs (postgres/couchdb/mysql/pvc/immich/backup-replication) fire at 03:00–03:30 with `startingDeadlineSeconds: 600`. A reboot whose recovery overruns the window by >10 min **silently skips** that day's backup (deadline set → no catch-up). Surfaced today after a **planned 5–6 day heat shutdown** (cluster off ~06-23→06-28): `BackupCronJobMissedSchedule`×6 critical + `CronJobNotScheduled`×6 fired. The gap itself was **expected** (cluster powered off; controller healthy — the 06:00-Sun popeye/pg-extension jobs ran today; `*-postreboot` startup jobs backfilled, alerts self-clear after the next on-time 03:00). Bumped deadline to **3600** (catch-up until ~04:00–04:30) so a normal maintenance-reboot overrun still runs the day's backup; `concurrencyPolicy: Forbid` guards overlap. Multi-day shutdowns remain covered by the `*-postreboot` startup jobs, not the deadline.
+| Secrets | Next rotation |
+|---|---|
+| PostgreSQL authentik, immich and n8n; MySQL home-assistant; Redis immich | 2026-10-01 |
+| Redis admin-password | 2026-10-26 |
 
-### 2026-06-28 (immich Redis reboot-survival — point at master-following Service, drop Sentinel client) ✅
-**Problem**: after a node reboot Sentinel promotes a new Redis master, but immich's ioredis Sentinel client held the stale old-master connection and never recovered — needed a manual `kubectl rollout restart deploy/immich-server` (recurring; hit again today, obs 6978).
-- **Root cause**: ioredis Sentinel uses *passive* failover detection (re-queries sentinels only when the master connection *closes*). On a node reboot the TCP socket to the dead master **half-opens and hangs** (no FIN/RST) → ioredis never detects it, never re-resolves the master ([ioredis#1314](https://github.com/redis/ioredis/issues/1314)).
-- **Rejected — `failoverDetector:true`** (`f992bbda`, superseded): active detection via the sentinels' `+switch-master` pub/sub does recover, but triggers a **known ioredis connection leak** — a sentinel-failover test left 301 orphaned subscribe connections (non-draining) and immich-server spinning at ~1.3 CPU. Trades a manual restart for a leak that itself eventually needs one.
-- **Fix** (`cc5c02a1`): point immich at the OT operator's master-following Service **`redis-replication-master`** (selector `redis-role=master`) as a **plain** ioredis client. Failover moves to the **infra layer** — on promotion the operator repoints that Service to the new master, so ioredis just reconnects to a stable ClusterIP; no flaky client-side Sentinel discovery. Same pattern paperless already runs. Egress NetworkPolicy unchanged (`redis-replication:6379` already allowed; `sentinel:26379` egress now unused).
-- **Verified** (delete master pod = reboot sim): immich auto-recovered in ~18s, pod **RESTARTS=0**, 40 live `ioredis` connections on the re-promoted master, **0** sentinel connections (leak gone), CPU 1344m→2m. No manual restart.
-- SOPS secret `immich-redis-url` re-encrypted (sentinels→host); `apps/immich/release.yaml` REDIS_URL comment updated. Note: `cc5c02a1` committed unsigned (1Password agent was locked mid-session).
+The priority column in SECRETS_ROTATION.md now ranks only by blast radius (how much a leak of the
+secret would expose). The yearly infrastructure keys (SSH, deploy key, Cloudflare management token)
+and the classes that are never rotated did not change.
 
-### 2026-06-28 (backup husk-leak prune fix + immich ML resource bump) ✅
-Two small prod fixes shipped this session.
-- **Backup husk-leak** (`2e65af1f`): NAS replication `prune_nas_dir` rsync'd `/tmp/empty/` *into* the dated dir, which clears its **contents only** — the empty directory shell ("husk") leaked and accumulated on the NAS. Fixed to operate at the **parent** and scope `--delete` to the target subtree with `--include="/${name}/***" --exclude='*'`, so the dated dir itself is removed; siblings protected by `--exclude='*'` (same idiom as `prune_nas_file`). Clears the chronic empty-dir accumulation noted in memory `reference_nas`. `infrastructure/configs/backup-replication/cronjob.yaml`.
-- **Immich ML resources** (`6af4971e`): machine-learning container CPU limit **2000m→4000m** (2×, inference throughput) + RAM limit **2Gi→2355Mi** (+15% — 7-day peak hit ~78% of 2Gi, too thin against OOM). Requests unchanged (200m/512Mi). `apps/immich/release.yaml`.
+### 2026-06-29 — Automatic repair of stuck ClusterIP routing on the control plane, and a Codex pre-commit review loop
+
+A maintenance reboot caught up after the heat shutdown. It ran phase1 then phase2 and updated all
+3 nodes. It booted the control plane, the first worker (W1) and the second worker (W2) in that order, about 6min apart, without problems.
+The reboot exposed a gap. After a reboot, kube-proxy's DNAT rules (address-rewriting rules) for ClusterIP (the cluster's
+internal service addresses) can get stuck, and this hits the **control plane** too. But
+`clusterip_heal` covered only the workers. It left the control plane out for two reasons: a probe
+from the host network namespace gives false readings there, and a caveat said
+"restart-k3s-on-CP hangs".
+
+The symptom: **uptime-kuma**, pinned to the control plane on purpose with a `nodeSelector`,
+crashed and restarted repeatedly with `EAI_AGAIN` on MySQL. From pods on the control plane, every ClusterIP (DNS
+10.43.0.10, API 10.43.0.1) failed, while the host and the workers were fine. A manual
+`systemctl restart k3s` on the control plane cleared it. The restart reprogrammed the DNAT and
+returned cleanly in about 30-60s, which **disproved** the belief that a control-plane restart hangs.
+
+**Fix (`c175ab7b`).** A new Ansible role, `clusterip_heal_cp`, is the control-plane version of
+`clusterip_heal`. It probes from inside a pod's network namespace: it uses nsenter to enter the
+coredns-ha pod and requests 10.43.0.1:443/healthz with curl, because a probe from the host namespace gives false
+readings on the control plane. The probe returns one of 3 states:
+
+| State | Meaning |
+|---|---|
+| 0 | healthy |
+| 1 | stuck, but **only if every sample is a confirmed connection failure** |
+| 2 | unknown: do nothing, and keep the metrics as they are |
+
+The rules are cautious because the repair restarts the whole Kubernetes service on the control
+plane, which is heavier than the repair on a worker. The repair is **`timeout 120 systemctl restart k3s`**. If the restart hangs, the role gives up and raises an
+alert, so the control plane never stays stuck indefinitely. The safeguards copy the worker role: a
+300s cooldown, at most 3 repairs per 30min, and `node_clusterip_heal_giveup`, which feeds the
+existing alert. A systemd timer runs the role 2min after boot and then every 3min. The role deploys
+on the next node-maintenance sync. It gets its first live test at the next control-plane reboot.
+
+**Review loop adopted (CLAUDE.md).** This was the first homelab change to go through the new
+pre-commit loop: a Codex static review (`xhigh` reasoning), then `receiving-code-review`, a fix,
+and a re-review of only the changed part, for at most 3 rounds. Codex found 2 real risks of a
+needless restart: any bad sample counted as stuck, and a probe that could not run exited 0, which
+cleared the give-up metric. Both were fixed, and round 2 approved the change. The cavecrew pre-push
+gate was retired. No Gemini review, and no watching of pull requests after the push.
+
+### 2026-06-28 — backup-replication: rsync `-z` dropped, because it wasted CPU on the LAN
+
+Step 1 (to worker-node-2 over SSH) and Step 2 (to the rsync daemon on the NAS) used `rsync -avz`.
+The backups are `.tar.gz` files, already compressed, and both hops stay on the LAN. So `-z`
+compressed data that cannot shrink further, spending CPU on both ends for a size gain of about 0.
+Both steps now use `-av`. File: `infrastructure/configs/backup-replication/cronjob.yaml`.
+
+### 2026-06-28 — Backup CronJobs: startingDeadlineSeconds raised from 600 to 3600, so a backup delayed by a reboot overrun can still start
+
+6 backup CronJobs (postgres, couchdb, mysql, pvc, immich, backup-replication) start at 03:00–03:30.
+They had `startingDeadlineSeconds: 600`. If recovery from a reboot ran more than 10 min past that
+window, the CronJob skipped that day's backup, and no error showed it. With a deadline set, the
+controller does not catch up a missed run later.
+
+This showed up on the day of this entry, after a **planned heat shutdown of 5–6 days** (the cluster
+was off from about 06-23 to 06-28). 6 critical `BackupCronJobMissedSchedule` alerts and 6
+`CronJobNotScheduled` alerts fired. The gap itself was **expected**: the cluster was powered off,
+and the controller was healthy, since the Sunday 06:00 popeye and pg-extension jobs ran that day.
+The `*-postreboot` startup jobs filled in the missed backups. The alerts clear by themselves after
+the next on-time 03:00 run.
+
+The deadline is now **3600** seconds, which allows a late start until about 04:00–04:30. So a
+normal maintenance reboot that runs long still runs that day's backup. `concurrencyPolicy: Forbid`
+prevents two runs from overlapping. The `*-postreboot` startup jobs, not the deadline, still cover
+shutdowns of several days.
+
+### 2026-06-28 — immich Redis survives reboots: pointed at the Service that follows the master, Sentinel client dropped
+
+**Problem.** After a node reboot, Sentinel promotes a new Redis master. immich's ioredis Sentinel
+client kept its connection to the old master and never recovered, so it needed a manual
+`kubectl rollout restart deploy/immich-server`. This kept happening, and it happened again on the
+day of this entry (obs 6978).
+
+**Root cause.** ioredis in Sentinel mode detects a failover passively: it asks the sentinels again
+only when the master connection *closes*. If a node reboots, the TCP connection to the dead
+master is left **half-open and hangs**, with no FIN or RST (the signals that close or reset a TCP
+connection). So ioredis never notices and never
+looks up the master again ([ioredis#1314](https://github.com/redis/ioredis/issues/1314)).
+
+**Rejected: `failoverDetector:true`** (`f992bbda`, later replaced). Active detection through the
+sentinels' `+switch-master` pub/sub messages (published event messages) does recover. But it triggers a **known ioredis
+connection leak**. A sentinel failover test left 301 orphaned subscribe connections that never
+closed, and immich-server running at about 1.3 CPU. That swaps a manual restart for a leak that
+also needs a restart in the end.
+
+**Fix (`cc5c02a1`).** immich now connects as a **plain** ioredis client to
+**`redis-replication-master`**, a Service of the OT (opstree) operator that follows the master
+(selector `redis-role=master`). Failover now happens in the **infrastructure layer**. If a
+replica is promoted, the operator points that Service at the new master, so ioredis reconnects to
+the same ClusterIP. The client no longer relies on unreliable Sentinel discovery. paperless already
+uses the same pattern. The egress NetworkPolicy did not change: `redis-replication:6379` was
+already allowed, and the `sentinel:26379` egress is now unused.
+
+**Checked** by deleting the master pod to simulate a reboot. No manual restart was needed:
+
+| Check | Result |
+|---|---|
+| immich recovery | automatic, in about 18s |
+| immich pod RESTARTS | **0** |
+| live `ioredis` connections on the master after it was promoted again | 40 |
+| sentinel connections | **0** (the leak is gone) |
+| CPU | 1344m → 2m |
+
+The change re-encrypted the SOPS secret `immich-redis-url` with the host in place of the sentinels,
+and updated the REDIS_URL comment in `apps/immich/release.yaml`. Note: `cc5c02a1` is unsigned,
+because the 1Password agent locked during the session.
+
+### 2026-06-28 — Backup prune left empty folders on the NAS; immich machine-learning resources raised
+
+Two small production fixes shipped in this session.
+
+**Empty folders left by the backup prune (`2e65af1f`).** In NAS replication, `prune_nas_dir` ran
+rsync from `/tmp/empty/` *into* the dated folder. That clears only the folder's **contents**, so
+the empty folder itself stayed and piled up on the NAS. The fix runs rsync on the **parent** folder
+and limits `--delete` to the target folder with `--include="/${name}/***" --exclude='*'`, so the
+dated folder itself is removed. `--exclude='*'` protects the folders beside it, in the same way as
+`prune_nas_file`. This ends the long-running build-up of empty folders noted in the operator's
+memory note `reference_nas`. File: `infrastructure/configs/backup-replication/cronjob.yaml`.
+
+**Immich machine-learning resources (`6af4971e`).** The machine-learning container's limits went up:
+
+| Limit | Before | After | Why |
+|---|---|---|---|
+| CPU | 2000m | 4000m | 2×, for inference throughput |
+| RAM | 2Gi | 2355Mi | +15%: the 7-day peak reached about 78% of 2Gi, too little room before an out-of-memory kill |
+
+Requests did not change (200m/512Mi). File: `apps/immich/release.yaml`.
 
 ### 2026-06-28 — NAS admin SSH access and a security audit
 
