@@ -1854,61 +1854,142 @@ Design (source-verified against kyverno 1.18.1 `pkg/cel/autogen`): bare-pods `ma
 
 Offline validation (kyverno CLI 1.18.1): 12 VPs × 10-resource corpus → error=0, every targeted assertion exact (autogen fires on controllers, ns/label excludes honored, non-root anyPattern branch non-mixing preserved, canary isolates); `require-networkpolicy` VP against live cluster read-only: pass=85 fail=0 error=0. **Engine finding**: VP emits ONE result per (policy, resource) — multi-validation short-circuit — so `require-resource-limits` reports cp=2/vp=1 structurally; parity script Class 3 carries that exact exception (verify-early-in-soak note inside) and Class 1 compares worst-of-source. Review-invariants: new CEL section (CanAutoGen silent-kill, request.namespace-vs-object rewrite, orValue soft-anchor rebirth, per-CP container sets, 3-class parity).
 
-### 2026-07-04 — Loki chart lineage migration → grafana-community 18.4.0
+### 2026-07-04 — Loki chart moved to the grafana-community fork, 18.4.0
 
-`grafana.github.io` loki chart went GEL-only (frozen at 7.0.0 for OSS) — Renovate was blind to OSS Loki updates. Repointed the HelmRelease to the community fork (`grafana-community/helm-charts`, strict-semver continuation of 6.55.0). Main `8f2e54ea`.
+The loki chart at `grafana.github.io` now serves only GEL (Grafana Enterprise Logs). For open-source
+(OSS) Loki it stopped at 7.0.0, so Renovate could not see OSS Loki updates. The HelmRelease (the
+Flux resource that installs a Helm chart) now points at the community fork (`grafana-community/helm-charts`), which continues from 6.55.0 with strict
+semantic versioning. Commit on main: `8f2e54ea`.
 
 | Change | Detail |
 |---|---|
-| Chart 7.0.0 → **18.4.0** (app 3.6.7→3.7.3) | New `grafana-community` HelmRepository added ALONGSIDE `grafana` (alloy still consumes the old repo; fork hosts no alloy chart). In-place STS roll (immutables verified identical to live pre-merge), PVC `storage-loki-0` reused, helm history continued (`loki.v30`). |
-| `deploymentMode: SingleBinary`→`Monolithic` | 18.x rename; SSD `backend/read/write: replicas: 0` stanzas kept (chart validate.yaml requires them zeroed). |
-| postRenderers block **deleted** | priorityClassName now via values (`global.priorityClassName` + separate `lokiCanary.priorityClassName` — global does NOT reach canary); seccompProfile RuntimeDefault chart-native on all 3 workloads. Render-verified before merge. |
-| `gateway.image.tag: 1.31.2-alpine` pin | Chart default floats `1.31-alpine` (live had floated `1.29-alpine` — pre-existing image-pin violation this migration fixes). |
-| `gateway.metrics.enabled: false` | 18.x default-on nginx exporter sidecar renders with empty resources (Kyverno enforce-limits would block) + port 4040 absent from NetworkPolicy. Enabling later = deliberate change with resources + NP port. |
+| Chart 7.0.0 → 18.4.0 (app 3.6.7 → 3.7.3) | A new `grafana-community` HelmRepository sits beside `grafana`. The old repository stays because alloy still uses it, and the fork has no alloy chart. The StatefulSet replaced its pod in place: before the merge, the fields that Kubernetes does not allow to change were checked and matched the live object. The PVC (persistent volume claim, the pod's request for lasting storage) `storage-loki-0` was reused, and the Helm release history carried on (`loki.v30`) |
+| `deploymentMode: SingleBinary` renamed `Monolithic` | 18.x renamed the mode. The simple-scalable (SSD) blocks `backend/read/write: replicas: 0` stay, because the chart's validate.yaml requires them set to zero |
+| postRenderers block deleted | priorityClassName now comes from values: `global.priorityClassName`, plus a separate `lokiCanary.priorityClassName`, because the global value does not reach the canary (the test component that writes log lines and reads them back). The chart itself now sets seccompProfile RuntimeDefault on all 3 workloads. The rendered output was checked before the merge |
+| `gateway.image.tag: 1.31.2-alpine` pin | The chart default, `1.31-alpine`, is a floating tag: a tag that can point at a newer image later. The live gateway used the floating tag `1.29-alpine`, which already broke the image-pin rule. This migration fixes that |
+| `gateway.metrics.enabled: false` | 18.x turns on an nginx exporter sidecar by default. It renders with empty resources, which the Kyverno enforce-limits policy would block, and its port 4040 is missing from the NetworkPolicy. Turning it on later needs a deliberate change that adds resources and the NetworkPolicy port |
 
-Verified live: LokiDown silent, alloy dropped-entries rate 0, canary writing with 0 missing, gateway 1-container. Migration plan was 2-round Codex-reviewed pre-implementation; implementation diff PASS zero findings. Render-parity proof: final render byte-identical to pre-validated artifact except the intended image pin.
+| Live check | Result |
+|---|---|
+| LokiDown alert | not firing |
+| alloy dropped-entries rate | 0 |
+| canary | writing, 0 missing |
+| gateway | 1 container |
 
-**Incident (~20 min post-deploy, fixed same day `d1b586ca`):** loki-0 CrashLoopBackOff — chart 18.x newly enables a healthz server + probes on the `loki-sc-rules` sidecar (7.0.0 had neither); k8s-sidecar's health server binds dual-stack and its thread dies on IPv4-only kernels ("Unsupported address family", upstream **kiwigrid/k8s-sidecar#531**, open — reproduces on old 2.5.0 image too, probes are the trigger) → liveness connection-refused → kill every ~2.5 min. Ingest never dropped (distributor ~39 lines/s, alloy drops 0, canary 0 missing). Fix: `sidecar.readinessProbe.enabled=false` + `livenessProbe.enabled=false` (chart flags, restores exact 7.0.0 posture; rules watcher is a separate thread — worked for months with the same silently-dead health thread). Both probes required: readiness alone leaves the pod NotReady forever. Re-enable when #531 ships HEALTH_HOST.
+Codex reviewed the migration plan in 2 rounds before implementation. Its review of the
+implementation diff passed with zero findings. The final render was byte-identical to the render
+validated earlier, except for the intended image pin.
 
-### 2026-07-04 (Codex CLI wired into claude-telegram bot)
-- ✅ **Codex review gate now works from the TG bot** — bot pod previously had no `codex` binary, so the CLAUDE.md pre-commit review gate was mac-only.
-  - Image `1.27.7` (fork `ad29203`): `npm install -g @openai/codex@0.142.5` baked in — linux platform dep is codex's static musl binary (alpine-safe), lands in `/usr/bin` outside the PVC shadow; `codex --version` build-time smoke.
-  - Init container: writes `~/.codex/config.toml` every start (gpt-5.5 / xhigh / `sandbox_mode = "danger-full-access"` / homelab dir trusted — drift-heals, mirrors mac). Sandbox mode required: pod RuntimeDefault seccomp blocks unprivileged userns → codex's bwrap sandbox can't start (verified in-pod); pod confinement (non-root, RO rootfs, caps dropped, egress-restricted) is the sandbox.
-  - Auth = **ChatGPT-plan tokens** (£20 subscription, like Claude's OAuth token — user decision after API-key detour hit zero-credit quota wall): `auth.json` copied from mac into SOPS secret `claude-telegram-codex`, init seeds PVC ONLY-if-absent (codex refreshes tokens in place; re-seeding stale snapshot would clobber). Auth dies later → re-copy mac auth.json to secret, rm PVC copy, restart. API-key path removed (bare `OPENAI_API_KEY` env not honored by codex 0.142.x anyway — verified; `--with-api-key` login worked but stayed unused). Restart TG message now reports Codex version.
-  - NetworkPolicy unchanged (443 egress to non-RFC1918 already covers OpenAI).
-  - Codex static review (gate): 1 MEDIUM — `| tail -1` after `codex login` masked failure under `set -e` (no pipefail); fixed via capture-to-file + last-line-on-failure-only.
+**Incident, about 20 minutes after deploy (fixed the same day, `d1b586ca`).** loki-0 went into
+CrashLoopBackOff, restarting over and over. Chart 18.x newly turns on a health server (healthz) and
+probes for the `loki-sc-rules` sidecar; 7.0.0 had neither. The k8s-sidecar health server binds
+dual-stack (to both IP versions at once). On a kernel with IPv4 only, its thread dies with
+"Unsupported address family". This is upstream issue **kiwigrid/k8s-sidecar#531**, still open. It reproduces on
+the old 2.5.0 image too, so the probes are the trigger. The liveness probe (a health check that
+restarts the container when it fails) then got connection refused, and Kubernetes killed the container about every 2.5 min. Ingest never stopped: the
+distributor took about 39 lines/s, alloy dropped 0, and the canary had 0 missing.
+
+The fix sets two chart flags, `sidecar.readinessProbe.enabled=false` and
+`livenessProbe.enabled=false`. They restore the exact 7.0.0 setup. The rules watcher runs in a
+separate thread, and it worked for months while the same health thread was dead. Both flags are
+needed: if only the liveness probe is disabled, the failing readiness probe keeps the pod NotReady
+for ever. Turn the probes back on when #531 ships HEALTH_HOST.
+
+### 2026-07-04 — Codex CLI added to the claude-telegram bot
+
+The Codex review gate now works from the Telegram bot. Before this change, the bot pod had no
+`codex` binary, so the pre-commit review gate in CLAUDE.md worked only on the Mac.
+
+| Area | Detail |
+|---|---|
+| Image | Image `1.27.7` (fork commit `ad29203`) runs `npm install -g @openai/codex@0.142.5` at build time. The Linux platform dependency is Codex's static musl binary, which runs on Alpine. It installs to `/usr/bin`, outside the paths that the PVC (the pod's persistent storage) mount hides. The build runs `codex --version` as a quick check |
+| Config | The init container (a container that runs before the app starts) writes `~/.codex/config.toml` on every start, so the file returns to these settings at each restart. The settings match the Mac: model gpt-5.5, reasoning xhigh, `sandbox_mode = "danger-full-access"`, and the homelab directory trusted |
+| Sandbox | That sandbox mode is required. The pod's RuntimeDefault seccomp profile blocks unprivileged user namespaces, so Codex's bwrap sandbox cannot start (checked inside the pod). The pod's own limits act as the sandbox: it runs as non-root, with a read-only root filesystem, capabilities dropped (Linux privileges removed) and restricted egress (outgoing network traffic limited) |
+| Login | Codex logs in with **ChatGPT-plan tokens** (the £20 subscription), in the same way Claude uses its OAuth token. The user chose this after a try with an API key failed: the account had zero credit, so it hit its quota. `auth.json` was copied from the Mac into the SOPS secret `claude-telegram-codex`. The init container copies it to the PVC only if no copy exists there. Codex refreshes its tokens in place, so copying the old snapshot again would overwrite them |
+| If the login stops working | Copy the Mac's auth.json into the secret again, delete the copy on the PVC, and restart |
+| API key | The API-key path is gone. Codex 0.142.x ignores a bare `OPENAI_API_KEY` environment variable anyway (checked). A `--with-api-key` login worked but was never used |
+| Restart message | The Telegram message sent on restart now shows the Codex version |
+| NetworkPolicy | No change. Its egress rule for port 443 to addresses outside the RFC1918 private ranges already covers OpenAI |
+
+The Codex static review (the gate) found 1 MEDIUM issue. `| tail -1` after `codex login` hid a
+failed login under `set -e`, because pipefail was not set. The fix writes the output to a file and
+prints its last line only on failure.
 
 ### 2026-07-03 — Deferred-item cleanup (post-ultrareview) + Kyverno namespace-teardown deadlock fix
 
-Shipped 4 deferred items from the 2026-07-03 ultrareview backlog, staged as separate merge+reconcile waves to serialize cluster ops. Main `df521682`→`d771464d`.
+This change shipped 4 items that the 2026-07-03 ultrareview had deferred. Each went out as its own
+merge and Flux reconcile, one after another, so that cluster operations did not overlap. Main moved
+from `df521682` to `d771464d`.
 
 | Change | Detail |
 |---|---|
-| Percona `crVersion` 1.0.0→**1.2.0** | Matched ps-operator chart (already 1.2.0 via Renovate #874) — CR + comments had lagged. SmartUpdate rolled replicas-first, primary-last, converged Ready (HA held: PDB `minAvailable:1` + HAProxy; transient `get cluster primary: empty response` during the primary switchover is expected). |
-| ClusterIssuer `letsencrypt-staging`→**`letsencrypt-prod`** | The "staging" issuer always pointed at the **prod** ACME server — pure misnomer. Renamed issuer + `privateKeySecretRef` + all 16 Certificate `issuerRef`s; cert-manager re-issued all 16 against prod (old TLS secrets kept serving → no downtime; 16 < 50/week LE limit). Old `letsencrypt-staging` account-key Secret orphaned (harmless). |
-| csp-reporter **GC'd** | Dead component: apps middleware `report-uri` already omitted, monitoring's pointed at a browser-unreachable cluster-internal HTTP sink → collected nothing. Removed Deployment+ns+NP+svc+SA + resource-governance entry + stale report-uri. Browser-console is the CSP-verify path. |
-| Redis-HA + CouchDB instance CRs → **configs layer** | Operator/instance-layer parity with postgres+mysql. Gapless controllers→configs move via `kustomize.toolkit.fluxcd.io/prune: disabled` (2-stage: annotate live → then move+strip; `infrastructure-configs dependsOn infrastructure-controllers` so controllers reconciles+prunes FIRST — a single-`fr` whole-branch merge would prune-before-adopt = ~1-2min Redis/CouchDB outage). CouchDB zero restart; Redis rolled once — the opstree operator mirrors CR labels onto the StatefulSet, so the Flux ownership-label flip triggered a pod recreate, Sentinel-HA absorbed it. |
+| Percona `crVersion` 1.0.0 → 1.2.0 | The custom resource (CR) now matches the ps-operator chart, which Renovate had already moved to 1.2.0 (#874). The CR and its comments had fallen behind. SmartUpdate restarted the replicas first and the primary last, and the cluster reached Ready. The database stayed available through a PodDisruptionBudget (`minAvailable:1`) and HAProxy. A brief `get cluster primary: empty response` during the primary switchover is expected |
+| ClusterIssuer `letsencrypt-staging` renamed `letsencrypt-prod` | The "staging" issuer had always pointed at the production ACME server. Only the name was wrong. The rename covered the issuer, its `privateKeySecretRef` and the `issuerRef` of all 16 Certificates. cert-manager re-issued all 16 from the production server. The old TLS secrets kept serving meanwhile, so nothing went down, and 16 is under the Let's Encrypt limit of 50 a week. The old `letsencrypt-staging` account-key Secret now has no owner, which does no harm |
+| csp-reporter removed | It did nothing. The apps' middleware already left out `report-uri`. The monitoring middleware sent reports to a cluster-internal HTTP endpoint that browsers cannot reach, so it collected nothing. Removed: the Deployment, namespace, NetworkPolicy, Service and ServiceAccount, its resource-governance entry and the stale report-uri. To check CSP, read the browser console |
+| Redis-HA and CouchDB instance CRs moved to the configs layer | Operators now sit in the controllers layer and instances in the configs layer, as for postgres and mysql. The move from controllers to configs left no gap. It used `kustomize.toolkit.fluxcd.io/prune: disabled` in 2 stages: first annotate the live objects, then move them and remove the annotation. The stages matter because `infrastructure-configs dependsOn infrastructure-controllers`, so controllers reconciles and prunes first. A merge of the whole branch with a single `fr` (Flux reconcile) would prune the objects before configs adopted them, which means a Redis and CouchDB outage of about 1-2 minutes. CouchDB did not restart. Redis restarted once: the opstree operator copies CR labels onto the StatefulSet, so the change of the Flux ownership label recreated a pod. Redis Sentinel, which moves the master role to a healthy pod, kept Redis available through that restart |
 
-**Incident (found + fixed mid-rollout):** Kyverno `require-networkpolicy` (Enforce) **wedged the csp-reporter namespace teardown**. The shared `validate.kyverno.svc-fail` webhook fires on DELETE too, so once the ns's NetworkPolicy was pruned (netpolcount→0) the deny blocked the Deployment/RS/Pod DELETE → ns stuck `Terminating` indefinitely (can't recreate an NP in a Terminating ns → deadlock). Fix: scope the rule to `operations: [CREATE, UPDATE]` + a precondition skipping objects carrying a `deletionTimestamp`. Latent since require-networkpolicy went Enforce (2026-05-25); affects **every** namespace teardown, not just this one. New review-invariant class recorded.
+**Incident, found and fixed during the rollout.** The Kyverno policy `require-networkpolicy`, in
+Enforce mode, blocked the deletion of the csp-reporter namespace. The shared
+`validate.kyverno.svc-fail` webhook also runs on DELETE. Once Flux pruned the namespace's
+NetworkPolicy (netpolcount fell to 0), the policy denied the DELETE of the Deployment, ReplicaSet
+and Pod. The namespace stayed in `Terminating` indefinitely. Nobody can create a NetworkPolicy in a
+Terminating namespace, so this was a deadlock. The fix limits the rule to
+`operations: [CREATE, UPDATE]` and adds a precondition that skips objects carrying a
+`deletionTimestamp`. The fault had existed unnoticed since require-networkpolicy moved to Enforce
+(2026-05-25). It affects **every** namespace deletion, not only this one. A new class of bug went
+into the review invariants.
 
-### 2026-07-03 — Deprecation audit (helm chart values + repo YAML + Flux/CRD APIs)
+### 2026-07-03 — Deprecation audit of Helm chart values, repo YAML, and Flux and CRD APIs
 
-Fan-out audit of all 12 HelmRelease values against their pinned upstream charts, every repo apiVersion/field, Flux APIs, and live `apiserver_requested_deprecated_apis`. Every fix proven render-identical via `helm template` before/after diff (except 2 intended changes). Codex static peer review (1 MEDIUM catch: obsidian init-script re-applied legacy CouchDB keys).
+The audit ran in parallel over the values of all 12 HelmReleases against their pinned upstream charts,
+every apiVersion and field in the repo, the Flux APIs, and the live
+`apiserver_requested_deprecated_apis` metric. A before-and-after `helm template` diff proved that
+every fix renders the same output, except 2 intended changes. The Codex static peer review caught 1
+MEDIUM issue: the obsidian init script re-applied legacy CouchDB keys.
 
-**Fixed (this commit):**
-- immich: deleted dead `serviceAccount:{create,name}` values block (bjw-s common ≤3.x shape; SA attachment actually done by postRenderer) — was hard-blocking chart 0.13+ (`values.schema.json` rejects it). Render diff: chart now emits its 2 default SAs (harmless; matches post-0.13 state). Deleted dead envs `IMMICH_METRICS` (removed in server 1.119.0; telemetry injected by chart via `immich.metrics.enabled`) + `IMMICH_MEDIA_FFMPEG_ACCEL` (never an upstream var; VAAPI configured in admin UI)
-- immich: HelmRepository → `oci://ghcr.io/immich-app/immich-charts` (HTTP repo frozen upstream; 0.13+ OCI-only — Renovate was blind to upgrades)
-- flux: Alert `spec.summary` → `spec.eventMetadata.summary` (deprecated; removed at Alert v1 GA, Flux 2.10 ~Q4 2026)
-- kube-prometheus-stack: deleted phantom `grafana.rbac.extraPermissions` (key never existed in grafana chart; sidecar RBAC auto-generated)
-- kyverno: deleted 3 phantom values keys (`features.backgroundScan.interval` — real key `backgroundScanInterval`; `config.webhookMatchConditions` — real key `matchConditions`; top-level `metricsService` — chart-v2 shape). All no-ops, defaults = intent
-- redis-operator: deleted phantom `serviceMonitor.enabled` + entire `serviceAccount` block (keys never existed in chart, any version; SA gated on `rbac.enabled`, `automountServiceAccountToken` value = chart default)
-- couchdb: deleted 5 dead ini keys — `[compactions]._default` (2.x daemon; smoosh since 3.0 — **intended 70%/60% fragmentation thresholds were never in effect**), `chttpd.max_http_request_rate` (Cloudant-ism, not a CouchDB option — **believed rate limiting never existed**), `couchdb.delayed_commits` (option removed in 3.0, behavior hardwired), `chttpd_auth.require_valid_user` + `httpd:{enable_cors,WWW-Authenticate}` (3.2 moved to `[chttpd]`; identical effective copies kept). Obsidian init-script: same 3 legacy config-API writes deleted (Codex catch). CouchDB pods roll once (checksum/config)
-- loki: deleted deprecated `monitoring.selfMonitoring` block (false = default). **Refuted during proof**: SSD `backend/read/write: replicas: 0` stanzas are NOT redundant — chart validate.yaml hard-fails SingleBinary without them; kept with corrected comment
-- percona: `spec.enableVolumeExpansion` → `spec.storageScaling.enableVolumeScaling` (deprecated in operator 1.2.0, removal 1.5.0; unblocked by the crVersion→1.2.0 bump `3769dc87` — field verified against live CRD). Spec-only toggle, no pod-template change → no roll expected
+**Fixed in this commit:**
 
-**Tracked (not fixed here):** Kyverno ClusterPolicy→CEL ValidatingPolicy migration deadline (~Oct 2026, kind deprecated since 1.17, removal planned 1.20); Loki chart lineage → grafana-community (7.x = GEL-only); immich 0.13.1 via Renovate now unblocked.
+| Component | Change |
+|---|---|
+| immich | Deleted the unused `serviceAccount:{create,name}` values block. It had the shape of bjw-s common ≤3.x, and the postRenderer attaches the ServiceAccount anyway. The block stopped any upgrade to chart 0.13+, because `values.schema.json` rejects it. In the render diff, the chart now emits its 2 default ServiceAccounts. That is harmless and matches the state after 0.13. Also deleted two unused environment variables: `IMMICH_METRICS`, removed in server 1.119.0 (the chart injects telemetry through `immich.metrics.enabled`), and `IMMICH_MEDIA_FFMPEG_ACCEL`, never an upstream variable (VAAPI is set in the admin UI) |
+| immich | The HelmRepository now points at `oci://ghcr.io/immich-app/immich-charts`. Upstream stopped updating the HTTP repository, and 0.13+ ships only as OCI, so Renovate could not see upgrades |
+| flux | Alert `spec.summary` became `spec.eventMetadata.summary`. The old field is deprecated. It goes away when Alert v1 becomes generally available (GA), in Flux 2.10, around Q4 2026 |
+| kube-prometheus-stack | Deleted `grafana.rbac.extraPermissions`, a key that never existed in the grafana chart. The chart generates the sidecar's RBAC (its access permissions) itself |
+| kyverno | Deleted 3 values keys that the chart does not have: `features.backgroundScan.interval` (the real key is `backgroundScanInterval`), `config.webhookMatchConditions` (the real key is `matchConditions`) and a top-level `metricsService` (a chart-v2 shape). None of them did anything, and the defaults match the intent |
+| redis-operator | Deleted `serviceMonitor.enabled` and the whole `serviceAccount` block. No version of the chart has these keys. The chart creates the ServiceAccount based on `rbac.enabled`, and the `automountServiceAccountToken` value equals the chart default |
+| couchdb | Deleted 5 ini keys that had no effect, listed in the rows below. The obsidian init script's 3 matching legacy config-API writes were deleted too (the Codex catch). The CouchDB pods restart once, because the config checksum changes (checksum/config) |
+| couchdb `[compactions]._default` | A setting for the CouchDB 2.x compaction daemon, which smoosh replaced in 3.0. **The intended 70%/60% fragmentation thresholds were never in effect** |
+| couchdb `chttpd.max_http_request_rate` | A Cloudant setting, not a CouchDB option. **The rate limiting it was believed to give never existed** |
+| couchdb `couchdb.delayed_commits` | The option was removed in 3.0, and the behaviour is now fixed |
+| couchdb `chttpd_auth.require_valid_user` and `httpd:{enable_cors,WWW-Authenticate}` | 3.2 moved these to `[chttpd]`, where identical working copies stay |
+| loki | Deleted the deprecated `monitoring.selfMonitoring` block (false is the default). The proof step disproved one planned cut: the SSD blocks `backend/read/write: replicas: 0` are needed, because the chart's validate.yaml fails a SingleBinary render without them. They stay, with a corrected comment |
+| percona | `spec.enableVolumeExpansion` became `spec.storageScaling.enableVolumeScaling`. Operator 1.2.0 deprecates the old field, and 1.5.0 removes it. The crVersion upgrade to 1.2.0 (`3769dc87`) made the change possible, and the field was checked against the live CRD (the custom resource definition in the running cluster). The setting changes only the spec, not the pod template, so no pod restart was expected |
 
-**Verified clean:** traefik 41.0.1 (schema-strict render proof; `traefik.io/v1alpha1` = only CRD version, no v1 exists upstream), cert-manager 1.20.3 (`crds.*` already), cnpg 0.29.0 (zero barmanObjectStore → 1.31 removal no-impact), alloy 1.10.0, vm-operator 0.65.1 (`v1beta1` current for all VM* kinds, no promotion announced), kube-prometheus-stack 87.6.0 (Alertmanager config already modern matchers), ps-operator 1.2.0 values, couchdb chart keys, all Flux v1/v2 APIs + notification v1beta3 (current through 2.9; deprecated 2.10; removal ≥2 minors later), core k8s all-GA, kustomize v5 fields absent, live apiserver deprecated-API metric ~zero (one `Endpoints` read, no removal planned).
+**Tracked, not fixed here:**
+
+| Item | Status |
+|---|---|
+| Migration from Kyverno ClusterPolicy to CEL ValidatingPolicy | due around Oct 2026. The kind is deprecated since 1.17, and its removal is planned for 1.20 |
+| Moving the Loki chart to grafana-community | needed because 7.x serves only GEL |
+| immich 0.13.1 through Renovate | now unblocked |
+
+**Checked and clean:**
+
+| Component | Result |
+|---|---|
+| traefik 41.0.1 | a render with strict schema checks proves it. `traefik.io/v1alpha1` is the only CRD version, and upstream has no v1 |
+| cert-manager 1.20.3 | already uses `crds.*` |
+| cnpg 0.29.0 | no barmanObjectStore in use, so its removal in 1.31 has no impact |
+| alloy 1.10.0 | clean |
+| vm-operator 0.65.1 | `v1beta1` is current for all VM* kinds, and no promotion is announced |
+| kube-prometheus-stack 87.6.0 | the Alertmanager config already uses modern matchers |
+| ps-operator 1.2.0 values | clean |
+| couchdb chart keys | clean |
+| all Flux v1/v2 APIs | clean |
+| notification v1beta3 | current through 2.9, deprecated in 2.10, removed at least 2 minor versions later |
+| core k8s APIs | all GA |
+| kustomize v5 fields | absent |
+| live API server deprecated-API metric | about zero: one `Endpoints` read, with no removal planned |
 
 ### 2026-07-03 — Ultrareview (6-axis: architecture, approaches, solution, quality, docs, security)
 
