@@ -751,107 +751,168 @@ the numbers rather than the headline is what caught it. Two of the four — the 
 the alert counts — share a root with most of the stale comments above: a hardcoded 3 that nobody
 revisited when immich-vm made this a 4-node cluster on 2026-07-10.
 
-### 2026-08-07 — NAS reboot → dead CoreDNS endpoint blackholed a quarter of cluster DNS
+### 2026-08-07 — A NAS reboot left a dead CoreDNS address that received a quarter of cluster DNS queries
 
-The NAS went down ~12:52 local (outside any scrub; cause unread — journal needs sudo) and came
-back 13:11. immich-vm died with it and did not auto-start. The invisible part: coredns-ha is a
-DaemonSet, DS pods tolerate `unreachable` forever, so the dead node's CoreDNS pod stayed
-`Running`/`ready=true` in the kube-dns EndpointSlice — kube-proxy kept sending ~25% of cluster DNS
-queries to a dead IP. Authentik (→ `home.h0melab.work` 500), paperless, uptime-kuma, pricebuddy,
-linkwarden and mysql-haproxy crash-looped on `failed to resolve *.svc.cluster.local` for ~2h while
-nodes and Flux looked healthy; uptime-kuma being a casualty muted the obvious pager.
+The NAS went down at about 12:52 local time and came back at 13:11. The outage fell outside any
+scrub (the NAS's scheduled read of every disk). Nobody read the cause, because the NAS journal needs
+sudo. immich-vm went down with the NAS and did not start again by itself.
 
-Fixes applied live (no manifest change): deleted the dead coredns pod (deletionTimestamp flips the
-endpoint `ready=false` even though the kubelet never confirms) → DNS healed instantly; deleted the
-crash-looped pods to skip their 5-min backoffs; deleted the wedged `immich-vm-heal` Job — it had
-launched at the exact NAS boot moment, hung ~50min, and `concurrencyPolicy: Forbid` blocked every
-subsequent heal. The next heal tick started the VM; node Ready, fleet fully green after.
+coredns-ha, the cluster's DNS server, runs as a DaemonSet (one pod per node). DaemonSet pods
+tolerate the `unreachable` condition forever. So the dead node's CoreDNS pod stayed
+`Running`/`ready=true` in the kube-dns EndpointSlice, the list of addresses behind the DNS service.
+kube-proxy kept sending about 25% of cluster DNS queries to a dead IP address.
 
-Follow-ups: `activeDeadlineSeconds` on the heal CronJob (a hung run must not block the healer);
-NAS reboot cause unread — if the NAS drops outside a scrub again, the failing-`sdb` question
-escalates past scrub-only. Gotcha recorded in memory (`gotchas.md` 2026-08-07).
+Authentik, paperless, uptime-kuma, pricebuddy, linkwarden and mysql-haproxy crash-looped (failed
+and restarted again and again) for about 2 hours, each failing with
+`failed to resolve *.svc.cluster.local`. Because Authentik failed, `home.h0melab.work` returned 500.
+Nodes and Flux looked healthy the whole time, even though the DNS service still listed the dead
+node's pod. uptime-kuma was one of the failing apps, so the most obvious source of an alert was
+itself down.
 
-### 2026-08-07 — Poller wedge: the bot survived the outage but not its own backoff
+The fixes ran live, with no manifest change:
 
-A morning WAN/DNS outage (~06:40–11:15 UTC, multi-node: bot `getUpdates` failing
-`FailedToOpenSocket`, its sync sidecar unable to resolve `ssh.github.com`, source-controller
-failing GitHub/Helm fetches until 11:03) ended on its own — and the bot stayed dead. The grammY
-runner's retry was asleep on an hours-long exponential backoff, so the pod sat 2/2 Ready with a
-`pgrep` liveness probe green while 7 updates queued server-side (`getWebhookInfo
-pending_update_count` — the passive probe that proved it). Manual rollout restart drained the queue.
+| Action | Effect |
+|---|---|
+| Deleted the dead coredns pod | A deletion sets the pod's deletionTimestamp, which flips its endpoint to `ready=false` even though the kubelet (the Kubernetes agent on each node) on the dead node never confirms. DNS recovered at once |
+| Deleted the crash-looped pods | skipped their 5-minute backoffs (the wait between restarts, which grows after each crash) |
+| Deleted the stuck `immich-vm-heal` Job | The Job had started at the moment the NAS booted and hung for about 50 minutes. Because of `concurrencyPolicy: Forbid`, it blocked every later heal run |
 
-Fixes shipped as bot **1.32.0** + deployment change:
+The next scheduled heal run started the VM. The node went Ready, and every node and app was healthy
+after that.
 
-- **Poll heartbeat liveness.** A grammY transformer touches `/tmp/claude-telegram-poll-heartbeat`
-  on every successful `getUpdates`; the livenessProbe now checks file freshness (10 min,
-  `find -mmin`) instead of process existence, so a wedged poller restarts ~13 min after polling
-  dies. A restart loop during a real outage surfaces via `PodCrashLooping`.
-- **Console secret redaction.** The failed-poll logs printed the full bot token — Bun fetch errors
-  carry the request URL as an error property and the Telegram API puts the token in the URL. The
-  bot now scrubs known secrets from every console argument (depth-unlimited inspect; Bun renders
-  error chains at any depth but cuts plain objects at 2). Token rotation required (Loki retains
-  the leak 720h) — second rotation after the 2026-07-31 transcript leak.
+Follow-ups:
 
-### 2026-08-06 — The bot could patch the Deployment that sanitized the bot
+- Set `activeDeadlineSeconds` (a time limit after which Kubernetes stops the run) on the heal
+  CronJob, because a hung run must not block the healer.
+- The cause of the NAS reboot is still unread. If the NAS goes down outside a scrub again, the open
+  question about the failing disk `sdb` grows beyond "it fails only during a scrub".
+- The trap is recorded in the agent's memory notes (`gotchas.md` 2026-08-07).
 
-Following the remediation below, an RBAC audit found the control loop closed on itself. The
-`claude-telegram-exec` ClusterRole bundled three verbs and was bound in 16 namespaces **including
-`claude-telegram` itself**, so the bot's ServiceAccount could `patch` its own Deployment — and
-`patch` on a Deployment is `patch` on `spec.template`: command, image, `serviceAccountName`, mounts.
-That reaches the init container carrying the git-config sweep. The thing the control constrains
-could edit the control. Flux reverts within its 1m interval, which bounds the spec's lifetime but
-not what ran in the meantime.
+### 2026-08-07 — The Telegram bot's polling stayed stuck after an outage, waiting out its own retry delay
+
+A morning outage of the internet link (WAN) and DNS hit several nodes, from about 06:40 to 11:15
+UTC:
+
+| Component | Symptom |
+|---|---|
+| the bot's `getUpdates` calls (how it fetches new Telegram messages) | failed with `FailedToOpenSocket` |
+| the bot's sync sidecar (a helper container in the bot's pod that syncs files from Git) | could not resolve `ssh.github.com` |
+| source-controller (the Flux part that fetches Git and Helm sources) | failed its GitHub and Helm fetches until 11:03 |
+
+The outage ended on its own, but the bot stayed down. The grammY runner (the library loop that polls
+Telegram) was waiting out an exponential backoff (a retry delay that grows after each failure)
+hours long before its next retry. So the pod stayed 2/2 Ready, and its `pgrep` liveness probe
+(the health check Kubernetes uses to decide whether to restart a container) passed, while 7
+updates waited on Telegram's side (`getWebhookInfo
+pending_update_count` showed them, and that read-only check proved the fault). A manual rollout
+restart cleared the queue.
+
+The fixes shipped as bot version **1.32.0** plus a change to the Deployment:
+
+- **A liveness check based on a poll heartbeat.** A grammY transformer (code that sees every call
+  the bot makes to Telegram) updates `/tmp/claude-telegram-poll-heartbeat`
+  after every successful `getUpdates`. The livenessProbe now checks how recently that file changed
+  (10 min, `find -mmin`) instead of whether the process exists. So Kubernetes restarts a stuck
+  poller about 13 min after polling stops. If a real outage makes the pod restart again and again,
+  `PodCrashLooping` reports it.
+- **Secrets removed from console output.** The logs of failed polls printed the full bot token.
+  Bun fetch errors carry the request URL as a property of the error, and the Telegram API puts the
+  token in the URL. The bot now removes known secrets from every argument it writes to the console.
+  It inspects each argument to unlimited depth, because Bun prints error chains at any depth but
+  cuts plain objects off at depth 2. The leak made a token rotation necessary, because Loki keeps
+  the leaked lines for 720h. It is the second rotation, after the transcript leak of 2026-07-31.
+
+### 2026-08-06 — The bot could edit the Deployment that restricts the bot
+
+After the fixes in the entry below, a review of the bot's Kubernetes permissions (RBAC) found that
+the bot could edit the control that restricts it. The `claude-telegram-exec` ClusterRole granted
+three verbs (allowed actions) together. It was bound in 16 namespaces, **including `claude-telegram`
+itself**. So the bot's ServiceAccount could `patch` its own Deployment. A `patch` on a Deployment is
+a `patch` on `spec.template`, which sets the command, image, `serviceAccountName` and mounts
+(storage made available inside a container). That includes the init container that runs the
+git-config sweep (the step that removes dangerous git settings before the bot starts). So the bot,
+which the sweep restricts, could edit the sweep. Flux reverts such a change within its 1m interval.
+That limits how long a changed spec lives, but not what ran before Flux reverted it.
 
 ```
 kubectl auth can-i --as=system:serviceaccount:claude-telegram:claude-telegram \
   -n claude-telegram patch deployment/claude-telegram   → yes
 ```
 
-**Fixing only that would have been theatre.** The same binding granted `jobs create`, and a Job
-starts a fresh admission-compliant Pod with any ServiceAccount and any mounts, bypassing the init
-container entirely. So all three verbs were re-scoped:
+**Fixing only that permission would have changed nothing real.** The same binding granted `jobs create`.
+A Job starts a new Pod that passes admission checks (the checks Kubernetes runs before it lets a
+pod start), with any ServiceAccount and any mounts, and
+that Pod never runs the init container. So the change narrowed all three verbs. Exec below means
+running a command inside a container:
 
 | verb | before | after |
 |---|---|---|
-| `pods/exec` create | 16 namespaces | 14 — `claude-telegram` and `popeye` unbound |
-| `apps` patch | 16 namespaces | removed entirely |
-| `batch/jobs` create,delete | 16 namespaces | `popeye` only, via a separate `claude-telegram-jobs` role |
+| `pods/exec` create | 16 namespaces | 14; `claude-telegram` and `popeye` no longer bound |
+| `apps` patch | 16 namespaces | removed everywhere |
+| `batch/jobs` create,delete | 16 namespaces | `popeye` only, through a separate `claude-telegram-jobs` role |
 
-Evidence for the removals: 45 transcript files in the pod contain **zero** `rollout restart` and
-**zero** `create job` calls, against 113 `exec` calls (monitoring 77, databases 15, paperless-ngx 10,
-loki 5, immich 5, stirling-pdf 1).
+Evidence for the removals: the 45 transcript files in the pod contain **zero** `rollout restart`
+calls and **zero** `create job` calls, but 113 `exec` calls:
 
-**Nine further exec namespaces were considered and deliberately KEPT** — audiobookshelf, blocky,
-homehub, homepage, linkwarden, mealie, pricebuddy, rustdesk, uptime-kuma — despite showing zero
-recorded exec calls. Do not re-propose removing them on that evidence alone. `popeye` was dropped
-because its documented workflow provably needs no exec (create a Job, read its logs); for ordinary
-apps, zero use across a 30-day window is not evidence of no need, and exec is the standard tool when
-one misbehaves. Revisit with a longer window, not a repeat of the same query. The corpus spans the pre-restriction era, so it shows what the
-bot did when *less* constrained — which is why zero use of two verbs is the strong signal.
+| Namespace | exec calls |
+|---|---|
+| monitoring | 77 |
+| databases | 15 |
+| paperless-ngx | 10 |
+| loki | 5 |
+| immich | 5 |
+| stirling-pdf | 1 |
 
-**Correction to an earlier reading of this.** "`rollout restart` is an operator action, so the bot
-losing it changes nothing" is wrong, and the Codex review caught it. The dotfiles skills the bot
-installs at init do prescribe it — `monitoring-check` names
-`kubectl rollout restart deploy vmagent-vmagent -n monitoring` as a numbered step, and `cluster-roll`
-is built on it as its primitive — across 32 call sites. What makes the removal safe anyway: the bot
-has `pods delete` **cluster-wide** via `claude-telegram-ops`, which restarts a Deployment-managed pod
-without the power to rewrite what it runs, and `cluster-roll` already implements delete-pod as its
-documented fallback. The failure mode is a visible `Forbidden`, not silence. Follow-up, in the
-dotfiles repo: point the bot-facing skill paths at delete-pod. `AGENTS.md`'s DB guidance stays as
-written — that one really is an operator action from a workstation.
+**Nine more namespaces keep the exec grant on purpose:**
 
-The reason for removing the grant is least-privilege plus zero observed use, not the GitOps
-invariant — RBAC simply cannot express "patch only the restartedAt annotation".
+| Namespace |
+|---|
+| audiobookshelf |
+| blocky |
+| homehub |
+| homepage |
+| linkwarden |
+| mealie |
+| pricebuddy |
+| rustdesk |
+| uptime-kuma |
 
-`GIT_EXEC_RE` moved to a ConfigMap (`claude-telegram-git-exec`) in the same change. It had been
-duplicated as inline literals in the init and sync containers, byte-identical with nothing enforcing
-it. The bot can `get` ConfigMaps in its own namespace but not `patch` them, so the pattern is now
-read-only to the thing the sweep constrains. Both containers guard on it being non-empty rather than
-defaulting — an empty pattern would make every sweep match nothing and report success.
+The review considered them, and they show zero recorded exec calls. Do not propose removing them
+again on that evidence alone. `popeye` lost the grant because its documented workflow (create a Job,
+read its logs) provably needs no exec. For ordinary apps, zero use across a 30-day window does not
+show that exec is not needed, and exec is the standard tool when an app misbehaves. Revisit the
+question with a longer window, not by repeating the same query. The transcripts date from before the
+bot's permissions were restricted, so they show what the bot did when it was *less* restricted. That
+is why zero use of two verbs is the strong signal.
 
-**Verification trap worth keeping:** `kubectl auth can-i ... create pods/exec` returns **no** even
-when the grant exists. The subresource form is `create pods --subresource=exec`. The slash form is a
-false clean.
+**A correction to an earlier reading.** The claim "`rollout restart` is an operator action, so the
+bot losing it changes nothing" is wrong, and the Codex review caught the error. The skills from the
+dotfiles repo, which the bot installs when it starts, do call for it, at 32 call sites.
+`monitoring-check` names `kubectl rollout restart deploy vmagent-vmagent -n monitoring` as a
+numbered step, and `cluster-roll` uses it as its basic operation. The removal is still safe. The
+bot has `pods delete` **cluster-wide** through `claude-telegram-ops`. Deleting a pod that a
+Deployment manages restarts it, and that permission cannot change what the pod runs.
+`cluster-roll` already falls back to deleting pods, as its documentation describes. If the bot
+tries a rollout restart, it gets a visible `Forbidden` error, not a silent failure. Follow-up, in
+the dotfiles repo: change the skill steps that the bot uses to delete pods instead. The
+database guidance in `AGENTS.md` stays as written, because that step really is an operator action
+from a workstation.
+
+The grant went because of least privilege (give each account only the access it needs) and zero
+observed use, not because of the GitOps rule. RBAC has no way to express "patch only the
+restartedAt annotation".
+
+The same change moved `GIT_EXEC_RE` (the pattern of git settings that can run commands) into a
+ConfigMap, `claude-telegram-git-exec`. Before, the init container and the sync container each held
+a copy written into the code. The copies were identical byte for byte, but nothing checked that
+they stayed so. The bot can `get` ConfigMaps in its own namespace but cannot `patch` them, so the
+bot, which the sweep restricts, can only read the pattern. Both containers check that the pattern is
+not empty, rather than fall back to a default. An empty pattern would match nothing, and every
+sweep would report success.
+
+**A trap when checking permissions:** `kubectl auth can-i ... create pods/exec` returns **no** even
+when the grant exists. The correct form for a subresource is `create pods --subresource=exec`. The
+slash form reports a grant as missing when it exists.
 
 ### 2026-08-06 — The DR script was the only thing holding the bootstrap together
 
