@@ -714,10 +714,10 @@ If compromised:
   from 18 PR refs. Verified: Cloudflare reports the new token active; a test alert raised
   Alertmanager's Telegram send count from 24 to 25 with 0 failures; claude-telegram restarted and
   logged `Bot started`. The first certificate renewals with the new token are due 2026-10-31.
-  The refresh of the CP file `/etc/node-maintenance/telegram-token` became automatic when the
-  node-maintenance fixes (`2a09e2b0`) were deployed at 23:11 BST. One send with the old token
-  failed at 23:11:01. The sync that started in the same second refreshed the file at 23:11:02. The
-  next send, at 23:17:09, succeeded.
+  The CP began running the node-maintenance fixes (`2a09e2b0`) at 23:11 BST, so the refresh of the
+  CP file `/etc/node-maintenance/telegram-token` became automatic. One send with the old token
+  failed at 23:11:01. The sync that started in the same second refreshed the file at 23:11:02. One
+  send at 23:17:09 succeeded.
 - [x] **2026-08-07: claude-telegram bot token rotated after a pod-log leak** (`aac32751`) — failed
   `getUpdates` errors printed the token in the request URL during the morning WAN outage (Loki
   retains 720h). Bot 1.32.0 now redacts secrets from console output, so this leak class is closed
