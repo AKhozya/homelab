@@ -88,7 +88,7 @@ spec:
 
               api.disconnect()
               PYEOF
-              # Monitors are managed directly via the UI / SQLite (kuma.db) —
+              # The UI manages monitors. MariaDB stores them.
               # uptime-kuma-api's add_monitor signature drifts across versions
               # and made declarative seeding flaky. Same model as Authentik:
               # admin bootstrap here, app state managed in-app.
