@@ -1,8 +1,8 @@
 # Open-source prep — plan (2026-09-26)
 
 Goal: make `AKhozya/homelab` fit to publish. Six sub-projects run in order. Each one gets
-its own spikes and operator approval before work starts. This file plans SP1, SP2 and SP3 in
-full. For SP4–SP6 it records the decisions already made and the spikes still to run.
+its own spikes and operator approval before work starts. This file plans SP1–SP4 in full. For
+SP5 and SP6 it records the decisions already made and the spikes still to run.
 
 ## Decisions (operator, 2026-09-26)
 
@@ -41,7 +41,7 @@ full. For SP4–SP6 it records the decisions already made and the spikes still t
 | SP1 | Move node-maintenance tree + loose scripts out of `docs/`. **Done** 2026-09-26: `7a307ab4`, `8a146a09` | — |
 | SP2 | Snapshot skills, `_shared/` helpers and sanitized rules into the repo; monthly re-sync step. **Done** 2026-09-27: `11a9ef29`, `a1ee146d`, `d61d9e12` | SP1 (skills cite the new path) |
 | SP3 | Docs pass: staleness, duplication, `avoid-ai-writing`, README + mermaid, CODEMAPS rename. **Done** 2026-09-28: C0 `72b39c6d`, C1 `12025040`, C2 `3d6b6592`, C3 `54a00f4f`..`f987082d`, C4a `6da12196`, C4b in 24 batches `97587af2`..`f0e42940` | SP1, SP2 |
-| SP4 | Pre-public gate: history secret scan, `claude.yml` trigger lockdown, MIT `LICENSE` | SP3 |
+| SP4 | Pre-public gate: history secret scan, `claude.yml` trigger lockdown, MIT `LICENSE`, Action SHA pins | SP3 |
 | SP5 | Ultrareview (`/code-review ultra`, operator-triggered); fix every finding that blocks publishing | SP4 |
 | SP6 | Visibility flip (operator action) + branch-protection decision | SP5 |
 
@@ -712,15 +712,173 @@ August schedules, the old `Documentation=` lines and the 9090 rule; the role add
 on the next drift-heal. Reverting C1 changes the CouchDB backup script comment back (S42), which
 Flux applies to the CronJob.
 
-## SP4 — pre-public gate (outline)
+## SP4 — pre-public gate
 
-| Item | Detail |
+SP4 finds what a public reader could see that they should not, and fixes what a commit can fix.
+It adds the licence, pins every GitHub Action to a commit, and limits the Claude workflow to the
+owner. Some items need the operator: old values in PR refs, repo settings, and dashboards with no
+licence. They are the numbered questions at the end of this section.
+
+### Spike results
+
+Run 2026-09-28 against `origin/main` at `aec47982`, and against a mirror clone made the same day.
+A mirror clone fetches every ref GitHub serves, `refs/pull/*` included.
+
+| # | Question | Probe | Result |
+|---|---|---|---|
+| S44 | What does gitleaks find in history? | `gitleaks git . --log-opts=origin/main --config .gitleaks.toml --redact` (8.30.1); then on the mirror with `--log-opts=--all` | ✅ `main`: 11 findings in 9 commits, the same as the 2026-07-26 audit. All refs: 15. The 4 extra findings sit in commits that only PR refs reach, from before the 2026-06-12 history rewrite. See the table below |
+| S45 | Which refs does GitHub serve? | `git ls-remote origin`, grouped by prefix | ✅ 1 branch, 51 tags, 442 `refs/pull/*/head` and no `/merge` refs. Decision 7 counted 436; each new Renovate PR adds one |
+| S46 | Did a key or a secrets file ever reach any ref? | on the mirror, `git log --all`: files added under `.backup/ENV_VARS.md`, `.backup/secrets`, `*.age`, `*keys.txt`, `*id_ed25519*`, `*kubeconfig*`, `*.pem`, `*.key`; content matching `AGE-SECRET-KEY-1`, `BEGIN … PRIVATE KEY`, `TunnelSecret`, `client-key-data`, `ghp_`, `github_pat_`, `sk-ant-` | ✅ 0 on every ref. The SOPS age key never reached git, so the SOPS values in history stay encrypted. `git ls-files .backup` holds only the two scripts |
+| S47 | What does `claude-code-action@v1` enforce? | read `src/github/validation/permissions.ts` and `actor.ts` at the `v1` tag (`756cc22e`, v1.0.235) | ✅ with `allowed_non_write_users` empty (our case), a human actor needs `write` or `admin` on the repo. A bot actor is refused unless `allowed_bots` lists it, and ours is empty. So a stranger's `@claude` comment cannot use the token today. The job still starts and checks out the repo before the action refuses. An actor guard in `if:` stops the job before any step runs, and it does not depend on a moving tag's code |
+| S48 | Which `uses:` follow a moving tag, and what do they point at? | `grep -rn 'uses:' .github/workflows/`; `gh api repos/<o>/<r>/commits/<tag>` and the repo's tags on the same commit | ✅ 22 references to 9 actions. 14 follow a tag (see Pins); the other 8 already name a full SHA with a version comment |
+| S49 | Do the actions call other actions by tag? | each action's `action.yml` at the pinned SHA | ✅ two are composite: `claude-code-action` calls `oven-sh/setup-bun@0c5077e5…`, a full SHA, and `fluxcd/flux2/action` calls none. The other seven run on `node24`: `checkout`, `setup-python`, `github-script`, `peter-evans/create-pull-request`, and the three `docker/*` actions |
+| S50 | Does GitHub's "require SHA pins" setting check nested actions? | GitHub's docs page on the setting says nothing about nesting; two public reports test it | 🟡 yes: both reports see a job fail at setup when a composite action inside it uses a tag. S49 finds none here |
+| S51 | Does Renovate have the preset, and what does it do? | `lib/config/presets/internal/helpers.preset.ts` in `renovatebot/renovate` (latest release 44.116.0) | ✅ `helpers:pinGitHubActionDigestsToSemver` extends `helpers:pinGitHubActionDigests` (`pinDigests: true` for dep types `action` and `workflow`) and tracks full `vX.Y.Z` versions. The repo's `pinDigests: false` rule matches only the `helm` and `docker` datasources, so it does not undo the preset |
+| S52 | Does `renovate-config-validator` catch a bad preset name? | `npx --package renovate@44 renovate-config-validator --strict` on `renovate.json`, on it plus the new preset, and on it plus `helpers:noSuchPreset` | ✅ all three pass, so the validator checks the schema only. The preset name rests on S51 (see Assumptions) |
+| S53 | What do the repo's Actions settings say? | `gh api repos/AKhozya/homelab/actions/permissions` and `…/permissions/workflow`; `yq` over each workflow's `permissions:` | ✅ all actions allowed; `sha_pinning_required: false`; default token `write`; workflows may approve PRs. Every workflow sets `permissions:` at the top or on each job, so a default of `read` changes no current workflow |
+| S54 | What does a fork PR run? | each `pull_request` workflow and the secrets it names | ✅ a fork PR runs the workflow file as the fork wrote it, so an `if:` in it is no barrier. The barrier is GitHub's: a fork PR gets a read-only token and no secrets. A setting makes outside contributors' PRs wait for approval. GitHub's API refuses to read it while the repo is private (HTTP 422), so SP6 sets it |
+| S55 | Do vendored files carry their own licence? | `gnetId` in the dashboards; file history; each upstream repo's licence via `gh api repos/<o>/<r>/license`; the grafana.com terms of service | ✅ see the licence table below. The grafana.com terms let a user use community content "solely for your personal use and/or internal business operations", which does not cover publishing a copy. So a grafana.com dashboard is publishable only under an upstream licence |
+| S56 | Which files name `/Users/akhozya`? | `git grep` outside `agents/` and HISTORY | ✅ the two hooks (`HOMELAB_MAIN=`), `AGENTS.md:69`, `CLAUDE.md:33`, and this plan. They stay, as decisions 4 and 11 keep usernames and skill paths. The hooks need the path to find the main tree |
+| S57 | Are commits signed? | `git log --format=%G? origin/main` | ✅ 3,654 of 4,374 are unsigned; 324 good, 394 unverifiable, 2 untrusted. Signing is not a repo rule, so the unsigned SP3 commits need nothing |
+| S58 | Why does editing `vmrules.yaml` or `claude.yml` fail a gate? | `yamllint .` (CI) and `yamllint -s` (pre-commit) | ✅ `.yamllint.yaml` sets `line-length` to `warning`. CI runs `yamllint .`, which exits 0. Pre-commit passes `--strict`, which turns warnings into exit 2. So any edit to one of the 15 files with a line over 200 characters fails. `vmrules.yaml` has 25; `claude.yml` has 1 (its `if:`) |
+| S59 | Do the mermaid diagrams still render? | the 5 blocks in README and ARCHITECTURE through `mmdc` (`@mermaid-js/mermaid-cli`, mermaid 12.0.0, Chrome) | ✅ all 5 render; no SVG holds a syntax error |
+| S60 | Did the `aec47982` drift-heal pass? | `config-latest.log` on the CP; the sync journal | ✅ the run started 29 s after the push: `changed=0 failed=0` on all four nodes |
+| S61 | Does actionlint pass today? | `actionlint -oneline` (1.7.12) | ✅ 7 findings, all shellcheck notes on `run:` scripts in `claude-telegram-build.yml`, `flux-update.yaml` and `validate.yaml`. Saved without line numbers as the baseline |
+| S62 | What shows that Renovate ran on a commit? | the Dependency Dashboard, issue #32 | ✅ its `github-actions` list names each reference as Renovate read it: `actions/checkout v7` for a tag, `actions/checkout v7.0.1@3d3c42e5…` for a pin. Its `updatedAt` moves on each run |
+
+S44's findings, by class. "Record" means `docs/SECRETS_ROTATION.md`; no live value was compared.
+
+| Finding | Reached from | Status |
+|---|---|---|
+| MySQL `IDENTIFIED BY` for homeassistant, uptimekuma and pricebuddy (3), commit `23f7eb5f`, 2025-12-16 | `main` | 🟡 the record rotates all three on 2026-04-02 |
+| couchdb admin password (1), 2025-10-08 | `main` | 🟡 the 2026-07-26 audit found the live value differs; the record rotates it on 2026-04-02 |
+| stirling-pdf client secret (5), 2025-11-27 | `main` | 🟡 the record rotates the Stirling OIDC secret on 2026-04-02 |
+| homehub password (1), 2025-10-24 | `main` | 🟡 the audit found the live value differs; the record lists a rotation on 2025-10-26 |
+| linkding db secret (1), 2025-10-08 | `main` | ✅ Linkding is gone, with its namespace |
+| couchdb (1) and linkding (1) again, in pre-rewrite commits `ba739489` and `0ecb4bef`, 2025-10-08 | PR refs #18–#26 | 🟡 as the two rows above: both predate the rotation or the removal |
+| a Cloudflare API token (40 characters) in `.backup/QUICK_REFERENCE.md`, commit `7349f6cc`, 2025-10-07 | 18 PR refs, #13 upward; not `main` | ⚠️ unknown. The cert-manager token in the record dates from 2025-10-19, so it is a newer token. Creating a new token does not revoke the old one |
+| a Telegram bot token (46 characters), same commit | same | ⚠️ unknown. The record replaces the HomelabBot token on 2026-07-31 and 2026-08-07. It does not say whether this token belongs to that bot |
+| the Telegram chat ID, same commit | same | not a credential. It is the ID the bot allowlists (decision 16) |
+
+The 2026-06-12 rewrite recorded the PR-ref residual as "the Cloudflare account ID only"
+(memory `reference_repo_publish_sanitization`). Decision 7 rests on that. S44 shows two more
+values that may still work. This session's auto-mode safety check blocked a comparison of the
+findings with live cluster Secrets as credential handling. So every row not marked ✅ goes to the
+operator (Q1).
+
+Licences of the vendored files (S55):
+
+| File | Source | Licence |
+|---|---|---|
+| `monitoring/configs/grafana-dashboards/redis-dashboard.yaml` | grafana.com 763, by oliver006; the same dashboard ships in `oliver006/redis_exporter` `contrib/` | MIT, "Copyright (c) 2016 Oliver" |
+| `monitoring/configs/grafana-dashboards/traefik-k8s-dashboard.yaml` | grafana.com 17347, by Traefik Labs; `traefik/traefik` `contrib/grafana/traefik-kubernetes.json` | MIT, "Copyright (c) 2016-2020 Containous SAS; 2020-2025 Traefik Labs" |
+| `monitoring/configs/grafana-dashboards/cnpg-dashboard.yaml` | the CloudNativePG dashboard (🟡, matched by content), `cloudnative-pg/grafana-dashboards` | Apache-2.0; the repo has no NOTICE file |
+| `clusters/flux-system/gotk-components.yaml` | generated by `flux install` | Apache-2.0 (`fluxcd/flux2`); no NOTICE file |
+| `monitoring/configs/grafana-dashboards/cert-manager-dashboard.yaml` | grafana.com 20842, by chrede88; `chrede88/grafana-dashboards` | ⚠️ none: that repo has no licence |
+| `monitoring/configs/grafana-dashboards/loki-stack-dashboard.yaml` | grafana.com 14055, by Quortex | ⚠️ none found: no Quortex repo holds it |
+
+### Assumptions and limitations
+
+| Tier | Item |
 |---|---|
-| History secret scan | `gitleaks git` over full history. Pass = exactly the 11 known inert findings (audited 2026-07-26), 0 new. `git log -S<value>` for every previously rotated value. Sample `refs/pull/*/head` tips |
-| `claude.yml` public triggers | `.github/workflows/claude.yml:3-21` fires on `issue_comment`, `issues` and `pull_request_review*`. Its `if:` checks only for `@claude` and excludes Renovate; it has no actor or `author_association` guard. It uses `secrets.CLAUDE_CODE_OAUTH_TOKEN`. Spike what `anthropics/claude-code-action@v1` enforces for users without write access. Then add `github.actor == 'AKhozya'` to the condition of **every** trigger that stays, `pull_request_review*` included |
-| Absolute `/Users/akhozya/…` paths | `.claude/hooks/worktree-guard.sh:13`, `.claude/hooks/worktree-session-start.sh:9`, `AGENTS.md:69`, `CLAUDE.md:33`. Decide: keep or make generic |
-| Licence | add MIT `LICENSE` |
-| Action SHA pins (decision 25) | 14 `uses:` references follow a moving tag: `actions/checkout@v7` (11), `anthropics/claude-code-action@v1`, `actions/setup-python@v7`, `actions/github-script@v9`; 7 already name a full SHA. Add `helpers:pinGitHubActionDigests` to `renovate.json` `extends`, pin the 14, keep the version as a comment |
+| ⚠️ | gitleaks finds values that match its rules. A secret in a shape no rule knows passes. S46's searches cover the key and file shapes this repo has used |
+| ⚠️ | A history rewrite cannot reach PR refs (decision 7). If a token in them still works, only revoking it at the issuer makes the copy harmless |
+| 🟡 | S50 rests on two public reports, not on GitHub's docs. S49 finds no nested tag, so the setting is safe to turn on either way |
+| 🟡 | No local check proves that Renovate loads `helpers:pinGitHubActionDigestsToSemver`: the validator ignores preset names (S52), and C1 pins every reference by hand. The preset name comes from Renovate's source (S51). If it fails to load, Renovate opens a config-error issue. Its effect shows only when someone adds a new tag reference, which Renovate should then pin. The `sha_pinning_required` setting (Q3) makes a workflow with a tag reference fail at setup whether or not the preset loads |
+| ⚠️ | CI starts no job (billing), so no workflow edit runs before SP6. actionlint and yamllint are the only checks on them |
+| ⚠️ | If the owner mentions `@claude` on an issue or PR that someone else wrote, Claude reads that person's text as part of its input. The actor guard cannot stop that. The owner decides when to call Claude on outside content |
+| ⚠️ | Pinning `claude-code-action` to v1.0.235 means a Renovate PR for each release, and the project releases often. The workflow runs only when the owner calls it, so an older release affects only the owner's own requests. If the PRs become too many, a Renovate schedule for that one action can follow |
+| ⚠️ | S55 checked the dashboards and the Flux manifest. It did not search the rest of the tree for copied files |
+| 🟡 | GitHub renders mermaid with its own version; S59 used mermaid 12.0.0. SP6 checks the diagrams on the public page |
+| ⚠️ | SP3 left open whether to commit its link checker. It stays out: nothing runs it on a schedule, and the monthly review does not call it |
+| ⚠️ | The Milestones table stops at Q2 2026. That is correct today, because HISTORY still holds every entry from 2026-06-27. The first trim that deletes a July entry (the October review) must add a Q3 row, so C3 adds that step to the skill |
+
+### Pins
+
+| Reference today | Count | Pinned to |
+|---|---|---|
+| `actions/checkout@v7` | 11 | `3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1`, as the 3 existing pins |
+| `actions/setup-python@v7` | 1 | `5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0` |
+| `actions/github-script@v9` | 1 | `3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0` |
+| `anthropics/claude-code-action@v1` | 1 | `756cc22e19660d20e8cc9496b4f242475a7f7790 # v1.0.235` |
+
+Each SHA is the commit the tag points at today, so pinning changes no code that runs.
+
+### Commits
+
+Every commit gets the Codex loop. Each review file stays at 30 KB or less. It inlines the writing
+rules, the gate output and the re-derive command for each fact it changes.
+
+| Commit | Content | Review file holds |
+|---|---|---|
+| C0 lint alignment | `.pre-commit-config.yaml`: yamllint without `--strict`, so pre-commit and CI read `.yamllint.yaml` the same way (Q4). `vmrules.yaml`: the `CronJobNotScheduled` comment names the trivy schedule `0 8 1 * *` | the diff; S58; `yamllint .` output. The comment sits outside any block scalar, so the VMRule object does not change |
+| C1 Actions | pin the 14 references (see Pins). `claude.yml`: `on.issues.types` drops `assigned`, because an owner who assigns someone else's issue would start Claude on that person's text. `if:` becomes `github.actor == 'AKhozya' && (…)` around the four `@claude` checks. The Renovate exclusions and their comment go, because the actor check already rules Renovate out. `renovate.json` `extends` gains `helpers:pinGitHubActionDigestsToSemver` | the diff; S47–S54; the resolve and pin-check output; actionlint against the baseline |
+| C2 licence | `LICENSE`: MIT, copyright line per Q2. `THIRD_PARTY.md`: each file from the licence table that stays (Q5), with its source and licence. It quotes the MIT notices in full. `LICENSES/Apache-2.0.txt` holds the full Apache-2.0 text, fetched from `https://www.apache.org/licenses/LICENSE-2.0.txt`, and `THIRD_PARTY.md` points to it. README gains a Licence section that points to `LICENSE` and `THIRD_PARTY.md` | the diff; S55 |
+| C3 Milestones step | dotfiles: `homelab-monthly-review` Phase 5 item 2 gains one step. If the trim deletes an entry from a quarter the Milestones table does not cover, add a row for that quarter naming its main changes. Then `chezmoi-sync` and `scripts/sync-agents.sh --update`; the refreshed `agents/` file joins the commit | the skill diff; `sync-agents.sh --check` |
+| C4 close-out | this plan: roadmap SP4 done, the answers to Q1–Q5, the settings as applied | the diff |
+
+C0–C3 go on one branch from `origin/main` and merge together. C4 records steps that happen after
+that merge, so it merges on its own.
+
+### Gates
+
+| Commit | Gate | Pass |
+|---|---|---|
+| all | `gitleaks dir . --config .gitleaks.toml`; `pre-commit run --files <changed>`; `yamllint .`; no private term in a changed file (`grep -I -l -i -F -f ~/.config/sync-agents/private-terms.txt`, as in SP3) | exit 0; the private-term search exits 1, and the terms file has 9 lines |
+| C1 | `actionlint -oneline`, line numbers stripped, sorted | equals the 7-line baseline in `~/.local/share/homelab-sp4/` |
+| C1 | `~/.local/share/homelab-sp4/pin-check.sh .github/workflows`: every `uses:` must name a 40-character SHA and a `# vX.Y.Z` comment, or a `./` path | exit 0. It exits 1 on an unpinned reference, 2 on a missing folder, 3 if it finds no `uses:`, 4 if grep reports an error. Controls, run 2026-09-28: `origin/main` gives `refs=22 unpinned=14` and 1; a missing folder 2; an empty folder 3; a pinned sample 0; a short SHA and a SHA with no comment 1; a pinned file next to an unreadable file 4 |
+| C1 | `resolve-tags.sh` in `~/.local/share/homelab-sp4/` resolves each tag again | each SHA in the diff equals the tag's commit |
+| C1 | `renovate-config-validator --strict renovate.json` | exit 0 (schema only, S52) |
+| C1 | `yq '.on.issues.types' .github/workflows/claude.yml` | `[opened]` |
+| C2 | each path in `THIRD_PARTY.md` exists in `git ls-files`, and each remaining S55 file appears in it | both hold |
+| C3 | `scripts/sync-agents.sh --check` | exit 0 |
+
+### Rollout
+
+1. C0–C3: gates, Codex loop per commit, then one merge from the main tree. The merge starts a
+   drift-heal; expect `changed=0 failed=0` on all four nodes, since no role file changes. Flux
+   applies `vmrules.yaml`, whose object does not change.
+2. After the merge, read the Dependency Dashboard (issue #32). Its `updatedAt` must be later than
+   the merge, and its `github-actions` list must show every reference as `vX.Y.Z@<sha>` (S62).
+   That shows Renovate ran on the new commit and read the pins. It does not show that the preset
+   loaded, because C1 writes the pins by hand. If Renovate opens "Action Required: Fix Renovate
+   Configuration" instead, read the error it names before changing anything.
+3. Operator (Q1): check each open credential. Revoke any that still works before SP6.
+4. Settings (Q3), after step 2: `sha_pinning_required: true`, default token `read`, no PR
+   approval by workflows. Read each back with `gh api`.
+5. C4, then merge.
+
+### Rollback
+
+`git revert` the commit. If C1's revert would put tags back while `sha_pinning_required` is on,
+turn the setting off first and read it back, or every workflow with a tag fails at setup. The
+other settings revert with the same `gh api` calls and the old values from S53.
+
+### Questions for the operator
+
+1. **Old credentials.** The Cloudflare API token and the Telegram bot token from `7349f6cc`
+   (2025-10-07) are readable in 18 PR refs, which cannot be deleted. Please check each at its
+   issuer: the Cloudflare dashboard's API Tokens page (a token created before 2025-10-19), and
+   BotFather for the bot the token names. If either still works, revoke it before SP6. The 🟡
+   rows rest on the rotation record alone. Do you accept the record for them, or check them too?
+   Decision 7 still holds once nothing in PR refs works. Agreed?
+2. **Copyright line.** MIT needs one: `Copyright (c) 2025 AKhozya`, or your full name?
+3. **Repo settings.** May I set these with `gh api` after the merge: require SHA-pinned
+   actions; default workflow token `read`; workflows may not approve PRs? Also: GitHub will show
+   `docs/SECURITY.md` as the repo's security policy, and it gives no way to report a problem.
+   Should I enable private vulnerability reporting and add one line saying so?
+4. **yamllint.** Drop `--strict` from pre-commit to match CI (recommended), or keep it and fix
+   the 15 files' long lines first?
+5. **Dashboards with no licence.** The cert-manager (20842) and Loki (14055) dashboards have no
+   licence that allows publishing them. Copies sit in `main`'s history and in PR refs, so no
+   change to the tree removes them, and decision 7 keeps the PR refs. Only a licence from each
+   author covers those copies. Choose one:
+
+   | Option | Tree | History and PR refs |
+   |---|---|---|
+   | ask each author for a licence, and publish after they grant it | stays | covered |
+   | delete from the tree, and accept the old copies as a residual | removed | not covered |
+   | delete from the tree, and have Grafana download them by `gnetId` at start-up; needs an egress rule to grafana.com | removed | not covered |
 
 ## SP5 — ultrareview
 
@@ -732,5 +890,6 @@ publishing (exposed secret, licence problem, unsafe public trigger) before SP6 s
 | Item | Detail |
 |---|---|
 | Flip | operator action, after SP5 closes |
+| Fork PRs | After the flip, set Actions to require approval before a workflow runs for any outside contributor's PR, and read it back (`gh api repos/AKhozya/homelab/actions/permissions/fork-pr-contributor-approval`). The endpoint answers HTTP 422 while the repo is private (S54) |
 | Actions | CI has not run since 2026-09-10 (see SP2 assumptions). Before the flip, find out what GitHub requires for Actions to run on a public repo owned by this account. After the flip, confirm CI runs |
 | Branch protection | The `AGENTS.md` invariant "CI validation — a signal, NOT a merge gate" says branch protection is unavailable on a private repo on the Free plan. GitHub docs list protected branches as available for public repos on the Free plan, so decide: enable required checks, or decline. Then edit the "CI is a signal, NOT a merge gate" invariant to match |
