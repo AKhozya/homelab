@@ -380,19 +380,18 @@ echo "TS=$TS"
 # --- workstation: copy the dumps over, then restore ---
 TS=20260928_020000   # <-- the value the node printed
 FAILED=""
-if scp -P 65300 -r "akhozya@worker-node:/tmp/${TS:?}" /tmp/ &&
-   MYSQL_ROOT_PWD=$(kubectl get secret -n databases mysql-cluster-secrets -o jsonpath='{.data.root}' | base64 -d) &&
-   [ -n "$MYSQL_ROOT_PWD" ]; then
+if scp -P 65300 -r "akhozya@worker-node:/tmp/${TS:?}" /tmp/; then
   for SQL in "/tmp/$TS"/*.sql; do
     DB=$(basename "$SQL" .sql)
     echo "Restoring $DB..."
-    # -h haproxy routes the write to the primary
-    kubectl exec -i -n databases main-mysql-mysql-0 -c mysql -- \
-      mysql -h main-mysql-haproxy.databases.svc.cluster.local -uroot -p"${MYSQL_ROOT_PWD}" "$DB" < "$SQL" \
-      || FAILED="$FAILED $DB"
+    # -h haproxy routes the write to the primary. The root password is read inside the pod
+    # from the operator's mounted secret, so it is on no command line.
+    kubectl exec -i -n databases main-mysql-mysql-0 -c mysql -- sh -c \
+      'export MYSQL_PWD="$(cat /etc/mysql/mysql-users-secret/root)"; exec mysql -h main-mysql-haproxy.databases.svc.cluster.local -uroot "$1"' \
+      _ "$DB" < "$SQL" || FAILED="$FAILED $DB"
   done
 else
-  FAILED=" (copy or root password lookup)"
+  FAILED=" (copy)"
 fi
 if [ -n "$FAILED" ]; then echo "RESTORE FAILED:$FAILED — fix these before you start the apps"; false; fi
 ```
