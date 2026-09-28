@@ -12,19 +12,18 @@ kubectl get cronjobs -n databases
 # Recent backup job status
 kubectl get jobs -n databases --sort-by=.metadata.creationTimestamp | tail -5
 
-# Check backup files on worker node
+# Check backup files on worker node (if the NAS copy verifies, Step 4 of backup-replication deletes them)
 ssh -p 65300 akhozya@worker-node "ls -la /mnt/k8s-storage/backups/"
-
-# Check replication to worker-node-2
-ssh -p 65300 z3us@worker-node-2 "ls -la /mnt/extra-storage/backups/"
 ```
 
 ### Schedules
-- **PostgreSQL**: 3:00 AM daily, 30-day retention
-- **CouchDB**: 3:05 AM daily, 30-day retention
-- **MySQL**: 3:15 AM daily, 30-day retention
-- **PVC**: 3:10 AM daily, 30-day retention (matches NAS retention policy 2026-05-22)
-- **Replication**: 3:30 AM daily, FAN-OUT: NAS (primary sink) + worker-node-2 (safety net; W2 leg removal planned ~2026-07-20 — see cronjob TODO)
+| Job | Time (daily) | Notes |
+|---|---|---|
+| PostgreSQL | 3:00 AM | 30-day retention |
+| CouchDB | 3:05 AM | 30-day retention |
+| PVC | 3:10 AM | 30-day retention (matches NAS retention policy 2026-05-22) |
+| MySQL | 3:15 AM | 30-day retention |
+| Replication | 3:30 AM | worker-node → NAS only (`infrastructure/configs/backup-replication/cronjob.yaml`) |
 
 ## Replication Status
 
@@ -35,10 +34,33 @@ kubectl get pods -n databases -l cnpg.io/cluster=main-postgres -o wide
 ```
 
 ### MySQL (Percona)
+Ask each mysql pod on `127.0.0.1`, not HAProxy. HAProxy routes to the primary, and the primary
+returns an empty set for `SHOW REPLICA STATUS`, which looks healthy. The replica returns the rows.
+The pod reads the root password from its own mounted users secret, so it appears in no argv,
+neither kubectl's on this host nor mysql's in the pod. MySQL 8.4 deprecates `MYSQL_PWD` but still honours it.
 ```bash
-kubectl exec -n databases sts/main-mysql-mysql -- \
-  mysql -h main-mysql-haproxy -uroot -p"$MYSQL_ROOT_PW" -e "SHOW REPLICA STATUS\G" | grep -E "(Replica_IO|Replica_SQL|Seconds_Behind)"   # MySQL 8 field names — Slave_* matches nothing
+pods=$(kubectl get pods -n databases -l app.kubernetes.io/instance=main-mysql,app.kubernetes.io/name=mysql -o name)
+[ -n "$pods" ] || echo "ERROR: no mysql pods listed — replication NOT checked"
+while IFS= read -r p; do
+  [ -n "$p" ] || continue
+  # shellcheck disable=SC2016 # expands inside the pod
+  if ! out=$(kubectl exec -n databases "$p" -c mysql -- bash -c \
+    'MYSQL_PWD=$(</etc/mysql/mysql-users-secret/root); export MYSQL_PWD; exec mysql -h 127.0.0.1 -uroot -e "SHOW REPLICA STATUS\G"'); then
+    echo "== $p: query FAILED"
+  elif [ -z "$out" ]; then
+    echo "== $p: no replica status (the primary)"
+  else
+    echo "== $p (replica)"
+    printf '%s\n' "$out" | grep -E "(Replica_IO|Replica_SQL|Seconds_Behind)"   # MySQL 8 field names — Slave_* matches nothing
+  fi
+done <<<"$pods"   # not `for p in $pods`: zsh does not word-split an unquoted variable
 ```
+| Output | Meaning |
+|---|---|
+| one "(the primary)" line and one "(replica)" block with both threads `Yes` | healthy |
+| two "(the primary)" lines | no replication: neither pod replicates |
+| two "(replica)" blocks | no primary: each pod replicates from the other (2026-09-12 incident) |
+| "query FAILED" or the ERROR line | replication NOT checked |
 
 ### CouchDB (StatefulSet, multi-master, ns: `databases`)
 ```bash
@@ -78,17 +100,21 @@ spec:
 ```
 
 ### Restart Database Pod (Safe)
-```bash
-# WORKSTATION ONLY — the bot has no workload patch since 2026-08-06, and delete-pod is not a
-# substitute for databases (AGENTS.md: no force-delete of DB pods).
-kubectl rollout restart statefulset/<name> -n databases
-```
+WORKSTATION ONLY. The bot has no workload `patch` since 2026-08-06.
+Delete-pod is not a substitute for databases (AGENTS.md: no force-delete of DB pods).
+
+| Engine | Restart method |
+|---|---|
+| PostgreSQL (CNPG) | CNPG owns the pods directly, so there is no StatefulSet to restart. Use `bash ~/.agents/skills/cnpg-full-roll/scripts/roll.sh databases main-postgres` |
+| Redis (opstree operator) | NEVER `rollout restart` its StatefulSets: the `restartedAt` template annotation restarts the operator's non-convergent reconcile loop (2026-07-17 incident, upstream OT-CONTAINER-KIT/redis-operator#1840). If a CR spec change in `infrastructure/configs/databases/redis-ha/` deploys through Git, the operator replaces its pods |
+| MySQL (Percona) | The operator owns `main-mysql-mysql`; `cluster-roll` keeps it in SKIP, and this runbook provides no restart procedure. Ask the human operator to do the restart |
+| CouchDB (Helm, 2 replicas) | `kubectl rollout restart statefulset/couchdb-couchdb -n databases`, then confirm `/_membership` lists both nodes before anything else touches it |
 
 ### Scale Database
-```bash
-# PostgreSQL
-kubectl patch cluster main-postgres -n databases --type merge -p '{"spec":{"instances":3}}'
+Edit the CR in Git and deploy it with `/gitops-workflow`. A live patch on these CRs is a
+GitOps violation, and Flux reverts it on the next reconcile.
 
-# MySQL
-kubectl patch ps main-mysql -n databases --type merge -p '{"spec":{"mysql":{"size":3}}}'
-```
+| Engine | File | Field |
+|---|---|---|
+| PostgreSQL | `infrastructure/configs/databases/postgres/cluster.yaml` | `spec.instances` |
+| MySQL | `infrastructure/configs/databases/mysql/cluster.yaml` | `spec.mysql.size` |

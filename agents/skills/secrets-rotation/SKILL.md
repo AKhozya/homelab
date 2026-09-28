@@ -1,7 +1,7 @@
 ---
 name: secrets-rotation
 description: >-
-  Use to rotate a database user's password (MySQL/Percona, PostgreSQL/CNPG) in the homelab — after a leak/compromise, on the SECRETS_ROTATION.md schedule, or when the user says "rotate the <app> db password". Covers SOPS secret + live ALTER + GitOps deploy + pod cycle — cycle app pods with `kubectl delete pod`, NEVER `kubectl rollout restart` (Flux reverts the restartedAt annotation to the old secret).
+  Use to rotate a database user's password (MySQL/Percona, PostgreSQL/CNPG) in the homelab — after a leak/compromise, on the SECRETS_ROTATION.md schedule, or when the user says "rotate the <app> db password". Covers SOPS secret + live ALTER + GitOps deploy + pod cycle — cycle app pods one at a time with `_shared/restart-workload.sh`, NEVER `kubectl rollout restart` (Flux reverts the restartedAt annotation to the old secret).
 ---
 
 # Secrets Rotation (DB users)
@@ -18,12 +18,13 @@ Rotate a DB user's password end to end. The mechanical mutations are in
 ## The footgun (read first)
 
 After the new password is deployed, land it on the running app by **deleting** its
-pods, not restarting them:
+pods one at a time, not restarting them:
 
 ```bash
-kubectl delete pod -n <ns> -l <app-selector>      # ✅ Flux-safe; new pod mounts new secret
-# kubectl rollout restart deploy/<app>            # ❌ writes restartedAt (not in Git);
-                                                  #    Flux prunes it, reverts to OLD secret
+~/.agents/skills/_shared/restart-workload.sh <ns> <app-selector>   # ✅ Flux-safe; one pod at a time
+# kubectl delete pod -n <ns> -l <app-selector>   # ❌ deletes every replica at once
+# kubectl rollout restart deploy/<app>           # ❌ writes restartedAt (not in Git);
+                                                 #    Flux prunes it, reverts to OLD secret
 ```
 
 2026-06-12: a rollout-restart left uptime-kuma 4h on a dead password, firing
@@ -39,19 +40,33 @@ S=~/.agents/skills/_shared/rotate-db-user.sh
 
 # 1. rotate: writes SOPS secret + ALTERs the live DB
 "$S" mysql apps/uptime-kuma/mysql-credentials.yaml password uptimekuma --pod-selector app=uptime-kuma
-#   postgres: "$S" postgres apps/<app>/postgres-credentials.yaml password <app>
+#   postgres: NOT this script — see "PostgreSQL (CNPG): two files" below
 
 # 2. GitOps deploy (do it in a worktree per CLAUDE.md):
 #    commit the SOPS change -> merge to main -> push
 flux reconcile source git flux-system && flux reconcile kustomization apps
 
-# 3. cycle pods (DELETE — see footgun)
-kubectl delete pod -n uptime-kuma -l app=uptime-kuma
+# 3. cycle pods (DELETE one at a time — see footgun)
+~/.agents/skills/_shared/restart-workload.sh uptime-kuma app=uptime-kuma
 
 # 4. verify
 kubectl get pods -n uptime-kuma            # new pod 1/1 Running
 # DB-auth quiet, no MySQLHighAbortedConnections
 ```
+
+## PostgreSQL (CNPG): two files
+
+Every CNPG user is in `managed.roles` of `infrastructure/configs/databases/postgres/cluster.yaml`,
+so each password lives in two SOPS files that must carry the same value:
+
+| File | Read by |
+|---|---|
+| the role's `passwordSecret` in `infrastructure/configs/databases/postgres/` — usually `<app>-db-user.yaml`; linkwarden uses `linkwarden-app-user-secret.yaml` (`password`) | CNPG, which sets the role's password from it — no live `ALTER` |
+| the app's own secret under `apps/<app>/` (key name varies) | the app |
+
+`rotate-db-user.sh` writes one file and runs an `ALTER`, so it does not fit this case. Follow
+`docs/SECRETS_ROTATION.md` § 1. PostgreSQL Password (CNPG): set one new password in both files,
+commit them together, then cycle the app pods as in step 3.
 
 ## Ordering / downtime
 

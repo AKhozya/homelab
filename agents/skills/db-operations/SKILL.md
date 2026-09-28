@@ -38,8 +38,8 @@ PerconaServerMySQL `.status` does NOT expose primary; HAProxy routes regardless.
 ```bash
 bash ~/.agents/skills/db-operations/scripts/mysql-exec.sh <db> "SELECT NOW()"
 bash ~/.agents/skills/db-operations/scripts/mysql-exec.sh --shell <db>
-bash ~/.agents/skills/db-operations/scripts/mysql-exec.sh <db> "SHOW REPLICA STATUS\\G"
 ```
+Replica status needs the replica pod, not HAProxy: `reference-ops.md` § Replication Status.
 
 ### CouchDB (multi-master cluster, ns: `databases`)
 All cluster nodes accept writes — no primary. Pods: `couchdb-couchdb-{0,1}`. Use `sts/couchdb-couchdb` (kubectl picks first pod). NOTE: ns is `databases`, NOT `couchdb` (verified live 2026-05-16).
@@ -95,7 +95,8 @@ For these ops, load `reference-ops.md` (full command sets there) — they aren't
 ## Safety Rules
 1. **Never** DROP TABLE/DATABASE directly - use K8s CRDs
 2. **Never** force-delete DB pods (`--force --grace-period=0`)
-3. **Always** `kubectl rollout restart` for DB restarts — **from a workstation**. The bot cannot:
+3. **Always** restart DBs by the per-engine method in `reference-ops.md` § Restart Database Pod
+   (CNPG has no StatefulSet) — **from a workstation**. The bot cannot:
    it lost workload `patch` on 2026-08-06, and the delete-pod substitute used elsewhere is NOT
    available here because AGENTS.md forbids force-deleting DB pods. Hand DB restarts to an operator.
 4. **Always** verify backups before destructive ops

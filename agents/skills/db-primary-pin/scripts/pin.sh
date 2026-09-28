@@ -68,10 +68,28 @@ percona)
   # Orchestrator picks primary; query via orc pod.
   ORC="${CLUSTER}-orc-0"
   fqdn_for() { echo "${CLUSTER}-mysql-${1}.${CLUSTER}-mysql.${NS}:3306"; }
+  # The operator sets ORC_API_AUTH=true, so the API wants basic auth (user orchestrator reads
+  # and writes). The wrapper reads the password inside the pod, from the file the orchestrator
+  # entrypoint reads, so it never reaches this host or an argv.
+  orc() {
+    # shellcheck disable=SC2016
+    kubectl exec -n "$NS" "$ORC" -c orchestrator -- bash -c '
+      ORCHESTRATOR_AUTH_USER=orchestrator
+      ORCHESTRATOR_AUTH_PASSWORD=$(<"/etc/orchestrator/orchestrator-users-secret/orchestrator") || exit 1
+      export ORCHESTRATOR_AUTH_USER ORCHESTRATOR_AUTH_PASSWORD
+      exec orchestrator-client "$@"' orc "$@"
+  }
+  # The primary line starts "<cluster>-mysql-<N>.<cluster>-mysql.<ns>:3306". Match the full cluster
+  # prefix, because splitting on "-mysql-" turns main-mysql-mysql-1 into "mysql-1".
+  primary_idx() {
+    awk '/rw,/{print $1; exit}' | sed -n "s/^${CLUSTER}-mysql-\([0-9][0-9]*\)\..*/\1/p"
+  }
+  [ "${PIN_PARSE_ONLY:-}" = 1 ] && {
+    primary_idx
+    exit 0
+  }
 
-  current_idx=$(kubectl exec -n "$NS" "$ORC" -c orchestrator -- \
-    orchestrator-client -c topology -i "$(fqdn_for 0)" |
-    awk '/rw,/{print $1; exit}' | awk -F'-mysql-|\\.' '{print $2}')
+  current_idx=$(orc -c topology -i "$(fqdn_for 0)" | primary_idx)
   [ -z "$current_idx" ] && die "could not determine current primary index"
 
   current_pod="${CLUSTER}-mysql-${current_idx}"
@@ -90,19 +108,16 @@ percona)
   [ -z "$candidate" ] && die "no mysql replica on $NODE — takeover would land elsewhere; check placement first"
 
   echo "graceful master takeover from $current_pod ..."
-  new_primary_fqdn=$(kubectl exec -n "$NS" "$ORC" -c orchestrator -- \
-    orchestrator-client -c graceful-master-takeover-auto -i "$(fqdn_for "$current_idx")" |
+  new_primary_fqdn=$(orc -c graceful-master-takeover-auto -i "$(fqdn_for "$current_idx")" |
     awk 'NR==1{gsub(/[ \r]/,""); print; exit}')
   echo "orchestrator says new primary: $new_primary_fqdn"
 
   wait_until "topology primary changed" 120 \
-    "idx=\"\$(kubectl exec -n \"$NS\" \"$ORC\" -c orchestrator -- orchestrator-client -c topology -i \"$(fqdn_for 0)\" | awk '/rw,/{print \$1; exit}' | awk -F'-mysql-|\\\\.' '{print \$2}')\"; [ -n \"\$idx\" ] && [ \"\$idx\" != \"$current_idx\" ]"
+    "idx=\"\$(orc -c topology -i \"$(fqdn_for 0)\" | primary_idx)\"; [ -n \"\$idx\" ] && [ \"\$idx\" != \"$current_idx\" ]"
 
   # Post-assert: the new primary must actually sit on $NODE (with >2 replicas the
   # takeover can land elsewhere — fail loud instead of printing a false OK).
-  new_idx=$(kubectl exec -n "$NS" "$ORC" -c orchestrator -- \
-    orchestrator-client -c topology -i "$(fqdn_for 0)" |
-    awk '/rw,/{print $1; exit}' | awk -F'-mysql-|\\.' '{print $2}')
+  new_idx=$(orc -c topology -i "$(fqdn_for 0)" | primary_idx)
   [ -n "$new_idx" ] || die "could not resolve new primary index after takeover"
   new_node=$(kubectl get pod -n "$NS" "${CLUSTER}-mysql-${new_idx}" -o jsonpath='{.spec.nodeName}')
   [ "$new_node" = "$NODE" ] || die "takeover landed on ${CLUSTER}-mysql-${new_idx} ($new_node), NOT $NODE — re-run or fix placement"

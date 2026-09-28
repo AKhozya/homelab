@@ -3,8 +3,8 @@
 # -> print the GitOps post-steps. Mirrors the proven 2026-06-12 MySQL rotation.
 #
 # THE FOOTGUN this encodes (cost a real outage): to land the new password on the
-# running app, cycle its pods with `kubectl delete pod`, NOT `kubectl rollout
-# restart`. rollout-restart writes a `restartedAt` annotation that is NOT in Git;
+# running app, cycle its pods with `_shared/restart-workload.sh` (one pod delete at a
+# time), NOT `kubectl rollout restart`. rollout-restart writes a `restartedAt` annotation that is NOT in Git;
 # Flux prunes it on the next reconcile and reverts the pod to the OLD secret. The
 # 2026-06-12 uptime-kuma pod sat 4h on a dead password because of exactly this.
 #
@@ -65,9 +65,9 @@ set -- "${args[@]}"
 ENGINE="${1:-}"
 SECRET="${2:-}"
 KEY="${3:-}"
-USER="${4:-}"
+DB_USER="${4:-}"
 DB="${5:-}"
-if [ -z "$ENGINE" ] || [ -z "$SECRET" ] || [ -z "$KEY" ] || [ -z "$USER" ]; then
+if [ -z "$ENGINE" ] || [ -z "$SECRET" ] || [ -z "$KEY" ] || [ -z "$DB_USER" ]; then
   sed -n '2,40p' "${BASH_SOURCE[0]}"
   exit 2
 fi
@@ -80,7 +80,7 @@ case "$ENGINE" in mysql | postgres) ;; *)
   exit 2
   ;;
 esac
-[ -n "$DB" ] || DB="$USER"
+[ -n "$DB" ] || DB="$DB_USER"
 
 # Mutually exclusive: both flags together would skip BOTH steps and print only the
 # next-steps banner — a silent no-op.
@@ -114,15 +114,23 @@ else
   PW="$(openssl rand -hex 32)"
 fi
 
-echo "engine=$ENGINE secret=$SECRET key=$KEY user=$USER db=$DB"
-if [ "$dry" = 1 ]; then echo "[dry-run] new pw (first 8): ${PW:0:8}…  no changes made"; fi
+echo "engine=$ENGINE secret=$SECRET key=$KEY user=$DB_USER db=$DB"
+# --alter-only reads the live password from the secret, so print a prefix only of a new one.
+if [ "$dry" = 1 ]; then
+  if [ "$alter_only" = 1 ]; then
+    echo "[dry-run] password read from $SECRET  no changes made"
+  else
+    echo "[dry-run] new pw (first 8): ${PW:0:8}…  no changes made"
+  fi
+fi
 
 # 1. write SOPS secret
 if [ "$alter_only" = 0 ]; then
   if [ "$dry" = 1 ]; then
-    echo "[dry-run] sops --set '[\"stringData\"][\"$KEY\"] \"<newpw>\"' $SECRET"
+    echo "[dry-run] sops set --value-stdin $SECRET '[\"stringData\"][\"$KEY\"]'  (new pw on stdin)"
   else
-    sops --set "[\"stringData\"][\"$KEY\"] \"$PW\"" "$SECRET"
+    # --value-stdin keeps the password out of argv, where ps on this host would show it.
+    printf '"%s"' "$PW" | sops set --value-stdin "$SECRET" "[\"stringData\"][\"$KEY\"]"
     echo "✅ SOPS secret updated: ${SECRET}[${KEY}]"
   fi
 fi
@@ -130,17 +138,17 @@ fi
 # 2. ALTER the live DB
 if [ "$no_alter" = 0 ]; then
   if [ "$ENGINE" = mysql ]; then
-    SQL="ALTER USER '$USER'@'%' IDENTIFIED BY '$PW';"
+    SQL="ALTER USER '$DB_USER'@'%' IDENTIFIED BY '$PW';"
     CMD=("$DBOPS/mysql-exec.sh" "$DB" "$SQL")
   else
-    SQL="ALTER ROLE \"$USER\" WITH PASSWORD '$PW';"
+    SQL="ALTER ROLE \"$DB_USER\" WITH PASSWORD '$PW';"
     CMD=("$DBOPS/pg-primary.sh" exec "$DB" -c "$SQL")
   fi
   if [ "$dry" = 1 ]; then
-    echo "[dry-run] ${CMD[*]}"
+    echo "[dry-run] ${CMD[*]//"$PW"/<pw>}"
   else
     "${CMD[@]}" >/dev/null
-    echo "✅ live ALTER applied on $ENGINE user '$USER'"
+    echo "✅ live ALTER applied on $ENGINE user '$DB_USER'"
   fi
 fi
 
@@ -149,8 +157,9 @@ cat <<EOF
 Next (GitOps — the new pw is in the secret file but NOT yet in the cluster):
   1. commit the SOPS change in your worktree, merge -> main, push
   2. flux reconcile source git flux-system && flux reconcile kustomization apps
-  3. cycle the app pods onto the new secret — DELETE, do NOT rollout-restart:
-       kubectl delete pod -n <ns> -l ${selector:-<app-selector>}
-     (rollout restart's restartedAt annotation is not in Git; Flux reverts it.)
+  3. cycle the app pods onto the new secret one at a time — do NOT rollout-restart:
+       ~/.agents/skills/_shared/restart-workload.sh <ns> ${selector:-<app-selector>}
+     (rollout restart's restartedAt annotation is not in Git; Flux reverts it. A bare
+     'kubectl delete pod -l' deletes every replica at once.)
   4. verify: new pod 1/1 Running, no auth errors, MySQLHighAbortedConnections quiet
 EOF

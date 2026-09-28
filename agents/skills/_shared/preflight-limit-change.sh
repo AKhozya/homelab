@@ -179,12 +179,32 @@ def effective(c, override_name=None, override_bytes=None, where=""):
     die("container %r has no memory limit and no LimitRange default supplies one; a "
         "limits.memory quota rejects such a pod outright" % c["name"])
 
-def pod_total(cs, ins, override_name=None, override_bytes=None, where=""):
-    """Effective pod limit, as the API server computes it for quota: the higher of the
-    sum over all non-init containers — app AND restartable sidecars, which keep running
-    after startup — and the highest single init container limit."""
+def effective_req(c, override_name=None, override_bytes=None, where=""):
+    """Memory request as the API server admits the pod. The API server copies a set limit into a
+    missing request on the Pod, never on the template, so raising the limit of a
+    request-less container raises its requests.memory charge too."""
+    v = (c.get("resources", {}).get("requests") or {}).get("memory")
+    if v is not None:
+        return qbytes(v, "%s request on %s" % (where, c["name"]))
+    if override_name is not None and c["name"] == override_name:
+        return override_bytes
+    v = (c.get("resources", {}).get("limits") or {}).get("memory")
+    if v is not None:
+        return qbytes(v, "%s limit on %s" % (where, c["name"]))
+    if default_req is not None:
+        return default_req
+    if default_lim is not None:
+        return default_lim
+    die("container %r has no memory request and no LimitRange default supplies one; a "
+        "requests.memory quota rejects such a pod outright" % c["name"])
+
+def pod_total(cs, ins, override_name=None, override_bytes=None, where="", fn=None):
+    """Effective pod limit (or request, with fn=effective_req), as the API server computes
+    it for quota: the higher of the sum over all non-init containers — app AND restartable
+    sidecars, which keep running after startup — and the highest single init container value."""
+    fn = fn or effective
     def eff(c):
-        return effective(c, override_name, override_bytes, where)
+        return fn(c, override_name, override_bytes, where)
     sidecars = sum(eff(c) for c in ins if c.get("restartPolicy") == "Always")
     steady = sum(eff(c) for c in cs) + sidecars
     init_effective = max([eff(c) for c in ins] or [0])
@@ -229,15 +249,16 @@ for name, item in lr_rules("Pod"):
 OUT.append("  LimitRange     : %s" % ("ok" if not PROBLEMS else "BLOCKED"))
 
 blocked = list(PROBLEMS)
+QUOTA_KEYS = (("limits.memory", effective), ("requests.memory", effective_req))
 quotas = [q for q in (IN["quotas"].get("items") or [])
-          if "limits.memory" in (q.get("status", {}).get("hard") or {})]
+          if any(k in (q.get("status", {}).get("hard") or {}) for k, _ in QUOTA_KEYS)]
 
 if replicas == 0:
     # Nothing is created, so no quota can reject anything. The LimitRange findings
     # above still stand: they bite the moment this is scaled back up.
     OUT.append("  admission      : scaled to 0, no pod is created — quota not evaluated")
 elif not quotas:
-    OUT.append("  ResourceQuota  : none constrains limits.memory")
+    OUT.append("  ResourceQuota  : none constrains limits.memory or requests.memory")
 else:
     # Credit only pods this Deployment owns, resolved by UID through its ReplicaSets.
     # A name prefix is not ownership: deployment "app-canary" produces ReplicaSets
@@ -282,9 +303,15 @@ else:
     # the pods that exist, not against the replica count, because a deployment short of
     # its replicas refills those slots at the same time as it surges.
     vacant = max(0, replicas + surge - len(live))
-    settled = after * replicas - credit
-    transition = after * vacant
-    need_new = max(settled, transition, 0)
+
+    def need_new(fn):
+        # Compute only the keys some quota constrains. If a quota constrains requests.memory,
+        # effective_req rejects a container with no request, no limit and no LimitRange default.
+        after_k = pod_total(containers, inits, target, new_b, where="proposed", fn=fn)
+        credit_k = sum(pod_total(p["spec"].get("containers") or [],
+                                 p["spec"].get("initContainers") or [], where="live pod", fn=fn)
+                       for p in live)
+        return max(after_k * replicas - credit_k, after_k * vacant, 0)
     if surge == 0:
         basis = ("Recreate: old pods freed first" if strategy == "Recreate"
                  else "%s, maxSurge 0: old pods freed first" % strategy)
@@ -293,16 +320,19 @@ else:
                  % (strategy, vacant, len(live), replicas))
 
     for q in quotas:
-        hard = qbytes(q["status"]["hard"]["limits.memory"], "quota hard")
-        used = qbytes((q["status"].get("used") or {}).get("limits.memory", "0"), "quota used")
-        need = used + need_new
-        OUT.append("  quota %-9s: used %s of %s, would need %s"
-                   % (q["metadata"]["name"], human(used), q["status"]["hard"]["limits.memory"],
-                      human(need)))
-        if need > hard:
-            blocked.append("quota %s: needs %s, hard limit is %s — raise limits.memory in the "
-                           "same commit" % (q["metadata"]["name"], human(need),
-                                            q["status"]["hard"]["limits.memory"]))
+        for key, fn in QUOTA_KEYS:
+            if key not in q["status"]["hard"]:
+                continue
+            hard = qbytes(q["status"]["hard"][key], "quota hard")
+            used = qbytes((q["status"].get("used") or {}).get(key, "0"), "quota used")
+            need = used + need_new(fn)
+            OUT.append("  quota %-9s: %s used %s of %s, would need %s"
+                       % (q["metadata"]["name"], key, human(used), q["status"]["hard"][key],
+                          human(need)))
+            if need > hard:
+                blocked.append("quota %s: %s needs %s, hard limit is %s — raise it in the "
+                               "same commit" % (q["metadata"]["name"], key, human(need),
+                                                q["status"]["hard"][key]))
     OUT.append("  basis          : %s" % basis)
 
 print("\n".join(OUT))
