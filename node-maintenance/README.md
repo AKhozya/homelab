@@ -99,7 +99,6 @@ sudo ansible-playbook -t firmware -e ad_hoc_firmware_apply=true \
 
 | Script | Use |
 |---|---|
-| `scripts/setup-claude-telegram.sh` | Mac-side setup for the Claude Telegram bot on worker-node: installs chezmoi, Node and the Claude CLI as user `akhozya` and reads a GitHub token interactively. Run once per deploy; drift-heal does not touch it. |
 | `scripts/update-firmware.sh` | The `firmware` tag above replaces it. It stays as an interactive fallback when no Mac is available. |
 
 ---
