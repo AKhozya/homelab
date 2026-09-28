@@ -198,8 +198,11 @@ kubectl get secret redis-passwords -n databases -o jsonpath='{.data.blocky-passw
 # main-postgres-* Secrets). On a rebuilt cluster no object has those UIDs, so the
 # garbage collector would delete each restored Secret.
 echo "🧹 Cleaning up JSON exports..."
+# Two plain statements, not `jq ... && mv`: set -e ignores a failure left of `&&`, so a
+# bad export would reach encryption and the plaintext delete.
 for f in "${BACKUP_DIR}/secrets/"*.json; do
-  jq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.managedFields, .metadata.ownerReferences)' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+  jq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.managedFields, .metadata.ownerReferences)' "$f" > "${f}.tmp"
+  mv "${f}.tmp" "$f"
 done
 
 # =============================================================================
