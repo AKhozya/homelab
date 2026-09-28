@@ -86,7 +86,13 @@ bash ~/.agents/skills/_shared/check-kyverno.sh --summary
 
 ## Phase 5 — docs + memory
 1. ANALYSIS: pending table rows (close/retarget with evidence), changelog highlight, `**Next Review**` date.
-2. HISTORY: one dated entry at the top, per-item outcome + evidence. Then trim: HISTORY keeps 3 months. Delete every entry whose `### YYYY-MM-DD` date is more than 3 months before the review date. An entry runs from its heading to the next `## ` or `### ` heading. Git keeps the deleted text. Then find each link to a deleted entry, from other files (`git grep -n 'HOMELAB_HISTORY.md#<date>'`) and inside HISTORY (`grep -n '(#<date>' docs/HOMELAB_HISTORY.md`), and replace it with the entry's commit.
+2. HISTORY: one dated entry at the top, per-item outcome + evidence. Then trim: HISTORY keeps 3 months. Delete every entry whose `### YYYY-MM-DD` date is more than 3 months before the review date. An entry runs from its heading to the next `## ` or `### ` heading. Git keeps the deleted text. Then, for each deleted date, find every reference to it. Most are plain text ("see HOMELAB_HISTORY 2026-06-28", "2026-07-31, see HISTORY"), not links, so search for the date near the word HISTORY as well as for anchors:
+
+   - repo, outside HISTORY: `git grep -n -E -e 'HISTORY.{0,40}<date>' -e '<date>.{0,40}HISTORY' -- . ':!docs/HOMELAB_HISTORY.md' ':!agents/'`
+   - inside HISTORY: `grep -n -E -e '\(#<date>' -e '<date> entry' docs/HOMELAB_HISTORY.md`
+   - memory: `rg -n -i -e 'HISTORY.{0,40}<date>' -e '<date>.{0,40}HISTORY' ~/.claude/projects/-Users-akhozya-source-code-homelab/memory`
+
+   Replace each with a commit: the commit that made the change or, if the change had no commit (a live fix), the commit that added the entry's heading line. Several entries can share a date, so search for the full heading line: `git log --format=%h -S '<heading line>' -- docs/HOMELAB_HISTORY.md | tail -1`. If the 2026-09-28 rewrite introduced the heading, this returns the rewrite commit. That commit's diff also holds the whole entry. Check each SHA with `git merge-base --is-ancestor <sha> origin/main`.
 3. Memory: update files whose claims changed (e.g. auth flow shape); MEMORY.md index hooks.
 4. `/chezmoi-sync` any `~/.claude/**` edits.
 5. Teardown worktree. Quarterly (every 3rd month, see ANALYSIS): add `/automation-audit-ops`.
