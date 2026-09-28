@@ -20,8 +20,8 @@ spec:
           port: 9093
         - protocol: TCP
           port: 8080  # config-reloader metrics
-    # Basic auth sits on the ingress only; a pod that reaches 9093 directly can
-    # silence every alert. So 9093 admits only the namespaces that hold its clients, and
+    # The ingress enforces basic authentication. Direct access to port 9093 permits
+    # unauthenticated alert silencing. So 9093 admits only the namespaces that hold its clients, and
     # every pod in them: monitoring (vmalert, vmagent scrape, grafana datasource), loki
     # (ruler, loki-stack release.yaml alertmanager_url), uptime-kuma (probe) and traefik
     # (am.h0melab.work ingress).
