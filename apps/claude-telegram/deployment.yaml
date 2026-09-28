@@ -35,6 +35,9 @@ spec:
           hostnames: ["worker-node"]
         - ip: "192.168.1.126"
           hostnames: ["worker-node-2"]
+        # CoreDNS NodeHosts has no immich-vm entry, so the name resolves only through this alias.
+        - ip: "192.168.1.231"
+          hostnames: ["immich-vm"]
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -137,7 +140,7 @@ spec:
               chmod 644 ~/.ssh/id_ed25519.pub ~/.ssh/known_hosts 2>/dev/null || true
 
               echo "Scanning node SSH fingerprints..."
-              ssh-keyscan -p 65300 gmk-k3s-control-plane worker-node worker-node-2 >> ~/.ssh/known_hosts 2>/dev/null || true
+              ssh-keyscan -p 65300 gmk-k3s-control-plane worker-node worker-node-2 immich-vm >> ~/.ssh/known_hosts 2>/dev/null || true
 
               mkdir -p ~/.config/chezmoi
               cp /etc/chezmoi-config/chezmoi.toml ~/.config/chezmoi/chezmoi.toml

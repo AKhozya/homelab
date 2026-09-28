@@ -43,9 +43,7 @@ spec:
     # and the pod has no business reaching the NAS or anything else on the LAN. This bounds the
     # POD, not a stolen key — a key exfiltrated from the PVC gets used from somewhere this policy
     # does not apply. What bounds that is the absence of passwordless sudo, plus the
-    # `command="/usr/local/bin/agent-diag",restrict` entry on the bot's key on all three reachable
-    # nodes. immich-vm is listed below but unreachable: it is absent from the pod's ssh config and
-    # its authorized_keys (ansible-exclusive) carries no bot key.
+    # `command="/usr/local/bin/agent-diag",restrict` entry on the bot's key on all four nodes.
     - to:
         - ipBlock:
             cidr: 192.168.1.127/32 # gmk-k3s-control-plane
