@@ -15,17 +15,26 @@ command -v gitleaks >/dev/null || {
 }
 
 found=0
-tmp="$(mktemp /tmp/pii-sweep.XXXXXX.json)"
+# X's must end the template: BSD mktemp treats a suffix after the X's literally, so the name is fixed.
+tmp="$(mktemp "${TMPDIR:-/tmp}/pii-sweep.XXXXXX")"
 trap 'rm -f "$tmp"' EXIT
 
 echo "== gitleaks (current tree; repo .gitleaks.toml if present) =="
-# gitleaks exits 1 on leaks — capture, don't die
-if ! gitleaks dir . --no-banner --redact -r "$tmp" >/dev/null 2>&1; then
+# gitleaks exits 1 on an error as well as on leaks, so leaks get their own code (3). An error
+# must be exit 2 here, never read as findings or as clean.
+rc=0
+gitleaks dir . --no-banner --redact --exit-code 3 -f json -r "$tmp" >/dev/null 2>&1 || rc=$?
+case "$rc" in
+0) echo "  clean" ;;
+3)
   jq -r '.[] | "\(.File):\(.StartLine) [\(.RuleID)] \(.Match)"' "$tmp"
   found=1
-else
-  echo "  clean"
-fi
+  ;;
+*)
+  echo "gitleaks failed (exit $rc)" >&2
+  exit 2
+  ;;
+esac
 
 echo "== personal PII (runtime-sourced) =="
 EMAIL="$(git config user.email || true)"

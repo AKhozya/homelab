@@ -350,7 +350,7 @@ it. Also note `git -C <repo>` targets the MAIN worktree; commits inside a releas
 `git -C <worktree-path>`. Then `flux reconcile` and:
 
 ```bash
-kubectl rollout status deploy/claude-telegram -n claude-telegram --timeout=240s
+kubectl rollout status deploy/claude-telegram -n claude-telegram --timeout=480s
 kubectl get pod -n claude-telegram -l app=claude-telegram --no-headers
 kubectl logs -n claude-telegram -l app=claude-telegram -c claude-telegram --tail=15
 ```
@@ -360,8 +360,8 @@ Healthy log ends with `Bot started: @ClaudeSelfHostedBot` and the loopback trigg
 **Budget ~6-7 min for the rollout, and do not read a `rollout status` timeout as a failure.**
 Measured 2026-08-08 (release 1.32.2): 6m20s wall, of which the image pull was 22.8s. The rest
 is `chezmoi-init` — hard-reset of the dotfiles checkout, `chezmoi apply`, then nine plugin
-marketplaces. `--timeout=240s` and even `300s` expire on a perfectly healthy deploy; the
-earlier "~90s" here predates the plugin set. The Deployment sets `strategy: Recreate`, so the
+marketplaces. `--timeout=240s` and even `300s` expired on a healthy deploy. The command above
+therefore waits 480s. The earlier "~90s" figure predates the plugin set. The Deployment sets `strategy: Recreate`, so the
 old pod is already gone and the gap is real downtime. Read `kubectl logs -c chezmoi-init`
 before intervening. If those logs stop advancing, treat it as stuck.
 

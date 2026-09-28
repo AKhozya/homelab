@@ -125,8 +125,10 @@ echo
 bold "=== CLEANUP PROPOSAL ==="
 cat <<'PROPOSAL'
   Jobs without TTL      → patch ttlSecondsAfterFinished: 86400 → /gitops-workflow
-  RS > 5 per Deploy     → patch spec.revisionHistoryLimit: 3 in Deployment manifest
-  Stuck Helm            → flux suspend HelmRelease → helm history → helm rollback
+  RS > 5 per Deploy     → patch spec.revisionHistoryLimit: 2 in Deployment manifest
+  Stuck Helm            → fix the cause in Git → /gitops-workflow; if still pending-*:
+                          flux suspend hr → helm history → helm rollback → flux resume hr
+                          (a forgotten suspend silently stops reconciliation)
   Released/Failed PVs   → kubectl delete pv <name> (out-of-band OK, post-PVC-del)
   Failed pods           → root-cause via /k8s-diagnostics (NOT a cleanup target)
   Terminal ctrl-owned   → kubectl -n <ns> delete pod \

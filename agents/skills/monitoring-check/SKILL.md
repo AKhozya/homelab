@@ -120,9 +120,9 @@ bash ~/.agents/skills/_shared/check-kyverno.sh --modes   # violations + policy m
 
 ## Resource Pressure
 ```bash
-# Memory/CPU by namespace
+# Memory/CPU by namespace (columns: NAMESPACE NAME CPU(m) MEMORY(Mi))
 kubectl top pods -A --no-headers | \
-  awk '{ns[$1]+=$3; cpu[$1]+=$2} END {for(n in ns) print n, cpu[n], ns[n]}' | \
+  awk '{cpu[$1]+=$3; mem[$1]+=$4} END {for(n in mem) print n, cpu[n] "m", mem[n] "Mi"}' | \
   sort -k3 -rn | head -10
 
 # PVC usage

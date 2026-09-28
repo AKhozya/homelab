@@ -29,10 +29,11 @@ workflow.
 4. **Pre-Implementation Review**
    - Run `scripts/reviewer-peer --current <current-family> --format json` from
      this skill.
-   - Use `xhigh` effort/reasoning for every Claude or Codex plan review.
+   - Use `high` effort/reasoning for every Claude or Codex plan review. That is the
+     `model_reasoning_effort` in `~/.codex/config.toml`, which `codex-review.sh` inherits.
    - Ask the returned reviewer to review the plan, unless it is `self-review`.
    - If the reviewer is unavailable, rate-limited, or explicitly waived by the
-     user, do a self-review at `xhigh` and state that substitution.
+     user, do a self-review at `high` and state that substitution.
    - Load the `receiving-code-review` / `receive-review` skill when available.
    - Receive feedback through that discipline: understand, verify, evaluate,
      then act. Do not blindly implement review comments.
@@ -91,7 +92,7 @@ workflow.
 
 7. **Code Review**
    - Re-run `scripts/reviewer-peer --current <current-family> --format json`.
-   - Use `xhigh` effort/reasoning for every Claude or Codex code review.
+   - Use `high` effort/reasoning for every Claude or Codex code review.
    - Ask the returned reviewer to review the actual diff before commit/push,
      unless it is `self-review`.
    - For Codex diff reviews, dispatch through
@@ -111,7 +112,17 @@ workflow.
      Its exit code reports whether the review ran, never what it concluded.
      If you edit the script, run `_shared/codex-review-selfcheck.sh`.
    - Process findings through `receiving-code-review` / `receive-review`.
-   - Fix valid Critical/Important issues; document any accepted residual risk.
+   - Severity decides whether you may commit. The round count decides when to escalate. The full
+     table is in the repo's `AGENTS.md` or `~/.claude/CLAUDE.md` § Code review:
+
+     | Round returns | Rounds 1-5 | Round 6 |
+     |---|---|---|
+     | CRITICAL, HIGH or MEDIUM | fix, then re-review | do not commit; give the open findings to the user |
+     | only LOW or NIT, first in a row | fix, then re-review | fix, then commit |
+     | only LOW or NIT, second in a row | fix, then commit | fix, then commit |
+     | nothing | commit | commit |
+
+     Document any accepted residual risk.
 
 8. **Commit and Push**
    - Commit only after verification and review findings are addressed.

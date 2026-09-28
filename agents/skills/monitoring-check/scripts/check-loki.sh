@@ -4,6 +4,7 @@
 
 set -euo pipefail
 
+# shellcheck disable=SC2329  # `trap cleanup EXIT` below calls this function
 cleanup() {
   for pid in "${PFS[@]:-}"; do
     [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
@@ -27,8 +28,16 @@ probe() { # retry: port-forward takes a moment to bind
 echo "=== pods ==="
 kubectl get pods -n loki 2>/dev/null || true
 
+# Fail if the readiness probe fails. A bare `|| echo` returns 0, and the caller sees success.
+RC=0
+
 echo
 echo "=== ready (port-forward svc/loki:3100) ==="
 kubectl port-forward -n loki svc/loki 13100:3100 >/dev/null 2>&1 &
 PFS+=("$!")
-probe 'http://127.0.0.1:13100/ready' || echo "(unreachable)"
+if ! probe 'http://127.0.0.1:13100/ready'; then
+  echo "(unreachable)"
+  RC=1
+fi
+
+exit "$RC"

@@ -20,10 +20,10 @@ Categories surfaced:
 | Failed/evicted pods | any | root cause first (see "Evicted = node pressure" below); delete corpses only AFTER pressure clears, else they re-evict |
 | Controller-owned terminal pods | any | reboot leftovers — see "Reboot leftovers" below |
 | Jobs without TTL | non-CronJob standalone | patch `ttlSecondsAfterFinished: 86400` in manifest → /gitops-workflow |
-| Zero-replica RS | count > 5 per Deployment | patch `revisionHistoryLimit: 3` in Deployment spec |
+| Zero-replica RS | count > 5 per Deployment | patch `revisionHistoryLimit: 2` in Deployment spec (the repo convention, `.claude/review-invariants.md`) |
 | Unbound PVCs | any | check StorageClass, PV provisioning errors |
 | Released/Failed PVs | any | out-of-band `kubectl delete pv` after backup verify |
-| Stuck Helm | failed / pending-upgrade | `flux suspend` HelmRelease → `helm history` → `helm rollback` |
+| Stuck Helm | failed / pending-upgrade | fix the cause in Git → /gitops-workflow. If the release stays `pending-*`: `flux suspend hr <name> -n <ns>` → `helm history` → `helm rollback` → `flux resume hr <name> -n <ns>`. A forgotten suspend silently stops reconciliation |
 | Orphan ConfigMaps | not owned (top-5 oldest shown, any age) | manual audit, often residue from renamed deploys |
 
 ## Reboot leftovers = terminal pods no controller reaps

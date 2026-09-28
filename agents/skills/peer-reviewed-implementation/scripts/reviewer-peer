@@ -15,7 +15,9 @@ EOF
 
 current="${CURRENT_AGENT:-}"
 format="text"
-effort="xhigh"
+# Matches model_reasoning_effort in ~/.codex/config.toml. codex-review.sh passes no effort flag,
+# so that file is what a Codex review actually runs at; change both together.
+effort="high"
 allow_self=0
 
 while [[ $# -gt 0 ]]; do
