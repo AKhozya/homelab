@@ -15,7 +15,7 @@ journalctl --boot=-1 -k --no-pager | grep -iE 'UFW BLOCK.*DPT=8472'             
 ssh_master_node 'journalctl -u node-maintenance-config.service --since "<window>" | grep -iE "NOPERMISSION|unreachable|Failed"'
 ```
 
-Root cause + fix (repaired>0 gate) + the W2-only Realtek-NIC fragility: memory `gotcha_ufw_reload_node_isolation`. Self-heal for this class = the `node_isolation_heal` watchdog (dry-run soak as of 2026-07-10); `clusterip_heal`/`ufw_heal` do NOT catch it (agent looks "not active" / UFW looks "active").
+Root cause + fix (repaired>0 gate) + the W2-only Realtek-NIC fragility: memory `gotcha_ufw_reload_node_isolation`. Self-heal for this class = the `node_isolation_heal` watchdog (active since 2026-07-23; `node_isolation_dry_run: false` in its role defaults); `clusterip_heal`/`ufw_heal` do NOT catch it (agent looks "not active" / UFW looks "active").
 
 ## CrashLoopBackOff — init-timing vs liveness race
 

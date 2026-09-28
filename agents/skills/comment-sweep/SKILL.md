@@ -92,7 +92,8 @@ statement — a whole sweep's worth of "unverifiable" items resolved this way on
 6. **Hold your own additions to the same bar, before you commit.** This is not optional and
    it is not the reviewer's job. Extract every line you added — `git diff | grep '^+'` —
    and re-read it as if someone else wrote it: does each earn its place, does any restate
-   itself, is any sentence over 25 words, does any assert what step 4 did not check. Three
+   itself, does any sentence carry more than one idea, does any assert what step 4 did not check.
+   Do not enforce a word cap. If a sentence exceeds 40 words, check whether it holds more than one idea. Three
    separate passes were needed on 2026-08-07 (code comments, then Markdown, then sentence
    length), each finding breaches of the bar the sweep had just applied to everyone else.
    A sweep that exempts its own output is not a sweep.

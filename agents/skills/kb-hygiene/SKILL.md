@@ -31,7 +31,7 @@ Axis 1's mechanical checks are scripted: run `scripts/index-integrity.sh [MEMORY
 | 3 | memory ↔ skills | `memory/*.md` vs skill `.md`/`.sh` |
 | 4 | skill `.sh` captain-obvious comments | `skills/**/*.sh` |
 | 5 | memory/gotchas ↔ **repo truth** | vs `docs/`, both `CLAUDE.md`, `.claude/review-invariants.md` (repo authoritative; memory copy = drift-risk) |
-| 6 | skills ↔ CLAUDE.md + skill specs | operationalize = keep vs re-declare = dup; shipped+surpassed specs in `docs/superpowers/` = archivable |
+| 6 | skills ↔ CLAUDE.md + skill specs | operationalize = keep vs re-declare = dup; shipped+surpassed specs in the repo's plan dir (homelab `docs/plans/`) = archivable |
 | 7 | gotchas ↔ skills | most operational memory, most echoed — don't skip (user-flagged axis) |
 | 8 | prose bloat + doesn't-belong | memory-corpus runs: per-file prose-density + RELOCATE (changelog restatements vs HISTORY, dead work, generic knowledge). Validated run 6 — expect most files OK; wins concentrate in session-journal project files |
 

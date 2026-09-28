@@ -74,11 +74,10 @@ alertmanager:
 
 **VictoriaMetrics** (vmsingle is single-tenant by design — scale via vmcluster if needed):
 
-VictoriaMetrics components are CRDs managed by `victoria-metrics-operator`, not Helm sub-chart values. Edit the CR directly:
+VictoriaMetrics components are CRDs managed by `victoria-metrics-operator`, not Helm sub-chart values. The CR is Git-managed: edit `monitoring/configs/victoria-metrics/vmagent.yaml` in a worktree, then commit and deploy it through `/gitops-workflow`. A live edit is a GitOps violation that Flux reverts.
 
 ```bash
 kubectl get vmagent -n monitoring        # confirm name (e.g. vmagent)
-kubectl edit vmagent vmagent -n monitoring
 ```
 
 VMAgent CR shape (vmagents.operator.victoriametrics.com):

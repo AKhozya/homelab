@@ -12,7 +12,7 @@ Authoritative mechanics: `docs/BACKUP_STRATEGY.md` (per-engine restore commands)
 
 - **Scratch namespace only** (`drill-<engine>-<date>`), delete after. NEVER restore over `databases`/app namespaces — single env = prod.
 - **No app cutover.** Drill validates data, not traffic. Don't repoint Services/apps at drill DBs.
-- Backups live on NAS `…/backups/homelab` (rsyncd, uid=akhozya, readable no-sudo) and W2 (today-only copy, removal ~2026-07-20). Recency is by **NAME not mtime** (memory `[[reference_nas]]`).
+- Backups live on NAS `…/backups/homelab` (rsyncd, uid=akhozya, readable no-sudo); the worker-node → NAS replication has no second copy. Recency is by **NAME not mtime** (memory `[[reference_nas]]`).
 - Verify the dump BEFORE restoring: SHA-256 + tar-list (recipe in `[[reference_nas]]`); a partial dump restoring "successfully" = false confidence.
 
 ## Monthly — one-DB test restore
@@ -20,6 +20,17 @@ Authoritative mechanics: `docs/BACKUP_STRATEGY.md` (per-engine restore commands)
 1. Pick engine round-robin (PG → MySQL → CouchDB → PVC across months; note last-drilled in ANALYSIS pending table).
 2. Fetch latest dump from NAS, checksum-verify.
 3. Scratch restore: spin minimal single-instance DB pod in the drill ns (plain container, NOT operator CR — no CNPG/Percona churn), load dump.
+   Every Kyverno ValidatingPolicy in `infrastructure/configs/kyverno-policies/` runs in Deny.
+   No policy excludes the scratch ns. If the ns or pod misses any row below, Kyverno rejects the pod:
+
+   | Policy | What the drill needs |
+   |---|---|
+   | `require-networkpolicy` | at least one NetworkPolicy in the drill ns, created before the pod (a deny-all ingress + egress NP fits: the drill needs no traffic) |
+   | `require-non-default-serviceaccount` | a dedicated ServiceAccount |
+   | `require-labels` | an `app` or `app.kubernetes.io/name` label |
+   | `require-resource-limits` | cpu + memory limits on every container, init included |
+   | `require-non-root`, `require-readonly-rootfs`, `require-seccomp-runtimedefault`, `require-drop-all-capabilities`, `disallow-privilege-escalation` | `runAsNonRoot` with the image's DB uid, `readOnlyRootFilesystem: true` plus emptyDir mounts for the data dir, socket dir and `/tmp`, `seccompProfile: {type: RuntimeDefault}`, `capabilities.drop: [ALL]`, `allowPrivilegeEscalation: false` |
+   | `disallow-latest-tag` | a pinned image tag |
 4. Validate: row/doc counts vs source (`SELECT count(*)` on 2-3 biggest tables / `_all_dbs` doc counts), schema present, one known-recent record exists (proves dump fresh, not stale husk).
 5. Teardown ns. Record evidence.
 

@@ -93,7 +93,12 @@ The helper:
 
 **Script body conventions** — use `/bash-scripting` skill:
 - `set -euo pipefail`
-- Brew tools assumed installed remotely (Arch nodes have `jq`, `yq`, `jc`, `rg`, `fd` per ansible packages role)
+- Use `grep`, not `rg`, in remote scripts. Tools checked 2026-09-28:
+
+  | Tool | CP, worker-node, worker-node-2 | immich-vm |
+  |---|---|---|
+  | `jq`, `yq`, `jc`, `fd` | present | present |
+  | `rg` | absent | present |
 - Idempotent where possible (`systemctl is-active X || systemctl start X`)
 - Print summary to stderr; data to stdout
 

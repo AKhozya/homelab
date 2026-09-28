@@ -17,7 +17,7 @@ user-invocable: false
 ```
 apps/<app>/                   # all manifests in ONE flat dir (single-env; F-13 collapsed base/staging)
 ├── kustomization.yaml        # sets `namespace: <app>`; lists every file; `components: [../components/allow-dns-egress]` for DNS
-├── namespace.yaml            # ns = bare app name (apps) | monitoring-<name> (monitoring)
+├── namespace.yaml            # ns = bare app name
 ├── serviceaccount.yaml
 ├── deployment.yaml           # or statefulset.yaml
 ├── service.yaml
@@ -36,16 +36,24 @@ apps/<app>/                   # all manifests in ONE flat dir (single-env; F-13 
   ```yaml
   traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-standard@kubernetescrd,traefik-csp@kubernetescrd
   ```
-- **CSP**: new apps inherit the global permissive `traefik-csp`. To tighten, **browser-verify eval-need first** — read the live DevTools console under a report-only header; the `csp-reporter` soak is **non-functional** (cluster-internal `report-uri`, unreachable from a browser, Loki always empty). Then swap the chain's `traefik-csp` token → `traefik-csp-inline-enforced` (drops `unsafe-eval`) or `traefik-csp-strict-enforced` (also drops inline). Per-app verdicts + deep gotcha: memory `project_csp_rollout.md`.
+- **CSP** (`infrastructure/controllers/traefik/csp-middleware.yaml`):
+
+  | Chain token | Policy | Use |
+  |---|---|---|
+  | `traefik-csp` | inline tier since 2026-06-04: `script-src 'self' 'unsafe-inline'`, no `unsafe-eval` | default for a new app |
+  | `traefik-csp-permissive-enforced` | adds `'unsafe-eval'` (eval/wasm) | only if the app needs eval or wasm |
+  | `traefik-csp-strict-enforced` | also drops inline | to tighten |
+
+  If an app needs eval or wasm, **browser-verify that first** — read the live DevTools console under a report-only header; the `csp-reporter` soak is **non-functional** (cluster-internal `report-uri`, unreachable from a browser, Loki always empty). Per-app verdicts + deep gotcha: memory `project_csp_rollout.md`.
 - **Rate limits** (via middleware): `rate-limit-standard` default; `rate-limit-high-frequency` for n8n/immich/home-assistant; **none on authentik** (auth flow breaks).
-- **Dual access** (internal + Cloudflare Tunnel): internal = this Traefik Ingress; external = a hostname row in centralized SOPS `infrastructure/configs/cloudflare/cloudflared.yaml` + a `cloudflare-tunnel` NetworkPolicy ingress from-block. **NOT** a second Ingress manifest.
-- **Namespace**: apps = bare app name (e.g. `immich`); monitoring = `monitoring-<name>`. (`traefik-` prefixes a *middleware* namespace, not the app ns.)
+- **Dual access** (internal + Cloudflare Tunnel): internal = this Traefik Ingress; external = a hostname row in centralized SOPS `infrastructure/configs/cloudflare/cloudflared-config-secret.yaml` + a `cloudflare-tunnel` NetworkPolicy ingress from-block. **NOT** a second Ingress manifest.
+- **Namespace**: bare app name (e.g. `immich`). (`traefik-` prefixes a *middleware* namespace, not the app ns.)
 
 ## NetworkPolicy invariants
 
 - **Every ingress requires NetworkPolicy**. Kyverno enforces.
 - **Use container port, not service port** in `ports:` block. Service port mapping doesn't apply to NP.
-- Egress: explicit allow for DB proxies, DNS, OIDC (authentik), webhooks.
+- Egress: explicit allow for DB proxies, OIDC (authentik), webhooks. DNS comes from the shared `apps/components/allow-dns-egress` component in the app's kustomization, not a per-app DNS block (`.claude/review-invariants.md`).
 - See `/networkpolicy-helper` for templates.
 
 ## Secrets
@@ -53,7 +61,7 @@ apps/<app>/                   # all manifests in ONE flat dir (single-env; F-13 
 - **SOPS-encrypted only**. No plain Secrets in repo.
 - DB password Secret labels:
   - Postgres: `cnpg.io/cluster: main-postgres` + `cnpg.io/reload: "true"`
-  - MySQL: managed via Percona `User` CR
+  - MySQL: no Percona `User` CR exists. Create the user by hand with SQL (`CREATE USER` + `GRANT`) through `db-operations/scripts/mysql-exec.sh`, and add its `CREATE USER` line, with a placeholder password, to `docs/disaster-recovery/mysql-create-dbs.sql`
 - DB role NOT auto-created from labeled Secret. Add to `infrastructure/configs/databases/postgres/cluster.yaml` `managed.roles[]`. (Why/error 42704: memory `gotchas.md` "CNPG roles must be in cluster.yaml managed.roles".)
 - **DB username = app name** (invariant).
 

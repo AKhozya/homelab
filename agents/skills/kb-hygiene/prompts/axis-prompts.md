@@ -1,10 +1,13 @@
 # KB Hygiene — read-only find-agent prompts
 
-8 axes, one read-only agent each (axis 8 = memory-corpus runs). Dispatch in parallel. Each agent makes **NO edits** — it returns findings only. To run an axis: paste the **Shared preamble** then that axis's block into the agent prompt. Fill `{MEMORY_DIR}` and `{REPO_ROOT}` first.
+8 axes, one read-only agent each (axis 8 = memory-corpus runs). Dispatch in parallel. Each agent makes **NO edits** — it returns findings only. To run an axis: paste the **Shared preamble** then that axis's block into the agent prompt. Fill `{MEMORY_DIR}`, `{REPO_ROOT}` and `{PLANS_DIR}` first.
 
-- `{MEMORY_DIR}` = `/Users/akhozya/.claude/projects/-Users-akhozya-source-code-homelab/memory`
-- `{REPO_ROOT}` = `/Users/akhozya/source-code/homelab`
-- skills root = `/Users/akhozya/.agents/skills`
+| Placeholder | Value |
+|---|---|
+| `{MEMORY_DIR}` | `/Users/akhozya/.claude/projects/-Users-akhozya-source-code-homelab/memory` |
+| `{REPO_ROOT}` | `/Users/akhozya/source-code/homelab` |
+| `{PLANS_DIR}` | the repo's plan/spec dir: `{REPO_ROOT}/docs/plans` in homelab; the superpowers default is `docs/superpowers/` |
+| skills root | `/Users/akhozya/.agents/skills` |
 
 ---
 
@@ -98,13 +101,13 @@ shrink-to-pointer; if any fact is memory-only, KEEP-BOTH + add the fact to the r
 ## Axis 6 — skills ↔ CLAUDE.md + skill specs
 
 ```
-Scope: /Users/akhozya/.agents/skills/**/SKILL.md  ×  both CLAUDE.md (global /Users/akhozya/.claude/CLAUDE.md + repo {REPO_ROOT}/CLAUDE.md)  ×  {REPO_ROOT}/docs/superpowers/ (plans+specs).
+Scope: /Users/akhozya/.agents/skills/**/SKILL.md  ×  both CLAUDE.md (global /Users/akhozya/.claude/CLAUDE.md + repo {REPO_ROOT}/CLAUDE.md)  ×  {PLANS_DIR} (plans+specs).
 Find:
 - SKILL.md that re-declares a CLAUDE.md invariant. A skill that OPERATIONALIZES an invariant (turns a
   rule into runnable steps) = KEEP. A skill that merely RE-STATES it verbatim = DUP-COLLAPSE to a pointer.
-- skill design specs in docs/superpowers/ that have shipped AND been surpassed by the live skill =
+- skill design specs in {PLANS_DIR} that have shipped AND been surpassed by the live skill =
   archivable (move to docs/archive/, fix the moved file's relative links).
-Trap — repo-root vs relative link on move: a docs/superpowers/specs/X link breaks when both files move
+Trap — repo-root vs relative link on move: a repo-root link such as docs/plans/X breaks when both files move
 to archive/ together (it is not a ../ relative). Flag the link to fix in the moved file.
 ```
 
