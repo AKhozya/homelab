@@ -41,7 +41,7 @@ SP5 and SP6 it records the decisions already made and the spikes still to run.
 | SP1 | Move node-maintenance tree + loose scripts out of `docs/`. **Done** 2026-09-26: `7a307ab4`, `8a146a09` | — |
 | SP2 | Snapshot skills, `_shared/` helpers and sanitized rules into the repo; monthly re-sync step. **Done** 2026-09-27: `11a9ef29`, `a1ee146d`, `d61d9e12` | SP1 (skills cite the new path) |
 | SP3 | Docs pass: staleness, duplication, `avoid-ai-writing`, README + mermaid, CODEMAPS rename. **Done** 2026-09-28: C0 `72b39c6d`, C1 `12025040`, C2 `3d6b6592`, C3 `54a00f4f`..`f987082d`, C4a `6da12196`, C4b in 24 batches `97587af2`..`f0e42940` | SP1, SP2 |
-| SP4 | Pre-public gate: history secret scan, `claude.yml` trigger lockdown, MIT `LICENSE`, Action SHA pins | SP3 |
+| SP4 | Pre-public gate: history secret scan, `claude.yml` trigger lockdown, MIT `LICENSE`, Action SHA pins. **Done** 2026-09-28: token rotation `52ce08aa`, `54e755a3`; plan `b1dbcdf1`; C0 `bbbe3e85`, C1 `6ca5f826`, C2 `bf940942`, C3 `254a8f63`; repo settings applied | SP3 |
 | SP5 | Ultrareview (`/code-review ultra`, operator-triggered); fix every finding that blocks publishing | SP4 |
 | SP6 | Visibility flip (operator action) + branch-protection decision | SP5 |
 
@@ -867,6 +867,15 @@ C0 by class. Counts are `yamllint -s` findings on `origin/main`; `claude.yml`'s 
    approval by workflows. Read each back with `gh api`.
 4. C4, then merge.
 
+### Outcome (2026-09-28)
+
+| Step | Result |
+|---|---|
+| 1 | Main moved from `54e755a3` to `254a8f63` at 16:51 UTC. All 7 Flux Kustomizations were Ready at `254a8f63` about 75 s after a source reconcile. The node sync applied `254a8f63` at 17:00 UTC, and its drift-heal read `changed=0 failed=0` on all four nodes |
+| 2 | Issue #32 `updatedAt` 17:04:54 UTC. Its `github-actions` list shows all 22 references as `vX.Y.Z@<sha>`. The 4 actions C1 pinned show the SHAs and versions in Pins. `gh issue list --state all` finds no "Action Required" issue, open or closed |
+| 3 | Before (as S53): `sha_pinning_required` false, `default_workflow_permissions` write, `can_approve_pull_request_reviews` true. Read back after the change: `{"enabled":true,"allowed_actions":"all","sha_pinning_required":true}` and `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}` |
+| Carried to SP6 | fork-PR approval (S54) and private vulnerability reporting with its `docs/SECURITY.md` line (S65), since both need a public repo; a check that the mermaid diagrams render on GitHub. CI has not run on these commits (billing), so the next CI run is the first with `sha_pinning_required` on |
+
 ### Rollback
 
 `git revert` the commit. If C1's revert would put tags back while `sha_pinning_required` is on,
@@ -895,5 +904,6 @@ publishing (exposed secret, licence problem, unsafe public trigger) before SP6 s
 | Flip | operator action, after SP5 closes |
 | Fork PRs | After the flip, set Actions to require approval before a workflow runs for any outside contributor's PR, and read it back (`gh api repos/AKhozya/homelab/actions/permissions/fork-pr-contributor-approval`). The endpoint answers HTTP 422 while the repo is private (S54) |
 | Vulnerability reports | After the repo becomes public, enable private vulnerability reporting (`gh api -X PUT repos/AKhozya/homelab/private-vulnerability-reporting`) and read it back. Then add one line to `docs/SECURITY.md` that tells a reader to report a problem through the repo's Security tab (Q3). The endpoint answers 404 while the repo is private (S65) |
+| Diagrams | After the repo becomes public, open README and `docs/ARCHITECTURE.md` on GitHub and confirm all 5 mermaid blocks render. S59 rendered them with mermaid 12.0.0; GitHub uses its own version |
 | Actions | CI has not run since 2026-09-10 (see SP2 assumptions). Before the flip, find out what GitHub requires for Actions to run on a public repo owned by this account. After the flip, confirm CI runs |
 | Branch protection | The `AGENTS.md` invariant "CI validation — a signal, NOT a merge gate" says branch protection is unavailable on a private repo on the Free plan. GitHub docs list protected branches as available for public repos on the Free plan, so decide: enable required checks, or decline. Then edit the "CI is a signal, NOT a merge gate" invariant to match |
