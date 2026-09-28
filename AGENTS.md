@@ -10,7 +10,7 @@ K3s **production** (single env — no staging; merge to `main` deploys straight 
 | `worker-node-2` | 192.168.1.126 | W2 | `ssh -p 65300 z3us@worker-node-2` (alias `ssh_worker_node2` — no dash before 2) |
 | `immich-vm` | 192.168.1.231 | GPU worker (Arch VM on the NAS, Intel QSV passthrough; joined 2026-07-10) | `ssh -p 65300 akhozya@immich-vm` — NEVER in-guest reboot / `virsh destroy` (GPU reset-bug; phase2 carve-out handles reboots) |
 
-Kustomization deps (branching, not a chain): `flux-system` → `infrastructure-controllers` → { `coredns` | `infrastructure-configs` → `apps` | `monitoring-controllers` → `monitoring-configs` }.
+Kustomization deps (branching, not a chain): `flux-system` → { `coredns` | `infrastructure-controllers` → { `infrastructure-configs` → `apps` | `monitoring-controllers` → `monitoring-configs` } }. `coredns` has no `dependsOn`, so DNS never waits on cert-manager or Kyverno health.
 
 ## SSH / sudo
 Agents do not have sudo. Node-side debug + fix workflow: `homelab-node-fix` skill (SSH+TTY pattern). Persistent fixes via ansible roles at `node-maintenance/`; trigger via systemd: `sudo systemctl start node-maintenance-sync.service` (git pull) → `sudo systemctl start node-maintenance-config.service` (drift-heal).
