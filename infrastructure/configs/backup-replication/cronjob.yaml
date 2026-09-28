@@ -133,6 +133,9 @@ spec:
                   # not share a failure mode with the list it audits, or two matched write
                   # failures cancel out and the check passes having proved nothing.
                   VALIDATED_EXPECTED=0
+                  # Types that failed Step 1. Step 2 excludes them and Step 4 keeps their
+                  # local files; the other types still sync.
+                  FAILED_TYPES=""
                   OVERALL_OK=true
                   TODAY=$(date +%Y-%m-%d)
 
@@ -243,6 +246,7 @@ spec:
                     else
                       printf "FAIL|%s|%s, %s\n" "$label" "$SIZE_HUMAN" "$CHECKS" >> "$REPORT_FILE"
                       OVERALL_OK=false
+                      return 1
                     fi
                   }
 
@@ -310,20 +314,30 @@ spec:
                   # nothing reached the NAS for two nights. A floor catches a truncated dump; it
                   # cannot also track how much data the vault holds. The couchdb-backup job
                   # checks each database separately.
-                  validate_backup "postgres" 1048576 "PostgreSQL" || true
-                  validate_backup "couchdb" 20480 "CouchDB" || true
-                  validate_backup "mysql" 102400 "MySQL" || true
-                  validate_pvc || true
+                  validate_backup "postgres" 1048576 "PostgreSQL" || FAILED_TYPES="$FAILED_TYPES postgres"
+                  validate_backup "couchdb" 20480 "CouchDB" || FAILED_TYPES="$FAILED_TYPES couchdb"
+                  validate_backup "mysql" 102400 "MySQL" || FAILED_TYPES="$FAILED_TYPES mysql"
+                  validate_pvc || FAILED_TYPES="$FAILED_TYPES pvc"
 
-                  # Abort before the sync on validation failure: source preserved for
-                  # forensics, NAS history untouched.
-                  if [ "$OVERALL_OK" != true ]; then
+                  # If every type failed, abort before the sync: source preserved for
+                  # forensics, NAS history untouched. If only some failed, the run goes on
+                  # without them and still ends in Step 6's failure report and exit 1.
+                  if [ "$VALIDATED_EXPECTED" -eq 0 ]; then
                     NAS_STATUS="NAS: not checked (aborted before sync)"
                     send_report
                     trap - EXIT
                     echo "Validation failed — source preserved, nothing synced."
                     exit 1
                   fi
+                  if [ -n "$FAILED_TYPES" ]; then
+                    echo "Not syncing or cleaning (failed Step 1):$FAILED_TYPES"
+                    NAS_NOTE="${NAS_NOTE} | not synced, source kept:$FAILED_TYPES"
+                  fi
+                  # One --exclude per failed type, anchored like the immich one below.
+                  set --
+                  for t in $FAILED_TYPES; do
+                    set -- "$@" "--exclude=/$t/"
+                  done
 
                   # The NAS is the sole replication sink. There is no second copy on a worker.
 
@@ -354,6 +368,7 @@ spec:
                     --exclude='*.tmp' \
                     --exclude='.*.swp' \
                     --exclude='/immich/' \
+                    "$@" \
                     --port=50555 \
                     /source-backups/ \
                     "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/"
@@ -427,8 +442,13 @@ spec:
                   # validated the artifacts AND Step 3 confirmed each one is on the NAS.
                   echo ""
                   echo "=== Step 4: Cleaning source backups ==="
-                  rm -rf /source-backups/postgres/* /source-backups/couchdb/* /source-backups/mysql/* /source-backups/pvc/*
-                  echo "Source cleaned (data on NAS)"
+                  for t in postgres couchdb mysql pvc; do
+                    case " $FAILED_TYPES " in
+                      *" $t "*) echo "Kept /source-backups/$t (failed Step 1)" ;;
+                      *) rm -rf "/source-backups/$t/"* ;;
+                    esac
+                  done
+                  echo "Source cleaned for the types now on the NAS"
 
                   # Step 4b: Enforce NAS retention — 30 days for daily backups, keep-2 for the
                   # weekly immich set. Pruning pushes an empty tree with --delete. Every prune
@@ -453,11 +473,14 @@ spec:
                     local parent="${subpath%/*}"   # e.g. pvc
                     local name="${subpath##*/}"    # e.g. 20260206_215032
                     echo "  pruning dir: $subpath"
+                    local rc=0
                     RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --delete \
                       --include="/${name}/***" --exclude='*' \
                       /tmp/empty/ \
                       "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/${parent}/" \
-                      2>&1 | tail -3 || echo "  (delete refused — manual prune via NAS UI)"
+                      > /tmp/prune.log 2>&1 || rc=$?
+                    tail -3 /tmp/prune.log
+                    [ "$rc" -eq 0 ] || echo "  (delete refused, rsync exit $rc — manual prune via NAS UI)"
                   }
                   prune_nas_file() {
                     # $1 = "postgres/postgres_20260206_215030.tar.gz"
@@ -468,11 +491,14 @@ spec:
                     # rsync filter rules: keep ONLY the target file (+ .sha256 sibling) in
                     # the sync scope; everything else excluded. Empty source + --delete then
                     # removes the included files from dest, leaving the rest alone.
+                    local rc=0
                     RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --delete \
                       --include="/${fname}" --include="/${fname}.sha256" --exclude='*' \
                       /tmp/empty/ \
                       "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/${parent}/" \
-                      2>&1 | tail -3 || echo "  (delete refused — manual prune via NAS UI)"
+                      > /tmp/prune.log 2>&1 || rc=$?
+                    tail -3 /tmp/prune.log
+                    [ "$rc" -eq 0 ] || echo "  (delete refused, rsync exit $rc — manual prune via NAS UI)"
                   }
 
                   # The listing MUST be able to fail here. An empty NAS_LIST reads as "nothing
@@ -515,7 +541,12 @@ spec:
                     [ -n "$f" ] && prune_nas_file "$f"
                   done
 
-                  # Immich: keep only 2 newest
+                  # Immich: keep only 2 newest. Coupling: this sweep must not run while
+                  # immich-backup (Sunday 03:00, same namespace) still pushes a set, or a
+                  # half-pushed set counts as one of the two. Only the namespace
+                  # ResourceQuota prevents that: limits.cpu is 2 and immich-backup's pod
+                  # takes all 2, so this Job's pod cannot start until that pod ends. If
+                  # either limit changes, re-check this.
                   echo "$NAS_LIST" | awk '
                     $1 ~ /^d/ && $5 ~ /^immich\/[0-9]{8}(_[0-9]+)?$/ {print $5}
                   ' | sort -r | tail -n +3 | while IFS= read -r dir; do
