@@ -38,13 +38,29 @@ spec:
           port: 53
     # Tunnel to the Cloudflare edge. Port 7844 is required.
     # See: https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/
-    - ports:
+    # Both edge rules exclude private ranges. Every in-cluster route and the WARP route to
+    # 192.168.1.129 has its own rule below, and none of them uses 7844 or 443.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
         - protocol: UDP
           port: 7844  # QUIC (preferred)
         - protocol: TCP
           port: 7844  # HTTP/2 fallback
     # Cloudflare updates, JWT validation, error reporting
-    - ports:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
         - protocol: TCP
           port: 443
     - to:

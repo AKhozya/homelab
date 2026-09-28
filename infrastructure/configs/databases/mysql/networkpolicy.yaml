@@ -61,14 +61,6 @@ spec:
           port: 33060
         - protocol: TCP
           port: 33062
-    # Metrics scrape — standalone mysql-exporter on 9104
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: monitoring
-      ports:
-        - protocol: TCP
-          port: 9104  # MySQL exporter
     # MySQL exporter deployment access
     - from:
         - podSelector:

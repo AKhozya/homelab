@@ -26,13 +26,16 @@ spec:
         !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
         'flux-system', 'kyverno'])
     # Operator-managed pods, not editable from this repo: CNPG pooler (PgBouncer,
-    # cloudnative-pg), VMAgent (victoria-metrics-operator). Label-keyed, any namespace.
+    # cloudnative-pg), VMAgent (victoria-metrics-operator). Each exclusion matches only
+    # its operator's namespace, because anyone who can create a pod can set these labels.
     - name: exclude-cnpg-pooler
       expression: >-
-        object.metadata.?labels[?'cnpg.io/podRole'].orValue('') != 'pooler'
+        !(request.namespace == 'databases' &&
+        object.metadata.?labels[?'cnpg.io/podRole'].orValue('') == 'pooler')
     - name: exclude-vm-operator
       expression: >-
-        object.metadata.?labels[?'managed-by'].orValue('') != 'vm-operator'
+        !(request.namespace == 'monitoring' &&
+        object.metadata.?labels[?'managed-by'].orValue('') == 'vm-operator')
   validations:
     # containers HARD + initContainers soft at list level; NO ephemeralContainers
     # (k8s rejects resources on ephemeral containers — API-impossible). Key presence
