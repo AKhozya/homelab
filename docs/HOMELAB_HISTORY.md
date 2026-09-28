@@ -2041,8 +2041,21 @@ Two small prod fixes shipped this session.
 - **Backup husk-leak** (`2e65af1f`): NAS replication `prune_nas_dir` rsync'd `/tmp/empty/` *into* the dated dir, which clears its **contents only** — the empty directory shell ("husk") leaked and accumulated on the NAS. Fixed to operate at the **parent** and scope `--delete` to the target subtree with `--include="/${name}/***" --exclude='*'`, so the dated dir itself is removed; siblings protected by `--exclude='*'` (same idiom as `prune_nas_file`). Clears the chronic empty-dir accumulation noted in memory `reference_nas`. `infrastructure/configs/backup-replication/cronjob.yaml`.
 - **Immich ML resources** (`6af4971e`): machine-learning container CPU limit **2000m→4000m** (2×, inference throughput) + RAM limit **2Gi→2355Mi** (+15% — 7-day peak hit ~78% of 2Gi, too thin against OOM). Requests unchanged (200m/512Mi). `apps/immich/release.yaml`.
 
-### 2026-06-28 (NAS admin SSH access + security-posture audit) ✅
-Established workstation admin SSH to the backup-sink NAS (`zl-nas`, ZettLab/zettOS Debian 12, `192.168.1.136`): dedicated ed25519 key (`~/.ssh/zl_nas_ed25519`, file-based — deliberately **not** the 1Password agent), port `56634`. Key login is passwordless; `sudo` stays password-gated (no NOPASSWD, by design).
-- **Audit verdict — nothing actionable.** No host firewall is loaded (`ufw`/`nftables`/`firewalld` inactive; nft ruleset = libvirt VM-net only, `INPUT policy accept`; `iptables-legacy` empty) → the ZettLab UI "Allow `192.168.1.0/24`" rule is a **no-op**. WAN is safe regardless — via the **router** (zero inbound port-forward), not the NAS rule.
-- The one LAN-exposed sensitive service, `zettos-postgresql` (`listen_addresses='*'`), is **auth-blocked**: `pg_hba.conf` permits only `127.0.0.1`/`::1`/local — LAN connections are rejected pre-auth; all real clients are localhost. Appliance-managed configs left untouched (ZettLab clobbers them on update). Details in memory `reference_nas`.
-- Appliance is **out of ansible/k3s/UFW scope** — node-maintenance + node-fix patterns do not apply to it.
+### 2026-06-28 — NAS admin SSH access and a security audit
+
+The workstation now has admin SSH access (remote terminal access) to the NAS that receives the
+backups (`zl-nas`, ZettLab's zettOS, based on Debian 12, at `192.168.1.136`). It uses a dedicated
+ed25519 key stored as a file (`~/.ssh/zl_nas_ed25519`), on port `56634`. The key is a file on
+purpose, not a key held by the 1Password agent. Login with the key needs no password. `sudo` still
+asks for one, by design: there is no NOPASSWD rule (a sudo rule that runs admin commands without a
+password).
+
+The audit found nothing to act on:
+
+| Subject | Finding | Why |
+|---|---|---|
+| Host firewall | none is loaded. `ufw`, `nftables` and `firewalld` are all inactive. The nft ruleset holds only the network for libvirt (the software that manages the VMs), with `INPUT policy accept`, and `iptables-legacy` is empty | so the rule "Allow `192.168.1.0/24`" in the ZettLab UI has no effect |
+| Access from the internet (WAN) | safe regardless of the NAS rule | the router forwards no inbound port |
+| `zettos-postgresql` | the one sensitive service exposed to the LAN (`listen_addresses='*'`), but authentication blocks it | the database's connection rules in `pg_hba.conf` allow only `127.0.0.1`, `::1` and local connections, so the database rejects a LAN connection before any login check. Every real client runs on the NAS itself |
+| Configuration files that the appliance manages | left untouched | ZettLab overwrites them on update. Details are in the operator's memory note `reference_nas` |
+| The appliance | outside the scope of Ansible, k3s and UFW | so the node-maintenance and node-fix procedures do not apply to it |
