@@ -2379,36 +2379,184 @@ Codex static review: APPROVE
 WITH NITS. Its one nit was the root count, 5 to 6. The batch checked it against the workflow and
 fixed it.
 
-### 2026-07-23 — WARP managed-network beacon: home/away device profiles auto-switch
+### 2026-07-23 — WARP managed-network beacon: device profiles switch between home and away on their own
 
-Added `warp-beacon` to the `rustdesk` namespace (`apps/rustdesk/beacon-*.yaml`): `nginxinc/nginx-unprivileged:1.30.4-alpine` serving a 10-year self-signed cert (CN `warp-beacon.h0melab.internal`, fingerprint `4B8045EA…B2F3DF`) on **192.168.1.129:18443** (same W1 servicelb ETP=Local pin as RustDesk). Key in SOPS Secret; cert+nginx.conf in ConfigMap; PSS-restricted, RoRFS, deny-all-egress; ingress 8443/TCP from LAN only — **deliberately NOT tunnel-reachable**, off-LAN detection must fail (per CF managed-networks docs: 5 s probe timeout → default profile, no retry).
+Added `warp-beacon` to the `rustdesk` namespace (`apps/rustdesk/beacon-*.yaml`). It runs
+`nginxinc/nginx-unprivileged:1.30.4-alpine` and serves a self-signed certificate valid for 10 years
+(CN `warp-beacon.h0melab.internal`, fingerprint `4B8045EA…B2F3DF`) on **192.168.1.129:18443**. It
+uses the same placement as RustDesk: the pod runs on W1 (worker-node), and the servicelb load
+balancer with ETP=Local (external traffic policy Local: only the node that runs the pod accepts the
+traffic) serves it from there.
 
-Zero Trust side (dashboard): managed network **`home-lan`** = `192.168.1.129:18443` + pinned cert SHA-256; device profile **"Home LAN - direct"** (precedence 1, match `Managed network is home-lan`, split-tunnel Include = inert `192.0.2.1/32` only) — retargeted from the interim same-day `os == macOS` profile; **Default** (precedence 2) keeps the `192.168.1.129/32` include. Net effect for every enrolled device, current and future (2nd Mac, Windows): at home → tunnel nothing, RustDesk + node SSH direct on LAN; away → tunneled `.129` route for remote RustDesk. This closes the same-day gotcha where the `.129/32` teamnet route hijacked Mac→W1 SSH whenever WARP was Connected.
+| Part | Setting |
+|---|---|
+| private key | SOPS Secret |
+| certificate and nginx.conf | ConfigMap |
+| pod security | PSS restricted profile, read-only root filesystem, all outgoing traffic (egress) denied |
+| ingress | 8443/TCP from the LAN only |
 
-Verified end-to-end: beacon fingerprint match + 200 in 47 ms from LAN; after a WARP cycle the Mac (profile now matches ONLY via beacon) still received the inert include → detection proven; ping + SSH:65300 + RustDesk 21116 all green with WARP Connected. Codex STATIC review SHIP (accepted MED: single replica — safe degradation, probes fire only on network change and a beacon outage just means away-profile/tunnel routes; accepted LOW: subPath mounts don't hot-reload — cert rotation is a coordinated event with the dashboard fingerprint). CI on the push was the billing-block fail-to-start signature (all 13 jobs, 0 steps) — classifier initially miscalled it content-red over a null-conclusion job; `ci-red-classify.sh` (dotfiles) fixed same day (conclusion-agnostic zero-step + explicit CANCELLED exit 12, 2 Codex rounds).
+If a device is away from the LAN, detection must fail. So the beacon is **deliberately not
+reachable through the Cloudflare tunnel**. The Cloudflare managed-networks docs say that the probe
+times out after 5 s, that the device then uses the default profile, and that it does not retry.
 
-### 2026-07-23 — node_isolation_heal ACTIVE (dry-run off after 13-day soak) + interlocks
+Settings in the Cloudflare Zero Trust dashboard:
 
-`node_isolation_dry_run: false` — the worker CP-isolation watchdog (dry-run since 2026-07-10, `68f114d0`) now acts: L1 `systemctl restart k3s-agent` at ≥6 min isolated; staggered L2 self-reboot (W1 15 min / W2 23 min, `cp_direct`-gated, ≤1/24 h, uptime>30 min) as last resort. **Soak evidence:** 13 days, zero false pending actions, zero giveups; the only `wedged=1` sample was a <6 min blip on W1 during the 2026-07-18 Saturday phase2 reboot window — exactly the class the new maint-hold suppresses.
+| Setting | Value |
+|---|---|
+| managed network **`home-lan`** | `192.168.1.129:18443` plus the pinned certificate's SHA-256 |
+| device profile **"Home LAN - direct"** | precedence 1; matches `Managed network is home-lan`; its split-tunnel Include list holds only `192.0.2.1/32`, a reserved address that carries no traffic. Earlier the same day this profile matched `os == macOS` as a temporary measure; it now matches the managed network |
+| **Default** device profile | precedence 2; keeps the `192.168.1.129/32` include |
 
-Activation interlocks (same commit):
+The result holds for every enrolled device, now and later (a 2nd Mac, Windows). At home, WARP
+tunnels nothing, and RustDesk and node SSH go straight over the LAN. Away from home, WARP tunnels the
+`.129` route for remote RustDesk. This fixed a problem found the same day: whenever WARP was
+Connected, the `.129/32` private-network route (teamnet) pulled SSH from the Mac to W1 into the
+tunnel.
 
-- **phase2.yml** touches worker-local `/var/lib/node-isolation-heal/maint-hold` right before each orchestrated worker reboot and removes it after uncordon — the watchdog skips its ladder while the hold is <1 h old; a stuck hold ages out.
-- **k3s-agent restart serialization**: `clusterip-heal.sh` and `node-isolation-heal.sh` both take a non-blocking `flock` on the shared `/var/lib/k3s-agent-restart/cooldown`, held check→restart→touch (mtime-only check left an interleave window — review HIGH). Lock-infra failure **fails closed** (skip cycle; wedged metrics/alerts still fire — review R2 HIGH); `NIH_SKIP_LOCK=1` is a test-harness-only bypass (macOS has no flock).
-- **VMRules**: `NodeIsolationHealActing` (warn, wedged >8 m), `NodeIsolationHealPendingReboot` (critical, `for: 1m` — fires on persistent dry-run/guard-blocked states only; the active reboot path zeroes `pending_action` before rebooting, since the textfile survives the boot under `/var/lib` and a stale 2 would double-page — review R3 MED), `NodeIsolationHealRebooted` (critical — new persistent `node_isolation_heal_last_reboot_timestamp` gauge re-emitted from the on-disk state file each cycle; the sole alert for a completed self-reboot — review R1 MED), `NodeIsolationHealGaveUp` (critical).
+Verified end to end:
 
-Rollout: ansible side lands via the 10-min git sync + 03:00 UTC drift-heal; vmrules via Flux `monitoring-configs`. Gates: shellcheck/shfmt/yamllint/ansible-lint clean, ladder tests 22/22, vmrules metric audit (new gauge's series appears after first node run; absent series = alert no-op). Codex STATIC review 3 rounds (R1 BLOCK: lock race HIGH + alert-reliability MED + stale plan LOW; R2 BLOCK: fail-open fallback HIGH + double-fire MED + plan sections LOW; R3 BLOCK: 1 MED persisted-textfile double-fire, no HIGH — fixed post-round, cap reached). Plan: `docs/plans/2026-07-10-node-isolation-heal.md`.
+| Check | Result |
+|---|---|
+| beacon, from the LAN | fingerprint matched; HTTP 200 in 47 ms |
+| Mac profile after WARP was turned off and on | the Mac, whose profile now matches ONLY through the beacon, still received the include list that carries no traffic. This proves that detection works |
+| ping, SSH:65300 and RustDesk 21116, with WARP Connected | all passed |
 
-### 2026-07-20 — RustDesk server (OSS) self-hosted, LAN remote desktop
+Codex static review: SHIP. Two findings were accepted as risks:
 
-Added `apps/rustdesk/` — RustDesk rendezvous (`hbbs`) + relay (`hbbr`) from `rustdesk/rustdesk-server:1.1.15`, 1 pod / 2 containers sharing a 100Mi `local-path` PVC (`/data` holds the ed25519 keypair + `db_v2.sqlite3`). One mixed-protocol LoadBalancer Service (21115/TCP, 21116/TCP+UDP, 21117/TCP), pod pinned to **W1** so under servicelb ETP=Local only **192.168.1.129** carries traffic (.126 advertised but blackholes — clients use .129). Deny-all-egress NetworkPolicy (server needs no upstream; verified by docker spike with `--network none`).
+| Finding | Why it was accepted |
+|---|---|
+| MED: a single replica | failure is safe. Devices probe only when their network changes, and if the beacon is down, devices just get the away profile and its tunnel routes |
+| LOW: subPath mounts do not reload when the file changes | replacing the certificate means updating its fingerprint in the dashboard at the same time, so it is a planned event |
 
-**`-k _` is not full authentication** (corrected against master source after operator flag). It makes hbbs auto-generate a keypair and enforce the matching public key **only** on the TCP `PunchHoleRequest` (connect-to-a-peer) path (`rendezvous_server.rs:682` `LICENSE_MISMATCH`) — so an outsider can't broker a session to your registered devices without it. It does **not** authenticate device registration (`RegisterPk`) nor the `PunchHoleSent`/`LocalAddr` handlers, which is the CVE-2026-30784 UDP-reflection surface. Session crypto is peer-to-peer, independent of the server key.
+CI on the push showed the pattern of the billing block: all 13 jobs failed to start, with 0 steps.
+The classifier script first misread it as a real content failure, because one job had no
+conclusion. `ci-red-classify.sh` (in dotfiles) was fixed the same day. It now treats jobs with zero
+steps as the billing block whatever their conclusion, and it exits 12 on CANCELLED. The fix took 2
+Codex rounds.
 
-- **17th app; new `rustdesk` namespace.** 2-commit bootstrap (ns+SA+NP → reconcile barrier → workload) per the 2026-07-14 Kyverno `require-networkpolicy` dry-run gotcha.
-- **Scored GO, LAN-only.** WAN scored 1/5: 21116/UDP is mandatory and can't traverse the Cloudflare Tunnel (HTTP-only), and zero-inbound-ports stands. WARP-via-tunnel chosen as the remote-access path (pending Zero Trust enrollment).
-- **CVE-2026-30784** (rustdesk-server#670, open): `hbbs` reflects UDP `PunchHoleResponse` to attacker-chosen addresses without key validation (`-k _` doesn't gate `handle_hole_sent`/`handle_local_addr`). Maintainer commit `80d3a505` (2026-07-01) only made UDP `PunchHoleRequest` unsupported (+2/−10) — it does **not** touch the `PunchHoleSent`/`LocalAddr` reflection path, so master is **not** a real fix and self-building it gains nothing. Decision: **stay on pinned 1.1.15** — primary mitigation is LAN-only reachability; deny-all-egress NP is defense-in-depth (reflection to any no-conntrack-tuple address = new egress = dropped). Renovate picks up a genuinely-fixed release when one ships.
-- **Verified:** pod 2/2 on W1; LB IP 192.168.1.129; all 3 TCP ports reachable from Mac; a real Mac RustDesk client hit hbbs over **UDP 21116** (NAT responses on 21116+21115, 2.7ms latency, `register_pk` initiated) — proving the UDP app path + registration against the self-hosted server. Peer review: Codex STATIC, plan (2 rounds) + manifests (1 round, verdict SHIP, one NIT fixed). Plan: `docs/plans/2026-07-19-rustdesk-server.md`.
+### 2026-07-23 — node_isolation_heal now acts (dry run turned off after a 13-day trial) and gains safeguards
+
+With `node_isolation_dry_run: false`, the watchdog now acts. It runs on each worker and detects when
+the worker is cut off from the control plane. It had run in dry-run mode, logging what it would do,
+since 2026-07-10 (`68f114d0`). It acts in two levels:
+
+| Level | Action | Condition |
+|---|---|---|
+| L1 | `systemctl restart k3s-agent` | the worker has been isolated for ≥6 min |
+| L2, last resort | the worker reboots itself | a different delay per worker (W1 15 min, W2 23 min); gated by the `cp_direct` check (a direct connection to the control plane's API server that skips the local load balancer: the worker reboots only if that connection fails too); at most 1 per 24 h; only if uptime is over 30 min |
+
+**Evidence from the trial:**
+
+| Measure | Result |
+|---|---|
+| length | 13 days |
+| false pending actions | zero |
+| give-ups | zero |
+
+The only
+`wedged=1` sample was a short event of <6 min on W1, during the phase2 reboot window on Saturday
+2026-07-18. The new maintenance hold suppresses that kind of event.
+
+Safeguards for turning it on, in the same commit:
+
+- **phase2.yml** creates `/var/lib/node-isolation-heal/maint-hold` on the worker just before each
+  planned worker reboot. It removes the file after the worker is uncordoned (allowed to take pods
+  again). If the hold file is <1 h old, the watchdog skips its levels. So a hold file left behind by
+  mistake expires on its own.
+- **Only one script restarts k3s-agent at a time.** `clusterip-heal.sh` and
+  `node-isolation-heal.sh` both take a non-blocking `flock` on the shared file
+  `/var/lib/k3s-agent-restart/cooldown`. Each script holds the lock from its check, through the
+  restart, until it updates the file's time. A check of the file's modification time alone left a
+  window where the two scripts could interleave (review finding, HIGH). If the lock itself fails,
+  the script **fails closed**: it skips that cycle, and the metrics and alerts for a cut-off node
+  still fire (review R2, HIGH). `NIH_SKIP_LOCK=1` skips the lock, for the test harness only,
+  because macOS has no flock.
+- **New VMRules (alert rules):**
+
+| Alert | Severity | Notes |
+|---|---|---|
+| `NodeIsolationHealActing` | warning | a node cut off (wedged) for more than 8 m |
+| `NodeIsolationHealPendingReboot` | critical, `for: 1m` | fires only on dry-run or guard-blocked states that persist. On the real reboot path, the script sets `pending_action` to zero before it reboots. The metrics text file lives under `/var/lib`, so it survives the reboot, and a stale 2 would page twice (review R3, MED) |
+| `NodeIsolationHealRebooted` | critical | the only alert for a completed self-reboot (review R1, MED). It reads a new gauge, `node_isolation_heal_last_reboot_timestamp`, which each cycle writes again from the state file on disk, so the value persists |
+| `NodeIsolationHealGaveUp` | critical | |
+
+Rollout: the Ansible part reaches the nodes through the git sync every 10 min and the drift-heal run
+at 03:00 UTC. The VMRules reach the cluster through the Flux Kustomization (the object that
+applies one folder of manifests) `monitoring-configs`. Gates:
+
+| Gate | Result |
+|---|---|
+| shellcheck, shfmt, yamllint, ansible-lint | clean |
+| tests of the levels | 22/22 |
+| VMRules metric audit | the new gauge's series appears after the first run on a node. If a series is absent, the alert that reads it does nothing |
+
+Codex ran a static review for 3 rounds:
+
+| Round | Verdict | Findings |
+|---|---|---|
+| R1 | BLOCK | lock race (HIGH), alert reliability (MED), stale plan (LOW) |
+| R2 | BLOCK | a fallback that failed open (HIGH), an alert that fired twice (MED), plan sections (LOW) |
+| R3 | BLOCK | 1 MED: the persisted text file could make an alert fire twice; no HIGH. Fixed after the round, which reached the round limit |
+
+Plan: `docs/plans/2026-07-10-node-isolation-heal.md`.
+
+### 2026-07-20 — Self-hosted RustDesk server (open source) for remote desktop on the LAN
+
+Added `apps/rustdesk/`: the RustDesk rendezvous server (`hbbs`), which helps devices find each
+other, and relay (`hbbr`), which forwards their traffic, from
+`rustdesk/rustdesk-server:1.1.15`. They run as 1 pod with 2 containers that share a 100Mi
+`local-path` PVC (persistent volume claim: a request for disk storage). `/data` holds the ed25519
+keypair and `db_v2.sqlite3`. One LoadBalancer Service carries both protocols:
+
+| Port | Protocol |
+|---|---|
+| 21115 | TCP |
+| 21116 | TCP and UDP |
+| 21117 | TCP |
+
+The pod is pinned to **W1**
+(worker-node), so under servicelb with ETP=Local only **192.168.1.129** carries traffic. The Service
+also advertises .126, but traffic sent there goes nowhere, so clients use .129. A NetworkPolicy
+(a firewall rule for pods) denies all outgoing traffic (egress), because the server does not
+need to open any outgoing connection. A docker test with `--network none` confirmed that.
+
+**`-k _` is not full authentication.** The operator questioned the first description, and it was
+corrected against the master source. The flag makes hbbs generate a keypair and require the matching
+public key **only** on the TCP `PunchHoleRequest` path, the request to connect to a peer
+(`rendezvous_server.rs:682` `LICENSE_MISMATCH`). So an outsider cannot set up a session to your
+registered devices without the key. The flag does **not** authenticate device registration
+(`RegisterPk`), nor the `PunchHoleSent` and `LocalAddr` handlers. Those handlers are the surface
+for the CVE-2026-30784 UDP reflection attack. Session encryption runs peer to peer and does not
+depend on the server key.
+
+- **The 17th app, in a new `rustdesk` namespace.** It shipped in 2 commits. The first added the
+  namespace, service account and NetworkPolicy, and then Flux had to finish reconciling it. The
+  second added the workload. The reason is the problem found on 2026-07-14 with Kyverno's
+  `require-networkpolicy` rule during Flux's dry run.
+- **The assessment scored it GO, for the LAN only.** Access from the internet (WAN) scored 1/5.
+  21116/UDP is required, and the Cloudflare Tunnel carries only HTTP, so it cannot carry that port.
+  The rule of zero open inbound ports stays. The chosen path for remote access is WARP through the
+  tunnel, which waits on enrolling devices in Zero Trust.
+- **CVE-2026-30784** (rustdesk-server#670, still open). `hbbs` sends UDP `PunchHoleResponse`
+  packets to addresses an attacker chooses, without checking a key. `-k _` does not guard
+  `handle_hole_sent` or `handle_local_addr`. The maintainer's commit `80d3a505` (2026-07-01) only
+  made UDP `PunchHoleRequest` unsupported (+2/−10). It does **not** touch the `PunchHoleSent` and
+  `LocalAddr` reflection path. So master is **not** a real fix, and building it from source gains
+  nothing. Decision: **stay on the pinned 1.1.15.** The main defence is that only the LAN can reach
+  the server. The NetworkPolicy that denies all egress is a second layer: a reflected packet to an
+  address with no existing connection-tracking entry is new egress, so the policy drops it.
+  Renovate will offer a release that really fixes the bug when one ships.
+- **Verified:**
+
+| Check | Result |
+|---|---|
+| pod | 2/2 on W1 |
+| load balancer IP | 192.168.1.129 |
+| all 3 TCP ports, from the Mac | reachable |
+| a real RustDesk client on the Mac | reached hbbs over **UDP 21116** (NAT responses on 21116 and 21115, latency 2.7ms, `register_pk` started). This proves the UDP app path and registration against the self-hosted server |
+
+Peer review: Codex static review of the plan (2 rounds) and of the manifests (1 round, verdict SHIP,
+one NIT fixed). Plan: `docs/plans/2026-07-19-rustdesk-server.md`.
 
 ### 2026-07-18 — immich-vm modprobe cascade: kernel-modules-hook mislabelled AUR, two weeks of silently-failed patching
 
