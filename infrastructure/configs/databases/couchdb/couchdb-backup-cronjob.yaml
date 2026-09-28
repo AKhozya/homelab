@@ -265,10 +265,6 @@ spec:
 
                   rm -rf "$TIMESTAMP"
 
-                  # Keep only last 30 days of backups
-                  find /backup -name "couchdb_*.tar.gz" -mtime +30 -delete
-                  find /backup -name "couchdb_*.tar.gz.sha256" -mtime +30 -delete
-
                   echo ""
                   echo "=== Backup Complete ==="
                   echo "Total time: $(elapsed)"

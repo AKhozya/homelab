@@ -12,14 +12,19 @@ spec:
   concurrencyPolicy: Forbid  # Don't run concurrent backups
   jobTemplate:
     spec:
-      backoffLimit: 2
+      # No retry. Each attempt writes a new /backup/<timestamp> dir, and the usual failure
+      # (a PVC missing from worker-node) repeats on every attempt, so retries only add
+      # generations that backup-replication then has to sync.
+      backoffLimit: 0
       ttlSecondsAfterFinished: 86400  # Keep job for 24h for debugging
       template:
         metadata:
           labels:
             app: pvc-backup
         spec:
-          restartPolicy: OnFailure
+          serviceAccountName: pvc-backup
+          automountServiceAccountToken: false
+          restartPolicy: Never
           priorityClassName: homelab-batch
           securityContext:
             runAsUser: 0  # Need root to access all PVC files
@@ -256,12 +261,10 @@ spec:
                   - Failed:     $failed_count
                   EOF
 
-                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                  echo "🧹 Cleanup: Removing backups older than 30 days"
-                  echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-                  # Keep only last 30 days (matches NAS retention policy 2026-05-22)
-                  find /backup -maxdepth 1 -type d -name "20*" -mtime +30 -exec echo "Deleting: {}" \; -exec rm -rf {} \;
+                  # No local age sweep. backup-replication deletes this dir's sets each night
+                  # the PVC type passes validation. A set older than 30 days here means that
+                  # has not happened for 30 nights, so the NAS may not hold it. The NAS keeps
+                  # 30 days (backup-replication Step 4b).
 
                   echo ""
                   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

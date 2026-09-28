@@ -4,13 +4,16 @@ metadata:
   name: immich-backup
   # backup-replication ns (NOT kube-system): the library lives on the NAS, so this
   # job pulls it over the NAS rsync daemon. Running here reuses the existing
-  # nas-rsync-credentials secret + the ns-wide egress NetworkPolicy
-  # (podSelector:{}, :50555 allowed) + known-hosts — no duplicated secret, no new NP.
+  # nas-rsync-credentials secret, the backup-replication ServiceAccount and the ns-wide
+  # egress NetworkPolicy (podSelector:{}, :50555 allowed) — no duplicated secret, no new NP.
   namespace: backup-replication
 spec:
-  schedule: "0 3 * * 0"  # Sunday 03:00 UTC — 30min before backup-replication (03:30).
-                         # backup-replication Step 4b enforces pool keep-2 for immich/,
-                         # so this job pushes (no --delete) and lets that sweep prune.
+  # Sunday 03:00 UTC. backup-replication Step 4b enforces pool keep-2 for immich/, so this
+  # job pushes (no --delete) and lets that sweep prune. The run can outlast the 30 min
+  # before backup-replication's 03:30 start. Only the namespace ResourceQuota keeps the two
+  # apart: limits.cpu is 2 and this pod's limit is 2000m, so backup-replication's pod cannot
+  # start until this one ends. If either limit changes, re-check that coupling.
+  schedule: "0 3 * * 0"
   timeZone: "UTC"
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 3
@@ -26,6 +29,8 @@ spec:
           labels:
             app: immich-backup
         spec:
+          serviceAccountName: backup-replication
+          automountServiceAccountToken: false
           restartPolicy: OnFailure
           priorityClassName: homelab-batch
           # Producer runs on W2: has disk to stage the 61G library + the NAS rsync creds.
@@ -82,10 +87,13 @@ spec:
                   # is the proven idiom from backup-replication — a partial pool dir must not
                   # pollute the pool keep-2 window.
                   cleanup_pool_partial() {
+                    local rc=0
                     mkdir -p /tmp/empty
                     RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 -r --delete \
                       --include="/${TIMESTAMP}/***" --exclude='*' \
-                      /tmp/empty/ "${POOL}/" 2>&1 | tail -2 || echo "(pool cleanup refused — prune manually)"
+                      /tmp/empty/ "${POOL}/" > /tmp/cleanup.log 2>&1 || rc=$?
+                    tail -2 /tmp/cleanup.log
+                    [ "$rc" -eq 0 ] || echo "(pool cleanup refused, rsync exit $rc — prune manually)"
                   }
 
                   # 1) Pull the LIVE NAS library to W2 staging (read-only source; --delete
@@ -139,8 +147,10 @@ spec:
 
                   # 7) Verify the pushed copy is actually listed on the pool (else clean + fail).
                   echo "=== Verify NAS pool copy ==="
+                  # Exact name match: a substring match also accepts the .sha256 line.
                   if RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 --list-only \
-                       "${POOL}/${TIMESTAMP}/" 2>/dev/null | grep -q immich-library.tar; then
+                       "${POOL}/${TIMESTAMP}/" 2>/dev/null \
+                       | awk '$NF == "immich-library.tar" { found = 1 } END { exit !found }'; then
                     echo "OK: tar present on NAS pool"
                   else
                     echo "ERROR: tar missing on NAS pool after push — removing partial pool dir." >&2
