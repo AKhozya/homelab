@@ -40,7 +40,7 @@ full. For SP4–SP6 it records the decisions already made and the spikes still t
 |---|---|---|
 | SP1 | Move node-maintenance tree + loose scripts out of `docs/`. **Done** 2026-09-26: `7a307ab4`, `8a146a09` | — |
 | SP2 | Snapshot skills, `_shared/` helpers and sanitized rules into the repo; monthly re-sync step. **Done** 2026-09-27: `11a9ef29`, `a1ee146d`, `d61d9e12` | SP1 (skills cite the new path) |
-| SP3 | Docs pass: staleness, duplication, `avoid-ai-writing`, README + mermaid, CODEMAPS rename | SP1, SP2 |
+| SP3 | Docs pass: staleness, duplication, `avoid-ai-writing`, README + mermaid, CODEMAPS rename. **Done** 2026-09-28: C0 `72b39c6d`, C1 `12025040`, C2 `3d6b6592`, C3 `54a00f4f`..`f987082d`, C4a `6da12196`, C4b in 24 batches `97587af2`..`f0e42940` | SP1, SP2 |
 | SP4 | Pre-public gate: history secret scan, `claude.yml` trigger lockdown, MIT `LICENSE` | SP3 |
 | SP5 | Ultrareview (`/code-review ultra`, operator-triggered); fix every finding that blocks publishing | SP4 |
 | SP6 | Visibility flip (operator action) + branch-protection decision | SP5 |
