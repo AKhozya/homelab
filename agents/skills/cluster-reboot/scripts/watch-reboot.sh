@@ -4,7 +4,7 @@
 # Run this DURING / AFTER a user-triggered node-maintenance reboot (phase1 → phase2).
 # It does NOT trigger or remediate anything — read-only verdicts + remediation one-liners only.
 #
-# What it watches each iteration, for all 3 nodes (CP + 2 workers):
+# What it watches each iteration, for all 4 nodes (CP + 3 workers, immich-vm included):
 #   1. Node.Ready    — kubectl Ready condition (kubelet-level health).
 #   2. ClusterIP DNAT — verify-clusterip.sh <host> (worker kube-proxy wedge surface, 10.43.0.1:443).
 #   3. CP loopback LB — gmk-k3s-control-plane ONLY: 127.0.0.1:6443/healthz (CP-only surface that
@@ -21,7 +21,7 @@
 # the entire reason this skill exists (2026-05-24 / 2026-05-25 / 2026-05-30 incidents). On such a
 # state we print the sanctioned remediation; we never run it (no sudo).
 #
-# Exit 0 ONLY when: all 3 nodes Ready + ClusterIP-healthy, CP loopback healthy, phase2-pending absent,
+# Exit 0 ONLY when: all 4 nodes Ready + ClusterIP-healthy, CP loopback healthy, phase2-pending absent,
 # the package upgrade VERIFIED clean on every reporting node (unverifiable counts as failure — exit-0
 # asserts "packages upgraded"), AND the phase1/phase2 reboot run is idle (NOT
 # mid-rollout). The phase-run check is essential because
@@ -41,7 +41,7 @@ VERIFY="$SCRIPT_DIR/verify-clusterip.sh"
 POD_HEALTH="$HOME/.agents/skills/_shared/pod-health.sh"
 
 CP="gmk-k3s-control-plane"
-WORKERS=("worker-node" "worker-node-2")
+WORKERS=("worker-node" "worker-node-2" "immich-vm")
 ALL_NODES=("$CP" "${WORKERS[@]}")
 
 ONCE=0
@@ -82,10 +82,11 @@ node_ready() {
 cp_loopback_ok() {
   local code rc=0
   # Single-quoted: $code / $(...) expand on the REMOTE CP, not here.
-  # `|| code=000` avoids doubling curl's own "000" timeout output.
+  # `|| true`, not `|| echo 000`: curl already prints "000" on failure, and the exit stays 0 so
+  # that only an ssh failure sets rc.
   # shellcheck disable=SC2016
   code="$(ssh -o ConnectTimeout=5 "$CP" \
-    'curl -sS -m5 -k -o /dev/null -w "%{http_code}" https://127.0.0.1:6443/healthz 2>/dev/null || echo 000' \
+    'curl -sS -m5 -k -o /dev/null -w "%{http_code}" https://127.0.0.1:6443/healthz 2>/dev/null || true' \
     2>/dev/null)" || rc=$?
   if [ "$rc" -ne 0 ]; then
     echo "WEDGED-OR-UNREACHABLE (ssh rc=$rc)"
@@ -329,11 +330,11 @@ snapshot() {
     # Ready-but-wedged worker → sanctioned remediation (we never run it).
     if [ "$ready" = "True" ] && [ "$cip_rc" -eq 1 ]; then
       case "$h" in
-      worker-node | worker-node-2)
+      worker-node | worker-node-2 | immich-vm)
         if [ "$phase_run" = "running" ]; then
           echo "    (reboot run ACTIVE — do NOT restart k3s-agent manually: phase2 gates each worker on its reboot, and transient ClusterIP flaps during post-reboot churn settle as the run finishes. Wait for completion.)"
         else
-          echo "    REMEDIATE: ssh -p 65300 -t akhozya@$h \"sudo systemctl restart k3s-agent\""
+          echo "    REMEDIATE: ssh -t $h \"sudo systemctl restart k3s-agent\""
           echo "    (multi-node wedge → use sanctioned playbook rolling-restart-k3s.yml instead)"
         fi
         ;;
@@ -370,7 +371,7 @@ snapshot() {
       if [ "$phase_run" = "running" ]; then
         echo "    (reboot run ACTIVE — do NOT reboot the CP manually; let phase2 finish, then re-check.)"
       else
-        echo "    REMEDIATE: ssh -p 65300 -t akhozya@$CP \"sudo reboot\""
+        echo "    REMEDIATE: ssh -t $CP \"sudo reboot\""
         echo "    (CP loopback wedge → reboot the CP; do NOT 'restart k3s' on the CP — it HANGS)"
       fi
     fi
@@ -391,7 +392,7 @@ snapshot() {
     healthy=0
     echo "    WEDGE SYMPTOM: 0 ready CoreDNS endpoints — pod-network/DNS down. host-netns ClusterIP"
     echo "    probes are BLIND to this (CNI-HOSTPORT-MASQ masquerade wedge). If a worker is"
-    echo "    Ready-but-wedged: ssh -p 65300 -t akhozya@<worker> \"sudo systemctl restart k3s-agent\""
+    echo "    Ready-but-wedged: ssh -t <worker> \"sudo systemctl restart k3s-agent\"  (an ~/.ssh/config Host; it carries user + port)"
   fi
 
   # Did the packages actually move? Gates the verdict — an unpatched node is a failed run even

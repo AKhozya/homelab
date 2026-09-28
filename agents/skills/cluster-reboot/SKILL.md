@@ -136,7 +136,7 @@ bash ~/.agents/skills/cluster-reboot/scripts/watch-reboot.sh --once
 bash ~/.agents/skills/cluster-reboot/scripts/watch-reboot.sh --interval 30 --max-iter 60
 ```
 
-Each iteration reports, for all 3 nodes: `Node.Ready`, `verify-clusterip.sh` verdict, the CP loopback
+Each iteration reports, for all 4 nodes: `Node.Ready`, `verify-clusterip.sh` verdict, the CP loopback
 probe (CP only), the `phase2-pending` interlock, the per-node `node_pkg_upgrade_success` verdict, and
 a warn-only `pod-health.sh --count` baseline. On a Ready-but-wedged node it prints the sanctioned
 remediation one-liner (it never runs it — no sudo).
@@ -174,7 +174,7 @@ remediation one-liner (it never runs it — no sudo).
 >   `rollout restart` converged it. Mechanism not established (`ProgressDeadlineExceeded` reports
 >   stalled progress; it does not by itself halt scale-down) — treat as a symptom + remedy, not a rule.
 
-Exit **0** only when ALL gates pass: all 3 nodes Ready + ClusterIP-healthy (the CP ClusterIP verdict
+Exit **0** only when ALL gates pass: all 4 nodes Ready + ClusterIP-healthy (the CP ClusterIP verdict
 is advisory), the CP loopback healthy, kube-dns ready endpoints ≥ 1, the package upgrade verified
 clean on every reporting node (`UNVERIFIED` counts as failure), the phase1/phase2 run idle, and
 `phase2-pending` absent. Otherwise non-zero (keep

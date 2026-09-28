@@ -6,9 +6,9 @@ Loaded on demand from `cluster-reboot/SKILL.md`. Deep diagnostic mechanics for t
 
 | Surface | Where | Probe | Wedged → fix |
 |---|---|---|---|
-| **Worker kube-proxy ClusterIP DNAT** (`10.43.0.1:443`) | each worker | `verify-clusterip.sh <host>` (exit 0 ok / 1 wedged / 2 bad-arg / 3 unreachable) | `ssh -p 65300 -t akhozya@<worker> "sudo systemctl restart k3s-agent"` (multi-node → use `rolling-restart-k3s.yml`) |
+| **Worker kube-proxy ClusterIP DNAT** (`10.43.0.1:443`) | each worker | `verify-clusterip.sh <host>` (exit 0 ok / 1 wedged / 2 bad-arg / 3 unreachable) | `ssh -t <worker> "sudo systemctl restart k3s-agent"`, where `<worker>` is an `~/.ssh/config` Host that carries user + port (multi-node → use `rolling-restart-k3s.yml`) |
 | **CP k3s loopback loadbalancer** (`127.0.0.1:6443`) | CP only | `ssh gmk-k3s-control-plane 'curl -sS -m5 -k -o /dev/null -w %{http_code} https://127.0.0.1:6443/healthz'` → 401/200 = ok | `ssh -p 65300 -t akhozya@gmk-k3s-control-plane "sudo reboot"`. **`restart k3s` CAN hang here under CP-apiserver-unstable conditions (2026-05, gotcha_k3s_reboot_ordering) — so reboot for THIS surface; it returns cleanly when the CP is otherwise healthy (2026-06-29), hence `timeout`-guard it if ever scripted.** |
-| **CNI portmap masquerade** (`CNI-HOSTPORT-MASQ` jump in nat POSTROUTING) | each worker | ROOT only: `iptables -t nat -S POSTROUTING \| grep -q -- '-j CNI-HOSTPORT-MASQ'`. NO host-netns probe sees it. No-sudo SYMPTOM: `watch-reboot.sh` kube-dns ready-endpoint count = 0. | `ssh -p 65300 -t akhozya@<worker> "sudo systemctl restart k3s-agent"` (rebuilds CNI nat chains). Auto-healed: phase2 PLAY 1 nat-jump gate + ufw-heal phase-G. |
+| **CNI portmap masquerade** (`CNI-HOSTPORT-MASQ` jump in nat POSTROUTING) | each worker | ROOT only: `iptables -t nat -S POSTROUTING \| grep -q -- '-j CNI-HOSTPORT-MASQ'`. NO host-netns probe sees it. No-sudo SYMPTOM: `watch-reboot.sh` kube-dns ready-endpoint count = 0. | `ssh -t <worker> "sudo systemctl restart k3s-agent"` (rebuilds CNI nat chains). Auto-healed: phase2 PLAY 1 nat-jump gate + ufw-heal phase-G. |
 | **CP pod-netns ClusterIP DNAT** (`10.43.0.1`/`10.43.0.10` from a CP **pod**) | CP only | host-netns probe is BLIND (reads 000 even healthy — so the `watch-reboot.sh`/`verify-clusterip.sh` CP verdict is advisory). REAL probe = `nsenter -t <coredns-pid> -n curl -sk https://10.43.0.1:443/healthz` → 401/200 ok, 000 wedged (what `clusterip_heal_cp`'s `clusterip-probe-cp.sh` does). | `sudo systemctl restart k3s` (reprograms kube-proxy DNAT, ~30-60s; CAN hang under apiserver-unstable → `timeout`-guard). **Auto-healed: `clusterip_heal_cp` watchdog** (CP-only, OnBoot 2min + every 3min, `timeout 120 systemctl restart k3s`, cooldown 300s + cap 3/30min → `node_clusterip_heal_giveup` alert). Breaks CP-PINNED pods (uptime-kuma `EAI_AGAIN`, 2026-06-29) while host + workers fine. **INTERMITTENT** — hit the cold/maintenance reboot, not a warm plain reboot. |
 
 **The 2026-05-30 wedge (3rd surface):** UFW boots disabled → `ufw-heal` runs `flush-all` → `iptables -t nat -F POSTROUTING` deletes `-j CNI-HOSTPORT-MASQ`. flannel + kube-proxy re-add their jumps (daemons); **portmap does NOT** (k8s#93091) → pod→ClusterIP/DNS dead while **`verify-clusterip.sh` reads green** (host OUTPUT→10.43.0.1 + `:10256` both pass). Host-netns probes are structurally blind to it; only a root nat-jump check (phase2 gate) or the DNS-down symptom (watch-reboot kube-dns endpoints) catches it.
@@ -73,13 +73,17 @@ whole proof. Otherwise the stale 0 keeps `NodePackageUpgradeFailed` firing until
 
 ## Post-reboot debris that does NOT self-drain (2026-08-01)
 
-- **ReplicaSet-owned `Succeeded` pods** — one husk per evicted pod. phase2's GC sweeps only `Failed`
-  pods in infra namespaces, so these persist and keep `DeploymentReplicasMismatch` /
-  `PodRunningNotReady` / `*PodNotRunning` firing. 14 husks → 4 alerts, 2 critical. List then delete:
-  ```bash
-  kubectl get pods -A -o json | jq -r '.items[]|select(.status.phase=="Succeeded")|select(.metadata.ownerReferences[0].kind=="ReplicaSet")|"\(.metadata.namespace) \(.metadata.name)"'
-  ```
-  Leave `Job`-owned `Succeeded` pods — normal CronJob completions.
+- **Controller-owned terminal pods** — a reboot leaves one terminal pod per evicted pod. They keep
+  `DeploymentReplicasMismatch` / `PodRunningNotReady` / `*PodNotRunning` firing (14 terminal pods →
+  4 alerts, 2 critical). phase2 PLAY 2 deletes them since 2026-08-08:
+
+  | Scope | Phases | Owners |
+  |---|---|---|
+  | cluster-wide | `Failed`, `Succeeded` | ReplicaSet, StatefulSet, DaemonSet |
+
+  If a run never reached PLAY 2, delete the terminal pods manually with the command in `SKILL.md` § Monitoring with
+  watch-reboot.sh, bullet "Controller-owned terminal pods". Leave `Job`-owned `Succeeded` pods —
+  normal CronJob completions.
 - **App that lost its DB across the roll** — n8n vs CNPG, 2026-08-01: readiness 503 for 33min after
   `Postgres pool client error: Connection terminated unexpectedly` / `server shutting down`, while
   Postgres itself was healthy again. Deployment read `Available=True` but `Progressing=False /

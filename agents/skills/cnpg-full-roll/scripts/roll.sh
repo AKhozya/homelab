@@ -35,7 +35,8 @@ wait_cluster_healthy() {
     local ready instances
     ready=$(kubectl get cluster -n "$NS" "$CLUSTER" -o jsonpath='{.status.readyInstances}' 2>/dev/null || echo "0")
     instances=$(kubectl get cluster -n "$NS" "$CLUSTER" -o jsonpath='{.status.instances}' 2>/dev/null || echo "0")
-    if [ "$ready" = "$instances" ] && [ "$ready" != "0" ]; then
+    # -n: if both status fields are absent, both queries print "" and the strings compare equal.
+    if [ -n "$ready" ] && [ "$ready" = "$instances" ] && [ "$ready" != "0" ]; then
       echo "OK: cluster healthy $ready/$instances"
       return
     fi

@@ -26,9 +26,16 @@ or schedule.
 - **Runs on the CP as root** (CP-local `k3s token rotate` + `/var/lib/rancher/k3s/server/token` +
   node-maintenance SSH creds to reach agents). **Agents cannot do this** (no CP sudo) — it is an
   operator step.
-- **Non-leaking by construction.** The script generates the new token locally, never prints it,
-  reaches agents by embedding it in an ssh-stdin heredoc (never argv/`ps`), and writes env files with
-  the `printf` builtin at `0600`. Do NOT rotate by hand in a way that echoes the token.
+- **Non-leaking by construction.** `k3s token rotate` generates the new token straight into the
+  token file (no `--new-token` in argv). The script never exposes it:
+
+  | Path | Safeguard |
+  |---|---|
+  | output | the script never prints the token |
+  | transport to agents | the script sends it in an ssh-stdin heredoc, never argv/`ps` |
+  | env files | the `printf` builtin writes them at `0600` |
+
+  Do NOT rotate by hand in a way that echoes the token.
 
 ## Weigh it first
 
@@ -54,10 +61,14 @@ sudo /usr/local/sbin/rotate-k3s-server-token.sh --apply
 
 What `--apply` does: refuses on a sick cluster → backs up the token/env → `k3s token rotate` to a
 freshly generated token → updates the CP token source + restarts k3s + gates on `/readyz` → then, for
-each agent **serially**, rewrites `K3S_TOKEN` + restarts k3s-agent + gates on the node returning
-Ready. Exit `0` = fully rotated + healthy; `11` = CP unhealthy after restart (fix-forward, the new
-token is in `/var/lib/rancher/k3s/server/token` — investigate `journalctl -u k3s`); `12` = an agent
-didn't confirm Ready (it has the correct new token; investigate that node's `k3s-agent`).
+each agent **serially**, rewrites `K3S_TOKEN` + restarts k3s-agent + gates on a fresh kubelet
+heartbeat (the node Lease `renewTime` advances past the restart; the Ready condition can be stale).
+
+| Exit | Meaning | Next step |
+|---|---|---|
+| `0` | fully rotated + healthy | none |
+| `11` | CP unhealthy after restart; the new token is in `/var/lib/rancher/k3s/server/token` | fix forward: `journalctl -u k3s` |
+| `12` | an agent reports no fresh heartbeat; it has the correct new token | investigate that node's `k3s-agent` |
 
 ## Gotchas
 

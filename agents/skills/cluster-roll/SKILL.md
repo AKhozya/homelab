@@ -41,7 +41,7 @@ scoped to exactly that tier's objects → ~20s settle → re-run `verify-cluster
 | 2 | `operators` | cnpg-operator, redis-operator, ps-operator (percona); metrics-server, local-path-provisioner; kyverno background/cleanup/reports; victoria-metrics-operator, kube-prometheus-stack operator; flux source/kustomize/helm/notification controllers | Operators only, no data pods. **Flux controllers roll LAST** within the tier (self-disruption risk). |
 | 3 | `platform` | cert-manager (+ cainjector, webhook) → traefik → cloudflared → kyverno **admission**-controller → authentik server+worker → blocky | Ordered serial chain; PDBs allow=1 so slower. Kyverno admission lives HERE (background/cleanup/reports are tier 2). |
 | 4 | `dnscache` | main-postgres-rw-pooler (PgBouncer), mysql-exporter; vmagent, vmalert, vmsingle, grafana, kube-state-metrics, alertmanager (STS); loki-gateway, alloy (DS), loki-canary (DS) | Restart **after** DNS confirmed healthy — clears Go-resolver/PgBouncer cached DNS failures. The PG pooler belongs ONLY here. |
-| 5 | `apps` | immich (server+ML), paperless-ngx, n8n, mealie, homepage, homehub, audiobookshelf, uptime-kuma, pricebuddy, stirling-pdf, linkwarden, claude-telegram, home-assistant | Stateless app deployments. |
+| 5 | `apps` | immich (server+ML), paperless-ngx, n8n, mealie, homepage, homehub, audiobookshelf, uptime-kuma, pricebuddy, stirling-pdf, linkwarden, claude-telegram, home-assistant, rustdesk (rustdesk + warp-beacon) | Stateless app deployments. |
 
 ### SKIP (never blanket-roll — recycle via operator/CRD/Helm)
 Data-bearing STS and node-infra DaemonSets:
@@ -52,16 +52,20 @@ Data-bearing STS and node-infra DaemonSets:
 - **CouchDB** `couchdb-couchdb` (Helm, 2 replicas) → recycle via Helm/rollout with quorum care.
 - **Meilisearch** `meilisearch` (single replica, no PDB) and **Loki** STS `loki` (Helm) → recycle
   by hand / via Helm with care.
-- **DaemonSets** `svclb-*` (k3s svclb) and `node-exporter` → node infra, managed by k3s/operator.
+- **DaemonSets** `svclb-*` (k3s svclb), `node-exporter` and `intel-gpu-plugin` → node infra, managed by k3s/operator.
 
 `--dry-run` cross-checks every live workload → tier-or-SKIP with a zero-orphan assert. If it ever
 reports an orphan, fix the map before any live roll → `reference-mechanics.md` § Why ordered, not blanket.
 
 ## Rules (hard)
-- **Preflight aborts the whole roll** if either fails:
-  1. coredns-ha DaemonSet `numberReady` < `status.desiredNumberScheduled` → ABORT (Flux-managed `infrastructure/coredns/`; no replicas knob).
-  2. Any of the 4 nodes' `verify-clusterip.sh` exits ≠ 0 (wedged/unreachable) → ABORT, naming the node.
-  Baseline `pod-health.sh --count` is printed (warn-only, never aborts).
+- **Preflight aborts the whole roll** if any check fails:
+
+  | Check | Aborts when |
+  |---|---|
+  | coredns-ha DaemonSet (Flux-managed `infrastructure/coredns/`; no replicas knob) | `numberReady` < `status.desiredNumberScheduled` |
+  | `verify-clusterip.sh` on each of the 4 nodes | any exit ≠ 0 (wedged/unreachable); names the node |
+  | orphan cross-check | a live workload is in no tier and not in SKIP; names it |
+  | `pod-health.sh --count` baseline | never; preflight prints the count |
 - **CoreDNS rolls in place, never scaled** out-of-band (see tier 1 — pod-per-node IS the scaling).
 - **Never blanket-roll the SKIP set.** Data STS recycle through their operator/CRD/Helm.
 - **Authentik depends on PG pooler (tier 4) + DNS (tier 1).** Rolled in tier 3 after DNS is healthy;

@@ -43,7 +43,7 @@ is forbidden). Validated 2026-06-05 (v1.35.3 → v1.36.1, 3 nodes then): zero po
 
 4. **Stage** (download + sha256 verify + per-node `install -m755`, old binary kept at `k3s.prev`):
    ```bash
-   bash ~/.agents/skills/k3s-upgrade/scripts/stage-k3s.sh --dry-run   # checksum sanity
+   K3S_VERSION=v1.XX.Y+k3s1 bash ~/.agents/skills/k3s-upgrade/scripts/stage-k3s.sh --dry-run   # checksum sanity
    K3S_VERSION=v1.XX.Y+k3s1 bash ~/.agents/skills/k3s-upgrade/scripts/stage-k3s.sh
    ```
    Staging is inert — running services keep the old in-memory binary.

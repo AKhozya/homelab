@@ -6,7 +6,7 @@ Loaded on demand from `cluster-roll/SKILL.md`. SKILL.md holds the always-needed 
 
 Replaces the dangerous blanket `kubectl rollout restart -A` primitive that cascaded the cluster on 2026-05-24 (an incomplete map silently skipped workloads and restarted everything at once, taking DNS/edge down together).
 
-The `--dry-run` enumerates **every** live deploy/sts/ds and asserts each maps to a tier or SKIP with a ZERO-orphan cross-check (currently 61 workloads, 0 orphans) — re-run `--dry-run` and fix the map if it ever reports an orphan before any live roll.
+The `--dry-run` enumerates **every** live deploy/sts/ds and asserts each maps to a tier or SKIP with a ZERO-orphan cross-check. Preflight runs the same check, so a live roll aborts on an orphan. Fix the map, then re-run.
 
 ## Flux-stale-pod → delete-pod fallback (Deployments only)
 

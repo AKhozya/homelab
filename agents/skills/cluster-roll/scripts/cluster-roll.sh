@@ -122,6 +122,8 @@ TIER_APPS=(
   "linkwarden:deploy/linkwarden"
   "claude-telegram:deploy/claude-telegram"
   "home-assistant:deploy/home-assistant"
+  "rustdesk:deploy/rustdesk"
+  "rustdesk:deploy/warp-beacon"
 )
 
 # SKIP — never blanket-roll. Data-bearing STS recycle via operator/CRD; DaemonSets are node infra.
@@ -137,6 +139,9 @@ SKIP=(
   "loki:sts/loki                             # Loki (Helm STS); recycle via Helm/rollout w/ care"
   "kube-system:ds/svclb-traefik-7834697c     # k3s svclb DaemonSet (node infra); managed by k3s"
   "kube-system:ds/svclb-blocky-dns-440d309d  # k3s svclb DaemonSet (node infra); managed by k3s"
+  "kube-system:ds/svclb-rustdesk-710ac486    # k3s svclb DaemonSet (node infra); managed by k3s"
+  "kube-system:ds/svclb-warp-beacon-4e398a2a # k3s svclb DaemonSet (node infra); managed by k3s"
+  "kube-system:ds/intel-gpu-plugin           # GPU device plugin DaemonSet (node infra)"
   "monitoring:ds/kube-prometheus-stack-prometheus-node-exporter  # node-exporter DaemonSet (node infra)"
 )
 
@@ -301,6 +306,7 @@ preflight() {
   fi
   echo "  coredns-ha DaemonSet ready=$replicas/$desired (OK)"
   verify_all_nodes "preflight"
+  check_orphans || die "workload map incomplete; add each orphan to a tier or SKIP, then re-run."
   echo "  Baseline unready pods (warn-only):"
   "$POD_HEALTH" --count | sed 's/^/    /' || true
   echo "── Preflight OK ──"
@@ -309,33 +315,53 @@ preflight() {
 
 # ── Dry-run: print the full ordered plan + cross-check ZERO orphans ─────────────────────────────
 dry_run() {
-  local arr_name entry tname mapped=()
+  local arr_name entry tname
   echo "###############  CLUSTER-ROLL DRY-RUN (plan only — nothing executed)  ###############"
   echo
-  for tname in dns operators platform dnscache apps; do
+  for tname in "${ALL_TIERS[@]}"; do
     arr_name="$(tier_array_name "$tname")"
     # shellcheck disable=SC1087
     declare -n entries="$arr_name"
     echo "════ TIER: $tname (${#entries[@]} workloads) ════"
     for entry in "${entries[@]}"; do
       echo "    $entry"
-      mapped+=("$entry")
     done
     echo
   done
   echo "════ SKIP (recycle via operator/CRD/Helm; never blanket-roll) ════"
   for entry in "${SKIP[@]}"; do
     echo "    $entry"
-    mapped+=("${entry%% *}") # strip trailing "  # why"
   done
   echo
+  check_orphans || return 1
+  echo
+  echo "###############  END DRY-RUN  ###############"
+}
 
-  # Orphan cross-check: every live deploy/sts/ds must appear in a tier or SKIP.
+# Every live deploy/sts/ds must appear in a tier or SKIP. Preflight runs it too, because a live
+# roll never touches an unmapped workload and says nothing about it.
+check_orphans() {
+  local arr_name entry tname mapped=()
+  for tname in "${ALL_TIERS[@]}"; do
+    arr_name="$(tier_array_name "$tname")"
+    # shellcheck disable=SC1087
+    declare -n entries="$arr_name"
+    mapped+=("${entries[@]}")
+  done
+  for entry in "${SKIP[@]}"; do
+    mapped+=("${entry%% *}") # strip trailing "  # why"
+  done
+
   echo "════ ORPHAN CROSS-CHECK (live deploy/sts/ds vs map) ════"
   local live orphans=0 key kind ns name
   # Normalize live workloads into "<ns>:<kind>/<name>" with kind ∈ deploy|sts|ds.
+  # An empty list cannot validate the map: kubectl failed, or the context points at the wrong cluster.
   live="$(kubectl get deploy,sts,ds -A \
-    -o jsonpath='{range .items[*]}{.metadata.namespace}{":"}{.kind}{"/"}{.metadata.name}{"\n"}{end}' 2>/dev/null)"
+    -o jsonpath='{range .items[*]}{.metadata.namespace}{":"}{.kind}{"/"}{.metadata.name}{"\n"}{end}')" || live=""
+  if [ -z "$live" ]; then
+    echo "    ✘ kubectl listed no workloads — cannot check the map."
+    return 1
+  fi
   local normalized=()
   while IFS= read -r key; do
     [ -n "$key" ] || continue
@@ -371,8 +397,6 @@ dry_run() {
     echo "    ✘ $orphans orphan workload(s) — FIX THE MAP before any live roll."
     return 1
   fi
-  echo
-  echo "###############  END DRY-RUN  ###############"
 }
 
 # ── Arg parsing / main ──────────────────────────────────────────────────────────────────────────

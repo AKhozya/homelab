@@ -4,7 +4,7 @@
 # k3s/k3s-agent restart (sanctioned: node-maintenance-rolling-restart.service) or reboot.
 #
 # Usage:
-#   stage-k3s.sh --dry-run            # download + checksum only, no node changes
+#   K3S_VERSION=v1.36.1+k3s1 stage-k3s.sh --dry-run   # download + checksum only, no node changes
 #   K3S_VERSION=v1.36.1+k3s1 stage-k3s.sh
 #
 # Sudo: fetched once from 1Password (op://Personal/sudo-homelab/password), piped to sudo -S
@@ -62,13 +62,26 @@ fi
 
 for node in "${NODES[@]}"; do
   echo "-- staging on $node --"
-  scp -P "$SSH_PORT" -q "$workdir/k3s" "$node:/tmp/k3s-${K3S_VERSION}"
-  # Single sudo attempt: install new binary alongside backup of the old one.
+  # A private dir from mktemp -d (mode 0700), not a fixed /tmp name that another local user could
+  # plant for root to install. Validate the name, because root later removes files inside it.
+  rdir="$(ssh -p "$SSH_PORT" "$node" 'mktemp -d')"
+  if ! [[ $rdir =~ ^/tmp/tmp\.[A-Za-z0-9]{10}$ ]]; then
+    echo "unexpected remote temp dir '$rdir' on $node — STOP." >&2
+    exit 1
+  fi
+  scp -P "$SSH_PORT" -q "$workdir/k3s" "$node:$rdir/k3s"
+  # Single sudo attempt. Root re-checks the sha256 right before install, so the checksum covers
+  # the file it installs, not only the Mac copy. If the live binary differs from the new one, copy
+  # it to k3s.prev; a re-run then keeps the real previous version for rollback.
   printf '%s\n' "$sudo_pw" | ssh -p "$SSH_PORT" "$node" "sudo -S -p '' bash -c '
     set -euo pipefail
-    cp -f /usr/local/bin/k3s /usr/local/bin/k3s.prev
-    install -m755 /tmp/k3s-${K3S_VERSION} /usr/local/bin/k3s
-    rm -f /tmp/k3s-${K3S_VERSION}
+    echo \"${actual}  ${rdir}/k3s\" | sha256sum -c --quiet -
+    if ! echo \"${actual}  /usr/local/bin/k3s\" | sha256sum -c --status -; then
+      cp -f /usr/local/bin/k3s /usr/local/bin/k3s.prev
+    fi
+    install -m755 ${rdir}/k3s /usr/local/bin/k3s
+    rm -f ${rdir}/k3s
+    rmdir ${rdir}
     echo \"   staged: \$(/usr/local/bin/k3s --version | awk \"NR==1\")\"
     echo \"   backup: /usr/local/bin/k3s.prev (\$(/usr/local/bin/k3s.prev --version | awk \"NR==1\"))\"
   '" || {
