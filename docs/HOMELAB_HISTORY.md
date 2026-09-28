@@ -1869,43 +1869,156 @@ this entry). Every fix was checked against the live cluster, not against the tex
 Also deferred: correcting three `ephemeralContainers` comments in the Kyverno policies. That needs
 its own check of whether the code can be reached, not just a text edit.
 
-### 2026-07-25 — Ultrareview remediation Batch 4: monitoring correctness
+### 2026-07-25 — Ultrareview fixes, Batch 4: fixing monitoring defects
 
-Nine alerting defects, every one verified against live VictoriaMetrics before editing. **One finding was refuted as written** — see the first item; applying the plan verbatim would have replaced a dead alert with a differently-dead one.
+This batch fixed nine alerting defects. Each one was checked against the live VictoriaMetrics
+database before any edit. **One finding was wrong as written** (see the first item). Applying the
+plan word for word would have replaced an alert that could never fire with another alert that could
+never fire, for a different reason.
 
-- **`BackupJobRunningTooLong` was dead — but not for the documented reason.** The audit said the metric should be `kube_job_status_complete`; on this cluster's kube-state-metrics **v2.19.1 that metric does not exist** (0 series) while `kube_job_complete` has 51. The real defect is that `kube_job_complete` carries a `condition` label (true/false/unknown) which `kube_job_status_start_time` does not, so `and` — which matches only identical label sets — produced nothing. Now excludes both TERMINAL **conditions** — `unless` `kube_job_complete{condition="true"}`, `unless` `kube_job_failed{condition="true"}` — meaning "old, and neither finished nor failed". Two earlier attempts were rejected in review, each with its own blind spot: `kube_job_status_active > 0` misses a stuck Job whose pod was evicted or sits between retries (nonterminal, `active == 0`), and `kube_job_status_failed > 0` counts failed *pods*, so a Job that lost one pod and is still retrying would be excluded while genuinely stuck. `kube_job_failed` shows zero series today only because nothing has failed — verified against the KSM scrape that it is a registered STABLE family emitting condition metrics only for conditions actually present, so the `unless` excludes nothing until a Job really fails.
-- **`KyvernoAdmissionControllerDown` evaluated hourly** (`interval: 1h`) → a critical reported up to an hour late. Now 60s.
-- **VMSingle healthCheck was vacuous.** kstatus treats a CR with no `status.conditions` as Current, and VMSingle publishes none — confirmed live, its status carries only `updateStatus`/`lastAppliedSpec`/`observedGeneration`. Replaced with `healthCheckExprs` on `status.updateStatus` (live value `operational`), gated on `status.observedGeneration == metadata.generation` so a stale status from the previous generation cannot be read as describing the spec just applied. Only `current` and `failed` arms are given — Flux treats anything matching neither as in-progress, and the operator's full `updateStatus` vocabulary is not published (the CRD ships no description), so enumerating it would risk a value like `updating` matching nothing and wedging the gate on every rollout. Verified the field exists in the installed CRD schema and that the edited object passes a server-side dry-run.
-- **PostgreSQL + Redis `ConnectionFailure` deleted rather than repaired.** Both were dead (`and` across mismatched label sets — each returns 0 series live), and zero transactions or zero connected clients means idle, not broken. Real availability is already alerted on by `cnpg_collector_up == 0` and `redis_up == 0`.
-- **Three quorum alerts could never fire, each for two compounding reasons.** `count()` counts series, and KSM emits `phase="Running"` valued **0** for pods that are not running (17 such series exist right now), so the count never dropped. Worse, `count()` over an *empty* vector returns **no series at all** — so in the total-outage case each alert names, the comparison produced nothing and stayed silent. Both fixed with `(count(... == 1) or vector(0))` on `RedisHASentinelQuorumLost`, `MySQLOrchestratorNotRunning`, and `RedisHAAllDown`. That inverts the failure mode — absence now reads as 0 rather than as nothing — so the two redis alerts moved from `for: 1m` to `for: 5m`, or a kube-state-metrics restart would page. Four minutes of latency in exchange for an alert that fires at all. The last is the sharpest example: when every redis pod is down its exporter targets vanish, `redis_up` disappears, and "All Redis replication pods down" was silent precisely when it mattered. Proven by simulating the outage with a selector matching nothing — all three old forms return 0 series, all three new forms fire.
-- **`NoRecentImmichBackup` was missing from the telegram-backup route regex**, so it went to the default receiver.
-- **The NodeDown inhibit rule was a no-op.** NodeDown derives from node-exporter, whose `instance` is `192.168.1.x:9100`; the pod alerts it was meant to suppress carry kube-state-metrics' `instance` (`10.42.3.65:8080`), so `equal: [instance]` could never match. Deleted.
-- **Two new `absent()` alerts.** `NASLibraryMountMissing` — `NodeDiskSpaceLow/Critical` already cover the virtiofs mount's capacity (confirmed: `/var/lib/immich-library` is visible to node-exporter), but only while the series exists; if the NAS detaches the series vanishes and those alerts go quiet instead of firing. `VMAgentIngestionDown` — same shape, for the case where vmagent stops being scraped entirely and `up{...} == 0` therefore never evaluates.
+- **`BackupJobRunningTooLong` could never fire, but not for the documented reason.** The audit said
+  the metric should be `kube_job_status_complete`. On this cluster's kube-state-metrics **v2.19.1,
+  that metric does not exist** (0 series; a series is one stream of values for a metric with one set of labels), while
+  `kube_job_complete` has 51. The real defect:
+  `kube_job_complete` carries a `condition` label (true/false/unknown), and
+  `kube_job_status_start_time` does not. `and` matches only series with identical label sets, so it
+  produced nothing. The alert now excludes both final **conditions**, with `unless`
+  `kube_job_complete{condition="true"}` and `unless` `kube_job_failed{condition="true"}`. It means
+  "old, and neither finished nor failed". Review rejected two earlier attempts, and each one missed
+  a case:
+  - `kube_job_status_active > 0` misses a stuck Job whose pod was evicted or is waiting between
+    retries. Such a Job has not ended, and `active == 0`.
+  - `kube_job_status_failed > 0` counts failed *pods*. So a Job that lost one pod and is still
+    retrying would be excluded, even though it is really stuck.
 
-SMART/RAID health on the NAS stays unmonitored — not readable without sudo — and is recorded as an accepted risk rather than worked around.
+  `kube_job_failed` showed zero series that day only because nothing had failed. A check of the
+  kube-state-metrics (KSM) scrape confirmed that it is a registered STABLE metric family, which
+  emits condition metrics only for conditions that are actually present. So the `unless` excludes
+  nothing until a Job really fails.
+- **`KyvernoAdmissionControllerDown` was evaluated hourly** (`interval: 1h`), so a critical alert
+  could arrive up to an hour late. It now runs every 60s.
+- **The VMSingle healthCheck checked nothing.** kstatus (the library that decides whether a
+  resource is ready) treats a custom resource with no `status.conditions` as Current, and VMSingle
+  publishes none. A live check confirmed this: its status carries only
+  `updateStatus`/`lastAppliedSpec`/`observedGeneration`. The fix replaces it with
+  `healthCheckExprs` on `status.updateStatus` (live value `operational`). The expressions apply only
+  when `status.observedGeneration == metadata.generation`. So a stale status from the previous
+  generation cannot be read as describing the spec just applied. Only the `current` and `failed`
+  cases are given, and Flux treats any value that matches neither as still in progress. The
+  operator does not publish its full list of `updateStatus` values (the CRD, its custom resource definition, has no description of
+  them). So a full list would risk a value such as `updating` matching nothing, which would leave
+  the health check stuck on every rollout. A check confirmed that the field exists in the installed
+  CRD schema, and that the edited object passes a server-side dry-run.
+- **The PostgreSQL and Redis `ConnectionFailure` alerts were deleted, not repaired.** Neither could
+  ever fire: each used `and` across series with different label sets, and each returns 0 series
+  live. Also, zero transactions or zero connected clients means idle, not broken.
+  `cnpg_collector_up == 0` and `redis_up == 0` already alert on real availability.
+- **Three quorum alerts could never fire, each for two reasons that added up.** (A quorum is the
+  smallest number of members that must be up for a group, such as the Redis sentinels, to act.) First, `count()`
+  counts series, and KSM emits `phase="Running"` with the value **0** for pods that are not running
+  (17 such series existed at the time). So the count never dropped. Worse, `count()` over an *empty*
+  vector (a query result that holds no series) returns **no series at all**. So in the total outage that each alert names, the comparison
+  produced nothing, and the alert stayed quiet. The fix, `(count(... == 1) or vector(0))`, applies to
+  `RedisHASentinelQuorumLost`, `MySQLOrchestratorNotRunning` and `RedisHAAllDown`. That reverses the
+  failure mode: a missing series now reads as 0 rather than as nothing. So the two redis alerts
+  moved from `for: 1m` to `for: 5m`; otherwise a kube-state-metrics restart would trigger an alert. That trades
+  four minutes of delay for an alert that fires at all. The last alert is the clearest example. If
+  every redis pod is down, its exporter targets vanish and `redis_up` disappears. So "All Redis
+  replication pods down" stayed quiet at the moment it mattered. A simulated outage proved the fix:
+  with a selector that matches nothing, all three old forms return 0 series, and all three new forms
+  fire.
+- **`NoRecentImmichBackup` was missing from the regex of the telegram-backup route**, so it went to
+  the default receiver.
+- **The NodeDown inhibit rule did nothing.** An inhibit rule mutes some alerts while another alert
+  fires. NodeDown comes from node-exporter, whose `instance` is `192.168.1.x:9100`. The pod alerts
+  that it was meant to mute carry the `instance` of kube-state-metrics (`10.42.3.65:8080`). So
+  `equal: [instance]` could never match. The rule is deleted.
+- **Two new `absent()` alerts**, which fire when a series disappears:
+  - `NASLibraryMountMissing`. `NodeDiskSpaceLow/Critical` already cover the capacity of the
+    virtiofs mount (confirmed: node-exporter can see `/var/lib/immich-library`). But they work only
+    while the series exists. If the NAS (the network storage server) detaches, the series vanishes, and those alerts go quiet
+    instead of firing.
+  - `VMAgentIngestionDown`. It works the same way, for the case where nothing scrapes vmagent at all, so
+    `up{...} == 0` never evaluates.
 
-Gates: all four new/changed expressions executed against live VictoriaMetrics (parse clean, correctly non-firing); yamllint; kubeconform on `clusters`, `monitoring/configs`, `monitoring/controllers`; kustomize builds; server-side dry-run of the changed Kustomization.
+SMART/RAID health on the NAS stays unmonitored, because it cannot be read without sudo. It is
+recorded as an accepted risk, not worked around.
 
-### 2026-07-24 — Ultrareview remediation Batch 3: CouchDB DR restore path, drilled end-to-end
+Checks that ran:
 
-The audit found the documented CouchDB restore could not run (bare `kubectl run` denied by Kyverno; `wget --method=PUT` is not a busybox flag). Running it turned up **four** blockers, not two — the last of which only appears after part of the restore has already succeeded.
+| Check | What it covered |
+|---|---|
+| expressions | all four new or changed ones, run against live VictoriaMetrics: they parse without errors, and they correctly do not fire |
+| yamllint | ran |
+| kubeconform | `clusters`, `monitoring/configs`, `monitoring/controllers` |
+| kustomize | builds |
+| server-side dry-run | the changed Kustomization |
 
-**Now drilled end-to-end**: a full restore of the live Obsidian database into a scratch target completed — 1505 document revisions, 1479 docs against 1494 live (the gap is edits made after the 03:05 backup), deleted-doc counts matching exactly at 21. Scratch database dropped afterwards.
+### 2026-07-24 — Ultrareview fixes, Batch 3: the CouchDB disaster-recovery restore, tested end to end
 
-What actually blocked it:
+The audit found that the documented CouchDB restore could not run. Kyverno denies a bare
+`kubectl run`, and `wget --method=PUT` is not a flag that busybox accepts. Running the restore found
+**four** blockers, not two. The last one only appears after part of the restore has already
+succeeded.
 
-1. **Kyverno.** All 12 ValidatingPolicies are Deny-enforcing; a bare `kubectl run` is rejected at admission. Proven live — and the fine-grained webhook names only the FIRST failing policy (`require-labels`), so fixing one field just reveals the next. The spec now carries all of it, including `serviceAccountName: couchdb-jobs` for `require-non-default-serviceaccount`, which the audit did not flag.
-2. **ResourceQuota, a second rejection after Kyverno passes.** `namespace-quota` on `databases` leaves ~800m CPU free on a running cluster, so the initial 1-CPU limit was refused. Limits now sized to fit.
-3. **`readOnlyRootFilesystem` breaks npm** — its default `~/.npm` is unwritable, so `npm install` fails and couchrestore is simply absent. Fixed with `HOME` and `npm_config_cache` in the `/tmp` emptyDir, keeping RoRFS on rather than disabling it.
-4. **`--parallelism 5` (the default) breaks authentication mid-restore.** Some concurrent requests reach CouchDB carrying no credentials at all — its log shows the user as `undefined` and returns 401 on `_bulk_docs` — after several batches have already been written, so it reads as partial success rather than a broken command. `couchrestore` has no username/password flags, only `--url`, so `--parallelism 1` is the fix and is now marked as required, not tuning.
+**A drill tested the complete restore procedure, end to end.** A full restore of the live Obsidian database into a
+scratch database completed. The scratch database was dropped afterwards.
 
-Also corrected: the restore is now a **Job reading the archive from the backup hostPath** instead of streaming through `kubectl run -i` (whose attach timed out and killed the pod); it selects the newest archive itself and **verifies the `.sha256` in-pod**, so no node SSH is needed — which matters because that key lives in 1Password and may be locked mid-incident. The DB pre-create uses Node's built-in `fetch` with an Authorization header, and passes `?n=2` to match `clusterSize: 2` (CouchDB defaults new databases to n=3 and logs `Request to create N=3 DB but only 2 node(s)`). A `DRILL_SUFFIX` switch restores into `<db>-drill` so the whole path can be rehearsed without touching live data, and drops the scratch DB first so re-runs are idempotent (couchrestore refuses a non-empty target). Image drift fixed (`node:24.16.0-alpine` → `24.18.0-alpine`) and `@cloudant/couchbackup` pinned to 2.11.18.
+| Measure | Result |
+|---|---|
+| Document revisions | 1505 |
+| Documents | 1479, against 1494 live. The gap is edits made after the 03:05 backup |
+| Deleted documents | matching live exactly, at 21 |
 
-Added a **NAS-fetch Job** alongside the existing shell rsync: it reads the `nas-rsync-credentials` secret and inherits the namespace's NAS egress policy, so archives can be pulled back without a node shell or the password in the operator's environment. Verified pulling the 16.6 MB 2026-07-24 archive.
+What blocked it:
 
-Both manifests were re-rendered *from the committed markdown* and re-validated with kubeconform plus a live `--dry-run=server`, so the documented commands are the ones that were executed.
+1. **Kyverno.** All 12 ValidatingPolicies enforce Deny, so admission rejects a bare `kubectl run`.
+   A live test proved it. The fine-grained webhook names only the FIRST failing policy
+   (`require-labels`), so fixing one field only reveals the next. The spec now carries everything
+   the policies need, including `serviceAccountName: couchdb-jobs` for
+   `require-non-default-serviceaccount`, which the audit did not flag.
+2. **ResourceQuota, a second rejection after Kyverno passes.** `namespace-quota` on `databases`
+   leaves ~800m CPU free on a running cluster (m means thousandths of a CPU core). So the quota
+   refused the initial 1-CPU limit. The limits are now sized to fit.
+3. **`readOnlyRootFilesystem` breaks npm.** npm's default cache, `~/.npm`, cannot be written, so
+   `npm install` fails and couchrestore is not there at all. The fix points `HOME` and
+   `npm_config_cache` at the `/tmp` emptyDir (a scratch volume that lasts as long as the pod), and keeps the read-only root filesystem (RoRFS) on
+   rather than turning it off.
+4. **`--parallelism 5` (the default) breaks authentication partway through the restore.** Some
+   requests sent at the same time reach CouchDB with no credentials at all. CouchDB's log shows the
+   user as `undefined`, and it returns 401 on `_bulk_docs`. By then several batches have already
+   been written, so the failure looks like a partial success rather than a broken command.
+   `couchrestore` has no username or password flags, only `--url`. So `--parallelism 1` is the fix,
+   and it is now marked as required, not as tuning.
 
-**Deferred:** B3-2 (PVC restore runbook covers 3 apps while `CRITICAL_PVCS` backs up 10) needs a workload/target mapping added to `pvc-backup-cronjob.yaml` first — split into its own batch rather than stretch this one further.
+Other corrections:
+
+- The restore is now a **Job that reads the archive from the backup hostPath** (a folder on the node, mounted into the pod), instead of
+  streaming it through `kubectl run -i`. The attach of that command timed out and killed the pod.
+  The Job picks the newest archive itself and **checks the `.sha256` inside the pod**, so nobody
+  needs SSH access to a node. That matters because the SSH key lives in 1Password, which may be
+  locked in the middle of an incident.
+- The step that creates the database first uses Node's built-in `fetch` with an Authorization
+  header. It passes `?n=2` to match `clusterSize: 2`. CouchDB gives new databases n=3 (three copies
+  of each document) by default, and logs `Request to create N=3 DB but only 2 node(s)`.
+- A `DRILL_SUFFIX` switch restores into `<db>-drill`, so the whole path can be rehearsed without
+  touching live data. The switch drops the scratch database first, so a re-run gives the same result
+  (couchrestore refuses a target that is not empty).
+- The image version had drifted. The fix moved it from `node:24.16.0-alpine` to `24.18.0-alpine`.
+  `@cloudant/couchbackup` is pinned to 2.11.18.
+
+A new **NAS-fetch Job** sits next to the existing shell rsync. It reads the `nas-rsync-credentials`
+secret, and the namespace's NAS egress policy (the NetworkPolicy that lets its pods connect out to the NAS)
+already applies to it. So archives can be pulled back
+from the NAS without a shell on a node, and without the password in the operator's environment. A
+test pulled the 16.6 MB archive from 2026-07-24.
+
+Both manifests were rendered again *from the committed markdown*, then validated again with
+kubeconform and a live `--dry-run=server`. So the documented commands are the ones that ran.
+
+**Deferred:** B3-2. The runbook for restoring PVCs (persistent volume claims) covers 3 apps, while `CRITICAL_PVCS` backs up 10. The
+fix first needs a mapping from each workload to its restore target, added to
+`pvc-backup-cronjob.yaml`. It moved to its own batch rather than making this one longer.
 
 ### 2026-07-24 — Ultrareview remediation Batch 2: backup integrity + data-loss guards
 
