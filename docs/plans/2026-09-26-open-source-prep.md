@@ -1,8 +1,8 @@
 # Open-source prep — plan (2026-09-26)
 
 Goal: make `AKhozya/homelab` fit to publish. Six sub-projects run in order. Each one gets
-its own spikes and operator approval before work starts. This file plans SP1–SP4 in full. For
-SP5 and SP6 it records the decisions already made and the spikes still to run.
+its own spikes and operator approval before work starts. This file plans SP1–SP4 and SP6 in
+full. SP5's commits depend on what the ultrareview finds, so its section records only the rules.
 
 ## Decisions (operator, 2026-09-26)
 
@@ -42,8 +42,8 @@ SP5 and SP6 it records the decisions already made and the spikes still to run.
 | SP2 | Snapshot skills, `_shared/` helpers and sanitized rules into the repo; monthly re-sync step. **Done** 2026-09-27: `11a9ef29`, `a1ee146d`, `d61d9e12` | SP1 (skills cite the new path) |
 | SP3 | Docs pass: staleness, duplication, `avoid-ai-writing`, README + mermaid, CODEMAPS rename. **Done** 2026-09-28: C0 `72b39c6d`, C1 `12025040`, C2 `3d6b6592`, C3 `54a00f4f`..`f987082d`, C4a `6da12196`, C4b in 24 batches `97587af2`..`f0e42940` | SP1, SP2 |
 | SP4 | Pre-public gate: history secret scan, `claude.yml` trigger lockdown, MIT `LICENSE`, Action SHA pins. **Done** 2026-09-28: token rotation `52ce08aa`, `54e755a3`; plan `b1dbcdf1`; C0 `bbbe3e85`, C1 `6ca5f826`, C2 `bf940942`, C3 `254a8f63`; repo settings applied | SP3 |
-| SP5 | Ultrareview (`/code-review ultra`, operator-triggered); fix every finding that blocks publishing | SP4 |
-| SP6 | Visibility flip (operator action) + branch-protection decision | SP5 |
+| SP5 | Ultrareview (`/code-review ultra`, operator-triggered); fix every finding before the flip | SP4 |
+| SP6 | Visibility flip (operator action), then the settings that need a public repo, a ruleset on `main` and the `AGENTS.md` CI invariant | SP5 |
 
 ---
 
@@ -894,16 +894,51 @@ other settings revert with the same `gh api` calls and the old values from S53.
 
 ## SP5 — ultrareview
 
-The operator runs `/code-review ultra` on the repo. The agent fixes every finding that blocks
-publishing (exposed secret, licence problem, unsafe public trigger) before SP6 starts.
+The operator runs `/code-review ultra` on `main`, at `bfae1f07` or later. The agent fixes every
+finding before SP6 starts, not only those that block publishing (A2). Each fix goes through the
+normal commit loop. If the agent disputes a finding, it records the finding and its reason here,
+and the operator decides.
 
 ## SP6 — visibility flip
 
-| Item | Detail |
-|---|---|
-| Flip | operator action, after SP5 closes |
-| Fork PRs | After the flip, set Actions to require approval before a workflow runs for any outside contributor's PR, and read it back (`gh api repos/AKhozya/homelab/actions/permissions/fork-pr-contributor-approval`). The endpoint answers HTTP 422 while the repo is private (S54) |
-| Vulnerability reports | After the repo becomes public, enable private vulnerability reporting (`gh api -X PUT repos/AKhozya/homelab/private-vulnerability-reporting`) and read it back. Then add one line to `docs/SECURITY.md` that tells a reader to report a problem through the repo's Security tab (Q3). The endpoint answers 404 while the repo is private (S65) |
-| Diagrams | After the repo becomes public, open README and `docs/ARCHITECTURE.md` on GitHub and confirm all 5 mermaid blocks render. S59 rendered them with mermaid 12.0.0; GitHub uses its own version |
-| Actions | CI has not run since 2026-09-10 (see SP2 assumptions). Before the flip, find out what GitHub requires for Actions to run on a public repo owned by this account. After the flip, confirm CI runs |
-| Branch protection | The `AGENTS.md` invariant "CI validation — a signal, NOT a merge gate" says branch protection is unavailable on a private repo on the Free plan. GitHub docs list protected branches as available for public repos on the Free plan, so decide: enable required checks, or decline. Then edit the "CI is a signal, NOT a merge gate" invariant to match |
+### Spike results
+
+Run 2026-09-28.
+
+| # | Question | Probe | Result |
+|---|---|---|---|
+| S67 | Why does no Actions job start? | `gh api repos/AKhozya/homelab/check-runs/<job>/annotations` on run `36456312206` (Secret scan on `08a48ce6`) | ✅ "The job was not started because recent account payments have failed or your spending limit needs to be increased" |
+| S68 | Does a public repo clear it? | GitHub docs, "GitHub Actions billing" and "Choosing the runner for a job"; the Tahoe-LAFS tracker, ticket 4182 | 🟡 The docs say standard GitHub-hosted runners are "free and unlimited" on public repos. They say nothing about this lock. Tahoe-LAFS, a Free-plan org with public repos, got the same message in 2025. Its jobs started again only after someone paid an outstanding $0.01 charge |
+| S69 | Can `main` take rules now? | `gh api repos/AKhozya/homelab/rulesets`; `.../branches/main/protection` | ✅ both 403: "Upgrade to GitHub Pro or make this repository public to enable this feature" |
+| S70 | Which check names would a ruleset require? | job `name:` fields in `.github/workflows/`; GitHub docs, "Troubleshooting required status checks" | ✅ Secret scan reports one name, `gitleaks secret scan`, and has no `paths-ignore`. Validate reports 14 names: 7 jobs, plus kubeconform once for each of 7 roots, and skips PRs that touch only `**.md` or `docs/images/**`. GitHub leaves a required check from a skipped workflow at "Pending", so such a PR could merge only through a bypass |
+| S71 | Who can approve a PR? | `gh api repos/AKhozya/homelab/collaborators`; GitHub docs, "Approving a pull request with required reviews" and "About protected branches" | ✅ `AKhozya`, admin, is the only collaborator. An approval counts toward a required review only if it comes from an account with write access, and GitHub never lets a PR's author approve that PR |
+| S72 | How do Renovate PRs merge today? | `gh pr list --state merged` | ✅ `AKhozya` merged each of #1199–#1206 by hand. `renovate.json` also turns on automerge for patch updates |
+| S73 | Values for the fork-PR setting | REST docs, "Set fork PR contributor approval permissions for a repository" | ✅ `approval_policy` takes `first_time_contributors_new_to_github`, `first_time_contributors` or `all_external_contributors` |
+
+### Steps
+
+Steps 2, 3 and 5 need a public repo, because each endpoint refuses a private one (S54, S65, S69).
+
+| Step | Who | Detail |
+|---|---|---|
+| 1. Flip | operator | On a date the operator picks, after SP5 closes (A5). Settings → Danger zone, or `gh repo edit AKhozya/homelab --visibility public --accept-visibility-change-consequences` |
+| 2. Fork PRs | agent | Right after the flip, so no outside PR runs a workflow unseen while later steps wait on billing: `gh api -X PUT repos/AKhozya/homelab/actions/permissions/fork-pr-contributor-approval -f approval_policy=all_external_contributors`, then read it back (A6) |
+| 3. Vulnerability reports | agent | `gh api -X PUT repos/AKhozya/homelab/private-vulnerability-reporting`, then read it back. Add one line to `docs/SECURITY.md` that tells a reader to report a problem through the repo's Security tab (Q3) |
+| 4. Actions | agent, then operator if needed | Run `gh workflow run gitleaks.yaml` and `gh workflow run validate.yaml`, and watch each run to the end with `gh run watch` (A3). If a job fails with the S67 message, the operator clears the failed payment in Settings → Billing and plans, and the agent runs both again. Record each run's ID and result here. These are the first runs since SP4 turned `sha_pinning_required` on (SP4 Outcome, step 3). So if a job fails at setup, check the pins before the code |
+| 5. Ruleset | agent | If step 4 shows a successful `gitleaks secret scan`, create the ruleset. If the scan cannot complete successfully, requiring it would let a PR merge only through a bypass, so stop and tell the operator instead. The ruleset targets `main` with enforcement `active`. It requires a PR with 1 approval and a successful `gitleaks secret scan`. It lists the repo admin role as a bypass actor with bypass mode `always`; mode `pull_request` would refuse the owner's direct pushes (A4, A8). Find the ruleset's ID with `gh api repos/AKhozya/homelab/rulesets`, then read `gh api repos/AKhozya/homelab/rulesets/<id>` and check the target, enforcement, rules and bypass mode. The list call omits rules and bypass actors |
+| 6. Renovate | agent | Remove patch automerge from `renovate.json`, because the operator approves and merges each Renovate PR by hand (A7) |
+| 7. `AGENTS.md` | agent | If step 5 creates the ruleset and its read-back matches the planned settings, rewrite the invariant "CI validation — a signal, NOT a merge gate" as follows. A PR to `main` needs 1 approval and a successful `gitleaks secret scan`. Only the owner has write access, so only the owner's approval counts (S71). The owner is a bypass actor, so the owner can push to `main` directly and can merge a PR without the approval or the check. So a direct push reaches prod whatever CI says. The pre-commit review loop still covers those pushes, and its docs-only exemption stays. The ruleset does not require the Validate checks to pass |
+| 8. Diagrams | agent | Open README and `docs/ARCHITECTURE.md` on GitHub and confirm all 5 mermaid blocks render. S59 rendered them with mermaid 12.0.0; GitHub uses its own version |
+
+### Operator answers (2026-09-28)
+
+| # | Question | Answer |
+|---|---|---|
+| A1 | When the ultrareview runs | Now, on `main` |
+| A2 | Which SP5 findings to fix before the flip | All of them |
+| A3 | Actions billing | Flip first, then check whether jobs start. Fix billing only if they do not |
+| A4 | Rules on `main` | A PR and the owner's approval for everyone else. The owner bypasses, so the agent's merge-and-push flow stays |
+| A5 | Who flips, and when | The operator, on a date the operator picks |
+| A6 | Fork PRs that wait for approval | All outside contributors |
+| A7 | Renovate PRs | The operator approves each one, then merges it |
+| A8 | Required checks | `gitleaks secret scan` only |
