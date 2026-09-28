@@ -36,6 +36,21 @@ pacman -Q python-kubernetes >/dev/null 2>&1 \
   || { echo "python-kubernetes missing — run setup-node.sh first" >&2; exit 1; }
 [ -r "$KUBECONFIG_PATH" ] || { echo "$KUBECONFIG_PATH not readable" >&2; exit 1; }
 
+# --sync-only rsyncs the playbooks a running drift-heal or phase1/phase2 reads, so it holds the
+# node-maintenance lock (same file as node-maintenance-lock.sh) until it exits. The lock lives
+# here, not in the caller, so an older sync-from-git.sh that calls this script unlocked still
+# waits. sync-from-git.sh sets NODE_MAINT_LOCK_NOWAIT=1: if the lock is busy, exit 75 and the
+# next 10-min sync retries. Full mode takes no lock: it starts node-maintenance-config.service,
+# which takes the lock in skip mode. If full mode held the lock, that service would skip.
+if [ "$SYNC_ONLY" -eq 1 ]; then
+  exec 9>>/run/node-maintenance.lock
+  if [ "${NODE_MAINT_LOCK_NOWAIT:-0}" = 1 ]; then
+    flock -n 9 || { echo "node-maintenance lock busy; skipping this sync" >&2; exit 75; }
+  else
+    flock -w 900 9 || { echo "node-maintenance lock busy for 15 min" >&2; exit 75; }
+  fi
+fi
+
 if [ "$SYNC_ONLY" -eq 0 ]; then
   # ── SSH key source (expect plain decrypted key from Mac) ──
   # Idempotent re-run without a key: skip when the key is already installed.
@@ -134,9 +149,8 @@ install -m 0750 -o root -g root "$REPO_DIR/lib/sync-from-git.sh"   /usr/local/sb
 install -m 0750 -o root -g root "$REPO_DIR/lib/node-config-notify.sh" /usr/local/sbin/node-maintenance-config-notify.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/node-maintenance-lock.sh" /usr/local/sbin/node-maintenance-lock.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/rotate-k3s-server-token.sh" /usr/local/sbin/rotate-k3s-server-token.sh
-# ExecCondition of node-maintenance-config.service. The firewall role also deploys it, but that
-# role runs inside the same unit, so on a fresh CP the missing script (exit 203) would skip every
-# drift-heal before the role ever ran.
+# ExecCondition of node-maintenance-config.service. The firewall role also installs this script.
+# If the script is absent, ExecCondition prevents drift-heal from reaching that role.
 install -m 0755 -o root -g root "$REPO_DIR/ansible/roles/firewall/files/check-phase2-flag-age.sh" /usr/local/sbin/check-phase2-flag-age.sh
 for unit in \
     node-maintenance.timer \

@@ -12,8 +12,6 @@ KNOWN_HOSTS="${NODE_MAINT_GH_KNOWN_HOSTS:-/etc/node-maintenance/github_known_hos
 # The SHA install.sh last applied, not the checkout's pre-fetch HEAD: `reset --hard` below moves
 # HEAD before install.sh runs, so a failed install would otherwise read as applied on the next run.
 APPLIED_FILE="/var/lib/node-maintenance/sync-applied-sha"
-# Same lock file as node-maintenance-lock.sh.
-LOCK=/run/node-maintenance.lock
 
 [ -r "$DEPLOY_KEY" ] || { echo "deploy key missing: $DEPLOY_KEY" >&2; exit 10; }
 [ -r "$KNOWN_HOSTS" ] || { echo "known_hosts missing: $KNOWN_HOSTS" >&2; exit 11; }
@@ -58,16 +56,17 @@ if [ "$APPLIED_SHA" = "$POST_SHA" ]; then
 fi
 
 echo "==> Applied ${APPLIED_SHA:0:10} → HEAD ${POST_SHA:0:10}; running install.sh --sync-only"
-# install.sh rsyncs the playbooks a running drift-heal or phase1/phase2 reads, so it takes the
-# node-maintenance lock. If the lock is busy, skip: the SHA stays unapplied and the next
-# 10-min run retries.
+# install.sh --sync-only takes the node-maintenance lock itself. If the lock is busy, NOWAIT
+# makes install.sh exit 75; the SHA stays unapplied for the next 10-min sync.
 rc=0
-flock -n -E 75 "$LOCK" bash "$REPO_DIR/node-maintenance/install.sh" --sync-only || rc=$?
+NODE_MAINT_LOCK_NOWAIT=1 bash "$REPO_DIR/node-maintenance/install.sh" --sync-only || rc=$?
 if [ "$rc" = 75 ]; then
   echo "==> another node-maintenance run holds the lock; retrying on the next sync"
   exit 0
 fi
 [ "$rc" = 0 ] || exit "$rc"
+# If the heal below fails, node-maintenance-config.timer retries the same unit and playbook at
+# 03:00 and 15:00 UTC. Record the SHA before the heal to avoid sync retries and alerts every 10 min.
 printf '%s\n' "$POST_SHA" > "$APPLIED_FILE"
 echo "==> Sync applied: ${POST_SHA:0:10}"
 

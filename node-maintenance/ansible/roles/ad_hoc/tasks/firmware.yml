@@ -34,9 +34,9 @@
     var: fwupd_updates.stdout_lines
   tags: [never, firmware, ad-hoc]
 
-# --assume-yes also answers yes to "restart now?", so without --no-reboot-check a firmware that
-# needs a reboot reboots the node immediately, on every host of the play at once. An in-guest
-# reboot of immich-vm leaves its passed-through iGPU unresponsive and can crash the NAS host.
+# If you omit --no-reboot-check, --assume-yes accepts the restart prompt. The play can then
+# reboot several nodes at once. An in-guest reboot of immich-vm leaves its passed-through iGPU
+# unresponsive and can crash the NAS host.
 # Reboot through the phase1/phase2 flow.
 - name: Refuse to apply firmware to more than one node per run
   ansible.builtin.assert:

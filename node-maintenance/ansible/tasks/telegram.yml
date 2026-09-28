@@ -7,4 +7,4 @@
   ansible.builtin.command:
     argv: [/usr/local/sbin/telegram-notify.sh, "{{ tg_message }}"]
   changed_when: false
-  failed_when: false   # never fail the playbook because Telegram API hiccuped
+  failed_when: false   # If Telegram fails, keep maintenance running.
