@@ -1064,12 +1064,19 @@ Two test runs proved nothing, and are recorded as such rather than as results:
 | the path-traversal test `bash ~/.claude/skills/../../../x.sh` | it ran, but so did its control with an absolute path. The session's permission mode approved `bash` either way |
 | a check of `*-*-09` with `systemd-analyze calendar` before deploy | it could not run: the session had no SSH, no local systemd and no container runtime. So `systemctl list-timers` after the Ansible run is the real proof |
 
-### 2026-08-05 — A one-line Renovate tag bump made the MySQL replica unrebuildable
+### 2026-08-05 — A one-line Renovate image-tag change left the MySQL replica impossible to rebuild
 
-Renovate PRs #1008 and #1007 merged at 19:31 UTC, nine seconds apart:
-`percona/percona-server` `8.4.10-10.1 → 9.7.1-1.1` and `percona/percona-mysql-router`
-`8.4.10 → 9.7.1`. Flux applied, the StatefulSet recreated `main-mysql-mysql-0` at 19:35 on the
-9.7 image, and it never came up:
+Two pull requests from Renovate (the bot that proposes dependency updates), #1008 and #1007, merged
+at 19:31 UTC, nine seconds apart:
+
+| Image | Change |
+|---|---|
+| `percona/percona-server` | `8.4.10-10.1 → 9.7.1-1.1` |
+| `percona/percona-mysql-router` | `8.4.10 → 9.7.1` |
+
+Flux applied the change. The StatefulSet (the Kubernetes controller that manages the MySQL pods)
+recreated `main-mysql-mysql-0` at 19:35 on the 9.7 image,
+and the pod never came up:
 
 ```
 [Clone] Client: Command COM_INIT: error: 3864: Clone Donor MySQL version: 8.4.10-10
@@ -1077,101 +1084,131 @@ Renovate PRs #1008 and #1007 merged at 19:31 UTC, nine seconds apart:
 [Server] Received SHUTDOWN from user <via user signal>. Shutting down mysqld
 ```
 
-The clone plugin refuses a cross-major donor, so the operator's bootstrap shut mysqld down —
-cleanly, exit 0, which is why the pod looked like a graceful restart rather than a crash. 51
-restarts and ~90 minutes later `PodCrashLooping` fired. Apps never noticed: HAProxy kept routing to
-`main-mysql-mysql-1`, still on 8.4, so the visible damage was `mysql.ready 1/2` — HA gone, single
-copy of the data.
+The clone plugin copies data from a running server (the donor) to a new one, and it refuses a donor
+on a different major version. So the Percona operator's start-up step shut mysqld down cleanly, with
+exit 0. That is why the pod looked like a normal restart rather than a crash. `PodCrashLooping`
+fired after 51 restarts and about 90 minutes. Apps never noticed, because HAProxy kept sending
+traffic to `main-mysql-mysql-1`, still on 8.4. The only visible damage was `mysql.ready 1/2`: no
+high availability, and only one copy of the data.
 
-**What made it worse than a bad pod.** Two things. First, the StatefulSet is
-`updateStrategy: OnDelete`, which is the *only* reason the primary survived — its live template said
-`9.7.1-1.1`, so any `delete pod`, drain, or reboot of `worker-node` would have rebuilt the primary
-on 9.7 and taken MySQL down entirely. Second, 9.7 mysqld upgraded pod-0's data dictionary in place
-before dying, so the revert alone could not fix it:
+**Why this was worse than one broken pod.** There were two reasons. First, the StatefulSet uses
+`updateStrategy: OnDelete`, so a change to its template does not update existing pods. That is the
+*only* reason the primary survived. Its live template said `9.7.1-1.1`, so any `delete pod`, drain,
+or reboot of `worker-node` would have rebuilt the primary on 9.7 and taken MySQL down completely.
+Second, the 9.7 mysqld upgraded the data dictionary (MySQL's internal record of how its databases
+are built) of pod-0 in place before it died, so reverting the tag alone could not fix the replica:
 
 ```
 [ERROR] [MY-014061] [InnoDB] Invalid MySQL server downgrade:
         Cannot downgrade from 90701 to 80410. Downgrade is only permitted between patch releases.
 ```
 
-MySQL has no downgrade path, so that datadir became 9.x-only — the replica had to be rebuilt from
-its PVC up, re-cloning from the 8.4 primary.
+MySQL has no downgrade path, so only 9.x could use that data directory. The replica had to be
+rebuilt from its storage volume (PVC) up, cloning again from the 8.4 primary.
 
-**Why nothing caught it.** The server image is not chart-managed: `ps-operator` (chart 1.2.0) ships
-only the operator Deployment and CRDs, and every data-plane image lives in the
-`PerconaServerMySQL` CR. So Renovate's `kubernetes` manager — pointed at `/\.yaml$/` — saw a bare
-`image: percona/percona-server:…`, resolved the newest docker tag, and opened a PR with no notion
-that the tag must satisfy `crVersion: "1.2.0"`'s support matrix (8.0/8.4 only). The coupling existed
-only as a YAML comment. CI cannot see it either: the tag is pinned and well-formed, so `image-pin`
-and `kubeconform` both pass; the failure is runtime-only. The major-update rule assigned a reviewer
-but set no version ceiling, and a human merge was all it took.
+**Why no check caught it.** The Helm chart does not manage the server image. `ps-operator` (chart
+1.2.0) installs only the operator Deployment and the CRDs (definitions of custom Kubernetes resource
+types). Every image that runs the database itself is set in the `PerconaServerMySQL` custom resource
+(CR). So Renovate's `kubernetes` manager, set to read files matching `/\.yaml$/`, saw a bare
+`image: percona/percona-server:…`. It looked up the newest docker tag and opened a PR. It had no way
+to know that the tag must be in the support matrix (the list of supported version combinations) of
+`crVersion: "1.2.0"`, which lists only 8.0 and 8.4. The link between the tag and the operator
+version existed only as a YAML comment. CI cannot see it either. The tag is pinned and well formed,
+so `image-pin` and `kubeconform` both pass, and the failure shows only at run time. The Renovate
+rule for major updates assigned a reviewer but set no upper version limit, so one human merge was
+enough.
 
-**Fix** (`b43b0cc7`). Pins reverted to `8.4.10-10.1` / router `8.4.10`, plus `allowedVersions`
-ceilings so the class cannot recur: `/^8\.4\./` on `percona-server` + `percona-mysql-router`
-(later `percona-xtrabackup`) and `/^18\./` on `ghcr.io/cloudnative-pg/postgresql`, which had the
-identical exposure via the `imageName` customManager. Patch PRs still flow; majors are invisible
-until someone widens the ceiling on purpose, alongside the operator bump and a real upgrade path.
+**Fix** (`b43b0cc7`). The pins went back to `8.4.10-10.1`, and the router pin to `8.4.10`.
+`allowedVersions` limits now stop this kind of change from happening again:
 
-**Rejected:** flipping `upgradeOptions.apply` from `disabled` to `8.4-recommended`. Percona's Version
-Service is matrix-aware, which is exactly the missing check, but it patches `.spec.mysql.image` in
-the CR — a field Flux owns — and would upgrade the database with no PR, no diff, and no review.
-Whoever set `disabled` was right.
+| Pattern | Images |
+|---|---|
+| `/^8\.4\./` | `percona-server` and `percona-mysql-router` (later also `percona-xtrabackup`) |
+| `/^18\./` | `ghcr.io/cloudnative-pg/postgresql`, which had the same exposure through the `imageName` customManager |
 
-**Also found:** `backup.image` had been on `percona-xtrabackup:9.7.1` since #928 (2026-07-15), three
-weeks before the server bump. Inert — `backup.enabled: false`, zero `ps-backup` objects — but a 9.x
-XtraBackup cannot back up an 8.4 server, so it was wrong-by-default for whoever enabled it. Repinned
-to `8.4.0-6.1`. A ceiling alone would not have fixed this one: Renovate never downgrades, so the
-stale-high pin needed a deliberate tag pick.
+Patch PRs still arrive. Renovate proposes no major version until someone raises the limit on
+purpose, together with the operator upgrade and a real upgrade path.
 
-### 2026-08-01 — A cached tarball no upstream fix could displace skipped a whole patch week
+**Rejected:** changing `upgradeOptions.apply` from `disabled` to `8.4-recommended`. Percona's
+Version Service knows the support matrix, which is the missing check. But it patches
+`.spec.mysql.image` in the CR, a field Flux owns, and it would upgrade the database with no PR, no
+diff and no review. Whoever set `disabled` was right.
 
-The weekly `node-maintenance.timer` fired at 05:30:58. `node-maintenance-phase1.service` died at
-05:32:52, `status=2`, on the `yay -Syyu` task:
+**Also found:** `backup.image` had used `percona-xtrabackup:9.7.1` since #928 (2026-07-15), three
+weeks before the server change. It had no effect, because of `backup.enabled: false` and zero
+`ps-backup` objects. But a 9.x XtraBackup cannot back up an 8.4 server. So if someone had enabled
+backups, that image could not have backed up the server. The image is now pinned to `8.4.0-6.1`. A
+version limit alone would not have fixed this one. Renovate never downgrades, so a pin that was too
+new needed a tag chosen by hand.
+
+### 2026-08-01 — A cached download that no upstream fix could replace skipped a whole week of updates
+
+The weekly `node-maintenance.timer` fired at 05:30:58. `node-maintenance-phase1.service` failed at
+05:32:52 with `status=2`, on the `yay -Syyu` task (the package upgrade, which also builds packages
+from the AUR, the Arch User Repository):
 
 ```
 flux-bin-2.9.3_linux_amd64.tar.gz ... FAILED
 ==> ERROR: One or more files did not pass the validity check!
 ```
 
-phase1 is fail-fast by design, so it never created `phase2-pending`, its
-`ExecStartPost=systemctl reboot` never fired, and phase2 — worker updates and the rolling reboot —
-never ran at all. Telegram got the `❌ ... No reboot` notice; nothing else complained for six hours.
+phase1 stops at its first error by design. So it never created `phase2-pending`, and its
+`ExecStartPost=systemctl reboot` never ran. phase2, which updates the workers and reboots the nodes
+one after another, never ran at all. Telegram got the `❌ ... No reboot` notice, and nothing else
+reported a problem for six hours.
 
-**Why the checksum could never be satisfied.** AUR `flux-bin` carried a hardcoded `_srcver=2.8.6` in
-its source URL while `pkgver` advanced to 2.9.3, and the local filename derives from `${pkgver}`. So
-every weekly "upgrade" since 2.8.7 downloaded the *same v2.8.6 tarball* and parked it under a new
-name — `flux-bin-2.9.0/2.9.1/2.9.2/2.9.3_linux_amd64.tar.gz` all sha `c53cc990…`, which is upstream's
-`flux_2.8.6_linux_amd64.tar.gz`. `pacman -Q flux-bin` read `2.9.3-1` while `flux version --client`
-read `v2.8.6`. AUR commit `45c0b65` "Fix versioning" (2026-07-25 11:44 PDT) corrected the URL and
-bumped `pkgrel=2` with the real sum `eae4e860…`. Our 2026-07-25 run had gone through ~6h *before*
-that. The next run validated the already-present file against the corrected sum and aborted —
-**makepkg does not re-download a source that already exists**, so no amount of upstream correction
-could dislodge it.
+**Why the checksum could never match.** The AUR package `flux-bin` had a fixed `_srcver=2.8.6` in
+its source URL, while `pkgver` moved on to 2.9.3. The local filename comes from `${pkgver}`. So
+every weekly "upgrade" since 2.8.7 downloaded the *same v2.8.6 tarball* and saved it under a new
+name. `flux-bin-2.9.0/2.9.1/2.9.2/2.9.3_linux_amd64.tar.gz` all had the same checksum, sha
+`c53cc990…`: each was upstream's `flux_2.8.6_linux_amd64.tar.gz`. `pacman -Q flux-bin` reported
+`2.9.3-1`, while `flux version --client` reported `v2.8.6`.
 
-**Blast radius.** CP took its repo upgrades (incl. `linux-lts 6.18.39 → 6.18.41`) then stopped before
-the reboot, leaving a running/installed kernel mismatch. All three other nodes were untouched — still
-`6.18.39-1`, uptime 7d 6h. `AlloyLogDeliveryFailing` then fired on 3 alloy pods as a *downstream*
-effect: Loki rejects entries older than 168h, idle pods (svclb-\*, node-exporter, kube-state-metrics)
-had emitted nothing since the Jul 25 boot, and alloy re-opens those streams from the same offset
-forever. The weekly reboot had been implicitly preventing that; one missed cycle surfaced it.
+AUR commit `45c0b65` "Fix versioning" (2026-07-25 11:44 PDT) corrected the URL and set `pkgrel=2`
+with the real checksum `eae4e860…`. This cluster's 2026-07-25 run had succeeded about 6h *before*
+that. The next run checked the file already on disk against the corrected checksum and stopped.
+**makepkg does not download a source again if it already exists**, so no upstream correction could
+replace the file.
 
-**The second bite.** Clearing the CP's cached tarball let phase1 succeed and the full cycle ran — but
-phase2's worker upgrades failed on the *same* stale file, because workers redirect
-`SRCDEST=/var/lib/node-maintenance/.cache/makepkg/sources`, which the CP has no override for. PLAY 1's
-rescue swallowed it (correctly — a hard failure there strands `phase2-pending` and gates drift-heal
-cluster-wide, 2026-06-20). `node_pkg_upgrade_success` was the only thing that saw it: CP=1,
-worker-node=0, worker-node-2=0. That metric exists because immich-vm went two weeks unpatched
-undetected in July; it paid for itself here.
+**What it affected.** The control plane installed its upgrades from the package repositories
+(including `linux-lts 6.18.39 → 6.18.41`), then stopped before the reboot. So the running kernel
+differed from the installed one. The other three nodes got no changes: still `6.18.39-1`, uptime 7d
+6h.
 
-**Fix** (`db048f3c`). `yay_cmd` gains `--cleanafter`, and the worker `makepkg.conf` template drops its
-`SRCDEST` override. Both are needed: measured on the workers, `--cleanafter` logged
-`Cleaning (1/1): .cache/yay/flux-bin` while the tarball survived in `.cache/makepkg/sources` — it
-cleans only yay's own per-package tree, so it covers sources *only* while `SRCDEST` is unset. No
-system-wide `SRCDEST` exists in `/etc/makepkg.conf{,.d/}` on any node, and the CP has never had a user
-override, so unset falls back to the CP's proven-working behaviour.
+`AlloyLogDeliveryFailing` then fired on 3 alloy pods, as a *secondary* effect. Loki rejects log
+entries older than 168h. Idle pods (svclb-\*, node-exporter, kube-state-metrics) had written nothing
+since the Jul 25 boot. Alloy, the log collector, reopens those log streams from the same position,
+again and again, with no end. The weekly reboot had also been preventing that, and one missed cycle
+exposed the problem.
 
-**Residual.** `--cleanafter` only fires after a *successful* install, so a failed build still leaves a
-shadowing source — accepted, since the failure is now visible via `NodePackageUpgradeFailed`.
+**The second failure.** Deleting the control plane's cached tarball let phase1 succeed, and the full
+cycle ran. But phase2's upgrades on the workers failed on the *same* stale file. The workers set
+`SRCDEST=/var/lib/node-maintenance/.cache/makepkg/sources`, and the control plane has no such
+override. The rescue block of PLAY 1 (the Ansible error handler) caught the error and carried on.
+That is correct: if that step failed the run, it would leave `phase2-pending` in place, and that
+file stops drift-heal (the automatic repair of node configuration) on every node (see 2026-06-20).
+`node_pkg_upgrade_success` was the only thing that saw the failure:
+
+| Node | Metric value |
+|---|---|
+| control plane | 1 |
+| worker-node | 0 |
+| worker-node-2 | 0 |
+
+That metric exists because immich-vm went two weeks without updates in July and nobody noticed. Here
+it was the only signal.
+
+**Fix** (`db048f3c`). `yay_cmd` gains `--cleanafter`, and the worker `makepkg.conf` template drops
+its `SRCDEST` override. The fix needs both. On the workers, `--cleanafter` logged
+`Cleaning (1/1): .cache/yay/flux-bin`, but the tarball stayed in `.cache/makepkg/sources`. The flag
+cleans only yay's own folder for each package, so it removes sources *only* while `SRCDEST` is
+unset. No node sets `SRCDEST` system-wide in `/etc/makepkg.conf{,.d/}`, and the control plane has
+never had a user override. So with the override gone, the workers behave like the control plane,
+which is known to work.
+
+**Remaining risk.** `--cleanafter` runs only after a *successful* install. So a failed build still
+leaves a source file that later runs reuse instead of downloading a fixed one. This is accepted,
+because `NodePackageUpgradeFailed` now makes the failure visible.
 
 ### 2026-07-31 — A chart bump silently stopped the VM operator reconciling for two hours
 
