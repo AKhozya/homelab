@@ -1757,40 +1757,117 @@ It is the LAN's DNS resolver, so draining both replicas stops name lookups for e
 network. The others are operators that only reconcile resources, and a short outage of them costs
 nothing.
 
-### 2026-07-25 — Ultrareview remediation Batch 5: authentication for Alertmanager and homepage
+### 2026-07-25 — Ultrareview fixes, Batch 5: logins for Alertmanager and homepage
 
-`am.h0melab.work` served `/api/v2/silences` to anyone on the LAN — a `200`, verified live — so any device on the wifi could suppress all alerting. Both hosts are LAN-only (neither is in the Cloudflare tunnel), so the threat is the local network, not the internet.
+`am.h0melab.work` served `/api/v2/silences` to anyone on the LAN. A live check got a `200`. So any
+device on the wifi could silence every alert. Both hosts are LAN-only (neither is in the Cloudflare
+tunnel), so the threat is the local network, not the internet.
 
-**Deliberately two different mechanisms**, matched to each service's role:
+**The two services use different mechanisms on purpose**, each matched to the service's role:
 
-- **Alertmanager -> Traefik basicAuth** from a SOPS Secret. It is an incident-response tool, so it must not depend on the stack it is used to debug: putting it behind Authentik would couple it to postgres -> authentik, and a CNPG failover would take out the alert console exactly when it is needed. Verified after deploy: `401` with no credentials, `200` with, `401` with wrong ones.
-- **homepage -> Authentik forward-auth** via the **embedded outpost**. No separate outpost deployment exists or was needed — `authentik-server` already exposes port 9000, and Traefik->authentik:9000 egress plus authentik's ingress-from-traefik were already permitted, so this batch adds **zero** NetworkPolicy changes. First proxy provider in the instance; everything else uses OIDC.
+- **Alertmanager uses Traefik basicAuth** (a username and password that Traefik checks), from a
+  Secret encrypted with SOPS. Alertmanager is a tool for responding to incidents, so it must not
+  depend on the systems it is used to debug. Behind Authentik, it would depend on postgres and then
+  on authentik. A CNPG failover (a switch of the PostgreSQL cluster that CloudNativePG manages to
+  another instance) would then take out the alert console at the moment it is needed.
+- **homepage uses Authentik forward-auth** through the **embedded outpost** (the proxy that is
+  built into the Authentik server). No separate outpost deployment exists, and none was needed.
+  `authentik-server` already exposes port 9000. The NetworkPolicies already allowed traffic from
+  Traefik to authentik:9000, and already let authentik accept traffic from Traefik. So this batch
+  makes **zero** NetworkPolicy changes. homepage is the first proxy provider in the Authentik
+  instance; everything else uses OIDC (OpenID Connect) logins.
 
-Findings that changed the shape of the work:
+Checks of Alertmanager after deploy:
 
-- **The homepage callback cannot live in the homepage namespace.** An Ingress can only target a Service in its own namespace, and routing `/outpost.goauthentik.io/` via an ExternalName alias fails: Traefik's `kubernetesIngress` provider defaults `allowExternalNameServices` to **false** and it is not enabled here, so Traefik silently refuses that backend. A `--dry-run=server` does not catch it — the object is valid, Traefik just declines to route it. The callback Ingress therefore lives in the **authentik** namespace, where `authentik-server` is a normal same-namespace Service, which also avoids weakening that global default.
-- **The callback must be its own Ingress.** Traefik applies the `router.middlewares` annotation to every rule in an Ingress, so folding the callback into the protected Ingress would authenticate the request that completes the login — a redirect loop.
-- **Auth goes AFTER rate-limit in both chains.** A 401 or redirect short-circuits the chain, so auth placed earlier would leave login attempts unthrottled.
-- **Traefik's basicAuth Secret must contain exactly ONE key.** Storing the plaintext password alongside the htpasswd `users` key made the middleware fail to build; Traefik dropped the router and the host answered **404 instead of 401** — a silent outage with nothing in the Traefik error log. Caught in post-deploy verification and fixed by splitting the plaintext into a separate, unreferenced Secret.
+| Credentials | Status | Meaning |
+|---|---|---|
+| none | `401` | refused |
+| the right ones | `200` | allowed |
+| wrong ones | `401` | refused |
 
-Shipped in **two phases on purpose**: phase 1 added the middlewares, blueprint and callback route with nothing referencing them; phase 2 flipped the ingress annotations. Without the split, the Alertmanager annotation (in `monitoring-controllers`) would have applied before the middleware and Secret (in `monitoring-configs`, which depends on it), leaving Traefik pointing at a middleware that did not exist yet. Between phases the callback path was confirmed to redirect correctly to authentik before anything was gated on it.
+Findings that changed how the work was done:
 
-No monitor was affected: uptime-kuma probes both apps via cluster Services, never the ingress hostname, and nothing in-cluster resolves `am.h0melab.work` (VMAlert posts to the Service).
+- **The homepage callback cannot live in the homepage namespace.** An Ingress can only target a
+  Service in its own namespace. Routing `/outpost.goauthentik.io/` through an ExternalName alias
+  fails: Traefik's `kubernetesIngress` provider defaults `allowExternalNameServices` to **false**,
+  and this cluster does not enable it. So Traefik refuses that backend, and it reports nothing. A
+  `--dry-run=server` does not catch it, because the object is valid; Traefik only declines to route
+  it. So the callback Ingress lives in the **authentik** namespace, where `authentik-server` is a
+  normal Service in the same namespace. That also avoids weakening the global default.
+- **The callback must be its own Ingress.** Traefik applies the `router.middlewares` annotation to
+  every rule in an Ingress. If the callback were part of the protected Ingress, Traefik would demand
+  a login on the request that completes the login. The browser would then loop through redirects.
+- **Auth comes AFTER the rate limit in both chains.** A 401 or a redirect ends the middleware chain
+  early. So if auth came first, login attempts would never reach the rate limit.
+- **Traefik's basicAuth Secret must contain exactly ONE key.** The Secret first stored the
+  plaintext password next to the htpasswd `users` key. The middleware then failed to build, Traefik
+  dropped the router, and the host answered **404 instead of 401**. The Traefik error log showed
+  nothing about this outage. The checks after deploy caught it. The fix moved the plaintext into a
+  separate Secret that nothing references.
 
-The generated credential is in the SOPS-encrypted `alertmanager-basic-auth-credential` Secret (`username`/`password`) — read it with `kubectl -n monitoring get secret alertmanager-basic-auth-credential -o jsonpath='{.data.password}' | base64 -d`, move it to 1Password, then delete that Secret and add the entry to `SECRETS_ROTATION.md`.
+The batch shipped in **two phases, on purpose**. Phase 1 added the middlewares, the blueprint and
+the callback route, with nothing referencing them yet. Phase 2 switched the Ingress annotations
+over. Without the split, the Alertmanager annotation (in `monitoring-controllers`) would have been
+applied before the middleware and Secret (in `monitoring-configs`, which depends on the first).
+Traefik would then have pointed at a middleware that did not exist yet. Between the phases, a check
+confirmed that the callback path redirected to authentik correctly, before any login depended on it.
 
-### 2026-07-25 — Ultrareview remediation Batch 6: policy, NetworkPolicy and RBAC hygiene
+No monitor was affected. uptime-kuma checks both apps through their cluster Services, never through
+the Ingress hostname. Nothing inside the cluster looks up `am.h0melab.work` either; VMAlert sends
+alerts to the Service.
 
-Six of eight items; the two spike-gated ones are deferred (below). Every fix verified against live cluster state rather than against the finding text.
+The generated credential is in the SOPS-encrypted `alertmanager-basic-auth-credential` Secret
+(`username`/`password`). Next steps: read it with
+`kubectl -n monitoring get secret alertmanager-basic-auth-credential -o jsonpath='{.data.password}' | base64 -d`,
+move it to 1Password, then delete that Secret and add the entry to `SECRETS_ROTATION.md`.
 
-- **monitoring `rate-limit-standard` enforced 100 req/second, not per minute.** `rateLimit.average` is per `period` and the default period is **1s**, so `average: 100` with no `period` was 60x looser than the comment directly above it claimed ("100 requests/minute sustained"). The apps tier was corrected on 2026-07-03; this monitoring fork was missed. Added `period: 1m`.
-- **popeye held cluster-wide `get,list` on Secrets.** A `list` returns full secret *content*, so a weekly hygiene scanner had standing read access to every credential in the cluster. Removed. Cost is popeye's unused-secret linter; the CronJob runs `--force-exit-zero` so the rest of the scan is unaffected.
-- **Kyverno NetworkPolicy allowed a port nothing listens on.** Every kyverno controller (admission, background, cleanup, reports) serves its webhook on **9443** — verified against the live pods; none listens on 443. Removed the dead 443 entry and corrected the comment, which attributed 9443 to the admission controller alone.
-- **Two dead "Kubernetes API" egress rules on `mysql-cluster`, replaced with one that works.** `namespaceSelector` selects pod namespaces: `default` holds **zero pods** (the API is a Service at 10.43.0.1:443 backed by the control-plane node, not a pod), and the `ps-operator` pod in `percona-mysql` declares **no container ports at all**. Deleting them outright was the first attempt and review pushed back correctly: steady-state health is not evidence of restart safety, since Percona pods can need the API for peer discovery during bootstrap or recovery. Both dead rules are now replaced by `ipBlock: 192.168.1.127/32` on **6443** — the same pattern grafana, prometheus-operator and kube-state-metrics already use here, because NetworkPolicy is evaluated after DNAT so the ClusterIP is not the address that matches.
-- **authentik and obsidian had namespace-wide database egress.** Both now scope to the serving pods (`cnpg.io/cluster: main-postgres`, `app: couchdb`) with `podSelector` under the **same** `to` item as `namespaceSelector` — AND, not OR; as separate items it would have widened the grant instead of narrowing it. Confirmed in the rendered output. `cnpg.io/cluster` deliberately chosen because it covers the rw-pooler pods as well as the instances, and authentik connects via `main-postgres-rw`.
-- **Removed a fossil Kyverno exclude** for `main-mariadb-metrics` in `require-non-default-serviceaccount` — MariaDB was replaced by Percona MySQL and zero such pods exist.
+### 2026-07-25 — Ultrareview fixes, Batch 6: cleaning up policies, NetworkPolicies and RBAC permissions
 
-**Deferred, both spike-gated and needing work the plan scopes separately:** narrowing `disallow-host-path`'s whole-namespace excludes to label-keyed `matchConditions` (A11 — needs per-workload rendered-label discovery plus an admission probe for each), and dropping uptime-kuma's four dead egress ports (A10 — needs the live monitor list first, since a port that looks dead may back a configured probe). Also deferred: correcting three `ephemeralContainers` comments in the Kyverno policies, which needs its own reachability check rather than a text edit.
+This batch fixed six of eight items. The two that need a spike first (a small test against the real system) are deferred (see the end of
+this entry). Every fix was checked against the live cluster, not against the text of the finding.
+
+- **monitoring `rate-limit-standard` allowed 100 requests per second, not per minute.**
+  `rateLimit.average` counts requests per `period`, and the default period is **1s**. So
+  `average: 100` with no `period` allowed 60x more than the comment directly above it said ("100
+  requests/minute sustained"). The apps tier was corrected on 2026-07-03, but this copy in
+  monitoring was missed. The fix adds `period: 1m`.
+- **popeye could `get,list` Secrets across the whole cluster.** A `list` returns the full *content*
+  of each secret, so a weekly clean-up scanner could read every credential in the cluster at any
+  time. The permission is removed. The cost is popeye's check for unused secrets. The CronJob runs
+  `--force-exit-zero`, so the rest of the scan still works.
+- **The Kyverno NetworkPolicy allowed a port that nothing listens on.** Every kyverno controller
+  (admission, background, cleanup, reports) serves its webhook on **9443**, and a check of the live
+  pods confirmed it. None listens on 443. The fix removes the unused 443 entry. It also corrects the
+  comment, which had said that only the admission controller uses 9443.
+- **Two "Kubernetes API" egress rules on `mysql-cluster` matched nothing; one rule that works
+  replaces them.** `namespaceSelector` selects the pods in a namespace. `default` holds **zero
+  pods**: the API is a Service at 10.43.0.1:443 backed by the control-plane node, not a pod. The
+  `ps-operator` pod in `percona-mysql` declares **no container ports at all**. The first attempt
+  deleted both rules outright, and review was right to push back. A cluster that runs well now does
+  not prove that a restart is safe, because Percona pods can need the API to find their peers during
+  bootstrap (their first start) or recovery. `ipBlock: 192.168.1.127/32` on **6443** now replaces both rules. grafana,
+  prometheus-operator and kube-state-metrics already use the same pattern here. They do so because
+  NetworkPolicy is evaluated after DNAT (the rewrite of the Service address to a real one), so the
+  ClusterIP is not the address that matches.
+- **The database egress rules of authentik and obsidian allowed the whole database namespace.** Both
+  apps' database egress rules now allow traffic only to the pods that serve their database (`cnpg.io/cluster: main-postgres`, `app: couchdb`). The
+  `podSelector` sits under the **same** `to` item as the `namespaceSelector`, which means AND, not
+  OR. As separate items, they would have widened the permission instead of narrowing it. The
+  rendered output confirmed this. `cnpg.io/cluster` was chosen on purpose, because it covers the
+  rw-pooler pods (the connection poolers for the read-write service) as well as the database instances, and authentik connects through
+  `main-postgres-rw`.
+- **Removed a leftover Kyverno exclude** for `main-mariadb-metrics` in
+  `require-non-default-serviceaccount`. Percona MySQL replaced MariaDB, and zero such pods exist.
+
+**Deferred.** Both items need a spike first, and the plan scopes their work separately:
+
+| Item | What it needs first |
+|---|---|
+| A11: narrow the whole-namespace excludes of `disallow-host-path` to label-keyed `matchConditions` | finding the rendered labels of each workload, plus an admission test for each |
+| A10: drop uptime-kuma's four unused egress ports | the live list of monitors, because a port that looks unused may serve a configured check |
+
+Also deferred: correcting three `ephemeralContainers` comments in the Kyverno policies. That needs
+its own check of whether the code can be reached, not just a text edit.
 
 ### 2026-07-25 — Ultrareview remediation Batch 4: monitoring correctness
 
