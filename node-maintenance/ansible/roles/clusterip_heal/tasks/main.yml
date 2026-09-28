@@ -1,7 +1,7 @@
 ---
 # clusterip_heal — node-local self-heal for the post-reboot kube-proxy ClusterIP DNAT wedge.
-# WORKERS ONLY (wired in node-config.yml Play 4, hosts: workers). Never the CP: restart-k3s-on-CP
-# hangs and the CP host-netns ClusterIP probe false-reads wedged. The script also no-ops where
+# WORKERS ONLY (node-config.yml's workers-only play). Never the CP: the host-network probe
+# reports failure on a healthy control plane, so clusterip_heal_cp covers the CP. The script also no-ops where
 # k3s-agent is absent (the CP) as a second guard. Detection reuses the phase2 clusterip-probe.sh
 # (deployed by the k3s_config role to /etc/node-maintenance/bin/). See files/clusterip-heal.sh.
 

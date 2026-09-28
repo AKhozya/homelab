@@ -1,6 +1,6 @@
 ---
 # Firmware update via fwupd. Tag: firmware.
-# Apply-mode (install updates, may reboot): -e ad_hoc_firmware_apply=true
+# Apply-mode (install updates, never reboots): -e ad_hoc_firmware_apply=true --limit <host>
 # Check-only (default): only refresh metadata + list pending updates.
 
 - name: Ensure fwupd installed
@@ -34,9 +34,23 @@
     var: fwupd_updates.stdout_lines
   tags: [never, firmware, ad-hoc]
 
-- name: Apply firmware updates (only when ad_hoc_firmware_apply=true)
-  ansible.builtin.command: fwupdmgr update --no-unreported-check --assume-yes
+# --assume-yes also answers yes to "restart now?", so without --no-reboot-check a firmware that
+# needs a reboot reboots the node immediately, on every host of the play at once. An in-guest
+# reboot of immich-vm leaves its passed-through iGPU unresponsive and can crash the NAS host.
+# Reboot through the phase1/phase2 flow.
+- name: Refuse to apply firmware to more than one node per run
+  ansible.builtin.assert:
+    that: ansible_play_hosts_all | length == 1
+    fail_msg: "apply mode needs --limit <one host>: one node at a time"
+    quiet: true
   when: ad_hoc_firmware_apply | bool
+  tags: [never, firmware, ad-hoc]
+
+- name: Apply firmware updates (only when ad_hoc_firmware_apply=true)
+  ansible.builtin.command: fwupdmgr update --no-unreported-check --no-reboot-check --assume-yes
+  when:
+    - ad_hoc_firmware_apply | bool
+    - "'virtual' not in group_names"
   register: fwupd_apply
   until: fwupd_apply is not failed
   retries: 3

@@ -11,7 +11,8 @@
 }
 
 # Monthly scan summaries (one file per YYYY-MM, written by node-maintenance-security-scan.timer).
-# Filename is month-indexed so rotation happens at month boundary; retain 12 months for review.
+# Each month writes a new file, so `rotate` never removes an old month; security-scan.sh
+# deletes summaries older than 400 days itself.
 /var/log/node-maintenance/security-scan-*.log {
     monthly
     rotate 12

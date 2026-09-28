@@ -1,6 +1,6 @@
 [Unit]
 Description=ClusterIP DNAT heal watchdog — check ~90s after boot + every 3min, restart k3s-agent if wedged
-# Defense-in-depth: the role is workers-only (Play 4), but also gate on the heal script existing.
+# Defense-in-depth: the role is workers-only (node-config.yml), but also gate on the heal script existing.
 ConditionPathExists=/usr/local/sbin/clusterip-heal.sh
 
 [Timer]

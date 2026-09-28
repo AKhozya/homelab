@@ -1,6 +1,6 @@
 ---
 # node_isolation_heal — worker CP-isolation self-recovery watchdog. WORKERS ONLY
-# (wired in node-config.yml Play 4, hosts: workers). The script also no-ops where the
+# (node-config.yml's workers-only play). The script also no-ops where the
 # k3s-agent unit is absent (the control-plane), as a second guard.
 #
 # node_isolation_dry_run=true → the watchdog logs the decision it WOULD take + emits

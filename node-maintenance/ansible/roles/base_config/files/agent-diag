@@ -90,7 +90,10 @@ opt_ok() {
       # /proc/<pid>/cwd is one to wherever that process sits, so `/proc/` as a bare prefix hands
       # back the whole filesystem. Only the system-wide files (one component: meminfo, loadavg,
       # stat …), the pressure trio, and the per-process files that carry no path are listed.
+      # `*` in a case pattern also matches `/`, so /proc/[0-9]*/status alone would admit
+      # /proc/1/root/<any path>/status. Reject paths with three or more components after /proc first.
       case $2 in
+        /proc/*/*/*) return 1 ;;
         /proc/pressure/cpu|/proc/pressure/io|/proc/pressure/memory) return 0 ;;
         /proc/[0-9]*/status|/proc/[0-9]*/stat|/proc/[0-9]*/cmdline|/proc/[0-9]*/io|/proc/[0-9]*/limits) return 0 ;;
         /proc/*/*) return 1 ;;

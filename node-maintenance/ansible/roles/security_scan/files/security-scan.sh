@@ -3,7 +3,7 @@
 # Runs as root via systemd timer (node-maintenance-security-scan.timer).
 # Writes a compact month-indexed summary to /var/log/node-maintenance/;
 # full per-tool logs live at /var/log/{lynis.log,lynis-report.dat,rkhunter.log}
-# (rotated by logrotate/security-tools, 6 months retention).
+# (rotated by logrotate/security-tools on every node, 6 months retention).
 set -uo pipefail
 
 LOG_DIR=/var/log/node-maintenance
@@ -102,5 +102,8 @@ FAIL=0
 
 chown root:adm "$SUMMARY" 2>/dev/null || true
 chmod 0640 "$SUMMARY" 2>/dev/null || true
+
+# One file per month, so logrotate's `rotate` never removes an old month. Keep about 13 months.
+find "$LOG_DIR" -maxdepth 1 -name 'security-scan-*.log*' -mtime +400 -delete 2>/dev/null || true
 
 exit "$FAIL"

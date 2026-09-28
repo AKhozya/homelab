@@ -5,13 +5,16 @@
 # roles reference them. `ad_hoc` tasks tagged `never` — skipped by default daily
 # timer, invoked explicitly via `-t <tag>`.
 #
-# Three-play split:
-#   Play 1 (parallel): non-disruptive roles (file copies, package state).
-#   Play 2 (serial:1): firewall — UFW reload races with the k3s/flannel chain
-#                      rebuild, so heal one node at a time. Paired with the
-#                      firewall role's drift fingerprint gate, the rules block
-#                      runs only when the role detects real drift.
-#   Play 3 (parallel): post-firewall roles + workers-only tail.
+# Plays, in order:
+#   non-disruptive (all, parallel): file copies, package state, firewall_preflight.
+#   firewall (all, serial:1): UFW reload races with the k3s/flannel chain rebuild, so
+#       heal one node at a time. Paired with the firewall role's drift fingerprint
+#       gate, the rules block runs only when the role detects real drift.
+#   post-firewall (all, parallel): hardening, nic_tuning, security_scan, ad_hoc.
+#   Immich GPU node (virtual): immich_gpu_node.
+#   workers only: firewall_preflight, clusterip_heal, node_isolation_heal.
+#   control-plane only: clusterip_heal_cp, kubectl proxy removal.
+#   report a firewall rescue (all).
 
 - name: Node config drift-heal — non-disruptive (all hosts, parallel)
   hosts: all

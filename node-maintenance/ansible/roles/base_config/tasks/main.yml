@@ -21,16 +21,23 @@
     mode: "0644"
   tags: [base-config, logrotate]
 
-- name: Deploy CP-only logrotate configs
+# The security scan runs on every node, so its logrotate config goes to every node.
+- name: Deploy /etc/logrotate.d/security-tools
   ansible.builtin.copy:
-    src: "logrotate-{{ item }}"
-    dest: "/etc/logrotate.d/{{ item }}"
+    src: logrotate-security-tools
+    dest: /etc/logrotate.d/security-tools
     owner: root
     group: root
     mode: "0644"
-  loop:
-    - node-maintenance
-    - security-tools
+  tags: [base-config, logrotate]
+
+- name: Deploy CP-only logrotate config (phase1/phase2/config logs)
+  ansible.builtin.copy:
+    src: logrotate-node-maintenance
+    dest: /etc/logrotate.d/node-maintenance
+    owner: root
+    group: root
+    mode: "0644"
   when: "'control_plane' in group_names"
   tags: [base-config, logrotate]
 
@@ -52,8 +59,8 @@
   tags: [base-config, timers]
 
 # systemd-timesyncd: assert enabled + active. Single source of clock truth
-# for all 3 nodes. K3s etcd tolerates ≤2s skew; timesyncd holds ≪100ms in
-# practice. Drift surfaced via textfile metric below.
+# for all 4 nodes. Skew breaks certificate validity checks and the 75s node-lease
+# grace; timesyncd holds ≪100ms in practice. The textfile metric below reports clock drift.
 - name: Ensure systemd-timesyncd enabled + active
   ansible.builtin.systemd_service:
     name: systemd-timesyncd.service

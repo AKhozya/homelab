@@ -22,5 +22,6 @@
 # reexec is required to guarantee the watchdog stays disarmed. Safe: PID-1 re-exec preserves state and
 # does not disrupt k3s-agent/containerd (they are not children of the re-exec).
 - name: Disarm systemd watchdog
-  ansible.builtin.command: systemctl daemon-reexec
+  ansible.builtin.systemd_service:
+    daemon_reexec: true
   changed_when: false

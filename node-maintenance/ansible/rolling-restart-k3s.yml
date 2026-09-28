@@ -2,10 +2,9 @@
 # rolling-restart-k3s.yml — serial restart of k3s/k3s-agent across all nodes.
 # Picks up changes to /etc/rancher/k3s/{config,kubelet}.yaml without manual ssh.
 #
-# Invoke from CP:
-#   sudo -u node-maintenance ansible-playbook \
-#     /etc/node-maintenance/ansible/rolling-restart-k3s.yml \
-#     -i /etc/node-maintenance/ansible/inventory.yml
+# Invoke from CP: sudo systemctl start node-maintenance-rolling-restart.service
+# The unit holds the node-maintenance lock. A direct ansible-playbook run skips that lock and
+# shares root's SSH ControlMaster with any running drift-heal, whose exit can kill this run.
 #
 # CP first (CM grace-period change applies on k3s.service restart), then workers
 # serially. serial: 1 = at most one node disrupted at a time.
@@ -14,8 +13,10 @@
 # Fails play if expected fields missing — surfaces silent K3s field-stripping
 # (see k3s issues #7578, #8340, #8266 for historical bugs).
 #
-# Override expected values via -e on CLI if config changes:
-#   ansible-playbook ... -e expected_lease_seconds=90 -e expected_report_frequency=2m0s
+# If config changes, override expected values via -e while holding the lock:
+#   sudo /usr/local/sbin/node-maintenance-lock.sh wait -- ansible-playbook \
+#     /etc/node-maintenance/ansible/rolling-restart-k3s.yml -i /etc/node-maintenance/ansible/inventory.yml \
+#     -e expected_lease_seconds=90 -e expected_report_frequency=2m0s
 
 - name: Rolling restart k3s control-plane
   hosts: control_plane

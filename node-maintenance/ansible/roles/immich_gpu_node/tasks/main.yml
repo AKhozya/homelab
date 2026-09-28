@@ -32,7 +32,14 @@
   ansible.builtin.shell: |
     set -euo pipefail
     f=/etc/kernel/cmdline
+    # If the file is missing or empty, the rewrite below would produce a UKI with no root=,
+    # which does not boot.
+    [ -s "$f" ] || { echo "$f is missing or empty" >&2; exit 1; }
     read -r -a toks < <(head -n1 "$f") || true   # split the single cmdline line into tokens
+    case " ${toks[*]} " in
+      *" root="*) ;;
+      *) echo "$f has no root= token; refusing to rewrite it" >&2; exit 1 ;;
+    esac
 
     blacklist_want='i915 xe'      # drivers that must be present in the one modprobe.blacklist token
     have_fbdev=0 have_fbcon=0 bl_idx=-1

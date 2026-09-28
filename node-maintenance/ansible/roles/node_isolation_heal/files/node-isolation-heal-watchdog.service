@@ -1,7 +1,7 @@
 [Unit]
 Description=Node isolation heal watchdog (worker CP-isolation self-recovery)
 Documentation=https://github.com/AKhozya/homelab
-# Defense-in-depth: role is workers-only (node-config.yml Play 4), but also gate on the
+# Defense-in-depth: role is workers-only (node-config.yml's workers-only play), but also gate on the
 # heal script existing. The script itself no-ops where the k3s-agent unit is absent (CP).
 ConditionPathExists=/usr/local/sbin/node-isolation-heal.sh
 

@@ -1,5 +1,5 @@
 ---
-# k3s_image_gc — weekly `crictl rmi --prune` on all 3 nodes.
+# k3s_image_gc — weekly `crictl rmi --prune` on all 4 nodes.
 
 - name: Deploy k3s-image-gc units
   ansible.builtin.copy:

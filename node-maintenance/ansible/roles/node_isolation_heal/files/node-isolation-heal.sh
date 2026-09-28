@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # node-isolation-heal.sh — worker self-recovery when the node is isolated from the
 # control-plane (k3s-agent tunnel to the CP wedged / can't reach the apiserver) while the
-# HOST is still alive. WORKERS ONLY (wired in node-config.yml Play 4, hosts: workers; also
+# HOST is still alive. WORKERS ONLY (node-config.yml's workers-only play; also
 # no-ops where the k3s-agent unit is absent = the control-plane).
 #
 # Origin: 2026-07-10 worker-node-2 was isolated ~90 min (NotReady + host SSH blackholed)

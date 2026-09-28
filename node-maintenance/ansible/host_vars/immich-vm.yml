@@ -2,7 +2,6 @@
 # immich-vm (192.168.1.231) — Arch VM on the zettOS NAS, the Immich GPU node.
 # Meteor Lake iGPU (0000:00:02.0) full-passthrough for QSV transcode. 4 vCPU / 12Gi, virtio disk + NIC.
 # Member of `workers` (k3s-agent, clusterip_heal) + `virtual` (immich_gpu_node role) — see inventory.yml.
-# NOT live until bootstrapped to node-maintenance@:65300 and added to inventory (go-live step).
 
 # Cluster LAN IP for the /etc/hosts block (mirrors ansible_host, explicit).
 node_ip: 192.168.1.231

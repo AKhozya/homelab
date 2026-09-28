@@ -78,9 +78,12 @@ virtiofs_state() {
 # SIGKILL is ignored — timeout can't reap that; qsv_probe_stuck() catches the leftover instead (below).
 qsv_probe() {
 	command -v vainfo >/dev/null 2>&1 || return 2
-	timeout -k 5 "$QSV_TIMEOUT" env LIBVA_DRIVER_NAME=iHD \
-		vainfo --display drm --device "$RENDER_NODE" 2>/dev/null |
-		grep -q 'VAEntrypointEncSlice'
+	local out
+	# If grep exits after its first match, pipefail can report vainfo's SIGPIPE as a probe
+	# failure. Capture stdout before searching it.
+	out="$(timeout -k 5 "$QSV_TIMEOUT" env LIBVA_DRIVER_NAME=iHD \
+		vainfo --display drm --device "$RENDER_NODE" 2>/dev/null)" || return 1
+	grep -q 'VAEntrypointEncSlice' <<<"$out"
 }
 
 # A prior hourly vainfo still alive = it wedged in D-state (timeout couldn't kill it). Detect it so the
