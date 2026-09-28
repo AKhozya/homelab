@@ -171,7 +171,7 @@ spec:
             // No .timer entries: systemd logs timer events under _SYSTEMD_UNIT=init.scope,
             // so a .timer match returns nothing. If you add a node-maintenance service, add its
             // _SYSTEMD_UNIT match here.
-            matches       = "_SYSTEMD_UNIT=node-maintenance-phase1.service _SYSTEMD_UNIT=node-maintenance-phase2.service _SYSTEMD_UNIT=node-maintenance-sync.service _SYSTEMD_UNIT=node-maintenance-config.service _SYSTEMD_UNIT=node-maintenance-rolling-restart.service _SYSTEMD_UNIT=node-maintenance-security-scan.service _SYSTEMD_UNIT=node-maintenance-kubectl-proxy.service"
+            matches       = "_SYSTEMD_UNIT=node-maintenance-phase1.service _SYSTEMD_UNIT=node-maintenance-phase2.service _SYSTEMD_UNIT=node-maintenance-sync.service _SYSTEMD_UNIT=node-maintenance-config.service _SYSTEMD_UNIT=node-maintenance-rolling-restart.service _SYSTEMD_UNIT=node-maintenance-security-scan.service"
             relabel_rules = loki.relabel.nodemaint_journal.rules
             labels = {
               job = "node-maintenance",

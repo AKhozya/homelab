@@ -1368,6 +1368,27 @@ spec:
             Common cause: pacman file conflict from a truncated package (empty `desc` in
             /var/lib/pacman/local/<pkg>/) → `sudo pacman -S --overwrite '/usr/*' <pkg>`.
 
+      # Every telegram-notify.sh caller discards its exit code, so a broken node-maintenance
+      # Telegram channel (stale token, missing chat-id file, API error) is otherwise silent.
+      # Alertmanager sends this alert using its separate bot token.
+      # The gauge changes only when the script runs, so the alert clears on the next
+      # successful send, not when the cause is fixed.
+      # No staleness rule on ..._last_attempt_timestamp_seconds: sends are event-driven
+      # (failures, drift repairs, weekly phase2), so healthy nodes can go weeks without a send.
+      # Metric: node-maintenance/lib/telegram-notify.sh → textfile telegram_notify.prom
+      - alert: NodeMaintenanceTelegramNotifyFailed
+        expr: node_maintenance_telegram_notify_success == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "node-maintenance Telegram notify failed on {{ $labels.instance }}"
+          description: |
+            The last node-maintenance Telegram notification from {{ $labels.instance }} was not delivered,
+            so node-maintenance failure and drift notices from that node are not reaching Telegram.
+            Reason: `journalctl -t telegram-notify -p err` on the node.
+            Usual causes: a stale /etc/node-maintenance/telegram-token or a missing telegram-chat-id file.
+
 
   - name: redis-ha
     interval: 60s

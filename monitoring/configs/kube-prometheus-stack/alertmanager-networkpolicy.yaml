@@ -41,14 +41,6 @@ spec:
       ports:
         - protocol: TCP
           port: 9093
-    # Host network. node-maintenance on the CP posts and deletes silences through
-    # `kubectl proxy`, which reaches alertmanager via the service proxy.
-    - from:
-        - ipBlock:
-            cidr: 192.168.1.0/24
-      ports:
-        - protocol: TCP
-          port: 9093
     # Cluster gossip (HA mesh)
     - from:
         - podSelector:
