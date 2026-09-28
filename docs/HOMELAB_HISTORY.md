@@ -2476,28 +2476,143 @@ to; that move finished on 2026-07-12 (see above). The VM joined Ansible node-mai
 which leaves it out of in-guest reboots and node_isolation_heal because of the GPU reset bug. Node
 counts now read 4 nodes (3 physical + 1 VM).
 
-### 2026-07-10 — k3s v1.36.1 → v1.36.2 patch + trivy scan concurrency 2→1
+### 2026-07-10 — k3s patch v1.36.1 → v1.36.2, and trivy scan concurrency cut from 2 to 1
 
-**k3s patch upgrade** (`v1.36.1+k3s1` → `v1.36.2+k3s1`, same-minor patch on the stable channel). Binary-swap via `k3s-upgrade` skill: staged the new binary to all 3 nodes (sha256-verified, old kept at `k3s.prev`), activated through the sanctioned serial rolling-restart (CP→W1→W2). Zero workload disruption, ~10 min. No repo commit — k3s is a manual `/usr/local/bin/k3s` binary, not Flux/pacman-managed. Rollback = swap `k3s.prev` back (patch-level is cleanly reversible); cleanup `k3s.prev` after ~1 week stable.
+**k3s patch upgrade.** The cluster went from `v1.36.1+k3s1` to `v1.36.2+k3s1`, a patch release
+within the same minor version on the stable channel. The `k3s-upgrade` skill swapped the binary. It
+copied the new binary to all 3 nodes, checked each copy against its sha256, and kept the old binary
+at `k3s.prev`. The approved rolling restart then started the new version one node at a time: the
+control plane first, then the workers W1 and W2. Workloads saw no disruption, and the upgrade took
+~10 min. There is no repo commit, because k3s is a binary installed by hand at `/usr/local/bin/k3s`,
+and neither Flux nor pacman manages it. To roll back, copy `k3s.prev` back into place; a patch-level
+change reverses cleanly. Delete `k3s.prev` after ~1 week of stable running.
 
-**trivy `scanJobsConcurrentLimit: 2 → 1`** (`5a882546`, CI green; Codex skipped — single-int tuning, no bug-class surface). The upgrade's rolling restart triggered a full-fleet trivy rescan → the upstream #2859 fs-cache-lock storm (`cache may be in use by another process: timeout`), 33 err/min peak. This is the same self-healing churn documented 2026-07-05; it drains on its own and reports are still produced, but concurrency=2 wasn't enough to keep it quiet post-reboot. Serializing scan pods (limit=1) dropped the post-restart error rate to ~0. Trade-off: full-fleet rescan now serial (slower) — fine for 93 workloads. Note: pod-level concurrency can't fix the *intra-pod* multi-container contention (grafana+sidecar, home-assistant init trio) that #2859 also covers; limit=1 only removes pod-vs-pod contention. Verify-time gotcha now documented in the `k3s-upgrade` + `cluster-reboot` skills so the transient scan-Error wave isn't re-investigated as reboot damage.
+**trivy `scanJobsConcurrentLimit: 2 → 1`** (`5a882546`, CI green). Codex did not review it,
+because the change tunes a single integer and touches no known class of bug. The upgrade's rolling
+restart made trivy rescan every workload in the cluster. That rescan set off a burst of errors from
+the upstream bug #2859, a lock on trivy's shared file-system cache
+(`cache may be in use by another process: timeout`). Errors peaked at 33 per minute. The same
+errors, recorded on 2026-07-05, fix themselves: they stop on their own, and trivy still produces
+its reports. But a concurrency of 2 was not low enough to stop them after a reboot. Running
+scan pods one at a time (limit=1) cut the error rate after the restart to ~0.
 
-### 2026-07-06 — rebuilderd (reproducible-build farm) removed cluster-wide
+The cost is that a rescan of every workload now runs one pod after another, so it takes longer.
+That is acceptable for 93 workloads. Pod-level concurrency cannot fix contention between the
+containers *inside one pod*, which #2859 also covers. Examples are grafana and its sidecar (a
+helper container in the same pod), and home-assistant's three init containers (containers that run
+before the app starts). A limit of 1 removes only contention between pods. The `k3s-upgrade` and
+`cluster-reboot` skills now describe this effect in their verification steps, so that the short
+burst of scan-pod errors is not investigated again as damage from the reboot.
 
-Removed rebuilderd + `archlinux-repro` from both workers: packages, all systemd units (worker / metrics / watchdog / boot-timer / repro-cleanup / sync), the `/mnt/*/repro` + `/mnt/*/rebuilderd-worker` caches, the node-exporter textfile metric, the ansible `rebuilderd` role, the `rebuilderd-alerts` VMRule group, and every rebuilderd-motivated node-alert carve-out (`CPUThrottlingHigh` + `NodeMemoryMajorPagesFaults` worker exclusions dropped; `NodeHighIOWait` 15%/15m→10%/10m; `NodeDiskIOSaturation` 20/1h→10/30m). The `rebuilderd-progress` Claude skill was retired alongside (separate chezmoi repo).
+### 2026-07-06 — rebuilderd, the reproducible-build farm, removed from the cluster
 
-**Why:** the build farm chronically saturated worker-node-2 and disrupted co-located latency-sensitive workloads. 2026-07-06 incident: load ~11, 7.6 GB swap thrash, 17× `cicc`/`nvshmem` cgroup-OOMs starved the node's DNS/flannel path → the co-located MySQL replica lost DNS (`-2` NONAME) → its replication IO thread hit 3/3 retries and stopped → `StatefulSetReplicasMismatch` + `MySQLReplicaExporterDown` that don't self-heal. Same class as the OOM→MySQL-pod-kill incidents that forced `MemoryMax` down 18G→8G (2026-02-21, 04-26, 05-22) and the chronic W2 DiskPressure from the repro cache. The resource-tuning arms race stopped being worth the idle-capacity contribution.
+The change removed rebuilderd and `archlinux-repro` from both workers. The removal covered:
 
-Executed via a one-shot `rebuilderd_teardown` ansible role wired into the workers drift-heal (removed after the nodes verified clean). Plan: `docs/superpowers/plans/2026-07-06-rebuilderd-removal-plan.md`. Codex peer-reviewed (SHIP-WITH-FIXES; all applied).
+| Removed | Detail |
+|---|---|
+| packages | the installed packages |
+| systemd units | all of them: worker, metrics, watchdog, boot timer, repro-cleanup, sync |
+| caches | `/mnt/*/repro` and `/mnt/*/rebuilderd-worker` |
+| metric | the node-exporter textfile metric |
+| Ansible role | `rebuilderd` |
+| alert rules | the `rebuilderd-alerts` VMRule group |
 
-### 2026-07-05 — trivy CVE triage: ignore-unfixed + weekly digest, 3 upstream issues
+Every exception or looser threshold that rebuilderd had forced into the node alerts went too:
 
-First real triage of the 21 `TrivyCriticalVulnerabilities` alerts (trivy-operator installed 07-04). **0 on our own images** (claude-telegram-bot clean) — all 3rd-party. ~90% are base-OS / system-lib CVEs (perl/glib/zlib/mesa/sqlite/mariadb-client/Go-stdlib/chromium/kernel-headers) — the same CVE recurs across 12+ unrelated images = shared base layers, unactionable (only a Debian/base rebuild fixes them). App-level (maintainer-fixable) deps sit in only 4 apps, and none is fixable by an image bump (all already pinned to their latest release).
+| Alert | Change |
+|---|---|
+| `CPUThrottlingHigh` | exclusion for the workers dropped |
+| `NodeMemoryMajorPagesFaults` | exclusion for the workers dropped |
+| `NodeHighIOWait` | 15%/15m before, 10%/10m now |
+| `NodeDiskIOSaturation` | 20/1h before, 10/30m now |
 
-- **Filed 3 upstream issues** (verified below-fix, no existing tracking): paperless-ngx #13092 (Django 5.2.7→5.2.8 CVE-2025-64459 SQLi; nltk 3.9.2→3.9.3 CVE-2025-14009 **CVSS 10.0** zip-slip), linkwarden #1733 (fast-xml-parser/shell-quote/i18next-fs-backend transitive; handlebars already tracked = upstream Dependabot PR #1654; vitest dev-only N/A), uptime-kuma #7572 (protobufjs 7.2.6→7.5.5 CVE-2026-41242). audiobookshelf form-data = accepted-risk, not filed (transitive via ancient axios 0.27.2, maintainer declines per-CVE bumps — closed #5182).
-- **Shipped (`e0756d47`, CI green, Codex-reviewed)**: `trivy.ignoreUnfixed: true` (drops unpatchable base-OS noise — verified **28→14** critical reports; clears authentik/cnpg-postgres/cnpg-pgbouncer/immich ×2/python-slim, slims uptime-kuma 126→71, paperless 35→8) + demoted the alert to a **weekly `telegram-digest`** receiver (compact 1-line-per-image HTML, cap 25 lines for the TG 4096 limit, `group_by:[alertname]`, `repeat_interval:168h`; `critcount` annotation carries the per-image count). `alertmanagerSpec.retention:192h` REQUIRED so 168h isn't GC-capped to ~5d (AM nflog default 120h — Codex catch). HTML parse_mode not MarkdownV2 (CVE IDs / version tags are full of dots+dashes → a MarkdownV2 escape-miss = TG 400-reject = silent non-delivery).
-- **Decision**: keep trivy **cluster-wide**, not scoped to our images — its unique value over Renovate is surfacing fixable CVEs on 3rd-party images we're already on the latest of (Renovate's blind spot; proven by the paperless CVSS-10 nltk). We build ~1 image, CI-scannable in its own repo.
-- **Gotcha**: do NOT mass-delete VulnerabilityReports to force a re-scan — it drops the metric → alert resolves → re-created reports re-arm `for:6h` (no digest ~6h), AND triggers the upstream #2859 cache-lock scan storm (`cache may be in use by another process: timeout`) on multi-container pods. Both self-heal (retries converge); restart a single workload pod instead.
+The `rebuilderd-progress` Claude skill, kept in a separate chezmoi repo, was retired at the same
+time.
+
+**Why:** the build farm kept overloading worker-node-2 and disrupted workloads on the same node that
+need fast responses. In the 2026-07-06 incident, load reached ~11 and the node thrashed 7.6 GB of
+swap (repeatedly moved memory pages between RAM and disk). `cicc`/`nvshmem` hit 17 out-of-memory
+(OOM) kills inside their cgroup (a group of processes whose resource use the kernel tracks and
+limits). Those kills starved the node's DNS and flannel (pod network) path. The MySQL replica on the
+same node then lost DNS (`-2` NONAME). Its replication IO thread used all 3/3 retries and stopped.
+That raised `StatefulSetReplicasMismatch` and `MySQLReplicaExporterDown`, and neither clears on its
+own.
+
+The incident belongs to the same class as the earlier ones in which OOM kills stopped the MySQL
+pod. Those incidents forced `MemoryMax` down from 18G to 8G (2026-02-21, 04-26, 05-22). The repro
+cache also caused the recurring DiskPressure on W2 (the state Kubernetes sets when a node runs low
+on disk). Repeated resource tuning had stopped being worth the build work the farm did with
+otherwise idle capacity.
+
+A one-shot `rebuilderd_teardown` Ansible role did the removal. It ran as part of the workers'
+drift-heal (the run that puts each node back to its declared configuration), and was itself removed
+after the nodes checked clean. Plan: `docs/superpowers/plans/2026-07-06-rebuilderd-removal-plan.md`.
+Codex reviewed it and returned SHIP-WITH-FIXES; every fix was applied.
+
+### 2026-07-05 — trivy CVE triage: unfixed CVEs ignored, a weekly digest, and 3 upstream issues
+
+A CVE is a publicly listed security flaw. This was the first real triage (sorting each finding by
+what can be done about it) of the 21 `TrivyCriticalVulnerabilities` alerts; trivy-operator was
+installed 07-04. **0 were on our own images** (claude-telegram-bot is clean); all were in
+3rd-party images. ~90% are CVEs in the base operating system or in system libraries (perl, glib,
+zlib, mesa, sqlite, mariadb-client, the Go standard library, chromium, kernel-headers). The same
+CVE recurs across 12+ unrelated images because they share base layers. Nothing can be done about
+those here: only a rebuild of the Debian or other base image fixes them. Dependencies that an
+app's maintainer could fix sit in only 4 apps. A newer image fixes none of them, because all of
+those apps are already pinned to their latest release.
+
+**Filed 3 upstream issues.** For each, the version in use was checked to be below the fix, with no
+existing issue tracking it:
+
+| Project | Issue | Content |
+|---|---|---|
+| paperless-ngx | #13092 | Django 5.2.7 → 5.2.8, CVE-2025-64459 (SQL injection); nltk 3.9.2 → 3.9.3, CVE-2025-14009, **CVSS 10.0** (the top severity score) zip-slip (an archive entry writes outside its target folder) |
+| linkwarden | #1733 | indirect dependencies fast-xml-parser, shell-quote and i18next-fs-backend. handlebars is already tracked by upstream Dependabot PR #1654. vitest runs only in development, so it does not apply |
+| uptime-kuma | #7572 | protobufjs 7.2.6 → 7.5.5, CVE-2026-41242 |
+
+The form-data CVE in audiobookshelf is an accepted risk and was not filed. It comes in indirectly
+through the old axios 0.27.2, and the maintainer declines to bump dependencies for single CVEs
+(closed #5182).
+
+**Shipped** (`e0756d47`, CI green, Codex-reviewed), in two parts.
+
+First, `trivy.ignoreUnfixed: true` drops base-OS CVEs that have no patch. Critical reports went
+from **28 to 14** (checked):
+
+| Image | Critical report |
+|---|---|
+| authentik, cnpg-postgres, cnpg-pgbouncer, immich ×2, python-slim | cleared |
+| uptime-kuma | shrank from 126 to 71 |
+| paperless | shrank from 35 to 8 |
+
+Second, the alert moved to a less urgent receiver, a **weekly `telegram-digest`**:
+
+| Setting | Value |
+|---|---|
+| format | compact HTML, 1 line per image |
+| length | capped at 25 lines, to fit Telegram's 4096 limit |
+| grouping | `group_by:[alertname]` |
+| repeat | `repeat_interval:168h` |
+| count per image | carried by the `critcount` annotation |
+
+`alertmanagerSpec.retention:192h` is required. Without it, Alertmanager's
+notification log (nflog) drops entries after its default 120h, so the 168h repeat would be cut
+to ~5d. Codex caught this. The digest uses Telegram's HTML parse_mode, not MarkdownV2, because CVE
+IDs and version tags are full of dots and dashes. If MarkdownV2 escaping misses one of them,
+Telegram rejects the message with a 400, and the digest is not delivered, with no warning.
+
+**Decision:** trivy keeps scanning the **whole cluster**, not only our images. What it adds over
+Renovate (the bot that proposes version updates) is finding fixable CVEs in 3rd-party images whose
+latest release we already run. Renovate cannot see those; the paperless nltk CVE, CVSS-10, proved
+it. We build ~1 image, and the CI in that image's own repo can scan it.
+
+**Gotcha:** do not delete many VulnerabilityReports (the objects in which trivy stores scan
+results) at once to force a rescan. Deleting them drops
+the metric, so the alert resolves. The re-created reports then start the `for:6h` wait again, so no
+digest goes out for ~6h. The deletion also sets off the burst of cache-lock scan errors from
+upstream #2859 (`cache may be in use by another process: timeout`) on pods with several
+containers. Both problems fix themselves, because the retries eventually succeed. To force a
+rescan, restart a single workload pod instead.
 
 ### 2026-07-04 — Monthly review + first quarterly automation audit
 
