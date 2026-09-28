@@ -90,8 +90,8 @@ has the full policy.
 
 Follow [setup/K3S_SETUP.md](../setup/K3S_SETUP.md) for each node: control plane first, then
 worker-node and worker-node-2, then `immich-vm`. It covers the bootstrap script, the Ansible
-config that must exist before K3s first starts, the pinned K3s install, the join token and the
-kubeconfig.
+config, the pinned K3s install, the join token and the kubeconfig. Read its control-plane section
+first: the first-start order there is not drilled and has a known gap.
 
 ### Step 2: Firewall
 
@@ -124,6 +124,18 @@ chmod +x secrets-restore.sh
 The script decrypts the archive and restores every secret the cluster needs.
 
 ### Step 5: Bootstrap Flux
+
+Start CoreDNS first. The control plane's K3s config turns off the bundled CoreDNS, and Flux is the
+only source of the cluster's DNS (`infrastructure/coredns/`). Flux's own controllers need that DNS
+to reach GitHub, so without this apply the bootstrap cannot fetch the repo. This apply from a
+checkout is a second exception to the GitOps-only rule; Flux adopts the objects on its first
+reconcile of the `coredns` Kustomization.
+
+```bash
+# From a checkout of this repo
+kubectl apply -k infrastructure/coredns/
+kubectl -n kube-system rollout status daemonset/coredns-ha --timeout=5m
+```
 
 ```bash
 flux bootstrap github \
@@ -304,30 +316,44 @@ else
 fi
 ```
 
+The PostgreSQL and MySQL restores each take two hosts. The archives sit on worker-node, where only
+root can read them and `kubectl` is not configured. The restore runs from the workstation, which
+has `kubectl`. So verify and extract on the node, copy the extracted directory over, then restore.
+
 #### PostgreSQL
 
 ```bash
-# Find latest backup
-LATEST_BACKUP=$(ls -t /mnt/k8s-storage/backups/postgres/postgres_*.tar.gz | head -1)
+# --- on worker-node, as root (sudo -i): verify and extract ---
+set -euo pipefail
+# The .sha256 file names the archive without a directory, so check it from inside this one.
+cd /mnt/k8s-storage/backups/postgres
+LATEST=$(ls -t postgres_*.tar.gz | head -1)
+sha256sum -c "$LATEST.sha256"
+tar -xzf "$LATEST" -C /tmp
+# The archive holds one directory named after its timestamp (YYYYMMDD_HHMMSS).
+TS=$(basename "$LATEST" .tar.gz | sed 's/^postgres_//')
+chown -R akhozya: "/tmp/$TS"
+echo "TS=$TS"
+```
 
-# Verify integrity
-sha256sum -c ${LATEST_BACKUP}.sha256
-
-# Extract
-tar -xzf $LATEST_BACKUP -C /tmp
-
-# Restore each DB by iterating the actual dumps (custom-format, pg_dump -F c) so every
-# backed-up database is covered and none are invented. Tarball extracts to /tmp/<TIMESTAMP>/<db>.dump
-# (the postgres_ prefix is only on the tarball name, not the inner dir).
-DUMP_DIR="/tmp/$(basename "$LATEST_BACKUP" .tar.gz | sed 's/^postgres_//')"
-PRIMARY=$(kubectl get pod -n databases -l cnpg.io/cluster=main-postgres,cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}')
-for DUMP in "$DUMP_DIR"/*.dump; do
-  DB=$(basename "$DUMP" .dump)
-  echo "Restoring $DB -> $PRIMARY..."
-  # -i streams the node-side dump into the pod; pg_restore reads the custom-format dump from stdin
-  kubectl exec -i -n databases "$PRIMARY" -- \
-    pg_restore -U postgres -d "$DB" -c --if-exists < "$DUMP"
-done
+```bash
+# --- workstation: copy the dumps over, then restore ---
+TS=20260928_020000   # <-- the value the node printed
+FAILED=""
+if scp -P 65300 -r "akhozya@worker-node:/tmp/${TS:?}" /tmp/ &&
+   PRIMARY=$(kubectl get pod -n databases -l cnpg.io/cluster=main-postgres,cnpg.io/instanceRole=primary -o jsonpath='{.items[0].metadata.name}'); then
+  # Iterate the actual dumps (custom format, pg_dump -F c), so every backed-up database is
+  # covered and none is invented. One failed database does not stop the others.
+  for DUMP in "/tmp/$TS"/*.dump; do
+    DB=$(basename "$DUMP" .dump)
+    echo "Restoring $DB -> $PRIMARY..."
+    kubectl exec -i -n databases "$PRIMARY" -- \
+      pg_restore -U postgres -d "$DB" -c --if-exists < "$DUMP" || FAILED="$FAILED $DB"
+  done
+else
+  FAILED=" (copy or primary lookup)"
+fi
+if [ -n "$FAILED" ]; then echo "RESTORE FAILED:$FAILED — fix these before you start the apps"; false; fi
 ```
 
 #### MySQL
@@ -337,28 +363,38 @@ On a rebuilt cluster the MySQL databases and users do not exist yet. Create them
 password from the restored secrets. Then restore the dumps:
 
 ```bash
-# Find latest backup
-LATEST_MYSQL=$(ls -t /mnt/k8s-storage/backups/mysql/mysql_*.tar.gz | head -1)
+# --- on worker-node, as root (sudo -i): verify and extract ---
+set -euo pipefail
+# The .sha256 file names the archive without a directory, so check it from inside this one.
+cd /mnt/k8s-storage/backups/mysql
+LATEST=$(ls -t mysql_*.tar.gz | head -1)
+sha256sum -c "$LATEST.sha256"
+tar -xzf "$LATEST" -C /tmp
+# The archive holds one directory named after its timestamp (YYYYMMDD_HHMMSS).
+TS=$(basename "$LATEST" .tar.gz | sed 's/^mysql_//')
+chown -R akhozya: "/tmp/$TS"
+echo "TS=$TS"
+```
 
-# Verify integrity
-sha256sum -c ${LATEST_MYSQL}.sha256
-
-# Extract
-tar -xzf $LATEST_MYSQL -C /tmp
-
-# Get root password
-MYSQL_ROOT_PWD=$(kubectl get secret -n databases mysql-cluster-secrets -o jsonpath='{.data.root}' | base64 -d)
-
-# Restore each DB by iterating the actual dumps. Tarball extracts to /tmp/<TIMESTAMP>/<db>.sql
-# (the mysql_ prefix is only on the tarball name, not the per-DB files).
-SQL_DIR="/tmp/$(basename "$LATEST_MYSQL" .tar.gz | sed 's/^mysql_//')"
-for SQL in "$SQL_DIR"/*.sql; do
-  DB=$(basename "$SQL" .sql)
-  echo "Restoring $DB..."
-  # -i streams the node-side dump in; -h haproxy routes the write to the primary
-  kubectl exec -i -n databases main-mysql-mysql-0 -- \
-    mysql -h main-mysql-haproxy.databases.svc.cluster.local -uroot -p"${MYSQL_ROOT_PWD}" "$DB" < "$SQL"
-done
+```bash
+# --- workstation: copy the dumps over, then restore ---
+TS=20260928_020000   # <-- the value the node printed
+FAILED=""
+if scp -P 65300 -r "akhozya@worker-node:/tmp/${TS:?}" /tmp/ &&
+   MYSQL_ROOT_PWD=$(kubectl get secret -n databases mysql-cluster-secrets -o jsonpath='{.data.root}' | base64 -d) &&
+   [ -n "$MYSQL_ROOT_PWD" ]; then
+  for SQL in "/tmp/$TS"/*.sql; do
+    DB=$(basename "$SQL" .sql)
+    echo "Restoring $DB..."
+    # -h haproxy routes the write to the primary
+    kubectl exec -i -n databases main-mysql-mysql-0 -c mysql -- \
+      mysql -h main-mysql-haproxy.databases.svc.cluster.local -uroot -p"${MYSQL_ROOT_PWD}" "$DB" < "$SQL" \
+      || FAILED="$FAILED $DB"
+  done
+else
+  FAILED=" (copy or root password lookup)"
+fi
+if [ -n "$FAILED" ]; then echo "RESTORE FAILED:$FAILED — fix these before you start the apps"; false; fi
 ```
 
 #### CouchDB
@@ -604,13 +640,16 @@ echo "workload: $WORKLOAD"
 SEL=$(kubectl get "$WORKLOAD" -n "$NS" -o jsonpath='{.spec.selector.matchLabels}' \
   | jq -r 'to_entries|map("\(.key)=\(.value)")|join(",")')
 
+# Suspend Flux first. Every one of these workloads sets `replicas: 1` in git, and the `apps`
+# Kustomization would scale it back up within a minute, in the middle of STEP 2.
+flux suspend kustomization apps
 kubectl scale "$WORKLOAD" -n "$NS" --replicas=0
 kubectl wait --for=delete pod -l "$SEL" -n "$NS" --timeout=5m
-echo "stopped — now run STEP 2 on worker-node"
+echo "stopped; Flux 'apps' is SUSPENDED until STEP 3 — now run STEP 2 on worker-node"
 ```
 
 ```bash
-# --- STEP 2 (on worker-node): verify, set aside, extract. DESTRUCTIVE ---
+# --- STEP 2 (on worker-node, as root: sudo -i): verify, set aside, extract. DESTRUCTIVE ---
 set -euo pipefail
 NS=home-assistant
 PVC=home-assistant-data-pvc
@@ -671,14 +710,21 @@ WORKLOAD=$(kubectl get deploy,statefulset -n "$NS" -o json \
 [ -n "$WORKLOAD" ] || { echo "no workload mounts $NS/$PVC"; exit 1; }
 
 kubectl scale "$WORKLOAD" -n "$NS" --replicas=1
+flux resume kustomization apps
 kubectl rollout status "$WORKLOAD" -n "$NS" --timeout=5m
 ```
 
+Flux stays suspended from STEP 1 until STEP 3 resumes it, and applies no change to any app in
+between. If you stop before STEP 3, resume Flux only once the volume holds complete data: STEP 2
+finished, or the rollback below restored the original. If you resume earlier, Flux starts the app
+on a half-extracted volume.
+
 **If STEP 2 fails part-way**, the original data is untouched under `.pre-restore-*`. Leave the
-workload stopped and roll back on the node before you restart anything:
+workload stopped and roll back on the node before you restart anything. Then run STEP 3, which
+resumes Flux:
 
 ```bash
-# --- ROLLBACK (on worker-node) ---
+# --- ROLLBACK (on worker-node, as root: sudo -i) ---
 # Rediscovers both directories rather than reusing STEP 2's $PV_PATH/$STAMP — those are
 # gone if that shell exited, which is exactly the situation a rollback follows.
 # `-name` matches the whole basename, so the live directory and the `.pre-restore-*`
@@ -708,8 +754,9 @@ echo "rolled back to $TARGET"
 ```
 
 Delete the `.pre-restore-*` directory only after the app is healthy; it is the rollback.
-`audiobookshelf` (4 PVCs) and `stirling-pdf` (3) each have one Deployment for all their PVCs: run
-STEP 1 once, STEP 2 once per PVC with `BACKUP_DIR` pinned, then STEP 3 once.
+`audiobookshelf` has 4 backed-up PVCs and one Deployment for all of them: run STEP 1 once, STEP 2
+once per PVC with `BACKUP_DIR` pinned, then STEP 3 once. `stirling-pdf` mounts 3 PVCs, but only
+`stirling-pdf-configs-pvc` is backed up, so it takes one STEP 2.
 
 > **Not drilled.** The discovery block and the PVC → volume → path → workload mapping were checked
 > against the live cluster on 2026-07-25 for all 14 PVCs. The extract itself has **not** been
@@ -734,7 +781,9 @@ RSYNC_PASSWORD="$RP" rsync --port=50555 --list-only "rsync://${RU}@${NAS}/akhozy
 TS=20260714_100910   # <-- the dir you picked
 
 # 1) Fence writes, then WAIT for the server pod to actually terminate — `scale` is async,
-#    and a still-running pod would write into a half-restored tree.
+#    and a still-running pod would write into a half-restored tree. Suspend the HelmRelease
+#    first: its drift detection would scale the server back up mid-restore.
+flux suspend helmrelease immich -n immich
 kubectl -n immich scale deploy/immich-server --replicas=0
 kubectl -n immich wait --for=delete pod \
   -l app.kubernetes.io/instance=immich,app.kubernetes.io/name=server --timeout=120s
@@ -755,8 +804,11 @@ ssh zl-nas "set -e; cd '$POOL' && sha256sum -c immich-library.tar.sha256 && \
 ssh zl-nas "chgrp -R zettos-admins /home/akhozya/immich/library && \
             find /home/akhozya/immich/library -type d -exec chmod 2775 {} +"
 
-# 4) Bring immich back up, then verify the mount + DB↔disk.
+# 4) Bring immich back up, then verify the mount + DB↔disk. Run this step only once the
+#    library holds complete data: both the scale and the resume start the server. The
+#    HelmRelease stays suspended until this resume.
 kubectl -n immich scale deploy/immich-server --replicas=1
+flux resume helmrelease immich -n immich
 kubectl -n immich exec deploy/immich-server -- sh -c 'ls /data/library >/dev/null && echo "library mounted"'
 ```
 

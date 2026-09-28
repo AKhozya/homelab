@@ -14,7 +14,8 @@ This page installs K3s on each node: the control plane, the two workers and `imm
 
 ## Order matters
 
-Run the bootstrap and the Ansible config **before** the first K3s start. A bare
+Run the bootstrap and the Ansible config **before** the first K3s start. The workers can do this;
+the control plane cannot yet (see [Control plane](#control-plane)). A bare
 `curl -sfL https://get.k3s.io | sh -` installs an unpinned K3s with its bundled Traefik, CoreDNS
 and helm-controller, and those collide with the ones Flux manages. The Ansible `k3s_config` role
 writes `/etc/rancher/k3s/config.yaml`, which turns the bundled ones off and turns on secrets
@@ -24,16 +25,43 @@ Set up the control plane first, then the workers.
 
 ## Control plane
 
+On the control plane the order has a gap. `config.yaml` should exist before K3s first starts,
+because K3s applies `node-taint` and `node-label` only when a node first registers. But the tools
+that write it need K3s already running:
+
+| Command | Needs | Where that comes from |
+|---|---|---|
+| `scripts/setup-node.sh` | root | It detects the control plane by a running `k3s` service. Before K3s runs, it treats the node as a worker and skips the Ansible stack (`ansible jq rsync logrotate python-kubernetes`). |
+| `node-maintenance/install.sh` | the Ansible stack, `kubectl`, `flux`, a readable `/etc/rancher/k3s/k3s.yaml`, the staged SSH key ([node-maintenance README](../../node-maintenance/README.md#install-once)) | K3s must already run. On the live control plane `flux` comes from the AUR package `flux-bin`; nothing in this repo installs it. |
+| `node-maintenance-config.service` (writes `config.yaml`, `kubelet.yaml`, the firewall) | `install.sh` | `install.sh` installs the unit. |
+| `node-maintenance-sync.service` | `install.sh` and the deploy key `/root/.ssh/homelab-deploy` | the node-maintenance README, "Deploy key (once)". A rebuilt control plane has no deploy key yet. |
+
+`setup-node.sh` prints the order it was built for, and the block below follows it: K3s first,
+then `install.sh`, then a reboot that restarts K3s with the templated config. That order has two
+costs:
+
+| Cost | Effect |
+|---|---|
+| The bundled CoreDNS, Traefik and helm-controller start once | The restart with `disable:` deletes their add-on objects, including the `kube-dns` Service. Cluster DNS stays down until the [DR runbook](../disaster-recovery/README.md#step-5-bootstrap-flux) applies CoreDNS. |
+| The node registers before `config.yaml` exists | It lacks the `NoSchedule` taint and the `enablelb=false` label from `group_vars/control_plane.yml`. |
+
+**Not drilled.** No rebuild has run this order end to end. A first-start order that avoids both
+costs is still open.
+
 ```bash
-# 1. Bootstrap (ansible stack + firmware suppressors + bootloader params + K3s config dir)
+# 1. Bootstrap (firmware suppressors + bootloader params + K3s config dir). Before K3s runs it
+#    skips the Ansible stack, so install that too, and `flux-bin` from the AUR.
 sudo bash scripts/setup-node.sh
+sudo pacman -S --needed ansible jq rsync logrotate python-kubernetes
 
-# 2. Apply ansible-owned config (k3s config.yaml/kubelet.yaml, hardening, firewall, sysctls)
-sudo systemctl start node-maintenance-sync.service
-sudo systemctl start node-maintenance-config.service
-
-# 3. Install pinned K3s
+# 2. Install pinned K3s
 curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.37.0+k3s1" sh -
+
+# 3. Install node-maintenance (stage the SSH key first, as install.sh prints), apply the
+#    Ansible-owned config, then reboot so K3s starts with it
+sudo bash node-maintenance/install.sh
+sudo systemctl start node-maintenance-config.service
+sudo reboot
 
 # Enable secrets encryption (first time only)
 sudo k3s secrets-encrypt enable
@@ -60,10 +88,17 @@ sudo cat /etc/rancher/k3s/k3s.yaml
 
 ### Storage on worker-node
 
-`worker-node` keeps most app volumes on an LVM volume built from two NVMe disks:
+`worker-node` keeps most app volumes on an LVM volume built from two NVMe disks.
+
+The NVMe names (`nvme0`, `nvme1`) can swap between boots (`host_vars/worker-node.yml`), so the
+names below are only an example. Identify the 4 TB disk and the 1 TB partition by
+`ls -l /dev/disk/by-id/` first. The block is for new disks only. If the disks still hold the
+`k8s-storage` volume group, as after a reinstall of the OS alone, skip `pvcreate`, `vgcreate`,
+`lvcreate` and especially `mkfs.ext4`, which erases every app volume. Activate the group with
+`sudo vgchange -ay k8s-storage` and run only the `mkdir`, `fstab` and `mount` lines.
 
 ```bash
-# 4TB + 1TB NVMe LVM setup
+# 4TB + 1TB NVMe LVM setup (new disks only)
 sudo pvcreate /dev/nvme1n1
 sudo pvcreate /dev/nvme0n1p6
 sudo vgcreate k8s-storage /dev/nvme1n1 /dev/nvme0n1p6
@@ -76,13 +111,20 @@ sudo mount -a
 
 ### Install
 
+A worker has no node-maintenance units of its own; the control plane runs Ansible against it over
+SSH. So the worker's `config.yaml` can exist before its first K3s start:
+
 ```bash
-# 1. Bootstrap + ansible-owned config (same as CP — BEFORE k3s install)
+# 1. On the worker: bootstrap
 sudo bash scripts/setup-node.sh
-sudo systemctl start node-maintenance-sync.service
+
+# 2. On the worker: create the node-maintenance user and key. install.sh on the control plane
+#    wrote /tmp/install-worker-ready.sh and printed the commands that copy and run it.
+
+# 3. On the control plane: write the worker's config.yaml, kubelet.yaml and firewall
 sudo systemctl start node-maintenance-config.service
 
-# 2. Install pinned K3s agent (replace token)
+# 4. On the worker: install pinned K3s agent (replace token)
 curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<node-token> INSTALL_K3S_VERSION="v1.37.0+k3s1" sh -
 ```
 
