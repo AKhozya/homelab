@@ -2,10 +2,10 @@
 
 This folder holds six workflows. CI is a signal, not a merge gate:
 
-| Fact | Effect |
+| Fact (2026-09-28) | Effect |
 |---|---|
 | No ruleset or branch protection guards `main` | a commit reaches `main` whatever CI reports |
-| GitHub offers neither on a private Free-plan repo; a public repo gets both for free | a ruleset becomes possible once the repo is public; none is chosen yet |
+| GitHub offers neither on a private Free-plan repo; a public repo gets both for free | a ruleset becomes possible once the repo is public |
 | Flux applies `main` every few minutes | a red commit on `main` still deploys |
 | No Actions job has started since 2026-09-10, because of a billing problem on the account | none of these workflows runs today |
 

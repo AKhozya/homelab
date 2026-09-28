@@ -154,9 +154,13 @@ Each push runs [`validate.yaml`](.github/workflows/validate.yaml):
 | helm-render | every HelmRelease chart renders at its pinned version |
 | homelab-analysis-drift | key numbers in `docs/HOMELAB_ANALYSIS.md` still match the repo (warn-only) |
 
-CI is a signal, not a merge gate. Flux applies `main` whatever CI reports, because a private repo on
-GitHub's Free plan cannot use branch protection. No Actions job has started since 2026-09-10,
-because of a billing problem on the account.
+CI is a signal, not a merge gate. Flux applies `main` whatever CI reports, so a check can block a
+deploy only if a rule on `main` requires it to pass.
+
+| Fact (2026-09-28) | Detail |
+|---|---|
+| No ruleset or branch protection guards `main` | GitHub offers neither on a private repo on the Free plan; a public repo gets both for free |
+| No Actions job has started since 2026-09-10 | a billing problem on the account |
 
 ## Repository layout
 
@@ -215,7 +219,7 @@ _Grafana and Homepage dashboards: screenshots to come._
 |---|---|
 | Most apps run one pod | An app's volume lives on one node's disk. If that node fails, the app stays down until the node returns or a restore runs. Among the apps, only Authentik and Blocky run two copies; the databases, Traefik and the tunnel also run two or more. |
 | One control-plane node | If it goes down, running pods and Services keep serving, but nothing new deploys until it returns. Git and the backups can rebuild the cluster. |
-| CI does not gate a merge | Branch protection needs a paid plan on a private repo. Instead, a second AI model (Codex) reviews each non-trivial change before it is committed. |
+| CI does not gate a merge (as of 2026-09-28) | No rule on `main` requires passing checks. Instead, a second AI model (Codex) reviews each non-trivial change before it is committed. |
 | Database exports, no point-in-time recovery | Nightly `pg_dump`-style exports, not a continuous copy of the database's write log. A restore goes back to last night, not to a chosen minute. That fits the data volumes here; [BACKUP_STRATEGY.md](docs/BACKUP_STRATEGY.md) has the reasons. |
 | No offsite copy | The nodes and the NAS share one building, so a fire or theft loses every copy. |
 
