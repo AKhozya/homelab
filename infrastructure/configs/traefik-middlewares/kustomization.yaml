@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# The Middleware CRD comes from the Traefik HelmRelease in infrastructure-controllers.
+# Keep these objects out of that Kustomization. Flux dry-runs the whole apply set. If
+# that set contains a Middleware before its CRD exists, the dry-run blocks the
+# HelmRelease that installs the CRD.
+resources:
+  - redirect-https-middleware.yaml
+  - security-headers-middleware.yaml
+  - rate-limit-standard-middleware.yaml
+  - authentik-forward-auth-middleware.yaml
+  - rate-limit-high-frequency-middleware.yaml
+  - csp-middleware.yaml

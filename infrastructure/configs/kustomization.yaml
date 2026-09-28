@@ -10,3 +10,4 @@ resources:
   - resource-governance
   - claude-telegram-rbac
   - intel-gpu-plugin
+  - traefik-middlewares

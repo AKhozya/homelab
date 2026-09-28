@@ -40,7 +40,7 @@ metadata:
 spec:
   headers:
     customResponseHeaders:
-      # Inline enforced CSP — script-src 'self' 'unsafe-inline'; drops 'unsafe-eval' vs the global permissive csp.
+      # Inline enforced CSP. This policy matches the default `csp`.
       # Applied to paperless-ngx: Angular UI emits inline scripts (browser-verified 2026-06-04, no eval needed).
       # report-uri omitted: csp-reporter is cluster-internal HTTP, unreachable from a browser (Mixed-Content).
       Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';
