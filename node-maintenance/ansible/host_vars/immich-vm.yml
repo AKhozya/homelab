@@ -62,6 +62,13 @@ immich_gpu_authorized_keys:
   - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP3LVqolWJr2vol503OhrF+3IkBE5dDYxBEXpvpLge8Z zl-nas-akhozya-20260628"  # operator (laptop, zl_nas_ed25519)
   - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBoaDR2hN2N4NzyQnOOz5in1jC4XW6handLW30EuTjBp master-node-homelab"       # automation (CP akhozya)
 
+# ---- claude-telegram bot SSH key (base_config forced command) ----
+# Public key of the bot pod's identity. Setting this makes base_config install
+# /usr/local/bin/agent-diag and pin this key to it with command=…,restrict, so the key serves
+# read-only diagnostics instead of a shell. The immich_gpu_node role writes authorized_keys
+# exclusively, so it adds the same restricted line; otherwise each heal would remove it again.
+agent_diag_bot_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII6y/bDuSaR/mRuwgRj0Amuzcwev30tNoenExFvFjCIM claude-telegram-bot"
+
 # ---- K3s config (step-4 join decisions) ----
 # Data-dir on the 126Gi home LV, NOT the 32Gi root: containerd images + the Immich working set are
 # far too big for root (mirrors W1/W2's big-volume data-dir + the W2 DiskPressure lesson). k3s_config

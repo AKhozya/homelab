@@ -275,8 +275,8 @@
 # pod's egress NetworkPolicy — curl from a node reaches the internet the pod may not. agent-diag
 # allows a fixed set of read-only commands and nothing else.
 #
-# Both tasks are gated on the pubkey being set for the host, so a node without a bot key (immich-vm
-# — its authorized_keys is exclusive and carries no bot key) is untouched. Set it in host_vars.
+# On immich-vm the immich_gpu_node role rewrites authorized_keys exclusively and writes this same
+# line, byte for byte, so the two tasks agree.
 #
 # Drift-heal is the reason this lives here rather than in a one-off script: a `command=` entry
 # edited by hand disappears silently the moment anything rewrites the file, and a security control

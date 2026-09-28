@@ -155,13 +155,19 @@
     mode: "0700"
   tags: [immich-gpu-node, user, authorized-keys]
 
-- name: Deploy admin_user authorized_keys (operator + automation pubkeys, exclusive)
+# The bot line must match what base_config's authorized_key task writes, byte for byte:
+# `<options> <type> <key> <comment>`. If it differs, the two tasks rewrite the file on every heal.
+- name: Deploy admin_user authorized_keys (operator + automation pubkeys + restricted bot key, exclusive)
   ansible.builtin.copy:
     dest: "/home/{{ admin_user }}/.ssh/authorized_keys"
-    content: "{{ immich_gpu_authorized_keys | join('\n') }}\n"
+    content: "{{ (immich_gpu_authorized_keys + immich_gpu_bot_key_line) | join('\n') }}\n"
     owner: "{{ admin_user }}"
     group: "{{ admin_user }}"
     mode: "0600"
+  vars:
+    immich_gpu_bot_key_line: >-
+      {{ ['command="/usr/local/bin/agent-diag",restrict ' ~ agent_diag_bot_pubkey]
+         if agent_diag_bot_pubkey | default('') | length > 0 else [] }}
   when: immich_gpu_authorized_keys | length > 0
   tags: [immich-gpu-node, user, authorized-keys]
 
