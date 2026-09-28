@@ -4,8 +4,6 @@ metadata:
   name: immich-init-extensions
   namespace: databases
   annotations:
-    argocd.argoproj.io/hook: PostSync
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
     kustomize.toolkit.fluxcd.io/force: enabled
 spec:
   ttlSecondsAfterFinished: 86400
@@ -82,7 +80,7 @@ spec:
 
               echo "Primary runs '$WANT_VERSION'. Creating extensions..."
 
-              psql -h main-postgres-rw -U postgres-admin -d immich <<-EOSQL
+              psql -v ON_ERROR_STOP=1 -h main-postgres-rw -U postgres-admin -d immich <<-EOSQL
                 -- Create extensions if they don't exist
                 CREATE EXTENSION IF NOT EXISTS vector CASCADE;
                 CREATE EXTENSION IF NOT EXISTS cube CASCADE;

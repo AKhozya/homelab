@@ -1,15 +1,15 @@
 # Intel GPU device-plugin — advertises the Meteor Lake iGPU as gpu.intel.com/i915 so pods can request
 # it with NO privileged / NO hostPath on the app pod (PSS-clean). Vendored from upstream
-# intel-device-plugins-for-kubernetes v0.36.0 (deployments/gpu_plugin/base/intel-gpu-plugin.yaml).
+# intel-device-plugins-for-kubernetes (deployments/gpu_plugin/base/intel-gpu-plugin.yaml).
 #
 # Placement = standalone DaemonSet in kube-system (NOT the operator — the operator overrides pinned
 # images, violating the image-pin invariant). kube-system is already EXCLUDED from disallow-host-path
-# + require-non-root (CP + VP twins), and the plugin natively satisfies the other PSS policies
+# + require-non-root (both ValidatingPolicies), and the plugin natively satisfies the other PSS policies
 # (drop ALL caps, allowPrivilegeEscalation:false, readOnlyRootFilesystem:true, no host namespaces) →
 # ZERO Kyverno edits. The DaemonSet itself needs hostPath (/dev/dri, /sys/class/drm, the kubelet
 # device-plugin socket, CDI) + runs as root — that is why it lives in an excluded ns.
 #
-# Deltas vs upstream base: image pinned to 0.36.0; arg -shared-dev-num=10 (Immich server + ML
+# Deltas vs upstream base: image pinned (Renovate bumps the tag); arg -shared-dev-num=10 (Immich server + ML
 # time-share the single iGPU); nodeSelector binds it to the GPU node via the homelab/gpu=intel label
 # (set in host_vars/immich-vm.yml at the k3s join) + amd64.
 apiVersion: apps/v1

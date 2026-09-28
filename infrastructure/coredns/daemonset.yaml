@@ -11,8 +11,11 @@ spec:
   # DaemonSet (was Deployment, 2026-06-05): exactly one CoreDNS per node. The Deployment's soft
   # topologySpread (ScheduleAnyway) repeatedly skewed under least-allocated scoring + rolling-update
   # double-counting (06-04: wn2 had ZERO local coredns -> flannel blackout on wn2 = total pod-DNS
-  # loss there, JobFailed audiobookshelf-init + authentik crashloop x17). A node-local replica
-  # bounds that blast radius; DaemonSet pods also auto-tolerate disk/memory-pressure taints.
+  # loss there, JobFailed audiobookshelf-init + authentik crashloop x17). If a node loses its
+  # overlay network but local pod networking still works, its local replica answers the queries
+  # routed to it. That is a share of the queries, not all: the kube-dns Service sets no
+  # internalTrafficPolicy or trafficDistribution, so queries spread across every node's replica.
+  # DaemonSet pods also tolerate disk/memory-pressure taints.
   # Pods carry k8s-app=kube-dns so the kube-dns Service (10.43.0.10) load-balances across them.
   # Unique selector app=coredns-ha. Reuses the addon-named `coredns` ConfigMap (Corefile +
   # NodeHosts) and ServiceAccount — Flux owns these outright since `--disable=coredns`

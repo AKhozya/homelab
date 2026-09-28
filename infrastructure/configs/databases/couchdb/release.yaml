@@ -85,7 +85,7 @@ spec:
 
     # Admin credentials (chart will read an existing secret instead of creating one)
     adminUsername: admin
-    # adminPassword removed from Git — create a SOPS-encrypted secret in the staging overlay
+    # The chart reads the password from the SOPS Secret couchdb-couchdb (couchdb/admin-secret.yaml).
     createAdminSecret: false
 
     # Persistent storage

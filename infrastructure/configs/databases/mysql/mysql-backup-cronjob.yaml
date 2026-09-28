@@ -58,10 +58,9 @@ spec:
                   memory: "128Mi"
           containers:
             - name: backup
-              # Pin to 8.4.x to match Percona Server 8.4.6 - update manually with cluster
-              # Renovate ignore configured in renovate.json (inline comments don't work for YAML)
-              # Match the server (percona-server:8.4.10-10.1 in cluster.yaml) — a client
-              # older than the server can emit a dump the server won't reimport cleanly.
+              # Keep the client on the server's 8.4 line (percona-server image in cluster.yaml):
+              # a client older than the server can emit a dump the server won't reimport
+              # cleanly. renovate.json limits this image to 8.4.x.
               image: mysql:8.4.11
               command:
                 - /bin/bash
