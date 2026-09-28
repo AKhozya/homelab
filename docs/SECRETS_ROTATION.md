@@ -207,21 +207,26 @@ NEW_PASSWORD=$(openssl rand -hex 32)
 
 # 2. Update CNPG db-user secret (CNPG operator watches this and syncs to PostgreSQL)
 # All users are in managed.roles in the Cluster CRD — CNPG auto-updates the DB password
-sops --ignore-mac --set "[\"stringData\"][\"password\"] \"${NEW_PASSWORD}\"" \
-  infrastructure/configs/databases/postgres/<app>-db-user.yaml
+# The value goes in on stdin, never on the command line.
+printf '"%s"' "$NEW_PASSWORD" | sops set --ignore-mac --value-stdin \
+  infrastructure/configs/databases/postgres/<app>-db-user.yaml '["stringData"]["password"]'
 
 # 3. Update app-side SOPS secret (so the app uses the new password)
-# Key name varies by app — check the file first with: sops --ignore-mac -d <file>
-sops --ignore-mac --set '["stringData"]["<PASSWORD_KEY>"] "'${NEW_PASSWORD}'"' \
-  apps/<app>/<secret-file>.yaml
+# Key name varies by app. List the key names, not the values, with:
+#   sops -d apps/<app>/<secret-file>.yaml | yq '.stringData | keys'
+printf '"%s"' "$NEW_PASSWORD" | sops set --ignore-mac --value-stdin \
+  apps/<app>/<secret-file>.yaml '["stringData"]["<PASSWORD_KEY>"]'
 
 # NOTE — DSN-embedded credential (no discrete key): if the app bakes the password into a
 # connection string rather than its own key — e.g. Blocky queryLog `target: postgres://blocky:PW@...`
 # (pgx can't expand ${VAR}, so the literal is required) — step 3 above does NOT apply. Decrypt the
-# config value, sed the password inside the DSN, re-encrypt:
-#   NEWCFG=$(sops -d --extract '["stringData"]["config.yml"]' apps/blocky/config-secret.yaml \
-#     | sed -E "s#(://blocky:)[^@]*(@main-postgres-rw)#\1${NEW_PASSWORD}\2#")
-#   sops set apps/blocky/config-secret.yaml '["stringData"]["config.yml"]' "$(printf '%s' "$NEWCFG" | jq -Rs .)"
+# config value, replace the password inside the DSN, re-encrypt:
+# awk takes the password from its environment, not its arguments, so it stays off the command line:
+#   NEWCFG=$(sops -d --extract '["stringData"]["config.yml"]' apps/blocky/config-secret.yaml |
+#     NP="$NEW_PASSWORD" awk '{ if (match($0, /:\/\/blocky:[^@]*@main-postgres-rw/))
+#       $0 = substr($0, 1, RSTART - 1) "://blocky:" ENVIRON["NP"] "@main-postgres-rw" substr($0, RSTART + RLENGTH)
+#       print }')
+#   printf '%s' "$NEWCFG" | jq -Rs . | sops set --value-stdin apps/blocky/config-secret.yaml '["stringData"]["config.yml"]'
 # Verify both carry the same new pw WITHOUT printing it; confirm CNPG synced the role via
 # `kubectl -n databases get cluster main-postgres -o jsonpath='{.status.managedRolesStatus}'`
 # (role in .reconciled at the new secret resourceVersion) before/after the app restart.
@@ -307,36 +312,51 @@ flux reconcile kustomization apps --timeout 60s
    |---|---|
    | Redis reads `user.acl` only when it starts | The kubelet updates the mounted file, but a running Redis keeps the old passwords until it restarts. |
    | The opstree operator loops on the `restartedAt` annotation that `kubectl rollout restart` adds (`bf7bf65d`) | Never run `rollout restart` on these StatefulSets. The helpers delete one pod at a time. |
-   | `T` records when the new secret was live | `restart_old` skips a pod that started after `T`, so no pod restarts twice. It still waits until that pod is Ready. |
-   | A pod whose start time cannot be read | `restart_old` stops rather than delete it. |
-   | Roles swap on failover | The chain reads the `redis-role` label again before each restart. `all_restarted` checks at the end that every pod started after `T` and is Ready. |
-   | `kubectl delete` waits until the old pod is gone | The `wait` then covers the new pod, which has the same name. |
+   | A StatefulSet pod keeps its name when it is recreated, but gets a new UID | `OLD_UIDS` records every Redis pod's UID after step 4. A pod counts as restarted once its UID is not in that list. |
+   | The delete carries the recorded UID as a precondition | If the pod was replaced after the helper read its UID, the API server refuses the delete, so no pod restarts twice. |
+   | A pod whose UID cannot be read | `restart_old` stops rather than delete it. |
+   | Roles swap on failover | The chain reads the `redis-role` label again before each restart. `all_restarted` checks at the end that every pod has a new UID and is Ready. |
    | Deleting the master makes the sentinels promote the restarted replica | Writes fail for a few seconds. |
    | Each helper returns non-zero on a failure | The `&&` chain stops at the first failure. |
 
    ```bash
-   T=$(date -u +%Y-%m-%dT%H:%M:%SZ)   # after step 4: the new secret is live
-   pod_start() {  # $1 = pod; prints its start time, fails if the pod or the time is missing
-     st=$(kubectl -n databases get pod "$1" -o jsonpath='{.status.startTime}') && [ -n "$st" ] &&
-       printf '%s' "$st"
-   }
-   restart_old() {  # $1 = pod; restarts it unless it already started after $T, then waits for Ready
-     st=$(pod_start "$1") || { echo "cannot read the start time of $1"; return 1; }
-     if [[ "$st" > "$T" ]]; then echo "$1 already restarted"
-     else kubectl -n databases delete pod "$1" || return 1
+   # Run once per rotation, after step 4. If you lose this shell, record again: the pods
+   # already restarted then restart once more, which is safe.
+   OLD_UIDS=$(kubectl -n databases get pod -l 'app in (redis-replication,redis-sentinel-sentinel)' \
+     -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}') && [ -n "$OLD_UIDS" ] && echo "UIDs recorded" ||
+     { OLD_UIDS=""; echo "UID capture FAILED: do not go on"; }
+   pod_uid() { kubectl -n databases get pod "$1" -o jsonpath='{.metadata.uid}'; }
+   # An empty OLD_UIDS would make every pod look already restarted, so both helpers refuse it.
+   have_uids() { [ -n "$OLD_UIDS" ] || { echo "OLD_UIDS is empty: record the UIDs first"; return 1; }; }
+   is_old() { case "$OLD_UIDS" in *"$1"*) true ;; *) false ;; esac; }
+   restart_old() {  # $1 = pod; restarts it if its UID is still an old one, then waits for Ready
+     have_uids || return 1
+     uid=$(pod_uid "$1") && [ -n "$uid" ] || { echo "cannot read the UID of $1"; return 1; }
+     if is_old "$uid"; then
+       printf '{"kind":"DeleteOptions","apiVersion":"v1","preconditions":{"uid":"%s"}}' "$uid" |
+         kubectl delete --raw "/api/v1/namespaces/databases/pods/$1" -f - >/dev/null || return 1
+       n=0
+       until new=$(pod_uid "$1" 2>/dev/null) && [ -n "$new" ] && [ "$new" != "$uid" ]; do
+         n=$((n + 1)); [ "$n" -le 90 ] || { echo "$1 was not recreated within 3 min"; return 1; }
+         sleep 2
+       done
+       echo "$1 restarted"
+     else
+       echo "$1 already restarted"
      fi
-     kubectl -n databases wait --for=create --for=condition=Ready pod/"$1" --timeout=180s
+     kubectl -n databases wait --for=condition=Ready pod/"$1" --timeout=180s
    }
    role_pod() { kubectl -n databases get pod -l "app=redis-replication,redis-role=$1" -o jsonpath='{.items[0].metadata.name}'; }
-   all_restarted() {  # $1 = label selector; every matching pod must have started after $T
+   all_restarted() {  # $1 = label selector; every matching pod must have a new UID and be Ready
+     have_uids || return 1
      names=$(kubectl -n databases get pod -l "$1" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}') &&
        [ -n "$names" ] || return 1
      printf '%s\n' "$names" | while IFS= read -r p; do
-       st=$(pod_start "$p") && [[ "$st" > "$T" ]] || { echo "NOT restarted: $p"; return 1; }
+       uid=$(pod_uid "$p") && [ -n "$uid" ] && ! is_old "$uid" || { echo "NOT restarted: $p"; return 1; }
        [ "$(kubectl -n databases get pod "$p" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')" = True ] ||
          { echo "NOT Ready: $p"; return 1; }
      done || return 1
-     echo "every pod of $1 started after $T and is Ready"
+     echo "every pod of $1 has restarted and is Ready"
    }
 
    R=$(role_pod slave) && restart_old "$R" &&
@@ -359,7 +379,7 @@ The sentinels log in to Redis with `admin-password`, and they read it only when 
 Redis pod accepts only the new password, the sentinels that still hold the old one cannot log in
 to it. They then cannot promote it after a failover. Redis accepts several passwords for one ACL
 user, so rotate in three passes that overlap the old and the new password. In each pass, make the
-change, then commit, push and reconcile as in step 4, then set `T` and restart as in step 5:
+change, then commit, push and reconcile as in step 4, then record the UIDs and restart as in step 5:
 
 | Pass | Change | Restart |
 |---|---|---|
@@ -409,9 +429,9 @@ printf '%s' "$NEW_PASSWORD" | pbcopy   # macOS; paste it in the editor
 sops "$SECRET_FILE"
 ```
 
-Step 3 is one chain: each command runs only if the one before it succeeded. So the database changes
-only after the cluster Secret holds the new password, and the app restarts only after the
-`ALTER USER` succeeded.
+Step 3 is one chain. If a command fails, nothing after it runs. If the live Secret does not hold
+the new password, the database does not change. If the `ALTER USER` fails, the app does not
+restart.
 
 ```bash
 # 3. Commit, push, reconcile; check the live Secret; change the user; restart the app

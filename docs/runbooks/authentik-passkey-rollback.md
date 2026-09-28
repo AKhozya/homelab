@@ -103,7 +103,9 @@ git revert --no-edit <PHASE1_SHA>
 git push
 flux reconcile source git flux-system --timeout=90s
 flux reconcile kustomization apps --timeout=120s
-kubectl rollout restart deploy/authentik-server deploy/authentik-worker -n authentik
+# Delete pods, not `rollout restart`: Flux's drift correction reverts the restartedAt annotation.
+agents/skills/_shared/restart-workload.sh authentik app=authentik,component=server 300 &&
+  agents/skills/_shared/restart-workload.sh authentik app=authentik,component=worker 300
 ```
 
 Then manual field resets per the patterns above for any field that was created/modified rather than entity-replaced.
@@ -131,8 +133,7 @@ kubectl exec -n authentik deploy/authentik-server -- curl -s -H "Authorization: 
 Authentik server pods cache stage state in-memory. After a blueprint that mutates a stage applies (`status: successful`), the API may serve stale values from one or both replicas. If `device_classes` etc. don't reflect the new blueprint, restart server:
 
 ```bash
-kubectl rollout restart deploy/authentik-server -n authentik
-kubectl rollout status deploy/authentik-server -n authentik --timeout=300s
+agents/skills/_shared/restart-workload.sh authentik app=authentik,component=server 300
 ```
 
 DB is the source of truth — verify directly:
@@ -190,7 +191,7 @@ blueprints_discovery.send()
 "
 
 # Or restart worker pod to trigger periodic discovery on boot
-kubectl rollout restart deploy/authentik-worker -n authentik
+agents/skills/_shared/restart-workload.sh authentik app=authentik,component=worker 300
 ```
 
 ## Related issues
