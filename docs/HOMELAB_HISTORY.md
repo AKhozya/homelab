@@ -297,34 +297,45 @@ Immich ML moved to immich-vm earlier on 2026-09-06 and ran there on the CPU. The
 
 ### 2026-09-06 — The NAS scrub stalled immich-vm again, and five unrelated init Jobs waited on it
 
-At 18:23 local, `PodsPending` and `PodPhaseNotRunning` fired for five pods at
-once: `audiobookshelf-init`, `home-assistant-admin-setup`, `immich-admin-setup`,
-`n8n-user-provision` and `couchdb-init`. They are the daily Flux force + TTL
-re-run of the init Jobs, created at 18:11. The scheduler put all five on
-`immich-vm`, and every one sat in `ContainerCreating` with
-`FailedCreatePodSandBox … DeadlineExceeded` for 33 minutes. `NodeHighIOWait`
-fired on `192.168.1.231` alongside them.
+At 18:23 local time, `PodsPending` and `PodPhaseNotRunning` fired for five pods at once:
 
-The cause was the monthly mdadm check on the NAS `md1` array (first Sunday,
-00:57). The SMART-failed member (serial `WS21F7E8`, written up on 2026-08-02)
-had not been swapped: the RMA drive was still in transit. The check ran fast
-until about 06:30, then reached that drive's bad region and each read took up to
-87 s. `immich-vm`'s disk image lives on that array, so containerd on the VM could
-not create a pod sandbox inside its deadline.
+| Pod |
+|---|
+| `audiobookshelf-init` |
+| `home-assistant-admin-setup` |
+| `immich-admin-setup` |
+| `n8n-user-provision` |
+| `couchdb-init` |
+
+They were the daily re-run of the init Jobs (one-off tasks that set up an app), created at 18:11.
+Flux's force setting and each Job's TTL (the time after which Kubernetes deletes a finished Job)
+drive that daily re-run.
+The scheduler put all five on `immich-vm`. Every one stayed in `ContainerCreating` for 33 minutes,
+with `FailedCreatePodSandBox … DeadlineExceeded`: the node could not create the pod's sandbox, the
+environment its containers run in, before the deadline. `NodeHighIOWait` fired at the same time on
+`192.168.1.231`, the address of immich-vm.
+
+The cause was the monthly mdadm check of the NAS `md1` array, which starts on the first Sunday at
+00:57. mdadm is the Linux software-RAID tool, and its check reads the array to test that it is
+consistent. The member drive that had failed SMART, the drive's own health check (serial `WS21F7E8`, written up on 2026-08-02) was still
+in the array, because its warranty replacement (RMA) drive was still in transit. The check ran fast
+until about 06:30. Then it reached that drive's bad region, and each read took up to 87 s. The disk
+image of `immich-vm` lives on that array, so containerd (the container runtime) on the VM could not create a pod sandbox
+before its deadline.
 
 | Evidence | Value |
 |---|---|
-| immich-vm iowait | 0-3% overnight, ~50% from 06:30, 73% by 17:30 |
-| Check progress | 66.2% at 853 KB/s, ETA 17 days |
-| Reads queued on the failed drive | 5, later 32 (`/sys/block/sdd/inflight`); every other member 0 |
-| Device letter | `sdb` in August, `sdd` now: the 2026-09-02 NAS reboot shifted it. Identify by serial |
-| `iostat -dx %util` on the members | 0 on all six. Since kernel 5.x `io_ticks` only advances when an IO starts or completes, so one stuck read registers nothing. `inflight` is the tell |
+| immich-vm iowait (CPU time spent waiting for the disk) | 0-3% overnight, ~50% from 06:30, 73% by 17:30 |
+| Check progress | 66.2% at 853 KB/s, estimated 17 days to finish |
+| Reads queued on the failed drive | 5, later 32 (`/sys/block/sdd/inflight`). Every other member had 0 |
+| Device letter | `sdb` in August, `sdd` now, because the 2026-09-02 NAS reboot changed it. Identify a drive by its serial number |
+| `iostat -dx %util` on the members | 0 on all six. Since kernel 5.x, `io_ticks` advances only when a read or write starts or completes, so one stuck read shows nothing. `inflight` is what shows the stall |
 
-Four of the five Jobs have nothing to do with Immich. They landed on
-`immich-vm` because nothing keeps them off it. `immich-server` pins itself there
-with a `homelab/gpu=intel` nodeSelector, but the node carries no taint, so any
-unpinned pod can be scheduled there, and the scheduler prefers the emptiest
-node:
+Four of the five Jobs have nothing to do with Immich. They ran on `immich-vm` because nothing kept
+them off it. `immich-server` pins itself to that node with a `homelab/gpu=intel` nodeSelector (a rule that places a pod only on
+nodes with a given label). But
+the node carried no taint, a mark that keeps off every pod that does not accept it. So the scheduler
+could place any pod without a pin there, and it prefers the emptiest node:
 
 | Node | Running pods | CPU requested | Memory requested |
 |---|---|---|---|
@@ -332,106 +343,153 @@ node:
 | worker-node-2 | 27 | 2280m of 16 | 6.0 Gi of 30 |
 | immich-vm | 6 | 520m of 4 | 1.1 Gi of 11.6 |
 
-The 2026-08-02 scrub caught `popeye` and `postgres-update-extensions` the same
-way, and that was recorded as a known symptom rather than fixed.
+The 2026-08-02 scrub affected `popeye` and `postgres-update-extensions` in the same way. That time,
+the problem was recorded as a known symptom and not fixed.
 
-The operator stopped the check with `echo idle > /sys/block/md1/md/sync_action`.
-The write sat in D-state for 2.5 minutes while the 32 queued reads drained at
-about one per 15 s; that wait is expected, not a hang. The check reported `idle`
-at 18:45:07. All five Jobs succeeded within 30 s, without any Job deletion,
-because the kubelet retries sandbox creation on its own. `NodeDown` for
-`192.168.1.231` fired briefly during the drain and cleared. Every alert was
-resolved by 18:47.
+The operator stopped the check with `echo idle > /sys/block/md1/md/sync_action`. The write waited in
+D-state (a sleep that waits on the disk and cannot be interrupted) for 2.5 minutes, while the 32
+queued reads finished at about one per 15 s. That wait is expected; it is not a hang. The check
+reported `idle` at 18:45:07. All five Jobs succeeded within 30 s, and nobody had to delete a Job,
+because the kubelet (the agent on each node that runs its pods) retries sandbox creation by itself.
+`NodeDown` for `192.168.1.231` fired briefly while the queue emptied, then cleared. Every alert had resolved by 18:47.
 
 | Follow-up | Status |
 |---|---|
-| Swap `WS21F7E8` (RaidDevice slot 2, currently `sdd`) before the next check on 2026-10-04 | done 2026-09-08 — `WS24PTRD` rebuilt into slot 2; see the 2026-09-08 entry |
-| Fence `immich-vm` with a `NoSchedule` taint so only Immich and per-node DaemonSets run there | shipped `83eb9674` + `230eeb8a`; taint applied 21:27 BST |
+| Swap `WS21F7E8` (RaidDevice slot 2, currently `sdd`) before the next check on 2026-10-04 | done 2026-09-08: `WS24PTRD` was rebuilt into slot 2. See the 2026-09-08 entry |
+| Give `immich-vm` a `NoSchedule` taint so that only Immich and the DaemonSets that run on every node run there | shipped in `83eb9674` and `230eeb8a`. Taint applied at 21:27 BST |
 
 | Change | Detail |
 |---|---|
-| Taint | `homelab/dedicated=immich:NoSchedule` applied to immich-vm at 21:27 BST on 2026-09-06 with `kubectl taint`; `k3s_node_taints` in `host_vars/immich-vm.yml` covers a re-join because k3s reads `node-taint` only at first registration |
-| Tolerations | immich-server, immich-machine-learning, the immich-admin-setup Job, intel-gpu-plugin; alloy and node-exporter already tolerated any NoSchedule taint |
-| ML relocation | immich-machine-learning pinned to immich-vm; its model cache is now the git-declared PVC `immich-ml-cache` (10 Gi, local-path) under `/mnt/k8s-storage`, a bind mount of `/home/k8s-storage` on the VM's 125 G home volume; k3s-agent carries `RequiresMountsFor=/mnt/k8s-storage`; Helm deleted the old chart-owned PVC on worker-node |
-| Pods that left the VM | coredns-ha, loki-canary, kube-state-metrics, prometheus-operator (deleted once; NoSchedule never evicts). Five pods remain: immich-server, immich-machine-learning, intel-gpu-plugin, alloy, node-exporter |
-| Stays off the VM by design | immich-vm-heal (starts the VM from outside), immich-backup (148 G on worker-node-2, would land on the same NAS array), immich-init-extensions (databases namespace), Postgres and Redis (shared) |
+| Taint | `homelab/dedicated=immich:NoSchedule` applied to immich-vm at 21:27 BST on 2026-09-06 with `kubectl taint`. `k3s_node_taints` in `host_vars/immich-vm.yml` covers a re-join, because k3s reads `node-taint` only when the node first registers |
+| Tolerations (which let a pod run on the tainted node) | immich-server, immich-machine-learning, the immich-admin-setup Job and intel-gpu-plugin. alloy and node-exporter already tolerated any NoSchedule taint |
+| ML moved | immich-machine-learning is pinned to immich-vm. Its model cache is now the PVC (PersistentVolumeClaim, a request for lasting storage) `immich-ml-cache`, declared in git (10 Gi, local-path), under `/mnt/k8s-storage`. That path is a bind mount (a directory made visible at a second path) of `/home/k8s-storage` on the VM's 125 G home volume. k3s-agent carries `RequiresMountsFor=/mnt/k8s-storage`. Helm deleted the old PVC that the chart owned on worker-node |
+| Pods that left the VM | coredns-ha, loki-canary, kube-state-metrics and prometheus-operator, each deleted once, because a NoSchedule taint never evicts a running pod. Five pods remain: immich-server, immich-machine-learning, intel-gpu-plugin, alloy and node-exporter |
+| Stays off the VM by design | immich-vm-heal (it starts the VM from outside), immich-backup (148 G on worker-node-2; on the VM it would sit on the same NAS array), immich-init-extensions (it lives in the databases namespace, a separate group of objects), Postgres and Redis (shared) |
 
-### 2026-09-05 — An aliased preflight skipped the weekly reboot, and Loki began rejecting a week-old log line every hour
+### 2026-09-05 — Pre-reboot checks whose retries sampled the same moments skipped the weekly reboot, and Loki began rejecting a week-old log line every hour
 
-`AlloyLogDeliveryFailing` fired hourly on both workers from 04:48Z. Nothing was
-wrong with Alloy or with Loki. Two unrelated defects lined up, and the weekly
-reboot had been hiding the second one for months.
+From 04:48Z, `AlloyLogDeliveryFailing` fired every hour on both workers. Alloy (the log collector)
+and Loki (the log store) had no fault. Two unrelated defects combined, and the weekly reboot had
+hidden the second one for months.
 
-phase1 gates the reboot on every Flux Kustomization reporting `Ready=True`. Flux
-reports `Ready=Unknown/Progressing` for roughly one second of each 60s reconcile,
-so a single sample finds all-True only 76-83% of the time — measured against the
-live healthy cluster at 5 failures in 30 samples. The retry cadence was
-`retries: 3, delay: 30`. The trap is `gcd(delay, interval)`, not the tempting
-"delay must not divide 60":
+A Flux Kustomization is one set of manifests that Flux applies from a folder of this repository.
+phase1, the first maintenance stage, checks them before the reboot. If any Kustomization does not
+report `Ready=True`, no node reboots. Flux reports `Ready=Unknown/Progressing` for roughly one
+second of each 60s reconcile, the regular pass in which Flux compares the cluster with the repository
+and applies the differences. So a single check finds all of them True only 76-83% of the time. A
+measurement against the live, healthy cluster found 5 failures in 30 samples. The check retried with
+`retries: 3, delay: 30`. What decides how many different points within the reconcile cycle the
+retries see is
+`gcd(delay, interval)`, the greatest common divisor of the delay and the reconcile interval. The rule
+"delay must not divide 60" looks right, but it is not the test:
 
-| delay | gcd(delay,60) | distinct phases sampled |
+| delay | gcd(delay,60) | different points within the reconcile cycle |
 |---|---|---|
 | 7s | 1 | 60 |
 | 24s | 12 | 5 |
 | 30s | 30 | 2 |
 
-At `delay: 30` the four attempts behaved like two. All four hit `Progressing`,
+With `delay: 30`, the four attempts acted like two. All four found a Kustomization in `Progressing`,
 phase1 exited 2, and no node rebooted.
 
-That mattered because of a coincidence nobody had noticed. `OnCalendar=Sat
-*-*-* 04:30:00 UTC` is a 168h cycle, and Loki's chart-default
-`reject_old_samples_max_age` is also 168h. Alloy's `loki.source.kubernetes`
-re-opens every tailer hourly and replays the last log line of each idle
-container — svclb, config-reloader, metrics-server, cainjector, kyverno. The
-weekly reboot refreshed those lines about an hour before they aged out, every
-week. The first skipped reboot let them cross 168h, and Loki answered
+The skipped reboot mattered because of a coincidence nobody had noticed. The timer `OnCalendar=Sat
+*-*-* 04:30:00 UTC` repeats every 168h, and Loki's chart default for
+`reject_old_samples_max_age` is also 168h. Every hour, Alloy's `loki.source.kubernetes` re-opens
+each log reader and sends again the last log line of each idle container: svclb, config-reloader,
+metrics-server, cainjector and kyverno. Each week, the reboot refreshed those lines about an
+hour before they grew too old. The first skipped reboot let them pass 168h, and Loki answered
 `has timestamp too old`.
 
-No logs were lost. Loki discarded 480 entries per 12h; Alloy reported 6143
-against 1,228,685 sent, because its client marks a whole batch dropped on a 400
-and the co-batched fresh entries were stored. Read
-`loki_discarded_samples_total` for the true figure —
-`loki_write_dropped_entries_total` is an upper bound.
+No logs were lost. Loki discarded 480 entries per 12h. Alloy reported 6143 dropped against 1,228,685
+sent. The figures differ because, if Loki answers 400, Alloy's client marks the whole batch as
+dropped, while Loki stored the fresh entries in that batch. For the true figure, read `loki_discarded_samples_total`.
+`loki_write_dropped_entries_total` is only an upper bound.
 
 | Fix | Change |
 |---|---|
-| preflight aliasing | `retries: 20, delay: 7`; 7 is coprime with 60, so the 21 attempts sample distinct phases. Measured longest failure run: 2 |
-| zero-margin reject window | `reject_old_samples_max_age: 720h`, matching `retention_period` |
+| retries of the checks before rebooting, which sampled the same moments | `retries: 20, delay: 7`. 7 and 60 share no common factor greater than one, so the 21 attempts sample different points within the reconcile cycle. Longest measured run of failures: 2 |
+| the log age limit, with no allowance for delay | `reject_old_samples_max_age: 720h`, matching `retention_period` |
 
-The predicate itself stayed `!= "True"`. An earlier draft relaxed it to
-`== "False"` so that `Unknown` would pass; review caught that this fails open,
-because a kustomize-controller that dies mid-reconcile leaves `Unknown` set
-forever and the gate would then wave a reboot through on a broken cluster.
+The condition itself stayed `!= "True"`. An earlier draft relaxed it to `== "False"`, so that
+`Unknown` would pass. Review found that this change fails open: if the check cannot tell the state,
+it allows the reboot. A kustomize-controller (the part of Flux that applies Kustomizations) that dies during a reconcile leaves `Unknown` set
+forever, so the check would then allow a reboot on a broken cluster.
 
-Shipped in `0e78e618`. The re-run that night passed the preflight on its first
-attempt with no retries, rebooted all four nodes cleanly (`failed=0
+Shipped in `0e78e618`. The re-run that night passed the checks before rebooting on its first attempt, with no
+retries. It rebooted all four nodes without errors (`failed=0
 unreachable=0 rescued=0`, `pkg-upgrade: OK` on every node), and the alert
-cleared. immich-server needed three restarts to pass its startup probe on the
-GPU VM cold start before going Ready — its startup budget is tight, and is worth
-widening separately.
+cleared. immich-server needed three restarts before it passed its startup probe (the check that
+decides whether a new container has finished starting) and became Ready,
+during the cold start of the GPU VM. Its startup time allowance is tight, and is worth widening in a
+separate change.
 
 ### 2026-08-20 — A power cut, and both workers rebooted themselves an hour after the power returned
 
-Mains power died at 12:35 and came back at 16:03. All four nodes and the NAS booted on their own. What needed explaining was not the outage — it was the hour after it, in which both workers rebooted themselves and the control-plane restarted `k3s` eight times, with nobody logged in.
+Mains power failed at 12:35 and returned at 16:03. All four nodes and the NAS booted by themselves.
+The outage itself needed no explanation. The hour after it did: in that hour both workers rebooted
+themselves, and the control plane restarted `k3s` eight times, with nobody logged in.
 
-The control-plane booted at 16:03:17 with its kube-proxy ClusterIP DNAT wedged — the failure class `clusterip_heal_cp` exists for. That watchdog restarted `k3s` at 16:05 (recovered), at 16:24 (probe rc=1, not confirmed healthy) and at 17:18 (probe rc=2); `k3s` settled at 17:20:45. While the apiserver flapped, both workers scored themselves CP-isolated (`cp_direct=0 kubelet=0 gw=1`), escalated through L1 `k3s-agent` restarts, and reached the self-reboot rung of `node_isolation_heal`. The staggered index worked: worker-node (index 0) went first, worker-node-2 (index 1) seventeen minutes later, so the two workers never rebooted together.
+The control plane booted at 16:03:17 with its kube-proxy ClusterIP DNAT wedged: the rules that route
+traffic sent to a cluster-internal service address (a ClusterIP) to a pod were stuck. The watchdog
+`clusterip_heal_cp` exists for that kind of failure. It restarted `k3s` three times:
+
+| Restart | Result |
+|---|---|
+| 16:05 | recovered |
+| 16:24 | probe rc=1, health not confirmed |
+| 17:18 | probe rc=2 |
+
+`k3s` settled at 17:20:45.
+
+While the API server kept going up and down, both workers judged themselves cut off from the control
+plane (`cp_direct=0 kubelet=0 gw=1`: the direct check of the control plane's API server and the
+kubelet check failed, and the gateway check passed). They went through the first step of
+`node_isolation_heal`, the L1 restarts of `k3s-agent` (the cluster service on each worker), and
+reached its last step, a reboot of the node itself. The stagger worked. A worker with a higher index waits longer before it reboots itself:
+worker-node (index 0) went first, and worker-node-2 (index 1) seventeen minutes later, so the two
+workers never rebooted at the same time.
 
 | Time (BST) | Event |
 |---|---|
-| 12:35–12:42 | power lost — CP 12:36:06, worker-node 12:36:25, worker-node-2 12:35:44, immich-vm 12:42:14 |
-| 16:03 | power restored, all four nodes and the NAS boot |
-| 16:05 | CP ClusterIP DNAT wedged → `clusterip-heal-cp` restarts `k3s` #1, recovered |
-| 16:24 | wedged again → `k3s` restart #2, probe rc=1, not confirmed |
-| 16:39:52 | worker-node SELF-REBOOT after 1177s isolated, L1 restarts did not recover it |
-| 16:56:49 | worker-node-2 SELF-REBOOT after 1501s isolated (stagger index=1) |
-| 17:18 | CP wedged a third time → `k3s` restart, up at 17:20:45 |
-| 17:21 | both workers log `recovered (tunnel up; cp=1 kubelet=1 gw=1)` — stable since |
+| 12:35–12:42 | power lost: control plane 12:36:06, worker-node 12:36:25, worker-node-2 12:35:44, immich-vm 12:42:14 |
+| 16:03 | power restored; all four nodes and the NAS boot |
+| 16:05 | control-plane ClusterIP DNAT wedged. `clusterip-heal-cp` restarts `k3s` (#1), which recovers |
+| 16:24 | wedged again. `k3s` restart #2, probe rc=1, health not confirmed |
+| 16:39:52 | worker-node reboots itself after 1177s cut off. The L1 restarts had not recovered it |
+| 16:56:49 | worker-node-2 reboots itself after 1501s cut off (stagger index=1) |
+| 17:18 | control plane wedged a third time. `k3s` restart, up at 17:20:45 |
+| 17:21 | both workers log `recovered (tunnel up; cp=1 kubelet=1 gw=1)`, and have stayed stable since |
 
-Every recovery step was automatic. The manual work was clearing the residue the outage left behind: two terminal authentik pods (`Error` and `Init:Error`, from the 16:03 boot — the reboot-leftover class that nothing reaps), and two `immich-vm-heal` Jobs that hit `DeadlineExceeded` while immich-vm was still booting. Both alert pairs cleared on deletion. `NodeIsolationHealRebooted` is not clearable by hand — its rule is `time() - node_isolation_heal_last_reboot_timestamp < 3600`, so it expired by itself at 17:56:49.
+Every recovery step was automatic. The manual work was deleting what the outage left behind:
 
-**Open item.** The third CP wedge fired at 17:18, 75 minutes after boot. The first two fit the cold-start race; this one does not, so the wedge is not purely a boot artifact. The nftables root fix stays deferred on kubernetes#136786. If it recurs outside a boot window, that is the thing to chase.
+| Leftover | Detail |
+|---|---|
+| two authentik pods in a terminal state (a final state that a pod never leaves) | `Error` and `Init:Error`, from the 16:03 boot. They belong to the class of pods a reboot leaves behind and nothing deletes |
+| two `immich-vm-heal` Jobs | they hit `DeadlineExceeded` while immich-vm was still booting |
 
-Verified after recovery, with no configuration change made: no pstore blobs and no filesystem errors on any node after the hard power loss; Postgres 2/2 (primary `main-postgres-12`), MySQL 2/2 with haproxy 2/2 and orchestrator 3/3, CouchDB 2, Redis replication 2 plus 3 sentinels; Flux 7/7; all 16 ingress hosts answering through LAN Traefik; NAS `md1` raid6 `[6/6]` and `md0` `[2/2]`, with the known SMART-failed `sdb` unchanged and still awaiting its RMA replacement.
+Both pairs of alerts cleared when these were deleted. `NodeIsolationHealRebooted` cannot be cleared
+by hand. Its rule is `time() - node_isolation_heal_last_reboot_timestamp < 3600`, so it expired by
+itself at 17:56:49.
+
+**Open item.** The third control-plane wedge happened at 17:18, 75 minutes after boot. The first two
+fit the race that happens during a cold start: a timing fault, while the node is still starting,
+whose result depends on which of two steps finishes first. The third does not, so the wedge is not
+only a boot problem. The fix for the root cause uses nftables (the Linux packet filter).
+That fix stays deferred, waiting on kubernetes#136786. If the
+wedge happens again outside a boot window, that recurrence is what to investigate.
+
+Checks after recovery, with no configuration change made:
+
+| Check | Result |
+|---|---|
+| pstore blobs (saved kernel crash records) and filesystem errors after the hard power loss | none on any node |
+| Postgres | 2/2 (primary `main-postgres-12`) |
+| MySQL | 2/2, with haproxy 2/2 and orchestrator 3/3 |
+| CouchDB | 2 |
+| Redis | replication 2, plus 3 sentinels |
+| Flux | 7/7 |
+| Ingress hosts | all 16 answer through LAN Traefik |
+| NAS | `md1` raid6 `[6/6]` and `md0` `[2/2]`. The known SMART-failed `sdb` is unchanged and still waits for its RMA replacement |
 
 ### 2026-08-14 — Extension ownership cannot be given to the app's role, and Immich picks its vector extension by what is available
 
