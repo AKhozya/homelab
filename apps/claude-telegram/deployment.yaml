@@ -17,14 +17,15 @@ spec:
         app: claude-telegram
     spec:
       serviceAccountName: claude-telegram
-      # Bot uses kubectl for cluster diagnostics. Cluster-wide READ via claude-telegram-ops; the
-      # write-ish verbs are scoped per namespace — see the rbac.yaml header for the full list and
-      # the reason behind each exclusion.
-      # Blast radius, stated honestly: `pods/exec` in 14 namespaces is still code execution inside
-      # those pods, and that is the ceiling. It is no longer cluster-admin-equivalent — node SSH
-      # runs under the agent-diag forced command (read-only diagnostics, path-allowlisted), the
-      # bot holds no exec or Job binding in its own namespace (cluster-wide READ still applies
-      # there via claude-telegram-ops), and Job creation is popeye-only.
+      # Bot uses kubectl for cluster diagnostics. Cluster-wide READ via claude-telegram-ops (rbac.yaml);
+      # exec and Job creation are bound per namespace in
+      # infrastructure/configs/claude-telegram-rbac/rolebindings.yaml, whose header is the one list.
+      # Blast radius: `pods/exec` in 14 namespaces is code execution inside those pods, with each
+      # pod's network reach. One of them, monitoring, holds node-exporter, which runs in every
+      # node's host network and PID namespaces. Exec there reaches the whole LAN on any port and
+      # each node's loopback services, with no NetworkPolicy applying. This pod's own egress policy
+      # does not bound that. Node SSH runs under the agent-diag forced command (read-only
+      # diagnostics), and Job creation is popeye-only.
       automountServiceAccountToken: true
       priorityClassName: homelab-standard
       hostAliases:
@@ -338,7 +339,10 @@ spec:
                   name: claude-telegram-env
                   key: telegram-bot-token
             - name: TELEGRAM_CHAT_ID
-              value: "113452686"
+              valueFrom:
+                secretKeyRef:
+                  name: claude-telegram-env
+                  key: telegram-chat-id
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -382,7 +386,10 @@ spec:
                   name: claude-telegram-env
                   key: telegram-bot-token
             - name: TELEGRAM_ALLOWED_USERS
-              value: "113452686"
+              valueFrom:
+                secretKeyRef:
+                  name: claude-telegram-env
+                  key: telegram-allowed-users
             - name: CLAUDE_WORKING_DIR
               value: /home/akhozya/source-code/homelab
             - name: ALLOWED_PATHS
@@ -538,8 +545,8 @@ spec:
                 scrub_git_config ~/.config/git/config || return 1
                 for r in ~/.local/share/chezmoi ~/source-code/homelab ~/source-code/claude-telegram-bot; do
                   [ -d "$r/.git" ] || continue
-                  rm -f "$r/.git/config.lock" "$r/.git/config.worktree.lock" || return 1
-                  for c in "$r/.git/config" "$r"/.git/config.worktree; do
+                  rm -f "$r/.git/config.lock" "$r/.git/config.worktree.lock" "$r"/.git/worktrees/*/config.worktree.lock || return 1
+                  for c in "$r/.git/config" "$r"/.git/config.worktree "$r"/.git/worktrees/*/config.worktree; do
                     scrub_git_config "$c" || return 1
                   done
                   rm -rf "$r/.git/hooks" "$r/.git/info/attributes" || return 1

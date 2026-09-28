@@ -17,6 +17,9 @@ spec:
     # cluster-internal services — the bot holds cluster-wide RBAC, so a
     # compromised process must not reach internal HTTPS endpoints. Its only
     # in-cluster target is the API server on 6443, granted explicitly below.
+    # This policy bounds processes in this pod only. `kubectl exec` runs with the target pod's
+    # reach instead, including the LAN through node-exporter; see the header of
+    # infrastructure/configs/claude-telegram-rbac/rolebindings.yaml.
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0

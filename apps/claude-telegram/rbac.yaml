@@ -8,6 +8,8 @@ metadata:
 # enough to restart a wedged workload without being able to rewrite what it runs.
 # The verbs that amount to code execution are bound per namespace, never cluster-wide:
 # `pods/exec` in `claude-telegram-exec`, Job creation in `claude-telegram-jobs`, both below.
+# The RoleBindings, and the one list of which namespaces get them and why, live in
+# infrastructure/configs/claude-telegram-rbac/rolebindings.yaml.
 # Workload patch is granted nowhere at all since 2026-08-06 — see that role's header.
 #
 # This split replaces the previous posture ("EFFECTIVE PRIVILEGE = CLUSTER-ADMIN-EQUIVALENT …
@@ -176,23 +178,9 @@ metadata:
 #                rule was ever written for. A Job creates a fresh Pod with any ServiceAccount and
 #                any mounts, so leaving it bound everywhere made the apps-patch removal pointless.
 #
-# Namespaces deliberately WITHOUT these bindings, and why:
-#   claude-telegram     its own namespace — self-restart kills the session, and exec into itself is
-#                       meaningless from inside the pod
-#   kube-system         cluster control plane
-#   flux-system         sops-age (decrypts every secret in the repo) + the git deploy key
-#   kyverno             exec into it reaches the admission controller's own process
-#   cert-manager        TLS private keys
-#   cloudflare-tunnel   the tunnel credential, i.e. the public ingress path
-#   authentik           SSO — owning it means owning everything behind it
-#   databases           Postgres/CouchDB data and credentials
-#   percona-mysql       MySQL data and credentials
-#   obsidian            CouchDB data (LiveSync)
-#   traefik             the ingress controller; exec into it reaches everything routed through
-#                       ingress, plus its mounted TLS credentials
-# The bot keeps full READ on all of them, plus `pods delete`, so alert triage still works there —
-# it just cannot execute inside them. Add a binding back if a real workflow needs it; that is a
-# one-line change and a deliberate one.
+# Which namespaces get this binding, which do not, and the network reach each one hands over:
+# see the header of infrastructure/configs/claude-telegram-rbac/rolebindings.yaml. The bot keeps
+# full READ and `pods delete` everywhere, so alert triage works in unbound namespaces too.
 rules:
   - apiGroups: [""]
     resources: ["pods/exec"]

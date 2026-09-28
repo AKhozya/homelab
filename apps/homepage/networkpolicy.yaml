@@ -36,9 +36,3 @@ spec:
       ports:
         - protocol: TCP
           port: 6443
-    # App status checks
-    - to:
-        - namespaceSelector: {}
-      ports:
-        - protocol: TCP
-          port: 443

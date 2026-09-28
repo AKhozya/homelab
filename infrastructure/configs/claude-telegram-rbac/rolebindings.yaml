@@ -1,18 +1,65 @@
-# Exec is deliberately NOT bound in backup-replication, home-assistant, n8n and trivy-scan.
-# Those four are the namespaces whose pods hold a 0.0.0.0/0 egress NetworkPolicy, so exec into
-# one of them hands over unrestricted internet and routes around every egress control on the
-# bot's own pod. The bot's transcripts show zero exec calls into any of the four, so removing
-# them costs nothing measured. immich is the fifth such namespace and DOES stay — 55 recorded
-# exec calls — which is the one accepted hole.
-# Re-adding any of the four re-opens that bypass; check the namespace's NetworkPolicy first.
+# The one list of where the bot may execute code. rbac.yaml defines the two roles; this file
+# binds them. Exec into a pod gives the bot that pod's network reach, so each namespace is listed
+# with the egress its pods actually have (live NetworkPolicies, 2026-09-28). "Any address" means a
+# rule with ports but no `to:`, which reaches the internet, the LAN and cluster pods alike.
 #
-# claude-telegram is not bound either (removed 2026-08-06). Binding the bot in its own namespace
-# let it patch the Deployment that carries its own init-time git sanitization — the control was
-# editable by the thing it constrains. Exec into itself was never useful: the bot already runs
-# there.
+# Bound to claude-telegram-exec:
+# | Namespace      | Egress of its pods                                                        |
+# |----------------|---------------------------------------------------------------------------|
+# | audiobookshelf | TCP 443 to any address                                                    |
+# | blocky         | TCP 443 to any address; DNS to four public resolvers                      |
+# | homehub        | DNS only                                                                  |
+# | homepage       | API server and DNS only                                                   |
+# | immich         | TCP 443 to the internet, private ranges excepted                          |
+# | linkwarden     | TCP 443 to any address                                                    |
+# | loki           | in-cluster only                                                           |
+# | mealie         | TCP 443 to any address                                                    |
+# | monitoring     | node-exporter: hostNetwork + hostPID, so no NetworkPolicy applies (below); |
+# |                | alertmanager, grafana: TCP 443/80 to any address; vmagent: TCP 443, 6443, |
+# |                | 9100, 10250, 10255, 4194 to any address                                   |
+# | paperless-ngx  | TCP 443, 465, 587 to any address                                          |
+# | pricebuddy     | TCP 443 to any address                                                    |
+# | rustdesk       | none                                                                      |
+# | stirling-pdf   | TCP 443 to any address                                                    |
+# | uptime-kuma    | TCP 443/80 to any address; 192.168.1.0/24 on 65300, 10250, 53             |
 #
-# popeye lost its exec binding the same day and keeps only claude-telegram-jobs: the manual scan
-# creates a Job and reads the pod's logs, which needs no exec, and the transcript corpus has none.
+# monitoring is the one namespace with host-namespace pods. node-exporter runs on all four nodes,
+# the control plane included, in the node's own network and PID namespaces. Exec into it
+# therefore reaches every LAN host (the NAS, the router) on every port, and every service bound
+# to that node's loopback, with no NetworkPolicy in the way. hostPID shows it every host process's
+# command line. The image has no shell, but the host root filesystem is mounted read-only (not
+# noexec) at /host/root. The known cluster-admin path through it was the unauthenticated kubectl
+# proxy on the control plane's 127.0.0.1:8001; node-maintenance no longer runs that proxy. Any
+# other unauthenticated service on a node's loopback or on the LAN stays in reach. The binding
+# stays by operator decision (2026-09-28): the API server's service proxy returns 502 because the
+# control plane cannot reach pod IPs, so exec is the bot's only way to query vmsingle and
+# Alertmanager. Removing it is the follow-up once that path works.
+#
+# Bound to claude-telegram-jobs: popeye only (manual scans). Its pods reach the API server and
+# DNS. It has no exec binding: the scan creates a Job and reads the pod's logs.
+#
+# NOT bound, and why:
+# | Namespace                          | Reason                                                  |
+# |------------------------------------|---------------------------------------------------------|
+# | claude-telegram                    | the bot's own pod and PVC; exec or a Job here reaches   |
+# |                                    | the git state its init-time sanitization guards         |
+# | kube-system                        | cluster control plane                                   |
+# | flux-system                        | sops-age (decrypts every secret) and the git deploy key |
+# | kyverno                            | the admission controller's own process                  |
+# | cert-manager                       | TLS private keys                                        |
+# | cloudflare-tunnel                  | the tunnel credential, the public ingress path          |
+# | authentik                          | SSO credentials, and access to every app that uses it   |
+# | traefik                            | the ingress controller and its TLS credentials          |
+# | databases, percona-mysql, obsidian | database data and credentials                           |
+# | backup-replication, n8n,           | zero exec calls in the bot's transcripts                |
+# | trivy-scan, home-assistant         |                                                         |
+# | default, kube-public,              | no workloads                                            |
+# | kube-node-lease                    |                                                         |
+#
+# The zero-exec-calls row is not an egress boundary. backup-replication, n8n and trivy-scan allow
+# TCP 443 to the internet with private ranges excepted, which is less than most bound namespaces
+# allow. home-assistant allows every port to 192.168.0.0/16. Before binding any namespace, read
+# its NetworkPolicies and its pods' hostNetwork/hostPID, and add its row above.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
