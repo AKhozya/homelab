@@ -611,19 +611,23 @@ edits the checkout it lives in.
    | claude-telegram | env `TELEGRAM_BOT_TOKEN`, at start-up | `kubectl delete pod -n claude-telegram -l app=claude-telegram` (Flux reverts `rollout restart`) |
    | node-maintenance notices (alerts bot) | the CP file `/etc/node-maintenance/telegram-token`, on each send | none (below) |
 
-   The node-maintenance files follow the Secret without an operator step:
+   The node-maintenance files match the Secret without an operator step:
 
    | Stage | What happens |
    |---|---|
-   | every 10-min sync on the CP | `lib/sync-from-git.sh` runs `lib/refresh-telegram-creds.sh`, which copies `bot_token` and `chat_id` from the `backup-telegram` Secret into `/etc/node-maintenance/telegram-token` and `telegram-chat-id`. So the CP files follow the Secret within one sync after Flux applies it. |
-   | next drift-heal | the `security_scan` role copies both files from the CP to the other nodes. Drift-heal runs at 03:00 and 15:00 UTC, and after a sync that applies a new commit. |
-   | if the read fails | the refresh keeps the old files, and the sync prints a `WARN` line |
+   | every 10-min sync on the CP | `lib/sync-from-git.sh` runs `lib/refresh-telegram-creds.sh`, which copies `bot_token` and `chat_id` from the `backup-telegram` Secret into `/etc/node-maintenance/telegram-token` and `telegram-chat-id`. So the CP files match the Secret within one sync after Flux applies it. |
+   | next drift-heal | the `security_scan` role copies both files from the CP to the other nodes. Drift-heal runs at 03:00 and 15:00 UTC, each up to 5 minutes later (`RandomizedDelaySec=300`), and after a sync that applies a new commit. |
+   | if the read fails or a value is empty | the refresh keeps both old files, and the sync prints a `WARN` line. It writes the two files only if both values are non-empty. |
    | if a send fails | `telegram-notify.sh` writes `node_maintenance_telegram_notify_success 0`. If the gauge stays 0 for 5 minutes, the `NodeMaintenanceTelegramNotifyFailed` alert fires. |
 
-   To test at once, run this on the CP and check that the message reaches the chat:
+   To test, wait for the first sync after Flux applies the Secret, which is at most 10 minutes
+   later. If you test earlier, the CP file may still hold the revoked token. Then run this on the
+   CP and check that the message reaches the chat. The second line is optional: it runs drift-heal
+   now, so the `security_scan` role copies the files to the other nodes at once.
 
    ```bash
    sudo /usr/local/sbin/telegram-notify.sh "token refresh test"
+   sudo systemctl start node-maintenance-config.service
    ```
 
 5. Verify. Cloudflare: the script's check shows the token active, and Roll keeps its
@@ -711,8 +715,9 @@ If compromised:
   Alertmanager's Telegram send count from 24 to 25 with 0 failures; claude-telegram restarted and
   logged `Bot started`. The first certificate renewals with the new token are due 2026-10-31.
   The refresh of the CP file `/etc/node-maintenance/telegram-token` became automatic when the
-  node-maintenance fixes (`2a09e2b0`) went live at 23:11 BST. One send with the old token failed at
-  23:11:01, one second before the next sync started. Sends succeed since 23:17:09.
+  node-maintenance fixes (`2a09e2b0`) were deployed at 23:11 BST. One send with the old token
+  failed at 23:11:01. The sync that started in the same second refreshed the file at 23:11:02. The
+  next send, at 23:17:09, succeeded.
 - [x] **2026-08-07: claude-telegram bot token rotated after a pod-log leak** (`aac32751`) — failed
   `getUpdates` errors printed the token in the request URL during the morning WAN outage (Loki
   retains 720h). Bot 1.32.0 now redacts secrets from console output, so this leak class is closed
