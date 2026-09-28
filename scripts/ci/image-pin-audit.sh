@@ -76,6 +76,14 @@ while IFS= read -r -d '' file; do
     continue
   fi
 
+  # A yq error fails the file. Swallowing it would pass a file nobody checked.
+  if ! imgs=$(yq ea 'select(tag == "!!map") | select(.kind != "HelmRelease") | .. | select(tag == "!!map" and has("image")) | .image' "$file") ||
+    ! vals=$(yq ea 'select(tag == "!!map") | select(.kind == "HelmRelease") | .spec.values | .. | select(tag == "!!map") | select((has("tag") and (((path[-1] | tostring | downcase) | test("image$")) or has("repository"))) or has("imageTag")) | [(.repository // "NONE"), (.tag // .imageTag), (.digest // "NONE")] | @tsv' "$file"); then
+    echo "FAIL: $file  (yq could not parse the file)"
+    found=1
+    continue
+  fi
+
   # Extract every container/init/ephemeral image from non-HelmRelease docs.
   # `..` recurses all nodes (covers containers[], initContainers[], ephemeralContainers[],
   # CronJob jobTemplate nesting, bare Pods); select keeps maps that have an `image` key.
@@ -107,7 +115,7 @@ while IFS= read -r -d '' file; do
     fi
 
     check_tag "$file" "$img" "$name_no_tag" "$tag"
-  done < <(yq ea 'select(.kind != "HelmRelease") | .. | select(tag == "!!map" and has("image")) | .image' "$file" 2>/dev/null || true)
+  done <<<"$imgs"
 
   # HelmRelease values pass. An image override is a map carrying `tag` that either sits
   # under a key ending in `image` (`image`, `initImage`) or carries `repository`, or any
@@ -140,7 +148,9 @@ while IFS= read -r -d '' file; do
     fi
 
     check_tag "$file" "$vrepo:$vtag" "$vrepo" "$vtag"
-  done < <(yq ea 'select(.kind == "HelmRelease") | .spec.values | .. | select(tag == "!!map") | select((has("tag") and (((path[-1] | tostring | downcase) | test("image$")) or has("repository"))) or has("imageTag")) | [(.repository // "NONE"), (.tag // .imageTag), (.digest // "NONE")] | @tsv' "$file" 2>/dev/null || true)
-done < <(find "$root" \( -name '*.yaml' -o -name '*.yml' \) -type f -print0)
+  done <<<"$vals"
+# Prune agent worktrees: a pre-commit run in the main checkout would otherwise scan
+# every other session's uncommitted tree.
+done < <(find "$root" -path '*/.claude/worktrees' -prune -o \( -name '*.yaml' -o -name '*.yml' \) -type f -print0)
 
 exit "$found"

@@ -20,14 +20,19 @@ mapfile -t files < <(grep -rl 'initContainers:' \
 
 fail=0
 for f in "${files[@]}"; do
-  kind=$(yq eval '.kind' "$f" 2>/dev/null || echo "")
+  # A yq error fails the file. Swallowing it would pass a file nobody checked.
+  if ! kind=$(yq eval '.kind' "$f"); then
+    echo "::error file=$f::yq could not parse the file"
+    fail=1
+    continue
+  fi
   case "$kind" in
     # Skip Helm wrappers (rendered server-side) and operator CRs (Cluster/Pooler/VMAgent).
     HelmRelease|HelmChart|HelmRepository|Cluster|Pooler|VMAgent)
       continue
       ;;
   esac
-  missing=$(yq eval '
+  if ! out=$(yq eval '
     [
       .spec.template.spec.initContainers[]?,
       .spec.jobTemplate.spec.template.spec.initContainers[]?
@@ -39,7 +44,12 @@ for f in "${files[@]}"; do
       .resources.limits.cpu == null or
       .resources.limits.memory == null
     ) | .name
-  ' "$f" 2>/dev/null | grep -v '^null$\|^$' || true)
+  ' "$f"); then
+    echo "::error file=$f::yq could not parse the file"
+    fail=1
+    continue
+  fi
+  missing=$(grep -v '^null$\|^$' <<<"$out" || true)
   if [ -n "$missing" ]; then
     while IFS= read -r name; do
       [ -z "$name" ] && continue

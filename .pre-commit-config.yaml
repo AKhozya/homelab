@@ -1,6 +1,7 @@
 ---
-# Local mirror of .github/workflows/validate.yaml gates.
-# Heavy gates (kubeconform per kustomize-root, flux build) run in CI only.
+# Local subset of the .github/workflows/validate.yaml gates.
+# shellcheck uses CI's `-S warning` threshold. yamllint runs `--strict`, which CI does not.
+# kubeconform per Kustomize root, helm-render and the analysis drift check run in CI only.
 # Install: pre-commit install && pre-commit install --hook-type commit-msg
 # Run-all-files: pre-commit run -a
 
@@ -44,7 +45,7 @@ repos:
       # No path anchor — shell also lives in apps/, .backup/ and .claude/hooks/,
       # and a directory allowlist would miss them.
       - id: shellcheck
-        args: ['-S', 'error']
+        args: ['-S', 'warning']
         files: \.(sh|bash)$
 
   - repo: local
@@ -62,6 +63,13 @@ repos:
         language: script
         pass_filenames: false
         files: \.yaml$
+
+      - id: image-pin
+        name: image pin audit (major.minor.patch)
+        entry: scripts/ci/image-pin-audit.sh
+        language: script
+        pass_filenames: false
+        files: \.ya?ml$
 
       # Content secret scan (gitleaks) — the gate sops-check can't be: it scans
       # ARBITRARY staged content for plaintext credentials/keys, not just that
