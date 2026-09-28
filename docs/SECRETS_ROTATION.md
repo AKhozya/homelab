@@ -269,7 +269,10 @@ each consumer's app-side secret (Authentik has had no Redis since 2025-10-29):
 - `infrastructure/configs/databases/redis-ha/passwords-secret.yaml` — `redis-passwords` (per-user: admin, immich, paperless, blocky)
 - `infrastructure/configs/databases/redis-ha/acl-secret.yaml` — `redis-acl-secret`, literal user list mounted at `/etc/redis/user.acl`; contains the SAME passwords — regenerate both, never hand-sync one side
 - Consumers: `apps/immich/immich-redis-url-secret.yaml` (key `redis-url`, `ioredis://<base64(json)>` — password embedded in the JSON) · `apps/paperless-ngx/paperless-env-secret.yaml` (key `PAPERLESS_REDIS`, a URL) · Blocky config ([Blocky DNS](#blocky-dns-redis-password-coordinated-rotation))
-- The sentinels read `admin-password` from `redis-passwords`; an admin rotation follows the three passes in step 5.
+
+If you rotate **`admin-password`**, stop here and follow [Rotating admin-password](#rotating-admin-password)
+instead. Do not edit either secret first. Steps 1 to 6 below are for the app users `immich`,
+`paperless` and `blocky`.
 
 ```bash
 # 1. Generate new password (per Redis user being rotated)
@@ -297,56 +300,77 @@ flux reconcile kustomization infrastructure-configs --timeout 60s
 flux reconcile kustomization apps --timeout 60s
 ```
 
-5. Restart the Redis pods one at a time: the replica, then the master. Redis reads `user.acl` only
-   when it starts. The kubelet updates the mounted file, but a running Redis keeps the old
-   passwords.
-   - Never run `kubectl rollout restart` on these StatefulSets. The opstree operator then loops on
-     the `restartedAt` annotation that the restart adds to the pod template (`bf7bf65d`).
-   - Pod roles swap on failover, so the commands read the `redis-role` label each time. The delete
-     carries that label too, so the API server re-checks the role when the delete runs.
-   - `kubectl delete` waits until the old pod is gone, and the `wait` then covers the new pod.
-   - Deleting the master makes the sentinels promote the restarted replica. Writes fail for a few
-     seconds.
-   - The chain stops at the first step that fails: nothing deleted, or no Ready pod within 180 s.
+5. Restart the Redis pods, one at a time: the replica, then the master. The helpers below behave
+   as follows:
+
+   | Behaviour | Consequence |
+   |---|---|
+   | Redis reads `user.acl` only when it starts | The kubelet updates the mounted file, but a running Redis keeps the old passwords until it restarts. |
+   | The opstree operator loops on the `restartedAt` annotation that `kubectl rollout restart` adds (`bf7bf65d`) | Never run `rollout restart` on these StatefulSets. The helpers delete one pod at a time. |
+   | `T` records when the new secret was live | `restart_old` skips a pod that started after `T`, so no pod restarts twice. It still waits until that pod is Ready. |
+   | A pod whose start time cannot be read | `restart_old` stops rather than delete it. |
+   | Roles swap on failover | The chain reads the `redis-role` label again before each restart. `all_restarted` checks at the end that every pod started after `T` and is Ready. |
+   | `kubectl delete` waits until the old pod is gone | The `wait` then covers the new pod, which has the same name. |
+   | Deleting the master makes the sentinels promote the restarted replica | Writes fail for a few seconds. |
+   | Each helper returns non-zero on a failure | The `&&` chain stops at the first failure. |
 
    ```bash
-   redis_restart() {  # $1 = label selector, $2 = pod name
-     out=$(kubectl -n databases delete pod -l "$1" --field-selector="metadata.name=$2") || return 1
-     echo "$out"
-     # A delete that matches nothing still exits 0 and prints "No resources found".
-     case "$out" in *deleted*) ;; *) return 1 ;; esac
-     kubectl -n databases wait --for=create --for=condition=Ready pod/"$2" --timeout=180s
+   T=$(date -u +%Y-%m-%dT%H:%M:%SZ)   # after step 4: the new secret is live
+   pod_start() {  # $1 = pod; prints its start time, fails if the pod or the time is missing
+     st=$(kubectl -n databases get pod "$1" -o jsonpath='{.status.startTime}') && [ -n "$st" ] &&
+       printf '%s' "$st"
+   }
+   restart_old() {  # $1 = pod; restarts it unless it already started after $T, then waits for Ready
+     st=$(pod_start "$1") || { echo "cannot read the start time of $1"; return 1; }
+     if [[ "$st" > "$T" ]]; then echo "$1 already restarted"
+     else kubectl -n databases delete pod "$1" || return 1
+     fi
+     kubectl -n databases wait --for=create --for=condition=Ready pod/"$1" --timeout=180s
    }
    role_pod() { kubectl -n databases get pod -l "app=redis-replication,redis-role=$1" -o jsonpath='{.items[0].metadata.name}'; }
+   all_restarted() {  # $1 = label selector; every matching pod must have started after $T
+     names=$(kubectl -n databases get pod -l "$1" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}') &&
+       [ -n "$names" ] || return 1
+     printf '%s\n' "$names" | while IFS= read -r p; do
+       st=$(pod_start "$p") && [[ "$st" > "$T" ]] || { echo "NOT restarted: $p"; return 1; }
+       [ "$(kubectl -n databases get pod "$p" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')" = True ] ||
+         { echo "NOT Ready: $p"; return 1; }
+     done || return 1
+     echo "every pod of $1 started after $T and is Ready"
+   }
 
-   R=$(role_pod slave) && redis_restart "app=redis-replication,redis-role=slave" "$R" &&
-     M=$(role_pod master) && redis_restart "app=redis-replication,redis-role=master" "$M" &&
-     echo "replica and master restarted"
+   R=$(role_pod slave) && restart_old "$R" &&
+     M=$(role_pod master) && restart_old "$M" &&
+     all_restarted app=redis-replication
    ```
 
-   If `admin-password` changes, rotate it in three passes instead. The sentinels log in to Redis
-   with `admin-password` and read it only when they start. A Redis pod that knows only the new
-   password would lock out the sentinels that still hold the old one, and they could not promote
-   it. Redis accepts several passwords for one ACL user, so the passes overlap the two:
-
-   | Pass | Change, then commit, push and reconcile | Restart |
-   |---|---|---|
-   | 1 | In `acl-secret.yaml`, give the admin line both passwords: `>OLD >NEW` | replica, then master (above) |
-   | 2 | In `passwords-secret.yaml`, set `admin-password` to NEW | each sentinel (below) |
-   | 3 | In `acl-secret.yaml`, remove `>OLD` from the admin line | replica, then master (above) |
-
-   ```bash
-   redis_restart app=redis-sentinel-sentinel redis-sentinel-sentinel-0 &&
-     redis_restart app=redis-sentinel-sentinel redis-sentinel-sentinel-1 &&
-     redis_restart app=redis-sentinel-sentinel redis-sentinel-sentinel-2
-   ```
-
+   If `all_restarted` prints `NOT restarted`, a failover moved a role mid-way. Run the last three
+   lines again; `restart_old` skips the pods that are already done.
 6. Restart each consumer (selector table under ROTATION PROCEDURES), then check its log:
 
    ```bash
    agents/skills/_shared/restart-workload.sh <namespace> <selector>
    kubectl logs -n <namespace> deployment/<deployment> --tail=20 | grep -i "redis\|error"
    ```
+
+#### Rotating admin-password
+
+The sentinels log in to Redis with `admin-password`, and they read it only when they start. If a
+Redis pod accepts only the new password, the sentinels that still hold the old one cannot log in
+to it. They then cannot promote it after a failover. Redis accepts several passwords for one ACL
+user, so rotate in three passes that overlap the old and the new password. In each pass, make the
+change, then commit, push and reconcile as in step 4, then set `T` and restart as in step 5:
+
+| Pass | Change | Restart |
+|---|---|---|
+| 1 | In `acl-secret.yaml`, give the admin line both passwords: `>OLD >NEW`. Leave `passwords-secret.yaml` unchanged. | replica, then master (step 5) |
+| 2 | In `passwords-secret.yaml`, set `admin-password` to NEW | each sentinel (below) |
+| 3 | In `acl-secret.yaml`, remove `>OLD` from the admin line | replica, then master (step 5) |
+
+```bash
+restart_old redis-sentinel-sentinel-0 && restart_old redis-sentinel-sentinel-1 &&
+  restart_old redis-sentinel-sentinel-2 && all_restarted app=redis-sentinel-sentinel
+```
 
 ---
 
@@ -356,15 +380,16 @@ The Percona operator has no user resource. The app users come from SQL
 ([`mysql-create-dbs.sql`](disaster-recovery/mysql-create-dbs.sql)), so the password changes with
 `ALTER USER` on the primary. Each app keeps its own copy:
 
-| App | MySQL user | SOPS file | Where the password sits |
-|---|---|---|---|
-| Home Assistant | `homeassistant` | `apps/home-assistant/secrets.yaml` | the `db_url:` DSN inside key `secrets.yaml`, and the separate `db_url` key |
-| Uptime Kuma | `uptimekuma` | `apps/uptime-kuma/mysql-credentials.yaml` | key `password` |
-| PriceBuddy | `pricebuddy` | `apps/pricebuddy/mysql-credentials.yaml` | key `password` |
+| App | MySQL user | SOPS file | Secret | Key the app reads | Where the password sits |
+|---|---|---|---|---|---|
+| Home Assistant | `homeassistant` | `apps/home-assistant/secrets.yaml` | `home-assistant-secrets` | `secrets.yaml` | the DSN on the `db_url:` line inside key `secrets.yaml`, and the separate `db_url` key |
+| Uptime Kuma | `uptimekuma` | `apps/uptime-kuma/mysql-credentials.yaml` | `uptime-kuma-mysql-credentials` | `password` | key `password` |
+| PriceBuddy | `pricebuddy` | `apps/pricebuddy/mysql-credentials.yaml` | `pricebuddy-mysql-credentials` | `password` | key `password` |
 
-Home Assistant mounts only the `secrets.yaml` key and reads `db_url: !secret db_url` from that
-file. Nothing in the repo reads the separate `db_url` key; set it to the same DSN so the two never
-disagree.
+Home Assistant mounts only the `secrets.yaml` key, as the file `/config/secrets.yaml`. Its
+configuration says `db_url: !secret db_url`, which resolves to the DSN on the `db_url:` line of
+that file. Nothing in the repo reads the separate `db_url` key; set it to the same DSN so the two
+never disagree.
 
 Deploy the new secret first, then change the user, then restart the app. The app then fails only
 between the `ALTER USER` and its restart. Rotate one app at a time. Take the variables in step 1
@@ -373,7 +398,8 @@ from the table above and from the selector table under ROTATION PROCEDURES.
 ```bash
 # 1. Pick the app and generate the password (hex: safe inside a DSN and a SQL string)
 APP_NS=uptime-kuma; APP_SEL=app=uptime-kuma; DB_USER=uptimekuma
-SECRET_FILE=apps/uptime-kuma/mysql-credentials.yaml
+SECRET_FILE=apps/uptime-kuma/mysql-credentials.yaml; SECRET_NAME=uptime-kuma-mysql-credentials
+READ_KEY=password   # "Key the app reads"; step 3 checks the new password is there
 NEW_PASSWORD=$(openssl rand -hex 32)
 
 # 2a. Uptime Kuma, PriceBuddy: bare key. The value goes in on stdin, never on the command line.
@@ -381,24 +407,31 @@ printf '"%s"' "$NEW_PASSWORD" | sops set --value-stdin "$SECRET_FILE" '["stringD
 # 2b. Home Assistant: the password sits inside a DSN, so edit both places by hand
 printf '%s' "$NEW_PASSWORD" | pbcopy   # macOS; paste it in the editor
 sops "$SECRET_FILE"
+```
 
-# 3. Commit, push, reconcile
-git add "$SECRET_FILE"
-git commit -m "Rotate $APP_NS MySQL password"
-git push
-flux reconcile source git flux-system --timeout 45s
-flux reconcile kustomization apps --timeout 60s
+Step 3 is one chain: each command runs only if the one before it succeeded. So the database changes
+only after the cluster Secret holds the new password, and the app restarts only after the
+`ALTER USER` succeeded.
 
-# 4. Change the user on the primary. HAProxy routes the write to the primary; the SQL goes in
-#    on stdin, so the new password stays off the command line.
-MYSQL_ROOT_PWD=$(kubectl get secret -n databases mysql-cluster-secrets -o jsonpath='{.data.root}' | base64 -d)
-printf "ALTER USER '%s'@'%%' IDENTIFIED BY '%s';\n" "$DB_USER" "$NEW_PASSWORD" | \
-  kubectl exec -i -n databases main-mysql-mysql-0 -c mysql -- \
-  mysql -h main-mysql-haproxy.databases.svc.cluster.local -uroot -p"${MYSQL_ROOT_PWD}"
-
-# 5. Restart the app, then check its log
-agents/skills/_shared/restart-workload.sh "$APP_NS" "$APP_SEL"
-kubectl logs -n "$APP_NS" -l "$APP_SEL" --tail=20 | grep -i "mysql\|database\|error"
+```bash
+# 3. Commit, push, reconcile; check the live Secret; change the user; restart the app
+if git add "$SECRET_FILE" && git commit -m "Rotate $APP_NS MySQL password" && git push &&
+   flux reconcile source git flux-system --timeout 45s &&
+   flux reconcile kustomization apps --timeout 60s &&
+   case "$(kubectl get secret -n "$APP_NS" "$SECRET_NAME" -o json | jq -r --arg k "$READ_KEY" '.data[$k] | @base64d')" in
+     *"$NEW_PASSWORD"*) true ;;
+     *) echo "the live Secret does not hold the new password yet"; false ;;
+   esac &&
+   # HAProxy routes the write to the primary. The SQL goes in on stdin, and the root password is
+   # read inside the pod from the mounted operator secret, so neither is on a command line.
+   printf "ALTER USER '%s'@'%%' IDENTIFIED BY '%s';\n" "$DB_USER" "$NEW_PASSWORD" |
+     kubectl exec -i -n databases main-mysql-mysql-0 -c mysql -- sh -c \
+     'export MYSQL_PWD="$(cat /etc/mysql/mysql-users-secret/root)"; exec mysql -h main-mysql-haproxy.databases.svc.cluster.local -uroot' &&
+   agents/skills/_shared/restart-workload.sh "$APP_NS" "$APP_SEL"; then
+  kubectl logs -n "$APP_NS" -l "$APP_SEL" --tail=20 | grep -i "mysql\|database\|error"
+else
+  echo "STOPPED: the step above failed; nothing after it ran"
+fi
 ```
 
 ---
@@ -409,44 +442,48 @@ kubectl logs -n "$APP_NS" -l "$APP_SEL" --tail=20 | grep -i "mysql\|database\|er
 # 1. Generate new OIDC client secret (64-char hex)
 NEW_SECRET=$(openssl rand -hex 32)
 
-# 2. Update in Authentik via API (no UI needed)
-AUTHENTIK_TOKEN=$(kubectl get secret -n authentik authentik -o jsonpath='{.data.AUTHENTIK_BOOTSTRAP_TOKEN}' | base64 -d)
-# Get provider PK: 1=Grafana, 3=Immich, 5=Paperless, 11=Mealie, 13=Audiobookshelf, 14=HA, 16=Stirling
-kubectl exec -n authentik deploy/authentik-server -- curl -s -X PATCH \
-  -H "Authorization: Bearer ${AUTHENTIK_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -d "{\"client_secret\": \"${NEW_SECRET}\"}" \
-  "http://localhost:9000/api/v3/providers/oauth2/<PROVIDER_PK>/"
+# 2. Update in Authentik via API. The PATCH runs inside the server pod: the admin token comes
+#    from the pod's own environment, curl reads its URL, header and body from stdin, and the
+#    response is discarded. So no secret reaches a command line or the screen.
+PK=<PROVIDER_PK>   # 1=Grafana, 3=Immich, 5=Paperless, 11=Mealie, 13=Audiobookshelf, 14=HA, 16=Stirling
+code=$(printf 'url = "http://localhost:9000/api/v3/providers/oauth2/%s/"\ndata = "{\\"client_secret\\": \\"%s\\"}"\n' "$PK" "$NEW_SECRET" |
+  kubectl exec -i -n authentik deploy/authentik-server -- sh -c \
+  '{ printf "header = \"Authorization: Bearer %s\"\n" "$AUTHENTIK_BOOTSTRAP_TOKEN"; cat; } |
+   curl -sS -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json" -K -')
+if [ "$code" = 200 ]; then echo "Authentik updated"; else echo "PATCH FAILED (HTTP $code): stop here"; fi
 
-# 3. Write the app-side copy (file and key per app: table below). For a bare key:
-printf '"%s"' "$NEW_SECRET" | sops set --value-stdin <file> '["stringData"]["<key>"]'
-# For a secret inside a larger value, edit by hand:
-sops <file>
-
-# 4. Commit and push
-git add <file>
-git commit -m "Rotate <app> OIDC client secret"
-git push
-
-# 5. Reconcile the Kustomization that holds the file (table below), then restart
-flux reconcile source git flux-system --timeout 60s
-flux reconcile kustomization <kustomization> --timeout 60s
-agents/skills/_shared/restart-workload.sh <namespace> <selector>
+# 3-5. Only if step 2 printed "Authentik updated": write the app-side copy, commit, push,
+#      reconcile, restart. Take the values from the table below and the selector table under
+#      ROTATION PROCEDURES. For a secret inside a larger value, leave KEY empty: sops then opens
+#      the file for a hand edit.
+FILE=<file>; KEY=<key>; KS=<kustomization>; NS=<namespace>; SEL=<selector>
+if [ "$code" = 200 ] &&
+   if [ -n "$KEY" ]; then
+     printf '"%s"' "$NEW_SECRET" | sops set --value-stdin "$FILE" "[\"stringData\"][\"$KEY\"]"
+   else sops "$FILE"; fi &&
+   git add "$FILE" && git commit -m "Rotate $NS OIDC client secret" && git push &&
+   flux reconcile source git flux-system --timeout 60s &&
+   flux reconcile kustomization "$KS" --timeout 60s &&
+   agents/skills/_shared/restart-workload.sh "$NS" "$SEL"; then
+  echo "rotated; now test the SSO login"
+else
+  echo "STOPPED: the step above failed; nothing after it ran"
+fi
 
 # 6. Test SSO login
 # Visit https://<app>.h0melab.work and test login
 ```
 
-| App | File | Where the secret sits | Write with | Kustomization |
+| App | FILE | KEY | Where the secret sits | KS |
 |---|---|---|---|---|
-| Grafana | `monitoring/configs/kube-prometheus-stack/grafana-oidc-secret.yaml` | key `client-secret` | `sops set` | `monitoring-configs` |
-| Mealie | `apps/mealie/mealie-env-secret.yaml` | key `OIDC_CLIENT_SECRET` | `sops set` | `apps` |
-| Linkwarden | `apps/linkwarden/linkwarden-secret.yaml` | key `AUTHENTIK_CLIENT_SECRET` | `sops set` | `apps` |
-| Paperless-NGX | `apps/paperless-ngx/paperless-env-secret.yaml` | inside the JSON in key `PAPERLESS_SOCIALACCOUNT_PROVIDERS` | `sops <file>` | `apps` |
-| Stirling PDF | `apps/stirling-pdf/custom-settings-secret.yaml` | inside the YAML in key `custom_settings.yml` | `sops <file>` | `apps` |
-| Home Assistant | `apps/home-assistant/secrets.yaml` | the `oidc_client_secret:` line inside key `secrets.yaml` | `sops <file>` | `apps` |
-| Immich | PostgreSQL `system_metadata` | see the gotchas above | SQL | — |
-| Audiobookshelf | SQLite on its volume | see the gotchas above | web UI | — |
+| Grafana | `monitoring/configs/kube-prometheus-stack/grafana-oidc-secret.yaml` | `client-secret` | that key | `monitoring-configs` |
+| Mealie | `apps/mealie/mealie-env-secret.yaml` | `OIDC_CLIENT_SECRET` | that key | `apps` |
+| Linkwarden | `apps/linkwarden/linkwarden-secret.yaml` | `AUTHENTIK_CLIENT_SECRET` | that key | `apps` |
+| Paperless-NGX | `apps/paperless-ngx/paperless-env-secret.yaml` | empty | inside the JSON in key `PAPERLESS_SOCIALACCOUNT_PROVIDERS` | `apps` |
+| Stirling PDF | `apps/stirling-pdf/custom-settings-secret.yaml` | empty | inside the YAML in key `custom_settings.yml` | `apps` |
+| Home Assistant | `apps/home-assistant/secrets.yaml` | empty | the `oidc_client_secret:` line inside key `secrets.yaml` | `apps` |
+
+Immich (PostgreSQL `system_metadata`) and Audiobookshelf (SQLite on its volume, web UI) do not use steps 3-5; see the gotchas above.
 
 **Provider PK Reference**:
 - 1: Grafana, 3: Immich, 5: Paperless-NGX, 11: Mealie
@@ -465,10 +502,14 @@ loads the file (`app/config.py` in HomeHub v0.2.4). Do not store a bcrypt hash h
 treat the hash string itself as the password.
 
 ```bash
-# 1. Type the new password; it stays off the screen and off the command line
-read -rs NEW_PASSWORD
-printf '%s' "$NEW_PASSWORD" | jq -Rs . | sops set --value-stdin \
-  apps/homehub/secret.yaml '["stringData"]["password"]'
+# 1. Type the new password; it stays off the screen and off the command line. An empty
+#    password, or a failed read, writes nothing.
+if IFS= read -rs NEW_PASSWORD && [ -n "$NEW_PASSWORD" ]; then
+  printf '%s' "$NEW_PASSWORD" | jq -Rs . | sops set --value-stdin \
+    apps/homehub/secret.yaml '["stringData"]["password"]'
+else
+  echo "STOPPED: empty password or failed read"
+fi
 
 # 2. Commit, push, reconcile, restart
 git add apps/homehub/secret.yaml
@@ -564,7 +605,7 @@ edits the checkout it lives in.
    sudo /usr/local/sbin/telegram-notify.sh "token refresh test"
    ```
 
-   Check that the test message reaches the chat. The script's exit code does not show a failed send.
+   Check that the test message reaches the chat.
 
 5. Verify. Cloudflare: the script's check shows the token active, and Roll keeps its
    permissions. Certificates that stay `True` in `kubectl get certificates -A` do not test the
