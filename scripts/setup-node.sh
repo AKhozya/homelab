@@ -1,6 +1,8 @@
 #!/bin/bash
 # K3s Node Setup Script
-# Run with: sudo bash setup-node.sh
+# Run with: sudo bash scripts/setup-node.sh [control-plane|worker]
+# If no role is passed, the script reads it from the running k3s unit. A node bootstrapped
+# before k3s is installed has none, so pass the role there.
 #
 # Bootstrap-only: AUR firmware, ansible stack (CP), bootloader kernel params,
 # K3s config directory. Everything else — sysctls, sshd, kubelet, udev,
@@ -28,17 +30,28 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 HOSTNAME=$(cat /etc/hostname)
-if systemctl is-active --quiet k3s; then
-    NODE_TYPE="control-plane"
-    K3S_SERVICE="k3s"
-elif systemctl is-active --quiet k3s-agent; then
-    NODE_TYPE="worker"
-    K3S_SERVICE="k3s-agent"
-else
-    echo "WARNING: K3s not detected. Assuming worker node."
-    NODE_TYPE="worker"
-    K3S_SERVICE="k3s-agent"
+NODE_TYPE="${1:-}"
+if [ -z "$NODE_TYPE" ]; then
+    if systemctl is-active --quiet k3s; then
+        NODE_TYPE="control-plane"
+    elif systemctl is-active --quiet k3s-agent; then
+        NODE_TYPE="worker"
+    else
+        echo "ERROR: K3s is not running, so the role is unknown."
+        echo "       Run one of:"
+        echo "         sudo bash scripts/setup-node.sh control-plane"
+        echo "         sudo bash scripts/setup-node.sh worker"
+        exit 1
+    fi
 fi
+case "$NODE_TYPE" in
+    control-plane) K3S_SERVICE="k3s" ;;
+    worker) K3S_SERVICE="k3s-agent" ;;
+    *)
+        echo "ERROR: role must be control-plane or worker, got '$NODE_TYPE'"
+        exit 1
+        ;;
+esac
 
 # CPU vendor: used for AUR conditional + AMD amd_pstate boot param.
 # Microcode package: ansible-managed (host_vars/*.yml ucode_pkg).
@@ -69,7 +82,8 @@ echo "=============================================="
 # python3 + openssh + sudo from Arch base).
 if [ "$NODE_TYPE" = "control-plane" ]; then
     echo "Installing ansible stack..."
-    pacman -S --noconfirm --needed ansible jq rsync logrotate python-kubernetes 2>/dev/null || true
+    # Not best-effort: node-maintenance/install.sh refuses to run without these.
+    pacman -S --noconfirm --needed ansible jq rsync logrotate python-kubernetes
 fi
 
 # AUR firmware (mkinitcpio warning suppressors). Kept in bash because:
@@ -236,8 +250,10 @@ if [ "$NODE_TYPE" = "control-plane" ]; then
     echo "       sudo k3s secrets-encrypt status  # Expect: Enabled + reencrypt_finished"
 else
     echo "Next steps:"
-    echo "  1. Install node-maintenance worker bits:"
-    echo "       sudo bash node-maintenance/install-worker.sh"
+    echo "  1. On the CP, run node-maintenance/install.sh. It writes"
+    echo "     /tmp/install-worker-ready.sh (install-worker.sh with the CP's public key) and"
+    echo "     prints the scp + ssh commands that run it on each worker. Do not run"
+    echo "     install-worker.sh from the repo: its key placeholder makes it exit."
     echo "  2. Reboot (or restart k3s-agent) after first CP ansible run picks up new config"
 fi
 echo ""
