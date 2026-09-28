@@ -139,6 +139,15 @@ spec:
                   OVERALL_OK=true
                   TODAY=$(date +%Y-%m-%d)
 
+                  # True only for a 64-character lowercase hex digest. Without this, a failed
+                  # sha256sum and an empty sidecar both yield "", and "" = "" reads as a match.
+                  is_sha256() {
+                    case "$1" in
+                      "" | *[!0-9a-f]*) return 1 ;;
+                    esac
+                    [ "${#1}" -eq 64 ]
+                  }
+
                   # Runs every check on one archive. Sets CHECKS and SIZE_HUMAN, and returns 1
                   # if any check failed. If $3 is "sha-required", a missing .sha256 fails too.
                   check_archive() {
@@ -171,10 +180,19 @@ spec:
                     local sha_file="${f}.sha256"
                     if [ -f "$sha_file" ]; then
                       local expected
-                      expected=$(awk '{print $1}' "$sha_file")
+                      expected=$(awk '{print $1; exit}' "$sha_file" 2>/dev/null) || expected=""
                       local actual
-                      actual=$(sha256sum "$f" | awk '{print $1}')
-                      if [ "$expected" = "$actual" ]; then
+                      actual=$(sha256sum "$f" 2>/dev/null) || actual=""
+                      actual="${actual%% *}"
+                      if ! is_sha256 "$expected"; then
+                        echo "  FAIL: .sha256 file empty, unreadable or malformed"
+                        CHECKS="${CHECKS:+$CHECKS, }SHA256 sidecar bad"
+                        failed=true
+                      elif ! is_sha256 "$actual"; then
+                        echo "  FAIL: could not compute SHA256 of the archive"
+                        CHECKS="${CHECKS:+$CHECKS, }SHA256 unreadable"
+                        failed=true
+                      elif [ "$expected" = "$actual" ]; then
                         echo "  OK: SHA256 matches"
                         CHECKS="${CHECKS:+$CHECKS, }SHA256 OK"
                       else
@@ -451,13 +469,18 @@ spec:
                   echo "Source cleaned for the types now on the NAS"
 
                   # Step 4b: Enforce NAS retention — 30 days for daily backups, keep-2 for the
-                  # weekly immich set. Pruning pushes an empty tree with --delete. Every prune
-                  # soft-fails: if the rsync module config refuses delete, replication itself
-                  # must still succeed.
+                  # weekly immich set. Pruning pushes an empty tree with --delete. A refused
+                  # prune does not stop the sweep, and the offsite copy has already succeeded.
+                  # It still fails the run, as a failed listing does: otherwise retention stops
+                  # with no report while the NAS fills towards its 500GB limit.
                   CURRENT_STEP="Step 4b: Pruning NAS retention"
                   echo ""
                   echo "=== Step 4b: Pruning NAS retention (30d daily / keep-2 immich) ==="
                   mkdir -p /tmp/empty
+                  # The helpers run inside `| while` subshells, so they record refusals in a
+                  # file. If a helper changes a variable, the parent shell cannot see the change.
+                  PRUNE_REFUSED="/tmp/prune-refused.txt"
+                  : > "$PRUNE_REFUSED"
 
                   # Two prune helpers — NAS layout is mixed:
                   #   - pvc/ + immich/ store DIRS named "<category>/YYYYMMDD_HHMMSS/..."
@@ -480,7 +503,10 @@ spec:
                       "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/${parent}/" \
                       > /tmp/prune.log 2>&1 || rc=$?
                     tail -3 /tmp/prune.log
-                    [ "$rc" -eq 0 ] || echo "  (delete refused, rsync exit $rc — manual prune via NAS UI)"
+                    if [ "$rc" -ne 0 ]; then
+                      echo "  (delete refused, rsync exit $rc — manual prune via NAS UI)"
+                      printf "%s\n" "$subpath" >> "$PRUNE_REFUSED"
+                    fi
                   }
                   prune_nas_file() {
                     # $1 = "postgres/postgres_20260206_215030.tar.gz"
@@ -498,7 +524,10 @@ spec:
                       "rsync://${NAS_RSYNC_USER}@192.168.1.136/akhozya-pool1/backups/homelab/${parent}/" \
                       > /tmp/prune.log 2>&1 || rc=$?
                     tail -3 /tmp/prune.log
-                    [ "$rc" -eq 0 ] || echo "  (delete refused, rsync exit $rc — manual prune via NAS UI)"
+                    if [ "$rc" -ne 0 ]; then
+                      echo "  (delete refused, rsync exit $rc — manual prune via NAS UI)"
+                      printf "%s\n" "$subpath" >> "$PRUNE_REFUSED"
+                    fi
                   }
 
                   # The listing MUST be able to fail here. An empty NAS_LIST reads as "nothing
@@ -553,6 +582,13 @@ spec:
                     [ -n "$dir" ] && prune_nas_dir "$dir"
                   done
                   echo "Retention sweep complete"
+                  # The test is on the file, not on a count, so a failed count cannot hide
+                  # a refusal.
+                  if [ -s "$PRUNE_REFUSED" ]; then
+                    REFUSED_COUNT=$(grep -c . "$PRUNE_REFUSED") || REFUSED_COUNT="some"
+                    NAS_NOTE="${NAS_NOTE} | ${REFUSED_COUNT} NAS prune(s) refused"
+                    OVERALL_OK=false
+                  fi
 
                   # Step 5: Check NAS storage usage (500GB hard limit)
                   echo ""

@@ -73,8 +73,9 @@ spec:
                   mkdir -p "$BACKUP_DIR"
                   # backup-replication syncs every file under /backup. The NAS retention
                   # sweep matches dated postgres_*.tar.gz files by name and age, never a dump
-                  # dir. A dump dir left by a failed run would stay on the NAS for ever, so
-                  # every exit removes it. The success path has already removed it by then.
+                  # dir. A dump dir left by a failed run would stay on the NAS for ever, so the
+                  # EXIT trap removes it. A SIGKILL (OOM kill, deadline) skips the trap and
+                  # leaves the dir. The success path has already removed it by then.
                   trap 'rm -rf "$BACKUP_DIR"' EXIT
 
                   # Auto-discover databases (exclude system databases)
