@@ -19,9 +19,9 @@
       # while the apiserver is fine on the node IP. Controllers then stall SILENTLY (2026-05-25:
       # coredns scale frozen, observedGeneration stuck). Probe it FIRST so a wedge fails fast +
       # clear instead of 5 min of opaque "not ready" retries below. 401|200 = routed. Bounded
-      # retry (tolerate the LB coming up slowly post-reboot; never single-shot). Do NOT auto-restart
-      # k3s here — `systemctl restart k3s` HANGS on the CP (2026-05-25); a persistent fail means the
-      # operator must `sudo reboot` the CP. See gotcha_k3s_reboot_ordering.
+      # retry (tolerate the LB coming up slowly post-reboot; never single-shot). No auto-restart
+      # of k3s here: a persistent fail leaves phase2-pending set for the operator, who restarts
+      # k3s or reboots the CP. See gotcha_k3s_reboot_ordering.
       ansible.builtin.shell: |
         set -o pipefail
         code=$(curl -sS -m5 -k -o /dev/null -w '%{http_code}' https://127.0.0.1:6443/healthz 2>/dev/null) || code=000
@@ -136,6 +136,27 @@
   become: true
 
   tasks:
+    # phase2.service has Restart=on-failure, and each retry re-runs the whole playbook. A worker
+    # this run already rebooted carries a done marker newer than phase2-pending, so a retry skips
+    # it instead of rebooting it again. The marker, not the boot time: a node_isolation_heal
+    # self-reboot during a slow CP reboot would also make the boot time newer than the flag.
+    - name: Read the phase2-pending flag and this worker's done marker
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ flag_file }}"
+        - "{{ state_dir }}/phase2-done-{{ inventory_hostname }}"
+      register: phase2_marks
+      delegate_to: localhost
+      become: false
+
+    - name: Skip a worker this phase2 run already finished
+      ansible.builtin.meta: end_host
+      when:
+        - phase2_marks.results[0].stat.exists
+        - phase2_marks.results[1].stat.exists
+        - phase2_marks.results[1].stat.mtime > phase2_marks.results[0].stat.mtime
+
     - name: Verify SSH reachable before start
       ansible.builtin.wait_for_connection:
         timeout: 120
@@ -333,6 +354,14 @@
         path: /var/lib/node-isolation-heal/maint-hold
         state: absent
 
+    - name: Mark this worker done for this phase2 run
+      ansible.builtin.file:
+        path: "{{ state_dir }}/phase2-done-{{ inventory_hostname }}"
+        state: touch
+        mode: "0644"
+      delegate_to: localhost
+      become: false
+
     - name: Stabilize pause
       ansible.builtin.pause:
         minutes: "{{ per_node_stabilize_minutes }}"
@@ -368,9 +397,29 @@
   become: true
 
   tasks:
+    # PLAY 1b has one host, so a failed or unreachable VM would end the whole playbook before
+    # PLAY 2 clears phase2-pending.
     - name: Verify SSH reachable before start
       ansible.builtin.wait_for_connection:
         timeout: 120
+      register: vm_ssh
+      ignore_errors: true   # noqa: ignore-errors  (handled by the next block)
+      ignore_unreachable: true
+
+    - name: Alert and skip immich-vm when it is unreachable
+      when: vm_ssh is failed or vm_ssh is unreachable
+      block:
+        - name: Alert — immich-vm unreachable, weekly update skipped
+          ansible.builtin.command: >-
+            /usr/local/sbin/telegram-notify.sh
+            "⚠️ immich-vm: unreachable over SSH at phase2 start — weekly update skipped this run."
+          delegate_to: "{{ groups['control_plane'][0] }}"
+          become: false
+          changed_when: false
+          failed_when: false
+
+        - name: Skip the rest of PLAY 1b for immich-vm
+          ansible.builtin.meta: end_host
 
     - name: Upgrade via yay (best-effort; NEVER reboots — cold-restart is a NAS-side virsh op)
       block:
@@ -450,6 +499,7 @@
           async: 45
           poll: 0
           ignore_errors: true   # noqa: ignore-errors  (SSH tears down mid-launch; expected)
+          ignore_unreachable: true   # ignore_errors does not cover UNREACHABLE
 
         # Confirm the poweroff took effect BEFORE nudging the watchdog: the watchdog only starts a
         # "shut off" domain, so this waits for the node to leave Ready (kubelet gone = VM down) as the
@@ -548,11 +598,15 @@
       ansible.builtin.pause:
         minutes: "{{ final_stabilize_minutes }}"
 
+    # This task, the source GC and the alertmanager pod lookup below are best-effort. A hard
+    # failure in PLAY 2 ends the run before it clears phase2-pending, and Restart= would then
+    # re-run the whole playbook.
     - name: Pre-gate — verify source-controller Available before reconcile
       ansible.builtin.command: >
         kubectl --kubeconfig={{ kubeconfig_path }} wait deployment/source-controller
         -n flux-system --for=condition=Available --timeout=120s
       changed_when: false
+      failed_when: false
 
     - name: Flux reconcile kustomizations
       ansible.builtin.command: >
@@ -594,9 +648,7 @@
           [ -n "$ORPHANS" ] && sudo pacman -Rns --noconfirm $ORPHANS || true
           sudo crictl rmi --prune || true
         '
-      loop:
-        - 192.168.1.129
-        - 192.168.1.126
+      loop: "{{ groups['workers'] | map('extract', hostvars, 'ansible_host') | list }}"
       changed_when: false
       failed_when: false
 
@@ -647,6 +699,7 @@
       retries: 3
       delay: 30
       changed_when: false
+      failed_when: false
       environment:
         KUBECONFIG: "{{ kubeconfig_path }}"
 
@@ -660,21 +713,8 @@
         executable: /bin/bash
       register: am_pod
       changed_when: false
-      check_mode: false
-
-    - name: Re-check firing alerts (amtool)
-      ansible.builtin.shell: |
-        kubectl --kubeconfig={{ kubeconfig_path }} -n monitoring exec "{{ am_pod.stdout }}" -c alertmanager -- \
-          amtool --alertmanager.url=http://localhost:9093 alert query --active --output=json
-      args:
-        executable: /bin/bash
-      register: firing_alerts_raw
-      changed_when: false
       failed_when: false
-
-    - name: Parse firing alerts count
-      ansible.builtin.set_fact:
-        firing_alerts_count: "{{ (firing_alerts_raw.stdout | default('[]') | from_json | length) if (firing_alerts_raw.stdout | default('') | length > 0) else 0 }}"
+      check_mode: false
 
     - name: Read silence ID (if present)
       ansible.builtin.slurp:
@@ -699,6 +739,22 @@
         path: "{{ silence_id_file }}"
         state: absent
 
+    # After the expire: `--active` leaves out silenced alerts, so a query under the
+    # maintenance silence counts none of them.
+    - name: Re-check firing alerts (amtool)
+      ansible.builtin.shell: |
+        kubectl --kubeconfig={{ kubeconfig_path }} -n monitoring exec "{{ am_pod.stdout }}" -c alertmanager -- \
+          amtool --alertmanager.url=http://localhost:9093 alert query --active --output=json
+      args:
+        executable: /bin/bash
+      register: firing_alerts_raw
+      changed_when: false
+      failed_when: false
+
+    - name: Parse firing alerts count
+      ansible.builtin.set_fact:
+        firing_alerts_count: "{{ (firing_alerts_raw.stdout | from_json | length) if (firing_alerts_raw.rc == 0 and firing_alerts_raw.stdout | length > 0) else 'unknown (amtool query failed)' }}"
+
     - name: Emit node_exporter textfile metric
       ansible.builtin.copy:
         dest: "{{ metrics_file }}"
@@ -718,7 +774,7 @@
       ansible.builtin.set_fact:
         tg_summary: |
           ✅ Node maintenance complete
-          Nodes: CP, worker-node, worker-node-2
+          Nodes: {{ groups['all'] | join(', ') }}
           Alerts still firing: {{ firing_alerts_count | default(0) }}
           Log: /var/log/node-maintenance/phase2-{{ '%d-%m-%Y' | strftime(ansible_facts['date_time'].epoch | int) }}.log
 

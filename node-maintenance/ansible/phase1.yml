@@ -12,13 +12,17 @@
       ansible.builtin.shell: |
         set -o pipefail
         kubectl --kubeconfig={{ kubeconfig_path }} get jobs -A -o json \
-          | jq -r '[.items[] | select(.metadata.name | test("backup|replication")) | select(.status.active == 1)] | length'
+          | jq -r '[.items[] | select(.metadata.name | test("backup|replication")) | select((.status.active // 0) > 0)] | length'
       args:
         executable: /bin/bash
       register: active_backups
       changed_when: false
       check_mode: false
-      failed_when: (active_backups.stdout | int) > 0
+      # A failed read must block the reboot. jq prints nothing for empty input, and '' | int is 0.
+      failed_when: >-
+        active_backups.rc != 0
+        or (active_backups.stdout | trim) is not match('^[0-9]+$')
+        or (active_backups.stdout | int) > 0
 
     - name: Preflight — collect / and /var disk space (df-based, avoids ansible_mounts conditional quirks)
       ansible.builtin.shell: |
@@ -59,15 +63,16 @@
       changed_when: false
       check_mode: false
 
-    - name: Preflight — workers reachable
+    # Physical workers only. immich-vm lives on the NAS and is down more often. If it is
+    # unreachable, phase2's PLAY 1b alerts and skips it, so it must not block the weekly
+    # update of the other three nodes.
+    - name: Preflight — physical workers reachable
       ansible.builtin.command: >-
         ssh -o ConnectTimeout=5 -o BatchMode=yes -o StrictHostKeyChecking=yes
             -o UserKnownHostsFile=/etc/node-maintenance/known_hosts
             -p 65300 -i {{ state_dir }}/.ssh/id_ed25519
             node-maintenance@{{ item }} true
-      loop:
-        - 192.168.1.129
-        - 192.168.1.126
+      loop: "{{ groups['workers'] | difference(groups['virtual']) | map('extract', hostvars, 'ansible_host') | list }}"
       changed_when: false
       check_mode: false
 
@@ -115,8 +120,8 @@
 
 
     # ── UPGRADE ───────────────────────────────────────────────
-    - name: Upgrade via yay (pacman + AUR)
-      ansible.builtin.shell: "{{ yay_cmd }}"
+    - name: Upgrade AUR packages via yay (phase1.service runs the repo upgrade before the play)
+      ansible.builtin.shell: "{{ yay_aur_cmd }}"
       register: yay_result
       changed_when: "'there is nothing to do' not in yay_result.stdout"
 

@@ -11,13 +11,17 @@ User=root
 WorkingDirectory=/etc/node-maintenance/ansible
 ExecStartPre=/bin/sh -c 'install -d -m 0750 -o root -g adm /var/log/node-maintenance; echo "ANSIBLE_LOG_PATH=/var/log/node-maintenance/phase1-$(date -u +%%d-%%m-%%Y).log" > /run/node-maintenance.env'
 EnvironmentFile=-/run/node-maintenance.env
-# Pre-upgrade ansible runtime so phase1's `yay -Syu` doesn't bump it mid-play.
-# Without this, copy/template tasks after the upgrade load action plugins from
-# the new core while ConfigManager stays on the old import → TypeError on
-# `templar=` kwarg (observed 2.20.5 → 2.21.0 transition).
-ExecStartPre=/usr/bin/pacman -Sy --noconfirm --needed ansible ansible-core
 # Serialized via node-maintenance-lock (wait mode): the reboot MUST run, so wait out any in-progress
 # drift-heal (up to 15min) rather than skip — guarantees no heal runs concurrently with the reboot.
+#
+# The full repo upgrade runs first, outside any ansible process, so python and ansible upgrade
+# together. An ansible-core upgrade under a running play makes copy/template tasks load action
+# plugins from the new core while ConfigManager stays on the old import (TypeError on `templar=`,
+# seen on 2.20.5 → 2.21.0), and a python upgrade removes the stdlib the play still imports.
+# Rejected: `pacman -Sy ansible ansible-core` alone, a partial upgrade. The upgrade runs before
+# the playbook's preflight, so if the preflight fails the CP stays upgraded but not rebooted;
+# kernel-modules-hook keeps the running kernel's modules.
+ExecStart=/usr/local/sbin/node-maintenance-lock.sh wait -- /usr/bin/pacman -Syu --noconfirm
 ExecStart=/usr/local/sbin/node-maintenance-lock.sh wait -- /usr/bin/ansible-playbook -i inventory.yml phase1.yml
 ExecStartPost=/bin/sh -c 'systemctl reboot'
 ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance phase1 failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). No reboot. Log: /var/log/node-maintenance/phase1-$(date -u +%%d-%%m-%%Y).log" || true'

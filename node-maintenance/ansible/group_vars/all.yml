@@ -14,7 +14,9 @@ kubeconfig_path: /etc/rancher/k3s/k3s.yaml
 # The CP host cannot reach the pod CIDR and the API-server proxy 502s on a pod
 # dial.
 silence_duration_seconds: 5400   # 90 minutes (covers phase1 + CP reboot + phase2 typical runtime)
-silence_alertnames: "KubeletDown|KubernetesAPIServerDown|DeploymentReplicasMismatch|StatefulSetReplicasMismatch|CloudflareTunnelDown|CloudflareTunnelPodNotRunning|CloudflareTunnelNoConnections|CouchDBDown|CouchDBPodNotRunning|FluxReconciliationFailure|FluxSourceNotReady|KyvernoAdmissionControllerDown|LokiDown|LokiCompactorNotRunning|MySQLDown|MySQLHAProxyNotRunning|MySQLOrchestratorNotRunning|RedisDown|RedisPodNotRunning|AlertmanagerFailedToSendAlerts|AlloyDown|AlloyLogDeliveryFailing|DaemonSetNotScheduled|TraefikDown|PrometheusTargetDown|KubePodCrashLooping|KubePodNotReady|PodRunningNotReady|PodPhaseNotRunning|TargetDown|TooManyPodsPending|JobFailed"
+# Every name must match an alert rule in the cluster (kubectl get vmrules -A); a stale name
+# silences nothing.
+silence_alertnames: "KubeletDown|KubernetesAPIServerDown|DeploymentReplicasMismatch|StatefulSetReplicasMismatch|CloudflareTunnelDown|CloudflareTunnelPodNotRunning|CloudflareTunnelNoConnections|CouchDBDown|CouchDBPodNotRunning|FluxControllerReconcileErrors|KyvernoAdmissionControllerDown|LokiDown|LokiCompactorNotRunning|MySQLDown|MySQLHAProxyNotRunning|MySQLOrchestratorNotRunning|RedisDown|RedisPodNotRunning|AlertmanagerFailedToSendAlerts|AlloyDown|AlloyLogDeliveryFailing|DaemonSetNotScheduled|TraefikDown|PodCrashLooping|PodRunningNotReady|PodPhaseNotRunning|ScrapeTargetDown|TooManyPodsPending|JobFailed"
 
 # Preflight thresholds
 min_free_root_gb: 5
@@ -37,7 +39,7 @@ flux_kustomizations:
   - monitoring-configs
   - monitoring-controllers
 
-# Used by phase1 and phase2.
+# Used by phase2 (workers and immich-vm).
 # -Syyu (double y) forces re-download of mirror DB even if cache appears fresh —
 # catches mirror-staleness where DB lists package files that have rotated.
 # --cleanafter clears the per-package tree under .cache/yay/ after a successful
@@ -49,6 +51,9 @@ flux_kustomizations:
 # old tarball was still parked under the new pkgver filename, validity check
 # failed, phase1 died fail-fast — no reboot, phase2 never ran, workers unpatched.
 yay_cmd: "sudo -u node-maintenance yay -Syyu --noconfirm --answerdiff=None --answerclean=None --removemake --cleanafter"
+# phase1 (CP): AUR packages only. phase1.service runs `pacman -Syu` before the play; `-a` keeps
+# yay from refreshing and upgrading repo packages (python, ansible) under the running play.
+yay_aur_cmd: "sudo -u node-maintenance yay -Sua --noconfirm --answerdiff=None --answerclean=None --removemake --cleanafter"
 
 # Expected kernel cmdline params, universal across all nodes. Set by
 # bootloader (systemd-boot) at install via setup-node.sh — bootstrap-only,
