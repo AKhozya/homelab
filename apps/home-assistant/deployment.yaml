@@ -210,8 +210,9 @@ spec:
                 - ALL
               add:
                 - NET_BIND_SERVICE  # Bind to ports < 1024
-                - NET_RAW          # Raw socket access for Ping integration, Bluetooth
-                - NET_ADMIN        # Network administration for Bluetooth, device discovery
+                # No NET_RAW or NET_ADMIN: Bluetooth needs hostNetwork and the host adapter, mDNS
+                # is plain multicast UDP, and no Ping entity exists. Raw sockets would only let the
+                # pod forge frames onto cni0. If the Ping integration is set up, add NET_RAW back.
                 - CHOWN            # Change file ownership in /config
                 - SETGID           # Set group ID (internal process management)
                 - SETUID           # Set user ID (internal process management)

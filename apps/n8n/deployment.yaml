@@ -6,6 +6,10 @@ metadata:
 spec:
   replicas: 1
   revisionHistoryLimit: 2
+  # Recreate: during a rolling update two n8n mains share one database, so both run schedules
+  # and the new one runs migrations under the old one.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: n8n

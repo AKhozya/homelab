@@ -87,7 +87,10 @@ spec:
               echo "Admin user setup complete!"
           env:
             - name: HA_ADMIN_NAME
-              value: "Alexander Khozya"
+              valueFrom:
+                secretKeyRef:
+                  name: home-assistant-admin-credentials
+                  key: name
             - name: HA_ADMIN_USERNAME
               value: "akhozya"
             - name: HA_ADMIN_PASSWORD

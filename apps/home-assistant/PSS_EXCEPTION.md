@@ -4,7 +4,7 @@
 
 **Policy Level:** `privileged` (enforce), with `baseline` audit and warn labels (`namespace.yaml`)
 
-HA needs elevated privileges. `NET_ADMIN` is outside the **baseline** profile, so the namespace enforces **privileged**. Baseline audit and warn report baseline violations, the added capabilities included.
+The namespace enforces **privileged**; baseline audit and warn report baseline violations. Every capability the container now adds is on the baseline allowlist, because `NET_RAW` and `NET_ADMIN` are dropped (see below). Lowering enforce to baseline is a separate change: prove it with `kubectl apply --dry-run=server` on the namespace first.
 
 ## Security Context Configuration
 
@@ -29,8 +29,6 @@ securityContext:
       - ALL
     add:
       - NET_BIND_SERVICE
-      - NET_RAW
-      - NET_ADMIN
       - CHOWN
       - SETGID
       - SETUID
@@ -48,35 +46,27 @@ HA **officially requires root access** — architecture + integration requiremen
    - **Use:** HA binds standard ports for various protocols
    - **Impact:** Low — port binding only
 
-2. **NET_RAW**
-   - **Purpose:** Raw socket access
-   - **Uses:**
-     - **Ping Integration:** network device discovery/monitoring via ICMP
-     - **Bluetooth:** low-level BT device comms
-   - **Impact:** Medium — packet sniffing, isolated to pod net namespace
-
-3. **NET_ADMIN**
-   - **Purpose:** Network admin capabilities
-   - **Uses:**
-     - **Bluetooth:** BLE pairing + management
-     - **Device Discovery:** mDNS/Zeroconf on local net
-     - **Network Config:** dynamic interface management
-   - **Impact:** Medium — limited by pod net namespace
-
-4. **CHOWN**
+2. **CHOWN**
    - **Purpose:** Change file/dir ownership
    - **Use:** Manage `/config` permissions for file access
    - **Impact:** Low — pod filesystem, PVC isolated
 
-5. **SETGID / SETUID**
+3. **SETGID / SETUID**
    - **Purpose:** Set group/user ID for processes
    - **Use:** HA process management (spawning workers)
    - **Impact:** Medium — contained within pod
 
-6. **DAC_OVERRIDE**
+4. **DAC_OVERRIDE**
    - **Purpose:** Bypass file r/w/x permission checks
    - **Use:** R/w config files with varied ownership in `/config`
    - **Impact:** Low — pod filesystem, PVC isolated
+
+### Capabilities deliberately not granted
+
+| Capability | Why HA does not need it here |
+|---|---|
+| `NET_RAW` | Ping and DHCP discovery use raw sockets. No Ping entity exists (checked 2026-09-28), and DHCP discovery sees only this pod's own network namespace. Raw sockets would let the pod forge frames onto `cni0`. If Ping is set up, add it back. |
+| `NET_ADMIN` | Bluetooth needs `hostNetwork` and the host adapter, which this pod has neither of. mDNS/Zeroconf is plain multicast UDP and needs no capability. |
 
 ## Security Mitigations
 
@@ -159,12 +149,7 @@ Deployment avoids:
    - **Acceptance:** Required for smart home functionality
    - **Mitigation:** Seccomp, cap dropping, filesystem isolation
 
-2. **NET_ADMIN Capability:**
-   - **Reason:** BT + device discovery need net admin
-   - **Acceptance:** Needed for HomeKit, BT, Zeroconf
-   - **Mitigation:** Pod net namespace isolation (can't affect host net)
-
-3. **DAC_OVERRIDE Capability:**
+2. **DAC_OVERRIDE Capability:**
    - **Reason:** Config file mgmt with varied permissions
    - **Acceptance:** Required for reliable config persistence
    - **Mitigation:** Pod filesystem only, no host access
@@ -184,7 +169,7 @@ Current config **appropriate + necessary** for HA functionality while implementi
 
 2. **Capability Audit**
    - Periodic review of required caps as HA evolves
-   - Remove caps if integrations disabled (e.g., NET_RAW if Ping unused)
+   - Remove caps if integrations are disabled
    - **Frequency:** Quarterly
 
 3. **Runtime Monitoring**

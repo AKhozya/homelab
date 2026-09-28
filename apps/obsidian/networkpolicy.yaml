@@ -17,6 +17,8 @@ spec:
       ports:
         - protocol: UDP
           port: 53
+        - protocol: TCP
+          port: 53
     # CouchDB, scoped to the couchdb pods and not the whole databases namespace.
     # podSelector under the SAME list item as namespaceSelector means AND. As a separate
     # `-` item it would mean OR and grant 5984 to every pod anywhere.

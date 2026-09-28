@@ -37,7 +37,7 @@ data:
     echo "Checking if credentials are already updated..."
     LOGIN_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
       -H "Content-Type: application/x-www-form-urlencoded" \
-      -d "username=${MEALIE_USER_EMAIL}&password=${MEALIE_USER_PASSWORD}" 2>&1 || true)
+      --data-urlencode "username=${MEALIE_USER_EMAIL}" --data-urlencode "password=${MEALIE_USER_PASSWORD}" 2>&1 || true)
 
     HTTP_CODE=$(echo "$LOGIN_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2 || echo "0")
 
@@ -64,7 +64,9 @@ data:
     echo "Default user verified, proceeding with credential update..."
 
     echo "Generating bcrypt hash for new password..."
-    BCRYPT_HASH=$(python3 -c "import bcrypt; print(bcrypt.hashpw(b'${MEALIE_USER_PASSWORD}', bcrypt.gensalt()).decode())")
+    # Values reach Python and SQL as data, never as code: a quote in the password or the name
+    # would otherwise end the literal it was pasted into.
+    BCRYPT_HASH=$(python3 -c "import bcrypt, os; print(bcrypt.hashpw(os.environ['MEALIE_USER_PASSWORD'].encode(), bcrypt.gensalt()).decode())")
 
     if [ -z "$BCRYPT_HASH" ]; then
       echo "Error: Failed to generate bcrypt hash"
@@ -76,13 +78,19 @@ data:
     echo "Updating user credentials in database..."
     export PGPASSWORD="${POSTGRES_PASSWORD}"
 
-    UPDATE_RESULT=$(psql -h "${POSTGRES_SERVER}" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -t -c \
-      "UPDATE users
-       SET username = '${MEALIE_USER_USERNAME}',
-           email = '${MEALIE_USER_EMAIL}',
-           full_name = '${MEALIE_USER_FULLNAME}',
-           password = '${BCRYPT_HASH}'
-       WHERE email = 'changeme@example.com';" 2>&1)
+    # psql expands :'var' only in input it reads, not in -c, hence the here-document.
+    UPDATE_RESULT=$(psql -h "${POSTGRES_SERVER}" -p "${POSTGRES_PORT}" -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -t \
+      -v ON_ERROR_STOP=1 \
+      -v username="${MEALIE_USER_USERNAME}" -v email="${MEALIE_USER_EMAIL}" \
+      -v full_name="${MEALIE_USER_FULLNAME}" -v password_hash="${BCRYPT_HASH}" 2>&1 <<'SQL'
+    UPDATE users
+       SET username = :'username',
+           email = :'email',
+           full_name = :'full_name',
+           password = :'password_hash'
+     WHERE email = 'changeme@example.com';
+    SQL
+    )
 
     if echo "$UPDATE_RESULT" | grep -q "UPDATE 1"; then
       echo "Database update successful!"
@@ -95,15 +103,16 @@ data:
     echo "Verifying new credentials work..."
     VERIFY_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST http://mealie:9000/api/auth/token \
       -H "Content-Type: application/x-www-form-urlencoded" \
-      -d "username=${MEALIE_USER_EMAIL}&password=${MEALIE_USER_PASSWORD}" 2>&1 || true)
+      --data-urlencode "username=${MEALIE_USER_EMAIL}" --data-urlencode "password=${MEALIE_USER_PASSWORD}" 2>&1 || true)
 
     VERIFY_HTTP_CODE=$(echo "$VERIFY_RESPONSE" | grep -o "HTTP_CODE:[0-9]*" | cut -d: -f2 || echo "0")
 
     if [ "$VERIFY_HTTP_CODE" = "200" ]; then
       echo "SUCCESS! User credentials updated and verified!"
     else
-      echo "Warning: Database updated but login verification failed (HTTP $VERIFY_HTTP_CODE)"
+      echo "Error: Database updated but login verification failed (HTTP $VERIFY_HTTP_CODE)"
       echo "You may need to restart mealie pod for changes to take effect"
+      exit 1
     fi
 
     echo "User provisioning complete!"

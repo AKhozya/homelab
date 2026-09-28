@@ -67,14 +67,14 @@ The `home-assistant` OAuth2 provider + application already exist in Authentik (s
 **Client Secret:** (key `oidc_client_secret` in the `home-assistant-secrets` Secret)
 **Callback URL:** `https://ha.h0melab.work/auth/oidc/callback`
 **Auto-create users:** `true` (on first OIDC login)
-**Username claim:** `email` (OIDC email = HA username)
+**Username claim:** `preferred_username` (the hass-oidc-auth default; `configmap.yaml` sets no `claims:` block)
 
 ## Security Notes
 
 - OIDC client secret SOPS-encrypted in repo
 - `secrets.yaml` mounted read-only from K8s Secret
 - Users auto-created on first login (no pre-provisioning)
-- HA uses email from Authentik as username
+- HA uses the Authentik `preferred_username` claim as the username
 
 ## Troubleshooting
 
@@ -85,7 +85,7 @@ kubectl logs -n home-assistant deployment/home-assistant --tail=100
 ```
 
 **Issue:** OIDC button missing
-**Fix:** Verify hass-oidc-auth installed via HACS + HA restarted
+**Fix:** Check the `oidc-auth-install` init container completed, then restart HA
 
 **Issue:** "Invalid client" error
 **Fix:** Verify client ID + secret match between HA config and Authentik provider
