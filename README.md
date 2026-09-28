@@ -219,6 +219,11 @@ _Grafana and Homepage dashboards: screenshots to come._
 | Database exports, no point-in-time recovery | Nightly `pg_dump`-style exports, not a continuous copy of the database's write log. A restore goes back to last night, not to a chosen minute. That fits the data volumes here; [BACKUP_STRATEGY.md](docs/BACKUP_STRATEGY.md) has the reasons. |
 | No offsite copy | The nodes and the NAS share one building, so a fire or theft loses every copy. |
 
+## Licence
+
+The repo's own files are under the MIT licence in [LICENSE](LICENSE). Six files come from other
+projects, and [THIRD_PARTY.md](THIRD_PARTY.md) gives the source and licence of each.
+
 ---
 
 The owner builds and runs this cluster to learn production Kubernetes, GitOps and platform security.
