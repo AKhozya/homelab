@@ -86,7 +86,7 @@ bash ~/.agents/skills/_shared/check-kyverno.sh --summary
 
 ## Phase 5 — docs + memory
 1. ANALYSIS: pending table rows (close/retarget with evidence), changelog highlight, `**Next Review**` date.
-2. HISTORY: one dated entry at the top, per-item outcome + evidence. Then trim: HISTORY keeps 3 months. Delete every entry whose `### YYYY-MM-DD` date is more than 3 months before the review date. An entry runs from its heading to the next `## ` or `### ` heading. Git keeps the deleted text. Then, for each deleted date, find every reference to it. Most are plain text ("see HOMELAB_HISTORY 2026-06-28", "2026-07-31, see HISTORY"), not links, so search for the date near the word HISTORY as well as for anchors:
+2. HISTORY: one dated entry at the top, per-item outcome + evidence. Then trim: HISTORY keeps 3 months. First read the `## Milestones` table at the top of HISTORY: if an entry you are about to delete falls in a quarter that no row covers, add a `| Q<n> <year> |` row that names that quarter's main changes, read from its entries. Delete every entry whose `### YYYY-MM-DD` date is more than 3 months before the review date. An entry runs from its heading to the next `## ` or `### ` heading. Git keeps the deleted text. Then, for each deleted date, find every reference to it. Most are plain text ("see HOMELAB_HISTORY 2026-06-28", "2026-07-31, see HISTORY"), not links, so search for the date near the word HISTORY as well as for anchors:
 
    - repo, outside HISTORY: `git grep -n -E -e 'HISTORY.{0,40}<date>' -e '<date>.{0,40}HISTORY' -- . ':!docs/HOMELAB_HISTORY.md' ':!agents/'`
    - inside HISTORY: `grep -n -E -e '\(#<date>' -e '<date> entry' docs/HOMELAB_HISTORY.md`
