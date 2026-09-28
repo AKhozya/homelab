@@ -41,10 +41,10 @@ DB role name = app name. Postgres roles and databases come from CNPG (`managed.r
 
 ## Backups
 
-- Per-engine logical dumps overnight: Postgres 03:00, CouchDB 03:05, PVCs 03:10, MySQL 03:15 — **30-day retention**.
+- Per-engine logical dumps overnight: Postgres 03:00, CouchDB 03:05, PVCs 03:10, MySQL 03:15. The NAS keeps **30 days**; the nodes run no local age sweep.
 - 03:30 replication CronJob on worker-node → NAS (rsync daemon :50555, 30-day history, 500 GB cap). W2 today-only safety leg removed 2026-07-17.
 - **Immich library** (weekly, Sun 03:00 UTC): `immich-backup` on **worker-node-2** pulls the NAS-resident library (rsync `personal_folder` module) → tar+sha on W2 + push to the NAS `akhozya-pool1` pool = 2 physical copies on different filesystems, keep-2 each. (W1 `immich-library` PVC decommissioned 2026-07-14, commit `a32f6ef8`.)
-- Every backup validated (SHA-256 + tar + size + age); failure-only Telegram alerts.
+- Replication validates all 17 artifacts every night (3 DB dumps, 14 PVC archives: SHA-256 + tar + size + age). If one type fails, the other types still reach the NAS, the failed type stays on worker-node, and the Job fails. `PVC_EXPECTED=14` in backup-replication must match `CRITICAL_PVCS` in pvc-backup. backup-replication and pvc-backup run once, with no retry (`54b4069a`, `dca36ccf`). Telegram alerts go out on failure only.
 
 ## Monitoring
 
@@ -83,7 +83,7 @@ Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md
 
 | Due | Item |
 |---|---|
-| unscheduled | Deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only) |
+| unscheduled | Deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only); the SP5 carried-forward items: n8n `Recreate` step 2, the control-plane first-start drill, the Percona restart procedure, sysctl-99 duplicates, the sshd drop-in rename ([plan, SP5](plans/2026-09-26-open-source-prep.md)) |
 | monthly review | Upstream watches: n8n #25705 (workaround still required at 2.28.6, checked 2026-07-04), k8s-sidecar#531 (loki probes stay disabled), Stirling#6211 |
 | 2026-10 (monthly review) | **Immich ML + immich-vm memory re-check.** The ML container serves clip, ocr and facial-recognition and caches each 300s, so size it for their sum: measured 2026-09-07 at 4984Mi with all three resident, limit 7Gi (`1034951d`). Sizing it from CLIP alone gave 5Gi and OOM-killed the gunicorn WORKER, which gunicorn respawns — `restartCount` stays 0, so `ContainerOOMKilled` never fires and OCR/face jobs just drop connections. Query `max_over_time` for the ML container working set and for immich-vm node memory (VMSingle per Phase 3), scoped to **after 2026-09-07**: a flat 30d window spans the CPU-path and 5Gi periods and the model swap, so its max describes a shape the cluster no longer runs. Decide: ML peak >80% of 7Gi → raise the limit; node peak sustained >80% of 11949Mi → bump the VM to 14Gi, which also clears the 113% limit overcommit (13338Mi of 11849Mi allocatable). Node was 6529Mi (55%) at the 2026-09-07 peak with 6.2Gi free, so neither is expected yet. A VM RAM change needs a host-side restart on the GPU-reset-bug machine — not free. Research: `docs/plans/2026-09-07-immich-ml-followups-research.md` |
 | 2026-10-01 | 180-day secret rotation — ALL scheduled secrets: PG/MySQL/Redis, CouchDB, OIDC, Authentik Django key (90-day High tier retired 2026-07-02, ex-High folded in; Redis admin+blocky follow 2026-10-26) |

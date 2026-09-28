@@ -17,6 +17,28 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-09-28 — SP5 whole-repo review: 209 findings, 198 fixed
+
+Nine review agents read 737 of the 803 files at `8f78a8c8`, and seven fix agents fixed the
+findings area by area. Method, counts, decisions and open items are in
+[the open-source prep plan](plans/2026-09-26-open-source-prep.md), section SP5.
+
+| Area | What changed | Commits |
+|---|---|---|
+| node-maintenance | Drift-heal removes the CP `kubectl proxy` unit. Every sync refreshes the Telegram token from its Secret, takes the maintenance lock and records the applied commit. A failed Telegram send writes a gauge, and an alert watches it | `17f60674` `2a09e2b0` `901f5722` `de137101` |
+| node-maintenance | phase1 runs its preflight before `pacman -Syu`. A phase2 retry skips the workers it already finished, and phase2 alerts on an unreachable immich-vm and skips it | `badf6379` `7b9d596d` |
+| node-maintenance | The firewall role sets UFW default policies only if they differ, and a rescued rule batch fails the run. The role deletes the no-source flannel 8472/udp rule. After a UFW `flush-all`, the healer restores portmap's three nat rules, with no k3s restart | `9e674eb7` `1bc2817c` `00e92313` `891751ea` |
+| node-maintenance | The yearly SSH-key rotation installs and checks the new key before it removes the old one. The bot's read-only `agent-diag` key now reaches immich-vm | `17f60674` `445aefa3` |
+| backups | Replication checks all 14 PVC archives (checksum and `tar -t`) and matches the count against pvc-backup's list. If one backup type fails, the other types still reach the NAS and the Job still fails. replication and pvc-backup no longer retry, because a retry after the source cleanup reported every backup as missing | `54b4069a` `dca36ccf` `527375a2` `ebf72957` |
+| infrastructure | cloudflared egress on 7844 and 443 reaches public addresses only. The resource-limits exclusions apply only in the operator namespaces. CoreDNS `NodeHosts` drops the two global IPv6 entries | `0f65dbfa` `55478c1a` |
+| monitoring | Four alert rules that could not fire now fire, and three that could never match are gone. Alertmanager 9093 admits only its client namespaces. Kyverno `resourceFilters` return to the chart defaults plus `flux-system` | `a0b68286` `228e19f7` `ac1a21b3` |
+| monitoring | monitoring-configs waits for VMSingle health, and CoreDNS no longer waits on infrastructure-controllers. The Traefik Middlewares moved to `infrastructure/configs/traefik-middlewares` in two pushes, so a fresh cluster installs their CRD first | `10e08eb3` `71535f59` `a39dd523` |
+| apps | The Telegram chat ID, the bot's allowed-user ID and the Home Assistant admin name moved into SOPS. The bot's exec bindings live in one list in `rolebindings.yaml` | `09c2abb6` `ab161f5c` `fa066ca3` |
+| apps | immich upgrades use RetryOnFailure, so a failed upgrade never rolls back onto a migrated schema. The n8n, mealie and audiobookshelf setup Jobs fail on real errors. Home Assistant drops NET_RAW and NET_ADMIN | `aba0768e` `fa066ca3` `5f7058a7` |
+| tooling | validate.yaml checks every tool download against its SHA-256. The secrets backup lists its archive before it deletes plaintext. `.claude/settings.json` denies force deletes and Secret reads. `setup-node.sh` takes the node role | `86d71b8e` `c31e5670` `d8d83e8a` `082832b0` `dfebaebd` `154e00b8` |
+| docs | SECRETS_ROTATION restarts Redis pods one at a time by UID and rotates MySQL by `ALTER USER` through HAProxy, with no password on a command line. The node-maintenance token needs no manual refresh. The DR runbook suspends Flux during volume restores and applies CoreDNS before `flux bootstrap` | `5bbdeab4` `75ce6fc2` `3dd77ea6` `1d3ff3d0` `b7571489` `4ccb3986` |
+| agent skills | 56 of 57 findings fixed. cluster-roll refuses an unmapped workload, and `pin.sh` parses the real MySQL pod name. Runbooks change live objects only through Git. The DB helpers keep passwords off the command line | `ea8b0e53` `06c4ac8d` `e7433112` `fbf8e18d` `36db2847` `beb9c4eb` `6aab6dc2` |
+
 ### 2026-09-28 — immich-vm's sshd listens on 65300 only
 
 immich-vm's sshd still listened on port 22 as well as 65300, from a hand edit to
