@@ -2806,43 +2806,216 @@ upstream #2859 (`cache may be in use by another process: timeout`) on pods with 
 containers. Both problems fix themselves, because the retries eventually succeed. To force a
 rescan, restart a single workload pod instead.
 
-### 2026-07-04 — Monthly review + first quarterly automation audit
+### 2026-07-04 — Monthly review and the first quarterly automation audit
 
-Posture sweep (3 parallel agents: cluster, nodes-SSH, GitHub): **no FAIL findings**. Flux 7/7, CI green, certs 19/19, backups zero failed jobs, disks healthy (W2 extra-storage 28%), node-maintenance all success + updates 0 (weekly run rebooted fleet this morning), Popeye A (90), no open PRs, no rotations due before 2026-10-01.
+A posture sweep (a check of the overall state of the cluster) ran as 3 parallel agents (cluster,
+nodes over SSH, GitHub) and found **no FAIL findings**:
+
+| Area | Result |
+|---|---|
+| Flux | 7/7 |
+| CI | green |
+| Certificates | 19/19 |
+| Backups | zero failed jobs |
+| Disks | healthy (worker W2 extra-storage 28%) |
+| node-maintenance | every run succeeded; updates 0 (the weekly run rebooted every node that morning) |
+| Popeye (a tool that scans the cluster for misconfigurations) | A (90) |
+| Pull requests | none open |
+| Rotations | none due before 2026-10-01 |
 
 Shipped (commits `e78a033f`, `492911f9`, `eb0774b7`):
-- **Kyverno soak day-0 findings** (the dual-run caught real divergence classes on day 0):
-  - `require-networkpolicy` VP twin had `autogen: controllers: []` on a WRONG premise — live polr proves the CP autogen is ACTIVE (namespaces-only exclude). Twin autogen enabled; `npcount` switched to `request.namespace` (autogen clones rewrite `object.metadata` to template metadata; request.* live-verified populated in background reports).
-  - **Kyverno suppresses autogen on selector-bearing rules**: the 5 CPs with label-selector excludes (resource-limits, readonly-rootfs, drop-all-capabilities, privilege-escalation, host-namespaces) report Pod-only cluster-wide — they NEVER checked controllers. Their CEL twins do (matchConditions ≠ selectors) — deliberate strengthening, kept.
-  - First strengthened-coverage catch: `main-mysql-haproxy` mysql-monit sidecar had no template limits (ran on databases LimitRange defaults 1cpu/1Gi, invisible to the CP). Fixed via Percona CR `sidecarResources` (20m/32Mi–200m/128Mi); haproxy rolled clean.
-  - `kyverno-vp-parity.sh` reworked: vp-canary excluded (structural), VP-only all-SKIP groups filtered (report-shape: CP exclude = no row, twin matchCondition = skip row), new **Class 2e** prints fail/error from strengthened coverage. Live after fixes: class1=0, class2=125 (all networkpolicy CP-only — clears as twin-autogen reports regenerate), 2e=1 (mysql-monit, clears on rescan), class3=0.
-- **Alertmanager HA was theater**: vmalert `notifier` single service URL pinned one endpoint — alertmanager-0 held ZERO alert state (not even Watchdog). Switched to `notifiers[]` with both pod FQDNs (gossip dedupes); AM-0 verified receiving.
-- **n8n statement_timeout claim REFUTED**: trial-removed `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` per n8n#25705 community report (fixed ≥2.17.3) — 2.28.6 crash-looped with `unsupported startup parameter: statement_timeout` (old pod kept serving, zero downtime). Reverted with evidence; workaround stays.
 
-Investigated / closed without code:
-- **Redis master on W2** (silent pin drift): 3 sentinel failovers all bounced — ot redis-operator records `status.masterNode` and repairs topology back; sentinel-only pin no longer sticks. Replication healthy, apps clean (master-following Service), W2 flannel issues resolved 06-05 → **drift accepted**, db-primary-pin caveat updated.
-- **immich-backup missed 06-28 slot**: pre-hardening `startingDeadlineSeconds: 600` miss; manual make-up ran 06-28 13:57; sds now 3600. Verify 07-05 03:00 UTC slot fires.
-- **rkhunter suspects 27→50 lockstep all 3 nodes** (rootkits 0, warnings +25 uniform) — post-update baseline drift; `--propupd` + re-scan DONE same day (user TTY): property-change warnings cleared, remaining 7/node = permanent known-noise set (egrep/fgrep/ldd script-replacements, SSH Protocol legacy check, /etc/.updated + krb5 man hidden files), identical across nodes.
-- Upstream re-checks: authentik client-hints shipped 2026.5.0 (we run 2026.5.3; passkey-first solid for a month → watch CLOSED). k8s-sidecar#531 open (loki probes stay disabled). Stirling#6211 open, PR #6475 unmerged (fine on 2.11.0-fat). Passkey lockout watch CLOSED (no edge cases). UR2 vmalert watch CLOSED (129 rules, 0 unhealthy, no FP storms).
-- 16:01 Flux linkwarden webhook alert = transient during kyverno Helm v23 no-op upgrade churn (Flux 2.9.0 controllers restart); apps kustomization recovered same cycle.
+- **Kyverno soak, day-0 findings.** Kyverno is the policy engine that checks resources against
+  rules. Each old ClusterPolicy (CP) now has a ValidatingPolicy (VP) twin, and both run side by
+  side (see the next entry, on the migration). On day 0 the side-by-side run already caught real
+  classes of difference:
+  - The `require-networkpolicy` VP twin had `autogen: controllers: []`, set on a wrong premise.
+    Autogen is Kyverno's automatic copy of a Pod rule onto the controllers that create Pods. Live
+    policy reports (polr) prove that the CP's autogen is active; the CP excludes only
+    namespaces. The twin now has autogen enabled, and `npcount` now uses `request.namespace`. The
+    reason: the autogen copies rewrite `object.metadata` to the template's metadata. A live check
+    confirmed that request.* is filled in background reports.
+  - **Kyverno turns autogen off for rules that carry a label selector** (a filter on an object's
+    labels). The 5 CPs that exclude by label selector (resource-limits, readonly-rootfs,
+    drop-all-capabilities, privilege-escalation, host-namespaces) report on Pods only, across the
+    whole cluster. They never checked controllers. Their CEL twins do, because matchConditions are
+    not selectors. The stronger check is deliberate, and it stays.
+  - The stronger check caught its first problem. The mysql-monit sidecar (a helper container in
+    the same pod) of `main-mysql-haproxy` had no limits in its Pod template. It ran on the
+    LimitRange defaults of the databases namespace (the limits a namespace gives any container that
+    sets none), 1cpu/1Gi, which the CP could not see. `sidecarResources` in the Percona custom
+    resource (CR) now sets them (20m/32Mi–200m/128Mi), and haproxy restarted cleanly.
+  - `kyverno-vp-parity.sh`, the script that compares the results of the two engines, was reworked:
 
-**Quarterly automation audit** (first run): 20+ automations inventoried, all firing on schedule. Silent-failure risks: security-scan service has no failure notify (only maintenance unit without ExecStopPost — fix queued), repro-cleanup + k3s-image-gc alert only via the disaster they prevent, rebuilderd textfile metrics need staleness guard check. "Kyverno digest CronJob" struck from checklist (digest = VMRule `KyvernoPolicyViolationsDailySummary`, not a CronJob).
+    | Change | Why |
+    |---|---|
+    | vp-canary excluded | it differs by design (structural) |
+    | VP-only groups whose results are all SKIP filtered out | the reports differ in shape: a CP exclude leaves no row, and the twin's matchCondition leaves a skip row |
+    | new **Class 2e** | prints fail and error results that come from the stronger coverage |
 
-**trivy-operator SHIPPED same day** (`dfeb0153`, chart 0.33.2/app 0.31.2): node-collector + compliance OFF (hostPath + missing resources keys), scan jobs labeled `app=trivy-scan-job` (STRING form — chart renders the key with bare `| quote`, a map silently kills all scan jobs; reviewer-caught CRITICAL), container-SC pinned, scan-job priority homelab-batch, NP default-deny + registry-egress class, VMPodScrape + TrivyCriticalVulnerabilities VMRule (scan-stalled alert deliberately NOT shipped — guessed metric = structurally-dead-alert class). First sweep: 19 reports in minutes, 26 Critical CVEs to triage; multi-container pods hit upstream #2859 shared-cache lock race, operator retries converge. Review by k8s-devops-reviewer (Codex quota-locked); validate.sh clusters name-to-file mapping bug found+fixed same pass.
+    Live results after the fixes:
 
-Decisions: image-CVE scanning = **trivy-operator in-cluster** (shipped same day, see above); CSP Tier B/C = continue via per-app browser verify; POP-1100/1110 mysql-primary Service = accepted operator cosmetic (dropped from monthly checks); W2 rebuilderd relocation deferred (28% disk). Skill stocktake: 6 stale skills fixed (csp-reporter refs, retired `validationFailureAction` column, `clusters/staging.yaml` default, ansible role path, PENDING-table ref).
+    | Class | Count | Note |
+    |---|---|---|
+    | class1 | 0 | |
+    | class2 | 125 | all networkpolicy, CP-only; clears as the twin's autogen reports regenerate |
+    | 2e | 1 | mysql-monit; clears on the next rescan |
+    | class3 | 0 | |
 
-Restart message said CLI 2.1.197 while local was 2.1.201 — investigation found THREE divergent CLI copies: (1) the **actual engine**, the binary vendored in `@anthropic-ai/claude-agent-sdk-linux-x64-musl`, frozen at **2.1.119 (2026-04-23)** because package.json pinned `^0.2.119` (caret on 0.x blocks minor bumps; npm latest was 0.3.201) AND the Dockerfile ran `bun install` against the committed `bun.lock`, so the bi-weekly image rebuild's BUILD_TS cache-bust refreshed **nothing** — the "dependency refresh" was theater since the lock landed; (2) the restart-report version from `npx @anthropic-ai/claude-code` = stale `~/.npm/_npx` cache on the PVC (2.1.197); (3) the image's npm-global 2.1.201 install — **shadowed by the PVC mount at `/home/akhozya`**, unreachable at runtime, dead weight (also the source of the `EBADENGINE` node-20-vs-22 build warn).
+- **Alertmanager high availability (HA) did not work.** vmalert's `notifier` held a single
+  Service URL, which sent every alert to one endpoint. alertmanager-0 held no alert state at all,
+  not even Watchdog. vmalert now uses `notifiers[]` with the full DNS names (FQDNs) of both pods,
+  and the gossip between the Alertmanager pods (the way they share state) removes duplicates. A
+  check confirmed that AM-0 now receives alerts.
+- **A claim about n8n's statement_timeout proved false.** A community report, n8n#25705, said the
+  problem was fixed in ≥2.17.3. On that basis, `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` was removed as a
+  trial. Version 2.28.6 then crash-looped (crashed and restarted again and again) with
+  `unsupported startup parameter: statement_timeout`. The old pod kept serving, so there was zero
+  downtime. The removal was reverted with this evidence, and the workaround stays.
 
-Fix (fork `2308383` + image 1.27.4): package.json → `^0.3.195`, Dockerfile deps stage → `bun update` (refreshes ranges past the lock each rebuild) + `COPY bunfig.toml` (7-day `minimumReleaseAge` supply-chain gate now in build context), npm-global CLI install deleted; deployment init `CC` → the SDK-vendored musl binary (one version of truth — engine and plugin-sync CLI are the same file) and the restart message reports that binary's version. SDK 0.3.X vendors CLI 2.1.X lockstep. **Residual**: CI `bun update` resolved 0.3.201 despite the 7d gate (image bun predates `minimumReleaseAge` or `update` bypasses it) — gate ineffective in builds for now; drift stays visible via the now-honest restart message.
+Investigated, and closed without code:
 
-### 2026-07-04 — Kyverno CP→VP migration Phase 1: 12 CEL ValidatingPolicy twins in Audit + vp-canary
+- **Redis master on W2.** The master had drifted off its pinned node with no alert. 3 sentinel
+  failovers were each undone, because the ot redis-operator records `status.masterNode` and repairs
+  the topology back to it. A pin set through sentinel (the Redis component that runs failovers)
+  alone no longer holds. Replication is healthy, and apps are unaffected because they use a Service
+  that follows the master. The W2 flannel issues were resolved 06-05. So the drift is **accepted**,
+  and the db-primary-pin caveat was updated.
+- **immich-backup missed its 06-28 slot.** The miss happened before the hardening, under
+  `startingDeadlineSeconds: 600` (how many seconds late a CronJob run may still start). A manual
+  make-up run went at 06-28 13:57. The deadline is now 3600. Check that the 07-05 03:00 UTC slot
+  fires.
+- **rkhunter suspects rose from 27 to 50 on all 3 nodes at once** (rootkits 0; warnings +25, the
+  same on each node). The cause was drift from rkhunter's file baseline after the update.
+  `--propupd` and a rescan ran the same day in the operator's terminal. The property-change
+  warnings cleared. The remaining 7 per node are a permanent set of known noise, identical across
+  nodes:
 
-`kyverno.io/v1` ClusterPolicy removal lands Kyverno 1.20 (~Oct 2026). Phase 1 of the 4-phase migration: every CP now has a `policies.kyverno.io/v1` ValidatingPolicy twin (SAME name, `validationActions: [Audit]`) dual-running against the Enforce CP — PolicyReports carry both engines (`source: kyverno` vs `KyvernoValidatingPolicy`), parity compared by `docs/scripts/kyverno-vp-parity.sh` (3 jq classes). **Soak: 2026-07-04 → ≥07-11** (covers weekly CronJobs), then Phase 3 Deny-flip/CP-delete (2 commits, gated).
+  | Item | Warning |
+  |---|---|
+  | egrep, fgrep, ldd | replaced by scripts |
+  | SSH Protocol | legacy check |
+  | /etc/.updated, krb5 man | hidden files |
 
-Design (source-verified against kyverno 1.18.1 `pkg/cel/autogen`): bare-pods `matchConstraints` ONLY (anything more silently kills autogen — CanAutoGen gate); all excludes as `matchConditions` CEL (`request.namespace` for ns — never rewritten by autogen; `object.metadata.?labels[...]` for workload excludes — rewritten to template labels in clones, desired); optional-chain defaults reproduce hard-anchor semantics (`orValue(<fail-value>)`); container-set parity per-CP (ephemeralContainers only where the CP had it; resource-limits: no ephemeral — API-impossible). `require-networkpolicy`: autogen explicitly off, `resource.List` for NP count, both 2026-07-03 teardown-wedge fixes carried. `vp-canary`: Deny from day one, matches only `vp-canary-test=fail` pods — Phase-3 Gate A proof that the VP Deny path is live with no CP masking.
+- Upstream re-checks:
 
-Offline validation (kyverno CLI 1.18.1): 12 VPs × 10-resource corpus → error=0, every targeted assertion exact (autogen fires on controllers, ns/label excludes honored, non-root anyPattern branch non-mixing preserved, canary isolates); `require-networkpolicy` VP against live cluster read-only: pass=85 fail=0 error=0. **Engine finding**: VP emits ONE result per (policy, resource) — multi-validation short-circuit — so `require-resource-limits` reports cp=2/vp=1 structurally; parity script Class 3 carries that exact exception (verify-early-in-soak note inside) and Class 1 compares worst-of-source. Review-invariants: new CEL section (CanAutoGen silent-kill, request.namespace-vs-object rewrite, orValue soft-anchor rebirth, per-CP container sets, 3-class parity).
+  | Item | Status |
+  |---|---|
+  | authentik client-hints | shipped in 2026.5.0. We run 2026.5.3, and passkey-first sign-in has worked well for a month, so the watch is closed |
+  | k8s-sidecar#531 | open, so the loki probes (the health checks Kubernetes runs on the pods) stay disabled |
+  | Stirling#6211 | open; PR #6475 unmerged. Fine on 2.11.0-fat |
+  | passkey lockout watch | closed; no edge cases |
+  | UR2 vmalert watch | closed: 129 rules, 0 unhealthy, no bursts of false positives |
+
+- The 16:01 Flux alert for the linkwarden webhook was transient. It fired during the disruption from
+  a no-op kyverno Helm v23 upgrade (Flux 2.9.0 controllers restart). The apps Kustomization (the
+  Flux object that applies the apps) recovered in the same cycle.
+
+**Quarterly automation audit** (first run). It listed 20+ automations, and all run on schedule. It
+found three risks of an automation failing without an alert:
+
+| Automation | Risk |
+|---|---|
+| security-scan service | sends no notice on failure; it is the only maintenance unit without ExecStopPost (a command systemd runs after the service stops). A fix is queued |
+| repro-cleanup, k3s-image-gc | alert only through the disaster they exist to prevent |
+| rebuilderd textfile metrics | need a check for a staleness guard |
+
+"Kyverno digest CronJob" was struck from the checklist: the digest is the VMRule
+`KyvernoPolicyViolationsDailySummary`, not a CronJob.
+
+**trivy-operator shipped the same day** (`dfeb0153`, chart 0.33.2, app 0.31.2). Its settings:
+
+| Setting | Detail |
+|---|---|
+| node-collector and compliance | off, because of hostPath (a folder mounted from the node) and missing resources keys |
+| scan-job label | `app=trivy-scan-job`, in string form (see below) |
+| container securityContext (the container's security settings) | pinned |
+| scan-job priority | homelab-batch |
+| NetworkPolicy | default-deny, plus the registry-egress class (outbound traffic to image registries) |
+| monitoring | VMPodScrape and the TrivyCriticalVulnerabilities VMRule |
+
+The label must be a string, because the chart renders the key with a bare `| quote`. A map there
+stops every scan job with no error; a reviewer caught this as CRITICAL. A scan-stalled alert was
+deliberately not shipped: its metric would have been a guess, and an alert on a guessed metric
+belongs to the class of alerts that can never fire. The first sweep produced 19 reports within
+minutes, with 26 Critical CVEs (publicly listed security flaws) to triage. Pods with several
+containers hit the upstream #2859 race on the shared cache lock, and trivy-operator's retries
+eventually succeed. The k8s-devops-reviewer agent did the review, because Codex had hit its quota.
+The same pass found and fixed a bug in validate.sh's name-to-file mapping for clusters.
+
+Decisions:
+
+| Topic | Decision |
+|---|---|
+| image CVE scanning | **trivy-operator in the cluster** (shipped the same day, above) |
+| CSP (Content Security Policy) Tier B/C | continue, checked app by app in a browser |
+| POP-1100/1110 on the mysql-primary Service | accepted as an operator cosmetic issue; dropped from the monthly checks |
+| moving rebuilderd off W2 | deferred (28% disk) |
+
+Skill stocktake: 6 stale skills were fixed (csp-reporter references, the retired
+`validationFailureAction` column, the `clusters/staging.yaml` default, an Ansible role path, a
+reference to the PENDING table).
+
+The claude-telegram bot's restart message said CLI 2.1.197, while the local CLI was 2.1.201. The
+investigation found three CLI copies with different versions:
+
+| Copy | Version | Detail |
+|---|---|---|
+| (1) the **actual engine**: the binary bundled in `@anthropic-ai/claude-agent-sdk-linux-x64-musl` | frozen at **2.1.119 (2026-04-23)** | package.json pinned `^0.2.119`, and a caret on a 0.x version blocks minor bumps; npm's latest was 0.3.201. The Dockerfile also ran `bun install` against the committed `bun.lock`. So the bi-weekly image rebuild, whose BUILD_TS value forces a fresh build, refreshed **nothing**. The "dependency refresh" had done nothing since the lock file was committed |
+| (2) the version in the restart report | 2.1.197 | it came from `npx @anthropic-ai/claude-code`, which read a stale `~/.npm/_npx` cache on the PVC, the pod's persistent disk |
+| (3) the image's global npm install | 2.1.201 | it was **hidden by the PVC mounted at `/home/akhozya`**. Nothing could reach it at runtime, so it only added weight. It also caused the `EBADENGINE` build warning about node 20 versus 22 |
+
+The fix is fork commit `2308383` and image 1.27.4:
+
+| Part | Change |
+|---|---|
+| package.json | now pins `^0.3.195` |
+| Dockerfile deps stage | runs `bun update`, which moves past the lock file within the version ranges on each rebuild. It also gains `COPY bunfig.toml`, so the 7-day `minimumReleaseAge` supply-chain delay on new releases is now in the build context |
+| global npm CLI install | deleted |
+| deployment init `CC` | points to the musl binary bundled with the SDK. The engine and the CLI that syncs plugins now use the same binary |
+| restart message | reports that binary's version |
+
+SDK 0.3.X bundles CLI 2.1.X: each SDK release bundles the CLI release with the same X.
+
+**Still open:** in CI, `bun update` resolved 0.3.201 despite the 7d delay. Either the image's bun
+predates `minimumReleaseAge`, or `update` bypasses it. For now the delay does not work in builds.
+Version drift stays visible, because the restart message now reports the true version.
+
+### 2026-07-04 — Kyverno migration from CP to VP, Phase 1: 12 CEL ValidatingPolicy twins in Audit, plus vp-canary
+
+Kyverno 1.20 (~Oct 2026) removes the `kyverno.io/v1` ClusterPolicy (CP). This entry is Phase 1 of a
+4-phase migration. Every CP now has a `policies.kyverno.io/v1` ValidatingPolicy (VP) twin with the
+same name and `validationActions: [Audit]`. The twin runs next to the CP, which still enforces.
+PolicyReports carry the results of both engines (`source: kyverno` versus
+`KyvernoValidatingPolicy`), and `docs/scripts/kyverno-vp-parity.sh` compares them in 3 jq classes.
+**Soak: 2026-07-04 until at least 07-11**, long enough to cover the weekly CronJobs. Phase 3 then
+switches the VPs to Deny and deletes the CPs, in 2 gated commits.
+
+The design was checked against the kyverno 1.18.1 source, `pkg/cel/autogen`:
+
+| Choice | Detail |
+|---|---|
+| `matchConstraints` | bare Pods only. Anything more turns autogen off with no warning (the CanAutoGen check) |
+| excludes | all written as `matchConditions` in CEL. Namespaces use `request.namespace`, which autogen never rewrites. Workload excludes use `object.metadata.?labels[...]`, which the autogen copies rewrite to the template labels, as intended |
+| defaults | optional chaining with `orValue(<fail-value>)` gives the same result as a hard anchor in a CP (a pattern in which a missing field fails the check) |
+| container sets | match each CP: ephemeralContainers only where the CP had them. resource-limits leaves out ephemeral containers, because the API does not allow limits on them |
+| `require-networkpolicy` | autogen explicitly off; `resource.List` counts the NetworkPolicies; both 2026-07-03 fixes for the teardown hang carried over |
+| `vp-canary` | Deny from day one, matching only `vp-canary-test=fail` pods. It is the Phase-3 Gate A proof that the VP deny path works with no CP hiding the result |
+
+**Offline validation** with the kyverno CLI 1.18.1 ran the 12 VPs against a set of 10 test
+resources. The result was error=0, and every targeted check matched exactly: autogen fires on
+controllers, namespace and label excludes hold, the non-root anyPattern branches still do not mix,
+and the canary stays isolated. The `require-networkpolicy` VP, run read-only against the live
+cluster, gave pass=85 fail=0 error=0.
+
+**Engine finding:** a VP emits ONE result per (policy, resource) pair, even with several
+validations, because the validations short-circuit: evaluation stops once the result is known. So `require-resource-limits` reports cp=2/vp=1
+by design. Class 3 of the parity script carries that exact exception, with a note inside to verify
+it early in the soak. Class 1 compares the worst result from each source.
+
+The review invariants gained a new CEL section: CanAutoGen turning autogen off with no warning, the
+rewrite of object but not of request.namespace, soft-anchor behaviour (checking a field only if it
+is present) returning through orValue, container sets per CP, and parity in 3 classes.
 
 ### 2026-07-04 — Loki chart moved to the grafana-community fork, 18.4.0
 
