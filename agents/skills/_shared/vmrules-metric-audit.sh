@@ -13,13 +13,15 @@
 # that, after reconcile run check-alerts.sh and sweep pending+rule-health (monitoring-check skill).
 # This is the pre-commit "is the metric even alive" gate, not a logic checker.
 #
-# Usage:  vmrules-metric-audit.sh [path/to/vmrules.yaml]   (default: homelab vmrules)
+# Usage:  vmrules-metric-audit.sh [path/to/vmrules.yaml]   (default: vmrules.yaml in the current
+#         git checkout, so a worktree audits its own edited copy, not the main tree's)
 # Exit:   0 = all metrics live + job labels match; 1 = dead metric(s)/unmatched job label(s).
 # Read-only (port-forwards VMSingle, no writes). Needs: yq, jq, kubectl, curl.
 
 set -euo pipefail
 
-VMRULES="${1:-$HOME/source-code/homelab/monitoring/configs/victoria-metrics/vmrules.yaml}"
+top="$(git rev-parse --show-toplevel 2>/dev/null)" || top="$HOME/source-code/homelab"
+VMRULES="${1:-$top/monitoring/configs/victoria-metrics/vmrules.yaml}"
 PF_PORT="${PF_PORT:-18431}"
 VM="http://127.0.0.1:${PF_PORT}"
 

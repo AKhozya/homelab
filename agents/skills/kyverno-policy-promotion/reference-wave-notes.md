@@ -14,7 +14,7 @@ The `autogen-*` rule evaluates the *controller resource* (Job/CronJob/Deployment
 
 ## Reports lag policy changes — beware false-clean (W8)
 
-The `backgroundScanInterval` (~1h) drives per-pod re-eval, so after an exclude/fix: **controller-scoped** reports clear fast (your reliable signal the exclude works) but **per-pod** reports stay stale, and a soak-start baseline undercounts (F-6 W8: 11 at soak start → 23 after the full cycle). `scan-violations.sh` handles both: `--force-regen` deletes reports + restarts the reports-controller + polls until they repopulate; and a freshness guard exits **3** on `0 fail AND 0 pass` (reports absent = false-clean, not truly clean).
+The `backgroundScanInterval` (~1h) drives per-pod re-eval, so after an exclude/fix: **controller-scoped** reports clear fast (your reliable signal the exclude works) but **per-pod** reports stay stale, and a soak-start baseline undercounts (F-6 W8: 11 at soak start → 23 after the full cycle). `scan-violations.sh` handles both: `--force-regen` deletes reports + restarts the reports-controller + polls until the result count stops changing (exit 3 on timeout); and a freshness guard exits **3** on `0 fail AND 0 pass` (reports absent = false-clean, not truly clean).
 
 ```bash
 scan-violations.sh --policy <name> --force-regen   # trustworthy gate after a fix/exclude
@@ -22,7 +22,20 @@ scan-violations.sh --policy <name> --force-regen   # trustworthy gate after a fi
 
 ## PolicyViolation events outlive a fix (~1h TTL) — popeye reads them (2026-06-07)
 
-After fix-forward, polr can be fully clean while `kubectl get events --field-selector reason=PolicyViolation` still lists pre-fix violations; popeye **POP-1503** surfaces those events, false-dirtying its score (2026-06-07: B(89) on events stamped 2min before the fix landed). Purge per-ns (`kubectl delete events -n <ns> --field-selector reason=PolicyViolation`) or wait TTL before any popeye-based verify. Also: `--force-regen` right after deleting reports shows a LOW pass total (~35) from partial admission reports — wait for the background scan to repopulate (full = ~1.3k pass, all ns present) before trusting 0-fail.
+After fix-forward, polr can be fully clean while `kubectl get events --field-selector reason=PolicyViolation` still lists pre-fix violations; popeye **POP-1503** surfaces those events, false-dirtying its score (2026-06-07: B(89) on events stamped 2min before the fix landed). Purge per-ns (`kubectl delete events -n <ns> --field-selector reason=PolicyViolation`) or wait TTL before any popeye-based verify. Also: right after report deletion the pass total is LOW from partial admission reports. `--force-regen` waits until the count stops changing and every pod in this scope has a report again:
+
+| Scope | Value |
+|---|---|
+| pod phases | Running, Pending |
+| excluded namespaces | kube-system, kube-public, kube-node-lease, default |
+
+Compare the pass total it prints with a full set before trusting 0-fail:
+
+| Report set | Pass total | Namespaces |
+|---|---|---|
+| partial, right after deletion (2026-06) | ~35 | few |
+| full (2026-06) | ~1.3k | all |
+| full (2026-09-28) | 2779 | all except kube-system |
 
 ## Seccomp live-pod cross-check — point-in-time (2026-06-07)
 

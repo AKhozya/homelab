@@ -15,7 +15,8 @@
 #   1 = violations present (listed on stdout)
 #   2 = usage / dependency error
 #   3 = false-clean suspected (0 fail AND 0 pass → reports absent/incomplete;
-#       re-run with --force-regen)
+#       re-run with --force-regen), or --force-regen timed out before the
+#       report set stopped growing
 #
 # Notes:
 # - Reads PolicyReport CRs (Kyverno emits these as background scans evaluate).
@@ -24,8 +25,15 @@
 #   per-pod reports stay stale and the scan shows old fails. A soak-start
 #   baseline also undercounts. Use --force-regen to get a trustworthy gate.
 # - --force-regen deletes all PolicyReports (Kyverno-generated, NOT git-managed),
-#   restarts the reports-controller, and polls until reports regenerate
-#   (pass>0) before scanning. Safe; reports always regenerate.
+#   restarts the reports-controller, and polls until BOTH hold: every live pod
+#   outside the system namespaces has a Pod-scoped report again, and the result
+#   count is unchanged across STABLE_POLLS polls. The controller writes reports
+#   one resource at a time, so the first pass>0 is a partial set that can miss
+#   fails, and a pause in growth alone does not prove the set is complete.
+#   If you pass --policy, a policy with no results at all still exits 3 at the freshness
+#   guard below. Residual: nothing here evaluates which resources a policy should
+#   match, so a policy whose results lag every other policy's by more than
+#   STABLE_POLLS polls can still pass with a partial set.
 # - The freshness guard (exit 3) catches "clean because reports are absent"
 #   vs "clean because everything passes/is excluded".
 
@@ -36,7 +44,8 @@ OUTPUT_JSON=0
 FORCE_REGEN=0
 REGEN_NS="kyverno"
 REGEN_DEPLOY="kyverno-reports-controller"
-REGEN_TIMEOUT=200 # seconds to wait for regen pass>0
+REGEN_TIMEOUT=300 # seconds to wait for the regenerated report set to stop growing
+STABLE_POLLS=3    # equal non-zero result counts in a row, 10s apart
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -74,13 +83,40 @@ for cmd in kubectl jq; do
   fi
 done
 
-# Count pass results for the (optionally filtered) policy in a raw report blob.
-pass_count() {
-  local raw="$1" filter="$2"
-  printf '%s' "$raw" | jq --arg p "$filter" '
-		[.items[].results[]? | select(.result == "pass")
+# Live Running/Pending pods with no Pod-scoped report. Every policy excludes kube-system,
+# kube-public, kube-node-lease and default, so pods there get no report (measured 2026-09-28: the
+# only pods without one were in kube-system). An empty pod list proves nothing, so it returns -1.
+uncovered_pods() {
+  local reports="$1" pods
+  pods="$(kubectl get pods -A -o json 2>/dev/null)" || {
+    echo -1
+    return
+  }
+  if [[ "$(jq '.items | length' <<<"$pods" 2>/dev/null)" =~ ^0?$ ]]; then
+    echo -1
+    return
+  fi
+  # Both documents on stdin: --argjson puts them in argv, which overflows ARG_MAX here.
+  printf '%s\n%s\n' "$reports" "$pods" | jq -s '
+		.[0] as $r | .[1] as $p
+		| ([$r.items[] | select(.scope.kind == "Pod") | .scope.uid]) as $have
+		| [$p.items[]
+		   | select(.metadata.namespace as $n
+		       | ["kube-system", "kube-public", "kube-node-lease", "default"] | index($n) | not)
+		   | select(.status.phase == "Running" or .status.phase == "Pending")
+		   | .metadata.uid
+		   | select(. as $u | $have | index($u) | not)]
+		| length'
+}
+
+# Count results for the (optionally filtered) policy in a raw report blob; $3 limits to one result.
+result_count() {
+  local raw="$1" filter="$2" result="${3:-}"
+  printf '%s' "$raw" | jq --arg p "$filter" --arg r "$result" '
+		[.items[].results[]? | select($r == "" or .result == $r)
 		 | select($p == "" or .policy == $p)] | length'
 }
+pass_count() { result_count "$1" "$2" pass; }
 
 if [[ "$FORCE_REGEN" -eq 1 ]]; then
   echo "[regen] deleting all PolicyReports (Kyverno-generated, not git-managed)…" >&2
@@ -97,13 +133,29 @@ if [[ "$FORCE_REGEN" -eq 1 ]]; then
     echo "[regen] repopulated. Do NOT treat this run as a scan result." >&2
     exit 4
   fi
-  echo "[regen] polling for reports to repopulate (pass>0, timeout ${REGEN_TIMEOUT}s)…" >&2
-  elapsed=0
-  while [[ "$elapsed" -lt "$REGEN_TIMEOUT" ]]; do
+  echo "[regen] polling until the report set stops growing (timeout ${REGEN_TIMEOUT}s)…" >&2
+  elapsed=0 last=-1 same=0 missing=-1
+  while :; do
     probe="$(kubectl get policyreport -A -o json 2>/dev/null || echo '{"items":[]}')"
-    if [[ "$(pass_count "$probe" "$POLICY_FILTER")" -gt 0 ]]; then
-      echo "[regen] reports repopulated after ${elapsed}s" >&2
+    # All results, not the --policy subset: the filtered count can stay unchanged while the
+    # controller writes reports for other resources.
+    n="$(result_count "$probe" "")"
+    missing="$(uncovered_pods "$probe")"
+    [[ "$missing" =~ ^[0-9]+$ ]] || missing=-1 # "" would compare equal to 0 in [[ -eq ]]
+    if [[ "$n" -gt 0 && "$n" -eq "$last" ]]; then
+      same=$((same + 1))
+    else
+      same=1
+    fi
+    last="$n"
+    if [[ "$missing" -eq 0 && "$n" -gt 0 && "$same" -ge "$STABLE_POLLS" ]]; then
+      echo "[regen] every pod has a report; set stable at ${n} results after ${elapsed}s" >&2
       break
+    fi
+    if [[ "$elapsed" -ge "$REGEN_TIMEOUT" ]]; then
+      echo "[regen] TIMEOUT after ${REGEN_TIMEOUT}s: ${missing} pod(s) without a report (-1 = pod list failed), last count ${n}." >&2
+      echo "[regen] Do NOT treat this run as a scan result." >&2
+      exit 3
     fi
     sleep 10
     elapsed=$((elapsed + 10))

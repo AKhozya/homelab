@@ -18,14 +18,17 @@
 # edit fails `diff` and passes `semantic`. Both sides are stripped by the same rule, so a
 # genuine code change still shows. Blind spots are listed at strip_comments below.
 #
-# Default oracle-file: /tmp/kustomize-render-oracle.yaml
+# Default oracle-file: kustomize-render-oracle.yaml in the current checkout's git dir. A linked
+# worktree has its own git dir, so two worktrees cannot overwrite each other's baseline.
+# If you run it outside a git checkout, pass the oracle-file.
 # Uses `kustomize build --enable-helm` for CI parity (needs `helm` + `kustomize` in PATH).
 #
 # Exit: 0 identical | 1 render drift (diff shown) | 2 misuse | 3 missing oracle/build error
 
 set -euo pipefail
 
-ORACLE_DEFAULT=/tmp/kustomize-render-oracle.yaml
+gd="$(git rev-parse --absolute-git-dir 2>/dev/null)" || gd=""
+ORACLE_DEFAULT="${gd:+$gd/kustomize-render-oracle.yaml}"
 
 build() { kustomize build --enable-helm "$1"; }
 sha() { shasum -a 256 "$1" | cut -d' ' -f1; }
@@ -87,6 +90,10 @@ case "$cmd" in
 oracle)
   path="${2:?oracle requires <old-path>}"
   out="${3:-$ORACLE_DEFAULT}"
+  [[ -n "$out" ]] || {
+    echo "not in a git checkout: pass [oracle-file]" >&2
+    exit 2
+  }
   if ! build "$path" >"$out" 2>/dev/null; then
     echo "build failed: kustomize build --enable-helm $path" >&2
     exit 3
@@ -96,6 +103,10 @@ oracle)
 check)
   path="${2:?check requires <new-path>}"
   oracle="${3:-$ORACLE_DEFAULT}"
+  [[ -n "$oracle" ]] || {
+    echo "not in a git checkout: pass [oracle-file]" >&2
+    exit 2
+  }
   [[ -f "$oracle" ]] || {
     echo "no oracle at $oracle — run '$0 oracle <old-path>' on the clean pre-change tree first" >&2
     exit 3

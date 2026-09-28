@@ -85,7 +85,7 @@ Reviewers MUST check the diff against `.claude/review-invariants.md` — semanti
 
 **Docs/markdown/asset-only push? SKIP 3b + 3c + `fr` entirely.** `validate.yaml` carries `paths-ignore: ['**.md', 'docs/images/**']` (added 2026-06-13). If a push changes only markdown or images, no `validate.yaml` run starts. `gh run watch` then finds a stale unrelated run, or hangs. `gitleaks.yaml` carries no path filter. Secret scan therefore runs on a markdown-only push. `wait-for-ci.sh` passes `--workflow=validate.yaml`, so it ignores that run. The pre-commit peer review (3b) applies to substantive code/config commits; docs/markdown are exempt. And `docs/` isn't Flux-reconciled, so `fr` is a no-op. Pure docs/memory flow = commit → merge → push → done. Reserve CI-watch for pushes CI can fail on (any `.yaml`/`.sh`/manifest — `node-maintenance/**` and `scripts/**` shell is linted). Mixed md+yaml push → CI runs, watch normally.
 
-After push, `.github/workflows/validate.yaml` runs 13 parallel jobs, ~45s p95. gitleaks is not one of them. It runs in its own `gitleaks.yaml`.
+After push, `.github/workflows/validate.yaml` runs 14 parallel jobs, ~45s p95. gitleaks is not one of them. It runs in its own `gitleaks.yaml`.
 
 | Job | Legs |
 |---|---|
@@ -96,6 +96,7 @@ After push, `.github/workflows/validate.yaml` runs 13 parallel jobs, ~45s p95. g
 | image-pin | 1 |
 | HOMELAB_ANALYSIS drift, warn-only | 1 |
 | kubeconform, one per kustomize root incl. `infrastructure/coredns` | 7 |
+| helm-render, every HelmRelease chart at its pinned version | 1 |
 
 **If CI is red, do not run `fr`.** Withholding `fr` delays reconciliation until Flux polls. It does not prevent deployment.
 
@@ -115,7 +116,13 @@ bash ~/.agents/skills/gitops-workflow/scripts/wait-for-ci.sh
 # | 11 INFRA-RED → local gate + peer review authorize fr | 3 no run appeared (docs-only push?)
 ```
 
-Local skills (`/homelab-yaml-validate`, `/kyverno-policy-promotion`) catch the same regressions earlier, but CI is the canonical gate — a fresh session that skipped local validate is still caught here.
+Actions billing outage since 2026-09-10 (AGENTS.md):
+
+| Fact | Consequence |
+|---|---|
+| GitHub creates a `validate.yaml` run for a push that CI covers, but no job starts; every job fails with 0 steps | `wait-for-ci.sh` exits 11 INFRA-RED for that push until the account owner fixes billing |
+| a docs/markdown-only push creates no run | `wait-for-ci.sh` exits 3, as before |
+| CI therefore checks nothing | run the pre-commit review loop and `/homelab-yaml-validate` before the commit; they are the checks that still run |
 
 **Content-red vs infra-red — classify before blocking.** "Block `fr` on CI red" only holds when the red is YOUR manifest. If CI is red, don't eyeball it — run `_shared/ci-red-classify.sh [branch] [sha]` (exit-code map in the block above). Full classification + the never-hand-wave rule → `reference-edge-cases.md` § CI content-red vs infra-red.
 

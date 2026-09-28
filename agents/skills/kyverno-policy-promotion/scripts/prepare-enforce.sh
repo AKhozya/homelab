@@ -14,7 +14,7 @@
 # Exit codes:
 #   0 = file edited, dry-run accepted
 #   1 = file missing required Audit line / already Deny
-#   2 = usage / dependency error
+#   2 = usage / dependency error, or the file is in the primary checkout (edit in a worktree)
 #   3 = dry-run failed (caller must investigate before committing)
 
 set -euo pipefail
@@ -31,12 +31,23 @@ if [[ ! -f "$FILE" ]]; then
   exit 2
 fi
 
-for cmd in kubectl grep sed; do
+for cmd in kubectl grep sed git; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "error: required command not found: $cmd" >&2
     exit 2
   fi
 done
+
+# The worktree-guard hook sees only Edit/Write tool calls, so the mv below bypasses it. Apply the
+# same rule here: refuse the operator's primary checkout unless the hook's own escapes are set.
+HOMELAB_MAIN="${HOMELAB_MAIN:-$HOME/source-code/homelab}"
+top="$(git -C "$(dirname "$FILE")" rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -n "$top" && "$top" == "$HOMELAB_MAIN" && "${WORKTREE_GUARD_SKIP:-0}" != 1 &&
+  ! -f "$HOMELAB_MAIN/.claude/.allow-main-edits" ]]; then
+  echo "error: $FILE is in the primary checkout $HOMELAB_MAIN, which Flux reconciles." >&2
+  echo "       Create a worktree (git worktree add .claude/worktrees/<task> -b wt-<task>) and pass its path." >&2
+  exit 2
+fi
 
 # Idempotent guard: only proceed if file carries the canonical flow-style Audit line.
 # Homelab VPs use `validationActions: [Audit]` (flow style, one line) — block style

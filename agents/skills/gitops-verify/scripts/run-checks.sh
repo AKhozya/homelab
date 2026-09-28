@@ -29,6 +29,12 @@ else
   while IFS= read -r f; do
     [ -z "$f" ] && continue
     [ ! -f "$REPO/$f" ] && continue
+    # Only cluster objects go to the API server. A kustomization.yaml, a kustomize Component, a
+    # workflow or a values file is not one, and the server rejects it as a false FAIL.
+    if ! grep -q '^kind:' "$REPO/$f" || grep -q '^apiVersion: kustomize.config.k8s.io/' "$REPO/$f"; then
+      YAML_SKIP=$((YAML_SKIP + 1))
+      continue
+    fi
     if out="$(kubectl apply -f "$REPO/$f" --dry-run=server 2>&1)"; then
       YAML_PASS=$((YAML_PASS + 1))
     elif echo "$out" | grep -q 'unknown field "sops"'; then
@@ -54,7 +60,7 @@ POD_COUNT="$(bash "$SHARED/pod-health.sh" --count 2>/dev/null || echo 'unavailab
 
 # --- Check 5: events (Warning, last 5 min) ---
 EVENTS_N="$(kubectl get events -A --field-selector=type=Warning -o json 2>/dev/null |
-  jq '[.items[] | select(((.lastTimestamp // .eventTime // empty) | fromdateiso8601? // 0) > (now - 300))] | length' 2>/dev/null || echo '?')"
+  jq '[.items[] | select(((.lastTimestamp // .eventTime // empty) | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) > (now - 300))] | length' 2>/dev/null || echo '?')"
 
 # --- Check 6: alerts ---
 ALERTS_COUNT="$(bash "$SHARED/check-alerts.sh" --count 2>/dev/null || echo 'unavailable')"

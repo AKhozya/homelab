@@ -44,7 +44,7 @@ Use `/gitops-workflow` to validate, commit, push, reconcile.
 ```bash
 # Pre-push validation
 bash ~/.agents/skills/homelab-yaml-validate/scripts/validate.sh \
-  /Users/akhozya/source-code/homelab/infrastructure/configs/kyverno-policies/<name>-vp.yaml
+  "$(git rev-parse --show-toplevel)"/infrastructure/configs/kyverno-policies/<name>-vp.yaml
 
 # Commit + push (per gitops-workflow pre-commit peer review loop)
 ```
@@ -98,11 +98,11 @@ After fix-forward changes:
 
 ### Phase 4 — Promote to Deny
 
-Once `scan-violations.sh --policy <name>` returns exit 0:
+If `scan-violations.sh --policy <name> --force-regen` returns exit 0 (regeneration is complete and the scan finds no fails), run this from your task worktree (the script refuses the primary checkout):
 
 ```bash
 bash ~/.agents/skills/kyverno-policy-promotion/scripts/prepare-enforce.sh \
-  /Users/akhozya/source-code/homelab/infrastructure/configs/kyverno-policies/<name>-vp.yaml
+  "$(git rev-parse --show-toplevel)"/infrastructure/configs/kyverno-policies/<name>-vp.yaml
 ```
 
 The script edits the file in place (`validationActions: [Audit]`→`[Deny]`), runs plain `--dry-run=server` (NOT `--server-side` — field-ownership footgun with Flux), and prints the resulting `git diff`. It does NOT commit — review the diff, then commit per `/gitops-workflow`.

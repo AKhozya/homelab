@@ -62,7 +62,7 @@ For multi-init deployments (home-assistant: `config-setup` + `hacs-install`), th
 
 ### 4c. Image pin audit — repo-wide
 
-Kyverno's image-pin policy only rejects `:latest`/no-tag. Major-only (`:8`) or major.minor (`:1.0`, `:1.24`) tags float silently — the gap that hid `seleniumbase-scrapper:v1.0` + `claude-telegram-bot:1.24` (F-23, closed 2026-05-29). Now a **hard CI gate** (`image-pin` job in `validate.yaml`). Run locally before commit (exit 1 on any unpinned):
+Kyverno's image-pin policy only rejects `:latest`/no-tag. Major-only (`:8`) or major.minor (`:1.0`, `:1.24`) tags float silently — the gap that hid `seleniumbase-scrapper:v1.0` + `claude-telegram-bot:1.24` (F-23, closed 2026-05-29). The `image-pin` job in `validate.yaml` runs it too, but CI is a signal, not a merge gate (AGENTS.md). Run locally before commit (exit 1 on any unpinned):
 
 ```bash
 scripts/ci/image-pin-audit.sh .        # or apps / infrastructure / monitoring
@@ -147,8 +147,13 @@ Beyond schema/admission, eyeball or grep:
 
 - Every container (including init) has `resources.{requests,limits}.{cpu,memory}` — Kyverno enforces
 - `readOnlyRootFilesystem: true` → `/tmp` emptyDir mounted
-- DB Secret labels: Postgres `cnpg.io/cluster: main-postgres` + `cnpg.io/reload: "true"`; MySQL via Percona `User` CR
-- ResourceQuota covers new namespace before app added (2-commit bootstrap pattern)
+- DB users:
+
+  | Engine | How the user exists |
+  |---|---|
+  | Postgres | Secret labels `cnpg.io/cluster: main-postgres` + `cnpg.io/reload: "true"`, role in `managed.roles` |
+  | MySQL | no Percona `User` CR exists: create the user by hand with SQL (`CREATE USER` + `GRANT`) through `db-operations/scripts/mysql-exec.sh`, and add its `CREATE USER` line, with a placeholder password, to `docs/disaster-recovery/mysql-create-dbs.sql` |
+- New namespace: add the ResourceQuota (governance entry) in a SECOND commit, after Flux has created the namespace. If the quota comes first, `infrastructure-configs` fails to reconcile, and `apps`, which depends on it, stops reconciling too (2-commit bootstrap, `/app-scaffold`)
 
 Other invariants live in canonical skills:
 - Image pinning + DB username = app name → `/app-scaffold`

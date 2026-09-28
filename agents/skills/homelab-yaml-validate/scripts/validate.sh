@@ -41,7 +41,7 @@ case "$mode" in
   shift
   NAME="${1:?--flux requires <name>}"
   KPATH="${2:?--flux requires <name> <path>}"
-  # Kustomization name != filename for 3 of 5 (infrastructure-controllers →
+  # Kustomization name != filename for some (infrastructure-controllers →
   # infrastructure.yaml; monitoring-{controllers,configs} → monitoring.yaml, multi-doc).
   # flux build selects by NAME within the file, so locate the file by grep.
   CLUSTER_FILE="${CLUSTER:+clusters/${CLUSTER}.yaml}"

@@ -6,7 +6,8 @@
 #   WORKTREE_PATH  target a single worktree (post-task cleanup)
 #   --apply        perform removals (dry-run otherwise)
 #
-# Verdicts: MERGED-CLEAN (removable) | DIRTY | UNMERGED | LOCKED | PRUNABLE | MAIN
+# Verdicts: MERGED-CLEAN (removable) | FRESH | DIRTY | UNMERGED | LOCKED | PRUNABLE | MAIN
+# FRESH = branch never moved since creation. Scan mode keeps it; naming the path removes it.
 # Branch deletion is always non-force (git branch --delete) — unmerged work survives.
 # Merged-ness tested on the worktree HEAD oid (detached-safe, tag-shadow-safe).
 # Gitignored files do NOT count as dirty — declared disposable by definition.
@@ -159,6 +160,18 @@ evict_brokers() { # evict_brokers <worktree-path>
   return $rc
 }
 
+# A just-created worktree is clean and its HEAD is an ancestor of main, so it looks merged. It
+# holds a session that has not committed yet, and removing it deletes that session's worktree and
+# branch. A branch reflog with one entry ("Created from") has never moved. A missing reflog cannot
+# prove that main contains the branch's work, so scan mode keeps the worktree.
+fresh() { # fresh <branch> <head-oid>
+  if [[ -n $1 ]]; then
+    (($(git -C "$REPO" reflog show --format=%H "refs/heads/$1" 2>/dev/null | wc -l) <= 1))
+  else
+    [[ $2 == "$(git -C "$REPO" rev-parse "$DEFAULT")" ]]
+  fi
+}
+
 # --- worktrees ---
 wt_path="" wt_branch="" wt_head="" wt_locked=0 wt_prunable=0
 flush() {
@@ -176,6 +189,8 @@ flush() {
   elif [[ -z $wt_head ]] ||
     ! git -C "$REPO" merge-base --is-ancestor "$wt_head" "$DEFAULT" 2>/dev/null; then
     verdict=UNMERGED # worktree HEAD oid — correct for detached too
+  elif [[ -z $TARGET ]] && fresh "$wt_branch" "$wt_head"; then
+    verdict=FRESH
   else
     verdict=MERGED-CLEAN
   fi

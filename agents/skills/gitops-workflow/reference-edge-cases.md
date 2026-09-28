@@ -61,7 +61,23 @@ git push origin pre-<wavename>-$(date +%Y-%m-%d)
 
 Lightweight tags (`git tag <name>` without `-a`) FAIL when `~/.gitconfig` has `[tag] gpgsign = true`. Always use `-a`.
 
-Rollback path: `git reset --hard pre-<wavename>-<date>` + force-push (only if no downstream collaborator commits since).
+Rollback path: revert the first-parent commits after the tag, newest first. Push only if the
+loop prints `ROLLBACK COMPLETE`:
+
+```bash
+ok=1
+commits=$(git rev-list --first-parent pre-<wavename>-<date>..HEAD) && [ -n "$commits" ] || ok=0
+while [ "$ok" = 1 ] && IFS= read -r c; do
+  if git rev-parse -q --verify "$c^2" >/dev/null; then
+    git revert --no-edit -m 1 "$c" || ok=0
+  else
+    git revert --no-edit "$c" || ok=0
+  fi
+done <<<"$commits"
+[ "$ok" = 1 ] && echo "ROLLBACK COMPLETE — push" || echo "ROLLBACK STOPPED — resolve or git revert --abort; do NOT push"
+```
+
+`--first-parent` skips the commits inside a merged branch; their merge commit's `-m 1` revert already undoes them. Never force-push `main`: Flux and every worktree track it, and after a rewrite their history no longer matches the remote branch.
 
 ## Teardown pattern (full sequence)
 
