@@ -245,12 +245,11 @@ spec:
 
     # Global settings
     config:
-      # Resource filters (exclude system namespaces)
-      resourceFilters:
-        - "[*/*,kube-system/*,kyverno/*]"
-        - "[*/*,kube-public/*]"
-        - "[*/*,kube-node-lease/*]"
-        - "[*/*,flux-system/*]"
+      # Appends [*/*,flux-system,*] to the chart's default resourceFilters, which already
+      # exclude kube-system, kube-public, kube-node-lease and kyverno. Setting
+      # `resourceFilters` itself would replace those defaults (Event, ReplicaSet, …).
+      resourceFiltersIncludeNamespaces:
+        - flux-system
 
       # Webhook configuration
       webhookAnnotations: {}
