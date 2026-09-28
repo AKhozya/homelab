@@ -74,22 +74,23 @@ from the per-node agents.
 
 ## GitOps reconciliation order
 
-`flux-system` is the Git source. `infrastructure-controllers` is the root Kustomization, and three
-branches start from it: DNS, the infrastructure configs (then the apps), and monitoring.
+`flux-system` is the Git source. `coredns` depends on nothing below it, so cluster DNS never waits
+for cert-manager or Kyverno. `infrastructure-controllers` is the root of the other two branches:
+the infrastructure configs (then the apps), and monitoring.
 
 ```mermaid
 flowchart TB
   G["Git repo, branch main<br/>SOPS-encrypted secrets"] --> FS["flux-system<br/>Git source and Flux controllers"]
   FS --> IC["infrastructure-controllers<br/>cert-manager · Traefik · Kyverno<br/>CNPG, Percona and Redis operators"]
-  IC --> CD["coredns"]
+  FS --> CD["coredns"]
   IC --> ICF["infrastructure-configs<br/>database clusters · NetworkPolicies · quotas<br/>SOPS secrets · backup CronJobs"]
   IC --> MC["monitoring-controllers<br/>kube-prometheus-stack · VictoriaMetrics operator · Loki · Alloy"]
   ICF --> APPS["apps<br/>application stacks"]
   MC --> MCF["monitoring-configs<br/>alert rules · scrape configs · dashboards · alert templates"]
 ```
 
-The first two arrows show where Flux gets the source. Each arrow below `infrastructure-controllers`
-is a Flux `dependsOn`: a Kustomization waits until its parent reports Ready. If their parents are
+The arrows into `flux-system` and `coredns` show where Flux gets the source. Each arrow below
+`infrastructure-controllers` is a Flux `dependsOn`: a Kustomization waits until its parent reports Ready. If their parents are
 Ready, the apps branch and the monitoring branch run in parallel. `apps` sets
 `wait: false`, so Flux does not wait for every app to become healthy; each app reports its own
 readiness.
@@ -97,8 +98,8 @@ readiness.
 | Kustomization | Depends on | Owns |
 |---|---|---|
 | `infrastructure-controllers` | flux-system (source) | Operators and CRDs: cert-manager, Traefik, Kyverno, CNPG, Percona, Redis |
-| `coredns` | infrastructure-controllers | Cluster DNS |
-| `infrastructure-configs` | infrastructure-controllers | Database clusters, NetworkPolicies, quotas, secrets, backups |
+| `coredns` | nothing (flux-system source only) | Cluster DNS |
+| `infrastructure-configs` | infrastructure-controllers | Database clusters, NetworkPolicies, quotas, secrets, backups, Traefik Middlewares |
 | `apps` | infrastructure-configs | The 17 app stacks; their databases and NetworkPolicies must exist first |
 | `monitoring-controllers` | infrastructure-controllers | VictoriaMetrics, Loki, Alloy |
 | `monitoring-configs` | monitoring-controllers | Scrape configs, alert rules, dashboards, alert templates |
@@ -144,6 +145,7 @@ Service port directly. It has no egress to the `traefik` namespace:
 | `databases` | CouchDB, for Obsidian sync |
 | `rustdesk` | RustDesk clients on Cloudflare WARP (Cloudflare's device VPN) |
 | `kube-system` | DNS |
+| the Cloudflare edge: `0.0.0.0/0` except the three RFC 1918 ranges, on UDP/TCP 7844 and TCP 443 | the tunnel itself (7844); Cloudflare updates and token checks (443) |
 
 So internet visitors get Cloudflare's WAF (web application firewall) and TLS, but not Traefik's
 CSP, security headers or rate limits; they see whatever CSP the app sets.

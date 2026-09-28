@@ -16,10 +16,16 @@ The policy (schedules, retention, recovery targets) is in [BACKUP_STRATEGY.md](.
 | **SOPS Secrets** | Encrypted in git | every commit | n/a |
 | **DR scripts** | `.backup/secrets-{backup,restore}.sh` | manual | partial (explicit list) |
 
-Namespaces: PG/MySQL/CouchDB CronJobs in `databases`; PVC CronJob in `kube-system`; `immich-backup` + replication in `backup-replication` (immich shares the NAS rsync creds + egress NP there). All backup CronJobs: `startingDeadlineSeconds: 3600` + `backoffLimit: 2` (couchdb keeps `backoffLimit: 6`).
+Namespaces: PG/MySQL/CouchDB CronJobs in `databases`; PVC CronJob in `kube-system`; `immich-backup` + replication in `backup-replication` (immich shares the NAS rsync creds + egress NP there). All backup CronJobs set `startingDeadlineSeconds: 3600`. Retries:
+
+| CronJob | Retries |
+|---|---|
+| `backup-replication`, `pvc-backup` | none: `backoffLimit: 0`, `restartPolicy: Never` |
+| postgres, mysql, `immich-backup` | `backoffLimit: 2` |
+| couchdb | `backoffLimit: 6` |
 
 ## PVC backup
-Whitelist (CRITICAL_PVCS) + `nodeSelector: worker-node` + `hostPath /mnt/k8s-storage/backups/pvc`: `infrastructure/configs/backup/pvc-backup-cronjob.yaml`. Compression gzip, except `audiobookshelf-{audiobooks,podcasts}` = uncompressed tar (already-compressed media). Retention: the nightly `backup-replication` job copies each archive to the NAS and checks the copy. If the check passes, it deletes the local archive. The job's own 30-day local sweep matters only if replication keeps failing. The NAS keeps 30 days.
+Whitelist (CRITICAL_PVCS) + `nodeSelector: worker-node` + `hostPath /mnt/k8s-storage/backups/pvc`: `infrastructure/configs/backup/pvc-backup-cronjob.yaml`. Compression gzip, except `audiobookshelf-{audiobooks,podcasts}` = uncompressed tar (already-compressed media). Retention: there is no local age sweep. `backup-replication` deletes a type's local files on the night that type passes validation and reaches the NAS. The NAS keeps 30 days.
 
 **Excluded by design** (the *why* matters — re-justify before re-adding):
 - `immich/immich-machine-learning` — regenerable ML cache (library PVC gone — NAS-resident since the Path-B cutover, covered by the weekly W2 job above)
@@ -37,7 +43,17 @@ W1 /mnt/k8s-storage/backups
   └─ rsync (no --delete, --exclude='/immich/') :50555 (rsync daemon)
        → NAS (192.168.1.136, /akhozya-pool1/backups/homelab/) — 30-day history; 500GB cap (warn 400 / crit 450)
 ```
-Validate BEFORE the sync (postgres/couchdb/mysql/pvc — age <25h, SHA256, tar integrity, min size), then push to NAS, then clean source on W1. Immich is not a W1 source: the W2 job writes it and pushes it straight to the NAS pool.
+Validate BEFORE the sync, per type, then push to the NAS, then clean the source on W1. Immich is not a W1 source: the W2 job writes it and pushes it straight to the NAS pool.
+
+| Type | Validation |
+|---|---|
+| postgres, couchdb, mysql | newest archive: age under 26 h (whole-hour age ≤ 25), SHA-256 if a `.sha256` exists, tar integrity, size floor (1 MiB, 20 KiB, 100 KiB) |
+| pvc | every archive in the newest `pvc/<timestamp>/`: age under 26 h (whole-hour age ≤ 25), a `.sha256` that matches, tar integrity; the count must equal `PVC_EXPECTED` (14, the number of CRITICAL_PVCS entries). No size floor beyond 1 byte: a near-empty PVC gives a 4 KB archive. |
+
+| Outcome | Effect |
+|---|---|
+| If a type fails | Replication skips that type and keeps its local files for the next night. The other types still sync and are cleaned. The Job still exits 1 and sends the Telegram report. |
+| If every type fails | The run stops before the sync. |
 
 **`--exclude='/immich/'` is load-bearing — do not drop it when editing the Step 2 rsync.** immich-backup owns that destination path; without the exclude, replication re-uploads whatever stale generations sit under W1's `immich/` (Step 4's `rm -rf` covers only postgres/couchdb/mysql/pvc) and Step 4b's keep-2 deletes them minutes later — 129G/night, both ways, for as long as the directory exists (`5f76db93`, verified 2026-07-28: 129 GiB → 120 MiB). The **leading slash anchors it to the transfer root**: unanchored `immich/` would also match a future `pvc/<ts>/immich/`. The exclude is on the *transfer* only — Step 4b still prunes the NAS immich pool to keep-2, which is the sole retention on that path (immich-backup's own keep-2 sweeps only its W2 copies). The NAS is the only destination.
 
@@ -45,7 +61,7 @@ Validate BEFORE the sync (postgres/couchdb/mysql/pvc — age <25h, SHA256, tar i
 - 30d postgres/mysql/couchdb — `prune_nas_file()`: rsync include-filter file-prune against empty source, targets `<cat>/<cat>_YYYYMMDD_HHMMSS.tar.gz` older than 30d
 - 30d pvc dirs — `prune_nas_dir()`: rsync `-r --delete` from empty dir into `pvc/YYYYMMDD_HHMMSS/` subpaths older than 30d
 - keep-2 immich — sort `immich/YYYYMMDD_HHMMSS/` descending, prune all but newest 2
-- Soft-fail (`|| true`) on rsync errors so prune issues don't break replication; NAS UI prune is the fallback
+- A refused prune does not stop the other prunes, and the offsite copy has already succeeded, but it fails the run and the report counts it; NAS UI prune is the manual fallback
 - Triple-safe against immich loss: file-prune regex requires a single `/` + DB-category allow-list (immich paths have two `/`s and aren't in `(postgres|mysql|couchdb)`)
 
 Failure handling: trap on EXIT sends Telegram with `CURRENT_STEP`; success is silent.

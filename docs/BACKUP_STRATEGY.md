@@ -78,11 +78,11 @@ From the 2026-05-22 audit:
 
 | Step | Does |
 |---|---|
-| 1 | Checks each new backup (age, SHA-256, tar listing, a minimum size per engine) and stops before any copy if one fails |
+| 1 | Checks each type's newest backup: age, tar listing, a minimum size per engine, and the SHA-256 if a `.sha256` file exists. For PVCs it checks every archive, requires each one's `.sha256`, and requires 14 archives. If a type fails, the copy leaves it out and its source stays. If every type fails, the run stops before any copy. |
 | 2 | Copies to the NAS with rsync, without `--delete`, so the NAS keeps history |
 | 3 | Checks that each backup arrived on the NAS |
-| 4 | Deletes the source copies on worker-node that step 3 confirmed |
-| 4b | Prunes the NAS: 30 days for the daily backups, the newest 2 for Immich. If the NAS refuses the delete, the copy still counts as a success; delete the expired backups by hand in the NAS web UI. |
+| 4 | Deletes the source copies on worker-node for the types that passed step 1 and that step 3 confirmed |
+| 4b | Prunes the NAS: 30 days for the daily backups, the newest 2 for Immich. If the NAS refuses a delete, the other prunes still run. The copy to the NAS still counts. If any prune is refused, the run fails, and the report counts the refused prunes. The Job log names them; delete those by hand in the NAS web UI. |
 | 5 | Reports NAS use against the 500 GB limit: a warning at 400 GB, critical at 450 GB |
 | 6 | Sends a Telegram message, only on failure |
 

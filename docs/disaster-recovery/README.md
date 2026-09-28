@@ -77,10 +77,10 @@ has the full policy.
 
 | Backup | When (UTC) | Where | Kept |
 |---|---|---|---|
-| PostgreSQL | daily 03:00 | `/mnt/k8s-storage/backups/postgres/` on worker-node | 30 days |
-| CouchDB | daily 03:05 | `/mnt/k8s-storage/backups/couchdb/` | 30 days |
-| App volumes (14 PVCs) | daily 03:10 | `/mnt/k8s-storage/backups/pvc/` | 30 days |
-| MySQL | daily 03:15 | `/mnt/k8s-storage/backups/mysql/` | 30 days |
+| PostgreSQL | daily 03:00 | `/mnt/k8s-storage/backups/postgres/` on worker-node | until the copy to the NAS; 30 days there |
+| CouchDB | daily 03:05 | `/mnt/k8s-storage/backups/couchdb/` | until the copy to the NAS; 30 days there |
+| App volumes (14 PVCs) | daily 03:10 | `/mnt/k8s-storage/backups/pvc/` | until the copy to the NAS; 30 days there |
+| MySQL | daily 03:15 | `/mnt/k8s-storage/backups/mysql/` | until the copy to the NAS; 30 days there |
 | Immich library | Sunday 03:00 | `immich-backup` on worker-node-2 pulls the library from the NAS, writes a tar and checksum to `/mnt/extra-storage/immich-backup/` and a copy to the NAS `akhozya-pool1` pool | 2 of each (about 61 GB uncompressed) |
 | Copy to the NAS | daily 03:30 | NAS (`backup-replication` Step 4b prunes it) | 30 days; Immich keeps 2 |
 

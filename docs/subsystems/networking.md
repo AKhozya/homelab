@@ -19,7 +19,7 @@
 | CouchDB | `couchdb-couchdb.databases.svc:5984` | obsidian (LiveSync via Cloudflare Tunnel) |
 
 ## Traefik middlewares
-Defined in `traefik` ns (referenced as `traefik-<name>@kubernetescrd`):
+Defined in `traefik` ns, in `infrastructure/configs/traefik-middlewares/` (applied by `infrastructure-configs`, after the Traefik chart installs the Middleware CRD); referenced as `traefik-<name>@kubernetescrd`:
 `csp`, `csp-strict-enforced`, `csp-inline-enforced`, `csp-permissive-enforced`, `rate-limit-standard`, `rate-limit-high-frequency`, `redirect-https`, `security-headers`, `authentik-forward-auth`
 
 CSP tiers are **enforced-only** (report-only middlewares deleted — dead config). `report-uri` omitted everywhere: a cluster-internal report sink is browser-unreachable (Mixed-Content) — verify CSP via browser console, not Loki. Tier membership: [apps.md](apps.md).

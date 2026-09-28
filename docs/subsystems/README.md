@@ -29,9 +29,9 @@ Node table, SSH, hard invariants: [AGENTS.md](../../AGENTS.md). Design rationale
 
 ```text
 clusters/                          Flux Kustomizations (flat single-env prod, branch main)
+├─ coredns                         infrastructure/coredns/ — coredns-ha (no dependsOn, so DNS heals independently)
 └─ infrastructure-controllers      infrastructure/controllers/ — cert-manager, traefik, kyverno, DB operators
-   ├─ coredns                      infrastructure/coredns/ — coredns-ha (own ks so DNS heals independently)
-   ├─ infrastructure-configs       infrastructure/configs/ — DB CRs, NetworkPolicies, quotas, SOPS secrets, backups
+   ├─ infrastructure-configs       infrastructure/configs/ — DB CRs, NetworkPolicies, quotas, SOPS secrets, backups, Traefik Middlewares
    │  └─ apps                      apps/<name>/ + apps/components/ (allow-dns-egress Kustomize Component)
    └─ monitoring-controllers       monitoring/controllers/ — VM operator, kube-prometheus-stack, Loki, Alloy
       └─ monitoring-configs        monitoring/configs/ — VMRule, scrapes, dashboards, alert templates
