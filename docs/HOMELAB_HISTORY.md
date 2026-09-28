@@ -1210,10 +1210,11 @@ which is known to work.
 leaves a source file that later runs reuse instead of downloading a fixed one. This is accepted,
 because `NodePackageUpgradeFailed` now makes the failure visible.
 
-### 2026-07-31 — A chart bump silently stopped the VM operator reconciling for two hours
+### 2026-07-31 — A chart upgrade stopped the VictoriaMetrics operator from acting on changes for two hours while its pod looked healthy
 
-Renovate merged `b1116022` (victoria-metrics-operator chart 0.66.3 → 0.67.0, operator v0.73.1 →
-v0.74.0). Flux applied it at 10:30 UTC. From 10:31:35 the operator logged nothing but
+Renovate merged `b1116022`, which moved the victoria-metrics-operator chart from 0.66.3 to 0.67.0
+and the operator from v0.73.1 to v0.74.0. Flux applied it at 10:30 UTC. From 10:31:35 the operator
+logged only this message:
 
 ```
 Failed to watch  type=*v1.NetworkPolicy
@@ -1222,162 +1223,197 @@ error=... networkpolicies.networking.k8s.io is forbidden: User
 "networkpolicies" ... at the cluster scope
 ```
 
-393 times, and `controller_runtime_reconcile_total` sat flat at 3 until 12:35 — 124 minutes in
-which every VM CR change was ignored.
+The operator logged that message 393 times. `controller_runtime_reconcile_total` stayed at 3 until
+12:35. For those 124 minutes, the operator ignored every change to a VictoriaMetrics custom
+resource (CR).
 
-**Why nothing else caught it.** All 25 controllers logged `Starting workers` normally, then parked.
-The pod held `Ready 1/1`, `up=1`, `restartCount 0`, `:8081` probes green and a renewing leader
-lease the whole time. `controller_runtime_reconcile_errors_total` stayed at **0** — the reconciles
-never failed, they never returned. `VMOperatorReconcileStalled`
-(`sum(rate(controller_runtime_reconcile_total[15m])) == 0`) was the sole signal, and it fired. This
-is the opposite failure mode to the 2026-06-15 metrics-wedge (`up=0`, no scrape at all); an alert
-written for one caught the other.
+**Why nothing else caught it.** All 25 controllers logged `Starting workers` as usual, then waited
+and did nothing. The whole time, the pod held `Ready 1/1`, `up=1` and `restartCount 0`, its `:8081`
+probes passed, and it kept renewing its leader lease. `controller_runtime_reconcile_errors_total`
+stayed at **0**. A reconcile is one pass in which the operator makes the cluster match a resource.
+The reconciles never failed; they never returned at all. `VMOperatorReconcileStalled`
+(`sum(rate(controller_runtime_reconcile_total[15m])) == 0`) was the only signal, and it fired. This
+failure is the opposite of the metrics fault of 2026-06-15, where `up=0` and no scrape happened at
+all. An alert written for that fault caught this one.
 
-**Root cause — chart-vs-operator RBAC drift.** Operator v0.74.0 added `.spec.networkPolicy` to every
-VM CRD ([helm-charts#2977](https://github.com/VictoriaMetrics/helm-charts/issues/2977)) and grants
-itself `networkpolicies` in its own `config/rbac/role.yaml`; the v0.74.0 notes ship that grant as a
-BUGFIX. Chart 0.67.0's `templates/role.yaml` still grants only `ingresses`/`ingresses/finalizers`,
-on `master` too. The read is not gated on the feature: nine factories take a
-`if cr.Spec.NetworkPolicy == nil { objsToRemove = append(…) }` branch unconditionally, and
-`finalize.SafeDeleteWithFinalizer` opens with a cached `Get` — so controller-runtime starts a
-NetworkPolicy informer that can never sync, and every reconcile parks on it.
+**Root cause: the chart's permissions fell behind the operator's.** Operator v0.74.0 added
+`.spec.networkPolicy` to every VictoriaMetrics CRD (the definition of a custom resource type)
+([helm-charts#2977](https://github.com/VictoriaMetrics/helm-charts/issues/2977)). In its own
+`config/rbac/role.yaml` it grants itself `networkpolicies`, and the v0.74.0 release notes list that
+grant as a BUGFIX. The `templates/role.yaml` of chart 0.67.0 still grants only
+`ingresses`/`ingresses/finalizers`, and so does the chart on `master`. The operator reads
+NetworkPolicies even when the feature is not in use. Nine object factories in the operator always
+take the branch
+`if cr.Spec.NetworkPolicy == nil { objsToRemove = append(…) }`, and
+`finalize.SafeDeleteWithFinalizer` starts with a cached `Get`. So controller-runtime starts a
+NetworkPolicy informer (a cached watch on that resource type) that can never sync, and every
+reconcile waits on it.
 
-**Fix** (`63c456a2`) — supplementary ClusterRole + ClusterRoleBinding at
-`monitoring/controllers/victoria-metrics/operator-networkpolicy-rbac.yaml` granting
-`networkpolicies` `get/list/watch`. Read-only is enough because nothing here sets
-`.spec.networkPolicy`, so the operator only ever `Get`s and `SafeDeleteWithFinalizer` returns early
-on `NotFound`. RBAC was picked up live — no pod restart. Counter 3 → 72 within six minutes,
-rate back to the 0.05/s baseline, alert cleared.
+**Fix** (`63c456a2`): an extra ClusterRole and ClusterRoleBinding in
+`monitoring/controllers/victoria-metrics/operator-networkpolicy-rbac.yaml` that grant
+`networkpolicies` `get/list/watch`. Read-only access is enough, because nothing in this cluster sets
+`.spec.networkPolicy`. So the operator only ever `Get`s, and `SafeDeleteWithFinalizer` returns early
+on `NotFound`. The operator picked up the new permissions without a pod restart. Within six minutes
+the counter rose from 3 to 72, the rate returned to its usual 0.05/s, and the alert cleared.
 
-**Removing the workaround is two commits, not one.** kustomize-controller prunes the file the moment
-it applies, while the chart's own grant only lands when helm-controller finishes the upgrade. Bump
-the chart, confirm `kubectl get clusterrole victoria-metrics-operator` lists `networkpolicies`, then
-delete the file.
+**Removing the workaround takes two commits, not one.** kustomize-controller deletes the extra role
+as soon as it applies a commit without the file. The chart's own grant arrives only when
+helm-controller finishes the upgrade. So bump the chart first. Then confirm that
+`kubectl get clusterrole victoria-metrics-operator` lists `networkpolicies`. Only then delete the
+file.
 
-**Follow-on** (`35dfcf57`) — the same operator upgrade added a second endpoint (`targetPort: 8435`)
-to the VMServiceScrape it generates for VMAlert, pointing at the `config-reloader` sidecar.
-`vmalert-network-policy` allowed only 8080, so the new scrape came back `connection refused`
-(kube-router REJECT) and `ScrapeTargetDown` fired. Added an 8435 ingress rule scoped to
-`podSelector: app.kubernetes.io/name: vmagent` — the only scraper of that port — rather than
-widening the existing namespace-wide 8080 block.
-vmagent's own reloader target was healthy throughout because that scrape is same-pod traffic, which
-NetworkPolicy never evaluates — a reminder that "one of the two identical targets is up" says
-nothing about the policy.
+**Follow-on fix** (`35dfcf57`). The same operator upgrade added a second endpoint
+(`targetPort: 8435`) to the VMServiceScrape that it generates for VMAlert. The new endpoint points
+at the `config-reloader` sidecar (a helper container in the same pod). `vmalert-network-policy`
+allowed only port 8080, so the new scrape got `connection refused` (a REJECT from kube-router) and
+`ScrapeTargetDown` fired. The fix added an ingress rule for 8435, limited to
+`podSelector: app.kubernetes.io/name: vmagent`. vmagent is the only scraper of that port. The fix did not
+widen the existing 8080 rule, which admits the whole namespace. vmagent's own reloader target stayed
+healthy the whole time, because that scrape is traffic inside one pod, and NetworkPolicy never
+checks such traffic. So if one of two identical targets is up, that says nothing about the policy.
 
-**Process note.** `63c456a2` was shipped from a Telegram bot session that skipped the pre-commit
-review loop. The retro-active Codex review returned APPROVE-WITH-LOW; its one finding was the
-two-commit removal ordering above. The incident summary written in that session also had two facts
-wrong — "no controllers started" (all 25 did) and "flat at 1 for 105 min" (flat at 3 for 124) —
-both corrected here against live metrics.
+**Process note.** A Telegram bot session shipped `63c456a2` and skipped the pre-commit review loop.
+The Codex review done afterwards returned APPROVE-WITH-LOW. Its one finding was the two-commit order
+for removing the workaround, described above. The incident summary written in that session also got
+two facts wrong. Both are corrected here against live metrics:
+
+| The summary said | Live metrics showed |
+|---|---|
+| "no controllers started" | all 25 started |
+| "flat at 1 for 105 min" | flat at 3 for 124 minutes |
 
 **Closed the same day.** Upstream issue
-[#3129](https://github.com/VictoriaMetrics/helm-charts/issues/3129) + PR
-[#3130](https://github.com/VictoriaMetrics/helm-charts/pull/3130) (`- networkpolicies` added to
-`templates/role.yaml`) were filed at ~13:0x UTC, merged by a maintainer at 13:21, and chart
-**0.67.1** was published at 13:24 — appVersion unchanged at v0.74.0, so the bump carries the RBAC
-fix and nothing else (proved by a `dyff` of both rendered charts: only the ClusterRole rule and the
-`helm.sh/chart` label differ). Bumped in `6ef450ac`, workaround deleted in the follow-up commit.
+[#3129](https://github.com/VictoriaMetrics/helm-charts/issues/3129) and PR
+[#3130](https://github.com/VictoriaMetrics/helm-charts/pull/3130) (which adds `- networkpolicies` to
+`templates/role.yaml`) were filed at about 13:0x UTC. A maintainer merged the PR at 13:21, and chart
+**0.67.1** was published at 13:24. Its appVersion stays at v0.74.0, so the new chart carries the
+RBAC fix (the fix to its permissions under Kubernetes role-based access control) and nothing else. A
+`dyff` of both rendered charts proved that: only the ClusterRole rule and the `helm.sh/chart` label
+differ. `6ef450ac` bumped the chart, and the next commit deleted the workaround.
 
-**The two-commit rule paid for itself on the first try.** After merging the bump, the chart-owned
-ClusterRole still did NOT list `networkpolicies` — the HelmRelease was stuck on
+**The two-commit rule proved its worth the first time it was used.** After the bump merged, the
+ClusterRole that the chart owns still did NOT list `networkpolicies`. The HelmRelease was stuck on
 `no 'victoria-metrics-operator' chart with version matching '0.67.1' found`, because
-source-controller's cached HelmRepository index predated the release. A same-commit removal would
-have pruned the workaround into exactly that gap and re-opened the outage. `flux reconcile source
-helm victoriametrics -n monitoring` refreshed the index, the upgrade went through (release v21),
-and only then did the gate command show `[ingresses, ingresses/finalizers, networkpolicies]`.
-**Generalises: a Helm chart version bump is not applied until source-controller has re-indexed the
-repo — check `lastAppliedRevision`, never assume the merge did it.**
+source-controller's cached index of the HelmRepository was older than the release. If the same
+commit had removed the workaround, Flux would have deleted it during that gap and brought the outage
+back. `flux reconcile source
+helm victoriametrics -n monitoring` refreshed the index, and the upgrade went through (release v21).
+Only then did the check command show `[ingresses, ingresses/finalizers, networkpolicies]`.
+**The general rule: a Helm chart version bump is not applied until source-controller has re-read
+the repository index. Check `lastAppliedRevision`; never assume the merge applied it.**
 
-Same class as
-[#3102](https://github.com/VictoriaMetrics/helm-charts/issues/3102) (chart ClusterRole missing the
-VPA grant), fixed in chart 0.66.3 ten days earlier.
+This is the same kind of bug as [#3102](https://github.com/VictoriaMetrics/helm-charts/issues/3102),
+where the chart's ClusterRole lacked the VPA grant (permission for VerticalPodAutoscaler objects).
+Chart 0.66.3 fixed that one ten days earlier.
 
-### 2026-07-27 — Replication was uploading 129G to the NAS every night and deleting it minutes later
+### 2026-07-27 — Backup replication uploaded 129G to the NAS every night and deleted it minutes later
 
-Found while verifying the first full backup cycle after the couchbackup `--parallelism 1` fix.
-That cycle was clean, but the replication log showed `sent 138,678,853,989 bytes` with
-`speedup is 1.00`, then `pruning dir: immich/20260712_030000` and `immich/20260705_030002` a few
-lines later. Same job, same run: upload 129G, delete 129G.
+The problem showed up during a check of the first full backup cycle after the couchbackup
+`--parallelism 1` fix. That cycle was clean. But the replication log showed
+`sent 138,678,853,989 bytes` with `speedup is 1.00`, and a few lines later
+`pruning dir: immich/20260712_030000` and `immich/20260705_030002`. The same job, in the same run,
+uploaded 129G and then deleted 129G.
 
-**Two jobs were fighting.** `immich-backup` (weekly) writes to `/mnt/extra-storage/immich-backup`
-and publishes to the NAS **itself** (`POOL=…/backups/homelab/immich`), keeping 2 local
-generations. `backup-replication` (nightly) syncs a *different* hostPath,
-`/mnt/k8s-storage/backups/`, to the same NAS root — and that directory still held 129G of stale
-generations from before immich-backup moved to extra-storage. Step 4's `rm -rf` covers only
-postgres/couchdb/mysql/pvc, so nothing ever cleaned it. Each night Step 2 re-uploaded those dirs
-(genuinely absent on the NAS), and Step 4b's `keep-2` pruned them again because the two newest are
-the ones immich-backup pushed directly.
+**Two jobs worked against each other.** `immich-backup` runs weekly. It writes to
+`/mnt/extra-storage/immich-backup` and copies to the NAS **itself**
+(`POOL=…/backups/homelab/immich`), keeping 2 generations locally. `backup-replication` runs nightly.
+It copies a *different* folder on the node (a hostPath), `/mnt/k8s-storage/backups/`, to the same
+root folder on the NAS. That folder still held 129G of old generations from before immich-backup
+moved to extra-storage. Step 4's `rm -rf` covers only postgres/couchdb/mysql/pvc, so nothing ever
+cleaned the folder. Each night Step 2 uploaded those generations again, because they really were
+missing on the NAS. Then Step 4b's `keep-2` (keep the two newest) deleted them again, because the
+two newest are the ones immich-backup copied there directly.
 
-`speedup is 1.00` was the tell, and it is **not** an rsync tuning problem — the files really were
-missing at the destination. No flag was missing; the pipeline was circular. (Not to be confused
-with the retracted 2026-07-26 claim about `-r` without `-t`, which was wrong — see `e4c3eed7`.)
+`speedup is 1.00` was the sign. It is **not** an rsync tuning problem, because the files really were
+missing at the destination. No flag was missing: each night one step uploaded what a later step
+deleted. (This is a different matter from the withdrawn 2026-07-26 claim about `-r` without `-t`,
+which was wrong; see `e4c3eed7`.)
 
-**Fix:** `--exclude='/immich/'` on the Step 2 rsync. Replication has no business touching a path
-another job owns.
+**Fix:** `--exclude='/immich/'` on the Step 2 rsync. Replication must not touch a path that another
+job owns.
 
-**Anchored deliberately.** `immich/` unanchored matches at any depth and would silently drop a
-future `pvc/<ts>/immich/…` if that namespace ever gains a critical PVC — it has none today, which
-is exactly why the mistake would go unnoticed. Codex catch; proved both ways with a local rsync
-fixture before shipping.
+**The leading slash is deliberate.** Without it, `immich/` matches at any depth. If the immich
+namespace ever gains a critical PVC (a request for persistent storage), the pattern without the
+slash would skip a future `pvc/<ts>/immich/…` without any warning. The
+namespace has none today, which is why nobody would notice the mistake. Codex caught this. A local
+rsync test with sample files proved both behaviours before the change shipped.
 
-Coverage is unchanged: the immich **database** is dumped nightly by `postgres-backup` into
-`/source-backups/postgres/` (verified in the same run), and the immich **library** reaches the NAS
-weekly from immich-backup's own push. Step 1 validates only postgres/couchdb/mysql/pvc — the "4
-validated artifact(s)" — so the exclude cannot affect validation or the Step 3 NAS check.
+What gets backed up is unchanged. `postgres-backup` dumps the immich **database** nightly into
+`/source-backups/postgres/` (checked in the same run). The immich **library** reaches the NAS weekly
+through immich-backup's own copy. Step 1 checks only postgres/couchdb/mysql/pvc, the "4 validated
+artifact(s)". So the exclude cannot affect that check or the Step 3 check on the NAS.
 
-**Verified 2026-07-28** on the first unattended run after the fix (`backup-replication-29753490`):
-`sent 126,326,404 bytes` — 120 MiB against the previous 129 GiB, a ~1,100× drop. Step 4b pruned
-only `pvc/20260628_135136` (ordinary 30-day retention); no `immich/` dir was pruned, which is the
-direct evidence the upload-then-delete cycle is gone. Step 3 still reported all 4 validated
-artifacts on the NAS and Step 4 still cleaned the source. The NAS immich pool holds exactly
-`20260719_030004` and `20260726_030007` — keep-2 intact, and the 07-26 generation arrived from
-immich-backup's own push, so excluding it from replication costs nothing.
+**Verified 2026-07-28** on the first run after the fix that ran without anyone operating it
+(`backup-replication-29753490`): `sent 126,326,404 bytes`. That is 120 MiB against the previous 129
+GiB, about 1,100 times less. Step 4b deleted only `pvc/20260628_135136`, under the usual 30-day
+retention. It deleted no `immich/` folder, which directly shows that the upload-then-delete cycle is
+gone. Step 3 still reported all 4 validated artifacts on the NAS, and Step 4 still cleaned the
+source. The NAS immich storage pool holds exactly `20260719_030004` and `20260726_030007`, so keep-2
+still holds. The 07-26 generation came from immich-backup's own copy, so leaving it out of
+replication loses nothing.
 
-The 129G of stale worker-node dirs were deleted manually the same day; `/source-backups/immich/`
-now measures 4.0K in the replication log. Nothing further is open here.
+A manual cleanup the same day deleted the 129G of old folders on worker-node. The replication log
+now shows `/source-backups/immich/` at 4.0K. Nothing further is open here.
 
-### 2026-07-26 — cert-manager PDBs enabled; and a same-day correction to the B6-2 autogen claim
+### 2026-07-26 — cert-manager PDBs turned on, and a same-day correction to the B6-2 claim about autogen
 
-**Correction first, because it invalidates something written earlier today.** The B6-2 entry below
-claimed Kyverno autogen copies `matchConditions` **verbatim** into its controller clones. That is
-**wrong**. Autogen rewrites `object.metadata` to the pod-template path in matchConditions as well
-as in validations — `object.spec.template.metadata.labels` for controllers,
-`object.spec.jobTemplate.spec.template.metadata.labels` for CronJobs. Only `request.namespace` is
-left alone, which is precisely why namespace tests are safe there. `.claude/review-invariants.md`
-already recorded this correctly; the claim contradicted it and should have been caught on the way in.
+**The correction comes first, because it overturns something written earlier the same day.** The
+B6-2 entry below claimed that Kyverno autogen copies `matchConditions` **word for word** into the
+rules it generates for controllers. (Autogen turns a rule written for pods into matching rules for
+the controllers that create pods, such as Deployments and CronJobs.) That claim is **wrong**.
+Autogen rewrites `object.metadata` to the path of the pod template, in matchConditions as well as in
+validations:
 
-Root cause of the error: the reading came from the *old* policy, whose matchConditions contained
-nothing but `request.namespace` — a value that is never rewritten — and generalised from that one
-case. The offline autogen tests were then built by hand-reproducing the rules with `yq`, rewriting
-only `validations`. That reproduced a policy shape Kyverno never emits, so those tests confirmed
-the mistaken model instead of catching it.
+| Kind | Rewritten path |
+|---|---|
+| controllers | `object.spec.template.metadata.labels` |
+| CronJobs | `object.spec.jobTemplate.spec.template.metadata.labels` |
 
-Consequences, all cosmetic — **the shipped policy is correct and unchanged**:
+Autogen leaves only `request.namespace` unchanged, which is why namespace tests are safe there.
+`.claude/review-invariants.md` already recorded this correctly. The claim contradicted that file,
+and review should have caught it before it went in.
 
-- The five backup CronJobs' `app` labels on `metadata` and `spec.jobTemplate.metadata` were
-  unnecessary; their pod templates already carried `app`. Removed, along with the comments that
-  asserted the false rule.
-- The B6-2 plan's assumptions C2/C3 are marked REFUTED, and its offline autogen test rows marked
-  unsound. The **live** post-deploy probes are what validate the change and they stand: five
-  CronJobs produced admittable Jobs, three hostPath controllers still admitted, and a hostPath pod
-  was denied in each of the five namespaces.
+Why the error happened: the claim came from reading the *old* policy, whose matchConditions held
+only `request.namespace`, a value autogen never rewrites. The claim then generalised from that one
+case. The offline autogen tests rebuilt the generated rules by hand with `yq`, and rewrote only
+`validations`. That produced a policy shape that Kyverno never creates, so the tests confirmed the
+wrong model instead of catching it.
 
-Lesson, now in the invariants file: **read autogen, never reconstruct it** —
+The consequences are all cosmetic. **The shipped policy is correct and unchanged**:
+
+- The `app` labels on `metadata` and `spec.jobTemplate.metadata` of the five backup CronJobs were
+  not needed, because their pod templates already carried `app`. They are removed, together with
+  the comments that stated the false rule.
+- The B6-2 plan now marks its assumptions C2/C3 REFUTED, and its offline autogen test rows unsound.
+
+The **live** checks after deploy are what prove the change, and they still hold:
+
+| Check | Result |
+|---|---|
+| five CronJobs | produced Jobs that admission accepted |
+| three controllers that use hostPath | still accepted |
+| a pod using hostPath, in each of the five namespaces | denied |
+
+The lesson, now in the invariants file: **read the autogen output, never rebuild it by hand**. Use
 `kubectl get vpol <name> -o json | jq .status.autogen`. A hand-built model of a generator tests the
 model, not the generator.
 
-**cert-manager PDBs enabled** (`podDisruptionBudget.enabled: true`, `minAvailable: 1` on the
-controller, webhook and cainjector). The chart's own values recommend it whenever
-`replicaCount > 1`, and this repo runs 2. Safe at 2 replicas: `disruptionsAllowed` lands on 1 so
-drains still proceed — unlike `main-postgres-primary`, which sits at 0 by design. Required
-anti-affinity plus `serial: 1` node maintenance already kept one replica up; this makes it
-structural rather than incidental. Verified by rendering the chart: all three PDBs materialise and
-their selectors match 2 live pods each.
+**cert-manager PDBs turned on.** A PodDisruptionBudget (PDB) limits how many of an app's pods a
+drain (removing application pods from a node before maintenance) may stop at once. The change sets
+`podDisruptionBudget.enabled: true` and `minAvailable: 1` on the controller, the webhook and
+cainjector. The chart's own values recommend a PDB whenever `replicaCount > 1`, and this repo runs
+2. It is safe at 2 replicas: `disruptionsAllowed` comes out at 1, so drains still proceed. That
+differs from `main-postgres-primary`, which stays at 0 by design. Required anti-affinity (a rule
+that keeps the replicas on different nodes) and node maintenance with `serial: 1` already kept one
+replica up. The PDB now enforces that, rather than leaving it to how other settings happen to
+combine. Rendering the chart confirmed the change: all three PDBs appear, and each selector (the
+labels a PDB uses to choose its pods) matches 2 live pods.
 
-**cnpg-operator deliberately left without one.** Chart `cloudnative-pg` 0.29.0 exposes no PDB
-value (checked the full 27KB of values — zero mentions of `disruption` or `pdb`), so covering it
-needs a standalone manifest with a hand-maintained selector that would go silently inert on a
-chart relabel. Marginal benefit, real upkeep.
+**cnpg-operator stays without a PDB on purpose.** Chart `cloudnative-pg` 0.29.0 has no PDB setting:
+the full 27KB of values mentions neither `disruption` nor `pdb`. So covering the operator needs a
+separate manifest with a selector kept up to date by hand. If a chart release changed the labels,
+that selector would stop matching anything, and nothing would report it. The benefit is small, and
+the upkeep is real.
 
 ### 2026-07-26 — `PodNotReady` measured phase, not readiness — renamed, and the real gap closed
 
