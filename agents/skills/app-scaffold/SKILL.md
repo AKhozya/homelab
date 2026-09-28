@@ -61,7 +61,7 @@ apps/<app>/                   # all manifests in ONE flat dir (single-env; F-13 
 - **SOPS-encrypted only**. No plain Secrets in repo.
 - DB password Secret labels:
   - Postgres: `cnpg.io/cluster: main-postgres` + `cnpg.io/reload: "true"`
-  - MySQL: no Percona `User` CR exists. Create the user by hand with SQL (`CREATE USER` + `GRANT`) through `db-operations/scripts/mysql-exec.sh`. Add its `CREATE USER` line, with a placeholder password, to `docs/disaster-recovery/mysql-create-dbs.sql`.
+  - MySQL: no Percona `User` CR exists. Create the user by hand with SQL (`CREATE USER` + `GRANT`) through `db-operations/scripts/mysql-exec.sh <db> -`, with the SQL on stdin so the password stays out of argv. Add its `CREATE USER` line, with a placeholder password, to `docs/disaster-recovery/mysql-create-dbs.sql`.
 - DB role NOT auto-created from labeled Secret. Add to `infrastructure/configs/databases/postgres/cluster.yaml` `managed.roles[]`. (Why/error 42704: memory `gotchas.md` "CNPG roles must be in cluster.yaml managed.roles".)
 - **DB username = app name** (invariant).
 

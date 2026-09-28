@@ -69,8 +69,7 @@ done <<<"$pods"   # not `for p in $pods`: zsh does not word-split an unquoted va
 ```bash
 kubectl get pods -n databases -l app=couchdb -o wide
 # Cluster membership / replication health
-kubectl exec -n databases sts/couchdb-couchdb -- \
-  curl -s -u <admin>:<password> http://localhost:5984/_membership
+bash ~/.agents/skills/db-operations/scripts/couchdb-exec.sh /_membership   # creds on stdin, not argv
 ```
 
 ### Redis (Sentinel) — use helper
@@ -79,9 +78,8 @@ bash ~/.agents/skills/db-operations/scripts/redis-master.sh info   # INFO replic
 ```
 Or raw via Sentinel API:
 ```bash
-PW=$(kubectl get secret -n databases redis-passwords -o jsonpath='{.data.admin-password}' | base64 -d)
 kubectl exec -n databases sts/redis-sentinel-sentinel -- \
-  redis-cli -p 26379 SENTINEL master myMaster | head -20
+  redis-cli -p 26379 SENTINEL master myMaster | head -20   # sentinel port: no password
 ```
 NOTE: `| head -1` under `set -o pipefail` SIGPIPE-kills upstream — use `| awk 'NR==1'` if scripting.
 

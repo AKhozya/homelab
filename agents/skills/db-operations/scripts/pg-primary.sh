@@ -5,6 +5,7 @@
 # Usage:
 #   pg-primary.sh                            # prints primary pod name
 #   pg-primary.sh exec <db> -c "QUERY"       # one-shot psql via primary
+#   pg-primary.sh exec <db> -                # SQL on stdin; stops at the first error
 #   pg-primary.sh shell <db>                 # interactive psql
 
 set -euo pipefail
@@ -29,6 +30,12 @@ exec)
   if [ -z "$DB" ]; then
     echo "usage: $0 exec <db> -c \"QUERY\"" >&2
     exit 2
+  fi
+  # "-" reads the SQL from stdin, which keeps a password in the SQL out of argv. -i only here: if
+  # the -c path also used -i, kubectl would consume the caller's stdin, including a while-read
+  # loop's input.
+  if [ "${1:-}" = "-" ]; then
+    exec kubectl exec -i -n "$NS" "$PRIMARY" -- psql -U postgres -d "$DB" -v ON_ERROR_STOP=1 -f -
   fi
   exec kubectl exec -n "$NS" "$PRIMARY" -- psql -U postgres -d "$DB" "$@"
   ;;

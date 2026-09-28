@@ -21,6 +21,7 @@ CNPG renumbers pods — never hardcode `main-postgres-1`. Use the script:
 ```bash
 bash ~/.agents/skills/db-operations/scripts/pg-primary.sh                       # print primary pod
 bash ~/.agents/skills/db-operations/scripts/pg-primary.sh exec <db> -c "QUERY"  # one-shot
+printf '%s\n' "$SQL" | bash ~/.agents/skills/db-operations/scripts/pg-primary.sh exec <db> -   # SQL that holds a password: stdin
 bash ~/.agents/skills/db-operations/scripts/pg-primary.sh shell <db>            # interactive psql
 
 # Override cluster/ns: PG_CLUSTER=... PG_NS=... bash .../pg-primary.sh ...
@@ -34,9 +35,11 @@ mysql://<user>:<password>@main-mysql-haproxy.databases.svc.cluster.local:3306/<d
 ```
 
 **Admin queries via helper (password + HAProxy auto-wired)**:
-PerconaServerMySQL `.status` does NOT expose primary; HAProxy routes regardless. Use the script:
+PerconaServerMySQL `.status` does NOT expose primary; HAProxy routes regardless. Use the script.
+It reads the root password inside the pod, so the password is in no argv:
 ```bash
 bash ~/.agents/skills/db-operations/scripts/mysql-exec.sh <db> "SELECT NOW()"
+printf '%s\n' "$SQL" | bash ~/.agents/skills/db-operations/scripts/mysql-exec.sh <db> -   # SQL that holds a password: stdin
 bash ~/.agents/skills/db-operations/scripts/mysql-exec.sh --shell <db>
 ```
 Replica status needs the replica pod, not HAProxy: `reference-ops.md` § Replication Status.

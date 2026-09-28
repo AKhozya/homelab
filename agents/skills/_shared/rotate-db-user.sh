@@ -139,15 +139,16 @@ fi
 if [ "$no_alter" = 0 ]; then
   if [ "$ENGINE" = mysql ]; then
     SQL="ALTER USER '$DB_USER'@'%' IDENTIFIED BY '$PW';"
-    CMD=("$DBOPS/mysql-exec.sh" "$DB" "$SQL")
+    CMD=("$DBOPS/mysql-exec.sh" "$DB" -)
   else
     SQL="ALTER ROLE \"$DB_USER\" WITH PASSWORD '$PW';"
-    CMD=("$DBOPS/pg-primary.sh" exec "$DB" -c "$SQL")
+    CMD=("$DBOPS/pg-primary.sh" exec "$DB" -)
   fi
+  # The SQL holds the password, so it goes on stdin, never in argv.
   if [ "$dry" = 1 ]; then
-    echo "[dry-run] ${CMD[*]//"$PW"/<pw>}"
+    echo "[dry-run] ${CMD[*]}  <<< ${SQL//"$PW"/<pw>}"
   else
-    "${CMD[@]}" >/dev/null
+    printf '%s\n' "$SQL" | "${CMD[@]}" >/dev/null
     echo "✅ live ALTER applied on $ENGINE user '$DB_USER'"
   fi
 fi

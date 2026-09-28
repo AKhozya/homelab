@@ -15,7 +15,6 @@
 set -euo pipefail
 NS="${REDIS_NS:-databases}"
 SENTINEL_STS="${REDIS_SENTINEL_STS:-redis-sentinel-sentinel}"
-DATA_STS="${REDIS_DATA_STS:-redis-replication}"
 MASTER_NAME="${REDIS_MASTER_NAME:-myMaster}"
 LABEL_SELECTOR="${REDIS_LABEL_SELECTOR:-app=redis-replication,redis-role=master}"
 
@@ -40,12 +39,14 @@ if [ -z "$MASTER" ]; then
   exit 3
 fi
 
-# Password lives in `redis-passwords` secret (multi-tenant — admin-password = ops key).
-# Fall back to no auth if secret/key missing; data-plane may not require it.
-PW="$(kubectl get secret -n "$NS" redis-passwords -o jsonpath='{.data.admin-password}' 2>/dev/null | base64 -d 2>/dev/null || true)"
-
-AUTH=()
-[ -n "$PW" ] && AUTH=(-a "$PW")
+# redis-cli runs in the sentinel container, which already holds the ops password as
+# MASTER_PASSWORD (from redis-passwords/admin-password). REDISCLI_AUTH passes it without an argv
+# entry, and the password never leaves the pod. An empty MASTER_PASSWORD means no auth.
+# shellcheck disable=SC2016
+IN_POD='[ -z "${MASTER_PASSWORD:-}" ] || export REDISCLI_AUTH="$MASTER_PASSWORD"; exec redis-cli "$@"'
+cli() {
+  exec kubectl exec -n "$NS" "sts/${SENTINEL_STS}" -c "$SENTINEL_STS" -- sh -c "$IN_POD" in-pod "$@"
+}
 
 ACTION="${1:-print}"
 case "$ACTION" in
@@ -53,8 +54,7 @@ print)
   echo "$MASTER"
   ;;
 info)
-  exec kubectl exec -n "$NS" "sts/${DATA_STS}" -- \
-    redis-cli -h "$MASTER" "${AUTH[@]}" INFO replication
+  cli -h "$MASTER" INFO replication
   ;;
 exec)
   shift
@@ -62,8 +62,7 @@ exec)
     echo "usage: $0 exec <redis-cli args...>" >&2
     exit 2
   fi
-  exec kubectl exec -n "$NS" "sts/${DATA_STS}" -- \
-    redis-cli -h "$MASTER" "${AUTH[@]}" "$@"
+  cli -h "$MASTER" "$@"
   ;;
 *)
   echo "unknown action: $ACTION (print|info|exec)" >&2
