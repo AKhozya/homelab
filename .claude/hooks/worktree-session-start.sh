@@ -6,7 +6,11 @@
 # other repos, and when the solo-mode sentinel is present.
 set -euo pipefail
 
-HOMELAB_MAIN=/Users/akhozya/source-code/homelab
+# This repo's main working tree, found from the hook's own location, so a clone at any
+# path works. The first `worktree` entry is always the main tree.
+HOMELAB_MAIN=$(git -C "$(dirname "${BASH_SOURCE[0]}")" worktree list --porcelain 2>/dev/null |
+  awk '/^worktree /{print substr($0, 10); exit}') || exit 0
+[[ -n "$HOMELAB_MAIN" ]] || exit 0
 
 proj=$(cd "${CLAUDE_PROJECT_DIR:-$PWD}" 2>/dev/null && pwd) || exit 0
 [[ "$proj" == "$HOMELAB_MAIN" ]] || exit 0

@@ -30,8 +30,8 @@ Do **not** duplicate cluster facts here; add them to `AGENTS.md` instead.
 ### Hooks (`.claude/settings.json`)
 
 - **PreToolUse `worktree-guard.sh`** — BLOCKS `Edit`/`Write`/`MultiEdit` on the
-  pristine main tree (`/Users/akhozya/source-code/homelab`) so concurrent
-  sessions can't stomp each other. Fail-open. Escape: `touch
+  pristine main tree (the first entry of `git worktree list`, so any clone path
+  works) so concurrent sessions can't stomp each other. Fail-open. Escape: `touch
   .claude/.allow-main-edits` (solo session) or `WORKTREE_GUARD_SKIP=1` (one-off).
 - **SessionStart `worktree-session-start.sh`** — nudges sessions that start in
   the main tree toward a worktree (it can't move cwd; the PreToolUse guard is
@@ -58,10 +58,26 @@ against the `~/.claude/skills` or `~/.agents/skills` trees: those live in the
 dotfiles repo, outside this repo's pre-commit review gate, and one of them
 rewrites live database passwords.
 
-The `deny` entries name the two backup CronJobs whose re-run is destructive, in
-both the `--from=` and `--from ` spellings, because the rules match command text
-and a pattern list never covers every spelling a tool accepts. Treat them as a
-backstop on a verb that already prompts, not as the control.
+The `deny` entries block these commands:
+
+| Denied | Why |
+|---|---|
+| `create job --from` either backup CronJob | a re-run of either is destructive |
+| `delete pod` with `--force` or `--grace-period=0` | a force delete skips graceful shutdown; AGENTS.md forbids it on DB pods |
+| `get` with `secret` or `Secret` anywhere after it | the `get *` allow would otherwise print Secret values |
+| `get` with `-f`, `--filename`, `-k` or `--kustomize` | a file or Kustomization can name a Secret without the word appearing in the command |
+
+The rules match command text, and a pattern list never covers every spelling a
+tool accepts, so they block only the spellings they list (a combined short flag
+such as `-Af` is one they miss). Each `get` rule is a
+substring match, so it also refuses a harmless read that mentions "secret"; the
+cluster has no other resource type or namespace with that word in its name.
+Only a kubeconfig without Secret read access would block every spelling, and the
+operator's kubeconfig is cluster-admin.
+
+`kubectl apply --dry-run=server *` stays allowed by operator decision
+(2026-09-28). kubectl honours the last `--dry-run` flag, so a later
+`--dry-run=none` on the same line turns the allowed command into a real apply.
 
 This allowlist is a permission-prompt convenience — it does **not** relax the
 **GitOps-only** invariant in `AGENTS.md` (live mutation still goes through

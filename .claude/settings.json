@@ -43,7 +43,23 @@
       "Bash(kubectl create job *--from=cronjob/backup-replication*)",
       "Bash(kubectl create job *--from cronjob/backup-replication*)",
       "Bash(kubectl create job *--from=cronjob/immich-backup*)",
-      "Bash(kubectl create job *--from cronjob/immich-backup*)"
+      "Bash(kubectl create job *--from cronjob/immich-backup*)",
+      "Bash(kubectl delete po*--force*)",
+      "Bash(kubectl delete po*--grace-period=0*)",
+      "Bash(kubectl delete po*--grace-period 0*)",
+      "Bash(kubectl * delete po*--force*)",
+      "Bash(kubectl * delete po*--grace-period=0*)",
+      "Bash(kubectl * delete po*--grace-period 0*)",
+      "Bash(kubectl get *secret*)",
+      "Bash(kubectl get *Secret*)",
+      "Bash(kubectl * get *secret*)",
+      "Bash(kubectl * get *Secret*)",
+      "Bash(kubectl get -f*)",
+      "Bash(kubectl get * -f*)",
+      "Bash(kubectl get *--filename*)",
+      "Bash(kubectl get -k*)",
+      "Bash(kubectl get * -k*)",
+      "Bash(kubectl get *--kustomize*)"
     ]
   },
   "hooks": {

@@ -24,9 +24,10 @@ case "$file_path" in
         # Already editing HOMELAB_ANALYSIS.md? Skip.
         [[ "$file_path" == *HOMELAB_ANALYSIS.md ]] && exit 0
 
-        # Print reminder to stderr (Claude sees it)
-        echo "[homelab] changed: ${file_path##*/homelab/}" >&2
-        echo "[homelab] reminder: update docs/HOMELAB_ANALYSIS.md if this is a meaningful infra/app change." >&2
+        # PostToolUse stderr on exit 0 reaches only the debug log; additionalContext
+        # is what Claude reads.
+        jq -nc --arg ctx "[homelab] changed: ${file_path##*/homelab/}. Update docs/HOMELAB_ANALYSIS.md if this is a meaningful infra/app change." \
+          '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
         ;;
     esac
     ;;

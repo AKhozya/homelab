@@ -10,7 +10,11 @@
 # One-off bypass: WORKTREE_GUARD_SKIP=1
 set -euo pipefail
 
-HOMELAB_MAIN=/Users/akhozya/source-code/homelab
+# This repo's main working tree, found from the hook's own location, so a clone at any
+# path works. The first `worktree` entry is always the main tree.
+HOMELAB_MAIN=$(git -C "$(dirname "${BASH_SOURCE[0]}")" worktree list --porcelain 2>/dev/null |
+  awk '/^worktree /{print substr($0, 10); exit}') || exit 0
+[[ -n "$HOMELAB_MAIN" ]] || exit 0
 
 [[ "${WORKTREE_GUARD_SKIP:-0}" == "1" ]] && exit 0
 [[ -f "$HOMELAB_MAIN/.claude/.allow-main-edits" ]] && exit 0
@@ -26,7 +30,7 @@ while [[ "$dir" != "/" && ! -d "$dir" ]]; do dir=$(dirname "$dir"); done
 # Outside any git repo (e.g. ~/.claude dotfiles) -> not our concern.
 toplevel=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
 # The first `worktree` entry is always the main working tree.
-main_tree=$(git -C "$dir" worktree list --porcelain 2>/dev/null | awk '/^worktree /{print $2; exit}')
+main_tree=$(git -C "$dir" worktree list --porcelain 2>/dev/null | awk '/^worktree /{print substr($0, 10); exit}')
 [[ -z "$main_tree" ]] && exit 0
 
 # Only guard the homelab main tree; never block edits to other repos.
