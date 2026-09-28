@@ -219,81 +219,148 @@ nor `curl`. Loki is now read over `kubectl port-forward -n loki svc/loki`. Secon
 `|= "admin"` hid the `{"message": …}` line that named the cause, because a Job prints its diagnosis
 on the line after its headline.
 
-### 2026-09-08 — The failed NAS drive was replaced and md1 rebuilt clean
+### 2026-09-08 — The failed NAS drive was replaced, and md1 rebuilt clean
 
-`WS21F7E8`, the SMART-failed `md1` member written up on 2026-08-02 and still in
-the array when it stalled the 2026-09-06 scrub, was swapped on 2026-09-08. The
-NAS came back up at 21:14 BST and rebuilt into the same RaidDevice slot 2. As of
-2026-09-10 the array is `[6/6] [UUUUUU]`, `degraded=0`, `array_state=clean`,
-`last_sync_action=recover`, `sync_action=idle`, all six members `in_sync`.
+`WS21F7E8` was the `md1` member drive that failed SMART, the drive's built-in health check. It was
+written up on 2026-08-02, and it was still in the array when it stalled the 2026-09-06 scrub.
+The drive was swapped on 2026-09-08. The NAS came back up at 21:14 BST and rebuilt the array onto
+the new drive, in the same position, RaidDevice slot 2. On 2026-09-10 the array reported:
+
+| Field | Meaning |
+|---|---|
+| `[6/6] [UUUUUU]` | six of six members present, all up |
+| `degraded=0` | no member missing |
+| `array_state=clean` | no unfinished writes |
+| `last_sync_action=recover` | the last sync was the rebuild |
+| `sync_action=idle` | no sync running |
+| all six members `in_sync` | every member holds current data |
 
 | Fact | Value |
 |---|---|
-| Out | `WS21F7E8` — `ST4000NE001-2MA101`, SMART FAILED, `Reallocated_Sector_Ct` 49152, `Reported_Uncorrect` 65535, `Command_Timeout` 983057 |
-| In | `WS24PTRD` — `ST4000NE001-2EN112`, firmware TN05. The Seagate warranty replacement; its model suffix differs from the five originals (`-2MA101`), so the array is no longer six identical units |
-| Prior runtime | None recorded. `Power_On_Hours` 50, `Power_Cycle_Count` 1, `Start_Stop_Count` 2, and `Head_Flying_Hours` 50h14m — all equal to the elapsed time since the swap |
+| Out | `WS21F7E8`: `ST4000NE001-2MA101`, SMART FAILED, `Reallocated_Sector_Ct` 49152, `Reported_Uncorrect` 65535, `Command_Timeout` 983057 |
+| In | `WS24PTRD`: `ST4000NE001-2EN112`, firmware TN05. It is the Seagate warranty replacement. Its model suffix differs from that of the five original drives (`-2MA101`), so the six drives in the array are no longer identical |
+| Earlier use | None recorded. `Power_On_Hours` 50, `Power_Cycle_Count` 1, `Start_Stop_Count` 2 and `Head_Flying_Hours` 50h14m all equal the time since the swap |
 | SMART baseline | PASSED. Reallocated 0, Reported_Uncorrect 0, Command_Timeout 0, Current_Pending_Sector 0, Offline_Uncorrectable 0, UDMA_CRC 0, no errors logged |
-| Temperature baseline | 52 °C current, 57 °C max, against the 60 °C `Airflow_Temperature_Cel` threshold — 3 °C of margin at its rebuild peak. Compare at the next check; the sibling drives' temperatures need `sudo smartctl` |
-| `G-Sense_Error_Rate` | 557 in 50 hours — rotational vibration from the other five bays, expected in a 6-bay chassis |
-| Device letter | Now `sdd`, which is the letter the *failing* drive carried after the 2026-09-02 reboot. Same letter, opposite meaning: identify by serial, never by letter |
+| Temperature baseline | 52 °C now and 57 °C maximum, against the 60 °C `Airflow_Temperature_Cel` threshold. At its peak during the rebuild, the drive stayed 3 °C below the threshold. Compare at the next check. Reading the other drives' temperatures needs `sudo smartctl` |
+| `G-Sense_Error_Rate` | 557 in 50 hours. The cause is rotational vibration from the other five drive bays, which is expected in a 6-bay chassis |
+| Device letter | Now `sdd`. The *failing* drive carried that letter after the 2026-09-02 reboot. The letter is the same, but it now names a different drive, so identify a drive by its serial number, never by its letter |
 
-**A rebuild is not a scrub.** The `recover` read all five surviving members
-end-to-end to reconstruct slot 2, so those five are verified readable. It did
-not read the new drive back, and it does not compute `mismatch_cnt` — the `0`
-in sysfs is uninformative after a `recover`. Both the 2026-08-02 and 2026-09-06
-checks were aborted mid-run, so the last completed check predates August.
+**A rebuild is not a scrub.** A scrub reads every drive in the array and counts the places where
+the stored data and its parity disagree. Parity is recovery data computed from the stored data. The `recover` read all five surviving members from start to end to rebuild
+slot 2, so those five drives are known to be readable. It did not read back what it wrote to the new
+drive. It also does not compute `mismatch_cnt`, so after a `recover` the `0` in sysfs (the Linux
+interface that reports kernel state as files) tells you nothing. The 2026-08-02 and 2026-09-06 checks were both stopped part-way, so the last check that
+completed dates from before August.
 
-The next scheduled check is **2026-10-04 00:57** (`/etc/cron.d/mdadm`, first
-Sunday). It is left to run on schedule rather than triggered early: the drive
-that caused the 87-second read stalls is gone, and the `homelab/dedicated=immich`
-taint applied on 2026-09-06 now caps a scrub-class stall to Immich instead of
-the five init Jobs. An early check would be `echo check > /sys/block/md1/md/sync_action`,
-roughly 8-12 hours for 14.4 TB, on a day the `192.168.1.231` iowait can be watched.
+The next scheduled check runs at **2026-10-04 00:57** (`/etc/cron.d/mdadm`, on the first Sunday of
+the month). It stays on schedule, not started early, for two reasons:
 
-### 2026-09-07 — kube-prometheus-stack 90.0.0 blocked on control-plane ServiceMonitor auth
+| Reason | Detail |
+|---|---|
+| The failing drive is gone | it caused the 87-second read stalls |
+| The taint limits a stall to Immich | the `homelab/dedicated=immich` taint, applied on 2026-09-06, now keeps a stall like the scrub's to Immich, instead of reaching the five init Jobs |
 
-Renovate merged the chart bump to `90.0.0` (#1125). The Helm upgrade failed, Flux rolled back, and the release stayed on `89.2.3` while `FluxControllerReconcileErrors` fired. Chart 90.0.0 added a `fail` in `_helpers.tpl`: every enabled control-plane component defaults `serviceMonitor.authorization` to a Secret the chart renders only when `prometheus.enabled`, `prometheus.serviceAccount.create` and `createTokenSecret` are all true. This cluster sets `prometheus.enabled: false`, so the render aborted.
+A taint marks a node. If a new pod does not tolerate the taint, Kubernetes does not schedule it on
+that node. To start a check early, run `echo check > /sys/block/md1/md/sync_action`. It takes
+roughly 8-12 hours for 14.4 TB, so run it on a day when someone can watch the iowait of
+`192.168.1.231`. Iowait is the time the CPU sits idle waiting for the disk.
 
-Nothing consumed those ServiceMonitors: no `Prometheus` CR exists and every `VM_ENABLEDPROMETHEUSCONVERTER_*` env on the vm-operator is `false`. vmagent scrapes through the hand-written VMServiceScrapes in `monitoring/configs/`.
+### 2026-09-07 — kube-prometheus-stack 90.0.0 was blocked by control-plane ServiceMonitor authorization
+
+Renovate, the bot that proposes dependency updates, merged the chart update to `90.0.0` (#1125). A
+chart is a package of templates that Helm renders into Kubernetes objects. The Helm upgrade failed.
+Flux, the tool that applies this repository to the cluster, rolled it back, and the release stayed on
+`89.2.3` while `FluxControllerReconcileErrors` fired.
+
+Chart 90.0.0 added a `fail` to `_helpers.tpl`, which stops the render with an error. For every enabled
+control-plane component, `serviceMonitor.authorization` now defaults to a Secret. If
+`prometheus.enabled`, `prometheus.serviceAccount.create` and `createTokenSecret` are all true, the
+chart creates that Secret; otherwise it does not. This cluster sets `prometheus.enabled: false`, so the
+render stopped. (A ServiceMonitor is an object that tells a monitoring agent which Service to collect
+metrics from.)
+
+No monitoring agent used those ServiceMonitors to collect metrics. No `Prometheus` custom resource (an object of a
+type that an add-on defines, not one built into Kubernetes) exists, and every
+`VM_ENABLEDPROMETHEUSCONVERTER_*` environment variable on the vm-operator is `false`. Those variables
+would make the VictoriaMetrics operator convert ServiceMonitors into its own objects. vmagent, the
+agent that collects the metrics, uses the hand-written VMServiceScrapes in `monitoring/configs/`.
 
 | Component | Treatment | Why |
 |---|---|---|
-| `kubelet`, `kubeApiServer`, `coreDns` | `serviceMonitor.authorization: null` | The chart gates each Grafana dashboard on the component's `enabled` flag, and these three dashboards hold data |
+| `kubelet`, `kubeApiServer`, `coreDns` | `serviceMonitor.authorization: null` | If a component's `enabled` flag is off, the chart does not create its Grafana dashboard, and these three dashboards hold data |
 | `kubeControllerManager`, `kubeScheduler`, `kubeProxy`, `kubeEtcd` | `enabled: false` | No VMServiceScrape, VMPodScrape, VMStaticScrape, VMScrapeConfig or vmagent `additionalScrapeConfigs` selects them, so their dashboards were empty |
 
-The scrapes survive because their selectors never pointed at chart objects: the kubelet VMServiceScrapes target the Service that **prometheus-operator** creates (`prometheusOperator.kubeletService`, gated only on itself), `coredns` targets the addon `kube-dns` Service via `k8s-app=kube-dns`, and `apiserver` targets `default/kubernetes`.
+The scrapes still work, because their selectors (the label queries that pick which Service to
+scrape) never pointed at objects the chart creates:
 
-The three retained chart ServiceMonitors now carry no `authorization`. If anyone enables `VM_ENABLEDPROMETHEUSCONVERTER_SERVICESCRAPE` on the vm-operator later, the converter turns them into unauthenticated VMServiceScrapes that duplicate the hand-written ones and fail against kubelet `https-metrics:10250` and `default/kubernetes`, which both require a bearer token. Clear or exclude them before flipping that flag.
+| Scrape | Target |
+|---|---|
+| kubelet VMServiceScrapes (the kubelet is the agent on each node that runs its pods) | the Service that **prometheus-operator** creates (`prometheusOperator.kubeletService`, which only its own setting controls) |
+| `coredns` | the addon's `kube-dns` Service, selected by `k8s-app=kube-dns` |
+| `apiserver` | `default/kubernetes` |
 
-Measured against the live 89.2.3 release, the change removes 4 ServiceMonitors, 4 kube-system Services and 4 empty dashboards. Renovate PR #1123 (89.2.4) merged as an empty diff, superseded by #1125.
+The three chart ServiceMonitors that remain now carry no `authorization`. If anyone later enables
+`VM_ENABLEDPROMETHEUSCONVERTER_SERVICESCRAPE` on the vm-operator, the converter will turn them into
+VMServiceScrapes that send no credentials. Those would duplicate the hand-written ones. They would
+also fail against kubelet `https-metrics:10250` and `default/kubernetes`, because both require a
+bearer token (a credential sent with each request). Clear or exclude the three ServiceMonitors before you turn that setting on.
 
-The `VMServiceScrape ... webhook ... EOF` Flux dry-run alert at 21:22 was unrelated and transient — it landed 14 seconds after commit `4326adbc`, `monitoring-configs` reconciled Ready at the same revision, and the vm-operator shows 0 restarts with no webhook or TLS errors in its log.
-No CI job rendered charts, so every existing job passed: `kubeconform` validates the HelmRelease custom resource, never the chart's own templates. The `helm-render` job closes that gap.
+Compared with the live 89.2.3 release, the change removes 4 ServiceMonitors, 4 kube-system Services
+and 4 empty dashboards. Renovate pull request #1123 (89.2.4) merged with an empty diff. #1125
+superseded it.
+
+The Flux dry-run alert `VMServiceScrape ... webhook ... EOF` at 21:22 was unrelated and brief.
+Three facts show that:
+
+| Fact | Detail |
+|---|---|
+| Timing | it fired 14 seconds after commit `4326adbc` |
+| Flux | `monitoring-configs` reconciled to Ready at the same revision |
+| vm-operator | 0 restarts, and no webhook or TLS errors in its log |
+
+No CI job rendered the charts, so every existing job passed. `kubeconform` validates the HelmRelease
+custom resource, never the chart's own templates. The `helm-render` job adds that missing check.
 
 | Property | Value |
 |---|---|
-| Job / script | `helm-render` in `.github/workflows/validate.yaml`, `scripts/ci/helm-render-check.sh` |
-| Added in | `2cdaa5c8`, hardened in `703f3bc5` |
-| Coverage | 12 HelmRelease charts at their pinned versions; 11 HTTP repos and 1 OCI |
-| Result on `4326adbc` (pre-fix) | `FAIL kube-prometheus-stack@90.0.0`, exit 1 |
+| Job and script | `helm-render` in `.github/workflows/validate.yaml`, `scripts/ci/helm-render-check.sh` |
+| Added in | `2cdaa5c8`, made stricter in `703f3bc5` |
+| Coverage | 12 HelmRelease charts at their pinned versions: 11 from HTTP repositories and 1 from an OCI registry |
+| Result on `4326adbc` (before the fix) | `FAIL kube-prometheus-stack@90.0.0`, exit 1 |
 | Result on the fix | 12/12 rendered, exit 0 |
-| Runtime | 9 s local, against an isolated helm repo config |
-| Required flag | `--api-versions monitoring.coreos.com/v1`, or traefik's `servicemonitor.yaml` aborts with "You have to deploy monitoring.coreos.com/v1 first" against a CRD the cluster has |
-| Silent-skip guards | Empty discovery, a malformed manifest, a HelmRepository name collision and an incomplete `spec.chart.spec` each exit 1; releases pair with values by document index |
-| Known gap | The `image-pin` and `kubeconform` jobs still download yq without a checksum; `helm-render` verifies its own |
+| Runtime | 9 s locally, with its own separate Helm repository config |
+| Required flag | `--api-versions monitoring.coreos.com/v1`. Without it, traefik's `servicemonitor.yaml` stops with "You have to deploy monitoring.coreos.com/v1 first", although the cluster has that CRD (custom resource definition) |
+| Guards against skipping a chart without notice | Finding no charts, a malformed manifest, a HelmRepository name collision and an incomplete `spec.chart.spec` each exit 1. Releases pair with values by document index |
+| Known gap | The `image-pin` and `kubeconform` jobs still download yq without a checksum. `helm-render` verifies its own |
 
-### 2026-09-06 — Immich ML inference moves to the immich-vm iGPU (OpenVINO)
+### 2026-09-06 — Immich machine-learning inference moved to the immich-vm integrated GPU (OpenVINO)
 
-Immich ML moved to immich-vm earlier on 2026-09-06 and ran there on the CPU. The `-openvino` image puts inference on the VM's Meteor Lake Arc iGPU through ONNX Runtime's OpenVINO execution provider. Commit `4a5255cf`; plan `docs/plans/2026-09-06-immich-ml-openvino.md`.
+Earlier on 2026-09-06, the Immich machine-learning (ML) service moved to immich-vm and ran there on
+the CPU. The `-openvino` image runs inference, the model computations, on the VM's Meteor Lake Arc
+integrated GPU through ONNX Runtime's OpenVINO execution provider. Commit: `4a5255cf`. Plan:
+`docs/plans/2026-09-06-immich-ml-openvino.md`.
 
 | Change | Detail |
 |---|---|
 | Image | `immich-machine-learning:v3.1.0-openvino` (Python 3.13, onnxruntime-openvino 1.24.1, intel-opencl-icd 26.22) |
-| GPU access | `gpu.intel.com/i915: "1"` via the Intel device plugin; pod `supplementalGroups` 983 (video), 987 (render) |
-| Memory limit | 2355Mi → 4Gi (OpenVINO keeps model buffers in system RAM); requests unchanged |
-| rapidocr mount path | `python3.11` → `python3.13`, tied to the image variant |
-| Gate | `get_available_openvino_device_ids()` = `['CPU', 'GPU']`; first `/predict` `4.52 s` (first-request latency, includes the GPU compile), warm `0.022 s`; the ML worker's i915 `drm-engine-compute` counter rose 112240128 ns → 124969624 ns (12.73 ms) across one /predict while render/copy/video/video-enhance stayed at 0 ns; a cold session reload from the compiled blob answered in 1.09 s; GPU clock peaked at 1517 MHz; journal clean |
-| Follow-ups | trim the memory limit after a week of metrics; FP16 (`MACHINE_LEARNING_OPENVINO_PRECISION`) and a larger CLIP model are separate changes |
+| GPU access | `gpu.intel.com/i915: "1"` through the Intel device plugin. The pod's `supplementalGroups` are 983 (video) and 987 (render) |
+| Memory limit | raised from 2355Mi to 4Gi, because OpenVINO keeps model buffers in system RAM. Requests (the resources Kubernetes reserves for the pod when it schedules it) unchanged |
+| rapidocr mount path | changed from `python3.11` to `python3.13`. The path follows the image variant |
+
+Gate results:
+
+| Check | Result |
+|---|---|
+| `get_available_openvino_device_ids()` | `['CPU', 'GPU']` |
+| First `/predict` | `4.52 s`. This first-request time includes compiling the model for the GPU |
+| A warm request, after the first | `0.022 s` |
+| GPU compute counter | the ML worker's i915 `drm-engine-compute` counter rose from 112240128 ns to 124969624 ns (12.73 ms) during one /predict request, while the render, copy, video and video-enhance counters stayed at 0 ns |
+| Cold session reload from the compiled model file | answered in 1.09 s |
+| GPU clock | peaked at 1517 MHz |
+| Journal | clean: no errors in the system log |
+
+Follow-ups: lower the memory limit after a week of metrics. FP16 (a number format with lower precision)
+(`MACHINE_LEARNING_OPENVINO_PRECISION`) and a larger CLIP model are separate changes.
 
 ### 2026-09-06 — The NAS scrub stalled immich-vm again, and five unrelated init Jobs waited on it
 
