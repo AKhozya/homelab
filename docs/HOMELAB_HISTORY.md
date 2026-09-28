@@ -620,122 +620,146 @@ cluster, as that file's own comment instructs. The `v1.36.3-standalone-strict` s
 
 ### 2026-08-08 — The maintenance trigger answered 403 for two weeks
 
-Phase 1 and phase 2 both completed. All four nodes rebooted in order, `PLAY RECAP` reported
-`failed=0` on every host, and `node_maintenance_last_run_unixtime` was written. The last line of the
-run was `curl: (22) The requested URL returned error: 403` — the `ExecStopPost` that asks Claude to
-review the post-reboot alerts. `ExecStopPost=… || true` discarded it.
+Phase 1 (which updates and reboots the control plane) and phase 2 (which then updates the workers
+one at a time) both completed:
+
+| Check | Result |
+|---|---|
+| Reboots | all four nodes rebooted in order |
+| `PLAY RECAP` | `failed=0` on every host |
+| Run record | the run wrote `node_maintenance_last_run_unixtime` |
+
+The last line of the run was `curl: (22) The requested URL returned error: 403`. It came from the `ExecStopPost` step,
+which asks Claude to review the alerts after the reboot. `ExecStopPost=… || true` ignored the
+error.
 
 | Fact | Value |
 |---|---|
 | Reboot window | 04:33–05:26 UTC |
 | Trigger secret in SOPS | rotated 2026-07-31 (`c0301bcb`) |
-| Trigger secret on the CP | `/etc/node-maintenance/claude-trigger-secret`, mtime 2026-04-27 |
-| Bot response | HTTP 403 — the secret check rejects before the body is read |
+| Trigger secret on the control plane | `/etc/node-maintenance/claude-trigger-secret`, mtime 2026-04-27 |
+| Bot response | HTTP 403. The secret check rejects the request before it reads the body |
 | Runs with no alert review | 2026-08-01 and 2026-08-08, `curl: (22) … 403` in both journals |
 
-One secret, two copies, one of them rotated. `install.sh` also had no line for
-`telegram-notify-claude.sh`: someone placed the CP copy by hand in April and no sync path touched it,
-so editing the file in git would have deployed nothing.
+The secret had two copies, and only one of them was rotated. `install.sh` also had no line for
+`telegram-notify-claude.sh`. Someone had placed the control plane's copy by hand in April, and no
+sync path updated it, so editing the file in git would have deployed nothing.
 
 `telegram-notify-claude.sh` now reads the secret from the bot's own `$TRIGGER_SECRET` inside the pod,
-and the CP keeps no copy. Reading it grants nothing new — whoever can `kubectl exec` into that
-container can already read the variable. The script sends its own Telegram alert if the POST fails,
-because its caller's `|| true` discards a non-zero exit. `install.sh` installs it now, in both full
-and `--sync-only` mode.
+and the control plane keeps no copy. Reading the secret there gives no one new access, because
+anyone who can `kubectl exec` into that container (run a command inside it) can already read the
+variable. If the POST fails, the script sends its own Telegram alert, because its caller's `|| true`
+discards a non-zero exit code. `install.sh` now installs the script, in both full and `--sync-only` mode.
 
-Three more faults, same unit and same run:
+The same unit had three more faults in the same run:
 
-**`StartLimitIntervalSec` and `StartLimitBurst` sat under `[Service]`.** Both belong in `[Unit]`.
-systemd logged `Unknown key 'StartLimitIntervalSec' in section [Service], ignoring` on every reload,
-so the 3-attempts-in-2h cap the file documents never applied to the phase 2 retry. Moved.
+**`StartLimitIntervalSec` and `StartLimitBurst` were under `[Service]`.** Both belong in `[Unit]`.
+systemd logged `Unknown key 'StartLimitIntervalSec' in section [Service], ignoring` on every reload.
+So the limit that the file documents, 3 attempts in 2h, never applied to the phase 2 retry. Both
+settings have moved.
 
-**Nothing removes the pods a graceful node shutdown leaves behind.** Each evicted pod ends in a
-terminal phase. The ReplicaSet controller ignores terminal pods it owns, and the pod-GC controller
-acts only past `--terminated-pod-gc-threshold`, default 12500. This run left 11 — 10 `Succeeded`, 1
-`Failed`, which kept `PodPhaseNotRunning` firing; 2026-08-01 left 14 and 4 alerts. Phase 2's GC missed
-them twice over: it matched `status.phase=Failed` only, and only inside `phase2_pod_gc_namespaces`. It
-selects by owner now — terminal pods controlled by a ReplicaSet, StatefulSet or DaemonSet,
-cluster-wide — and re-tests the phase server-side at delete time, since StatefulSet names are stable.
-Job-owned pods stay, and so do pods with no controller. `phase2_pod_gc_namespaces` is gone.
+**Nothing removes the pods that a graceful node shutdown leaves behind.** The shutdown evicts each
+pod (removes it from the node), and each evicted pod ends in a terminal phase, a final state it never
+leaves. The ReplicaSet controller (which keeps a set number of copies of a pod running) ignores the
+terminal pods it owns. If their number stays at or below `--terminated-pod-gc-threshold`, which
+defaults to 12500, the pod garbage collector does nothing. This run left 11 such pods, 10 `Succeeded`
+and 1 `Failed`, which kept `PodPhaseNotRunning` firing. The run on 2026-08-01 left 14 pods and 4
+alerts. Before this change, phase 2's cleanup missed these pods for two reasons: it matched only
+`status.phase=Failed`, and only inside `phase2_pod_gc_namespaces`. It now selects by owner: terminal
+pods controlled by a ReplicaSet, StatefulSet or DaemonSet, in every namespace. (A StatefulSet gives
+each pod a stable name; a DaemonSet runs a pod on each eligible node.) At delete
+time it checks the phase again on the server, because a StatefulSet pod keeps the same name when it
+is re-created. It leaves pods owned by a Job, and pods with no controller. `phase2_pod_gc_namespaces`
+is gone.
 
-**The CouchDB size floor stopped two nights of replication.** `backup-replication` aborts at Step 1
-if any source backup fails validation. A client-side LiveSync rebuild recreated `obsidian-personal`
-on 2026-08-06 15:52 UTC, after that morning's dump. Every dump from 2026-08-07 on came out at 88K
-instead of 15.8M, under the 100KB CouchDB floor, so both the 08-07 and 08-08 runs stopped before the
-rsync — `kube_cronjob_status_last_successful_time` for `backup-replication` still pointed at
-2026-08-06 03:30 UTC. The source backups stayed on worker-node, which is what the abort is for, and
-both nights sent the "Backup Validation FAILED" Telegram report. A size floor catches a truncated
-dump; it cannot also track how much data the vault holds. It is 20KB now, and per-database
-completeness stays the `couchdb-backup` job's own check.
+**The CouchDB minimum-size check stopped two nights of replication.** If any source backup fails
+validation, `backup-replication` stops at Step 1. A LiveSync rebuild, started from the client side,
+re-created `obsidian-personal` on 2026-08-06 15:52 UTC, after that morning's dump. From 2026-08-07
+on, every dump came out at 88K instead of 15.8M. That is under the 100KB minimum for CouchDB, so the
+08-07 and 08-08 runs both stopped before the rsync. `kube_cronjob_status_last_successful_time` for
+`backup-replication` still pointed at 2026-08-06 03:30 UTC. The source backups stayed on
+worker-node, which is the purpose of the stop, and both nights sent the "Backup Validation FAILED"
+Telegram report. A minimum size catches a truncated dump, but it cannot also follow how much data
+the vault holds. The minimum is 20KB now. Checking that each database is complete stays the job of
+`couchdb-backup` itself.
 
 ### 2026-08-07 — The sync path ran the drift-heal playbook twice on every push
 
 `node-maintenance-sync.service` needed 12min59s to deploy one commit (`fe0ff835`). It ran the full
-`node-config` ansible playbook across all four hosts twice.
+`node-config` Ansible playbook, the drift-heal that re-applies each node's configuration, across all
+four hosts twice.
 
 | Fact | Value |
 |---|---|
-| Run 1 — `install.sh:163` starts `node-maintenance-config.service` unconditionally | 18:30:29 → 18:38:22 BST (7min53s) |
-| Run 2 — `sync-from-git.sh:63-66` starts the same unit once `install.sh --sync-only` returns | 18:38:22 → 18:43:24 BST (5min02s) |
+| Run 1: `install.sh:163` starts `node-maintenance-config.service` every time, with no condition | 18:30:29 to 18:38:22 BST (7min53s) |
+| Run 2: `sync-from-git.sh:63-66` starts the same unit once `install.sh --sync-only` returns | 18:38:22 to 18:43:24 BST (5min02s) |
 | `node-maintenance-sync.service` `TimeoutStartSec` | 20min |
 | `node-maintenance-config.service` `TimeoutStartSec` | 15min |
-| Callers of `install.sh` | `sync-from-git.sh:57` (always `--sync-only`), plus a flagless manual bootstrap |
+| Callers of `install.sh` | `sync-from-git.sh:57` (always `--sync-only`), plus a manual first-time setup with no flag |
 
-A 2026-06-05 entry already recorded the doubling as a gotcha. It drift-healed every host at once and
-so bypassed a staged W2→W1→CP rollout. That entry told operators to stage with a manual `rsync` plus
-`ansible-playbook --limit`, never `install.sh --sync-only`. The doubling itself stayed for two months.
+A 2026-06-05 entry had already recorded the double run as a known problem. The double run re-applied
+the configuration to every host at once, and so bypassed a staged rollout (W2, then W1, then the
+control plane). That entry told operators to stage a rollout with a manual `rsync` plus
+`ansible-playbook --limit`, and never with `install.sh --sync-only`. The double run itself stayed in
+place for two months.
 
-Fix: gate the `install.sh` run on `SYNC_ONLY -eq 0`.
+The fix: if `SYNC_ONLY -eq 0`, that is, if the run has no sync-only flag, `install.sh` starts the
+playbook. Otherwise it does not.
 
-| Path | Playbook runs, before → after |
-|---|---|
-| Flagless manual bootstrap | 1 → 1, from `install.sh` |
-| Sync timer, HEAD changed | 2 → 1, from `sync-from-git.sh` |
-| Sync timer, fresh clone | 2 → 1 — `sync-from-git.sh` passes `--sync-only` on this path too |
-| Standalone `install.sh --sync-only` | 1 → 0 — the behaviour the 2026-06-05 gotcha warns against |
+| Path | Playbook runs before | Playbook runs after |
+|---|---|---|
+| Manual first-time setup, no flag | 1 | 1, from `install.sh` |
+| Sync timer, HEAD changed (the checked-out commit changed) | 2 | 1, from `sync-from-git.sh` |
+| Sync timer, fresh clone | 2 | 1. `sync-from-git.sh` passes `--sync-only` on this path too |
+| Standalone `install.sh --sync-only` | 1, the behaviour the 2026-06-05 entry warns against | 0 |
 
-`README.md:35` and `:117` already described the fixed shape: `install.sh --sync-only` does
-daemon-reload and file perms, then `node-maintenance-config.service` re-applies. The guard took
-effect on the run that deployed it, because `sync-from-git.sh` invokes `install.sh` from the freshly
-pulled repo. That run confirmed it:
+`README.md:35` and `:117` already described the fixed behaviour: `install.sh --sync-only` runs
+systemd's daemon-reload (systemd rereads its unit files) and sets file permissions, then `node-maintenance-config.service` re-applies
+the configuration. The guard took effect on the run that deployed it, because `sync-from-git.sh`
+runs `install.sh` from the repo it has just pulled. That run confirmed the fix:
 
 | Measure | Before (`fe0ff835`) | After (`4aa51ae5`) |
 |---|---|---|
 | `install.sh --sync-only` | 7min53s, drift-heal included | 2s |
 | Playbook runs | 2 | 1 |
-| Sync unit wall clock | 12min59s | 4min37s (`Result=success`) |
+| Sync unit total time | 12min59s | 4min37s (`Result=success`) |
 | Unused share of the 20min `TimeoutStartSec` | ~7min | ~15min |
 
-The doubling cost time, not correctness. The playbook is safe to repeat, and the second run reported
-`changed=0`. If one host had run slow, systemd would have killed the deploy: two ~6min runs plus the
-git fetch left roughly 7min of the 20min limit.
+The double run cost time, but it did not make the result wrong. The playbook is safe to repeat, and the second run
+reported `changed=0`. But if one host had run slow, systemd would have killed the deploy. Two runs of
+about 6min each, plus the git fetch, left only about 7min of the 20min limit.
 
-Error propagation is unchanged. `sync-from-git.sh` sets `set -euo pipefail`, so a failed `systemctl
+Errors still propagate as before. `sync-from-git.sh` sets `set -euo pipefail`, so a failed `systemctl
 start --wait` still fails the unit and fires the `ExecStopPost` Telegram alert.
 
-The 18:30 run also caused a 3-minute disruption, which is what surfaced all of the above:
+The 18:30 run also caused a 3-minute disruption, and that disruption led to finding all of
+the above:
 
 | Symptom | Detail |
 |---|---|
-| Readiness and liveness probe timeouts | `worker-node`, `worker-node-2`, `immich-vm` — 17:32:30 → 17:35:39 UTC, one event each |
-| Flux `apps` dry-run failure | `vpol.validate.kyverno.svc-fail-finegrained-require-labels`: `EOF`, recovered on retry at the same revision |
+| Readiness and liveness probe timeouts (the checks that decide whether a container is ready for traffic and still alive) | `worker-node`, `worker-node-2`, `immich-vm`: 17:32:30 to 17:35:39 UTC, one event each |
+| Flux `apps` dry-run failure (Flux tests each change against the API server before it applies it) | `vpol.validate.kyverno.svc-fail-finegrained-require-labels`: `EOF`, recovered on retry at the same revision |
 
-The per-host `ufw reload` caused both. `1a1b36ac` added immich-vm's missing `ufw_rules_base` entry,
-and the drift-heal applies it one node at a time. The doubling did not cause it.
+The `ufw reload` on each host caused both. `1a1b36ac` added immich-vm's missing `ufw_rules_base`
+entry, and the drift-heal applies it one node at a time. The double run did not cause the
+disruption.
 
-### 2026-08-07 — A comment sweep found three live defects, including a boot barrier guarding nothing
+### 2026-08-07 — A comment review found three live defects, including a boot barrier that guarded nothing
 
-A repo-wide comment and Markdown pass (`fb62fa8c`, `7ae66800`, `03af5ed1` — every comment-bearing
-file, ~330 of them, read comment by comment) meant checking each claim against the live system.
-Three claims turned out to be code defects rather than stale prose; fixed in `1a1b36ac`.
+A pass over every comment and Markdown file in the repo (`fb62fa8c`, `7ae66800`, `03af5ed1`) read
+every file that carries comments, about 330 of them, comment by comment. That meant checking each
+claim against the live system. Three claims turned out to be code defects, not out-of-date text.
+`1a1b36ac` fixed them.
 
-**`k3s-wait-ready.sh` settled nothing on the control plane.** The barrier exists so
-`ufw-heal-post-k3s` does not race kube-proxy and kube-router still writing iptables, and gates on
-`/run/k3s-ready`. Phase 2 waited for pods matching `k8s-app=kube-router` — but K3s runs kube-router
-inside the k3s process, so that selector matches zero pods and the wait could only time out. All
-three phases then shared one deadline, so the dead wait ate the whole 300s and phase 3 — the
-ufw-chain stability check the barrier exists for — ran already expired and took zero samples. The
-CP journal had been printing the proof at every boot:
+**`k3s-wait-ready.sh` did not do its job on the control plane.** The script is a boot-time barrier:
+it holds later boot steps back, and when it finishes it creates `/run/k3s-ready`. It exists so that
+`ufw-heal-post-k3s` does not run while kube-proxy and kube-router, the parts that write the node's
+network rules, are still writing iptables rules.
+Its phase 2 waited for pods matching `k8s-app=kube-router`. But K3s runs kube-router inside the k3s
+process, so that selector (a label query that picks pods) matches zero pods, and the wait could only time out. All three phases
+shared one deadline, so the useless wait used up the whole 300s. Phase 3, the check that the ufw
+chains (groups of firewall rules) are stable, is the reason the barrier exists. It started with its time already spent, and
+took zero samples. The control plane's journal had printed the proof at every boot:
 
 ```
 pods: timeout / WARN: critical pods not ready
@@ -743,54 +767,68 @@ iptables: timeout (last_stable=0/3) / WARN: iptables not stable
 complete (elapsed=304s, sentinel=/run/k3s-ready)
 ```
 
-Fix: drop the kube-router selector (`CRITICAL_POD_LABELS` is coredns only) and give each phase its
-own budget clamped to the global deadline (90 + 60 + 120 ≤ 300), so a timed-out phase cannot starve
-the ones after it. New `roles/k3s_config/tests/test-wait-ready.sh` pins both; three mutants confirm
-it goes red when either is undone. Takes effect at each node's next boot.
+The fix drops the kube-router selector, so `CRITICAL_POD_LABELS` is coredns only. It also gives each
+phase its own time limit, capped by the overall deadline (90 + 60 + 120 ≤ 300), so a phase that
+times out cannot use up the time of the phases after it. The new test
+`roles/k3s_config/tests/test-wait-ready.sh` checks both changes. Three mutants (deliberate breaks in
+the code) confirm that, if either change is undone, the test fails. The fix takes effect at each
+node's next boot.
 
-**immich-vm had no UFW node-allow rule.** `ufw_rules_base` carried `.127`, `.129` and `.126` but
-never gained `.231` when the node joined 2026-07-10. Traffic mostly worked because 8472/udp and
-10250/tcp are open from anywhere. Added in its siblings' shape; applies on the next drift-heal, one
-node at a time, with a ufw reload each.
+**No UFW rule allowed traffic from immich-vm as a node.** `ufw_rules_base` listed `.127`, `.129` and
+`.126`, but never gained `.231` when immich-vm joined on 2026-07-10. Traffic mostly worked, because
+8472/udp and 10250/tcp are open from anywhere. The new rule has the same form as the other nodes'
+rules. It applies on the next drift-heal, one node at a time, with a ufw reload on each.
 
-**Two helpers in the drift-heal alert path were dead code.** `extract_fatal_summary()` and
-`extract_journal_window()` were defined and never called, so the fatal dump carried no journalctl
-time window and only a 300-char-trimmed raw fatal line. Both are wired into the dump now; the
-script's paths became env-overridable so `lib/tests/test-notify.sh` can drive all five branches in
-a temp dir.
+**Two helpers in the drift-heal alert path were never called.** `extract_fatal_summary()` and
+`extract_journal_window()` were defined but unused. So the report of a fatal error carried no
+journalctl time window (the log lines from around the time of the failure), only the raw fatal line cut to 300 characters. The report calls both now.
+Environment variables can now override the script's paths, so `lib/tests/test-notify.sh` can test
+all five branches in a temporary directory.
 
-**A fourth defect fell out of deploying the first three** (`76494c76`). The drift-heal that shipped
-them alerted `applied 9 change(s) [gmk-k3s-control-plane: 3,immich-vm: 3 worker-node: 3,worker-node-2: 3]` —
-nine reported against twelve listed, and an alternating separator. Both from the same function.
-The counts came from `grep -oE 'changed=[0-9]+' "$LOG" | tail -3`, the last **three** matches in the
-whole log: written for a 3-node cluster, so the first host has been dropping off every alert since
-immich-vm joined 2026-07-10. `FAILED` used the identical formula, so a failure on the
-first-listed host would not have reached the count either. The separator was `paste -sd', ' -` —
-`paste -d` reads its argument as a round-robin *list* of delimiters, so fields joined with `,` then
-` ` alternately. Fix: `recap_body()`/`recap_rows()` anchor every count to the actual `PLAY RECAP`
-host rows matching ansible's canonical `ok= changed= unreachable= failed=` sequence, which also
-retired a third hardcoded ceiling (`extract_recap()` printed `recap+5` lines — fine at 4 hosts,
-silently truncating at 6). The row match deliberately stops after `failed=` rather than anchoring
-the trailing `skipped/rescued/ignored` set: coupling to the exact field list would zero every count
-if a callback ever changed it, which is worse than the stray-line collision it would prevent.
+**Deploying the first three fixes exposed a fourth defect** (`76494c76`). The drift-heal that shipped
+them sent this alert:
+`applied 9 change(s) [gmk-k3s-control-plane: 3,immich-vm: 3 worker-node: 3,worker-node-2: 3]`. It
+reported nine changes but listed twelve, and its separator alternated. The same function caused
+both faults.
 
-The sweep also corrected facts that had drifted: coredns-ha described as a "Deployment (3 spread
-replicas)" in three places when it is a DaemonSet; both worker `host_vars` headers understating
-their hardware by half (W1 is 16c/32t 64GB, W2 8c/16t 32GB); `kustomize-controller v1.9.1` against
-a live v1.9.4 (the `KUSTOMIZE_VERSION` pin it justifies is still correct — v1.9.4 embeds the same
-kustomize/api v0.21.1); a "pre-commit gitleaks hook" that does not exist, the coverage being
-`gitleaks.yaml`; and two Alertmanager inhibit-rule comments describing matchers the rules do not
-use. A semantic render proof — all 7 kustomize roots built, comments stripped from string values,
-diffed against the pre-sweep tree — came back identical on every root, so nothing reaching the
-cluster changed.
+The counts came from `grep -oE 'changed=[0-9]+' "$LOG" | tail -3`, which keeps the last **three**
+matches in the whole log. That command was written for a 3-node cluster, so since immich-vm joined on
+2026-07-10, every alert had left out the first host. `FAILED` used the same formula, so a failure on
+the first host in the list would not have been counted either. The separator came from
+`paste -sd', ' -`. `paste -d` reads its argument as a *list* of delimiters that it uses in turn, so
+it joined the fields with `,` and ` ` alternately.
 
-Worth keeping: none of the four could fail a check. A barrier waiting on a pod that cannot exist
-still exits 0, still touches its sentinel, and boot proceeds; CI sees a passing shellcheck. The
-first three surfaced only because a comment asserted something checkable and the check got run. The
-fourth is the sharper lesson — it was on screen in every drift-heal alert for a month, and reading
-the numbers rather than the headline is what caught it. Two of the four — the missing UFW rule and
-the alert counts — share a root with most of the stale comments above: a hardcoded 3 that nobody
-revisited when immich-vm made this a 4-node cluster on 2026-07-10.
+The fix: `recap_body()`/`recap_rows()` take every count from the real host rows of the `PLAY RECAP`,
+the rows that match Ansible's standard `ok= changed= unreachable= failed=` sequence. That also
+removed a third hard-coded limit: `extract_recap()` printed `recap+5` lines, which works at 4 hosts
+but cuts the output without warning at 6. The row match stops after `failed=` on purpose, and does
+not require the `skipped/rescued/ignored` fields that follow. If the match depended on the exact
+field list and a callback plugin (the plugin that formats Ansible's output) ever changed that list,
+every count would drop to zero. That is worse than the stray matching line that a stricter match
+would keep out.
+
+The sweep also corrected facts that had gone out of date:
+
+| Wrong claim | Correction |
+|---|---|
+| coredns-ha is a "Deployment (3 spread replicas)", in three places | it is a DaemonSet, which runs a pod on each eligible node |
+| both worker `host_vars` headers gave half the real hardware | W1 is 16c/32t 64GB, W2 8c/16t 32GB |
+| `kustomize-controller v1.9.1` | the live version is v1.9.4. The `KUSTOMIZE_VERSION` pin that the comment justifies is still correct, because v1.9.4 embeds the same kustomize/api v0.21.1 |
+| a "pre-commit gitleaks hook" | it does not exist. `gitleaks.yaml` provides the coverage |
+| two comments on Alertmanager inhibit rules (rules that mute one alert while another fires) | they described matchers that the rules do not use |
+
+A render check that compares meaning then showed that nothing reaching the cluster changed. It built
+all 7 kustomize roots, stripped comments from string values, and compared the result with the tree
+before the sweep. Every root came back identical.
+
+None of the four defects could fail a check. A barrier that waits for a pod that
+cannot exist still exits 0 and still creates its marker file, and the boot goes on. CI sees a
+passing shellcheck. The first three were found only because a comment claimed something that
+could be checked, and someone ran the check. The fourth teaches more. It was on screen in every
+drift-heal alert for a month, and reading the numbers, not the headline, is what caught it. Two of
+the four, the missing UFW rule and the alert counts, share a cause with most of the out-of-date
+comments above: a hard-coded 3 that nobody revisited when immich-vm made this a 4-node cluster on
+2026-07-10.
 
 ### 2026-08-07 — A NAS reboot left a dead CoreDNS address that received a quarter of cluster DNS queries
 
