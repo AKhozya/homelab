@@ -20,9 +20,21 @@ Read cluster state with `kubectl` (+ `jq`); the API is reachable directly from a
 **From the claude-telegram pod**, node SSH runs under a forced command (`/usr/local/bin/agent-diag`) and serves read-only diagnostics only: `journalctl`, `systemctl` (`status`/`show`/`cat`/`is-*`/`list-*`), `uptime`, `vmstat`, `ps`, `ls`, `cat`. One command per call — no pipes, redirects, quotes, `&&`, no pty, no interactive shell, so `homelab-node-fix` does not apply there. Filter locally (`ssh worker-node journalctl -u k3s-agent --since=-10min | grep sandbox`) and write `--since=…`, not `--since '…'`: an argument cannot contain a space. **Options are an allowlist and must be spelled in full** — `--no-pager`, `-u`/`--unit=`, `-n`/`--lines=`, `--since=`, `--until=`, `-p`/`--priority=`, `-o`/`--output=`, `-k`, `-r`, `-x`, and for `systemctl` `--property=`, `--type=`, `--state=`, `--value`, `--all`. An abbreviation (`--sinc=`) or a cluster (`-qn`) is refused even when the underlying tool would accept it, because that is how `-H` (remote ssh) and `--vacuum-size` (deletes journals) sneak past a pattern. `sar` and `dmesg` are unavailable at all. **`cat` and `ls` accept a path only under `/etc`, `/sys`, `/var/log`, `/usr/local/bin` or `/usr/local/sbin`** (a bare `ls` with no path still lists the login home), and any path containing `..` is refused before the prefix is tested — the login account is the operator's own, so an unrestricted `cat` was an arbitrary-file read. `/proc` is listed file by file rather than as a prefix, because `/proc/self/root` is a symlink to `/`: the system-wide one-component files (`/proc/meminfo`, `/proc/loadavg`, …), `/proc/pressure/{cpu,io,memory}`, and per-PID `status`/`stat`/`cmdline`/`io`/`limits` — anything deeper is refused. A previous-boot journal needs the offset attached (`journalctl -b-1`, `--boot=-1`, or `--list-boots`); `-b -1` is refused because a lone `-1` is matched as an option. `ps` still takes `-e`/`-f`/`-ef`/`--sort=`, but its only permitted bare-word operand is `aux` or `auxww`; `-o`/`-eo` are gone, because their format list is a bare word too and `ps aux` already carries RSS. Operator sessions from the Mac use a different key and are unrestricted.
 
 ## Hard Invariants (blast radius = cluster)
-- **GitOps only.** `kubectl apply -f` no `--dry-run=server` = violation. Sole carve-out: the one-shot DR restore Jobs in `docs/disaster-recovery/README.md`, which must not be committed (Flux would re-run a destructive restore every reconcile) and are deleted after use. Flux fetches `main` every 5 min; the six Kustomizations below `flux-system` reconcile every 1 min. Never `kubectl edit/patch/replace`.
+- **GitOps only.** `kubectl apply -f` no `--dry-run=server` = violation. Flux fetches `main` every 5 min; the six Kustomizations below `flux-system` reconcile every 1 min. Never `kubectl edit/patch/replace`. Two carve-outs, both in `docs/disaster-recovery/README.md`:
+
+  | Carve-out | When | Why |
+  |---|---|---|
+  | the one-shot DR restore Jobs | during a restore; never committed, deleted after use | if committed, Flux would re-run a destructive restore every reconcile |
+  | `kubectl apply -k infrastructure/coredns/` | if the cluster is fresh, before `flux bootstrap` | Flux's controllers need that DNS to fetch the repo; Flux adopts the objects on its first reconcile |
+
 - **Pin all images** `major.minor.patch-variant`. Floating drift silent. Kyverno catch only `:latest`/no-tag. Helm chart-default images (no tag in values) count as pinned via the pinned chart version — don't mirror them into values (renovate-blind bare tags skew on chart bumps).
-- **DB username = app name.** No direct SQL drops, no force-delete DB pods. Use CRDs (CNPG/Percona) + `kubectl rollout restart`.
+- **DB username = app name.** No direct SQL drops, no force-delete DB pods. Use CRDs (CNPG/Percona) + `kubectl rollout restart`, with two exceptions:
+
+  | Workload | Restart by | Why not `rollout restart` |
+  |---|---|---|
+  | opstree Redis pods | deleting one pod at a time, replicas before the master | it re-arms the operator's annotation loop (`bf7bf65d`) |
+  | a Flux-managed Deployment | `agents/skills/_shared/restart-workload.sh` | Flux strips the `restartedAt` annotation, so it silently does nothing (`d6d67c20`) |
+
 - **Every ingress = NetworkPolicy.** Dual access (internal + Cloudflare Tunnel) = 2 ingress rules.
 - **NetworkPolicy ports**: container port, not service port.
 - **SOPS = truth** for secrets + Cloudflare tunnel config.
