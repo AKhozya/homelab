@@ -717,7 +717,8 @@ Flux applies to the CronJob.
 SP4 finds what a public reader could see that they should not, and fixes what a commit can fix.
 It adds the licence, pins every GitHub Action to a commit, and limits the Claude workflow to the
 owner. Some items need the operator: old values in PR refs, repo settings, and dashboards with no
-licence. They are the numbered questions at the end of this section.
+licence. The operator's answers of 2026-09-28 settle them, and the last table in this section
+lists them.
 
 ### Spike results
 
@@ -745,6 +746,10 @@ A mirror clone fetches every ref GitHub serves, `refs/pull/*` included.
 | S60 | Did the `aec47982` drift-heal pass? | `config-latest.log` on the CP; the sync journal | ✅ the run started 29 s after the push: `changed=0 failed=0` on all four nodes |
 | S61 | Does actionlint pass today? | `actionlint -oneline` (1.7.12) | ✅ 7 findings, all shellcheck notes on `run:` scripts in `claude-telegram-build.yml`, `flux-update.yaml` and `validate.yaml`. Saved without line numbers as the baseline |
 | S62 | What shows that Renovate ran on a commit? | the Dependency Dashboard, issue #32 | ✅ its `github-actions` list names each reference as Renovate read it: `actions/checkout v7` for a tag, `actions/checkout v7.0.1@3d3c42e5…` for a pin. Its `updatedAt` moves on each run |
+| S63 | Did the drift-heal after the rotation merges pass? | `config-latest.log` on the CP after the run for `54e755a3`, whose tree contains `52ce08aa` | ✅ `changed=0 failed=0` on all four nodes |
+| S64 | Can the long lines be fixed without changing what Flux applies? | classify each line `yamllint -s` flags by its YAML scalar style; in a scratch run, wrap the quoted and plain values and add the directives; compare each wrapped file's parsed documents (`parse-eq.py`), and `kustomize build --enable-helm` of the 7 CI roots, before and after | ✅ 87 lines in 15 files; the fix for each class is in the C0 table. Wrapping the 4 authentik blueprints changed the `authentik-blueprints-custom` ConfigMap, because a `configMapGenerator` copies those files into it as raw text (see S66). With the blueprints left as they are, all 7 roots build byte-identical, and all 10 changed files parse the same. Three mutants fail the parse check: a `>-` changed to `\|`, a doubled space inside a quoted value, and a `true` changed to `1`. After the scratch run, `yamllint -s .` flags only `claude.yml`'s `if:` |
+| S65 | Can private vulnerability reporting be turned on now? | `gh api repos/AKhozya/homelab/private-vulnerability-reporting`; GitHub's docs page on the setting | ✅ no. The API answers 404 while the repo is private, and the docs offer the setting to "owners and administrators of public repositories". It moves to SP6 |
+| S66 | What does a byte change in a blueprint file do? | Authentik's blueprint docs; each custom `BlueprintInstance`'s `status` and `last_applied`, read through `kubectl exec -n authentik deploy/authentik-worker -- ak shell -c …` | ✅ Authentik applies a blueprint when its file changes. All 5 custom blueprints read `successful`, last applied on 2026-07-25, so the hourly run skips an unchanged file. A wrapped file would start the first apply since then, and an apply sets every attribute its entries list. If someone changed one of those attributes in the Authentik UI since 2026-07-25, the apply would undo that change. So C0 leaves the 4 files as they are |
 
 S44's findings, by class. "Record" means `docs/SECRETS_ROTATION.md`; no live value was compared.
 
@@ -756,15 +761,15 @@ S44's findings, by class. "Record" means `docs/SECRETS_ROTATION.md`; no live val
 | homehub password (1), 2025-10-24 | `main` | 🟡 the audit found the live value differs; the record lists a rotation on 2025-10-26 |
 | linkding db secret (1), 2025-10-08 | `main` | ✅ Linkding is gone, with its namespace |
 | couchdb (1) and linkding (1) again, in pre-rewrite commits `ba739489` and `0ecb4bef`, 2025-10-08 | PR refs #18–#26 | 🟡 as the two rows above: both predate the rotation or the removal |
-| a Cloudflare API token (40 characters) in `.backup/QUICK_REFERENCE.md`, commit `7349f6cc`, 2025-10-07 | 18 PR refs, #13 upward; not `main` | ⚠️ unknown. The cert-manager token in the record dates from 2025-10-19, so it is a newer token. Creating a new token does not revoke the old one |
-| a Telegram bot token (46 characters), same commit | same | ⚠️ unknown. The record replaces the HomelabBot token on 2026-07-31 and 2026-08-07. It does not say whether this token belongs to that bot |
+| a Cloudflare API token (40 characters) in `.backup/QUICK_REFERENCE.md`, commit `7349f6cc`, 2025-10-07 | 18 PR refs, #13 upward; not `main` | ✅ dead since 2026-09-28. It was the live cert-manager token: `cloudflare-secret.yaml` had not changed since 2025-10-06 (`sops.lastmodified`), so the record's "2025-10-19" was no rotation. The operator rolled the token, which ends the old value, and `52ce08aa` carries the new one |
+| a Telegram bot token (46 characters), same commit | same | ✅ dead since 2026-09-28. It was the live @h0melab_alerts_bot token (`alertmanager-telegram-secret.yaml` unchanged since 2025-10-07). The operator revoked it in BotFather; `52ce08aa` carries the new one |
 | the Telegram chat ID, same commit | same | not a credential. It is the ID the bot allowlists (decision 16) |
 
 The 2026-06-12 rewrite recorded the PR-ref residual as "the Cloudflare account ID only"
-(memory `reference_repo_publish_sanitization`). Decision 7 rests on that. S44 shows two more
-values that may still work. This session's auto-mode safety check blocked a comparison of the
-findings with live cluster Secrets as credential handling. So every row not marked ✅ goes to the
-operator (Q1).
+(memory `reference_repo_publish_sanitization`). Decision 7 rests on that. S44 found two live
+tokens as well. This session's auto-mode safety check blocked a comparison of the findings with
+live cluster Secrets as credential handling, so the operator judged each row (Q1). Both tokens
+are now dead, and the operator accepts the rotation record for the 🟡 rows.
 
 Licences of the vendored files (S55):
 
@@ -774,15 +779,16 @@ Licences of the vendored files (S55):
 | `monitoring/configs/grafana-dashboards/traefik-k8s-dashboard.yaml` | grafana.com 17347, by Traefik Labs; `traefik/traefik` `contrib/grafana/traefik-kubernetes.json` | MIT, "Copyright (c) 2016-2020 Containous SAS; 2020-2025 Traefik Labs" |
 | `monitoring/configs/grafana-dashboards/cnpg-dashboard.yaml` | the CloudNativePG dashboard (🟡, matched by content), `cloudnative-pg/grafana-dashboards` | Apache-2.0; the repo has no NOTICE file |
 | `clusters/flux-system/gotk-components.yaml` | generated by `flux install` | Apache-2.0 (`fluxcd/flux2`); no NOTICE file |
-| `monitoring/configs/grafana-dashboards/cert-manager-dashboard.yaml` | grafana.com 20842, by chrede88; `chrede88/grafana-dashboards` | ⚠️ none: that repo has no licence |
-| `monitoring/configs/grafana-dashboards/loki-stack-dashboard.yaml` | grafana.com 14055, by Quortex | ⚠️ none found: no Quortex repo holds it |
+| `monitoring/configs/grafana-dashboards/cert-manager-dashboard.yaml` | grafana.com 20842, by chrede88; `chrede88/grafana-dashboards`. Our copy is revision 1 with one input renamed | ⚠️ none: that repo has no licence. Kept (Q5) |
+| `monitoring/configs/grafana-dashboards/loki-stack-dashboard.yaml` | grafana.com 14055, by Quortex; rewritten here for Alloy | ⚠️ none found: no Quortex repo holds it. Kept (Q5) |
 
 ### Assumptions and limitations
 
 | Tier | Item |
 |---|---|
 | ⚠️ | gitleaks finds values that match its rules. A secret in a shape no rule knows passes. S46's searches cover the key and file shapes this repo has used |
-| ⚠️ | A history rewrite cannot reach PR refs (decision 7). If a token in them still works, only revoking it at the issuer makes the copy harmless |
+| ⚠️ | A history rewrite cannot reach PR refs (decision 7). Only revoking a token at its issuer makes the copy harmless. Both live tokens S44 found are revoked; the 🟡 rows rest on the rotation record, which the operator accepts (Q1) |
+| ⚠️ | The two dashboards with no licence stay in the tree, in history and in PR refs (Q5). The grafana.com terms cover personal use only (S55), so publishing them is a risk the operator accepts. `THIRD_PARTY.md` names each author and source |
 | 🟡 | S50 rests on two public reports, not on GitHub's docs. S49 finds no nested tag, so the setting is safe to turn on either way |
 | 🟡 | No local check proves that Renovate loads `helpers:pinGitHubActionDigestsToSemver`: the validator ignores preset names (S52), and C1 pins every reference by hand. The preset name comes from Renovate's source (S51). If it fails to load, Renovate opens a config-error issue. Its effect shows only when someone adds a new tag reference, which Renovate should then pin. The `sha_pinning_required` setting (Q3) makes a workflow with a tag reference fail at setup whether or not the preset loads |
 | ⚠️ | CI starts no job (billing), so no workflow edit runs before SP6. actionlint and yamllint are the only checks on them |
@@ -811,20 +817,34 @@ rules, the gate output and the re-derive command for each fact it changes.
 
 | Commit | Content | Review file holds |
 |---|---|---|
-| C0 lint alignment | `.pre-commit-config.yaml`: yamllint without `--strict`, so pre-commit and CI read `.yamllint.yaml` the same way (Q4). `vmrules.yaml`: the `CronJobNotScheduled` comment names the trivy schedule `0 8 1 * *` | the diff; S58; `yamllint .` output. The comment sits outside any block scalar, so the VMRule object does not change |
-| C1 Actions | pin the 14 references (see Pins). `claude.yml`: `on.issues.types` drops `assigned`, because an owner who assigns someone else's issue would start Claude on that person's text. `if:` becomes `github.actor == 'AKhozya' && (…)` around the four `@claude` checks. The Renovate exclusions and their comment go, because the actor check already rules Renovate out. `renovate.json` `extends` gains `helpers:pinGitHubActionDigestsToSemver` | the diff; S47–S54; the resolve and pin-check output; actionlint against the baseline |
-| C2 licence | `LICENSE`: MIT, copyright line per Q2. `THIRD_PARTY.md`: each file from the licence table that stays (Q5), with its source and licence. It quotes the MIT notices in full. `LICENSES/Apache-2.0.txt` holds the full Apache-2.0 text, fetched from `https://www.apache.org/licenses/LICENSE-2.0.txt`, and `THIRD_PARTY.md` points to it. README gains a Licence section that points to `LICENSE` and `THIRD_PARTY.md` | the diff; S55 |
+| C0 long lines | keep `--strict` (Q4) and fix the 86 lines outside `claude.yml`, 4 of them by an exemption in `.yamllint.yaml` (see the C0 table below). `vmrules.yaml`: the `CronJobNotScheduled` comment names the trivy schedule `0 8 1 * *`, as `trivy-scan/cronjob.yaml` sets it | the diff stat and a sample of each class; S58; S64; the gate output |
+| C1 Actions | pin the 14 references (see Pins). `claude.yml`: `on.issues.types` drops `assigned`, because an owner who assigns someone else's issue would start Claude on that person's text. `if:` becomes `github.actor == 'AKhozya' && (…)` around the four `@claude` checks, one check per line, so no line passes 200 characters. The Renovate exclusions and their comment go, because the actor check already rules Renovate out. `renovate.json` `extends` gains `helpers:pinGitHubActionDigestsToSemver` | the diff; S47–S54; the resolve and pin-check output; actionlint against the baseline |
+| C2 licence | `LICENSE`: MIT, `Copyright (c) 2025 AKhozya` (Q2). `THIRD_PARTY.md`: all six files from the licence table, with source and licence. It quotes the MIT notices in full. The two dashboards with no licence read "no licence found; kept", and the Loki row says the copy is modified. `LICENSES/Apache-2.0.txt` holds the full Apache-2.0 text, fetched from `https://www.apache.org/licenses/LICENSE-2.0.txt`, and `THIRD_PARTY.md` points to it. README gains a Licence section that points to `LICENSE` and `THIRD_PARTY.md` | the diff; S55 |
 | C3 Milestones step | dotfiles: `homelab-monthly-review` Phase 5 item 2 gains one step. If the trim deletes an entry from a quarter the Milestones table does not cover, add a row for that quarter naming its main changes. Then `chezmoi-sync` and `scripts/sync-agents.sh --update`; the refreshed `agents/` file joins the commit | the skill diff; `sync-agents.sh --check` |
-| C4 close-out | this plan: roadmap SP4 done, the answers to Q1–Q5, the settings as applied | the diff |
+| C4 close-out | this plan: roadmap SP4 done, the Dependency Dashboard reading, the three settings as read back | the diff |
 
 C0–C3 go on one branch from `origin/main` and merge together. C4 records steps that happen after
 that merge, so it merges on its own.
+
+C0 by class. Counts are `yamllint -s` findings on `origin/main`; `claude.yml`'s one line goes in C1.
+
+| Class | Lines | Files | Fix |
+|---|---|---|---|
+| inside a block scalar (`\|`, `\|-`) | 50 | cnpg (28), traefik (10) and Loki (5) dashboards; blocky dashboard (1); `alloy-release.yaml` (1); `apps/claude-telegram/deployment.yaml` (5) | `# yamllint disable rule:line-length` above the key that opens the block, with a comment line naming why. `# yamllint enable rule:line-length` after the block, unless it runs to the end of the file. A comment inside a block would be content, so each directive sits outside it |
+| authentik blueprint `description` | 4 | `apps/authentik/blueprints/` 10, 20, 30 and 40 | `.yamllint.yaml` gives `line-length` an `ignore` entry for `apps/authentik/blueprints/`, with a comment naming why. Any byte change to one of these files applies the blueprint again (S66) |
+| double-quoted value | 27 | 4 CSP headers in `infrastructure/controllers/traefik/csp-middleware.yaml` and 1 in `monitoring/configs/kube-prometheus-stack/csp-middleware.yaml`; `phase1.yml`'s `tg_message`; 21 `description:` in `vmrules.yaml` | break at a single space, near 120 characters; continuation lines indent 2 past the key. A line break inside double quotes reads as one space, so the string stays the same. The script never breaks next to another space or after a backslash |
+| plain `expr:` | 4 | `vmrules.yaml` | `expr: >-` with the query on the lines below. `>-` also reads each line break as one space and drops the last newline; `\|` would keep the newlines and change the rule |
+| comment | 1 | `infrastructure/controllers/traefik/csp-middleware.yaml` | wrap by hand |
 
 ### Gates
 
 | Commit | Gate | Pass |
 |---|---|---|
 | all | `gitleaks dir . --config .gitleaks.toml`; `pre-commit run --files <changed>`; `yamllint .`; no private term in a changed file (`grep -I -l -i -F -f ~/.config/sync-agents/private-terms.txt`, as in SP3) | exit 0; the private-term search exits 1, and the terms file has 9 lines |
+| C0 | `yamllint -s -f parsable .` | one finding, `.github/workflows/claude.yml:21` (C1 fixes it) |
+| C0 | `uv run --with pyyaml python3 ~/.local/share/homelab-sp4/parse-eq.py <origin/main copy> <each changed manifest>` | every file `same`, exit 0. It compares each value with its type, since Python's `==` treats `true`, `1` and `1.0` as equal |
+| C0 | `kustomize build --enable-helm` of the 7 CI roots on the branch and on an `origin/main` copy, then `cmp` | all 7 identical |
+| C1 | `yamllint -s .` | exit 0 |
 | C1 | `actionlint -oneline`, line numbers stripped, sorted | equals the 7-line baseline in `~/.local/share/homelab-sp4/` |
 | C1 | `~/.local/share/homelab-sp4/pin-check.sh .github/workflows`: every `uses:` must name a 40-character SHA and a `# vX.Y.Z` comment, or a `./` path | exit 0. It exits 1 on an unpinned reference, 2 on a missing folder, 3 if it finds no `uses:`, 4 if grep reports an error. Controls, run 2026-09-28: `origin/main` gives `refs=22 unpinned=14` and 1; a missing folder 2; an empty folder 3; a pinned sample 0; a short SHA and a SHA with no comment 1; a pinned file next to an unreadable file 4 |
 | C1 | `resolve-tags.sh` in `~/.local/share/homelab-sp4/` resolves each tag again | each SHA in the diff equals the tag's commit |
@@ -837,16 +857,15 @@ that merge, so it merges on its own.
 
 1. C0–C3: gates, Codex loop per commit, then one merge from the main tree. The merge starts a
    drift-heal; expect `changed=0 failed=0` on all four nodes, since no role file changes. Flux
-   applies `vmrules.yaml`, whose object does not change.
+   applies `vmrules.yaml` and the other changed manifests, whose objects do not change (S64).
 2. After the merge, read the Dependency Dashboard (issue #32). Its `updatedAt` must be later than
    the merge, and its `github-actions` list must show every reference as `vX.Y.Z@<sha>` (S62).
    That shows Renovate ran on the new commit and read the pins. It does not show that the preset
    loaded, because C1 writes the pins by hand. If Renovate opens "Action Required: Fix Renovate
    Configuration" instead, read the error it names before changing anything.
-3. Operator (Q1): check each open credential. Revoke any that still works before SP6.
-4. Settings (Q3), after step 2: `sha_pinning_required: true`, default token `read`, no PR
+3. Settings (Q3), after step 2: `sha_pinning_required: true`, default token `read`, no PR
    approval by workflows. Read each back with `gh api`.
-5. C4, then merge.
+4. C4, then merge.
 
 ### Rollback
 
@@ -854,31 +873,15 @@ that merge, so it merges on its own.
 turn the setting off first and read it back, or every workflow with a tag fails at setup. The
 other settings revert with the same `gh api` calls and the old values from S53.
 
-### Questions for the operator
+### Operator answers (2026-09-28)
 
-1. **Old credentials.** The Cloudflare API token and the Telegram bot token from `7349f6cc`
-   (2025-10-07) are readable in 18 PR refs, which cannot be deleted. Please check each at its
-   issuer: the Cloudflare dashboard's API Tokens page (a token created before 2025-10-19), and
-   BotFather for the bot the token names. If either still works, revoke it before SP6. The 🟡
-   rows rest on the rotation record alone. Do you accept the record for them, or check them too?
-   Decision 7 still holds once nothing in PR refs works. Agreed?
-2. **Copyright line.** MIT needs one: `Copyright (c) 2025 AKhozya`, or your full name?
-3. **Repo settings.** May I set these with `gh api` after the merge: require SHA-pinned
-   actions; default workflow token `read`; workflows may not approve PRs? Also: GitHub will show
-   `docs/SECURITY.md` as the repo's security policy, and it gives no way to report a problem.
-   Should I enable private vulnerability reporting and add one line saying so?
-4. **yamllint.** Drop `--strict` from pre-commit to match CI (recommended), or keep it and fix
-   the 15 files' long lines first?
-5. **Dashboards with no licence.** The cert-manager (20842) and Loki (14055) dashboards have no
-   licence that allows publishing them. Copies sit in `main`'s history and in PR refs, so no
-   change to the tree removes them, and decision 7 keeps the PR refs. Only a licence from each
-   author covers those copies. Choose one:
-
-   | Option | Tree | History and PR refs |
-   |---|---|---|
-   | ask each author for a licence, and publish after they grant it | stays | covered |
-   | delete from the tree, and accept the old copies as a residual | removed | not covered |
-   | delete from the tree, and have Grafana download them by `gnetId` at start-up; needs an egress rule to grafana.com | removed | not covered |
+| # | Question | Answer |
+|---|---|---|
+| Q1 | Old credentials in PR refs | The operator rotated both live tokens on 2026-09-28 (`52ce08aa`), and the claude-telegram bot token with them. The procedure is `docs/SECRETS_ROTATION.md` §6 and `scripts/rotate-token.sh` (`54e755a3`). The rotation record stands for the 🟡 rows. Decision 7 holds, since no credential in PR refs still works |
+| Q2 | Copyright line | `Copyright (c) 2025 AKhozya` |
+| Q3 | Repo settings | Yes to all: SHA-pinned actions required, default workflow token `read`, workflows may not approve PRs, after the C0–C3 merge. Private vulnerability reporting too, with one line in `docs/SECURITY.md`; GitHub offers it only on a public repo (S65), so both move to SP6 |
+| Q4 | yamllint | Keep `--strict` and fix the lines (C0) |
+| Q5 | Dashboards with no licence | Keep both, and list them in `THIRD_PARTY.md` with author and source |
 
 ## SP5 — ultrareview
 
@@ -891,5 +894,6 @@ publishing (exposed secret, licence problem, unsafe public trigger) before SP6 s
 |---|---|
 | Flip | operator action, after SP5 closes |
 | Fork PRs | After the flip, set Actions to require approval before a workflow runs for any outside contributor's PR, and read it back (`gh api repos/AKhozya/homelab/actions/permissions/fork-pr-contributor-approval`). The endpoint answers HTTP 422 while the repo is private (S54) |
+| Vulnerability reports | After the repo becomes public, enable private vulnerability reporting (`gh api -X PUT repos/AKhozya/homelab/private-vulnerability-reporting`) and read it back. Then add one line to `docs/SECURITY.md` that tells a reader to report a problem through the repo's Security tab (Q3). The endpoint answers 404 while the repo is private (S65) |
 | Actions | CI has not run since 2026-09-10 (see SP2 assumptions). Before the flip, find out what GitHub requires for Actions to run on a public repo owned by this account. After the flip, confirm CI runs |
 | Branch protection | The `AGENTS.md` invariant "CI validation — a signal, NOT a merge gate" says branch protection is unavailable on a private repo on the Free plan. GitHub docs list protected branches as available for public repos on the Free plan, so decide: enable required checks, or decline. Then edit the "CI is a signal, NOT a merge gate" invariant to match |
