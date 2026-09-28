@@ -1415,43 +1415,49 @@ separate manifest with a selector kept up to date by hand. If a chart release ch
 that selector would stop matching anything, and nothing would report it. The benefit is small, and
 the upkeep is real.
 
-### 2026-07-26 — `PodNotReady` measured phase, not readiness — renamed, and the real gap closed
+### 2026-07-26 — `PodNotReady` checked the pod phase, not readiness: renamed, and a new alert covers the gap
 
-The alert named `PodNotReady` ran `kube_pod_status_phase{phase!~"Running|Succeeded"}`. That is
-**phase**, not readiness: a pod that stays `Running` while its Ready condition is false is pulled
-from Service endpoints and serves nothing, and the alert never sees it. n8n sat exactly there for
-~8h on 2026-07-25 returning HTTP 503 with a dead DB pool. Nothing fired.
+The alert named `PodNotReady` ran `kube_pod_status_phase{phase!~"Running|Succeeded"}`. That query
+checks the pod's **phase**, not its readiness. A pod can stay in phase `Running` while its Ready
+condition is false. Kubernetes then removes it from the Service endpoints (the pods that receive
+traffic), so it serves nothing, and the alert never sees it. n8n was in that state for ~8h on
+2026-07-25, returning HTTP 503 because its database connection pool no longer worked. No alert fired.
 
-- The phase alert keeps its expression under an honest name, **`PodPhaseNotRunning`**.
-- New **`PodRunningNotReady`** covers the gap, `for: 15m`.
+| Alert | What it does |
+|---|---|
+| **`PodPhaseNotRunning`** | the old phase alert: same expression, under a name that says what it checks |
+| **`PodRunningNotReady`** | new; covers the gap, with `for: 15m` |
 
-Deliberately *not* reusing the `PodNotReady` name for the new rule — it would merge two different
-meanings in alert history and collide with any silence matching the old name exactly.
+The new rule does not reuse the `PodNotReady` name, on purpose. Reusing it would mix two different
+meanings in the alert history. It would also match any silence that names the old alert exactly.
 
-Both names added to `silence_alertnames` in the node-maintenance ansible vars, which previously
-carried only upstream's `KubePodNotReady`; without that, every node drain would page.
+The change adds both names to `silence_alertnames` in the node-maintenance Ansible variables. Before,
+that list carried only upstream's `KubePodNotReady`. Without the new names, every node drain (removing
+eligible pods from a node before maintenance) would trigger an alert.
 
-Two guards in the expression are load-bearing, both found in review rather than by writing it:
+The expression needs two guards. Review found both of them; the first draft did not have them.
 
-- `and on(namespace, pod) kube_pod_status_phase{phase="Running"} == 1` — kube-state-metrics
-  reports `condition="true"` value 0 for Succeeded Job pods too, so this stops every CronJob
-  firing it.
-- `unless on(namespace, pod) kube_pod_deletion_timestamp` — a terminating pod keeps
-  `phase=Running` while Ready flips false, so one stuck terminating would page.
+| Guard | Why it is needed |
+|---|---|
+| `and on(namespace, pod) kube_pod_status_phase{phase="Running"} == 1` | kube-state-metrics also reports `condition="true"` with value 0 for Job pods in phase Succeeded. This guard stops every CronJob from firing the alert |
+| `unless on(namespace, pod) kube_pod_deletion_timestamp` | a pod that is shutting down keeps `phase=Running` while its Ready condition turns false. Without this guard, one pod stuck while shutting down would trigger an alert |
 
-`condition="true"` is one-hot, so `== 0` covers Ready both False and Unknown.
+kube-state-metrics reports one series per Ready state, and only the current state's series is
+non-zero. So on the `condition="true"` series, `== 0` matches Ready both False and Unknown.
 
-Verified against live vmsingle, including a **positive control**: the exact expression returns 0
-series, and the same expression with `== 0` flipped to `== 1` returns 103. Without that control a
-zero would be indistinguishable from a broken query — the failure mode that hid two nights of
-CouchDB backup failures earlier in the same week.
+The expression was tested against the live vmsingle database, including a **positive control** (a
+query that must return results, to prove the query works). The exact expression returns 0 series (no results).
+The same expression with `== 0` changed to `== 1` returns 103. Without that control, a result of
+zero would look the same as a broken query. That kind of broken query hid two nights of CouchDB
+backup failures earlier in the same week.
 
-### 2026-07-26 — Kyverno namespace-exclude audit: 1 dead exclude removed, wholesale narrowing rejected
+### 2026-07-26 — Kyverno namespace excludes audited: 1 unneeded exclude removed, a wholesale narrowing rejected
 
-Follow-up to B6-2, which narrowed `disallow-host-path`. Four other policies still carried
-whole-namespace excludes, so the same treatment looked applicable. **Measurement says otherwise.**
+This follows B6-2, which narrowed `disallow-host-path` (see the next entry). Four other policies
+still had excludes that exempt a whole namespace, so the same change looked possible there. The
+measurement showed otherwise.
 
-Violation rates across every app namespace those policies exclude:
+The share of pods that would break each policy, across every app namespace that the policy excludes:
 
 | Policy | Pods | Violate |
 |---|---|---|
@@ -1460,142 +1466,163 @@ Violation rates across every app namespace those policies exclude:
 | `disallow-privilege-escalation` | 24 | 12 (50%) |
 | `require-drop-all-capabilities` | 24 | 13 (54%) |
 
-B6-2 was worth doing because only ~15% of pods in its namespaces needed the exemption. At 45–67%
-a label-keyed rewrite means dozens of selectors against Deny policies — more fragile than the hole
-it closes. **Wholesale narrowing rejected on evidence, not taste.**
+B6-2 was worth doing because only ~15% of pods in its namespaces needed the exemption. At 45–67%, a
+rewrite keyed on labels would need dozens of selectors in policies that deny pods (Deny mode). Those
+selectors would be more fragile than the gap they close. **The evidence, not a preference, rejected
+the wholesale narrowing.**
 
-Exactly one exclude was provably dead: **`percona-mysql` removed from
+Only one exclude could be proved unneeded: **`percona-mysql` is removed from
 `disallow-privilege-escalation`**. That namespace holds only `ps-operator`, and the pinned
-`ps-operator-1.2.0` chart already sets `allowPrivilegeEscalation: false`. Its
-`require-drop-all-capabilities` exclude stays — the operator does not drop `ALL`. If a future
-chart bump drops the setting the HelmRelease fails to apply: loud, and worth knowing.
+`ps-operator-1.2.0` chart already sets `allowPrivilegeEscalation: false`. The namespace's
+`require-drop-all-capabilities` exclude stays, because the operator does not drop `ALL`. If a later
+chart version drops the setting, the HelmRelease fails to apply. That failure is visible, and worth
+knowing about.
 
-**Two candidates were rejected after checking workload templates rather than running pods.**
-`mealie` looks compliant by pod scan, but `Job/mealie-user-provision` runs as root and its pod had
-already Succeeded, so a phase-filtered scan hid it. `backup-replication` has no long-running pods
-at all; both its CronJobs violate.
+**Checks of the workload templates, not of the running pods, rejected two more candidates.**
+`mealie` looks compliant in a scan of pods. But `Job/mealie-user-provision` runs as root, and its
+pod had already finished (Succeeded), so a scan that filtered by phase hid it. `backup-replication`
+has no long-running pods at all, and both of its CronJobs violate the policies.
 
-**A third was caught in review, not by measurement.** `paperless-ngx` was staged for removal from
-`require-non-root` and reverted: `apps/paperless-ngx/deployment.yaml:50` runs a `fix-permissions`
-init container as UID 0, which `.claude/review-invariants.md:54` documents as required — s6-overlay
-CrashLoopBackOffs without it (incident `ca3891c`→`d3b5036`). The measurement missed it because the
-check replicated the policy's own logic and so answered "does this pass?" rather than "does this
-run as root?".
+**Review, not measurement, caught a third.** The change had removed `paperless-ngx` from the
+`require-non-root` excludes, and review reverted that. `apps/paperless-ngx/deployment.yaml:50` runs a
+`fix-permissions` init container (a container that runs before the app starts) as UID 0, the root
+user. `.claude/review-invariants.md:54` records that the container must run as root; otherwise
+s6-overlay (the process supervisor in the image) crashes in a loop, CrashLoopBackOff (incident
+`ca3891c` to `d3b5036`). The measurement missed it because the check copied the policy's own logic.
+So it answered "does this pass?" rather than "does this run as root?".
 
-That gap is real and wider than this change: `require-non-root`'s first branch is a **pod-level**
-`runAsNonRoot` test, so a pod-level `true` satisfies the policy no matter what an individual
-container overrides. Any workload can run a root container under it today. Not fixed here, and
-recorded as a follow-up.
+That gap is real, and it reaches beyond this change. The first branch of `require-non-root` tests
+`runAsNonRoot` at the **pod level**. So a pod-level `true` satisfies the policy, whatever a single
+container sets for itself. On that date, any workload could run a root container under the policy.
+This change does not fix that; a follow-up records it.
 
-*(Corrected same day: this first read "tightening it would deny paperless-ngx and mealie, both
-documented and deliberate". Wrong — both namespaces are ns-excluded from `require-non-root`, so
-they are never evaluated and are not what holds the expression loose. Hardening it means auditing
-the namespaces the policy actually matches. Codex catch.)*
+*(Corrected the same day. This paragraph first said "tightening it would deny paperless-ngx and
+mealie, both documented and deliberate". That was wrong. `require-non-root` excludes both
+namespaces, so the policy never evaluates them, and they are not the reason the expression stays
+loose. To harden the policy, audit the namespaces that it does match. The Codex reviewer caught the
+error.)*
 
-### 2026-07-26 — B6-2: `disallow-host-path` narrowed from namespace excludes to workload identities
+### 2026-07-26 — B6-2: `disallow-host-path` exempts listed workloads instead of whole namespaces
 
-Last open item of the 2026-07-24 ultrareview remediation plan (removed after `d6d67c20`).
-Deferred on 07-25 pending a supervised Audit soak; shipped instead on deterministic proof. Plan
-and full test matrix: the B6-2 hostPath narrowing plan (removed after `0cb04187`).
+This was the last open item in the plan that fixed the findings of the 2026-07-24 ultrareview. The
+plan file was removed after `d6d67c20`. On 07-25 the work
+waited for a supervised Audit soak: a period in which Kyverno only reports violations while someone
+watches. Instead, it shipped on proof from tests that give the same result every run. Plan and full
+test matrix: the B6-2 hostPath narrowing plan (removed after `0cb04187`).
 
-**The gap was wider than recorded.** The policy excluded six namespaces wholesale. Five of them
-(`monitoring`, `loki`, `databases`, `immich`, `backup-replication`) also enforce PSS
-**`privileged`**, because their hostPath workloads require it — so neither layer guarded them and
-every pod in those namespaces could mount any host path. Demonstrated by server dry-run: an
-innocent pod plus an injected hostPath was admitted in all five and denied in `home-assistant`,
-which is equally `privileged` but was never excluded here. The sixth namespace, `couchdb`, no
-longer exists; CouchDB runs in `databases`.
+**The gap was wider than recorded.** The policy exempted six whole namespaces. Five of them
+(`monitoring`, `loki`, `databases`, `immich`, `backup-replication`) also set the Pod Security
+Standards (PSS, the built-in pod security levels) to **`privileged`**, because their hostPath
+workloads need it. So neither the policy nor PSS guarded those namespaces, and every pod in them
+could mount any path on the host. A server dry-run showed it. The API server accepted a harmless
+pod with an added hostPath mount in all five namespaces. It denied the same pod in
+`home-assistant`, which is also `privileged` but was never exempted from this policy. The sixth
+namespace, `couchdb`, no longer exists; CouchDB runs in `databases`.
 
-**Autogen was believed to be a landmine. It was not — see the correction below.**
+**Autogen (Kyverno's automatic copy of pod rules onto Deployments, Jobs and other controllers) was
+believed to be a hidden danger. It was not; see the correction in the cert-manager entry from the same day, above this one.**
 
-**`couchrestore` would have been missed.** The one-shot DR Job in `.backup/README.md` mounts
-hostPath and is invisible to any live scan. Without an allowlist entry it is denied — re-breaking
-ultrareview H2, closed two days earlier. Confirmed by removing the entry and watching it fail.
+**A scan would have missed `couchrestore`.** That one-shot disaster-recovery Job, described in
+`.backup/README.md`, mounts a hostPath, and no scan of live pods can see it. Without an allowlist
+entry, the policy denies it. That would break ultrareview finding H2 again, which was closed two
+days earlier. A test confirmed this: with the entry removed, the Job failed.
 
-**No Audit soak.** Every check ran in both directions, because a Kyverno `skip` is ambiguous
-between "exempted" and "never matched": 8 exempt / 8 denied pairs across pods, controllers, Jobs
-and CronJobs, using autogen rules reproduced from the live `status.autogen`. Codex round 1 raised
-the Job labels as a HIGH; the factual premise was disproved (API-server defaulting supplies them
-before admission) but the latent fragility was accepted and fixed. Round 2 returned no
-CRITICAL/HIGH.
+**No Audit soak.** Instead, every check ran in both directions, because a Kyverno `skip` result can
+mean either "exempted" or "never matched". The tests ran 8 exempt / 8 denied pairs across pods,
+controllers, Jobs and CronJobs. They used autogen rules copied from the live `status.autogen`. In
+review round 1, Codex rated the Job labels a HIGH finding. Its factual premise was wrong: the API
+server fills in those labels as defaults before admission (the step where Kyverno checks a
+request). But the hidden fragility that Codex pointed at was accepted and fixed. Round 2 returned no
+CRITICAL or HIGH finding.
 
-### 2026-07-26 — CouchDB backups silently failing two nights; couchbackup parallelism race
+### 2026-07-26 — CouchDB backups failed for two nights unnoticed; a race in couchbackup's parallel requests
 
-`obsidian-personal` — the Obsidian LiveSync database — failed to back up on **07-25 and 07-26**,
-five retries each night. Root cause is a concurrency bug in `@cloudant/couchbackup` 2.11.18: at
-the default `--parallelism 5` some requests reach CouchDB with **no credentials**, get
-`Access is denied due to invalid credentials`, and the run dies with `exit=11` having spooled
-batches it never wrote. The small databases (`empty`, `zz-dr-drill`) survive because they never
-open enough connections to race. Fixed by pinning `--parallelism 1` (`4d84acc5`).
+`obsidian-personal`, the Obsidian LiveSync database, failed to back up on **07-25 and 07-26**, with
+five retries each night. The cause is a concurrency bug in `@cloudant/couchbackup` 2.11.18. At the
+default `--parallelism 5`, some requests reach CouchDB with **no credentials** and get
+`Access is denied due to invalid credentials`. The run then dies with `exit=11`, after it has
+buffered batches that it never wrote. The small databases (`empty`, `zz-dr-drill`) survive, because
+they never open enough connections for the requests to race each other. The fix pins
+`--parallelism 1` (`4d84acc5`).
 
-**This is the same race already documented for the DR restore** in `.backup/README.md`, found
-during the 2026-07-24 restore drill. It was written up for `couchrestore` and never connected to
-`couchbackup` — same library, same symptom, opposite direction. Anything invoking this package
+**`.backup/README.md` already documents the same race for the disaster-recovery restore.** The
+2026-07-24 restore drill found it. The write-up covered `couchrestore`, and nobody linked it to
+`couchbackup`: same library, same symptom, opposite direction. Anything that calls this package
 should assume parallelism 1.
 
-**The failure was two days old and nobody knew**, for two compounding reasons:
+**The failure was two days old and nobody knew**, for two reasons that made each other worse:
 
-- **`vmsingle-vmsingle-0` does not exist.** VMSingle is a *Deployment*, not a StatefulSet. Every
-  alert check of the form `kubectl exec -n monitoring vmsingle-vmsingle-0 -- wget …` errored to
-  stderr, and with `2>/dev/null` the empty stdout read as "no alerts firing". Three critical
-  alerts — `BackupJobFailed`, `JobFailed`, `NoRecentBackups` — were firing the whole time. Always
-  resolve the pod by label and assert `.status == "success"` before believing an empty result.
-- **The previous code could not have reported it.** Before `e136ae08` the invocation ended
-  `> "$DB.raw" 2>&1 || true`: the exit code was discarded and stderr was merged into the file
-  holding the backup JSON. The nightly `✅ completed (20.3M)` measured whatever partial JSON
-  survived a `grep "^\["` — it never proved completeness. So the pre-07-25 "successes" are
-  **unverified**, not known-good; the alert only started because Batch 2 began honouring the
-  exit code.
+- **`vmsingle-vmsingle-0` does not exist.** VMSingle is a *Deployment*, not a StatefulSet, so its
+  pod name does not end in a fixed number. Every alert check of the form
+  `kubectl exec -n monitoring vmsingle-vmsingle-0 -- wget …` wrote an error to standard error. The
+  check discarded standard error with `2>/dev/null`, so the empty standard output looked like "no
+  alerts firing". Three critical alerts, `BackupJobFailed`, `JobFailed` and `NoRecentBackups`,
+  fired the whole time. Always find the pod by its label, and check for `.status == "success"`
+  before you believe an empty result.
+- **The old code could not have reported the failure.** Before `e136ae08`, the command ended with
+  `> "$DB.raw" 2>&1 || true`. That threw away the exit code and wrote standard error into the same
+  file as the backup JSON. The nightly `✅ completed (20.3M)` measured whatever partial JSON was left
+  after a `grep "^\["`. It never proved that the backup was complete. So the pre-07-25
+  "successes" are **unverified**, not known to be good. The alert only started because Batch 2
+  made the script respect the exit code.
 
-`backup-replication` failed the same nights as a **correct cascade**: no CouchDB archive existed,
-so it aborted before syncing and preserved the source rather than deleting the only other copy —
-the Batch 2 receipt-before-`rm -rf` guard doing exactly its job.
+`backup-replication` failed on the same nights, and that failure was **correct**. No CouchDB archive
+existed, so the job stopped before it copied anything. It kept the source files instead of deleting
+the only other copy. That is the Batch 2 guard working as designed: the job runs `rm -rf` only after
+the NAS (the network storage server) confirms receipt.
 
-Recovery was verified rather than assumed: a manual `couchdb-backup` run produced
-`obsidian-personal completed (21.1M, 1s)` — matching the pre-failure size and speed — and a manual
-`backup-replication` run reported `OK: all 4 validated artifact(s) present on NAS`. Stale failed
-Job objects were deleted and `kube_job_failed` now returns no series.
+The recovery was checked, not assumed. A manual `couchdb-backup` run printed
+`obsidian-personal completed (21.1M, 1s)`, which matches the size and speed before the failure. A
+manual `backup-replication` run then reported `OK: all 4 validated artifact(s) present on NAS`. The
+old failed Job objects were deleted, and `kube_job_failed` now returns no series.
 
-One thing is still open: `zz-dr-drill`, the scratch database from the 2026-07-24 restore drill,
-was never dropped and is still being backed up nightly.
+One item stays open: `zz-dr-drill`, the test database from the 2026-07-24 restore drill. It was
+never dropped, and the nightly backup still copies it.
 
-**A `speedup is 1.00` on the NAS sync was investigated the same day and is NOT a defect** —
-recorded here because it looks alarming and will be re-noticed. The replication moved 138.7 GB
-and reported no rsync reuse, which reads like the whole history being re-sent every night. It is
-not. Step 2 uses `rsync -av`, and `-a` implies `-t`, so mtimes are preserved and the size+mtime
-quick-check works. Two facts explain the number: Step 4 deletes the source
-(`postgres`/`couchdb`/`mysql`/`pvc`) after a verified NAS receipt, so on a normal run nearly
-every file present IS new; and 129 GB of that particular run was the **weekly** immich backup,
-created that morning and never synced because that night's replication had aborted. Step 4
-deliberately omits `immich/` — `immich-backup-cronjob.yaml` owns that lifecycle with its own
-keep-2 sweep, which is why ~129 GB (two weekly snapshots) legitimately sits in the source tree.
+**The NAS sync reported `speedup is 1.00` on the same day. That is NOT a defect.** It was
+investigated, and it is recorded here because it looks alarming and someone will notice it again.
+The replication moved 138.7 GB, and rsync reported that it reused nothing. That looks as if the job
+sends every old backup again every night. It does not. Step 2 uses `rsync -av`. `-a` includes `-t`,
+so rsync keeps file modification times (mtimes), and its quick check, which compares size and mtime,
+works. Two facts explain the number:
 
-### 2026-07-25 — n8n outage: 8 hours down, no alert, pod reporting healthy
+| Fact | Effect |
+|---|---|
+| Step 4 deletes the source (`postgres`/`couchdb`/`mysql`/`pvc`) after the NAS confirms receipt | on a normal run, nearly every file present is new |
+| 129 GB of that run was the **weekly** immich backup, created that morning | it had not been copied yet, because that night's replication had stopped early |
 
-Found incidentally while capturing a monitor baseline for Batch 9. n8n had been serving HTTP 503
-since **04:47**, and nothing had fired.
+Step 4 leaves `immich/` alone on purpose. `immich-backup-cronjob.yaml` manages those files with its
+own keep-2 clean-up, which keeps two snapshots. That is why ~129 GB, two weekly snapshots, correctly
+stays in the source tree.
 
-Root cause was a transient PostgreSQL blip during the early-morning node event: n8n's TypeORM
-pool logged `connect ECONNREFUSED` against the `main-postgres-rw-pooler` ClusterIP, exhausted
-its retries, and never reconnected. By the time it was found the cluster was healthy — postgres
-2/2, both pooler pods up, and a TCP connect from inside the n8n pod itself succeeded to the
-ClusterIP *and* both pooler pod IPs. The network had recovered hours earlier; only the pool
-had not.
+### 2026-07-25 — n8n outage: 8 hours down, no alert, and the pod reported healthy
 
-**Two failures made it silent, and both are worth remembering:**
+The outage was found by chance, during work to record a baseline of the monitors for Batch 9. n8n
+had served HTTP 503 since **04:47**, and no alert had fired.
 
-- **The readiness probe passes while the app is unusable.** n8n's probe hits `/healthz`, which
-  does not touch the database, so the pod sat `1/1 Running` for eight hours with 0 restarts
-  while every real request returned 503. Kubernetes had no idea anything was wrong.
-- **`kubectl rollout restart` silently did nothing.** It reported "successfully rolled out", but
-  Flux's drift detection stripped the `kubectl.kubernetes.io/restartedAt` annotation, reverted
-  the Deployment to its git spec, and scaled the *old* ReplicaSet back to 1. The original pod
-  survived, same name, same 8h age. Only `kubectl delete pod` worked, because Flux manages the
-  Deployment and not the pod it creates. This is the inverse of the usual advice: for a
-  no-spec-change restart under drift detection, deleting the pod is the reliable action.
+The cause was a short PostgreSQL outage during the early-morning node event. n8n's TypeORM
+connection pool logged `connect ECONNREFUSED` against the `main-postgres-rw-pooler` ClusterIP (the
+Service's internal cluster address). The pool used up its retries and never reconnected. By the time
+someone found it, the cluster was healthy: postgres 2/2, and both pooler pods up. A TCP connection
+from inside the n8n pod itself reached the ClusterIP *and* both pooler pod IPs. The network had
+recovered hours earlier; only the pool had not.
 
-uptime-kuma had it right the whole time — its N8N monitor was the only thing that knew. Its
-monitors are not wired to Alertmanager, so "no alerts firing" was never evidence of health.
+**Two failures kept the outage hidden, and both are worth remembering:**
+
+- **The readiness probe passes while the app cannot be used.** n8n's probe requests `/healthz`,
+  which does not use the database. So the pod stayed `1/1 Running` for eight hours with 0 restarts,
+  while every real request returned 503. Kubernetes saw nothing wrong.
+- **`kubectl rollout restart` did nothing, and reported success.** It printed "successfully rolled
+  out". But Flux's drift detection (which resets live objects to match git) removed the
+  `kubectl.kubernetes.io/restartedAt` annotation. It reverted the Deployment to its spec in git, and
+  scaled the *old* ReplicaSet back to 1. (A ReplicaSet is the object that keeps a set number of
+  copies of a pod running.) The original pod survived, with the same name and the same
+  8h age. Only `kubectl delete pod` worked, because Flux manages the Deployment, not the pod that the
+  Deployment creates. This is the opposite of the usual advice. If you need a restart without a spec
+  change while drift detection is on, deleting the pod is the reliable action.
+
+uptime-kuma reported the outage correctly the whole time: its N8N monitor was the only thing that
+knew. Its monitors do not send to Alertmanager, so "no alerts firing" never proved health.
 
 ### 2026-07-25 — Ultrareview fixes, Batch 9: the items deferred earlier
 
