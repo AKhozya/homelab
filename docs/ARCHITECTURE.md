@@ -45,9 +45,18 @@ flowchart TB
 
 Storage is `local-path-provisioner`: each volume lives on one node's disk. There is no distributed
 storage layer, by choice: node-local disks are simpler and faster. The volume's `nodeAffinity`
-binds it to the node where it was first created, so its pod always runs there; no Deployment pins
-itself to a node. Durability comes from the backup chain, not from replicas: one CronJob on W1
-copies the nightly backups to the NAS and keeps 30 days of history.
+binds it to the node where it was first created, so its pod always runs there. Most Deployments
+carry no node rule of their own; these do:
+
+| Workload | Node rule |
+|---|---|
+| `blocky` | required: `worker-node` or `worker-node-2` |
+| `rustdesk`, `warp-beacon` | required: `worker-node` |
+| `uptime-kuma` | `nodeSelector`: the control plane |
+| `immich-server`, `immich-machine-learning` | `nodeSelector`: `homelab/gpu=intel` (`immich-vm`) |
+
+Durability comes from the backup chain, not from replicas: one CronJob on W1 copies the nightly
+backups to the NAS and keeps 30 days of history.
 
 Immich runs on `immich-vm`, the GPU worker:
 
@@ -168,7 +177,16 @@ flowchart TB
 Each layer works on its own. A workload that got past admission still meets the network policy. A
 process that got past the network policy still runs, by default, as non-root with a read-only root
 filesystem, no extra Linux privileges (capabilities) and the default system-call filter (seccomp).
-Home Assistant and Stirling-PDF are the documented exceptions that run as root.
+These run a container as root, or may:
+
+| Workload | Container | Why |
+|---|---|---|
+| Home Assistant | main | documented exception ([PSS_EXCEPTION.md](../apps/home-assistant/PSS_EXCEPTION.md)) |
+| Stirling-PDF | main | documented exception ([PSS_EXCEPTION.md](../apps/stirling-pdf/PSS_EXCEPTION.md)) |
+| Paperless-NGX | init `fix-permissions` | `runAsUser: 0`, to fix volume ownership |
+| PriceBuddy | `pricebuddy`, `scraper` | no user set, so they run as the image's user |
+
+The Kyverno non-root policy (`require-non-root-vp.yaml`) excludes all four namespaces.
 
 | Control | Scope |
 |---|---|

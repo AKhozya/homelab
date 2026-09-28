@@ -68,7 +68,26 @@ Note: `user_fields` + `sources` must be supplied on every PATCH (serializer vali
 
 ## Full rollback (phases 0-3)
 
-This section reverts phases 0-3 only. It does not revert blueprint `40-remove-password-binding.yaml` (added 2026-06-05, `5a79e178`) or `50-homepage-forward-auth.yaml` (added 2026-07-25, `21071530`).
+This section reverts phases 0-3. It also removes blueprint `40-remove-password-binding.yaml` (added 2026-06-05, `5a79e178`) and restores the password binding, first. It keeps `50-homepage-forward-auth.yaml` (added 2026-07-25, `21071530`).
+
+Restore the **password** binding first. Blueprint 40 removed the password stage from `default-authentication-flow`. Reverting phase 3 sets the MFA stage back to `not_configured_action: skip`. With both in place, a user without an MFA device signs in with a username alone, on an internet-facing hostname. So before any revert below:
+
+1. Remove blueprint 40, so it does not delete the binding again: delete `apps/authentik/blueprints/40-remove-password-binding.yaml` and its line in `apps/authentik/kustomization.yaml`, commit and push, then `flux reconcile kustomization apps --with-source`. A `git revert` of `5a79e178` can conflict, because blueprint 50's line was added next to it later.
+2. Recreate the binding. Reverting the file does not bring it back. These identifiers come from blueprint 40; this snippet has not been run:
+
+   ```bash
+   kubectl exec -n authentik deploy/authentik-worker -- ak shell -c "
+   from authentik.flows.models import Flow, FlowStageBinding
+   from authentik.stages.password.models import PasswordStage
+   b, created = FlowStageBinding.objects.get_or_create(
+       target=Flow.objects.get(slug='default-authentication-flow'),
+       stage=PasswordStage.objects.get(name='default-authentication-password'),
+       order=20)
+   print(b.pk, created)
+   "
+   ```
+
+3. Check that a sign-in asks for the password before you revert the phases.
 
 ```bash
 # Find Phase commits (search commit subject pattern):
@@ -154,7 +173,7 @@ print(v.device_classes, v.not_configured_action)
    # Manually re-apply pre-change state via API PATCH calls using the snapshot JSON
    ```
 
-3. Last resort: PG point-in-time restore via CNPG (no scheduled backups currently configured on `main-postgres` per audit — would need a manual `kubectl cnpg backup` taken before each phase as a safety net).
+3. Last resort: restore the `authentik` database from the nightly `pg_dump` with the [DR runbook's PostgreSQL steps](../disaster-recovery/README.md#postgresql). Restore only `authentik.dump`, not every dump in the archive. Changes since that night's 03:00 dump are lost. There is no point-in-time recovery: the cluster keeps logical dumps only, by design ([BACKUP_STRATEGY.md](../BACKUP_STRATEGY.md)).
 
 ## Blueprint discovery troubleshooting
 

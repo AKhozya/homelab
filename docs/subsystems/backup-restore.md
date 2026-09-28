@@ -19,7 +19,7 @@ The policy (schedules, retention, recovery targets) is in [BACKUP_STRATEGY.md](.
 Namespaces: PG/MySQL/CouchDB CronJobs in `databases`; PVC CronJob in `kube-system`; `immich-backup` + replication in `backup-replication` (immich shares the NAS rsync creds + egress NP there). All backup CronJobs: `startingDeadlineSeconds: 3600` + `backoffLimit: 2` (couchdb keeps `backoffLimit: 6`).
 
 ## PVC backup
-Whitelist (CRITICAL_PVCS) + `nodeSelector: worker-node` + `hostPath /mnt/k8s-storage/backups/pvc`: `infrastructure/configs/backup/pvc-backup-cronjob.yaml`. Compression gzip, except `audiobookshelf-{audiobooks,podcasts}` = uncompressed tar (already-compressed media). Retention 30 days local (matches NAS).
+Whitelist (CRITICAL_PVCS) + `nodeSelector: worker-node` + `hostPath /mnt/k8s-storage/backups/pvc`: `infrastructure/configs/backup/pvc-backup-cronjob.yaml`. Compression gzip, except `audiobookshelf-{audiobooks,podcasts}` = uncompressed tar (already-compressed media). Retention: the nightly `backup-replication` job copies each archive to the NAS and checks the copy. If the check passes, it deletes the local archive. The job's own 30-day local sweep matters only if replication keeps failing. The NAS keeps 30 days.
 
 **Excluded by design** (the *why* matters — re-justify before re-adding):
 - `immich/immich-machine-learning` — regenerable ML cache (library PVC gone — NAS-resident since the Path-B cutover, covered by the weekly W2 job above)

@@ -14,6 +14,10 @@ Tiers: ✅ verified against the live system or primary source · 🟡 single-sou
 | Should the CLIP model change now? | **Yes — `ViT-B-16-SigLIP2__webli`, measured at 3,438 Mi.** The limit is already at 6Gi (`bebea4d9`) and both its compiled blobs are cached. The change wipes all 5,874 embeddings and the re-index is manual, ~25 min. |
 | Should the 4Gi limit be trimmed, as the plan said? | **No — that follow-up is wrong.** Measured 2,435 Mi with both CLIP towers loaded. Trimming blocks any model upgrade. |
 
+> The **memory** figures above are superseded. The ML limit is 7Gi (`1034951d`), not the 4Gi or 6Gi above.
+> The 3,438 Mi and 2,435 Mi figures measure CLIP alone. With CLIP, OCR and facial recognition all
+> resident, the container measured 4,984 Mi on 2026-09-07 (`docs/HOMELAB_ANALYSIS.md`).
+
 ## 1. FP16 (`MACHINE_LEARNING_OPENVINO_PRECISION`)
 
 ### Mechanism ✅

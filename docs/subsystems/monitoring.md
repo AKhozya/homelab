@@ -65,7 +65,7 @@ Per-pod NPs: vmsingle/vmagent/vmalert/vmoperator (`victoria-metrics/networkpolic
 - `ruleNamespaceSelector: {}` + `ruleSelector: {}` → VMRules from all namespaces; `evaluationInterval: 60s`
 
 ## Loki + Alloy (`loki` ns)
-- Alloy config: `loki.source.kubernetes` (K8s API, NO hostPath); metrics port 12345 (NOT default; prefix `loki_write_*`)
+- Alloy config: pod logs through `loki.source.kubernetes` (K8s API, no hostPath); the node-maintenance systemd journal through read-only hostPath mounts of `/var/log/journal` and `/etc/machine-id` (`alloy-release.yaml`); metrics port 12345 (NOT default; prefix `loki_write_*`)
 - `loki-canary` DS probes ingest/query latency
 - Fresh deploy → "timestamp too old" 400s self-resolve in minutes
 - VM-core (vmsingle/vmagent/vmalert): `priorityClassName: homelab-critical`

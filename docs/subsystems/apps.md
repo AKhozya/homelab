@@ -20,7 +20,7 @@ Each app has one directory under `apps/<name>/`. Image versions: pinned in each 
 | **obsidian** | obsidian | — | CouchDB (`databases` ns) | — | both | LiveSync clients reach CouchDB through the tunnel hostname `couchdb.h0melab.work`, behind Cloudflare Access Service Auth |
 | **pricebuddy** | pricebuddy | PVC | MySQL | — | int | Price tracking; sidecars `seleniumbase-scrapper` (CI image-pin allowlisted — upstream has no patch tags) + `apprise` |
 | **claude-telegram** | claude-telegram | PVC 2Gi (`claude-telegram-home-pvc`: dotfiles, checkouts, plugin + Codex state) | — | — | TG only | AI bot; HTTP `/trigger` loopback hook. RBAC: cluster-wide read; delete on pods, replicasets and PolicyReports; `pods/exec` in 14 namespaces; Job create and delete in `popeye` only (`apps/claude-telegram/rbac.yaml`) |
-| **rustdesk** | rustdesk | PVC (100Mi, ed25519 key + sqlite) | — | — | LAN :21115-21117 | Self-hosted remote desktop (hbbs+hbbr, 1 pod/2 containers); single mixed-proto LB on W1 (192.168.1.129); `-k _` gates only the connect-to-peer path, NOT registration or the CVE-670 UDP-reflection handlers; LAN-only (21116/UDP can't traverse tunnel) |
+| **rustdesk** | rustdesk | PVC (100Mi, ed25519 key + sqlite) | — | — | LAN + WARP :21115-21117 | Self-hosted remote desktop (hbbs+hbbr, 1 pod/2 containers); single mixed-proto LB on W1 (192.168.1.129); `-k _` gates only the connect-to-peer path, NOT registration or the CVE-670 UDP-reflection handlers; LAN and WARP only, no public hostname (a tunnel public hostname cannot carry 21116/UDP) |
 
 "External" means a hostname entry in the central Cloudflare tunnel config — see [networking.md](networking.md), never a second Ingress. Grafana (monitoring ns) is also OIDC + dual-ingress — see [monitoring.md](monitoring.md).
 
