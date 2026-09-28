@@ -2257,46 +2257,224 @@ The codification below shipped two regressions to the live cluster, both caught 
 - **`on_reboot=preserve` broke the Tier-2 watchdog every cycle.** The QEMU libvirt driver supports **only `destroy|restart`** for `on_reboot`/`on_poweroff` (`preserve` is `on_crash`-only) — the generic `formatdomain.html` lists all four actions but omits the driver restriction, so the spike + Codex both validated against the schema, not the driver matrix. Live `virsh define` rejected it: *"qemu driver doesn't support the 'preserve' action for 'on_reboot'/'on_poweroff'"* → the watchdog failed `define_failed` every 5 min (was `Completed`). **Fix:** reverted to `on_reboot=restart` (the libvirt default and the live value; test-defined on the NAS at rc=0; next watchdog run went `RESULT=OK`). Both QEMU-supported values are imperfect on a slipped in-guest reboot — `restart`=C4 in-place iGPU wedge (NAS-reboot recoverable), `destroy`=C3 managed-reattach host crash — so **on_reboot cannot be the reset-bug belt**; the real guards stay `kernel.panic=0` + HW-watchdog-off + watchdog-never-destroy. The watchdog drift marker was re-pinned to `<on_reboot>restart</on_reboot>` (Codex round-1 HIGH: don't drop it, or a regen to `destroy` goes undetected). `on_crash=preserve` is unaffected (QEMU supports preserve there).
 - **A comment-only edit failed the whole drift-heal.** The Track-2 wording fix to `99-zz-immich-vm-nopanic.conf` made its `copy` task report `changed` → fired its `notify` handler `Apply nopanic sysctl` → `sysctl --system` re-applies **every** `/etc/sysctl.d` file and exits rc=1 on this VM's unsettable `kernel.nmi_watchdog` (*Operation not permitted*) → the immich-vm play failed (the 3 override keys themselves applied fine). **Fix:** the handler now runs `sysctl -p /etc/sysctl.d/99-zz-immich-vm-nopanic.conf` (only its 3 settable keys). Lessons: editing *any* file wired to a `notify:` fires that handler (even a comment), and `sysctl --system` is fragile (one unsettable key → rc=1 for the batch). Runtime state was never wrong (panic/softlockup/hardlockup all stayed 0); no cluster gating (no `phase2-pending`), self-clears on the next config run.
 
-### 2026-07-12 — immich-vm reboot-resilience codified to GitOps (fbdev wedge fix + 4 tracks)
+### 2026-07-12 — immich-vm reboot resilience written into GitOps: the fbdev hang fix and 4 tracks
 
-Codified the field-proven fix for the recurring `immich-vm` hard wedge, plus three adjacent resilience tracks. Root cause (spiked + proven live 2026-07-11): **`virtio_gpu` fbdev/fbcon damage-work D-locks on the stalled host virtqueue while holding `drm_modeset_lock` → every GPU/login/shutdown open D-states → box wedges ~hourly.** NOT i915/RAM/dual-driver. Fix = `drm_kms_helper.fbdev_emulation=0 fbcon=off` on the guest UKI cmdline — 12h clean soak + graceful shutdown in 48s (pre-fix hung forever). Was applied manually to the live VM; this makes the repo match and drift-durable. Codex static review: **CLEAN, no findings**.
+This change put into the repo the fix, already proven in the field, for the recurring hard hang of
+`immich-vm` (the whole VM stops responding), plus three related resilience tracks. The root cause
+was tested and proven live on 2026-07-11. **The `virtio_gpu` framebuffer console code (fbdev/fbcon)
+does screen-update work ("damage work"). That work blocks in uninterruptible sleep (D state) on the
+stalled host virtqueue while it holds `drm_modeset_lock`. Every attempt to open a GPU device, log in
+or shut down then blocks in D state too, so the VM hangs ~hourly.** The cause is NOT i915, RAM or
+running two drivers. The fix is `drm_kms_helper.fbdev_emulation=0 fbcon=off` on the kernel command
+line of the guest's UKI (unified kernel image). It passed a clean 12h soak, and a graceful shutdown
+finished in 48s; before the fix, shutdown hung forever. The fix had been applied by hand to the live
+VM. This change makes the repo match, so drift-heal keeps the fix in place. Codex's static review:
+**CLEAN, no findings**.
 
-- **Track 0 (`bf04fe36`)** — generalized the role's i915-cmdline task to idempotent **token-set handling**: ensures `drm_kms_helper.fbdev_emulation=0`, `fbcon=off`, and merges `xe` into `modprobe.blacklist` (→ `i915,xe`, hygiene — binds nothing). Parser unit-tested for idempotence (run-twice = 0 changes) + no double-append. Guest heal probe hardened: `qsv_probe` now `timeout`-bounded + a `qsv_probe_stuck()` pgrep detector emitting a new `immich_gpu_qsv_stuck` gauge (emit_metric 6th arg, default 0 → existing callers unchanged) so a D-state vainfo is surfaced, not silently accumulated (the pre-fix self-heal-that-self-harms). **Gotcha:** `expected_kernel_params` adds fbdev/fbcon (live now) but deliberately keeps `modprobe.blacklist=i915` — base_config greps the RUNNING `/proc/cmdline` with `grep -qFw`, so `i915,xe` there would false-alert until the next operator cold-cycle; `-Fw "…=i915"` already substring-matches the future `i915,xe`. `xe` drift is enforced at the UKI *source* by the role.
-- **Track 1 (`1dee4c88`)** — role now manages the guest `~akhozya/.ssh/authorized_keys` exclusively (operator zl-nas key + automation master-node key, the deduped live set — 3× master-node drift collapsed), asserts `~/.ssh` 0700 / file 0600, mirroring base_config's node-maintenance pattern. Closes the "key clears every reboot" onboarding gap (guest `/home` is persistent ext4 LVM, no cloud-init). NAS-side 0771 reset stays operator/appliance (out of IaC).
-- **Track 2 (`1dee4c88` + `1fa66312`)** — installs+enables `qemu-guest-agent` (reliable `virsh shutdown --mode agent` + domtime/domfsinfo over the channel already in the domain XML). Docs sweep: removed the **phantom `virsh --timeout 120`** (a flag that does not exist on the NAS libvirt 9.0.0 → errored, never ran) from README, phase2 (incl. the live Telegram alert `:392`), and both plans; corrected the reset-bug `.conf` comments "NAS-side virsh reset" → "NAS host reboot" (`virsh reset` is itself a reset-bug trigger). Canonical procedure everywhere: `virsh shutdown --mode acpi <dom>` → poll domstate → `virsh start`; on hang → alert + NAS host reboot, **never destroy/reset**.
-- **Track 3 + 7 (`0df8f020`)** — Tier-2 watchdog now gates `virsh start` on the virtiofs **source** (`/home/akhozya/immich/library`, a btrfs subvol on bcache) being present on the NAS — the lazy-mount races autostart after a NAS reboot (`virsh start` fails "export directory does not exist"). Not-ready → skip + retry next 5-min tick (a persistently-down VM is caught by NodeNotReady). Track 7 attempted `on_reboot: restart → preserve` — **REVERTED same day** (QEMU rejects `preserve` for on_reboot; see the HOTFIX entry above). `on_reboot` stayed `restart`; the watchdog got a `<on_reboot>restart</on_reboot>` drift marker.
+- **Track 0 (`bf04fe36`).** The role's i915-cmdline task became general **handling of a set of
+  tokens**, and it is idempotent (a second run changes nothing). It ensures
+  `drm_kms_helper.fbdev_emulation=0` and `fbcon=off`, and merges `xe` into `modprobe.blacklist`,
+  giving `i915,xe`. Adding xe is hygiene: that driver binds nothing. Unit tests cover the
+  parser: running it twice makes 0 changes, and it never appends a value twice.
 
-Deferred (not this round): Option B (drop `<video>`/`<graphics vnc>` for truly-headless) — blocked on the pre-existing console mismatch (guest `console=hvc0` virtio-console vs the domain's isa-serial ttyS0 → `virsh console` likely dead); fix the console first.
+  The guest's self-heal probe is harder to break now. `qsv_probe` runs under a `timeout`, and a
+  new `qsv_probe_stuck()` detector (using pgrep) emits a new `immich_gpu_qsv_stuck` gauge. For
+  that, emit_metric takes a 6th argument, which defaults to 0, so existing callers do not change.
+  A vainfo stuck in D state now shows up in the metric instead of piling up unseen. Before the
+  fix, the self-heal probe itself did that harm.
 
-### 2026-07-11 — immich-vm weekly patching was a silent no-op (yay never bootstrapped)
+  **Gotcha:** `expected_kernel_params` adds the fbdev and fbcon settings (live now) but
+  deliberately keeps `modprobe.blacklist=i915`. base_config checks the RUNNING `/proc/cmdline`
+  with `grep -qFw`, so `i915,xe` there would raise a false alert until the operator's next cold
+  restart of the VM (power off, then start). `-Fw "…=i915"` already matches the future `i915,xe`
+  as a substring. The role enforces the `xe` entry at the UKI *source*.
+- **Track 1 (`1dee4c88`).** The role now owns the guest's `~akhozya/.ssh/authorized_keys` outright.
+  The file holds the operator's zl-nas key and the automation key from the master node: the live
+  set with duplicates removed. Through drift, the master-node key had appeared 3× and now appears
+  once. The role checks that `~/.ssh` is 0700 and the file 0600, following base_config's
+  node-maintenance pattern. This closes the onboarding gap in which "the key clears every reboot".
+  The guest's `/home` is persistent ext4 on LVM, with no cloud-init. The 0771 reset on the NAS
+  side stays with the operator and the appliance, outside infrastructure-as-code.
+- **Track 2 (`1dee4c88` and `1fa66312`).** The role installs and enables `qemu-guest-agent`. It
+  gives a reliable `virsh shutdown --mode agent`, plus domtime and domfsinfo, over the channel that
+  the domain XML already had. A docs sweep removed the **nonexistent `virsh --timeout 120`** from
+  the README, from phase2 (including the live Telegram alert at `:392`) and from both plans. The
+  NAS runs libvirt 9.0.0, which has no such flag, so the command errored and never ran. The sweep
+  also corrected the reset-bug `.conf` comments from "NAS-side virsh reset" to "NAS host reboot",
+  because `virsh reset` itself triggers the reset bug (the passed-through GPU is left dirty, and
+  binding it again can crash the NAS host). The standard procedure everywhere is now
+  `virsh shutdown --mode acpi <dom>`, then polling domstate, then `virsh start`. If the VM hangs,
+  alert and reboot the NAS host; **never destroy or reset** the VM.
+- **Tracks 3 and 7 (`0df8f020`).** The Tier-2 watchdog now runs `virsh start` only if the virtiofs
+  **source** (`/home/akhozya/immich/library`, a btrfs subvolume on bcache) is present on the NAS.
+  After a NAS reboot that folder mounts lazily, and the mount can lose the race with autostart;
+  `virsh start` then fails with "export directory does not exist". If the source is not ready, the
+  watchdog skips and retries on its next 5-min run. NodeNotReady catches a VM that stays down.
+  Track 7 tried `on_reboot: restart → preserve`, and it was **reverted the same day**, because
+  QEMU rejects `preserve` for on_reboot (see the HOTFIX entry above). `on_reboot` stayed `restart`,
+  and the watchdog gained a `<on_reboot>restart</on_reboot>` drift marker.
 
-The GPU VM (`immich-vm`) had **not been patched since onboarding** — found on kernel `6.18.38-1-lts` while the rest of the fleet was on `-2`. Root cause: physical nodes seed the `yay` AUR helper once at build via `setup-node.sh`, but the VM's GPU-onboarding path skipped it, so phase2 **PLAY 1b**'s `yay_cmd` (`sudo -u node-maintenance yay -Syyu …`) failed with `yay: command not found`. The old rescue retried once and **swallowed** the failure → the task reported `ok` → the VM drifted un-updated, undetected. (The Saturday roll correctly does *not* reboot the VM — it's in the `virtual` inventory group, carved out of the reboot rollout for the reset-bug; this was a patching gap, not a reboot gap. Surfaced while checking whether the kernel-stale cold-restart alert had fired — it was `skipping`, because the swallowed upstream failure meant nothing was ever pulled.)
+Deferred to a later round: Option B, which drops `<video>`/`<graphics vnc>` to make the VM truly
+headless (no display device at all). An older console mismatch blocks it. The guest uses
+`console=hvc0` (virtio-console), but the domain has an isa-serial ttyS0, so `virsh console` likely
+does not work. Fix the console first.
 
-Two fixes (Codex-reviewed, 2 rounds):
-- **`immich_gpu_node` role** now bootstraps `yay-bin` from the AUR when absent — `stat: /usr/bin/yay` guard so it only fires on a fresh/re-onboarded VM (thereafter the weekly `yay_cmd` self-updates yay). Build/install **split**: `makepkg` refuses root *and* this same role removes akhozya's NOPASSWD (admin-parity), so `makepkg -si` (self-calls `sudo pacman`) would hang → instead pre-install `base-devel`+`git` as root, `makepkg --noconfirm` as akhozya (no `-s`, PKGDEST/BUILDDIR overridden into a tmp dir), then `pacman -U` the artifact as root.
-- **phase2 PLAY 1b rescue** no longer swallows: retry once (transient), and if it still fails, `telegram-notify` — deliberately **not** re-raising (a hard-fail would leave `phase2-pending` stuck → gate sync+config drift-heal cluster-wide, per the 2026-06-20 ~1.7h stall). A silent no-op became a page.
+### 2026-07-11 — immich-vm weekly patching did nothing and reported success (yay was never installed)
 
-Codex round 1 caught a **HIGH**: the first guard used `ansible.builtin.command: command -v yay` — `command` is a shell builtin, unreachable without a shell, so with `failed_when: false` it read "missing" forever → bootstrap every drift-heal. Fixed to `stat`. Also noted: the VM's `akhozya` admin user had **no** authorized key (onboarding gap, same root cause) — added out-of-band via the `node-maintenance` identity.
+The GPU VM (`immich-vm`) had **not been patched since it joined the cluster**. It was found on
+kernel `6.18.38-1-lts`, while the other nodes were on `-2`. The cause: `setup-node.sh` installs
+the `yay` AUR helper once, when a physical node is built, but the VM's GPU onboarding path skipped
+that step. So the `yay_cmd` in phase2 **PLAY 1b** (`sudo -u node-maintenance yay -Syyu …`) failed
+with `yay: command not found`. The old rescue step retried once and then **hid** the failure. The
+task reported `ok`, and the VM stayed un-updated, undetected.
 
-### 2026-07-11 — Immich GPU-node Tier-2 host watchdog (Path B substrate self-heal)
+The Saturday run is right *not* to reboot the VM. The VM is in the `virtual` inventory group,
+which the reboot rollout leaves out because of the reset bug. So this was a gap in patching, not in
+rebooting. It came to light during a check on whether the kernel-stale cold-restart alert had
+fired. That task was `skipping`, because the hidden failure earlier in the run meant no update was
+ever downloaded.
 
-Shipped the **Tier-2 host VM watchdog** for the Immich GPU node (`immich-vm`, the Arch k3s worker on the zettOS NAS). New under `apps/immich/gpu-node/`: CronJob `immich-vm-heal` (immich ns, every 5 min, nodeAffinity `homelab/gpu NotIn intel` so it runs OFF the node it heals), a **dedicated** `immich-vm-heal` ed25519 key (SOPS), a Job-scoped egress NetworkPolicy (NAS `192.168.1.136:56634` + DNS only), a pinned NAS known-hosts CM, and VMRule group `immich-gpu-node-alerts` (`ImmichVMHealJobFailing` + `ImmichVMHealStale`). The heal script (`immich-vm-heal.sh`, non-root POSIX sh, `alpine/git:2.54.0` for a baked-in ssh) SSHes the NAS and drives `virsh -c qemu:///system`: keeps the domain **defined-from-Git** (semantic marker-drift check — machine=q35, memfd, virtiofs, MAC, full iGPU PCI source address `domain='0x0000' bus='0x00' slot='0x02' function='0x0'`, managed='yes' — NOT a byte-diff, which false-drifts on libvirt's re-emitted runtime addresses) and **running** (`virsh start` on a `shut off` domain = clean cold iGPU reset; this IS the autostart since native/UI autostart is OFF by design). This watchdog is the durable answer to the cold-restart gap proven live 2026-07-10 (NAS power-cut → VM did not auto-start).
+Two fixes, reviewed by Codex in 2 rounds:
 
-**Safety (incident C3):** the script NEVER `virsh destroy`s and NEVER restarts a *running* domain — force-destroy of a passthrough VM re-binds the dirty iGPU to the host i915 → NAS host crash. A wedged-but-running guest is left to `NodeNotReady` + operator. Also hardened the canonical domain XML `on_crash: destroy → preserve` (Codex-caught): `destroy` would tear the domain down on a guest crash — the same dirty-GPU rebind — and leave it `shut off` so the watchdog would auto-start it; `preserve` keeps it `crashed` → alert-only.
+- The **`immich_gpu_node` role** now installs `yay-bin` from the AUR if yay is missing. A
+  `stat: /usr/bin/yay` check limits this to a fresh or re-onboarded VM. After that, the weekly
+  `yay_cmd` updates yay itself. Building and installing are **split** into separate steps, for two
+  reasons. `makepkg` refuses to run as root, *and* this same role removes akhozya's NOPASSWD sudo
+  (admin parity). So `makepkg -si`, which calls `sudo pacman` itself, would hang. Instead, the role
+  installs `base-devel` and `git` as root first. It then runs `makepkg --noconfirm` as akhozya,
+  without `-s`, with PKGDEST and BUILDDIR pointed at a temporary folder. Last, it runs `pacman -U`
+  on the built package as root.
+- The **phase2 PLAY 1b rescue** no longer hides the failure. It retries once, in case the error was
+  temporary. If the retry also fails, it sends a `telegram-notify` message. It deliberately does
+  **not** raise the failure again. A failed play would leave `phase2-pending` in place, and that
+  marker blocks the sync and config drift-heal runs on every node, as in the ~1.7h stall of
+  2026-06-20. A failure that did nothing and raised no alert now sends one.
 
-**Pod hardening:** immich ns is PSS `privileged` but `require-non-root` (Kyverno Enforce) does NOT exclude it → the watchdog runs non-root + drop-ALL + RoRFS + seccomp + dedicated SA + tight egress. The NAS key is delivered as an env secret and materialized to a `0400` self-owned file in the HOME emptyDir (a secret *volume* mounts root-owned and a non-root process can't fix perms for sshd StrictModes). Alerting is via the VMRule (Job status), not in-pod curl.
+Codex round 1 caught a **HIGH** finding. The first check used
+`ansible.builtin.command: command -v yay`. `command` is a shell builtin, and that module runs no
+shell, so it cannot reach the builtin. With `failed_when: false`, the check read "missing" every
+time, so every drift-heal would have rebuilt yay. The check now uses `stat`. The review also noted
+that the VM's `akhozya` admin user had **no** authorized key, an onboarding gap with the same cause.
+The key was added outside the normal automation, through the `node-maintenance` identity.
 
-**Review:** 3 Codex static rounds (BLOCK: on_crash + hostdev-source-precision; WARNING: absent()-arm + `for:10m` on Stale) → SHIP. Corrected the design doc's stated NAS SSH port (65300 → **56634**; 65300 is the k3s-node port, the NAS *host* admin sshd is 56634).
+### 2026-07-11 — Tier-2 host watchdog for the Immich GPU node (Path B self-heal for the VM underneath)
 
-**Go-live (operator, pending):** append the dedicated pubkey (`ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE2Z/KV9tk+ceo5Pu50nAX5zOp3bbAyKIYOs3eW442eo immich-vm-heal@homelab`) to NAS `~akhozya/.ssh/authorized_keys`, and one `virsh -c qemu:///system define` of the hardened XML so the live domain adopts `on_crash=preserve`. Until the pubkey is added the job fails closed (`ssh_unreachable` → ImmichVMHealJobFailing) — the correct signal. Tier-1 guest self-heal shipped earlier in Step-4; the remaining Path-B piece is 4E (Immich pod cutover), still design-gated.
+This change added the **Tier-2 host VM watchdog** for the Immich GPU node (`immich-vm`, the Arch
+k3s worker on the zettOS NAS). New under `apps/immich/gpu-node/`:
 
-### 2026-07-10 — UFW reload isolated W2 for 90 min → reload gated + node_isolation_heal watchdog
+| Object | Detail |
+|---|---|
+| CronJob `immich-vm-heal` | in the immich namespace, every 5 min. nodeAffinity (a rule on which nodes may run a pod) `homelab/gpu NotIn intel` keeps it OFF the node it heals |
+| a **dedicated** `immich-vm-heal` ed25519 key | stored with SOPS (encrypted in Git) |
+| an egress (outbound traffic) NetworkPolicy for the Job only | allows only the NAS at `192.168.1.136:56634`, and DNS |
+| a NAS known-hosts ConfigMap | pinned |
+| VMRule group `immich-gpu-node-alerts` | `ImmichVMHealJobFailing` and `ImmichVMHealStale` |
 
-**Incident:** the firewall role's pre-heal ran `ufw reload` UNCONDITIONALLY on every drift-heal; on W2's Realtek r8169 NIC the reload dropped the k3s↔CP tunnel → 90 min NotReady + SSH-dead (kernel alive — firewall wedge, not a crash), manual power-cycle to recover. W2/NAS are Realtek, CP/W1 Intel igc — only W2 loses the reload↔tunnel race. **Fix** `ff2b486b`: reload now gated on `repaired>0` (verified live). No existing self-heal caught the state ("network-isolated, UFW active, agent process up") → new **`node_isolation_heal`** role (`68f114d0`, workers-only, ships DRY-RUN): probes the CP tunnel, ladder L1 restart `k3s-agent` → L2 staggered self-reboot (W1 15 min / W2 23 min, leaderless so both workers never reboot together), guards (boot-loop uptime, ≤1 reboot/24 h, maint-hold), 22 ladder tests. Post-soak follow-ups (maint-hold wiring, shared cooldown, VMRules, dry-run flip) tracked in memory `gotcha_ufw_reload_node_isolation`.
+The heal script (`immich-vm-heal.sh`) is a non-root POSIX sh script. It runs on
+`alpine/git:2.54.0` because that image already contains ssh. It connects to the NAS over SSH and
+drives `virsh -c qemu:///system` to keep two things true:
 
-### 2026-07-10 — immich-vm joined k3s as 4th node (GPU worker)
+- The domain stays **defined from Git**. The script checks chosen markers for drift: machine=q35,
+  memfd, virtiofs, the MAC, the full iGPU PCI source address
+  `domain='0x0000' bus='0x00' slot='0x02' function='0x0'`, and managed='yes'. It does NOT compare
+  bytes, because libvirt writes runtime addresses back into the XML it outputs, and a byte
+  comparison would report false drift.
+- The domain stays **running**. `virsh start` on a `shut off` domain gives the iGPU a clean cold
+  reset. This IS the VM's autostart, because the built-in and UI autostart are OFF by design.
 
-Path-B STEP-4: the Arch VM on the NAS (`immich-vm`, 192.168.1.231, Intel QSV via passthrough) joined the cluster as a `k3s-agent` worker — the landing node for immich-server (cutover completed 2026-07-12, see above). Onboarded into ansible node-maintenance (`immich_gpu_node` role; in `workers` for k3s + clusterip_heal, in `virtual` to carve it out of in-guest reboots and node_isolation_heal — GPU reset-bug). Node-count references: 4 nodes (3 physical + 1 VM).
+This watchdog is the lasting answer to the cold-restart gap proven live on 2026-07-10, when the NAS
+lost power and the VM did not start again on its own.
+
+**Safety (incident C3):** the script NEVER runs `virsh destroy` and NEVER restarts a *running*
+domain. A forced destroy of a VM with a passed-through GPU hands the iGPU, still in a dirty state,
+back to the host's i915 driver, and the NAS host crashes. If the guest hangs but still runs,
+`NodeNotReady` and the operator deal with it. The change also hardened the canonical domain XML:
+`on_crash: destroy → preserve`, which Codex caught. With `destroy`, a guest crash would tear the
+domain down, handing back the dirty GPU in the same way. It would also leave the domain `shut off`,
+so the watchdog would start it again automatically. `preserve` keeps the domain `crashed`, which
+only raises an alert.
+
+**Pod hardening:** the immich namespace is at the PSS (Pod Security Standards) level `privileged`,
+but `require-non-root` (Kyverno, Enforce) does NOT exclude it. So the watchdog runs locked down:
+
+| Setting | Value |
+|---|---|
+| user | non-root |
+| Linux capabilities | ALL dropped |
+| root filesystem | read-only |
+| seccomp (a filter on the system calls a process may make) | set |
+| service account | its own |
+| egress | tight |
+
+The NAS key arrives as a secret in an environment variable. The script writes it to a `0400` file it
+owns, in the HOME emptyDir (a scratch folder that lives as long as the pod). A secret *volume* would
+mount the file owned by root, and a non-root process cannot fix its permissions for sshd
+StrictModes. Alerts come from the VMRule, which watches Job status, not from a curl inside the pod.
+
+**Review:** 3 static Codex rounds, ending in SHIP. They raised BLOCK findings on on_crash and on the
+precision of the hostdev source, and WARNING findings on the absent() branch and on `for:10m` for
+the Stale alert. The review also corrected the NAS SSH port in the design doc from 65300 to
+**56634**. 65300 is the SSH port of the k3s nodes; the NAS *host*'s admin sshd listens on 56634.
+
+**Go-live steps (for the operator, pending):**
+
+- Append the dedicated public key to `~akhozya/.ssh/authorized_keys` on the NAS:
+  `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIE2Z/KV9tk+ceo5Pu50nAX5zOp3bbAyKIYOs3eW442eo immich-vm-heal@homelab`
+- Run `virsh -c qemu:///system define` once with the hardened XML, so the live domain takes
+  `on_crash=preserve`.
+
+Until the key is added, the Job fails without touching the VM: it reports `ssh_unreachable`, and
+ImmichVMHealJobFailing fires. That is the correct signal. The Tier-1 self-heal inside the guest
+shipped earlier, in Step-4. The last Path-B piece is 4E, moving the Immich pod, and it still needs
+design approval first.
+
+### 2026-07-10 — A UFW reload cut W2 off for 90 min; the reload is now conditional, and a node_isolation_heal watchdog exists
+
+**Incident:** the firewall role's pre-heal step ran `ufw reload` on every drift-heal, with no
+condition. On worker W2's Realtek r8169 NIC, the reload dropped the tunnel between k3s and the
+control plane (CP). The node stayed NotReady for 90 min and did not answer SSH. The kernel stayed
+alive: the firewall had cut the network, the machine had not crashed. Recovery needed a manual
+power cycle. W2 and the NAS have Realtek NICs, and the CP and worker W1 have Intel igc. Only W2
+loses the race between the reload and the tunnel.
+
+**Fix** `ff2b486b`: the reload now runs only if `repaired>0`, checked live.
+
+No existing self-heal caught this state: isolated from the network, UFW active, agent process up. So
+a new **`node_isolation_heal`** role (`68f114d0`) runs on the workers only, and it ships in DRY-RUN
+mode (it reports the actions it would take, without taking them). It probes the tunnel to the CP and
+escalates in steps:
+
+| Step | Action |
+|---|---|
+| L1 | restart `k3s-agent` |
+| L2 | the node reboots itself, staggered: W1 at 15 min, W2 at 23 min. No node leads, and the stagger keeps both workers from rebooting together |
+
+The role has three guards:
+
+| Guard | Rule |
+|---|---|
+| boot loop | a minimum uptime |
+| reboot limit | ≤1 reboot per 24 h |
+| maintenance hold | maint-hold |
+
+22 tests cover the steps. The memory note `gotcha_ufw_reload_node_isolation` tracks the follow-ups
+after the soak:
+
+| Follow-up |
+|---|
+| wire up the maintenance hold |
+| a shared cooldown |
+| VMRules |
+| switch dry-run off |
+
+### 2026-07-10 — immich-vm joined k3s as the 4th node, a GPU worker
+
+Path-B STEP-4: the Arch VM on the NAS (`immich-vm`, 192.168.1.231, Intel QSV through GPU
+passthrough) joined the cluster as a `k3s-agent` worker. It is the node that immich-server moves
+to; that move finished on 2026-07-12 (see above). The VM joined Ansible node-maintenance through the
+`immich_gpu_node` role. It is in `workers`, for k3s and clusterip_heal. It is also in `virtual`,
+which leaves it out of in-guest reboots and node_isolation_heal because of the GPU reset bug. Node
+counts now read 4 nodes (3 physical + 1 VM).
 
 ### 2026-07-10 — k3s v1.36.1 → v1.36.2 patch + trivy scan concurrency 2→1
 
