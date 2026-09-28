@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # sync-from-git.sh — pull homelab repo on CP, run install.sh --sync-only if SHA changed.
 # Invoked by node-maintenance-sync.service (systemd oneshot, root).
-# Idempotent + fast no-op when HEAD unchanged.
+# Runs install.sh only when HEAD differs from the last SHA install.sh applied.
 set -euo pipefail
 
 REPO_DIR="${NODE_MAINT_REPO_DIR:-/var/lib/node-maintenance/homelab}"
@@ -9,21 +9,22 @@ BRANCH="${NODE_MAINT_BRANCH:-main}"
 REPO_URL="${NODE_MAINT_REPO_URL:-git@github.com:AKhozya/homelab.git}"
 DEPLOY_KEY="${NODE_MAINT_DEPLOY_KEY:-/root/.ssh/homelab-deploy}"
 KNOWN_HOSTS="${NODE_MAINT_GH_KNOWN_HOSTS:-/etc/node-maintenance/github_known_hosts}"
+# The SHA install.sh last applied, not the checkout's pre-fetch HEAD: `reset --hard` below moves
+# HEAD before install.sh runs, so a failed install would otherwise read as applied on the next run.
+APPLIED_FILE="/var/lib/node-maintenance/sync-applied-sha"
+# Same lock file as node-maintenance-lock.sh.
+LOCK=/run/node-maintenance.lock
 
 [ -r "$DEPLOY_KEY" ] || { echo "deploy key missing: $DEPLOY_KEY" >&2; exit 10; }
 [ -r "$KNOWN_HOSTS" ] || { echo "known_hosts missing: $KNOWN_HOSTS" >&2; exit 11; }
 
 export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o IdentitiesOnly=yes -o UserKnownHostsFile=$KNOWN_HOSTS -o StrictHostKeyChecking=yes -o BatchMode=yes -o ConnectTimeout=10"
 
-FRESH_CLONE=0
 if [ ! -d "$REPO_DIR/.git" ]; then
   echo "==> Cloning $REPO_URL → $REPO_DIR"
   install -d -m 0750 -o root -g root "$(dirname "$REPO_DIR")"
   git clone --depth=50 -b "$BRANCH" "$REPO_URL" "$REPO_DIR"
-  FRESH_CLONE=1
 fi
-
-PRE_SHA=$(git -C "$REPO_DIR" rev-parse HEAD)
 
 # Retry git fetch — transient SSH/network failures are common (exit 128)
 MAX_RETRIES=3
@@ -44,17 +45,30 @@ git -C "$REPO_DIR" checkout "$BRANCH" >/dev/null 2>&1 || true
 git -C "$REPO_DIR" reset --hard "origin/$BRANCH"
 POST_SHA=$(git -C "$REPO_DIR" rev-parse HEAD)
 
-if [ "$FRESH_CLONE" -eq 0 ] && [ "$PRE_SHA" = "$POST_SHA" ]; then
+# Every run, not only on a new SHA: the commit that rotates the token can reach this node
+# before Flux applies the Secret. A failed read keeps the old files, so it only warns;
+# telegram-notify.sh reports a stale token itself when a send fails.
+bash "$REPO_DIR/node-maintenance/lib/refresh-telegram-creds.sh" \
+  || echo "==> WARN: Telegram creds refresh failed; kept the existing files" >&2
+
+APPLIED_SHA=$(cat "$APPLIED_FILE" 2>/dev/null || true)
+if [ "$APPLIED_SHA" = "$POST_SHA" ]; then
   echo "==> No changes (HEAD=${POST_SHA:0:10}); skip install"
   exit 0
 fi
 
-if [ "$FRESH_CLONE" -eq 1 ]; then
-  echo "==> Fresh clone (HEAD=${POST_SHA:0:10}); running install.sh --sync-only"
-else
-  echo "==> HEAD ${PRE_SHA:0:10} → ${POST_SHA:0:10}; running install.sh --sync-only"
+echo "==> Applied ${APPLIED_SHA:0:10} → HEAD ${POST_SHA:0:10}; running install.sh --sync-only"
+# install.sh rsyncs the playbooks a running drift-heal or phase1/phase2 reads, so it takes the
+# node-maintenance lock. If the lock is busy, skip: the SHA stays unapplied and the next
+# 10-min run retries.
+rc=0
+flock -n -E 75 "$LOCK" bash "$REPO_DIR/node-maintenance/install.sh" --sync-only || rc=$?
+if [ "$rc" = 75 ]; then
+  echo "==> another node-maintenance run holds the lock; retrying on the next sync"
+  exit 0
 fi
-bash "$REPO_DIR/node-maintenance/install.sh" --sync-only
+[ "$rc" = 0 ] || exit "$rc"
+printf '%s\n' "$POST_SHA" > "$APPLIED_FILE"
 echo "==> Sync applied: ${POST_SHA:0:10}"
 
 # ── node-config drift-heal (ansible) ──

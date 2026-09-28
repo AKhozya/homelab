@@ -78,7 +78,7 @@ EOF
 fi
 
 # /etc/node-maintenance: 0755 so node-maintenance user can traverse
-# (known_hosts file itself is public info; token/chat-id files are 0400 root-only)
+# (known_hosts file itself is public info; token/chat-id files are 0600 root-only)
 install -d -m 0755 -o root             -g root            /etc/node-maintenance
 install -d -m 0750 -o root             -g adm             /var/log/node-maintenance
 install -d -m 0700 -o node-maintenance -g node-maintenance /var/lib/node-maintenance/.ssh
@@ -118,12 +118,8 @@ install -m 0644 "$REPO_DIR/lib/known_hosts" /etc/node-maintenance/known_hosts
 
 if [ "$SYNC_ONLY" -eq 0 ]; then
   # ── Telegram creds (reuse backup-replication/backup-telegram) ──
-  kubectl --kubeconfig="$KUBECONFIG_PATH" get secret -n backup-replication backup-telegram \
-    -o jsonpath='{.data.bot_token}' | base64 -d > /etc/node-maintenance/telegram-token
-  chmod 0400 /etc/node-maintenance/telegram-token
-  kubectl --kubeconfig="$KUBECONFIG_PATH" get secret -n backup-replication backup-telegram \
-    -o jsonpath='{.data.chat_id}' | base64 -d > /etc/node-maintenance/telegram-chat-id
-  chmod 0400 /etc/node-maintenance/telegram-chat-id
+  # sync-from-git.sh re-runs this on every sync, so a rotated token reaches the CP.
+  bash "$REPO_DIR/lib/refresh-telegram-creds.sh"
 fi
 
 # ── notify helper + sync helper + systemd units ──

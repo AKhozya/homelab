@@ -1,15 +1,10 @@
 ---
 # Shared include. Callers must set `tg_message` in `vars:`.
+# telegram-notify.sh keeps the bot token out of the task and reports its own failure
+# (an err journal line and node_maintenance_telegram_notify_success 0). Plain text, no
+# parse_mode: if parse_mode is Markdown, Telegram rejects a message with an unpaired `_` or `*`.
 - name: Send Telegram notification
-  ansible.builtin.uri:
-    url: "https://api.telegram.org/bot{{ lookup('file', telegram_token_file) | trim }}/sendMessage"
-    method: POST
-    body_format: json
-    body:
-      chat_id: "{{ lookup('file', telegram_chat_id_file) | trim }}"
-      text: "{{ tg_message }}"
-      parse_mode: Markdown
-    status_code: [200]
-  no_log: true
-  register: telegram_result
+  ansible.builtin.command:
+    argv: [/usr/local/sbin/telegram-notify.sh, "{{ tg_message }}"]
+  changed_when: false
   failed_when: false   # never fail the playbook because Telegram API hiccuped

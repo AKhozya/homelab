@@ -7,10 +7,6 @@ silence_id_file: "{{ state_dir }}/silence-id"
 updated_packages_log: "{{ state_dir }}/updated-packages.log"
 metrics_file: /var/lib/node_exporter/textfile/node_maintenance.prom
 
-# Credentials (populated by install.sh)
-telegram_token_file: /etc/node-maintenance/telegram-token
-telegram_chat_id_file: /etc/node-maintenance/telegram-chat-id
-
 # Kubernetes
 kubeconfig_path: /etc/rancher/k3s/k3s.yaml
 

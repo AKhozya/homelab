@@ -169,3 +169,6 @@ elif [ "${CHANGED:-0}" -gt 0 ]; then
     | awk 'NR>1 {printf ", "} {printf "%s", $0} END {if (NR) printf "\n"}')
   "$NOTIFY_BIN" "⚙️ node-config drift-heal applied $CHANGED change(s) [${HOSTS_DETAIL:-unknown}]. journalctl -u node-maintenance-config.service -n 80"
 fi
+
+# telegram-notify.sh reports its own failure. A failed send must not mark the drift-heal failed.
+exit 0
