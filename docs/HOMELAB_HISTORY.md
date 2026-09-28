@@ -1561,89 +1561,201 @@ had not.
 uptime-kuma had it right the whole time — its N8N monitor was the only thing that knew. Its
 monitors are not wired to Alertmanager, so "no alerts firing" was never evidence of health.
 
-### 2026-07-25 — Ultrareview remediation Batch 9: the deferred items
+### 2026-07-25 — Ultrareview fixes, Batch 9: the items deferred earlier
 
-Four items earlier batches deferred because each needed a spike first. Two more of the plan's
-prescriptions were refuted by actually running those spikes.
+Earlier batches deferred four items, because each one needed a spike first (a small test run against
+the real system). Running those spikes also disproved two more of the plan's instructions.
 
-**uptime-kuma egress — the plan named the wrong port.** It said to drop 6446/5984/8428/9090.
-Dumping the authoritative monitor table showed **5984 is actively probed** against
-`couchdb-svc-couchdb`, so removing it would have broken a live monitor. The other three are
-genuinely unprobed and were removed: MySQL is monitored on 3306 directly, VMSingle on **8429**
-(not 8428), Alertmanager on 9093, and Prometheus no longer exists. Worth recording for next
-time: uptime-kuma does **not** use its bundled sqlite here — `/app/data/kuma.db` is a 0-byte
-stub and the real data lives in MariaDB, so any monitor question has to be asked there.
+**uptime-kuma outbound traffic (egress): the plan named the wrong port.** It said to remove
+6446/5984/8428/9090. A dump of the monitor table, the authoritative source, showed that a monitor
+**actively checks 5984** on `couchdb-svc-couchdb`. Removing that port would have broken a live
+monitor. No monitor uses the other three, so they were removed: MySQL is monitored on 3306
+directly, VMSingle on **8429** (not 8428), Alertmanager on 9093, and Prometheus no longer exists.
+A note for next time: here uptime-kuma does **not** use its bundled SQLite database.
+`/app/data/kuma.db` is an empty 0-byte file, and the real data lives in MariaDB. So any question
+about the monitors has to be answered from MariaDB.
 
-**The PVC restore runbook documented 3 of 14 PVCs and could not have worked.** Its extract
-target was a literal `pvc-XXXXX` placeholder. The plan said this needed a workload/target
-mapping added to `pvc-backup-cronjob.yaml` first — refuted: local-path names every PV directory
-`<pv-uuid>_<namespace>_<pvc-name>`, and the owning workload is derivable from the PVC, so both
-are discovered at restore time. A hardcoded table would go stale the first time a PVC is
-recreated, which is exactly when a restore is most likely.
+**The runbook for restoring PVCs (the pods' persistent storage) covered 3 of 14 PVCs and could not
+have worked.** It extracted into `pvc-XXXXX`, a placeholder typed as is. The plan said that
+`pvc-backup-cronjob.yaml` first needed a table that maps each backup to its workload and target.
+The spike disproved that. local-path (the storage provisioner) names every PV (persistent volume) directory
+`<pv-uuid>_<namespace>_<pvc-name>`, and the owning workload can be worked out from the PVC. So the
+procedure finds both at restore time. A fixed table would go out of date the first time a PVC is recreated, and that
+is when a restore is most likely.
 
-Three review rounds went into that procedure, each catching a real defect: a `PV_PATH` computed
-on the workstation but used on the node (kubectl is not configured on k3s agents, so it is now
-resolved node-side by the same glob the backup job uses); a destructive sequence that was not
-fail-closed; an overlay extract that leaves files absent from the backup behind — a corrupt
-hybrid rather than a restore, so the live directory is now moved aside and kept as a rollback;
-a `find | head -1` that would silently pick one of several PV directories; and a STEP 3 that
-inherited variables from another shell and would have left the app scaled to zero while
-reading as "still restoring". Every block now rediscovers its own inputs. The extract itself is
-still **not drilled** end-to-end, and the runbook says so.
+The procedure went through three review rounds, and each round caught a real defect:
 
-**Two Kyverno comments** justified their container-set by pointing at ClusterPolicy twins
-deleted in `2b5ffb99`. Git archaeology confirmed both were accurate — the old latest-tag CP
-really did use `foreach: list: spec.[initContainers, containers][]` — so the comments were
-rewritten to stand alone and to name the resulting gap: `kubectl debug` containers are not
-checked for seccomp or for a floating tag. Deliberate; extending enforcement would break debug
-during an incident.
+| Defect | Why it mattered, and the fix |
+|---|---|
+| a `PV_PATH` computed on the workstation but used on the node | kubectl is not configured on k3s agents. So the node now works out the path itself, with the same glob (filename pattern) that the backup job uses |
+| a sequence of destructive steps that was not fail-closed | it did not stop safely on an error |
+| an extract on top of the live directory | it leaves behind files that are not in the backup, so the result mixes old and restored files: it is corrupt, not a restore. The procedure now moves the live directory aside and keeps it as a rollback (a copy to go back to) |
+| a STEP 3 that used variables set in another shell | it would have left the app scaled to zero while the procedure still read as "still restoring" |
 
-**`disallow-host-path` narrowing (B6-2) was deliberately NOT shipped.** The A11 spike succeeded
-— every hostPath workload does carry a scopeable label — but it also showed the change needs
-**nine** correct selectors against a **Deny**-enforcing policy, and that six of the affected
-workloads are CronJobs whose pods exist only while running and are therefore invisible to the
-`kubectl get pods` scan such a change would naturally be built from. 41 pods across the six
-excluded namespaces currently mount no hostPath and are unguarded, so the gap is real — but
-nothing is broken today, and the failure mode of getting it wrong is a backup Job denied at
-03:00 with nobody watching, which is the precise silent-failure class this whole review existed
-to remove. Full analysis and the Audit-first rollout path are recorded in the plan.
+The review also found a `find | head -1` that would pick one of several PV directories without any
+warning.
 
-### 2026-07-25 — Ultrareview remediation Batch 8: documentation currency
+Every block now works out its own inputs. The extract itself still has **not been tested** in an
+end-to-end drill, and the runbook says so.
 
-Every claim was re-derived from the cluster or the manifests rather than from another document, which turned up four inaccuracies the plan had not listed.
+**Two Kyverno comments** explained which containers their policy checks by pointing at matching
+ClusterPolicy copies, which `2b5ffb99` deleted. A search of the git history confirmed that both
+comments were accurate: the old ClusterPolicy for the latest tag did use
+`foreach: list: spec.[initContainers, containers][]`. So the comments were rewritten to make sense
+on their own, and to name the gap that follows: nothing checks `kubectl debug` containers for
+seccomp or for a floating tag. The gap is deliberate. If the policies enforced these checks on
+debug containers too, debugging during an incident would break.
 
-**Recorded the Cloudflare Access posture** per tunnel hostname in `ARCHITECTURE.md`, next to the existing note that Traefik middleware never applies on the external path. Access policies live in the Cloudflare zone and leave no repo artifact, so nothing can drift-check them — the table is the decision record. `couchdb` is the one hostname on Service Auth, because Obsidian LiveSync is headless and cannot authenticate a human; `authentik` is deliberately ungated (gating the identity provider locks every other app out of its own login); the remaining seven rely on app-native OIDC, with the accepted trade-off written down: their login pages are internet-reachable, so an app-level auth bug is exposed to the internet rather than the LAN.
+**The narrowing of `disallow-host-path` (B6-2) was NOT shipped, on purpose.** The A11 spike
+succeeded: every hostPath workload does carry a label that a rule can target. But the spike also
+showed that the change needs **nine** correct selectors in a policy that enforces **Deny**. Six of
+the affected workloads are CronJobs, whose pods exist only while they run. So the
+`kubectl get pods` scan that such a change would normally be built from cannot see them. 41 pods
+across the six excluded namespaces mount no hostPath at the time of writing, and nothing guards
+them, so the gap is real. But nothing is broken on that date. If the change is wrong, the result is
+a backup Job denied at 03:00 with nobody watching. That is the kind of unreported failure that this
+whole review set out to remove. The plan records the full analysis and a rollout path that starts
+in Audit mode (Kyverno reports violations without blocking them).
 
-**Corrections the plan did not ask for, found by checking rather than trusting:**
+### 2026-07-25 — Ultrareview fixes, Batch 8: bringing the documentation up to date
 
-- `HOMELAB_ANALYSIS.md` listed **n8n as OIDC**. It has no OIDC configuration anywhere in the repo — n8n SSO is an Enterprise feature, which `CODEMAPS/apps.md` already said. Two docs had been contradicting each other; the codemap was right.
-- `SECURITY.md` claimed SSO covered "7 of 16 apps". The 7 was right, the 16 was not, and homepage's new forward-auth was missing.
-- The rate-limit figures in `CODEMAPS/apps.md` were the pre-2026-07-03 values (100/min, 200/min) — the middlewares actually enforce `average: 300` and `average: 600` with an explicit `period: 1m`. The codemap also listed **authentik under high-frequency**; authentik carries no rate-limit middleware at all, deliberately, since throttling the SSO provider breaks the auth flow for everything behind it.
-- The rotation inventory was missing three secrets, including `cloudflare-api-token` — the DNS-01 credential behind every certificate in the cluster — and `sops-age`, the key that decrypts every secret in this repo. Dates were read from the live objects, not guessed.
+Every claim was checked again against the cluster or the manifests, not copied from another
+document. That check found four errors that the plan had not listed.
 
-**Two runbook commands in `SECRETS_ROTATION.md` could not have worked.** `flux reconcile kustomization apps --timeout 45s --force` uses a flag that does not exist — `flux reconcile kustomization` accepts only `--with-source`. And the Redis rotation told the operator to reconcile `infrastructure-controllers`, but the Redis secrets live under `infrastructure/configs/databases/redis-ha/`, which belongs to `infrastructure-configs`; the reconcile would have reported success while picking up nothing.
+**`ARCHITECTURE.md` now records the Cloudflare Access setting for each tunnel hostname.**
+Cloudflare Access is Cloudflare's login gate in front of an app. The record sits next to the
+existing note that Traefik middleware never applies on the external path. Access policies live in
+the Cloudflare zone and leave no file in the repo, so no tool can check them for drift. The table is
+the record of the decision:
 
-Remaining drift cleared: 16→17 apps in `AGENTS.md`, `ARCHITECTURE.md` and the `HOMELAB_ANALYSIS.md` heading, a RustDesk row, Homepage's SSO column, the retired W1→W2 replication leg, decommissioned AdGuard entries, and a `KyvernoPolicyViolationsDailySummary` VMRule that exists in neither git nor the cluster. Dated historical entries mentioning "16 apps" were left untouched — they were true when written.
+| Hostname | Cloudflare Access | Why |
+|---|---|---|
+| `couchdb` | Service Auth, the only hostname on it | Obsidian LiveSync runs without a user interface (headless) and cannot log a person in |
+| `authentik` | none, on purpose | gating the identity provider would lock every other app out of its own login |
+| the remaining seven | none; each app's own OIDC (OpenID Connect) login | accepted trade-off, written down: their login pages are reachable from the internet, so a login bug in an app is exposed to the internet rather than only to the LAN |
 
-### 2026-07-25 — Ultrareview remediation Batch 7: runtime hygiene and supply chain
+The plan did not ask for the corrections below. They came from checking the documents rather than
+trusting them:
 
-Nine items sharing one shape: a failure that reports success. Every one was reproduced before it was touched, and each fix was proven against the failure it claims to prevent rather than against a green deploy.
+| Document | What it said | What is true |
+|---|---|---|
+| `HOMELAB_ANALYSIS.md` | **n8n uses OIDC** | the repo has no OIDC configuration for it anywhere. n8n single sign-on (SSO) is an Enterprise feature, which `CODEMAPS/apps.md` already said. The two documents had contradicted each other, and the codemap was right |
+| `SECURITY.md` | SSO covered "7 of 16 apps" | the 7 was right and the 16 was wrong. The file also left out homepage's new forward-auth (a login check that Traefik makes before it passes a request on) |
+| `CODEMAPS/apps.md`, rate limits | the values in use before 2026-07-03 (100/min, 200/min) | the middlewares enforce `average: 300` and `average: 600`, with an explicit `period: 1m` |
+| the same codemap, authentik | **authentik is under "high-frequency"** | on purpose, authentik has no rate-limit middleware at all, because throttling the SSO provider breaks the login flow for every app behind it |
+| the inventory of secrets to rotate | missing three secrets | they included `cloudflare-api-token`, the DNS-01 credential behind every certificate in the cluster, and `sops-age`, the key that decrypts every secret in this repo. The dates came from the live objects, not from guesses |
 
-**Backups of the class "the check cannot fail."** The HACS installer ran `mkdir -p "$HACS_DIR"` and then verified the install with `[ ! -d "$HACS_DIR" ]` — the directory it had just created, so the check could never fire. It also pulled `releases/latest/download/hacs.zip`, unpinned. Now pinned to 2.0.5 and verified on `__init__.py` + `manifest.json`. The idempotency key moved from directory-exists to *both* artifacts existing, deliberately not to a `.installed-version` marker like `oidc-auth-install` uses: HACS updates itself through the Home Assistant UI, so a hard version lock would revert the operator's in-app updates on every pod restart. The pin bootstraps a fresh volume; it does not hold the version down.
+**Two runbook commands in `SECRETS_ROTATION.md` could not have worked.**
+`flux reconcile kustomization apps --timeout 45s --force` uses a flag that does not exist:
+`flux reconcile kustomization` accepts only `--with-source`. The Redis rotation step told the
+operator to reconcile `infrastructure-controllers`. But the Redis secrets live under
+`infrastructure/configs/databases/redis-ha/`, which belongs to `infrastructure-configs`. The
+reconcile would have reported success and applied nothing.
 
-**The cloudflared sync counted its own work and threw the number away.** `COUNT` was computed and echoed, never gated, and a PUT is authoritative for the whole tunnel — so any parser drift would publish a truncated ingress and silently drop external access for every hostname it missed. The guard now counts hostnames straight from the config and refuses to PUT unless the parser agrees. Derived rather than a hardcoded floor, so adding a hostname needs no edit here. Proven in `curlimages/curl:8.21.0` against the real decrypted config: passes at 9/9, refuses at 1/9 when rule indentation drifts, refuses at 0/9 when the `ingress:` key is renamed.
+The batch also fixed the remaining places where the documents no longer matched the system:
 
-**The postgres extension job told the exact opposite of the truth.** Its `WHEN OTHERS` handler reported every SQL error as "extension already at latest version" and exited 0. Testing showed already-at-latest is a `NOTICE`, not an error — so that handler had only ever fired on genuine failures, and had been relabelling all of them.
+- the app count, 16 to 17, in `AGENTS.md`, `ARCHITECTURE.md` and the `HOMELAB_ANALYSIS.md` heading
+- a RustDesk row
+- Homepage's SSO column
+- the replication leg from W1 to W2 (the first and second worker nodes), which was retired
+- entries for AdGuard, which was decommissioned
+- a `KyvernoPolicyViolationsDailySummary` VMRule that exists in neither git nor the cluster
 
-The first fix was also wrong, and the peer review caught it: collecting failures and raising at the end still lost the work, because a `DO $$…$$` block is a single transaction, so the final `RAISE` rolled back every successful `ALTER EXTENSION` with it. Reproduced exactly — the log read `Updated pg_trgm` while the catalog stayed at 1.5. The job now runs one `psql -c` per extension, each its own transaction. Verified with a deliberately broken extension: the bad one fails with its real error, the others succeed and **persist**, the job exits 1. Confirmed under `/usr/bin/dash`, the actual shell in the Debian-based CNPG image, not just under alpine's ash.
+Dated history entries that mention "16 apps" were left as they were, because they were true when
+written.
 
-Two smaller instances of the same class: homepage turned every `cp` failure into "No ConfigMap files to copy (using defaults)" and started on defaults; homehub substituted its password with `sed`, so a `/` or `&` in the secret would corrupt the config silently. Homepage now separates unmounted, unreadable, empty and copy-failed. It tests with plain `ls`, not `ls -A` — a projected ConfigMap always carries a `..data` symlink, so `-A` reports non-empty even at zero keys and would hand `cp` an unmatched literal glob. Homehub uses awk `index`/`substr`, which has no metacharacter surface at all.
+### 2026-07-25 — Ultrareview fixes, Batch 7: failures that reported success, and the software supply chain
 
-**The supply-chain trio is one story.** `image-pin-audit.sh` explicitly skipped `kind: HelmRelease`, with a comment claiming their pinning was "audited elsewhere". It was not audited anywhere — and that blind spot is precisely how the other two got in: the loki gateway carried a bare `tag:` with no `repository:`, invisible to Renovate and a patch behind the same image in `apps/rustdesk/beacon-deployment.yaml`; and `redisOperator.imageTag: "v0.24.0"` froze the operator while Renovate moved the chart to 0.25.0 in `eee4565f`, leaving 0.25.0 CRDs driving a v0.24.0 binary. The audit now covers `spec.values`, and was validated by running it against the pre-fix versions of both files — it fails on exactly those two and stays clean on the fixed tree.
+Nine items had one thing in common: a failure that reports success. Each one was reproduced before
+anything changed. Each fix was then tested against the failure it claims to prevent, not only
+against a deploy that went green.
 
-**Redis operator: shipped as its own commit and its own reconcile.** Deleting the frozen tag is not cosmetic — the chart defaults to `v<appVersion>`, so it upgrades the live operator. v0.25.0 carries "mount config emptyDir volume so sentinel.conf persists across container restarts", and the live sentinel StatefulSet declared a `config` volume its container never mounted, so the upgrade was always going to roll the sentinel pods. Verified afterwards: `/etc/redis/sentinel.conf` now sits on the mounted volume, all three sentinels rolled and rejoined, `num-other-sentinels 2`, one slave discovered, no failover, no alerts. The seccomp `postRenderer` was dropped in the same change because chart 0.25.0 exposes a `podSecurityContext` values hook — proven render-identical with `dyff` before the swap, and confirmed live on the upgraded Deployment.
+**Bugs of the kind "the check cannot fail."** The HACS installer (HACS is a community add-on
+store for Home Assistant) ran `mkdir -p "$HACS_DIR"` and then checked the install with
+`[ ! -d "$HACS_DIR" ]`. That tests the directory it had just created, so the check could never
+trigger. It also downloaded `releases/latest/download/hacs.zip`, which names no version. It is now
+pinned to 2.0.5, and it checks for `__init__.py` and `manifest.json`. The test that decides whether
+to install again used to ask whether the directory exists. It now asks whether *both* files exist.
+It deliberately does not use a `.installed-version` marker file, as `oidc-auth-install` does: HACS
+updates itself through the Home Assistant UI, so a fixed version lock would undo the operator's
+in-app updates on every pod restart. The pin sets up a fresh volume; it does not stop the version
+from changing later.
 
-`apps/blocky/pdb.yaml` closes the last item. The plan claimed blocky was the only multi-replica workload without a PodDisruptionBudget; that is **false** — cert-manager (×3) and cnpg-operator also lack one. Only blocky was given one: it is the LAN DNS resolver, so draining both replicas blackholes name resolution for every client on the network, while the others are reconcile-only operators where brief unavailability costs nothing.
+**The cloudflared sync counted the hostnames it parsed, then ignored the count.** The script
+computed and printed `COUNT`, but never stopped on it. A PUT replaces the whole tunnel
+configuration. So if the parser drifted, the sync would publish a shortened ingress list, and every
+hostname it missed would lose external access with no warning. A guard now counts the hostnames
+straight from the config, and refuses to send the PUT unless the parser's count agrees. The guard
+derives the expected count rather than using a fixed minimum, so adding a hostname needs no edit
+here. A test in `curlimages/curl:8.21.0` against the real decrypted config:
+
+| Case | Hostnames parsed | Guard |
+|---|---|---|
+| the config as it is | 9/9 | passes |
+| rule indentation drifts | 1/9 | refuses |
+| the `ingress:` key is renamed | 0/9 | refuses |
+
+**The postgres extension job reported the opposite of the truth.** Its `WHEN OTHERS` handler, which
+catches every error, reported each SQL error as "extension already at latest version" and exited 0.
+Testing showed that "already at the latest version" is a `NOTICE`, not an error. So the handler had
+only ever run on real failures, and it had reported every one of them as "already at latest".
+
+The first fix was also wrong, and the peer review caught it. That fix collected the failures and
+raised an error at the end. It still lost the work: a `DO $$…$$` block is a single transaction, so
+the final `RAISE` rolled back every successful `ALTER EXTENSION` with it. A test reproduced this:
+the log read `Updated pg_trgm` while the catalog stayed at 1.5. The job now runs one `psql -c` per
+extension, each in its own transaction. A test with a deliberately broken extension confirmed the
+fix: the broken one fails with its real error, the others succeed and **persist**, and the job
+exits 1. The test ran under `/usr/bin/dash`, the shell that the Debian-based CNPG (CloudNativePG) image uses, not just
+under alpine's ash.
+
+There were two smaller cases of the same kind. homepage turned every `cp` failure into "No
+ConfigMap files to copy (using defaults)" and started with its defaults. homehub put its password
+into the config with `sed`, so a `/` or `&` in the secret would corrupt the config with no error.
+Homepage now tells four cases apart: not mounted, unreadable, empty, and copy failed. It tests with
+plain `ls`, not `ls -A`. A ConfigMap mounted as a volume always holds a `..data` symlink, so `-A`
+reports "not empty" even when the ConfigMap has no keys. `cp` would then get a glob pattern that
+matched nothing, as literal text. Homehub now uses awk's `index`/`substr`, which treat no character
+as special.
+
+**The three supply-chain items have one cause.** `image-pin-audit.sh` skipped `kind: HelmRelease`
+on purpose, with a comment that said their pinning was "audited elsewhere". Nothing audited it
+anywhere, and that gap is how the other two problems got in:
+
+- The loki gateway had a bare `tag:` with no `repository:`. Renovate could not see it, and it was
+  one patch version behind the same image in `apps/rustdesk/beacon-deployment.yaml`.
+- `redisOperator.imageTag: "v0.24.0"` kept the operator at that version while Renovate moved the
+  chart to 0.25.0 in `eee4565f`. So the 0.25.0 CRDs (custom resource definitions) drove a v0.24.0
+  binary.
+
+The audit now covers `spec.values`. A test ran it against the versions of both files from before
+the fix: it fails on those two problems and nothing else, and it passes on the fixed tree.
+
+**The Redis operator change shipped in its own commit, with its own reconcile.** Deleting the fixed
+tag changes what runs: the chart defaults to `v<appVersion>`, so the deletion upgrades the live
+operator. v0.25.0 includes the change "mount config emptyDir volume so sentinel.conf persists across
+container restarts". The live sentinel StatefulSet declared a `config` volume that its container
+never mounted. So the upgrade was certain to restart the sentinel pods. Checks after the upgrade:
+
+| Check | Result |
+|---|---|
+| `/etc/redis/sentinel.conf` | now sits on the mounted volume |
+| sentinels | all three restarted and rejoined, with `num-other-sentinels 2` |
+| replicas that the sentinels found | one (a "slave" in Redis terms) |
+| failover | none |
+| alerts | none |
+
+The same change removed the seccomp `postRenderer` (a patch that Flux applies to the chart's
+output), because chart 0.25.0 offers a `podSecurityContext` value for the same setting. Before the
+swap, `dyff` showed that both versions render the same manifests. The setting was then confirmed
+live on the upgraded Deployment.
+
+`apps/blocky/pdb.yaml` closes the last item. The plan said that blocky was the only workload with
+more than one replica and no PodDisruptionBudget (a limit on how many of its pods a drain may stop
+at once). That is **false**: cert-manager (×3) and cnpg-operator also lack one. Only blocky got one.
+It is the LAN's DNS resolver, so draining both replicas stops name lookups for every client on the
+network. The others are operators that only reconcile resources, and a short outage of them costs
+nothing.
 
 ### 2026-07-25 — Ultrareview remediation Batch 5: authentication for Alertmanager and homepage
 
