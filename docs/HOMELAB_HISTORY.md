@@ -2931,40 +2931,233 @@ Watch period until 2026-07-24:
 The 64Mi limit also serves as an early warning: if the loop comes back, the alert fires again in
 under a day. Operator chart 0.26.0 (2026-07-15) remains unverified for this class of bug.
 
-### 2026-07-17 — Backup replication: W2 safety-net leg retired (NAS sole sink)
+### 2026-07-17 — Backup replication: the extra copy to W2 retired (the NAS is now the only target)
 
-The temporary W1→W2 replication step (single-day `--delete` copy over SSH :65300, added 2026-05-22 while the NAS sink was unproven, postponed once from 2026-05-22 +2mo) was removed 3 days ahead of its ~2026-07-20 deadline. The NAS leg has been validated on every run since (pre-sync source validation: age <25h + SHA256 + tar integrity + min size; post-push verify; 30d/keep-2 retention prune), so the W2 copy was redundant — and its `--delete` semantics had already shown a footgun (2026-07-14: cross-job `--delete` interaction with the W2 immich tar path considered during T7 planning).
+The temporary step that copied backups from W1 (worker-node) to W2 (the second worker) was
+removed 3 days before its deadline of ~2026-07-20. It made a single-day copy with `--delete`
+over SSH :65300. It was added on 2026-05-22 while the NAS target was not yet proven, and its
+removal was postponed once (from 2026-05-22 +2mo). Every run since then has validated the copy to
+the NAS:
 
-Changes (`infrastructure/configs/backup-replication/`): W2 sync step + SSH client setup removed from `cronjob.yaml` (steps renumbered 2→7 → 2→6, `openssh-client` dropped from apk install, ssh-key/known-hosts volumes+mounts removed); `ssh-key-secret.yaml` + `ssh-known-hosts-configmap.yaml` deleted (Flux `prune: true` removes the live Secret/ConfigMap); NetworkPolicy W2 `192.168.1.126:65300` egress rule dropped. DR tooling updated: `.backup/secrets-backup.sh`/`secrets-restore.sh` no longer save/restore `backup-replication-ssh-key` (restore gate re-keyed to `nas-rsync-credentials.json`), `.backup/README.md` restore sources 3→2. `SECRETS_ROTATION.md`: `backup-replication-ssh` retired (was next-due 2026-12-18). Unrelated to the weekly `immich-backup` W2 job — that stays.
+| Stage | Check |
+|---|---|
+| before the sync, on the source | age <25h, SHA256, tar integrity, minimum size |
+| after the push | verify the uploaded backup |
+| retention | delete backups older than 30d, keeping at least two (keep-2) |
 
-### 2026-07-16 — CODEMAPS restructure: drift-prone facts removed, content rules added
+So the W2 copy added nothing. Its `--delete` behaviour had also already shown a risk: on 2026-07-14,
+the T7 planning (the Immich backup change, below) considered how a `--delete` in one job would
+interact with the W2 immich tar path of another job.
 
-Fact-check found 17+ stale version pins in the codemaps (immich a full major behind, blocky 2 minors, internal loki contradiction in monitoring.md) plus counts and "Refreshed" headers drifted — hand-copied manifest/live facts were a permanent treadmill. Restructure (Codex-reviewed plan, SHIP-WITH-FIXES): codemaps now carry structure/relations/gotchas only, every fact path-anchored; no versions ("pinned in `<path>`"), no counts (grep or ANALYSIS), no changelog narration. `CODEMAPS/architecture.md` deleted (~80% duplicate of AGENTS.md); unique content moved — named Cloudflare hostname list + coredns `--disable` deadlock → networking.md, SOPS edit pattern + Flux path tree → README index. apps.md fix: home-assistant marked internal-only (absent from tunnel SOPS config; was wrongly "both"). ARCHITECTURE.md:133 fixed — 5 daily backup CronJobs W1-pinned, weekly immich-backup is W2-producer and survives W1 loss (was "all 6 on W1", self-contradicting the T7 entry). Monthly-review skill step 2 rewritten: refresh → verify (no live-fact dump, rule-violation grep). Follow-ups noted: several Helm chart-default images unpinned in git (traefik, CNPG operator, grafana, VM stack, couchdb — escape both the image-pin invariant and CI gate); inert `values.image.tag: v2.7.5` in `apps/immich/release.yaml`. Same-day resolution: chart-default images ruled transitively pinned via the pinned chart version — mirroring them into values would create renovate-blind skew, so the invariant was clarified in AGENTS.md instead of adding pins; the inert immich tag deleted with a `helm template` render-identical proof (chart 0.13.1, values with vs without the block).
+Changes in `infrastructure/configs/backup-replication/`:
 
-### 2026-07-14 — trivy-scan hardening: scan timeout, Docker Hub auth (PAT incident), schedule shift
+| File | Change |
+|---|---|
+| `cronjob.yaml` | the W2 sync step and the SSH client setup removed; steps 2 to 7 renumbered as 2 to 6; `openssh-client` dropped from the apk install; the ssh-key and known-hosts volumes and mounts removed |
+| `ssh-key-secret.yaml`, `ssh-known-hosts-configmap.yaml` | deleted. Flux `prune: true` removes the live Secret and ConfigMap |
+| NetworkPolicy | the W2 rule for outgoing traffic (egress) to `192.168.1.126:65300` dropped |
 
-Three follow-up commits after the smoke runs, plus one security incident:
-- **`--timeout 15m`** (`6599bb05`): smoke1 scanned all 81 images but 3 FATAL'd on trivy's default 5m per-scan timeout mid-layer-analysis (scipy/prisma `.so`-heavy layers) — exit 1 by design (partial failure fails the Job).
-- **Docker Hub auth** (`c8ffb596` + `ca2fce4a`): ~40/81 images are docker.io; anonymous 100 manifest-pulls/6h/IP is borderline monthly. SOPS `trivy-dockerhub` Secret (dockerconfig scoped to `index.docker.io` via `DOCKER_CONFIG` — not the unscoped `TRIVY_USERNAME`), annual slot in SECRETS_ROTATION. **Gotcha:** first cut had an empty username (`:token`) because the 1Password field was blank — docker's config parser rejects the whole file ("invalid auth configuration file"), killing even anonymous mirror.gcr.io DB pulls; smoke2 failed 81/81 in seconds. **Incident:** during diagnosis the first PAT leaked into the agent transcript via a redaction regex that assumed non-empty username — token revoked + reissued same hour; regenerated secret ships with non-empty-username + rotated-prefix guards.
-- **Schedule 04:00→08:00 UTC on the 1st** (`bb0b4621`): 04:00 collided with the node security scan (1st 04:00) and, when the 1st is a Saturday, the weekly upgrade+rolling-reboot window (Sat 04:30) would kill the scan mid-run. Review-night manual run + Saturday caveat codified in `homelab-monthly-review`.
-- **Proof + closure:** smoke3 Complete 81/81 in 11min (authenticated); output verified queryable in Loki (`{namespace="trivy-scan"}`); user deleted the 12 orphaned `aquasecurity.github.io` CRDs (cascaded all 88 reports) — teardown fully closed.
+The disaster-recovery tools changed too:
 
-### 2026-07-14 — kube-prometheus-stack upgrades wedged by Kyverno vs chart hook Jobs (fixed)
+| File | Change |
+|---|---|
+| `.backup/secrets-backup.sh`/`secrets-restore.sh` | no longer save or restore `backup-replication-ssh-key`. The restore check now looks for `nas-rsync-credentials.json` instead |
+| `.backup/README.md` | restore sources go from 3 to 2 |
+| `SECRETS_ROTATION.md` | retires `backup-replication-ssh`, which was next due on 2026-12-18 |
 
-Post-trivy-teardown audit found the kube-prometheus-stack HelmRelease Stalled: the chart's pre-upgrade admission-webhook cert patch Jobs carry no resource limits, so `require-resource-limits` denied them at admission — 87.15.2 and then 87.16.0 (Renovate #920/#923) both failed 4 upgrade attempts and auto-rolled back to 87.15.1. First chart-hook denial since the VP migration (same first-X-since-VP class as the trivy-scan namespace bootstrap below). Side effect: the trivy Alertmanager cleanup (telegram-digest removal) was silently held back with the stalled release. Fix: `prometheusOperator.admissionWebhooks.patch.resources` (10m/32Mi → 100m/64Mi) in release.yaml values; verified via `helm template 87.16.0` that the hook Job renders with limits. Invariant added to `.claude/review-invariants.md` (chart-bump reviewer check: hook Jobs need limits via values).
+None of this touches the weekly `immich-backup` W2 job, which stays.
 
-### 2026-07-14 — trivy-operator removed; replaced by monthly trivy-scan CronJob
+### 2026-07-16 — CODEMAPS restructured: facts that go stale removed, rules for content added
 
-Always-on trivy-operator torn down after 10 days in service (installed `dfeb0153` 2026-07-04): ~650Mi RAM 24/7 to re-scan images that only change when Renovate bumps them, 88 VulnerabilityReports on upstream images we don't own = noise over signal (2026-07-05 triage: 0 findings on our own images). Replaced with `monitoring/configs/trivy-scan/` — a monthly CronJob (1st 08:00 UTC — clear of the 1st-04:00 node security scan and the Sat 04:30 weekly reboot window; review-night manual runs codified in the monthly-review skill) in its own `trivy-scan` ns: `rancher/shell:v0.8.0` init collects the unique image set via kubectl (~80 images; rancher/kubectl is shell-less scratch — can't redirect to a file), then `aquasec/trivy:0.71.1` loops `trivy image --severity CRITICAL,HIGH --ignore-unfixed` printing per-image tables to stdout (Loki captures). Partial scan failures fail the Job (no success-theater); 1Gi mem limit (trivy peaks on large images); `ttlSecondsAfterFinished: 86400`; NP = DNS + API server + 443-only registry egress (popeye/trivy-operator patterns). Swept with it: `TrivyCriticalVulnerabilities` VMRule, `scrape-trivy-operator.yaml` VMPodScrape, Alertmanager `telegram-digest` route+receiver, `alertmanagerSpec.retention: 192h` (existed only for the 168h digest repeat_interval), claude-telegram `aquasecurity.github.io` RBAC. Post-reconcile manual GC: aquasecurity CRDs + orphaned VulnerabilityReports (helm uninstall leaves CRDs).
+A fact check found 17+ stale version pins in the codemaps (maps of the repo's code and config).
+Examples:
 
-### 2026-07-14 — Immich T7: backup re-topology (W2 producer) + W1 library PVC decommissioned
+| Codemap fact | Problem |
+|---|---|
+| immich version | a full major version behind |
+| blocky version | 2 minor versions behind |
+| loki in monitoring.md | the file contradicted itself |
 
-Closed the Path-B follow-up. Two commits, both Codex static-reviewed (`.claude/review-invariants.md`); CI still billing-blocked since 07-10, gates ran locally (yamllint, kustomize build, kubeconform).
+Counts and "Refreshed" headers had also gone out of date. Facts copied by hand from manifests or
+from the live cluster had to be updated again every time the source changed.
 
-- **Backup re-topology (`4628800d`).** Post-cutover the library is NAS-resident, so the old `immich-backup` CronJob (kube-system, nodeSelector W1) read a **frozen** `/mnt/k8s-storage/*immich-library*` copy = silent success-theater. Re-pointed: CronJob → **`backup-replication` ns / worker-node-2**, pulls the **live** library via the NAS `personal_folder` rsync module → tar+sha on a W2 hostPath → pushes to the NAS `akhozya-pool1` pool. **Two physical copies on different filesystems** (W2 node + NAS pool), keep-2 each (pool keep-2 delegated to backup-replication Step 5b). Reused `nas-rsync-credentials` + the ns-wide egress NP (0 new secret, 0 new NP); only a 1-line `vmrules` description touched. Codex **3 rounds**: R1 HIGH (final dated dir created pre-success → a partial dir pollutes the name-sorted keep-2 window, evicting good copies) + MED (`head -n -2` is GNU-only, silently no-ops under busybox → unbounded growth) → fixed with a `.wip`→atomic-`mv` publish + husk-delete of a partial pool dir + `sort -r | tail -n +3`; R2 confirmed R1 **and found a new HIGH** — `backup-replication` Step 2's `rsync --delete` mirror to W2 `/mnt/extra-storage/backups/` would **wipe the fresh immich copy** 30 min later; fixed by writing the W2 copy to a **sibling** `/mnt/extra-storage/immich-backup/` outside the `--delete` scope (zero change to the critical replication job); R3 SHIP.
-- **Gate proof (live).** Ran the repointed job off-schedule: 60.6G tar produced on W2 + pushed to the NAS pool in ~15 min; independent `sha256sum -c` on the NAS-pool copy = OK; tar holds real library content (`library/` 6477, `thumbs/` 18099, `upload/` 6159 entries, sample `./library/admin/2015/…/DSC09701.jpg`).
-- **W1 decommission (`a32f6ef8`).** Removed `apps/immich/library-pvc.yaml` + its kustomization line (verified no pod mounts it — server uses the NAS hostPath, ML uses its own PVC). PVC `immich-library` pruned → local-path-provisioner `reclaimPolicy=Delete` auto-deleted PV `pvc-495129ee` + its ~61G on-disk dir (helper pod; no sudo/W1-SSH needed). `existingClaim: immich-library` kept in the HelmRelease as **inert schema filler** (the postRenderer replaces `volumes/0` by index; dropping it changes the persistence shape) — comment updated to say so. immich-server undisturbed (1/1, hostPath). Codex 1 round: SHIP.
-- **Soak waived** at ~40h/48h (operator call): the repoint touches only the backup CronJob, not immich serving, and is fully reversible; the irreversible W1 delete was the one gated step and was explicitly confirmed. Post-change: 4/4 nodes Ready, 0 firing alerts, immich queues 0/0, external ping 200.
+The restructure followed a plan that Codex reviewed (SHIP-WITH-FIXES). Codemaps now hold only
+structure, relations and known problems, and every fact points to a path. The rules:
+
+| Rule | Instead |
+|---|---|
+| no versions | "pinned in `<path>`" |
+| no counts | grep, or ANALYSIS |
+| no history of changes | nothing |
+
+Other changes:
+
+| File | Change |
+|---|---|
+| `CODEMAPS/architecture.md` | deleted, because ~80% of it repeated AGENTS.md. Its unique content moved. The list of named Cloudflare hostnames and the coredns `--disable` deadlock went to networking.md. The SOPS edit pattern and the Flux path tree went to the README index |
+| apps.md | home-assistant is now marked internal-only. It is absent from the tunnel's SOPS config, but apps.md had wrongly said "both" |
+| ARCHITECTURE.md:133 | 5 daily backup CronJobs are pinned to W1 (worker-node). The weekly immich-backup makes its copy on W2, the second worker, and survives the loss of W1. The line had said "all 6 on W1", which contradicted the T7 entry (the Immich backup change, below) |
+| the monthly-review skill | Step 2 changed from refreshing the codemaps to verifying them: no dump of live facts, and a grep for rule violations |
+
+Follow-ups noted at the time: several Helm chart-default images were unpinned in git (traefik, CNPG
+operator, grafana, VM stack, couchdb), so they escaped both the image-pin invariant and the CI
+check. And `values.image.tag: v2.7.5` in `apps/immich/release.yaml` had no effect.
+
+Resolved the same day. Chart-default images now count as pinned through the pinned chart version.
+Copying them into values would create copies that Renovate does not see, which would drift from the
+chart. So AGENTS.md now states the invariant more clearly, and no pins were added. The immich tag
+that had no effect was deleted, with a `helm template` proof that the render is identical (chart
+0.13.1, values with and without the block).
+
+### 2026-07-14 — trivy-scan hardening: scan timeout, Docker Hub login (and a leaked token), new schedule
+
+Three follow-up commits after the first test runs (smoke runs), plus one security incident:
+
+| Change | Why |
+|---|---|
+| **`--timeout 15m`** (`6599bb05`) | the run smoke1 scanned all 81 images, but 3 failed with FATAL. They hit trivy's default timeout of 5m per scan while it analysed layers full of `.so` files (scipy, prisma). The Job exited 1 by design, because a partial failure fails the Job |
+| **Docker Hub login** (`c8ffb596` and `ca2fce4a`) | about 40/81 images come from docker.io. Anonymous use allows 100 manifest pulls per 6h per IP address, which is close to the limit for a monthly scan. The login is a SOPS Secret, `trivy-dockerhub`: a docker config that applies only to `index.docker.io`, set through `DOCKER_CONFIG`. It does not use `TRIVY_USERNAME`, which would apply to every registry. SECRETS_ROTATION gained a yearly entry for it |
+| **Schedule moved from 04:00 to 08:00 UTC on the 1st** (`bb0b4621`) | 04:00 clashed with the node security scan (1st, 04:00). And if the 1st is a Saturday, the weekly upgrade and rolling-reboot window (Sat 04:30) would kill the scan partway through. `homelab-monthly-review` now records the manual run on review night and the Saturday caveat |
+
+**Gotcha** in the Docker Hub login: the first version had an empty username (`:token`), because the
+1Password field was blank. Docker's config parser then rejects the whole file ("invalid auth
+configuration file"). That broke even the anonymous database downloads from mirror.gcr.io, and
+smoke2 failed 81/81 within seconds.
+
+**Incident:** during the diagnosis, the first personal access token (PAT) leaked into the agent's
+transcript. The regex that should have hidden it assumed that the username was not empty. The token
+was revoked and a new one issued in the same hour. The new secret ships with guards for a non-empty
+username and for the rotated token's prefix.
+
+**Proof and closure:** smoke3 finished Complete, 81/81 in 11min, logged in. Its output can be
+queried in Loki (`{namespace="trivy-scan"}`). The user deleted the 12 orphaned
+`aquasecurity.github.io` CRDs (custom resource definitions, which add object types to Kubernetes),
+which also deleted all 88 reports. That completed the removal of trivy-operator.
+
+### 2026-07-14 — kube-prometheus-stack upgrades stuck because Kyverno blocked the chart's hook Jobs (fixed)
+
+An audit after the trivy-operator removal found the kube-prometheus-stack HelmRelease Stalled. A
+HelmRelease is the Flux object that installs a Helm chart, and Stalled means Flux stopped retrying
+it. Before an upgrade, the chart runs hook Jobs (Jobs that Helm runs at a set point in an upgrade)
+that patch the certificate of its admission webhook. An admission webhook is a service that the API
+server calls to check or change objects before it stores them. Those Jobs set no resource limits, so
+the Kyverno policy `require-resource-limits` refused them at admission. 87.15.2 and then 87.16.0
+(Renovate #920/#923) each failed 4 upgrade attempts, and Helm rolled back to 87.15.1 on its own.
+This was the first denial of a chart hook since the move to Kyverno ValidatingPolicies (VP). It
+belongs to the same class as the trivy-scan namespace setup below: the first time a kind of change
+happened since the VP move. Side effect: the stalled release also held back the trivy cleanup in
+Alertmanager (removing telegram-digest), without any sign of it.
+
+Fix: `prometheusOperator.admissionWebhooks.patch.resources` (requests 10m/32Mi, limits
+100m/64Mi) in the values of release.yaml. `helm template 87.16.0` confirmed that the hook Job
+renders with limits. `.claude/review-invariants.md` gained a check for reviewers of chart version
+bumps: hook Jobs need their limits set through values.
+
+### 2026-07-14 — trivy-operator removed and replaced by a monthly trivy-scan CronJob
+
+The always-on trivy-operator was removed after 10 days in service (installed in `dfeb0153` on
+2026-07-04). It used ~650Mi of RAM 24/7 to scan images again that change only when Renovate updates
+them. Its 88 VulnerabilityReports covered upstream images that this project does not own, so they
+made the useful findings harder to see. The triage on 2026-07-05 found 0 findings on the project's own
+images.
+
+The replacement is `monitoring/configs/trivy-scan/`, a monthly CronJob in its own `trivy-scan`
+namespace. It runs on the 1st at 08:00 UTC, clear of the node security scan (1st-04:00) and the
+weekly reboot window (Sat 04:30). The monthly-review skill records the manual runs on review night.
+
+| Part | What it does |
+|---|---|
+| init container `rancher/shell:v0.8.0` (it runs before the main container) | collects the set of unique images through kubectl (~80 images). rancher/kubectl is a scratch image with no shell, so it cannot redirect output to a file |
+| main container `aquasec/trivy:0.71.1` | loops `trivy image --severity CRITICAL,HIGH --ignore-unfixed` over the images and prints a table per image to standard output, which Loki collects |
+| failure handling | if any scan fails, the Job fails, so a partial scan never reports success |
+| memory | limit 1Gi, because trivy peaks on large images |
+| cleanup | `ttlSecondsAfterFinished: 86400` |
+| NetworkPolicy | DNS, the API server, and outgoing traffic (egress) to registries on 443 only (the same patterns as popeye and trivy-operator) |
+
+Removed along with it:
+
+| Item | Kind |
+|---|---|
+| `TrivyCriticalVulnerabilities` | VMRule |
+| `scrape-trivy-operator.yaml` | VMPodScrape |
+| `telegram-digest` | Alertmanager route and receiver |
+| `alertmanagerSpec.retention: 192h` | setting that existed only for the digest's 168h repeat_interval |
+| `aquasecurity.github.io` | claude-telegram RBAC (role-based access control) permissions |
+
+After Flux reconciled, the aquasecurity
+CRDs and the orphaned VulnerabilityReports were deleted by hand, because helm uninstall leaves CRDs
+behind.
+
+### 2026-07-14 — Immich T7: backup redesigned (W2 makes the copy) and the W1 library PVC removed
+
+This closed the follow-up from Path B, the design that runs Immich on a GPU virtual machine on
+the NAS. It took two commits, and Codex reviewed both statically against
+`.claude/review-invariants.md`. CI had been blocked by billing since 07-10, so the gates ran
+locally:
+
+| Gate run locally |
+|---|
+| yamllint |
+| kustomize build |
+| kubeconform |
+
+- **Backup redesign (`4628800d`).** After the move to Path B, the library lives on the NAS. The old
+  `immich-backup` CronJob ran in kube-system, and its nodeSelector (the setting that chooses the
+  node) put it on W1 (worker-node). So it read a **frozen** copy,
+  `/mnt/k8s-storage/*immich-library*`, and reported success while it backed up stale data. The
+  CronJob now runs in the **`backup-replication` namespace on worker-node-2**. It pulls the **live**
+  library through the NAS `personal_folder` rsync module, writes a tar archive (the files bundled into one) and its sha checksum (a value used
+  to check whether the archive has changed)
+  to a hostPath (a folder on the node, mounted into the pod) on W2, and pushes them to the NAS pool
+  `akhozya-pool1`. That gives **two physical copies on different filesystems** (the W2 node and the
+  NAS pool), each with keep-2 retention. Step 5b of backup-replication applies keep-2 to the pool
+  copy. The change reused `nas-rsync-credentials` and the namespace-wide NetworkPolicy for outgoing
+  traffic (0 new secret, 0 new NP), and touched only a 1-line `vmrules` description. Codex reviewed
+  it in **3 rounds**. R1 found a HIGH: the final dated folder was created before the backup
+  succeeded. So a partial folder would enter the keep-2 window, which sorts by name, and push out
+  good copies. The same round also found a MED: `head -n -2` works only in GNU head, and under
+  busybox it does nothing, so the backups would grow without limit. The fixes: write to `.wip`, then
+  publish with an atomic `mv` (a rename done in one step, so the final dated folder appears only after the backup
+  succeeds); delete a partial folder left in the pool; and use `sort -r | tail -n +3`. The later
+  rounds:
+
+| Round | Result |
+|---|---|
+| R2 | confirmed R1 **and found a new HIGH**. Step 2 of `backup-replication` mirrors to W2 `/mnt/extra-storage/backups/` with `rsync --delete`, so it would **delete the new immich copy** 30 min later. The fix writes the W2 copy to a **sibling** folder, `/mnt/extra-storage/immich-backup/`, outside what `--delete` covers. That meant zero change to the critical replication job |
+| R3 | SHIP |
+
+- **Live proof.** The moved job ran once outside its schedule. It produced a 60.6G tar on W2 and
+  pushed it to the NAS pool in ~15 min. A separate `sha256sum -c` on the NAS pool copy returned OK.
+  The tar holds real library content, with a sample file `./library/admin/2015/…/DSC09701.jpg`:
+
+| Folder in the tar | Entries |
+|---|---|
+| `library/` | 6477 |
+| `thumbs/` | 18099 |
+| `upload/` | 6159 |
+
+- **W1 PVC removed (`a32f6ef8`).** Removed `apps/immich/library-pvc.yaml` and its line in the
+  kustomization file (the list of manifests to apply), after checking that no pod mounts the PVC
+  (persistent volume claim: a request for disk storage). The server uses the NAS hostPath, and ML
+  uses its own PVC. Flux pruned the PVC `immich-library`. Because local-path-provisioner has
+  `reclaimPolicy=Delete`, it then deleted the persistent volume (PV) `pvc-495129ee` and its ~61G
+  folder on disk through a helper pod, with no sudo or SSH to W1 needed.
+  `existingClaim: immich-library` stays in the HelmRelease as **a placeholder that keeps the
+  structure the postRenderer expects, without choosing the server's storage**. The postRenderer (a
+  step that edits the chart's output) replaces `volumes/0` by its position, and removing the claim
+  would change the shape of the persistence block. The comment now says so. immich-server kept
+  running (1/1, hostPath). Codex, 1 round: SHIP.
+- **The operator ended the watch period early, at ~40h/48h.** The backup move touches only the
+  backup CronJob, not the part of immich that serves users, and it can be fully undone. The W1
+  delete could not be undone. It was the one step that needed approval, and it had explicit
+  confirmation. After the change:
+
+| Check | Result |
+|---|---|
+| nodes | 4/4 Ready |
+| alerts firing | 0 |
+| immich queues | 0/0 |
+| external ping | 200 |
 
 ### 2026-07-13 — node-maintenance phase2 now cold-restarts immich-vm after a kernel update
 
