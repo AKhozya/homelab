@@ -6,8 +6,9 @@ metadata:
 spec:
   interval: 1m0s
   timeout: 5m0s
-  dependsOn:
-    - name: infrastructure-controllers
+  # No dependsOn: CoreDNS needs no CRD, certificate or secret that
+  # infrastructure-controllers installs. Kyverno webhooks skip kube-system.
+  # DNS must not wait on cert-manager and Kyverno health.
   sourceRef:
     kind: GitRepository
     name: flux-system

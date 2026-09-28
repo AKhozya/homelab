@@ -46,10 +46,14 @@ spec:
     name: flux-system
   path: ./monitoring/configs
   prune: true
-  # healthCheckExprs, not healthChecks: kstatus treats a custom resource with NO
-  # status.conditions as Current, and VMSingle publishes none (verified live — its
-  # status carries updateStatus/lastAppliedSpec/observedGeneration only). The plain
-  # healthCheck therefore passed unconditionally and gated nothing.
+  # Flux evaluates healthCheckExprs only for objects that healthChecks (or wait: true)
+  # selects, so both are needed. VMSingle publishes no status.conditions, so default
+  # kstatus evaluation reports Current. The CEL expression checks updateStatus instead.
+  healthChecks:
+    - apiVersion: operator.victoriametrics.com/v1beta1
+      kind: VMSingle
+      name: vmsingle
+      namespace: monitoring
   healthCheckExprs:
     - apiVersion: operator.victoriametrics.com/v1beta1
       kind: VMSingle
