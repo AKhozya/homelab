@@ -609,23 +609,22 @@ edits the checkout it lives in.
    | Flux notifications | the Secret, per event | none |
    | backup job | env, at the next run | none |
    | claude-telegram | env `TELEGRAM_BOT_TOKEN`, at start-up | `kubectl delete pod -n claude-telegram -l app=claude-telegram` (Flux reverts `rollout restart`) |
-   | node-maintenance notices (alerts bot) | the CP file `/etc/node-maintenance/telegram-token`, on each send; drift-heal copies it to every node | the operator refreshes it with sudo on the CP (below) |
+   | node-maintenance notices (alerts bot) | the CP file `/etc/node-maintenance/telegram-token`, on each send | none (below) |
 
-   `node-maintenance/install.sh` writes the CP file from the `backup-telegram` Secret only on a
-   full install, so a SOPS rotation leaves the old token there. After Flux applies step 3, run this
-   on the CP. The token stays in a shell variable and a pipe, never on the screen or the command
-   line. The chain stops before it touches the file if the read comes back empty:
+   The node-maintenance files follow the Secret without an operator step:
+
+   | Stage | What happens |
+   |---|---|
+   | every 10-min sync on the CP | `lib/sync-from-git.sh` runs `lib/refresh-telegram-creds.sh`, which copies `bot_token` and `chat_id` from the `backup-telegram` Secret into `/etc/node-maintenance/telegram-token` and `telegram-chat-id`. So the CP files follow the Secret within one sync after Flux applies it. |
+   | next drift-heal | the `security_scan` role copies both files from the CP to the other nodes. Drift-heal runs at 03:00 and 15:00 UTC, and after a sync that applies a new commit. |
+   | if the read fails | the refresh keeps the old files, and the sync prints a `WARN` line |
+   | if a send fails | `telegram-notify.sh` writes `node_maintenance_telegram_notify_success 0`. If the gauge stays 0 for 5 minutes, the `NodeMaintenanceTelegramNotifyFailed` alert fires. |
+
+   To test at once, run this on the CP and check that the message reaches the chat:
 
    ```bash
-   T=$(sudo kubectl --kubeconfig=/etc/rancher/k3s/k3s.yaml get secret -n backup-replication backup-telegram \
-     -o jsonpath='{.data.bot_token}' | base64 -d) && [ -n "$T" ] &&
-     printf '%s' "$T" | sudo tee /etc/node-maintenance/telegram-token >/dev/null &&
-     sudo systemctl start node-maintenance-config.service   # copies the file to the other nodes now
-   unset T
    sudo /usr/local/sbin/telegram-notify.sh "token refresh test"
    ```
-
-   Check that the test message reaches the chat.
 
 5. Verify. Cloudflare: the script's check shows the token active, and Roll keeps its
    permissions. Certificates that stay `True` in `kubectl get certificates -A` do not test the
@@ -711,9 +710,9 @@ If compromised:
   from 18 PR refs. Verified: Cloudflare reports the new token active; a test alert raised
   Alertmanager's Telegram send count from 24 to 25 with 0 failures; claude-telegram restarted and
   logged `Bot started`. The first certificate renewals with the new token are due 2026-10-31.
-  That pass did not refresh the CP file `/etc/node-maintenance/telegram-token` (still dated
-  2026-04-18 afterwards). node-maintenance notices fail on the revoked token until the operator
-  refreshes that file (section 6, step 4).
+  The refresh of the CP file `/etc/node-maintenance/telegram-token` became automatic when the
+  node-maintenance fixes (`2a09e2b0`) went live at 23:11 BST. One send with the old token failed at
+  23:11:01, one second before the next sync started. Sends succeed since 23:17:09.
 - [x] **2026-08-07: claude-telegram bot token rotated after a pod-log leak** (`aac32751`) — failed
   `getUpdates` errors printed the token in the request URL during the morning WAN outage (Loki
   retains 720h). Bot 1.32.0 now redacts secrets from console output, so this leak class is closed
