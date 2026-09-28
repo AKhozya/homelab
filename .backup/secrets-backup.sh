@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Backup ALL secrets needed for complete cluster provisioning from scratch
-# DO NOT COMMIT THIS FILE - IT CONTAINS UNENCRYPTED SECRETS
+# Backup ALL secrets needed for complete cluster provisioning from scratch.
+# The script holds no secrets, but its output does: .backup/secrets/ stays plaintext
+# until the script encrypts and deletes it. .gitignore covers that directory and the
+# encrypted archives, not the rest of .backup/.
 
-set -e
+set -euo pipefail
 
 BACKUP_DIR="$(dirname "$0")"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
@@ -50,8 +52,9 @@ kubectl get secret redis-acl-secret -n databases -o json > "${BACKUP_DIR}/secret
 kubectl get secret postgres-admin-user -n databases -o json > "${BACKUP_DIR}/secrets/postgres-admin-user.json"
 
 # CNPG cluster-managed credentials (app/superuser/replication/pooler/CA/server).
-# CNPG regenerates these on cluster bootstrap; restoring the originals before
-# bootstrap ensures pg_authid passwords baked into the WAL/base backup still match.
+# The nightly backups are per-database pg_dump files, which carry no roles, so CNPG
+# sets role passwords from these Secrets at bootstrap. Restoring the originals keeps
+# the old passwords and CA, so no copy of them held elsewhere needs updating.
 kubectl get secret main-postgres-app -n databases -o json > "${BACKUP_DIR}/secrets/main-postgres-app.json" 2>/dev/null || echo "   ⚠️  No databases/main-postgres-app"
 kubectl get secret main-postgres-superuser -n databases -o json > "${BACKUP_DIR}/secrets/main-postgres-superuser.json" 2>/dev/null || echo "   ⚠️  No databases/main-postgres-superuser"
 kubectl get secret main-postgres-replication -n databases -o json > "${BACKUP_DIR}/secrets/main-postgres-replication.json" 2>/dev/null || echo "   ⚠️  No databases/main-postgres-replication"
@@ -72,8 +75,8 @@ kubectl get secret blocky-db-user -n databases -o json > "${BACKUP_DIR}/secrets/
 kubectl get secret mysql-cluster-secrets -n databases -o json > "${BACKUP_DIR}/secrets/mysql-cluster-secrets.json"
 
 # Percona operator-managed internal credentials (operator/monitor/orchestrator/etc.).
-# Like CNPG: operator regenerates on cluster recreate, but PXC/orchestrator data
-# baked into backup uses the originals — restore these before cluster recreate.
+# The nightly backups are per-database mysqldump files, which carry no users, so the
+# operator creates its users from this Secret. Restoring it keeps the old passwords.
 kubectl get secret internal-main-mysql -n databases -o json > "${BACKUP_DIR}/secrets/internal-main-mysql.json" 2>/dev/null || echo "   ⚠️  No databases/internal-main-mysql"
 
 # MySQL app credentials live in their app namespaces — grouped with each app below
@@ -191,9 +194,12 @@ kubectl get secret redis-passwords -n databases -o jsonpath='{.data.blocky-passw
 # =============================================================================
 # Clean up JSON exports (strip cluster-specific metadata for portability)
 # =============================================================================
+# ownerReferences name the old cluster's owner UIDs (the CNPG Cluster owns the
+# main-postgres-* Secrets). On a rebuilt cluster no object has those UIDs, so the
+# garbage collector would delete each restored Secret.
 echo "🧹 Cleaning up JSON exports..."
 for f in "${BACKUP_DIR}/secrets/"*.json; do
-  jq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.managedFields)' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+  jq 'del(.metadata.resourceVersion, .metadata.uid, .metadata.creationTimestamp, .metadata.managedFields, .metadata.ownerReferences)' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
 done
 
 # =============================================================================
@@ -202,18 +208,18 @@ done
 echo "🔐 Encrypting backup with GPG..."
 
 # Get passphrase (prompt if not set as environment variable)
-if [ -z "${GPG_PASSPHRASE}" ]; then
+if [ -z "${GPG_PASSPHRASE:-}" ]; then
   echo ""
   echo "⚠️  You need a passphrase to encrypt this backup."
   echo "⚠️  Store this passphrase securely in 1Password - you'll need it to decrypt!"
   echo ""
 
   # Prompt for passphrase (hidden input)
-  read -s -p "Enter passphrase: " GPG_PASSPHRASE
+  read -rs -p "Enter passphrase: " GPG_PASSPHRASE
   echo ""
 
   # Confirm passphrase
-  read -s -p "Confirm passphrase: " GPG_PASSPHRASE_CONFIRM
+  read -rs -p "Confirm passphrase: " GPG_PASSPHRASE_CONFIRM
   echo ""
 
   # Verify passwords match
@@ -234,12 +240,13 @@ fi
 
 ENCRYPTED_FILE="${BACKUP_DIR}/secrets-backup-${TIMESTAMP}.tar.gz.gpg"
 
-# Create tarball of secrets directory
-tar -czf - -C "${BACKUP_DIR}" secrets | \
-  gpg --symmetric --cipher-algo AES256 --batch --yes --passphrase-file <(echo "${GPG_PASSPHRASE}") \
-  -o "${ENCRYPTED_FILE}"
-
-if [ $? -eq 0 ]; then
+# Encrypt, then decrypt and list the archive before deleting the plaintext. The `if`
+# tests each whole pipeline, and pipefail makes a tar failure fail it, not only gpg's.
+if tar -czf - -C "${BACKUP_DIR}" secrets \
+  | gpg --symmetric --cipher-algo AES256 --batch --yes --passphrase-file <(echo "${GPG_PASSPHRASE}") \
+    -o "${ENCRYPTED_FILE}" \
+  && gpg --decrypt --batch --quiet --passphrase-file <(echo "${GPG_PASSPHRASE}") "${ENCRYPTED_FILE}" \
+  | tar -tzf - >/dev/null; then
   echo "✅ Encrypted backup created: ${ENCRYPTED_FILE}"
   echo "📊 Backup size: $(du -h "${ENCRYPTED_FILE}" | awk '{print $1}')"
 
@@ -255,7 +262,8 @@ if [ $? -eq 0 ]; then
   echo "   export GPG_PASSPHRASE='your-secure-passphrase'"
   echo "   gpg --decrypt --batch --passphrase-file <(echo \"\$GPG_PASSPHRASE\") ${ENCRYPTED_FILE} | tar -xzf - -C ${BACKUP_DIR}"
 else
-  echo "❌ GPG encryption failed! Secrets remain unencrypted in ${BACKUP_DIR}/secrets/"
+  rm -f "${ENCRYPTED_FILE}"
+  echo "❌ Encryption or its check failed! Secrets remain unencrypted in ${BACKUP_DIR}/secrets/"
   exit 1
 fi
 
@@ -270,7 +278,7 @@ echo "   ✅ Backup is encrypted with GPG AES256"
 echo "   ✅ Unencrypted secrets directory removed"
 echo "   ✅ No default passphrase - you must set GPG_PASSPHRASE"
 echo "   ⚠️  Store GPG passphrase securely (1Password recommended)"
-echo "   ⚠️  The .backup/ directory is in .gitignore"
+echo "   ⚠️  .gitignore covers .backup/secrets/ and the encrypted archives, not all of .backup/"
 echo ""
 echo "📋 Backed up secrets for:"
 echo "   🔑 SOPS age encryption key (CRITICAL)"
@@ -289,8 +297,8 @@ echo "      - Audiobookshelf, Uptime Kuma, Stirling PDF"
 echo "      - HomeHub, LinkWarden, PriceBuddy, CouchDB (Obsidian)"
 echo "      - Blocky (config + DB user)"
 echo "      - Claude Telegram (env + ssh + chezmoi)"
-echo "   💾 Backup replication (SSH key, NAS creds, Telegram)"
+echo "   💾 Backup replication (NAS creds, Telegram)"
 echo "   ☁️  Cloudflare tunnel config"
 echo "   🔐 OIDC: Grafana (standalone secret only — others embedded in app secrets above)"
 echo ""
-echo "📂 Encrypted file: $(basename ${ENCRYPTED_FILE})"
+echo "📂 Encrypted file: $(basename "${ENCRYPTED_FILE}")"

@@ -2,9 +2,16 @@
 # Restore ALL secrets needed for complete cluster provisioning from scratch
 # Run this after creating a fresh cluster and BEFORE bootstrapping Flux
 
-set -e
+set -eo pipefail
 
 BACKUP_DIR="$(dirname "$0")"
+
+# Backups taken before secrets-backup.sh stripped ownerReferences still carry the old
+# cluster's owner UIDs. The garbage collector deletes a restored Secret whose owner
+# UID does not exist, so strip them here too.
+apply_unowned() {
+    jq 'del(.metadata.ownerReferences)' "$1" | kubectl apply -f -
+}
 
 echo "🔄 Restoring ALL secrets to cluster for disaster recovery..."
 
@@ -15,7 +22,7 @@ if [ ! -d "${BACKUP_DIR}/secrets" ]; then
     echo "📦 Secrets directory not found. Looking for encrypted backups..."
 
     # Find the latest encrypted backup
-    LATEST_BACKUP=$(ls -t "${BACKUP_DIR}"/secrets-backup-*.tar.gz.gpg 2>/dev/null | head -1)
+    LATEST_BACKUP=$(ls -t "${BACKUP_DIR}"/secrets-backup-*.tar.gz.gpg 2>/dev/null | head -1 || true)
 
     if [ -z "${LATEST_BACKUP}" ]; then
         echo "❌ Error: No encrypted backup found in ${BACKUP_DIR}/"
@@ -24,7 +31,7 @@ if [ ! -d "${BACKUP_DIR}/secrets" ]; then
         exit 1
     fi
 
-    echo "🔓 Found encrypted backup: $(basename ${LATEST_BACKUP})"
+    echo "🔓 Found encrypted backup: $(basename "${LATEST_BACKUP}")"
     echo ""
 
     # Get passphrase (prompt if not set as environment variable)
@@ -33,7 +40,7 @@ if [ ! -d "${BACKUP_DIR}/secrets" ]; then
         echo ""
 
         # Prompt for passphrase (hidden input)
-        read -s -p "Enter passphrase: " GPG_PASSPHRASE
+        read -rs -p "Enter passphrase: " GPG_PASSPHRASE
         echo ""
 
         # Verify passphrase is not empty
@@ -114,15 +121,15 @@ kubectl apply -f "${BACKUP_DIR}/secrets/redis-passwords.json"
 [ -f "${BACKUP_DIR}/secrets/redis-acl-secret.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/redis-acl-secret.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/postgres-admin-user.json"
 
-# CNPG cluster-managed credentials — apply BEFORE the Cluster CR so the
-# operator picks up originals instead of generating fresh ones (passwords in
-# pg_authid match the WAL/base backup).
-[ -f "${BACKUP_DIR}/secrets/main-postgres-app.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/main-postgres-app.json"
-[ -f "${BACKUP_DIR}/secrets/main-postgres-superuser.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/main-postgres-superuser.json"
-[ -f "${BACKUP_DIR}/secrets/main-postgres-replication.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/main-postgres-replication.json"
-[ -f "${BACKUP_DIR}/secrets/main-postgres-pooler.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/main-postgres-pooler.json"
-[ -f "${BACKUP_DIR}/secrets/main-postgres-ca.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/main-postgres-ca.json"
-[ -f "${BACKUP_DIR}/secrets/main-postgres-server.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/main-postgres-server.json"
+# CNPG cluster-managed credentials — apply BEFORE the Cluster CR so the operator
+# uses the originals instead of generating fresh ones. The pg_dump backups carry no
+# roles, so these Secrets alone decide the role passwords and the CA.
+[ -f "${BACKUP_DIR}/secrets/main-postgres-app.json" ] && apply_unowned "${BACKUP_DIR}/secrets/main-postgres-app.json"
+[ -f "${BACKUP_DIR}/secrets/main-postgres-superuser.json" ] && apply_unowned "${BACKUP_DIR}/secrets/main-postgres-superuser.json"
+[ -f "${BACKUP_DIR}/secrets/main-postgres-replication.json" ] && apply_unowned "${BACKUP_DIR}/secrets/main-postgres-replication.json"
+[ -f "${BACKUP_DIR}/secrets/main-postgres-pooler.json" ] && apply_unowned "${BACKUP_DIR}/secrets/main-postgres-pooler.json"
+[ -f "${BACKUP_DIR}/secrets/main-postgres-ca.json" ] && apply_unowned "${BACKUP_DIR}/secrets/main-postgres-ca.json"
+[ -f "${BACKUP_DIR}/secrets/main-postgres-server.json" ] && apply_unowned "${BACKUP_DIR}/secrets/main-postgres-server.json"
 
 # PostgreSQL database users
 kubectl apply -f "${BACKUP_DIR}/secrets/authentik-db-user.json"
@@ -137,8 +144,9 @@ kubectl apply -f "${BACKUP_DIR}/secrets/paperless-db-user.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/mysql-cluster-secrets.json"
 
 # Percona operator-managed internal credentials — apply BEFORE the
-# PerconaServerMySQL CR so the operator reuses originals (matches xtrabackup/replication state).
-[ -f "${BACKUP_DIR}/secrets/internal-main-mysql.json" ] && kubectl apply -f "${BACKUP_DIR}/secrets/internal-main-mysql.json"
+# PerconaServerMySQL CR so the operator reuses the originals. The mysqldump backups
+# carry no users.
+[ -f "${BACKUP_DIR}/secrets/internal-main-mysql.json" ] && apply_unowned "${BACKUP_DIR}/secrets/internal-main-mysql.json"
 echo "   ✅ Database secrets restored (PostgreSQL + MySQL)"
 
 # =============================================================================
