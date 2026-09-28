@@ -52,6 +52,15 @@ Alert classes worth knowing:
 ## NetworkPolicies
 Per-pod NPs: vmsingle/vmagent/vmalert/vmoperator (`victoria-metrics/networkpolicy.yaml`, 4-in-1), grafana, alertmanager, kube-state-metrics, prometheus-operator (`kube-prometheus-stack/`), loki + alloy (`controllers/loki-stack/networkpolicy.yaml`), popeye.
 
+Alertmanager does not authenticate requests to port 9093. The `am.h0melab.work` Ingress enforces basic authentication. So Alertmanager's NetworkPolicy admits 9093 only from these namespaces:
+
+| Namespace | Client |
+|---|---|
+| `monitoring` | vmalert, the vmagent scrape, the Grafana datasource |
+| `loki` | the Loki ruler |
+| `uptime-kuma` | the probe |
+| `traefik` | the `am.h0melab.work` Ingress |
+
 ## Dashboards
 - ConfigMaps labeled `grafana_dashboard: "1"` auto-loaded by the Grafana sidecar (polls 30s → `/tmp/dashboards/`)
 - `monitoring/configs/grafana-dashboards/`: cnpg, redis, traefik-k8s, loki-stack, cert-manager, backup-monitoring, node-maintenance
