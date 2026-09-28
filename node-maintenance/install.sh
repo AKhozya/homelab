@@ -100,8 +100,8 @@ fi
 
 if [ "$SYNC_ONLY" -eq 0 ]; then
   # ── SSH key (copy from pre-decrypted path, shred source) ──
-  # Skip if already installed (idempotent).
-  if [ ! -r "$SSH_KEY_PATH" ]; then
+  # If a staged key exists, it replaces the installed key: the yearly rotation (README) needs that.
+  if [ -r "$KEY_SRC" ]; then
     install -m 0600 -o node-maintenance -g node-maintenance \
       "$KEY_SRC" "$SSH_KEY_PATH"
     shred -u "$KEY_SRC" 2>/dev/null || rm -f "$KEY_SRC"
@@ -115,6 +115,9 @@ fi
 
 # ── known_hosts ──
 install -m 0644 "$REPO_DIR/lib/known_hosts" /etc/node-maintenance/known_hosts
+# GitHub's host keys for the root deploy-key sync, from the repo rather than ssh-keyscan,
+# which trusts whatever answers the first scan.
+install -m 0644 "$REPO_DIR/lib/github_known_hosts" /etc/node-maintenance/github_known_hosts
 
 if [ "$SYNC_ONLY" -eq 0 ]; then
   # ── Telegram creds (reuse backup-replication/backup-telegram) ──
@@ -131,11 +134,14 @@ install -m 0750 -o root -g root "$REPO_DIR/lib/sync-from-git.sh"   /usr/local/sb
 install -m 0750 -o root -g root "$REPO_DIR/lib/node-config-notify.sh" /usr/local/sbin/node-maintenance-config-notify.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/node-maintenance-lock.sh" /usr/local/sbin/node-maintenance-lock.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/rotate-k3s-server-token.sh" /usr/local/sbin/rotate-k3s-server-token.sh
+# ExecCondition of node-maintenance-config.service. The firewall role also deploys it, but that
+# role runs inside the same unit, so on a fresh CP the missing script (exit 203) would skip every
+# drift-heal before the role ever ran.
+install -m 0755 -o root -g root "$REPO_DIR/ansible/roles/firewall/files/check-phase2-flag-age.sh" /usr/local/sbin/check-phase2-flag-age.sh
 for unit in \
     node-maintenance.timer \
     node-maintenance-phase1.service \
     node-maintenance-phase2.service \
-    node-maintenance-kubectl-proxy.service \
     node-maintenance-sync.service \
     node-maintenance-sync.timer \
     node-maintenance-config.service \
@@ -144,13 +150,6 @@ for unit in \
   install -m 0644 "$REPO_DIR/systemd/$unit" /etc/systemd/system/
 done
 # security-scan units owned by ansible roles/security_scan (all hosts).
-
-# ── github known_hosts (for deploy-key-based git sync) ──
-# Baked once; rotation = delete + re-run install.sh (ssh-keyscan re-fetches).
-if [ ! -s /etc/node-maintenance/github_known_hosts ]; then
-  ssh-keyscan -t rsa,ecdsa,ed25519 github.com 2>/dev/null > /etc/node-maintenance/github_known_hosts
-  chmod 0644 /etc/node-maintenance/github_known_hosts
-fi
 
 systemctl daemon-reload
 
@@ -171,7 +170,6 @@ if [ "$SYNC_ONLY" -eq 0 ] && [ -x /usr/bin/ansible-playbook ] && [ -f /etc/node-
 fi
 
 if [ "$SYNC_ONLY" -eq 0 ]; then
-  systemctl enable --now node-maintenance-kubectl-proxy.service
   systemctl enable --now node-maintenance.timer
   systemctl enable node-maintenance-phase2.service
 
@@ -184,14 +182,6 @@ if [ "$SYNC_ONLY" -eq 0 ]; then
     echo "    Generate key: ssh-keygen -t ed25519 -f /root/.ssh/homelab-deploy -N '' -C 'homelab-deploy@\$(hostname)'"
     echo "    Add pubkey as GitHub deploy key (read-only), then: systemctl enable --now node-maintenance-sync.timer"
   fi
-
-  # Verify kubectl proxy reachable
-  for i in {1..10}; do
-    curl -sf -m 2 http://127.0.0.1:8001/api > /dev/null && break
-    [ "$i" = "10" ] && { echo "ERROR: kubectl proxy not reachable after 10s" >&2; exit 1; }
-    sleep 1
-  done
-  echo "kubectl proxy ready on 127.0.0.1:8001"
 
   # ── generate worker install scripts with pubkey substituted ──
   PUB_KEY="$(cat "${SSH_KEY_PATH}.pub")"

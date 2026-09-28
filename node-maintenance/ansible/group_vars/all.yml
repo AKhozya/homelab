@@ -12,9 +12,7 @@ kubeconfig_path: /etc/rancher/k3s/k3s.yaml
 
 # Alertmanager — reached with `kubectl exec` + amtool in the alertmanager pod.
 # The CP host cannot reach the pod CIDR and the API-server proxy 502s on a pod
-# dial. The earlier approach curled the API through `kubectl proxy` + wget;
-# `node-maintenance-kubectl-proxy.service` stays installed and enabled so that
-# path can be rolled back to, but no playbook uses it now.
+# dial.
 silence_duration_seconds: 5400   # 90 minutes (covers phase1 + CP reboot + phase2 typical runtime)
 silence_alertnames: "KubeletDown|KubernetesAPIServerDown|DeploymentReplicasMismatch|StatefulSetReplicasMismatch|CloudflareTunnelDown|CloudflareTunnelPodNotRunning|CloudflareTunnelNoConnections|CouchDBDown|CouchDBPodNotRunning|FluxReconciliationFailure|FluxSourceNotReady|KyvernoAdmissionControllerDown|LokiDown|LokiCompactorNotRunning|MySQLDown|MySQLHAProxyNotRunning|MySQLOrchestratorNotRunning|RedisDown|RedisPodNotRunning|AlertmanagerFailedToSendAlerts|AlloyDown|AlloyLogDeliveryFailing|DaemonSetNotScheduled|TraefikDown|PrometheusTargetDown|KubePodCrashLooping|KubePodNotReady|PodRunningNotReady|PodPhaseNotRunning|TargetDown|TooManyPodsPending|JobFailed"
 

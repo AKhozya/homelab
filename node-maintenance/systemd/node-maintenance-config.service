@@ -1,7 +1,7 @@
 [Unit]
 Description=Node config drift-heal (ansible node-config.yml)
 Documentation=https://github.com/AKhozya/homelab/tree/main/node-maintenance
-After=network-online.target node-maintenance-kubectl-proxy.service
+After=network-online.target
 Wants=network-online.target
 # Skip drift-heal during weekly maintenance window. Phase1 sets the flag
 # before reboot; phase2 clears it after successful worker rollout. Drift-

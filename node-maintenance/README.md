@@ -37,7 +37,7 @@ nodes and applies these 14 roles in order:
 
 | Setting | Value |
 |---|---|
-| Log | `/var/log/node-maintenance/config-latest.log`, rewritten each run and archived by logrotate |
+| Log | `/var/log/node-maintenance/config-latest.log`. The unit rewrites it each run; its `ExecStopPost` copies each run to `config-archive/` and keeps the 50 newest. |
 | Telegram | a message if the run changed anything or failed; silent when nothing changed |
 
 Run it by hand:
@@ -368,21 +368,28 @@ git add node-maintenance/secrets/ssh-key.sops.yaml
 git commit -m "Rotate node-maintenance-ssh (YYYY-MM-DD)"
 git push
 
-# 4. Capture pub key for worker-side
+# 4. Add the new pub key next to the old one on all three workers
 cat /tmp/new_key.pub
-# Copy to each worker's authorized_keys (as node-maintenance user or root):
 ssh -p 65300 akhozya@worker-node "echo '<PASTE_PUB_KEY>' | sudo tee -a /var/lib/node-maintenance/.ssh/authorized_keys"
 ssh -p 65300 z3us@worker-node-2 "echo '<PASTE_PUB_KEY>' | sudo tee -a /var/lib/node-maintenance/.ssh/authorized_keys"
+ssh -p 65300 akhozya@immich-vm "echo '<PASTE_PUB_KEY>' | sudo tee -a /var/lib/node-maintenance/.ssh/authorized_keys"
 
 # 5. Stream new private to CP + re-run install.sh
+# The staged key must replace the installed key before step 6 can test it.
 cat /tmp/new_key | ssh -p 65300 akhozya@gmk-k3s-control-plane \
   'cat > /tmp/node-maintenance-ssh-key && chmod 600 /tmp/node-maintenance-ssh-key'
 ssh -p 65300 akhozya@gmk-k3s-control-plane "sudo bash ~/node-maintenance/install.sh"
 
-# 6. Verify CP → workers as node-maintenance
-ssh -p 65300 akhozya@gmk-k3s-control-plane "sudo -u node-maintenance ssh -p 65300 -i /var/lib/node-maintenance/.ssh/id_ed25519 -o UserKnownHostsFile=/etc/node-maintenance/known_hosts node-maintenance@192.168.1.129 true"
+# 6. Verify CP → every worker with the NEW key.
+#    If any line fails, stop and leave the old pub key in place. The CP now holds only the
+#    new private key, so fix that worker's authorized_keys over your own SSH account
+#    (as in step 4), then re-run this step.
+for ip in 192.168.1.129 192.168.1.126 192.168.1.231; do
+  ssh -p 65300 akhozya@gmk-k3s-control-plane "sudo -u node-maintenance ssh -p 65300 -i /var/lib/node-maintenance/.ssh/id_ed25519 -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=/etc/node-maintenance/known_hosts node-maintenance@$ip true" && echo "$ip ok"
+done
 
-# 7. Remove OLD pub from workers' authorized_keys (manual edit)
+# 7. If all three print ok, remove the OLD pub key from each worker's
+#    /var/lib/node-maintenance/.ssh/authorized_keys (manual edit)
 
 # 8. Shred temp files on Mac
 gshred -u /tmp/new_key /tmp/new_key.pub /tmp/new-secret.yaml
@@ -390,5 +397,3 @@ gshred -u /tmp/new_key /tmp/new_key.pub /tmp/new-secret.yaml
 # 9. Update docs/SECRETS_ROTATION.md with new rotation date
 ```
 
-Step 4 lists worker-node and worker-node-2 only. Add the new public key on `immich-vm` the same way,
-because the CP reaches it as `node-maintenance` too.

@@ -91,6 +91,30 @@
     # control-plane wedge. Fixes the gap where a CP-pinned pod (e.g. uptime-kuma) stays DNS-dead
     # post-reboot with no auto-heal.
     - role: clusterip_heal_cp
+  tasks:
+    # This unit serves `kubectl proxy` as root with the admin kubeconfig on 127.0.0.1:8001 and no
+    # auth: any local process, hostNetwork pods included, gets cluster-admin. No playbook uses it.
+    - name: Check for the node-maintenance-kubectl-proxy.service unit file
+      ansible.builtin.stat:
+        path: /etc/systemd/system/node-maintenance-kubectl-proxy.service
+      register: kubectl_proxy_unit
+
+    - name: Stop and disable node-maintenance-kubectl-proxy.service
+      ansible.builtin.systemd_service:
+        name: node-maintenance-kubectl-proxy.service
+        enabled: false
+        state: stopped
+      when: kubectl_proxy_unit.stat.exists
+
+    - name: Remove node-maintenance-kubectl-proxy.service unit file
+      ansible.builtin.file:
+        path: /etc/systemd/system/node-maintenance-kubectl-proxy.service
+        state: absent
+      notify: Reload systemd after removing the proxy unit
+  handlers:
+    - name: Reload systemd after removing the proxy unit
+      ansible.builtin.systemd_service:
+        daemon_reload: true
 
 # The firewall role's rescue lets the serial:1 firewall play go on to the next node. This
 # play fails each node whose UFW rule batch needed that rescue, after every other play has
