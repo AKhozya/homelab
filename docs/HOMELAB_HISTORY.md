@@ -17,6 +17,30 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-09-28 — three tokens rotated before the repo goes public
+
+The SP4 secret scan read every ref GitHub serves, not only `main`: `gitleaks git
+--log-opts=--all` on a mirror clone. `main` held the same 11 findings as the 2026-07-26 audit,
+which judged each one rotated or decommissioned. Four more findings are in commits that only
+`refs/pull/*` reach, from before the 2026-06-12 history rewrite. Two of those were working
+credentials:
+
+| Token | Where | Why it still worked |
+|---|---|---|
+| Cloudflare API token `dns_and_certs` (Zone.DNS edit on `h0melab.work`) | `.backup/QUICK_REFERENCE.md`, commit `7349f6cc`, 2025-10-07; 18 PR refs | cert-manager's SOPS file had not changed since 2025-10-06, so it held the same value. The rotation table's "2025-10-19" was never a rotation |
+| Telegram bot token for @h0melab_alerts_bot | same commit | Alertmanager, Flux notifications and the backup job use it. Its file had not changed since 2025-10-07 |
+
+The repo owner cannot delete PR refs, and plan decision 7 keeps the repo rather than recreating
+it, so rotation was the only fix. The operator made new values for both tokens, and for the
+claude-telegram bot's token too, and saved each in 1Password. `scripts/rotate-token.sh` checked
+each value with its issuer and wrote it into the SOPS files (`52ce08aa`). Cloudflare reports the
+new token active. A test alert raised Alertmanager's Telegram send count with 0 failures, and
+claude-telegram restarted with its new token. cert-manager first uses the new token at the
+renewals due 2026-10-31. The procedure is section 6 of `docs/SECRETS_ROTATION.md`.
+
+Two lessons. A scan of `main` alone missed both tokens. A rotation table's date can be wrong,
+but a value is never newer than its SOPS file's `sops.lastmodified`.
+
 ### 2026-09-27 — firewall: no-source rules closed over IPv6; key-only SSH everywhere
 
 Every node has a public IPv6 address. A UFW rule with no source address opens its port over

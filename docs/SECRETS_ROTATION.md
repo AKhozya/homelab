@@ -112,7 +112,9 @@ Grafana and Audiobookshelf use SQLite, so they have no database Secret.
 | `claude-telegram-ssh` → `gh-homelab` | Telegram bot — GitHub deploy key, repo `homelab`, **WRITE** (`read_only=false`) | 2026-08-03 | 2027-01-30 | Critical |
 | `claude-telegram-ssh` → `gh-dotfiles` | Telegram bot — GitHub deploy key, repo `dotfiles`, read-only | 2026-08-03 | 2027-08-03 | Medium |
 | `claude-telegram-ssh` → `gh-fork` | Telegram bot — GitHub deploy key, repo `claude-telegram-bot`, read-only | 2026-08-03 | 2027-08-03 | Low |
-| `cloudflare-api-token` (`cert-manager` ns) | cert-manager DNS-01 for `*.h0melab.work` | 2025-10-19 | 2026-10-19 | Critical |
+| `cloudflare-api-token` (`cert-manager` ns) | cert-manager DNS-01 for `*.h0melab.work`; Cloudflare token `dns_and_certs` (Zone.Zone + Zone.DNS, one zone) | 2026-09-28 (compromise) | 2027-09-28 | Critical |
+| `alertmanager-telegram` (`bot_token`, `token`) + `backup-telegram` (`bot_token`) | Telegram bot @h0melab_alerts_bot: Alertmanager, Flux notifications, backup job | 2026-09-28 (compromise) | Never* | Medium |
+| `claude-telegram-env` → `telegram-bot-token` | Telegram bot @ClaudeSelfHostedBot (claude-telegram) | 2026-09-28 | Never* | High |
 | `sops-age` (`flux-system` ns) | SOPS decryption key for every secret in this repo | 2025-10-19 (bootstrap) | Never* | Critical |
 | `alertmanager-basic-auth` (`monitoring` ns) | Traefik basicAuth on `am.h0melab.work` | 2026-07-25 | 2027-07-25 | Medium |
 
@@ -128,6 +130,8 @@ it: `gh api repos/AKhozya/<repo>/keys --jq '.[] | "\(.title) read_only=\(.read_o
 **`sops-age`** is the root of the whole scheme — losing it makes every encrypted file in this repo unreadable, and leaking it makes all of them readable. It is deliberately *not* on a rotation clock: rotating it means re-encrypting every SOPS file in one commit. Keep an offline copy.
 
 **`alertmanager-basic-auth`** holds only the htpasswd `users` key — Traefik rejects a basicAuth Secret with more than one key. `users` is bcrypt and one-way, so the readable credential lives in 1Password: `op read 'op://Personal/alertmanager-homelab/password'`. Do not add a second key to this Secret to keep a copy in-cluster; the middleware then fails to build and the host returns 404 rather than 401, silently.
+
+**The Cloudflare and alerts-bot tokens (2026-09-28).** A pre-rewrite commit (`7349f6cc`, 2025-10-07) holds both values, and 18 `refs/pull/*` still reach that commit. The repo owner cannot delete PR refs, so the operator rotated both tokens. The operator rotated the claude-telegram token in the same pass, although that commit does not hold it. Before the rotation, the Cloudflare row said "2025-10-19", but the SOPS file had not changed since 2025-10-06, so the value in it could not be newer. If this table and a file's `sops.lastmodified` disagree, the value is no newer than `sops.lastmodified`. Procedure: [section 6](#6-cloudflare-api-token-and-telegram-bot-tokens).
 
 **`claude-telegram-ssh` (2026-06-12)**: rotated after the old key was found in pre-rewrite git history (an account-wide GitHub auth key that doubled as a node SSH key). Procedure: new key added to GitHub + the 3 nodes' `authorized_keys` + SOPS secret → bot restart → verified GitHub and node auth → old key removed everywhere. The bot also reaches GitHub over `ssh.github.com:443`, since the cluster's egress firewall blocks outbound `:22`.
 
@@ -389,6 +393,64 @@ kubectl rollout restart deploy -n blocky blocky
 kubectl logs -n blocky -l app=blocky --tail=20 | grep -iE "redis|error"
 ```
 
+### 6. Cloudflare API token and Telegram bot tokens
+
+The issuer makes the new value, so a person does step 1. `scripts/rotate-token.sh` does the
+rest of the edit. It reads the new value from the 1Password item's `credential` field and checks
+it with the issuer. Then it writes the value into every SOPS file that holds it, and reads each
+one back. It never prints a value, and `--dry-run` writes nothing. Run it from a worktree: it
+edits the checkout it lives in.
+
+1. Make the new value, and save it in the item's `credential` field in 1Password:
+
+   | Token | Where | 1Password item |
+   |---|---|---|
+   | Cloudflare `dns_and_certs` | dashboard → My Profile → API Tokens → ⋯ → Roll | `Cloudflare API for DNS and Certs` |
+   | @h0melab_alerts_bot | BotFather → `/mybots` → the bot → API Token → Revoke current token | `TG Monitorings bot token` |
+   | @ClaudeSelfHostedBot | same, for that bot | `TG HomelabBot Token` |
+
+   The old value stops working at once, so the consumers fail until Flux applies step 3.
+2. Write it into the SOPS files:
+   ```bash
+   scripts/rotate-token.sh cf "Cloudflare API for DNS and Certs" --dry-run  # then without --dry-run
+   scripts/rotate-token.sh tg "TG Monitorings bot token"
+   scripts/rotate-token.sh tg "TG HomelabBot Token"
+   ```
+   For `tg`, the script updates every listed secret whose token has the same bot id (the part
+   before `:`), so it finds each file that bot uses.
+3. Commit, merge, push, then `flux reconcile source git flux-system` and reconcile
+   `infrastructure-controllers`, `infrastructure-configs`, `monitoring-configs` and `apps`.
+4. Each consumer picks up the value as follows:
+
+   | Consumer | Reads the token | Action |
+   |---|---|---|
+   | cert-manager | the Secret, on each certificate request | none |
+   | Alertmanager | mounted file `bot_token_file`; the kubelet refreshes it within about 2 min | none |
+   | Flux notifications | the Secret, per event | none |
+   | backup job | env, at the next run | none |
+   | claude-telegram | env `TELEGRAM_BOT_TOKEN`, at start-up | `kubectl delete pod -n claude-telegram -l app=claude-telegram` (Flux reverts `rollout restart`) |
+
+5. Verify. Cloudflare: the script's check shows the token active, and Roll keeps its
+   permissions. Certificates that stay `True` in `kubectl get certificates -A` do not test the
+   token: cert-manager uses it only when it issues or renews. So after the next renewals, check
+   that the earliest expiry moved later, every certificate is still `True`, and
+   `kubectl get challenges -A` finds none left:
+   ```bash
+   kubectl get certificates -A -o json | jq -r '[.items[].status.notAfter] | min'
+   ```
+   On 2026-09-28 this printed `2026-11-30T20:27:49Z`, with renewals due 2026-10-31. Alerts: fire a test alert
+   that expires by itself, and check that Alertmanager's send counter rises while its failure
+   counters stay 0. The alert name carries a timestamp: if it matches a recent test alert,
+   Alertmanager holds the new one until the group interval passes, and the counter does not move
+   within the 40 s:
+   ```bash
+   kubectl exec -n monitoring alertmanager-kube-prometheus-stack-alertmanager-0 -c alertmanager -- sh -c \
+     "amtool alert add alertname=TokenRotationTest$(date +%s) severity=warning --end=$(date -u -v+2M +%Y-%m-%dT%H:%M:%SZ) \
+      --alertmanager.url=http://localhost:9093; sleep 40; wget -qO- localhost:9093/metrics | grep 'notifications.*telegram'"
+   ```
+   The bot: `kubectl logs -n claude-telegram deploy/claude-telegram --all-containers | grep 'Bot started'`
+   prints `Bot started: @ClaudeSelfHostedBot`.
+
 ---
 
 ## VERIFICATION CHECKLIST
@@ -446,6 +508,12 @@ If compromised:
   - Authentik Django secret key
 
 ### 2026 Q3 (Jul-Sep)
+- [x] **2026-09-28: Cloudflare `dns_and_certs` and two Telegram bot tokens rotated** (`52ce08aa`),
+  before the repo goes public. A scan of every ref (`gitleaks git --log-opts=--all` on a mirror
+  clone) found the Cloudflare and alerts-bot tokens in pre-rewrite commit `7349f6cc`, reachable
+  from 18 PR refs. Verified: Cloudflare reports the new token active; a test alert raised
+  Alertmanager's Telegram send count from 24 to 25 with 0 failures; claude-telegram restarted and
+  logged `Bot started`. The first certificate renewals with the new token are due 2026-10-31.
 - [x] **2026-08-07: claude-telegram bot token rotated after a pod-log leak** (`aac32751`) — failed
   `getUpdates` errors printed the token in the request URL during the morning WAN outage (Loki
   retains 720h). Bot 1.32.0 now redacts secrets from console output, so this leak class is closed
