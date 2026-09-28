@@ -7,8 +7,6 @@ spec:
   interval: 6h
   driftDetection:
     mode: enabled
-  rollback:
-    cleanupOnFail: true
   chart:
     spec:
       chart: immich
@@ -22,11 +20,15 @@ spec:
     remediation:
       retries: 3
   maxHistory: 3
+  # Never roll immich back: its DB migrations are irreversible, so the old chart on the migrated
+  # schema corrupts data. The default strategy, RemediateOnFailure, rolls back between remediation
+  # retries. RetryOnFailure re-runs the same upgrade instead and never remediates, so a failed
+  # upgrade retries every 10m until it succeeds or an operator fixes the cause. Do not add
+  # upgrade.remediation: this strategy ignores it.
   upgrade:
-    remediation:
-      retries: 3
-      # NEVER rollback immich — migrations are irreversible, rollback corrupts DB
-      remediateLastFailure: false
+    strategy:
+      name: RetryOnFailure
+      retryInterval: 10m
   # Post-renderer to patch service accounts (Helm chart doesn't support per-component serviceAccount)
   postRenderers:
     - kustomize:
@@ -310,7 +312,7 @@ spec:
                     timeoutSeconds: 5
                     failureThreshold: 5
               # Non-privileged container (device-plugin GPU, no /dev/dri hostPath). immich ns is
-              # Kyverno-excluded from RoRFS + priv-esc, so RoRFS is not set (server writes to /data);
+              # Kyverno-excluded from RoRFS only, so RoRFS is not set (server writes to /data);
               # non-root comes from the pod-level runAsUser 1000.
               securityContext:
                 allowPrivilegeEscalation: false

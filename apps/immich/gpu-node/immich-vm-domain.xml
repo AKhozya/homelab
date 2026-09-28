@@ -83,8 +83,15 @@
     <tpm model='tpm-crb'>
       <backend type='emulator' version='2.0'/>
     </tpm>
-    <graphics type='vnc' port='5900' autoport='yes' listen='0.0.0.0' keymap='en-us'>
-      <listen type='address' address='0.0.0.0'/>
+    <!-- Loopback only: the NAS has no host firewall and VNC here has no password, so a 0.0.0.0
+         listener allows any LAN host to send Ctrl-Alt-Del (an in-guest reboot, see on_reboot
+         above) or reach the boot menu. A password is not an option: this file ships as a plaintext
+         ConfigMap. Reach the console through an SSH tunnel to the NAS. The heal watchdog does not
+         check this element, so an edit here needs a manual `virsh define`. That changes only the
+         persistent config: the running VM keeps its old listener until the graceful cold restart
+         in gpu-node/README.md (shutdown, then start; never destroy or reset). -->
+    <graphics type='vnc' port='5900' autoport='yes' listen='127.0.0.1' keymap='en-us'>
+      <listen type='address' address='127.0.0.1'/>
     </graphics>
     <audio id='1' type='none'/>
     <video>
