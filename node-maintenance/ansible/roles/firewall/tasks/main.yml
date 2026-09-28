@@ -313,8 +313,8 @@
           heal_rc={{ ufw_rescue_heal.rc | default('?') }}
           heal_stderr={{ (ufw_rescue_heal.stderr_lines | default([]))[-5:] }}
 
-    # Failing here would stop the serial:1 firewall play for every node after this one.
-    # node-config.yml's last play fails this node instead, once all plays have run.
+    # If this task failed the node, the serial:1 firewall play would stop for every node after
+    # it. node-config.yml's last play fails this node instead, once all plays have run.
     - name: Record that the UFW rule batch needed the rescue
       ansible.builtin.set_fact:
         ufw_rescue_ran: true

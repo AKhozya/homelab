@@ -14,7 +14,7 @@
 #   Immich GPU node (virtual): immich_gpu_node.
 #   workers only: firewall_preflight, clusterip_heal, node_isolation_heal.
 #   control-plane only: clusterip_heal_cp, kubectl proxy removal.
-#   report a firewall rescue (all).
+#   report a firewall rescue or an unverified CNI heal (all).
 
 - name: Node config drift-heal — non-disruptive (all hosts, parallel)
   hosts: all
@@ -119,14 +119,22 @@
       ansible.builtin.systemd_service:
         daemon_reload: true
 
-# The firewall role's rescue lets the serial:1 firewall play go on to the next node. This
-# play fails each node whose UFW rule batch needed that rescue, after every other play has
-# run, so the recap counts it and node-config-notify.sh alerts.
-- name: Node config drift-heal — report a firewall rescue
+# The firewall role's rescue and firewall_preflight both record a problem and let the run go
+# on. This play fails each such node after every other play has run, so the recap counts it
+# and node-config-notify.sh alerts.
+- name: Node config drift-heal — report a firewall rescue or an unverified CNI heal
   hosts: all
   gather_facts: false
-  tags: [always]   # a --tags firewall run must still report its rescue
+  tags: [always]   # a --tags firewall run must still report these
   tasks:
+    - name: Fail if firewall-preflight's flush-all recovery left the portmap CNI rules unverified
+      ansible.builtin.fail:
+        msg: >-
+          firewall-preflight.sh re-enabled UFW with a flush-all, and ufw-heal-post-k3s.sh cannot
+          verify the portmap CNI entry rules. hostPort traffic may have no DNAT or masquerade. See
+          `journalctl -t firewall-preflight -t ufw-heal` on this node.
+      when: firewall_cni_heal_failed | default(false)
+
     - name: Fail if the UFW rule batch needed the rescue on this node
       ansible.builtin.fail:
         msg: >-

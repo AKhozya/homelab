@@ -19,7 +19,7 @@
 #      pins config + verifies state survived.
 #   E. Final reload (skipped if phase-b recovered — avoids re-race)
 #   D. Verify probe set — v4 + v6 canary chains
-#   G. CNI nat repair — only after a disabled-recovery (see phase_g_cni_heal)
+#   G. portmap CNI rule restore — only after a disabled-recovery (see phase_g_cni_heal)
 #   F. Status check (authoritative). FAIL if recovery was attempted but
 #      UFW is inactive.
 #
@@ -45,11 +45,6 @@ PROBE_CHAINS_V6=(ufw6-logging-deny ufw6-user-input)
 SETTLE_MAX_SEC=90
 SETTLE_WINDOW_SEC=5
 SETTLE_STABLE_WINDOWS=3
-
-# Phase G. The lock file is shared with clusterip-heal.sh and node-isolation-heal.sh, so the
-# three never restart k3s-agent at the same time; its mtime is their restart cooldown.
-K3S_AGENT_RESTART_LOCK="/var/lib/k3s-agent-restart/cooldown"
-K3S_RESTART_TIMEOUT=120 # same cap as clusterip-heal-cp.sh (a clean CP restart takes ~30-60s)
 
 # State tracking
 RECOVERED_FROM_DISABLED=0
@@ -287,57 +282,102 @@ phase_f_status() {
     return 1
 }
 
-# Phase G — rebuild the CNI hostPort masquerade jump after a flush-all.
+# Phase G — restore the portmap CNI plugin's entry rules after a flush-all.
 # `/lib/ufw/ufw-init flush-all` (phase-b disabled-recovery, and firewall-preflight.sh through
-# --cni-heal) runs `iptables -t nat -F POSTROUTING`, which deletes the `-j CNI-HOSTPORT-MASQ` jump.
-# flannel (FLANNEL-POSTRTG) and kube-proxy (KUBE-POSTROUTING) are daemons and re-add their own
-# jumps. The portmap CNI plugin is not a daemon and never re-adds its jump (k8s#93091), so
-# hostPort traffic (the servicelb svclb pods on the workers) loses masquerade until k3s rebuilds
-# the CNI chains.
-# flush-all empties the built-in nat chains but keeps user chains, so an existing
-# CNI-HOSTPORT-MASQ chain with no jump means the flush removed it. A node that never ran a
-# hostPort pod has no such chain and needs no restart.
-# A non-zero return reaches firewall-preflight.sh through --cni-heal, which logs it.
+# --cni-heal) flushes the built-in nat chains PREROUTING, OUTPUT and POSTROUTING. It keeps the
+# user chains and their rules. flannel and kube-proxy are daemons and re-add their own jumps.
+# The portmap plugin runs only when a pod starts (k8s#93091), so its three entry rules stay gone
+# and hostPort traffic (the servicelb svclb pods) loses its DNAT and masquerade.
+# These are the exact rules chain.setup() in portmap_iptables.go writes (rancher/plugins
+# v1.9.1-k3s1, the version k3s v1.37.0+k3s1 bundles; k3s's CNI conflist runs portmap with the
+# default iptables backend):
+#   PREROUTING, OUTPUT (appended):  -m addrtype --dst-type LOCAL -j CNI-HOSTPORT-DNAT
+#   POSTROUTING (inserted first):   -m comment --comment "CNI portfwd requiring masquerade" -j CNI-HOSTPORT-MASQ
+# Rejected: restarting k3s-agent. A restart requires a cooldown, a shared lock and a retry file,
+# and k3s-agent runs only on workers.
+# Returns 0 if the rules are present afterwards (or the node has none of the chains), else 1.
+CNI_DNAT_RULE=(-m addrtype --dst-type LOCAL -j CNI-HOSTPORT-DNAT)
+CNI_MASQ_RULE=(-m comment --comment "CNI portfwd requiring masquerade" -j CNI-HOSTPORT-MASQ)
+
+# The iptables binary portmap itself runs. k3s re-execs itself with a PATH that puts its bundled
+# bin/aux before the host PATH when prefer-bundled-bin is set (cmd/k3s/main.go stageAndRun), and
+# containerd passes that PATH on to the CNI plugins.
+k3s_iptables() {
+    local unit pid path
+    for unit in k3s-agent.service k3s.service; do
+        systemctl is-active --quiet "$unit" || continue
+        pid=$(systemctl show -p MainPID --value "$unit") || return 1
+        [ "${pid:-0}" -gt 0 ] || return 1
+        path=$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^PATH=//p') || return 1
+        [ -n "$path" ] || return 1
+        PATH="$path" command -v iptables
+        return
+    done
+    return 1
+}
+
+# Prints which of the portmap chains exist and which entry rules are missing, one word per line:
+# dnat-chain, masq-chain, dnat-missing:<CHAIN>, masq-missing. Returns 1 if the read fails.
+cni_rule_state() {
+    local nat
+    if ! nat=$("$IPTABLES" -w 5 -t nat -S 2>&1); then
+        log "phase-g: cannot read the nat table: $nat"
+        return 1
+    fi
+    if grep -qx -- '-N CNI-HOSTPORT-DNAT' <<<"$nat"; then
+        echo dnat-chain
+        grep -qx -- '-A PREROUTING -m addrtype --dst-type LOCAL -j CNI-HOSTPORT-DNAT' <<<"$nat" \
+            || echo dnat-missing:PREROUTING
+        grep -qx -- '-A OUTPUT -m addrtype --dst-type LOCAL -j CNI-HOSTPORT-DNAT' <<<"$nat" \
+            || echo dnat-missing:OUTPUT
+    fi
+    if grep -qx -- '-N CNI-HOSTPORT-MASQ' <<<"$nat"; then
+        echo masq-chain
+        grep -q -- '^-A POSTROUTING .*-j CNI-HOSTPORT-MASQ$' <<<"$nat" || echo masq-missing
+    fi
+}
+
 phase_g_cni_heal() {
     [ "$RECOVERED_FROM_DISABLED" -eq 1 ] || return 0
-    local nat
-    if ! nat=$("$IPTABLES" -t nat -S 2>&1); then
-        log "phase-g: cannot read the nat table — CNI heal not attempted: $nat"
+    local state ipt item
+    state=$(cni_rule_state) || return 1
+    if ! grep -q -- '-missing' <<<"$state"; then
+        if [ -z "$state" ]; then
+            log "phase-g: no portmap chains (no hostPort pods here) — nothing to restore"
+        else
+            log "phase-g: portmap entry rules present — nothing to restore"
+        fi
+        return 0
+    fi
+    if ! ipt=$(k3s_iptables); then
+        log "phase-g: cannot find the iptables binary k3s uses — portmap rules NOT restored"
         return 1
     fi
-    if ! grep -qx -- '-N CNI-HOSTPORT-MASQ' <<<"$nat"; then
-        log "phase-g: no CNI-HOSTPORT-MASQ chain (no hostPort pods here) — no CNI heal needed"
-        return 0
-    fi
-    if grep -q -- '^-A POSTROUTING .*-j CNI-HOSTPORT-MASQ' <<<"$nat"; then
-        log "phase-g: CNI-HOSTPORT-MASQ jump present — no CNI heal needed"
-        return 0
-    fi
-    if systemctl is-active --quiet k3s-agent.service; then
-        log "phase-g: CNI-HOSTPORT-MASQ jump MISSING after flush-all — restarting k3s-agent to rebuild CNI nat chains"
-        mkdir -p "$(dirname "$K3S_AGENT_RESTART_LOCK")"
-        # The lock stays held until the touch, so another watchdog never reads the old cooldown
-        # after this restart. 75 = another watchdog holds the lock and restarts k3s-agent itself.
-        local rc=0
-        (
-            flock -n 9 || exit 75
-            systemctl restart k3s-agent.service || exit 1
-            touch "$K3S_AGENT_RESTART_LOCK"
-        ) 9>>"$K3S_AGENT_RESTART_LOCK" || rc=$?
-        case $rc in
-            0) return 0 ;;
-            75) log "phase-g: another watchdog holds the k3s-agent restart lock — not restarting" ;;
-            *) log "phase-g: k3s-agent restart FAILED" ;;
+    for item in $state; do
+        case $item in
+            dnat-missing:*)
+                "$ipt" -w 5 -t nat -C "${item#dnat-missing:}" "${CNI_DNAT_RULE[@]}" 2>/dev/null \
+                    || "$ipt" -w 5 -t nat -A "${item#dnat-missing:}" "${CNI_DNAT_RULE[@]}" ;;
+            masq-missing)
+                "$ipt" -w 5 -t nat -C POSTROUTING "${CNI_MASQ_RULE[@]}" 2>/dev/null \
+                    || "$ipt" -w 5 -t nat -I POSTROUTING 1 "${CNI_MASQ_RULE[@]}" ;;
         esac
-        return 1
-    elif systemctl is-active --quiet k3s.service; then
-        log "phase-g: CNI-HOSTPORT-MASQ jump MISSING after flush-all — restarting k3s (timeout ${K3S_RESTART_TIMEOUT}s)"
-        timeout "$K3S_RESTART_TIMEOUT" systemctl restart k3s.service && return 0
-        log "phase-g: k3s restart FAILED or timed out"
+    done
+    state=$(cni_rule_state) || return 1
+    if grep -q -- '-missing' <<<"$state"; then
+        log "phase-g: portmap entry rules still missing after restore ($ipt): $(grep -- '-missing' <<<"$state" | tr '\n' ' ')"
         return 1
     fi
-    log "phase-g: no k3s/k3s-agent unit active — skipping CNI heal"
+    log "phase-g: portmap entry rules restored and verified ($ipt)"
     return 0
+}
+
+# A failure sends one Telegram alert. The boot unit, the watchdog and the firewall role's rescue
+# do not alert on this script's exit code.
+run_cni_heal() {
+    phase_g_cni_heal && return 0
+    /usr/local/sbin/telegram-notify.sh "⚠️ $(hostname): after a UFW flush-all, ufw-heal could not restore the portmap CNI rules (CNI-HOSTPORT-DNAT/MASQ jumps). hostPort traffic (svclb) may be broken until k3s restarts. See journalctl -t ufw-heal." || true
+    return 1
 }
 
 main() {
@@ -347,7 +387,7 @@ main() {
     # firewall-preflight.sh calls this after its own flush-all recovery.
     if [[ "${1:-}" == "--cni-heal" ]]; then
         RECOVERED_FROM_DISABLED=1
-        phase_g_cni_heal
+        run_cni_heal
         exit $?
     fi
 
@@ -372,8 +412,10 @@ main() {
     phase_b_reload || true
     phase_e_final_reload || true
     phase_d_verify || log "WARN: probe set still unhealthy after repair"
-    phase_g_cni_heal || log "WARN: CNI heal did not complete"
-    phase_f_status
+    local cni_rc=0
+    run_cni_heal || { cni_rc=1; log "WARN: CNI heal did not complete"; }
+    phase_f_status || return 1
+    return "$cni_rc"
 }
 
 main "$@"

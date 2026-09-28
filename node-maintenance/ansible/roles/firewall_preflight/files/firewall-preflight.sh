@@ -17,13 +17,18 @@
 #   4. Per-chain repair (idempotent iptables -N)
 #   5. Probe `ufw status verbose` and count failures per node
 #
-# Always exits 0 — preflight is best-effort. Hard failures surface in
-# subsequent ufw tasks. Settle outcome (ok/timeout) emitted as a metric line
-# for node-exporter textfile collector.
+# Exits 0: preflight is best-effort, and hard UFW failures surface in the
+# subsequent ufw tasks.
+# Exits 3 if recovery flushes all rules and the healer cannot verify the
+# portmap CNI entry rules. The role records that, and node-config.yml's last
+# play fails the node.
+# The script emits the settle outcome (ok/timeout) as a metric line for the
+# node-exporter textfile collector.
 
 set -uo pipefail
 
 LOG_TAG="firewall-preflight"
+CNI_HEAL_FAILED=0
 IPTABLES=/usr/sbin/iptables
 IP6TABLES=/usr/sbin/ip6tables
 IPTABLES_SAVE=/usr/sbin/iptables-save
@@ -238,14 +243,21 @@ phase_ufw_state_recover() {
     local out
     out=$(/usr/sbin/ufw --force enable 2>&1)
     if echo "$out" | grep -qi "Firewall is active"; then
-        log "ufw-state: recovered"
+        log "ufw-state: ufw re-enabled"
     else
-        log "ufw-state: recovery failed — $out"
+        log "ufw-state: ufw re-enable failed — $out"
     fi
-    # flush-all also removed the CNI-HOSTPORT-MASQ jump, which nothing re-adds on its own.
-    # The firewall role installs the healer, so a first run on a fresh node has none yet.
-    if [ -x /usr/local/sbin/ufw-heal-post-k3s.sh ]; then
-        /usr/local/sbin/ufw-heal-post-k3s.sh --cni-heal || log "ufw-state: CNI heal errored"
+    # flush-all also removed the portmap CNI entry rules, which nothing re-adds on its own.
+    # The firewall role installs the healer, so a first run on a fresh node has none yet; that
+    # counts as unverified too.
+    if [ ! -x /usr/local/sbin/ufw-heal-post-k3s.sh ]; then
+        log "ufw-state: ufw-heal-post-k3s.sh missing — cannot verify the portmap CNI entry rules"
+        CNI_HEAL_FAILED=1
+    elif /usr/local/sbin/ufw-heal-post-k3s.sh --cni-heal; then
+        log "ufw-state: portmap CNI entry rules verified"
+    else
+        log "ufw-state: portmap CNI entry rules NOT verified after the flush-all"
+        CNI_HEAL_FAILED=1
     fi
 }
 
@@ -257,6 +269,7 @@ main() {
     phase_chain_repair
     phase_probe_ufw_status
     log "complete"
+    [ "$CNI_HEAL_FAILED" -eq 0 ] || exit 3
 }
 
 main "$@"

@@ -26,6 +26,15 @@
   failed_when: false
   tags: [firewall, preflight]
 
+# firewall-preflight.sh exits 3 only when its flush-all recovery left the portmap CNI rules
+# unverified. If this task failed the node, Ansible would skip its later plays, so
+# node-config.yml's last play fails the node instead.
+- name: Record an unverified CNI heal from preflight
+  ansible.builtin.set_fact:
+    firewall_cni_heal_failed: true
+  when: preflight.rc == 3
+  tags: [firewall, preflight]
+
 - name: Log preflight outcome
   ansible.builtin.debug:
     msg: "{{ preflight.stderr_lines | default([]) }}"
