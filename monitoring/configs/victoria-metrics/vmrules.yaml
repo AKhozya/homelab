@@ -21,7 +21,9 @@ spec:
         severity: none
       annotations:
         summary: "Alerting pipeline is functional (always-firing dead-man source)."
-        description: "Always firing by design. Its ABSENCE — no ping at healthchecks.io — means the VMAlert→VMSingle→alertmanager pipeline is down. This is the one alert path that survives cluster-internal monitoring death."
+        description: "Always firing by design. Its ABSENCE — no ping at healthchecks.io — means the
+          VMAlert→VMSingle→alertmanager pipeline is down. This is the one alert path that survives cluster-internal
+          monitoring death."
   - name: node-alerts
     interval: 60s
     rules:
@@ -62,7 +64,9 @@ spec:
         severity: warning
       annotations:
         summary: "ClusterIP DNAT wedged on {{ $labels.instance }} — clusterip_heal not clearing it"
-        description: "node_clusterip_heal_wedged=1 for >8min on {{ $labels.instance }}: the watchdog's k3s-agent restarts have not restored the 10.43.0.1 DNAT. Pods on this worker may be failing ClusterIP/DNS. Check kube-proxy (:10256) and restart k3s-agent."
+        description: "node_clusterip_heal_wedged=1 for >8min on {{ $labels.instance }}: the watchdog's k3s-agent
+          restarts have not restored the 10.43.0.1 DNAT. Pods on this worker may be failing ClusterIP/DNS. Check
+          kube-proxy (:10256) and restart k3s-agent."
 
     - alert: ClusterIPHealGaveUp
       # Watchdog hit MAX_RESTARTS within its window and backed off — a wedge that
@@ -73,7 +77,9 @@ spec:
         severity: critical
       annotations:
         summary: "clusterip_heal GAVE UP on {{ $labels.instance }} — manual intervention needed"
-        description: "node_clusterip_heal_giveup=1 on {{ $labels.instance }}: the ClusterIP DNAT wedge persisted past the watchdog's restart cap. restart-k3s-agent is not fixing it — investigate stale nft chain / CNI / hardware."
+        description: "node_clusterip_heal_giveup=1 on {{ $labels.instance }}: the ClusterIP DNAT wedge persisted past
+          the watchdog's restart cap. restart-k3s-agent is not fixing it — investigate stale nft chain / CNI /
+          hardware."
 
     - alert: NodeIsolationHealActing
       # Worker isolated from the CP (k3s-agent tunnel down) long enough that the isolation
@@ -84,7 +90,9 @@ spec:
         severity: warning
       annotations:
         summary: "Worker {{ $labels.instance }} isolated from control-plane — isolation watchdog acting"
-        description: "node_isolation_heal_wedged=1 for >8min on {{ $labels.instance }}: the k3s-agent tunnel to the CP is down. The watchdog restarts k3s-agent at 6min wedged and self-reboots (staggered, guarded) if the CP stays directly unreachable."
+        description: "node_isolation_heal_wedged=1 for >8min on {{ $labels.instance }}: the k3s-agent tunnel to the CP
+          is down. The watchdog restarts k3s-agent at 6min wedged and self-reboots (staggered, guarded) if the CP stays
+          directly unreachable."
 
     - alert: NodeIsolationHealPendingReboot
       # The ladder selected the reboot rung: past the staggered threshold, cp_direct down,
@@ -98,7 +106,9 @@ spec:
         severity: critical
       annotations:
         summary: "Isolation watchdog on {{ $labels.instance }} reached the self-reboot rung"
-        description: "node_isolation_heal_pending_action=2 on {{ $labels.instance }}: isolated past the staggered reboot threshold with the CP directly unreachable and a k3s-agent restart already tried. The watchdog reboots the worker — verify it rejoins Ready."
+        description: "node_isolation_heal_pending_action=2 on {{ $labels.instance }}: isolated past the staggered reboot
+          threshold with the CP directly unreachable and a k3s-agent restart already tried. The watchdog reboots the
+          worker — verify it rejoins Ready."
 
     - alert: NodeIsolationHealRebooted
       # Durable post-reboot signal: the timestamp gauge is re-emitted every cycle from the
@@ -110,7 +120,9 @@ spec:
         severity: critical
       annotations:
         summary: "Isolation watchdog SELF-REBOOTED {{ $labels.instance }} in the last hour"
-        description: "node_isolation_heal_last_reboot_timestamp on {{ $labels.instance }} is within the last hour: the watchdog rebooted this worker to recover from CP isolation. Verify the node is Ready and investigate what isolated it (switch port, NIC, CP)."
+        description: "node_isolation_heal_last_reboot_timestamp on {{ $labels.instance }} is within the last hour: the
+          watchdog rebooted this worker to recover from CP isolation. Verify the node is Ready and investigate what
+          isolated it (switch port, NIC, CP)."
 
     - alert: NodeIsolationHealGaveUp
       # Reboot guard tripped (uptime<30min boot-loop or the 1/24h cap) — the watchdog stops
@@ -121,7 +133,9 @@ spec:
         severity: critical
       annotations:
         summary: "Isolation watchdog GAVE UP on {{ $labels.instance }} — manual intervention needed"
-        description: "node_isolation_heal_giveup=1 on {{ $labels.instance }}: a reboot guard (boot-loop / daily cap) blocked further escalation while the node is still isolated from the CP. Check power, switch port, NIC (W2 r8169), and the CP itself."
+        description: "node_isolation_heal_giveup=1 on {{ $labels.instance }}: a reboot guard (boot-loop / daily cap)
+          blocked further escalation while the node is still isolated from the CP. Check power, switch port, NIC (W2
+          r8169), and the CP itself."
 
     - alert: NodeMemoryPressure
       expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
@@ -188,7 +202,9 @@ spec:
         severity: critical
       annotations:
         summary: "NAS-backed immich library mount is no longer reported"
-        description: "node_filesystem metrics for /var/lib/immich-library have been absent for 10m — the virtiofs mount from the NAS is gone, or immich-vm's node-exporter is not scraping. Capacity alerting for this mount is blind while this fires."
+        description: "node_filesystem metrics for /var/lib/immich-library have been absent for 10m — the virtiofs mount
+          from the NAS is gone, or immich-vm's node-exporter is not scraping. Capacity alerting for this mount is blind
+          while this fires."
 
     - alert: NodeHighIOWait
       expr: avg by(instance) (rate(node_cpu_seconds_total{mode="iowait"}[5m])) * 100 > 10
@@ -309,7 +325,9 @@ spec:
         severity: warning
       annotations:
         summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is Running but not Ready"
-        description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has had its Ready condition false or unknown for more than 15 minutes — it is running but removed from Service endpoints. Causes include a failing readiness probe, an unready container, or a readiness gate."
+        description: "Pod {{ $labels.namespace }}/{{ $labels.pod }} has had its Ready condition false or unknown for
+          more than 15 minutes — it is running but removed from Service endpoints. Causes include a failing readiness
+          probe, an unready container, or a readiness gate."
 
     - alert: ContainerOOMKilled
       expr: increase(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[5m]) > 0
@@ -501,7 +519,7 @@ spec:
       # (= lastScheduleTime + interval) sits in the PAST and false-fires this daily-tuned rule
       # even when Immich is healthy (verified 2026-07-03: lastSuccessful 5d fresh, delta +5.7d).
       # Immich backup staleness is covered by NoRecentImmichBackup (9d) in backup-alerts.
-      # trivy-scan excluded for the same reason: monthly ("0 4 1 * *") + off-slot manual
+      # trivy-scan excluded for the same reason: monthly ("0 8 1 * *") + off-slot manual
       # smoke runs; a low-urgency scanner needs no staleness rule (monthly review covers it).
       expr: time() - kube_cronjob_next_schedule_time{cronjob!~"immich-backup|trivy-scan"} > 600
       for: 5m
@@ -571,7 +589,10 @@ spec:
       # kube_job_failed has zero series today only because nothing has failed — KSM emits
       # condition metrics only for conditions actually present, so the `unless` correctly
       # excludes nothing until a Job really fails (verified against the KSM scrape).
-      expr: (time() - kube_job_status_start_time{job_name=~".*backup.*"} > 7200) unless on(namespace,job_name) (kube_job_complete{job_name=~".*backup.*",condition="true"} == 1) unless on(namespace,job_name) (kube_job_failed{job_name=~".*backup.*",condition="true"} == 1)
+      expr: >-
+        (time() - kube_job_status_start_time{job_name=~".*backup.*"} > 7200) unless on(namespace,job_name)
+        (kube_job_complete{job_name=~".*backup.*",condition="true"} == 1) unless on(namespace,job_name)
+        (kube_job_failed{job_name=~".*backup.*",condition="true"} == 1)
       for: 5m
       labels:
         severity: warning
@@ -596,7 +617,9 @@ spec:
         severity: critical
       annotations:
         summary: "No successful backup for {{ $labels.namespace }}/{{ $labels.cronjob }} in >48h"
-        description: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} has not completed a successful backup in over 48 hours. Data protection at risk. Check: kubectl get cronjob {{ $labels.cronjob }} -n {{ $labels.namespace }} + recent job logs."
+        description: "CronJob {{ $labels.namespace }}/{{ $labels.cronjob }} has not completed a successful backup in
+          over 48 hours. Data protection at risk. Check: kubectl get cronjob {{ $labels.cronjob }} -n {{
+          $labels.namespace }} + recent job logs."
 
     - alert: NoRecentImmichBackup
       # immich-backup runs weekly (image library too large for daily). 9-day threshold
@@ -820,7 +843,8 @@ spec:
         severity: warning
       annotations:
         summary: "MySQL replica exporter cannot reach a replica"
-        description: "The replica exporter (HAProxy reader backend :3307) cannot connect — no read-only replica is serving reads, or the exporter is down. Replication health is unmonitored until restored."
+        description: "The replica exporter (HAProxy reader backend :3307) cannot connect — no read-only replica is
+          serving reads, or the exporter is down. Replication health is unmonitored until restored."
 
     - alert: MySQLReplicationNotRunning
       expr: mysql_slave_status_replica_sql_running{job="mysql-replica-exporter"} == 0 or mysql_slave_status_replica_io_running{job="mysql-replica-exporter"} == 0
@@ -889,7 +913,8 @@ spec:
         severity: critical
       annotations:
         summary: "VMAgent is not being scraped — metric ingestion may be stopped"
-        description: "up{job=\"vmagent-vmagent\"} has been absent for 10m. Nothing is confirming that metrics are still being ingested; most other alerts will fall silent rather than fire while this is true."
+        description: "up{job=\"vmagent-vmagent\"} has been absent for 10m. Nothing is confirming that metrics are still
+          being ingested; most other alerts will fall silent rather than fire while this is true."
 
     # Weak-surface backstop (2026-06-15): vm-operator's :8081 health probe is independent of its :8080
     # reconcile/metrics surface, so the loop can wedge while the pod stays Ready. ScrapeTargetDown only
@@ -903,7 +928,8 @@ spec:
         severity: warning
       annotations:
         summary: "victoria-metrics-operator reconcile loop stalled"
-        description: "VM operator up but logged zero reconciles for 30m — manager may be wedged while its :8081 health probe stays green. Fix: kubectl rollout restart deploy victoria-metrics-operator -n monitoring."
+        description: "VM operator up but logged zero reconciles for 30m — manager may be wedged while its :8081 health
+          probe stays green. Fix: kubectl rollout restart deploy victoria-metrics-operator -n monitoring."
 
     - alert: VMTooManyRestarts
       expr: changes(process_start_time_seconds{job=~".*(vmsingle|vmagent|vmalert).*"}[15m]) > 2
@@ -967,7 +993,9 @@ spec:
         severity: warning
       annotations:
         summary: "High rate of rate-limited requests on {{ $labels.exported_service }}"
-        description: "{{ $labels.exported_service }} is rejecting {{ printf \"%.1f\" $value }} requests/sec due to rate limiting. This may indicate: (1) an attack in progress, or (2) rate limits are too strict for legitimate use. Current limits: standard apps 300 req/min + 150 burst, high-frequency apps 600 req/min + 300 burst."
+        description: "{{ $labels.exported_service }} is rejecting {{ printf \"%.1f\" $value }} requests/sec due to rate
+          limiting. This may indicate: (1) an attack in progress, or (2) rate limits are too strict for legitimate use.
+          Current limits: standard apps 300 req/min + 150 burst, high-frequency apps 600 req/min + 300 burst."
 
     - alert: RateLimitPossibleBruteForce
       expr: sum(rate(traefik_service_requests_total{code="429",exported_service=~".*authentik.*"}[2m])) > 1
@@ -976,7 +1004,8 @@ spec:
         severity: critical
       annotations:
         summary: "Possible brute force attack on Authentik SSO"
-        description: "Authentik is rejecting {{ printf \"%.1f\" $value }} requests/sec due to rate limiting for more than 3 minutes. This strongly indicates a brute force login attempt. Investigate immediately!"
+        description: "Authentik is rejecting {{ printf \"%.1f\" $value }} requests/sec due to rate limiting for more
+          than 3 minutes. This strongly indicates a brute force login attempt. Investigate immediately!"
 
     - alert: RateLimitCouchDBSyncBlocked
       expr: sum(rate(traefik_service_requests_total{code="429",exported_service=~".*couchdb.*"}[5m])) > 0.1
@@ -985,7 +1014,9 @@ spec:
         severity: warning
       annotations:
         summary: "CouchDB sync may be blocked by rate limiting"
-        description: "CouchDB is experiencing {{ printf \"%.1f\" $value }} rate-limited requests/sec. This may block Obsidian vault syncing. If this persists during normal sync operations, consider increasing the CouchDB rate limit (current: 600 req/min + 300 burst)."
+        description: "CouchDB is experiencing {{ printf \"%.1f\" $value }} rate-limited requests/sec. This may block
+          Obsidian vault syncing. If this persists during normal sync operations, consider increasing the CouchDB rate
+          limit (current: 600 req/min + 300 burst)."
 
     - alert: RateLimitAPIClientsBlocked
       expr: sum(rate(traefik_service_requests_total{code="429",exported_service=~".*n8n.*|.*immich.*"}[5m])) by (exported_service) > 0.3
@@ -994,7 +1025,9 @@ spec:
         severity: warning
       annotations:
         summary: "API service {{ $labels.exported_service }} rate limiting clients"
-        description: "{{ $labels.exported_service }} is rejecting {{ printf \"%.1f\" $value }} requests/sec. This may block API clients, webhooks, or automation. Check if the limits need adjustment (current: 600 req/min + 300 burst)."
+        description: "{{ $labels.exported_service }} is rejecting {{ printf \"%.1f\" $value }} requests/sec. This may
+          block API clients, webhooks, or automation. Check if the limits need adjustment (current: 600 req/min + 300
+          burst)."
 
     - alert: RateLimitSuddenSpike
       expr: (sum(rate(traefik_service_requests_total{code="429"}[1m])) - sum(rate(traefik_service_requests_total{code="429"}[30m]))) > 5
@@ -1012,7 +1045,9 @@ spec:
         severity: info
       annotations:
         summary: "{{ $labels.exported_service }} has persistent rate limiting"
-        description: "{{ $labels.exported_service }} rejected {{ $value }} requests in the last hour due to rate limiting. If this is not an attack, rate limits may need to be relaxed. Current limits: standard 300 req/min, high-frequency 600 req/min."
+        description: "{{ $labels.exported_service }} rejected {{ $value }} requests in the last hour due to rate
+          limiting. If this is not an attack, rate limits may need to be relaxed. Current limits: standard 300 req/min,
+          high-frequency 600 req/min."
 
     # These alerts need Traefik metrics in the scrape config. If 429s occur but no alert
     # fires, check the Traefik ServiceMonitor and that the query
@@ -1058,7 +1093,10 @@ spec:
         description: "Cluster memory usage is {{ printf \"%.1f\" $value }}%. Pods may be OOM killed. Immediate action required!"
 
     - alert: NodeAllocatableCPULow
-      expr: (kube_node_status_allocatable{resource="cpu"} - on(node) group_left sum by (node) (kube_pod_container_resource_requests{resource="cpu"})) / kube_node_status_allocatable{resource="cpu"} * 100 < 20
+      expr: >-
+        (kube_node_status_allocatable{resource="cpu"} - on(node) group_left sum by (node)
+        (kube_pod_container_resource_requests{resource="cpu"})) / kube_node_status_allocatable{resource="cpu"} * 100 <
+        20
       for: 10m
       labels:
         severity: warning
@@ -1067,7 +1105,10 @@ spec:
         description: "Only {{ printf \"%.1f\" $value }}% CPU allocatable on {{ $labels.node }}. New pods may not schedule."
 
     - alert: NodeAllocatableMemoryLow
-      expr: (kube_node_status_allocatable{resource="memory"} - on(node) group_left sum by (node) (kube_pod_container_resource_requests{resource="memory"})) / kube_node_status_allocatable{resource="memory"} * 100 < 20
+      expr: >-
+        (kube_node_status_allocatable{resource="memory"} - on(node) group_left sum by (node)
+        (kube_pod_container_resource_requests{resource="memory"})) / kube_node_status_allocatable{resource="memory"} *
+        100 < 20
       for: 10m
       labels:
         severity: warning
@@ -1251,7 +1292,9 @@ spec:
         severity: critical
       annotations:
         summary: "UFW primary chains missing on {{ $labels.node }}"
-        description: "UFW canary chains (ufw-logging-deny, ufw-user-input, v6 equivalents) absent on {{ $labels.node }}. Indicates partial ip6tables-restore load. ufw-heal-post-k3s.service should repair; drift-heal pre-heal also catches within 10 min."
+        description: "UFW canary chains (ufw-logging-deny, ufw-user-input, v6 equivalents) absent on {{ $labels.node }}.
+          Indicates partial ip6tables-restore load. ufw-heal-post-k3s.service should repair; drift-heal pre-heal also
+          catches within 10 min."
 
   # No etcd alerts: this K3s single-server cluster uses embedded SQLite, not etcd.
 
@@ -1294,7 +1337,9 @@ spec:
           description: |
             Memory major pages are occurring at very high rate at {{ $labels.instance }}, 500 major page faults per second for the last 30 minutes, is currently at {{ printf "%.2f" $value }}.
       - alert: NodeDiskIOSaturation
-        expr: rate(node_disk_io_time_weighted_seconds_total{job="kube-prometheus-stack-prometheus-node-exporter", device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"}[5m]) > 10
+        expr: >-
+          rate(node_disk_io_time_weighted_seconds_total{job="kube-prometheus-stack-prometheus-node-exporter",
+          device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"}[5m]) > 10
         for: 30m
         labels:
           severity: warning
@@ -1460,7 +1505,9 @@ spec:
         severity: warning
       annotations:
         summary: "immich-vm host watchdog job failed ({{ $labels.job_name }})"
-        description: "The Tier-2 immich-vm watchdog exited non-zero. Check the reason= line: kubectl logs -n immich job/{{ $labels.job_name }} (or Loki app.kubernetes.io/name=immich-vm-heal). drift_while_running / ssh_unreachable need an operator (NAS-side virsh or key re-add)."
+        description: "The Tier-2 immich-vm watchdog exited non-zero. Check the reason= line: kubectl logs -n immich
+          job/{{ $labels.job_name }} (or Loki app.kubernetes.io/name=immich-vm-heal). drift_while_running /
+          ssh_unreachable need an operator (NAS-side virsh or key re-add)."
     - alert: ImmichVMHealStale
       # No successful run in >30min (6 missed 5-min cycles) = the watchdog is not
       # running (suspended, unschedulable, or every run failing) → the VM substrate
@@ -1477,4 +1524,5 @@ spec:
         severity: warning
       annotations:
         summary: "immich-vm host watchdog has not succeeded in >30min"
-        description: "CronJob immich/immich-vm-heal has no recent successful run — the immich-vm substrate is unwatched (no auto-start on a NAS reboot). Check: kubectl get cronjob -n immich immich-vm-heal + recent job logs."
+        description: "CronJob immich/immich-vm-heal has no recent successful run — the immich-vm substrate is unwatched
+          (no auto-start on a NAS reboot). Check: kubectl get cronjob -n immich immich-vm-heal + recent job logs."

@@ -101,6 +101,8 @@ spec:
       # loki.source.journal tails host systemd journal for node-maintenance services only.
       configMap:
         create: true
+        # Wrapping a line of the block below would change the file.
+        # yamllint disable rule:line-length
         content: |
           // Discover pods on this node
           discovery.kubernetes "pods" {
@@ -188,6 +190,7 @@ spec:
             }
           }
 
+    # yamllint enable rule:line-length
     # Config-reloader sidecar. Measured usage: 0m CPU, 8-9Mi memory.
     configReloader:
       resources:

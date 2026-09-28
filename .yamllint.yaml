@@ -35,6 +35,10 @@ rules:
     level: warning
     allow-non-breakable-words: true
     allow-non-breakable-inline-mappings: true
+    # Authentik re-applies a blueprint whenever its file's bytes change, even if it parses the same.
+    # The apply resets each attribute the blueprint lists, undoing any UI change to it since the last apply.
+    ignore: |
+      apps/authentik/blueprints/
   document-start: disable
   truthy:
     check-keys: false

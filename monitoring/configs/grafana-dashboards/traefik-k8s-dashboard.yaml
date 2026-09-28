@@ -6,6 +6,8 @@ metadata:
   labels:
     grafana_dashboard: "1"
 data:
+  # Wrapping a line of the block below would change the file.
+  # yamllint disable rule:line-length
   traefik-k8s-dashboard.json: |-
     {
       "__inputs": [

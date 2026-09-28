@@ -47,6 +47,8 @@ spec:
           command:
             - /bin/bash
             - -c
+            # Wrapping a line of the script below would change the script.
+            # yamllint disable rule:line-length
             - |
               set -e
               export HOME=/home/akhozya
@@ -321,6 +323,7 @@ spec:
               fi
 
               echo "Init complete."
+          # yamllint enable rule:line-length
           env:
             - name: GIT_EXEC_RE
               valueFrom:
