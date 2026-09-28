@@ -12,3 +12,17 @@ resources:
   - csp-middleware.yaml
   - networkpolicy.yaml
   - pdb.yaml
+# Stage 1 of moving the Middlewares to infrastructure/configs/traefik-middlewares.
+# infrastructure-controllers reconciles and prunes before infrastructure-configs.
+# If this annotation is absent, it deletes every Middleware before configs adopts it.
+# Stage 2 removes this patch in the same commit that moves the files.
+patches:
+  - target:
+      kind: Middleware
+    patch: |-
+      apiVersion: traefik.io/v1alpha1
+      kind: Middleware
+      metadata:
+        name: any
+        annotations:
+          kustomize.toolkit.fluxcd.io/prune: disabled
