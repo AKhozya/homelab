@@ -58,7 +58,36 @@ Domain name = `0398541a-c088-48cd-b16a-4b45d31a92f3` (internal uuid
   **Never `virsh destroy`/`reset`** a passthrough VM — dirty iGPU re-binds to host i915 →
   NAS host crash. A true wedge (never reaches `shut off`) = alert + NAS host reboot, never destroy/reset.
 - Clobber recovery: `virsh define immich-vm-domain.xml` → graceful shutdown → `virsh start`.
+- **Applying a Git change the watchdog does not check** (its drift check matches only
+  selected XML markers, so `<graphics>` and similar edits never reach the NAS by themselves):
+  edit the NAS definition in place, then do the cold restart above. An in-place edit keeps the
+  PCI `<address>` values libvirt already assigned. The Git file has none, so a `define` from it
+  makes libvirt assign them again. Nobody has checked that the new addresses match the old ones. A define
+  changes only the saved config; the running VM keeps the old one until the cold restart.
+
+  ```bash
+  D=0398541a-c088-48cd-b16a-4b45d31a92f3; V="virsh -c qemu:///system"
+  ssh zl-nas "$V dumpxml --inactive $D" > cur.xml
+  # Copy cur.xml to new.xml and change only the element that changed in Git.
+  diff cur.xml new.xml                                   # must show only that change
+  ssh zl-nas "$V define /dev/stdin" < new.xml
+  ssh zl-nas "$V dumpxml --inactive $D" | diff new.xml - # empty = saved as intended
+  ```
 - **Kernel-bump reboots are AUTOMATED** (node-maintenance phase2 PLAY 1b, main `19d51c19`): after weekly patching, a stale running kernel triggers an in-guest graceful `poweroff` (== `virsh shutdown --mode acpi`) → the `immich-vm-heal` watchdog cold-`virsh start`s the shut-off domain → waits node Ready. No operator step for the routine kernel case; the manual `virsh` cold-restart above stays the break-glass path (wedged-but-running, clobber recovery). Test on demand: `sudo ansible-playbook -i inventory.yml phase2.yml --limit immich-vm -e vm_cold_cycle_force=true`.
 
 Mirror on the NAS: `/home/akhozya/immich-vm-xml-backups/immich-vm-q35-virtiofs.xml`
 (break-glass; this Git copy is now canonical).
+
+## Console (VNC)
+| Fact | Value |
+|---|---|
+| Listener | NAS loopback `127.0.0.1:5900`, no password |
+| Since | 2026-09-29; before that, any LAN host could connect |
+| Access | SSH tunnel below, then a VNC client on `localhost:5901` |
+| Local port | 5901, because macOS Screen Sharing can hold 5900 |
+
+```bash
+ssh -N -L 5901:127.0.0.1:5900 zl-nas
+```
+
+Never send Ctrl-Alt-Del from the console: it is an in-guest reboot (see `on_reboot` in the XML).

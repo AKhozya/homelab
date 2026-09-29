@@ -17,6 +17,13 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-09-29 — immich-vm VNC live on loopback; bot node keys have one copy
+
+| Change | Detail |
+|---|---|
+| VNC on the NAS loopback | The fix in Git (`aba0768e`) does not reach the NAS by itself, because the heal watchdog does not check `<graphics>`. An in-place edit of the NAS definition changes only the two `listen` values, and a cold restart (`shutdown --mode acpi`, shut off in ~10 s) makes it live. Port 5900 no longer answers from the LAN. The node is Ready and the Immich server and ML pods are Running ~7 min after the start. The server fails its startup probe once on the cold VM. How to apply such a change and reach the console: [gpu-node/README.md](../apps/immich/gpu-node/README.md) |
+| Bot node host keys | The bot's SOPS `known_hosts` keeps only the `github.com` keys (`3eb0d6a2`). `node-maintenance/lib/known_hosts` (`391fd839`) is the one copy of the node keys; the bot appends it at start. SSH from the bot to all four nodes passes with `StrictHostKeyChecking yes` |
+
 ### 2026-09-28 — SP5 whole-repo review: 209 findings, 198 fixed
 
 Nine review agents read 737 of the 803 files at `8f78a8c8`, and seven fix agents fixed the
