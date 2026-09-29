@@ -170,6 +170,7 @@ it: `gh api repos/AKhozya/<repo>/keys --jq '.[] | "\(.title) read_only=\(.read_o
 - N8N encryption key (breaks encrypted workflow credentials)
 - Cloudflare tunnel token (only if compromised)
 - Age key for SOPS (only if compromised)
+- vmsingle `deleteAuthKey` (`monitoring/configs/victoria-metrics/vmsingle-auth-secret.yaml`): vmsingle reads it from a mounted file to protect `/api/v1/admin/tsdb/delete_series`. No script, skill or app sends it. Rotate it only if compromised
 
 ---
 
