@@ -25,7 +25,7 @@ cert-manager).
 | Secret Name | App | Last Rotated | Next Rotation | Priority |
 |-------------|-----|--------------|---------------|----------|
 | `immich-db-user` (ns `databases`) + `immich-db-password` (ns `immich`) | Immich | 2026-04-02 | 2026-10-01 | High |
-| `linkwarden-db-app-user` | Linkwarden | 2026-04-02 | 2026-10-01 | Medium |
+| `linkwarden-db-app-user` (file `linkwarden-app-user-secret.yaml`) | Linkwarden | 2026-04-02 | 2026-10-01 | Medium |
 | `mealie-db-user` | Mealie | 2026-04-02 | 2026-10-01 | Medium |
 | `n8n-db-user` | N8N | 2026-04-02 | 2026-10-01 | High |
 | `paperless-db-user` | Paperless-NGX | 2026-04-02 | 2026-10-01 | Medium |
@@ -218,7 +218,7 @@ printf '"%s"' "$NEW_PASSWORD" | sops set --ignore-mac --value-stdin \
   apps/<app>/<secret-file>.yaml '["stringData"]["<PASSWORD_KEY>"]'
 
 # NOTE — DSN-embedded credential (no discrete key): if the app bakes the password into a
-# connection string rather than its own key — e.g. Blocky queryLog `target: postgres://blocky:PW@...`
+# connection string rather than its own key — Linkwarden's `DATABASE_URL`, or Blocky queryLog `target: postgres://blocky:PW@...`
 # (pgx can't expand ${VAR}, so the literal is required) — step 3 above does NOT apply. Decrypt the
 # config value, replace the password inside the DSN, re-encrypt:
 # awk takes the password from its environment, not its arguments, so it stays off the command line:
@@ -465,7 +465,10 @@ NEW_SECRET=$(openssl rand -hex 32)
 # 2. Update in Authentik via API. The PATCH runs inside the server pod: the admin token comes
 #    from the pod's own environment, curl reads its URL, header and body from stdin, and the
 #    response is discarded. So no secret reaches a command line or the screen.
-PK=<PROVIDER_PK>   # 1=Grafana, 3=Immich, 5=Paperless, 11=Mealie, 13=Audiobookshelf, 14=HA, 16=Stirling
+PK=<PROVIDER_PK>   # 1=Grafana, 3=Immich, 5=Paperless, 11=Mealie, 13=Audiobookshelf, 14=HA, 16=Stirling, 48=Linkwarden
+# Not in this rotation: 9=Linkding (no app in the repo; its Authentik application is a
+# leftover), 50=Cloudflare Access (the secret's other copy lives in Cloudflare Zero Trust),
+# 53=homepage-forward-auth (only Authentik's embedded outpost uses it).
 code=$(printf 'url = "http://localhost:9000/api/v3/providers/oauth2/%s/"\ndata = "{\\"client_secret\\": \\"%s\\"}"\n' "$PK" "$NEW_SECRET" |
   kubectl exec -i -n authentik deploy/authentik-server -- sh -c \
   '{ printf "header = \"Authorization: Bearer %s\"\n" "$AUTHENTIK_BOOTSTRAP_TOKEN"; cat; } |
