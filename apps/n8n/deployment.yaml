@@ -6,19 +6,10 @@ metadata:
 spec:
   replicas: 1
   revisionHistoryLimit: 2
-  # Target: Recreate. During a rolling update two n8n mains share one database, so both run
-  # schedules and the new one runs migrations under the old one. A direct switch fails
-  # server-side apply: kustomize-controller does not own the defaulted rollingUpdate block, so
-  # the apply never removes it and validation rejects the pair. Writing the default values out
-  # does not help, because Flux applies an object only if it differs from the live one. These
-  # values differ, so Flux applies them and takes ownership. They disable surge, but the new
-  # pod can still start while the old one terminates; only Recreate waits for the old pod to
-  # go. Next: type Recreate with rollingUpdate deleted.
+  # Recreate, not RollingUpdate: during a rolling update two n8n mains share one database, so
+  # both run schedules and the new one runs migrations while the old one still runs.
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+    type: Recreate
   selector:
     matchLabels:
       app: n8n
