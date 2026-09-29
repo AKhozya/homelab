@@ -949,7 +949,7 @@ to 214, because some findings touched more than one area and each area counted t
 
 | # | Question | Decision |
 |---|---|---|
-| D1 | the CP `kubectl proxy` and the bot's `pods/exec` in `monitoring` | drift-heal removes the proxy (`17f60674`). The bot keeps `pods/exec` in `monitoring` for now: the API server's service proxy returns 502 there, because the CP cannot reach pod IPs |
+| D1 | the CP `kubectl proxy` and the bot's `pods/exec` in `monitoring` | drift-heal removes the proxy (`17f60674`). The bot keeps `pods/exec` in `monitoring` for now: the API server's service proxy returns 502 there, because the `monitoring` NetworkPolicies do not admit the control plane |
 | D2 | personal data in plaintext | the Telegram chat ID, the bot's allowed-user ID and the Home Assistant admin name move into SOPS (`09c2abb6`, `ab161f5c`, `fa066ca3`). The Flux Telegram Provider keeps its copy of the chat ID in plaintext, because notification-controller v1.9.4 reads `channel` only from `spec.channel` |
 | D3 | global IPv6 addresses in the CoreDNS `NodeHosts` | drop them and keep the ULA entry (`55478c1a`). No history purge, since GitHub keeps `refs/pull/*` |
 | D4 | the Claude permission allowlist | deny force deletes and Secret reads (`dfebaebd`, `082832b0`). `kubectl apply --dry-run=server *` stays allowed. |
@@ -1000,12 +1000,12 @@ them blocks the visibility flip.
 
 | Item | Kind | Next step |
 |---|---|---|
-| s6 HIGH: first start of a rebuilt control plane (`docs/setup/K3S_SETUP.md`) | deferred, partly fixed | needs a design and a drill: `install.sh` needs a running K3s, but the taint and label apply only at first registration. The page marks the order "Not drilled" |
-| s5 LOW: n8n `Recreate` | deferred | switch once a server-side dry run with `--field-manager=kustomize-controller` passes. Step 1 (`42be4cc6`) is live |
+| s6 HIGH: first start of a rebuilt control plane (`docs/setup/K3S_SETUP.md`) | designed, not drilled | a tagged playbook run writes `config.yaml` and `kubelet.yaml` before K3s first starts. The repo alone renders both files equal to the live ones. The operator decides whether to run a rebuild drill |
+| s5 LOW: n8n `Recreate` | done 2026-09-29 | step 1 (`42be4cc6`) changed nothing live, because Flux applies an object only if it differs. Changed values (`fcbfe4bb`) gave kustomize-controller the fields, then `b147124d` switched to Recreate |
 | s1 NIT: duplicate lines in `sysctl-99-unified-hardening.conf` | deferred | an edit fires the sysctl handler on all four nodes, so fix it after the immich-vm check below |
-| s1 NIT: rename the sshd drop-in from `99-` to `00-` | deferred | a rename on all four nodes risks an SSH lockout, and the order changes nothing today |
-| s8 LOW: Percona restart procedure | disputed in part | operator: confirm a restart procedure through the CR and document it. Until then, cluster-roll keeps Percona in SKIP |
-| D1: why the CP cannot reach pod IPs | follow-up | if the service proxy works, the bot can drop `pods/exec` in `monitoring` |
+| s1 NIT: rename the sshd drop-in from `99-` to `00-` | deferred | a rename on all four nodes risks an SSH lockout, and the order changes nothing today. Checked 2026-09-29: the only setting another drop-in shares with `99-hardening.conf` is `KbdInteractiveAuthentication`, and `99-archlinux.conf` sets the same value, `no` |
+| s8 LOW: Percona restart procedure | disputed in part | a draft waits for the operator: operator v1.2.0 merges `spec.mysql.annotations` into the MySQL pod template, and `SmartUpdate` restarts the replica first and the primary last, after a switchover. Until the operator confirms it, cluster-roll keeps Percona in SKIP |
+| D1: the bot's `pods/exec` in `monitoring` | operator decision | the CP reaches pod IPs; the target's NetworkPolicy refuses it. A test on 2026-09-29: the proxy reached a pod port whose policy admits `10.42.0.0/16` and got 502 on a port of the same pod that it does not. Admitting the CP's address on vmsingle and Alertmanager, plus a `services/proxy` grant, would let the bot drop exec |
 | sysctl handler on immich-vm (s1 LOW) | operator | run `sudo sysctl --system >/dev/null` on immich-vm and read stderr |
 | immich-vm domain XML (`aba0768e`) | operator | apply it on the NAS with `virsh define`, then a graceful cold restart |
 | bot SSH host keys (s5 LOW) | operator | pin `[192.168.1.231]:65300` and `[192.168.1.126]:65300` in the bot's SOPS known_hosts |

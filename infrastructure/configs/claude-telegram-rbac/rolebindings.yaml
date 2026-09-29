@@ -31,9 +31,11 @@
 # read-only (not noexec) at /host/root. The known cluster-admin path through it was the unauthenticated kubectl
 # proxy on the control plane's 127.0.0.1:8001; node-maintenance no longer runs that proxy. Any
 # other unauthenticated service on a node's loopback or on the LAN stays in reach. The binding
-# stays by operator decision (2026-09-28): the API server's service proxy returns 502 because the
-# control plane cannot reach pod IPs, so exec is the bot's only way to query vmsingle and
-# Alertmanager. Removing it is the follow-up once that path works.
+# stays by operator decision (2026-09-28): exec is the bot's only way to query vmsingle and
+# Alertmanager. The API server's service proxy returns 502 there, because it dials pods from the
+# control plane's pod-network address and the vmsingle and Alertmanager NetworkPolicies do not
+# admit it. If those policies admit it and the bot holds services/proxy on both services,
+# remove this binding.
 #
 # Bound to claude-telegram-jobs: popeye only (manual scans). Its pods reach the API server and
 # DNS. It has no exec binding: the scan creates a Job and reads the pod's logs.

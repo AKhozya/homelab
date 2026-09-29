@@ -14,8 +14,8 @@ This page installs K3s on each node: the control plane, the two workers and `imm
 
 ## Order matters
 
-Run the bootstrap and the Ansible config **before** the first K3s start. The workers can do this;
-the control plane cannot yet (see [Control plane](#control-plane)). A bare
+Run the bootstrap and the Ansible config **before** the first K3s start. The control plane does
+this with one tagged playbook run (see [Control plane](#control-plane)). A bare
 `curl -sfL https://get.k3s.io | sh -` installs an unpinned K3s with its bundled Traefik, CoreDNS
 and helm-controller, and those collide with the ones Flux manages. The Ansible `k3s_config` role
 writes `/etc/rancher/k3s/config.yaml`, which turns the bundled ones off and turns on secrets
@@ -25,50 +25,65 @@ Set up the control plane first, then the workers.
 
 ## Control plane
 
-On the control plane the order has a gap. `config.yaml` should exist before K3s first starts,
-because K3s applies `node-taint` and `node-label` only when a node first registers. But the tools
-that write it need K3s already running:
+`config.yaml` must exist before K3s first starts. K3s applies `node-taint` and `node-label` only
+when a node first registers, and the `disable:` list keeps the bundled CoreDNS, Traefik and
+helm-controller from ever starting. If they start once, a later restart with `disable:` deletes
+their add-on objects, including the `kube-dns` Service.
+
+The drift-heal playbook writes `config.yaml`, but `install.sh`, which installs the playbook's
+units, needs K3s already running. So on a new control plane run the playbook straight from the
+repo checkout, limited to the tasks that write the two K3s files:
+
+| Tag | Writes | Why |
+|---|---|---|
+| `k3s-config` | `/etc/rancher/k3s/config.yaml`, `k3s-wait-ready`, `clusterip-probe.sh` | the K3s server flags |
+| `kubelet` | `/etc/rancher/k3s/kubelet.yaml` | `config.yaml` points the kubelet at it; without it the kubelet does not start |
+| skip `secrets-encryption` | nothing | its task runs `k3s secrets-encrypt status`, which fails before K3s is installed |
+
+The control plane is `ansible_connection: local` in the inventory, so this needs no SSH key.
+`secrets-encryption: true` in `config.yaml` makes the first start generate the key and encrypt
+from the start ([K3s docs](https://docs.k3s.io/security/secrets-encryption)), so no
+`secrets-encrypt enable` or `rotate-keys` step follows.
+
+Checked on 2026-09-29 without a cluster:
+
+| Check | Result |
+|---|---|
+| render both files from the repo alone | byte for byte equal to the live control plane's |
+| check-mode run of the tagged selection on a Mac | the file tasks ran; it stopped at "Enable k3s-wait-ready.service" for lack of `systemctl`, so the unit and later tasks are untested |
+
+**Not drilled.** No rebuild has run this order end to end.
 
 | Command | Needs | Where that comes from |
 |---|---|---|
-| `scripts/setup-node.sh <role>` | root, and the role (`control-plane` or `worker`) | If K3s is not running, pass the role: there is no unit to read it from, and the script exits without it. For `control-plane` it installs the Ansible stack (`ansible jq rsync logrotate python-kubernetes`). If that install fails, the script stops. |
-| `node-maintenance/install.sh` | the Ansible stack, `kubectl`, `flux`, a readable `/etc/rancher/k3s/k3s.yaml`, the staged SSH key ([node-maintenance README](../../node-maintenance/README.md#install-once)) | K3s must already run. On the live control plane `flux` comes from the AUR package `flux-bin`; nothing in this repo installs it. |
-| `node-maintenance-config.service` (writes `config.yaml`, `kubelet.yaml`, the firewall) | `install.sh` | `install.sh` installs the unit. |
+| `scripts/setup-node.sh control-plane` | root, and the role | If K3s is not running, pass the role: there is no unit to read it from. For `control-plane` it installs the Ansible stack (`ansible jq rsync logrotate python-kubernetes`). |
+| `node-maintenance/install.sh` | the Ansible stack, `kubectl`, `flux`, a readable `/etc/rancher/k3s/k3s.yaml`, the staged SSH key ([node-maintenance README](../../node-maintenance/README.md#install-once)) | K3s must already run. `flux` comes from the AUR package `flux-bin`; nothing in this repo installs it. |
 | `node-maintenance-sync.service` | `install.sh` and the deploy key `/root/.ssh/homelab-deploy` | the node-maintenance README, "Deploy key (once)". A rebuilt control plane has no deploy key yet. |
 
-`setup-node.sh` prints the order it was built for, and the block below follows it: K3s first,
-then `install.sh`, then a reboot that restarts K3s with the templated config. That order has two
-costs:
-
-| Cost | Effect |
-|---|---|
-| The bundled CoreDNS, Traefik and helm-controller start once | The restart with `disable:` deletes their add-on objects, including the `kube-dns` Service. Cluster DNS stays down until the [DR runbook](../disaster-recovery/README.md#step-5-bootstrap-flux) applies CoreDNS. |
-| The node registers before `config.yaml` exists | It lacks the `NoSchedule` taint and the `enablelb=false` label from `group_vars/control_plane.yml`. |
-
-**Not drilled.** No rebuild has run this order end to end. A first-start order that avoids both
-costs is still open.
+Cluster DNS stays down after these steps, because the bundled CoreDNS never starts. The
+[DR runbook](../disaster-recovery/README.md#step-5-bootstrap-flux) applies CoreDNS before
+`flux bootstrap`.
 
 ```bash
 # 1. Bootstrap. Pass the role, because K3s is not running yet. Also install `flux-bin` from the
 #    AUR: install.sh needs `flux`, and nothing in this repo installs it.
 sudo bash scripts/setup-node.sh control-plane
 
-# 2. Install pinned K3s
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.37.0+k3s1" sh -
+# 2. Write config.yaml and kubelet.yaml before K3s first starts
+sudo ansible-playbook -i node-maintenance/ansible/inventory.yml \
+  node-maintenance/ansible/node-config.yml -l gmk-k3s-control-plane \
+  --tags k3s-config,kubelet --skip-tags secrets-encryption
 
-# 3. Install node-maintenance (stage the SSH key first, as install.sh prints), apply the
-#    Ansible-owned config, then reboot so K3s starts with it
+# 3. Install pinned K3s. It reads /etc/rancher/k3s/config.yaml on its first start.
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.37.0+k3s1" sh -
+sudo k3s secrets-encrypt status  # Expect: Encryption Status: Enabled
+sudo k3s kubectl get node gmk-k3s-control-plane -o jsonpath='{.spec.taints}'  # Expect: the NoSchedule taint
+
+# 4. Install node-maintenance (stage the SSH key first, as install.sh prints), run the full
+#    drift-heal, then reboot for the bootloader parameters setup-node.sh wrote
 sudo bash node-maintenance/install.sh
 sudo systemctl start node-maintenance-config.service
 sudo reboot
-
-# Enable secrets encryption (first time only)
-sudo k3s secrets-encrypt enable
-# 'secrets-encryption: true' is already in config.yaml from the ansible k3s_config role
-sudo systemctl restart k3s
-sudo k3s secrets-encrypt rotate-keys
-sudo systemctl restart k3s
-sudo k3s secrets-encrypt status  # Expect: Enabled + reencrypt_finished
 
 # Get join token for worker nodes
 sudo cat /var/lib/rancher/k3s/server/node-token
