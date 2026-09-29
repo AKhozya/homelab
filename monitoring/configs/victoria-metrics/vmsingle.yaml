@@ -31,7 +31,7 @@ spec:
       type: RuntimeDefault
   # The operator mounts each listed Secret at /etc/vm/secrets/<name>/. vmsingle reads the key
   # from that file, so the value stays out of the pod spec. If deleteAuthKey is unset,
-  # delete_series accepts deletions from any caller the NetworkPolicy admits, even on a GET.
+  # delete_series accepts a POST from any caller the NetworkPolicy admits.
   secrets:
     - vmsingle-auth
   extraArgs:
