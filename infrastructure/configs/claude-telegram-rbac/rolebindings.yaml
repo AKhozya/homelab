@@ -14,28 +14,19 @@
 # | linkwarden     | TCP 443 to any address                                                    |
 # | loki           | in-cluster only                                                           |
 # | mealie         | TCP 443 to any address                                                    |
-# | monitoring     | node-exporter: hostNetwork + hostPID, so no NetworkPolicy applies (below); |
-# |                | alertmanager, grafana: TCP 443/80 to any address; vmagent: TCP 443, 6443, |
-# |                | 9100, 10250, 10255, 4194 to any address                                   |
 # | paperless-ngx  | TCP 443, 465, 587 to any address                                          |
 # | pricebuddy     | TCP 443 to any address                                                    |
 # | rustdesk       | none                                                                      |
 # | stirling-pdf   | TCP 443 to any address                                                    |
 # | uptime-kuma    | TCP 443/80 to any address; 192.168.1.0/24 on 65300, 10250, 53             |
 #
-# monitoring is the one namespace with host-namespace pods. node-exporter runs on all four nodes,
-# the control plane included, in the node's own network and PID namespaces. Exec into it
-# therefore reaches every LAN host (the NAS, the router) on every port, and every service bound
-# to that node's loopback. NetworkPolicies do not restrict this traffic. hostPID shows it every
-# host process's command line. The image has no shell, but the host root filesystem is mounted
-# read-only (not noexec) at /host/root. The known cluster-admin path through it was the unauthenticated kubectl
-# proxy on the control plane's 127.0.0.1:8001; node-maintenance no longer runs that proxy. Any
-# other unauthenticated service on a node's loopback or on the LAN stays in reach. The binding
-# stays by operator decision (2026-09-28): exec is the bot's only way to query vmsingle and
-# Alertmanager. The API server's service proxy returns 502 there, because it dials pods from the
-# control plane's pod-network address and the vmsingle and Alertmanager NetworkPolicies do not
-# admit it. If those policies admit it and the bot holds services/proxy on both services,
-# remove this binding.
+# Bound to claude-telegram-monitoring-proxy, in monitoring. The bot reads metrics and alerts
+# through the API server's service proxy; it has no exec there (below).
+# | Service                            | Port | Verb |
+# |------------------------------------|------|------|
+# | vmsingle-vmsingle                  | 8429 | get  |
+# | vmalert-vmalert                    | 8080 | get  |
+# | kube-prometheus-stack-alertmanager | 9093 | get  |
 #
 # Bound to claude-telegram-jobs: popeye only (manual scans). Its pods reach the API server and
 # DNS. It has no exec binding: the scan creates a Job and reads the pod's logs.
@@ -46,6 +37,9 @@
 # | claude-telegram                    | the bot's own pod and PVC; exec or a Job here reaches   |
 # |                                    | the git state its init-time sanitization guards         |
 # | kube-system                        | cluster control plane                                   |
+# | monitoring                         | node-exporter runs in each node's host network and PID  |
+# |                                    | namespaces: exec there reaches the whole LAN and every  |
+# |                                    | node's loopback, past all NetworkPolicies               |
 # | flux-system                        | sops-age (decrypts every secret) and the git deploy key |
 # | kyverno                            | the admission controller's own process                  |
 # | cert-manager                       | TLS private keys                                        |
@@ -179,22 +173,6 @@ kind: RoleBinding
 metadata:
   name: claude-telegram-exec
   namespace: mealie
-  labels:
-    app: claude-telegram
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: claude-telegram-exec
-subjects:
-  - kind: ServiceAccount
-    name: claude-telegram
-    namespace: claude-telegram
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: claude-telegram-exec
-  namespace: monitoring
   labels:
     app: claude-telegram
 roleRef:

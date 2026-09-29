@@ -23,7 +23,8 @@ The 17 apps, with namespace, storage, database, SSO and external access, are lis
 |---|---|
 | read | cluster-wide |
 | delete | `pods`, `replicasets`, PolicyReports, ClusterPolicyReports |
-| `pods/exec` | 14 namespaces: not its own, and not the four with 0.0.0.0/0 egress |
+| `pods/exec` | 13 namespaces: not its own, not `monitoring`, and not the four with 0.0.0.0/0 egress |
+| `services/proxy` `get` | `monitoring`: vmsingle, vmalert and Alertmanager only |
 | Job create and delete | `popeye` only |
 | workload patch | none |
 | node SSH | the read-only `agent-diag` forced command |

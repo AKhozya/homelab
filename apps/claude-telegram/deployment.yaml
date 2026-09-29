@@ -20,11 +20,10 @@ spec:
       # The bot uses kubectl for cluster diagnostics. rbac.yaml grants cluster-wide READ;
       # infrastructure/configs/claude-telegram-rbac/rolebindings.yaml grants exec and Job creation
       # per namespace, and its header is the one list.
-      # The bot can run code inside pods in 14 namespaces through `pods/exec`, with each pod's
-      # network reach. One of them, monitoring, holds node-exporter, which runs in every node's
-      # host network and PID namespaces. Exec there reaches the whole LAN on any port and each
-      # node's loopback services, and NetworkPolicies do not restrict that traffic. This pod's own
-      # egress policy does not limit it either. Node SSH runs under the agent-diag forced command
+      # The bot can run code inside pods in 13 namespaces through `pods/exec`, with each pod's
+      # network reach; this pod's own egress policy does not limit it. None of them runs pods in a
+      # node's host network. In monitoring it reads vmsingle, vmalert and Alertmanager through the
+      # API server's service proxy instead. Node SSH runs under the agent-diag forced command
       # (read-only diagnostics). The bot can create Jobs only in popeye.
       automountServiceAccountToken: true
       priorityClassName: homelab-standard
