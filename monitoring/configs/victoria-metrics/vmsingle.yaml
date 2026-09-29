@@ -29,5 +29,11 @@ spec:
         - ALL
     seccompProfile:
       type: RuntimeDefault
+  # The operator mounts each listed Secret at /etc/vm/secrets/<name>/. vmsingle reads the key
+  # from that file, so the value stays out of the pod spec. If deleteAuthKey is unset,
+  # delete_series accepts deletions from any caller the NetworkPolicy admits, even on a GET.
+  secrets:
+    - vmsingle-auth
   extraArgs:
     dedup.minScrapeInterval: "60s"
+    deleteAuthKey: "file:///etc/vm/secrets/vmsingle-auth/deleteAuthKey"

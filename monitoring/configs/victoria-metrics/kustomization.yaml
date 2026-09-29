@@ -13,6 +13,7 @@ resources:
   - scrape-kube-state-metrics.yaml
   - scrape-monitoring-stack.yaml
   - couchdb-auth-secret.yaml
+  - vmsingle-auth-secret.yaml
   - scrape-databases.yaml
   - scrape-apps.yaml
   - scrape-kyverno.yaml
