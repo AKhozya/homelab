@@ -138,8 +138,9 @@ spec:
               chmod 600 ~/.ssh/gh-homelab ~/.ssh/gh-dotfiles ~/.ssh/gh-fork
               chmod 644 ~/.ssh/id_ed25519.pub ~/.ssh/known_hosts 2>/dev/null || true
 
-              echo "Scanning node SSH fingerprints..."
-              ssh-keyscan -p 65300 gmk-k3s-control-plane worker-node worker-node-2 immich-vm >> ~/.ssh/known_hosts 2>/dev/null || true
+              # The Secret's known_hosts pins each node's host key for port 65300 by name and IP.
+              # There is no keyscan: it would trust whatever answers at pod start. If a
+              # node's host key changes, update the pin, or the bot's SSH to that node fails.
 
               mkdir -p ~/.config/chezmoi
               cp /etc/chezmoi-config/chezmoi.toml ~/.config/chezmoi/chezmoi.toml
