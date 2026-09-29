@@ -16,17 +16,17 @@
 set -euo pipefail
 fmt="${1:-text}"
 
+# Through the API server's service proxy: the claude-telegram bot's grant in monitoring is `get`
+# on services/proxy, and it names both service:port pairs below. A failed fetch must surface as
+# fetch-failed ("?"), never as zero alerts.
+SVC=/api/v1/namespaces/monitoring/services
 VM_OK=1
-VM_RAW="$(kubectl exec -n monitoring deploy/vmalert-vmalert -- \
-  wget -qO- 'http://127.0.0.1:8080/api/v1/alerts' 2>/dev/null)" || {
+VM_RAW="$(kubectl get --raw "$SVC/vmalert-vmalert:8080/proxy/api/v1/alerts" 2>/dev/null)" || {
   VM_OK=0
   VM_RAW='{}'
 }
-# 127.0.0.1 not localhost: busybox wget resolves localhost->::1; IPv4-only binds (VM-stack) then
-# false connection-refused — must surface as fetch-failed ("?"), never as zero alerts. AM tolerates it, pin anyway.
 AM_OK=1
-AM_RAW="$(kubectl exec -n monitoring statefulset/alertmanager-kube-prometheus-stack-alertmanager -- \
-  wget -qO- 'http://127.0.0.1:9093/api/v2/alerts' 2>/dev/null)" || {
+AM_RAW="$(kubectl get --raw "$SVC/kube-prometheus-stack-alertmanager:9093/proxy/api/v2/alerts" 2>/dev/null)" || {
   AM_OK=0
   AM_RAW='[]'
 }

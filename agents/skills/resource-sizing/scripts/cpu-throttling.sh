@@ -54,8 +54,9 @@ else
   Q="rate(container_cpu_cfs_throttled_seconds_total[5m])"
 fi
 
-RAW="$(kubectl exec -n monitoring deploy/vmsingle-vmsingle -- \
-  wget -qO- "http://127.0.0.1:8429/api/v1/query?query=$(printf '%s' "$Q" | jq -sRr @uri)")"
+# Through the API server's service proxy: the claude-telegram bot's grant in monitoring is `get`
+# on services/proxy for vmsingle-vmsingle:8429.
+RAW="$(kubectl get --raw "/api/v1/namespaces/monitoring/services/vmsingle-vmsingle:8429/proxy/api/v1/query?query=$(printf '%s' "$Q" | jq -sRr @uri)")"
 
 if [ "$MODE" = "json" ]; then
   echo "$RAW"

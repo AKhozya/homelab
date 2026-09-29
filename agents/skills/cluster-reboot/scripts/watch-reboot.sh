@@ -150,11 +150,14 @@ phase_run_state() {
 #
 # Runs one query, echoes raw JSON. Empty output = could not query.
 vm_query() {
-  local pod="$1" enc
-  # @uri-encode: the PromQL below carries {, }, ", ~, = and spaces, which wget will not send raw.
-  enc="$(jq -rn --arg q "$2" '$q|@uri' 2>/dev/null)" || return 0
-  kubectl -n monitoring exec "$pod" -- \
-    wget -qO- "http://127.0.0.1:8429/prometheus/api/v1/query?query=$enc" 2>/dev/null || true
+  local enc
+  # @uri-encode: the PromQL below carries {, }, ", ~, = and spaces, which a URL cannot hold raw.
+  enc="$(jq -rn --arg q "$1" '$q|@uri' 2>/dev/null)" || return 0
+  # Through the API server's service proxy: the claude-telegram bot's grant in monitoring is
+  # `get` on services/proxy for vmsingle-vmsingle:8429.
+  kubectl get --raw \
+    "/api/v1/namespaces/monitoring/services/vmsingle-vmsingle:8429/proxy/prometheus/api/v1/query?query=$enc" \
+    2>/dev/null || true
 }
 
 # Sets PKG_FAILED to: a space-separated list of failing instances, "" if every node reported OK, or
@@ -180,16 +183,9 @@ vm_query() {
 PKG_FAILED=""
 PKG_DETAIL=""
 pkg_upgrade_failures() {
-  local vmpod out parsed node_ips have_ips missing ip
+  local out parsed node_ips have_ips missing ip
   PKG_FAILED=""
   PKG_DETAIL=""
-  vmpod="$(kubectl -n monitoring get pod -l app.kubernetes.io/name=vmsingle \
-    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)" || true
-  [ -n "$vmpod" ] || {
-    PKG_DETAIL="no vmsingle pod found"
-    PKG_FAILED="unavailable"
-    return 0
-  }
 
   # The cluster's Node list is the inventory this check compares against, NOT `up`. A metrics-derived
   # inventory cannot detect the case it most needs to: if a node-exporter target disappears from
@@ -207,7 +203,7 @@ pkg_upgrade_failures() {
 
   # Exporter reporting DOWN: its package metric may still resolve from cache inside the lookbehind
   # window, so the value we would read is stale. Treat stale as unverified.
-  out="$(vm_query "$vmpod" 'up{job=~".*node-exporter.*"} == 0')"
+  out="$(vm_query 'up{job=~".*node-exporter.*"} == 0')"
   [ -n "$out" ] || {
     PKG_DETAIL="exporter-down query returned nothing"
     PKG_FAILED="unavailable"
@@ -235,7 +231,7 @@ pkg_upgrade_failures() {
     ;;
   esac
 
-  out="$(vm_query "$vmpod" 'node_pkg_upgrade_success')"
+  out="$(vm_query 'node_pkg_upgrade_success')"
   [ -n "$out" ] || {
     PKG_DETAIL="package-metric query returned nothing"
     PKG_FAILED="unavailable"
@@ -404,8 +400,8 @@ snapshot() {
   unavailable)
     # Fail closed. An unverifiable patch state must not produce a positive attestation — exit-0
     # asserts "packages upgraded", and we cannot back that claim here. The loop is bounded, so this
-    # blocks a false green without deadlocking. Causes: VMSingle down/rescheduling, kubectl exec or
-    # wget failing, jq missing, or a malformed/empty query response.
+    # blocks a false green without deadlocking. Causes: VMSingle down/rescheduling, the service proxy
+    # failing, jq missing, or a malformed/empty query response.
     healthy=0
     echo "  pkg-upgrade: UNVERIFIED — patch state UNKNOWN, not a pass (${PKG_DETAIL:-no detail})"
     ;;

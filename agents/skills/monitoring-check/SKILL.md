@@ -90,8 +90,9 @@ Queue drains in seconds, alerts re-evaluate at next rule cycle.
 kubectl get pods -n monitoring -l app.kubernetes.io/name=alertmanager
 
 # Cluster status
-kubectl exec -n monitoring alertmanager-kube-prometheus-stack-alertmanager-0 -- \
-  wget -qO- 'http://127.0.0.1:9093/api/v2/status' 2>/dev/null | jq '.cluster.status'
+kubectl get --raw \
+  /api/v1/namespaces/monitoring/services/kube-prometheus-stack-alertmanager:9093/proxy/api/v2/status |
+  jq '.cluster.status'
 ```
 
 ## Grafana Health
@@ -131,7 +132,15 @@ kubectl get pv -o custom-columns=NAME:.metadata.name,CAPACITY:.spec.capacity.sto
 
 ## Health Endpoints
 
-`kubectl exec ... wget` probes: use `127.0.0.1`, NOT `localhost`. Busybox wget in VM-stack images (vmagent/vmsingle/operator) resolves `localhost`→`::1`; those bind IPv4 only → false `connection refused`. (AM/Grafana images tolerate `localhost`, but pin `127.0.0.1` everywhere for consistency.)
+The claude-telegram bot reads three services through the API server's service proxy, `kubectl get --raw /api/v1/namespaces/monitoring/services/<name>:<port>/proxy/<path>`:
+
+| Service | `<name>:<port>` |
+|---|---|
+| VMSingle | `vmsingle-vmsingle:8429` |
+| VMAlert | `vmalert-vmalert:8080` |
+| Alertmanager | `kube-prometheus-stack-alertmanager:9093` |
+
+Any other service or port returns 403 for the bot. The operator's `kubectl exec ... wget` probes: use `127.0.0.1`, NOT `localhost`. Busybox wget in VM-stack images (vmagent/vmsingle/operator) resolves `localhost`→`::1`; those bind IPv4 only → false `connection refused`. (AM/Grafana images tolerate `localhost`, but pin `127.0.0.1` everywhere for consistency.)
 
 | Service | Endpoint |
 |---------|----------|
