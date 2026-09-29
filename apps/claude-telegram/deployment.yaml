@@ -138,9 +138,9 @@ spec:
               chmod 600 ~/.ssh/gh-homelab ~/.ssh/gh-dotfiles ~/.ssh/gh-fork
               chmod 644 ~/.ssh/id_ed25519.pub ~/.ssh/known_hosts 2>/dev/null || true
 
-              # The Secret's known_hosts pins each node's host key for port 65300 by name and IP.
-              # There is no keyscan: it would trust whatever answers at pod start. If a
-              # node's host key changes, update the pin, or the bot's SSH to that node fails.
+              # Node host keys come from node-maintenance/lib/known_hosts in the homelab checkout,
+              # appended after the homelab sync below. There is no keyscan: it would trust whatever
+              # answers at pod start.
 
               mkdir -p ~/.config/chezmoi
               cp /etc/chezmoi-config/chezmoi.toml ~/.config/chezmoi/chezmoi.toml
@@ -274,6 +274,15 @@ spec:
                 echo "Cloning homelab repo..."
                 mkdir -p ~/source-code
                 git clone git@gh-homelab:AKhozya/homelab.git ~/source-code/homelab
+              fi
+
+              # The one copy of the node host keys, also installed for Ansible by install.sh.
+              # If it is missing, SSH to a node with no other pin fails its host-key check; it never
+              # trusts a new key.
+              if [ -f ~/source-code/homelab/node-maintenance/lib/known_hosts ]; then
+                cat ~/source-code/homelab/node-maintenance/lib/known_hosts >> ~/.ssh/known_hosts
+              else
+                echo "WARN: node-maintenance/lib/known_hosts missing from the homelab checkout; node host keys not loaded" >&2
               fi
 
               mkdir -p ~/data
