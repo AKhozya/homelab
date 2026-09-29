@@ -229,6 +229,24 @@ pacman does not manage it, and the weekly node update does not upgrade it. The
 version from the channels API, stage the new binary on each node, restart `k3s` or `k3s-agent` one
 node at a time (control plane first, no reboot), check, and keep the old binary for rollback.
 
+## Reinstalled node: new SSH host key
+
+A reinstall gives a node a new SSH host key. `node-maintenance/lib/known_hosts` is the one copy
+of the node keys: `install.sh` installs it for Ansible on the control plane, and the
+claude-telegram bot appends it at pod start. If the file still holds the old key, the drift-heal
+and the bot refuse SSH to that node.
+
+1. Read the new key on the node itself, at its console or over an SSH session you already trust.
+   Never take it from `ssh-keyscan`, which trusts whatever answers:
+   ```bash
+   awk '{print "[<name>]:65300,[<ip>]:65300", $1, $2}' /etc/ssh/ssh_host_ed25519_key.pub
+   ```
+2. Replace that node's line in `node-maintenance/lib/known_hosts` with the output. Commit it,
+   merge it to `main` and push `main`. The next sync installs it on the control plane. Restart the bot pod
+   (`kubectl delete pod -n claude-telegram -l app=claude-telegram`) so it reads the file again.
+3. On your workstation, drop the old key under both names:
+   `ssh-keygen -R '[<ip>]:65300'` and `ssh-keygen -R '[<name>]:65300'`.
+
 ## Check
 
 ```bash

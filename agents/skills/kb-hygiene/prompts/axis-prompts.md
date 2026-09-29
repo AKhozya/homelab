@@ -1,13 +1,14 @@
 # KB Hygiene — read-only find-agent prompts
 
-8 axes, one read-only agent each (axis 8 = memory-corpus runs). Dispatch in parallel. Each agent makes **NO edits** — it returns findings only. To run an axis: paste the **Shared preamble** then that axis's block into the agent prompt. Fill `{MEMORY_DIR}`, `{REPO_ROOT}` and `{PLANS_DIR}` first.
+8 axes, one read-only agent each (axis 8 = memory-corpus runs). Dispatch in parallel. Each agent makes **NO edits** — it returns findings only. To run an axis: paste the **Shared preamble** then that axis's block into the agent prompt. Fill every placeholder first, with `$HOME` expanded: the agents' Read tool needs absolute paths.
 
 | Placeholder | Value |
 |---|---|
-| `{MEMORY_DIR}` | `/Users/akhozya/.claude/projects/-Users-akhozya-source-code-homelab/memory` |
-| `{REPO_ROOT}` | `/Users/akhozya/source-code/homelab` |
+| `{REPO_ROOT}` | the repo's absolute path, e.g. `$HOME/source-code/homelab` |
+| `{MEMORY_DIR}` | the repo's Claude Code memory dir, `$HOME/.claude/projects/<key>/memory`, where `<key>` is `{REPO_ROOT}` with every character other than a letter or digit replaced by `-`. Check that the directory exists before dispatch |
 | `{PLANS_DIR}` | the repo's plan/spec dir: `{REPO_ROOT}/docs/plans` in homelab; the superpowers default is `docs/superpowers/` |
-| skills root | `/Users/akhozya/.agents/skills` |
+| `{SKILLS_ROOT}` | `$HOME/.agents/skills` |
+| `{GLOBAL_CLAUDE_MD}` | `$HOME/.claude/CLAUDE.md` |
 
 ---
 
@@ -64,7 +65,7 @@ manifest before calling a feature-claim stale in EITHER direction.
 ## Axis 3 — memory ↔ skills (.md / .sh)
 
 ```
-Scope: {MEMORY_DIR}/*.md  ×  /Users/akhozya/.agents/skills/**/ (SKILL.md and scripts/*.sh).
+Scope: {MEMORY_DIR}/*.md  ×  {SKILLS_ROOT}/**/ (SKILL.md and scripts/*.sh).
 Find: a skill's SKILL.md and a memory file carrying the same operational detail. Decide which is
 canonical (skill = the how-to you execute; memory = why + history). KEEP-BOTH the default; flag a
 missing cross-pointer (skill should `[[link]]` the memory's why; memory should name the skill).
@@ -76,7 +77,7 @@ only if one side is verbatim-redundant AND loses nothing.
 ## Axis 4 — skill .sh captain-obvious comments
 
 ```
-Scope: /Users/akhozya/.agents/skills/**/*.sh and /Users/akhozya/.agents/skills/_shared/*.sh.
+Scope: {SKILLS_ROOT}/**/*.sh and {SKILLS_ROOT}/_shared/*.sh.
 Find: comments that restate the code ("# loop over files", "# set variable x"). Verdict CUT or TIGHTEN.
 KEEP any comment carrying a why, a gotcha, an exit-code contract, a SIGPIPE/pipefail note, or a SHA.
 Trap — numbered-step symmetry: cutting "# 1. X" while "# 2." / "# 3." remain orphans them. Check the
@@ -89,7 +90,7 @@ invoked from SKILL.md as `bash _shared/x.sh`, not sourced. Grep SKILL.md before 
 
 ```
 Scope: {MEMORY_DIR}/*.md  ×  repo authoritative docs: {REPO_ROOT}/docs/, both CLAUDE.md
-(global /Users/akhozya/.claude/CLAUDE.md and {REPO_ROOT}/CLAUDE.md), {REPO_ROOT}/.claude/review-invariants.md.
+(global {GLOBAL_CLAUDE_MD} and {REPO_ROOT}/CLAUDE.md), {REPO_ROOT}/.claude/review-invariants.md.
 Find: a fact maintained in BOTH a memory file and an authoritative repo doc. Repo doc wins (it is the
 source of truth, version-controlled with the code); the memory copy is drift-risk. Prefer shrink the
 memory copy to a pointer — BUT only if the repo doc holds every fact the memory copy holds.
@@ -101,7 +102,7 @@ shrink-to-pointer; if any fact is memory-only, KEEP-BOTH + add the fact to the r
 ## Axis 6 — skills ↔ CLAUDE.md + skill specs
 
 ```
-Scope: /Users/akhozya/.agents/skills/**/SKILL.md  ×  both CLAUDE.md (global /Users/akhozya/.claude/CLAUDE.md + repo {REPO_ROOT}/CLAUDE.md)  ×  {PLANS_DIR} (plans+specs).
+Scope: {SKILLS_ROOT}/**/SKILL.md  ×  both CLAUDE.md (global {GLOBAL_CLAUDE_MD} + repo {REPO_ROOT}/CLAUDE.md)  ×  {PLANS_DIR} (plans+specs).
 Find:
 - SKILL.md that re-declares a CLAUDE.md invariant. A skill that OPERATIONALIZES an invariant (turns a
   rule into runnable steps) = KEEP. A skill that merely RE-STATES it verbatim = DUP-COLLAPSE to a pointer.
@@ -114,7 +115,7 @@ to archive/ together (it is not a ../ relative). Flag the link to fix in the mov
 ## Axis 7 — gotchas ↔ skills
 
 ```
-Scope: {MEMORY_DIR}/gotchas.md and gotcha_*.md  ×  /Users/akhozya/.agents/skills/**/ (SKILL.md + scripts).
+Scope: {MEMORY_DIR}/gotchas.md and gotcha_*.md  ×  {SKILLS_ROOT}/**/ (SKILL.md + scripts).
 This is the most operational memory and the most echoed into skills — the user flagged it explicitly,
 do NOT skip it.
 Find: an operational gotcha living in both a gotcha file and a skill. Canonical = the skill if it is the

@@ -18,6 +18,9 @@ Usage: codex-review.sh --diff <file> --prompt <file> [options]
   --log <file>        Where the run transcript goes. Default: a temp file.
   --deadline <secs>   Send TERM after this long, then KILL 10s later.
                       Minimum 1. Default: 600.
+  --effort <level>    Codex reasoning effort: minimal, low, medium, high or xhigh.
+                      Default: xhigh, the operator's rule for reviews; config.toml's
+                      own default is high.
 
 Exit codes:
   0    Codex ran and its reply opens with a known VERDICT: line.
@@ -47,6 +50,7 @@ cd_dir="$PWD"
 out_file=""
 log_file=""
 deadline=600
+effort=xhigh
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -80,6 +84,11 @@ while [[ $# -gt 0 ]]; do
     deadline="$2"
     shift 2
     ;;
+  --effort)
+    need_value "$1" $#
+    effort="$2"
+    shift 2
+    ;;
   -h | --help)
     usage
     exit 0
@@ -93,6 +102,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 [[ -n "$diff_file" ]] || die "--diff is required"
+case "$effort" in
+minimal | low | medium | high | xhigh) ;;
+*) die "--effort must be minimal, low, medium, high or xhigh, got '$effort'" ;;
+esac
 [[ -n "$prompt_file" ]] || die "--prompt is required"
 [[ -s "$diff_file" ]] || die "--diff is empty or missing: $diff_file"
 [[ -s "$prompt_file" ]] || die "--prompt is empty or missing: $prompt_file"
@@ -207,6 +220,7 @@ rc=0
 "$timeout_bin" -k 10 "$deadline" "$codex_bin" exec \
   --sandbox read-only \
   --color never \
+  -c "model_reasoning_effort=\"$effort\"" \
   -C "$cd_dir" \
   -o "$out_file" \
   "$prompt" </dev/null >"$log_file" 2>&1 || rc=$?
