@@ -41,6 +41,14 @@ spec:
       ports:
         - protocol: TCP
           port: 9093
+    # The API server's service proxy dials from the control plane's flannel address, the network
+    # address of its pod subnet 10.42.0.0/24.
+    - from:
+        - ipBlock:
+            cidr: 10.42.0.0/32
+      ports:
+        - protocol: TCP
+          port: 9093
     # Cluster gossip (HA mesh)
     - from:
         - podSelector:

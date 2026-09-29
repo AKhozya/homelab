@@ -206,6 +206,41 @@ subjects:
     name: claude-telegram
     namespace: claude-telegram
 ---
+# GET through the API server's service proxy to the three monitoring APIs the bot queries.
+# A resourceName is the URL's service segment, port included.
+# `get` allows only GET, so the bot can read Alertmanager but cannot create a silence (POST).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: claude-telegram-monitoring-proxy
+  namespace: monitoring
+  labels:
+    app: claude-telegram
+rules:
+  - apiGroups: [""]
+    resources: ["services/proxy"]
+    resourceNames:
+      - "vmsingle-vmsingle:8429"
+      - "vmalert-vmalert:8080"
+      - "kube-prometheus-stack-alertmanager:9093"
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: claude-telegram-monitoring-proxy
+  namespace: monitoring
+  labels:
+    app: claude-telegram
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: claude-telegram-monitoring-proxy
+subjects:
+  - kind: ServiceAccount
+    name: claude-telegram
+    namespace: claude-telegram
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
