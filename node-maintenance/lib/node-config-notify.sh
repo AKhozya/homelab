@@ -46,10 +46,12 @@ FAILED=$(recap_rows | grep -oE 'failed=[0-9]+' | awk -F= '{s+=$2} END{print s+0}
 # the fatal's line number, NOT the last TASK in the log. A naive `last TASK`
 # pick can land on a later host-conditional task that the failing host
 # skipped (e.g. a workers-only task's output printed after a CP fatal).
+# A failing handler prints under `RUNNING HANDLER [...]`, not `TASK [...]`; without it the
+# alert names the task that ran before the handler.
 extract_task_header() {
   local last_fatal task_line
   last_fatal=$1
-  task_line=$(grep -nE '^TASK \[' "$LOG" | awk -F: -v f="$last_fatal" '$1<=f{l=$1} END{print l}')
+  task_line=$(grep -nE '^(TASK|RUNNING HANDLER) \[' "$LOG" | awk -F: -v f="$last_fatal" '$1<=f{l=$1} END{print l}')
   [ -n "${task_line:-}" ] && sed -n "${task_line}p" "$LOG"
 }
 
@@ -58,10 +60,15 @@ extract_task_header() {
 extract_fatal_summary() {
   local fatal_line
   fatal_line=$(sed -n "${1}p" "$LOG")
-  local msg cmd attempts host
+  local msg cmd attempts host err
   host=$(printf '%s' "$fatal_line" | sed -nE 's/^(fatal|failed): \[([^]]+)\].*/\2/p')
   msg=$(printf '%s' "$fatal_line" | grep -oE '"msg": *"[^"]*"' | head -1 | sed -E 's/"msg": *"//; s/"$//')
   cmd=$(printf '%s' "$fatal_line" | grep -oE '"cmd": *"[^"]*"' | head -1 | sed -E 's/"cmd": *"//; s/"$//')
+  # The command module reports cmd as a JSON list; join it back into one line.
+  # Match whole quoted elements, so a "]" inside an argument does not end the list.
+  [ -z "$cmd" ] && cmd=$(printf '%s' "$fatal_line" |
+    grep -oE '"cmd": *\[("([^"\\]|\\.)*", *)*("([^"\\]|\\.)*")?\]' | head -1 |
+    sed -E 's/^"cmd": *//' | grep -oE '"([^"\\]|\\.)*"' | sed -E 's/^"//; s/"$//' | paste -sd' ' -)
   [ -z "$cmd" ] && cmd=$(printf '%s' "$fatal_line" | grep -oE '"commands": *\[[^]]*\]' | head -1)
   attempts=$(printf '%s' "$fatal_line" | grep -oE '"attempts": *[0-9]+' | head -1)
   if [ -n "${msg:-}" ] || [ -n "${cmd:-}" ]; then
@@ -69,9 +76,18 @@ extract_fatal_summary() {
     [ -n "${attempts:-}" ] && printf '%s\n' "$attempts" | tr -d '"'
     [ -n "${cmd:-}" ]      && printf 'cmd: %s\n' "$cmd" | head -c 200
     [ -n "${msg:-}" ]      && printf '\nmsg: %s\n' "$msg" | head -c 300
+    err=$(fatal_stderr "$1")
+    [ -n "${err:-}" ] && printf '\nstderr: %s\n' "$err" | head -c 300
   else
     printf '%s' "$fatal_line" | cut -c1-300
   fi
+}
+
+# First line of the fatal's stderr, unescaped. A generic msg ("non-zero return code") hides the
+# cause; the first stderr line usually names it.
+fatal_stderr() {
+  sed -n "${1}p" "$LOG" | grep -oE '"stderr_lines": *\["([^"\\]|\\.)*"' | head -1 |
+    sed -E 's/"stderr_lines": *\["//; s/"$//; s/\\"/"/g'
 }
 
 extract_failed_hosts() {
@@ -151,10 +167,13 @@ if [ "$RESULT" != "success" ] || [ "${FAILED:-0}" -gt 0 ]; then
 
   RECAP=$(recap_body | tr -d '`' | head -c 400)
 
-  TG_BODY=$(printf '%s\n\n%s\nmsg: %s\n\n%s' \
+  FATAL_ERR=""
+  [ -n "${LAST_FATAL:-}" ] && FATAL_ERR=$(fatal_stderr "$LAST_FATAL" | tr -d '`' | head -c 200)
+  TG_BODY=$(printf '%s\n\n%s\nmsg: %s\n%s\n%s' \
     "${TASK_HDR:-(task header missing)}" \
     "$([ -n "${LAST_FATAL:-}" ] && sed -n "${LAST_FATAL}p" "$LOG" | grep -oE '"attempts": *[0-9]+' || true)" \
     "${FATAL_MSG:-(no msg parsed)}" \
+    "$([ -n "$FATAL_ERR" ] && printf 'stderr: %s\n' "$FATAL_ERR")" \
     "${RECAP:-(recap missing)}")
 
   "$NOTIFY_BIN" "$(printf '❌ node-config drift-heal FAILED (result=%s changed=%s failed=%s)\n%s\n\n%s\n\n📄 Full dump: %s\n📦 Archive: %s\n🔎 journalctl -u node-maintenance-config.service --no-pager -n 200\n📂 Live log: %s\n📸 ufw-diag: ls -lt /var/log/node-maintenance/ufw-diag-*.txt' \

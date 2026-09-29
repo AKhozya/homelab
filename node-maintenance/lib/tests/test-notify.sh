@@ -130,5 +130,37 @@ rm -f "$NODE_CONFIG_LOG"
 bash "$SCRIPT" exit-code >/dev/null 2>&1
 has "missing log: alerts" "log missing" "$MOCK_TG"
 
+# --- a failing handler: header, list-form cmd and stderr come from the real 2026-09-29 fatal ---
+# The fixture is the verbatim fatal line from that run's archived dump.
+: >"$MOCK_TG"
+{
+	echo "=== start: 2026-09-29T18:50:00+00:00 ==="
+	echo "TASK [security_scan : Distribute telegram credentials (CP-local files -> all hosts, 0600)] ***"
+	echo "RUNNING HANDLER [hardening : Apply sysctls] ***********************************"
+	cat "$HERE/fixtures/fatal-handler-sysctl.txt"
+	echo "PLAY RECAP ****"
+	echo "immich-vm   : ok=107 changed=1 unreachable=0 failed=1"
+} >"$NODE_CONFIG_LOG"
+bash "$SCRIPT" exit-code >/dev/null 2>&1
+has "handler: header names the handler" "RUNNING HANDLER [hardening : Apply sysctls]" "$MOCK_TG"
+chk "handler: previous task not named" 0 "$(grep -c 'Distribute telegram credentials' "$MOCK_TG" | tr -d ' ')"
+has "handler: list-form cmd joined" "cmd: /usr/bin/sysctl --system" "$NODE_CONFIG_DUMP"
+has "handler: stderr in alert" 'stderr: sysctl: setting key "kernel.nmi_watchdog": Operation not permitted' "$MOCK_TG"
+has "handler: stderr in dump" 'stderr: sysctl: setting key "kernel.nmi_watchdog": Operation not permitted' "$NODE_CONFIG_DUMP"
+
+chk "handler: stderr starts its own line in dump" 1 "$(grep -c '^stderr: sysctl' "$NODE_CONFIG_DUMP" | tr -d ' ')"
+
+# --- a "]" inside a quoted command argument does not end the list ---
+: >"$MOCK_TG"
+{
+	echo "TASK [probe : test] ***"
+	echo 'fatal: [worker-node]: FAILED! => {"changed": false, "cmd": ["sh", "-c", "[ -e /x ] && exit 3"], "msg": "non-zero return code", "rc": 3, "stderr_lines": []}'
+	echo "PLAY RECAP ****"
+	echo "worker-node   : ok=1 changed=0 unreachable=0 failed=1"
+} >"$NODE_CONFIG_LOG"
+bash "$SCRIPT" exit-code >/dev/null 2>&1
+has "cmd list: bracket inside an argument kept" "cmd: sh -c [ -e /x ] && exit 3" "$NODE_CONFIG_DUMP"
+chk "cmd list: empty stderr_lines adds no stderr line" 0 "$(grep -c '^stderr:' "$NODE_CONFIG_DUMP" | tr -d ' ')"
+
 echo "---- $pass passed, $fail failed ----"
 [ "$fail" -eq 0 ]
