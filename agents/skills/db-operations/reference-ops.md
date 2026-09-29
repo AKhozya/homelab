@@ -109,8 +109,29 @@ Redis method only, as the table says.
 |---|---|
 | PostgreSQL (CNPG) | CNPG owns the pods directly, so there is no StatefulSet to restart. Use `bash ~/.agents/skills/cnpg-full-roll/scripts/roll.sh databases main-postgres` |
 | Redis (opstree operator) | NEVER `rollout restart` its StatefulSets: the `restartedAt` template annotation restarts the operator's non-convergent reconcile loop (2026-07-17 incident, upstream OT-CONTAINER-KIT/redis-operator#1840). Restart by graceful `kubectl delete pod -n databases <pod>`, one pod at a time, the replica before the current master (`redis-master.sh --label` names it). Before the next pod, wait until the new pod is Ready and `redis-master.sh info` shows `connected_slaves:1` with `slave0:…,state=online` (a replica still syncing reports another state and is no failover target). Never `--force` |
-| MySQL (Percona) | The operator owns `main-mysql-mysql`; `cluster-roll` keeps it in SKIP, and this runbook provides no restart procedure. Ask the human operator to do the restart |
+| MySQL (Percona) | Restart it through its CR in Git; see MySQL restart below. `cluster-roll` keeps Percona in SKIP |
 | CouchDB (Helm, 2 replicas) | `kubectl rollout restart statefulset/couchdb-couchdb -n databases`, then confirm `/_membership` lists both nodes before anything else touches it |
+
+#### MySQL restart
+
+Restart MySQL through its CR in Git, never on the pods.
+
+| Source | Fact |
+|---|---|
+| operator v1.2.0, `pkg/mysql/mysql.go` | the operator merges `spec.mysql.annotations` into the MySQL pod template, so a new value gives the StatefulSet a new revision |
+| operator v1.2.0, `pkg/controller/ps/upgrade.go` (`stsChanged`, `smartUpdate`) | if any pod's `controller-revision-hash` differs from the StatefulSet's update revision, the operator deletes the secondary pods one at a time, switches the primary over, then deletes the old primary |
+| same file | if a backup runs or any MySQL pod is not ready, the operator waits. It retries on the next reconcile |
+| v1.2.0 docs "About upgrades"; release note K8SPS-683 | the primary restarts last, after an explicit switchover |
+
+1. Record both pods' UIDs:
+   `kubectl -n databases get pods -l 'app.kubernetes.io/instance=main-mysql,app.kubernetes.io/name=mysql' -o 'custom-columns=NAME:.metadata.name,UID:.metadata.uid,READY:.status.containerStatuses[*].ready' --no-headers`
+2. Outside the nightly MySQL backup (03:15 UTC), in `infrastructure/configs/databases/mysql/cluster.yaml`, set
+   `spec.mysql.annotations.homelab/restarted-at` to the current UTC time, and deploy it with
+   `/gitops-workflow`.
+3. Run the step 1 command until both pods show new UIDs and `true,true`. The cluster reads `ready`
+   and writable before the restart too, so only the new UIDs prove it happened.
+4. Then check `kubectl -n databases get ps main-mysql -o jsonpath='{.status.state}'` prints
+   `ready`, and `mysql-exec.sh mysql "SELECT @@read_only"` prints `0` through HAProxy.
 
 ### Scale Database
 Edit the CR in Git and deploy it with `/gitops-workflow`. A live patch on these CRs is a
