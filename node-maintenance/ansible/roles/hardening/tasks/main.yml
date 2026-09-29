@@ -35,6 +35,15 @@
   register: sshd_port
   tags: [hardening, ssh]
 
+- name: Remove the hand-made x.conf drop-in
+  # An unmanaged immich-vm leftover. Its only line, `UseDNS no`, is the OpenSSH default, so
+  # removing it keeps sshd's behaviour.
+  ansible.builtin.file:
+    path: /etc/ssh/sshd_config.d/x.conf
+    state: absent
+  register: sshd_stray
+  tags: [hardening, ssh]
+
 - name: Validate sshd config
   # In-task guard (not handler): validate must fire IMMEDIATELY after copy so a
   # bad config blocks subsequent reload. Handler fires end-of-play — too late.
@@ -50,7 +59,7 @@
   ansible.builtin.systemd_service:
     name: sshd
     state: reloaded
-  when: sshd_dropin.changed or sshd_port.changed
+  when: sshd_dropin.changed or sshd_port.changed or sshd_stray.changed
   tags: [hardening, ssh]
 
 # ---------- sysctls ----------
