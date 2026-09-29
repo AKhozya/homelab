@@ -93,11 +93,13 @@ The sync user `couchdb-credentials` is not rotated; it is under User Login Passw
 | Audiobookshelf | SQLite on PVC (web UI config) + Authentik API | 2026-04-02 | 2026-10-01 | Medium |
 | Home Assistant | Confidential `!secret` in HA config (hass-oidc-auth v1.1.0, re-enabled 2026-05-31) | 2026-05-31 | 2026-10-01 | Medium |
 | Stirling PDF | `custom-settings-secret.yaml` (inside key `custom_settings.yml`) | 2026-04-02 | 2026-10-01 | Medium |
+| Cloudflare Access | Cloudflare Zero Trust: Integrations → Identity providers → the Authentik OpenID Connect provider → Client secret | not recorded | 2026-10-01 | High |
 
 **OIDC rotation gotchas:**
 - **Immich**: update Authentik API AND PostgreSQL: `UPDATE system_metadata SET value = jsonb_set(value::jsonb, '{oauth,clientSecret}', '"NEW_SECRET"') WHERE key = 'system-config';` then restart
 - **Audiobookshelf**: update Authentik API AND web UI (Settings → Auth → OpenID). No CLI (SQLite on PVC)
 - **Paperless-NGX**: secret in `PAPERLESS_SOCIALACCOUNT_PROVIDERS` JSON inside env secret (NOT standalone file)
+- **Cloudflare Access** (provider 50): update Authentik (step 2), then paste the same secret into the Zero Trust identity provider, select **Save**, and select **Test**. Then log in to an Access-protected app through Authentik. No file in this repo holds the secret, and nothing restarts
 - **All others**: update Authentik API + SOPS file + restart pod
 
 ### Infrastructure Credentials
@@ -462,17 +464,21 @@ fi
 # 1. Generate new OIDC client secret (64-char hex)
 NEW_SECRET=$(openssl rand -hex 32)
 
-# 2. Update in Authentik via API. The PATCH runs inside the server pod: the admin token comes
-#    from the pod's own environment, curl reads its URL, header and body from stdin, and the
-#    response is discarded. So no secret reaches a command line or the screen.
-PK=<PROVIDER_PK>   # 1=Grafana, 3=Immich, 5=Paperless, 11=Mealie, 13=Audiobookshelf, 14=HA, 16=Stirling, 48=Linkwarden
-# Not in this rotation: 9=Linkding (no app in the repo; its Authentik application is a
-# leftover), 50=Cloudflare Access (the secret's other copy lives in Cloudflare Zero Trust),
-# 53=homepage-forward-auth (only Authentik's embedded outpost uses it).
-code=$(printf 'url = "http://localhost:9000/api/v3/providers/oauth2/%s/"\ndata = "{\\"client_secret\\": \\"%s\\"}"\n' "$PK" "$NEW_SECRET" |
-  kubectl exec -i -n authentik deploy/authentik-server -- sh -c \
-  '{ printf "header = \"Authorization: Bearer %s\"\n" "$AUTHENTIK_BOOTSTRAP_TOKEN"; cat; } |
-   curl -sS -o /dev/null -w "%{http_code}" -X PATCH -H "Content-Type: application/json" -K -')
+# 2. Update in Authentik via API. The PATCH runs inside the server pod with Python, because the
+#    image has no curl or wget. The provider ID and the secret go in on stdin. The admin token
+#    comes from the pod's own environment. Only the HTTP status comes back, so no secret reaches
+#    a command line or the screen.
+PK=<PROVIDER_PK>   # 1=Grafana, 3=Immich, 5=Paperless, 11=Mealie, 13=Audiobookshelf, 14=HA, 16=Stirling, 48=Linkwarden, 50=Cloudflare Access
+# Not rotated: 53=homepage-forward-auth (only Authentik's embedded outpost uses it).
+PY='import json,os,sys,urllib.request as u
+pk,s=sys.stdin.read().split()
+r=u.Request(f"http://localhost:9000/api/v3/providers/oauth2/{pk}/",method="PATCH",
+  data=json.dumps({"client_secret":s}).encode(),
+  headers={"Authorization":"Bearer "+os.environ["AUTHENTIK_BOOTSTRAP_TOKEN"],"Content-Type":"application/json"})
+try: print(u.urlopen(r,timeout=20).status)
+except u.HTTPError as e: print(e.code)'
+code=$(printf '%s %s' "$PK" "$NEW_SECRET" |
+  kubectl exec -i -n authentik deploy/authentik-server -- python3 -c "$PY")
 if [ "$code" = 200 ]; then echo "Authentik updated"; else echo "PATCH FAILED (HTTP $code): stop here"; fi
 
 # 3-5. Only if step 2 printed "Authentik updated": write the app-side copy, commit, push,
@@ -506,11 +512,12 @@ fi
 | Stirling PDF | `apps/stirling-pdf/custom-settings-secret.yaml` | empty | inside the YAML in key `custom_settings.yml` | `apps` |
 | Home Assistant | `apps/home-assistant/secrets.yaml` | empty | the `oidc_client_secret:` line inside key `secrets.yaml` | `apps` |
 
-Immich (PostgreSQL `system_metadata`) and Audiobookshelf (SQLite on its volume, web UI) do not use steps 3-5; see the gotchas above.
+Immich (PostgreSQL `system_metadata`), Audiobookshelf (SQLite on its volume, web UI) and Cloudflare Access (Zero Trust dashboard) do not use steps 3-5; see the gotchas above.
 
 **Provider PK Reference**:
 - 1: Grafana, 3: Immich, 5: Paperless-NGX, 11: Mealie
 - 13: Audiobookshelf, 14: Home Assistant, 16: Stirling PDF
+- 48: Linkwarden, 50: Cloudflare Access
 - n8n: no OIDC in free version
 
 ---
