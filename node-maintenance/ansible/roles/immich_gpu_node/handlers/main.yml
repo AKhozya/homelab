@@ -9,8 +9,8 @@
 
 # Applies the reset-bug panic override (99-zz-immich-vm-nopanic.conf). Load only this file to
 # apply the three panic overrides; its name sorts after 99-watchdog.conf, so a full
-# `sysctl --system` gives the same result. This VM cannot set `kernel.nmi_watchdog`; 99-watchdog.conf
-# marks that key with "-" so a full apply ignores the failure. This file's 3 keys (panic/softlockup_panic/
+# `sysctl --system` gives the same result. This VM cannot set `kernel.nmi_watchdog`, so the hardening
+# role deploys that key only to physical nodes. This file's 3 keys (panic/softlockup_panic/
 # hardlockup_panic) are all settable, and applying it in isolation IS the override — boot-time ordering
 # is handled by systemd-sysctl reading 99-zz last, independent of this runtime apply.
 - name: Apply nopanic sysctl

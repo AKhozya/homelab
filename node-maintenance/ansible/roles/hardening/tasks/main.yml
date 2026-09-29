@@ -77,6 +77,25 @@
   notify: Apply sysctls
   tags: [hardening, sysctl]
 
+- name: Deploy the NMI watchdog sysctl on physical nodes
+  ansible.builtin.copy:
+    src: sysctl-99-nmi-watchdog.conf
+    dest: /etc/sysctl.d/99-nmi-watchdog.conf
+    owner: root
+    group: root
+    mode: "0644"
+  when: "'virtual' not in group_names"
+  notify: Apply sysctls
+  tags: [hardening, sysctl]
+
+- name: Remove the NMI watchdog sysctl from VMs
+  ansible.builtin.file:
+    path: /etc/sysctl.d/99-nmi-watchdog.conf
+    state: absent
+  when: "'virtual' in group_names"
+  notify: Apply sysctls
+  tags: [hardening, sysctl]
+
 - name: Remove legacy sysctl files (superseded by unified-hardening)
   ansible.builtin.file:
     path: "/etc/sysctl.d/{{ item }}"
