@@ -25,6 +25,13 @@ spec:
   providerRef:
     name: telegram
   eventSeverity: error
+  # The connection sometimes resets during the API server's call to a Kyverno vpol webhook (1 to 4 a day
+  # since at least 2026-09-22, k3s journal "Proxy error ... connection reset by peer"). The
+  # dry-run fails once and Flux retries 2 minutes later. If it persists, FluxControllerReconcileErrors
+  # (15 min) fires; KyvernoAdmissionControllerDown covers Kyverno itself. The filter excludes only this
+  # exact wording, so a webhook timeout or refused connection still notifies.
+  exclusionList:
+    - 'failed calling webhook "vpol\.validate\.kyverno\.svc-[^"]*": failed to call webhook: the server rejected our request for an unknown reason'
   eventSources:
     - kind: GitRepository
       name: '*'
