@@ -40,14 +40,23 @@ jobs:
         run: |
           flux install --export > clusters/flux-system/gotk-components.yaml
 
+      # GITHUB_TOKEN cannot open the PR: the repo setting that lets Actions create pull
+      # requests is off (2026-09-28 hardening). If GITHUB_TOKEN opens a PR, GitHub starts no workflows for it.
+      - name: Require FLUX_UPDATE_TOKEN
+        if: steps.versions.outputs.current != steps.versions.outputs.new
+        env:
+          TOKEN: ${{ secrets.FLUX_UPDATE_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::Repo secret FLUX_UPDATE_TOKEN is missing. Add a fine-grained PAT for this repo with Contents and Pull requests write."
+            exit 1
+          fi
+
       - name: Create Pull Request
         if: steps.versions.outputs.current != steps.versions.outputs.new
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
-          # A PR opened with GITHUB_TOKEN starts no workflows, so validate.yaml would not run
-          # on it. FLUX_UPDATE_TOKEN (a PAT with contents and pull-requests write) fixes that;
-          # without it the PR still opens, unvalidated.
-          token: ${{ secrets.FLUX_UPDATE_TOKEN || secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.FLUX_UPDATE_TOKEN }}
           commit-message: "chore(deps): update Flux to ${{ steps.versions.outputs.new }}"
           title: "chore(deps): update Flux to ${{ steps.versions.outputs.new }}"
           body: |

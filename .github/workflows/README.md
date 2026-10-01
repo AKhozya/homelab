@@ -133,8 +133,13 @@ runs with the action's default tool set. For example:
 Every Sunday it reads the `Flux Version:` line in `clusters/flux-system/gotk-components.yaml` and
 the version of the Flux CLI that the `fluxcd/flux2/action` step installs. If they differ, it
 regenerates the file with `flux install --export` and opens a pull request whose body links the
-release notes. GitHub starts no workflows for a pull request opened with `GITHUB_TOKEN`. So if the
-repo secret `FLUX_UPDATE_TOKEN` is absent, `validate.yaml` does not run on that pull request.
+release notes. It opens the pull request with the repo secret `FLUX_UPDATE_TOKEN`, a fine-grained
+PAT for this repo with Contents and Pull requests write. If the secret is absent, the run fails:
+
+| Why not `GITHUB_TOKEN` | Effect |
+|---|---|
+| the repo setting that lets Actions create pull requests is off since 2026-09-28 | the API refuses the pull request |
+| GitHub starts no workflows for a pull request opened with `GITHUB_TOKEN` | `validate.yaml` would not run on it |
 
 ## claude-telegram-build.yml
 
