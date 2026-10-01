@@ -121,6 +121,7 @@ The sync user `couchdb-credentials` is not rotated; it is under User Login Passw
 | `claude-telegram-env` → `telegram-bot-token` | Telegram bot @ClaudeSelfHostedBot (claude-telegram) | 2026-09-28 | Never* | High |
 | `sops-age` (`flux-system` ns) | SOPS decryption key for every secret in this repo | 2025-10-19 (bootstrap) | Never* | Critical |
 | `alertmanager-basic-auth` (`monitoring` ns) | Traefik basicAuth on `am.h0melab.work` | 2026-07-25 | 2027-07-25 | Medium |
+| `FLUX_UPDATE_TOKEN` (GitHub Actions repo secret) | `flux-update.yaml` opens the weekly Flux update PR; fine-grained PAT `homelab-flux-update`, repo `homelab` only, Contents + Pull requests write; 1Password `homelab-flux-update-token` | 2026-10-01 (created) | Never* (non-expiring) | Critical |
 
 \* Rotate only if compromised
 
@@ -130,6 +131,15 @@ deadline rather than the annual one the other deploy keys get. The three `gh-*` 
 `id_ed25519` all live in the single `claude-telegram-ssh` Secret; rotating one means re-encrypting
 that file, not replacing it. Confirm scope against GitHub rather than this table before trusting
 it: `gh api repos/AKhozya/<repo>/keys --jq '.[] | "\(.title) read_only=\(.read_only)"'`.
+
+**`FLUX_UPDATE_TOKEN`** can push to `main`, and no branch rule guards `main`, so like `gh-homelab` a push with it is a deploy. It is a fine-grained PAT, separate from the classic PAT that owns Flux's deploy key. Deleting that classic PAT also deletes the deploy key. If it leaks or you rotate it: regenerate `homelab-flux-update` at github.com/settings/personal-access-tokens, save the new value in the 1Password item, then load it and test it:
+
+```bash
+op read 'op://Personal/homelab-flux-update-token/credential' | gh secret set FLUX_UPDATE_TOKEN --repo AKhozya/homelab
+gh workflow run flux-update.yaml --repo AKhozya/homelab
+```
+
+If the secret is empty or missing, the workflow's `Require FLUX_UPDATE_TOKEN` step fails. Pipe the value in as above. If no terminal is attached and stdin is empty, a bare `gh secret set` stores an empty secret.
 
 **`sops-age`** is the root of the whole scheme — losing it makes every encrypted file in this repo unreadable, and leaking it makes all of them readable. It is deliberately *not* on a rotation clock: rotating it means re-encrypting every SOPS file in one commit. Keep an offline copy.
 
