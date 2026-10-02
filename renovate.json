@@ -160,6 +160,11 @@
       "matchDatasources": ["docker", "github-releases"],
       "minimumReleaseAge": "3 days",
       "automerge": true
+    },
+    {
+      "description": "rancher/shell: stay on the v0 line. v7.0.0 is a stray March 2026 tag with an older kubectl, and semver ranks it above every v0 release. If upstream starts a v1 line, widen this rule",
+      "matchPackageNames": ["rancher/shell"],
+      "allowedVersions": "/^v0\\./"
     }
   ],
   "timezone": "Europe/London",

@@ -38,12 +38,10 @@ root="${1:-.}"
 
 # major.minor.patch with optional leading v and optional -variant / .build suffix.
 semver_re='^v?[0-9]+\.[0-9]+\.[0-9]+([-.+].*)?$'
-# Two-component (major.minor) is also accepted for these upstreams where a deeper tag does not
-# exist — either native 2-part release versioning, or the publisher only ships major.minor.
+# The audit also accepts two-component tags for upstreams that use two-part releases without a
+# patch component.
 #   postgres / cloudnative-pg postgresql → `18.4`, `18.4-standard-trixie` (no patch component).
-#   seleniumbase-scrapper → upstream publishes only `:latest` + `:v1.0`, no patch tags;
-#     digest-pin declined, so major.minor is the deepest available.
-twocomp_ok_re='(^|/)(postgres|postgresql|seleniumbase-scrapper)$'
+twocomp_ok_re='(^|/)(postgres|postgresql)$'
 twocomp_re='^v?[0-9]+\.[0-9]+(\.[0-9]+)?([-.+].*)?$'
 
 found=0
