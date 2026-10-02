@@ -58,6 +58,12 @@ DB role name = app name. Postgres roles and databases come from CNPG (`managed.r
 
   Operator chart pinned ≥0.67.1 — 0.67.0 omitted a `networkpolicies` grant operator v0.74.0 needs on every reconcile, and without it the operator parks silently while looking healthy (2026-07-31, commit `63c456a2`). Do not pin back to 0.67.0.
 - **kube-prometheus-stack** — runs for Grafana, Alertmanager, kube-state-metrics and node-exporter only. `prometheus.enabled: false` and every VM prometheus-converter is off, so the chart's ServiceMonitors are inert and vmagent scrapes through the hand-written VMServiceScrapes in `monitoring/configs/`. Chart 90.0.0 refuses to render if an enabled control-plane component keeps its default `serviceMonitor.authorization` (2026-09-07, commit `b46d0803`).
+- **node-exporter** — collectors beyond the defaults:
+
+  | Collector | Reads | Kept series | Alerts |
+  |---|---|---|---|
+  | textfile | heal watchdogs, UFW state, node-maintenance runs | all | heal, Ufw*, `NodeHealWatchdogStale` |
+  | systemd (since 2026-10-02) | service, timer, socket, path and target units (the default excludes mount, automount, device, scope and slice) from the host's system bus, through the chart's read-only `/host/root` mount (`DBUS_SYSTEM_BUS_ADDRESS`); no extra hostPath | unit-state series for `state="failed"` only (timer, unit-count and version series stay): about 1.2k series across 4 nodes, against up to about 6k unfiltered | `NodeSystemdUnitFailed`, `NodeSystemdCollectorFailed` |
 - **Grafana** — dashboards, OIDC login.
 - **Loki + Grafana Alloy** — log aggregation (DaemonSet).
 - **Alertmanager** — Telegram alerts.

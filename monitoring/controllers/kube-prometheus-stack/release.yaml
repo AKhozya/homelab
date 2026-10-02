@@ -466,6 +466,12 @@ spec:
     prometheus-node-exporter:
       extraArgs:
         - --collector.textfile.directory=/var/lib/node_exporter/textfile
+        - --collector.systemd
+      # The systemd collector reads the host's system bus. The chart already mounts the host root
+      # read-only at /host/root, so pointing godbus there needs no extra hostPath (Kyverno
+      # disallow-host-path). The socket is mode 0666, and systemd lets any user call ListUnits.
+      env:
+        DBUS_SYSTEM_BUS_ADDRESS: unix:path=/host/root/run/dbus/system_bus_socket
       extraHostVolumeMounts:
         - name: textfile
           mountPath: /var/lib/node_exporter/textfile

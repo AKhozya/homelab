@@ -32,6 +32,12 @@ The cloudflared scrape is the native VMServiceScrape `cloudflared` in `scrape-ap
 
 Alert classes worth knowing:
 - **firewall-alerts**: `UfwDisabled`/`UfwServiceInactive`/`UfwChainsUnhealthy` (critical, 5m) — gauges from node-exporter textfile collector via `ufw-state-metric.timer`
+- **systemd failed units** — `scrape-node-exporter.yaml` keeps only `node_systemd_unit_state{state="failed"}` and drops the socket counters.
+
+  | Alert | Fires when |
+  |---|---|
+  | `NodeSystemdUnitFailed` (warning, 15m) | a service, timer, socket, path or target unit stays failed. The collector's default excludes mount, automount, device, scope and slice units |
+  | `NodeSystemdCollectorFailed` (warning, 15m) | the collector fails on a node (for example, it cannot reach the host's D-Bus socket), or is not running there |
 - **Job failure alerts** — both fire only when the Job itself has failed. A Job that succeeds after a retry does not fire these alerts. The Job pod vanishes with its TTL, so use VM exit-code metrics, not Loki, for the postmortem.
 
   | Alert | Expression |

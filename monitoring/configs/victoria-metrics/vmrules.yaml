@@ -157,6 +157,43 @@ spec:
           systemctl list-timers --all '*heal*' ufw-state-metric.timer, then journalctl -u <unit>. Each unit is the file
           name with dashes plus -watchdog; ufw_state.prom comes from ufw-state-metric.service."
 
+    - alert: NodeSystemdUnitFailed
+      # A failed unit keeps that state until its next start or a reset-failed. If a service runs
+      # every 10 minutes and its next run succeeds, the state clears before `for` ends.
+      # The scrape drops every other state, so this series exists only with state="failed".
+      expr: node_systemd_unit_state{state="failed"} == 1
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "systemd unit {{ $labels.name }} failed on {{ $labels.instance }}"
+        description: "{{ $labels.name }} on {{ $labels.instance }} has been in the failed state for 15 minutes. On the node,
+          run systemctl status {{ $labels.name }} and journalctl -b -u {{ $labels.name }}. After the fix, clear the state
+          with sudo systemctl reset-failed {{ $labels.name }}, or start the unit again."
+
+    - alert: NodeSystemdCollectorFailed
+      # Without this, NodeSystemdUnitFailed reads as healthy on a node whose collector is broken.
+      # The first arm catches a broken D-Bus path. The second catches a collector that is not
+      # running at all (for example if a values change drops --collector.systemd): its success
+      # series is then absent, which `== 0` cannot see.
+      # label_del gives both arms one label set, so a node that moves from absent to failing keeps
+      # one alert and its pending timer.
+      expr: |
+        label_del(
+          node_scrape_collector_success{collector="systemd"} == 0
+          or
+          (up{job="kube-prometheus-stack-prometheus-node-exporter"} == 1
+            unless on(instance) node_scrape_collector_success{collector="systemd"}),
+          "__name__", "collector")
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "node-exporter cannot read systemd on {{ $labels.instance }}"
+        description: "The systemd collector on {{ $labels.instance }} fails or is not running, so node-exporter does not
+          report failed units there. Check that the node-exporter args hold --collector.systemd, that DBUS_SYSTEM_BUS_ADDRESS points at
+          /host/root/run/dbus/system_bus_socket, and the node-exporter pod log for 'couldn't get dbus connection'."
+
     - alert: NodeMemoryPressure
       expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
       for: 5m
