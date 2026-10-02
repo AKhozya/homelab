@@ -82,7 +82,7 @@ and exits 1. Where that shows:
 |---|---|
 | the 4 heal watchdogs | the failed unit (`NodeSystemdUnitFailed`) and the stale metric file (`NodeHealWatchdogStale`) |
 | `k3s-wait-ready.sh` | the failed unit; `ufw-heal-post-k3s.service` then skips at boot, as `/run/k3s-ready` is missing |
-| `ufw-heal-post-k3s.sh` | the failed unit, at boot or from `ufw-heal-watchdog.timer` |
+| `ufw-heal-post-k3s.sh` | `ufw-heal-watchdog.service`, from its timer. The boot unit is skipped: see the `k3s-wait-ready.sh` row |
 | `firewall-preflight.sh` | the Ansible task fails the host, so the run's failure notice fires and the host skips its later plays |
 
 | Test | Runs where | Command |

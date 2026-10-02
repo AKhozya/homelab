@@ -150,8 +150,8 @@ echo '-A ufw6-user-input -p tcp --dport 22 -j ACCEPT' >>"$T/v6"
 chk "6 hash: a ufw6 rule changes it" 1 "$([ "$(ufw_chains_hash)" != "$h_v4" ] && echo 1 || echo 0)"
 
 # 7. the load guard in a real caller: an empty library, and one without state_write.
-# The stub systemctl reports k3s-agent inactive and logs each call, so a guard that failed open
-# would make clusterip-heal exit before any recovery step, and the call log shows it got that far.
+# The stub systemctl reports k3s-agent inactive and logs each call. If a guard fails open, the
+# script exits before any recovery step, and the call log shows that it got that far.
 reset
 stub systemctl "echo \"\$*\" >>\"$T/systemctl-calls\"; exit 3"
 stub logger 'exit 0'
@@ -165,14 +165,16 @@ for lib in empty-lib partial-lib; do
 	chk "7 guard, $lib: names that library" 1 "$(echo "$out" | grep -c "cannot load $T/$lib.sh")"
 	chk "7 guard, $lib: stops before any systemctl call" 0 "$(if [ -f "$T/systemctl-calls" ]; then wc -l <"$T/systemctl-calls" | tr -d ' '; else echo 0; fi)"
 done
-# Every caller's guard, with an empty library: each lists different functions in declare -F.
+# Every caller's guard, with an empty library. The seven guards list three different function sets.
 for s in clusterip_heal/files/clusterip-heal.sh clusterip_heal_cp/files/clusterip-heal-cp.sh \
 	node_isolation_heal/files/node-isolation-heal.sh immich_gpu_node/files/immich-gpu-heal.sh \
 	firewall_preflight/files/firewall-preflight.sh k3s_config/files/k3s-wait-ready.sh \
 	firewall/files/ufw-heal-post-k3s.sh; do
+	rm -f "$T/systemctl-calls"
 	out="$(NODE_SCRIPT_LIB="$T/empty-lib.sh" with_stub bash "$ROLES/$s" 2>&1)"
 	chk "7 guard, ${s##*/}: exits 1 on an empty library" 1 "$?"
 	chk "7 guard, ${s##*/}: names the library" 1 "$(echo "$out" | grep -c "cannot load $T/empty-lib.sh")"
+	chk "7 guard, ${s##*/}: stops before any systemctl call" 0 "$(if [ -f "$T/systemctl-calls" ]; then wc -l <"$T/systemctl-calls" | tr -d ' '; else echo 0; fi)"
 done
 
 # 8. the library holds function definitions only: sourcing it under xtrace runs no command.

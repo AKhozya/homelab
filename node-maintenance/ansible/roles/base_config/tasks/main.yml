@@ -118,7 +118,9 @@
 # The heal watchdogs, firewall-preflight, k3s-wait-ready and ufw-heal-post-k3s source this file
 # and exit 1 without it. base_config runs in the first play for every host, before any role that
 # installs one of them. validate keeps a file with a syntax error from replacing a good copy.
-# `always`: a tagged run (for example `-t firewall`) still installs the library first.
+# `always`: a tagged run (for example `-t firewall`) still installs the library first; a
+# `--skip-tags base-config` run does not. Such a run can also update the library without the
+# scripts outside its tags, so the library must stay compatible with scripts already on disk.
 - name: Ensure the node-maintenance shell library directory exists
   ansible.builtin.file:
     path: /usr/local/lib/node-maintenance
