@@ -24,36 +24,15 @@ SSH-based diagnose + fix workflow for homelab nodes (Arch Linux on all 4).
 
 ### NAS (`zl-nas`) — adjacent host, NOT a cluster node
 The backup-sink NAS is reachable but is **out of this skill's scope** — it's a ZettLab/zettOS appliance (Debian 12, `192.168.1.136`), **not Arch, not k3s, not ansible/UFW-managed**. Do NOT apply drift-heal / node-maintenance / UFW playbooks to it.
-- Access: `ssh zl-nas` (port `56634`, user `akhozya`, file key `~/.ssh/zl_nas_ed25519` — *not* the 1Password agent).
-- **sudo needs the account password** (no NOPASSWD): user runs `! ssh -t zl-nas 'sudo …'` (TTY, types password live). Same pattern as below, different host.
-- Posture/identity facts: memory `reference_nas`.
+NAS access, sudo and posture facts: read reference-helpers.md § NAS access before you connect to `zl-nas`.
 
 ## Read state — no sudo needed
 
 Read commands return output directly to the agent context.
 
-```bash
-# Service status / recent failures
-ssh -p 65300 akhozya@gmk-k3s-control-plane "systemctl --failed --no-pager"
-ssh -p 65300 akhozya@gmk-k3s-control-plane "journalctl -xeu k3s --no-pager -n 80"
+If you need a read command for service status, disk, NIC drops or the pacman lock, read reference-helpers.md § Read-state example commands.
 
-# Disk / memory
-ssh -p 65300 akhozya@gmk-k3s-control-plane "df -h | jc --df"   # JSON via jc
-ssh -p 65300 akhozya@gmk-k3s-control-plane "free -h"
-
-# NIC / link / drops (igc gotcha — see memory)
-ssh -p 65300 akhozya@gmk-k3s-control-plane "ip -s link show enp89s0"
-ssh -p 65300 akhozya@gmk-k3s-control-plane "ethtool -S enp89s0 | grep -iE 'drop|err'"
-
-# Pacman lock / mirror state
-ssh -p 65300 akhozya@gmk-k3s-control-plane "ls -la /var/lib/pacman/db.lck 2>/dev/null"
-```
-
-**Force mirror DB refresh** (after 404 on install — see incident 2026-05-14):
-```bash
-bash ~/.agents/skills/_shared/pacman-cache-refresh.sh ssh_master_node
-```
-Wraps `sudo pacman -Syy` via `ssh -t` — user enters password live.
+If a package install fails with a 404 from a mirror, read reference-incidents.md § Pacman mirror 404 on install.
 
 ## Sudo — give command to user, never run directly
 
@@ -85,20 +64,13 @@ bash ~/.agents/skills/homelab-node-fix/scripts/run-on-node.sh \
   ./fix-pacman.sh
 ```
 
-The helper:
-1. Runs `shellcheck` on the local script (pre-flight gate, per `/bash-scripting`)
-2. `scp -P 65300` to `/tmp/<name>-$$` on the remote
-3. `ssh -p 65300 -t` to exec via `bash <remote-path> $args` (TTY for sudo)
-4. Always `rm` the remote script on EXIT (trap-based)
+If the helper exits non-zero, or you need to know what it does at each step, read reference-helpers.md § run-on-node.sh steps and § Exit codes (helper script).
 
 **Script body conventions** — use `/bash-scripting` skill:
 - `set -euo pipefail`
 - Use `grep`, not `rg`, in remote scripts. Tools checked 2026-09-28:
 
-  | Tool | CP, worker-node, worker-node-2 | immich-vm |
-  |---|---|---|
-  | `jq`, `yq`, `jc`, `fd` | present | present |
-  | `rg` | absent | present |
+  Before you use any other tool in a remote script, read reference-helpers.md § Tools on each node.
 - Idempotent where possible (`systemctl is-active X || systemctl start X`)
 - Print summary to stderr; data to stdout
 
@@ -123,11 +95,7 @@ If the fix would otherwise drift back on next ansible reapply, push it through t
      "sudo systemctl start node-maintenance-config.service"   # drift-heal apply
    ```
 
-Schedules already running per `project_maintenance_schedules.md`:
-- sync 10min
-- drift-heal 03:00
-- weekly Sat 04:30 (pacman update incl. AUR via yay `-Syyu`)
-- security scan 1st of month
+If you need to know when a node-maintenance timer runs, read reference-helpers.md § Maintenance schedules.
 
 ### Staged / single-node node-config changes (DNS, NIC, anything load-bearing)
 Both the 10-min sync timer AND a manual sync heal **ALL 4 nodes at once** (`install.sh --sync-only` is NOT file-copy-only). To stage one node at a time: stop-timers → deploy-key fetch on CP → per-node `ansible-playbook --limit --tags` → restore timers. Full playbook (exact commands + why `mask` fails + deploy-key `GIT_SSH_COMMAND`): `reference-incidents.md` § "Staged / single-node node-config changes". Proven 2026-06-04.
@@ -144,7 +112,7 @@ When one of these fires, load `reference-incidents.md` and follow the matching p
 | ansible play `templar=` / `VaultDecryptionContext` TypeError mid-pacman | Drift-heal vs pacman race | `[[gotchas]]` |
 | rkhunter property-change warnings after pacman | Monthly security scan | `security_scan_gotchas.md` |
 
-Faillock helper: `~/.agents/skills/_shared/faillock-via-cp.sh <worker-node|worker-node-2> [akhozya|z3us]` — resets pam_faillock for the locked user via CP-hosted ansible (worker NOPASSWD bypass; user enters the CP sudo password once).
+If sudo is locked out on a worker, read reference-incidents.md § Faillock helper for the reset script.
 
 ## Cross-refs
 
@@ -153,9 +121,3 @@ Faillock helper: `~/.agents/skills/_shared/faillock-via-cp.sh <worker-node|worke
 - `/monitoring-check` — if you need VMSingle metrics on the node (e.g. CPU throttling), or an alert won't clear after a heal
 - `~/source-code/homelab/CLAUDE.md` — SSH aliases, sudo-over-SSH rule, ansible structure
 
-## Exit codes (helper script)
-
-- `0` success
-- `2` bad args / unknown SSH alias
-- `3` local script missing
-- `4` shellcheck failed (pre-flight gate)

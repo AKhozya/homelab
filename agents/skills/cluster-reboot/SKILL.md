@@ -46,12 +46,8 @@ bash ~/.agents/skills/cluster-reboot/scripts/trigger-reboot.sh --dry-run
 bash ~/.agents/skills/cluster-reboot/scripts/trigger-reboot.sh
 ```
 
-`trigger-reboot.sh` is **faillock-safe by construction**: it fetches the secret first and **aborts
-before any sudo if `op read` is empty** (e.g. a dismissed popup), refuses to reboot through a running
-drift-heal/sync or an in-flight run (`phase2-pending`), makes a **single** attempt, and never leaks
-the password (op → shell var → ssh stdin, never argv/env/history). 1Password item:
-`op://Personal/sudo-homelab/password` (shared sudo for the CP, worker-node and worker-node-2); override via `OP_SUDO_PATH` /
-`CP_HOST` env.
+Never work around `trigger-reboot.sh`'s guards. It aborts before any sudo if the 1Password read comes back empty, refuses to run during a drift-heal, sync or in-flight run, makes one attempt, and passes the password on ssh stdin, never in argv, env or history.
+If you need its checks in detail or its env overrides, read reference-flow.md § "What trigger-reboot.sh checks".
 
 > ⚠️ **pam_faillock `deny=3`** — a wrong/empty sudo password tried 3× = 10-min lockout. NEVER
 > auto-retry a failed sudo. If the script prints `SUDO-FAILED`, or `op read` won't unlock (popup
@@ -69,33 +65,10 @@ ssh -p 65300 -t akhozya@gmk-k3s-control-plane "sudo systemctl start node-mainten
 
 Either path → then monitor via `watch-reboot.sh` (below).
 
-## The phase1 → phase2 chain (brief — ansible is authoritative)
-
-- **phase1** — CP self-update via `yay`; its `ExecStartPost` **reboots the CP**. Sets the
-  `phase2-pending` flag so phase2 auto-runs once the CP is back.
-- **phase2** (auto-runs after the CP returns) — 3 plays:
-  - **PLAY 0 — CP stabilize.** First task is now a **CP loopback-LB gate** (127.0.0.1:6443), then
-    normal CP stabilization.
-  - **PLAY 1 — per-worker, `serial: 1`.** For each worker in turn: cordon → `yay` → reboot → wait
-    Node Ready → **ClusterIP gate** (host-netns probe + k3s-agent rescue) → **nat-jump gate**
-    (root: `-j CNI-HOSTPORT-MASQ` present in nat POSTROUTING + k3s-agent rescue — catches the CNI
-    portmap wedge the host-netns probe misses, 2026-05-30) → settle + re-probe → uncordon →
-    stabilize → observe. `serial: 1` means one worker at a time.
-  - **PLAY 2 — post-tasks.** Flux reconcile, GC, alert checks, telegram notify, and **remove the
-    `phase2-pending` flag** on success.
-
-Minimum ansible commit containing the phase2 gate: see `reference-incidents.md` (checkout predating
-it = gate absent, old wedge risk applies).
+If you change phase1 or phase2, or need to know what each play does, read reference-flow.md first. It also names the minimum ansible commit that holds the gate.
 
 ## The four wedge surfaces (Ready ≠ healthy)
 
-A node can be `Ready` while wedged at one of **4** network surfaces `kubectl get nodes` hides: worker
-kube-proxy ClusterIP DNAT (`10.43.0.1:443`), CP k3s loopback LB (`127.0.0.1:6443`), CNI portmap
-masquerade (`CNI-HOSTPORT-MASQ`), and the **CP pod-netns ClusterIP DNAT** — a
-CP-pinned pod can't reach ANY ClusterIP (DNS `10.43.0.10` / API `10.43.0.1`) while the CP host AND
-both workers are fine. `watch-reboot.sh` + `verify-clusterip.sh` probe the first three; the CP
-pod-netns surface is host-netns-BLIND and now self-heals via the `clusterip_heal_cp` watchdog (its
-own nsenter-into-coredns pod-netns probe).
 **Per-surface probe + fix one-liner table, and cascade mechanics: `reference-incidents.md`.**
 Load it when a node is Ready-but-wedged or you're remediating an aborted PLAY 1.
 
@@ -141,16 +114,7 @@ probe (CP only), the `phase2-pending` interlock, the per-node `node_pkg_upgrade_
 a warn-only `pod-health.sh --count` baseline. On a Ready-but-wedged node it prints the sanctioned
 remediation one-liner (it never runs it — no sudo).
 
-> **`pkg-upgrade: FAILED` = the node is UNPATCHED even though the run reported success.** Every
-> worker/VM `yay` is rescue-wrapped on purpose (a hard failure strands `phase2-pending` and gates
-> drift-heal cluster-wide), so a failed upgrade leaves no other durable, latching *health signal* —
-> the phase log under `/var/log/node-maintenance/` does record it, but nothing watches that. Only the **GPU-VM**
-> play's rescue fires a Telegram warning; the worker play's rescue sends nothing at all, and Telegram
-> is transient regardless — it was missed on 2026-07-11 and 2026-07-18.
-> 2026-08-01: this script exited 0 with both workers stuck on a failed AUR upgrade.
-> **`UNVERIFIED` also blocks exit-0** — query or parse failure means the patch state is unknown, and
-> exit-0 asserts "packages upgraded". The gate fails closed rather than attest something it cannot
-> check; the loop is bounded, so this can't deadlock.
+If `watch-reboot.sh` prints `pkg-upgrade: FAILED` or `UNVERIFIED`, read reference-incidents.md § "pkg-upgrade FAILED and UNVERIFIED verdicts".
 
 > The warn-only `pod-health` `unhealthy=N` right after a reboot usually reflects transient pods
 > (restart races, Jobs mid-retry) that drain on their own within minutes — re-run before treating
@@ -166,13 +130,7 @@ remediation one-liner (it never runs it — no sudo).
 >   `kubectl get pods -A -o json | jq -r '.items[]|select(.status.phase=="Failed" or .status.phase=="Succeeded")|select(any(.metadata.ownerReferences[]?; .controller==true and (.kind=="ReplicaSet" or .kind=="StatefulSet" or .kind=="DaemonSet")))|"\(.metadata.namespace) \(.status.phase) \(.metadata.name)"'`
 >   then `kubectl -n <ns> delete pod --field-selector="metadata.name=<name>,status.phase=<phase>"`.
 >   Leave `Job`-owned pods alone — those are normal CronJob completions.
-> - **An app that lost its DB across the rolling reboot** can sit `Running 0/1` until someone
->   intervenes. Observed with n8n vs CNPG on 2026-08-01: readiness 503 for 33min (it did not recover
->   on its own in that window), Deployment showed `Progressing=False /
->   ProgressDeadlineExceeded`, and after `kubectl rollout restart` the *new* pod went Ready while the
->   stale one and its alert stayed put — two ReplicaSets at `desired=1` for 17min. A **second**
->   `rollout restart` converged it. Mechanism not established (`ProgressDeadlineExceeded` reports
->   stalled progress; it does not by itself halt scale-down) — treat as a symptom + remedy, not a rule.
+> - If an app is stuck `Running 0/1` after it lost its DB, read reference-incidents.md § "App stuck Running 0/1 after losing its DB".
 
 Exit **0** only when ALL gates pass: all 4 nodes Ready + ClusterIP-healthy (the CP ClusterIP verdict
 is advisory), the CP loopback healthy, kube-dns ready endpoints ≥ 1, the package upgrade verified
@@ -191,28 +149,7 @@ On success, `node-maintenance-phase2.service` ExecStopPost runs
 Claude reviews the post-reboot alerts in the normal DM. **A missing review is a silent failure by
 construction** — that ExecStopPost ends in `|| true`.
 
-It answered `curl: (22) ... error: 403` on 2026-08-01 and 2026-08-08 and nobody noticed: the secret
-lived in two places, SOPS `claude-telegram-env.trigger-secret` was rotated on 2026-07-31, and the CP's
-`/etc/node-maintenance/claude-trigger-secret` kept its April value. Since 2026-08-08 the script reads
-`$TRIGGER_SECRET` from inside the pod (no CP copy, so no drift) and sends its own Telegram alert if the
-POST fails.
-
-If no review arrives and no failure alert arrives either, the trigger's own line is the last one in the
-run, after `PLAY RECAP`:
-
-```bash
-journalctl -u node-maintenance-phase2.service --since=-1d --no-pager | tail -20
-```
-
-Check the endpoint by hand without starting a Claude run — an empty body passes the secret check and
-stops at the body check, so **400 means the auth path is healthy** and 403 means it is not:
-
-```bash
-printf '{}' | kubectl -n claude-telegram exec -i deploy/claude-telegram -c claude-telegram -- \
-  sh -c 'curl -s -o /dev/null -w "%{http_code}\n" --max-time 10 -X POST \
-    "http://127.0.0.1:8080/trigger" -H "X-Trigger-Secret: $TRIGGER_SECRET" \
-    -H "Content-Type: application/json" --data-binary @-'
-```
+If no post-run Claude review arrives, read reference-incidents.md § "Missing post-run Claude review".
 
 ## k3s version upgrade
 

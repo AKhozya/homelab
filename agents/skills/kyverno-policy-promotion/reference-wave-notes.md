@@ -66,3 +66,9 @@ When a workload needs host access, raising the *namespace* PSS level (`pod-secur
 
 - F-3 + F-41 + F-42 + F-2b: extended `require-resource-limits` to init containers (Audit), surfaced 5 latent gaps (3 in-repo + 2 operator-managed), fix-forward (in-repo `resources:` + operator label-exclude), promoted Enforce. Total elapsed: ~25min from "0 fails baseline" to "0 fails Enforce live." Commits: c13d0403 (fix-forward), 8383ef35 (Enforce flip).
 - See `[[project-ultrareview-learnings]]` memory file for full incident notes.
+
+## Positive admission test — three interplays (Gate B 2026-07-12)
+
+- **PSS admission fires first** (`violates PodSecurity "restricted:latest"`) — craft a pod that passes PSS-restricted and violates ONLY the target policy; for host-field policies use a PSS-privileged ns (home-assistant).
+- **Fine-grained VP webhooks short-circuit** — the deny message names only the FIRST failing policy (`vpol.validate.kyverno.svc-fail-finegrained-<policy>`). Attribution per policy = probe pod compliant-except-target.
+- **LimitRanger injects default limits BEFORE validating webhooks** — a limit-less probe legitimately passes require-resource-limits in any ns with a LimitRange; probe in one without (trivy-scan).

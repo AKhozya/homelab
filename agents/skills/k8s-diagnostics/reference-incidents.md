@@ -62,3 +62,29 @@ kubectl -n $NS get pod $POD -o jsonpath='{range .status.containerStatuses[*]}{.n
 **Cold boot is slower than steady-state.** After a node reboot, page cache is cold + disk/CPU contend with everything else restarting, so an app that boots in 60s steady-state can exceed a 90s probe budget. A probe `failureThreshold` tuned on a warm node may crashloop only post-reboot. Reference: stirling-pdf 2.11.0-fat post-reboot crashloop 2026-05-24 (clean logs, graceful exit, NOT OOM); `failureThreshold` 9→30 (90s→300s), commit `466b8fca`.
 
 Common slow-start apps: Django+migrations, Rails+migrations, Spring Boot, Authentik server, Postgres bootstrap, Mongo replica sets.
+
+## CoreDNS `--disable` deadlock
+
+**coredns `--disable` deadlock:** ALL Flux reconciles stall with i/o timeout to `10.43.0.10` after the kube-dns Service/ConfigMap/RBAC are deleted — k3s `--disable=coredns` deletes addon-owned objects by owner-label, and Flux cannot recreate them because the source fetch itself needs DNS. Break-glass: `kubectl apply -k infrastructure/coredns/` from the homelab repo (one-time — the recreated objects are owner-label-free). Memory: `gotcha_coredns_disable_deadlock`.
+
+## NetworkPolicy gap scripts — scope and false positives
+
+`np-gap.sh` is namespace-level (a ns with ≥1 NP passes); `np-coverage.sh` is the per-pod complement — it catches a pod that no NP *selects* even though its ns has other NPs (the F-48 redis-operator class), and ORPHAN NPs whose selector matches zero pods (typo'd labels = silent no-op). hostNetwork pods are skipped (they bypass NP). Expected false-positives: an NP for a scaled-to-0 app or a CronJob (e.g. popeye) shows ORPHAN when no pod is running — verify before acting.
+
+## Loki access traps
+
+- **`loki-0` has no `wget` and no `curl`** (distroless-ish image), and
+  **`loki-gateway` refuses connections** from `monitoring` and `claude-telegram` — instant
+  "Could not connect", not a timeout. A `… 2>/dev/null | jq` around either prints nothing,
+  which reads as an empty result set. Same false-clean family as the vmsingle rule.
+- **The grafana-pod exec recipe is DEAD** (verified 2026-09-11). That image now ships neither
+  `sh` nor `curl`, so the exec fails `executable file not found in $PATH`. Every in-cluster
+  client for this has now gone distroless; stop looking for a pod to exec into.
+  If you exec into any pod picked by `-o jsonpath='{.items[0]…}'`, add
+  `--field-selector=status.phase=Running` first. A reboot leaves terminal `Succeeded` pods and
+  the selector returns one, so the exec fails `cannot exec into a container in a completed pod`
+  (hit on 2026-08-08 for both grafana and vmalert).
+
+## TTL+force re-run class
+
+**TTL+force re-run class:** init Jobs with `ttlSecondsAfterFinished` + Flux `force` annotation re-run daily at a drift-creep hour. JobFailed on these usually = transient cluster issue AT the re-run hour, not job regression. Retrigger: `kubectl delete job <j> -n <ns> && flux reconcile kustomization apps` (init jobs are idempotent: HTTP 500 = already-initialized = exit 0). Reference: 2026-06-04 wn2 pod-DNS outage, memory `gotcha_worker_node2_flannel_dns`.

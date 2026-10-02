@@ -30,7 +30,8 @@ bash ~/.agents/skills/_shared/vmalert-state.sh            # --quiet for problems
 
 **Test the EXACT expr live before commit (audit script only checks metric/job existence, not that the expr FIRES right):** query it via `/api/v1/query` — healthy state → empty (no false-fire); prove the firing direction by running the `==0`/threshold against a sibling counter that is currently 0 (e.g. `controller_runtime_reconcile_errors_total{...}==0` returns `0`, so the filter matches when value is 0); confirm absent-series → empty (no double-fire with a broader `up==0` alert like ScrapeTargetDown). 2026-06-15 `072eeaac` `VMOperatorReconcileStalled` (operator up but reconcile loop stalled) shipped this way — see memory `gotcha_vmalert_flux_metrics`.
 
-Gotchas baked into the scripts: vmalert leaks raw control chars → `tr -d '\000-\037'` before jq; `ALERTS{}` metric lags ~5min after a rule clears (trust `/api/v1/rules`); `gotk_reconcile_condition`/`gotk_suspend_status` were removed in Flux 2.8.x; **cumulative metrics never clear** — raw threshold on a `_total` counter (or cumulative gauge like redis slowlog_length) fires forever once tripped; alert on `increase(m[24h])`/`delta` instead (2026-06-07 `6b74c6a1`: `KyvernoPolicyViolationsDailySummary` stuck on all-time `kyverno_policy_results_total`=6951 at 0 live violations — audit every alert exprs's `_total` with raw `>N`); a metric live now can be conditionally-absent (`kube_pod_container_status_waiting_reason` only exists while a container waits).
+Never put a raw threshold on a cumulative counter or gauge (`_total`, redis `slowlog_length`): once tripped it fires for ever. Alert on `increase(m[24h])` or `delta` instead.
+If you query vmalert or VMSingle by hand, read `reference-cases.md` § "Gotchas baked into the alert scripts" first (control characters, `ALERTS{}` lag, cumulative counters).
 
 ## VictoriaMetrics Health
 ```bash
@@ -47,22 +48,15 @@ When alert keeps firing AFTER the underlying issue is fixed, run cascade check i
 bash ~/.agents/skills/_shared/alert-cascade-check.sh [<alertname>]
 ```
 
-Composite script that runs steps 1-4 below. Output ends with fix-order summary.
+Composite script that runs steps 1-4 of `reference-cases.md` § "Alert won't clear — manual steps". Output ends with fix-order summary.
 
-### Step-by-step (if you need to dig manually)
-
-| Step | Check | Symptom → fix |
-|---|---|---|
-| 1 | Firing alerts snapshot | If alert no longer in list → resolved, you're done |
-| 2 | VMAgent queue (`vmagent-queue-check.sh`) | pending > 10MB + DNS errors → `~/.agents/skills/_shared/restart-workload.sh monitoring app.kubernetes.io/name=vmagent` |
-| 3 | `up{}` last-sample age per instance (`time() - timestamp(up)`) | age > 120s or a MISSING series on a specific node → that node's scrape broken (a scraped-away series drops out of results entirely — MISSING is the loud form) |
-| 4 | VMAlert rule state via `/api/v1/rules` (firing/pending/inactive; "RULE NOT FOUND" = typo'd alertname) | `value` differs from current metric → wait 1-2 rule cycles (60s) + `for:` window |
+If you investigate an alert by hand, read `reference-cases.md` § "Alert won't clear — manual steps" for the symptom and fix of each step.
 
 ### VMAgent stuck remoteWrite — root cause, fix, case study
 
 **Symptoms**: alerts NOT clearing despite metric value flipped; range query shows series went stale ~minutes ago; instance-filtered queries return null; `up{}` empty for the affected job; vmagent persistent queue grows MB/min.
 
-**Root cause**: VMAgent's Go `net.DefaultResolver` caches a failed UDP DNS lookup to CoreDNS during a transient network blip (e.g. UFW chain rebuild, kube-proxy chain churn). Cache returns "connection refused" even after CoreDNS recovers. `nslookup` from same pod works — only the Go resolver state is poisoned.
+If `nslookup` works from the VMAgent pod but VMAgent still fails DNS lookups, read `reference-cases.md` § "VMAgent stuck remoteWrite — root cause".
 
 **Diagnostic**:
 ```bash
@@ -106,15 +100,7 @@ bash ~/.agents/skills/monitoring-check/scripts/check-grafana.sh
 ```bash
 bash ~/.agents/skills/monitoring-check/scripts/check-loki.sh
 ```
-Gotcha: the loki chart's k8s-sidecar probes.
-
-| Fact | Source |
-|---|---|
-| Before 2.10.0 the sidecar's health server stops on IPv4-only nodes (upstream #531); the repo turned its probes off | `d1b586ca` |
-| 2.10.0+ serves `/healthz` on IPv4; the probes are on again | `8b3d4e68` |
-| At 50m CPU the Python start takes 84s, near the ~90s liveness limit; the sidecar now has 200m and a 300s startupProbe | `ff65f775` |
-
-Memory: `gotchas.md` § "k8s-sidecar healthz dies on IPv4-only kernels".
+If a Loki k8s-sidecar probe fails or the sidecar restarts, read `reference-cases.md` § "Loki k8s-sidecar probes".
 
 ## Cluster Scanners
 
@@ -161,12 +147,9 @@ Any other service or port returns 403 for the bot. The operator's `kubectl exec 
 | Grafana | `http://127.0.0.1:3000/api/health` |
 | Loki | `http://127.0.0.1:3100/ready` |
 
-## Baselines (per-line dates carry recency)
-- VMSingle memory: ~735Mi
-- Series: ~109k active (`vm_cache_entries{type="storage/hour_metric_ids"}`; prior ~204k baseline used a different gauge — compare like-for-like)
-- Firing alerts: 0 (VMAlert + AM both clean)
-- Popeye: A (90) — NOT the 06-05 "100/100": Job-NPs match no pods between runs + Percona svc lints (POP-1100/1106, deferred 07-04) dilute the score by design. Compare trend, not absolute. POP-1503 reads PolicyViolation EVENTS (~1h TTL) — popeye can false-dirty right after a Kyverno fix while polr is clean; purge events or wait TTL.
-- Kyverno violations: 0 (12 CEL ValidatingPolicies, `validationActions: [Deny]`, `.status.conditionStatus.ready=true` — sole engine since 2026-07-12; ClusterPolicies + parity tooling retired; reports-controller limit 800m since 2026-07-13)
+Before you judge a VMSingle memory, series, alert, Popeye or Kyverno number, read `reference-cases.md` § "Baselines".
+For Popeye, compare the trend between runs, not the absolute score.
+For series counts, compare numbers from the same gauge: the older baseline used a different one.
 
 ## Tools Allowed
 - `Bash(kubectl *)`

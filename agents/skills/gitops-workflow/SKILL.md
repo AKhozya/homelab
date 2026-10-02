@@ -85,18 +85,7 @@ Reviewers MUST check the diff against `.claude/review-invariants.md` — semanti
 
 **Docs/markdown/asset-only push? SKIP 3b + 3c + `fr` entirely.** `validate.yaml` carries `paths-ignore: ['**.md', 'docs/images/**']` (added 2026-06-13). If a push changes only markdown or images, no `validate.yaml` run starts. `gh run watch` then finds a stale unrelated run, or hangs. `gitleaks.yaml` carries no path filter. Secret scan therefore runs on a markdown-only push. `wait-for-ci.sh` passes `--workflow=validate.yaml`, so it ignores that run. The pre-commit peer review (3b) applies to substantive code/config commits; docs/markdown are exempt. And `docs/` isn't Flux-reconciled, so `fr` is a no-op. Pure docs/memory flow = commit → merge → push → done. Reserve CI-watch for pushes CI can fail on (any `.yaml`/`.sh`/manifest — `node-maintenance/**` and `scripts/**` shell is linted). Mixed md+yaml push → CI runs, watch normally.
 
-After push, `.github/workflows/validate.yaml` runs 14 parallel jobs, ~45s p95. gitleaks is not one of them. It runs in its own `gitleaks.yaml`.
-
-| Job | Legs |
-|---|---|
-| yamllint | 1 |
-| shellcheck | 1 |
-| sops-check | 1 |
-| init-resources | 1 |
-| image-pin | 1 |
-| HOMELAB_ANALYSIS drift, warn-only | 1 |
-| kubeconform, one per kustomize root incl. `infrastructure/coredns` | 7 |
-| helm-render, every HelmRelease chart at its pinned version | 1 |
+If you read a CI result or change `validate.yaml`, read reference-edge-cases.md § "validate.yaml jobs" for its jobs, legs and run time.
 
 **If CI is red, do not run `fr`.** Withholding `fr` delays reconciliation until Flux polls. It does not prevent deployment.
 
@@ -116,13 +105,8 @@ bash ~/.agents/skills/gitops-workflow/scripts/wait-for-ci.sh
 # | 11 INFRA-RED → local gate + peer review authorize fr | 3 no run appeared (docs-only push?)
 ```
 
-If Actions billing blocks jobs again (it did 2026-09-10 to 2026-10-01):
-
-| Fact | Consequence |
-|---|---|
-| GitHub creates a `validate.yaml` run for a push that CI covers, but no job starts; every job fails with 0 steps | `wait-for-ci.sh` exits 11 INFRA-RED for that push until the account owner fixes billing |
-| a docs/markdown-only push creates no run | `wait-for-ci.sh` exits 3, as before |
-| CI therefore checks nothing | run the pre-commit review loop and `/homelab-yaml-validate` before the commit; they are the checks that still run |
+If Actions billing blocks every job again, CI checks nothing. Run the pre-commit review loop and `/homelab-yaml-validate` before each commit.
+Then read reference-edge-cases.md § "Actions billing block".
 
 **Content-red vs infra-red — classify before blocking.** "Block `fr` on CI red" only holds when the red is YOUR manifest. If CI is red, don't eyeball it — run `_shared/ci-red-classify.sh [branch] [sha]` (exit-code map in the block above). Full classification + the never-hand-wave rule → `reference-edge-cases.md` § CI content-red vs infra-red.
 
@@ -130,7 +114,7 @@ If Actions billing blocks jobs again (it did 2026-09-10 to 2026-10-01):
 
 **Full-stack** (preferred): `fr` zsh function — reconciles helm repos + git source + 6 kustomizations in dep order.
 
-**`fr` serial execution order** (NOT the dep graph): `flux-system` → `infrastructure-controllers` → `infrastructure-configs` → `monitoring-controllers` → `monitoring-configs` → `apps`. The real dependency graph BRANCHES — `flux-system` → `infrastructure-controllers` → { `coredns` | `infrastructure-configs` → `apps` | `monitoring-controllers` → `monitoring-configs` } (see AGENTS.md; source of truth `clusters/*.yaml` dependsOn).
+If a Kustomization reconciles out of the order you expect, read reference-edge-cases.md § "`fr` serial order vs the dependency graph".
 
 **Granular**:
 ```bash

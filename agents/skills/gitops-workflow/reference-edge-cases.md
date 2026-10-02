@@ -101,3 +101,32 @@ flux reconcile kustomization <name> --timeout=60s
 ```
 
 - 2026-07-23 recurrence #4 (`9c3421a5`): 12 failure + 1 NULL-conclusion job, all 0 steps — old `conclusion=="failure"` zerostep filter undercounted → false CONTENT-RED. Classifier now conclusion-agnostic on zerostep, gated on run `conclusion=="failure"`, and cancelled runs exit 12 CANCELLED (never infra-red — sha was never validated).
+
+## validate.yaml jobs
+
+After push, `.github/workflows/validate.yaml` runs 14 parallel jobs, ~45s p95. gitleaks is not one of them. It runs in its own `gitleaks.yaml`.
+
+| Job | Legs |
+|---|---|
+| yamllint | 1 |
+| shellcheck | 1 |
+| sops-check | 1 |
+| init-resources | 1 |
+| image-pin | 1 |
+| HOMELAB_ANALYSIS drift, warn-only | 1 |
+| kubeconform, one per kustomize root incl. `infrastructure/coredns` | 7 |
+| helm-render, every HelmRelease chart at its pinned version | 1 |
+
+## Actions billing block
+
+If Actions billing blocks jobs again (it did 2026-09-10 to 2026-10-01):
+
+| Fact | Consequence |
+|---|---|
+| GitHub creates a `validate.yaml` run for a push that CI covers, but no job starts; every job fails with 0 steps | `wait-for-ci.sh` exits 11 INFRA-RED for that push until the account owner fixes billing |
+| a docs/markdown-only push creates no run | `wait-for-ci.sh` exits 3, as before |
+| CI therefore checks nothing | run the pre-commit review loop and `/homelab-yaml-validate` before the commit; they are the checks that still run |
+
+## `fr` serial order vs the dependency graph
+
+**`fr` serial execution order** (NOT the dep graph): `flux-system` → `infrastructure-controllers` → `infrastructure-configs` → `monitoring-controllers` → `monitoring-configs` → `apps`. The real dependency graph BRANCHES — `flux-system` → `infrastructure-controllers` → { `coredns` | `infrastructure-configs` → `apps` | `monitoring-controllers` → `monitoring-configs` } (see AGENTS.md; source of truth `clusters/*.yaml` dependsOn).

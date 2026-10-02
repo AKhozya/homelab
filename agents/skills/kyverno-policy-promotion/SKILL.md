@@ -119,21 +119,19 @@ kubectl get events -A --field-selector reason=PolicyViolation --sort-by='.lastTi
 ```
 
 **Positive admission test (prove Deny actually blocks, W8).** A clean scan + `Deny` action confirms live config, but a server-side dry-run create of a violating pod confirms the webhook denies. Three interplays (all hit during Gate B 2026-07-12):
-- **PSS admission fires first** (`violates PodSecurity "restricted:latest"`) — craft a pod that passes PSS-restricted and violates ONLY the target policy; for host-field policies use a PSS-privileged ns (home-assistant).
-- **Fine-grained VP webhooks short-circuit** — the deny message names only the FIRST failing policy (`vpol.validate.kyverno.svc-fail-finegrained-<policy>`). Attribution per policy = probe pod compliant-except-target.
-- **LimitRanger injects default limits BEFORE validating webhooks** — a limit-less probe legitimately passes require-resource-limits in any ns with a LimitRange; probe in one without (trivy-scan).
+
+A positive admission probe must violate ONLY the target policy. A rejection by another policy or by PSS proves nothing about the target.
+Before you build the probe pod, read `reference-wave-notes.md` § "Positive admission test — three interplays" (PSS admission first, fine-grained webhooks, LimitRanger defaults).
+
 Expected denial format + snippets: `reference-wave-notes.md` § "Positive admission test".
 
 If new violations appear post-promote (a workload created between scan and Deny flip), revert the policy file to Audit, fix-forward the new violator, re-promote. Easier than chasing CrashLoop in cluster.
 
 ## Scripts
 
-| Script | Use |
-|---|---|
-| `scripts/scan-violations.sh [--policy <name>] [--json] [--force-regen]` | Read-only scan. Lists PolicyReport fails. Exit 0 clean / 1 violations / 3 false-clean guard. |
-| `scripts/seccomp-violators.sh [--json] [--count] [--exclude-ns a,b]` | Read-only LIVE-pod seccomp audit (RuntimeDefault), grouped ns/owner. Bypasses lagging PolicyReports; point-in-time (also check CronJob/Job templates). Exit 0 clean / 1 violators. |
-| `scripts/check-policy-action.sh <policy-name>` | Read-only. Prints live vpol `spec.validationActions` (Audit / Deny / unknown). |
-| `scripts/prepare-enforce.sh <policy-file-path>` | Local edit: `validationActions` [Audit] → [Deny]. Runs plain `--dry-run=server` (NOT `--server-side`). Does NOT commit. |
+Before you run a script, read `reference-scripts.md` for its flags, exit codes and limits.
+`seccomp-violators.sh` audits live pods only: also check the CronJob and Job templates, or a clean scan misses the next run's pods.
+`prepare-enforce.sh` edits the policy locally and validates with plain `--dry-run=server`. Never add `--server-side`, and commit through `/gitops-workflow` yourself: the script does not commit.
 
 All scripts are `set -euo pipefail` with `shellcheck`/`shfmt` clean.
 

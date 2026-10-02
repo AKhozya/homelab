@@ -49,30 +49,11 @@ Length follows the constraint, not the change. One-line coupling → one line.
 The failure mode of this sweep is replacing a harmless restatement with a confident
 wrong claim. Before writing a comment that asserts a fact:
 
-- "this is the only writer of X" → `rg` for every writer.
-- "callers always pass converted HTML" → read every call site.
-- "50MB is Telegram's ceiling" → check. (It is not; the Bot API download limit is 20MB.
-  This exact claim was caught mid-sweep on 2026-07-29.)
-- "entries before vX had no field" → `git log -S` for when the field landed, or drop the
-  version and state the guard's purpose.
+Before you write such a comment, read reference-claim-sources.md to find the check for that kind of claim.
+A string found in a compiled binary does not show control flow, so do not claim "never thrown" from it.
+Check a deployment or infra coupling against the sibling repo checkout, never against memory.
 
 If you cannot verify it in under a minute, write the weaker true statement.
-
-### Where to check, by claim type
-
-Nearly every claim has an authority on this machine. Reach for it before weakening the
-statement — a whole sweep's worth of "unverifiable" items resolved this way on 2026-08-07.
-
-| Claim | Authority |
-|---|---|
-| A platform or API limit | the installed types' docstrings, not the vendor's website — `@grammyjs/types` carries the Bot API's own wording, and a test can gate the constant against it |
-| An SDK symbol or behaviour | `sdk.d.ts` for the surface **and** `sdk.mjs` for use. A table the SDK exports but never reads means the choice belongs to the consumer — that finding rewrote a comment that had asserted CLI behaviour |
-| Strings a compiled CLI prints | `grep` the shipped binary. It shows which messages are terminal and which are notices; it does **not** show control flow, so do not upgrade the claim to "never thrown" |
-| A cited `node_modules` line | open it. All four in one repo were still exact, so these earn their keep |
-| A commit SHA in a comment | `git cat-file -t`, then read the subject and confirm it matches the claim it supports |
-| An in-repo `file.ts:NN` | assume it has rotted. A reformat moved one call three lines and no test noticed |
-| A deployment or infra coupling | the sibling repo checkout (deployment manifests, the chezmoi source), never memory |
-| A vendored pin (tag, revision, checksum) | the vendor's API. A tag can move; a published checksum settles it |
 
 ## Procedure
 
@@ -105,14 +86,8 @@ statement — a whole sweep's worth of "unverifiable" items resolved this way on
 
 ## Gotchas
 
-A `python3 - <<'PY'` heredoc containing the word "Truncate" trips the safe-bash hook's
-SQL `TRUNCATE` rule. Use the Edit tool for those files.
-
-**Punctuation inside a quoted program.** A comment living inside a single-quoted `awk` or
-`sed` program is shell text, not comment text. Adding an apostrophe to it terminates the
-quote and breaks the script — `file's` did exactly that to `check-sops-encrypted.sh` on
-2026-08-07, and only the CI gate caught it. Rephrase to avoid the apostrophe rather than
-escaping it.
+If the safe-bash hook refuses a patch script, or a comment sits inside a quoted `awk` or `sed` program, read reference-gotchas.md, section "Hook and quoting traps".
+If a comment sits inside a single-quoted `awk` or `sed` program, do not add an apostrophe to it: rephrase instead of escaping.
 
 **A comment in a pod template rolls the workload.** In Kubernetes, an `initContainer`
 `command: |` script is part of the pod template, so editing a comment inside it changes the

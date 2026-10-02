@@ -38,7 +38,8 @@ bash ~/.agents/skills/_shared/flux-status.sh --all      # kustomizations + helmr
 bash ~/.agents/skills/_shared/flux-status.sh --failed   # only non-Ready
 ```
 
-**coredns `--disable` deadlock:** ALL Flux reconciles stall with i/o timeout to `10.43.0.10` after the kube-dns Service/ConfigMap/RBAC are deleted — k3s `--disable=coredns` deletes addon-owned objects by owner-label, and Flux cannot recreate them because the source fetch itself needs DNS. Break-glass: `kubectl apply -k infrastructure/coredns/` from the homelab repo (one-time — the recreated objects are owner-label-free). Memory: `gotcha_coredns_disable_deadlock`.
+If every Flux reconcile stalls with an i/o timeout to `10.43.0.10`, read reference-incidents.md § CoreDNS `--disable` deadlock.
+Run its break-glass `kubectl apply -k infrastructure/coredns/` one time only: the recreated objects carry no owner label.
 
 ### 3. Database Clusters
 
@@ -80,7 +81,8 @@ kubectl get networkpolicies -A                # full list
 bash ~/.agents/skills/_shared/np-gap.sh       # ns-level: ns with pods but ZERO NP (exit 1 if gaps)
 bash ~/.agents/skills/_shared/np-coverage.sh  # per-pod: pods no NP selects + orphan NPs (exit 1 if gaps)
 ```
-`np-gap.sh` is namespace-level (a ns with ≥1 NP passes); `np-coverage.sh` is the per-pod complement — it catches a pod that no NP *selects* even though its ns has other NPs (the F-48 redis-operator class), and ORPHAN NPs whose selector matches zero pods (typo'd labels = silent no-op). hostNetwork pods are skipped (they bypass NP). Expected false-positives: an NP for a scaled-to-0 app or a CronJob (e.g. popeye) shows ORPHAN when no pod is running — verify before acting.
+Before you act on a gap, read reference-incidents.md § NetworkPolicy gap scripts for what each script catches and its expected false positives.
+Verify each reported gap or ORPHAN against the live pods before you act: a scaled-to-0 app or an idle CronJob shows as ORPHAN.
 
 ### 5b. Node crash forensics (host-side)
 
@@ -119,17 +121,8 @@ kube_pod_info{pod="<failed-pod>"}                            # -> node
 pod deleted 8h earlier came back in full on 2026-08-08. Metrics only say *that* it failed;
 Loki says *why*. Three access traps make it read as "Loki has nothing":
 
-- **`loki-0` has no `wget` and no `curl`** (distroless-ish image), and
-  **`loki-gateway` refuses connections** from `monitoring` and `claude-telegram` — instant
-  "Could not connect", not a timeout. A `… 2>/dev/null | jq` around either prints nothing,
-  which reads as an empty result set. Same false-clean family as the vmsingle rule.
-- **The grafana-pod exec recipe is DEAD** (verified 2026-09-11). That image now ships neither
-  `sh` nor `curl`, so the exec fails `executable file not found in $PATH`. Every in-cluster
-  client for this has now gone distroless; stop looking for a pod to exec into.
-  If you exec into any pod picked by `-o jsonpath='{.items[0]…}'`, add
-  `--field-selector=status.phase=Running` first. A reboot leaves terminal `Succeeded` pods and
-  the selector returns one, so the exec fails `cannot exec into a container in a completed pod`
-  (hit on 2026-08-08 for both grafana and vmalert).
+Do not look for a pod to exec into for Loki: every in-cluster client image is distroless now. Use the workstation port-forward below.
+If a Loki query returns nothing, read reference-incidents.md § Loki access traps.
 
 The path that works is a **port-forward from the workstation**. It ignores NetworkPolicy and
 needs no credentials, so it survives image changes:
@@ -152,7 +145,9 @@ line *after* its headline, and a keyword filter drops it. On 2026-09-11
 
 Cross-check siblings: other pods restarting same window **same node** = node-local (check `increase(node_network_transmit_drop_total{device="flannel.1"}[1h])` per instance — vxlan path); same window other nodes = cluster-wide.
 
-**TTL+force re-run class:** init Jobs with `ttlSecondsAfterFinished` + Flux `force` annotation re-run daily at a drift-creep hour. JobFailed on these usually = transient cluster issue AT the re-run hour, not job regression. Retrigger: `kubectl delete job <j> -n <ns> && flux reconcile kustomization apps` (init jobs are idempotent: HTTP 500 = already-initialized = exit 0). Reference: 2026-06-04 wn2 pod-DNS outage, memory `gotcha_worker_node2_flannel_dns`.
+If the failed Job is an init Job with `ttlSecondsAfterFinished` and a Flux `force` annotation, read reference-incidents.md § TTL+force re-run class.
+
+If you exec into a pod picked by `.items[0]`, add `--field-selector=status.phase=Running` first. A reboot leaves terminal `Succeeded` pods that `.items[0]` can select.
 
 ### 5d. CrashLoopBackOff — init-timing vs liveness race
 

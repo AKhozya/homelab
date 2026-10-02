@@ -63,32 +63,15 @@ workflow.
         shell's whole template, because the flags differ and change the exit
         code. Substitute the extracted path for `{0}`.
 
-        | Resolved shell | Command GitHub runs |
-        |---|---|
-        | none, Linux or macOS runner | `bash -e {0}` |
-        | `bash` named explicitly | `bash --noprofile --norc -eo pipefail {0}` |
-        | `sh` | `sh -e {0}` |
-        | none, Windows runner, or `pwsh` | `pwsh -command ". '{0}'"` |
-        | `cmd` | `%ComSpec% /D /E:ON /V:OFF /S /C "CALL "{0}""` |
-        | `python` | `python {0}` |
-
-        A named `bash` adds `-o pipefail`, which the default does not. A gate
-        whose body pipes can pass one way and fail the other.
+        The command template for each resolved shell is in reference-ci-gate.md; read it before you run the step.
      3. Supply the step's `env:` values, once per branch.
      4. Assert the exit code. Do not assert the message.
    - This substitutes extracted text for the program CI runs. Check each row
      before trusting the result.
 
-     | If the step has | then | remedy |
-     |---|---|---|
-     | `${{ }}` inside `run:` | GitHub substitutes before the shell sees it | move the value into `env:` |
-     | `working-directory`, on the step or inherited from `defaults.run` | the body runs elsewhere | `cd` there first |
-     | a `shell:` key | the interpreter and flags differ | invoke that shell |
-     | a matrix value | one body becomes many programs | drive each combination |
-     | job or workflow `env:` | those values are absent | add them to the branch env |
-     | `$GITHUB_PATH` or `$GITHUB_ENV` from an earlier step | inherited state is absent | reproduce it, or verify in CI |
-     | a step or job `if:` | the step may never run | check the condition separately |
-     | `continue-on-error` | the exit code still shows the command outcome, but this step's failure does not fail the job | if this step must gate the job, drop the flag |
+     Before you trust the result, read reference-ci-gate.md § Where the extracted body differs
+     from CI. It lists the rows to check, with a remedy for each.
+     If the step has `continue-on-error` and must gate the job, drop the flag.
 
 7. **Code Review**
    - Re-run `scripts/reviewer-peer --current <current-family> --format json`.

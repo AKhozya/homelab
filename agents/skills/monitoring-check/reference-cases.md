@@ -26,3 +26,41 @@ Gotcha: a cross-pod probe of a NON-scrape port (vmagent→`:8081`) falsely shows
 - Restarting kube-proxy or k3s-agent is heavy and rarely the actual fix.
 - ~95% of "alert won't clear" after a fix = VMAgent stuck queue OR metric staleness window (textfile write cadence + scrape + `for:`; node-exporter textfile ~60s → up to ~7 min, but 5m-cadence timer-written textfile metrics → up to ~10-12 min).
 - `alert-cascade-check.sh` runs the right order; cuts diagnosis from 20+ probes to 3-4.
+
+## Gotchas baked into the alert scripts
+
+Gotchas baked into the scripts: vmalert leaks raw control chars → `tr -d '\000-\037'` before jq; `ALERTS{}` metric lags ~5min after a rule clears (trust `/api/v1/rules`); `gotk_reconcile_condition`/`gotk_suspend_status` were removed in Flux 2.8.x; **cumulative metrics never clear** — raw threshold on a `_total` counter (or cumulative gauge like redis slowlog_length) fires forever once tripped; alert on `increase(m[24h])`/`delta` instead (2026-06-07 `6b74c6a1`: `KyvernoPolicyViolationsDailySummary` stuck on all-time `kyverno_policy_results_total`=6951 at 0 live violations — audit every alert exprs's `_total` with raw `>N`); a metric live now can be conditionally-absent (`kube_pod_container_status_waiting_reason` only exists while a container waits).
+
+## Alert won't clear — manual steps
+
+### Step-by-step (if you need to dig manually)
+
+| Step | Check | Symptom → fix |
+|---|---|---|
+| 1 | Firing alerts snapshot | If alert no longer in list → resolved, you're done |
+| 2 | VMAgent queue (`vmagent-queue-check.sh`) | pending > 10MB + DNS errors → `~/.agents/skills/_shared/restart-workload.sh monitoring app.kubernetes.io/name=vmagent` |
+| 3 | `up{}` last-sample age per instance (`time() - timestamp(up)`) | age > 120s or a MISSING series on a specific node → that node's scrape broken (a scraped-away series drops out of results entirely — MISSING is the loud form) |
+| 4 | VMAlert rule state via `/api/v1/rules` (firing/pending/inactive; "RULE NOT FOUND" = typo'd alertname) | `value` differs from current metric → wait 1-2 rule cycles (60s) + `for:` window |
+
+## VMAgent stuck remoteWrite — root cause
+
+**Root cause**: VMAgent's Go `net.DefaultResolver` caches a failed UDP DNS lookup to CoreDNS during a transient network blip (e.g. UFW chain rebuild, kube-proxy chain churn). Cache returns "connection refused" even after CoreDNS recovers. `nslookup` from same pod works — only the Go resolver state is poisoned.
+
+## Loki k8s-sidecar probes
+
+Gotcha: the loki chart's k8s-sidecar probes.
+
+| Fact | Source |
+|---|---|
+| Before 2.10.0 the sidecar's health server stops on IPv4-only nodes (upstream #531); the repo turned its probes off | `d1b586ca` |
+| 2.10.0+ serves `/healthz` on IPv4; the probes are on again | `8b3d4e68` |
+| At 50m CPU the Python start takes 84s, near the ~90s liveness limit; the sidecar now has 200m and a 300s startupProbe | `ff65f775` |
+
+Memory: `gotchas.md` § "k8s-sidecar healthz dies on IPv4-only kernels".
+
+## Baselines (per-line dates carry recency)
+- VMSingle memory: ~735Mi
+- Series: ~109k active (`vm_cache_entries{type="storage/hour_metric_ids"}`; prior ~204k baseline used a different gauge — compare like-for-like)
+- Firing alerts: 0 (VMAlert + AM both clean)
+- Popeye: A (90) — NOT the 06-05 "100/100": Job-NPs match no pods between runs + Percona svc lints (POP-1100/1106, deferred 07-04) dilute the score by design. Compare trend, not absolute. POP-1503 reads PolicyViolation EVENTS (~1h TTL) — popeye can false-dirty right after a Kyverno fix while polr is clean; purge events or wait TTL.
+- Kyverno violations: 0 (12 CEL ValidatingPolicies, `validationActions: [Deny]`, `.status.conditionStatus.ready=true` — sole engine since 2026-07-12; ClusterPolicies + parity tooling retired; reports-controller limit 800m since 2026-07-13)

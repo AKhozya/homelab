@@ -116,3 +116,61 @@ ClusterIP gate and cascade wedges across nodes (= the 2026-05-24 incident this s
 Minimum ansible commit that contains the phase2 gate (probe shipped to nodes + both gates):
 `9cb36ae9` — *"node-maintenance: phase2 ClusterIP + CP-loopback gates, ship clusterip-probe to nodes"*.
 If the running cluster predates this, the gate is absent and the old wedge risk applies.
+
+## Which probe covers each wedge surface
+
+A node can be `Ready` while wedged at one of **4** network surfaces `kubectl get nodes` hides: worker
+kube-proxy ClusterIP DNAT (`10.43.0.1:443`), CP k3s loopback LB (`127.0.0.1:6443`), CNI portmap
+masquerade (`CNI-HOSTPORT-MASQ`), and the **CP pod-netns ClusterIP DNAT** — a
+CP-pinned pod can't reach ANY ClusterIP (DNS `10.43.0.10` / API `10.43.0.1`) while the CP host AND
+both workers are fine. `watch-reboot.sh` + `verify-clusterip.sh` probe the first three; the CP
+pod-netns surface is host-netns-BLIND and now self-heals via the `clusterip_heal_cp` watchdog (its
+own nsenter-into-coredns pod-netns probe).
+
+## pkg-upgrade FAILED and UNVERIFIED verdicts
+
+> **`pkg-upgrade: FAILED` = the node is UNPATCHED even though the run reported success.** Every
+> worker/VM `yay` is rescue-wrapped on purpose (a hard failure strands `phase2-pending` and gates
+> drift-heal cluster-wide), so a failed upgrade leaves no other durable, latching *health signal* —
+> the phase log under `/var/log/node-maintenance/` does record it, but nothing watches that. Only the **GPU-VM**
+> play's rescue fires a Telegram warning; the worker play's rescue sends nothing at all, and Telegram
+> is transient regardless — it was missed on 2026-07-11 and 2026-07-18.
+> 2026-08-01: this script exited 0 with both workers stuck on a failed AUR upgrade.
+> **`UNVERIFIED` also blocks exit-0** — query or parse failure means the patch state is unknown, and
+> exit-0 asserts "packages upgraded". The gate fails closed rather than attest something it cannot
+> check; the loop is bounded, so this can't deadlock.
+
+## App stuck Running 0/1 after losing its DB
+
+> - **An app that lost its DB across the rolling reboot** can sit `Running 0/1` until someone
+>   intervenes. Observed with n8n vs CNPG on 2026-08-01: readiness 503 for 33min (it did not recover
+>   on its own in that window), Deployment showed `Progressing=False /
+>   ProgressDeadlineExceeded`, and after `kubectl rollout restart` the *new* pod went Ready while the
+>   stale one and its alert stayed put — two ReplicaSets at `desired=1` for 17min. A **second**
+>   `rollout restart` converged it. Mechanism not established (`ProgressDeadlineExceeded` reports
+>   stalled progress; it does not by itself halt scale-down) — treat as a symptom + remedy, not a rule.
+
+## Missing post-run Claude review
+
+It answered `curl: (22) ... error: 403` on 2026-08-01 and 2026-08-08 and nobody noticed: the secret
+lived in two places, SOPS `claude-telegram-env.trigger-secret` was rotated on 2026-07-31, and the CP's
+`/etc/node-maintenance/claude-trigger-secret` kept its April value. Since 2026-08-08 the script reads
+`$TRIGGER_SECRET` from inside the pod (no CP copy, so no drift) and sends its own Telegram alert if the
+POST fails.
+
+If no review arrives and no failure alert arrives either, the trigger's own line is the last one in the
+run, after `PLAY RECAP`:
+
+```bash
+journalctl -u node-maintenance-phase2.service --since=-1d --no-pager | tail -20
+```
+
+Check the endpoint by hand without starting a Claude run — an empty body passes the secret check and
+stops at the body check, so **400 means the auth path is healthy** and 403 means it is not:
+
+```bash
+printf '{}' | kubectl -n claude-telegram exec -i deploy/claude-telegram -c claude-telegram -- \
+  sh -c 'curl -s -o /dev/null -w "%{http_code}\n" --max-time 10 -X POST \
+    "http://127.0.0.1:8080/trigger" -H "X-Trigger-Secret: $TRIGGER_SECRET" \
+    -H "Content-Type: application/json" --data-binary @-'
+```

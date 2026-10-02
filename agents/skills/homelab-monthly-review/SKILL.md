@@ -45,21 +45,18 @@ bash ~/.agents/skills/_shared/check-kyverno.sh --summary
    - **Mechanical**: `bash ~/.agents/skills/kb-hygiene/scripts/lint-skill-scripts.sh` (shellcheck + shfmt + rg-as-command) + `bash ~/.agents/skills/kb-hygiene/scripts/skill-sizes.sh` (FAT >1000w → relocate situational detail to `reference-*.md`, keep routing pointer in SKILL.md).
    - **Descriptions**: frontmatter `description:` loads into EVERY session's system prompt — trim body-detail/history narration, but preserve ALL trigger phrases, "NOT for → sibling-skill" routing, and NEVER/ONLY safety rules. Touch only the description value, never other frontmatter keys (`metadata.triggers`, `user-invocable`).
    - **Retirement propagation**: for anything retired/replaced since last review, `grep -ril "<name>" ~/.agents/skills` — the dominant skill-rot class (2026-07-16 run: trivy-operator ghosts in 3 skills, 3-node fleet claims in 4 skills after immich-vm joined).
-   - **Changelog narration**: cut skill-self-history ("built/added X after Y"); KEEP incident dates/SHAs/repro that change operator behavior.
-   - **Codification**: inline pipelines that are deterministic AND (repeated across skills OR quoting-fragile) → `scripts/` or `_shared/` (reuse before new); invoke by absolute `~/.agents/skills/...` path; remove the inline copy. Check for drifted script COPIES across skills — consolidate to `_shared/`.
+   - If you edit a skill body, read reference-skill-review.md § Changelog narration and codification.
+     Keep incident dates, SHAs and repro steps that change what the operator does.
    - **Upstream skills**: check `~/.agents/.skill-lock.json` — never hand-edit upstream-installed skills (update clobbers); findings there = report or uninstall.
    - Flag skills with no invocation in >3 months for retirement review.
    - **Repo snapshot** (`agents/` in the homelab repo, a read-only copy of the published skills and rules). Run it in this review's task worktree, never in the main tree. If `scripts/sync-agents.sh` is absent, or the review is not running on the Mac, skip the step and say so in the report. Otherwise run `scripts/sync-agents.sh --check` and act on its exit code, or on the exit code of any `--update` a row below asks for:
 
      | Exit of `--check` or `--update` | Action |
      |---|---|
-     | 0 from `--check` | If an earlier row changed a file in this worktree, continue with row 1's commit step. Otherwise nothing to do |
-     | 0 from `--update` | continue row 1. If the `CLAUDE.md` source changed, hand-edit `CLAUDE.global.md`. Run `--check` until it exits 0, then review and commit |
-     | 2 | read each path the report names. If a skill was renamed or deleted, update the allowlist in the repo or the denylist in dotfiles, then run `chezmoi-sync` for the denylist |
-     | 3, 4 | For a copied skill, helper or `AGENTS.global.md`, fix the source in dotfiles, run `chezmoi-sync`, then run `--update`. For `README.md`, `sync/` or `CLAUDE.global.md`, fix the file in the repo. If a forbidden entry exists only in the target, delete it in the worktree. If git tracks it, remove it with `git rm --cached`. If `origin/main` contains the file or term, decide on a history rewrite before the next push. If the repo is public, GitHub already shows that history. Then run `--check` again |
-     | 5 | fix the flagged helper's or skill's source in dotfiles, run `chezmoi-sync`, then run `--update` again |
-     | 70 | read the error, fix its cause, run the mode again |
      | 1 | resolve every finding. For a list finding, update the allowlist in the repo, or the denylist in dotfiles and run `chezmoi-sync`. If an allowlisted skill or helper mentions a denylisted helper, choose one: edit the mention in dotfiles, or move the skill to the denylist. Run `chezmoi-sync` after either. Never allowlist the helper. The denylist holds it back from publication. Run `--update`. If the `CLAUDE.md` source changed, hand-edit `CLAUDE.global.md`. Repeat until `--check` exits 0. Then `git add -A agents` and commit through `/gitops-workflow`, with the Codex loop on `git diff --cached agents/` |
+
+     If the exit code is 0, 2, 3, 4, 5 or 70, read reference-skill-review.md § `sync-agents.sh` exit codes other than 1.
+     If exit 3 or 4 shows that `origin/main` contains a forbidden file or term, decide on a history rewrite before the next push.
 2. **Subsystem-map verify** — the maps in `docs/subsystems/` carry structure/relations/gotchas only, per the content rules in `docs/subsystems/README.md`: NO image/chart versions, NO counts, NO changelog (that content was the drift treadmill — 17+ stale pins found 2026-07-16 before the rule). Pass = 1-2 agents checking each map's path anchors + relation claims against manifests (trust manifest over doc), plus a rule-violation grep: `rg -n '\b\d+\.\d+\.\d+' docs/subsystems/` (hits other than IPs/ports = drift back into versions). No live-cluster fact dump — nothing in the maps should need one.
 3. **Docs currency** — beyond the subsystem maps: ARCHITECTURE.md, HOMELAB_ANALYSIS platform facts, `docs/disaster-recovery/README.md`, `node-maintenance/README.md`, SECRETS_ROTATION. Spot-check dated claims, versions, counts, and schedules against live/repo; for anything retired or replaced THIS month, `git grep -il "<name>" docs/` and purge live-voiced references (same retirement-sweep method as the memory item below). Docs asserting something the cluster no longer does = highest-priority fix.
 4. **Code comment hygiene** — two lenses over repo comments (start from subsystems touched in the last month, `git log --since` file list):
@@ -99,7 +96,6 @@ bash ~/.agents/skills/_shared/check-kyverno.sh --summary
 5. Teardown worktree. Quarterly (every 3rd month, see ANALYSIS): add `/automation-audit-ops`.
 
 ## Known gap-classes (keep honest)
-- **Popeye score fluctuates with load** — compare section-level, not headline; 100→90 ≈ resource warns, not security.
-- **Pin drift is silent** — check DB primaries every review even when nothing alerted.
-- **Event-gated items need evidence hunting** — "validate on next kernel upgrade" class: the event may have already fired unnoticed.
+Before you mark a Popeye score, a DB primary pin or an event-gated item clean, read reference-gap-classes.md § Gap classes.
+- Check DB primaries every review, even if nothing alerted.
 - **ponytail sweep is greenfield-first** — homelab is YAML/bash, not app code: `/ponytail-audit` value is marginal (over-built scripts only) and `/ponytail-debt` is ~empty (no `ponytail:` markers accumulate with mode=off default). If the review runs IN the claude-telegram bot, ponytail must be installed there first (bot plugins are seeded-once on PVC, no auto-update — see `apps/claude-telegram` init plugin-update fix).

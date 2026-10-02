@@ -80,7 +80,7 @@ git -C ~/.local/share/chezmoi push
 ## Gotchas
 
 - **Source path uses `private_` / `dot_` prefixes (and sometimes `.tmpl`)**: `~/.claude/settings.json` → `dot_claude/settings.json.tmpl`. Use `chezmoi source-path` to find.
-- **`source-path` says "not managed" for a SYMLINK — that does not mean untracked.** Most of `~/.claude/skills/*` are symlinks into `~/.agents/skills/*`; the real file is tracked at the target. `chezmoi source-path ~/.claude/skills/<name>/SKILL.md` reports `not managed` and reads as "this skill isn't in dotfiles", which is wrong and was reported to the user as fact on 2026-08-07. Resolve the link first (`ls -ld`, or compare inodes with `stat -f %i`) and run `chezmoi status | grep <name>` — an `MM` under `.agents/skills/` is the truth. Add via the `~/.agents` path.
+- **If `source-path` says "not managed" for a skill file**, read reference-edge-cases.md before you conclude the file is untracked.
 - **A skill file can be under edit by another session right now.** Two sessions extended `comment-sweep/SKILL.md` on 2026-08-07 within the same hour. Check `ls -l` mtime before editing, prefer small exact-match edits over a rewrite, and after editing grep for the other session's sections to prove you did not clobber them.
 - **Templates**: `.zshrc`/`.ssh/config`/`.claude/settings.json` are `.tmpl` files (OS-gated `{{ .chezmoi.os }}` etc.). Edit the `.tmpl` directly in source — `re-add` writes raw and breaks templating.
 - **Live-ahead-of-template drift → NEVER `chezmoi apply`**: if an earlier session edited LIVE `settings.json` (model, enabled plugins) but never synced to the `.tmpl`, `chezmoi diff` shows the stale template as the "target" — `chezmoi apply`/`update` would REVERT live (disable a plugin, flip model). CHECK `chezmoi diff <file>` first; if live is truth, sync live→template by editing the `.tmpl` DIRECTLY (not `re-add` — breaks `{{ }}`; not `apply` — reverts live), then `chezmoi diff` empty = reconciled. Seen 2026-07-07: live `opus[1m]`+skillopt-enabled vs template stale `fable-5`+skillopt-absent; apply would've disabled skillopt-sleep.
@@ -126,7 +126,7 @@ Any NEW or substantively CHANGED script/skill logic (`.sh`, `.py`, hook, SKILL.m
 3. Process findings via `superpowers:receiving-code-review`. Verify each against the code. Push back on wrong or YAGNI findings. Fix in severity order. Re-test each fix. Then re-review delta-scoped. The state table in `~/.claude/CLAUDE.md` § Code review decides when to commit.
 4. Only then commit + push.
 
-Origin 2026-07-04: worktree-cleanup.sh shipped unreviewed; post-hoc Codex found a HIGH (detached-HEAD worktree falsely MERGED-CLEAN → removable with unique commits). Gate exists so that never repeats.
+If you need the reason for the pre-commit gate, read reference-edge-cases.md § "Why the pre-commit gate exists".
 
 ## Tools Allowed
 - `Bash(chezmoi *)`

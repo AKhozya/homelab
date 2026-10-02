@@ -44,7 +44,7 @@ PASS = manifest will reach the cluster. **Kyverno enforce policies run here** �
 
 **Do NOT add `--server-side`** when validating an existing Flux-managed resource. Server-side apply checks field ownership and returns exit 1 with "Apply failed with 1 conflict: conflict with kustomize-controller: .spec.<X>" even though the manifest itself is valid — kustomize-controller (Flux) owns those fields. Plain `--dry-run=server` runs the same admission webhooks (Kyverno included) without the field-ownership check. Verified 2026-05-24 against `disallow-host-path` policy: `--server-side --dry-run=server` exit 1, plain `--dry-run=server` exit 0, both ran admission. If you genuinely need `--server-side` for some reason, add `--force-conflicts` to make exit 0 (dry-run takes ownership but nothing actually changes).
 
-**Immutable-field false-positive — handled by `validate.sh`.** Editing a live `Job`'s `spec.template` (any immutable field) makes `--dry-run=server` fail with `field is immutable` (it attempts an UPDATE), even though the manifest is valid and Flux delete+recreates it via `kustomize.toolkit.fluxcd.io/force: enabled`. `validate.sh` auto-detects `field is immutable` + the `force` annotation and reports PASS. CI (offline kubeconform, no cluster) never hits it. (W8 2026-05-25, uptime-kuma-setup Job.)
+If `--dry-run=server` reports `field is immutable` on a live Job, read `reference-edge-cases.md` § "Immutable-field false positive".
 
 **Kyverno `=()` optional-pattern footgun — LEGACY ClusterPolicy pattern syntax.** All 12 policies are CEL ValidatingPolicies since 2026-07-12; this applies only if pattern-based ClusterPolicy syntax ever returns (it's still in `.claude/review-invariants.md` as a rubric item). `=(field)` validated ONLY when the field existed — containers OMITTING it silently passed (omitting `allowPrivilegeEscalation` defaults to TRUE in Linux). Fix was the canonical PSS mandatory-pattern (W8 2026-05-25: `disallow-privilege-escalation`, `require-drop-all-capabilities`, `require-readonly-rootfs`). Do NOT hand-roll `deny: NotEquals` for booleans — `false || 'true'` JMESPath coercion. CEL policies don't have this class: absent fields are handled explicitly with `has()` / `orValue()` — review those instead.
 
@@ -58,7 +58,7 @@ yq -e '.spec.template.spec.initContainers // [] | all(.resources.limits.cpu and 
 
 PASS = all init containers have CPU + memory limits. FAIL (exit 1) = at least one omits; will violate Kyverno `require-resource-limits` Enforce (post-2026-05-23).
 
-For multi-init deployments (home-assistant: `config-setup` + `hacs-install`), the `all(...)` predicate covers every entry. Operator-managed Pods (CNPG pooler, VMAgent) are excluded at the policy level — see `infrastructure/configs/kyverno-policies/require-resource-limits-vp.yaml` CEL guards (`exclude-cnpg-pooler`: `cnpg.io/podRole != 'pooler'`, `exclude-vm-operator`: `managed-by != 'vm-operator'`).
+If a Pod has more than one init container, or an operator manages it, read `reference-edge-cases.md` § "Init container guard — background".
 
 ### 4c. Image pin audit — repo-wide
 
@@ -68,7 +68,7 @@ Kyverno's image-pin policy only rejects `:latest`/no-tag. Major-only (`:8`) or m
 scripts/ci/image-pin-audit.sh .        # or apps / infrastructure / monitoring
 ```
 
-PASS = `major.minor.patch[-variant]` or `@sha256:` digest. HelmRelease docs skipped (chart-version pinning), SOPS skipped, yq `---` doc-separators filtered. Allowlist (accept 2-component) for native-2-component upstreams: postgres/postgresql (`18.4`), seleniumbase-scrapper (upstream ships no patch tag). To add an upstream that legitimately lacks 3-component tags, extend `twocomp_ok_re` in the script.
+If the audit flags a tag you believe is pinned, or an upstream publishes only two-component tags, read `reference-edge-cases.md` § "Image pin audit — rules and allowlist".
 
 ### 4d. Helm chart render — every HelmRelease
 
@@ -85,19 +85,8 @@ PASS = every HelmRelease chart renders at its pinned version. The script sets it
 `HELM_REPOSITORY_CONFIG`, so it neither reads nor mutates locally registered repos. The same
 script runs as the `helm-render` job in `validate.yaml`.
 
-Renovate merged `kube-prometheus-stack` v90 on 2026-09-07 and the release then failed in prod:
-chart 90.0.0 fails to render if an enabled control-plane component keeps its default
-`serviceMonitor.authorization`, because the chart creates the Secret that field names only if
-`prometheus.enabled` is true. This repo disables Prometheus. See commit `b46d0803` (2026-09-07).
-
-A skipped chart must never read as a passing one, so the script exits 1 on each of these:
-
-| Condition | Why it is fatal |
-|---|---|
-| Discovery finds no manifest | The run proves nothing |
-| `yq` cannot parse a manifest | That release never renders |
-| Two HelmRepositories share a name | A release can render against the wrong source |
-| `spec.chart.spec` is incomplete | Chart, version or sourceRef is missing |
+If the script exits 1, read `reference-edge-cases.md` § "Helm chart render — incident and fatal conditions".
+If the script skips a chart, do not count that chart as passed.
 
 ### 5. Kustomize overlay
 Use the fast path: `validate.sh --kustomize <path>` (already runs `kubectl kustomize` + exit-code check).
@@ -147,12 +136,9 @@ Beyond schema/admission, eyeball or grep:
 
 - Every container (including init) has `resources.{requests,limits}.{cpu,memory}` — Kyverno enforces
 - `readOnlyRootFilesystem: true` → `/tmp` emptyDir mounted
-- DB users:
-
-  | Engine | How the user exists |
-  |---|---|
-  | Postgres | Secret labels `cnpg.io/cluster: main-postgres` + `cnpg.io/reload: "true"`, role in `managed.roles` |
-  | MySQL | No Percona `User` CR exists. Create the user by hand with SQL (`CREATE USER` + `GRANT`) through `db-operations/scripts/mysql-exec.sh <db> -`, with the SQL on stdin so the password stays out of argv. Add its `CREATE USER` line, with a placeholder password, to `docs/disaster-recovery/mysql-create-dbs.sql`. |
+- If you add a Postgres or MySQL user, read `reference-edge-cases.md` § "DB users".
+  If you add a MySQL user's `CREATE USER` line to `docs/disaster-recovery/mysql-create-dbs.sql`, use a placeholder password, never the real one.
+  If you create a MySQL user by hand, pass the SQL on stdin so the password stays out of argv.
 - New namespace: add the ResourceQuota (governance entry) in a SECOND commit, after Flux has created the namespace. If the quota comes first, `infrastructure-configs` fails to reconcile, and `apps`, which depends on it, stops reconciling too (2-commit bootstrap, `/app-scaffold`)
 
 Other invariants live in canonical skills:

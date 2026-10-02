@@ -122,3 +122,15 @@ ssh -p 65300 -t akhozya@gmk-k3s-control-plane "sudo rkhunter --propupd"
 ```
 
 Filter list (skip in alerts): see `security_scan_gotchas.md` memory. Common false positives after pacman: `/usr/bin/<binary>` property changes, prelinking timestamps, package version bumps.
+
+## Pacman mirror 404 on install
+
+**Force mirror DB refresh** (after 404 on install — see incident 2026-05-14):
+```bash
+bash ~/.agents/skills/_shared/pacman-cache-refresh.sh ssh_master_node
+```
+Wraps `sudo pacman -Syy` via `ssh -t` — user enters password live.
+
+## Faillock helper
+
+Faillock helper: `~/.agents/skills/_shared/faillock-via-cp.sh <worker-node|worker-node-2> [akhozya|z3us]` — resets pam_faillock for the locked user via CP-hosted ansible (worker NOPASSWD bypass; user enters the CP sudo password once).
