@@ -1,0 +1,2 @@
+clusterip-heal: ClusterIP DNAT WEDGED on harness-node.
+clusterip-heal: restart-lock infrastructure unavailable (flock/fd open) — failing closed this cycle.

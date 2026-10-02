@@ -2,6 +2,8 @@
 # Whole-script equivalence harness for the node scripts that use node-script-lib.sh.
 #   run-all.sh record [NAME...]   run scenarios and save their outputs as fixtures
 #   run-all.sh check  [NAME...]   run scenarios and diff each output against its fixture
+# Both modes then list every call of a shared helper (write_state, emit_metric, ufw_chains_hash,
+# state_write, textfile_write) that no scenario of that script executed.
 # NAME is a scenario file name without .sh; no NAME means every scenario.
 # Each scenario runs in a fresh privileged archlinux container under the local Docker (Rancher
 # Desktop). The output is the script's exit code, stdout, stderr, every .prom file, the state
@@ -33,9 +35,9 @@ trap 'rm -rf "$work"' EXIT
 status=0
 for name in "$@"; do
 	out="$work/$name"
-	mkdir -p "$out"
+	mkdir -p "$out" "$work/trace/$name"
 	if ! docker run --rm --privileged --platform linux/amd64 \
-		-v "$REPO:/repo:ro" -v "$HERE:/harness-src:ro" -v "$out:/out" \
+		-v "$REPO:/repo:ro" -v "$HERE:/harness-src:ro" -v "$out:/out" -v "$work/trace/$name:/trace" \
 		"$IMAGE" bash /harness-src/in-container.sh "/harness-src/scenarios/$name.sh" </dev/null; then
 		echo "ERROR $name: the container run failed" >&2
 		status=2
@@ -54,4 +56,18 @@ for name in "$@"; do
 		status=1
 	fi
 done
+# Call-site coverage: a helper call line counts as covered if any scenario of its script traced it.
+scripts=()
+for name in "$@"; do scripts+=("$(sed -n 's/^SCRIPT=//p' "$HERE/scenarios/$name.sh")"); done
+mapfile -t scripts < <(printf '%s\n' "${scripts[@]}" | sort -u)
+for s in "${scripts[@]}"; do
+	base="${s##*/}"
+	cat "$work"/trace/*/xtrace 2>/dev/null | sed -n "s/^+*${base}:\([0-9]*\): .*/\1/p" | sort -u >"$work/covered"
+	grep -nE '(write_state|emit_metric|ufw_chains_hash|state_write|textfile_write)\b' "$REPO/$s" |
+		grep -vE '^[0-9]+:[[:space:]]*(#|(write_state|emit_metric|ufw_chains_hash)\(\))' | cut -d: -f1 |
+		while read -r line; do
+			grep -qx "$line" "$work/covered" || echo "UNCOVERED $s:$line: $(sed -n "${line}p" "$REPO/$s" | sed 's/^[[:space:]]*//')"
+		done
+done | tee "$work/uncovered"
+[ -s "$work/uncovered" ] && [ "$status" -eq 0 ] && status=1
 exit "$status"

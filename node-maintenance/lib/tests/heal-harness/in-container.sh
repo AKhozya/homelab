@@ -55,7 +55,15 @@ SCRIPT="" ARGS=() OUT_FILES=()
 }
 
 rc=0
-timeout 120 bash "/repo/$SCRIPT" "${ARGS[@]}" >/out/stdout 2>/out/stderr || rc=$?
+# The line trace feeds the call-site coverage report. It goes to fd 19: the heal scripts use fd 9.
+# Bash ignores PS4 from the environment when it runs as root, so BASH_ENV sets it instead.
+cat >/harness/xtrace-env <<'EOF'
+PS4='+${BASH_SOURCE##*/}:${LINENO}: '
+BASH_XTRACEFD=19
+set -x
+EOF
+timeout 120 env BASH_ENV=/harness/xtrace-env bash "/repo/$SCRIPT" "${ARGS[@]}" \
+	>/out/stdout 2>/out/stderr 19>/trace/xtrace || rc=$?
 echo "$rc" >/out/rc
 cp /harness/calls.log /out/calls.log
 # The scripts log their own PID, which depends on how many processes ran before them.

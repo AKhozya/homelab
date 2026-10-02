@@ -1,0 +1,1 @@
+/repo/node-maintenance/ansible/roles/clusterip_heal/files/clusterip-heal.sh: line 127: /var/lib/k3s-agent-restart/cooldown: Read-only file system
