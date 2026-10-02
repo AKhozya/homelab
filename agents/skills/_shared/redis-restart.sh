@@ -126,7 +126,9 @@ command -v timeout >/dev/null || {
   exit 1
 }
 k() { timeout 15 kubectl --request-timeout=10s "$@"; }
-info() { k exec -n "$NS" "$1" -c redis-replication -- redis-cli INFO replication </dev/null 2>/dev/null | tr -d '\r'; }
+# The ACL `default` user has a password (REDIS_PASSWORD in the pod); read it inside the pod.
+# shellcheck disable=SC2016  # expands inside the pod
+info() { k exec -n "$NS" "$1" -c redis-replication -- sh -c '[ -z "${REDIS_PASSWORD:-}" ] || export REDISCLI_AUTH="$REDIS_PASSWORD"; exec redis-cli INFO replication' </dev/null 2>/dev/null | tr -d '\r'; }
 settled_replication() {
   local masters=0 links=0 p i
   for p in redis-replication-0 redis-replication-1; do

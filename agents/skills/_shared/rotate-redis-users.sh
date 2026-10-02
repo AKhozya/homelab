@@ -11,7 +11,8 @@
 #          admin-password stays OLD: the sentinels log in with it.
 #          Then: restart Redis replica + master (Redis reads the ACL at startup), then cycle the
 #          consumers.
-#   pass2  admin-password <- admin's second ACL token (NEW). A rerun is a no-op. Then: restart each sentinel.
+#   pass2  admin-password <- admin's second ACL token (NEW). A rerun is a no-op. Then: restart
+#          the Redis pods (REDIS_PASSWORD comes from admin-password) and each sentinel.
 #   pass3  each ACL line keeps only the token equal to its redis-passwords key.
 #          Then: restart Redis replica + master.
 #
@@ -74,6 +75,16 @@ rewrite_acl_user() {
     { print }' "$tmp/acl" >"$tmp/acl.new" && mv "$tmp/acl.new" "$tmp/acl"
 }
 write_acl() { jq -Rs . <"$tmp/acl" | set_key "$ACL" user.acl; }
+# The ACL `default` user holds the admin password (the RedisReplication redisSecret is
+# admin-password: the operator, probe, exporter and masterauth use it). Keep its tokens equal to
+# admin's in every pass. If `default` is still `nopass`, leave it alone.
+mirror_default() {
+  acl_tokens default >"$tmp/tok.default"
+  if [ -s "$tmp/tok.default" ]; then
+    acl_tokens admin >"$tmp/tok.admin.now"
+    rewrite_acl_user default "$tmp/tok.admin.now"
+  fi
+}
 # Consumer password of a user, extracted from its secret, to "$tmp/consumer.<user>".
 consumer_pw() {
   case "$1" in
@@ -103,6 +114,9 @@ status)
     fi
     echo "$line"
   done
+  acl_tokens default >"$tmp/tok.default"
+  acl_tokens admin >"$tmp/tok.admin"
+  echo "default acl-tokens=$(wc -l <"$tmp/tok.default" | tr -d ' ') equals-admin=$(cmp -s "$tmp/tok.default" "$tmp/tok.admin" && echo yes || echo NO)"
   ;;
 pass1)
   for u in immich paperless blocky; do
@@ -133,6 +147,12 @@ pass1)
     } >"$tmp/both.$u"
     rewrite_acl_user "$u" "$tmp/both.$u"
   done
+  acl_tokens default >"$tmp/tok.default"
+  if [ -s "$tmp/tok.default" ] && ! cmp -s "$tmp/tok.default" <(printf '%s\n' "$(cat "$tmp/old.admin")"); then
+    echo "default: ACL password differs from admin's; fix that first" >&2
+    exit 1
+  fi
+  mirror_default
   # Build every consumer's new value before the first write. paperless URL and blocky config
   # hold the password as plain text; it must occur exactly once, so nothing else changes.
   for x in "paperless:$PAPERLESS:PAPERLESS_REDIS" "blocky:$BLOCKY:config.yml"; do
@@ -156,7 +176,7 @@ pass1)
 
   # Writes.
   write_acl
-  echo "acl: 4 users hold OLD and NEW"
+  echo "acl: 4 users (and default, if it has a password) hold OLD and NEW"
   for u in immich paperless blocky; do
     jq -c -n --rawfile v "$tmp/new.$u" '$v' | set_key "$PW" "$u-password"
   done
@@ -206,6 +226,7 @@ pass3)
     } >"$tmp/one.$u"
     rewrite_acl_user "$u" "$tmp/one.$u"
   done
+  mirror_default
   write_acl
   echo "acl: each user holds only its redis-passwords value"
   ;;

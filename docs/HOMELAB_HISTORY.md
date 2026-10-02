@@ -75,14 +75,12 @@ Not caused by the review: at about 10:58Z a NAS firmware auto-update rebooted th
 
 | Item | Detail |
 |---|---|
-| Redis ACL `user default on nopass ~* &* +@all` | any client that can reach Redis has full rights without a password, so the per-app passwords limit nothing |
+| Redis ACL `user default on nopass ~* &* +@all` | **Fixed the same day** (`d0cd7938`): `default` holds the admin password, the RedisReplication sets `redisSecret`, replicas log in as `admin` (`masteruser`). Before the merge, a runtime `CONFIG SET masteruser/masterauth` on both pods let either pod follow the other. During the roll both pods reported `role:master` for about 13s. Afterwards the replica link was up, sentinel quorum passed, immich, paperless and blocky were connected, and an unauthenticated `PING` got `NOAUTH` |
+| `timesyncd-metric`, `node_pkg_upgrade_success`, `crictl` prune | **Fixed the same day** (`95d38c65`). The upstream clock alerts replace the custom metric. The package metric file now carries a last-run timestamp. `NodePackageUpgradeStale` alerts on its age. The image prune runs `crictl --timeout=120s`. We did not use `imageMaximumGCAge`: the kubelet resets image age on restart, and 3 nodes reboot weekly. The image GC still has no failure notice. We accepted that, because the kubelet starts its own image GC at 85% disk usage |
 | NAS firmware auto-update | it can stop immich-vm at any hour without a clean shutdown. **Accepted by the operator 2026-10-02**: the `immich-vm-heal` CronJob restarts the VM within 5 minutes |
-| `timesyncd-metric` | it duplicates node-exporter's `node_timex_*` metrics, and no alert reads either one. There is no clock-skew alert |
-| `node_pkg_upgrade_success` | the file is rewritten only when its value changes, so a node that phase2 never reaches keeps a stale `1`. Add a last-run timestamp and alert on its age |
-| `k3s-image-gc.service` | it has no failure notice (open since July), and kubelet image GC may make it unnecessary. Keep it or delete it |
 | Watchdog metrics | the heal alerts fire on `==1` only. A dead heal script leaves its last `0` in place. The systemd collector is off |
 | Shared shell helpers | `ufw_chains_hash`, `emit_metric` and `write_state` are copied across the node scripts |
-| `agents/` snapshot | `scripts/sync-agents.sh --check` exits 1. Seven new `_shared` helpers and `hyperframes-studio` are on neither list |
+| `agents/` snapshot | **Fixed the same day** (`2684a4b5`): the new helpers are allowlisted, `hyperframes-studio` is denylisted, and `--check` exits 0 |
 
 ### 2026-10-02 — daily Flux webhook EOF alerts; a Flux readiness alert that can fire
 
