@@ -2,7 +2,7 @@
 # nic_tuning — disable EEE + Wake-on-LAN on primary NIC; optionally force speed.
 # Applied per-host when `nic_tuning_iface` set in host_vars.
 #
-# Background: Intel I225-V (igc) + Realtek 8125 (r8169) family — both 2.5GbE
+# Background: Intel I226-V (igc) + Realtek 8125 (r8169) family — both 2.5GbE
 # chipsets — exhibit intermittent link drops / wake-transition glitches when
 # Energy Efficient Ethernet is enabled. Disabling EEE is the documented
 # workaround across both drivers. Speed-force is CP-only (igc bug at gigabit).

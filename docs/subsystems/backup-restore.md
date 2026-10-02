@@ -50,14 +50,14 @@ Validate BEFORE the sync, per type, then push to the NAS, then clean the source 
 | Type | Validation |
 |---|---|
 | postgres, couchdb, mysql | newest archive: age under 26 h (whole-hour age ≤ 25), SHA-256 if a `.sha256` exists, tar integrity, size floor (1 MiB, 20 KiB, 100 KiB) |
-| pvc | every archive in the newest `pvc/<timestamp>/`: age under 26 h (whole-hour age ≤ 25), a `.sha256` that matches, tar integrity; the count must equal `PVC_EXPECTED` (14, the number of CRITICAL_PVCS entries). No size floor beyond 1 byte: a near-empty PVC gives a 4 KB archive. |
+| pvc | every archive in the newest `pvc/<timestamp>/`: age under 26 h (whole-hour age ≤ 25), a `.sha256` that matches, tar integrity; the count must equal `PVC_EXPECTED` in `infrastructure/configs/backup-replication/cronjob.yaml`, which must equal the number of `CRITICAL_PVCS` entries in `infrastructure/configs/backup/pvc-backup-cronjob.yaml`. No size floor beyond 1 byte: a near-empty PVC gives a 4 KB archive. |
 
 | Outcome | Effect |
 |---|---|
 | If a type fails | Replication skips that type and keeps its local files for the next night. The other types still sync and are cleaned. The Job still exits 1 and sends the Telegram report. |
 | If every type fails | The run stops before the sync. |
 
-**`--exclude='/immich/'` is load-bearing — do not drop it when editing the Step 2 rsync.** immich-backup owns that destination path; without the exclude, replication re-uploads whatever stale generations sit under W1's `immich/` (Step 4's `rm -rf` covers only postgres/couchdb/mysql/pvc) and Step 4b's keep-2 deletes them minutes later — 129G/night, both ways, for as long as the directory exists (`5f76db93`, verified 2026-07-28: 129 GiB → 120 MiB). The **leading slash anchors it to the transfer root**: unanchored `immich/` would also match a future `pvc/<ts>/immich/`. The exclude is on the *transfer* only — Step 4b still prunes the NAS immich pool to keep-2, which is the sole retention on that path (immich-backup's own keep-2 sweeps only its W2 copies). The NAS is the only destination.
+**`--exclude='/immich/'` is load-bearing — do not drop it when editing the Step 2 rsync.** immich-backup owns that destination path; without the exclude, replication re-uploads whatever stale generations sit under W1's `immich/` (Step 4's `rm -rf` covers only postgres/couchdb/mysql/pvc) and Step 4b's keep-2 deletes them minutes later. If stale generations remain on W1, replication uploads them each night and NAS retention deletes them afterwards (`5f76db93`). The **leading slash anchors it to the transfer root**: unanchored `immich/` would also match a future `pvc/<ts>/immich/`. The exclude is on the *transfer* only — Step 4b still prunes the NAS immich pool to keep-2, which is the sole retention on that path (immich-backup's own keep-2 sweeps only its W2 copies). The NAS is the only destination.
 
 **Retention prune (after validate + clean):**
 - 30d postgres/mysql/couchdb — `prune_nas_file()`: rsync include-filter file-prune against empty source, targets `<cat>/<cat>_YYYYMMDD_HHMMSS.tar.gz` older than 30d
@@ -107,6 +107,6 @@ GPG AES256 symmetric (passphrase prompt or `GPG_PASSPHRASE`); output `secrets-ba
 
 ## Verification
 - Manual run: `kubectl create job -n kube-system --from=cronjob/pvc-backup pvc-backup-manual-$(date +%s)`
-- Drill: the `backup-restore-drill` skill. The 2026-05-22 test checked every archive (all PVCs, the 4 database types and Immich: checksums and tar listings); it did not extract them. Timing anchors: Immich 62.5G = tar 187 s + sha256 914 s ≈ 18 min; replication with a heavy prune ≈ 102 s. The CouchDB restore was drilled end to end on 2026-07-24 (runbook).
-- Replication validates 4 backup types daily; failure → Telegram with the failed step
+- Drill: the `backup-restore-drill` skill covers the schedule that the BACKUP_STRATEGY.md checklist sets: a single-database test restore to a scratch namespace each month, and a full DR restore on spare hardware each quarter. The CouchDB restore steps are in `docs/disaster-recovery/README.md`.
+- Replication validates each backup type daily (table above); failure → Telegram with the failed step
 - Grafana dashboard: `monitoring/configs/grafana-dashboards/backup-monitoring-dashboard.yaml`

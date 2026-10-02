@@ -578,18 +578,11 @@ spec:
         description: "Backup CronJob hasn't run for more than 1 hour past its schedule time. Backups may not be running! Check: kubectl get cronjob {{ $labels.cronjob }} -n {{ $labels.namespace }}"
 
     - alert: BackupJobRunningTooLong
-      # The old form was `and (kube_job_complete{...} == 0)`, which matched nothing:
-      # `and` requires IDENTICAL label sets, and kube_job_complete carries a `condition`
-      # label (true/false/unknown) that kube_job_status_start_time lacks.
-      # Excluding the two TERMINAL conditions is what is wanted: old, and neither
-      # finished nor failed. Two wrong ways to express that, both rejected in review:
-      # `kube_job_status_active > 0` misses a stuck Job whose pod was evicted or sits
-      # between retries (nonterminal, active==0); and `kube_job_status_failed > 0` counts
-      # failed PODS, so a Job that lost one pod and is still retrying would be excluded
-      # while genuinely stuck. The Failed *condition* is the terminal signal.
-      # kube_job_failed has zero series today only because nothing has failed — KSM emits
-      # condition metrics only for conditions actually present, so the `unless` correctly
-      # excludes nothing until a Job really fails (verified against the KSM scrape).
+      # Exclude the terminal Complete and Failed conditions, matched `on(namespace,job_name)`
+      # because the condition metrics carry a `condition` label the start time lacks.
+      # Rejected: `kube_job_status_active > 0` misses a stuck Job whose pod was evicted or
+      # sits between retries (active == 0); `kube_job_status_failed > 0` counts failed pods,
+      # so it would exclude a Job that lost one pod and is still retrying.
       expr: >-
         (time() - kube_job_status_start_time{job_name=~".*backup.*"} > 7200) unless on(namespace,job_name)
         (kube_job_complete{job_name=~".*backup.*",condition="true"} == 1) unless on(namespace,job_name)

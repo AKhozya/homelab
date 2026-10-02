@@ -4,33 +4,34 @@
 
 set -euo pipefail
 
-# Read hook input (JSON on stdin)
+# This repo's main working tree, found from the hook's own location, so a clone at any
+# path works. The first `worktree` entry is always the main tree.
+HOMELAB_MAIN=$(git -C "$(dirname "${BASH_SOURCE[0]}")" worktree list --porcelain 2>/dev/null |
+  awk '/^worktree /{print substr($0, 10); exit}') || exit 0
+[[ -n "$HOMELAB_MAIN" ]] || exit 0
+
 input=$(cat)
-
-# Extract file path from Edit/Write tool input
 file_path=$(echo "$input" | jq -r '.tool_input.file_path // .tool_input.path // empty' 2>/dev/null || true)
-
-# Skip if no path
 [[ -z "$file_path" ]] && exit 0
 
-# Only trigger for tracked homelab dirs
-# Match Flux-managed dirs in EITHER the main tree (.../homelab/apps/...) or a
-# linked worktree (.../homelab/.claude/worktrees/<task>/apps/...). Both paths
-# contain /homelab/ AND a Flux dir; other repos match neither.
-case "$file_path" in
-  */homelab/*)
-    case "$file_path" in
-      */apps/*|*/infrastructure/*|*/monitoring/*|*/clusters/*)
-        # Already editing HOMELAB_ANALYSIS.md? Skip.
-        [[ "$file_path" == *HOMELAB_ANALYSIS.md ]] && exit 0
+# Nearest existing ancestor of the target (new files are created in existing dirs).
+dir=$(dirname "$file_path")
+while [[ "$dir" != "/" && ! -d "$dir" ]]; do dir=$(dirname "$dir"); done
 
-        # PostToolUse stderr on exit 0 reaches only the debug log; additionalContext
-        # is what Claude reads.
-        jq -nc --arg ctx "[homelab] changed: ${file_path##*/homelab/}. Update docs/HOMELAB_ANALYSIS.md if this is a meaningful infra/app change." \
-          '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
-        ;;
-    esac
-    ;;
+# The main tree and every linked worktree share one main tree; other repos do not.
+toplevel=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
+# awk reads all input: an early exit can SIGPIPE git, and pipefail would then fail the hook.
+main_tree=$(git -C "$dir" worktree list --porcelain 2>/dev/null | awk '/^worktree /{if (!n++) print substr($0, 10)}') || exit 0
+[[ "$main_tree" == "$HOMELAB_MAIN" ]] || exit 0
+
+rel=${file_path#"$toplevel"/}
+case "$rel" in
+apps/* | infrastructure/* | monitoring/* | clusters/*)
+  # PostToolUse stderr on exit 0 reaches only the debug log; additionalContext
+  # is what Claude reads.
+  jq -nc --arg ctx "[homelab] changed: $rel. Update docs/HOMELAB_ANALYSIS.md if this is a meaningful infra/app change." \
+    '{hookSpecificOutput: {hookEventName: "PostToolUse", additionalContext: $ctx}}'
+  ;;
 esac
 
 exit 0

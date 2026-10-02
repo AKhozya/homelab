@@ -18,7 +18,7 @@ VictoriaMetrics primary stack. **No Prometheus pod** — kube-prometheus-stack c
 | `popeye` | CronJob (`popeye` ns) | cluster sanitizer, weekly Sun 06:00 UTC (`monitoring/controllers/popeye/`) |
 | `trivy-scan` | CronJob (`trivy-scan` ns) | image-CVE scan of running images, monthly 1st 08:00 UTC (`monitoring/configs/trivy-scan/`) |
 
-Chart lineage gotcha: loki chart comes from the **grafana-community** repo (grafana.github.io lineage is frozen GEL-only). All 4 HelmReleases: `driftDetection: enabled`; explicit `timeout: 10m` on KPS + loki.
+Chart lineage gotcha: loki chart comes from the **grafana-community** repo (grafana.github.io lineage is frozen GEL-only). Every HelmRelease in `monitoring/controllers/` sets `driftDetection: enabled`; explicit `timeout: 10m` on KPS + loki.
 
 ## ⚠️ Prometheus converter DISABLED
 Operator values: `operator.disable_prometheus_converter: true` + `enable_converter_ownership: false`. **PrometheusRule and ServiceMonitor are silently ignored** — always use native VMRule + VMServiceScrape.

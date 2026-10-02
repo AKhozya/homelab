@@ -49,7 +49,14 @@ DB role name = app name. Postgres roles and databases come from CNPG (`managed.r
 
 ## Monitoring
 
-- **VictoriaMetrics** — VMSingle + VMAgent + VMOperator; ~113k active series at ~487 MiB (git first records this figure on 2026-04-09; ≈71% RAM saving vs Prometheus on the same scrape set). Operator chart pinned ≥0.67.1 — 0.67.0 omitted a `networkpolicies` grant operator v0.74.0 needs on every reconcile, and without it the operator parks silently while looking healthy (2026-07-31, commit `63c456a2`). Do not pin back to 0.67.0.
+- **VictoriaMetrics** — VMSingle + VMAgent + VMOperator. Measured 2026-10-02:
+
+  | Measure | Value | Source |
+  |---|---|---|
+  | Active series | ~162k | `vm_cache_entries{type="storage/hour_metric_ids"}`, series that received a sample in the last hour |
+  | vmsingle memory | ~889 MiB | container working set, `kubectl top pod -n monitoring --containers` |
+
+  Operator chart pinned ≥0.67.1 — 0.67.0 omitted a `networkpolicies` grant operator v0.74.0 needs on every reconcile, and without it the operator parks silently while looking healthy (2026-07-31, commit `63c456a2`). Do not pin back to 0.67.0.
 - **kube-prometheus-stack** — runs for Grafana, Alertmanager, kube-state-metrics and node-exporter only. `prometheus.enabled: false` and every VM prometheus-converter is off, so the chart's ServiceMonitors are inert and vmagent scrapes through the hand-written VMServiceScrapes in `monitoring/configs/`. Chart 90.0.0 refuses to render if an enabled control-plane component keeps its default `serviceMonitor.authorization` (2026-09-07, commit `b46d0803`).
 - **Grafana** — dashboards, OIDC login.
 - **Loki + Grafana Alloy** — log aggregation (DaemonSet).

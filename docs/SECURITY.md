@@ -158,6 +158,7 @@ With sudo, `ufw status numbered` lists the rules and `ss -tulpn` lists the liste
 |---|---|---|
 | 2025-10-30 | A firewall audit found the Kubernetes API (6443/tcp) open to any source, and SSH (65300) and Prometheus (9090) open over IPv6. The rules dated from the first setup. The API needs authentication, so the risk was medium. | The three rules were deleted by hand the same day. |
 | 2026-09-27 | The Ansible lists still declared 6443/tcp and 10250/tcp (the kubelet API) with no source, and immich-vm kept a 22/tcp rule from its build; with no source, each was open over IPv6. immich-vm also still accepted SSH passwords. Requests without credentials to the API server and the kubelet were refused (HTTP 401), before and after. | `ufw_rules_absent` deletes the three rules on every drift-heal run, and the SSH settings above now apply to every node (`fd6dc2e2`). |
+| 2026-09-28 | `ufw_rules_base` still declared flannel VXLAN, 8472/udp, with no source on every node, so it was open from any address, IPv6 included. | `ufw_rules_absent` deletes the rule on every drift-heal run; the node-IP rules already admit flannel peers (`1bc2817c`). |
 
 ## Accepted risks and when to revisit
 

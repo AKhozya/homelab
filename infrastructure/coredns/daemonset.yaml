@@ -8,10 +8,8 @@ metadata:
     k8s-app: kube-dns
     app.kubernetes.io/name: coredns-ha
 spec:
-  # DaemonSet (was Deployment, 2026-06-05): exactly one CoreDNS per node. The Deployment's soft
-  # topologySpread (ScheduleAnyway) repeatedly skewed under least-allocated scoring + rolling-update
-  # double-counting (06-04: wn2 had ZERO local coredns -> flannel blackout on wn2 = total pod-DNS
-  # loss there, JobFailed audiobookshelf-init + authentik crashloop x17). If a node loses its
+  # DaemonSet, not Deployment: exactly one CoreDNS per node. A Deployment's soft topologySpread
+  # (ScheduleAnyway) can leave a node with no local replica. If a node loses its
   # overlay network but local pod networking still works, its local replica answers the queries
   # routed to it. That is a share of the queries, not all: the kube-dns Service sets no
   # internalTrafficPolicy or trafficDistribution, so queries spread across every node's replica.

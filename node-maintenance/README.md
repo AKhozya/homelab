@@ -27,7 +27,7 @@ nodes and applies these 14 roles in order:
 | `firewall_preflight` | all | settles the packet filter and runs sanity checks before any firewall change; it runs again before the workers-only roles |
 | `firewall` | all | UFW policies, base, group and host rules, and route rules. It only adds rules and never resets; see [SECURITY.md](../docs/SECURITY.md#node-firewall) |
 | `hardening` | all | the sshd drop-in, sysctls, `kubelet.yaml`, the systemd watchdog and timeouts, K3s service drop-ins, resolved (LLMNR off), NVMe and SATA udev and modprobe rules, CPU and NVMe tmpfiles |
-| `nic_tuning` | the three physical nodes (each host's `nic_tuning_iface`; `immich-vm` has none) | turns EEE (Energy-Efficient Ethernet) off through `nic-tune@.service`, and on the CP also forces the Intel I225-V NIC to 1 Gbps; it removes the old `igc-tune@` unit |
+| `nic_tuning` | the three physical nodes (each host's `nic_tuning_iface`; `immich-vm` has none) | turns EEE (Energy-Efficient Ethernet) off through `nic-tune@.service`, and on the CP also forces the Intel I226-V NIC to 1 Gbps; it removes the old `igc-tune@` unit |
 | `security_scan` | all | the monthly scan timer and script |
 | `ad_hoc` | on demand | tasks run only by tag, such as firmware (see below) |
 | `clusterip_heal` | workers | a watchdog: if a probe through a ClusterIP fails (a stuck DNAT rule after a reboot), it restarts `k3s-agent`. Journal tag `clusterip-heal`. |

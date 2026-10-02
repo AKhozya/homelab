@@ -30,7 +30,7 @@ sits behind a NetworkPolicy.
 ```mermaid
 flowchart TB
   subgraph LAN["Home LAN 192.168.1.0/24, SSH on :65300"]
-    CP["gmk-k3s-control-plane · .127<br/>control plane, cluster state in SQLite<br/>NIC I225-V forced to 1 Gbps, EEE off"]
+    CP["gmk-k3s-control-plane · .127<br/>control plane, cluster state in SQLite<br/>NIC I226-V forced to 1 Gbps, EEE off"]
     W1["worker-node (W1) · .129<br/>/mnt/k8s-storage<br/>most app volumes, backup jobs, Loki"]
     W2["worker-node-2 (W2) · .126<br/>/mnt/extra-storage<br/>metrics storage; SSH user z3us"]
     NAS["NAS<br/>backup target, rsync daemon :50555"]
@@ -179,16 +179,10 @@ flowchart TB
 Each layer works on its own. A workload that got past admission still meets the network policy. A
 process that got past the network policy still runs, by default, as non-root with a read-only root
 filesystem, no extra Linux privileges (capabilities) and the default system-call filter (seccomp).
-These run a container as root, or may:
-
-| Workload | Container | Why |
-|---|---|---|
-| Home Assistant | main | documented exception ([PSS_EXCEPTION.md](../apps/home-assistant/PSS_EXCEPTION.md)) |
-| Stirling-PDF | main | documented exception ([PSS_EXCEPTION.md](../apps/stirling-pdf/PSS_EXCEPTION.md)) |
-| Paperless-NGX | init `fix-permissions` | `runAsUser: 0`, to fix volume ownership |
-| PriceBuddy | `pricebuddy`, `scraper` | no user set, so they run as the image's user |
-
-The Kyverno non-root policy (`require-non-root-vp.yaml`) excludes all four namespaces.
+The Kyverno non-root policy skips the namespaces listed in
+[`require-non-root-vp.yaml`](../infrastructure/configs/kyverno-policies/require-non-root-vp.yaml).
+A container in one of them may run as root. If neither the container nor the pod sets `runAsUser`,
+the container runs as the image's user, which may be root.
 
 | Control | Scope |
 |---|---|

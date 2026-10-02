@@ -59,9 +59,10 @@ spec:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
-    # orchestrator.configuration exists in the CRD but the operator does not implement it
-    # (last checked on operator 1.0.0), so custom orchestrator settings cannot be applied.
-    # See: https://github.com/percona/percona-server-mysql-operator
+    # orchestrator.configuration takes a JSON object string. Operator 1.2.0 merges it into the
+    # orchestrator ConfigMap but silently skips the keys it owns (RaftNodes, TLS paths, failover
+    # hooks): reservedOrchestratorConfigKeys in pkg/orchestrator/orchestrator.go, tag v1.2.0 of
+    # https://github.com/percona/percona-server-mysql-operator
 
   # Backup configuration (required even if not using backups)
   backup:
