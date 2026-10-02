@@ -17,6 +17,17 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-10-02 — daily Flux webhook EOF alerts; a Flux readiness alert that can fire
+
+| Finding | Detail |
+|---|---|
+| What fails | A webhook pod resets a kept-alive connection as the API server sends a request on it. The API server reports EOF and does not retry an admission call, so one Flux dry-run fails. The next reconcile, a minute later, passes |
+| How often | In 4.8 days k3s logged 54 resets ("Proxy error ... connection reset by peer") against Kyverno, CNPG, cert-manager and the VictoriaMetrics operator. Six of them hit a live call |
+| Likely reason | controller-runtime webhooks close idle connections at 90s, the same limit as the API server's client. Kyverno closes them at 5 minutes, and why it reset first is not known |
+| Ruled out | Kyverno did not restart. The failure times follow no schedule. The control plane also reset connections to webhook pods on its own node, so traffic between nodes is not needed |
+| Alert filter | The flux-gitops Alert drops the EOF and connection-reset wording for any webhook. It also drops every cancelled health check, which the Flux 2.9.6 upgrade (`aca65a08`) caused. The 2026-09-29 filter (`6de3f590`) matched only Kyverno's "rejected ... unknown reason" wording, so EOF still reached Telegram |
+| Backstop | `FluxControllerReconcileErrors` stayed at 0 through the 2026-10-02 failure: kustomize-controller v1.9.6 returns a nil error after a failed reconcile. kube-state-metrics now publishes `gotk_resource_info` for Kustomizations, HelmReleases, HelmCharts, GitRepositories and HelmRepositories. `FluxResourceNotReady` fires after 15 minutes at Ready=False or Unknown |
+
 ### 2026-09-29 — immich-vm VNC live on loopback; bot node keys have one copy
 
 | Change | Detail |

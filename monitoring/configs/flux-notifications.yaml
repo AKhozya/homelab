@@ -25,13 +25,20 @@ spec:
   providerRef:
     name: telegram
   eventSeverity: error
-  # The connection sometimes resets during the API server's call to a Kyverno vpol webhook (1 to 4 a day
-  # since at least 2026-09-22, k3s journal "Proxy error ... connection reset by peer"). The
-  # dry-run fails once and Flux retries 2 minutes later. If it persists, FluxControllerReconcileErrors
-  # (15 min) fires; KyvernoAdmissionControllerDown covers Kyverno itself. The filter excludes only this
-  # exact wording, so a webhook timeout or refused connection still notifies.
+  # These patterns drop three transient errors that cleared on the next reconcile.
+  # 1. A webhook pod resets a kept-alive connection as the API server sends a request on it,
+  #    and the call fails with EOF or a reset. The API server never retries an admission call,
+  #    so one dry-run fails. Any webhook can do this, not only Kyverno.
+  # 2. Kyverno logged a read timeout and the API server got a reply with no status (2026-09-29).
+  # 3. The Flux 2.9.6 upgrade (aca65a08) replaced kustomize-controller during its health check.
+  #    The pattern drops every cancelled health check, not only those from an upgrade.
+  # Flux drops an event if any pattern matches its message. If a failure persists,
+  # FluxResourceNotReady (15 min) and KyvernoAdmissionControllerDown still fire.
+  # A webhook timeout, refused connection, policy denial or "timeout waiting for" still notifies.
   exclusionList:
+    - 'failed calling webhook "[^"]+": failed to call webhook: Post "[^"]+": (EOF|read tcp [^"]*: connection reset by peer)'
     - 'failed calling webhook "vpol\.validate\.kyverno\.svc-[^"]*": failed to call webhook: the server rejected our request for an unknown reason'
+    - 'health check failed after [^:]+: context canceled'
   eventSources:
     - kind: GitRepository
       name: '*'

@@ -518,7 +518,23 @@ spec:
     rules:
     # gotk_reconcile_condition / gotk_suspend_status removed upstream in Flux 2.8.x — per-object Ready
     # failures are delivered to Telegram by the flux-gitops Alert (notification-controller event path,
-    # monitoring/configs/flux-notifications.yaml). These two are metric backstops to that path.
+    # monitoring/configs/flux-notifications.yaml). These rules are metric backstops to that path.
+    # kustomize-controller handles a failed reconcile itself and returns no error to
+    # controller-runtime, so FluxControllerReconcileErrors stayed at 0 through the 2026-10-02
+    # Kustomization failure. FluxResourceNotReady reads each object's Ready condition instead.
+    - alert: FluxResourceNotReady
+      # kube-state-metrics publishes gotk_resource_info (kube-prometheus-stack release.yaml).
+      # `ready` is a label, so a flip between False and Unknown starts a new series. The max
+      # drops that label, so the flip does not restart the 15-minute timer. An object with no
+      # Ready condition (the OCI HelmRepository) has no `ready` label and never matches.
+      expr: max by (customresource_kind, exported_namespace, name) (gotk_resource_info{ready=~"False|Unknown", suspended!="true"})
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Flux {{ $labels.customresource_kind }} {{ $labels.exported_namespace }}/{{ $labels.name }} is not Ready"
+        description: "Not Ready for 15 minutes. Its latest change may not be applied or healthy. Check: flux get all -A --status-selector ready=false"
+
     - alert: FluxControllerReconcileErrors
       expr: sum by (controller) (rate(controller_runtime_reconcile_errors_total{namespace="flux-system"}[10m])) > 0
       for: 15m
