@@ -638,7 +638,7 @@
         paccache -ruk0
         ORPHANS=$(pacman -Qtdq || true)
         [ -n "$ORPHANS" ] && pacman -Rns --noconfirm $ORPHANS || true
-        crictl rmi --prune || true
+        crictl --timeout=120s rmi --prune || true
       changed_when: false
       failed_when: false
 
@@ -652,7 +652,7 @@
           sudo paccache -ruk0
           ORPHANS=$(pacman -Qtdq || true)
           [ -n "$ORPHANS" ] && sudo pacman -Rns --noconfirm $ORPHANS || true
-          sudo crictl rmi --prune || true
+          sudo crictl --timeout=120s rmi --prune || true
         '
       loop: "{{ groups['workers'] | map('extract', hostvars, 'ansible_host') | list }}"
       changed_when: false

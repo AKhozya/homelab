@@ -4,4 +4,4 @@ After=k3s.service k3s-agent.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/crictl rmi --prune
+ExecStart=/usr/local/bin/crictl --timeout=120s rmi --prune

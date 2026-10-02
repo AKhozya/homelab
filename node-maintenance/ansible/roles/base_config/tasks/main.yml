@@ -60,7 +60,8 @@
 
 # systemd-timesyncd: assert enabled + active. Single source of clock truth
 # for all 4 nodes. Skew breaks certificate validity checks and the 75s node-lease
-# grace; timesyncd holds ≪100ms in practice. The textfile metric below reports clock drift.
+# grace; timesyncd holds ≪100ms in practice. NodeClockSkewDetected and
+# NodeClockNotSynchronising in vmrules.yaml alert on node-exporter's node_timex_* metrics.
 - name: Ensure systemd-timesyncd enabled + active
   ansible.builtin.systemd_service:
     name: systemd-timesyncd.service
@@ -114,40 +115,36 @@
     mode: "0755"
   tags: [base-config, time-sync, metrics]
 
-- name: Deploy timesyncd-metric.sh
-  ansible.builtin.copy:
-    src: timesyncd-metric.sh
-    dest: /usr/local/sbin/timesyncd-metric.sh
-    owner: root
-    group: root
-    mode: "0755"
-  tags: [base-config, time-sync, metrics]
-
-- name: Deploy timesyncd-metric.service
-  ansible.builtin.copy:
-    src: timesyncd-metric.service
-    dest: /etc/systemd/system/timesyncd-metric.service
-    owner: root
-    group: root
-    mode: "0644"
-  notify: Reload systemd
-  tags: [base-config, time-sync, metrics]
-
-- name: Deploy timesyncd-metric.timer
-  ansible.builtin.copy:
-    src: timesyncd-metric.timer
-    dest: /etc/systemd/system/timesyncd-metric.timer
-    owner: root
-    group: root
-    mode: "0644"
-  notify: Reload systemd
-  tags: [base-config, time-sync, metrics]
-
-- name: Enable + start timesyncd-metric.timer
+# The node_timex_* metrics replace timesyncd-metric. If the timer is already gone, the
+# stop fails, so failed_when is false.
+- name: Stop + disable legacy timesyncd-metric.timer
   ansible.builtin.systemd_service:
     name: timesyncd-metric.timer
-    enabled: true
-    state: started
+    enabled: false
+    state: stopped
+  failed_when: false
+  tags: [base-config, time-sync, metrics]
+
+# A run already in progress could write time_sync.prom again after the delete below.
+- name: Stop legacy timesyncd-metric.service
+  ansible.builtin.systemd_service:
+    name: timesyncd-metric.service
+    state: stopped
+  failed_when: false
+  tags: [base-config, time-sync, metrics]
+
+# node-exporter serves every file in the textfile directory, so time_sync.prom must go too.
+- name: Remove legacy timesyncd-metric files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /usr/local/sbin/timesyncd-metric.sh
+    - /etc/systemd/system/timesyncd-metric.service
+    - /etc/systemd/system/timesyncd-metric.timer
+    - /etc/systemd/system/timers.target.wants/timesyncd-metric.timer
+    - /var/lib/node_exporter/textfile/time_sync.prom
+  notify: Reload systemd
   tags: [base-config, time-sync, metrics]
 
 - name: Ensure /etc/systemd/journald.conf.d exists

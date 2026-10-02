@@ -12,6 +12,11 @@
 # Written to its own file, NOT metrics_file: phase2 post-tasks `copy` metrics_file wholesale on
 # the CP, which would clobber anything merged into it here.
 #
+# `copy` writes only when the content changes, so without the timestamp a skipped node keeps a
+# stale value for ever. The phase2 worker and VM plays run with gather_facts: false, so the
+# timestamp comes from now(), not ansible_facts. Ansible renders it on the CP. Keep now() naive:
+# .timestamp() reads a naive datetime as local time, so now(utc=true) would shift the epoch.
+#
 # Caller must set: pkg_upgrade_ok (bool).
 
 - name: Emit per-node package-upgrade metric
@@ -24,6 +29,9 @@
       # HELP node_pkg_upgrade_success Whether the last node-maintenance package upgrade succeeded on this node
       # TYPE node_pkg_upgrade_success gauge
       node_pkg_upgrade_success {{ 1 if pkg_upgrade_ok | bool else 0 }}
+      # HELP node_pkg_upgrade_last_run_timestamp_seconds Unix time of the last node-maintenance package upgrade attempt on this node
+      # TYPE node_pkg_upgrade_last_run_timestamp_seconds gauge
+      node_pkg_upgrade_last_run_timestamp_seconds {{ now().timestamp() | int }}
   # Never let telemetry fail the run it is reporting on — that would recreate the exact
   # phase2-pending wedge the rescues above exist to prevent.
   failed_when: false
