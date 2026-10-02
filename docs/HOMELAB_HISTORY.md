@@ -53,6 +53,7 @@ What the run taught, now written into the skill and into `docs/SECRETS_ROTATION.
 | The Loki sidecar gets 200m CPU and a startupProbe. At 50m its start took 84s, against a liveness limit near 90s. It now starts in 25s | `ff65f775` |
 | immich-server connects to `main-postgres-rw` directly. Through the transaction-mode pooler, its startup advisory lock failed on every start (`you don't own a lock of type ExclusiveLock`), and the startupProbe killed it. A start now takes 11s | `14b84b59` |
 | `backup-nightly-verify` no longer reports a false failure. It expected exactly 4 artifacts, but the job now validates one per PVC archive (17 last night) | dotfiles `bd266d6` |
+| `NodeHealWatchdogStale` alerts if a heal-watchdog textfile stops updating for 25 minutes. The existing heal alerts fire only on the value `1`, so a dead writer went unseen. A 30-day backtest fired 0 times. `scripts/ansible-apply.sh` is deleted: nothing live called it | this commit |
 | `redis-master.sh` now logs in as the ACL user `admin`. Before, `info` and `exec` failed with `AUTH failed` | dotfiles `5ecc336` |
 | Docs corrected: Actions jobs succeed again since 2026-10-01 (first green run 17:18Z); the 8472/udp rule names a source; the DB backups have no local age sweep; Grafana is LAN-only; the Alertmanager NetworkPolicy sources; the pooler's clients | this commit |
 

@@ -93,7 +93,6 @@ Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md
 |---|---|
 | unscheduled | Deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only); the SP5 carried-forward items: the control-plane first-start drill, the sshd drop-in rename ([plan, SP5](plans/2026-09-26-open-source-prep.md)) |
 | monthly review | Upstream watches: n8n PR #27295 (sets `statement_timeout` with `SET`; issue #25705 closed 2026-07-14 but the PR is unmerged, so `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` stays), Stirling#6211 (open; re-measure memory on 3.0.2, deployed 2026-10-02) |
-| 2026-11 (monthly review) | Fix: the heal-watchdog alerts fire on `==1` only, so they miss a dead script |
 | 2026-11 (monthly review) | Re-measure Stirling memory on 3.0.2 (Stirling#6211) |
 | 2026-10-31 | First certificate renewals with the Cloudflare token rotated 2026-09-28 (`52ce08aa`). After that date, `kubectl get certificates -A -o json \| jq -r '[.items[].status.notAfter] \| min'` must print a date later than `2026-11-30T20:27:49Z`, every certificate must be `True`, and `kubectl get challenges -A` must find none. If the earliest date has not moved, renewal did not happen and the token is not yet proven: read the cert-manager log and the Certificate, Order and Challenge events before blaming the token |
 | 2026-12-31 | `cloudflare-tunnel-mgmt-token` rotation |

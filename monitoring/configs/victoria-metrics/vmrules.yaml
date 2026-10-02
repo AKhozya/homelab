@@ -137,6 +137,26 @@ spec:
           blocked further escalation while the node is still isolated from the CP. Check power, switch port, NIC (W2
           r8169), and the CP itself."
 
+    - alert: NodeHealWatchdogStale
+      # The heal alerts above and the Ufw* alerts fire on a gauge value. If the script that writes
+      # the gauge stops, node-exporter keeps serving the last file, and those alerts stay silent.
+      # 900s is 5x the 3min timers, 7.5x node_isolation_heal's 2min and 15x ufw_state's 60s.
+      # The file survives a reboot under /var/lib, so its age jumps by the downtime at every boot.
+      # The timers' OnBootSec (30s-2min) rewrites it within `for`. A down node has no sample.
+      # Left out: the scripts that write firewall_preflight*, node_maintenance, node_pkg_upgrade and
+      # telegram_notify run once per maintenance run, not on a timer. ufw-heal-watchdog writes no file.
+      # No absent() arm: immich-vm has no node_isolation_heal file by design.
+      expr: time() - node_textfile_mtime_seconds{file=~"/var/lib/node_exporter/textfile/(clusterip_heal|clusterip_heal_cp|node_isolation_heal|immich_gpu_heal|ufw_state)[.]prom"} > 900
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Heal watchdog file {{ $labels.file }} on {{ $labels.instance }} is stale"
+        description: "{{ $labels.file }} on {{ $labels.instance }} has not changed for over 25 minutes. Its writer has
+          stopped, or fails before the write, so the alerts that read it cannot see a new value. On the node, check the timer and its last run:
+          systemctl list-timers --all '*heal*' ufw-state-metric.timer, then journalctl -u <unit>. Each unit is the file
+          name with dashes plus -watchdog; ufw_state.prom comes from ufw-state-metric.service."
+
     - alert: NodeMemoryPressure
       expr: kube_node_status_condition{condition="MemoryPressure",status="true"} == 1
       for: 5m

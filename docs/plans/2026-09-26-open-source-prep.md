@@ -116,6 +116,8 @@ Moves (`git mv`):
 | `docs/scripts/runbooks/authentik-passkey-rollback.md` | `docs/runbooks/` |
 | new symlink | `docs/scripts/node-maintenance → ../../node-maintenance` (git mode `120000`) |
 
+On 2026-10-02 the monthly review deleted `scripts/ansible-apply.sh`. It wrapped the two `systemctl start` commands that `AGENTS.md` and `node-maintenance/README.md` document, and nothing live called it.
+
 Functional edits:
 
 | File:line | Change |
