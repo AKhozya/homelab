@@ -36,7 +36,7 @@ apps/<app>/                   # all manifests in ONE flat dir (single-env; F-13 
   ```yaml
   traefik.ingress.kubernetes.io/router.middlewares: traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-standard@kubernetescrd,traefik-csp@kubernetescrd
   ```
-- **CSP** (`infrastructure/controllers/traefik/csp-middleware.yaml`):
+- **CSP** (`infrastructure/configs/traefik-middlewares/csp-middleware.yaml`):
 
   | Chain token | Policy | Use |
   |---|---|---|

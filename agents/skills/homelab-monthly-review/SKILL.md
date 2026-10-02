@@ -82,6 +82,7 @@ bash ~/.agents/skills/_shared/check-kyverno.sh --summary
 - Decisions (security tradeoffs, live failovers) → AskUserQuestion ONCE, batched.
 - Live cluster ops (failover tests, re-pins) serialized, AFTER GitOps edits validated; verify app reconnect (immich ioredis — see `db-primary-pin` caveats).
 - Edits: worktree → `/homelab-yaml-validate` → peer static pre-commit review loop (per /gitops-workflow) → commit → merge → push → CI green → `fr` → verify.
+- Rotation batch due (Phase 0 found it) → `secrets-rotation` skill, run after the Phase 1 sweep (baseline first). The agent runs it end to end, merges included, one engine per merge (operator, 2026-10-02).
 - The review loop's state table decides when to commit.
 
 ## Phase 5 — docs + memory

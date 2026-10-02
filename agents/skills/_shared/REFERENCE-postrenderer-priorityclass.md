@@ -11,7 +11,7 @@ Chart exposes `priorityClassName` (top-level or per-component) and renders into 
 
 ## When postRenderers JSON6902 is required (chart has no hook)
 
-Verified upstream — these omit any `priorityClassName` value:
+Verified upstream at the versions named — these omitted any `priorityClassName` value then. Since `88fe2598` (2026-09-28), chart values set it for cert-manager, victoria-metrics-operator and alloy. Check a chart's values before you add a postRenderer.
 - ❌ **ps-operator 1.1.0** (Percona Server for MySQL operator) — Commit I.
 - ❌ **cert-manager 1.20.2** — Commit G (3 deployments).
 - ❌ **kyverno 3.8.1** — Commit G (4 deployments).
@@ -74,7 +74,7 @@ bash ~/.agents/skills/_shared/audit-priority-class.sh --missing    # MUST be emp
 
 - `apps/immich/release.yaml:31` — full postRenderers example (serviceAccount + securityContext + GPU + priorityClassName).
 - `infrastructure/controllers/databases/mysql/helmrelease.yaml:13` — minimal postRenderers (just priorityClassName).
-- `clusters/flux-system/gotk-components.yaml:6431` — system-cluster-critical parity for Flux notification-controller (upstream gotk omits it from notification-controller only; other 3 have it). Path flattened from `clusters/staging/` 2026-06-12.
+- `clusters/flux-system/kustomization.yaml` (a patch, not an inline line in gotk-components) — system-cluster-critical parity for Flux notification-controller (upstream gotk omits it from notification-controller only; other 3 have it). Path flattened from `clusters/staging/` 2026-06-12.
 
 ## Cross-refs
 

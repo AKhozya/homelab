@@ -33,7 +33,7 @@ logs and report instead. A manual `couchdb-backup` is safe.
 | 3 | `immich-backup` did *not* run | Weekly (Sun 03:00). A run on a weekday is as wrong as a missing daily one |
 | 4 | CouchDB completions == databases discovered | The job exits 0 on a partial dump. Counting against the `Found databases:` line is what catches db2 dying after db1 succeeded — matching one completion line does not |
 | 5 | Transfer under 1000MB, no `immich/` pruned | See below |
-| 6 | `all 4 validated artifact(s)` + `Source cleaned` | The 4 are postgres/couchdb/mysql/pvc — immich was never among them |
+| 6 | `all N validated artifact(s)`, no `failed Step 1)` line, + `Source cleaned` | N varies nightly: one artifact per PVC archive plus postgres/couchdb/mysql (immich was never among them). A type that failed Step 1 is named on the `failed Step 1)` line, not shown as a short N |
 
 Schedules (UTC): postgres 03:00 · couchdb 03:05 · pvc 03:10 · mysql 03:15 · replication 03:30.
 
@@ -47,11 +47,12 @@ is routinely the wrong one.
 **The expected job set is hardcoded on purpose.** Listing what exists and checking those can
 never notice a CronJob that silently vanished or got suspended.
 
-**A size floor fails when the data legitimately shrinks.** Step 1 aborts the whole replication
-before the rsync if any one artifact is under its minimum, so a shrunk source blocks the other
-three as well. On 2026-08-08 a client-side Obsidian LiveSync rebuild recreated `obsidian-personal`;
+**A size floor fails when the data legitimately shrinks.** A type with an artifact under its
+minimum is held back from the sync (`Not syncing or cleaning (failed Step 1): <types>`) and the
+job exits 1; the other types still sync (`dca36ccf`). Before that commit one short artifact
+blocked all four. On 2026-08-08 a client-side Obsidian LiveSync rebuild recreated `obsidian-personal`;
 the dump went 15.8M → 88K, under the then-100KB CouchDB floor, and nothing reached the NAS.
-Check #6 catches it (no `all 4 validated artifact(s)` line), but the Telegram report names it
+Check #6 catches it (the `failed Step 1)` line names `couchdb`), but the Telegram report names it
 "Backup Validation FAILED", which reads like corruption. Read the per-artifact table: `SHA256 OK,
 tar OK, too small` is a size verdict, not a broken dump. Confirm against the `couchdb-backup` job's
 own `Found databases:` / per-database completion lines before touching the floor — those are what

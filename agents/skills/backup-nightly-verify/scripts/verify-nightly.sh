@@ -214,10 +214,14 @@ elif RLOG="$(kubectl logs -n "${REPL_JOB%%/*}" "job/${REPL_JOB##*/}" 2>/dev/null
 
   # if/else, not `grep -q X && grn … || fail …`: the pipe binds tighter than `||`, so the
   # failure branch can fire on success (SC2015, and a documented homelab footgun).
-  if grep -q 'OK: all 4 validated artifact(s) present on NAS' <<<"$RLOG"; then
-    grn "all 4 artifacts present on NAS"
+  # The count varies nightly (one artifact per PVC archive since 54b4069a), so a type that
+  # failed Step 1 cannot show as a short count; the job names it on its own line instead.
+  if grep -q 'failed Step 1)' <<<"$RLOG"; then
+    fail "Step 1 failed for:$(sed -n 's/.*failed Step 1)://p' <<<"$RLOG" | head -1) — held back from the NAS"
+  elif grep -qE 'OK: all [0-9]+ validated artifact\(s\) present on NAS' <<<"$RLOG"; then
+    grn "$(grep -oE 'all [0-9]+ validated artifact' <<<"$RLOG" | head -1)s present on NAS"
   else
-    fail "Step 3 did not confirm all 4 artifacts on the NAS"
+    fail "Step 3 did not confirm the validated artifacts on the NAS"
   fi
 
   if grep -q 'Source cleaned' <<<"$RLOG"; then

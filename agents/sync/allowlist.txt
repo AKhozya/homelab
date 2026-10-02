@@ -51,10 +51,17 @@ _shared/np-gap.sh
 _shared/oidc-verify.sh
 _shared/pacman-cache-refresh.sh
 _shared/pod-health.sh
+_shared/pooler-login-proof.sh
 _shared/preflight-limit-change.sh
 _shared/quota.sh
+_shared/redis-acl-drop-old.sh
+_shared/redis-restart.sh
 _shared/restart-workload.sh
 _shared/rotate-db-user.sh
+_shared/rotate-pg-roles.sh
+_shared/rotate-redis-users.sh
+_shared/secret-readers.sh
+_shared/sops-changed-keys.sh
 _shared/ssh-alias-resolve.sh
 _shared/vmagent-queue-check.sh
 _shared/vmalert-state.sh

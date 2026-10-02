@@ -116,7 +116,7 @@ bash ~/.agents/skills/gitops-workflow/scripts/wait-for-ci.sh
 # | 11 INFRA-RED → local gate + peer review authorize fr | 3 no run appeared (docs-only push?)
 ```
 
-Actions billing outage since 2026-09-10 (AGENTS.md):
+If Actions billing blocks jobs again (it did 2026-09-10 to 2026-10-01):
 
 | Fact | Consequence |
 |---|---|

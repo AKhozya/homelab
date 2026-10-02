@@ -87,7 +87,6 @@ Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md
 | unscheduled | Deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only); the SP5 carried-forward items: the control-plane first-start drill, the sshd drop-in rename ([plan, SP5](plans/2026-09-26-open-source-prep.md)) |
 | monthly review | Upstream watches: n8n PR #27295 (sets `statement_timeout` with `SET`; issue #25705 closed 2026-07-14 but the PR is unmerged, so `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` stays), Stirling#6211 (open; re-measure memory on 3.0.2, deployed 2026-10-02) |
 | 2026-11 (monthly review) | Decide: the Redis ACL `default` user has no password and full rights, so the per-app passwords limit nothing |
-| 2026-11 (monthly review) | Decide: schedule or disable the NAS firmware auto-update. On 2026-10-02 it stopped immich-vm without a clean shutdown |
 | 2026-11 (monthly review) | Decide: replace `timesyncd-metric` with an alert on node-exporter `node_timex_*`. No clock-skew alert exists |
 | 2026-11 (monthly review) | Fix: `node_pkg_upgrade_success` keeps a stale `1` if phase2 skips a node. Add a last-run timestamp and alert on its age |
 | 2026-11 (monthly review) | Decide: keep or delete `k3s-image-gc.service`. It has no failure notice |

@@ -76,7 +76,7 @@ Not caused by the review: at about 10:58Z a NAS firmware auto-update rebooted th
 | Item | Detail |
 |---|---|
 | Redis ACL `user default on nopass ~* &* +@all` | any client that can reach Redis has full rights without a password, so the per-app passwords limit nothing |
-| NAS firmware auto-update | it can stop immich-vm at any hour without a clean shutdown. Schedule or disable it |
+| NAS firmware auto-update | it can stop immich-vm at any hour without a clean shutdown. **Accepted by the operator 2026-10-02**: the `immich-vm-heal` CronJob restarts the VM within 5 minutes |
 | `timesyncd-metric` | it duplicates node-exporter's `node_timex_*` metrics, and no alert reads either one. There is no clock-skew alert |
 | `node_pkg_upgrade_success` | the file is rewritten only when its value changes, so a node that phase2 never reaches keeps a stale `1`. Add a last-run timestamp and alert on its age |
 | `k3s-image-gc.service` | it has no failure notice (open since July), and kubelet image GC may make it unnecessary. Keep it or delete it |

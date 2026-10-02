@@ -36,6 +36,8 @@ Gotchas baked into the scripts: vmalert leaks raw control chars → `tr -d '\000
 ```bash
 bash ~/.agents/skills/monitoring-check/scripts/check-vm.sh   # memory + series + targets
 ```
+`check-vm.sh` and `check-loki.sh` use `kubectl port-forward`, which the claude-telegram bot's RBAC
+does not grant. From the bot, query vmsingle through the API service proxy instead (AGENTS.md).
 
 ## Alert won't clear — triage decision tree
 
@@ -104,7 +106,15 @@ bash ~/.agents/skills/monitoring-check/scripts/check-grafana.sh
 ```bash
 bash ~/.agents/skills/monitoring-check/scripts/check-loki.sh
 ```
-Gotcha: the chart's k8s-sidecar containers' healthz endpoint dies IPv4-only (upstream k8s-sidecar#531) — loki 18.x sidecar probes CrashLoop; the fix was disabling BOTH sidecar probes. Memory: `gotchas.md` § "k8s-sidecar healthz dies on IPv4-only kernels".
+Gotcha: the loki chart's k8s-sidecar probes.
+
+| Fact | Source |
+|---|---|
+| Before 2.10.0 the sidecar's health server stops on IPv4-only nodes (upstream #531); the repo turned its probes off | `d1b586ca` |
+| 2.10.0+ serves `/healthz` on IPv4; the probes are on again | `8b3d4e68` |
+| At 50m CPU the Python start takes 84s, near the ~90s liveness limit; the sidecar now has 200m and a 300s startupProbe | `ff65f775` |
+
+Memory: `gotchas.md` § "k8s-sidecar healthz dies on IPv4-only kernels".
 
 ## Cluster Scanners
 

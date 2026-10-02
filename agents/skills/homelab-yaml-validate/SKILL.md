@@ -88,7 +88,7 @@ script runs as the `helm-render` job in `validate.yaml`.
 Renovate merged `kube-prometheus-stack` v90 on 2026-09-07 and the release then failed in prod:
 chart 90.0.0 fails to render if an enabled control-plane component keeps its default
 `serviceMonitor.authorization`, because the chart creates the Secret that field names only if
-`prometheus.enabled` is true. This repo disables Prometheus. See `docs/HOMELAB_HISTORY.md`.
+`prometheus.enabled` is true. This repo disables Prometheus. See commit `b46d0803` (2026-09-07).
 
 A skipped chart must never read as a passing one, so the script exits 1 on each of these:
 

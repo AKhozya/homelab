@@ -50,7 +50,7 @@ bash ~/.agents/skills/cluster-reboot/scripts/trigger-reboot.sh
 before any sudo if `op read` is empty** (e.g. a dismissed popup), refuses to reboot through a running
 drift-heal/sync or an in-flight run (`phase2-pending`), makes a **single** attempt, and never leaks
 the password (op → shell var → ssh stdin, never argv/env/history). 1Password item:
-`op://Personal/sudo-homelab/password` (shared sudo for all 3 nodes); override via `OP_SUDO_PATH` /
+`op://Personal/sudo-homelab/password` (shared sudo for the CP, worker-node and worker-node-2); override via `OP_SUDO_PATH` /
 `CP_HOST` env.
 
 > ⚠️ **pam_faillock `deny=3`** — a wrong/empty sudo password tried 3× = 10-min lockout. NEVER

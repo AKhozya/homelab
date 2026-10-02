@@ -51,6 +51,7 @@ LOG="$TMP/log"
 
 log() { printf '%s\n' "$*" >&2; }
 
+# shellcheck disable=SC2329  # invoked by trap
 cleanup() {
   local rc=$?
   # Ignored, not cleared: a second Ctrl-C landing inside the restore below would
