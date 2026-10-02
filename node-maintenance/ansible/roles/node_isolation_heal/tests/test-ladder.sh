@@ -23,6 +23,8 @@ EOS
 chmod +x "$TMP/bin/systemctl"
 export PATH="$TMP/bin:$PATH"
 export MOCK_ACTIONS="$TMP/actions"
+NODE_SCRIPT_LIB="$(cd "$(dirname "$0")" && pwd)/../../base_config/files/node-script-lib.sh"
+export NODE_SCRIPT_LIB
 export NIH_STATE_DIR="$TMP/state" NIH_METRIC_DIR="$TMP/metric" NIH_SHARED_COOLDOWN="$TMP/shared-cooldown"
 # Test-only: bypass the shared flock (absent on macOS); the ladder under test is mtime-based.
 export NIH_SKIP_LOCK=1
@@ -127,6 +129,9 @@ chk "recovery: episode cleared (consec=0)" 0 "$(awk '{print $2}' "$STATE")"
 # T13: If a peer is reachable and the CP is unreachable, suppress L2.
 # Same seed as T11 (which reboots); only the peer signal differs, so it isolates the gate.
 export NIH_MOCK_PEERS=0 # 0 = a peer answered
+# If an earlier case leaves the shared cooldown file fresh, Linux suppresses T13's restart.
+# macOS stat rejects -c, so it masks this dependency.
+rm -f "$NIH_SHARED_COOLDOWN"
 seed "$(($(N) - 1000))" 2 "$(($(N) - 500))" 0
 run 1 1 0 2000
 chk "peers up: reboot SUPPRESSED" RESTART "$(cat "$MOCK_ACTIONS" 2>/dev/null)"

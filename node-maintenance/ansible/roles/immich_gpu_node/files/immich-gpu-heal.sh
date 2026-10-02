@@ -40,6 +40,14 @@ log() {
 	echo "immich-gpu-heal: $*"
 }
 
+# Shared helpers. NODE_SCRIPT_LIB lets the offline tests point at the repo copy.
+NODE_SCRIPT_LIB="${NODE_SCRIPT_LIB:-/usr/local/lib/node-maintenance/node-script-lib.sh}"
+# shellcheck source=../../base_config/files/node-script-lib.sh
+if ! . "$NODE_SCRIPT_LIB" || ! declare -F textfile_write state_write >/dev/null; then
+	log "cannot load $NODE_SCRIPT_LIB — exiting."
+	exit 1
+fi
+
 # Intel display GPU present on the PCI bus? sysfs only (no lspci dep). Pre-passthrough the guest has
 # only virtio-gpu → false → the whole watchdog is inert. class 0x03xxxx = Display controller.
 has_intel_gpu() {
@@ -113,9 +121,8 @@ decide() { # $1 now  $2 win  $3 count  $4 last
 
 emit_metric() { # $1 render_ok  $2 qsv(1/0/-1)  $3 virtiofs_ok  $4 restarts_total  $5 giveup(0/1)  [$6 qsv_stuck(0/1)]
 	[ -d "$METRIC_DIR" ] || return 0
-	local tmp stuck="${6:-0}"
-	tmp="$(mktemp "${METRIC}.XXXXXX")" || return 0
-	if {
+	local stuck="${6:-0}"
+	{
 		printf '# HELP immich_gpu_render_ok Intel i915 render node (renderD129) present + i915 loaded (1=ok).\n'
 		printf '# TYPE immich_gpu_render_ok gauge\n'
 		printf 'immich_gpu_render_ok %s\n' "$1"
@@ -134,23 +141,11 @@ emit_metric() { # $1 render_ok  $2 qsv(1/0/-1)  $3 virtiofs_ok  $4 restarts_tota
 		printf '# HELP immich_gpu_qsv_stuck A prior hourly QSV probe is wedged in D-state (1=needs a host cold-restart; probe not relaunched).\n'
 		printf '# TYPE immich_gpu_qsv_stuck gauge\n'
 		printf 'immich_gpu_qsv_stuck %s\n' "$stuck"
-	} >"$tmp"; then
-		# 0644 so a non-root node_exporter can scrape (mktemp made it 0600; sibling *.prom are 0644).
-		chmod 0644 "$tmp"
-		mv -f "$tmp" "$METRIC" || rm -f "$tmp"
-	else
-		rm -f "$tmp"
-	fi
+	} | textfile_write "$METRIC" || true
 }
 
 write_state() { # $1 win  $2 count  $3 total  $4 last  $5 last_qsv
-	local tmp
-	tmp="$(mktemp "${STATE}.XXXXXX")" || return 0
-	if printf '%s %s %s %s %s\n' "$1" "$2" "$3" "$4" "$5" >"$tmp"; then
-		mv -f "$tmp" "$STATE" || rm -f "$tmp"
-	else
-		rm -f "$tmp"
-	fi
+	state_write "$STATE" "$@"
 }
 
 selfcheck() {

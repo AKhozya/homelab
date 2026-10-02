@@ -6,7 +6,8 @@ set -uo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 K3S_WAIT_READY_LIB=1
-export K3S_WAIT_READY_LIB
+NODE_SCRIPT_LIB="$HERE/../../base_config/files/node-script-lib.sh"
+export K3S_WAIT_READY_LIB NODE_SCRIPT_LIB
 # shellcheck source=../files/k3s-wait-ready.sh
 . "$HERE/../files/k3s-wait-ready.sh"
 

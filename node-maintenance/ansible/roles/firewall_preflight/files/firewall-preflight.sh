@@ -31,7 +31,10 @@ LOG_TAG="firewall-preflight"
 CNI_HEAL_FAILED=0
 IPTABLES=/usr/sbin/iptables
 IP6TABLES=/usr/sbin/ip6tables
+# ufw_chains_hash in node-script-lib.sh reads these two.
+# shellcheck disable=SC2034
 IPTABLES_SAVE=/usr/sbin/iptables-save
+# shellcheck disable=SC2034
 IP6TABLES_SAVE=/usr/sbin/ip6tables-save
 # shellcheck disable=SC2034  # NFT_BIN documents the nft path; not referenced in this script
 NFT_BIN=/usr/sbin/nft
@@ -60,6 +63,14 @@ log() {
     echo "[$LOG_TAG] $*" >&2
 }
 
+# Shared helpers. NODE_SCRIPT_LIB lets the offline tests point at the repo copy.
+NODE_SCRIPT_LIB="${NODE_SCRIPT_LIB:-/usr/local/lib/node-maintenance/node-script-lib.sh}"
+# shellcheck source=../../base_config/files/node-script-lib.sh
+if ! . "$NODE_SCRIPT_LIB" || ! declare -F textfile_write ufw_chains_hash >/dev/null; then
+    log "cannot load $NODE_SCRIPT_LIB — exiting."
+    exit 1
+fi
+
 emit_metric() {
     # $1=settle_ok (0|1), $2=elapsed_sec, $3=stable_count, $4=lock_busy_count
     local ok=$1 elapsed=$2 stable=$3 lock_busy=$4 ts node
@@ -82,14 +93,7 @@ emit_metric() {
         echo "# HELP firewall_preflight_last_run_ts Last preflight run timestamp"
         echo "# TYPE firewall_preflight_last_run_ts gauge"
         echo "firewall_preflight_last_run_ts{node=\"${node}\"} ${ts}"
-    } > "${METRIC_FILE}.tmp" 2>/dev/null && mv "${METRIC_FILE}.tmp" "${METRIC_FILE}" 2>/dev/null || true
-}
-
-ufw_chains_hash() {
-    {
-        "$IPTABLES_SAVE" 2>/dev/null | grep -E '^:ufw-|^-A ufw-' || true
-        "$IP6TABLES_SAVE" 2>/dev/null | grep -E '^:ufw6-|^-A ufw6-' || true
-    } | sha256sum | awk '{print $1}'
+    } | textfile_write "$METRIC_FILE" 2>/dev/null || true
 }
 
 # Probe xtables-lock — non-blocking. Returns 0 if free, 1 if held.

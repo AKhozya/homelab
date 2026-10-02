@@ -37,7 +37,10 @@ GLOBAL_DEADLINE=0
 CRITICAL_POD_LABELS=("k8s-app=kube-dns")
 KUBECONFIG_PATH=/etc/rancher/k3s/k3s.yaml
 K3S_BIN=/usr/local/bin/k3s
+# ufw_chains_hash in node-script-lib.sh reads these two.
+# shellcheck disable=SC2034
 IPTABLES_SAVE=/usr/sbin/iptables-save
+# shellcheck disable=SC2034
 IP6TABLES_SAVE=/usr/sbin/ip6tables-save
 LOG_TAG=k3s-wait-ready
 
@@ -45,6 +48,14 @@ log() {
     logger -t "$LOG_TAG" -- "$*"
     echo "[$LOG_TAG] $*" >&2
 }
+
+# Shared helpers. NODE_SCRIPT_LIB lets the offline tests point at the repo copy.
+NODE_SCRIPT_LIB="${NODE_SCRIPT_LIB:-/usr/local/lib/node-maintenance/node-script-lib.sh}"
+# shellcheck source=../../base_config/files/node-script-lib.sh
+if ! . "$NODE_SCRIPT_LIB" || ! declare -F ufw_chains_hash >/dev/null; then
+    log "cannot load $NODE_SCRIPT_LIB — exiting."
+    exit 1
+fi
 
 # Deadline for one phase: its own budget, never past the global deadline. Each phase gets a
 # private budget because they used to share one — on 2026-08-07 the CP's phase-2 selector
@@ -112,15 +123,6 @@ wait_critical_pods() {
     return 1
 }
 
-# Hash UFW-managed chains only — workers always churn kube-* chains, full-ruleset
-# hash never stabilises (kube-router/kube-proxy reconcile pod routes continuously).
-# UFW chains we control => bounded drift => meaningful stability signal.
-ufw_chains_hash() {
-    {
-        "$IPTABLES_SAVE" 2>/dev/null | grep -E '^:ufw-|^-A ufw-' || true
-        "$IP6TABLES_SAVE" 2>/dev/null | grep -E '^:ufw6-|^-A ufw6-' || true
-    } | sha256sum | awk '{print $1}'
-}
 
 # Phase 3 — wait for ufw-chain hash stability (3× 5s windows of identical hash).
 # Means ufw rules quiesced; kube-* churn ignored (out of our control).

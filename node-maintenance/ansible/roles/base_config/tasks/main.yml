@@ -115,6 +115,29 @@
     mode: "0755"
   tags: [base-config, time-sync, metrics]
 
+# The heal watchdogs, firewall-preflight, k3s-wait-ready and ufw-heal-post-k3s source this file
+# and exit 1 without it. base_config runs in the first play for every host, before any role that
+# installs one of them. validate keeps a file with a syntax error from replacing a good copy.
+# `always`: a tagged run (for example `-t firewall`) still installs the library first.
+- name: Ensure the node-maintenance shell library directory exists
+  ansible.builtin.file:
+    path: /usr/local/lib/node-maintenance
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [base-config, node-script-lib, always]
+
+- name: Deploy the node-maintenance shell library
+  ansible.builtin.copy:
+    src: node-script-lib.sh
+    dest: /usr/local/lib/node-maintenance/node-script-lib.sh
+    owner: root
+    group: root
+    mode: "0644"
+    validate: bash -n %s
+  tags: [base-config, node-script-lib, always]
+
 # The node_timex_* metrics replace timesyncd-metric. If the timer is already gone, the
 # stop fails, so failed_when is false.
 - name: Stop + disable legacy timesyncd-metric.timer

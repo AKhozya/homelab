@@ -7,7 +7,9 @@
 # /usr/sbin/ufw has a clean netfilter state to operate against.
 #
 # Scope: best-effort. All tasks have changed_when:false and never fail-stop the
-# play — failures surface in downstream firewall tasks.
+# play — failures surface in downstream firewall tasks. The one exception: if the script
+# cannot load node-script-lib.sh, the settle barrier is gone, so the host fails here and
+# Ansible skips its later plays (no firewall change without the barrier).
 
 - name: Deploy firewall-preflight.sh
   ansible.builtin.copy:
@@ -23,7 +25,7 @@
     cmd: /usr/local/sbin/firewall-preflight.sh
   register: preflight
   changed_when: false
-  failed_when: false
+  failed_when: preflight.rc == 1 and 'cannot load' in preflight.stderr
   tags: [firewall, preflight]
 
 # firewall-preflight.sh exits 3 only when its flush-all recovery left the portmap CNI rules

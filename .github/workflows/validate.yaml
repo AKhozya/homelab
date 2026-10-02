@@ -93,6 +93,19 @@ jobs:
           done
           exit $fail
 
+  node-script-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Offline tests for the node-maintenance scripts
+        # The whole-script harness (node-maintenance/lib/tests/heal-harness) needs a privileged
+        # local container and several minutes, so it runs on the workstation, not here.
+        run: |
+          set -euo pipefail
+          bash node-maintenance/lib/tests/test-node-script-lib.sh
+          bash node-maintenance/ansible/roles/node_isolation_heal/tests/test-ladder.sh
+          bash node-maintenance/ansible/roles/k3s_config/tests/test-wait-ready.sh
+
   sops-check:
     name: sops encryption presence
     runs-on: ubuntu-latest

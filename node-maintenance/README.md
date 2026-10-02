@@ -21,7 +21,7 @@ nodes and applies these 14 roles in order:
 | Role | Nodes | What it manages |
 |---|---|---|
 | `packages` | all | pacman base packages, per-host CPU microcode, per-host GPU stack |
-| `base_config` | all | logrotate, journald limits, sudoers, the `node-maintenance` user, fstrim and paccache timers |
+| `base_config` | all | logrotate, journald limits, sudoers, the `node-maintenance` user, fstrim and paccache timers, and the shared shell library (below) |
 | `k3s_config` | all | `/etc/rancher/k3s/config.yaml`, templated per group and host. It only alerts on drift; it never restarts K3s. |
 | `k3s_image_gc` | all | a weekly `crictl rmi --prune` |
 | `firewall_preflight` | all | settles the packet filter and runs sanity checks before any firewall change; it runs again before the workers-only roles |
@@ -62,6 +62,33 @@ sudo ansible-playbook --tags logrotate -D \
 **To change a node:** edit the role's file or template under `ansible/roles/<role>/`, then push. The
 CP's sync timer pulls the change, runs `install.sh --sync-only`, then runs
 `node-maintenance-config.service`, which applies it. Telegram reports what changed.
+
+### Shared shell library
+
+`base_config` installs `roles/base_config/files/node-script-lib.sh` as
+`/usr/local/lib/node-maintenance/node-script-lib.sh`. It runs before every role that installs a
+script that sources it.
+
+| Function | Used by | What it does |
+|---|---|---|
+| `textfile_write PATH` | the 4 heal watchdogs, `firewall-preflight.sh` | writes a node-exporter metric atomically, mode 0644; returns 1 on failure, and the callers ignore that |
+| `state_write PATH FIELD...` | the 4 heal watchdogs | writes a one-line state file atomically, mode 0600; always returns 0 |
+| `ufw_chains_hash` | `firewall-preflight.sh`, `k3s-wait-ready.sh`, `ufw-heal-post-k3s.sh` | hashes the ufw chains only, the settle signal |
+
+If the library is missing or lacks a function a script needs, that script logs `cannot load …`
+and exits 1. Where that shows:
+
+| Script | What reports it |
+|---|---|
+| the 4 heal watchdogs | the failed unit (`NodeSystemdUnitFailed`) and the stale metric file (`NodeHealWatchdogStale`) |
+| `k3s-wait-ready.sh` | the failed unit; `ufw-heal-post-k3s.service` then skips at boot, as `/run/k3s-ready` is missing |
+| `ufw-heal-post-k3s.sh` | the failed unit, at boot or from `ufw-heal-watchdog.timer` |
+| `firewall-preflight.sh` | the Ansible task fails the host, so the run's failure notice fires and the host skips its later plays |
+
+| Test | Runs where | Command |
+|---|---|---|
+| library unit tests | CI (`node-script-tests`) and the workstation | `bash node-maintenance/lib/tests/test-node-script-lib.sh` |
+| whole-script harness: every changed script in stubbed scenarios, compared byte for byte with fixtures recorded from the pre-library scripts | the workstation (Docker, privileged) | `node-maintenance/lib/tests/heal-harness/run-all.sh check` |
 
 ### Rolling restart of K3s
 

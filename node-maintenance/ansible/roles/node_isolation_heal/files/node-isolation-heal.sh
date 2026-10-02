@@ -72,11 +72,17 @@ log() {
 	echo "node-isolation-heal: $*"
 }
 
+# Shared helpers. NODE_SCRIPT_LIB lets the offline tests point at the repo copy.
+NODE_SCRIPT_LIB="${NODE_SCRIPT_LIB:-/usr/local/lib/node-maintenance/node-script-lib.sh}"
+# shellcheck source=../../base_config/files/node-script-lib.sh
+if ! . "$NODE_SCRIPT_LIB" || ! declare -F textfile_write state_write >/dev/null; then
+	log "cannot load $NODE_SCRIPT_LIB — exiting."
+	exit 1
+fi
+
 emit_metric() { # wedged(0/1) wedged_seconds pending(0none/1restart/2reboot) giveup(0/1)
 	[ -d "$METRIC_DIR" ] || return 0
-	local tmp
-	tmp="$(mktemp "${METRIC}.XXXXXX")" || return 0
-	if {
+	{
 		printf '# HELP node_isolation_heal_wedged Worker isolated from control-plane (1=isolated).\n'
 		printf '# TYPE node_isolation_heal_wedged gauge\n'
 		printf 'node_isolation_heal_wedged %s\n' "$1"
@@ -105,22 +111,11 @@ emit_metric() { # wedged(0/1) wedged_seconds pending(0none/1restart/2reboot) giv
 		printf '# HELP node_isolation_heal_last_reboot_timestamp Unix time of the last watchdog self-reboot (0=never).\n'
 		printf '# TYPE node_isolation_heal_last_reboot_timestamp gauge\n'
 		printf 'node_isolation_heal_last_reboot_timestamp %s\n' "${last_reboot:-0}"
-	} >"$tmp"; then
-		chmod 0644 "$tmp" # node_exporter scrapes as non-root; mktemp made it 0600
-		mv -f "$tmp" "$METRIC" || rm -f "$tmp"
-	else
-		rm -f "$tmp"
-	fi
+	} | textfile_write "$METRIC" || true
 }
 
 write_state() { # first_fail consecutive last_restart last_reboot
-	local tmp
-	tmp="$(mktemp "${STATE}.XXXXXX")" || return 0
-	if printf '%s %s %s %s\n' "$1" "$2" "$3" "$4" >"$tmp"; then
-		mv -f "$tmp" "$STATE" || rm -f "$tmp"
-	else
-		rm -f "$tmp"
-	fi
+	state_write "$STATE" "$@"
 }
 
 # probes — each honors an NIH_MOCK_* return-code override for the offline test harness.

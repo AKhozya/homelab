@@ -34,7 +34,10 @@ UFW_BIN="/usr/sbin/ufw"
 UFW_CONF="/etc/ufw/ufw.conf"
 IPTABLES="/usr/sbin/iptables"
 IP6TABLES="/usr/sbin/ip6tables"
+# ufw_chains_hash in node-script-lib.sh reads these two.
+# shellcheck disable=SC2034
 IPTABLES_SAVE="/usr/sbin/iptables-save"
+# shellcheck disable=SC2034
 IP6TABLES_SAVE="/usr/sbin/ip6tables-save"
 NFT_BIN="/usr/sbin/nft"
 
@@ -54,6 +57,14 @@ log() {
     logger -t "$LOG_TAG" -- "$*"
     echo "[ufw-heal] $*" >&2
 }
+
+# Shared helpers. NODE_SCRIPT_LIB lets the offline tests point at the repo copy.
+NODE_SCRIPT_LIB="${NODE_SCRIPT_LIB:-/usr/local/lib/node-maintenance/node-script-lib.sh}"
+# shellcheck source=../../base_config/files/node-script-lib.sh
+if ! . "$NODE_SCRIPT_LIB" || ! declare -F ufw_chains_hash >/dev/null; then
+    log "cannot load $NODE_SCRIPT_LIB — exiting."
+    exit 1
+fi
 
 # Extract ":<chain>" declarations from UFW rules files → list of chain names
 extract_chains() {
@@ -76,16 +87,6 @@ ensure_chain() {
     return 1
 }
 
-# Compute hash of UFW-managed chains only (ignore kube-router/kube-proxy churn).
-# UFW chains start with `ufw-` or `ufw6-` — both chain declarations (`:ufw-...`)
-# and rules (`-A ufw-...`). Workers always churn iptables for pod network
-# reconciliation, so full-ruleset hash never stabilises; ufw-only hash does.
-ufw_chains_hash() {
-    {
-        "$IPTABLES_SAVE" 2>/dev/null | grep -E '^:ufw-|^-A ufw-' || true
-        "$IP6TABLES_SAVE" 2>/dev/null | grep -E '^:ufw6-|^-A ufw6-' || true
-    } | sha256sum | awk '{print $1}'
-}
 
 # Phase A — wait for UFW chain stability across N consecutive windows.
 # nft monitor logged for diagnostics but NOT gating (kube-* always churns it).

@@ -30,11 +30,17 @@ log() {
 	echo "clusterip-heal-cp: $*"
 }
 
+# Shared helpers. NODE_SCRIPT_LIB lets the offline tests point at the repo copy.
+NODE_SCRIPT_LIB="${NODE_SCRIPT_LIB:-/usr/local/lib/node-maintenance/node-script-lib.sh}"
+# shellcheck source=../../base_config/files/node-script-lib.sh
+if ! . "$NODE_SCRIPT_LIB" || ! declare -F textfile_write state_write >/dev/null; then
+	log "cannot load $NODE_SCRIPT_LIB — exiting."
+	exit 1
+fi
+
 emit_metric() { # $1 wedged(0/1)  $2 restarts-total  $3 giveup(0/1)
 	[ -d "$METRIC_DIR" ] || return 0
-	local tmp
-	tmp="$(mktemp "${METRIC}.XXXXXX")" || return 0
-	if {
+	{
 		printf '# HELP node_clusterip_heal_wedged ClusterIP DNAT wedge detected (1=wedged).\n'
 		printf '# TYPE node_clusterip_heal_wedged gauge\n'
 		printf 'node_clusterip_heal_wedged %s\n' "$1"
@@ -44,24 +50,11 @@ emit_metric() { # $1 wedged(0/1)  $2 restarts-total  $3 giveup(0/1)
 		printf '# HELP node_clusterip_heal_giveup Wedge persisted past MAX_RESTARTS (1=needs a human).\n'
 		printf '# TYPE node_clusterip_heal_giveup gauge\n'
 		printf 'node_clusterip_heal_giveup %s\n' "$3"
-	} >"$tmp"; then
-		# 0644 so a non-root node_exporter can scrape it (mktemp made it 0600). Without this the
-		# wedged/giveup metrics are never scraped → the give-up alert is silent.
-		chmod 0644 "$tmp"
-		mv -f "$tmp" "$METRIC" || rm -f "$tmp"
-	else
-		rm -f "$tmp"
-	fi
+	} | textfile_write "$METRIC" || true
 }
 
 write_state() { # $1 win  $2 count  $3 total  $4 last
-	local tmp
-	tmp="$(mktemp "${STATE}.XXXXXX")" || return 0
-	if printf '%s %s %s %s\n' "$1" "$2" "$3" "$4" >"$tmp"; then
-		mv -f "$tmp" "$STATE" || rm -f "$tmp"
-	else
-		rm -f "$tmp"
-	fi
+	state_write "$STATE" "$@"
 }
 
 # k3s.service must exist + be active. This also makes the script a safe no-op off the CP (no k3s.service).
