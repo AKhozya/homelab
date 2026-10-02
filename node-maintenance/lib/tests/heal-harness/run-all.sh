@@ -63,8 +63,8 @@ mapfile -t scripts < <(printf '%s\n' "${scripts[@]}" | sort -u)
 for s in "${scripts[@]}"; do
 	base="${s##*/}"
 	cat "$work"/trace/*/xtrace 2>/dev/null | sed -n "s/^+*${base}:\([0-9]*\): .*/\1/p" | sort -u >"$work/covered"
-	grep -nE '(write_state|emit_metric|ufw_chains_hash|state_write|textfile_write)\b' "$REPO/$s" |
-		grep -vE '^[0-9]+:[[:space:]]*(#|(write_state|emit_metric|ufw_chains_hash)\(\))' | cut -d: -f1 |
+	{ grep -nE '(write_state|emit_metric|ufw_chains_hash|state_write|textfile_write)\b' "$REPO/$s" || true; } |
+		{ grep -vE '^[0-9]+:[[:space:]]*(#|(write_state|emit_metric|ufw_chains_hash)\(\))' || true; } | cut -d: -f1 |
 		while read -r line; do
 			grep -qx "$line" "$work/covered" || echo "UNCOVERED $s:$line: $(sed -n "${line}p" "$REPO/$s" | sed 's/^[[:space:]]*//')"
 		done
