@@ -1,0 +1,10 @@
+[firewall-preflight] starting (pid=N)
+[firewall-preflight] settle: max=90s window=5s stable=3 (signal=xtables-lock+ufw-hash)
+[firewall-preflight] settle: ok (lock=free ufw_hash=e74cbb27a800 stable=3 elapsed=25s lock_busy=0)
+[firewall-preflight] modprobe: ensuring 10 modules loaded
+[firewall-preflight] modprobe: loaded=10 failed=0
+[firewall-preflight] ufw-state: ENABLED=yes + active — ok
+[firewall-preflight] chain-repair: starting
+[firewall-preflight] chain-repair: repaired=0
+[firewall-preflight] probe: ufw status verbose=ok (total=1 fails=0)
+[firewall-preflight] complete

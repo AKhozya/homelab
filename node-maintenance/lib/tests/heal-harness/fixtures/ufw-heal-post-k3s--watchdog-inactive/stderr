@@ -1,0 +1,9 @@
+[ufw-heal] watchdog: ufw not active — starting heal
+[ufw-heal] phase-c: per-chain repair starting
+[ufw-heal] phase-c: repair complete
+[ufw-heal] phase-b: ufw reload attempt 1/3
+[ufw-heal] phase-b: reload succeeded (attempt 1)
+[ufw-heal] phase-e: final ufw reload
+[ufw-heal] phase-e: final reload succeeded
+[ufw-heal] phase-d: probe-set healthy
+[ufw-heal] phase-f: ufw inactive (ENABLED=no, no recovery attempted) — exiting clean

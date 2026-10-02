@@ -1,0 +1,15 @@
+# HELP firewall_preflight_settle_ok Last preflight settle: 1=stable, 0=timeout
+# TYPE firewall_preflight_settle_ok gauge
+firewall_preflight_settle_ok{node="harness-node"} 1
+# HELP firewall_preflight_settle_elapsed_seconds Last preflight settle elapsed time
+# TYPE firewall_preflight_settle_elapsed_seconds gauge
+firewall_preflight_settle_elapsed_seconds{node="harness-node"} 25
+# HELP firewall_preflight_settle_stable_windows Last preflight: consecutive stable windows reached
+# TYPE firewall_preflight_settle_stable_windows gauge
+firewall_preflight_settle_stable_windows{node="harness-node"} 3
+# HELP firewall_preflight_xtables_lock_busy_total Last preflight: count of xtables-lock-busy probes
+# TYPE firewall_preflight_xtables_lock_busy_total gauge
+firewall_preflight_xtables_lock_busy_total{node="harness-node"} 0
+# HELP firewall_preflight_last_run_ts Last preflight run timestamp
+# TYPE firewall_preflight_last_run_ts gauge
+firewall_preflight_last_run_ts{node="harness-node"} 1791057635

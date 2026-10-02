@@ -1,0 +1,2 @@
+600 /var/lib/node-isolation-heal/state
+644 /var/lib/node_exporter/textfile/node_isolation_heal.prom

@@ -1,0 +1,24 @@
+# HELP node_isolation_heal_wedged Worker isolated from control-plane (1=isolated).
+# TYPE node_isolation_heal_wedged gauge
+node_isolation_heal_wedged 1
+# HELP node_isolation_heal_wedged_seconds Seconds the node has been continuously isolated.
+# TYPE node_isolation_heal_wedged_seconds gauge
+node_isolation_heal_wedged_seconds 1000
+# HELP node_isolation_heal_pending_action Action the ladder selected (0=none,1=restart,2=reboot).
+# TYPE node_isolation_heal_pending_action gauge
+node_isolation_heal_pending_action 0
+# HELP node_isolation_heal_giveup Escalation exhausted (cap/guard) — needs a human (1=yes).
+# TYPE node_isolation_heal_giveup gauge
+node_isolation_heal_giveup 0
+# HELP node_isolation_heal_dryrun Watchdog in dry-run (1=logs only, takes no action).
+# TYPE node_isolation_heal_dryrun gauge
+node_isolation_heal_dryrun 0
+# HELP node_isolation_heal_signal_up Per-signal health (1=up). label: tunnel|cp_direct|kubelet|gateway.
+# TYPE node_isolation_heal_signal_up gauge
+node_isolation_heal_signal_up{signal="tunnel"} 0
+node_isolation_heal_signal_up{signal="cp_direct"} 0
+node_isolation_heal_signal_up{signal="kubelet"} 1
+node_isolation_heal_signal_up{signal="gateway"} 1
+# HELP node_isolation_heal_last_reboot_timestamp Unix time of the last watchdog self-reboot (0=never).
+# TYPE node_isolation_heal_last_reboot_timestamp gauge
+node_isolation_heal_last_reboot_timestamp 0

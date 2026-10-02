@@ -1,0 +1,8 @@
+[k3s-wait-ready] starting (pid=N, timeout=300s)
+[k3s-wait-ready] mode=worker
+[k3s-wait-ready] iptables: waiting for ufw-chain stability
+[k3s-wait-ready] iptables: stable 1/3 (ufw_hash=e74cbb27a800)
+[k3s-wait-ready] iptables: stable 2/3 (ufw_hash=e74cbb27a800)
+[k3s-wait-ready] iptables: stable 3/3 (ufw_hash=e74cbb27a800)
+[k3s-wait-ready] iptables: settled
+[k3s-wait-ready] complete (elapsed=30s, sentinel=/run/k3s-ready)

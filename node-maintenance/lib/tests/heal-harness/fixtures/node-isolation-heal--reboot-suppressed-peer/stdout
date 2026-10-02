@@ -1,0 +1,3 @@
+node-isolation-heal: ISOLATED (tunnel down; cp_direct=0 kubelet=1 gw=1 peers=1) consecutive=6 wedged=1000s dry_run=0
+node-isolation-heal: reboot SUPPRESSED: peer reachable, CP is not — retrying L1.
+node-isolation-heal: L1: restarting k3s-agent (isolated 1000s).

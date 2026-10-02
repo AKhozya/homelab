@@ -1,0 +1,15 @@
+# Synthetic iptables-save output (not captured from a node): ufw and non-ufw chains, so the
+# ufw_chains_hash filter has lines to keep and lines to drop.
+*filter
+:INPUT DROP [0:0]
+:FORWARD DROP [0:0]
+:OUTPUT ACCEPT [0:0]
+:KUBE-FIREWALL - [0:0]
+:ufw-before-input - [0:0]
+:ufw-logging-deny - [0:0]
+:ufw-user-input - [0:0]
+-A INPUT -j ufw-before-input
+-A KUBE-FIREWALL -m comment --comment "block incoming localnet connections" -j DROP
+-A ufw-before-input -i lo -j ACCEPT
+-A ufw-user-input -p tcp -m tcp --dport 65300 -j ACCEPT
+COMMIT

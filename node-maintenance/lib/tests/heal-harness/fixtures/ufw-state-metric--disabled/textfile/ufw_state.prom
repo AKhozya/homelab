@@ -1,0 +1,9 @@
+# HELP ufw_enabled UFW enabled in /etc/ufw/ufw.conf (1=yes, 0=no)
+# TYPE ufw_enabled gauge
+ufw_enabled{node="harness-node"} 0
+# HELP ufw_service_active UFW systemd service is active (1=yes, 0=no)
+# TYPE ufw_service_active gauge
+ufw_service_active{node="harness-node"} 0
+# HELP ufw_chains_healthy All probe-set UFW chains present in kernel (1=yes, 0=no)
+# TYPE ufw_chains_healthy gauge
+ufw_chains_healthy{node="harness-node"} 1

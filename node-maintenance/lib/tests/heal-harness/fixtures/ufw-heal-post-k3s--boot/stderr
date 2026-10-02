@@ -1,0 +1,14 @@
+[ufw-heal] starting heal sequence (pid=N)
+[ufw-heal] phase-a: waiting for ufw-chain stability (max 90s, 5s windows, 3× stable)
+[ufw-heal] phase-a: stable 1/3 (nft_events=0, ufw_hash=e74cbb27a800)
+[ufw-heal] phase-a: stable 2/3 (nft_events=0, ufw_hash=e74cbb27a800)
+[ufw-heal] phase-a: stable 3/3 (nft_events=0, ufw_hash=e74cbb27a800)
+[ufw-heal] phase-a: settled
+[ufw-heal] phase-c: per-chain repair starting
+[ufw-heal] phase-c: repair complete
+[ufw-heal] phase-b: ufw reload attempt 1/3
+[ufw-heal] phase-b: reload succeeded (attempt 1)
+[ufw-heal] phase-e: final ufw reload
+[ufw-heal] phase-e: final reload succeeded
+[ufw-heal] phase-d: probe-set healthy
+[ufw-heal] phase-f: ufw active — heal OK

@@ -1,0 +1,2 @@
+clusterip-heal: ClusterIP DNAT WEDGED on harness-node.
+clusterip-heal: within 300s cooldown (60s since last k3s-agent restart) — waiting a cycle.

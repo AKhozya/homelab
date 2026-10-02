@@ -1,0 +1,2 @@
+node-isolation-heal: ISOLATED (tunnel down; cp_direct=0 kubelet=1 gw=1 peers=0) consecutive=6 wedged=1000s dry_run=0
+node-isolation-heal: SELF-REBOOT: isolated 1000s, cannot reach CP, L1 didn't recover — rebooting (staggered index=0).

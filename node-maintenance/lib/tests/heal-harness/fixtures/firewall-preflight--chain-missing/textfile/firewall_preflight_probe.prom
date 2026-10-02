@@ -1,0 +1,12 @@
+# HELP firewall_preflight_probe_total firewall-preflight ran ufw status verbose
+# TYPE firewall_preflight_probe_total counter
+firewall_preflight_probe_total{node="harness-node"} 1
+# HELP firewall_preflight_probe_fail_total firewall-preflight ufw status verbose returned non-zero
+# TYPE firewall_preflight_probe_fail_total counter
+firewall_preflight_probe_fail_total{node="harness-node"} 0
+# HELP firewall_preflight_probe_last_state Last probe outcome (1=ok, 0=fail)
+# TYPE firewall_preflight_probe_last_state gauge
+firewall_preflight_probe_last_state{node="harness-node"} 1
+# HELP firewall_preflight_probe_last_ts Last probe timestamp
+# TYPE firewall_preflight_probe_last_ts gauge
+firewall_preflight_probe_last_ts{node="harness-node"} 1791057640

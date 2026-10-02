@@ -1,0 +1,1 @@
+mktemp: failed to create file via template ‘/var/lib/node_exporter/textfile/immich_gpu_heal.prom.XXXXXX’: Read-only file system

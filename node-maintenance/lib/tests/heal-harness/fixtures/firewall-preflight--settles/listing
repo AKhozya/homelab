@@ -1,0 +1,3 @@
+644 /var/lib/node_exporter/textfile/firewall_preflight.prom
+644 /var/lib/node_exporter/textfile/firewall_preflight_probe.counter
+644 /var/lib/node_exporter/textfile/firewall_preflight_probe.prom

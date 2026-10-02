@@ -1,0 +1,17 @@
+ok: fresh->heal
+ok: cap->giveup
+ok: cooldown
+ok: past-cooldown->heal
+ok: windowroll->heal
+ok: windowroll resets count
+ok: state win
+ok: state count
+ok: state total
+ok: state last
+ok: state qsv
+ok: metric render
+ok: metric qsv
+ok: metric total
+ok: metric stuck default
+ok: metric stuck set
+SELFCHECK PASS

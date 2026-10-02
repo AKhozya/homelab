@@ -1,0 +1,2 @@
+node-isolation-heal: ISOLATED (tunnel down; cp_direct=1 kubelet=1 gw=1 peers=0) consecutive=3 wedged=100s dry_run=0
+node-isolation-heal: isolated 100s (< 360s L1 threshold) — waiting.

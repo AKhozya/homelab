@@ -1,0 +1,2 @@
+600 /var/lib/node-maintenance/clusterip-heal.state
+644 /var/lib/node_exporter/textfile/clusterip_heal.prom

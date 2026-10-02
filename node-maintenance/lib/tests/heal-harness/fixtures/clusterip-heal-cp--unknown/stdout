@@ -1,0 +1,1 @@
+clusterip-heal-cp: pod-netns probe returned UNKNOWN (rc=2) — skipping (no restart, metrics preserved).

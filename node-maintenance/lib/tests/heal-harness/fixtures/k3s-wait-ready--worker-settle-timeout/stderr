@@ -1,0 +1,6 @@
+[k3s-wait-ready] starting (pid=N, timeout=300s)
+[k3s-wait-ready] mode=worker
+[k3s-wait-ready] iptables: waiting for ufw-chain stability
+[k3s-wait-ready] iptables: timeout (last_stable=0/3)
+[k3s-wait-ready] WARN: iptables not stable
+[k3s-wait-ready] complete (elapsed=130s, sentinel=/run/k3s-ready)
