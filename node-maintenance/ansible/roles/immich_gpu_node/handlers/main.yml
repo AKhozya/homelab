@@ -25,3 +25,18 @@
   ansible.builtin.systemd_service:
     daemon_reexec: true
   changed_when: false
+
+# The drop-in skips the next start and leaves this boot's failed state in place, so `systemctl --failed`
+# keeps listing these units until a reboot. Reset only these units: a bare `systemctl reset-failed`
+# would also clear any other failure.
+- name: Clear the skipped TPM units
+  ansible.builtin.shell: |
+    set -euo pipefail
+    systemctl daemon-reload
+    systemctl list-units --failed --plain --no-legend \
+      systemd-tpm2-setup-early.service systemd-tpm2-setup.service systemd-pcrproduct.service \
+      'systemd-pcrlogin@*.service' |
+      awk '{print $1}' | while read -r unit; do systemctl reset-failed "$unit"; done
+  args:
+    executable: /bin/bash
+  changed_when: true

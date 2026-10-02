@@ -57,6 +57,9 @@
   hosts: virtual
   become: true
   gather_facts: true
+  # If a later task fails (the virtiofs mount, the AUR clone), force_handlers still runs the notified
+  # handlers. The next run sees unchanged files and does not notify those handlers again.
+  force_handlers: true
   roles:
     - role: immich_gpu_node
 

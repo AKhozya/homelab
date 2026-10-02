@@ -126,6 +126,43 @@
   notify: Disarm systemd watchdog
   tags: [immich-gpu-node, reset-bug, watchdog]
 
+# ---- TPM NvPCR units (systemd 262) ----
+# This VM boots a measured UKI, so systemd 262 runs its TPM setup and NvPCR units here; the physical
+# nodes skip them on ConditionSecurity. NvPCR setup fails with ENOENT on this VM. The early setup
+# and pcrproduct fail at every boot, and each pcrlogin@<uid> instance fails when logind starts it.
+# Nothing here uses a TPM-bound secret: no crypttab, no LUKS, no unit loads an encrypted credential.
+# The late systemd-tpm2-setup.service has only ever run here after the early unit wrote
+# /run/systemd/tpm2-srk-public-key.pem. What it does without that file is untested, so the drop-in
+# skips it too.
+# A condition drop-in, not a mask: logind starts systemd-pcrlogin@<uid> directly.
+# If a caller starts a masked unit directly, systemd returns an error to that caller.
+# The template drop-in covers every instance. If the initrd gains systemd (mkinitcpio `systemd`
+# hook), the early unit runs there without this drop-in.
+- name: Ensure drop-in dirs for the TPM NvPCR units that fail on this VM
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}.d"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: &nvpcr_units
+    - systemd-tpm2-setup-early.service
+    - systemd-tpm2-setup.service
+    - systemd-pcrproduct.service
+    - systemd-pcrlogin@.service
+  tags: [immich-gpu-node, tpm]
+
+- name: Skip the TPM NvPCR units on this VM (ConditionVirtualization=!vm)
+  ansible.builtin.copy:
+    src: zz-immich-vm-no-nvpcr.conf
+    dest: "/etc/systemd/system/{{ item }}.d/zz-immich-vm-no-nvpcr.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: *nvpcr_units
+  notify: Clear the skipped TPM units
+  tags: [immich-gpu-node, tpm]
+
 # ---- Admin-sudo parity (remove the VM-build NOPASSWD override) ----
 # The VM image shipped /etc/sudoers.d/akhozya-nopasswd (`akhozya ALL=(ALL) NOPASSWD:ALL`). sudoers is
 # last-match-wins in lexical file order, so that file SHADOWS base_config's `00_akhozya`
