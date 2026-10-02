@@ -304,6 +304,7 @@ Redis restart and its own restart. What the 2026-10-02 run showed:
 | a replication restart left both pods `role:master` for ~50s until the operator re-attached the replica | `redis-restart.sh` waits for one master with one linked replica |
 | the same restart gave the pods new IPs and the sentinels kept the dead master IP | no failover until the sentinels restart; `redis-restart.sh sentinel` waits for quorum on the current master |
 | `ACL SETUSER <user> !<hash>` removes an old password from a running pod | the last pass needs no restart |
+| since the redisSecret change, `REDIS_PASSWORD` in the Redis pods is `admin-password` | after pass 2, restart the Redis pods as well as the sentinels, before pass 3 drops the old token |
 
 Redis auth lives in TWO server-side SOPS secrets that must rotate TOGETHER, plus
 each consumer's app-side secret (Authentik has had no Redis since 2025-10-29):

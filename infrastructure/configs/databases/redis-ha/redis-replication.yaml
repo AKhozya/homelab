@@ -39,6 +39,13 @@ spec:
   kubernetesConfig:
     image: quay.io/opstree/redis:v8.10.1
     imagePullPolicy: IfNotPresent
+    # The operator, its probe and the exporter log in to the ACL `default` user with this
+    # password. Replicas send it as masterauth for the `admin` user (masteruser in
+    # redis-ha-config). The `default` and `admin` lines in redis-acl-secret must hold the same
+    # value: if they differ, the ACL file wins.
+    redisSecret:
+      name: redis-passwords
+      key: admin-password
     resources:
       requests:
         cpu: "50m"

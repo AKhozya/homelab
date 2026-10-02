@@ -10,3 +10,6 @@ data:
     maxmemory-policy noeviction
     loglevel warning
     protected-mode no
+    # masterauth alone sends a one-argument AUTH, which binds replication to the `default` user.
+    # masteruser makes the replica log in as `admin`, so the link does not depend on `default`.
+    masteruser admin

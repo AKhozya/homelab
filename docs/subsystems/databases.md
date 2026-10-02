@@ -30,9 +30,10 @@ Backup CronJobs (schedules, auto-discovery, mechanics): [backup-restore.md](back
 - **Operator**: `redis-operator` (`controllers/databases/redis-operator/release.yaml`); CRs in `configs/databases/redis-ha/`
 - **RedisReplication**: 2 pods (master + replica, anti-affinity'd W1+W2); **RedisSentinel**: 3 (CP+W1+W2 with CP toleration, quorum 2/3)
 - **Pod labels**: `app=redis-replication` and `app=redis-sentinel-sentinel` (NOT `app=redis-sentinel`)
+- **Auth**: the ACL `default` user holds the admin password, the same value as the `admin` user and the RedisReplication `redisSecret` (`redis-passwords/admin-password`). The operator, its probe, the exporter and the sentinels log in to `default`; replicas log in as `admin` (`masteruser` in `redis-ha-config`). An unauthenticated client gets `NOAUTH`. Apps log in as their own ACL users
 - **Storage**: PVC per replication pod holds RDB snapshots — NOT backed up (cache + transient queues)
-- **ACL**: SOPS Secret `redis-acl-secret` mounted at `/etc/redis/user.acl`; users `default` (on nopass for liveness), `admin`, `paperless`, `immich`, `blocky`
-- **Required config**: `protected-mode no` (nopass + cross-ns access), `readOnlyRootFilesystem: false` (entrypoint writes /etc/redis/redis.conf)
+- **ACL**: SOPS Secret `redis-acl-secret` mounted at `/etc/redis/user.acl`; users `default` (the admin password; see Auth above), `admin`, `paperless`, `immich`, `blocky`
+- **Required config**: `protected-mode no` in `redis-ha-config` (cross-namespace clients; the include overrides the entrypoint's `yes`), `readOnlyRootFilesystem: false` (entrypoint writes /etc/redis/redis.conf)
 - **Client mode**: static master Service only — paperless, blocky, immich connect to `redis-replication-master` (selector `redis-role=master`); operator repoints it on failover. immich uses `REDIS_URL=ioredis://<base64-json>` with a plain `{host:redis-replication-master…}` body. No Sentinel client discovery — ioredis Sentinel passive detection hung on a half-open dead-master socket after reboot (see commit `cc5c02a1`).
 - **Failover behavior**: Sentinel elects in ~15s; operator restores original topology on master pod recovery → Sentinel may hold a stale view ~5min until manual reset
 - **Schema gotchas**: v1beta2 has no `spec.kubernetesConfig.serviceType`; sentinel password uses `secretKeyRef` (EnvVarSource), not flat fields
