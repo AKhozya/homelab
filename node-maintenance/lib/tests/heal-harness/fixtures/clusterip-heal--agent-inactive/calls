@@ -1,0 +1,2 @@
+systemctl is-active --quiet k3s-agent.service
+logger -t clusterip-heal -- k3s-agent\ not\ active\ here\ —\ nothing\ to\ heal\ \(no-op\ on\ CP\ /\ agent\ down\).

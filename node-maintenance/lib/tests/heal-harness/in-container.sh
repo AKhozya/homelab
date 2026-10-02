@@ -65,9 +65,12 @@ EOF
 timeout 120 env BASH_ENV=/harness/xtrace-env bash "/repo/$SCRIPT" "${ARGS[@]}" \
 	>/out/stdout 2>/out/stderr 19>/trace/xtrace || rc=$?
 echo "$rc" >/out/rc
-cp /harness/calls.log /out/calls.log
+# Saved as `calls`, not calls.log: the repo's .gitignore drops *.log, which would leave the fixtures without it.
+cp /harness/calls.log /out/calls
 # The scripts log their own PID, which depends on how many processes ran before them.
-sed -i 's/pid=[0-9]*/pid=N/g' /out/calls.log /out/stdout /out/stderr
+sed -i 's/pid=[0-9]*/pid=N/g' /out/calls /out/stdout /out/stderr
+# Bash error messages carry the script's line number, which any edit above that line moves.
+sed -i -E 's/: line [0-9]+: /: line N: /' /out/stderr
 find /var/lib/node_exporter/textfile -maxdepth 1 -type f -exec cp -p {} /out/textfile/ \;
 for f in "${OUT_FILES[@]}"; do
 	if [ -f "$f" ]; then cp "$f" "/out/state/$(echo "$f" | tr '/' '_')"; fi

@@ -1,0 +1,11 @@
+systemctl is-active --quiet k3s-agent.service
+date +%s
+clusterip-probe.sh
+hostname
+logger -t clusterip-heal -- ClusterIP\ DNAT\ WEDGED\ on\ harness-node.
+logger -t clusterip-heal -- restarting\ k3s-agent\ to\ rebuild\ kube-proxy\ chains.
+systemctl restart k3s-agent.service
+date +%s
+sleep 15
+clusterip-probe.sh
+logger -t clusterip-heal -- ClusterIP\ DNAT\ recovered\ after\ restart\ #1\ this\ window.

@@ -2,8 +2,8 @@
 # Whole-script equivalence harness for the node scripts that use node-script-lib.sh.
 #   run-all.sh record [NAME...]   run scenarios and save their outputs as fixtures
 #   run-all.sh check  [NAME...]   run scenarios and diff each output against its fixture
-# Both modes then list every call of a shared helper (write_state, emit_metric, ufw_chains_hash,
-# state_write, textfile_write) that no scenario of that script executed.
+# A run of every scenario (no NAME) then lists each call of a shared helper (write_state,
+# emit_metric, ufw_chains_hash, state_write, textfile_write) that no scenario executed.
 # NAME is a scenario file name without .sh; no NAME means every scenario.
 # Each scenario runs in a fresh privileged archlinux container under the local Docker (Rancher
 # Desktop). The output is the script's exit code, stdout, stderr, every .prom file, the state
@@ -25,7 +25,9 @@ docker info >/dev/null 2>&1 || {
 	exit 2
 }
 
+full=0
 if [ "$#" -eq 0 ]; then
+	full=1
 	mapfile -t all < <(cd "$HERE/scenarios" && ls -- *.sh | sed 's/\.sh$//')
 	set -- "${all[@]}"
 fi
@@ -43,6 +45,8 @@ for name in "$@"; do
 		status=2
 		continue
 	fi
+	# Git keeps no empty directory, so a fresh checkout has none in its fixtures either.
+	find "$out" -mindepth 1 -depth -type d -empty -exec rmdir {} +
 	if [ "$mode" = record ]; then
 		rm -rf "$HERE/fixtures/$name"
 		mkdir -p "$HERE/fixtures"
@@ -57,6 +61,8 @@ for name in "$@"; do
 	fi
 done
 # Call-site coverage: a helper call line counts as covered if any scenario of its script traced it.
+# Only a full run can judge coverage; a subset leaves other branches untraced by design.
+[ "$full" -eq 1 ] || exit "$status"
 scripts=()
 for name in "$@"; do scripts+=("$(sed -n 's/^SCRIPT=//p' "$HERE/scenarios/$name.sh")"); done
 mapfile -t scripts < <(printf '%s\n' "${scripts[@]}" | sort -u)

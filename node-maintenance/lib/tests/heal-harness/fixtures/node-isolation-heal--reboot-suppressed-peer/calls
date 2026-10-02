@@ -1,0 +1,6 @@
+systemctl cat k3s-agent.service
+date +%s
+logger -t node-isolation-heal -- ISOLATED\ \(tunnel\ down\;\ cp_direct=0\ kubelet=1\ gw=1\ peers=1\)\ consecutive=6\ wedged=1000s\ dry_run=0
+logger -t node-isolation-heal -- reboot\ SUPPRESSED:\ peer\ reachable\,\ CP\ is\ not\ —\ retrying\ L1.
+logger -t node-isolation-heal -- L1:\ restarting\ k3s-agent\ \(isolated\ 1000s\).
+systemctl restart k3s-agent.service

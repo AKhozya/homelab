@@ -1,0 +1,1 @@
+/repo/node-maintenance/ansible/roles/node_isolation_heal/files/node-isolation-heal.sh: line N: /var/lib/k3s-agent-restart/cooldown: Read-only file system

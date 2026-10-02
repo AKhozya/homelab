@@ -1,0 +1,100 @@
+logger -t firewall-preflight -- starting\ \(pid=N\)
+logger -t firewall-preflight -- settle:\ max=90s\ window=5s\ stable=3\ \(signal=xtables-lock+ufw-hash\)
+date +%s
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+sleep 5
+iptables-save
+ip6tables-save
+date +%s
+date +%s
+logger -t firewall-preflight -- settle:\ TIMEOUT\ after\ 95s\ \(last_stable=0/3\ lock_busy=0\)\ —\ proceeding
+date +%s
+hostname
+logger -t firewall-preflight -- modprobe:\ ensuring\ 10\ modules\ loaded
+modprobe ip6_tables
+modprobe ip6table_filter
+modprobe ip6table_nat
+modprobe ip6table_mangle
+modprobe ip6table_raw
+modprobe iptable_filter
+modprobe iptable_nat
+modprobe iptable_mangle
+modprobe iptable_raw
+modprobe nf_conntrack
+logger -t firewall-preflight -- modprobe:\ loaded=10\ failed=0
+ufw status
+logger -t firewall-preflight -- ufw-state:\ ENABLED=yes\ +\ active\ —\ ok
+logger -t firewall-preflight -- chain-repair:\ starting
+iptables -L ufw-before-input -n
+iptables -L ufw-user-input -n
+ip6tables -L ufw6-user-input -n
+logger -t firewall-preflight -- chain-repair:\ repaired=0
+ufw status verbose
+date +%s
+hostname
+logger -t firewall-preflight -- probe:\ ufw\ status\ verbose=ok\ \(total=1\ fails=0\)
+logger -t firewall-preflight -- complete

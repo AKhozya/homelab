@@ -1,0 +1,4 @@
+systemctl is-active --quiet k3s.service
+date +%s
+clusterip-probe-cp.sh
+logger -t clusterip-heal-cp -- pod-netns\ probe\ returned\ UNKNOWN\ \(rc=2\)\ —\ skipping\ \(no\ restart\,\ metrics\ preserved\).

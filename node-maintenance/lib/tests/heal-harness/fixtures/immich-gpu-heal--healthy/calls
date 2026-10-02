@@ -1,0 +1,2 @@
+date +%s
+systemctl cat var-lib-immich\\x2dlibrary.mount

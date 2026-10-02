@@ -1,0 +1,6 @@
+systemctl is-active --quiet k3s-agent.service
+date +%s
+clusterip-probe.sh
+hostname
+logger -t clusterip-heal -- ClusterIP\ DNAT\ WEDGED\ on\ harness-node.
+logger -t clusterip-heal -- still\ wedged\ after\ 3\ restart\(s\)\ in\ 30min\ —\ giving\ up\,\ NOT\ restarting.\ Deeper\ fault\ than\ the\ iptables-restore\ wedge\;\ investigate.

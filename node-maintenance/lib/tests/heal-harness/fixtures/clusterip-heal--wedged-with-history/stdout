@@ -1,0 +1,3 @@
+clusterip-heal: ClusterIP DNAT WEDGED on harness-node.
+clusterip-heal: restarting k3s-agent to rebuild kube-proxy chains.
+clusterip-heal: still wedged after restart #2 — will re-evaluate next cycle.

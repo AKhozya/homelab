@@ -1,0 +1,3 @@
+systemctl cat k3s-agent.service
+date +%s
+logger -t node-isolation-heal -- maintenance\ hold\ present\ \(60s\ old\)\ —\ skipping\ this\ cycle.

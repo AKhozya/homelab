@@ -1,0 +1,2 @@
+iptables -w 5 -t nat -S
+logger -t ufw-heal -- phase-g:\ no\ portmap\ chains\ \(no\ hostPort\ pods\ here\)\ —\ nothing\ to\ restore

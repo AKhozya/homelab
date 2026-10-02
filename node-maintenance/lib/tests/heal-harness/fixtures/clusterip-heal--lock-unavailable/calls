@@ -1,0 +1,6 @@
+systemctl is-active --quiet k3s-agent.service
+date +%s
+clusterip-probe.sh
+hostname
+logger -t clusterip-heal -- ClusterIP\ DNAT\ WEDGED\ on\ harness-node.
+logger -t clusterip-heal -- restart-lock\ infrastructure\ unavailable\ \(flock/fd\ open\)\ —\ failing\ closed\ this\ cycle.

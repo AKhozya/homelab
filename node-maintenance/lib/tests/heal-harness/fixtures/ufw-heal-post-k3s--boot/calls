@@ -1,0 +1,39 @@
+logger -t ufw-heal -- starting\ heal\ sequence\ \(pid=N\)
+logger -t ufw-heal -- phase-a:\ waiting\ for\ ufw-chain\ stability\ \(max\ 90s\,\ 5s\ windows\,\ 3×\ stable\)
+nft list ruleset
+date +%s
+date +%s
+nft monitor
+iptables-save
+ip6tables-save
+date +%s
+nft monitor
+iptables-save
+ip6tables-save
+logger -t ufw-heal -- phase-a:\ stable\ 1/3\ \(nft_events=0\,\ ufw_hash=e74cbb27a800\)
+date +%s
+nft monitor
+iptables-save
+ip6tables-save
+logger -t ufw-heal -- phase-a:\ stable\ 2/3\ \(nft_events=0\,\ ufw_hash=e74cbb27a800\)
+date +%s
+nft monitor
+iptables-save
+ip6tables-save
+logger -t ufw-heal -- phase-a:\ stable\ 3/3\ \(nft_events=0\,\ ufw_hash=e74cbb27a800\)
+logger -t ufw-heal -- phase-a:\ settled
+logger -t ufw-heal -- phase-c:\ per-chain\ repair\ starting
+logger -t ufw-heal -- phase-c:\ repair\ complete
+logger -t ufw-heal -- phase-b:\ ufw\ reload\ attempt\ 1/3
+ufw reload
+logger -t ufw-heal -- phase-b:\ reload\ succeeded\ \(attempt\ 1\)
+logger -t ufw-heal -- phase-e:\ final\ ufw\ reload
+ufw reload
+logger -t ufw-heal -- phase-e:\ final\ reload\ succeeded
+iptables -L ufw-logging-deny -n
+iptables -L ufw-user-input -n
+ip6tables -L ufw6-logging-deny -n
+ip6tables -L ufw6-user-input -n
+logger -t ufw-heal -- phase-d:\ probe-set\ healthy
+ufw status
+logger -t ufw-heal -- phase-f:\ ufw\ active\ —\ heal\ OK

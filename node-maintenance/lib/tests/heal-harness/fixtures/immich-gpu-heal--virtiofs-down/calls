@@ -1,0 +1,5 @@
+date +%s
+systemctl cat var-lib-immich\\x2dlibrary.mount
+mountpoint -q /var/lib/immich-library
+logger -t immich-gpu-heal -- virtiofs\ library\ mount\ /var/lib/immich-library\ down\ —\ starting\ mount\ unit.
+systemctl start var-lib-immich\\x2dlibrary.mount

@@ -1,0 +1,26 @@
+logger -t k3s-wait-ready -- starting\ \(pid=N\,\ timeout=300s\)
+date +%s
+logger -t k3s-wait-ready -- mode=worker
+date +%s
+logger -t k3s-wait-ready -- iptables:\ waiting\ for\ ufw-chain\ stability
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+logger -t k3s-wait-ready -- iptables:\ stable\ 1/3\ \(ufw_hash=e74cbb27a800\)
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+logger -t k3s-wait-ready -- iptables:\ stable\ 2/3\ \(ufw_hash=e74cbb27a800\)
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+logger -t k3s-wait-ready -- iptables:\ stable\ 3/3\ \(ufw_hash=e74cbb27a800\)
+logger -t k3s-wait-ready -- iptables:\ settled
+date +%s
+logger -t k3s-wait-ready -- complete\ \(elapsed=30s\,\ sentinel=/run/k3s-ready\)

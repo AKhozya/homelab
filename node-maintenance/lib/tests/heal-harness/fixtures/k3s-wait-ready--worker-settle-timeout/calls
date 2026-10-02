@@ -1,0 +1,102 @@
+logger -t k3s-wait-ready -- starting\ \(pid=N\,\ timeout=300s\)
+date +%s
+logger -t k3s-wait-ready -- mode=worker
+date +%s
+logger -t k3s-wait-ready -- iptables:\ waiting\ for\ ufw-chain\ stability
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+iptables-save
+ip6tables-save
+sleep 5
+date +%s
+logger -t k3s-wait-ready -- iptables:\ timeout\ \(last_stable=0/3\)
+logger -t k3s-wait-ready -- WARN:\ iptables\ not\ stable
+date +%s
+logger -t k3s-wait-ready -- complete\ \(elapsed=130s\,\ sentinel=/run/k3s-ready\)

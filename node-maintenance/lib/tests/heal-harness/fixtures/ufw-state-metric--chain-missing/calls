@@ -1,0 +1,5 @@
+systemctl is-active --quiet ufw.service
+iptables -L ufw-logging-deny -n
+iptables -L ufw-user-input -n
+ip6tables -L ufw6-logging-deny -n
+ip6tables -L ufw6-user-input -n

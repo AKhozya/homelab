@@ -1,0 +1,9 @@
+# HELP node_clusterip_heal_wedged Worker ClusterIP DNAT wedge detected (1=wedged).
+# TYPE node_clusterip_heal_wedged gauge
+node_clusterip_heal_wedged 1
+# HELP node_clusterip_heal_restarts_total k3s-agent restarts issued by the heal watchdog.
+# TYPE node_clusterip_heal_restarts_total counter
+node_clusterip_heal_restarts_total 6
+# HELP node_clusterip_heal_giveup Wedge persisted past MAX_RESTARTS (1=needs a human).
+# TYPE node_clusterip_heal_giveup gauge
+node_clusterip_heal_giveup 0

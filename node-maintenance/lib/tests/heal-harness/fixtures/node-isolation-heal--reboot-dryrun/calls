@@ -1,0 +1,4 @@
+systemctl cat k3s-agent.service
+date +%s
+logger -t node-isolation-heal -- ISOLATED\ \(tunnel\ down\;\ cp_direct=0\ kubelet=1\ gw=1\ peers=0\)\ consecutive=6\ wedged=1000s\ dry_run=1
+logger -t node-isolation-heal -- DRY_RUN:\ WOULD\ self-reboot\ now\ \(wedged\ 1000s\ \>=\ 900s\,\ index=0\,\ cp_direct\ down\,\ prior\ L1\ tried\).\ Taking\ NO\ action.

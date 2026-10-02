@@ -1,0 +1,3 @@
+systemctl is-active --quiet k3s-agent.service
+date +%s
+clusterip-probe.sh

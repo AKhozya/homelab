@@ -1,0 +1,3 @@
+systemctl cat k3s-agent.service
+date +%s
+logger -t node-isolation-heal -- recovered\ \(tunnel\ up\;\ cp=1\ kubelet=1\ gw=1\)\ —\ clearing\ episode.
