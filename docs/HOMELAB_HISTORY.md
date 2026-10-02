@@ -17,6 +17,73 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-10-02 — Monthly review: the 180-day secret rotation run end to end by the agent, Immich off the pooler, Loki sidecar probes back
+
+This was the October monthly review, and also the quarterly automation audit. It covered the 180-day rotation that was due on 2026-10-01. For the first time the agent ran the whole rotation itself, merges included, on the operator's instruction. The method is now in the `secrets-rotation` skill, with new helpers in dotfiles (`bd266d6`, `51fe39a`, `5ecc336`).
+
+**Rotation.** The batch covered the database passwords that were due (Blocky's PostgreSQL user is due 2026-12-05), the passwords of the Redis ACL users immich, paperless, blocky and admin, the CouchDB admin, the Authentik secret key and all nine OIDC client secrets. The check for each batch:
+
+| Batch | Commits | Proof |
+|---|---|---|
+| MySQL: uptime-kuma, pricebuddy, home-assistant | `927b9db3` | MySQL showed sessions from each new pod |
+| PostgreSQL: mealie, linkwarden, paperless, immich, n8n | `fd0048f5` | PgBouncer logged logins from each new pod's IP. The only failures came from the old paperless pod during its restart |
+| CouchDB admin, three copies | `f93a6b43` | `_session` returned 200 on both nodes with the new value, and membership showed 2 of 2 |
+| Redis immich, paperless, blocky, admin (the 2026-10-26 items done early) | `54b00722`, `c7446798`, `1517297a` | consumers connected as their user from each new pod. blocky resolved names on both LB addresses. Sentinel quorum was OK |
+| Authentik database password and secret key | `0dbd6068` | every `authentik` Postgres session started after the change. Health returned 200 |
+| OIDC: grafana, paperless, mealie, home-assistant, stirling-pdf, linkwarden | `617556ce` | Authentik PATCH returned 200, then each app restarted |
+| OIDC: Immich and Audiobookshelf | none: a live update of each app's own database row | each row held the new value after its app restarted |
+| OIDC: Cloudflare Access | none: a dashboard change | the operator pasted the secret. Cloudflare's **Test** then passed |
+
+What the run taught, now written into the skill and into `docs/SECRETS_ROTATION.md`:
+
+| Lesson | Detail |
+|---|---|
+| Redis passwords rotate in three overlapping passes | A single swap refuses every client between the Redis restart and the client's own restart. blocky needs Redis to start, and blocky serves DNS |
+| A Redis replication restart leaves both pods `role:master` for about 50s | The sentinels kept the old master's dead IP until they restarted. `redis-restart.sh` now waits until the cluster settles |
+| `ACL SETUSER <user> !<hash>` removes an old password from a running Redis | The last pass needed no restart. The ACL Secret is mounted with `subPath`, so `ACL LOAD` would re-read the old file |
+| Changing the Authentik secret key only ends Authentik sessions | This holds since authentik 2023.6, per the official configuration docs |
+| If `--tail=-1` is not given, `kubectl logs -l` returns only 10 lines per pod | The first "0 failed logins" check had read only 20 lines |
+| An agent must not type a secret into a web form | For Cloudflare, the agent put the value on the clipboard and emptied the field. The operator pasted it. The first paste went into a field that still held the old value, and Authentik logged `Invalid client secret` |
+
+**Fixed during the review:**
+
+| Change | Commit |
+|---|---|
+| The Loki sidecar probes are back on: k8s-sidecar#531 is fixed in 2.10.0, and the chart ships 2.11.2 | `8b3d4e68` |
+| The Loki sidecar gets 200m CPU and a startupProbe. At 50m its start took 84s, against a liveness limit near 90s. It now starts in 25s | `ff65f775` |
+| immich-server connects to `main-postgres-rw` directly. Through the transaction-mode pooler, its startup advisory lock failed on every start (`you don't own a lock of type ExclusiveLock`), and the startupProbe killed it. A start now takes 11s | `14b84b59` |
+| `backup-nightly-verify` no longer reports a false failure. It expected exactly 4 artifacts, but the job now validates one per PVC archive (17 last night) | dotfiles `bd266d6` |
+| `redis-master.sh` now logs in as the ACL user `admin`. Before, `info` and `exec` failed with `AUTH failed` | dotfiles `5ecc336` |
+| Docs corrected: Actions jobs succeed again since 2026-10-01 (first green run 17:18Z); the 8472/udp rule names a source; the DB backups have no local age sweep; Grafana is LAN-only; the Alertmanager NetworkPolicy sources; the pooler's clients | this commit |
+
+**Posture sweep.**
+
+| Check | Result |
+|---|---|
+| Rootkits | the scans detected none on any node. The new scan warnings are package upgrades: `pacman -Qkk` shows no altered files |
+| Kyverno | 0 fails |
+| Certificates | 18 of 18 Ready |
+| Database primaries | all on worker-node |
+| Popeye | A (90) |
+| trivy | 84 images; 248 CRITICAL and 3,522 HIGH fixable findings, the first recorded baseline. Uptime Kuma accounts for 177 of the CRITICALs |
+| Immich memory since 2026-09-07 | ML peaked at 70% of 7Gi and immich-vm at 48% of its RAM. Neither crossed the 80% threshold, so the re-check row is closed |
+| Upstream watches | n8n #25705 is closed, but its fix PR #27295 is unmerged, so the workaround stays. Stirling#6211 is still open |
+
+Not caused by the review: at about 10:58Z a NAS firmware auto-update rebooted the NAS without first shutting down immich-vm. The `immich-vm-heal` CronJob started the VM again at 11:00, and the node was Ready by 11:01.
+
+**Open, for the operator to decide:**
+
+| Item | Detail |
+|---|---|
+| Redis ACL `user default on nopass ~* &* +@all` | any client that can reach Redis has full rights without a password, so the per-app passwords limit nothing |
+| NAS firmware auto-update | it can stop immich-vm at any hour without a clean shutdown. Schedule or disable it |
+| `timesyncd-metric` | it duplicates node-exporter's `node_timex_*` metrics, and no alert reads either one. There is no clock-skew alert |
+| `node_pkg_upgrade_success` | the file is rewritten only when its value changes, so a node that phase2 never reaches keeps a stale `1`. Add a last-run timestamp and alert on its age |
+| `k3s-image-gc.service` | it has no failure notice (open since July), and kubelet image GC may make it unnecessary. Keep it or delete it |
+| Watchdog metrics | the heal alerts fire on `==1` only. A dead heal script leaves its last `0` in place. The systemd collector is off |
+| Shared shell helpers | `ufw_chains_hash`, `emit_metric` and `write_state` are copied across the node scripts |
+| `agents/` snapshot | `scripts/sync-agents.sh --check` exits 1. Seven new `_shared` helpers and `hyperframes-studio` are on neither list |
+
 ### 2026-10-02 — daily Flux webhook EOF alerts; a Flux readiness alert that can fire
 
 | Finding | Detail |
@@ -4214,149 +4281,3 @@ The priority column in SECRETS_ROTATION.md now ranks only by blast radius (how m
 secret would expose). The yearly infrastructure keys (SSH, deploy key, Cloudflare management token)
 and the classes that are never rotated did not change.
 
-### 2026-06-29 — Automatic repair of stuck ClusterIP routing on the control plane, and a Codex pre-commit review loop
-
-A maintenance reboot caught up after the heat shutdown. It ran phase1 then phase2 and updated all
-3 nodes. It booted the control plane, the first worker (W1) and the second worker (W2) in that order, about 6min apart, without problems.
-The reboot exposed a gap. After a reboot, kube-proxy's DNAT rules (address-rewriting rules) for ClusterIP (the cluster's
-internal service addresses) can get stuck, and this hits the **control plane** too. But
-`clusterip_heal` covered only the workers. It left the control plane out for two reasons: a probe
-from the host network namespace gives false readings there, and a caveat said
-"restart-k3s-on-CP hangs".
-
-The symptom: **uptime-kuma**, pinned to the control plane on purpose with a `nodeSelector`,
-crashed and restarted repeatedly with `EAI_AGAIN` on MySQL. From pods on the control plane, every ClusterIP (DNS
-10.43.0.10, API 10.43.0.1) failed, while the host and the workers were fine. A manual
-`systemctl restart k3s` on the control plane cleared it. The restart reprogrammed the DNAT and
-returned cleanly in about 30-60s, which **disproved** the belief that a control-plane restart hangs.
-
-**Fix (`c175ab7b`).** A new Ansible role, `clusterip_heal_cp`, is the control-plane version of
-`clusterip_heal`. It probes from inside a pod's network namespace: it uses nsenter to enter the
-coredns-ha pod and requests 10.43.0.1:443/healthz with curl, because a probe from the host namespace gives false
-readings on the control plane. The probe returns one of 3 states:
-
-| State | Meaning |
-|---|---|
-| 0 | healthy |
-| 1 | stuck, but **only if every sample is a confirmed connection failure** |
-| 2 | unknown: do nothing, and keep the metrics as they are |
-
-The rules are cautious because the repair restarts the whole Kubernetes service on the control
-plane, which is heavier than the repair on a worker. The repair is **`timeout 120 systemctl restart k3s`**. If the restart hangs, the role gives up and raises an
-alert, so the control plane never stays stuck indefinitely. The safeguards copy the worker role: a
-300s cooldown, at most 3 repairs per 30min, and `node_clusterip_heal_giveup`, which feeds the
-existing alert. A systemd timer runs the role 2min after boot and then every 3min. The role deploys
-on the next node-maintenance sync. It gets its first live test at the next control-plane reboot.
-
-**Review loop adopted (CLAUDE.md).** This was the first homelab change to go through the new
-pre-commit loop: a Codex static review (`xhigh` reasoning), then `receiving-code-review`, a fix,
-and a re-review of only the changed part, for at most 3 rounds. Codex found 2 real risks of a
-needless restart: any bad sample counted as stuck, and a probe that could not run exited 0, which
-cleared the give-up metric. Both were fixed, and round 2 approved the change. The cavecrew pre-push
-gate was retired. No Gemini review, and no watching of pull requests after the push.
-
-### 2026-06-28 — backup-replication: rsync `-z` dropped, because it wasted CPU on the LAN
-
-Step 1 (to worker-node-2 over SSH) and Step 2 (to the rsync daemon on the NAS) used `rsync -avz`.
-The backups are `.tar.gz` files, already compressed, and both hops stay on the LAN. So `-z`
-compressed data that cannot shrink further, spending CPU on both ends for a size gain of about 0.
-Both steps now use `-av`. File: `infrastructure/configs/backup-replication/cronjob.yaml`.
-
-### 2026-06-28 — Backup CronJobs: startingDeadlineSeconds raised from 600 to 3600, so a backup delayed by a reboot overrun can still start
-
-6 backup CronJobs (postgres, couchdb, mysql, pvc, immich, backup-replication) start at 03:00–03:30.
-They had `startingDeadlineSeconds: 600`. If recovery from a reboot ran more than 10 min past that
-window, the CronJob skipped that day's backup, and no error showed it. With a deadline set, the
-controller does not catch up a missed run later.
-
-This showed up on the day of this entry, after a **planned heat shutdown of 5–6 days** (the cluster
-was off from about 06-23 to 06-28). 6 critical `BackupCronJobMissedSchedule` alerts and 6
-`CronJobNotScheduled` alerts fired. The gap itself was **expected**: the cluster was powered off,
-and the controller was healthy, since the Sunday 06:00 popeye and pg-extension jobs ran that day.
-The `*-postreboot` startup jobs filled in the missed backups. The alerts clear by themselves after
-the next on-time 03:00 run.
-
-The deadline is now **3600** seconds, which allows a late start until about 04:00–04:30. So a
-normal maintenance reboot that runs long still runs that day's backup. `concurrencyPolicy: Forbid`
-prevents two runs from overlapping. The `*-postreboot` startup jobs, not the deadline, still cover
-shutdowns of several days.
-
-### 2026-06-28 — immich Redis survives reboots: pointed at the Service that follows the master, Sentinel client dropped
-
-**Problem.** After a node reboot, Sentinel promotes a new Redis master. immich's ioredis Sentinel
-client kept its connection to the old master and never recovered, so it needed a manual
-`kubectl rollout restart deploy/immich-server`. This kept happening, and it happened again on the
-day of this entry (obs 6978).
-
-**Root cause.** ioredis in Sentinel mode detects a failover passively: it asks the sentinels again
-only when the master connection *closes*. If a node reboots, the TCP connection to the dead
-master is left **half-open and hangs**, with no FIN or RST (the signals that close or reset a TCP
-connection). So ioredis never notices and never
-looks up the master again ([ioredis#1314](https://github.com/redis/ioredis/issues/1314)).
-
-**Rejected: `failoverDetector:true`** (`f992bbda`, later replaced). Active detection through the
-sentinels' `+switch-master` pub/sub messages (published event messages) does recover. But it triggers a **known ioredis
-connection leak**. A sentinel failover test left 301 orphaned subscribe connections that never
-closed, and immich-server running at about 1.3 CPU. That swaps a manual restart for a leak that
-also needs a restart in the end.
-
-**Fix (`cc5c02a1`).** immich now connects as a **plain** ioredis client to
-**`redis-replication-master`**, a Service of the OT (opstree) operator that follows the master
-(selector `redis-role=master`). Failover now happens in the **infrastructure layer**. If a
-replica is promoted, the operator points that Service at the new master, so ioredis reconnects to
-the same ClusterIP. The client no longer relies on unreliable Sentinel discovery. paperless already
-uses the same pattern. The egress NetworkPolicy did not change: `redis-replication:6379` was
-already allowed, and the `sentinel:26379` egress is now unused.
-
-**Checked** by deleting the master pod to simulate a reboot. No manual restart was needed:
-
-| Check | Result |
-|---|---|
-| immich recovery | automatic, in about 18s |
-| immich pod RESTARTS | **0** |
-| live `ioredis` connections on the master after it was promoted again | 40 |
-| sentinel connections | **0** (the leak is gone) |
-| CPU | 1344m → 2m |
-
-The change re-encrypted the SOPS secret `immich-redis-url` with the host in place of the sentinels,
-and updated the REDIS_URL comment in `apps/immich/release.yaml`. Note: `cc5c02a1` is unsigned,
-because the 1Password agent locked during the session.
-
-### 2026-06-28 — Backup prune left empty folders on the NAS; immich machine-learning resources raised
-
-Two small production fixes shipped in this session.
-
-**Empty folders left by the backup prune (`2e65af1f`).** In NAS replication, `prune_nas_dir` ran
-rsync from `/tmp/empty/` *into* the dated folder. That clears only the folder's **contents**, so
-the empty folder itself stayed and piled up on the NAS. The fix runs rsync on the **parent** folder
-and limits `--delete` to the target folder with `--include="/${name}/***" --exclude='*'`, so the
-dated folder itself is removed. `--exclude='*'` protects the folders beside it, in the same way as
-`prune_nas_file`. This ends the long-running build-up of empty dated folders on the NAS. File: `infrastructure/configs/backup-replication/cronjob.yaml`.
-
-**Immich machine-learning resources (`6af4971e`).** The machine-learning container's limits went up:
-
-| Limit | Before | After | Why |
-|---|---|---|---|
-| CPU | 2000m | 4000m | 2×, for inference throughput |
-| RAM | 2Gi | 2355Mi | +15%: the 7-day peak reached about 78% of 2Gi, too little room before an out-of-memory kill |
-
-Requests did not change (200m/512Mi). File: `apps/immich/release.yaml`.
-
-### 2026-06-28 — NAS admin SSH access and a security audit
-
-The workstation now has admin SSH access (remote terminal access) to the NAS that receives the
-backups (`zl-nas`, ZettLab's zettOS, based on Debian 12, at `192.168.1.136`). It uses a dedicated
-ed25519 key stored as a file (`~/.ssh/zl_nas_ed25519`), on port `56634`. The key is a file on
-purpose, not a key held by the 1Password agent. Login with the key needs no password. `sudo` still
-asks for one, by design: there is no NOPASSWD rule (a sudo rule that runs admin commands without a
-password).
-
-The audit found nothing to act on:
-
-| Subject | Finding | Why |
-|---|---|---|
-| Host firewall | none is loaded. `ufw`, `nftables` and `firewalld` are all inactive. The nft ruleset holds only the network for libvirt (the software that manages the VMs), with `INPUT policy accept`, and `iptables-legacy` is empty | so the rule "Allow `192.168.1.0/24`" in the ZettLab UI has no effect |
-| Access from the internet (WAN) | safe regardless of the NAS rule | the router forwards no inbound port |
-| `zettos-postgresql` | the one sensitive service exposed to the LAN (`listen_addresses='*'`), but authentication blocks it | the database's connection rules in `pg_hba.conf` allow only `127.0.0.1`, `::1` and local connections, so the database rejects a LAN connection before any login check. Every real client runs on the NAS itself |
-| Configuration files that the appliance manages | left untouched | ZettLab overwrites them on update |
-| The appliance | outside the scope of Ansible, k3s and UFW | so the node-maintenance and node-fix procedures do not apply to it |

@@ -1,6 +1,6 @@
 # Secrets Rotation Playbook
 
-**Cluster**: K3s Homelab (k3s v1.37.0+k3s1, 4 nodes) | **Last Updated**: 2026-09-28
+**Cluster**: K3s Homelab (k3s v1.37.0+k3s1, 4 nodes) | **Last Updated**: 2026-10-02
 **Audit Trail**: rotation dates in git commit history
 
 Every secret in this cluster lives encrypted in Git using SOPS with an age key. The
@@ -24,12 +24,12 @@ cert-manager).
 
 | Secret Name | App | Last Rotated | Next Rotation | Priority |
 |-------------|-----|--------------|---------------|----------|
-| `immich-db-user` (ns `databases`) + `immich-db-password` (ns `immich`) | Immich | 2026-04-02 | 2026-10-01 | High |
-| `linkwarden-db-app-user` (file `linkwarden-app-user-secret.yaml`) | Linkwarden | 2026-04-02 | 2026-10-01 | Medium |
-| `mealie-db-user` | Mealie | 2026-04-02 | 2026-10-01 | Medium |
-| `n8n-db-user` | N8N | 2026-04-02 | 2026-10-01 | High |
-| `paperless-db-user` | Paperless-NGX | 2026-04-02 | 2026-10-01 | Medium |
-| `authentik-db-user` | Authentik | 2026-04-02 | 2026-10-01 | Critical |
+| `immich-db-user` (ns `databases`) + `immich-db-password` (ns `immich`) | Immich | 2026-10-02 | 2027-03-31 | High |
+| `linkwarden-db-app-user` (file `linkwarden-app-user-secret.yaml`) | Linkwarden | 2026-10-02 | 2027-03-31 | Medium |
+| `mealie-db-user` | Mealie | 2026-10-02 | 2027-03-31 | Medium |
+| `n8n-db-user` | N8N | 2026-10-02 | 2027-03-31 | High |
+| `paperless-db-user` | Paperless-NGX | 2026-10-02 | 2027-03-31 | Medium |
+| `authentik-db-user` | Authentik | 2026-10-02 | 2027-03-31 | Critical |
 | `blocky-db-user` | Blocky (queryLog) | 2026-06-05 | 2026-12-05 | Low |
 | `trivy-dockerhub` | trivy-scan CronJob (Docker Hub read-only PAT, 1Password `docker_hub_ro`; PAT non-expiring — revoke+reissue) | 2026-07-14 | 2027-07-14 | Low |
 
@@ -39,15 +39,15 @@ Grafana and Audiobookshelf use SQLite, so they have no database Secret.
 
 | Secret Name | App | Last Rotated | Next Rotation | Priority |
 |-------------|-----|--------------|---------------|----------|
-| `home-assistant-secrets` (the `db_url` line inside key `secrets.yaml`) | Home Assistant | 2026-04-02 | 2026-10-01 | High |
-| `uptime-kuma-mysql-credentials` | Uptime Kuma | 2026-04-02 | 2026-10-01 | Medium |
-| `pricebuddy-mysql-credentials` | PriceBuddy | 2026-04-02 | 2026-10-01 | Medium |
+| `home-assistant-secrets` (the `db_url` line inside key `secrets.yaml`) | Home Assistant | 2026-10-02 | 2027-03-31 | High |
+| `uptime-kuma-mysql-credentials` | Uptime Kuma | 2026-10-02 | 2027-03-31 | Medium |
+| `pricebuddy-mysql-credentials` | PriceBuddy | 2026-10-02 | 2027-03-31 | Medium |
 
 #### CouchDB
 
 | Secret Name | App | Last Rotated | Next Rotation | Priority |
 |-------------|-----|--------------|---------------|----------|
-| CouchDB admin, three copies (see [Standard](#standard-180-days--single-cadence-for-all-scheduled-rotations)) | Obsidian Sync | 2026-04-02 | 2026-10-01 | — |
+| CouchDB admin, three copies (see [Standard](#standard-180-days--single-cadence-for-all-scheduled-rotations)) | Obsidian Sync | 2026-10-02 | 2027-03-31 | — |
 
 The sync user `couchdb-credentials` is not rotated; it is under User Login Passwords.
 
@@ -56,21 +56,23 @@ The sync user `couchdb-credentials` is not rotated; it is under User Login Passw
 | Secret Name | App | Last Rotated | Next Rotation | Priority |
 |-------------|-----|--------------|---------------|----------|
 | `authentik-redis-password` | Authentik | N/A (Removed 2025-10-29) | N/A | N/A |
-| `redis-passwords.immich-password` | Immich (static master Service) | 2026-04-02 | 2026-10-01 | High |
-| `redis-passwords.paperless-password` | Paperless-NGX (static master Service) | 2026-04-02 | 2026-10-01 | Medium |
-| `redis-passwords.blocky-password` | Blocky DNS (static master Service, db 1) | 2026-04-26 | 2026-10-26 | Medium |
-| `redis-passwords.admin-password` | Redis HA admin | 2026-04-26 | 2026-10-26 | High |
-| `redis-acl-secret` | Redis ACL (literal user list, mounted /etc/redis/user.acl) | 2026-04-26 | rotate WITH redis-passwords | High |
+| `redis-passwords.immich-password` | Immich (static master Service) | 2026-10-02 | 2027-03-31 | High |
+| `redis-passwords.paperless-password` | Paperless-NGX (static master Service) | 2026-10-02 | 2027-03-31 | Medium |
+| `redis-passwords.blocky-password` | Blocky DNS (static master Service, db 1) | 2026-10-02 | 2027-03-31 | Medium |
+| `redis-passwords.admin-password` | Redis HA admin | 2026-10-02 | 2027-03-31 | High |
+| `redis-acl-secret` | Redis ACL (literal user list, mounted /etc/redis/user.acl) | 2026-10-02 | rotate WITH redis-passwords | High |
 | `wallabag-redis-password` | Wallabag | N/A (Decommissioned) | N/A | N/A |
 
 ### Application Secrets
 
 | Secret Name | App | Type | Last Rotated | Next Rotation | Priority |
 |-------------|-----|------|--------------|---------------|----------|
-| `authentik` (key `AUTHENTIK_SECRET_KEY`) | Authentik | Django Secret | 2026-04-02 | 2026-10-01 | High |
+| `authentik` (key `AUTHENTIK_SECRET_KEY`) | Authentik | Django Secret | 2026-10-02 | 2027-03-31 | High |
 | `n8n-env` (key `N8N_ENCRYPTION_KEY`) | N8N | Encryption Key | Never* | N/A | Critical |
 
 \* **N8N encryption key NEVER rotated** — encrypts all workflow credentials
+
+Since authentik 2023.6, `AUTHENTIK_SECRET_KEY` signs cookies and no longer feeds user IDs, and the docs say a change invalidates active sessions ([configuration docs](https://docs.goauthentik.io/install-config/configuration/)). So after a rotation each user logs in to Authentik again. The docs say nothing about app sessions or OIDC refresh tokens; on 2026-10-02 no app reported a login problem afterwards.
 
 ### User Login Passwords (NOT rotated)
 
@@ -85,15 +87,15 @@ The sync user `couchdb-credentials` is not rotated; it is under User Login Passw
 
 | App | Where Secret Lives | Last Rotated | Next Rotation | Priority |
 |-----|-------------------|--------------|---------------|----------|
-| Grafana | `grafana-oidc` K8s Secret (volume mount) | 2026-04-02 | 2026-10-01 | High |
-| Immich | PostgreSQL `system_metadata` table (`oauth.clientSecret` jsonb) + Authentik API | 2026-04-02 | 2026-10-01 | High |
-| Paperless-NGX | `paperless-env-secret.yaml` (PAPERLESS_SOCIALACCOUNT_PROVIDERS env) | 2026-04-02 | 2026-10-01 | High |
-| Mealie | `mealie-env-secret.yaml` (OIDC_CLIENT_SECRET env) | 2026-04-02 | 2026-10-01 | Medium |
-| Linkwarden | `linkwarden-secret.yaml` (DATABASE_URL + OIDC combined) | 2026-04-02 | 2026-10-01 | Medium |
-| Audiobookshelf | SQLite on PVC (web UI config) + Authentik API | 2026-04-02 | 2026-10-01 | Medium |
-| Home Assistant | Confidential `!secret` in HA config (hass-oidc-auth v1.1.0, re-enabled 2026-05-31) | 2026-05-31 | 2026-10-01 | Medium |
-| Stirling PDF | `custom-settings-secret.yaml` (inside key `custom_settings.yml`) | 2026-04-02 | 2026-10-01 | Medium |
-| Cloudflare Access | Cloudflare Zero Trust: Integrations → Identity providers → the Authentik OpenID Connect provider → Client secret | not recorded | 2026-10-01 | High |
+| Grafana | `grafana-oidc` K8s Secret (volume mount) | 2026-10-02 | 2027-03-31 | High |
+| Immich | PostgreSQL `system_metadata` table (`oauth.clientSecret` jsonb) + Authentik API | 2026-10-02 | 2027-03-31 | High |
+| Paperless-NGX | `paperless-env-secret.yaml` (PAPERLESS_SOCIALACCOUNT_PROVIDERS env) | 2026-10-02 | 2027-03-31 | High |
+| Mealie | `mealie-env-secret.yaml` (OIDC_CLIENT_SECRET env) | 2026-10-02 | 2027-03-31 | Medium |
+| Linkwarden | `linkwarden-secret.yaml` (DATABASE_URL + OIDC combined) | 2026-10-02 | 2027-03-31 | Medium |
+| Audiobookshelf | SQLite on PVC (web UI config) + Authentik API | 2026-10-02 | 2027-03-31 | Medium |
+| Home Assistant | Confidential `!secret` in HA config (hass-oidc-auth v1.1.0, re-enabled 2026-05-31) | 2026-10-02 | 2027-03-31 | Medium |
+| Stirling PDF | `custom-settings-secret.yaml` (inside key `custom_settings.yml`) | 2026-10-02 | 2027-03-31 | Medium |
+| Cloudflare Access | Cloudflare Zero Trust: Integrations → Identity providers → the Authentik OpenID Connect provider → Client secret | 2026-10-02 | 2027-03-31 | High |
 
 **OIDC rotation gotchas:**
 - **Immich**: update Authentik API AND PostgreSQL: `UPDATE system_metadata SET value = jsonb_set(value::jsonb, '{oauth,clientSecret}', '"NEW_SECRET"') WHERE key = 'system-config';` then restart
@@ -164,7 +166,10 @@ If the secret is empty or missing, the workflow's `Require FLUX_UPDATE_TOKEN` st
 - DB passwords: Immich, Authentik, N8N, Home Assistant, Mealie, Paperless, Linkwarden, Uptime Kuma, PriceBuddy, Blocky
 - Redis: Immich, Paperless, Blocky, HA admin (`redis-acl-secret` rotates with `redis-passwords`)
 - OIDC client secrets (Authentik provider + app-side)
-- CouchDB admin. Three SOPS files hold it, and all three must match:
+- CouchDB admin. After the three files deploy, delete the CouchDB pods one at a time. If the new
+  pod is Ready and its login check passes, delete the next one. Why a restart applies it: the image entrypoint writes the admin from
+  `COUCHDB_PASSWORD` into `local.d`, which is not mounted, so each new container takes the new
+  value. Three SOPS files hold it, and all three must match:
 
   | File | Secret (namespace) | Keys | Reader |
   |---|---|---|---|
@@ -213,6 +218,11 @@ agents/skills/_shared/restart-workload.sh <namespace> <selector>
 ```
 
 ### 1. PostgreSQL Password (CNPG)
+
+`_shared/rotate-pg-roles.sh <role>...` (the `secrets-rotation` skill) does steps 1-3 for every
+copy at once: it finds each copy by the current value, including DSNs, so no file list becomes outdated.
+Apps behind the PgBouncer pooler show old server connections in `pg_stat_activity`; prove the new
+login with `_shared/pooler-login-proof.sh` instead.
 
 ```bash
 # 1. Generate new password (64-char hex for URL safety)
@@ -280,6 +290,20 @@ agents/skills/_shared/restart-workload.sh <namespace> <selector>
 ---
 
 ### 2. Redis Password (redis-ha)
+
+**Preferred since 2026-10-02: three passes that overlap the old and new password**, run with the
+`secrets-rotation` skill helpers (`rotate-redis-users.sh`, `redis-restart.sh`,
+`redis-acl-drop-old.sh`). Redis never rejects a client's password, because both the old and the
+new one are accepted until every client holds the new one. That matters because blocky sets redis
+`required: true` and serves DNS. Restarts and failovers can still interrupt clients briefly. The single-password steps below refuse every consumer between the
+Redis restart and its own restart. What the 2026-10-02 run showed:
+
+| Observation | Consequence |
+|---|---|
+| `redis-acl-secret` is mounted with `subPath` | a running pod never sees a new ACL; only a restart or a runtime `ACL SETUSER` changes it |
+| a replication restart left both pods `role:master` for ~50s until the operator re-attached the replica | `redis-restart.sh` waits for one master with one linked replica |
+| the same restart gave the pods new IPs and the sentinels kept the dead master IP | no failover until the sentinels restart; `redis-restart.sh sentinel` waits for quorum on the current master |
+| `ACL SETUSER <user> !<hash>` removes an old password from a running pod | the last pass needs no restart |
 
 Redis auth lives in TWO server-side SOPS secrets that must rotate TOGETHER, plus
 each consumer's app-side secret (Authentik has had no Redis since 2025-10-29):
@@ -523,7 +547,13 @@ fi
 | Stirling PDF | `apps/stirling-pdf/custom-settings-secret.yaml` | empty | inside the YAML in key `custom_settings.yml` | `apps` |
 | Home Assistant | `apps/home-assistant/secrets.yaml` | empty | the `oidc_client_secret:` line inside key `secrets.yaml` | `apps` |
 
-Immich (PostgreSQL `system_metadata`), Audiobookshelf (SQLite on its volume, web UI) and Cloudflare Access (Zero Trust dashboard) do not use steps 3-5; see the gotchas above.
+Immich, Audiobookshelf and Cloudflare Access do not use steps 3-5. Done 2026-10-02 as follows. For Immich and Audiobookshelf, each update was guarded on the row still holding the old secret, and the app restarted right after the PATCH:
+
+| App | Where the secret sits | How |
+|---|---|---|
+| Immich | PostgreSQL `immich` db, `system_metadata` row `system-config`, `value->'oauth'->>'clientSecret'` | `UPDATE ... jsonb_set(value, '{oauth,clientSecret}', ...)` on stdin through `pg-primary.sh exec immich -`, then restart immich-server (it caches the config) |
+| Audiobookshelf | `/config/absdatabase.sqlite`, `settings` row `server-settings`, JSON field `authOpenIDClientSecret` | no `sqlite3` binary in the image: `node -e` from `/app` with the app's own `sqlite3` module, then restart; the row still held the new value after the restart |
+| Cloudflare Access | Zero Trust dashboard: Integrations → Identity providers → Authentik → Client secret | the agent puts a new value on the clipboard (`pbcopy`), opens the edit form and empties the field; the operator pastes and saves (an agent must not type a secret into a web form); the agent PATCHes provider 50; the operator clicks **Test**. On 2026-10-02 a paste into the unemptied field gave `Invalid client secret` in the Authentik log; emptying it first fixed it |
 
 **Provider PK Reference**:
 - 1: Grafana, 3: Immich, 5: Paperless-NGX, 11: Mealie
@@ -767,8 +797,21 @@ If compromised:
   document with `yq` → `sops -e`, never a partial edit of the ciphertext.
 
 ### 2026 Q4 (Oct-Dec)
-- [ ] 2026-10-01: 180-day rotation — ALL scheduled secrets (PG, MySQL, Redis, CouchDB, OIDC, Django key; ex-High included)
-- [ ] 2026-10-26: Redis `admin-password` + `blocky-password` (+ `redis-acl-secret`)
+- [x] 2026-10-02: 180-day rotation, run end to end by the agent with the `secrets-rotation` skill:
+
+  | Batch | Commits |
+  |---|---|
+  | MySQL: uptime-kuma, pricebuddy, home-assistant | `927b9db3` |
+  | PostgreSQL: mealie, linkwarden, paperless, immich, n8n | `fd0048f5` |
+  | CouchDB admin, three copies | `f93a6b43` |
+  | Redis immich, paperless, blocky, admin (three overlap passes; the 2026-10-26 items done before their date) | `54b00722`, `c7446798`, `1517297a` |
+  | Authentik database password and Django secret key | `0dbd6068` |
+  | OIDC: grafana, paperless, mealie, home-assistant, stirling-pdf, linkwarden | `617556ce` |
+  | OIDC: Immich (`system_metadata` row) and Audiobookshelf (SQLite settings row) | no commit; live database update + Authentik PATCH |
+- [x] Cloudflare Access OIDC client secret: operator pasted it in the Zero Trust dashboard, agent PATCHed Authentik provider 50 (2026-10-02)
+
+### 2027 Q1 (Jan-Mar)
+- [ ] 2027-03-31: 180-day rotation — every row above that shows 2027-03-31
 
 ---
 
@@ -800,4 +843,4 @@ git show <commit-hash> -- apps/immich/immich-db-password-secret.yaml
 
 ---
 
-**Review Schedule**: Quarterly | **Next Review**: 2026-10-01
+**Review Schedule**: Quarterly | **Next Review**: 2027-01-02

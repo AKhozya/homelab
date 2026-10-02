@@ -9,7 +9,7 @@ which checks each workload before Kubernetes accepts it; NetworkPolicies; contai
 
 | Area | State |
 |---|---|
-| Internet access | The published apps are reachable only through a Cloudflare Tunnel, which the cluster opens from the inside; the home router forwards no ports. Nine hostnames are published; the rest of the apps are LAN-only. On the nodes themselves, only 8472/udp accepts traffic from any source (see [Node firewall](#node-firewall)). |
+| Internet access | The published apps are reachable only through a Cloudflare Tunnel, which the cluster opens from the inside; the home router forwards no ports. Nine hostnames are published; the rest of the apps are LAN-only. On the nodes themselves, every incoming firewall rule names a source, so no port accepts traffic from any address. One routed rule on worker-node-2 has no source; it names a destination (see [Node firewall](#node-firewall)). |
 | Sign-in | Authentik, passkey-first since 2026-06-05. Seven apps and Grafana use it through OIDC (the app hands sign-in to Authentik); Homepage sits behind Authentik forward-auth. |
 | Admission | 12 Kyverno policies, all `Deny`, plus Pod Security Standards on every app namespace. |
 | Network inside the cluster | Each app's NetworkPolicy lists the connections its pods may make and accept; any other connection to or from those pods is blocked. Kyverno's `require-networkpolicy` policy rejects a workload in an app namespace that has no NetworkPolicy. |
@@ -118,14 +118,16 @@ broken firewall, run `sudo systemctl start node-maintenance-config.service`.
 | any port | pod network 10.42.0.0/16 and service network 10.43.0.0/16 | all |
 | port 80, TCP and UDP | LAN | all |
 | 443/tcp | LAN | all |
-| 8472/udp (flannel VXLAN, which carries pod traffic between nodes) | any source | all |
+| 8472/udp (flannel VXLAN, which carries pod traffic between nodes) | LAN | worker-node-2 only; on every node the node-IP rule above already admits flannel peers |
 | Kubernetes API, 6443/tcp | LAN | control plane |
 
 So SSH is open to the LAN, to the other nodes and to pods, not to the internet.
 
 **IPv6.** Every node has a public IPv6 address, and a UFW rule with no source opens its port over
-IPv6 as well. 8472/udp is the only rule with no source today, so it is the only port that accepts
-traffic from anywhere, over IPv4 or IPv6.
+IPv6 as well. Every incoming rule in `node-maintenance/ansible/group_vars/` and `host_vars/` names an
+IPv4 source. The one routed rule without a source, on worker-node-2, names an IPv4 destination. So no
+rule admits traffic over IPv6. `ufw_rules_absent` in `group_vars/all.yml` deletes the old
+no-source rules on every drift-heal run. `1bc2817c` added the last of them, 8472/udp, to that list.
 
 ### SSH
 

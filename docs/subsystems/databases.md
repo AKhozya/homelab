@@ -1,8 +1,8 @@
 # Databases map
 
-All in `databases` namespace except the ps-operator (MySQL) in `percona-mysql` ns and obsidian's client-side CouchDB creds. Operators: `infrastructure/controllers/databases/<engine>/`; cluster CRs + config: `infrastructure/configs/databases/<engine>/`. Versions: pinned there.
+All in `databases` namespace except the ps-operator (MySQL) in `percona-mysql` ns and obsidian's client-side CouchDB creds. Operators (CNPG, ps-operator, redis-operator): `infrastructure/controllers/databases/<engine>/`; cluster CRs + config: `infrastructure/configs/databases/<engine>/`. CouchDB has no operator: its Helm chart lives in `infrastructure/configs/databases/couchdb/`. Versions: pinned there.
 
-**HR resilience**: all 4 DB HelmReleases (cnpg-operator, ps-operator, redis-operator, couchdb) set `driftDetection: enabled` + `rollback.cleanupOnFail: true`.
+**HR resilience**: the DB HelmReleases (cnpg-operator, ps-operator, redis-operator, couchdb) set `driftDetection: enabled` + `rollback.cleanupOnFail: true`.
 
 Backup CronJobs (schedules, auto-discovery, mechanics): [backup-restore.md](backup-restore.md).
 
@@ -11,7 +11,7 @@ Backup CronJobs (schedules, auto-discovery, mechanics): [backup-restore.md](back
 - **Operator placement**: soft nodeAffinity `NotIn worker-node-2` (weight 100) + CP toleration → pair lands CP+W1. Toleration is load-bearing: without it, replicaCount 2 + hard anti-affinity forces one replica onto W2 (preference = dead config). Why: an operator leader on a flaky node once probed the healthy W1 primary across that node's broken VXLAN → spurious failover into the broken node.
 - **Cluster**: `main-postgres` (`configs/databases/postgres/cluster.yaml` — 1 primary + 1 replica on workers, no CP scheduling, hard pod anti-affinity). `failoverDelay: 30` (default 0 = instant) — rides out 1-10s probe blips at the cost of +30s RTO on genuine primary death.
 - **Pods**: `main-postgres-{N}` (sequential numbering climbs across upgrades)
-- **Pooler**: PgBouncer Deployment `main-postgres-rw-pooler` (2 replicas; `configs/databases/postgres/pooler.yaml` — separate CR from the Cluster)
+- **Pooler**: PgBouncer Deployment `main-postgres-rw-pooler` (`configs/databases/postgres/pooler.yaml` — separate CR from the Cluster). It serves linkwarden, paperless-ngx, mealie and n8n. immich-server connects to `main-postgres-rw` directly, because its startup advisory lock fails under transaction pooling (`apps/immich/release.yaml`). App-to-host map: [networking.md](networking.md)
 - **Backup**: daily logical pg_dump ONLY (auto-discovers via `pg_database`) — **no WAL archiving/PITR by decision**; streaming replication = HA, not backup
 - **Managed roles** (`cluster.yaml` `spec.managed.roles`): `postgres-admin` (superuser — backup + extension jobs) + per-app login roles `n8n`, `mealie`, `authentik`, `paperless`, `immich`, `linkwarden`, `blocky`
 - **Extension updates** (immich DB): `immich-init-extensions` Job on every CNPG image bump + `postgres-update-extensions` CronJob daily 06:00 UTC, both running one shared `update-extensions.sh` from the `postgres-extension-update` ConfigMap (`configMapGenerator`, so a script edit re-hashes the name and Flux re-creates the forced Job). Immich cannot raise pgvector itself — it connects as `immich`, which does not own the extension, and PG 18 has no `ALTER EXTENSION … OWNER TO`. The Job waits for the primary to report its own image's `server_version` first, or it reads the outgoing primary's catalogue (see commit `e730b1f3`)
@@ -46,7 +46,7 @@ Backup CronJobs (schedules, auto-discovery, mechanics): [backup-restore.md](back
 Requests/limits live in each CR/HelmRelease; `databases` ns ResourceQuota in `configs/databases/`. ⚠️ **Tier quotas may block rolling updates** (rollouts need ~2x transiently) — temp-bump the quota if a rollout stalls on `exceeded quota`.
 
 ## Scheduling tier
-All data-plane DB pods + all 4 operators run `priorityClassName: homelab-critical`. Field paths differ per engine:
+All data-plane DB pods + every operator run `priorityClassName: homelab-critical`. Field paths differ per engine:
 - **CNPG**: `Cluster.spec.priorityClassName` (instances) + `Pooler.spec.template.spec.priorityClassName` (separate CR — edit both) + operator HR `values.priorityClassName`
 - **Percona**: per-component on the CR — `spec.mysql.priorityClassName`, `spec.orchestrator.priorityClassName`, `spec.proxy.haproxy.priorityClassName` (no top-level field); ps-operator HR needs a `postRenderers` JSON6902 patch (chart omits the template hook)
 - **CouchDB**: chart `values.priorityClassName`

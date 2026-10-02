@@ -1,6 +1,6 @@
 # Monitoring map
 
-VictoriaMetrics primary stack. **No Prometheus pod** — kube-prometheus-stack chart kept only for grafana/alertmanager/operator/KSM/node-exporter (`prometheus.enabled=false`). Flux paths: `monitoring/controllers/` + `monitoring/configs/`. Chart + image versions: pinned in `monitoring/controllers/*/release.yaml` and the VM CRs.
+VictoriaMetrics primary stack. **No Prometheus pod** — kube-prometheus-stack chart kept only for grafana/alertmanager/operator/KSM/node-exporter (`prometheus.enabled=false`). Flux paths: `monitoring/controllers/` + `monitoring/configs/`. Chart + image versions: pinned in the HelmReleases under `monitoring/controllers/` (`*/release.yaml`, `victoria-metrics/operator-release.yaml`, `loki-stack/alloy-release.yaml`) and the VM CRs.
 
 ## Stack components
 | Component | Type | Purpose |
@@ -9,7 +9,7 @@ VictoriaMetrics primary stack. **No Prometheus pod** — kube-prometheus-stack c
 | `vmagent-vmagent` | VMAgent (Deploy 1x) | Scraper (reads VMServiceScrape + VMPodScrape) |
 | `vmalert-vmalert` | VMAlert (Deploy 1x) | Rule evaluator (reads VMRule) |
 | `victoria-metrics-operator` | Deploy 1x | Reconciles VM CRDs |
-| `kube-prometheus-stack-grafana` | Deploy | UI (PVC, sqlite, OIDC, dual-ingress) |
+| `kube-prometheus-stack-grafana` | Deploy | UI (PVC, sqlite, OIDC, LAN Ingress only) |
 | `alertmanager-kube-prometheus-stack-alertmanager` | STS 2x | Alert routing (HA via gossip) |
 | `kube-prometheus-stack-operator` | Deploy 1x | prom-operator (manages PrometheusRule/SM CRDs — NOT consumed, see converter warning) |
 | `kube-prometheus-stack-kube-state-metrics` | Deploy 1x | k8s state metrics |
@@ -50,16 +50,19 @@ Alert classes worth knowing:
 - App-specific scrapes also live alongside app configs (e.g. `monitoring/configs/blocky/servicemonitor.yaml` — kind VMServiceScrape despite filename)
 
 ## NetworkPolicies
-Per-pod NPs: vmsingle/vmagent/vmalert/vmoperator (`victoria-metrics/networkpolicy.yaml`, 4-in-1), grafana, alertmanager, kube-state-metrics, prometheus-operator (`kube-prometheus-stack/`), loki + alloy (`controllers/loki-stack/networkpolicy.yaml`), popeye.
+Per-pod NPs: vmsingle/vmagent/vmalert/vmoperator (one file: `victoria-metrics/networkpolicy.yaml`), grafana, alertmanager, kube-state-metrics, prometheus-operator (`kube-prometheus-stack/`), loki + alloy (`controllers/loki-stack/networkpolicy.yaml`), popeye, trivy-scan (`configs/trivy-scan/networkpolicy.yaml`).
 
-Alertmanager does not authenticate requests to port 9093. The `am.h0melab.work` Ingress enforces basic authentication. So Alertmanager's NetworkPolicy admits 9093 only from these namespaces:
+Alertmanager does not authenticate requests to port 9093. The `am.h0melab.work` Ingress enforces basic authentication. So Alertmanager's NetworkPolicy (`kube-prometheus-stack/alertmanager-networkpolicy.yaml`) admits only these sources:
 
-| Namespace | Client |
-|---|---|
-| `monitoring` | vmalert, the vmagent scrape, the Grafana datasource |
-| `loki` | the Loki ruler |
-| `uptime-kuma` | the probe |
-| `traefik` | the `am.h0melab.work` Ingress |
+| Source | Ports | Client |
+|---|---|---|
+| namespace `monitoring` | 9093 | vmalert, the vmagent scrape, the Grafana datasource |
+| namespace `loki` | 9093 | the Loki ruler |
+| namespace `uptime-kuma` | 9093 | the probe |
+| namespace `traefik` | 9093 | the `am.h0melab.work` Ingress |
+| ipBlock `10.42.0.0/32` | 9093 | the API server service proxy, which the claude-telegram bot reads through; it dials from the control plane's flannel address |
+| pods labelled `app.kubernetes.io/name: prometheus` | 9093, 8080 | none: the stack runs no Prometheus pod, so no pod matches; 8080 is the config-reloader metrics port |
+| pods labelled `app.kubernetes.io/name: alertmanager` | 9094 TCP and UDP | the HA gossip mesh between Alertmanager pods |
 
 ## Dashboards
 - ConfigMaps labeled `grafana_dashboard: "1"` auto-loaded by the Grafana sidecar (polls 30s → `/tmp/dashboards/`)

@@ -23,7 +23,7 @@ The 17 apps, with namespace, storage, database, SSO and external access, are lis
 |---|---|
 | read | cluster-wide |
 | delete | `pods`, `replicasets`, PolicyReports, ClusterPolicyReports |
-| `pods/exec` | 13 namespaces: not its own, not `monitoring`, and not the four with 0.0.0.0/0 egress |
+| `pods/exec` | 13 namespaces: not its own, not `monitoring`, and not backup-replication, n8n, trivy-scan or home-assistant, because the bot made no exec calls there. Egress is not the boundary (`infrastructure/configs/claude-telegram-rbac/rolebindings.yaml`) |
 | `services/proxy` `get` | `monitoring`: vmsingle, vmalert and Alertmanager only |
 | Job create and delete | `popeye` only |
 | workload patch | none |
@@ -33,7 +33,7 @@ The 17 apps, with namespace, storage, database, SSO and external access, are lis
 
 | Engine | Replicas | HA | Proxy | Key apps |
 |---|---|---|---|---|
-| PostgreSQL (CloudNativePG) | 2 | Streaming replication | PgBouncer | Authentik, Blocky, Immich, Linkwarden, Mealie, n8n, Paperless |
+| PostgreSQL (CloudNativePG) | 2 | Streaming replication | PgBouncer for Linkwarden, Mealie, n8n and Paperless; Immich, Authentik and Blocky connect directly | Authentik, Blocky, Immich, Linkwarden, Mealie, n8n, Paperless |
 | MySQL (Percona) | 2 | Async replication | HAProxy | Home Assistant, Uptime Kuma, PriceBuddy |
 | Redis (OT-operator) | 1 master + 1 replica + 3 Sentinels | Sentinel quorum (2 of 3) | Static master Service (Sentinel-elected) | Paperless, Immich, Blocky |
 | CouchDB | 2 | Active-active | — | Obsidian sync |
@@ -84,10 +84,17 @@ Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md
 
 | Due | Item |
 |---|---|
-| unscheduled | Deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only); the SP5 carried-forward items: the control-plane first-start drill, the Percona restart procedure, sysctl-99 duplicates, the sshd drop-in rename ([plan, SP5](plans/2026-09-26-open-source-prep.md)) |
-| monthly review | Upstream watches: n8n #25705 (workaround still required at 2.28.6, checked 2026-07-04), k8s-sidecar#531 (loki probes stay disabled), Stirling#6211 |
-| 2026-10 (monthly review) | **Immich ML + immich-vm memory re-check.** The ML container serves clip, ocr and facial-recognition and caches each 300s, so size it for their sum: measured 2026-09-07 at 4984Mi with all three resident, limit 7Gi (`1034951d`). Sizing it from CLIP alone gave 5Gi and OOM-killed the gunicorn WORKER, which gunicorn respawns — `restartCount` stays 0, so `ContainerOOMKilled` never fires and OCR/face jobs just drop connections. Query `max_over_time` for the ML container working set and for immich-vm node memory (VMSingle per Phase 3), scoped to **after 2026-09-07**: a flat 30d window spans the CPU-path and 5Gi periods and the model swap, so its max describes a shape the cluster no longer runs. Decide: ML peak >80% of 7Gi → raise the limit; node peak sustained >80% of 11949Mi → bump the VM to 14Gi, which also clears the 113% limit overcommit (13338Mi of 11849Mi allocatable). Node was 6529Mi (55%) at the 2026-09-07 peak with 6.2Gi free, so neither is expected yet. A VM RAM change needs a host-side restart on the GPU-reset-bug machine — not free. Research: `docs/plans/2026-09-07-immich-ml-followups-research.md` |
-| 2026-10-01 | 180-day secret rotation — ALL scheduled secrets: PG/MySQL/Redis, CouchDB, OIDC, Authentik Django key (90-day High tier retired 2026-07-02, ex-High folded in; Redis admin+blocky follow 2026-10-26) |
+| unscheduled | Deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only); the SP5 carried-forward items: the control-plane first-start drill, the sshd drop-in rename ([plan, SP5](plans/2026-09-26-open-source-prep.md)) |
+| monthly review | Upstream watches: n8n PR #27295 (sets `statement_timeout` with `SET`; issue #25705 closed 2026-07-14 but the PR is unmerged, so `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` stays), Stirling#6211 (open; re-measure memory on 3.0.2, deployed 2026-10-02) |
+| 2026-11 (monthly review) | Decide: the Redis ACL `default` user has no password and full rights, so the per-app passwords limit nothing |
+| 2026-11 (monthly review) | Decide: schedule or disable the NAS firmware auto-update. On 2026-10-02 it stopped immich-vm without a clean shutdown |
+| 2026-11 (monthly review) | Decide: replace `timesyncd-metric` with an alert on node-exporter `node_timex_*`. No clock-skew alert exists |
+| 2026-11 (monthly review) | Fix: `node_pkg_upgrade_success` keeps a stale `1` if phase2 skips a node. Add a last-run timestamp and alert on its age |
+| 2026-11 (monthly review) | Decide: keep or delete `k3s-image-gc.service`. It has no failure notice |
+| 2026-11 (monthly review) | Fix: the heal-watchdog alerts fire on `==1` only, so they miss a dead script |
+| 2026-11 (monthly review) | Fix: `scripts/sync-agents.sh --check` exits 1. Allowlist the new `_shared` helpers and denylist `hyperframes-studio` |
+| 2026-11 (monthly review) | Re-measure Stirling memory on 3.0.2 (Stirling#6211) |
 | 2026-10-31 | First certificate renewals with the Cloudflare token rotated 2026-09-28 (`52ce08aa`). After that date, `kubectl get certificates -A -o json \| jq -r '[.items[].status.notAfter] \| min'` must print a date later than `2026-11-30T20:27:49Z`, every certificate must be `True`, and `kubectl get challenges -A` must find none. If the earliest date has not moved, renewal did not happen and the token is not yet proven: read the cert-manager log and the Certificate, Order and Challenge events before blaming the token |
 | 2026-12-31 | `cloudflare-tunnel-mgmt-token` rotation |
 | 2027-01-30 | `gh-homelab` deploy key rotation (in the `claude-telegram-ssh` Secret). The only key the bot holds that can write to this repo, so a push with it is a deploy inside 5 min — 180 days, not the annual cadence the read-only deploy keys get |
+| 2027-03-31 | 180-day secret rotation — every row in SECRETS_ROTATION.md that shows 2027-03-31 (the 2026-10-02 batch). Run it with the `secrets-rotation` skill. Blocky's PostgreSQL user keeps its own date (2026-12-05) |

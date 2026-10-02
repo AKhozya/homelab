@@ -62,4 +62,12 @@ Workers use `ufw-heal-post-k3s.service` (oneshot, after k3s.service) to re-apply
 
 ## Host firewall (UFW via ansible)
 - The ansible role `firewall` applies the UFW rules on every node (`node-maintenance/ansible/`); the rules, the defaults and the IPv6 behaviour are in [SECURITY.md](../SECURITY.md#node-firewall)
-- 6443 from the LAN (control plane); every port from the node IPs and the pod and service networks; SSH on 65300 from the LAN; 8472/UDP (flannel) from any source, the only rule open over IPv6
+
+| Port | Source | Nodes |
+|---|---|---|
+| 6443 | LAN | control plane |
+| every port | node IPs, pod and service networks | all |
+| 65300 (SSH) | LAN | all |
+| 8472/UDP (flannel) | LAN | worker-node-2 |
+
+Every incoming rule names an IPv4 source, so no rule is open over IPv6. `ufw_rules_absent` in `group_vars/all.yml` deletes the old no-source rules.

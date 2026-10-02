@@ -160,7 +160,7 @@ deploy only if a rule on `main` requires it to pass.
 | Fact (2026-09-28) | Detail |
 |---|---|
 | No ruleset or branch protection guards `main` | GitHub offers neither on a private repo on the Free plan; a public repo gets both for free |
-| No Actions job has started since 2026-09-10 | a billing problem on the account |
+| Account billing stopped every Actions job from 2026-09-10 | jobs run again since 2026-10-01 (first green run 17:18Z) |
 
 ## Repository layout
 

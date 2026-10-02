@@ -30,7 +30,7 @@ All backup CronJobs set `startingDeadlineSeconds: 3600`. `immich-backup` shares 
 Whitelist (CRITICAL_PVCS) + `nodeSelector: worker-node` + `hostPath /mnt/k8s-storage/backups/pvc`: `infrastructure/configs/backup/pvc-backup-cronjob.yaml`. Compression gzip, except `audiobookshelf-{audiobooks,podcasts}` = uncompressed tar (already-compressed media). Retention: there is no local age sweep. `backup-replication` deletes a type's local files on the night that type passes validation and reaches the NAS. The NAS keeps 30 days.
 
 **Excluded by design** (the *why* matters — re-justify before re-adding):
-- `immich/immich-machine-learning` — regenerable ML cache (library PVC gone — NAS-resident since the Path-B cutover, covered by the weekly W2 job above)
+- `immich/immich-ml-cache` (`apps/immich/ml-cache-pvc.yaml`) — regenerable ML cache (library PVC gone — NAS-resident since the Path-B cutover, covered by the weekly W2 job above)
 - `uptime-kuma` — emptyDir, state in MySQL
 - `claude-telegram/claude-telegram-home-pvc` — session-only state, bot rebuilds on restart
 - `loki/storage-loki-0`, `monitoring/vmsingle-vmsingle` — log/metric buffers, ephemeral
@@ -76,9 +76,9 @@ Failure handling: trap on EXIT sends Telegram with `CURRENT_STEP`; success is si
 ## DB backup mechanics
 Images pinned in each CronJob manifest (`infrastructure/configs/databases/*/`, `infrastructure/configs/backup/`).
 - **Postgres:** host `main-postgres-rw`, user `postgres-admin`, format custom (`-F c`), excludes only the `postgres` DB
-- **MySQL:** host `main-mysql-haproxy:3306`, user `root` (from `mysql-cluster-secrets`), excludes `information_schema`/`mysql`/`performance_schema`/`sys`; client image pinned to the server's 8.4.x line (Renovate ignore)
+- **MySQL:** host `main-mysql-haproxy:3306`, user `root` (from `mysql-cluster-secrets`), excludes `information_schema`/`mysql`/`performance_schema`/`sys`; the client image tracks the server's minor line, because `renovate.json` limits its updates to that line
 - **CouchDB:** npm-installs `@cloudant/couchbackup` per run, host `couchdb-couchdb.databases:5984`, `wait-for-couchdb` initContainer (30 × 2s), excludes `_*` system DBs
-- All 3: tar.gz + SHA256, 30-day retention (`find -mtime +30 -delete`), `successfulJobsHistoryLimit: 7`, `concurrencyPolicy: Forbid`, `nodeSelector: worker-node`, `hostPath /mnt/k8s-storage/backups/<engine>`
+- Each DB backup: tar.gz + SHA256, no local age sweep (`backup-replication` deletes the local files after it verifies the NAS copy; the NAS keeps 30 days), `successfulJobsHistoryLimit: 7`, `concurrencyPolicy: Forbid`, `nodeSelector: worker-node`, `hostPath /mnt/k8s-storage/backups/<engine>`
 
 ## DR scripts (`.backup/`)
 The scripts are tracked in Git; `.gitignore` excludes only their output (`.backup/secrets/`, the `.tar.gz.gpg` archives, `ENV_VARS.md`). Runbook: `docs/disaster-recovery/README.md`.

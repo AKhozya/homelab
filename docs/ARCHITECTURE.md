@@ -202,7 +202,7 @@ The Kyverno non-root policy (`require-non-root-vp.yaml`) excludes all four names
 
 | Engine | Operator | Notes |
 |---|---|---|
-| PostgreSQL | CloudNativePG (`main-postgres`) | One shared cluster, primary and replica. Each app gets a role from `managed.roles` and a `Database` resource; the role has the app's name. A PgBouncer pooler sits in front and reuses database connections. |
+| PostgreSQL | CloudNativePG (`main-postgres`) | One shared cluster, primary and replica. Each app gets a role from `managed.roles` and a `Database` resource; the role has the app's name. A PgBouncer pooler reuses database connections for linkwarden, paperless-ngx, mealie and n8n. immich-server, authentik and blocky connect to the primary directly; immich-server's startup advisory lock fails under transaction pooling. |
 | MySQL | Percona | Primary and replica, HAProxy in front. The operator has no user resource, so app users come from SQL. |
 | CouchDB | Helm chart | Two nodes; serves Obsidian sync. |
 | Redis | OT operator | In memory, with Sentinel. Authentik uses Postgres only. |
