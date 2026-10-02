@@ -11,8 +11,8 @@
 ## Service endpoints
 | Service | Endpoint | Used by |
 |---------|----------|---------|
-| Postgres pooler (PgBouncer) | `main-postgres-rw-pooler.databases.svc:5432` | immich server, linkwarden, paperless-ngx (paperless and blocky hosts verified 2026-09-27 with `sops -d <app secret> \| grep -o 'main-postgres-rw[a-z-]*'`) |
-| Postgres direct | `main-postgres-rw.databases.svc:5432` | authentik (server and worker), mealie, n8n, blocky (query log), immich's wait-for-database init container and its admin-setup Job, the backup and extension Jobs |
+| Postgres pooler (PgBouncer, transaction mode) | `main-postgres-rw-pooler.databases.svc:5432` | linkwarden, paperless-ngx, mealie, n8n (verified 2026-10-02 from live specs and pooler login logs). Each app's SOPS env Secret holds the host; check with `sops -d <app secret> \| grep -o 'main-postgres-rw[a-z-]*'` |
+| Postgres direct | `main-postgres-rw.databases.svc:5432` | immich server (its startup advisory lock fails under transaction pooling), authentik (server and worker; the Secret names the pooler, but a Deployment `env` entry overrides it), blocky (query log), the wait-for-database init containers of mealie, n8n and immich, immich's admin-setup Job, the backup and extension Jobs |
 | MySQL HAProxy | `main-mysql-haproxy.databases.svc:3306` | uptime-kuma, home-assistant, pricebuddy |
 | Redis HA master (static) | `redis-replication-master.databases.svc:6379` | paperless, blocky, immich |
 | Redis HA Sentinel | `redis-sentinel-sentinel.databases.svc:26379` | operator-internal failover only; no direct app clients |

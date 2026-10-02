@@ -135,7 +135,9 @@ spec:
         containers:
           main:
             env:
-              DB_HOSTNAME: main-postgres-rw-pooler.databases.svc.cluster.local
+              # Not the PgBouncer pooler: Immich's startup advisory lock needs one session, and
+              # transaction pooling does not keep it ("you don't own a lock of type ExclusiveLock").
+              DB_HOSTNAME: main-postgres-rw.databases.svc.cluster.local
               DB_PORT: "5432"
               DB_DATABASE_NAME: immich
               DB_USERNAME: immich
