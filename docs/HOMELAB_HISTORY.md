@@ -17,6 +17,26 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-10-03 — The repo is public
+
+The operator makes the repo public after a pre-public audit. The audit finds no live credential:
+
+| Audit check | Scope | Result |
+|---|---|---|
+| gitleaks and text searches | a mirror of every ref GitHub serves: 1 branch, 52 tags, 469 PR refs | the 15 known findings, all rotated or dead |
+| gitleaks and text searches | 1,230 issues and PRs, 917 comments, 40 retained run logs | none |
+| does GitHub still serve it | the 14 secret-bearing commits that the June history rewrite removed | GitHub answers 422 "No commit found" for all 14 |
+
+| Change | Proof |
+|---|---|
+| visibility `PUBLIC` | `gh repo view --json visibility` |
+| if an outside contributor opens a PR from a fork, its workflows run only after the owner approves | `approval_policy` reads `all_external_contributors` |
+| private vulnerability reporting on; `docs/SECURITY.md` points to it | `{"enabled":true}` |
+| ruleset `24432813` on `main`: a PR with 1 approval and a successful `gitleaks secret scan`; the admin role bypasses it | `gh api repos/AKhozya/homelab/rulesets/24432813` |
+| the `@claude` workflow goes. If the owner mentioned `@claude` on a stranger's issue, that text would reach a run that holds the owner's Claude token | `31b49cd9` |
+| `renovate.json` drops `automerge` from its `apps/**` patch rule | `31b49cd9` |
+| `docs/plans/` leaves git; the plans stay as local, gitignored files | this entry's commit |
+
 ### 2026-10-03 — Monthly review cuts: CI, backup alerts, kustomize wrappers, node-script writes
 
 The October review ran three audits. The operator approved the repo changes below. The ledger `~/homelab-monthly-review-2026-10.md` holds each audit's findings.

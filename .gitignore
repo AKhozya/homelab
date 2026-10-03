@@ -49,3 +49,6 @@ target/
 
 # SkillOpt-Sleep local staging (offline self-evolution proposals)
 .skillopt-sleep/
+
+# Plans and specs stay local: the repo is public, and plans are internal working notes
+docs/plans/
