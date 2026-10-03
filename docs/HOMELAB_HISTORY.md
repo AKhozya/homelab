@@ -25,12 +25,12 @@ The 2026-10-03 monthly review found three gaps on `e805e202`:
 |---|---|
 | `clusterip-heal.sh` (top level) and `node-isolation-heal.sh` (`do_l1`) open the restart lock with `exec 9>>"$F" 2>/dev/null`. An `exec` with no command applies its redirects to the whole shell, so the journal loses every later stderr line of that run, such as a `mktemp` error from a failed save | `{ exec 9>>"$F"; } 2>/dev/null` hides only the open error |
 | no rule reads the `immich_gpu_*` gauges | three rules in `immich-gpu-node-alerts`, below |
-| `PodPhaseNotRunning` and `JobFailed` fire for every failed `immich-vm-heal` run. A NAS reboot fails some runs, and each failed Job stays for its 1 h TTL. In the 30 days to 2026-10-03 the two rules fired for 6 pods and 7 Jobs, while `ImmichVMHealJobFailing` never fired | both rules exclude the CronJob's pods and Jobs in namespace `immich`. The change was found uncommitted in the worktree `heal-alert-exclude`, last touched 2026-09-08 |
+| `PodPhaseNotRunning` and `JobFailed` fire for every failed `immich-vm-heal` run. A NAS reboot fails some runs, and each failed Job stays for its 1 h TTL. In the 30 days to 2026-10-03 the two rules fired for 6 pods and 7 Jobs, while `ImmichVMHealJobFailing` never fired | both rules exclude the CronJob's pods and Jobs in namespace `immich`. This review found the change uncommitted in the worktree `heal-alert-exclude`, last touched 2026-09-08 |
 
 | Alert | Expr | `for` | Severity |
 |---|---|---|---|
 | `ImmichGPURenderDown` | `immich_gpu_render_ok == 0`, which includes a GPU missing from the PCI bus | 8m | warning |
-| `ImmichGPUHealGaveUp` | `immich_gpu_heal_giveup == 1` | 3m, so a value from before a reboot cannot page | critical |
+| `ImmichGPUHealGaveUp` | `immich_gpu_heal_giveup == 1` | 3m, to reduce pages from a value written before a reboot | critical |
 | `ImmichGPUQSVProbeStuck` | `immich_gpu_qsv_stuck == 1` | 10m | warning |
 
 | Gauge with no rule | Reason |
@@ -43,9 +43,12 @@ The 2026-10-03 monthly review found three gaps on `e805e202`:
 | heal harness | all scenarios pass. 7 stderr fixtures change: 5 gain the `mktemp` error the old redirect hid, and the 2 `lock-unavailable` scenarios lose bash's own open error |
 | mutants, scripts | 4 killed: the old `exec` form and the group without `2>/dev/null`, at both sites |
 | `vmalert-tool unittest` v1.152.0, the vmalert version running in the cluster | each new rule is silent before its `for` ends and fires after it. A failed heal pod or Job in `immich` fires neither `PodPhaseNotRunning` nor `JobFailed`; a pod with the same name in another namespace still fires |
-| mutants, rules | 9 killed: each exclusion removed, each exclusion widened to every namespace, each `for` shortened, each comparison inverted |
+| mutants, rules | 10 killed: each exclusion removed, each exclusion widened to every namespace, each `for` shortened, each comparison inverted |
 
-**Follow-ups:** `ImmichGPUHealGaveUp` and `ClusterIPHealGaveUp` resolve and fire again each time the 30-min restart window rolls over, while the fault lasts. `immich-gpu-heal.sh` writes `qsv_stuck 0` on every path where the render node is down.
+| Follow-up | Detail |
+|---|---|
+| `ImmichGPUHealGaveUp` and `ClusterIPHealGaveUp` | while the fault lasts, each resolves and fires again every time the 30-min restart window rolls over |
+| `immich-gpu-heal.sh` | writes `qsv_stuck 0` on every path where the render node is down |
 
 ### 2026-10-03 — Heal watchdogs save their state before they act, and skip the action if the save fails
 

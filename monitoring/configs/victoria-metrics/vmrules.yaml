@@ -552,9 +552,9 @@ spec:
       # The Failed condition, not kube_job_status_failed, which counts failed pods. If a pod
       # fails before a retry succeeds, that count stays positive until the Job's TTL removes it.
       # This rule excludes the immich/immich-vm-heal Jobs, for the reason given at PodPhaseNotRunning.
-      # Without the exclusion it bypasses the recent-success check in ImmichVMHealJobFailing.
+      # If this rule includes those Jobs, it bypasses the recent-success check in ImmichVMHealJobFailing.
       # Trade-off: if a heal Job never starts a pod (for example an admission denial), only
-      # ImmichVMHealStale fires, after about 40 min instead of about 9.
+      # ImmichVMHealStale fires: about 40 min after the last success, where JobFailed took about 14.
       expr: |
         kube_job_failed{condition="true"} == 1
         unless on(namespace, job_name) kube_job_failed{namespace="immich", job_name=~"immich-vm-heal-[0-9]+"}
@@ -1668,8 +1668,8 @@ spec:
     # - immich_gpu_virtiofs_ok: if the library mount is down, node-exporter drops the
     #   node_filesystem series for /var/lib/immich-library, and NASLibraryMountMissing fires.
     - alert: ImmichGPURenderDown
-      # If an Intel GPU is present, the script restarts load-i915 on the first run that sees the
-      # fault, so 8m means at least one restart failed to restore the render node.
+      # If an Intel GPU is present and the script has not given up, it restarts load-i915 within
+      # two runs of the fault, so 8m means at least one restart failed to restore the render node.
       # If no Intel GPU is on the PCI bus, the script writes 0 and restarts nothing: the
       # passthrough device is gone, a host fault the script cannot fix. Keep that case in this rule.
       expr: immich_gpu_render_ok == 0
@@ -1683,28 +1683,30 @@ spec:
           logs 'no Intel display GPU on PCI bus', the guest has lost the passthrough GPU; check the domain's hostdev on the
           NAS before any host restart."
     - alert: ImmichGPUHealGaveUp
-      # The textfile survives a reboot, and the watchdog first rewrites it 90-110s after boot.
-      # 3m keeps a giveup=1 written before a host cold restart from paging again after it.
+      # The textfile survives a reboot, and the timer first runs the watchdog 90-110s after boot.
+      # 3m reduces the chance that a giveup=1 written before a host cold restart pages again after it.
       expr: immich_gpu_heal_giveup == 1
       for: 3m
       labels:
         severity: critical
       annotations:
         summary: "immich-gpu-heal gave up on {{ $labels.instance }}: the render node stays down after 3 restarts"
-        description: "immich_gpu_heal_giveup=1 on {{ $labels.instance }}: the render node stayed down after 3 load-i915
+        description: "immich_gpu_heal_giveup=1 on {{ $labels.instance }}: the render node is still down after 3 load-i915
           restarts in 30 minutes, so a driver reload inside the guest does not restore it. Read journalctl -u
           immich-gpu-heal-watchdog and the guest kernel log for i915 errors. If they show a GPU reset fault, cold-restart
           the NAS host. Never reboot immich-vm from inside the guest."
     - alert: ImmichGPUQSVProbeStuck
       # The gauge is 1 if a vainfo process from an earlier hourly probe still runs, after its
       # 30s timeout and kill. The script launches no new probe while one remains.
-      # If the process exits within 10m (three runs), this rule stays silent.
+      # If the process exits before the third run after the one that first reports it, this rule
+      # stays silent.
       expr: immich_gpu_qsv_stuck == 1
       for: 10m
       labels:
         severity: warning
       annotations:
         summary: "vainfo probe still running after its timeout on {{ $labels.instance }}"
-        description: "immich_gpu_qsv_stuck=1 for 10 minutes on {{ $labels.instance }}: a vainfo probe of renderD129 survived
-          its timeout and kill. Hardware transcoding may hang. Run ps -eo pid,stat,args on the node and find the vainfo
-          line. If its state is D, the GPU does not respond and a cold restart of the NAS host clears it."
+        description: "immich_gpu_qsv_stuck=1 for 10 minutes on {{ $labels.instance }}: a vainfo probe of renderD129 still runs
+          after its timeout and kill. Hardware transcoding may hang. Run ps aux on the node and find the vainfo line. A STAT
+          of D means the process waits in the kernel and cannot be killed. If journalctl -k on the node also shows i915
+          errors or a GPU hang, cold-restart the NAS host."
