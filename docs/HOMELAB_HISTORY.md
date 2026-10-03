@@ -19,14 +19,13 @@ The table summarises the months before the dated entries below.
 
 ### 2026-10-03 — Monthly review cuts: CI, backup alerts, kustomize wrappers, node-script writes
 
-The October review ran three audits. The operator approved the repo changes below; the ledger `~/homelab-monthly-review-2026-10.md` holds each audit's findings.
+The October review ran three audits. The operator approved the repo changes below. The ledger `~/homelab-monthly-review-2026-10.md` holds each audit's findings.
 
 | Audit | Scope |
 |---|---|
-| automation (quarterly; the first ran 2026-07-04) | timers, CronJobs, workflows, Mac LaunchAgents, and what reports each failure |
-| over-engineering | dead code, single-use indirection, hand-rolled helpers |
+| automation (quarterly; the first ran 2026-07-04, see that date's entry) | timers, CronJobs, workflows, Mac LaunchAgents, and what reports each failure |
+| over-engineering | dead code, single-use indirection, custom code that a library or this repo already provides |
 | memory health | the agent's homelab memory against the repo and skills |
-
 
 | Area | Change | Proof |
 |---|---|---|
@@ -36,9 +35,9 @@ The October review ran three audits. The operator approved the repo changes belo
 | CI | the HOMELAB_ANALYSIS drift job now compares each count with its keyfact line and emits `::warning::` on a mismatch or a missing line. It printed both sides before and compared nothing | run locally: 54/59/12 match; an edited doc gives both warnings |
 | CI | `claude-telegram-build.yml` drops the two-part-tag fallback | 51 three-part tags exist |
 | alerts | `JobFailed` and `CronJobNotScheduled` exclude `.*backup.*`. `BackupJobFailed` (critical) covers the Jobs; `BackupCronJobMissedSchedule` covers the five daily CronJobs and `NoRecentImmichBackup` (9d) the weekly `immich-backup`; the inhibit rule needs an equal alertname, so a failed backup paged twice. Trade-off: a missed nightly backup pages after about 70 min instead of 15 | server dry-run; the selectors split the 6 backup CronJobs from the other 3 |
-| kustomize | the parent lists each file that four one-resource `kustomization.yaml` wrappers held; the wrappers go | `kustomize build` of `infrastructure/configs` and `infrastructure/controllers` is byte-identical before and after |
+| kustomize | the parent lists each file that four one-resource `kustomization.yaml` wrappers held, and this change deletes the wrappers | `kustomize build` of `infrastructure/configs` and `infrastructure/controllers` is byte-identical before and after |
 | node scripts | `firewall-preflight.sh` and `ufw-state-metric.sh` write through the library's `textfile_write` instead of a fixed `.tmp` name and `mv` | harness 78/78, one stderr fixture re-recorded; 3 mutants killed |
-| deleted | `scripts/update-firmware.sh` (the README gives the `pacman` and `fwupdmgr` commands), `node-maintenance/sync-node-maintenance.sh` (the README gives its `ssh` line; its `NODE_MAINT_CP_*` overrides go with it), the comment-only `firewall_preflight/defaults/main.yml` | whole-tree grep: no other caller |
+| deleted | `scripts/update-firmware.sh` (the README gives the `pacman` and `fwupdmgr` commands), `node-maintenance/sync-node-maintenance.sh` (the README gives its `ssh` line; this change also deletes its `NODE_MAINT_CP_*` overrides), the comment-only `firewall_preflight/defaults/main.yml` | whole-tree grep: no other caller |
 | agents/ | the snapshot takes dotfiles `91d9b57`: `kb-hygiene/scripts/lint-skill-scripts.sh` skips vendored skills | 15-check test; 6 Codex rounds |
 
 | Audit cut not made | Why |

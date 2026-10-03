@@ -588,8 +588,7 @@ spec:
       # trivy-scan excluded for the same reason: monthly ("0 8 1 * *") + off-slot manual
       # smoke runs; a low-urgency scanner needs no staleness rule (monthly review covers it).
       # BackupCronJobMissedSchedule covers the daily backup CronJobs, for the same double-page reason
-      # as JobFailed; NoRecentImmichBackup covers the weekly immich-backup. Trade-off: a missed nightly
-      # backup pages after about 70 min instead of 15.
+      # as JobFailed. Trade-off: a missed nightly backup pages after about 70 min instead of 15.
       expr: time() - kube_cronjob_next_schedule_time{cronjob!~".*backup.*|trivy-scan"} > 600
       for: 5m
       labels:

@@ -38,12 +38,19 @@ Alert classes worth knowing:
   |---|---|
   | `NodeSystemdUnitFailed` (warning, 15m) | a service, timer, socket, path or target unit stays failed. The collector's default excludes mount, automount, device, scope and slice units |
   | `NodeSystemdCollectorFailed` (warning, 15m) | the collector fails on a node (for example, it cannot reach the host's D-Bus socket), or is not running there |
-- **Job failure alerts** — both fire only when the Job itself has failed. A Job that succeeds after a retry does not fire these alerts. A failed backup Job fires only `BackupJobFailed`, and a failed `immich-vm-heal` Job fires neither: `ImmichVMHealJobFailing` covers it. The Job pod vanishes with its TTL, so use VM exit-code metrics, not Loki, for the postmortem.
+- **Job failure alerts** — both fire only when the Job itself has failed. A Job that succeeds after a retry does not fire these alerts. The Job pod vanishes with its TTL, so use VM exit-code metrics, not Loki, for the postmortem.
 
   | Alert | Expression |
   |---|---|
   | `JobFailed` | `kube_job_failed{condition="true", job_name!~".*backup.*"} == 1`, minus the `immich-vm-heal` Jobs |
   | `BackupJobFailed` | `kube_job_failed{job_name=~".*backup.*",condition="true"} == 1` |
+
+  | A failed Job of | Fires |
+  |---|---|
+  | a backup CronJob | `BackupJobFailed` only |
+  | `immich-vm-heal`, with a failed pod | `ImmichVMHealJobFailing`, if no heal run succeeded in the last 20 min |
+  | `immich-vm-heal`, with no pod started (for example an admission denial) | only `ImmichVMHealStale`, about 40 min after the last success |
+  | anything else | `JobFailed` |
 
 ## VMAgent relabel-drops (filtered before remoteWrite, in `vmagent.yaml`)
 - `flag`, `config_parameter`, `kube_pod_tolerations`, `etcd_bookmark_counts`

@@ -122,7 +122,7 @@ sudo ansible-playbook -t firmware -e ad_hoc_firmware_apply=true \
   /etc/node-maintenance/ansible/node-config.yml --limit worker-node
 ```
 
-### One-off scripts outside Ansible
+### One-off commands outside Ansible
 
 | Command, on the node | Use |
 |---|---|
