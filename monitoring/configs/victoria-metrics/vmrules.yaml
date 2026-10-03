@@ -567,8 +567,10 @@ spec:
       # Trade-off: if a heal Job never starts a pod (for example an admission denial), only
       # ImmichVMHealStale fires, about 40 min after the last success. If JobFailed included those
       # Jobs, the */5 schedule and the 240s deadline would make it fire about 14 min after the last success.
+      # Backup Jobs are left to BackupJobFailed (critical). The inhibit rule needs an equal alertname,
+      # so without this exclusion a failed backup pages twice.
       expr: |
-        kube_job_failed{condition="true"} == 1
+        kube_job_failed{condition="true", job_name!~".*backup.*"} == 1
         unless on(namespace, job_name) kube_job_failed{namespace="immich", job_name=~"immich-vm-heal-[0-9]+"}
       for: 5m
       labels:
@@ -585,7 +587,9 @@ spec:
       # Immich backup staleness is covered by NoRecentImmichBackup (9d) in backup-alerts.
       # trivy-scan excluded for the same reason: monthly ("0 8 1 * *") + off-slot manual
       # smoke runs; a low-urgency scanner needs no staleness rule (monthly review covers it).
-      expr: time() - kube_cronjob_next_schedule_time{cronjob!~"immich-backup|trivy-scan"} > 600
+      # Backup CronJobs are left to BackupCronJobMissedSchedule, for the same double-page reason as
+      # JobFailed. Trade-off: a missed nightly backup pages after about 70 min instead of 15.
+      expr: time() - kube_cronjob_next_schedule_time{cronjob!~".*backup.*|trivy-scan"} > 600
       for: 5m
       labels:
         severity: warning
