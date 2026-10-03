@@ -1,6 +1,6 @@
 # GitHub Workflows
 
-This folder holds six workflows. CI is a signal, not a merge gate:
+This folder holds five workflows. CI is a signal, not a merge gate:
 
 | Fact (2026-09-28) | Effect |
 |---|---|

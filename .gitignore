@@ -38,7 +38,6 @@ build/
 dist/
 target/
 
-
 # Backup directory with secrets
 .backup/secrets/
 .backup/*.tar.gz.gpg
@@ -47,7 +46,6 @@ target/
 .backup/secrets/*.agekey
 .backup/ENV_VARS.md
 .monitoring/
-
 
 # SkillOpt-Sleep local staging (offline self-evolution proposals)
 .skillopt-sleep/

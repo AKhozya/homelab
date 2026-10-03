@@ -19,26 +19,33 @@ The table summarises the months before the dated entries below.
 
 ### 2026-10-03 — Monthly review cuts: CI, backup alerts, kustomize wrappers, node-script writes
 
-The October review ran three audits: the quarterly automation audit, an over-engineering audit and a memory health check. The operator approved these repo changes:
+The October review ran three audits. The operator approved the repo changes below; the ledger `~/homelab-monthly-review-2026-10.md` holds each audit's findings.
+
+| Audit | Scope |
+|---|---|
+| automation (quarterly; the first ran 2026-07-04) | timers, CronJobs, workflows, Mac LaunchAgents, and what reports each failure |
+| over-engineering | dead code, single-use indirection, hand-rolled helpers |
+| memory health | the agent's homelab memory against the repo and skills |
+
 
 | Area | Change | Proof |
 |---|---|---|
-| CI | `renovate-analysis.yaml`, `scripts/analyze-update.sh` and `analyze-update-gh.sh` removed (−644 lines). Renovate PR bodies already carry the release notes | PR #1229's body holds a Release Notes section |
+| CI | this change deletes `renovate-analysis.yaml`, `scripts/analyze-update.sh` and `analyze-update-gh.sh` (−644 lines). Renovate PR bodies already carry the release notes | `gh pr view 1229 --json body` contains a Release Notes section |
 | CI | the shellcheck job lints `git ls-files '*.sh' '*.bash'` through `xargs` | the same 204 files as the old `find`; a failing file fails the pipeline |
 | CI | a composite action, `.github/actions/install-yq`, replaces four copies of the yq install | actionlint; the action fails if `YQ_VERSION` or `YQ_SHA256` does not reach it |
 | CI | the HOMELAB_ANALYSIS drift job now compares each count with its keyfact line and emits `::warning::` on a mismatch or a missing line. It printed both sides before and compared nothing | run locally: 54/59/12 match; an edited doc gives both warnings |
 | CI | `claude-telegram-build.yml` drops the two-part-tag fallback | 51 three-part tags exist |
-| alerts | `JobFailed` and `CronJobNotScheduled` exclude `.*backup.*`. `BackupJobFailed` (critical) and `BackupCronJobMissedSchedule` cover them; the inhibit rule needs an equal alertname, so a failed backup paged twice. Trade-off: a missed nightly backup pages after about 70 min instead of 15 | server dry-run; the selectors split the 6 backup CronJobs from the other 3 |
-| kustomize | four one-resource `kustomization.yaml` wrappers removed; the parent lists the file | `kustomize build` of `infrastructure/configs` and `infrastructure/controllers` is byte-identical before and after |
+| alerts | `JobFailed` and `CronJobNotScheduled` exclude `.*backup.*`. `BackupJobFailed` (critical) covers the Jobs; `BackupCronJobMissedSchedule` covers the five daily CronJobs and `NoRecentImmichBackup` (9d) the weekly `immich-backup`; the inhibit rule needs an equal alertname, so a failed backup paged twice. Trade-off: a missed nightly backup pages after about 70 min instead of 15 | server dry-run; the selectors split the 6 backup CronJobs from the other 3 |
+| kustomize | the parent lists each file that four one-resource `kustomization.yaml` wrappers held; the wrappers go | `kustomize build` of `infrastructure/configs` and `infrastructure/controllers` is byte-identical before and after |
 | node scripts | `firewall-preflight.sh` and `ufw-state-metric.sh` write through the library's `textfile_write` instead of a fixed `.tmp` name and `mv` | harness 78/78, one stderr fixture re-recorded; 3 mutants killed |
-| removed | `scripts/update-firmware.sh` (the README gives the two `fwupdmgr` commands), `node-maintenance/sync-node-maintenance.sh` (the README gives the `ssh` line), the empty `firewall_preflight/defaults/main.yml` | whole-tree grep: no other caller |
-| agents/ | snapshot refreshed for dotfiles `91d9b57`: `kb-hygiene/scripts/lint-skill-scripts.sh` skips vendored skills | 15-check test; 6 Codex rounds |
+| deleted | `scripts/update-firmware.sh` (the README gives the `pacman` and `fwupdmgr` commands), `node-maintenance/sync-node-maintenance.sh` (the README gives its `ssh` line; its `NODE_MAINT_CP_*` overrides go with it), the comment-only `firewall_preflight/defaults/main.yml` | whole-tree grep: no other caller |
+| agents/ | the snapshot takes dotfiles `91d9b57`: `kb-hygiene/scripts/lint-skill-scripts.sh` skips vendored skills | 15-check test; 6 Codex rounds |
 
 | Audit cut not made | Why |
 |---|---|
 | `write_state()` delegators | 24 call sites; removing 4 one-line functions adds `"$STATE"` to each call |
-| env overrides nobody sets (`CLUSTERIP_PROBE_SAMPLES`, `SETTLE_*`, `NODE_MAINT_*`) | a hardcoded value keeps the same line, and the probe override is a documented knob for manual runs |
-| trim the Secrets backup to the 9 not in git | the operator kept it; it is part of the DR path |
+| env overrides nobody sets (`CLUSTERIP_PROBE_SAMPLES`, `SETTLE_*`, the `NODE_MAINT_*` ones in `lib/sync-from-git.sh`) | a hardcoded value keeps the same line, and the probe override is a documented knob for manual runs |
+| trim the Secrets backup to the Secrets not in git | the operator keeps it; it is part of the DR path |
 
 ### 2026-10-03 — GaveUp alerts stay firing while the heal watchdog retries
 

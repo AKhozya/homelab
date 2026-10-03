@@ -8,8 +8,8 @@ resources:
   - backup
   - backup-replication
   - resource-governance
-  # These RoleBindings each name their own namespace, so they stay out of apps/claude-telegram/:
-  # that kustomization's `namespace: claude-telegram` would rewrite every one of them to the same
+  # These RoleBindings each name their own namespace, so they stay out of apps/claude-telegram/.
+  # If they moved there, its `namespace: claude-telegram` would rewrite all of them to one
   # namespace, and kustomize would reject the build with an ID conflict.
   - claude-telegram-rbac/rolebindings.yaml
   - intel-gpu-plugin/daemonset.yaml

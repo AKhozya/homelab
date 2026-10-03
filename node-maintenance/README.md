@@ -124,9 +124,9 @@ sudo ansible-playbook -t firmware -e ad_hoc_firmware_apply=true \
 
 ### One-off scripts outside Ansible
 
-| Script | Use |
+| Command, on the node | Use |
 |---|---|
-| `sudo fwupdmgr refresh --force && sudo fwupdmgr update`, on the node | the interactive fallback for the `firmware` tag above, if no Mac is available. The tag also installs `fwupd` |
+| `sudo pacman -S --needed fwupd && sudo fwupdmgr refresh --force && sudo fwupdmgr update` | the interactive fallback for the `firmware` tag above, if no Mac is available |
 
 ---
 

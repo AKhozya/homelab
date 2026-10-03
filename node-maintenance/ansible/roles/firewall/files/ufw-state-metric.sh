@@ -9,7 +9,7 @@ OUTDIR="/var/lib/node_exporter/textfile"
 OUTFILE="${OUTDIR}/ufw_state.prom"
 NODE="$(cat /etc/hostname)"
 
-# Shared helpers. NODE_SCRIPT_LIB lets the offline tests point at the repo copy. If the library
+# NODE_SCRIPT_LIB lets the offline tests point at the repo copy. If the library
 # cannot load, the run exits 1 and ufw_state.prom goes stale, which NodeHealWatchdogStale reports.
 NODE_SCRIPT_LIB="${NODE_SCRIPT_LIB:-/usr/local/lib/node-maintenance/node-script-lib.sh}"
 # shellcheck source=../../base_config/files/node-script-lib.sh

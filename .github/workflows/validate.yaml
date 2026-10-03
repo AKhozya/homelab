@@ -60,8 +60,9 @@ jobs:
       - name: Run shellcheck
         run: |
           set -euo pipefail
-          # Every tracked shell file, repo-wide: shell also lives in apps/, .backup/ and
-          # .claude/hooks/. pipefail makes xargs' exit 123 (any file failed) fail the step.
+          # Every tracked shell file, repo-wide: shell files also exist in apps/, .backup/ and
+          # .claude/hooks/. set -e fails the step on xargs' exit 123 (a file failed); pipefail
+          # also fails it if git ls-files fails, which would otherwise lint a partial list.
           # NOT a full logic gate: SC2015 (A && B || C) is emitted at *info* severity
           # (shellcheck Analytics.hs, `info id 2015`), so -S warning filters it out.
           # That class stays a manual review item (.claude/review-invariants.md).
