@@ -34,7 +34,7 @@ Alerts: VMRule group `immich-gpu-node-alerts` → Telegram. `NodeNotReady` (immi
 | `ImmichVMHealJobFailing` | this CronJob's Jobs | a heal Job has a failed pod and no run succeeded in the last 20 min | 5m |
 | `ImmichVMHealStale` | this CronJob | no run succeeded in the last 30 min | 10m |
 | `ImmichGPURenderDown` | `immich_gpu_render_ok`, written by `immich-gpu-heal` in the guest | the Intel render node is missing | 8m |
-| `ImmichGPUHealGaveUp` | `immich_gpu_heal_giveup` | the guest watchdog makes no further `load-i915` restart after 3 in 30 min | 3m |
+| `ImmichGPUHealGaveUp` | `immich_gpu_heal_giveup` | the guest watchdog makes no further `load-i915` restart after 3 in 30 min | 3m; keeps firing 25 min after the gauge clears |
 | `ImmichGPUQSVProbeStuck` | `immich_gpu_qsv_stuck` | a `vainfo` probe still runs after its timeout and kill | 10m |
 
 `PodPhaseNotRunning` and `JobFailed` exclude this CronJob's pods and Jobs: a NAS reboot fails some of

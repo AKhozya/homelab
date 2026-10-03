@@ -1,0 +1,3 @@
+immich-gpu-heal: prior vainfo QSV probe still stuck (D-state) — NOT launching another; immich_gpu_qsv_stuck=1 (needs a host cold-restart).
+immich-gpu-heal: render node /dev/dri/renderD129 missing / i915 not loaded (Intel GPU present).
+immich-gpu-heal: render still down after 3 load-i915 restart(s) in 30min — giving up. Likely a reset-bug/vfio wedge needing a HOST cold-restart (Tier-2). NOT restarting again.

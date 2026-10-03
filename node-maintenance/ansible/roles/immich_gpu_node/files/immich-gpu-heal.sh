@@ -253,13 +253,13 @@ case "$action" in
 giveup)
 	log "render still down after ${count} load-i915 restart(s) in $((WINDOW / 60))min — giving up. Likely a reset-bug/vfio wedge needing a HOST cold-restart (Tier-2). NOT restarting again."
 	write_state "$win" "$count" "$total" "$last" "$last_qsv" || true
-	emit_metric 0 -1 "$vfs_ok" "$total" 1
+	emit_metric 0 -1 "$vfs_ok" "$total" 1 "$qsv_stuck"
 	exit 1
 	;;
 cooldown)
 	log "within ${COOLDOWN}s cooldown ($((now - last))s since last restart) — waiting a cycle."
 	write_state "$win" "$count" "$total" "$last" "$last_qsv" || true
-	emit_metric 0 -1 "$vfs_ok" "$total" 0
+	emit_metric 0 -1 "$vfs_ok" "$total" 0 "$qsv_stuck"
 	exit 1
 	;;
 esac
@@ -268,7 +268,7 @@ esac
 # If the save fails, skip the restart: the next run can enforce the cap only from the state file.
 if ! write_state "$win" "$((count + 1))" "$((total + 1))" "$(date +%s)" "$last_qsv"; then
 	log "cannot save state to $STATE — skipping the load-i915 restart, so the restart cap still holds."
-	emit_metric 0 -1 "$vfs_ok" "$total" 0
+	emit_metric 0 -1 "$vfs_ok" "$total" 0 "$qsv_stuck"
 	exit 1
 fi
 count="$((count + 1))"
@@ -285,14 +285,14 @@ if [ "$rc" -eq 0 ]; then
 	sleep "$REPROBE_WAIT"
 	if i915_loaded && render_present; then
 		log "render recovered after restart #${count} this window."
-		emit_metric 1 -1 "$vfs_ok" "$total" 0
+		emit_metric 1 -1 "$vfs_ok" "$total" 0 "$qsv_stuck"
 		exit 0
 	fi
 	log "still down after restart #${count} — will re-evaluate next cycle."
-	emit_metric 0 -1 "$vfs_ok" "$total" 0
+	emit_metric 0 -1 "$vfs_ok" "$total" 0 "$qsv_stuck"
 	exit 1
 fi
 
 log "load-i915.service restart FAILED (rc=$rc)."
-emit_metric 0 -1 "$vfs_ok" "$total" 0
+emit_metric 0 -1 "$vfs_ok" "$total" 0 "$qsv_stuck"
 exit 1

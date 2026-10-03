@@ -71,8 +71,13 @@ spec:
     - alert: ClusterIPHealGaveUp
       # Watchdog hit MAX_RESTARTS within its window and backed off — a wedge that
       # restart-k3s-agent does NOT fix = deeper fault, needs a human.
+      # If the fault persists, the gauge drops to 0 when the 30-min window expires, while the script
+      # tries its 3 restarts again, then returns to 1. That gap lasts up to about 21 min on the CP
+      # (120s restart timeout, 300s cooldown, 3-min timer), so keep_firing_for 25m keeps one alert
+      # firing through it. Trade-off: after a real recovery the alert clears 25 min later.
       expr: node_clusterip_heal_giveup == 1
       for: 1m
+      keep_firing_for: 25m
       labels:
         severity: critical
       annotations:
@@ -1686,8 +1691,10 @@ spec:
     - alert: ImmichGPUHealGaveUp
       # The textfile survives a reboot. The timer uses OnBootSec=90s and RandomizedDelaySec=20s.
       # 3m reduces the chance that a giveup=1 written before a host cold restart pages again after it.
+      # keep_firing_for 25m: the same window gap as ClusterIPHealGaveUp, with the same trade-off.
       expr: immich_gpu_heal_giveup == 1
       for: 3m
+      keep_firing_for: 25m
       labels:
         severity: critical
       annotations:

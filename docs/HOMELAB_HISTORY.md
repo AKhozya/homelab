@@ -17,6 +17,23 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-10-03 — GaveUp alerts stay firing while the heal watchdog retries
+
+The W1 review (`c7162caf`) left two follow-ups. This change closes both:
+
+| Follow-up | Fix |
+|---|---|
+| `ClusterIPHealGaveUp` and `ImmichGPUHealGaveUp` resolve and fire again while a fault persists. When the 30-min restart window expires, the script tries its 3 restarts again, and the gauge reads 0 for up to about 21 min on the CP (120s restart timeout, 300s cooldown, 3-min timer). Each gap sent a RESOLVED message for a fault that was still there | `keep_firing_for: 25m` on both rules. Trade-off: after a real recovery each alert clears 25 min later |
+| `immich-gpu-heal.sh` wrote `qsv_stuck 0` on every path where the render node is down | each of those paths now writes the measured value |
+
+| Test | Result |
+|---|---|
+| VMRule field | `kubectl explain` cannot show it: the CRD's `spec` preserves unknown fields. The operator API schema lists `keep_firing_for` (operator PR #711) |
+| `vmalert-tool unittest` v1.152.0 | with the gauge at 1 for 15 min, 0 for 21 min, 1 for 10 min, then 0: both alerts fire throughout and clear 25 min after the last 1 |
+| mutants, rules | 4 killed: each `keep_firing_for` removed, each cut to 15m |
+| heal harness | 77 of 77, with the new scenario `immich-gpu-heal--giveup-qsv-stuck` |
+| mutant, script | killed: the giveup path without `"$qsv_stuck"` |
+
 ### 2026-10-03 — Heal scripts keep their stderr; alerts read the immich-gpu-heal gauges
 
 The 2026-10-03 monthly review found three gaps on `e805e202`:
