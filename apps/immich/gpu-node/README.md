@@ -27,8 +27,18 @@ It IS the autostart — native/UI autostart is OFF by design (C2/C4).
 | `nas-ssh-key-secret.yaml` | SOPS-encrypted **dedicated** `immich-vm-heal` ed25519 private key. |
 | `immich-vm-heal.sh` + `immich-vm-domain.xml` | Mounted via `configMapGenerator` (stable names, no hash suffix). |
 
-Alerts: VMRule group `immich-gpu-node-alerts` (`ImmichVMHealJobFailing`,
-`ImmichVMHealStale`) → Telegram. VM-down itself is covered by `NodeNotReady` (immich-vm).
+Alerts: VMRule group `immich-gpu-node-alerts` → Telegram. `NodeNotReady` (immich-vm) covers a down VM.
+
+| Alert | Reads | Fires when |
+|---|---|---|
+| `ImmichVMHealJobFailing` | this CronJob's Jobs | a heal Job failed and no run succeeded in 20 min |
+| `ImmichVMHealStale` | this CronJob | no run succeeded in 30 min |
+| `ImmichGPURenderDown` | `immich_gpu_render_ok`, written by `immich-gpu-heal` in the guest | the Intel render node is missing for 8 min |
+| `ImmichGPUHealGaveUp` | `immich_gpu_heal_giveup` | the guest watchdog gave up after 3 `load-i915` restarts in 30 min |
+| `ImmichGPUQSVProbeStuck` | `immich_gpu_qsv_stuck` | a `vainfo` probe has been stuck in D-state for 10 min |
+
+`PodPhaseNotRunning` and `JobFailed` leave out this CronJob's pods and Jobs: a NAS reboot fails one or
+two runs, and `ImmichVMHealJobFailing` and `ImmichVMHealStale` already cover it.
 
 **Go-live requires an operator step**: append the dedicated PUBLIC key to the NAS
 `~akhozya/.ssh/authorized_keys` (the private half is in the SOPS secret; the pubkey

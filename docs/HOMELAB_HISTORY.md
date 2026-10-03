@@ -17,6 +17,31 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-10-03 — Heal scripts keep their stderr; alerts read the immich-gpu-heal gauges
+
+Three gaps from the 2026-10-03 monthly review, fixed on top of `e805e202`:
+
+| Gap | Fix |
+|---|---|
+| `clusterip-heal.sh` and `node-isolation-heal.sh` `do_l1` opened the restart lock with `exec 9>>"$F" 2>/dev/null`. An `exec` with no command applies its redirects to the whole shell, so every later stderr line of that run, such as a `mktemp` error from a failed save, never reached the journal | `{ exec 9>>"$F"; } 2>/dev/null` hides only the open error |
+| no rule read the `immich_gpu_*` gauges | three rules in `immich-gpu-node-alerts`, below |
+| `PodPhaseNotRunning` and `JobFailed` fired for every failed `immich-vm-heal` run. A NAS reboot fails one or two runs, and each failed Job stays for its 1 h TTL. In the 30 days to 2026-10-03 they fired for 6 pods and 7 Jobs, while `ImmichVMHealJobFailing` never fired | both rules leave out `immich-vm-heal-*`. A 2026-09-08 session wrote this change and never committed it |
+
+| Alert | Expr | `for` | Severity |
+|---|---|---|---|
+| `ImmichGPURenderDown` | `immich_gpu_render_ok == 0`, which includes a GPU missing from the PCI bus | 8m | warning |
+| `ImmichGPUHealGaveUp` | `immich_gpu_heal_giveup == 1` | 1m | critical |
+| `ImmichGPUQSVProbeStuck` | `immich_gpu_qsv_stuck == 1` | 10m | warning |
+
+Left without a rule: `immich_gpu_qsv_ok`, because the script writes -1 on every run except the hourly probe; and `immich_gpu_virtiofs_ok`, because a down mount drops the series `NASLibraryMountMissing` reads.
+
+| Test | Result |
+|---|---|
+| heal harness | all scenarios pass. 7 stderr fixtures changed: 5 gain the `mktemp` error the old redirect hid, and the 2 `lock-unavailable` scenarios lose bash's own open error |
+| mutants, scripts | 4 killed: the old `exec` form and the group without `2>/dev/null`, at both sites |
+| `vmalert-tool unittest` v1.152.0 (the live vmalert version) | each new rule fires at its `for` and not before; a failed heal pod and Job do not fire `PodPhaseNotRunning` or `JobFailed`, while others still do |
+| mutants, rules | 6 killed: each exclusion removed, both `for` values shortened, both comparisons inverted |
+
 ### 2026-10-03 — Heal watchdogs save their state before they act, and skip the action if the save fails
 
 If `/var/lib` turns read-only or full, a watchdog cannot save its state file. On `126c7748` and earlier, `state_write` returns 0 anyway and no watchdog checks it, so each limit that reads the state file stops working:
