@@ -13,7 +13,6 @@ This folder holds six workflows. CI is a signal, not a merge gate:
 |---|---|---|
 | `validate.yaml` | push to `main`, pull requests to `main`, by hand; skips pushes that change only Markdown or `docs/images/` | the checks below |
 | `gitleaks.yaml` | push to `main`, pull requests to `main`, by hand; no path filter | secret scan |
-| `renovate-analysis.yaml` | pull request opened, updated or reopened; runs only for Renovate | posts a version-change analysis on the PR |
 | `claude.yml` | `@claude` in an issue, a comment or a PR review | runs Claude Code on the request |
 | `flux-update.yaml` | Sunday 06:00 UTC, or by hand | opens a PR to update the Flux components |
 | `claude-telegram-build.yml` | Monday and Thursday 23:00 UTC, or by hand | builds and pushes the Telegram bot image |
@@ -37,69 +36,6 @@ It is separate from `validate.yaml` on purpose. `validate.yaml` skips Markdown-o
 gitleaks lived there, a credential pasted into a runbook or plan reached `main` unscanned (the
 workflow's header comment). The scan takes about 15 seconds, so it has no path filter. It scans the same events as `validate.yaml`; pushes to
 other branches are scanned by neither.
-
-## renovate-analysis.yaml
-
-For each Renovate pull request, it runs `scripts/analyze-update-gh.sh` and posts or updates one PR
-comment. It runs only if the actor is `renovate[bot]` or `app/renovate`.
-
-| It reports | It does not |
-|---|---|
-| the package (Docker image, Helm chart or Flux component) | review code quality |
-| the version change and whether it is major, minor or patch, with a risk level | check syntax or formatting |
-| known breaking changes for that package, and links to the release notes | analyse app logic |
-
-The comment has three parts:
-
-| Part | Holds |
-|---|---|
-| a collapsed block | the output of `scripts/analyze-update.sh`: package, versions, update type and risk, release-note excerpts, and a checklist for that package |
-| Quick Actions | the `gh pr merge` command and the two `flux reconcile` commands |
-| a footer | a link to the workflow runs |
-
-| Permission | Why |
-|---|---|
-| `pull-requests: write` | post the comment |
-| `contents: read` | check out the repo |
-
-Run it by hand:
-
-```bash
-# Analyze specific Renovate PR
-./scripts/analyze-update.sh <PR_NUMBER>
-
-# Generate GitHub-formatted output
-./scripts/analyze-update-gh.sh <PR_NUMBER>
-```
-
-To add checks for a package, add an arm above the `*)` default in the `case "$PACKAGE_NAME"`
-block of `scripts/analyze-update.sh`:
-
-```bash
-    *your-package*)
-        echo "📦 Your Package Update"
-        echo "  - [ ] Check for specific breaking changes"
-        echo "  - [ ] Test functionality after deployment"
-        ;;
-```
-
-| Package name matches | Checklist |
-|---|---|
-| `*authentik*` | Authentik |
-| `*prometheus-stack*`, `*grafana*` | monitoring stack |
-| `*flux*`, `*kustomize*`, `*helm-controller*` | Flux |
-| `*traefik*` | Traefik |
-| `*postgres*`, `*couchdb*`, `*mariadb*` | database |
-| `*n8n*`, `*paperless*`, `*immich*`, `*home-assistant*`, `*adguard*` | application |
-| anything else | general |
-
-A change to the script applies to the next run.
-
-| Problem | Check |
-|---|---|
-| The analysis does not run | the PR author is `renovate[bot]` or `app/renovate`; the run in Actions → Renovate Version Change Analysis; its logs |
-| No comment appears | the run finished green; `GITHUB_TOKEN` has `pull-requests: write`; the scripts are executable; the "Post comment on PR" step's log |
-| The analysis is out of date | push to the PR branch, which re-runs it and updates the comment |
 
 ## claude.yml
 

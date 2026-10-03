@@ -60,38 +60,14 @@ jobs:
       - name: Run shellcheck
         run: |
           set -euo pipefail
-          # Repo-wide, not scripts/-only: shell also lives in apps/ (immich-vm-heal.sh),
-          # .backup/ (DR scripts) and .claude/hooks/. Anchoring to scripts/ left those
-          # unchecked. Prune .git and any local worktrees (absent in CI checkouts).
-          # Run find separately so set -e observes its status.
-          # Process substitution disconnects find's exit status from mapfile.
-          # Preserve stderr so find reports its failure.
-          # If an unreadable directory makes find exit 1, the old form still
-          # reports success having checked fewer files.
-          list=$(mktemp)
-          trap 'rm -f "$list"' EXIT
-          find . \
-            -path './.git' -prune -o \
-            -path './.claude/worktrees' -prune -o \
-            -type f \( -name '*.sh' -o -name '*.bash' \) -print0 > "$list"
-          mapfile -d '' -t files < "$list"
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "no shell scripts found"
-            exit 0
-          fi
-          printf 'Found %d shell scripts\n' "${#files[@]}"
+          # Every tracked shell file, repo-wide: shell also lives in apps/, .backup/ and
+          # .claude/hooks/. pipefail makes xargs' exit 123 (any file failed) fail the step.
           # NOT a full logic gate: SC2015 (A && B || C) is emitted at *info* severity
           # (shellcheck Analytics.hs, `info id 2015`), so -S warning filters it out.
           # That class stays a manual review item (.claude/review-invariants.md).
           # Lowering to -S info surfaces pre-existing findings (SC1091/2016/2162/2086/2012)
           # and needs its own cleanup pass before the threshold can move.
-          fail=0
-          for f in "${files[@]}"; do
-            if ! shellcheck -S warning "$f"; then
-              fail=1
-            fi
-          done
-          exit $fail
+          git ls-files -z '*.sh' '*.bash' | xargs -0 -r shellcheck -S warning
 
   node-script-tests:
     runs-on: ubuntu-latest
@@ -118,15 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install yq
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.local/bin"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o "$HOME/.local/bin/yq"
-          echo "${YQ_SHA256}  $HOME/.local/bin/yq" | sha256sum -c -
-          chmod +x "$HOME/.local/bin/yq"
-          "$HOME/.local/bin/yq" --version
+      - uses: ./.github/actions/install-yq
       - run: scripts/ci/check-init-resources.sh
 
   image-pin:
@@ -134,15 +102,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install yq
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.local/bin"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o "$HOME/.local/bin/yq"
-          echo "${YQ_SHA256}  $HOME/.local/bin/yq" | sha256sum -c -
-          chmod +x "$HOME/.local/bin/yq"
-          "$HOME/.local/bin/yq" --version
+      - uses: ./.github/actions/install-yq
       # Closes the gap Kyverno's image-pin policy leaves: it only rejects :latest/no-tag,
       # so major-only / major.minor tags float silently. This asserts major.minor.patch
       # (or @sha256 digest). Allowlist for native-2-component upstreams in the script.
@@ -184,9 +144,7 @@ jobs:
           echo "${KUBECONFORM_SHA256}  $dl/kubeconform.tgz" | sha256sum -c -
           tar xzf "$dl/kubeconform.tgz" -C "$HOME/.local/bin" kubeconform
           "$HOME/.local/bin/kubeconform" -v
-          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o "$HOME/.local/bin/yq"
-          echo "${YQ_SHA256}  $HOME/.local/bin/yq" | sha256sum -c -
-          chmod +x "$HOME/.local/bin/yq"
+      - uses: ./.github/actions/install-yq
       - name: Build + validate
         run: |
           set -euo pipefail
@@ -215,9 +173,9 @@ jobs:
       - name: Count live invariants vs documented
         run: |
           set -euo pipefail
-          # Static drift check — counts authored objects in-repo and compares to the
-          # keyfact line in docs/HOMELAB_ANALYSIS.md. Warn-only since exact phrasing
-          # in the keyfact line evolves (multi-doc NP files, etc.).
+          # Counts authored objects in the repo and compares each with its keyfact line in
+          # docs/HOMELAB_ANALYSIS.md. A mismatch, or a line the pattern no longer finds,
+          # emits a ::warning:: annotation. Warn-only: the keyfact wording changes over time.
           analysis=docs/HOMELAB_ANALYSIS.md
           [ -f "$analysis" ] || { echo "no $analysis"; exit 0; }
 
@@ -236,24 +194,29 @@ jobs:
           printf '  SOPS-encrypted files=%s\n' "$sops_count"
           printf '  Kyverno ValidatingPolicy=%s\n' "$kyverno_count"
 
-          echo
-          echo "Documented (HOMELAB_ANALYSIS.md):"
-          grep -E 'NetworkPolicy resources|SOPS secrets|Kyverno CEL' "$analysis" | head -5 || true
+          # check <label> <live> <documented>
+          check() {
+            if [ -z "$3" ]; then
+              echo "::warning file=$analysis::$1: keyfact line not found; update the pattern in validate.yaml"
+            elif [ "$2" != "$3" ]; then
+              echo "::warning file=$analysis::$1: repo has $2, HOMELAB_ANALYSIS.md says $3"
+            else
+              echo "  $1: $2 matches"
+            fi
+          }
+          check "NetworkPolicy manifests" "$np_resources" \
+            "$(grep -oE '[0-9]+ raw manifests in git' "$analysis" | grep -oE '^[0-9]+' | head -1 || true)"
+          check "SOPS-encrypted files" "$sops_count" \
+            "$(grep -oE '\*\*[0-9]+\*\* SOPS-encrypted' "$analysis" | grep -oE '[0-9]+' | head -1 || true)"
+          check "Kyverno ValidatingPolicy" "$kyverno_count" \
+            "$(grep -oE '\*\*[0-9]+\*\* Kyverno CEL' "$analysis" | grep -oE '[0-9]+' | head -1 || true)"
 
   helm-render:
     name: helm render (HelmRelease charts)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Install yq
-        run: |
-          set -euo pipefail
-          # helm ships on the runner; yq does not.
-          mkdir -p "$HOME/.local/bin"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o "$HOME/.local/bin/yq"
-          echo "${YQ_SHA256}  $HOME/.local/bin/yq" | sha256sum -c -
-          chmod +x "$HOME/.local/bin/yq"
+      - uses: ./.github/actions/install-yq
       # KUBERNETES_VERSION comes from the workflow-level env above.
       - name: Render every HelmRelease chart
         run: scripts/ci/helm-render-check.sh .

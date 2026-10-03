@@ -1,0 +1,16 @@
+name: Install yq
+description: Install the yq binary that the calling workflow pins in YQ_VERSION and YQ_SHA256 into ~/.local/bin, and put that directory on PATH.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+        # The pins come from the calling workflow's env; fail here if they did not arrive.
+        : "${YQ_VERSION:?set YQ_VERSION in the workflow env}" "${YQ_SHA256:?set YQ_SHA256 in the workflow env}"
+        mkdir -p "$HOME/.local/bin"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        curl -fsSL "https://github.com/mikefarah/yq/releases/download/${YQ_VERSION}/yq_linux_amd64" -o "$HOME/.local/bin/yq"
+        echo "${YQ_SHA256}  $HOME/.local/bin/yq" | sha256sum -c -
+        chmod +x "$HOME/.local/bin/yq"
+        "$HOME/.local/bin/yq" --version

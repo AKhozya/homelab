@@ -48,8 +48,6 @@ target/
 .backup/ENV_VARS.md
 .monitoring/
 
-# Transient PR/update baseline snapshots
-scripts/analyze-update/baselines/
 
 # SkillOpt-Sleep local staging (offline self-evolution proposals)
 .skillopt-sleep/

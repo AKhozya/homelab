@@ -66,14 +66,7 @@ jobs:
               MAJOR="${V%%.*}"; REST="${V#*.}"; MINOR="${REST%%.*}"; PATCH="${REST#*.}"
               NEXT="${MAJOR}.${MINOR}.$((PATCH + 1))"
             else
-              # Transition: no 3-component tag yet — continue the minor from the latest
-              # legacy 2-component tag (claude-telegram-v1.NN → 1.NN.0).
-              OLD=$(git tag -l 'claude-telegram-v1.*' --sort=-v:refname | head -1)
-              if [ -n "$OLD" ]; then
-                NEXT="1.${OLD#claude-telegram-v1.}.0"
-              else
-                NEXT="1.0.0"
-              fi
+              NEXT="1.0.0"
             fi
           fi
           # Check before the build, because the push step overwrites an existing registry tag
