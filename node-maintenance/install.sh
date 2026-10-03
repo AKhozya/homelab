@@ -6,7 +6,7 @@
 #   (default)      full bootstrap: user, sudoers, SSH key, creds, ansible, systemd
 #   --sync-only    re-sync ansible playbooks + systemd units + telegram helper.
 #                  Skips user/sudoers/SSH-key/creds (preserves existing state).
-#                  Use from sync-node-maintenance.sh wrapper after git pull.
+#                  lib/sync-from-git.sh runs it after a pull that changes the SHA.
 set -euo pipefail
 
 [ "$(id -u)" = "0" ] || { echo "Run as root" >&2; exit 1; }

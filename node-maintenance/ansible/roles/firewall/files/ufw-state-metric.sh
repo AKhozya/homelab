@@ -7,8 +7,16 @@ set -euo pipefail
 
 OUTDIR="/var/lib/node_exporter/textfile"
 OUTFILE="${OUTDIR}/ufw_state.prom"
-TMPFILE="${OUTFILE}.tmp"
 NODE="$(cat /etc/hostname)"
+
+# Shared helpers. NODE_SCRIPT_LIB lets the offline tests point at the repo copy. If the library
+# cannot load, the run exits 1 and ufw_state.prom goes stale, which NodeHealWatchdogStale reports.
+NODE_SCRIPT_LIB="${NODE_SCRIPT_LIB:-/usr/local/lib/node-maintenance/node-script-lib.sh}"
+# shellcheck source=../../base_config/files/node-script-lib.sh
+if ! . "$NODE_SCRIPT_LIB" || ! declare -F textfile_write >/dev/null; then
+    echo "cannot load $NODE_SCRIPT_LIB" >&2
+    exit 1
+fi
 
 mkdir -p "$OUTDIR"
 
@@ -35,7 +43,7 @@ for chain in ufw6-logging-deny ufw6-user-input; do
     /usr/sbin/ip6tables -L "$chain" -n >/dev/null 2>&1 || CHAINS=0
 done
 
-cat > "${TMPFILE}" <<EOF
+textfile_write "$OUTFILE" <<EOF
 # HELP ufw_enabled UFW enabled in /etc/ufw/ufw.conf (1=yes, 0=no)
 # TYPE ufw_enabled gauge
 ufw_enabled{node="${NODE}"} ${ENABLED}
@@ -46,5 +54,3 @@ ufw_service_active{node="${NODE}"} ${ACTIVE}
 # TYPE ufw_chains_healthy gauge
 ufw_chains_healthy{node="${NODE}"} ${CHAINS}
 EOF
-
-mv "${TMPFILE}" "${OUTFILE}"

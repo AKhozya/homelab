@@ -203,7 +203,7 @@ phase_probe_ufw_status() {
     {
         echo "total=$total"
         echo "fails=$fails"
-    } > "${counter_file}.tmp" && mv "${counter_file}.tmp" "$counter_file"
+    } | textfile_write "$counter_file"
     ts=$(date +%s)
     node=$(hostname)
     {
@@ -219,8 +219,7 @@ phase_probe_ufw_status() {
         echo "# HELP firewall_preflight_probe_last_ts Last probe timestamp"
         echo "# TYPE firewall_preflight_probe_last_ts gauge"
         echo "firewall_preflight_probe_last_ts{node=\"${node}\"} ${ts}"
-    } > /var/lib/node_exporter/textfile/firewall_preflight_probe.prom.tmp \
-      && mv /var/lib/node_exporter/textfile/firewall_preflight_probe.prom.tmp /var/lib/node_exporter/textfile/firewall_preflight_probe.prom
+    } | textfile_write /var/lib/node_exporter/textfile/firewall_preflight_probe.prom
     log "probe: ufw status verbose=${probe_state} (total=${total} fails=${fails})"
 }
 

@@ -126,7 +126,7 @@ sudo ansible-playbook -t firmware -e ad_hoc_firmware_apply=true \
 
 | Script | Use |
 |---|---|
-| `scripts/update-firmware.sh` | The `firmware` tag above replaces it. It stays as an interactive fallback when no Mac is available. |
+| `sudo fwupdmgr refresh --force && sudo fwupdmgr update`, on the node | the interactive fallback for the `firmware` tag above, if no Mac is available. The tag also installs `fwupd` |
 
 ---
 
@@ -198,10 +198,9 @@ Check it with `systemctl list-timers node-maintenance-sync.timer` and
 ### By hand, if it is urgent
 
 ```bash
-bash node-maintenance/sync-node-maintenance.sh   # triggers same unit now
+ssh -p 65300 -t akhozya@gmk-k3s-control-plane \
+  'sudo systemctl start node-maintenance-sync.service && sudo journalctl -u node-maintenance-sync.service -n 30 --no-pager'
 ```
-
-Override the target with `NODE_MAINT_CP_HOST`, `NODE_MAINT_CP_USER` and `NODE_MAINT_CP_PORT`.
 
 ### Deploy key (once; enables the automatic sync)
 

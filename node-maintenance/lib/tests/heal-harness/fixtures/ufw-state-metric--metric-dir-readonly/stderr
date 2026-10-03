@@ -1,1 +1,1 @@
-/repo/node-maintenance/ansible/roles/firewall/files/ufw-state-metric.sh: line N: /var/lib/node_exporter/textfile/ufw_state.prom.tmp: Read-only file system
+mktemp: failed to create file via template ‘/var/lib/node_exporter/textfile/ufw_state.prom.XXXXXX’: Read-only file system
