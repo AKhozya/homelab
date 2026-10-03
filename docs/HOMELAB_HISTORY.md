@@ -47,7 +47,7 @@ The 2026-10-03 monthly review found three gaps on `e805e202`:
 
 | Follow-up | Detail |
 |---|---|
-| `ImmichGPUHealGaveUp` and `ClusterIPHealGaveUp` | while the fault lasts, each resolves and fires again every time the 30-min restart window rolls over |
+| `ImmichGPUHealGaveUp` and `ClusterIPHealGaveUp` | if the fault persists, each alert resolves and fires again after its 30-min restart window expires |
 | `immich-gpu-heal.sh` | writes `qsv_stuck 0` on every path where the render node is down |
 
 ### 2026-10-03 — Heal watchdogs save their state before they act, and skip the action if the save fails

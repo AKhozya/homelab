@@ -554,7 +554,8 @@ spec:
       # This rule excludes the immich/immich-vm-heal Jobs, for the reason given at PodPhaseNotRunning.
       # If this rule includes those Jobs, it bypasses the recent-success check in ImmichVMHealJobFailing.
       # Trade-off: if a heal Job never starts a pod (for example an admission denial), only
-      # ImmichVMHealStale fires: about 40 min after the last success, where JobFailed took about 14.
+      # ImmichVMHealStale fires, about 40 min after the last success. If JobFailed included those
+      # Jobs, it would fire about 14 min after the last success.
       expr: |
         kube_job_failed{condition="true"} == 1
         unless on(namespace, job_name) kube_job_failed{namespace="immich", job_name=~"immich-vm-heal-[0-9]+"}
@@ -1683,7 +1684,7 @@ spec:
           logs 'no Intel display GPU on PCI bus', the guest has lost the passthrough GPU; check the domain's hostdev on the
           NAS before any host restart."
     - alert: ImmichGPUHealGaveUp
-      # The textfile survives a reboot, and the timer first runs the watchdog 90-110s after boot.
+      # The textfile survives a reboot. The timer uses OnBootSec=90s and RandomizedDelaySec=20s.
       # 3m reduces the chance that a giveup=1 written before a host cold restart pages again after it.
       expr: immich_gpu_heal_giveup == 1
       for: 3m
