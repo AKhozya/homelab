@@ -1,19 +1,20 @@
 # GitHub Workflows
 
-This folder holds five workflows. CI is a signal, not a merge gate:
+This folder holds four workflows. The secret scan is the only required check:
 
-| Fact (2026-09-28) | Effect |
+| Fact (2026-10-03) | Effect |
 |---|---|
-| No ruleset or branch protection guards `main` | a commit reaches `main` whatever CI reports |
-| GitHub offers neither on a private Free-plan repo; a public repo gets both for free | a ruleset becomes possible once the repo is public |
-| Flux applies `main` every few minutes | a red commit on `main` still deploys |
-| Account billing stopped every Actions job from 2026-09-10 | the workflows run again since 2026-10-01 (first green run 17:18Z) |
+| The `main` ruleset requires a PR with 1 approval and a successful `gitleaks secret scan` | if the owner does not use the bypass, a PR merges only after the owner approves it and the scan succeeds |
+| The repo admin role bypasses the ruleset | GitHub accepts the owner's direct pushes and merges without an approval or a finished scan. The scan still runs on each push |
+| No rule requires the Validate checks | if they fail, a commit can still reach `main` |
+| Flux applies `main` every few minutes | a commit with failed checks still deploys |
+
+If an outside contributor opens a PR from a fork, GitHub runs its workflows only after the owner approves the run.
 
 | Workflow | Runs on | Does |
 |---|---|---|
 | `validate.yaml` | push to `main`, pull requests to `main`, by hand; skips pushes that change only Markdown or `docs/images/` | the checks below |
 | `gitleaks.yaml` | push to `main`, pull requests to `main`, by hand; no path filter | secret scan |
-| `claude.yml` | `@claude` in an issue, a comment or a PR review | runs Claude Code on the request |
 | `flux-update.yaml` | Sunday 06:00 UTC, or by hand | opens a PR to update the Flux components |
 | `claude-telegram-build.yml` | Monday and Thursday 23:00 UTC, or by hand | builds and pushes the Telegram bot image |
 
@@ -36,33 +37,6 @@ It is separate from `validate.yaml` on purpose. `validate.yaml` skips Markdown-o
 gitleaks lived there, a credential pasted into a runbook or plan reached `main` unscanned (the
 workflow's header comment). The scan takes about 15 seconds, so it has no path filter. It scans the same events as `validate.yaml`; pushes to
 other branches are scanned by neither.
-
-## claude.yml
-
-It runs `anthropics/claude-code-action` only if the actor is the repo owner (`github.actor ==
-'AKhozya'`) and `@claude` appears in one of these:
-
-| Event | Where `@claude` must appear |
-|---|---|
-| a new issue comment, including a comment on a PR | the comment body |
-| a new PR review comment | the comment body |
-| a submitted PR review | the review body |
-| a newly opened issue | the title or the body |
-
-If an issue is assigned, the workflow does not run. Otherwise the owner assigning someone else's
-issue would pass that person's text to Claude. The owner check also excludes Renovate.
-
-Its job token can read contents, pull requests and issues. The action also requests `actions: read`
-through `additional_permissions`, to read CI results. The workflow sets no `claude_args`, so Claude
-runs with the action's default tool set. For example:
-
-```
-@claude can you explain how this authentication flow works?
-```
-
-```
-@claude what does this function do?
-```
 
 ## flux-update.yaml
 

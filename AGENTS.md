@@ -40,7 +40,22 @@ Read cluster state with `kubectl` (+ `jq`); the API is reachable directly from a
 - **SOPS = truth** for secrets + Cloudflare tunnel config.
 - **Kyverno enforce resource limits** all containers (init included), PSS, NetworkPolicy, image-pin.
 - **`readOnlyRootFilesystem`** needs `/tmp` emptyDir volume.
-- **CI validation — a signal, NOT a merge gate.** `.github/workflows/validate.yaml` runs yamllint + shellcheck + node-script-tests + sops-check + init-resources + image-pin + kubeconform × 7 kustomize roots + helm-render (every HelmRelease chart at its pinned version — kubeconform validates the HelmRelease CR, never the chart's own templates) + a warn-only HOMELAB_ANALYSIS drift check on every push (p50 28s, max 69s across the 35 successful runs measured 2026-10-02; `paths-ignore` skips docs/markdown-only pushes). Account billing stopped every Actions job from 2026-09-10; jobs run again since 2026-10-01 (first green run 17:18Z). gitleaks lives in its own `gitleaks.yaml` with **no** `paths-ignore`, so a credential pasted into a markdown runbook is still caught. As of 2026-09-28 no ruleset or branch protection guards `main` (GitHub offers neither on a private Free-plan repo; a public repo gets both for free). If `main` has no rule that requires passing checks, **nothing mechanically stops a validate-red commit from reaching prod**: Flux syncs `main` every 5 min whatever CI says, and `/gitops-workflow` step 3c blocking `fr` on red only withholds the manual nudge. The gates that hold are the pre-commit review loop below and `/homelab-yaml-validate` — both run before the commit exists.
+- **CI validation — only the secret scan is a required check.** The checks are listed in `.github/workflows/README.md`:
+
+  | Workflow | Runs on | Note |
+  |---|---|---|
+  | `validate.yaml` | push to `main`, PR to `main`; `paths-ignore` skips docs/markdown-only changes | p50 28s, max 69s across the 35 successful runs measured 2026-10-02. kubeconform validates the HelmRelease CR. helm-render checks the chart's own templates |
+  | `gitleaks.yaml` | push to `main`, PR to `main`; no `paths-ignore` | scans markdown runbooks too |
+
+  The `main` ruleset:
+
+  | Rule | Effect |
+  |---|---|
+  | a PR to `main` needs 1 approval and a successful `gitleaks secret scan` | only the owner has write access, so only the owner's approval counts |
+  | the repo admin role is a bypass actor (mode `always`) | the owner pushes to `main` directly and can merge a PR without an approval or a finished scan |
+  | no rule requires the Validate checks | if they fail, a commit can still reach `main` |
+
+  A direct push reaches prod whatever CI reports, because Flux syncs `main` every 5 min. If checks fail, `/gitops-workflow` step 3c skips the manual `fr` reconcile, and Flux still deploys on its next sync. Two checks run before a direct push exists: the pre-commit review loop below and `/homelab-yaml-validate`. If a commit changes only docs or markdown, the review loop does not apply.
 - **Pre-commit review loop (substantive code/config — gate-of-record).** Before committing a non-trivial diff: (1) dispatch the opposite-family peer (resolve via `peer-reviewed-implementation/scripts/reviewer-peer`; from Claude = Codex `codex-rescue`, from Codex = Claude) for a **STATIC git-only** review — allowed `git diff/show/log` + file reads, FORBIDDEN run-anything (state gates already ran green; unconstrained it re-runs the full local gate and stalls ~14min with no verdict), demand a **one-message verdict** (no loop), point it at `.claude/review-invariants.md`. `codex-review.sh` runs Codex at `xhigh` by default. If you pass `--effort`, it uses that level instead. If a `codex-rescue` dispatch sets no effort, it runs at `high`, the global default in `~/.codex/config.toml`. The operator's rule for the peer-reviewed-implementation flow requires `xhigh` for plan and code reviews (`~/.codex/AGENTS.md`). `reviewer-peer` prints that effort. A review in that flow must request it. (2) Process findings via `superpowers:receiving-code-review` — verify each against the code, push back on wrong/YAGNI, fix in severity order, test each. (3) Re-review **delta-scoped**. Severity decides whether you may commit. The round count
 decides when to escalate to the user.
 

@@ -5,6 +5,8 @@ each node's firewall is set, and what went wrong before. The in-cluster layers (
 which checks each workload before Kubernetes accepts it; NetworkPolicies; container limits) are in
 [ARCHITECTURE.md](ARCHITECTURE.md#security-layers).
 
+To report a security problem privately to the owner, use "Report a vulnerability" on the repo's Security tab.
+
 ## Posture
 
 | Area | State |

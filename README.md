@@ -154,13 +154,13 @@ Each push runs [`validate.yaml`](.github/workflows/validate.yaml):
 | helm-render | every HelmRelease chart renders at its pinned version |
 | homelab-analysis-drift | key numbers in `docs/HOMELAB_ANALYSIS.md` still match the repo (warn-only) |
 
-CI is a signal, not a merge gate. Flux applies `main` whatever CI reports, so a check can block a
-deploy only if a rule on `main` requires it to pass.
+Flux deploys whatever reaches `main`. A check blocks a deploy only if a rule on `main` requires it:
 
-| Fact (2026-09-28) | Detail |
+| Rule on `main` | Effect |
 |---|---|
-| No ruleset or branch protection guards `main` | GitHub offers neither on a private repo on the Free plan; a public repo gets both for free |
-| Account billing stopped every Actions job from 2026-09-10 | jobs run again since 2026-10-01 (first green run 17:18Z) |
+| The `main` ruleset requires a PR with 1 approval and a successful `gitleaks secret scan` | if the owner does not use the bypass, a PR merges only after the owner approves it and the scan succeeds |
+| The repo admin role bypasses the ruleset | GitHub accepts the owner's direct pushes and merges without an approval or a finished scan. The scan still runs on each push |
+| No rule requires the Validate checks | if they fail, a commit can still reach `main` |
 
 ## Repository layout
 
