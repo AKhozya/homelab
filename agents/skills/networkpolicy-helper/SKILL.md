@@ -34,20 +34,22 @@ The baseline excludes Jobs → a Job that talks out (setup/init) is egress-**nak
 - **Select by `batch.kubernetes.io/job-name: <job>`**, not `app:` — Job pods don't get the app label. (Same canonical label the baseline excludes on.)
 - **Egress-only is usually enough** — the app's INGRESS NP almost always already admits the Job (same-ns `podSelector:{}`, or an explicit `app: <job>` rule, or all-ns). Verify, don't add a redundant ingress rule.
 - **Port = target CONTAINER port** (post-DNAT under kube-router), not the Service port.
-- **curl-image Jobs harden tight; runtime-installer Jobs don't.** A `curlimages/curl` Job with deps pre-baked → tight NP (DNS + app port). A Job that `apt-get install`/`pip install` at runtime (was: mealie, uptime-kuma) needs 443/80→internet to bootstrap → any NP = theater. Proper fix = bake deps into a pinned image (zero-internet Job), else leave naked by decision. Don't ship a wide-internet NP and call it hardened.
-- **Verify live by re-running the Job** under its new NP (delete → Flux force-recreates) → must still Complete. A too-tight egress silently breaks the next helm-hook run otherwise.
+- **curl-image Jobs harden tight; runtime-installer Jobs don't.** A `curlimages/curl` Job with deps pre-baked → tight NP (DNS + app port). Proper fix = bake deps into a pinned image (zero-internet Job), else leave naked by decision. Don't ship a wide-internet NP and call it hardened.
+- **Verify live by re-running the Job** under its new NP (delete → Flux force-recreates) → must still Complete.
 
 ## Common Mistakes
 
+If you need the reason or an example behind a rule in this file, read reference-template.md § "Reasons and examples behind the SKILL.md rules".
+
 ### 1: Service Port vs Container Port
-NP ports = CONTAINER port (post-DNAT under kube-router), NOT the Service port. WRONG = `port: 80` (service); CORRECT = `port: 8000` (container, from the deployment/pod spec). Find it:
+NP ports = CONTAINER port (post-DNAT under kube-router), NOT the Service port. Find it:
 ```bash
 kubectl get deploy <name> -n <ns> -o jsonpath='{.spec.template.spec.containers[0].ports[*].containerPort}'
 ```
 
 ### 2: Missing Dual-Access for Tunnel Apps
 
-Apps reached via both Traefik AND CF Tunnel need BOTH ingress rules — a `traefik` namespaceSelector block AND a `cloudflare-tunnel` namespaceSelector block, each on `{container-port}` (both in the `reference-template.md` per-app template). Omitting the tunnel block = external access dies silently.
+Apps reached via both Traefik AND CF Tunnel need BOTH ingress rules — a `traefik` namespaceSelector block AND a `cloudflare-tunnel` namespaceSelector block, each on `{container-port}` (both in the `reference-template.md` per-app template).
 
 **Tunnel apps (need both)** — source of truth is the cloudflared NP's egress list (`infrastructure/configs/cloudflare/networkpolicy.yaml`), by target namespace: monitoring (grafana), uptime-kuma, audiobookshelf, authentik, databases (couchdb), immich, linkwarden, mealie, n8n, paperless-ngx, stirling-pdf. Derive from that file, don't trust this snapshot.
 
@@ -58,7 +60,7 @@ Pods calling the K8s API (operators, sidecars) need an egress block to the contr
 **API egress form — node-IP:6443, not ClusterIP:443.** Under kube-router (K3s NP enforcer), egress is evaluated POST-DNAT against the real backend, so the `kubernetes.default` ClusterIP `10.43.0.1:443` is already rewritten to `<CP-node>:6443` by the time the policy sees it — a `10.43.0.1/32:443` rule does NOT match. Proven: `cnpg-operator-policy` + `redis-operator-network-policy` work with ONLY `192.168.1.127/32:6443` and no ClusterIP rule (live, 210d+). Use the node IP + 6443.
 
 **Operator NetworkPolicies — two traps (F-48 2026-05-29; why/history in memory `gotchas.md` "Operator NetworkPolicies: verify pod labels AND data-plane dial"):**
-1. **Verify the actual pod labels first** — `kubectl get pod <op> -o jsonpath='{.metadata.labels}'`. ot-helm redis-operator is labelled `name: redis-operator`, NOT `app.kubernetes.io/name:`. A wrong selector matches ZERO pods → the NP is present but enforces nothing = gap stays open while reported closed (silent).
+1. **Verify the actual pod labels first** — `kubectl get pod <op> -o jsonpath='{.metadata.labels}'`. ot-helm redis-operator is labelled `name: redis-operator`, NOT `app.kubernetes.io/name:`.
 2. **An operator that dials its data plane needs egress to the managed pods, not just the API.** redis-operator dials redis(6379)+sentinel(26379) directly (`checkRedisServerRole`); CNPG's manager dials instances on 5432+8000. Don't assume API-exec. Grep operator logs for `dial tcp` to confirm, then add the data-plane egress block (`reference-template.md` § "Operator data-plane egress block").
 
 Naming: `<app>-network-policy` (`percona-operator-network-policy` is the precedent; `cnpg-operator-policy` is the legacy odd-one-out).

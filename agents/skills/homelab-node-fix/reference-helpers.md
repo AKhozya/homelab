@@ -4,6 +4,8 @@ Read this when you connect to the NAS, need the steps or exit codes of `run-on-n
 
 ## NAS access
 
+The backup-sink NAS is reachable but is **out of this skill's scope** — it's a ZettLab/zettOS appliance (Debian 12, `192.168.1.136`), **not Arch, not k3s, not ansible/UFW-managed**.
+
 - Access: `ssh zl-nas` (port `56634`, user `akhozya`, file key `~/.ssh/zl_nas_ed25519` — *not* the 1Password agent).
 - **sudo needs the account password** (no NOPASSWD): user runs `! ssh -t zl-nas 'sudo …'` (TTY, types password live). Same pattern as the node sudo rules in SKILL.md, different host.
 - Posture/identity facts: memory `reference_nas`.
@@ -25,6 +27,8 @@ The helper:
 
 ## Tools on each node
 
+Tools checked 2026-09-28:
+
 | Tool | CP, worker-node, worker-node-2 | immich-vm |
 |---|---|---|
 | `jq`, `yq`, `jc`, `fd` | present | present |
@@ -39,6 +43,8 @@ Schedules already running per `project_maintenance_schedules.md`:
 - security scan 1st of month
 
 ## Read-state example commands
+
+Read commands return output directly to the agent context.
 
 ```bash
 # Service status / recent failures

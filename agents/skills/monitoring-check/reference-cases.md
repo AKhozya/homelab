@@ -4,6 +4,8 @@ Incident case studies + decode tables behind SKILL.md's triage rules.
 
 ## ScrapeTargetDown but pod Ready — metrics server wedged (2026-06-15)
 
+controller-runtime serves metrics (`:8080`) and health (`:8081`) on SEPARATE servers — `:8080/metrics` can hang while probes stay green, so the pod stays `Ready 1/1` and only `up=0` flags it.
+
 Extra mechanism behind SKILL.md's rule: controller-runtime serves metrics (`:8080`) and health (`:8081`) on SEPARATE servers — `:8080/metrics` can hang (accepts TCP, never sends headers) while `:8081/health` keeps the readiness probe green, so `:8081` probes can't catch it.
 
 **`.lastError` decode** (vmagent `/api/v1/targets`):
@@ -17,6 +19,8 @@ Extra mechanism behind SKILL.md's rule: controller-runtime serves metrics (`:808
 Gotcha: a cross-pod probe of a NON-scrape port (vmagent→`:8081`) falsely shows `connection refused` — the app NP opens only `:8080`; trust kubelet `Ready`, not your own probe. Case: vm-operator v0.71.0 `:8080` wedged after 2d16h, lease still renewing.
 
 ## VMAgent stuck remoteWrite — 2026-05-16 UFW incident + lessons
+
+**Reference case (2026-05-16 UFW incident) + lessons**: heal succeeded but alert fired 15+ min; 20+ probes to root-cause, a single vmagent restart cleared it.
 
 **Reference case**: `UfwDisabled` fired on worker-node. `ufw-heal-post-k3s.service` succeeded (probe healthy, ENABLED=yes pinned, `ufw_state.prom` showed `ufw_enabled=1`), but alert kept firing 15+ min. Took 20+ probes to root-cause (ufw.conf, state-metric, textfile path, kube-proxy NAT, CoreDNS endpoints, nslookup, ServiceMonitor relabel, VMAgent drop config, target health, time skew, persistent queue, vmagent log). Single vmagent restart cleared it. Full incident detail: memory `gotchas.md` § "VMAgent Go DNS resolver stuck...".
 
@@ -64,3 +68,15 @@ Memory: `gotchas.md` § "k8s-sidecar healthz dies on IPv4-only kernels".
 - Firing alerts: 0 (VMAlert + AM both clean)
 - Popeye: A (90) — NOT the 06-05 "100/100": Job-NPs match no pods between runs + Percona svc lints (POP-1100/1106, deferred 07-04) dilute the score by design. Compare trend, not absolute. POP-1503 reads PolicyViolation EVENTS (~1h TTL) — popeye can false-dirty right after a Kyverno fix while polr is clean; purge events or wait TTL.
 - Kyverno violations: 0 (12 CEL ValidatingPolicies, `validationActions: [Deny]`, `.status.conditionStatus.ready=true` — sole engine since 2026-07-12; ClusterPolicies + parity tooling retired; reports-controller limit 800m since 2026-07-13)
+
+## Why both VMAlert and Alertmanager
+
+Alertmanager may show alerts VMAlert doesn't (notification-side failures) — a VMAlert-only check once missed a broken Telegram notification template while everything looked green.
+
+## VMAgent restart — what restart-workload.sh does
+
+`_shared/restart-workload.sh` deletes one pod at a time and waits for a DIFFERENT pod UID to reach Ready. Queue drains in seconds, alerts re-evaluate at next rule cycle.
+
+## Why 127.0.0.1, not localhost
+
+Busybox wget in VM-stack images (vmagent/vmsingle/operator) resolves `localhost`→`::1`; those bind IPv4 only → false `connection refused`. (AM/Grafana images tolerate `localhost`, but pin `127.0.0.1` everywhere for consistency.)

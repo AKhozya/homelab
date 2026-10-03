@@ -28,3 +28,30 @@ the password (op → shell var → ssh stdin, never argv/env/history). 1Password
 
 Minimum ansible commit containing the phase2 gate: see `reference-incidents.md` (checkout predating
 it = gate absent, old wedge risk applies).
+
+## The two scripts and how path A works
+
+The cluster-reboot skill provides
+`trigger-reboot.sh` (starts phase1 with sudo fetched from 1Password — faillock-safe, single-attempt)
+and a no-sudo agent-side watcher (`watch-reboot.sh`).
+
+The agent can start phase1 with `trigger-reboot.sh` without a live TTY: the script reads the shared
+homelab sudo password from 1Password and pipes it to `sudo -S` over SSH.
+
+A *successful*
+sudo resets the faillock counter.
+
+## What watch-reboot.sh reports
+
+Each iteration reports, for all 4 nodes: `Node.Ready`, `verify-clusterip.sh` verdict, the CP loopback
+probe (CP only), the `phase2-pending` interlock, the per-node `node_pkg_upgrade_success` verdict, and
+a warn-only `pod-health.sh --count` baseline.
+
+`watch-reboot.sh`
+makes the stuck state visible (Ready-but-wedged worker + lingering `phase2-pending`).
+
+Exit **0** only when ALL gates pass: all 4 nodes Ready + ClusterIP-healthy (the CP ClusterIP verdict
+is advisory), the CP loopback healthy, kube-dns ready endpoints ≥ 1, the package upgrade verified
+clean on every reporting node (`UNVERIFIED` counts as failure), the phase1/phase2 run idle, and
+`phase2-pending` absent. Otherwise non-zero (keep
+watching / remediate).

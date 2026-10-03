@@ -96,6 +96,7 @@ bash ~/.agents/skills/_shared/check-kyverno.sh --summary
 5. Teardown worktree. Quarterly (every 3rd month, see ANALYSIS): add `/automation-audit-ops`.
 
 ## Known gap-classes (keep honest)
-Before you mark a Popeye score, a DB primary pin or an event-gated item clean, read reference-gap-classes.md § Gap classes.
+If you mark a Popeye score, a DB primary pin or an event-gated item clean, first read reference-gap-classes.md § Gap classes.
 - Check DB primaries every review, even if nothing alerted.
-- **ponytail sweep is greenfield-first** — homelab is YAML/bash, not app code: `/ponytail-audit` value is marginal (over-built scripts only) and `/ponytail-debt` is ~empty (no `ponytail:` markers accumulate with mode=off default). If the review runs IN the claude-telegram bot, ponytail must be installed there first (bot plugins are seeded-once on PVC, no auto-update — see `apps/claude-telegram` init plugin-update fix).
+- If you run the ponytail sweep, first read reference-gap-classes.md § Ponytail scope.
+- If the review runs IN the claude-telegram bot, ponytail must be installed there first (bot plugins are seeded-once on PVC, no auto-update — see `apps/claude-telegram` init plugin-update fix).

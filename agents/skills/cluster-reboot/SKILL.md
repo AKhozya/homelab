@@ -14,9 +14,8 @@ description: >-
 # cluster-reboot
 
 Thin doc + orchestration wrapper around the **existing** ansible node-maintenance reboot flow. It does
-**not** reimplement reboot logic — ansible phase1/phase2 are authoritative. It provides
-`trigger-reboot.sh` (starts phase1 with sudo fetched from 1Password — faillock-safe, single-attempt)
-and a no-sudo agent-side watcher (`watch-reboot.sh`).
+**not** reimplement reboot logic — ansible phase1/phase2 are authoritative.
+If you need to know what the two scripts do, read reference-flow.md § "The two scripts and how path A works".
 
 ## When / why
 
@@ -35,9 +34,6 @@ phase1 = `sudo systemctl start node-maintenance-phase1.service` (root). Two path
 
 ### A. Autonomous (preferred) — `trigger-reboot.sh` (sudo fetched from 1Password)
 
-The agent can start it without a live TTY by reading the shared homelab sudo password from 1Password and
-piping it to `sudo -S` over SSH:
-
 ```bash
 # 1) verify op can read the secret FIRST — faillock-safe, touches NO sudo (approve the 1Password popup):
 op read 'op://Personal/sudo-homelab/password' >/dev/null && echo OK
@@ -52,8 +48,7 @@ If you need its checks in detail or its env overrides, read reference-flow.md §
 > ⚠️ **pam_faillock `deny=3`** — a wrong/empty sudo password tried 3× = 10-min lockout. NEVER
 > auto-retry a failed sudo. If the script prints `SUDO-FAILED`, or `op read` won't unlock (popup
 > dismissed → empty), **STOP** and fix op/the password — do not re-run blindly. Always pre-verify
-> with the `op read … >/dev/null && echo OK` check above, which spends no sudo attempt. A *successful*
-> sudo resets the faillock counter.
+> with the `op read … >/dev/null && echo OK` check above, which spends no sudo attempt.
 
 ### B. Manual fallback — user runs it over a TTY
 
@@ -88,8 +83,7 @@ PLAY 1 is `serial: 1` and **aborts on the first ClusterIP-gate failure**. On abo
 
 So a failure is **partial**, not all-or-nothing. The operator must: remediate the wedged worker
 (restart k3s-agent or `rolling-restart-k3s.yml`), confirm `verify-clusterip.sh <worker>` is OK and the
-node is uncordoned, then **re-trigger** the flow to process the remaining worker(s). `watch-reboot.sh`
-makes the stuck state visible (Ready-but-wedged worker + lingering `phase2-pending`).
+node is uncordoned, then **re-trigger** the flow to process the remaining worker(s).
 
 **Stuck `phase2-pending` after a COMPLETED run:** if the phase1/phase2 work actually finished (nodes
 rebooted, updates applied) but the flag remains — e.g. the phase2 flux-reconcile nudge timed out,
@@ -109,21 +103,17 @@ bash ~/.agents/skills/cluster-reboot/scripts/watch-reboot.sh --once
 bash ~/.agents/skills/cluster-reboot/scripts/watch-reboot.sh --interval 30 --max-iter 60
 ```
 
-Each iteration reports, for all 4 nodes: `Node.Ready`, `verify-clusterip.sh` verdict, the CP loopback
-probe (CP only), the `phase2-pending` interlock, the per-node `node_pkg_upgrade_success` verdict, and
-a warn-only `pod-health.sh --count` baseline. On a Ready-but-wedged node it prints the sanctioned
+On a Ready-but-wedged node it prints the sanctioned
 remediation one-liner (it never runs it — no sudo).
+If you need what each iteration reports or the exact exit-0 gates, read reference-flow.md § "What watch-reboot.sh reports".
 
 If `watch-reboot.sh` prints `pkg-upgrade: FAILED` or `UNVERIFIED`, read reference-incidents.md § "pkg-upgrade FAILED and UNVERIFIED verdicts".
 
 > The warn-only `pod-health` `unhealthy=N` right after a reboot usually reflects transient pods
 > (restart races, Jobs mid-retry) that drain on their own within minutes — re-run before treating
 > as reboot damage. **Two classes do NOT drain:**
-> - **Controller-owned terminal pods.** A reboot leaves one per evicted pod, because nothing reaps
->   them: the ReplicaSet controller ignores terminal pods it owns and the pod-GC controller acts only
->   past `--terminated-pod-gc-threshold` (12500). They keep `DeploymentReplicasMismatch` /
->   `PodRunningNotReady` / `*PodNotRunning` firing — 14 and 4 alerts (2 critical) on 2026-08-01, 11
->   more on 2026-08-08. **phase2 PLAY 2 sweeps them since 2026-08-08** (owner-scoped, cluster-wide,
+> - **Controller-owned terminal pods.** If you need why they linger, read reference-incidents.md § "Why controller-owned terminal pods linger".
+>   **phase2 PLAY 2 sweeps them since 2026-08-08** (owner-scoped, cluster-wide,
 >   `Failed` + `Succeeded`); before that it matched `Failed` in infra namespaces only. Still do this by
 >   hand after a run that never reached PLAY 2 — list, then delete each by name AND phase so a
 >   stable-named StatefulSet pod recreated in between is not the one you delete:
@@ -132,11 +122,7 @@ If `watch-reboot.sh` prints `pkg-upgrade: FAILED` or `UNVERIFIED`, read referenc
 >   Leave `Job`-owned pods alone — those are normal CronJob completions.
 > - If an app is stuck `Running 0/1` after it lost its DB, read reference-incidents.md § "App stuck Running 0/1 after losing its DB".
 
-Exit **0** only when ALL gates pass: all 4 nodes Ready + ClusterIP-healthy (the CP ClusterIP verdict
-is advisory), the CP loopback healthy, kube-dns ready endpoints ≥ 1, the package upgrade verified
-clean on every reporting node (`UNVERIFIED` counts as failure), the phase1/phase2 run idle, and
-`phase2-pending` absent. Otherwise non-zero (keep
-watching / remediate). The loop is bounded — never infinite.
+The loop is bounded — never infinite.
 
 > ⚠️ **exit-0 false-complete window.** All gate conditions can be true *before* phase1 has rebooted
 > the CP — never treat exit-0 alone as "reboot done". Confirmation checklist + ssh-name note:
@@ -144,11 +130,7 @@ watching / remediate). The loop is bounded — never infinite.
 
 ## The post-run Claude alert review
 
-On success, `node-maintenance-phase2.service` ExecStopPost runs
-`/usr/local/sbin/telegram-notify-claude.sh`, which POSTs a prompt to the bot's loopback `/trigger` so
-Claude reviews the post-reboot alerts in the normal DM. **A missing review is a silent failure by
-construction** — that ExecStopPost ends in `|| true`.
-
+If you need how the review fires, read reference-incidents.md § "How the post-run Claude review fires".
 If no post-run Claude review arrives, read reference-incidents.md § "Missing post-run Claude review".
 
 ## k3s version upgrade

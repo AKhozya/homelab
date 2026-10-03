@@ -13,10 +13,9 @@ bash ~/.agents/skills/_shared/check-alerts.sh           # text: VMALERT|... AM|.
 bash ~/.agents/skills/_shared/check-alerts.sh --count   # vmalert=N alertmanager=M
 bash ~/.agents/skills/_shared/check-alerts.sh --json    # structured (jq)
 ```
-Alertmanager may show alerts VMAlert doesn't (notification-side failures) — a VMAlert-only check once missed a broken Telegram notification template while everything looked green.
 
 ## ScrapeTargetDown but pod `Ready` — metrics server wedged (2026-06-15)
-controller-runtime serves metrics (`:8080`) and health (`:8081`) on SEPARATE servers — `:8080/metrics` can hang while probes stay green, so the pod stays `Ready 1/1` and only `up=0` flags it. Fix: `~/.agents/skills/_shared/restart-workload.sh <ns> <selector>` (GitOps-safe; the bot has no workload `patch` since 2026-08-06, so `rollout restart` returns Forbidden — and the helper is what makes a delete-based restart safe on multi-replica workloads). `.lastError` decode table + cross-pod NP-probe gotcha + vm-operator case: `reference-cases.md` § "ScrapeTargetDown but pod Ready".
+Fix: `~/.agents/skills/_shared/restart-workload.sh <ns> <selector>` (GitOps-safe; the bot has no workload `patch` since 2026-08-06, so `rollout restart` returns Forbidden — and the helper is what makes a delete-based restart safe on multi-replica workloads). `.lastError` decode table + cross-pod NP-probe gotcha + vm-operator case: `reference-cases.md` § "ScrapeTargetDown but pod Ready".
 
 ## Editing vmrules.yaml — mandatory gate (UR2 2026-06-06)
 A dead alert (metric drifted / wrong job label / metric removed upstream) shows 0 firing — identical to healthy. So you cannot trust "no alerts" after a vmrules edit. Two scripts:
@@ -74,11 +73,10 @@ express "only the restartedAt annotation", so the grant meant rewriting the whol
 Not a bare `delete pod -l …` either — that deletes every replica at once and bypasses any PDB, and
 `rollout status` afterwards is not a gate, because deleting a pod does not bump the Deployment
 generation, so it reports the PREVIOUS rollout complete and returns 0 while the replacement is still
-pending. The helper deletes one pod at a time and waits for a DIFFERENT pod UID to reach Ready.
+pending.
 Operators on a workstation can still use `rollout restart`.
-Queue drains in seconds, alerts re-evaluate at next rule cycle.
 
-**Reference case (2026-05-16 UFW incident) + lessons**: heal succeeded but alert fired 15+ min; 20+ probes to root-cause, a single vmagent restart cleared it. Key lesson: ~95% of "alert won't clear" after a fix = VMAgent stuck queue OR metric staleness window (cadence numbers + full probe list: `reference-cases.md` § "2026-05-16 UFW incident").
+Key lesson: ~95% of "alert won't clear" after a fix = VMAgent stuck queue OR metric staleness window (cadence numbers + full probe list: `reference-cases.md` § "2026-05-16 UFW incident").
 
 ## Alertmanager Status
 ```bash
@@ -136,7 +134,7 @@ The claude-telegram bot reads three services through the API server's service pr
 | VMAlert | `vmalert-vmalert:8080` |
 | Alertmanager | `kube-prometheus-stack-alertmanager:9093` |
 
-Any other service or port returns 403 for the bot. The operator's `kubectl exec ... wget` probes: use `127.0.0.1`, NOT `localhost`. Busybox wget in VM-stack images (vmagent/vmsingle/operator) resolves `localhost`→`::1`; those bind IPv4 only → false `connection refused`. (AM/Grafana images tolerate `localhost`, but pin `127.0.0.1` everywhere for consistency.)
+Any other service or port returns 403 for the bot. The operator's `kubectl exec ... wget` probes: use `127.0.0.1`, NOT `localhost`.
 
 | Service | Endpoint |
 |---------|----------|

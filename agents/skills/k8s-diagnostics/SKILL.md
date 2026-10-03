@@ -117,9 +117,7 @@ kube_pod_container_status_waiting_reason{pod=~"<job>.*"}     # CrashLoopBackOff 
 kube_pod_info{pod="<failed-pod>"}                            # -> node
 ```
 
-**Try Loki first — a Job that ran for seconds still ships its stdout.** The whole log of a Job
-pod deleted 8h earlier came back in full on 2026-08-08. Metrics only say *that* it failed;
-Loki says *why*. Three access traps make it read as "Loki has nothing":
+**Try Loki first — a Job that ran for seconds still ships its stdout.**
 
 Do not look for a pod to exec into for Loki: every in-cluster client image is distroless now. Use the workstation port-forward below.
 If a Loki query returns nothing, read reference-incidents.md § Loki access traps.
@@ -138,10 +136,10 @@ Then fetch `http://localhost:3100/loki/api/v1/query_range` with `query`, `start`
 Nanosecond timestamps, not seconds.
 
 **Do not narrow with `|= "<substring>"` on a first pass.** A Job prints its diagnosis on the
-line *after* its headline, and a keyword filter drops it. On 2026-09-11
-`{namespace="immich"} |= "admin"` returned five `HTTP 400` lines and hid every
-`{"message": "Admin setup is not available"}` line that named the cause. Select the stream by
+line *after* its headline, and a keyword filter drops it. Select the stream by
 `pod=` and read it whole.
+
+If you need the incidents behind the Loki steps, read reference-incidents.md § Loki first — incidents.
 
 Cross-check siblings: other pods restarting same window **same node** = node-local (check `increase(node_network_transmit_drop_total{device="flannel.1"}[1h])` per instance — vxlan path); same window other nodes = cluster-wide.
 

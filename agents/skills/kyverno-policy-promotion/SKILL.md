@@ -15,11 +15,11 @@ user-invocable: false
 
 ## Core rules — apply on every promotion
 
-1. **Never ship Deny on day one.** Audit-first surfaces latent violations that would crash admission. (Wave 1 F-3 surfaced 5 latent init-container gaps that fix-forward addressed before flip — see `reference-wave-notes.md` § Reference incident.)
+1. **Never ship Deny on day one.** Audit-first surfaces latent violations that would crash admission.
 2. **Operator-managed workloads = label-based `matchConditions` exclude, never name-based.** Pods from CNPG, VM operator, Percona, Kyverno itself get hash-suffix names that rotate. Exclude via CEL on labels: `cnpg.io/podRole`, `managed-by: vm-operator`, `app.kubernetes.io/managed-by: cloudnative-pg`, etc.
 3. **Autogen propagates Pod-level CEL to controllers — but REWRITES `object.metadata` to the pod-TEMPLATE metadata in the clones.** That's desired for label checks; it silently VOIDS any top-level-metadata check (`deletionTimestamp`, ownerReferences) — the clone reads `object.spec.template.metadata.deletionTimestamp`, which never exists (live-verified 2026-07-12, Codex catch). Default: pod-only match + autogen on. Policy needs a top-level-metadata condition (require-X-present class)? Match Pods AND controller kinds directly + `autogen.podControllers.controllers: []` — `require-networkpolicy-vp` is the template.
 4. **A pod-label exclude does NOT cover a Job** — autogen evaluates the controller resource and Jobs carry only Flux labels at metadata level → Deny blocks Job recreation while pods look clean. Fixes + tell-tale + repro: `reference-wave-notes.md` § "A pod-label exclude does NOT cover a Job".
-5. **Action lives at `spec.validationActions`** (list; `[Audit]` or `[Deny]` here — one line, flow style, so `prepare-enforce.sh` can flip it). CP-era per-rule `validate.failureAction` is history (kind deleted 2026-07-12).
+5. **Action lives at `spec.validationActions`** (list; `[Audit]` or `[Deny]` here — one line, flow style, so `prepare-enforce.sh` can flip it).
 
 ## The workflow
 
@@ -29,7 +29,7 @@ user-invocable: false
 - Match: `matchConstraints.resourceRules` on `pods` only; autogen covers controllers (default: deployments/statefulsets/daemonsets/jobs/cronjobs/replicasets/replicationcontrollers). EXCEPTION: top-level-metadata conditions → direct controller match, autogen off (Rule 3).
 - `validationActions: [Audit]` (NOT Deny — yet; Rule 1). Flow style, one line (Rule 5).
 - Background scanning is DEFAULT-ON for VPs (live polr rows proved it through the 07-04→07-12 parity soak) — the homelab VP files carry no `evaluation.background` block; don't add one.
-- **Authoring a "require X present" policy (require-networkpolicy-style)? Scope `operations: [CREATE, UPDATE]` AND add a matchCondition `!has(object.metadata.deletionTimestamp)`** — otherwise a missing-X deny blocks DELETE of a namespace's own workloads once X is pruned → the ns wedges in `Terminating` forever. A delete never needs X present. BUT: that deletionTimestamp condition dies inside autogen clones (Rule 3) → this policy class needs the direct-controller-match pattern. (2026-07-03 csp-reporter ns wedge + 2026-07-12 autogen-rewrite catch; review-invariants § Kyverno.)
+- **Authoring a "require X present" policy (require-networkpolicy-style)? Scope `operations: [CREATE, UPDATE]` AND add a matchCondition `!has(object.metadata.deletionTimestamp)`** — otherwise a missing-X deny blocks DELETE of a namespace's own workloads once X is pruned → the ns wedges in `Terminating` forever. A delete never needs X present. BUT: that deletionTimestamp condition dies inside autogen clones (Rule 3) → this policy class needs the direct-controller-match pattern.
 - Exclusions = CEL `matchConditions` on labels/namespaces (NOT CP-era `exclude.any` selectors — those don't exist in VP). Common operator labels:
   - CNPG: `cnpg.io/podRole: pooler` or `app.kubernetes.io/managed-by: cloudnative-pg`
   - VM operator: `managed-by: vm-operator`
@@ -71,15 +71,15 @@ bash ~/.agents/skills/kyverno-policy-promotion/scripts/scan-violations.sh --poli
 
 Exit 0 = clean; exit 1 = violations present (and listed).
 
-**Reports lag policy changes — beware false-clean (W8).** After an exclude/fix, per-pod reports stay stale on the `backgroundScanInterval` (~1h) and a soak-start baseline undercounts. After ANY fix/exclude, gate with `--force-regen`. A freshness guard exits **3** on `0 fail AND 0 pass` (reports absent = false-clean). Mechanism + detail: `reference-wave-notes.md` § "Reports lag policy changes".
+After ANY fix/exclude, gate with `--force-regen`. Mechanism + detail: `reference-wave-notes.md` § "Reports lag policy changes".
 
 ```bash
 scan-violations.sh --policy <name> --force-regen   # trustworthy gate after a fix/exclude
 ```
 
-**PolicyViolation EVENTS also outlive a fix (~1h TTL) — popeye POP-1503 reads them, false-dirtying its score; and `--force-regen` shows a LOW partial pass total right after report deletion.** Purge/wait rules + numbers: `reference-wave-notes.md` § "PolicyViolation events outlive a fix".
+If popeye or a `--force-regen` pass total looks wrong after a fix, read `reference-wave-notes.md` § "PolicyViolation events outlive a fix".
 
-**Seccomp: cross-check LIVE pods via `scripts/seccomp-violators.sh`** (instant, bypasses report lag) — but it is point-in-time; a durable gap lives in the CronJob/Job pod template, check that too. Why + case: `reference-wave-notes.md` § "Seccomp live-pod cross-check".
+If the policy checks seccomp, read `reference-wave-notes.md` § "Seccomp live-pod cross-check".
 
 ### Phase 3 — Classify + fix-forward
 
@@ -87,7 +87,7 @@ For each violation row:
 
 - **In-repo workload** (e.g. your app `Deployment` under `apps/<app>/`): EDIT the workload to satisfy the policy. Don't add it to the exclude list unless there's an upstream reason (s6-overlay /run perms, GPU hardware, etc.).
 - **Operator-managed workload** (CNPG pooler, VMAgent, Percona, CNPG operator itself, Kyverno admission-controller): the spec is generated by an upstream controller you don't control. Add a label-selector exclude block. Verify the label exists with `kubectl get pod <name> --show-labels`.
-- **Adding seccomp/securityContext to a Helm/operator workload?** Mechanism ladder (memory `[[gotcha_kyverno_seccomp_postrenderer]]`): chart-values `podSecurityContext` → operator-CR per-component `podSecurityContext` (Percona `spec.{mysql,proxy.haproxy,orchestrator}`; `kubectl explain` the field first or it's a silent no-op) → HelmRelease postRenderer **strategic-merge** (NEVER JSON6902 `op:add /securityContext` — replaces the chart's pod securityContext, drops fsGroup → PVC breakage). Privileged / replaced-securityContext container → set seccomp **pod-level** (container-level gets clobbered). UR2 remediated 12/12 this way (8 postRenderer + couchdb chart-values + Percona CR).
+- **Adding seccomp/securityContext to a Helm/operator workload?** Mechanism ladder (memory `[[gotcha_kyverno_seccomp_postrenderer]]`): chart-values `podSecurityContext` → operator-CR per-component `podSecurityContext` (Percona `spec.{mysql,proxy.haproxy,orchestrator}`; `kubectl explain` the field first or it's a silent no-op) → HelmRelease postRenderer **strategic-merge** (NEVER JSON6902 `op:add /securityContext` — replaces the chart's pod securityContext, drops fsGroup → PVC breakage). Privileged / replaced-securityContext container → set seccomp **pod-level** (container-level gets clobbered).
 
 After fix-forward changes:
 
@@ -118,14 +118,14 @@ kubectl get events -A --field-selector reason=PolicyViolation --sort-by='.lastTi
 # Should not show new violations for this policy in the post-promote window
 ```
 
-**Positive admission test (prove Deny actually blocks, W8).** A clean scan + `Deny` action confirms live config, but a server-side dry-run create of a violating pod confirms the webhook denies. Three interplays (all hit during Gate B 2026-07-12):
+**Positive admission test (prove Deny actually blocks, W8).** A clean scan + `Deny` action confirms live config, but a server-side dry-run create of a violating pod confirms the webhook denies.
 
 A positive admission probe must violate ONLY the target policy. A rejection by another policy or by PSS proves nothing about the target.
 Before you build the probe pod, read `reference-wave-notes.md` § "Positive admission test — three interplays" (PSS admission first, fine-grained webhooks, LimitRanger defaults).
 
 Expected denial format + snippets: `reference-wave-notes.md` § "Positive admission test".
 
-If new violations appear post-promote (a workload created between scan and Deny flip), revert the policy file to Audit, fix-forward the new violator, re-promote. Easier than chasing CrashLoop in cluster.
+If new violations appear post-promote (a workload created between scan and Deny flip), revert the policy file to Audit, fix-forward the new violator, re-promote.
 
 ## Scripts
 
@@ -133,13 +133,11 @@ Before you run a script, read `reference-scripts.md` for its flags, exit codes a
 `seccomp-violators.sh` audits live pods only: also check the CronJob and Job templates, or a clean scan misses the next run's pods.
 `prepare-enforce.sh` edits the policy locally and validates with plain `--dry-run=server`. Never add `--server-side`, and commit through `/gitops-workflow` yourself: the script does not commit.
 
-All scripts are `set -euo pipefail` with `shellcheck`/`shfmt` clean.
-
 ## Anti-patterns to avoid
 
 - **Don't promote Audit→Deny inside the same PR that introduces the policy.** Audit needs ≥24h background-scan cycle to evaluate cluster-wide pods, else `scan-violations.sh` returns "clean" only because the controller hasn't scanned yet.
 - **Don't use name-based excludes for operator pods.** Hash suffixes rotate. Use labels.
-- **Don't bypass the pre-commit peer review loop** (see `/gitops-workflow`). The reviewer gate caught the `vm-operator` → `victoria-metrics-operator` healthCheck mismatch in Wave 1; it'll catch similar policy-target mismatches.
+- **Don't bypass the pre-commit peer review loop** (see `/gitops-workflow`).
 - **Don't add an entire namespace to `exclude:`** to make a violation go away unless you accept ALL pods there bypassing the policy. Prefer workload-label exclude. Precedent F-38 (`a35481fb`) narrowed `disallow-host-namespaces` whole-ns excludes → a `app.kubernetes.io/name: prometheus-node-exporter` label selector: `reference-wave-notes.md` § "Namespace-exclude vs label-exclude precedent".
 - **PSS namespace `enforce` level ≠ a Kyverno exclude — and PSS Baseline forbids hostPath.** Before lowering a ns `privileged`→`baseline`, scan for hostPath volumes; prove the change with a live `--dry-run=server` first (F-45). Detail: `reference-wave-notes.md` § "PSS namespace level ≠ a Kyverno exclude". See `[[gotchas]]` "PSS Baseline FORBIDS hostPath".
 

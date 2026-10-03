@@ -163,3 +163,13 @@ spec:
         - podSelector: {matchLabels: {app: <app>}}
       ports: [{protocol: TCP, port: <container-port>}]
 ```
+
+## Reasons and examples behind the SKILL.md rules
+
+| Rule in SKILL.md | Reason or example |
+|---|---|
+| Runtime-installer Jobs don't harden | A Job that `apt-get install`/`pip install` at runtime (was: mealie, uptime-kuma) needs 443/80→internet to bootstrap → any NP = theater. |
+| Verify live by re-running the Job | A too-tight egress silently breaks the next helm-hook run otherwise. |
+| Mistake 1: container port, not Service port | WRONG = `port: 80` (service); CORRECT = `port: 8000` (container, from the deployment/pod spec). |
+| Mistake 2: both tunnel and Traefik ingress | Omitting the tunnel block = external access dies silently. |
+| Operator NP: verify the pod labels first | A wrong selector matches ZERO pods → the NP is present but enforces nothing = gap stays open while reported closed (silent). |

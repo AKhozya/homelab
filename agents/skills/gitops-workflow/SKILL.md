@@ -9,13 +9,14 @@ user-invocable: false
 ## Workflow Steps
 
 ### 0. Worktree (concurrent-session isolation)
-The homelab main tree is the pristine checkout Flux reconciles; the `worktree-guard` PreToolUse hook BLOCKS Edit/Write/MultiEdit there so concurrent sessions can't clobber each other's uncommitted files. Start each task in its own worktree:
+Start each task in its own worktree:
 
 ```bash
 git worktree add .claude/worktrees/<task> -b wt-<task> && cd .claude/worktrees/<task>
 ```
 
-Mechanics: native `EnterWorktree` tool or `superpowers:using-git-worktrees` skill. Flux source = `branch: main`, so finish by merging `wt-<task>` → main → push → `fr` (worktree branches are invisible to the cluster until merged). Teardown after merge (step 6): `git worktree remove .claude/worktrees/<task>`. Solo session, no other agent session running? `touch .claude/.allow-main-edits` (gitignored) to edit the main tree directly; one-off `WORKTREE_GUARD_SKIP=1`.
+If you need why the main tree is guarded, or the worktree mechanics, read reference-edge-cases.md § "Why the main tree is guarded".
+Flux source = `branch: main`, so finish by merging `wt-<task>` → main → push → `fr` (worktree branches are invisible to the cluster until merged). Teardown after merge (step 6): `git worktree remove .claude/worktrees/<task>`. Solo session, no other agent session running? `touch .claude/.allow-main-edits` (gitignored) to edit the main tree directly; one-off `WORKTREE_GUARD_SKIP=1`.
 
 ### 1. Plan
 - Identify affected resources
@@ -48,7 +49,7 @@ git commit -m "Add/Update/Fix: brief description"
 git push origin <branch>
 ```
 
-**Commit command MUST be one physical line.** `~/.claude/hooks/git-commit-style.sh` exits 2 (BLOCK) on ANY command containing `git commit` that holds a literal newline (`case *$'\n'*`) — NOT just compound chains. The recurring trip is a benign `cd /path`⏎`git commit …` two-liner: the newline alone blocks it (forces a manual approve every time). Fix: drop the `cd`, address the repo with `-C`, keep it on one line:
+**Commit command MUST be one physical line.** `~/.claude/hooks/git-commit-style.sh` exits 2 (BLOCK) on ANY command containing `git commit` that holds a literal newline (`case *$'\n'*`) — NOT just compound chains. If you need an example of a blocked commit command, read reference-edge-cases.md § "Why the hook blocks multiline commit commands". Fix: drop the `cd`, address the repo with `-C`, keep it on one line:
 
 ```bash
 # Right (single line, no cd, no newline):
@@ -61,7 +62,7 @@ git -C /abs/repo add fileA fileB && git -C /abs/repo commit -m 'subject ~72 char
 
 Also one `add`+`commit` per call (no `commit && commit` batching). See bash-scripting quirk #6.
 
-**Merge worktree → main DETERMINISTICALLY.** Running `git merge`/`git push` from a worktree's own cwd merges the branch into ITSELF (silent no-op "Already up to date") and then pushes the stray feature branch to origin instead of updating main — hit 3× on 2026-07-06. Don't hand-merge; use the helper, which addresses the primary tree via `git -C` and guards on-main + clean-tree + ff-only:
+**Merge worktree → main DETERMINISTICALLY.** If you need why, read reference-edge-cases.md § "Why a hand-merge from a worktree fails". Don't hand-merge; use the helper, which addresses the primary tree via `git -C` and guards on-main + clean-tree + ff-only:
 ```bash
 ~/.agents/skills/_shared/merge-worktree.sh wt-<task>             # fetch, ff-only onto origin/main, push origin HEAD:main
 ~/.agents/skills/_shared/merge-worktree.sh wt-<task> --teardown  # + remove THAT worktree & branch (branch-scoped)
@@ -79,23 +80,18 @@ Review is **pre-commit**, not pre-push. The AGENTS.md "Pre-commit review loop" h
 | re-review | delta-scoped |
 | docs/markdown-only | exempt |
 
-Reviewers MUST check the diff against `.claude/review-invariants.md` — semantic bug-classes CI misses. Example of the class: Wave-1 caught a `vm-operator` → `victoria-metrics-operator` Flux healthCheck name mismatch in `clusters/monitoring.yaml` before it reached the cluster. Grep the target file to confirm name/GVK claims before flagging.
+Reviewers MUST check the diff against `.claude/review-invariants.md` — semantic bug-classes CI misses. If you need an example of the class, read reference-edge-cases.md § "Example review-invariants catch". Grep the target file to confirm name/GVK claims before flagging.
 
 ### 3c. CI gate — wait for `validate.yaml` green (post-push, pre-`fr`)
 
-**Docs/markdown/asset-only push? SKIP 3b + 3c + `fr` entirely.** `validate.yaml` carries `paths-ignore: ['**.md', 'docs/images/**']` (added 2026-06-13). If a push changes only markdown or images, no `validate.yaml` run starts. `gh run watch` then finds a stale unrelated run, or hangs. `gitleaks.yaml` carries no path filter. Secret scan therefore runs on a markdown-only push. `wait-for-ci.sh` passes `--workflow=validate.yaml`, so it ignores that run. The pre-commit peer review (3b) applies to substantive code/config commits; docs/markdown are exempt. And `docs/` isn't Flux-reconciled, so `fr` is a no-op. Pure docs/memory flow = commit → merge → push → done. Reserve CI-watch for pushes CI can fail on (any `.yaml`/`.sh`/manifest — `node-maintenance/**` and `scripts/**` shell is linted). Mixed md+yaml push → CI runs, watch normally.
+**Docs/markdown/asset-only push? SKIP 3b + 3c + `fr` entirely.** If you need why, read reference-edge-cases.md § "Why a docs-only push skips CI and `fr`". The pre-commit peer review (3b) applies to substantive code/config commits; docs/markdown are exempt. Pure docs/memory flow = commit → merge → push → done. Reserve CI-watch for pushes CI can fail on (any `.yaml`/`.sh`/manifest — `node-maintenance/**` and `scripts/**` shell is linted). Mixed md+yaml push → CI runs, watch normally.
 
 If you read a CI result or change `validate.yaml`, read reference-edge-cases.md § "validate.yaml jobs" for its jobs, legs and run time.
 
 **If CI is red, do not run `fr`.** Withholding `fr` delays reconciliation until Flux polls. It does not prevent deployment.
+If you need the poll intervals behind this, read reference-edge-cases.md § "Why withholding `fr` is not a gate".
 
-| Resource | Interval |
-|---|---|
-| GitRepository `flux-system` | 5 min |
-| Kustomization `flux-system` | 5 min |
-| the other six Kustomizations | 1 min |
-
-CI finishes in ~45s, so a red run may finish before the next poll. Read the fetched revision before deciding: `flux get source git flux-system`. If it already names your commit, this is an incident, not a gate. The gate is the pre-commit review loop, which runs before the commit exists.
+Read the fetched revision before deciding: `flux get source git flux-system`. If it already names your commit, this is an incident, not a gate.
 
 ```bash
 # One command: resolves the run for the JUST-PUSHED sha (never "latest" — that races with
@@ -147,13 +143,12 @@ kubectl get pods -n <namespace> -l app=<label>
 kubectl logs -n <namespace> -l app=<label> --tail=50
 ```
 
-**StatefulSet: `✔ applied revision` does NOT mean the pod rolled.** A StatefulSet whose pod is *already* unhealthy stops its rollout and waits for that pod to become Ready — which never happens — so a fix pushed through Flux lands in `.spec` while the pod keeps crashing on the old template (upstream calls this [forced rollback](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#forced-rollback), [k8s#67250](https://github.com/kubernetes/kubernetes/issues/67250)). Flux says applied, `sts.spec` shows the fix, prod stays down. Reverting or fixing the template is not enough — the pod must be deleted by hand:
+**StatefulSet: `✔ applied revision` does NOT mean the pod rolled.** A StatefulSet whose pod is *already* unhealthy stops its rollout and waits for that pod to become Ready — which never happens — so a fix pushed through Flux lands in `.spec` while the pod keeps crashing on the old template (upstream calls this [forced rollback](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/#forced-rollback), [k8s#67250](https://github.com/kubernetes/kubernetes/issues/67250)). If you need the incident, read reference-edge-cases.md § "Why an applied StatefulSet fix can leave the pod down". Reverting or fixing the template is not enough — the pod must be deleted by hand:
 ```bash
 kubectl -n <ns> get sts <name> -o jsonpath='{.status.currentRevision}{" -> "}{.status.updateRevision}{"\n"}'
 kubectl -n <ns> get pod <name>-0 -o jsonpath='{.metadata.labels.controller-revision-hash}{"\n"}'  # ≠ updateRevision = stuck
 kubectl -n <ns> delete pod <name>-0
 ```
-2026-08-04: linkwarden/meilisearch sat 13h / 164 restarts, two revisions behind, after its fix commit reconciled green.
 
 ### 6. Update Docs
 After success, update `docs/HOMELAB_ANALYSIS.md` if adding apps or major changes.

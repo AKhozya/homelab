@@ -10,6 +10,10 @@ The `--dry-run` enumerates **every** live deploy/sts/ds and asserts each maps to
 
 ## Flux-stale-pod → delete-pod fallback (Deployments only)
 
+**Flux-stale-pod → delete-pod fallback** is baked into the script (**Deployments only**): Flux can
+revert `rollout restart`'s annotation, abandoning the new RS so stale pods survive a "successful"
+rollout; the script detects surviving pod UIDs (`comm -12`) and deletes just those by name.
+
 Baked into the script. On Flux-managed Deployments, `rollout restart`'s `restartedAt` annotation can be reverted by Flux drift-detection — the new RS is abandoned and **stale pod(s) survive** (same pod name+age after "rolled out"). With ≥2 replicas under a PDB the revert can land mid-roll, so only *some* pods cycle and the rest stay stale. The script captures the pre-roll pod UIDs and, after a "successful" rollout, checks whether **any** old UID survived into the after-set (set intersection via `comm -12`). If any survived (full- or partial-stale), it deletes **just those surviving stale pods by name** (Flux manages the *Deployment*, not pods → the RS recreates fresh and Flux doesn't fight it), then re-checks `rollout status`. The fallback is gated to `kind == deploy` only — the abandoned-RS rationale is Deployment-specific; DaemonSets (`ds/alloy`, `ds/loki-canary`) and StatefulSets have no RS and are trusted to `rollout status` alone, so a false "did not cycle" never deletes DS pods across all nodes at once.
 
 ## Authentik → pooler → DNS chain

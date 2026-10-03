@@ -46,7 +46,8 @@ Relax only with explicit local override:
 | trap leak between iterations | cleanup runs once at EXIT | combine cleanup, set `trap '' EXIT` to disable when needed |
 | `sudo -n cmd` over SSH | non-interactive sudo fails → pam_faillock counter ticks toward lockout | Output command to user with `ssh -t`; never run via Bash tool. See `/homelab-node-fix` for the SSH+TTY pattern. |
 | `cmd \| head -N` under `set -o pipefail` | head exits early → SIGPIPE upstream → pipe exits non-zero → `set -e` kills script silently or captures empty `$()` | Use `awk 'NR<=N'` (reads all, prints first N — no SIGPIPE). Incident: `reference-bashtool-quirks.md` §4. |
-| `rg <pat>` to sweep ALL refs of a string | `rg` honors `.gitignore` → skips git-TRACKED files inside ignored dirs (`.backup/`, `.claude/`) → silent miss | `git grep <pat>` (tracked-only, ignores `.gitignore`) or `rg --no-ignore`. Real bug 2026-06-12: `rg 'clusters/staging'` missed `.backup/` DR-runbook refs; cavecrew caught them. Stage such files with `git add -f`. |
+
+If you sweep a repo for every reference to a string, read reference-tools.md § "Anti-pattern: rg misses tracked files in ignored dirs".
 
 ## Prefer brew-installed tools (check with `command -v`)
 
@@ -64,7 +65,8 @@ SC info-level rules are NOT cosmetic. SC2015 in particular is a real bug.
 
 ## Bash tool (Claude Code) — quirk catalog → load `reference-bashtool-quirks.md`
 
-When a Bash-tool symptom below fires, load `reference-bashtool-quirks.md` and follow the matching section — don't improvise. Each section there carries the full diagnosis + workaround + the real session bug. §1–6 are interactive-tool-only (in a script the normal rules apply); §7 is the inverse — `rg` works interactively but is absent inside scripts.
+When a Bash-tool symptom below fires, load `reference-bashtool-quirks.md` and follow the matching section — don't improvise.
+If you write a script, read reference-bashtool-quirks.md § "What each section holds" to see which sections apply there.
 
 | Symptom | Section (`reference-bashtool-quirks.md` §) |
 |---|---|

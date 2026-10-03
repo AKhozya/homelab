@@ -87,3 +87,7 @@ grep -qiE 'redirect.uri|not.allowed' f  # correct
 ```
 
 Real bug (2026-06-02): `_shared/oidc-verify.sh` used `rg -qi` inside an `[[ ... ]] || rg ...` guard; non-interactively rg errored, the `||` fell through to else, and the redirect_uri allowlist probe silently reported PASS (false-negative). Fixed → `grep -qiE`. The kb-hygiene scripts use grep for the same reason.
+
+## What each section holds
+
+Each section in this file carries the full diagnosis + workaround + the real session bug. §1–6 are interactive-tool-only (in a script the normal rules apply); §7 is the inverse — `rg` works interactively but is absent inside scripts.

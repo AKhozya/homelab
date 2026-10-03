@@ -174,3 +174,18 @@ printf '{}' | kubectl -n claude-telegram exec -i deploy/claude-telegram -c claud
     "http://127.0.0.1:8080/trigger" -H "X-Trigger-Secret: $TRIGGER_SECRET" \
     -H "Content-Type: application/json" --data-binary @-'
 ```
+
+## Why controller-owned terminal pods linger
+
+**Controller-owned terminal pods.** A reboot leaves one per evicted pod, because nothing reaps
+them: the ReplicaSet controller ignores terminal pods it owns and the pod-GC controller acts only
+past `--terminated-pod-gc-threshold` (12500). They keep `DeploymentReplicasMismatch` /
+`PodRunningNotReady` / `*PodNotRunning` firing — 14 and 4 alerts (2 critical) on 2026-08-01, 11
+more on 2026-08-08.
+
+## How the post-run Claude review fires
+
+On success, `node-maintenance-phase2.service` ExecStopPost runs
+`/usr/local/sbin/telegram-notify-claude.sh`, which POSTs a prompt to the bot's loopback `/trigger` so
+Claude reviews the post-reboot alerts in the normal DM. **A missing review is a silent failure by
+construction** — that ExecStopPost ends in `|| true`.

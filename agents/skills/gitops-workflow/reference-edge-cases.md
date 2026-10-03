@@ -130,3 +130,41 @@ If Actions billing blocks jobs again (it did 2026-09-10 to 2026-10-01):
 ## `fr` serial order vs the dependency graph
 
 **`fr` serial execution order** (NOT the dep graph): `flux-system` → `infrastructure-controllers` → `infrastructure-configs` → `monitoring-controllers` → `monitoring-configs` → `apps`. The real dependency graph BRANCHES — `flux-system` → `infrastructure-controllers` → { `coredns` | `infrastructure-configs` → `apps` | `monitoring-controllers` → `monitoring-configs` } (see AGENTS.md; source of truth `clusters/*.yaml` dependsOn).
+
+## Why the main tree is guarded
+
+The homelab main tree is the pristine checkout Flux reconciles; the `worktree-guard` PreToolUse hook BLOCKS Edit/Write/MultiEdit there so concurrent sessions can't clobber each other's uncommitted files.
+
+Mechanics: native `EnterWorktree` tool or `superpowers:using-git-worktrees` skill.
+
+## Why the hook blocks multiline commit commands
+
+The recurring trip is a benign `cd /path`⏎`git commit …` two-liner: the newline alone blocks it (forces a manual approve every time).
+
+## Why a hand-merge from a worktree fails
+
+**Merge worktree → main DETERMINISTICALLY.** Running `git merge`/`git push` from a worktree's own cwd merges the branch into ITSELF (silent no-op "Already up to date") and then pushes the stray feature branch to origin instead of updating main — hit 3× on 2026-07-06.
+
+## Example review-invariants catch
+
+Example of the class: Wave-1 caught a `vm-operator` → `victoria-metrics-operator` Flux healthCheck name mismatch in `clusters/monitoring.yaml` before it reached the cluster.
+
+## Why a docs-only push skips CI and `fr`
+
+**Docs/markdown/asset-only push? SKIP 3b + 3c + `fr` entirely.** `validate.yaml` carries `paths-ignore: ['**.md', 'docs/images/**']` (added 2026-06-13). If a push changes only markdown or images, no `validate.yaml` run starts. `gh run watch` then finds a stale unrelated run, or hangs. `gitleaks.yaml` carries no path filter. Secret scan therefore runs on a markdown-only push. `wait-for-ci.sh` passes `--workflow=validate.yaml`, so it ignores that run. And `docs/` isn't Flux-reconciled, so `fr` is a no-op.
+
+## Why withholding `fr` is not a gate
+
+| Resource | Interval |
+|---|---|
+| GitRepository `flux-system` | 5 min |
+| Kustomization `flux-system` | 5 min |
+| the other six Kustomizations | 1 min |
+
+CI finishes in ~45s, so a red run may finish before the next poll. The gate is the pre-commit review loop, which runs before the commit exists.
+
+## Why an applied StatefulSet fix can leave the pod down
+
+Flux says applied, `sts.spec` shows the fix, prod stays down.
+
+2026-08-04: linkwarden/meilisearch sat 13h / 164 restarts, two revisions behind, after its fix commit reconciled green.

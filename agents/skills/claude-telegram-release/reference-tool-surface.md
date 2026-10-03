@@ -74,3 +74,27 @@ Read this when you run the tool-surface probe or the tool-gap log check and need
   | Non-zero | Run `grep 'not served by the CLI' /tmp/bot.log` to see which tools are missing |
   | Image built before commit `5f6a200` (2026-09-16) | `0` proves the command runs, not that the gap check passed. The warning does not exist in that build |
   | `WebFetch, WebSearch` named | Correct on the macOS standalone, because settings deny both there |
+
+### The `Allowed tools not served by the CLI:` log line
+
+The bot logs the line once per distinct gap per process, so a later message does not repeat a gap it already reported.
+That line detects a rename: if the CLI does not know a name in `options.tools` it drops that name without a diagnostic.
+
+## Why the surface needs a probe
+
+The surface probe in SKILL.md step 4 (build amd64 and verify inside the image) spawns the CLI,
+so it needs native execution and an authenticated environment.
+The gate defaults to deny, so the model cannot call a tool that a new CLI version adds, and
+nothing reports that such a tool exists, so the surface needs a periodic read.
+Nothing hermetic can produce it: the CLI binary arrives at install time, and reading its surface
+needs auth and a spawn.
+
+## Probe a checkout
+
+On a checkout, for a Renovate SDK PR before it deploys:
+
+```bash
+SDK_MANIFEST=$PWD/node_modules/@anthropic-ai/claude-agent-sdk/manifest.json bun run /tmp/tool-surface.ts
+```
+
+If you pipe this command anywhere, first read SKILL.md step 4 for the rule on `tail`.

@@ -25,7 +25,7 @@ gh run view <id> --repo AKhozya/homelab --json jobs --jq '[.jobs[] | {name, step
 ```
 
 A billing block looks like success at the run level: runs get **created**, then every job dies
-with **`steps: 0`**. That zero-step count is the fastest tell. If jobs have steps, CI is alive —
+with **`steps: 0`**. If jobs have steps, CI is alive —
 take the workflow path below and skip steps 2, 4-build, 5 and the tag half of 6.
 
 ## CI alive: the workflow path (proven 2026-08-04 release 1.31.6; explicit version 2026-08-07 release 1.32.0)
@@ -59,10 +59,8 @@ manifest, so a bare pull fails on Apple silicon:
 docker pull --platform linux/amd64 ghcr.io/akhozya/claude-telegram-bot:<VERSION>
 ```
 
-Run step 4's in-image checks unchanged. They matter MORE on this path, not less: the missing
-`mcp-config.ts` defect was CI-build-specific (a local build masks it with the developer's own
-config), so a CI-built image is exactly the one to verify. Then deploy via step 6 without the
-tag commands.
+Run step 4's in-image checks unchanged. Then deploy via step 6 without the tag commands.
+If you need the reason the CI-built image needs these checks, read reference-build.md § "Why the CI-built image needs the in-image checks".
 
 ## 1. Pull the fork FIRST
 
@@ -70,9 +68,7 @@ tag commands.
 git -C /Users/akhozya/source-code/claude-telegram-bot pull
 ```
 
-Not optional. Renovate lands "Lock file maintenance" PRs on the fork, and **the lockfile is what
-moves the Agent SDK**. If you build without pulling, the build installs the older SDK. The surface
-probe then reports that version, so it does not validate the updated dependency.
+Not optional. If you need the reason, read reference-build.md § "Why pull the fork first".
 
 ## 2. Host CI replica — all three, in order
 
@@ -127,11 +123,10 @@ docker run --rm --platform linux/amd64 --entrypoint sh ghcr.io/akhozya/claude-te
 ```
 
 - **agent-sdk 0.3.X and the vendored CLI 2.1.X move in lockstep** — a mismatch is a red flag.
-- Expect **1 skipped** test in-image (zip fixture; the image has `unzip`, not `zip`). On the host
-  it passes, so host and image totals differ by one by design.
+- Expect **1 skipped** test in-image (zip fixture; the image has `unzip`, not `zip`).
 - **On Apple silicon, `docker run` of this image is QEMU emulation, and its `bun test` result is
   not evidence.** Anything that spawns a process is ~100x slower there, so the MCP stdio tests
-  lose their transport and Bun's 5s hook budget expires. Measured 2026-08-07 on an M-series Mac:
+  lose their transport and Bun's 5s hook budget expires.
 
   If you compare an emulated test result with a host or in-cluster run, read reference-build.md,
   section "Emulated vs native test results". It holds the measured results for all three.
@@ -147,17 +142,15 @@ docker run --rm --platform linux/amd64 --entrypoint sh ghcr.io/akhozya/claude-te
   kubectl exec -n claude-telegram "$pod" -c claude-telegram -- sh -c 'cd /app && bun test 2>&1 | tail -6'
   ```
 
-  Non-destructive: `test-preload.ts` redirects `AUDIT_LOG_PATH` and `TEMP_DIR`, and the MCP tests
-  use a chat id no real chat has. It costs the pod ~22s of CPU. Run it after the rollout, as the
+  Run it after the rollout, as the
   post-deploy check — the emulated pre-push run is only good for the SDK/CLI version pair and the
-  MCP-config line below, neither of which spawns anything. The surface probe below spawns the CLI,
-  so it needs native execution and an authenticated environment.
-- **Probe the live tool surface.** The gate defaults to deny, so the model cannot call a tool the
-  CLI adds. Nothing reports that the tool exists either, so the surface needs a periodic read.
-  Nothing hermetic can produce it: the CLI binary arrives at install time, and reading its surface
-  needs auth and a spawn.
+  MCP-config line below, neither of which spawns anything.
+  If you need to know whether the in-cluster run is safe, read reference-build.md § "In-cluster test run: safety and cost".
+- **Probe the live tool surface.** It spawns the CLI, so run it natively with an authenticated
+  environment, never emulated. The gate defaults to deny, so the model cannot call a tool the
+  CLI adds.
 
-  Before you run the probe, read reference-tool-surface.md, section "What the probe covers".
+  If you run the probe, first read reference-tool-surface.md, section "What the probe covers".
   It says what the probe answers for and why the probe uses each option.
   Name the pod you probe: if a rollout is in progress, `.items[0]` can select the outgoing pod.
   Leave `options.tools` unset, and keep `settingSources` the same as in `session.ts`, or the
@@ -202,11 +195,7 @@ docker run --rm --platform linux/amd64 --entrypoint sh ghcr.io/akhozya/claude-te
     sh -c 'cd /app && SDK_MANIFEST=/app/node_modules/@anthropic-ai/claude-agent-sdk/manifest.json bun run /tmp/tool-surface.ts'
   ```
 
-  On a checkout, for a Renovate SDK PR before it deploys:
-
-  ```bash
-  SDK_MANIFEST=$PWD/node_modules/@anthropic-ai/claude-agent-sdk/manifest.json bun run /tmp/tool-surface.ts
-  ```
+  If you probe a Renovate SDK PR on a checkout before it deploys, read reference-tool-surface.md § "Probe a checkout".
 
   Do not pipe either command into `tail`. The pipeline then reports `tail`'s status, so a failed
   probe reports success. Diff the `SURFACE` line against the last run in reference-tool-surface.md, then classify each new
@@ -216,14 +205,13 @@ docker run --rm --platform linux/amd64 --entrypoint sh ghcr.io/akhozya/claude-te
   "Past probe results". It lists past runs, the surfaces they printed, and the claims they refute.
   Read a missing tool name as a property of the environment that produced it, never of the build.
   Record where each probe ran: a surface without its environment answers nothing.
+  If you want the reason the surface needs a probe, read reference-tool-surface.md § "Why the surface needs a probe".
 
 - **Read the bot's own tool-gap warning after the rollout.** `session.ts` diffs
   `ALLOWED_BUILTIN_TOOLS` against the init event and logs `Allowed tools not served by the CLI:`
-  once per distinct gap. That line detects a rename: if the CLI does not know a name in
-  `options.tools` it drops that name without a diagnostic. Send the bot one message, then:
+  once per distinct gap. Send the bot one message, then:
 
-  Read the whole log for the current container, not a recent window. The bot logs the line once per
-  distinct gap per process, so a later message does not repeat a gap it already reported.
+  Read the whole log for the current container, not a recent window.
 
   ```bash
   # `&&` so the search runs only if retrieval succeeds: a failed `kubectl logs` truncates the file,
@@ -241,10 +229,8 @@ docker run --rm --platform linux/amd64 --entrypoint sh ghcr.io/akhozya/claude-te
 - **The last command must print `Loaded 2 MCP servers from mcp-config.ts`.** `mcp-config.ts` is
   gitignored, so the Dockerfile copies `mcp-config.example.ts` in as the image default; if that
   breaks, the only symptom is one startup line reading `No mcp-config.ts found` and `ask_user` /
-  `send_file` silently do not exist. Verified absent in both the 1.30.0 and 1.30.1 images (how
-  far back it goes was not checked). It went unnoticed because a *local* build picks up the
-  developer's own `mcp-config.ts` and looks fine, while a CI build has none — and neither the
-  suite nor the surface probe covers it.
+  `send_file` silently do not exist.
+  If you need the history of this defect, read reference-build.md § "Why the MCP-config check exists".
 
 ## 5. Push
 
@@ -275,9 +261,8 @@ git -C /Users/akhozya/source-code/homelab -c tag.gpgsign=false \
 git -C /Users/akhozya/source-code/homelab push origin main claude-telegram-v<VERSION>
 ```
 
-Order matters: homelab has `fetch.pruneTags`, so a `git pull` deletes any local tag the remote
-does not have — tagging first then pulling silently drops the tag, and the push succeeds without
-it. Also note `git -C <repo>` targets the MAIN worktree; commits inside a release worktree need
+If you need the reason for this order, read reference-deploy.md § "Why pull before tagging".
+Also note `git -C <repo>` targets the MAIN worktree; commits inside a release worktree need
 `git -C <worktree-path>`. Then `flux reconcile` and:
 
 ```bash
@@ -289,26 +274,21 @@ kubectl logs -n claude-telegram -l app=claude-telegram -c claude-telegram --tail
 Healthy log ends with `Bot started: @ClaudeSelfHostedBot` and the loopback trigger listening.
 
 **Budget ~6-7 min for the rollout, and do not read a `rollout status` timeout as a failure.**
-Measured 2026-08-08 (release 1.32.2): 6m20s wall, of which the image pull was 22.8s. The rest
-is `chezmoi-init` — hard-reset of the dotfiles checkout, `chezmoi apply`, then nine plugin
-marketplaces. `--timeout=240s` and even `300s` expired on a healthy deploy. The command above
-therefore waits 480s. The earlier "~90s" figure predates the plugin set. The Deployment sets `strategy: Recreate`, so the
-old pod is already gone and the gap is real downtime. Read `kubectl logs -c chezmoi-init`
+Read `kubectl logs -c chezmoi-init`
 before intervening. If those logs stop advancing, treat it as stuck.
+If you need the measured rollout timing, read reference-deploy.md § "Rollout timing".
 
 Finish with `worktree-cleanup` — `--repo` takes a PATH, not a repo name
 (`--repo homelab` exits 3 `not a git repo`).
 
 ## Model and effort
 
-Set in `deployment.yaml`, not in the fork. As of homelab `cdce0adf`:
+Set in `deployment.yaml`, not in the fork.
 
 - **`ANTHROPIC_MODEL`** pins the model and overrides `~/.claude/settings.json` (verified against
   CLI 2.1.220). `CLAUDE_CODE_DEFAULT_MODEL` was **inert** — no consumer in the CLI, SDK or bot —
   and has been removed. Do not reintroduce it.
-- **`CLAUDE_CODE_EFFORT_LEVEL`** pins effort. A `node -e` step in the init container also writes
-  `model` + `effortLevel` into the PVC's `~/.claude/settings.json`, because that file is
-  `.chezmoiignore`'d on linux and would otherwise drift forever.
+- **`CLAUDE_CODE_EFFORT_LEVEL`** pins effort.
 
 **Effort and thinking are coupled — check both before changing either.** `effortLevel: "xhigh"`
 with `thinking: {type:"disabled"}` is an API 400 (`output_config.effort 'xhigh' is not supported
@@ -317,14 +297,7 @@ when thinking is disabled on this model`); it took the bot down on 2026-07-28. `
 must stay compatible with whatever the deployment pins. session.ts now defaults to
 `thinking: {type:"adaptive"}`, which is accepted at every effort level; `src/session.test.ts`
 guards it. Raising effort here is safe as long as thinking is never `disabled`.
-
-Get a valid model identifier from the binary rather than from docs:
-
-```bash
-kubectl exec -n claude-telegram <pod> -c claude-telegram -- sh -c \
-  'strings -n 8 /app/node_modules/@anthropic-ai/claude-agent-sdk-linux-x64-musl/claude \
-   | grep -oE "claude-(opus|sonnet|haiku|fable)-[0-9a-z-]+" | sort -u'
-```
+If you need the background or a valid model identifier, read reference-deploy.md § "Model and effort background" and § "Get a valid model identifier".
 
 ## Known drift
 

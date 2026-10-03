@@ -23,12 +23,10 @@ SSH-based diagnose + fix workflow for homelab nodes (Arch Linux on all 4).
 - Use `127.0.0.1`, not `localhost`, in scratch images.
 
 ### NAS (`zl-nas`) — adjacent host, NOT a cluster node
-The backup-sink NAS is reachable but is **out of this skill's scope** — it's a ZettLab/zettOS appliance (Debian 12, `192.168.1.136`), **not Arch, not k3s, not ansible/UFW-managed**. Do NOT apply drift-heal / node-maintenance / UFW playbooks to it.
+Do NOT apply drift-heal / node-maintenance / UFW playbooks to it.
 NAS access, sudo and posture facts: read reference-helpers.md § NAS access before you connect to `zl-nas`.
 
 ## Read state — no sudo needed
-
-Read commands return output directly to the agent context.
 
 If you need a read command for service status, disk, NIC drops or the pacman lock, read reference-helpers.md § Read-state example commands.
 
@@ -68,7 +66,7 @@ If the helper exits non-zero, or you need to know what it does at each step, rea
 
 **Script body conventions** — use `/bash-scripting` skill:
 - `set -euo pipefail`
-- Use `grep`, not `rg`, in remote scripts. Tools checked 2026-09-28:
+- Use `grep`, not `rg`, in remote scripts.
 
   Before you use any other tool in a remote script, read reference-helpers.md § Tools on each node.
 - Idempotent where possible (`systemctl is-active X || systemctl start X`)
@@ -98,7 +96,7 @@ If the fix would otherwise drift back on next ansible reapply, push it through t
 If you need to know when a node-maintenance timer runs, read reference-helpers.md § Maintenance schedules.
 
 ### Staged / single-node node-config changes (DNS, NIC, anything load-bearing)
-Both the 10-min sync timer AND a manual sync heal **ALL 4 nodes at once** (`install.sh --sync-only` is NOT file-copy-only). To stage one node at a time: stop-timers → deploy-key fetch on CP → per-node `ansible-playbook --limit --tags` → restore timers. Full playbook (exact commands + why `mask` fails + deploy-key `GIT_SSH_COMMAND`): `reference-incidents.md` § "Staged / single-node node-config changes". Proven 2026-06-04.
+Both the 10-min sync timer AND a manual sync heal **ALL 4 nodes at once** (`install.sh --sync-only` is NOT file-copy-only). To stage one node at a time: stop-timers → deploy-key fetch on CP → per-node `ansible-playbook --limit --tags` → restore timers. Full playbook (exact commands + why `mask` fails + deploy-key `GIT_SSH_COMMAND`): `reference-incidents.md` § "Staged / single-node node-config changes".
 
 ## Incident playbooks — load `reference-incidents.md`
 

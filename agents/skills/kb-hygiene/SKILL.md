@@ -47,7 +47,7 @@ Merge the axis tables into one, deduped by `file:line`. On a verdict conflict fo
 
 ### Phase 2 — Fix
 
-Apply findings under the rules in `reference/authoring-guidance.md` — **read it before editing**. It holds the KEEP-BOTH heuristics, the per-verdict action map, the **caveman-for-files** rule (principles yes, grammar no), the **token-efficiency lens** (long SKILL.md = relocate detail, not delete; emoji = verdict, keep), and the traps that each cost real time on real runs.
+Apply findings under the rules in `reference/authoring-guidance.md` — **read it before editing**.
 
 Default KEEP-BOTH + add cross-pointers both ways. Collapse only a true verbatim dup where one side is canonical AND nothing is lost. Shrink-to-pointer ONLY after grepping the target confirms it holds every dropped fact. **UNVERIFIED rows are not fixed** — you (the orchestrator, who can grep the repo / kubectl the cluster a read-only finder could not) verify them, then treat as STALE or OK; never auto-edit on an unverified claim.
 

@@ -79,6 +79,8 @@ The real failing task name is in there (e.g. `Verify swap active`). The deployed
 
 ## Staged / single-node node-config changes (DNS, NIC, anything load-bearing)
 
+Proven 2026-06-04.
+
 Both services act on **ALL hosts**:
 
 | Service | What it runs |

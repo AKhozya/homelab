@@ -73,6 +73,8 @@ Common slow-start apps: Django+migrations, Rails+migrations, Spring Boot, Authen
 
 ## Loki access traps
 
+Three access traps make it read as "Loki has nothing":
+
 - **`loki-0` has no `wget` and no `curl`** (distroless-ish image), and
   **`loki-gateway` refuses connections** from `monitoring` and `claude-telegram` — instant
   "Could not connect", not a timeout. A `… 2>/dev/null | jq` around either prints nothing,
@@ -88,3 +90,14 @@ Common slow-start apps: Django+migrations, Rails+migrations, Spring Boot, Authen
 ## TTL+force re-run class
 
 **TTL+force re-run class:** init Jobs with `ttlSecondsAfterFinished` + Flux `force` annotation re-run daily at a drift-creep hour. JobFailed on these usually = transient cluster issue AT the re-run hour, not job regression. Retrigger: `kubectl delete job <j> -n <ns> && flux reconcile kustomization apps` (init jobs are idempotent: HTTP 500 = already-initialized = exit 0). Reference: 2026-06-04 wn2 pod-DNS outage, memory `gotcha_worker_node2_flannel_dns`.
+
+## Loki first — incidents
+
+**Try Loki first — a Job that ran for seconds still ships its stdout.** The whole log of a Job
+pod deleted 8h earlier came back in full on 2026-08-08. Metrics only say *that* it failed;
+Loki says *why*.
+
+**Do not narrow with `|= "<substring>"` on a first pass.** A Job prints its diagnosis on the
+line *after* its headline, and a keyword filter drops it.
+On 2026-09-11 `{namespace="immich"} |= "admin"` returned five `HTTP 400` lines and hid every
+`{"message": "Admin setup is not available"}` line that named the cause.

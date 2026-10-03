@@ -6,9 +6,8 @@ user-invocable: true
 
 # Comment sweep
 
-Judgement work, not pattern matching. A regex cannot tell `// Rate limit on first item only`
-(a policy statement — keep) from `// Create streaming state` (noise — cut); both overlap
-their next line's identifiers. Read the code, then decide per comment.
+Judgement work, not pattern matching. Read the code, then decide per comment.
+If you need the reason a regex cannot do this, read reference-gotchas.md § "Why a regex cannot judge a comment".
 
 ## The bar
 
@@ -74,13 +73,10 @@ If you cannot verify it in under a minute, write the weaker true statement.
    it is not the reviewer's job. Extract every line you added — `git diff | grep '^+'` —
    and re-read it as if someone else wrote it: does each earn its place, does any restate
    itself, does any sentence carry more than one idea, does any assert what step 4 did not check.
-   Do not enforce a word cap. If a sentence exceeds 40 words, check whether it holds more than one idea. Three
-   separate passes were needed on 2026-08-07 (code comments, then Markdown, then sentence
-   length), each finding breaches of the bar the sweep had just applied to everyone else.
+   Do not enforce a word cap. If a sentence exceeds 40 words, check whether it holds more than one idea.
    A sweep that exempts its own output is not a sweep.
 7. **Never write a command into a doc without running it.** Docs written during a sweep are
-   where unrun commands get in. One `tokei` invocation shipped next to a line count it did
-   not produce — the flags were close enough to look right and off by a whole directory.
+   where unrun commands get in.
 8. Report kept/cut counts per file, and list anything you deliberately left for the owner
    to decide.
 
@@ -91,13 +87,10 @@ If a comment sits inside a single-quoted `awk` or `sed` program, do not add an a
 
 **A comment in a pod template rolls the workload.** In Kubernetes, an `initContainer`
 `command: |` script is part of the pod template, so editing a comment inside it changes the
-template hash and the Deployment restarts on the next reconcile. Five apps rolled off one
-comment sweep on 2026-08-07. Say so before the sweep lands — free in git is not free in the
-cluster. Comments in a ConfigMap payload or a CronJob template cost nothing; they apply on
-the next run.
+template hash and the Deployment restarts on the next reconcile. Say so before the sweep lands — free in git is not free in the
+cluster.
 
 **Do not hand-roll the alert check afterwards.** `_shared/check-alerts.sh` already queries
 VMAlert *and* Alertmanager and flags a failed fetch instead of returning a clean empty list.
-A one-off `wget` inside the VMSingle pod returns nothing when it fails, `jq` exits 0 on the
-empty input, and the sweep looks like it fired no alerts. Measured 2026-08-07: the one-off
-reported clean while four alerts were firing.
+
+If you need the incidents behind the procedure and these gotchas, or which templates cost nothing to edit, read reference-gotchas.md § "Incidents and measurements".

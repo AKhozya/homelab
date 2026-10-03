@@ -27,3 +27,9 @@ Read this before you hand-roll JSON, YAML, CLI-output or file-search parsing in 
 Interactive-only tools (`bat`/`eza`/`delta`/`difft`/`dust`/`duf`/`viddy`/`procs` — prettier `cat`/`ls`/`diff -u`/`du -sh`/`df`/`watch`/`ps` replacements): see the `~/.claude/CLAUDE.md` tool list.
 
 Full local list: `~/.Brewfile` + `command -v <tool>`.
+
+## Anti-pattern: rg misses tracked files in ignored dirs
+
+| Bad | Why | Fix |
+|---|---|---|
+| `rg <pat>` to sweep ALL refs of a string | `rg` honors `.gitignore` → skips git-TRACKED files inside ignored dirs (`.backup/`, `.claude/`) → silent miss | `git grep <pat>` (tracked-only, ignores `.gitignore`) or `rg --no-ignore`. Real bug 2026-06-12: `rg 'clusters/staging'` missed `.backup/` DR-runbook refs; cavecrew caught them. Stage such files with `git add -f`. |

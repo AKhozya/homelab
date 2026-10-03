@@ -14,6 +14,10 @@ The `autogen-*` rule evaluates the *controller resource* (Job/CronJob/Deployment
 
 ## Reports lag policy changes — beware false-clean (W8)
 
+**Reports lag policy changes — beware false-clean (W8).** After an exclude/fix, per-pod reports stay stale on the `backgroundScanInterval` (~1h) and a soak-start baseline undercounts.
+
+A freshness guard exits **3** on `0 fail AND 0 pass` (reports absent = false-clean).
+
 The `backgroundScanInterval` (~1h) drives per-pod re-eval, so after an exclude/fix: **controller-scoped** reports clear fast (your reliable signal the exclude works) but **per-pod** reports stay stale, and a soak-start baseline undercounts (F-6 W8: 11 at soak start → 23 after the full cycle). `scan-violations.sh` handles both: `--force-regen` deletes reports + restarts the reports-controller + polls until the result count stops changing (exit 3 on timeout); and a freshness guard exits **3** on `0 fail AND 0 pass` (reports absent = false-clean, not truly clean).
 
 ```bash
@@ -21,6 +25,8 @@ scan-violations.sh --policy <name> --force-regen   # trustworthy gate after a fi
 ```
 
 ## PolicyViolation events outlive a fix (~1h TTL) — popeye reads them (2026-06-07)
+
+**PolicyViolation EVENTS also outlive a fix (~1h TTL) — popeye POP-1503 reads them, false-dirtying its score; and `--force-regen` shows a LOW partial pass total right after report deletion.**
 
 After fix-forward, polr can be fully clean while `kubectl get events --field-selector reason=PolicyViolation` still lists pre-fix violations; popeye **POP-1503** surfaces those events, false-dirtying its score (2026-06-07: B(89) on events stamped 2min before the fix landed). Purge per-ns (`kubectl delete events -n <ns> --field-selector reason=PolicyViolation`) or wait TTL before any popeye-based verify. Also: right after report deletion the pass total is LOW from partial admission reports. `--force-regen` waits until the count stops changing and every pod in this scope has a report again:
 
@@ -38,6 +44,8 @@ Compare the pass total it prints with a full set before trusting 0-fail:
 | full (2026-09-28) | 2779 | all except kube-system |
 
 ## Seccomp live-pod cross-check — point-in-time (2026-06-07)
+
+**Seccomp: cross-check LIVE pods via `scripts/seccomp-violators.sh`** (instant, bypasses report lag) — but it is point-in-time; a durable gap lives in the CronJob/Job pod template, check that too.
 
 `scripts/seccomp-violators.sh` reads live pod specs directly (instant, no `backgroundScanInterval` lag) — authoritative during a soak/flip. But it is **point-in-time**: a CronJob/Job pod only appears while running, so a durable seccomp gap lives in the *controller's pod template*, not live pods. Check the CronJob/Job spec too (e.g. popeye surfaced only mid-run, 2026-06-07).
 
@@ -69,6 +77,28 @@ When a workload needs host access, raising the *namespace* PSS level (`pod-secur
 
 ## Positive admission test — three interplays (Gate B 2026-07-12)
 
+Three interplays (all hit during Gate B 2026-07-12):
+
 - **PSS admission fires first** (`violates PodSecurity "restricted:latest"`) — craft a pod that passes PSS-restricted and violates ONLY the target policy; for host-field policies use a PSS-privileged ns (home-assistant).
 - **Fine-grained VP webhooks short-circuit** — the deny message names only the FIRST failing policy (`vpol.validate.kyverno.svc-fail-finegrained-<policy>`). Attribution per policy = probe pod compliant-except-target.
 - **LimitRanger injects default limits BEFORE validating webhooks** — a limit-less probe legitimately passes require-resource-limits in any ns with a LimitRange; probe in one without (trivy-scan).
+
+## Core rules — evidence and reasons
+
+(Wave 1 F-3 surfaced 5 latent init-container gaps that fix-forward addressed before flip — see `reference-wave-notes.md` § Reference incident.) CP-era per-rule `validate.failureAction` is history (kind deleted 2026-07-12).
+
+## Require-X-present policies — incidents
+
+(2026-07-03 csp-reporter ns wedge + 2026-07-12 autogen-rewrite catch; review-invariants § Kyverno.)
+
+## Seccomp remediation — UR2 result
+
+UR2 remediated 12/12 with the seccomp mechanism ladder in SKILL.md Phase 3 (8 postRenderer + couchdb chart-values + Percona CR).
+
+## Post-promote violations — why revert
+
+Reverting to Audit, fixing the new violator and promoting again is easier than chasing CrashLoop in cluster.
+
+## Anti-patterns — reasons
+
+The reviewer gate caught the `vm-operator` → `victoria-metrics-operator` healthCheck mismatch in Wave 1; it'll catch similar policy-target mismatches.

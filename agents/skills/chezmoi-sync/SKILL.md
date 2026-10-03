@@ -73,7 +73,7 @@ git -C ~/.local/share/chezmoi push
 
 **Always use `git -C ~/.local/share/chezmoi`** — `cd && git` breaks safe-bash allow pattern.
 
-**If the commit fails with `error: 1Password: failed to fill whole buffer` + `fatal: failed to write commit object`**, the commit-signing key is blocked (1Password locked / no biometric surface from the agent shell). Staging survives. Seen 2026-07-16.
+**If the commit fails with `error: 1Password: failed to fill whole buffer` + `fatal: failed to write commit object`**, the commit-signing key is blocked (1Password locked / no biometric surface from the agent shell). Staging survives.
 1. Retry the same commit once unsigned: `git -C ~/.local/share/chezmoi -c commit.gpgsign=false commit ...` (the global rules say so; do not stop to ask for an unlock first).
 2. If that retry fails too, stop and report it. Do not retry-loop.
 
@@ -81,32 +81,16 @@ git -C ~/.local/share/chezmoi push
 
 - **Source path uses `private_` / `dot_` prefixes (and sometimes `.tmpl`)**: `~/.claude/settings.json` → `dot_claude/settings.json.tmpl`. Use `chezmoi source-path` to find.
 - **If `source-path` says "not managed" for a skill file**, read reference-edge-cases.md before you conclude the file is untracked.
-- **A skill file can be under edit by another session right now.** Two sessions extended `comment-sweep/SKILL.md` on 2026-08-07 within the same hour. Check `ls -l` mtime before editing, prefer small exact-match edits over a rewrite, and after editing grep for the other session's sections to prove you did not clobber them.
+- **A skill file can be under edit by another session right now.** If you need the incident, read reference-edge-cases.md § "Two sessions editing one skill file". Check `ls -l` mtime before editing, prefer small exact-match edits over a rewrite, and after editing grep for the other session's sections to prove you did not clobber them.
 - **Templates**: `.zshrc`/`.ssh/config`/`.claude/settings.json` are `.tmpl` files (OS-gated `{{ .chezmoi.os }}` etc.). Edit the `.tmpl` directly in source — `re-add` writes raw and breaks templating.
-- **Live-ahead-of-template drift → NEVER `chezmoi apply`**: if an earlier session edited LIVE `settings.json` (model, enabled plugins) but never synced to the `.tmpl`, `chezmoi diff` shows the stale template as the "target" — `chezmoi apply`/`update` would REVERT live (disable a plugin, flip model). CHECK `chezmoi diff <file>` first; if live is truth, sync live→template by editing the `.tmpl` DIRECTLY (not `re-add` — breaks `{{ }}`; not `apply` — reverts live), then `chezmoi diff` empty = reconciled. Seen 2026-07-07: live `opus[1m]`+skillopt-enabled vs template stale `fable-5`+skillopt-absent; apply would've disabled skillopt-sleep.
+- **Live-ahead-of-template drift → NEVER `chezmoi apply`**: if an earlier session edited LIVE `settings.json` (model, enabled plugins) but never synced to the `.tmpl`, `chezmoi diff` shows the stale template as the "target" — `chezmoi apply`/`update` would REVERT live (disable a plugin, flip model). CHECK `chezmoi diff <file>` first; if live is truth, sync live→template by editing the `.tmpl` DIRECTLY (not `re-add` — breaks `{{ }}`; not `apply` — reverts live), then `chezmoi diff` empty = reconciled. If you need the incident, read reference-edge-cases.md § "Live-ahead-of-template drift incident".
 - **Plugin marketplace timestamps**: `.claude/plugins/known_marketplaces.json` `lastUpdated` drifts every session. Skip unless plugins changed.
 - **`.chezmoiignore` linux-side**: excludes mac-only files (Library, Brewfile, ghostty, starship.toml, .ssh, source-code, macos-defaults.sh) — don't track those for linux nodes.
 - **Secret leak**: pre-commit chezmoi hook may scan with `--secrets`. For known-safe files (plugin caches), pass `--secrets ignore` if blocked.
 
-## After dotfile sync to nodes
+If the change must reach the K3s nodes, read reference-edge-cases.md § "After dotfile sync to nodes".
 
-K3s nodes pull via `chezmoi update`:
-```bash
-ssh_master_node "chezmoi update"
-ssh_worker_node "chezmoi update"
-ssh_worker_node2 "chezmoi update"
-```
-
-## End-to-end fast path (after verified done)
-
-```bash
-chezmoi status                                    # see drift
-chezmoi diff                                      # confirm content
-chezmoi re-add <path>                             # OR chezmoi add / forget per decision tree
-git -C ~/.local/share/chezmoi add -A
-git -C ~/.local/share/chezmoi commit -m "<single-line subject, no AI-agent mention>"
-git -C ~/.local/share/chezmoi push
-```
+If you want the whole sync as one block, read reference-edge-cases.md § "End-to-end fast path (after verified done)".
 
 ## Pre-commit gate (mandatory — mirrors homelab pre-commit review loop)
 

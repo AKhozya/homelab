@@ -71,9 +71,7 @@ reports an orphan, fix the map before any live roll → `reference-mechanics.md`
 - **Authentik depends on PG pooler (tier 4) + DNS (tier 1).** Rolled in tier 3 after DNS is healthy;
   pooler rerolled in tier 4. If authentik misbehaves post-roll, reroll pooler then authentik →
   `reference-mechanics.md` § Authentik → pooler → DNS chain.
-- **Flux-stale-pod → delete-pod fallback** is baked into the script (**Deployments only**): Flux can
-  revert `rollout restart`'s annotation, abandoning the new RS so stale pods survive a "successful"
-  rollout; the script detects surviving pod UIDs (`comm -12`) and deletes just those by name. Full
+- If stale pods survive a "successful" rollout, read `reference-mechanics.md` § Flux-stale-pod → delete-pod fallback. Full
   mechanic + DS/STS exclusion rationale → `reference-mechanics.md` § Flux-stale-pod → delete-pod fallback.
 
 ## Flags (tier by NAME, not index)
