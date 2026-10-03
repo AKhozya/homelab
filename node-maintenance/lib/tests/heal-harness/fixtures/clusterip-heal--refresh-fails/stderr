@@ -1,0 +1,1 @@
+mktemp: failed to create file via template ‘/var/lib/node-maintenance/clusterip-heal.state.XXXXXX’: Read-only file system
