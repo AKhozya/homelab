@@ -2,7 +2,7 @@
 
 Situational war-story detail behind SKILL.md's routing rows.
 
-> Era note: incidents below predate the CP→VP migration (complete 2026-07-12) — snippets showing ClusterPolicy syntax (`=()` patterns, `exclude.any` selectors, `failureAction`) are historical; the *lessons* (Job-label gap, report lag, PSS interception, ns-vs-label excludes) carry over to VPs unchanged. Current authoring syntax: SKILL.md + `.claude/review-invariants.md`.
+> Era note: incidents below predate the CP→VP migration (complete 2026-07-12) — snippets showing ClusterPolicy syntax (`=()` patterns, `exclude.any` selectors, `failureAction`) are historical; the *lessons* (report lag, PSS interception, ns-vs-label excludes) carry over to VPs unchanged. The Job-label gap does not: VP autogen rewrites `object.metadata` to the pod template, so one pod-label expression covers a Job (`.claude/review-invariants.md` § Kyverno). Current authoring syntax: SKILL.md + `.claude/review-invariants.md`.
 
 ## `=()` vs PSS mandatory-pattern — when absence is benign vs a regression (F-4 W8)
 

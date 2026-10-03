@@ -15,8 +15,8 @@ EOF
 
 current="${CURRENT_AGENT:-}"
 format="text"
-# ~/.codex/AGENTS.md requires xhigh for this skill's plan and code reviews. The pre-commit gate
-# (codex-review.sh) passes no effort flag and runs at the ~/.codex/config.toml default, high.
+# ~/.codex/AGENTS.md requires xhigh for this skill's plan and code reviews. codex-review.sh also
+# defaults to xhigh. If a codex-rescue dispatch omits effort, it uses the config.toml default, high.
 effort="xhigh"
 allow_self=0
 

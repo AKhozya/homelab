@@ -45,9 +45,23 @@ Relax only with explicit local override:
 | `read line < file` no `-r` | mangles backslashes | `read -r line` always |
 | trap leak between iterations | cleanup runs once at EXIT | combine cleanup, set `trap '' EXIT` to disable when needed |
 | `sudo -n cmd` over SSH | non-interactive sudo fails → pam_faillock counter ticks toward lockout | Output command to user with `ssh -t`; never run via Bash tool. See `/homelab-node-fix` for the SSH+TTY pattern. |
+| `kubectl … -o json \| jq '.items[]…'` as a safety check | `jq` exits 0 on empty input, so a failed read looks like "none" (the permissive answer) | shape-check first: `jq -e 'type == "object" and (.items \| type) == "array"'` (memory `gotchas.md` "`jq` exits 0 on EMPTY input"; `_shared/restart-workload.sh` `json_list_ok`) |
+| a predicate function relying on `set -e` | if `if`, `!`, or a non-final position in an `&&`/`\|\|` list tests a function's status, errexit is off for its whole body, so a read error falls through to "not blocked" | `if ! var="$(…)"; then return <blocked>; fi` on every call |
+| a helper that `exit`s, called as `var="$(helper)"` | `exit` ends only the substitution subshell, never the caller. If Bash ignores errexit for the caller, the caller carries on with whatever `var` captured | check the assignment's status: `if ! var="$(helper)"; then …; fi` |
+| `exec 9>>"$f" 2>/dev/null` | an `exec` with no command applies its redirects to the whole shell, so the shell discards all later stderr | brace-group it: `{ exec 9>>"$f"; } 2>/dev/null` |
 | `cmd \| head -N` under `set -o pipefail` | head exits early → SIGPIPE upstream → pipe exits non-zero → `set -e` kills script silently or captures empty `$()` | Use `awk 'NR<=N'` (reads all, prints first N — no SIGPIPE). Incident: `reference-bashtool-quirks.md` §4. |
 
 If you sweep a repo for every reference to a string, read reference-tools.md § "Anti-pattern: rg misses tracked files in ignored dirs".
+
+## Testing a script
+
+| Check | Failure it prevents |
+|---|---|
+| prove a test harness from a **fresh clone**, not the working tree | the homelab `.gitignore` ignores `*.log`, and git keeps no empty directory, so fixtures that exist locally can be missing from the commit |
+| run node-script tests on Linux too: in homelab, `node-maintenance/lib/tests/heal-harness/run-all.sh check` (Docker) and the `node-script-tests` CI job | macOS `stat` is BSD: a test can pass on macOS and fail on the real platform |
+| pin every real-clock input (file mtimes, `stat`) to the fake clock a test uses | if real time passes the test's fixed time, the test result changes |
+
+Memory `gotcha_shell_test_harness` has all 13 traps and their incidents.
 
 ## Prefer brew-installed tools (check with `command -v`)
 

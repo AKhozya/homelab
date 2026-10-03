@@ -1,4 +1,4 @@
-<!-- Source-sha256: 46ab0889a848a86ae2ec203cadde7ee1094a501ed2cf9b4203e31ddf9cdbc376 -->
+<!-- Source-sha256: 83c60bb78ff8a9d41daf0dc367846111ae915e75db302e35089c11a0f2918154 -->
 <!-- Hand-edited export of the operator's global ~/.claude/CLAUDE.md, with personal sections and private incidents removed. agents/README.md maps the ~/.agents/skills paths to this folder. -->
 # Claude - Global Settings
 

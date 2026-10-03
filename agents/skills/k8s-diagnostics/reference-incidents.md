@@ -67,6 +67,23 @@ Common slow-start apps: Django+migrations, Rails+migrations, Spring Boot, Authen
 
 **coredns `--disable` deadlock:** ALL Flux reconciles stall with i/o timeout to `10.43.0.10` after the kube-dns Service/ConfigMap/RBAC are deleted — k3s `--disable=coredns` deletes addon-owned objects by owner-label, and Flux cannot recreate them because the source fetch itself needs DNS. Break-glass: `kubectl apply -k infrastructure/coredns/` from the homelab repo (one-time — the recreated objects are owner-label-free). Memory: `gotcha_coredns_disable_deadlock`.
 
+## Dead node keeps its CoreDNS endpoint `ready=true`
+
+| | |
+|---|---|
+| Cause | coredns-ha is a DaemonSet, and DaemonSet pods tolerate `unreachable`/`not-ready` without limit. If a node dies, those tolerations keep its coredns pod from eviction, and its kube-dns endpoint stays `ready=true` |
+| Symptom | kube-proxy keeps sending a share of DNS queries to the dead IP. Apps cluster-wide fail `failed to resolve <svc>.svc.cluster.local` and crash-loop. The dead node reports `NotReady`; the other nodes and Flux can look healthy (2026-08-07, immich-vm down) |
+| Check | the command below: an endpoint with `ready: true` on a `NotReady` node |
+| Fix | `kubectl delete pod -n kube-system <coredns-ha pod on the dead node> --wait=false` (the pod stays Terminating while its node is down). Run the check again: the dead pod's address must be gone or show `ready: false`. Then delete the crash-looped app pods to skip their back-off |
+| Also check | other DaemonSet-backed Services with an endpoint on the dead node |
+
+```bash
+kubectl get endpointslices -n kube-system -l kubernetes.io/service-name=kube-dns -o json \
+  | jq -c '.items[].endpoints[] | {addr:.addresses[0],ready:.conditions.ready,node:.nodeName}'
+```
+
+Memory: `gotchas.md` "Dead node keeps its CoreDNS endpoint ready=true".
+
 ## NetworkPolicy gap scripts — scope and false positives
 
 `np-gap.sh` is namespace-level (a ns with ≥1 NP passes); `np-coverage.sh` is the per-pod complement — it catches a pod that no NP *selects* even though its ns has other NPs (the F-48 redis-operator class), and ORPHAN NPs whose selector matches zero pods (typo'd labels = silent no-op). hostNetwork pods are skipped (they bypass NP). Expected false-positives: an NP for a scaled-to-0 app or a CronJob (e.g. popeye) shows ORPHAN when no pod is running — verify before acting.

@@ -39,14 +39,22 @@ kubectl apply -f <file.yaml> --dry-run=client
 # Create feature branch (for major changes)
 git checkout -b feature/<name>
 
+# ~/.gitignore_global ignores *.env. If you stage a directory, Git leaves out a
+# configMapGenerator envs: file with no warning, and Flux fails the app's build.
+# Give that file a .properties extension, and update envs: to the new name before you stage.
+
 # Stage changes
 git add <files>
+# The generator input must appear in this list:
+git diff --cached --name-only <dir>/
 
 # Commit with single-line message (no AI-agent mention)
 git commit -m "Add/Update/Fix: brief description"
 
 # Push
 git push origin <branch>
+# Confirm the generator input reached the pushed branch:
+git ls-tree origin/<branch> <dir>/ --name-only
 ```
 
 **Commit command MUST be one physical line.** `~/.claude/hooks/git-commit-style.sh` exits 2 (BLOCK) on ANY command containing `git commit` that holds a literal newline (`case *$'\n'*`) — NOT just compound chains. If you need an example of a blocked commit command, read reference-edge-cases.md § "Why the hook blocks multiline commit commands". Fix: drop the `cd`, address the repo with `-C`, keep it on one line:

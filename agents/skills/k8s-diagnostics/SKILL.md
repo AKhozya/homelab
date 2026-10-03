@@ -39,7 +39,10 @@ bash ~/.agents/skills/_shared/flux-status.sh --failed   # only non-Ready
 ```
 
 If every Flux reconcile stalls with an i/o timeout to `10.43.0.10`, read reference-incidents.md § CoreDNS `--disable` deadlock.
+
 Run its break-glass `kubectl apply -k infrastructure/coredns/` one time only: the recreated objects carry no owner label.
+
+If apps cluster-wide fail to resolve `*.svc.cluster.local` after a node went down, read reference-incidents.md § Dead node keeps its CoreDNS endpoint `ready=true`.
 
 ### 3. Database Clusters
 
@@ -95,7 +98,7 @@ bash ~/.agents/skills/_shared/node-crash-probe.sh ssh_worker_node2
 bash ~/.agents/skills/_shared/node-crash-probe.sh immich-vm   # GPU VM — wedge history: memory gotcha_immich_vm_virtio_gpu_fbdev_wedge
 ```
 
-Checks pstore (kernel panic blobs at `/sys/fs/pstore/`), `dmesg -T | grep -iE 'oom|panic|kill|hung|tainted'`, `journalctl --boot=-1 -p err`, uptime/load. Read-only — no sudo needed.
+Checks pstore (kernel panic blobs at `/sys/fs/pstore/`), `journalctl -k | grep -iE 'oom|panic|kill|hung|tainted'` (raw `dmesg` is restricted on the nodes), `journalctl --boot=-1 -p err`, uptime/load. Read-only — no sudo needed.
 
 If pstore is non-empty: capture for analysis, then clear with `sudo rm -f /sys/fs/pstore/*` (give command to user, never run sudo directly).
 

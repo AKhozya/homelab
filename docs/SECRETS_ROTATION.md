@@ -134,7 +134,7 @@ deadline rather than the annual one the other deploy keys get. The three `gh-*` 
 that file, not replacing it. Confirm scope against GitHub rather than this table before trusting
 it: `gh api repos/AKhozya/<repo>/keys --jq '.[] | "\(.title) read_only=\(.read_only)"'`.
 
-**`FLUX_UPDATE_TOKEN`** can push to `main`, and no branch rule guards `main`, so like `gh-homelab` a push with it is a deploy. For that reason it shares the 180-day deadline of `gh-homelab`. The PAT itself never expires, so GitHub does not enforce that deadline. It is a fine-grained PAT, separate from the classic PAT that owns Flux's deploy key. Deleting that classic PAT also deletes the deploy key. If it leaks or you rotate it: regenerate `homelab-flux-update` at github.com/settings/personal-access-tokens, save the new value in the 1Password item, then load it and test it:
+**`FLUX_UPDATE_TOKEN`** can push to `main`, and no branch rule guards `main`, so like `gh-homelab` a push with it is a deploy. For that reason you rotate it every 180 days, like `gh-homelab`. Each counts from its own last rotation, so the two deadlines in the table above differ. The PAT itself never expires, so GitHub does not enforce that deadline. It is a fine-grained PAT, separate from the classic PAT that owns Flux's deploy key. Deleting that classic PAT also deletes the deploy key. If it leaks or you rotate it: regenerate `homelab-flux-update` at github.com/settings/personal-access-tokens, save the new value in the 1Password item, then load it and test it:
 
 ```bash
 op read 'op://Personal/homelab-flux-update-token/credential' | gh secret set FLUX_UPDATE_TOKEN --repo AKhozya/homelab
@@ -810,8 +810,11 @@ If compromised:
   | OIDC: grafana, paperless, mealie, home-assistant, stirling-pdf, linkwarden | `617556ce` |
   | OIDC: Immich (`system_metadata` row) and Audiobookshelf (SQLite settings row) | no commit; live database update + Authentik PATCH |
 - [x] Cloudflare Access OIDC client secret: operator pasted it in the Zero Trust dashboard, agent PATCHed Authentik provider 50 (2026-10-02)
+- [ ] 2026-12-31: `cloudflare-tunnel-mgmt-token`
 
 ### 2027 Q1 (Jan-Mar)
+- [ ] 2027-01-30: `claude-telegram-ssh` → `gh-homelab` (write deploy key, 180 days)
+- [ ] 2027-03-30: `FLUX_UPDATE_TOKEN` (180 days from creation)
 - [ ] 2027-03-31: 180-day rotation — every row above that shows 2027-03-31
 
 ---

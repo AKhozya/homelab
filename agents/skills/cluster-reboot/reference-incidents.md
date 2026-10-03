@@ -71,6 +71,13 @@ upgrade, and the same run can fail on a *different* AUR package after the one yo
 Checking `pacman -Q <pkg>` and the binary's own `--version` is a useful extra parity check, never the
 whole proof. Otherwise the stale 0 keeps `NodePackageUpgradeFailed` firing until the next weekly run.
 
+## Other phase1 `exit=2` signatures
+
+| Tell in the phase1 log | Cause | Fix | Memory |
+|---|---|---|---|
+| `"stdout":"false"`, `rc:1` on `Preflight — Flux kustomizations all Ready` | a Kustomization reports `Unknown` (mid-reconcile) on every retry. The retry `delay` must not share a factor with the 60s reconcile interval: a 30s delay samples only 2 phases (2026-09-05 incident). The gate uses `retries: 20`, `delay: 7` (`0e78e618`) | confirm all Kustomizations are Ready, then re-trigger phase1 | `gotcha_preflight_alias_alloy_168h`, `gotchas.md` "phase1 Flux-Ready preflight" |
+| `open .../tls/client-kube-apiserver.crt: no such file or directory` on the first `kubectl exec` (`amtool silence add`) | `k3s certificate rotate` on a running k3s moves the leaf certs aside until the next start (2026-09-26). `/readyz` returns `ok` and nodes report Ready; only exec/logs/port-forward fail | the operator restarts k3s on the CP. Confirm that `kubectl logs` works. If it works, re-trigger phase1. The rotate order is stop → rotate → start, per node | `gotchas.md` "`k3s certificate rotate` on a RUNNING k3s" |
+
 ## Post-reboot debris that does NOT self-drain (2026-08-01)
 
 - **Controller-owned terminal pods** — a reboot leaves one terminal pod per evicted pod. They keep

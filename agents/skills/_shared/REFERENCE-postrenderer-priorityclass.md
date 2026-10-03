@@ -33,7 +33,7 @@ curl -sf "$CHART_URL_BASE/templates/deployment.yaml" | grep -i priorityclass
 ```
 Both empty → use postRenderers. Either non-empty → use `values.priorityClassName` (or sub-path).
 
-When `curl` is blocked by context-mode redirect, use `mcp__plugin_ecc_exa__web_fetch_exa` on the GitHub blob URL.
+If context-mode blocks `curl` with a redirect, use `mcp__plugin_exa_exa__web_fetch_exa` on the GitHub blob URL.
 
 ## Canonical postRenderers patch shape
 

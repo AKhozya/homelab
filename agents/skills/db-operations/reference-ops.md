@@ -62,7 +62,7 @@ done <<<"$pods"   # not `for p in $pods`: zsh does not word-split an unquoted va
 |---|---|
 | one "(the primary)" line and one "(replica)" block with both threads `Yes` | healthy |
 | two "(the primary)" lines | no replication: neither pod replicates |
-| two "(replica)" blocks | no primary: each pod replicates from the other (2026-09-12 incident) |
+| two "(replica)" blocks | no primary: each pod replicates from the other (2026-09-12 incident). Compare `gtid_executed` on both pods before you promote either; the recovery steps are in memory `gotcha_cp_igc_link_flap` |
 | "query FAILED" or the ERROR line | replication NOT checked |
 
 ### CouchDB (StatefulSet, multi-master, ns: `databases`)

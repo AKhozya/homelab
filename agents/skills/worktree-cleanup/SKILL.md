@@ -16,7 +16,13 @@ One script: `~/.agents/skills/_shared/worktree-cleanup.sh` (run `--help` for usa
 ~/.agents/skills/_shared/worktree-cleanup.sh --repo <repo> --apply
 ```
 
-Verdicts: `MERGED-CLEAN` removed on --apply (worktree + its branch, plus orphan merged `wt-*` branches + `git worktree prune`); `DIRTY`/`UNMERGED`/`LOCKED`/`PRUNABLE`/`MAIN` never touched. Branch deletion is always non-force — unmerged work cannot be lost.
+| Verdict | What `--apply` does |
+|---|---|
+| `MERGED-CLEAN` | removes the worktree and its branch, plus orphan merged `wt-*` branches, then runs `git worktree prune` |
+| `FRESH` (branch never moved since creation) | a scan keeps it. If you name its path, the script removes it |
+| `DIRTY`, `UNMERGED`, `LOCKED`, `PRUNABLE`, `MAIN` | nothing |
+
+Branch deletion is always non-force — unmerged work cannot be lost.
 
 Before removing a `MERGED-CLEAN` worktree the script evicts any Codex broker whose cwd sits
 inside it (`EVICTED` / `would evict` line). A broker and its `codex app-server` child pin cwd at

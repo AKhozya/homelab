@@ -28,6 +28,7 @@ Script: find current primary → if already on target, exit 0 → otherwise trig
 
 - **Redis pin RETIRED (2026-07-04).** ot redis-operator records `RedisReplication .status.masterNode` and actively repairs topology — 3 consecutive sentinel failovers all bounced back within seconds (W2→W1 attempt); each churns immich/paperless connections. Script's `redis` mode now only REPORTS placement and hard-fails on mismatch. Accept placement (apps use master-following Service — cosmetic while replication healthy); revisit if the CRD ever grows a preferred-master knob (none as of operator chart 2026-07). Diagnostic signature: `master_replid2` non-zero = swap-then-bounce.
 - **After any Redis failover, check immich.** ioredis SentinelConnector spews reconnect stacks during the transition — usually self-recovers <3min (2026-06-05: 90 error lines then clean); if errors persist past ~5min it's the stale-connection case (2026-05-31) → `~/.agents/skills/_shared/restart-workload.sh immich app.kubernetes.io/name=immich-server` (immich-server is an app Deployment, not a database, so a pod cycle is fine; the bot has no workload `patch` since 2026-08-06). Verify: `kubectl logs -n immich deploy/immich-server --since=60s | grep -ci ioredis` → expect 0.
+- **Percona with no primary is out of scope.** `pin.sh` exits with `could not determine current primary index`. If you see that error, follow `db-operations/reference-ops.md` (two "(replica)" blocks) and memory `gotcha_cp_igc_link_flap`.
 - **Percona path facts:**
 
   | Fact | Detail |

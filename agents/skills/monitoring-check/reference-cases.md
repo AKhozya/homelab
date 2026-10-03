@@ -13,8 +13,8 @@ Extra mechanism behind SKILL.md's rule: controller-runtime serves metrics (`:808
 | lastError | Meaning |
 |---|---|
 | `awaiting headers` | metrics server wedged (this case) |
-| `connection refused` | listener gone |
-| connect `i/o timeout` | NetworkPolicy blocking scrape |
+| `connection refused` | listener gone, OR a NetworkPolicy blocks the scrape: kube-router REJECTs NP-blocked traffic in both directions (pod.go, `k3s-io/kube-router` v2.6.3-k3s1, the k3s v1.37.0+k3s1 pin). Check the target's ingress NP before the app |
+| connect `i/o timeout` | usually a dropped packet: host firewall (UFW, for host-network targets) or an unreachable node. kube-router normally rejects NP-blocked traffic, but a timeout alone does not rule out a NetworkPolicy |
 
 Gotcha: a cross-pod probe of a NON-scrape port (vmagent→`:8081`) falsely shows `connection refused` — the app NP opens only `:8080`; trust kubelet `Ready`, not your own probe. Case: vm-operator v0.71.0 `:8080` wedged after 2d16h, lease still renewing.
 

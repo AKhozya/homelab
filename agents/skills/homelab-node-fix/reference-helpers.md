@@ -38,7 +38,8 @@ Tools checked 2026-09-28:
 
 Schedules already running per `project_maintenance_schedules.md`:
 - sync 10min
-- drift-heal 03:00
+- drift-heal 03:00 and 15:00 UTC
+- drift-heal after each sync that applies a new SHA
 - weekly Sat 04:30 (pacman update incl. AUR via yay `-Syyu`)
 - security scan 1st of month
 

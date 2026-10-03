@@ -86,12 +86,12 @@ Both services act on **ALL hosts**:
 | Service | What it runs |
 |---|---|
 | `node-maintenance-config.service` | `node-config.yml` across all hosts (push from the CP via SSH) |
-| `node-maintenance-sync.service` | `install.sh --sync-only`, which is **NOT file-copy-only**: it runs `systemctl enable --now node-maintenance-config.timer`, then `systemctl start --wait node-maintenance-config.service` — a full all-host configuration run (~5 min, blocking) |
+| `node-maintenance-sync.service` | `sync-from-git.sh`: if HEAD differs from the applied SHA, it runs `install.sh --sync-only`, then `systemctl start --wait node-maintenance-config.service` — a full all-host configuration run (~5 min, blocking) |
 
 So both the 10-min timer AND a manual sync apply to all 4 nodes at once. To stage one node at a time (verify before the next):
 
 1. Stop the timers so the auto-heal can't race: `systemctl stop node-maintenance.timer node-maintenance-sync.timer node-maintenance-config.timer`. (`systemctl mask` FAILS — the units are real files in `/etc/systemd/system/`: "File already exists". `stop` + services already `disabled` suffices; just don't reboot mid-window.)
-2. Update the CP checkout WITHOUT triggering a heal (do NOT run `install.sh --sync-only`):
+2. Update the CP checkout WITHOUT triggering a heal. Do NOT run `install.sh --sync-only`: it runs `systemctl enable --now node-maintenance-config.timer`, which enables and starts the timer stopped in step 1. If that timer missed a 03:00/15:00 run, `Persistent=true` makes it start the all-host configuration run at once:
    ```bash
    export GIT_SSH_COMMAND="ssh -i /root/.ssh/homelab-deploy -o IdentitiesOnly=yes -o UserKnownHostsFile=/etc/node-maintenance/github_known_hosts -o StrictHostKeyChecking=yes -o BatchMode=yes"
    git -C /var/lib/node-maintenance/homelab fetch --depth=50 origin main
@@ -99,7 +99,7 @@ So both the 10-min timer AND a manual sync apply to all 4 nodes at once. To stag
    rsync -a --delete /var/lib/node-maintenance/homelab/node-maintenance/ansible/ /etc/node-maintenance/ansible/
    ```
    (plain `git fetch` as root fails `Permission denied (publickey)` — needs that deploy-key `GIT_SSH_COMMAND`. Clone lives at `/var/lib/node-maintenance/homelab`; installed copy at `/etc/node-maintenance/ansible`.)
-3. Apply per node, verify between each: `cd /etc/node-maintenance/ansible && ansible-playbook -D -i inventory.yml node-config.yml --limit <node> --tags <tag>` (prefix with `--check` for a dry-run first). Tag your new tasks so `--tags` scopes to just your change (skips firewall/etc).
+3. Apply per node, verify between each: `cd /etc/node-maintenance/ansible && ansible-playbook -D -i inventory.yml node-config.yml --limit <node> --tags <tag>` (prefix with `--check` for a dry-run first). Tag your new tasks so `--tags` scopes to just your change (skips firewall/etc). Before each check, compare the deployed files' hashes with the tree you intend to test. Memory `project_maintenance_schedules` has the 2026-10-02 case.
 4. Restore: `systemctl enable --now node-maintenance.timer node-maintenance-sync.timer node-maintenance-config.timer`. Next auto-heal is idempotent (`changed=0`).
 
 Proven 2026-06-04 (DNS decoupling): using `install.sh --sync-only` ran a full all-host heal that bypassed the intended staged W2→W1→CP rollout. See `[[gotcha_k3s_reboot_ordering]]`.

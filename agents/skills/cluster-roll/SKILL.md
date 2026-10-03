@@ -47,8 +47,9 @@ scoped to exactly that tier's objects → ~20s settle → re-run `verify-cluster
 Data-bearing STS and node-infra DaemonSets:
 - **Percona MySQL** STS `main-mysql-mysql` / `main-mysql-haproxy` / `main-mysql-orc` → recycle via
   the `PerconaServerMySQL` CR, never blanket rollout.
-- **Redis** STS `redis-replication` / `redis-sentinel-sentinel` (sentinel PDB **min=2**) → recycle
-  via the Redis operator CRDs.
+- **Redis** STS `redis-replication` / `redis-sentinel-sentinel` (sentinel PDB **min=2**) → never
+  `rollout restart` (opstree annotation loop); delete one pod at a time, replica before master, with
+  `_shared/redis-restart.sh`. Procedure: `db-operations/reference-ops.md` restart table.
 - **CouchDB** `couchdb-couchdb` (Helm, 2 replicas) → recycle via Helm/rollout with quorum care.
 - **Meilisearch** `meilisearch` (single replica, no PDB) and **Loki** STS `loki` (Helm) → recycle
   by hand / via Helm with care.

@@ -96,7 +96,7 @@ If the fix would otherwise drift back on next ansible reapply, push it through t
 If you need to know when a node-maintenance timer runs, read reference-helpers.md § Maintenance schedules.
 
 ### Staged / single-node node-config changes (DNS, NIC, anything load-bearing)
-Both the 10-min sync timer AND a manual sync heal **ALL 4 nodes at once** (`install.sh --sync-only` is NOT file-copy-only). To stage one node at a time: stop-timers → deploy-key fetch on CP → per-node `ansible-playbook --limit --tags` → restore timers. Full playbook (exact commands + why `mask` fails + deploy-key `GIT_SSH_COMMAND`): `reference-incidents.md` § "Staged / single-node node-config changes".
+If main's HEAD differs from the applied SHA, both the 10-min sync timer AND a manual sync heal **ALL 4 nodes at once** (`sync-from-git.sh` starts `node-maintenance-config.service` after `install.sh --sync-only`). To stage one node at a time: stop-timers → deploy-key fetch on CP → per-node `ansible-playbook --limit --tags` → restore timers. Full playbook (exact commands + why `mask` fails + deploy-key `GIT_SSH_COMMAND`): `reference-incidents.md` § "Staged / single-node node-config changes".
 
 ## Incident playbooks — load `reference-incidents.md`
 

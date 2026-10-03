@@ -109,6 +109,8 @@ If you need what each iteration reports or the exact exit-0 gates, read referenc
 
 If `watch-reboot.sh` prints `pkg-upgrade: FAILED` or `UNVERIFIED`, read reference-incidents.md § "pkg-upgrade FAILED and UNVERIFIED verdicts".
 
+If phase1 fails `exit=2` with no `yay` error, read reference-incidents.md § "Other phase1 `exit=2` signatures".
+
 > The warn-only `pod-health` `unhealthy=N` right after a reboot usually reflects transient pods
 > (restart races, Jobs mid-retry) that drain on their own within minutes — re-run before treating
 > as reboot damage. **Two classes do NOT drain:**

@@ -18,8 +18,7 @@ user-invocable: false
 1. **Never ship Deny on day one.** Audit-first surfaces latent violations that would crash admission.
 2. **Operator-managed workloads = label-based `matchConditions` exclude, never name-based.** Pods from CNPG, VM operator, Percona, Kyverno itself get hash-suffix names that rotate. Exclude via CEL on labels: `cnpg.io/podRole`, `managed-by: vm-operator`, `app.kubernetes.io/managed-by: cloudnative-pg`, etc.
 3. **Autogen propagates Pod-level CEL to controllers — but REWRITES `object.metadata` to the pod-TEMPLATE metadata in the clones.** That's desired for label checks; it silently VOIDS any top-level-metadata check (`deletionTimestamp`, ownerReferences) — the clone reads `object.spec.template.metadata.deletionTimestamp`, which never exists (live-verified 2026-07-12, Codex catch). Default: pod-only match + autogen on. Policy needs a top-level-metadata condition (require-X-present class)? Match Pods AND controller kinds directly + `autogen.podControllers.controllers: []` — `require-networkpolicy-vp` is the template.
-4. **A pod-label exclude does NOT cover a Job** — autogen evaluates the controller resource and Jobs carry only Flux labels at metadata level → Deny blocks Job recreation while pods look clean. Fixes + tell-tale + repro: `reference-wave-notes.md` § "A pod-label exclude does NOT cover a Job".
-5. **Action lives at `spec.validationActions`** (list; `[Audit]` or `[Deny]` here — one line, flow style, so `prepare-enforce.sh` can flip it).
+4. **Action lives at `spec.validationActions`** (list; `[Audit]` or `[Deny]` here — one line, flow style, so `prepare-enforce.sh` can flip it).
 
 ## The workflow
 
@@ -27,7 +26,7 @@ user-invocable: false
 
 - Kind: `policies.kyverno.io/v1` `ValidatingPolicy`. Copy the shape of an existing `-vp.yaml` in `infrastructure/configs/kyverno-policies/` — don't hand-roll.
 - Match: `matchConstraints.resourceRules` on `pods` only; autogen covers controllers (default: deployments/statefulsets/daemonsets/jobs/cronjobs/replicasets/replicationcontrollers). EXCEPTION: top-level-metadata conditions → direct controller match, autogen off (Rule 3).
-- `validationActions: [Audit]` (NOT Deny — yet; Rule 1). Flow style, one line (Rule 5).
+- `validationActions: [Audit]` (NOT Deny — yet; Rule 1). Flow style, one line (Rule 4).
 - Background scanning is DEFAULT-ON for VPs (live polr rows proved it through the 07-04→07-12 parity soak) — the homelab VP files carry no `evaluation.background` block; don't add one.
 - **Authoring a "require X present" policy (require-networkpolicy-style)? Scope `operations: [CREATE, UPDATE]` AND add a matchCondition `!has(object.metadata.deletionTimestamp)`** — otherwise a missing-X deny blocks DELETE of a namespace's own workloads once X is pruned → the ns wedges in `Terminating` forever. A delete never needs X present. BUT: that deletionTimestamp condition dies inside autogen clones (Rule 3) → this policy class needs the direct-controller-match pattern.
 - Exclusions = CEL `matchConditions` on labels/namespaces (NOT CP-era `exclude.any` selectors — those don't exist in VP). Common operator labels:
@@ -118,7 +117,15 @@ kubectl get events -A --field-selector reason=PolicyViolation --sort-by='.lastTi
 # Should not show new violations for this policy in the post-promote window
 ```
 
-**Positive admission test (prove Deny actually blocks, W8).** A clean scan + `Deny` action confirms live config, but a server-side dry-run create of a violating pod confirms the webhook denies.
+**Positive admission test (prove Deny actually blocks, W8).** A clean scan + `Deny` action confirms live config, but a server-side dry-run create of a violating pod confirms the webhook denies. Run it with `~/.agents/skills/_shared/kyverno-policy-probe.sh`. If the probe does not reach the policy, the helper exits 2.
+
+| Rule | Why |
+|---|---|
+| Build the probe from a real live pod spec, and inject the violating field into a pod with no other label-keyed exemption | a synthetic pod can fail another policy before it reaches the one under test, and the webhook reports only the first failure |
+| Pair every `allow` with a `deny` on the same path | an `allow` alone does not prove the policy is live |
+| Pair every CLI `skip` with a stripped-label control that must fail | "excluded by matchConditions" and "never matched" print the same `skip` |
+
+Memory `gotcha_kyverno_autogen_matchconditions` § 3 has the incidents.
 
 A positive admission probe must violate ONLY the target policy. A rejection by another policy or by PSS proves nothing about the target.
 Before you build the probe pod, read `reference-wave-notes.md` § "Positive admission test — three interplays" (PSS admission first, fine-grained webhooks, LimitRanger defaults).

@@ -43,6 +43,7 @@ _shared/codex-review-selfcheck.sh
 _shared/faillock-via-cp.sh
 _shared/flux-status.sh
 _shared/kustomize-render-diff.sh
+_shared/kyverno-policy-probe.sh
 _shared/merge-worktree.sh
 _shared/mutate.sh
 _shared/node-crash-probe.sh

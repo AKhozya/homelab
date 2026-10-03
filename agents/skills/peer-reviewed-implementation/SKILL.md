@@ -30,7 +30,7 @@ workflow.
    - Run `scripts/reviewer-peer --current <current-family> --format json` from
      this skill.
    - Use `xhigh` effort/reasoning for every Claude or Codex plan review (`~/.codex/AGENTS.md`).
-     The repo pre-commit gate (`codex-review.sh`) is separate: it runs at the config default, `high`.
+     `codex-review.sh` defaults to `xhigh`. If a `codex-rescue` dispatch omits effort, it runs at the config default, `high`.
    - Ask the returned reviewer to review the plan, unless it is `self-review`.
    - If the reviewer is unavailable, rate-limited, or explicitly waived by the
      user, do a self-review at `xhigh` and state that substitution.
