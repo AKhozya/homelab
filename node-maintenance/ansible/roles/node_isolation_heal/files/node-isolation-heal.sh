@@ -243,9 +243,13 @@ do_l1() {
 		write_state "$first_fail" "$consecutive" "$now" "$last_reboot"
 		exit 0
 	fi
+	# If this restart cannot be recorded, the next cycle would not know L1 ran, so skip it.
+	if ! write_state "$first_fail" "$consecutive" "$now" "$last_reboot"; then
+		log "L1: cannot save state to $STATE — skipping the k3s-agent restart."
+		exit 1
+	fi
 	log "L1: restarting k3s-agent (isolated ${wedged_s}s)."
 	: >"$SHARED_RESTART_COOLDOWN" 2>/dev/null || true
-	write_state "$first_fail" "$consecutive" "$now" "$last_reboot"
 	systemctl restart k3s-agent.service || log "L1: k3s-agent restart FAILED."
 	exit 0
 }
@@ -289,13 +293,18 @@ if [ "$wedged_s" -ge "$reboot_threshold" ] && [ "$cp_up" -eq 0 ]; then
 		write_state "$first_fail" "$consecutive" "$last_restart" "$last_reboot"
 		exit 0
 	fi
+	# The 24h cap reads last_reboot from the state file, so skip a reboot the script cannot record.
+	if ! write_state "$first_fail" "$consecutive" "$last_restart" "$now"; then
+		log "reboot GUARD: cannot save state to $STATE, so the daily reboot cap cannot hold — giving up, alerting."
+		emit_metric 1 "$wedged_s" 2 1
+		exit 1
+	fi
 	log "SELF-REBOOT: isolated ${wedged_s}s, cannot reach CP, L1 didn't recover — rebooting (staggered index=$NODE_INDEX)."
 	# pending_action goes to the textfile under /var/lib, which SURVIVES the reboot —
 	# node-exporter would re-expose a stale 2 for ~2min post-boot (watchdog OnBootSec)
 	# and double-fire PendingReboot on top of Rebooted. Emit 0 before rebooting; the
 	# completed reboot is signaled by node_isolation_heal_last_reboot_timestamp alone.
 	emit_metric 1 "$wedged_s" 0 0
-	write_state "$first_fail" "$consecutive" "$last_restart" "$now"
 	systemctl reboot
 	exit 0
 fi

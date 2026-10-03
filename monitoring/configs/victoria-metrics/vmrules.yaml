@@ -125,16 +125,16 @@ spec:
           isolated it (switch port, NIC, CP)."
 
     - alert: NodeIsolationHealGaveUp
-      # Reboot guard tripped (uptime<30min boot-loop or the 1/24h cap) — the watchdog stops
-      # escalating and the node stays isolated until a human intervenes.
+      # A reboot guard blocks this run's reboot (uptime<30min boot-loop, the 1/24h cap, or a state file it
+      # cannot save). If isolation persists, each later run checks the guards again.
       expr: node_isolation_heal_giveup == 1
       for: 1m
       labels:
         severity: critical
       annotations:
         summary: "Isolation watchdog GAVE UP on {{ $labels.instance }} — manual intervention needed"
-        description: "node_isolation_heal_giveup=1 on {{ $labels.instance }}: a reboot guard (boot-loop / daily cap)
-          blocked further escalation while the node is still isolated from the CP. Check power, switch port, NIC (W2
+        description: "node_isolation_heal_giveup=1 on {{ $labels.instance }}: a reboot guard (boot-loop / daily cap /
+          state file not writable) blocked further escalation while the node is still isolated from the CP. Check power, switch port, NIC (W2
           r8169), and the CP itself."
 
     - alert: NodeHealWatchdogStale

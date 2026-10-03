@@ -1,0 +1,1 @@
+mktemp: failed to create file via template ‘/var/lib/node-maintenance/immich-gpu-heal.state.XXXXXX’: Read-only file system

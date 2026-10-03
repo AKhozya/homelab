@@ -106,13 +106,13 @@ chk "5 state 5 fields: bytes" "$(printf '%s %s %s %s %s\n' 10 2 5 99 111 | od -c
 read -r a b c d e <"$T/d/state"
 chk "5 state 5 fields: read back" "10 2 5 99 111" "$a $b $c $d $e"
 
-# 5b. state_write failures: returns 0, the old state stays, no temp file.
+# 5b. state_write failures: returns 1, the old state stays, no temp file.
 for case in "mktemp:exit 1" "chmod:exit 1" "mv:exit 1"; do
 	reset
 	printf '1 2 3 4\n' >"$T/d/state"
 	stub "${case%%:*}" "${case#*:}"
 	with_stub state_write "$T/d/state" 9 9 9 9
-	chk "5b state_write, ${case%%:*} fails: returns 0" 0 "$?"
+	chk "5b state_write, ${case%%:*} fails: returns 1" 1 "$?"
 	chk "5b state_write, ${case%%:*} fails: old state unchanged" "1 2 3 4" "$(cat "$T/d/state")"
 	chk "5b state_write, ${case%%:*} fails: no temp file" 0 "$(temps "$T/d")"
 done
@@ -122,7 +122,7 @@ stub cat "n=\$(( \$(/bin/cat \"$T/cat-calls\" 2>/dev/null || echo 0) + 1 )); ech
 if [ \"\$n\" -eq 1 ]; then head -c 3; exit 1; fi
 exec /bin/cat \"\$@\""
 with_stub state_write "$T/d/state" 9 9 9 9
-chk "5b state_write, payload fails: returns 0" 0 "$?"
+chk "5b state_write, payload fails: returns 1" 1 "$?"
 chk "5b state_write, payload fails: old state unchanged" "1 2 3 4" "$(/bin/cat "$T/d/state")"
 chk "5b state_write, payload fails: no temp file" 0 "$(temps "$T/d")"
 

@@ -3,6 +3,8 @@ date +%s
 clusterip-probe.sh
 hostname
 logger -t clusterip-heal -- ClusterIP\ DNAT\ WEDGED\ on\ harness-node.
+date +%s
 logger -t clusterip-heal -- restarting\ k3s-agent\ to\ rebuild\ kube-proxy\ chains.
 systemctl restart k3s-agent.service
-logger -t clusterip-heal -- k3s-agent\ restart\ FAILED.
+date +%s
+logger -t clusterip-heal -- k3s-agent\ restart\ FAILED\ \(rc=1\).

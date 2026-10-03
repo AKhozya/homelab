@@ -1,3 +1,2 @@
 immich-gpu-heal: render node /dev/dri/renderD129 missing / i915 not loaded (Intel GPU present).
-immich-gpu-heal: restarting load-i915.service to reload i915 render driver.
-immich-gpu-heal: still down after restart #1 — will re-evaluate next cycle.
+immich-gpu-heal: cannot save state to /var/lib/node-maintenance/immich-gpu-heal.state — skipping the load-i915 restart, so the restart cap still holds.

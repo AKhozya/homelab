@@ -17,6 +17,41 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-10-03 — Heal watchdogs save their state before they act, and skip the action if the save fails
+
+If `/var/lib` turns read-only or full, a watchdog cannot save its state file. On `126c7748` and earlier, `state_write` returns 0 anyway and no watchdog checks it, so each limit that reads the state file stops working:
+
+| Watchdog | Limit lost | Result on `126c7748` |
+|---|---|---|
+| clusterip-heal | 3 restarts / 30 min cap | if the shared cooldown file stays writable, a k3s-agent restart every 6 min; if it does not, every 3 min |
+| clusterip-heal-cp | cap and cooldown | `systemctl restart k3s` on the CP every 3 min |
+| immich-gpu-heal | cap and cooldown | a `load-i915` restart every 3 min |
+| node-isolation-heal L2 | 1 reboot / 24 h cap | reboots limited only by the 30-min uptime guard |
+
+| Part | Behaviour now |
+|---|---|
+| `state_write` | returns 1 if the save fails |
+| clusterip-heal, clusterip-heal-cp, immich-gpu-heal | save the incremented count before the restart and skip the restart if that save fails. After the restart command returns or times out, they save again. If that save succeeds, the next run measures the cooldown from that moment; if it fails, from the first save. A failed or timed-out restart counts toward the cap; before, only the CP's timeout path counted |
+| node-isolation-heal | if the save before L1 or L2 fails, skips that action. A failed L2 save is a third reboot guard (`giveup 1`) |
+
+| Failure | Alert that shows the skipped action |
+|---|---|
+| `/var/lib` read-only or full | the metric file stops changing too, so `NodeHealWatchdogStale` fires |
+| only the state file fails | `ClusterIPHealWedged`, `NodeIsolationHealActing` or `NodeIsolationHealGaveUp`. **None for immich-gpu-heal**: no rule reads its gauges, a gap that predates this change |
+
+| Test | Result |
+|---|---|
+| harness scenarios | 67 → 76: a failed save before the action, a failed save after it, a failed record-only save under `set -e`, and a clock that moves 200 s during a restart (success, failure and timeout) |
+| mutants | 17 killed: each of the 5 guards replaced with `if false`, each of the 8 new `|| true` removed, each of the 3 saves after a restart deleted, and `|| true` put back in `state_write` |
+| harness clock | the runner creates the shared cooldown file at `FAKE_NOW - 3600`. The scripts read its mtime with the real `stat`. If a script creates it, every scenario that reaches a cooldown check without its own mtime reports a cooldown from 19:55 UTC on 2026-10-03, 300 s before `FAKE_NOW` |
+
+**Found, not fixed:** an `exec` with no command applies its redirects to the whole shell, so the journal loses every later stderr line of that run:
+
+| File | Line |
+|---|---|
+| `clusterip-heal.sh` | `exec 9>>"$SHARED_RESTART_COOLDOWN" 2>/dev/null` |
+| `node-isolation-heal.sh` | the same line in `do_l1` |
+
 ### 2026-10-02 — Monthly review: the 180-day secret rotation run end to end by the agent, Immich off the pooler, Loki sidecar probes back
 
 This was the October monthly review, and also the quarterly automation audit. It covered the 180-day rotation that was due on 2026-10-01. For the first time the agent ran the whole rotation itself, merges included, on the operator's instruction. The method is now in the `secrets-rotation` skill, with new helpers in dotfiles (`bd266d6`, `51fe39a`, `5ecc336`).

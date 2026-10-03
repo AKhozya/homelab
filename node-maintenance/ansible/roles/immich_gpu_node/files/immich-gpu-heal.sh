@@ -241,7 +241,7 @@ fi
 
 if i915_loaded && render_present; then
 	emit_metric 1 "$qsv_metric" "$vfs_ok" "$total" 0 "$qsv_stuck"
-	write_state "$win" "$count" "$total" "$last" "$last_qsv"
+	write_state "$win" "$count" "$total" "$last" "$last_qsv" || true
 	exit 0
 fi
 
@@ -252,24 +252,36 @@ read -r action win count < <(decide "$now" "$win" "$count" "$last")
 case "$action" in
 giveup)
 	log "render still down after ${count} load-i915 restart(s) in $((WINDOW / 60))min — giving up. Likely a reset-bug/vfio wedge needing a HOST cold-restart (Tier-2). NOT restarting again."
-	write_state "$win" "$count" "$total" "$last" "$last_qsv"
+	write_state "$win" "$count" "$total" "$last" "$last_qsv" || true
 	emit_metric 0 -1 "$vfs_ok" "$total" 1
 	exit 1
 	;;
 cooldown)
 	log "within ${COOLDOWN}s cooldown ($((now - last))s since last restart) — waiting a cycle."
-	write_state "$win" "$count" "$total" "$last" "$last_qsv"
+	write_state "$win" "$count" "$total" "$last" "$last_qsv" || true
 	emit_metric 0 -1 "$vfs_ok" "$total" 0
 	exit 1
 	;;
 esac
 
+# Save the incremented count before the restart, so a failed restart still counts toward the cap.
+# If the save fails, skip the restart: the next run can enforce the cap only from the state file.
+if ! write_state "$win" "$((count + 1))" "$((total + 1))" "$(date +%s)" "$last_qsv"; then
+	log "cannot save state to $STATE — skipping the load-i915 restart, so the restart cap still holds."
+	emit_metric 0 -1 "$vfs_ok" "$total" 0
+	exit 1
+fi
+count="$((count + 1))"
+total="$((total + 1))"
+
 log "restarting load-i915.service to reload i915 render driver."
-if systemctl restart load-i915.service; then
-	count="$((count + 1))"
-	total="$((total + 1))"
-	last="$(date +%s)"
-	write_state "$win" "$count" "$total" "$last" "$last_qsv"
+rc=0
+systemctl restart load-i915.service || rc=$?
+# If this save succeeds, the next run measures the cooldown from the end of the restart.
+last="$(date +%s)"
+write_state "$win" "$count" "$total" "$last" "$last_qsv" || true
+
+if [ "$rc" -eq 0 ]; then
 	sleep "$REPROBE_WAIT"
 	if i915_loaded && render_present; then
 		log "render recovered after restart #${count} this window."
@@ -281,6 +293,6 @@ if systemctl restart load-i915.service; then
 	exit 1
 fi
 
-log "load-i915.service restart FAILED."
+log "load-i915.service restart FAILED (rc=$rc)."
 emit_metric 0 -1 "$vfs_ok" "$total" 0
 exit 1

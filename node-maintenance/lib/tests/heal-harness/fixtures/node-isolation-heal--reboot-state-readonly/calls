@@ -1,0 +1,4 @@
+systemctl cat k3s-agent.service
+date +%s
+logger -t node-isolation-heal -- ISOLATED\ \(tunnel\ down\;\ cp_direct=0\ kubelet=1\ gw=1\ peers=0\)\ consecutive=6\ wedged=1000s\ dry_run=0
+logger -t node-isolation-heal -- reboot\ GUARD:\ cannot\ save\ state\ to\ /var/lib/node-isolation-heal/state\,\ so\ the\ daily\ reboot\ cap\ cannot\ hold\ —\ giving\ up\,\ alerting.

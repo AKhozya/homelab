@@ -72,7 +72,7 @@ script that sources it.
 | Function | Used by | What it does |
 |---|---|---|
 | `textfile_write PATH` | the 4 heal watchdogs, `firewall-preflight.sh` | writes a node-exporter metric atomically, mode 0644; returns 1 on failure, and the callers ignore that |
-| `state_write PATH FIELD...` | the 4 heal watchdogs | writes a one-line state file atomically, mode 0600; always returns 0 |
+| `state_write PATH FIELD...` | the 4 heal watchdogs | writes a one-line state file atomically, mode 0600; returns 1 on failure. If the save before a restart or reboot fails, the watchdog skips that action |
 | `ufw_chains_hash` | `firewall-preflight.sh`, `k3s-wait-ready.sh`, `ufw-heal-post-k3s.sh` | hashes the ufw chains only, the settle signal |
 
 If the library is missing or lacks a function a script needs, that script logs `cannot load …`

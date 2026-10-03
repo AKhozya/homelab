@@ -105,7 +105,7 @@ fi
 # Cap reached → give up, alert via metric, do NOT restart again.
 if [ "$count" -ge "$MAX_RESTARTS" ]; then
 	log "still wedged after ${count} restart(s) in $((WINDOW / 60))min — giving up, NOT restarting. Deeper fault than the iptables-restore wedge; investigate."
-	write_state "$win" "$count" "$total" "$last"
+	write_state "$win" "$count" "$total" "$last" || true
 	emit_metric 1 "$total" 1
 	exit 1
 fi
@@ -140,14 +140,27 @@ if [ "$last_any" -ne 0 ] && [ "$((now - last_any))" -lt "$COOLDOWN" ]; then
 	exit 1
 fi
 
+# Save the incremented count before the restart, so a failed restart still counts toward the cap.
+# If the save fails, skip the restart: the next run can enforce the cap only from the state file.
+if ! write_state "$win" "$((count + 1))" "$((total + 1))" "$(date +%s)"; then
+	log "cannot save state to $STATE — skipping the restart, so the restart cap still holds."
+	emit_metric 1 "$total" 0
+	exit 1
+fi
+count="$((count + 1))"
+total="$((total + 1))"
+
 # Heal: restart k3s-agent to rebuild kube-proxy chains from a clean slate.
 log "restarting k3s-agent to rebuild kube-proxy chains."
-if systemctl restart k3s-agent.service; then
-	count="$((count + 1))"
-	total="$((total + 1))"
-	last="$(date +%s)"
+rc=0
+systemctl restart k3s-agent.service || rc=$?
+# If this save succeeds, the next run measures the cooldown from the end of the restart, which can
+# take minutes if k3s-agent fails to start.
+last="$(date +%s)"
+write_state "$win" "$count" "$total" "$last" || true
+
+if [ "$rc" -eq 0 ]; then
 	: >"$SHARED_RESTART_COOLDOWN" 2>/dev/null || true
-	write_state "$win" "$count" "$total" "$last"
 	sleep "$REPROBE_WAIT"
 	if "$PROBE" >/dev/null 2>&1; then
 		log "ClusterIP DNAT recovered after restart #${count} this window."
@@ -159,6 +172,6 @@ if systemctl restart k3s-agent.service; then
 	exit 1
 fi
 
-log "k3s-agent restart FAILED."
+log "k3s-agent restart FAILED (rc=$rc)."
 emit_metric 1 "$total" 0
 exit 1

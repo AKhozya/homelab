@@ -9,7 +9,7 @@ immich_gpu_qsv_ok -1
 immich_gpu_virtiofs_ok 1
 # HELP immich_gpu_heal_restarts_total load-i915.service restarts issued by the heal watchdog.
 # TYPE immich_gpu_heal_restarts_total counter
-immich_gpu_heal_restarts_total 1
+immich_gpu_heal_restarts_total 0
 # HELP immich_gpu_heal_giveup Render fault persisted past MAX_RESTARTS (1=needs a human / host cold-restart).
 # TYPE immich_gpu_heal_giveup gauge
 immich_gpu_heal_giveup 0

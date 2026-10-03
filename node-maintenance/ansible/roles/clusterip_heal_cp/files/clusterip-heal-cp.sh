@@ -101,7 +101,7 @@ fi
 # Cap reached → give up, alert via metric, do NOT restart again.
 if [ "$count" -ge "$MAX_RESTARTS" ]; then
 	log "still wedged after ${count} k3s restart(s) in $((WINDOW / 60))min — giving up, NOT restarting. Deeper fault than the iptables-restore wedge; investigate."
-	write_state "$win" "$count" "$total" "$last"
+	write_state "$win" "$count" "$total" "$last" || true
 	emit_metric 1 "$total" 1
 	exit 1
 fi
@@ -113,16 +113,26 @@ if [ "$last" -ne 0 ] && [ "$((now - last))" -lt "$COOLDOWN" ]; then
 	exit 1
 fi
 
+# Save the incremented count before the restart, so a failed or timed-out restart still counts
+# toward the cap. If the save fails, skip the restart: the next run can enforce the cap only from the
+# state file.
+if ! write_state "$win" "$((count + 1))" "$((total + 1))" "$(date +%s)"; then
+	log "cannot save state to $STATE — skipping the k3s restart, so the restart cap still holds."
+	emit_metric 1 "$total" 0
+	exit 1
+fi
+count="$((count + 1))"
+total="$((total + 1))"
+
 # Heal: timeout-guarded `systemctl restart k3s` to rebuild kube-proxy chains from a clean slate.
 log "restarting k3s (timeout ${RESTART_TIMEOUT}s) to rebuild kube-proxy chains."
 rc=0
 timeout "$RESTART_TIMEOUT" systemctl restart k3s.service || rc=$?
+# If this save succeeds, the next run measures the cooldown from when systemctl returns or times out.
+last="$(date +%s)"
+write_state "$win" "$count" "$total" "$last" || true
 
 if [ "$rc" -eq 0 ]; then
-	count="$((count + 1))"
-	total="$((total + 1))"
-	last="$(date +%s)"
-	write_state "$win" "$count" "$total" "$last"
 	sleep "$REPROBE_WAIT"
 	rprc=0
 	"$PROBE" >/dev/null 2>&1 || rprc=$?
@@ -139,13 +149,8 @@ if [ "$rc" -eq 0 ]; then
 fi
 
 if [ "$rc" -eq 124 ]; then
-	# `timeout` killed the systemctl client (k3s itself keeps restarting under systemd). Count it so
-	# the cap/give-up still applies, and surface it — a restart that does not return in time is a
-	# regression of the 2026-06-29 clean-restart gate and must not be retried blindly.
-	count="$((count + 1))"
-	total="$((total + 1))"
-	last="$(date +%s)"
-	write_state "$win" "$count" "$total" "$last"
+	# `timeout` kills only the systemctl client; systemd keeps restarting k3s. The 2026-06-29 test
+	# records a clean restart at 30-60s, so a restart past RESTART_TIMEOUT is a fault: log it and report wedged.
 	log "k3s restart exceeded ${RESTART_TIMEOUT}s and was killed (timeout) — surfacing as wedged."
 	emit_metric 1 "$total" 0
 	exit 1

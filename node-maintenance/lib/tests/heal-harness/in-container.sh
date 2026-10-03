@@ -19,10 +19,12 @@ for c in "${STUBBED[@]}"; do
 	install -m 0755 /harness-src/stub.sh "/usr/bin/$c"
 done
 
-# A fixed clock, so state files and wedged-seconds values are the same on every run.
+# The fake clock makes state files and wedged-seconds values the same on every run. A scenario
+# moves it by writing seconds since the epoch to /harness/now, for example from a restart stub.
 export FAKE_NOW=1791057600
 cat >/harness/behavior/date <<'EOF'
-if [ "${1:-}" = "+%s" ]; then echo "$FAKE_NOW"; else echo "Fri Oct  2 20:00:00 UTC 2026"; fi
+now="$(cat /harness/now 2>/dev/null || echo "$FAKE_NOW")"
+if [ "${1:-}" = "+%s" ]; then echo "$now"; else echo "Sat Oct  3 20:00:00 UTC 2026"; fi
 EOF
 echo 'echo harness-node' >/harness/behavior/hostname
 echo harness-node >/etc/hostname
@@ -41,6 +43,10 @@ behave_seq() {
 }
 
 mkdir -p /var/lib/node_exporter/textfile /var/lib/node-maintenance
+# The scripts read this file's mtime with the unstubbed stat and compare it with the fake clock. If
+# the scripts create it, its mtime is the real time, and every cooldown check reports a cooldown
+# once the real clock comes within 300 s of FAKE_NOW. A scenario that tests the cooldown sets its own mtime.
+mkdir -p /var/lib/k3s-agent-restart && touch -d "@$((FAKE_NOW - 3600))" /var/lib/k3s-agent-restart/cooldown
 lib_src=/repo/node-maintenance/ansible/roles/base_config/files/node-script-lib.sh
 if [ -f "$lib_src" ]; then
 	install -D -m 0644 "$lib_src" /usr/local/lib/node-maintenance/node-script-lib.sh

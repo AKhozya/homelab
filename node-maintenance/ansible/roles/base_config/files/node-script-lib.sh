@@ -34,12 +34,13 @@ textfile_write() { # PATH < metric text
 }
 
 # A watchdog state file ("field field ..." on one line), mode 0600 as mktemp creates it.
-# Returns 0 even if the write fails, as each caller expects; three of the four run under set -e.
+# Returns 1 if the write fails. A watchdog saves its restart count before it acts and skips the
+# action on 1, because a count it cannot save cannot enforce the restart cap.
 state_write() { # PATH FIELD...
 	local path=$1
 	shift
 	local IFS=' '
-	printf '%s\n' "$*" | _nsl_atomic_write "$path" 0600 || true
+	printf '%s\n' "$*" | _nsl_atomic_write "$path" 0600
 }
 
 # sha256 of the ufw/ufw6 chain declarations and rules only. kube-router and kube-proxy rewrite

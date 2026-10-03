@@ -1,2 +1,2 @@
 node-isolation-heal: ISOLATED (tunnel down; cp_direct=1 kubelet=1 gw=1 peers=0) consecutive=3 wedged=400s dry_run=0
-node-isolation-heal: L1: restarting k3s-agent (isolated 400s).
+node-isolation-heal: L1: cannot save state to /var/lib/node-isolation-heal/state — skipping the k3s-agent restart.
