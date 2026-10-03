@@ -1,0 +1,18 @@
+# HELP immich_gpu_render_ok Intel i915 render node (renderD129) present + i915 loaded (1=ok).
+# TYPE immich_gpu_render_ok gauge
+immich_gpu_render_ok 0
+# HELP immich_gpu_qsv_ok vainfo lists a QSV encode entrypoint (1=ok 0=no-encode -1=unverified; hourly).
+# TYPE immich_gpu_qsv_ok gauge
+immich_gpu_qsv_ok -1
+# HELP immich_gpu_virtiofs_ok Immich library virtiofs mount present (1=ok/not-yet-configured 0=down).
+# TYPE immich_gpu_virtiofs_ok gauge
+immich_gpu_virtiofs_ok 1
+# HELP immich_gpu_heal_restarts_total load-i915.service restarts issued by the heal watchdog.
+# TYPE immich_gpu_heal_restarts_total counter
+immich_gpu_heal_restarts_total 4
+# HELP immich_gpu_heal_giveup Render fault persisted past MAX_RESTARTS (1=needs a human / host cold-restart).
+# TYPE immich_gpu_heal_giveup gauge
+immich_gpu_heal_giveup 0
+# HELP immich_gpu_qsv_stuck A prior hourly QSV probe is wedged in D-state (1=needs a host cold-restart; probe not relaunched).
+# TYPE immich_gpu_qsv_stuck gauge
+immich_gpu_qsv_stuck 1

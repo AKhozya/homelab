@@ -71,18 +71,22 @@ spec:
     - alert: ClusterIPHealGaveUp
       # Watchdog hit MAX_RESTARTS within its window and backed off — a wedge that
       # restart-k3s-agent does NOT fix = deeper fault, needs a human.
-      # If the fault persists, the gauge drops to 0 when the 30-min window expires, while the script
-      # tries its 3 restarts again, then returns to 1. That gap lasts up to about 21 min on the CP
-      # (120s restart timeout, 300s cooldown, 3-min timer), so keep_firing_for 25m keeps one alert
-      # firing through it. Trade-off: after a real recovery the alert clears 25 min later.
+      # If the fault persists, the gauge drops to 0 when the 30-min window expires. The script then
+      # tries its 3 restarts again, and the gauge returns to 1 after the third.
+      # The worker script sets the longest gap, about 22 min: a restart over 60s pushes each 300s
+      # cooldown to the next 3-min run. One run lost to node-isolation-heal holding the shared lock
+      # adds 3 min, and scrape plus evaluation add up to 2 min, so keep_firing_for is 30m.
+      # Trade-offs: after a real recovery the alert clears 30 min later. If the wedge returns inside
+      # those 30 min, the alert never resolved, so only ClusterIPHealWedged pages again.
       expr: node_clusterip_heal_giveup == 1
       for: 1m
-      keep_firing_for: 25m
+      keep_firing_for: 30m
       labels:
         severity: critical
       annotations:
         summary: "clusterip_heal GAVE UP on {{ $labels.instance }} — manual intervention needed"
-        description: "node_clusterip_heal_giveup=1 on {{ $labels.instance }}: the ClusterIP DNAT wedge persisted past
+        description: "node_clusterip_heal_giveup was 1 on {{ $labels.instance }} within the last 30 minutes (ClusterIPHealWedged
+          resolving marks the recovery): the ClusterIP DNAT wedge persisted past
           the watchdog's restart cap. restart-k3s-agent is not fixing it — investigate stale nft chain / CNI /
           hardware."
 
@@ -1690,16 +1694,19 @@ spec:
           NAS before any host restart."
     - alert: ImmichGPUHealGaveUp
       # The textfile survives a reboot. The timer uses OnBootSec=90s and RandomizedDelaySec=20s.
-      # 3m reduces the chance that a giveup=1 written before a host cold restart pages again after it.
-      # keep_firing_for 25m: the same window gap as ClusterIPHealGaveUp, with the same trade-off.
+      # If the VM stays down over 30 min, 3m reduces the chance that a giveup=1 written before a host
+      # cold restart pages again after it. A shorter outage leaves the alert firing through it.
+      # keep_firing_for 30m: the same window gap as ClusterIPHealGaveUp, with the same trade-offs;
+      # here ImmichGPURenderDown is the warning that pages again and marks the recovery.
       expr: immich_gpu_heal_giveup == 1
       for: 3m
-      keep_firing_for: 25m
+      keep_firing_for: 30m
       labels:
         severity: critical
       annotations:
         summary: "immich-gpu-heal gave up on {{ $labels.instance }}: the render node stays down after 3 restarts"
-        description: "immich_gpu_heal_giveup=1 on {{ $labels.instance }}: the render node is still down after 3 load-i915
+        description: "immich_gpu_heal_giveup was 1 on {{ $labels.instance }} within the last 30 minutes (ImmichGPURenderDown
+          resolving marks the recovery): the render node is still down after 3 load-i915
           restarts in 30 minutes, so a driver reload inside the guest does not restore it. Read journalctl -u
           immich-gpu-heal-watchdog and the guest kernel log for i915 errors. If they show a GPU reset fault, cold-restart
           the NAS host. Never reboot immich-vm from inside the guest."

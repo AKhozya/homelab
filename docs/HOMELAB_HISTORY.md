@@ -19,20 +19,20 @@ The table summarises the months before the dated entries below.
 
 ### 2026-10-03 — GaveUp alerts stay firing while the heal watchdog retries
 
-The W1 review (`c7162caf`) left two follow-ups. This change closes both:
+The W1 review (follow-ups in `99d6729d`, merged as `c7162caf`) recorded two follow-ups. This change closes both:
 
 | Follow-up | Fix |
 |---|---|
-| `ClusterIPHealGaveUp` and `ImmichGPUHealGaveUp` resolve and fire again while a fault persists. When the 30-min restart window expires, the script tries its 3 restarts again, and the gauge reads 0 for up to about 21 min on the CP (120s restart timeout, 300s cooldown, 3-min timer). Each gap sent a RESOLVED message for a fault that was still there | `keep_firing_for: 25m` on both rules. Trade-off: after a real recovery each alert clears 25 min later |
-| `immich-gpu-heal.sh` wrote `qsv_stuck 0` on every path where the render node is down | each of those paths now writes the measured value |
+| on `c7162caf`, `ClusterIPHealGaveUp` and `ImmichGPUHealGaveUp` can resolve while a fault persists. If the 30-min restart window expires, the script tries its 3 restarts again, and the gauge reads 0 for up to about 22 min on a worker (a restart over 60s pushes each 300s cooldown to the next 3-min run) | `keep_firing_for: 30m` on both rules, which also covers one run lost to the shared lock and up to 2 min of scrape and evaluation. Trade-offs: after a real recovery each alert clears 30 min later, and a fault that returns inside those 30 min pages only through the paired warning (`ClusterIPHealWedged`, `ImmichGPURenderDown`) |
+| on `c7162caf`, `immich-gpu-heal.sh` writes `qsv_stuck 0` on every path after the Intel GPU check where the render node is down | those paths now write the measured value. The no-GPU branch exits before the probe check and still writes 0 |
 
 | Test | Result |
 |---|---|
 | VMRule field | `kubectl explain` cannot show it: the CRD's `spec` preserves unknown fields. The operator API schema lists `keep_firing_for` (operator PR #711) |
-| `vmalert-tool unittest` v1.152.0 | with the gauge at 1 for 15 min, 0 for 21 min, 1 for 10 min, then 0: both alerts fire throughout and clear 25 min after the last 1 |
-| mutants, rules | 4 killed: each `keep_firing_for` removed, each cut to 15m |
-| heal harness | 77 of 77, with the new scenario `immich-gpu-heal--giveup-qsv-stuck` |
-| mutant, script | killed: the giveup path without `"$qsv_stuck"` |
+| `vmalert-tool unittest` v1.152.0 | gauge 1 at 0-15 min, 0 at 16-37, 1 at 38-48, then 0: both alerts fire at the 30, 35, 37 and 75 min checks and have cleared at the 85 min check |
+| mutants, rules | 4 killed: each `keep_firing_for` removed, each cut to 20m |
+| heal harness | 78 of 78, with the new scenarios `immich-gpu-heal--giveup-qsv-stuck` and `--cooldown-qsv-stuck` |
+| mutants, script | 2 killed: the giveup and cooldown paths without `"$qsv_stuck"`. The other four paths have no scenario of their own |
 
 ### 2026-10-03 — Heal scripts keep their stderr; alerts read the immich-gpu-heal gauges
 
