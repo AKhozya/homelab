@@ -19,7 +19,7 @@ The table summarises the months before the dated entries below.
 
 ### 2026-10-03 — GaveUp alerts stay firing while the heal watchdog retries
 
-The W1 review (follow-ups in `99d6729d`, merged as `c7162caf`) recorded two follow-ups. This change closes both:
+The W1 review (`99d6729d`; series tip `c7162caf`) lists two follow-ups. This change closes both:
 
 | Follow-up | Fix |
 |---|---|

@@ -29,15 +29,13 @@ It IS the autostart — native/UI autostart is OFF by design (C2/C4).
 
 Alerts: VMRule group `immich-gpu-node-alerts` → Telegram. `NodeNotReady` (immich-vm) covers a down VM.
 
-| Alert | Reads | Condition | `for` |
-|---|---|---|---|
-| `ImmichVMHealJobFailing` | this CronJob's Jobs | a heal Job has a failed pod and no run succeeded in the last 20 min | 5m |
-| `ImmichVMHealStale` | this CronJob | no run succeeded in the last 30 min | 10m |
-| `ImmichGPURenderDown` | `immich_gpu_render_ok`, written by `immich-gpu-heal` in the guest | the Intel render node is missing | 8m |
-| `ImmichGPUHealGaveUp` | `immich_gpu_heal_giveup` | the guest watchdog makes no further `load-i915` restart after 3 in 30 min | 3m |
-| `ImmichGPUQSVProbeStuck` | `immich_gpu_qsv_stuck` | a `vainfo` probe still runs after its timeout and kill | 10m |
-
-`ImmichGPUHealGaveUp` keeps firing 30 min after its gauge clears (`keep_firing_for`), so `ImmichGPURenderDown` resolving marks the recovery.
+| Alert | Reads | Condition | `for` | `keep_firing_for` |
+|---|---|---|---|---|
+| `ImmichVMHealJobFailing` | this CronJob's Jobs | a heal Job has a failed pod and no run succeeded in the last 20 min | 5m | — |
+| `ImmichVMHealStale` | this CronJob | no run succeeded in the last 30 min | 10m | — |
+| `ImmichGPURenderDown` | `immich_gpu_render_ok`, written by `immich-gpu-heal` in the guest | the Intel render node is missing | 8m | — |
+| `ImmichGPUHealGaveUp` | `immich_gpu_heal_giveup` | the guest watchdog makes no further `load-i915` restart after 3 in 30 min | 3m | 30m |
+| `ImmichGPUQSVProbeStuck` | `immich_gpu_qsv_stuck` | a `vainfo` probe still runs after its timeout and kill | 10m | — |
 
 `PodPhaseNotRunning` and `JobFailed` exclude this CronJob's pods and Jobs: a NAS reboot fails some of
 its runs, and `ImmichVMHealJobFailing` and `ImmichVMHealStale` cover it.
