@@ -190,7 +190,7 @@ spec:
               cpu: "1000m"
               memory: "1Gi"
         - name: apprise
-          image: caronc/apprise:v2.0.0
+          image: caronc/apprise:2.0.1
           ports:
             - containerPort: 8000
               name: apprise
