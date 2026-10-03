@@ -1,13 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - cert-manager
+  - cert-manager/clusterissuer.yaml
   - kyverno-policies
   - databases
   - cloudflare
   - backup
   - backup-replication
   - resource-governance
-  - claude-telegram-rbac
-  - intel-gpu-plugin
+  - claude-telegram-rbac/rolebindings.yaml
+  - intel-gpu-plugin/daemonset.yaml
   - traefik-middlewares

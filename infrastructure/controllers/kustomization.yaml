@@ -5,7 +5,7 @@ resources:
   # Kept in infrastructure-controllers (not -configs) so a cold bootstrap/DR restore can't
   # deadlock: infrastructure-configs dependsOn infrastructure-controllers, whose healthCheck
   # pods (cert-manager-webhook, kyverno-admission-controller) reference homelab-standard.
-  - priority-classes
+  - priority-classes/priority-classes.yaml
   - cert-manager
   - traefik
   - kyverno
