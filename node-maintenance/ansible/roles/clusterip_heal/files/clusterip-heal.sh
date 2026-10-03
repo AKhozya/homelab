@@ -116,7 +116,7 @@ fi
 # Lock infra failing (no flock / fd open error) = fail CLOSED: skip the restart this cycle
 # — never degrade to the racy mtime-only path; the wedged metric + alert still fire.
 mkdir -p "$(dirname "$SHARED_RESTART_COOLDOWN")" 2>/dev/null || true
-# Keep the braces: without them, exec applies 2>/dev/null to the rest of the run and the journal loses its stderr.
+# If someone removes the braces, exec sends the rest of the run's stderr to /dev/null and the journal loses it.
 if ! command -v flock >/dev/null 2>&1 || ! { exec 9>>"$SHARED_RESTART_COOLDOWN"; } 2>/dev/null; then
 	log "restart-lock infrastructure unavailable (flock/fd open) — failing closed this cycle."
 	emit_metric 1 "$total" 0
