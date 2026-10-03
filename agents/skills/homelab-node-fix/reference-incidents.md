@@ -102,7 +102,7 @@ So both the 10-min timer AND a manual sync apply to all 4 nodes at once. To stag
 3. Apply per node, verify between each: `cd /etc/node-maintenance/ansible && ansible-playbook -D -i inventory.yml node-config.yml --limit <node> --tags <tag>` (prefix with `--check` for a dry-run first). Tag your new tasks so `--tags` scopes to just your change (skips firewall/etc). Before each check, compare the deployed files' hashes with the tree you intend to test. Memory `project_maintenance_schedules` has the 2026-10-02 case.
 4. Restore: `systemctl enable --now node-maintenance.timer node-maintenance-sync.timer node-maintenance-config.timer`. Next auto-heal is idempotent (`changed=0`).
 
-Proven 2026-06-04 (DNS decoupling): using `install.sh --sync-only` ran a full all-host heal that bypassed the intended staged W2→W1→CP rollout. See `[[gotcha_k3s_reboot_ordering]]`.
+Proven 2026-06-04 (DNS decoupling): `install.sh --sync-only` then started the config run itself, so it ran a full all-host heal that bypassed the intended staged W2→W1→CP rollout. Since `4aa51ae5` (2026-08-07), `install.sh --sync-only` no longer starts the config run. If HEAD differs from the applied SHA, the sync service starts the config run after `install.sh --sync-only`. See `[[gotcha_k3s_reboot_ordering]]`.
 
 ## Drift-heal vs pacman race (2026-05-22, commit 3b5696d7)
 
