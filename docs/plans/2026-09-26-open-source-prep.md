@@ -1048,18 +1048,26 @@ Run 2026-09-28.
 
 ### Pre-flip re-check (2026-10-03)
 
-SP4's publish gate ran on `aec47982`, and SP5 closed at `e45761d1`. 103 commits landed after `e45761d1` (to `6bc18777`). This re-check repeats the SP4 probes on a mirror clone made 2026-10-03, with gitleaks 8.30.1 and `.gitleaks.toml`.
+This re-check repeats the SP4 probes on the commits that reach `main` after SP5.
+
+| Item | Value |
+|---|---|
+| SP4 baseline | `aec47982` (SP4 spike results, above) |
+| SP5 end | `e45761d1`, the commit that records the SP5 outcome and marks SP5 done |
+| range checked | `e45761d1..6bc18777`, 103 commits |
+| clone | a mirror clone made 2026-10-03 |
+| scanner | gitleaks 8.30.1 with `.gitleaks.toml` |
 
 | Probe | Result |
 |---|---|
 | S44, new range: `gitleaks git --log-opts=e45761d1..origin/main` | 0 findings |
 | S44, full history: `gitleaks git <mirror> --log-opts=--all` | 15 findings in 12 commits, the same set S44 judged: `23f7eb5f` ×3, the five Stirling commits, `61daa232`, `4d56eb29`, `1163c098`, `ba739489`, `0ecb4bef` and `7349f6cc` ×2. None is new |
 | working tree: `gitleaks dir` and `scripts/ci/check-sops-encrypted.sh` | both clean |
-| S45, refs GitHub serves | 1 branch, 52 tags, 469 `refs/pull/*/head` (442 on 2026-09-28; each Renovate PR adds one). The `--all` scan above covers them |
+| S45, refs GitHub serves | 1 branch, 52 tags, 469 `refs/pull/*/head` (442 on 2026-09-28). The `--all` scan above covers them |
 | S46, secret-shaped files added in `e45761d1..main` | none |
-| S48, `uses:` not pinned to a 40-hex SHA | none (the new `./.github/actions/install-yq` is local) |
+| S48, `uses:` not pinned to a 40-hex SHA | none. The only unpinned form is the local `./.github/actions/install-yq`, which `02df4fd1` adds |
 | S53, Actions settings | all actions allowed; `sha_pinning_required: true`; the runs above pass with it |
-| S56, `/Users/akhozya` outside `agents/` and HISTORY | `AGENTS.md` and this plan, both kept by decisions 4 and 11 |
+| S56, `/Users/akhozya` outside `agents/` and HISTORY | `AGENTS.md` and this plan. Decisions 4 and 11 keep both, as S56 records |
 | S61, actionlint | 0 findings |
 | visibility and forks | `PRIVATE`, `forkCount` 0 |
 
@@ -1072,7 +1080,7 @@ Steps 2, 3 and 5 need a public repo, because each endpoint refuses a private one
 | 1. Flip | operator | On a date the operator picks, after SP5 closes (A5). Settings → Danger zone, or `gh repo edit AKhozya/homelab --visibility public --accept-visibility-change-consequences` |
 | 2. Fork PRs | agent | Right after the flip, so no outside PR runs a workflow unseen while later steps wait on billing: `gh api -X PUT repos/AKhozya/homelab/actions/permissions/fork-pr-contributor-approval -f approval_policy=all_external_contributors`, then read it back (A6) |
 | 3. Vulnerability reports | agent | `gh api -X PUT repos/AKhozya/homelab/private-vulnerability-reporting`, then read it back. Add one line to `docs/SECURITY.md` that tells a reader to report a problem through the repo's Security tab (Q3) |
-| 4. Actions | agent | Run `gh workflow run gitleaks.yaml` and `gh workflow run validate.yaml`, watch each run to the end with `gh run watch`, and record each run's ID and result here. Billing (S67) and the SHA pins no longer block a run: both workflows pass on `6bc18777` with `sha_pinning_required: true`. The runs confirm the public repo behaves the same before step 5 requires the scan |
+| 4. Actions | agent, then operator if needed | Run `gh workflow run gitleaks.yaml` and `gh workflow run validate.yaml`, watch each run to the end with `gh run watch`, and record each run's ID and result here. On 2026-10-03 both workflows pass on `6bc18777` with `sha_pinning_required: true`. If a job fails with the S67 billing message, the operator clears the payment in Settings → Billing and plans, and the agent runs both again. If a job fails at setup, check the pins before the code |
 | 5. Ruleset | agent | If step 4 shows a successful `gitleaks secret scan`, create the ruleset. If the scan cannot complete successfully, requiring it would let a PR merge only through a bypass, so stop and tell the operator instead. The ruleset targets `main` with enforcement `active`. It requires a PR with 1 approval and a successful `gitleaks secret scan`. It lists the repo admin role as a bypass actor with bypass mode `always`; mode `pull_request` would refuse the owner's direct pushes (A4, A8). Find the ruleset's ID with `gh api repos/AKhozya/homelab/rulesets`, then read `gh api repos/AKhozya/homelab/rulesets/<id>` and check the target, enforcement, rules and bypass mode. The list call omits rules and bypass actors |
 | 6. Renovate | agent | Remove patch automerge from `renovate.json`, because the operator approves and merges each Renovate PR by hand (A7) |
 | 7. `AGENTS.md` | agent | If step 5 creates the ruleset and its read-back matches the planned settings, rewrite the invariant "CI validation — a signal, NOT a merge gate" as follows. A PR to `main` needs 1 approval and a successful `gitleaks secret scan`. Only the owner has write access, so only the owner's approval counts (S71). The owner is a bypass actor, so the owner can push to `main` directly and can merge a PR without the approval or the check. So a direct push reaches prod whatever CI says. The pre-commit review loop still covers those pushes, and its docs-only exemption stays. The ruleset does not require the Validate checks to pass |
@@ -1084,7 +1092,7 @@ Steps 2, 3 and 5 need a public repo, because each endpoint refuses a private one
 |---|---|---|
 | A1 | When the ultrareview runs | Now, on `main` |
 | A2 | Which SP5 findings to fix before the flip | All of them |
-| A3 | Actions billing | Flip first, then check whether jobs start. Fix billing only if they do not. Moot since 2026-10-01: jobs run on the private repo (S67) |
+| A3 | Actions billing | Flip first, then check whether jobs start. If they do not start, fix billing. Since 2026-10-01 jobs run on the private repo (S67) |
 | A4 | Rules on `main` | A PR and the owner's approval for everyone else. The owner bypasses, so the agent's merge-and-push flow stays |
 | A5 | Who flips, and when | The operator, on a date the operator picks |
 | A6 | Fork PRs that wait for approval | All outside contributors |
