@@ -362,9 +362,12 @@ spec:
     # This rule excludes the pods of the immich/immich-vm-heal CronJob. A NAS reboot fails some of
     # its 5-min runs, and each failed pod stays until its Job's 1h TTL, so this rule fired for 6 heal
     # pods in the 30 days to 2026-10-03. ImmichVMHealJobFailing and ImmichVMHealStale cover that CronJob.
+    # It also excludes backup pods. A failed restartPolicy: Never backup Job (pvc-backup,
+    # backup-replication) keeps its Failed pod until the Job's TTL, so a failed backup paged here as
+    # well as in BackupJobFailed. BackupJobRunningTooLong covers a backup pod stuck Pending.
     - alert: PodPhaseNotRunning
       expr: |
-        kube_pod_status_phase{phase!~"Running|Succeeded"} > 0
+        kube_pod_status_phase{phase!~"Running|Succeeded", pod!~".*backup.*"} > 0
         unless on(namespace, pod) kube_pod_status_phase{namespace="immich", pod=~"immich-vm-heal-[0-9]+-[a-z0-9]+"}
       for: 10m
       labels:
