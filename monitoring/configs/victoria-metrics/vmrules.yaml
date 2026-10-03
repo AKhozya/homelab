@@ -555,7 +555,7 @@ spec:
       # If this rule includes those Jobs, it bypasses the recent-success check in ImmichVMHealJobFailing.
       # Trade-off: if a heal Job never starts a pod (for example an admission denial), only
       # ImmichVMHealStale fires, about 40 min after the last success. If JobFailed included those
-      # Jobs, it would fire about 14 min after the last success.
+      # Jobs, the */5 schedule and the 240s deadline would make it fire about 14 min after the last success.
       expr: |
         kube_job_failed{condition="true"} == 1
         unless on(namespace, job_name) kube_job_failed{namespace="immich", job_name=~"immich-vm-heal-[0-9]+"}
