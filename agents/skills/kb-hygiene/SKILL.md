@@ -37,7 +37,7 @@ Axis 1's mechanical checks are scripted: run `scripts/index-integrity.sh [MEMORY
 
 **Scoped runs are valid** — the ask sets the axis subset: memory-only sweep = axes 1/2/3/5/7/8 (run 6); skills-only = 3/4/6/7 (runs 3-4); MEMORY.md over its size target (soft 17.1KB / hard 24.4KB read limit) = the index-compaction recipe in `reference/authoring-guidance.md` (run 5), no fan-out needed. Also grep the corpus for anything RETIRED that month — retirement-not-propagated is the dominant rot class (run 6: one retired gate live-voiced in 6 files).
 
-Axis 4's mechanical lint is scripted: run `scripts/lint-skill-scripts.sh [SKILLS_ROOT]` (shellcheck + shfmt + rg-as-command audit across all skill `.sh`); the Axis-4 agent then judges only captain-obvious comments.
+Axis 4's mechanical lint is scripted: run `scripts/lint-skill-scripts.sh [SKILLS_ROOT]`, whose checks `reference-scripts.md` lists. The Axis-4 agent then judges only comments that restate the code.
 
 The axes overlap by design (axes 3/5/7 all touch skills↔memory↔repo) → the same `file:line` will surface in several tables. That redundancy is the point — it cross-checks. Do NOT collapse the axis set to avoid it.
 
@@ -66,9 +66,9 @@ Produce: (1) the consolidated findings table, (2) a one-line-per-change summary 
 
 Never hardcode skill word counts: they drift. Run `scripts/skill-sizes.sh`.
 Before you run a script, read `reference-scripts.md` for its flags, exit codes and checks.
-After you edit `index-integrity.sh`, run `scripts/tests/test-index-integrity.sh`. After a subagent writes a file, run `scripts/tag-leak-sweep.sh` on it.
+If you edit `index-integrity.sh` or `lint-skill-scripts.sh`, run its test in `scripts/tests/`. If a subagent writes a file, run `scripts/tag-leak-sweep.sh` on it.
 
-All `set -euo pipefail`, `shellcheck`/`shfmt` clean. grep/sed/find only — `rg` is a shell function in this env, absent from non-interactive script PATH.
+All `set -euo pipefail`, `shellcheck`/`shfmt` clean. grep/sed/find, plus `jq` to read the skill lock — `rg` is a shell function in this env, absent from non-interactive script PATH.
 
 ## Pointers
 
