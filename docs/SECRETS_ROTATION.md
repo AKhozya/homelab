@@ -660,7 +660,7 @@ edits the checkout it lives in.
    | Alertmanager | mounted file `bot_token_file`; the kubelet refreshes it within about 2 min | none |
    | Flux notifications | the Secret, per event | none |
    | backup job | env, at the next run | none |
-   | claude-telegram | env `TELEGRAM_BOT_TOKEN`, at start-up | `kubectl delete pod -n claude-telegram -l app=claude-telegram` (Flux reverts `rollout restart`) |
+   | claude-telegram | env `TELEGRAM_BOT_TOKEN`, at start-up | `agents/skills/_shared/restart-workload.sh claude-telegram app=claude-telegram` (Flux reverts `rollout restart`) |
    | node-maintenance notices (alerts bot) | the CP file `/etc/node-maintenance/telegram-token`, on each send | none (below) |
 
    The node-maintenance files match the Secret without an operator step:

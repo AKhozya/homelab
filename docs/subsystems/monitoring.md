@@ -38,7 +38,7 @@ Alert classes worth knowing:
   |---|---|
   | `NodeSystemdUnitFailed` (warning, 15m) | a service, timer, socket, path or target unit stays failed. The collector's default excludes mount, automount, device, scope and slice units |
   | `NodeSystemdCollectorFailed` (warning, 15m) | the collector fails on a node (for example, it cannot reach the host's D-Bus socket), or is not running there |
-- **Job failure alerts** — both fire only when the Job itself has failed. A Job that succeeds after a retry does not fire these alerts. The Job pod vanishes with its TTL, so use VM exit-code metrics, not Loki, for the postmortem.
+- **Job failure alerts** — both fire only if the Job itself has failed. A Job that succeeds after a retry does not fire these alerts. The Job pod vanishes with its TTL, so use VM exit-code metrics, not Loki, for the postmortem.
 
   | Alert | Expression |
   |---|---|
@@ -48,9 +48,9 @@ Alert classes worth knowing:
   | A failed Job of | Fires |
   |---|---|
   | a backup CronJob | `BackupJobFailed` only. `PodPhaseNotRunning` excludes backup pods too |
-  | `immich-vm-heal`, with a failed pod | `ImmichVMHealJobFailing`, if no heal run succeeded in the last 20 min |
-  | `immich-vm-heal`, with no pod started (for example an admission denial) | only `ImmichVMHealStale`, about 40 min after the last success |
-  | anything else | `JobFailed`. If its `restartPolicy` is `Never` (popeye, trivy-scan), its `Failed` pod also fires `PodPhaseNotRunning` until the Job's TTL removes it |
+  | `immich-vm-heal`, with a failed pod | `ImmichVMHealJobFailing` 5 min later, if no heal run succeeded in the last 20 min |
+  | `immich-vm-heal`, with no pod started (for example an admission denial) | only `ImmichVMHealStale`: about 40 min after the last success, or after 10 min if the CronJob has never succeeded (its `absent()` arm) |
+  | anything else | `JobFailed`. If its `restartPolicy` is `Never` (popeye, trivy-scan), its `Failed` pod also fires `PodPhaseNotRunning` after 10 min, if the pod still exists then |
 
 ## VMAgent relabel-drops (filtered before remoteWrite, in `vmagent.yaml`)
 - `flag`, `config_parameter`, `kube_pod_tolerations`, `etcd_bookmark_counts`
