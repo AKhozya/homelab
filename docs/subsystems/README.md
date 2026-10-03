@@ -13,7 +13,7 @@ These maps say where each part of the cluster lives, how the parts connect, and 
 | Freshness comes from `git log -1 --format=%cs -- <file>`, never a hand-written date | a hand-written date goes stale |
 | A fact read from a SOPS file carries "verified <date>" and the command that decodes it | nobody can grep an encrypted file |
 
-These files drift. Check a path before you act on it, and fix drift when you see it. CI skips docs-only pushes.
+These files drift. Check a path before you act on it, and fix drift when you see it.
 
 | File | Scope | Read when |
 |------|-------|-----------|

@@ -158,9 +158,9 @@ Flux deploys whatever reaches `main`. A check blocks a deploy only if a rule on 
 
 | Rule on `main` | Effect |
 |---|---|
-| The `main` ruleset requires a PR with 1 approval and a successful `gitleaks secret scan` | if the owner does not use the bypass, a PR merges only after the owner approves it and the scan succeeds |
-| The repo admin role bypasses the ruleset | GitHub accepts the owner's direct pushes and merges without an approval or a finished scan. The scan still runs on each push |
-| No rule requires the Validate checks | if they fail, a commit can still reach `main` |
+| The `main` ruleset requires a PR with 1 approval, a successful `gitleaks secret scan` and a successful `ci-ok` | if the owner does not use the bypass, a PR merges only after the owner approves it and both checks succeed |
+| The repo admin role bypasses the ruleset | GitHub accepts the owner's direct pushes and merges without an approval or finished checks. Both workflows still run on each push |
+| The ruleset blocks force pushes and branch deletion | the rules bind everyone except the owner, including Renovate and any app token |
 
 ## Repository layout
 

@@ -149,9 +149,9 @@ The recurring trip is a benign `cd /path`⏎`git commit …` two-liner: the newl
 
 Example of the class: Wave-1 caught a `vm-operator` → `victoria-metrics-operator` Flux healthCheck name mismatch in `clusters/monitoring.yaml` before it reached the cluster.
 
-## Why a docs-only push skips CI and `fr`
+## Why a docs-only push skips 3c and `fr`
 
-**Docs/markdown/asset-only push? SKIP 3b + 3c + `fr` entirely.** `validate.yaml` carries `paths-ignore: ['**.md', 'docs/images/**']` (added 2026-06-13). If a push changes only markdown or images, no `validate.yaml` run starts. `gh run watch` then finds a stale unrelated run, or hangs. `gitleaks.yaml` carries no path filter. Secret scan therefore runs on a markdown-only push. `wait-for-ci.sh` passes `--workflow=validate.yaml`, so it ignores that run. And `docs/` isn't Flux-reconciled, so `fr` is a no-op.
+**Docs/markdown/asset-only push? SKIP 3b + 3c + `fr` entirely.** Both workflows run on every push to `main` and every PR targeting `main`. `validate.yaml` has no path filter, because the `main` ruleset requires its `ci-ok` check, and a path-filtered required check stays pending on a docs-only PR. A docs-only push changes nothing Flux applies, so waiting for CI protects no deploy, and `fr` is a no-op. If CI fails on a docs-only push, read the failed check: the secret scan covers markdown too.
 
 ## Why withholding `fr` is not a gate
 

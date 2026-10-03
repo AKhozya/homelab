@@ -1,16 +1,12 @@
 name: Validate
 
 on:
+  # No paths-ignore: the main ruleset requires ci-ok, and a workflow that a path filter
+  # skips leaves its required check pending for ever, so a docs-only PR could never merge.
   pull_request:
     branches: [main]
-    # Docs/assets touch no validate job (yaml/shell/sops/manifest). Skip on pure
-    # doc-only changes; mixed md+yaml pushes still run (paths-ignore skips only when
-    # EVERY changed file matches). Markdown secret coverage = gitleaks.yaml, which
-    # carries no paths-ignore.
-    paths-ignore: ['**.md', 'docs/images/**']
   push:
     branches: [main]
-    paths-ignore: ['**.md', 'docs/images/**']
   workflow_dispatch:
 
 permissions:
@@ -221,3 +217,21 @@ jobs:
       # KUBERNETES_VERSION comes from the workflow-level env above.
       - name: Render every HelmRelease chart
         run: scripts/ci/helm-render-check.sh .
+
+  # The main ruleset requires this one check instead of each job's name. if: always()
+  # makes it run and fail when a job fails or is cancelled; a skipped required check
+  # counts as passing. homelab-analysis-drift is warn-only, so it is not listed.
+  ci-ok:
+    name: ci-ok
+    if: always()
+    needs: [yamllint, shellcheck, node-script-tests, sops-check, init-resources, image-pin, kubeconform, helm-render]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          set -euo pipefail
+          echo "job results: $RESULTS"
+          [ -n "$RESULTS" ] || exit 1
+          for r in $RESULTS; do [ "$r" = success ] || exit 1; done

@@ -91,7 +91,8 @@
       "pinDigests": false
     },
     {
-      "description": "Require review for major updates",
+      "description": "Major updates: Renovate opens the PR only after the owner ticks it on the Dependency Dashboard (issue #32)",
+      "dependencyDashboardApproval": true,
       "matchUpdateTypes": [
         "major"
       ],

@@ -41,8 +41,7 @@ for _ in 1 2 3 4 5 6 7 8 9 10 11 12; do
 done
 if [ -z "$id" ]; then
   echo "no validate.yaml run appeared for sha ${sha:0:8} on $branch after 60s" >&2
-  echo "(docs/markdown-only pushes skip CI via paths-ignore — if that's this push, proceed on local gate." >&2
-  echo " Otherwise Actions is creating no runs at all: check gh run list --workflow=validate.yaml --limit 3)" >&2
+  echo "(validate.yaml runs on every push to main; check gh run list --workflow=validate.yaml --limit 3)" >&2
   exit 3
 fi
 

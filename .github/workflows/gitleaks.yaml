@@ -1,11 +1,9 @@
 name: Secret scan
 
-# Deliberately SEPARATE from validate.yaml, which carries
-# `paths-ignore: ['**.md', ...]`. A markdown-only push skips that whole workflow,
-# so while gitleaks lived there a pasted credential in a runbook or plan reached
-# main unscanned. This job is cheap (checkout + scan, ~15s), so it carries no path
-# filter at all. Trigger scope still matches validate.yaml — pushes to main and PRs
-# targeting main; pushes to other remote branches are not scanned by either.
+# The main ruleset requires the check name `gitleaks secret scan` from GitHub Actions.
+# If you rename this job, update the ruleset in the same change, or every PR waits for a
+# check that never reports. Triggers match validate.yaml: pushes to
+# main and PRs targeting main; pushes to other remote branches are not scanned by either.
 
 on:
   pull_request:

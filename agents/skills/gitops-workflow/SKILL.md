@@ -92,7 +92,7 @@ Reviewers MUST check the diff against `.claude/review-invariants.md` — semanti
 
 ### 3c. CI gate — wait for `validate.yaml` green (post-push, pre-`fr`)
 
-**Docs/markdown/asset-only push? SKIP 3b + 3c + `fr` entirely.** If you need why, read reference-edge-cases.md § "Why a docs-only push skips CI and `fr`". The pre-commit peer review (3b) applies to substantive code/config commits; docs/markdown are exempt. Pure docs/memory flow = commit → merge → push → done. Reserve CI-watch for pushes CI can fail on (any `.yaml`/`.sh`/manifest — `node-maintenance/**` and `scripts/**` shell is linted). Mixed md+yaml push → CI runs, watch normally.
+**Docs/markdown/asset-only push? SKIP 3b + 3c + `fr` entirely.** If you need why, read reference-edge-cases.md § "Why a docs-only push skips 3c and `fr`". The pre-commit peer review (3b) applies to substantive code/config commits; docs/markdown are exempt. Pure docs/memory flow = commit → merge → push → done. Reserve CI-watch for pushes CI can fail on (any `.yaml`/`.sh`/manifest — `node-maintenance/**` and `scripts/**` shell is linted). Mixed md+yaml push → watch CI normally.
 
 If you read a CI result or change `validate.yaml`, read reference-edge-cases.md § "validate.yaml jobs" for its jobs, legs and run time.
 
@@ -106,7 +106,7 @@ Read the fetched revision before deciding: `flux get source git flux-system`. If
 # neighbouring pushes), watches it, then auto-classifies via _shared/ci-red-classify.sh.
 bash ~/.agents/skills/gitops-workflow/scripts/wait-for-ci.sh
 # Exit 0 GREEN → fr | 10 CONTENT-RED → STOP, gh run view <id> --log-failed
-# | 11 INFRA-RED → local gate + peer review authorize fr | 3 no run appeared (docs-only push?)
+# | 11 INFRA-RED → local gate + peer review authorize fr | 3 no run appeared
 ```
 
 If Actions billing blocks every job again, CI checks nothing. Run the pre-commit review loop and `/homelab-yaml-validate` before each commit.

@@ -1,19 +1,19 @@
 # GitHub Workflows
 
-This folder holds four workflows. The secret scan is the only required check:
+This folder holds four workflows. The ruleset requires two checks:
 
 | Fact (2026-10-03) | Effect |
 |---|---|
-| The `main` ruleset requires a PR with 1 approval and a successful `gitleaks secret scan` | if the owner does not use the bypass, a PR merges only after the owner approves it and the scan succeeds |
-| The repo admin role bypasses the ruleset | GitHub accepts the owner's direct pushes and merges without an approval or a finished scan. The scan still runs on each push |
-| No rule requires the Validate checks | if they fail, a commit can still reach `main` |
+| The `main` ruleset requires a PR with 1 approval, a successful `gitleaks secret scan` and a successful `ci-ok` | if the owner does not use the bypass, a PR merges only after the owner approves it and both checks succeed |
+| The repo admin role bypasses the ruleset | GitHub accepts the owner's direct pushes and merges without an approval or finished checks. Both workflows still run on each push |
+| The ruleset blocks force pushes and branch deletion | the rules bind everyone except the owner, including Renovate and any app token |
 | Flux applies `main` every few minutes | a commit with failed checks still deploys |
 
 If an outside contributor opens a PR from a fork, GitHub runs its workflows only after the owner approves the run.
 
 | Workflow | Runs on | Does |
 |---|---|---|
-| `validate.yaml` | push to `main`, pull requests to `main`, by hand; skips pushes that change only Markdown or `docs/images/` | the checks below |
+| `validate.yaml` | push to `main`, pull requests to `main`, by hand | the checks below |
 | `gitleaks.yaml` | push to `main`, pull requests to `main`, by hand; no path filter | secret scan |
 | `flux-update.yaml` | Sunday 06:00 UTC, or by hand | opens a PR to update the Flux components |
 | `claude-telegram-build.yml` | Monday and Thursday 23:00 UTC, or by hand | builds and pushes the Telegram bot image |
@@ -30,13 +30,13 @@ If an outside contributor opens a PR from a fork, GitHub runs its workflows only
 | `kubeconform` | manifest schemas in all seven Kustomize roots | inline |
 | `homelab-analysis-drift` | key numbers in `docs/HOMELAB_ANALYSIS.md` still match the repo; warn-only (`continue-on-error: true`) | inline |
 | `helm-render` | every HelmRelease chart renders at its pinned version; kubeconform checks only the HelmRelease resource, not the chart's templates | `scripts/ci/helm-render-check.sh` |
+| `ci-ok` | every job above except `homelab-analysis-drift` succeeded; the ruleset requires this check | inline |
 
 ## gitleaks.yaml
 
-It is separate from `validate.yaml` on purpose. `validate.yaml` skips Markdown-only pushes, so while
-gitleaks lived there, a credential pasted into a runbook or plan reached `main` unscanned (the
-workflow's header comment). The scan takes about 15 seconds, so it has no path filter. It scans the same events as `validate.yaml`; pushes to
-other branches are scanned by neither.
+The ruleset requires the check name `gitleaks secret scan`. If you rename the job, update the
+ruleset in the same change. It scans the same events as `validate.yaml`;
+pushes to other branches are scanned by neither.
 
 ## flux-update.yaml
 
