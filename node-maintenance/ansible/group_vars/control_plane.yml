@@ -15,6 +15,14 @@ k3s_disable:
   # cluster DNS, so every reconcile stalled; forcing a reconcile fails for the same reason. Break-glass:
   # `kubectl apply -k infrastructure/coredns/`; Flux adopts the objects on its next reconcile.
   - coredns
+  # gateway-api-crd disabled: k3s v1.37.0 moved the Gateway API CRDs out of the traefik chart into a
+  # packaged component of their own, and that component is a HelmChart CR. `k3s_disable_helm_controller`
+  # above leaves the helm.cattle.io group unregistered, so the deploy controller cannot resolve the kind:
+  # since the 2026-09-26 upgrade it retried every ~18s and logged ~38k ApplyManifestFailed
+  # "the server could not find the requested resource" events. Every apply failed, so the addon owns no
+  # objects and --disable uninstalls nothing. The live gateway.networking.k8s.io CRDs come from the
+  # traefik chart, and nothing in this repo declares a Gateway, GatewayClass or HTTPRoute.
+  - gateway-api-crd
 k3s_node_taints:
   - "node-role.kubernetes.io/control-plane:NoSchedule"
 k3s_node_labels:

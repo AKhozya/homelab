@@ -17,6 +17,21 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-10-04 — The `gateway-api-crd` addon has been failing since the k3s v1.37.0 upgrade
+
+k3s v1.37.0 moved the Gateway API CRDs out of the traefik chart into a packaged component of their own, and that component is a `HelmChart` CR. This cluster sets `disable-helm-controller: true`, so the `helm.cattle.io` group is not registered and the deploy controller cannot resolve the kind. Since the 2026-09-26 upgrade it retried `/var/lib/rancher/k3s/server/manifests/gateway-api-crd.yaml` every ~18s:
+
+| Measure | Value |
+|---|---|
+| Event | `Addon/gateway-api-crd ApplyManifestFailed … the server could not find the requested resource` |
+| Count | ~38k, in two event objects spanning 2026-09-26 → now |
+| Alerts raised | none. No rule watches addon events, so the loop was invisible to `/monitoring-check` |
+| Damage | none beyond the event spam. Every apply failed, so the addon owns no objects |
+
+`gateway-api-crd` joins `traefik` and `coredns` in `k3s_disable` (`node-maintenance/ansible/group_vars/control_plane.yml`). The live `gateway.networking.k8s.io/v1` CRDs come from the traefik chart, and no manifest in this repo declares a Gateway, GatewayClass or HTTPRoute, so nothing consumes them.
+
+The k3s_config role is drift-alert only, so the entry reaches `/etc/rancher/k3s/config.yaml` on the next sync but takes effect only on the next `systemctl restart k3s` on the control plane — pair it with the node-certificate rotation that W1's `CertificateExpirationWarning` (leaf certificates expire 2026-11-08) also needs. Before that restart, `kubectl get crd -l objectset.rio.cattle.io/owner-name=gateway-api-crd` must return nothing: if it lists CRDs, the addon does own them and `--disable` deletes them, which is the 2026-05-31 coredns deadlock pattern.
+
 ### 2026-10-04 — Comment sweep: false comments fixed, plan pointers removed
 
 A repo-wide pass judged every code comment against the code it covers. Agents re-checked each sure or fairly-sure finding against the code before editing, and left the low-confidence ones unchanged.
