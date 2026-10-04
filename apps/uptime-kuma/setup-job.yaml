@@ -61,7 +61,9 @@ spec:
               max_retries = 5
               for i in range(max_retries):
                   try:
-                      api = UptimeKumaApi('http://uptime-kuma.uptime-kuma.svc.cluster.local:3001')
+                      # The default 10s socket.io call timeout made need_setup() fail on the first
+                      # attempt in 18 of 30 runs (Loki, 2026-09-05..10-04); the next container attempt succeeded.
+                      api = UptimeKumaApi('http://uptime-kuma.uptime-kuma.svc.cluster.local:3001', timeout=30)
                       break
                   except Exception as e:
                       if i == max_retries - 1:
