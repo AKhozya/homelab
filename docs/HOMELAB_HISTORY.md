@@ -17,6 +17,24 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-10-05 — Sweep follow-ups: checks, fixes and open questions
+
+| Item | Evidence | Change |
+|---|---|---|
+| DR and secrets-rotation runbooks, skipped by the second sweep | The operator approved the sweep. | The sweep fixes false claims and moves two misplaced entries. Every code block stays byte-identical (`99eabf81`). |
+| `K3S_SETUP.md` virsh commands | On the NAS, `virsh -c qemu:///system list --all --title` names the domain `0398541a-…` with title `immich-vm`. `domstate immich-vm` fails. `virsh` without `-c qemu:///system` lists nothing. | The commands use the domain name and `-c qemu:///system` (`655f78cf`). |
+| authentik passkey rollback | In a throwaway worktree, `git revert bada5b6a` stops on a conflict. `kustomize build apps/authentik` succeeds after the rollback removes blueprints 10, 20 and 30. Blueprint 50 refers only to default flows. | The runbook removes the blueprints by hand and stages the kustomization edit. It keeps phase 0 (`655f78cf`). |
+| `ARCHITECTURE.md` counts | The intro says the page avoids drifting numbers. | The page drops the drifting counts (`655f78cf`). |
+| Home Assistant PSS exception, review overdue since 2026-01-26 | Live `/proc` status shows `CapEff` = `CapBnd` = the five manifest capabilities. The pod uses no host namespace. | The doc records the review and sets the next one for 2027-01-04. It leaves open whether HA uses NET_BIND_SERVICE and the other four capabilities (`68629bee`). |
+| Stirling-PDF on 3.0.2 | The upstream v3.0.2 embedded Dockerfiles contain no nginx. 2000 live log lines contain no nginx line. | The Deployment drops the two `/var/lib/nginx` emptyDirs. The PSS note and the 443-egress comment describe 3.0.2 (`4e48b99f`). The pod restarted and started cleanly. |
+| uptime-kuma setup Job pinned to the control plane | The only recorded reason was consistency (`5a15287f`). | The Job drops the pin (`1e6639e5`). |
+| uptime-kuma setup first-attempt timeouts | In Loki, 14 of 31 setup pods over 29 days to 2026-10-05 logged a needSetup `TimeoutError`. A 30s timeout (`447b56ce`) did not help. That message miscounts the runs as 18 of 30. | The script retries the connect and needSetup together (`683c7988`). The next run retried once and finished with 0 restarts. |
+| `cluster-roll` Flux-stale fallback | The fallback deleted every surviving pod at once. That bypasses PDBs and can take a workload fully down. | The fallback calls `restart-workload.sh`, which deletes one pod at a time and honours PDBs. A stub test covers the fallback. All three mutated versions fail the test (dotfiles `1f8d641`, `agents/` `1c47cbab`). |
+| `watch-reboot.sh` "restart k3s on the CP HANGS" | `restart k3s` returned cleanly on a healthy CP on 2026-06-29 and on 2026-10-04 at 21:16 UTC. | The message says the restart can hang if the CP API server is unstable (dotfiles `1f8d641`). |
+| private labels C3, C4 and Tier-2 | | The immich-vm domain XML, the README, vmrules and the immich-gpu-heal give-up log name the problems instead. The update re-records three heal-harness fixtures. All 78 scenarios pass (`7d82bd6d`, `1c88c50e`, `b2080c8d`). |
+
+Open: the immich-vm libvirt domain has `Autostart: enable` on the NAS (link dated 2026-07-11). The README and the heal CronJob say autostart is off by design.
+
 ### 2026-10-04 — Second sweep: low-confidence comments, Markdown docs and skill scripts
 
 The operator asked for everything the first comment sweep left, except Flux's generated `gotk-*.yaml`.
