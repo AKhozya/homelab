@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Host-side crash forensics on a homelab node.
-# Checks: pstore (kernel panic blobs), dmesg for OOM/panic/kill, recent boot's err logs.
+# Checks: pstore (kernel panic blobs), the kernel log (journalctl -k) for OOM/panic/kill,
+# and the previous boot's error log.
 #
 # Usage: node-crash-probe.sh <ssh-alias>
 # Aliases: ssh_master_node, ssh_worker_node, ssh_worker_node2

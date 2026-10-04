@@ -12,8 +12,8 @@
 # Each `login attempt` opens a new record, and a close applies to the open record for that
 # user@ip:port, so a reused source port cannot inherit another connection's outcome. If a new
 # attempt arrives while a record for the same user@ip:port is still open, the old one counts as
-# neither. Lines arrive
-# grouped per pooler pod, and one client connection stays on one pod, so per-pod order suffices.
+# neither. Lines arrive grouped per pooler pod, and one client connection stays on one pod, so
+# per-pod order suffices.
 #
 # Reads all lines: `kubectl logs -l` keeps only the last 10 per pod unless --tail=-1 is given.
 #
@@ -28,13 +28,13 @@ since="$1"
 shift
 # PgBouncer's own timestamp format; plain string comparison orders it.
 cutoff="$(date -u -v-60S '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date -u -d '60 seconds ago' '+%Y-%m-%d %H:%M:%S')"
+# User names can hold digits (n8n), so the extraction class is [a-z0-9_-].
 events="$(kubectl logs -n databases -l cnpg.io/poolerName=main-postgres-rw-pooler \
   --since-time="$since" --tail=-1 --all-containers |
   sed -n -E 's/.*"timestamp":"([0-9-]+ [0-9:]+)[^"]*".*C-0x[0-9a-f]+: ([a-z0-9_-]+)\/([a-z0-9_-]+)@([0-9.]+):([0-9]+) (login attempt|closing because: [^"(]*).*/\1|\3|\4:\5|\6/p')"
 
 rc=0
 for u in "$@"; do
-  # User names can hold digits (n8n), so the extraction class is [a-z0-9_-].
   awk -F'|' -v u="$u" -v cutoff="$cutoff" '
     $2 != u { next }
     $4 == "login attempt" {

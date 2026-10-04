@@ -6,9 +6,9 @@
 #   2. authorize-endpoint redirect_uri allowlist probe   → the provider accepts the app's REAL
 #      callback host (302/login) vs rejects it (400 / "invalid redirect uri").
 #
-# Catches the F-43 footgun (2026-05-31): OIDC_SETUP.md documented the wrong HA host
-# (homeassistant.h0melab.work) while the real ingress host is ha.h0melab.work — a mismatched
-# redirect_uri makes login fail at the callback even though discovery succeeds.
+# On 2026-05-31 the OIDC setup doc named the wrong HA host (homeassistant.h0melab.work); the real
+# ingress host is ha.h0melab.work. A mismatched redirect_uri makes authorization fail even though
+# discovery succeeds. Check 2 catches that.
 #
 # Assumes client_id == application slug (homelab convention). Self-signed/internal certs → -k.
 #

@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # Per-pod NetworkPolicy coverage audit — the gap np-gap.sh + Kyverno require-networkpolicy miss.
 #
-# np-gap.sh / Kyverno F-5 are NAMESPACE-level: a ns with >=1 NetworkPolicy passes, even if a
-# pod inside it is selected by NONE of them. That blind spot hid F-48 (redis-operator pod naked
-# in `databases`, which already had cnpg/redis-ha/couchdb NPs) from 2026-04-15 to 2026-05-29.
+# np-gap.sh and Kyverno require-networkpolicy are NAMESPACE-level: a ns with >=1 NetworkPolicy
+# passes, even if none of its NetworkPolicies selects a particular pod. That gap left the
+# redis-operator pod with no NP in `databases` (which already had cnpg/redis-ha/couchdb NPs) from
+# 2026-04-15 to 2026-05-29.
 #
 # This script is the per-pod complement. Two checks neither np-gap nor Kyverno do:
 #   1. UNCOVERED — a Running pod that no NetworkPolicy's podSelector selects (the real gap).
 #   2. ORPHAN    — a NetworkPolicy whose podSelector matches ZERO live pods, so it enforces
-#                  nothing (catches typo'd selectors, e.g. F-48's near-miss `app.kubernetes.io/name`
-#                  vs the actual `name: redis-operator` — wrong label = silent no-op).
+#                  nothing (catches typo'd selectors, e.g. the wrong redis-operator selector
+#                  `app.kubernetes.io/name` vs the actual `name: redis-operator`).
 #
 # Scope: only namespaces that ALREADY have >=1 NetworkPolicy (the "guarded" set). Namespaces with
-# zero NPs are np-gap.sh's job — clean division, and it keeps kube-system/k3s noise out.
+# zero NPs are np-gap.sh's job. If kube-system has no NetworkPolicy (none on 2026-10-04), its k3s
+# pods stay out of the report too.
 #
 # Selector matching is delegated to kubectl's own engine (`-l`), so matchLabels + matchExpressions
 # (In/NotIn/Exists/DoesNotExist) are honored exactly as the API server would.
@@ -24,7 +26,7 @@
 #
 # Caveat: an app scaled to 0 replicas makes its NP show as ORPHAN (no pod to match) — expected
 # false-positive, verify before acting. A pod "covered" here is selected by >=1 NP of ANY
-# policyType; this does not assert the NP actually grants Ingress (a future refinement).
+# policyType; this does not assert the NP actually grants Ingress.
 
 set -euo pipefail
 
@@ -90,22 +92,18 @@ while IFS= read -r ns; do
     fi
   done < <(kubectl get netpol -n "$ns" -o json | jq -c '.items[]')
 
-  # Any Running pod not in the covered set is an uncovered gap.
   # Skip hostNetwork pods — they bypass NetworkPolicy entirely (CNI), so they CANNOT be
-  # covered and flagging them is noise (e.g. prometheus-node-exporter). Matches the
-  # `hostNetwork: true` bypass noted in networkpolicy-helper + Kyverno F-5's node-exporter exclude.
+  # covered (e.g. prometheus-node-exporter).
+  # The UNCOVERED check includes only Running pods. Completed provisioning Jobs (audiobookshelf-init,
+  # immich-admin-setup, *-user-provision, *-setup) never show here. The shared allow-dns-egress
+  # policy EXCLUDES Job pods (batch.kubernetes.io/job-name DoesNotExist), so each Job needs its
+  # own egress NP. Check Job pod egress in the manifests, not here.
   while IFS= read -r pod; do
     [[ -z "$pod" ]] && continue
     if [[ -z "${covered["$pod"]:-}" ]]; then
       echo "UNCOVERED: $ns/$pod"
       found=1
     fi
-    # BLIND SPOT: phase=="Running" only. Ephemeral/Completed provisioning Jobs
-    # (audiobookshelf-init, immich-admin-setup, *-user-provision, *-setup) never
-    # show here, so their egress-naked NP gap is invisible to this auditor. The R5
-    # allow-dns-egress baseline EXCLUDES Jobs by design (batch.kubernetes.io/job-name
-    # DoesNotExist) => those 6 Jobs have no egress NP = open lateral-movement gap
-    # (memory: reference_networkpolicy_component). Check Job pod egress at template time, not here.
   done < <(kubectl get pods -n "$ns" -o json 2>/dev/null |
     jq -r '.items[] | select(.status.phase=="Running") | select(.spec.hostNetwork != true) | .metadata.name' || true)
 

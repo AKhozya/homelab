@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # merge-worktree.sh — merge a worktree branch into main DETERMINISTICALLY.
 #
-# Fixes a recurring footgun (hit 3x on 2026-07-06): running `git merge` / `git push`
-# from inside a worktree's own cwd merges the branch into ITSELF (no-op "Already up
-# to date") and then `git push` publishes the stray feature branch to origin instead
-# of updating main. This helper never depends on the caller's cwd for the merge — it
-# addresses the primary (main) worktree via `git -C` and pushes an explicit refspec.
+# If you run `git merge <branch>` from the branch's own worktree, it merges the branch into
+# ITSELF ("Already up to date"). If you run a plain `git push` from that worktree, it can publish
+# the feature branch instead of main. This happened three times on 2026-07-06. This helper
+# merges in the primary worktree via `git -C` and pushes the explicit refspec HEAD:main, so the
+# caller's cwd does not matter.
 #
 # Run from anywhere INSIDE the target repo (any of its worktrees). Usage:
 #   merge-worktree.sh <branch>              # fetch, ff-only onto origin/main, push
@@ -28,7 +28,7 @@ esac
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Primary worktree = first `git worktree list` entry (git always lists the main
-# worktree first). Resolved from the current repo (wherever this is invoked).
+# worktree first).
 # substr($0,10) — not $2 — preserves worktree paths containing spaces ("worktree ").
 PRIMARY="$(git worktree list --porcelain | awk '/^worktree /{print substr($0,10); exit}')"
 [ -n "${PRIMARY:-}" ] || {
@@ -69,7 +69,7 @@ echo "OK: '$BRANCH' -> main @ $(git -C "$PRIMARY" rev-parse --short HEAD), pushe
 
 if [ "$MODE" = "--teardown" ]; then
   # Branch-scoped: resolve THIS branch's linked worktree and remove only it
-  # (never a repo-wide sweep — that could nuke other in-flight worktrees).
+  # (never a repo-wide sweep — that could remove other worktrees still in use).
   WT="$(git -C "$PRIMARY" worktree list --porcelain |
     awk -v b="refs/heads/$BRANCH" '/^worktree /{p=substr($0,10)} $0=="branch "b{print p; exit}')"
   if [ -n "${WT:-}" ] && [ "$WT" != "$PRIMARY" ]; then

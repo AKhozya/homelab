@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# kb-hygiene Axis 1 — deterministic MEMORY.md index integrity.
-# Replaces the agent's manual orphan/dangling/broken-link sweep with a precise check.
-# Uses grep/sed (NOT rg — rg is a shell function in this env, absent from non-interactive script PATH).
+# Check MEMORY.md index integrity: orphan files, dangling index links, broken wiki-links.
+# grep, not rg: rg is a Homebrew binary, and a script run with a minimal PATH does not find it.
 # Usage: index-integrity.sh [MEMORY_DIR]
 # Exit: 0 clean | 1 orphans/dangling found | 2 bad args / missing index
 set -euo pipefail

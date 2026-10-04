@@ -87,7 +87,6 @@ wait_cluster_healthy "$TIMEOUT_HEALTHY"
 # 4. Promote new replica → switchover. Old primary becomes replica.
 echo "step 3/4: kubectl cnpg promote $NEW_REPLICA (switchover)..."
 kubectl cnpg promote -n "$NS" "$CLUSTER" "$NEW_REPLICA" >/dev/null
-# Wait until cluster acknowledges new primary.
 start=$(date +%s)
 while [ "$(kubectl get cluster -n "$NS" "$CLUSTER" -o jsonpath='{.status.currentPrimary}')" != "$NEW_REPLICA" ]; do
   if [ "$(($(date +%s) - start))" -ge "$TIMEOUT_HEALTHY" ]; then

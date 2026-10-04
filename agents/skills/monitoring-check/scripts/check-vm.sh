@@ -21,9 +21,8 @@ probe() { # retry: port-forward takes a moment to bind
   for _ in 1 2 3 4 5; do
     if out="$(curl -fs --max-time 3 "$1" 2>/dev/null)" && [ -n "$out" ]; then
       # VictoriaMetrics answers query errors with HTTP 200 and {"status":"error"}, which -f
-      # cannot catch. REQUIRE status=="success" rather than merely rejecting an explicit
-      # error: a truncated or proxied body with a plausible-looking .data and no status field
-      # would otherwise sail through, which is the same false-clean one level down.
+      # cannot catch. REQUIRE status=="success" rather than reject only an explicit error:
+      # a truncated or proxied body with a plausible .data and no status field would pass.
       if ! jq -e '.status == "success"' >/dev/null 2>&1 <<<"$out"; then
         jq -r '"API error: \(.error // .errorType // "no success status")"' 2>/dev/null <<<"$out" >&2 ||
           echo "API error: response is not JSON" >&2
@@ -40,8 +39,8 @@ probe() { # retry: port-forward takes a moment to bind
 echo "=== vmsingle memory ==="
 kubectl top pod -n monitoring -l app.kubernetes.io/name=vmsingle 2>/dev/null || echo "(metrics unavailable)"
 
-# Unreachable is a RESULT, not a cosmetic note: `|| echo "(unreachable)"` swallows the failure
-# and the script would still exit 0, so a caller (or a glance at $?) reads a dead VM as healthy.
+# Unreachable fails the script: a bare `|| echo "(unreachable)"` exits 0, and a caller reads an
+# unreachable VictoriaMetrics endpoint as healthy.
 RC=0
 
 echo

@@ -2,16 +2,15 @@
 # Audit a VMRule file for DEAD alerts — exprs whose metric never has series, or whose job=
 # label literal matches no live target. Run BEFORE committing a vmrules change.
 #
-# WHY: UR2 (2026-06-06) found ~13 alerts silently dead — scrape selectors/metric names/job
+# WHY: a 2026-06-06 review found ~13 alerts silently dead — scrape selectors/metric names/job
 # labels drifted from the live cluster (pg_* vs cnpg_*, app=redis vs redis-replication,
 # up{job="kubelet"} vs kube-prometheus-stack-kubelet, kyverno_policy_rule_results_total vs
 # kyverno_policy_results_total, gotk_reconcile_condition removed in Flux 2.8.x). A "clean scan"
-# (0 firing) is exactly what a DEAD alert produces, so dead alerts hide. This catches them.
+# (0 firing) is exactly what a DEAD alert produces.
 #
-# NOT covered (different failure mode): a metric that EXISTS but the alert LOGIC false-fires
-# (e.g. redis_connected_slaves<1 firing on the replica's 0; cumulative slowlog_length>50). For
-# that, after reconcile run check-alerts.sh and sweep pending+rule-health (monitoring-check skill).
-# This is the pre-commit "is the metric even alive" gate, not a logic checker.
+# NOT covered: a metric that EXISTS but the alert LOGIC false-fires (e.g. redis_connected_slaves<1
+# firing on the replica's 0; cumulative slowlog_length>50). For that, after reconcile run
+# check-alerts.sh and vmalert-state.sh (pending state and rule health).
 #
 # Usage:  vmrules-metric-audit.sh [path/to/vmrules.yaml]   (default: vmrules.yaml in the current
 #         git checkout, so a worktree audits its own edited copy, not the main tree's)
@@ -103,7 +102,7 @@ done < <(printf '%s\n' "$MASKED" | grep -oE 'job=~"[^"]+"' | sed -E 's/job=~"([^
 
 echo
 echo "=== TTL-DEAD ALERTS (metric series lifetime < staleness threshold) ==="
-# Third dead-alert class (ultrareview 2026-07-03, HIGH): a staleness alert
+# Third dead-alert class (found 2026-07-03): a staleness alert
 # `time() - <metric> > N` whose <metric> is a Job-scoped series can NEVER fire
 # when N exceeds the Job's ttlSecondsAfterFinished — kube-state-metrics drops the
 # series when the Job is TTL-reaped, so the condition is unsatisfiable before N is

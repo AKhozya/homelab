@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Kyverno PolicyReport check — single source (was 3 drifted copies: gitops-verify,
-# monitoring-check, monthly-review inline jq; consolidated 2026-07-16).
+# Kyverno PolicyReport check. Several skills call this, so change the jq here, not in a copy:
+# every caller then uses the same violation criteria.
 # Fetch failure exits 2 with a stderr message — never silently empty.
 #
 # Usage:

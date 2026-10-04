@@ -2,11 +2,11 @@
 # Rotate a DB user's password: generate pw -> write SOPS secret -> ALTER live DB
 # -> print the GitOps post-steps. Mirrors the proven 2026-06-12 MySQL rotation.
 #
-# THE FOOTGUN this encodes (cost a real outage): to land the new password on the
-# running app, cycle its pods with `_shared/restart-workload.sh` (one pod delete at a
-# time), NOT `kubectl rollout restart`. rollout-restart writes a `restartedAt` annotation that is NOT in Git;
-# Flux prunes it on the next reconcile and reverts the pod to the OLD secret. The
-# 2026-06-12 uptime-kuma pod sat 4h on a dead password because of exactly this.
+# Gotcha (caused an outage): to make the running app use the new password, cycle its pods with
+# `_shared/restart-workload.sh` (one pod delete at a time), NOT `kubectl rollout restart`.
+# Rollout restart writes a `restartedAt` annotation that is NOT in Git; Flux removes it on the
+# next reconcile, which can leave the old pod running with the old password. On 2026-06-12 the
+# uptime-kuma pod kept using a password the database rejected, for four hours.
 #
 # Ordering / downtime: this updates SOPS (git, undeployed) and ALTERs the live DB
 # together, so running pods (old pw) fail auth until you deploy the new secret and

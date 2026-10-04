@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Classify the latest validate.yaml CI run as GREEN / CONTENT-RED / INFRA-RED.
 #
-# Why: gitops-workflow §3c blocks `fr` on CI red — but "red" is only a real block when it's
-# YOUR manifest (content-red). When the Actions runner isn't executing at all (billing/minutes
-# exhausted, runner outage) EVERY job dies in seconds with no logs across commits you didn't
-# author — that's infra-red, NOT your change, and local-validate + the peer static review are the
-# authorized gate of record. This script makes that call mechanically instead of by eyeball.
+# Why: the deployment workflow skips the manual `fr` on CI red, but only content-red (any
+# failure outside the INFRA-RED criteria below) is a real block. If the Actions runner cannot
+# execute (billing or minutes exhausted, runner outage), jobs can fail within seconds with no
+# logs, on other authors' commits too. That is infra-red, and local validation plus the peer
+# static review are the gate of record.
 #
 # Signal (robust, no timestamp math):
 #   GREEN       target run conclusion == success

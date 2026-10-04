@@ -9,16 +9,14 @@
 #   run-on-node.sh ssh_master_node ./fix-pacman.sh
 #   run-on-node.sh ssh_worker_node2 ./debug-nic.sh eth0
 #
-# Aliases (per ~/source-code/homelab/CLAUDE.md):
+# Aliases (resolved by _shared/ssh-alias-resolve.sh):
 #   ssh_master_node   -> akhozya@gmk-k3s-control-plane:65300
 #   ssh_worker_node   -> akhozya@worker-node:65300
 #   ssh_worker_node2  -> z3us@worker-node-2:65300
+#   immich-vm         -> akhozya@immich-vm:65300
 #
-# Pre-flight:
-#   - Local script is auto-linted via shellcheck before transfer.
-#   - Script uploaded to a remote `mktemp /tmp/run-on-node.XXXXXX` path.
-#   - `ssh -t` allocates TTY so sudo password prompt works.
-#   - Remote script removed after exec regardless of exit code.
+# Lints the script with shellcheck before transfer.
+# Removes the remote copy on exit.
 
 set -euo pipefail
 
@@ -38,7 +36,6 @@ if [ ! -f "$SCRIPT" ]; then
   exit 3
 fi
 
-# Pre-flight lint (bash-scripting skill convention)
 if command -v shellcheck >/dev/null 2>&1; then
   if ! shellcheck "$SCRIPT"; then
     echo "shellcheck failed for $SCRIPT — abort before transfer" >&2
@@ -53,7 +50,7 @@ fi
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../_shared" && pwd)/ssh-alias-resolve.sh"
 SSH_USER_HOST="$(resolve_alias "$ALIAS")" || exit 2
 
-# Real remote mktemp — /tmp/$NAME-$$ is predictable (the exact pattern bash-scripting flags).
+# Real remote mktemp — /tmp/$NAME-$$ is predictable.
 REMOTE="$(ssh -p "$SSH_NODE_PORT" "$SSH_USER_HOST" 'mktemp /tmp/run-on-node.XXXXXX')"
 [ -n "$REMOTE" ] || {
   echo "could not create remote tempfile on $SSH_USER_HOST" >&2
@@ -72,5 +69,5 @@ scp -P "$SSH_NODE_PORT" -q "$SCRIPT" "${SSH_USER_HOST}:${REMOTE}"
 args=""
 for a in "$@"; do args+=" $(printf '%q' "$a")"; done
 echo "[ssh -t] $SSH_USER_HOST :: bash $REMOTE$args"
-# -t for TTY (sudo password prompt). pass remaining args.
+# -t: sudo needs a TTY for its password prompt.
 ssh -p "$SSH_NODE_PORT" -t "$SSH_USER_HOST" "bash '$REMOTE'$args"

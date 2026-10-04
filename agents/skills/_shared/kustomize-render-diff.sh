@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Render-identical gate for Kustomize structural/layout moves (F-13/F-14/monitoring collapse pattern).
+# Render-identical gate for Kustomize structural/layout moves.
 #
 # Proves a base/overlay flatten or Flux `spec.path` repoint produces BYTE-IDENTICAL output
 # => Flux re-adopts every object by unchanged name/ns/GVK = zero churn (no restart/recreate/prune).
-# This is THE proof a layout move is safe. Build the oracle on the CLEAN pre-change tree,
-# then check after edits.
+# Build the oracle on the CLEAN pre-change tree, then check after edits.
 #
 # Usage:
 #   kustomize-render-diff.sh oracle   <old-path> [oracle-file]  # capture baseline + SHA (pre-change)

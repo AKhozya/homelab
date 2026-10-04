@@ -2,8 +2,7 @@
 # codex-hygiene.sh — sweep leaked Codex brokers and orphaned job records.
 #
 # Run BEFORE dispatching a Codex review. A wedged broker does not error — it accepts the turn
-# and kills it silently with turn_aborted/interrupted after minutes of nothing, so the cheap
-# moment to look is before handing it work, not after losing a review to it.
+# and kills it silently with turn_aborted/interrupted minutes later.
 #
 # Broker verdicts: STALE (cwd deleted) | IDLE (old, nothing running) | LIVE (keep)
 # Exit: 0 ok, 2 bad args, 3 a kill did not take.
@@ -162,8 +161,8 @@ scan_records() { # sets orphans/live_jobs; prints per-record lines
         if [[ -f $jf ]] && ! write_json "$jf" --arg ts "$TS" --arg pid "$pid" \
           'if .status=="running" and ((.pid // "")|tostring)==$pid
            then .status="cancelled" | .updatedAt=$ts else . end'; then
-          # Leaving state.json alone keeps the record selectable next run. Cancelling it here
-          # would hide a per-job file still stuck at running, with nothing left to find it.
+          # Leave state.json alone so the next run selects this record again. If state.json records
+          # this job as cancelled, later runs skip it and leave the per-job file at running.
           echo "FAILED   $ws job $id — jobs file unwritable, state.json untouched" >&2
           FAILED=1
           continue

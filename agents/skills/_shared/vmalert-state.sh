@@ -2,16 +2,11 @@
 # Authoritative vmalert rule state: firing + PENDING + unhealthy, straight from vmalert's
 # /api/v1/rules. Run AFTER reconciling a vmrules change (the post-change re-test gate).
 #
-# WHY: check-alerts.sh shows firing only. UR2 (2026-06-06) re-test verified metric existence +
-# rule health but NOT pending/for:-window state, so a pending NodeMemoryMajorPagesFaults (live
-# alert from a fixed job label) slipped through and later paged. And the VM `ALERTS{}` metric
-# LAGS (~5min staleness) after a rule stops firing — so it shows ghost-firing post-fix. vmalert's
-# /api/v1/rules is the live truth (state=inactive the instant the expr stops matching).
-#
-# Two gotchas this encodes:
-#   1. vmalert leaks raw control chars (unescaped newlines in multi-line `>` exprs) into the JSON,
-#      breaking jq with "control characters ... must be escaped". Fix: strip \x00-\x1f first.
-#   2. ALERTS{alertstate="firing"} metric != vmalert rule state. Trust /api/v1/rules.
+# WHY: check-alerts.sh shows firing only. On 2026-06-06 a re-test checked metric existence and
+# rule health but NOT pending/for:-window state, so a pending NodeMemoryMajorPagesFaults went
+# undetected and later paged. The VM `ALERTS{}` metric LAGS (~5min staleness) after a rule stops
+# firing, so it can still report firing after the rule becomes inactive. vmalert's /api/v1/rules
+# shows each rule's state from its last evaluation, without waiting for ALERTS{} to go stale.
 #
 # Usage:  vmalert-state.sh            # firing + pending + unhealthy, exit 1 if any firing/pending
 #         vmalert-state.sh --quiet    # only print problems; silent + exit 0 when all clear
@@ -33,7 +28,8 @@ PF=$!
 trap '[ -n "${PF:-}" ] && kill "$PF" 2>/dev/null || true' EXIT
 sleep 3
 
-# Strip control chars (gotcha 1) before jq.
+# vmalert leaks raw control chars (unescaped newlines in multi-line `>` exprs) into the JSON,
+# and jq fails with "control characters ... must be escaped". Strip \x00-\x1f first.
 RULES="$(curl -s --max-time 10 "$VA/api/v1/rules" 2>/dev/null | LC_ALL=C tr -d '\000-\037')"
 [ -n "$RULES" ] || {
   echo "vmalert /api/v1/rules unreachable" >&2

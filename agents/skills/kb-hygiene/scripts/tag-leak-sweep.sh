@@ -3,7 +3,7 @@
 # A dispatched subagent writing via Write can leak its closing tags into a file tail; a lossless
 # token-checklist is BLIND to trailing junk (it greps presence, not stray tags). Always run this
 # on subagent-written files before trusting/committing.
-# Uses grep (NOT rg — rg is a shell function in this env, absent from non-interactive script PATH).
+# grep, not rg: rg is a Homebrew binary, and a script run with a minimal PATH does not find it.
 # Usage: tag-leak-sweep.sh [PATH ...]   (default: ~/.agents/skills)
 # Exit: 0 clean | 1 leaked tags found
 set -euo pipefail

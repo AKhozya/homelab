@@ -25,7 +25,7 @@ if ! command -v kubectl >/dev/null 2>&1; then
 fi
 
 # policies.kyverno.io/v1 ValidatingPolicy (short name vpol) — the only policy kind
-# in the cluster since the CP→VP migration completed 2026-07-12.
+# in the cluster since the ClusterPolicy-to-ValidatingPolicy migration finished on 2026-07-12.
 if ! kubectl get vpol "$POLICY" >/dev/null 2>&1; then
   echo "error: ValidatingPolicy not found: $POLICY" >&2
   exit 1

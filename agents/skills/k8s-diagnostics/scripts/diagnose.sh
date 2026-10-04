@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Run full diagnostic sweep. Calls _shared scripts for shared logic.
+# Run full diagnostic sweep.
 #
 # Sections: nodes, pods, events, flux, dbs, resources, np-gap, alerts.
-# Output: section header + raw output per section.
 
 set -euo pipefail
 SHARED="$HOME/.agents/skills/_shared"

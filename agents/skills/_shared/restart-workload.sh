@@ -22,13 +22,14 @@
 # bot has no `pods/eviction` grant. So this refuses up front when a PDB covering the workload
 # reports disruptionsAllowed=0, rather than quietly breaking the budget.
 #
-# NOT for databases. AGENTS.md forbids force-deleting DB pods, and CNPG/Percona expect restarts
+# NOT for databases. Never force-delete DB pods; CNPG/Percona expect restarts
 # through their CRDs. Postgres, MySQL, CouchDB and Redis restarts are workstation-only.
 #
 # Usage:  restart-workload.sh <namespace> <label-selector> [timeout-seconds]
 # Example: restart-workload.sh monitoring app.kubernetes.io/name=vmagent
 #
-# Operators on a workstation can still use `kubectl rollout restart`; only the bot cannot.
+# Use it from a workstation too: on a Flux-managed Deployment, Flux stripped the `restartedAt`
+# annotation that `kubectl rollout restart` writes, and the old pod kept running (homelab d6d67c20).
 set -euo pipefail
 
 NS="${1:?usage: restart-workload.sh <namespace> <label-selector> [timeout]}"
@@ -93,11 +94,8 @@ pdb_blocks() {
   # whose entire job is to fail closed.
   local out snap mine names n pdb allowed seltype sel pods covered
 
-  # Shape-check both payloads with `jq -e` BEFORE reading anything out of them. Plain jq exits 0 on
-  # EMPTY input and prints nothing, so a kubectl that exits 0 but returns an empty body would have
-  # produced an empty PDB name list, skipped the loop entirely, and returned "not blocked".
-  # `jq -e` exits 4 on empty input and 1 on a false result, so both become refusals.
-  # A legitimately empty `.items: []` still passes — that is "no PDBs", not "no answer".
+  # Shape-check both payloads (json_list_ok) BEFORE reading anything out of them: an empty
+  # body would give an empty PDB name list, skip the loop and return "not blocked".
   if ! out="$(kubectl -n "$NS" get poddisruptionbudgets -o json 2>&1)"; then
     echo "restart-workload: could not list PodDisruptionBudgets in $NS: $out — refusing" >&2
     return 0

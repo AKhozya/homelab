@@ -90,14 +90,11 @@ claude)
   ;;
 esac
 
-# Degrading to self-review must be LOUD. This resolver gates the pre-commit peer review, so
-# a silent fallback that still exits 0 lets a caller believe the gate ran when it did not.
-# The usual cause is not a missing install but a PATH one: fnm exposes `codex`/`node` through a
-# per-session multishell dir (~/.local/state/fnm_multishells/<pid>_<ts>/bin) that a freshly
-# spawned subagent shell never inherits, so `command -v codex` succeeds interactively and fails
-# for the agent that actually needs it. Fix the PATH (symlink the stable
-# ~/.local/share/fnm/aliases/default/bin/<tool> into ~/.local/bin) rather than accepting the
-# downgrade. 2026-07-28.
+# Report a fallback to self-review explicitly: this resolver gates the pre-commit peer review, and a
+# silent exit 0 lets a caller believe the gate ran when it did not.
+# The usual cause is PATH, not a missing install (2026-07-28): fnm exposes `codex`/`node` through
+# a per-session dir (~/.local/state/fnm_multishells/<pid>_<ts>/bin) that a new subagent shell does
+# not inherit. Fix PATH by linking ~/.local/share/fnm/aliases/default/bin/<tool> into ~/.local/bin.
 rc=0
 if [[ -z "$reviewer" ]]; then
   reviewer="self-review"

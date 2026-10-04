@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # cluster-roll.sh — ordered, tier-by-tier pod-recycle orchestrator for the 4-node K3s cluster.
 #
-# Replaces the dangerous "kubectl rollout restart -A" primitive that caused the 2026-05-24 cascade.
+# Use instead of "kubectl rollout restart -A", which caused the 2026-05-24 cascade.
 # Recycles workloads in dependency order (DNS → operators → platform → DNS-cache clients → apps),
 # gating each tier on `rollout status` + a ClusterIP health re-probe on all 4 nodes.
 #
@@ -26,9 +26,9 @@ set -euo pipefail
   exit 2
 }
 
-# Resolve sibling helper scripts relative to THIS script's location, NOT a hardcoded $HOME prefix:
-# macOS dev box is /Users/akhozya/.claude/..., the Linux claude-telegram container is
-# /home/akhozya/.claude/... — an absolute /Users path dies the [ -x ] preflight in the container.
+# Resolve sibling helper scripts relative to THIS script's location, NOT a hardcoded path: $HOME
+# differs between the Mac and the claude-telegram container, so an absolute /Users path fails the
+# [ -x ] preflight in the container.
 SKILLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)" # scripts → cluster-roll → skills
 VERIFY_CLUSTERIP="$SKILLS_DIR/cluster-reboot/scripts/verify-clusterip.sh"
 POD_HEALTH="$SKILLS_DIR/_shared/pod-health.sh"
@@ -221,16 +221,13 @@ roll_one() {
   # Flux-stale detection — Deployment-ONLY. On Flux-managed Deployments, drift-detection can revert
   # the restartedAt annotation, abandon the new RS, and leave STALE pod(s) alive while `rollout
   # status` still reports success. With ≥2 replicas under a PDB the revert can land mid-roll, so
-  # only SOME pods cycle and the rest stay stale. We therefore check whether ANY old pod UID
-  # SURVIVED into the after-set (set intersection): a non-empty intersection means the cycle was
-  # incomplete (full- or partial-stale) → delete just the surviving stale pods by name (Flux owns
-  # the Deployment, not the pods → the RS recreates fresh and Flux doesn't fight it). An empty
-  # intersection means every old pod is gone → healthy, no fallback.
+  # only SOME pods cycle and the rest stay stale. So check whether ANY old pod UID remains in
+  # the after-set. If any remains, delete just those pods by name: Flux owns the Deployment, not
+  # the pods, so the RS recreates them and Flux does not revert those pod deletions.
   #
-  # This rationale (abandoned RS + reverted restartedAt) is Deployment-specific. DaemonSets (ds)
-  # have no ReplicaSet and roll differently; a false "did not cycle" there would delete pods across
-  # ALL nodes at once (brief fleet-wide gap, e.g. alloy log shipping). StatefulSets likewise. For
-  # any non-deploy kind we trust `rollout status` alone and skip the UID-compare/delete-pod path.
+  # Deployment-only because DaemonSets and StatefulSets have no ReplicaSet and roll differently;
+  # a false "did not cycle" on a DaemonSet would delete pods on ALL nodes at once (a fleet-wide
+  # gap, e.g. alloy log shipping). For those kinds, trust `rollout status` alone.
   if [ "$kind" = "deploy" ] && [ -n "$before_uids" ]; then
     # Exclude Terminating pods (deletionTimestamp set): after a successful roll the old
     # pods can linger in their grace period and would read as false "survivors".
@@ -261,10 +258,9 @@ roll_one() {
       if ! kubectl -n "$ns" rollout status "$target" --timeout="$ROLLOUT_TIMEOUT"; then
         die "rollout status failed for $ns/$target after delete-pod fallback"
       fi
-      # Post-check: rollout status is vacuous-success on an already-stable (Flux-reverted)
-      # deployment — re-run the UID intersection and fail loud if any old pod STILL survives.
-      # Same Terminating-exclusion as above; same fail-LOUD on fetch/parse failure — a
-      # masked failure here would vacuously pass the very guarantee this check provides.
+      # Post-check: rollout status succeeds trivially on an already-stable (Flux-reverted)
+      # deployment, so re-run the UID intersection and exit with an error if any old pod STILL
+      # survives. Same Terminating exclusion, and the same error exit if fetching or parsing fails.
       after_json="$(kubectl -n "$ns" get pods --selector="$sel" -o json 2>/dev/null)" ||
         die "could not list pods to verify delete-pod fallback for $ns/$target"
       [ -n "$after_json" ] || die "empty pod list JSON after fallback for $ns/$target"
@@ -414,8 +410,7 @@ main() {
   [ -x "$VERIFY_CLUSTERIP" ] || die "verify-clusterip.sh not executable at $VERIFY_CLUSTERIP"
   [ -x "$POD_HEALTH" ] || die "pod-health.sh not executable at $POD_HEALTH"
 
-  # Strict arg counts: extra args were silently ignored before, so
-  # `--tier dns --dry-run` ran LIVE. Reject anything beyond the documented shape.
+  # Strict arg counts: if extra args were ignored, `--tier dns --dry-run` would run LIVE.
   case "${1:-}" in
   --dry-run)
     [ "$#" -eq 1 ] || usage

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # sweep.sh — pii-scrub full-tree sweep: gitleaks (credentials/keys) + personal-PII greps.
 # Identifiers sourced at RUNTIME from git config — never hardcoded (committing them re-exposes).
-# grep not rg: rg is a zsh function in this env, absent from script PATH.
+# grep, not rg: rg is a Homebrew binary, and a script run with a minimal PATH does not find it.
 # Read-only. Exit 0 = clean, 1 = findings printed, 2 = tooling/setup failure.
 #
 # Usage: sweep.sh [DIR]   (default .)

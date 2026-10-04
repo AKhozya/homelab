@@ -21,12 +21,11 @@
 # the entire reason this skill exists (2026-05-24 / 2026-05-25 / 2026-05-30 incidents). On such a
 # state we print the sanctioned remediation; we never run it (no sudo).
 #
-# Exit 0 ONLY when: all 4 nodes Ready + ClusterIP-healthy, CP loopback healthy, phase2-pending absent,
-# the package upgrade VERIFIED clean on every reporting node (unverifiable counts as failure — exit-0
-# asserts "packages upgraded"), AND the phase1/phase2 reboot run is idle (NOT
-# mid-rollout). The phase-run check is essential because
-# phase2-pending reads `absent` during the phase1→phase2 gap, so without it a snapshot in that window
-# would falsely report COMPLETE while workers are still being rolled (2026-05-25).
+# Exit 0 ONLY if: all 4 nodes Ready, the 3 workers ClusterIP-healthy (the CP's probe is advisory),
+# CP loopback healthy, phase2-pending absent, the package upgrade VERIFIED clean on every reporting
+# node (unverifiable counts as failure — exit-0 asserts "packages upgraded"), AND the phase1/phase2
+# reboot run is idle. The idle check covers the phase1→phase2 gap, where phase2-pending reads
+# `absent` before the worker rollout finishes (2026-05-25).
 # Otherwise: with --once exit 1; in loop mode keep polling until the deadline, then exit 1.
 #
 # Usage: watch-reboot.sh [--once] [--interval SEC] [--max-iter N]
@@ -172,12 +171,11 @@ vm_query() {
 #   - any value that is not exactly "0" or "1"
 #   - a node-exporter target that is UP but has NO package metric at all
 #
-# That last one is the subtle one and it is NOT covered by alerting: NodePackageUpgradeFailed is
-# `node_pkg_upgrade_success == 0` (vmrules.yaml), which a MISSING series can never satisfy, and the
-# scrape-down alerts stay green because node-exporter itself is healthy — only the textfile is gone.
-# So absence is checked here, against the live node-exporter target set rather than a hardcoded
-# count (this script must not bake in a fleet size; immich-vm joined 2026-07-10 and would have
-# invalidated one).
+# Alerting does NOT cover that last one: NodePackageUpgradeFailed is `node_pkg_upgrade_success == 0`
+# (vmrules.yaml), which a MISSING series can never satisfy, and the scrape-down alerts do not fire
+# because node-exporter stays UP even if its package metrics are missing. So this function checks for
+# missing metrics against the cluster's Node list rather than a hardcoded count (immich-vm joined
+# 2026-07-10 and would have invalidated one).
 # Sets PKG_FAILED and PKG_DETAIL; returns nothing on stdout. It must NOT be called via command
 # substitution — that runs it in a subshell and both globals are discarded in the parent.
 PKG_FAILED=""
@@ -190,8 +188,7 @@ pkg_upgrade_failures() {
   # The cluster's Node list is the inventory this check compares against, NOT `up`. A metrics-derived
   # inventory cannot detect the case it most needs to: if a node-exporter target disappears from
   # service discovery, it has no `up` series either, so it is absent from both sides of any
-  # `up`-based absence query and reads as "nothing missing". kubectl is the authoritative source and
-  # stays correct as nodes join or leave — no fleet size is hardcoded anywhere.
+  # `up`-based absence query and reads as "nothing missing".
   node_ips="$(kubectl get nodes \
     -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}' \
     2>/dev/null)" || true
@@ -286,8 +283,7 @@ snapshot() {
     healthy=0
   fi
 
-  # Reboot-run interlock — guards the phase1→phase2 gap where phase2-pending reads absent but
-  # the worker rollout is still running inside phase2 (else we'd falsely report COMPLETE).
+  # Reboot-run interlock for the phase1→phase2 gap, when phase2-pending reads absent mid-run.
   local phase_run
   phase_run="$(phase_run_state)"
   echo "phase run-state: $phase_run"
@@ -306,15 +302,14 @@ snapshot() {
     if [ "$ready" != "True" ]; then
       healthy=0
     fi
-    # CP host-netns 10.43.0.1 probe is unreliable — reads wedged while the cluster is healthy
-    # (documented quirk; verify-clusterip.sh is "meaningful on WORKERS"). The CP's real API-role
-    # ClusterIP health is the loopback-LB + kube-dns checks below — so gate the verdict on WORKER
-    # clusterips only and print the CP's as advisory. Else exit-0 false-negatives on every CP quirk
-    # (cost real manual disambiguation via :10256 throughout 2026-06-20).
+    # CP host-netns 10.43.0.1 probe is unreliable — reads wedged while the cluster is healthy.
+    # The CP's API-role health is the loopback-LB + kube-dns checks below, so gate on WORKER
+    # clusterips and print the CP's as advisory. If the CP probe gated success, its false failures
+    # would block exit 0 (throughout 2026-06-20 that cost manual :10256 checks).
     # CAVEAT (2026-06-29): this host-netns advisory does NOT see a CP POD-NETNS ClusterIP wedge — a
     # CP-pinned pod (e.g. uptime-kuma) can be EAI_AGAIN-dead on every ClusterIP while host + workers
     # are fine. The clusterip_heal_cp watchdog (its own nsenter pod-netns probe) auto-heals that; if a
-    # CP-pinned pod is unhealthy post-reboot, check the node_clusterip_heal_* metric — don't dismiss this.
+    # CP-pinned pod is unhealthy post-reboot, check the node_clusterip_heal_* metric.
     if [ "$cip_rc" -ne 0 ]; then
       if [ "$h" = "$CP" ]; then
         echo "    (CP clusterip advisory — host-netns quirk for the CP API role; gated by loopback LB + kube-dns. NB: does NOT cover a CP pod-netns wedge — if a CP-pinned pod is unhealthy, check the clusterip_heal_cp metric.)"
@@ -373,13 +368,12 @@ snapshot() {
     fi
   fi
 
-  # Pod-network wedge symptom — the CNI-HOSTPORT-MASQ masquerade wedge (2026-05-30) that the
-  # host-netns ClusterIP probe + kube-proxy :10256 BOTH pass through (verify-clusterip.sh is
-  # structurally BLIND to it: host OUTPUT→ClusterIP works while pod→ClusterIP/DNS is dead). The
-  # observable tell, no-sudo: cluster DNS is down. Count READY kube-dns (CoreDNS) endpoints. 0
-  # ready while nodes are Ready = pod-network wedged (root cause: ufw-heal flush-all deletes
-  # -j CNI-HOSTPORT-MASQ; portmap not a daemon, k8s#93091). Auto-healed by the phase2 nat-jump
-  # gate + ufw-heal phase-G; flagged here so a snapshot can't read COMPLETE during it.
+  # Pod-network wedge (2026-05-30): host OUTPUT→ClusterIP works while pod→ClusterIP/DNS fails,
+  # so the host-netns ClusterIP probe and kube-proxy :10256 in verify-clusterip.sh both pass. Cause: ufw-heal flush-all deletes
+  # the -j CNI-HOSTPORT-MASQ jump, and portmap is not a daemon that re-adds it (k8s#93091). The
+  # symptom visible without sudo: 0 ready kube-dns endpoints while nodes are Ready. The phase2
+  # nat-jump gate and ufw-heal phase-G repair it; this check stops a snapshot from reading
+  # COMPLETE meanwhile.
   local dns_ready
   dns_ready="$(kubectl get endpoints kube-dns -n kube-system \
     -o jsonpath='{range .subsets[*].addresses[*]}{.ip}{"\n"}{end}' 2>/dev/null | grep -c . || true)"

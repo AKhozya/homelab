@@ -264,7 +264,7 @@ elif not quotas:
 else:
     # Credit only pods this Deployment owns, resolved by UID through its ReplicaSets.
     # A name prefix is not ownership: deployment "app-canary" produces ReplicaSets
-    # called "app-canary-<hash>", which a prefix test on "app" would happily credit.
+    # called "app-canary-<hash>", which a prefix test on "app" would credit.
     # A selector carrying matchExpressions is not reproduced by the matchLabels-only
     # pod fetch either, so those pods are not credited at all.
     partial = bool(d["spec"].get("selector", {}).get("matchExpressions"))

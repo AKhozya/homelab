@@ -7,8 +7,8 @@
 #                      ssh_worker_node|worker-node|w1            → akhozya@worker-node
 #                      ssh_worker_node2|worker-node-2|w2         → z3us@worker-node-2
 #                      immich-vm|gpu                             → akhozya@immich-vm
-# Rationale: the alias→user@host map was hardcoded in 5 scripts — a host/user/port change
-# meant a 5-file edit. zsh aliases (ssh_*) are invisible to bash scripts, hence the map.
+# Bash scripts cannot use the caller's zsh aliases (ssh_*), so they use this map. Change a host,
+# user or port here, not in the scripts that source this.
 # shellcheck disable=SC2034  # consumed by sourcing scripts, not here
 SSH_NODE_PORT=65300
 

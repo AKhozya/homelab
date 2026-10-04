@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # kb-hygiene — lint the shell scripts of every non-vendored skill: shellcheck + shfmt + rg-in-scripts audit.
-# Corpus-wide .sh counterpart to skill-sizes.sh (which sizes SKILL.md). Catches the three cross-skill
-# failure modes: unlinted scripts, unformatted scripts, and `rg` used as a COMMAND inside a script
-# (rg is a shell function here, absent from non-interactive script PATH → silent failure; bash-scripting §7).
-# Uses grep/find (NOT rg — same reason).
+# Catches unlinted scripts, unformatted scripts, and `rg` used as a COMMAND inside a script:
+# rg is a Homebrew binary, and a script run with a minimal PATH does not find it. Hence grep/find here.
 # Usage: lint-skill-scripts.sh [SKILLS_ROOT]
 # Exit: 0 all clean | 1 lint/format/rg issue found | 2 bad args / missing tool
 set -euo pipefail

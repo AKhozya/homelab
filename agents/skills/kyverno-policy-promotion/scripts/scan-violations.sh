@@ -123,10 +123,8 @@ if [[ "$FORCE_REGEN" -eq 1 ]]; then
   kubectl delete policyreport -A --all >/dev/null 2>&1 || true
   kubectl delete clusterpolicyreport --all >/dev/null 2>&1 || true
   echo "[regen] restarting ${REGEN_DEPLOY}..." >&2
-  # NOT `rollout restart`: the bot lost workload `patch` on 2026-08-06, and this used to be
-  # `|| true`, so the restart silently did nothing AFTER every report had already been deleted —
-  # the run then reported "clean" having destroyed the evidence. Fail loudly instead: a regen that
-  # cannot restart the controller must not go on to interpret the empty reports it caused.
+  # NOT `rollout restart`: the bot lost workload `patch` on 2026-08-06. If the restart fails,
+  # stop: regeneration is incomplete, and reports may be absent or stale.
   if ! "$(dirname "${BASH_SOURCE[0]}")/../../_shared/restart-workload.sh" \
     "$REGEN_NS" "app.kubernetes.io/component=reports-controller" 180; then
     echo "[regen] FATAL: could not restart ${REGEN_DEPLOY}; reports were deleted and cannot be" >&2
@@ -162,11 +160,10 @@ if [[ "$FORCE_REGEN" -eq 1 ]]; then
   done
 fi
 
-# Pull all PolicyReports cluster-wide. Empty result = clean (or Kyverno not installed).
+# If no reports exist, the freshness guard below exits 3; an empty set never reads as clean.
 RAW="$(kubectl get policyreport -A -o json 2>/dev/null || echo '{"items":[]}')"
 
 # Build flat list of fail rows: {ns, scope_kind, scope_name, policy, rule, message}
-# kubectl/policyreport JSON shape: .items[].results[] where .result == "fail"
 FAILS="$(printf '%s' "$RAW" | jq -c '
 	[.items[]
 	 | . as $rep
@@ -184,9 +181,8 @@ FAILS="$(printf '%s' "$RAW" | jq -c '
 ')"
 
 if [[ -n "$POLICY_FILTER" ]]; then
-  # Match either bare policy name or autogen-prefixed (Kyverno mirrors rules
-  # for controller variants by prefixing with "autogen-"). Compare on the
-  # underlying policy name, NOT the rule name.
+  # Exact match on the policy name, NOT the rule name: Kyverno prefixes the rules it
+  # mirrors for controller variants with "autogen-", and the policy name stays bare.
   FAILS="$(printf '%s' "$FAILS" | jq --arg p "$POLICY_FILTER" '
 		map(select(.policy == $p))
 	')"
@@ -195,9 +191,8 @@ fi
 COUNT="$(printf '%s' "$FAILS" | jq 'length')"
 PASS="$(pass_count "$RAW" "$POLICY_FILTER")"
 
-# Freshness guard runs BEFORE either output branch. It used to sit inside the human-readable path
-# only, so `--json` printed `[]` and exited 0 on absent reports — the loudest possible false clean,
-# and the one --force-regen can cause itself.
+# Freshness guard runs BEFORE either output branch. If reports are absent, an unguarded `--json`
+# branch prints `[]` and exits 0. --force-regen can cause that empty report set itself.
 if [[ "$COUNT" -eq 0 && "$PASS" -eq 0 ]]; then
   if [[ -n "$POLICY_FILTER" ]]; then
     printf 'WARN: 0 fail AND 0 pass for policy %s — reports absent/incomplete (false-clean).\n' "$POLICY_FILTER" >&2
@@ -230,7 +225,6 @@ printf ':\n\n'
 printf '%-22s %-18s %-40s %s\n' "NAMESPACE" "KIND" "NAME" "POLICY/RULE"
 printf '%-22s %-18s %-40s %s\n' "---------" "----" "----" "-----------"
 
-# jq -r → tab rows → printf column-format
 printf '%s' "$FAILS" | jq -r '
 	.[] | [
 		.namespace,

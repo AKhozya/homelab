@@ -125,10 +125,10 @@ percona)
   ;;
 
 redis)
-  # Redis pinning RETIRED 2026-07-04: ot redis-operator records RedisReplication
-  # .status.masterNode and actively repairs topology — sentinel failovers bounce
-  # back within seconds and each one churns immich/paperless connections.
-  # Read-only placement report only; no CRD preferred-master knob exists yet.
+  # Redis pinning RETIRED 2026-07-04: the opstree redis-operator records RedisReplication
+  # .status.masterNode and repairs topology — it reverses sentinel failovers within
+  # seconds, and each one disrupts immich/paperless connections.
+  # Placement report only; the CRD has no preferred-master setting.
   NS="$TARGET"
   master_name="${REDIS_MASTER_NAME:-myMaster}"
   sentinel_pod="redis-sentinel-sentinel-0"

@@ -3,9 +3,7 @@ set -euo pipefail
 
 # Dispatch one static Codex review.
 #
-# The caller writes the prompt, scopes the diff, and judges the findings. This
-# script only carries the four mechanical rules that a hand-typed dispatch keeps
-# getting wrong.
+# The caller writes the prompt, scopes the diff, and judges the findings.
 
 usage() {
   cat <<'EOF'

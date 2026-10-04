@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # security-scan-rollup.sh — monthly-review rollup of node security-scan logs (lynis+rkhunter).
-# Replaces the inline 3-node loop that (a) had the worst quoting in the skill corpus,
-# (b) required hand-editing a <prev> placeholder, (c) silently skipped immich-vm after
-# its 2026-07-10 join (security_scan role runs hosts:all — 4 nodes have logs).
+# The security_scan role runs on all hosts, so all 4 nodes have logs, immich-vm included
+# since it joined on 2026-07-10.
 # Read-only, no sudo (logs root:adm 640, scan users in adm).
 #
 # Usage: security-scan-rollup.sh            # current month + prior month (.log.1)

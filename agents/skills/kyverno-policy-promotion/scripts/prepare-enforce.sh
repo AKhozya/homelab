@@ -90,11 +90,9 @@ mv "$TMP" "$FILE"
 echo "edited: $FILE"
 echo
 
-# Dry-run to catch schema rejection / admission webhook issues.
-# Plain --dry-run=server (NOT --server-side) — server-side apply hits
-# field-ownership conflicts with Flux's kustomize-controller and returns
-# exit 1 even though the policy itself is valid. Plain dry-run still runs
-# admission webhooks which is what we actually want to test.
+# Plain --dry-run=server (NOT --server-side): server-side apply hits field-ownership
+# conflicts with Flux's kustomize-controller and exits 1 on a valid policy. Plain
+# dry-run still runs the admission webhooks, which is the point of the test.
 echo "=== kubectl apply --dry-run=server ==="
 if ! kubectl apply --dry-run=server -f "$FILE" 2>&1; then
   echo

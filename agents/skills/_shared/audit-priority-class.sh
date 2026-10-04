@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Live audit of pod priorityClassName / priority across cluster.
-# Useful for verifying F-30 critical/standard/batch tier coverage + finding gaps.
+# Shows which pods run at the critical/standard/batch tiers and which have no tier.
 #
 # Flags:
 #   --count        per-tier pod counts (homelab-critical/-standard/-batch/none)
@@ -27,7 +27,7 @@ case "$mode" in
   echo
   ;;
 --missing)
-  # Build the pods-csv inside the map (avoids nested-quote pain in the interpolation).
+  # Join the pod names inside map(): a join inside the string interpolation needs nested quotes.
   echo "$pods_json" | jq -r '
     [.items[] | select(.status.phase=="Running" and (.spec.priorityClassName // "")=="")]
     | group_by(.metadata.namespace)

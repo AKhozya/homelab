@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# kb-hygiene Phase-2 lossless gate — verify no load-bearing token from OLD survives into NEW file(s).
+# Lossless gate: verify that the tokens extracted from OLD still occur across the NEW file(s).
 # Extracts SHAs, filenames, long flags, :ports, #issue-refs, and `backtick spans` from OLD, then
-# greps each across ALL NEW files. Reports LOST = a candidate dropped fact (review each — SHAs /
-# ports / flags / filenames almost never SHOULD be dropped; a prose word might be an intentional cut).
-# Also runs the tag-leak sweep on NEW. This is the gate run by hand 6x during the SKILL-leaning pass.
-# Uses grep/sed (NOT rg — rg is a shell function in this env, absent from non-interactive script PATH).
+# greps each across ALL NEW files. Reports LOST = a candidate dropped fact; a prose word might be
+# an intentional cut. Also runs the tag-leak sweep on NEW.
+# grep, not rg: rg is a Homebrew binary, and a script run with a minimal PATH does not find it.
 # Usage: lossless-verify.sh OLD NEW [NEW ...]
 # Exit: 0 all present + no leaks | 1 LOST tokens or leaked tags | 2 bad args
 set -euo pipefail

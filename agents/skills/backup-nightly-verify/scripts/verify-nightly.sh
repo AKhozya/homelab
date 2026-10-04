@@ -174,9 +174,8 @@ elif CLOG="$(kubectl logs -n "${COUCH_JOB%%/*}" "job/${COUCH_JOB##*/}" 2>/dev/nu
   # No `^` anchor: the job prefixes its own lines with `[Ns elapsed] `, so `^ERROR` can never
   # match the lines that would actually carry an error.
   # Here-string, not `printf | grep -q`: grep -q exits at the first match, printf then takes
-  # SIGPIPE, and under `pipefail` the pipeline reports failure — so a log that DOES contain an
-  # error reads as clean. Intermittent by construction: it only bites once the log is big
-  # enough that printf is still writing when grep quits.
+  # SIGPIPE, and under `pipefail` this check can miss a log that contains an error. This occurs
+  # only if the log is big enough that printf is still writing when grep quits.
   if grep -qiE 'error|failed' <<<"$CLOG"; then
     fail "couchdb-backup log contains an error line"
   fi
@@ -194,13 +193,11 @@ elif RLOG="$(kubectl logs -n "${REPL_JOB%%/*}" "job/${REPL_JOB##*/}" 2>/dev/null
   if [ -z "$SENT" ]; then
     fail "no 'sent N bytes' line — the rsync step did not complete"
   elif [ "$SENT" -gt 1000000000 ]; then
-    # 1GB — ~8x the 126MB a healthy night sends. Deliberately NOT sized just above the 129G
-    # original: a threshold picked to catch only the known regression passes a partial one
-    # silently. Over the line means replication is carrying a path another job owns; 2026-07-27
-    # it re-uploaded 129G of immich generations nightly that its own keep-2 pruned minutes
-    # later. `--exclude='/immich/'` on the Step 2 rsync is what holds this down — check that
-    # before looking anywhere else. Reported in MB: integer GB division prints "1GB" for
-    # anything under 2GB, which reads as if it were near the limit.
+    # 1GB — ~8x the 126MB a healthy night sends, and far below the 129G regression, so a partial
+    # regression also fails. If replication sends more than 1GB, check for a path another job
+    # owns: on 2026-07-27 it re-uploaded 129G of immich generations nightly that its own keep-2
+    # pruned minutes later. Check `--exclude='/immich/'` on the Step 2 rsync first. Reported in MB:
+    # integer GB division prints "1GB" for anything under 2GB, which reads as near the limit.
     fail "sent $((SENT / 1000000))MB — expected under 1000MB; is --exclude='/immich/' still on the Step 2 rsync?"
   else
     grn "sent $((SENT / 1000000))MB"
@@ -212,8 +209,8 @@ elif RLOG="$(kubectl logs -n "${REPL_JOB%%/*}" "job/${REPL_JOB##*/}" 2>/dev/null
     grn "no immich/ dirs pruned"
   fi
 
-  # if/else, not `grep -q X && grn … || fail …`: the pipe binds tighter than `||`, so the
-  # failure branch can fire on success (SC2015, and a documented homelab footgun).
+  # if/else, not `grep -q X && grn … || fail …`: if grep succeeds but grn fails,
+  # `A && B || C` also runs fail (SC2015).
   # The count varies nightly (one artifact per PVC archive since 54b4069a), so a type that
   # failed Step 1 cannot show as a short count; the job names it on its own line instead.
   if grep -q 'failed Step 1)' <<<"$RLOG"; then

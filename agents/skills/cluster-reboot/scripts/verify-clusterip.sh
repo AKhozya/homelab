@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # verify-clusterip.sh <ssh-config-host> — run the ClusterIP probe on a node over SSH.
-# Host must be an ~/.ssh/config Host: worker-node | worker-node-2 | gmk-k3s-control-plane
+# Host must be an ~/.ssh/config Host: worker-node | worker-node-2 | gmk-k3s-control-plane | immich-vm
 # (NOT a zsh alias like ssh_worker_node — those aren't visible to bash). ssh_config carries
 # User + Port 65300 (worker-node-2 = z3us, others = akhozya), so we pass neither here.
 # Probes ClusterIP DNAT (10.43.0.1:443) — the worker kube-proxy wedge surface. The CP loopback

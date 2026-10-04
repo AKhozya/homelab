@@ -2,11 +2,11 @@
 # Prove a Kyverno ValidatingPolicy change admits what it should and denies what it should,
 # BEFORE and AFTER shipping it. Read-only: every probe is `kubectl create --dry-run=server`.
 #
-# WHY: B6-2 (2026-07-26) narrowed disallow-host-path from 5 whole-namespace excludes to 9
+# WHY: on 2026-07-26 disallow-host-path narrowed from 5 whole-namespace excludes to 9
 # label-keyed workload identities — a Deny policy where a wrong selector denies a backup Job
-# at 03:00 with nobody watching. The plan called for an Audit soak spanning a full backup
-# cycle; these probes replaced it with a deterministic before/after check that also covers
-# CronJobs, whose pods do not exist between runs and so are invisible to any live pod scan.
+# at 03:00 with nobody watching. An Audit soak must span a full backup cycle; these
+# probes give a deterministic before/after check instead. They also cover CronJobs,
+# which may have no pods between runs, so a live pod scan cannot guarantee their coverage.
 #
 # Three traps this encodes, each of which produced a wrong answer first:
 #
@@ -154,8 +154,8 @@ else
 fi
 
 if [ "$GOT" = "$EXPECT" ]; then
-  # An `allow` is only meaningful next to a `deny` control on the same policy — on its own it
-  # cannot distinguish "exempted" from "policy not evaluating at all". Always run the pair.
+  # Pair an allow probe with a deny control for the same policy. An allow on its own cannot
+  # tell "exempted" from "policy not evaluating at all".
   echo "PASS  expect=$EXPECT got=$GOT  $NS  $SRC"
   exit 0
 fi

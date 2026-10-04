@@ -8,7 +8,7 @@
 #   redis-master.sh info             # INFO replication from current master
 #   redis-master.sh exec CMD ARGS...  # one shell word per argument; quote an argument that holds spaces
 #
-# --label is faster (no kubectl exec) but trusts the OT operator to keep the
+# --label is faster (no kubectl exec) but trusts the opstree operator to keep the
 # `redis-role=master` label current. Sentinel is authoritative; use --label
 # for quick checks where slight staleness is acceptable.
 
@@ -39,9 +39,9 @@ if [ -z "$MASTER" ]; then
   exit 3
 fi
 
-# redis-cli runs in the sentinel container, which already holds the ops password as
-# MASTER_PASSWORD (from redis-passwords/admin-password) belongs to the ACL user `admin`, so log in as
-# that user: a one-argument AUTH targets `default`, which has no password, and Redis refuses it.
+# redis-cli runs in the sentinel container, which holds the ops password as MASTER_PASSWORD
+# (from redis-passwords/admin-password). That password belongs to the ACL user `admin`, so log in
+# as that user: a one-argument AUTH targets `default`, which has no password, and Redis refuses it.
 # REDISCLI_AUTH keeps the password out of argv, and it never leaves the pod.
 # shellcheck disable=SC2016
 IN_POD='if [ -n "${MASTER_PASSWORD:-}" ]; then export REDISCLI_AUTH="$MASTER_PASSWORD"; exec redis-cli --user admin "$@"; fi; exec redis-cli "$@"'

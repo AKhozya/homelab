@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# When an alert won't clear after a fix, run cascade checks in correct order.
-# Composite of existing diagnostics — saves 15+ probes per incident.
+# If an alert won't clear after a fix, run the existing diagnostics in this order.
 #
 # Order (cheap → expensive):
 #   1. Firing alerts snapshot (VMAlert + Alertmanager dual)
@@ -10,7 +9,6 @@
 #   4. Rule state via vmalert /api/v1/rules (firing/pending/inactive; only with <alertname>)
 #
 # Usage: alert-cascade-check.sh [<alertname>]
-#   If alertname given, also queries its rule state directly.
 
 set -euo pipefail
 SHARED="$HOME/.agents/skills/_shared"

@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-# Restart the opstree redis-ha pods one at a time, the way docs/SECRETS_ROTATION.md section 2
-# step 5 describes, without pasting its shell functions:
+# Restart the opstree redis-ha pods one at a time:
 #   replication  the replica, then the master (re-read by role before each delete), then check
 #   sentinel     redis-sentinel-sentinel-0, -1, -2, then check
 # Never `kubectl rollout restart` these StatefulSets: the operator loops on the restartedAt
 # annotation (bf7bf65d). Each delete carries the pod's recorded UID as a precondition, so a pod
 # the StatefulSet already replaced is never deleted twice. Deleting the master makes the sentinels
 # promote the restarted replica; writes fail for a few seconds.
-# If it stops midway, run it again: pods whose UID changed since THIS run started count as done.
-# A later run restarts the pods an earlier run already restarted; that is safe.
+# If it stops midway, run it again. Within one run, a pod whose UID changed since the run started
+# counts as done; a new run restarts every pod again, which is safe.
 # A new UID does not prove a new ACL: a pod restarted before Flux applied the commit reads the old
 # Secret. So the script refuses to start until infrastructure-configs (the Kustomization that owns
 # both Redis Secrets) reports the expected commit as applied.

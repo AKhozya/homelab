@@ -4,9 +4,9 @@
 # SHA (retries — Actions takes a few seconds to register the run), blocks until it
 # finishes, then hands the verdict to _shared/ci-red-classify.sh.
 #
-# Why: the manual version of this loop grabs "the latest run" by eye — which races with
-# a neighbouring push and reads the WRONG run — and the infra-vs-content classify step
-# gets skipped under pressure. Defaults: sha=HEAD of cwd repo, branch=main.
+# Defaults: sha=HEAD of the cwd repo, branch=main. Scripted because a check by hand reads
+# "the latest run", which can belong to a neighbouring push. Operators also omit the classify
+# step during manual checks.
 #
 # Exit (ci-red-classify taxonomy): 0 GREEN → fr | 10 CONTENT-RED → block, fix manifest
 #   | 11 INFRA-RED → peer+local gate of record, proceed | 5 PENDING (watch died early —

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# kb-hygiene token-efficiency lens — live SKILL.md word + line counts (a SKILL.md loads in full on
-# EVERY fire, so fat ones are the real token lever). Replaces hardcoded word-count lists, which drift.
+# Live SKILL.md word and line counts. A SKILL.md loads in full every time its skill is invoked,
+# so larger files consume more tokens. It counts live because stored counts become outdated.
 # WORDS drives the FAT flag (truer token proxy); LINES is shown too — they diverge (code-block-heavy
 # skills run high lines / low words; dense prose+tables run high words / low lines).
-# Uses find (NOT fd — coreutils-only for zero-dependency robustness in non-interactive script PATH).
+# find, not fd: fd is a Homebrew binary, and a script run with a minimal PATH does not find it.
 # Flags any SKILL.md over THRESHOLD as a relocate candidate (push situational detail to
 # reference-*.md / scripts). Sorted heaviest first.
 # Usage: skill-sizes.sh [SKILLS_ROOT] [THRESHOLD_WORDS]
