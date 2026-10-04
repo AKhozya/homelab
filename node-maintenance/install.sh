@@ -9,16 +9,16 @@
 #                  lib/sync-from-git.sh runs it after a pull that changes the SHA.
 set -euo pipefail
 
-[ "$(id -u)" = "0" ] || { echo "Run as root" >&2; exit 1; }
-
 SYNC_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --sync-only) SYNC_ONLY=1 ;;
-    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
+    -h|--help) awk 'NR == 1 { next } !/^#/ { exit } 1' "$0"; exit 0 ;;
     *) echo "Unknown arg: $arg" >&2; exit 1 ;;
   esac
 done
+
+[ "$(id -u)" = "0" ] || { echo "Run as root" >&2; exit 1; }
 
 REPO_DIR="$(dirname "$(realpath "$0")")"
 KUBECONFIG_PATH="/etc/rancher/k3s/k3s.yaml"
