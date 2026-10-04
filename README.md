@@ -71,7 +71,7 @@ flowchart TB
 | No inbound ports | Internet traffic comes in through a Cloudflare Tunnel, which the cluster opens from the inside. The home router forwards nothing. |
 | Databases and backups | Postgres runs a primary and a replica. Every night, jobs export Postgres, MySQL, CouchDB and the app volumes, and a 03:30 job copies the backups to a NAS. A [runbook](docs/disaster-recovery/README.md) covers a full restore. |
 | Single sign-on | Authentik signs users in to the apps. Most apps use OIDC (the app hands sign-in to Authentik); Homepage sits behind forward-auth (Traefik asks Authentik before it passes each request on). |
-| Upkeep | Renovate opens pull requests for dependency updates. CI checks each push but does not block a merge; see [Trade-offs](#trade-offs). |
+| Upkeep | Renovate opens pull requests for dependency updates. CI checks each push but does not block the owner's direct push; see [Trade-offs](#trade-offs). |
 
 ## Tech stack
 
@@ -135,18 +135,19 @@ report Ready before Flux applies it. The dependencies, from `clusters/`:
 
 ```
 flux-system  (Git source)
+├─ coredns                         cluster DNS; depends on nothing
 └─ infrastructure-controllers      cert-manager · Kyverno · Traefik · DB operators · priority classes
-   ├─ coredns
    ├─ infrastructure-configs       Kyverno policies · DB clusters · certs · Cloudflare  ──▶ apps
    └─ monitoring-controllers       VictoriaMetrics · Grafana · Loki · Popeye           ──▶ monitoring-configs
 ```
 
-Each push runs [`validate.yaml`](.github/workflows/validate.yaml):
+Each push and pull request to `main` runs [`validate.yaml`](.github/workflows/validate.yaml):
 
 | Job | Checks |
 |---|---|
 | yamllint | YAML syntax and style |
 | shellcheck | shell scripts |
+| node-script-tests | offline tests for the node-maintenance scripts |
 | sops-check | every Secret is SOPS-encrypted |
 | init-resources | every init container sets resource limits |
 | image-pin | no image uses a floating tag |
@@ -219,7 +220,7 @@ _Grafana and Homepage dashboards: screenshots to come._
 |---|---|
 | Most apps run one pod | An app's volume lives on one node's disk. If that node fails, the app stays down until the node returns or a restore runs. Among the apps, only Authentik and Blocky run two copies; the databases, Traefik and the tunnel also run two or more. |
 | One control-plane node | If it goes down, running pods and Services keep serving, but nothing new deploys until it returns. Git and the backups can rebuild the cluster. |
-| CI does not gate a merge (as of 2026-09-28) | No rule on `main` requires passing checks. Instead, an AI agent from the other model family (Codex for a Claude change, Claude for a Codex change) reviews each non-trivial change before the author commits it. |
+| CI does not gate the owner's pushes (as of 2026-09-28) | The ruleset requires passing checks on a PR, but the owner's admin role bypasses it and pushes to `main` directly. Instead, an AI agent from the other model family (Codex for a Claude change, Claude for a Codex change) reviews each non-trivial change before the author commits it. |
 | Database exports, no point-in-time recovery | Nightly `pg_dump`-style exports, not a continuous copy of the database's write log. A restore goes back to last night, not to a chosen minute. That fits the data volumes here; [BACKUP_STRATEGY.md](docs/BACKUP_STRATEGY.md) has the reasons. |
 | No offsite copy | The nodes and the NAS share one building, so a fire or theft loses every copy. |
 

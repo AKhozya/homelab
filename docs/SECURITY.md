@@ -98,7 +98,7 @@ them, and the `firewall_preflight` role runs first to settle the kernel's packet
 | `host_vars/<node>.yml` | per-node rules |
 
 The drift-heal run (the Ansible run that puts each node back to its declared state) applies them
-at 03:00 and 15:00 UTC and after every merge to `main`.
+at 03:00 and 15:00 UTC, and within 10 minutes of each new commit on `main`.
 
 The role only adds rules. If you drop a rule from a list, the live rule stays; name it in
 `ufw_rules_absent` to delete it. If a list still declares a rule that someone deleted by hand, the
@@ -128,8 +128,8 @@ So SSH is open to the LAN, to the other nodes and to pods, not to the internet.
 **IPv6.** Every node has a public IPv6 address, and a UFW rule with no source opens its port over
 IPv6 as well. Every incoming rule in `node-maintenance/ansible/group_vars/` and `host_vars/` names an
 IPv4 source. The one routed rule without a source, on worker-node-2, names an IPv4 destination. So no
-rule admits traffic over IPv6. `ufw_rules_absent` in `group_vars/all.yml` deletes the old
-no-source rules on every drift-heal run. `1bc2817c` added the last of them, 8472/udp, to that list.
+rule admits traffic over IPv6. `ufw_rules_absent` deletes the old no-source rules (see
+[Incidents](#incidents)).
 
 ### SSH
 

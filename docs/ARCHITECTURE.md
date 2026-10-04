@@ -90,8 +90,8 @@ flowchart TB
 ```
 
 The arrows into `flux-system` and `coredns` show where Flux gets the source. Each arrow below
-`infrastructure-controllers` is a Flux `dependsOn`: a Kustomization waits until its parent reports Ready. If their parents are
-Ready, the apps branch and the monitoring branch run in parallel. `apps` sets
+`infrastructure-controllers` is a Flux `dependsOn`: a Kustomization waits until its parent reports
+Ready. The apps branch and the monitoring branch run in parallel. `apps` sets
 `wait: false`, so Flux does not wait for every app to become healthy; each app reports its own
 readiness.
 
@@ -159,8 +159,7 @@ repo, so nothing here can check them for drift. This table records what was deci
 | `authentik` | none, by design | It is the identity provider; a gate at the edge would lock every other app out of its sign-in. Sign-in is passkey-first, with no password. |
 | `audiobooks`, `immich`, `linkwarden`, `mealie`, `n8n`, `paperless`, `stirling` | none; each app signs users in through Authentik (OIDC) | A gate at the edge would add a second prompt without adding a factor. **Accepted cost:** each app's own sign-in page faces the internet, so a bug in its sign-in is exposed to the internet, not only to the LAN. |
 
-If you add a tunnel hostname, pick one of these three rows and add the hostname to it. The Access
-policies are not stored in this repo, so a Git diff cannot show a change to them.
+If you add a tunnel hostname, pick one of these three rows and add the hostname to it.
 
 ---
 
@@ -242,8 +241,6 @@ place. A new `base`/`staging` split would break this flat layout.
 ---
 
 ## Deliberate simplifications
-
-These are choices, not accidents:
 
 | Simplification | What it means |
 |---|---|

@@ -1,9 +1,8 @@
 # CLAUDE.md
 
-Project context for Claude Code. The canonical agent context is shared with all
-AI tools in **[AGENTS.md](AGENTS.md)** — imported below so there's one source of
-truth, no drift. Everything about the cluster, hard invariants, the worktree
-model, the pre-commit review loop, and the docs map lives there; read it first.
+Claude Code imports the agent context that every AI tool shares from
+**[AGENTS.md](AGENTS.md)** below. The cluster, hard invariants, worktree model,
+pre-commit review loop and docs map live there; read it first.
 
 @AGENTS.md
 
@@ -11,9 +10,8 @@ model, the pre-commit review loop, and the docs map lives there; read it first.
 
 ## Claude Code harness (this section is Claude-specific)
 
-`AGENTS.md` is the shared brain. The rest of this file covers only the in-repo
-`.claude/` harness — Codex has no use for it, so it stays out of `AGENTS.md`.
-Do **not** duplicate cluster facts here; add them to `AGENTS.md` instead.
+The rest of this file covers only the in-repo `.claude/` harness, which Codex
+does not use. Do **not** duplicate cluster facts here; add them to `AGENTS.md`.
 
 ### Tracked `.claude/` assets
 
@@ -67,8 +65,7 @@ The `deny` entries block these commands:
 | `get` with `secret` or `Secret` anywhere after it | the `get *` allow would otherwise print Secret values |
 | `get` with `-f`, `--filename`, `-k` or `--kustomize`, alone or after one of `-A`, `-R`, `-w` (`-Af`, `-Rk`) | a file or Kustomization can name a Secret without the word appearing in the command |
 
-The rules match command text, and a pattern list never covers every spelling a
-tool accepts, so they block only the spellings they list:
+The rules match command text, so they block only the spellings they list:
 
 | Limit | Reason |
 |---|---|
@@ -86,18 +83,17 @@ Git → Flux, never `kubectl edit/patch/replace`).
 
 ### Review loop
 
-The pre-commit gate-of-record is in `AGENTS.md` (opposite-family peer, static
-git-only, delta-scoped re-review). Its state table decides when to commit. Any
-reviewer — that peer, the
-`k8s-devops-reviewer` sub-agent, or a security pass — checks the diff against
-`.claude/review-invariants.md` first. Docs/markdown-only commits are exempt.
+The pre-commit gate-of-record and its round table are in `AGENTS.md`. Any
+reviewer — that peer, the `k8s-devops-reviewer` sub-agent, or a security pass —
+checks the diff against `.claude/review-invariants.md` first. Docs/markdown-only
+commits are exempt.
 
 ### Slash commands & skills load from outside this repo
 
 Homelab skills (`cluster-reboot`, `cluster-roll`, `homelab-node-fix`,
 `cluster-stale-cleanup`, …) and slash commands (`/gitops-workflow`,
 `/homelab-yaml-validate`, …) referenced in `AGENTS.md` load from `~/.claude/`
-(a separate chezmoi-managed dotfiles repo). `agents/` holds a read-only copy
-for readers that no tool loads: edit the dotfiles copy, then refresh `agents/`
-with `scripts/sync-agents.sh --update`. A worktree isolates this repo's files,
-not `~/.claude/**`.
+(a separate chezmoi-managed dotfiles repo). Edit the dotfiles copy, then
+refresh this repo's read-only `agents/` copy with
+`scripts/sync-agents.sh --update`. A worktree isolates this repo's files, not
+`~/.claude/**`.

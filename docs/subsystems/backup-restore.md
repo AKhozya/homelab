@@ -30,7 +30,7 @@ All backup CronJobs set `startingDeadlineSeconds: 3600`. `immich-backup` shares 
 Whitelist (CRITICAL_PVCS) + `nodeSelector: worker-node` + `hostPath /mnt/k8s-storage/backups/pvc`: `infrastructure/configs/backup/pvc-backup-cronjob.yaml`. Compression gzip, except `audiobookshelf-{audiobooks,podcasts}` = uncompressed tar (already-compressed media). Retention: there is no local age sweep. `backup-replication` deletes a type's local files on the night that type passes validation and reaches the NAS. The NAS keeps 30 days.
 
 **Excluded by design** (the *why* matters — re-justify before re-adding):
-- `immich/immich-ml-cache` (`apps/immich/ml-cache-pvc.yaml`) — regenerable ML cache (library PVC gone — NAS-resident since the Path-B cutover, covered by the weekly W2 job above)
+- `immich/immich-ml-cache` (`apps/immich/ml-cache-pvc.yaml`) — regenerable ML cache. The library has no PVC: it lives on the NAS, and the weekly `immich-backup` job covers it
 - `uptime-kuma` — emptyDir, state in MySQL
 - `claude-telegram/claude-telegram-home-pvc` — session-only state, bot rebuilds on restart
 - `loki/storage-loki-0`, `monitoring/vmsingle-vmsingle` — log/metric buffers, ephemeral
@@ -57,14 +57,14 @@ Validate BEFORE the sync, per type, then push to the NAS, then clean the source 
 | If a type fails | Replication skips that type and keeps its local files for the next night. The other types still sync and are cleaned. The Job still exits 1 and sends the Telegram report. |
 | If every type fails | The run stops before the sync. |
 
-**`--exclude='/immich/'` is load-bearing — do not drop it when editing the Step 2 rsync.** immich-backup owns that destination path; without the exclude, replication re-uploads whatever stale generations sit under W1's `immich/` (Step 4's `rm -rf` covers only postgres/couchdb/mysql/pvc) and Step 4b's keep-2 deletes them minutes later. If stale generations remain on W1, replication uploads them each night and NAS retention deletes them afterwards (`5f76db93`). The **leading slash anchors it to the transfer root**: unanchored `immich/` would also match a future `pvc/<ts>/immich/`. The exclude is on the *transfer* only — Step 4b still prunes the NAS immich pool to keep-2, which is the sole retention on that path (immich-backup's own keep-2 sweeps only its W2 copies). The NAS is the only destination.
+**`--exclude='/immich/'` is load-bearing — do not drop it when editing the Step 2 rsync.** immich-backup owns that destination path. Without the exclude, replication re-uploads any stale generations under W1's `immich/` each night (Step 4's `rm -rf` covers only postgres/couchdb/mysql/pvc), and Step 4b's keep-2 deletes them minutes later (`5f76db93`). The **leading slash anchors it to the transfer root**: unanchored `immich/` would also match a future `pvc/<ts>/immich/`. The exclude covers the *transfer* only: Step 4b's keep-2 prune of the NAS immich pool is the sole retention on that path, because immich-backup's own keep-2 sweeps only its W2 copies.
 
 **Retention prune (after validate + clean):**
 - 30d postgres/mysql/couchdb — `prune_nas_file()`: rsync include-filter file-prune against empty source, targets `<cat>/<cat>_YYYYMMDD_HHMMSS.tar.gz` older than 30d
 - 30d pvc dirs — `prune_nas_dir()`: rsync `-r --delete` from empty dir into `pvc/YYYYMMDD_HHMMSS/` subpaths older than 30d
 - keep-2 immich — sort `immich/YYYYMMDD_HHMMSS/` descending, prune all but newest 2
 - If a prune fails, the other prunes still run. The copy to the NAS has already succeeded. The run fails, and the report counts the failed prunes. Use the NAS UI to delete the files or directories that those prunes targeted; the Job log names them.
-- Triple-safe against immich loss: file-prune regex requires a single `/` + DB-category allow-list (immich paths have two `/`s and aren't in `(postgres|mysql|couchdb)`)
+- The file prune cannot touch immich: its filter matches only regular files named `(postgres|mysql|couchdb)/<name>.tar.gz`, one `/` deep; immich files sit two levels deep, under a category outside that list
 
 Failure handling: trap on EXIT sends Telegram with `CURRENT_STEP`; success is silent.
 
@@ -103,10 +103,10 @@ New app checklist: add its secrets here or record why not.
 6. Idempotent via `kubectl create ns --dry-run=client | apply -f -`
 
 ### Encryption flow
-GPG AES256 symmetric (passphrase prompt or `GPG_PASSPHRASE`); output `secrets-backup-YYYYMMDD_HHMMSS.tar.gz.gpg`; `jq` strips resourceVersion/uid/creationTimestamp/managedFields pre-encrypt; unencrypted dir auto-removed; plaintext `*.txt` extracts for fast lookup (cloudflare API, grafana admin, telegram bot, redis-immich, redis-blocky).
+GPG AES256 symmetric (passphrase prompt or `GPG_PASSPHRASE`); output `secrets-backup-YYYYMMDD_HHMMSS.tar.gz.gpg`; `jq` strips resourceVersion/uid/creationTimestamp/managedFields/ownerReferences pre-encrypt; unencrypted dir auto-removed; plaintext `*.txt` extracts for fast lookup (cloudflare API, grafana admin, telegram bot, redis-immich, redis-blocky).
 
 ## Verification
 - Manual run: `kubectl create job -n kube-system --from=cronjob/pvc-backup pvc-backup-manual-$(date +%s)`
-- Drill: the `backup-restore-drill` skill covers the schedule that the BACKUP_STRATEGY.md checklist sets: a single-database test restore to a scratch namespace each month, and a full DR restore on spare hardware each quarter. The CouchDB restore steps are in `docs/disaster-recovery/README.md`.
+- Drill: [`backup-restore-drill`](../../agents/skills/backup-restore-drill/SKILL.md) covers the schedule that the BACKUP_STRATEGY.md checklist sets: a single-database test restore to a scratch namespace each month, and a full DR restore on spare hardware each quarter. The CouchDB restore steps are in `docs/disaster-recovery/README.md`.
 - Replication validates each backup type daily (table above); failure → Telegram with the failed step
 - Grafana dashboard: `monitoring/configs/grafana-dashboards/backup-monitoring-dashboard.yaml`

@@ -18,6 +18,8 @@ VictoriaMetrics primary stack. **No Prometheus pod** — kube-prometheus-stack c
 | `popeye` | CronJob (`popeye` ns) | cluster sanitizer, weekly Sun 06:00 UTC (`monitoring/controllers/popeye/`) |
 | `trivy-scan` | CronJob (`trivy-scan` ns) | image-CVE scan of running images, monthly 1st 08:00 UTC (`monitoring/configs/trivy-scan/`) |
 
+vmsingle, vmagent and vmalert run `priorityClassName: homelab-critical`.
+
 Chart lineage gotcha: loki chart comes from the **grafana-community** repo (grafana.github.io lineage is frozen GEL-only). Every HelmRelease in `monitoring/controllers/` sets `driftDetection: enabled`; explicit `timeout: 10m` on KPS + loki.
 
 ## ⚠️ Prometheus converter DISABLED
@@ -78,7 +80,7 @@ Alertmanager does not authenticate requests to port 9093. The `am.h0melab.work` 
 | pods labelled `app.kubernetes.io/name: alertmanager` | 9094 TCP and UDP | the HA gossip mesh between Alertmanager pods |
 
 ## Dashboards
-- ConfigMaps labeled `grafana_dashboard: "1"` auto-loaded by the Grafana sidecar (polls 30s → `/tmp/dashboards/`)
+- ConfigMaps labeled `grafana_dashboard: "1"` auto-loaded by the Grafana dashboard sidecar (chart defaults; `sidecar.dashboards.enabled` in `kube-prometheus-stack/release.yaml`)
 - `monitoring/configs/grafana-dashboards/`: cnpg, redis, traefik-k8s, loki-stack, cert-manager, backup-monitoring, node-maintenance
 - **Custom** `blocky-dashboard` — community 13768 had Prometheus hardcoded + an interactive HTML/JS plugin error; panels rebuilt on the VictoriaMetrics datasource
 - Standard kube-prometheus-stack dashboards: cluster-total, pod-total, workload-total, node-exporter, kubelet, etc.
@@ -87,7 +89,7 @@ Alertmanager does not authenticate requests to port 9093. The `am.h0melab.work` 
 - 2 STS replicas; receivers: `telegram` (default), `telegram-backup` (backup alerts), `deadman` (Watchdog → healthchecks.io), `null`
 - Routing severity-based (critical/warning/info); `alertmanager-overrides` group in vmrules.yaml inhibits noisy alerts
 - **Gotcha**: Go templates have NO `sub`/`add`/`mul`/`div` math funcs (use `len`)
-- Health check BOTH `/api/v1/alerts` (Prometheus-compat) AND `/api/v2/alerts` (native)
+- Health check BOTH vmalert (`/api/v1/alerts`) AND Alertmanager (`/api/v2/alerts`): one can look clean while the other shows the problem
 
 ## VMAlert wiring
 - `datasource.url` + `remoteWrite.url`: `http://vmsingle-vmsingle.monitoring.svc:8429`
@@ -98,4 +100,3 @@ Alertmanager does not authenticate requests to port 9093. The `am.h0melab.work` 
 - Alloy config: pod logs through `loki.source.kubernetes` (K8s API, no hostPath); the node-maintenance systemd journal through read-only hostPath mounts of `/var/log/journal` and `/etc/machine-id` (`alloy-release.yaml`); metrics port 12345 (NOT default; prefix `loki_write_*`)
 - `loki-canary` DS probes ingest/query latency
 - Fresh deploy → "timestamp too old" 400s self-resolve in minutes
-- VM-core (vmsingle/vmagent/vmalert): `priorityClassName: homelab-critical`

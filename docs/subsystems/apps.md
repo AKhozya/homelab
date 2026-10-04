@@ -19,8 +19,8 @@ Each app has one directory under `apps/<name>/`. Image versions: pinned in each 
 | **audiobookshelf** | audiobookshelf | PVCs: audiobooks, podcasts, config, metadata | sqlite | OIDC | both | Audio library |
 | **obsidian** | obsidian | — | CouchDB (`databases` ns) | — | both | LiveSync clients reach CouchDB through the tunnel hostname `couchdb.h0melab.work`, behind Cloudflare Access Service Auth |
 | **pricebuddy** | pricebuddy | PVC | MySQL | — | int | Price tracking; sidecars `seleniumbase-scrapper` + `apprise` |
-| **claude-telegram** | claude-telegram | PVC 2Gi (`claude-telegram-home-pvc`: dotfiles, checkouts, plugin + Codex state) | — | — | TG only | AI bot; HTTP `/trigger` loopback hook. RBAC: cluster-wide read; delete on pods, replicasets and PolicyReports; `pods/exec` in the namespaces bound in `infrastructure/configs/claude-telegram-rbac/rolebindings.yaml`; `services/proxy` reads of vmsingle, vmalert and Alertmanager; Job create and delete in `popeye` only (`apps/claude-telegram/rbac.yaml`) |
-| **rustdesk** | rustdesk | PVC (100Mi, ed25519 key + sqlite) | — | — | LAN + WARP :21115-21117 | Self-hosted remote desktop (hbbs+hbbr, 1 pod/2 containers); single mixed-proto LB on W1 (192.168.1.129); `-k _` gates only the connect-to-peer path, NOT registration or the CVE-670 UDP-reflection handlers; LAN and WARP only, no public hostname (a tunnel public hostname cannot carry 21116/UDP) |
+| **claude-telegram** | claude-telegram | PVC 2Gi (`claude-telegram-home-pvc`: dotfiles, checkouts, plugin + Codex state) | — | — | TG only | AI bot; HTTP `/trigger` loopback hook. RBAC (roles in `apps/claude-telegram/rbac.yaml`, bindings in `infrastructure/configs/claude-telegram-rbac/rolebindings.yaml`): cluster-wide read; delete on pods, replicasets and PolicyReports; `pods/exec` in the bound namespaces; `services/proxy` reads of vmsingle, vmalert and Alertmanager; Job create and delete in `popeye` only |
+| **rustdesk** | rustdesk | PVC (100Mi, ed25519 key + sqlite) | — | — | LAN + WARP :21115-21117 | Self-hosted remote desktop (hbbs+hbbr, 1 pod/2 containers); single mixed-proto LB on W1 (192.168.1.129); `-k _` gates only the connect-to-peer path, NOT registration or the CVE-2026-30784 UDP-reflection handlers; LAN and WARP only, no public hostname (a tunnel public hostname cannot carry 21116/UDP) |
 
 "External" means a hostname entry in the central Cloudflare tunnel config — see [networking.md](networking.md), never a second Ingress. Grafana (monitoring ns) also uses OIDC, but it has no tunnel hostname: it is reachable on the LAN Ingress only — see [monitoring.md](monitoring.md).
 
@@ -34,7 +34,7 @@ Each app has one directory under `apps/<name>/`. Image versions: pinned in each 
 - `popeye` — weekly cluster scan; `trivy-scan` — monthly image-CVE scan
 
 ## Shared service patterns
-- App Ingresses use this middleware chain, with the exceptions below: `traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-{standard|high-frequency}@kubernetescrd,traefik-csp-{inline|permissive}-enforced@kubernetescrd` (middlewares in `traefik` ns). homepage inserts `traefik-authentik-forward-auth@kubernetescrd` **after** rate-limit — a 401 or redirect ends the chain. If forward-auth ran before rate-limit, login attempts would not be throttled
+- App Ingresses use this middleware chain, with the exceptions below: `traefik-redirect-https@kubernetescrd,traefik-security-headers@kubernetescrd,traefik-rate-limit-{standard|high-frequency}@kubernetescrd,traefik-csp-{inline|permissive}-enforced@kubernetescrd` (middlewares in `traefik` ns). homepage inserts `traefik-authentik-forward-auth@kubernetescrd` **after** rate-limit: a 401 or redirect ends the chain, so forward-auth placed earlier would leave login attempts unthrottled
 
   | Ingress | Chain |
   |---|---|
@@ -49,6 +49,6 @@ Each app has one directory under `apps/<name>/`. Image versions: pinned in each 
   | `rate-limit-standard` | 300 | 1m | 150 | the default |
   | `rate-limit-high-frequency` | 600 | 1m | 300 | couchdb, home-assistant, immich, n8n |
 - **authentik carries no rate-limit middleware at all** — its chain is redirect-https, security-headers, csp-permissive-enforced. Throttling the SSO provider breaks the auth flow for every app behind it.
-- Image-pin CI gate: `scripts/ci/image-pin-audit.sh` in `validate.yaml` enforces `major.minor.patch` on every image (Kyverno only catches `:latest`/no-tag); allowlist inside the script (`postgres*`)
+- Image-pin CI gate: `scripts/ci/image-pin-audit.sh` in `validate.yaml` enforces `major.minor.patch` (or a digest) on every image (Kyverno only catches `:latest`/no-tag); `postgres` and `postgresql` images may use a two-part `major.minor` tag, because upstream has no patch number
 - DB usernames = app name (CNPG `managed.roles` for PG, ACL for Redis, GRANT for MySQL)
 - DB endpoints and which app uses which: [networking.md](networking.md#service-endpoints)

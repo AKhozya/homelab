@@ -8,7 +8,7 @@ Backup CronJobs (schedules, auto-discovery, mechanics): [backup-restore.md](back
 
 ## PostgreSQL — CloudNativePG (CNPG)
 - **Operator**: `cnpg-operator` (2 replicas, hard anti-affinity, `databases` ns; chart in `controllers/databases/postgres/release.yaml`)
-- **Operator placement**: soft nodeAffinity `NotIn worker-node-2` (weight 100) + CP toleration → pair lands CP+W1. Toleration is load-bearing: without it, replicaCount 2 + hard anti-affinity forces one replica onto W2 (preference = dead config). Why: an operator leader on a flaky node once probed the healthy W1 primary across that node's broken VXLAN → spurious failover into the broken node.
+- **Operator placement**: soft nodeAffinity `NotIn worker-node-2` (weight 100) + CP toleration → pair lands CP+W1. Without the toleration, replicaCount 2 + hard anti-affinity forces one replica onto W2 and the preference does nothing. Why: on 2026-06-04 the leader on W2 probed the healthy W1 primary across W2's flaky VXLAN and caused a spurious failover.
 - **Cluster**: `main-postgres` (`configs/databases/postgres/cluster.yaml` — 1 primary + 1 replica on workers, no CP scheduling, hard pod anti-affinity). `failoverDelay: 30` (default 0 = instant) — rides out 1-10s probe blips at the cost of +30s RTO on genuine primary death.
 - **Pods**: `main-postgres-{N}` (sequential numbering climbs across upgrades)
 - **Pooler**: PgBouncer Deployment `main-postgres-rw-pooler` (`configs/databases/postgres/pooler.yaml` — separate CR from the Cluster). It serves linkwarden, paperless-ngx, mealie and n8n. immich-server connects to `main-postgres-rw` directly, because its startup advisory lock fails under transaction pooling (`apps/immich/release.yaml`). App-to-host map: [networking.md](networking.md)
@@ -44,7 +44,7 @@ Backup CronJobs (schedules, auto-discovery, mechanics): [backup-restore.md](back
 - **Backup**: daily HTTP dump (auto-discovers via `_all_dbs`)
 
 ## Resources / quotas
-Requests/limits live in each CR/HelmRelease; `databases` ns ResourceQuota in `configs/databases/`. ⚠️ **Tier quotas may block rolling updates** (rollouts need ~2x transiently) — temp-bump the quota if a rollout stalls on `exceeded quota`.
+Requests/limits live in each CR/HelmRelease; the `databases` ns ResourceQuota is `infrastructure/configs/resource-governance/large-tier/databases.yaml`. ⚠️ **Tier quotas may block rolling updates** (rollouts need ~2x transiently) — temp-bump the quota if a rollout stalls on `exceeded quota`.
 
 ## Scheduling tier
 All data-plane DB pods + every operator run `priorityClassName: homelab-critical`. Field paths differ per engine:
@@ -61,4 +61,4 @@ mysql-exporter is `homelab-standard` — not data plane, preempts safely.
 - CouchDB / Redis CRs: operator rolling-update on apply
 - Pooler: `deploymentStrategy: RollingUpdate` auto-handles
 
-**DB primary node-pinning** (best-effort, manual): target = W1 (more performant); use the `db-primary-pin` skill (`kubectl cnpg promote` / orchestrator graceful takeover). Redis master is NOT pinnable — operator repairs topology itself.
+**DB primary node-pinning** (best-effort, manual): target = W1 (more performant); use [`db-primary-pin`](../../agents/skills/db-primary-pin/SKILL.md) (`kubectl cnpg promote` / orchestrator graceful takeover). Redis master is NOT pinnable — operator repairs topology itself.

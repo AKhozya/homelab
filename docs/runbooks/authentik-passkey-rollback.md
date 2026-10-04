@@ -9,7 +9,7 @@
 - Login broken for akadmin
 - Conditional UI doesn't surface the credential + passwordless button missing
 - Blueprint apply errors blocking other Authentik changes
-- TOTP/WebAuthn device-management UI exposes #18232 collision in a blocking way
+- The TOTP/WebAuthn device-ID collision in the UI (upstream #18232, see [Known behaviors](#known-behaviors--gotchas)) blocks device management
 
 ## API endpoint cheatsheet
 
@@ -44,7 +44,7 @@ flux reconcile source git flux-system --timeout=90s
 flux reconcile kustomization apps --timeout=120s
 ```
 
-**Important**: `state: present` is partial-update. Removing a YAML key from a blueprint does NOT auto-null the corresponding DB field. To clear a field that was set by a prior blueprint, EITHER:
+**Important**: `state: present` updates only the fields it names. If you remove a key from a blueprint, the database field keeps its value. To clear a field a blueprint set, do one of these:
 
 1. Use `state: absent` on the entry to fully delete the entity (only safe for entities the blueprint created — e.g. `homelab-*` flows/stages/bindings).
 2. Patch the entity manually via API (see "Manual field reset" below).
@@ -64,7 +64,7 @@ kubectl exec -n authentik deploy/authentik-server -- curl -s -X PATCH \
   "http://localhost:9000/api/v3/stages/identification/$ID_PK/"
 ```
 
-Note: `user_fields` + `sources` must be supplied on every PATCH (serializer validator requires at least one non-empty regardless of partial-update).
+Every PATCH must include `user_fields` and `sources`: the serializer requires at least one of them to be non-empty, even on a partial update.
 
 ## Full rollback (phases 0-3)
 
@@ -89,6 +89,18 @@ Restore the **password** binding first. Blueprint 40 removed the password stage 
 
 3. Check that a sign-in asks for the password before you revert the phases.
 
+The phase commits edited `apps/base/authentik/`, before `b92a8032` moved it to `apps/authentik/`, so
+the `git log -- apps/authentik/` search below finds none of them. Use these:
+
+| Phase | Commit | Adds |
+|---|---|---|
+| 0, plumbing | `7d3d55d0` | the blueprint ConfigMap and its mount |
+| 1 | `084c5641` | `10-voluntary-enrollment.yaml` |
+| 2 | `55385305`, fixed by `6e4646c4` | `20-passkey-first.yaml` |
+| 3 | `bada5b6a`, then `a2bf7649` added TOTP to `device_classes` | `30-enforce.yaml` |
+
+Revert `a2bf7649` before `bada5b6a`. Do not revert phase 0: blueprint 50 still uses its ConfigMap and mount.
+
 ```bash
 # Find Phase commits (search commit subject pattern):
 git log --oneline --grep="Authentik:" -- apps/authentik/
@@ -108,7 +120,7 @@ agents/skills/_shared/restart-workload.sh authentik app=authentik,component=serv
   agents/skills/_shared/restart-workload.sh authentik app=authentik,component=worker 300
 ```
 
-Then manual field resets per the patterns above for any field that was created/modified rather than entity-replaced.
+If a revert removes a key, or the whole blueprint, the field keeps the value that blueprint set: `state: present` leaves fields outside `attrs` unchanged (authentik blueprint docs, `structure.mdx`). Reset each such field by hand, as in [Manual field reset](#manual-field-reset-eg-unset-webauthn_stage-after-phase-2-revert). If the revert restores the key with an earlier value, the next blueprint apply writes that value, and no reset is needed.
 
 ## Verify post-rollback state
 
@@ -130,13 +142,13 @@ kubectl exec -n authentik deploy/authentik-server -- curl -s -H "Authorization: 
 
 ## Cache caveat
 
-Authentik server pods cache stage state in-memory. After a blueprint that mutates a stage applies (`status: successful`), the API may serve stale values from one or both replicas. If `device_classes` etc. don't reflect the new blueprint, restart server:
+Authentik server pods cache stage state in memory. After a blueprint that changes a stage reports `status: successful`, either server replica may still serve the old values. If `device_classes` or another field does not match the blueprint, restart the server:
 
 ```bash
 agents/skills/_shared/restart-workload.sh authentik app=authentik,component=server 300
 ```
 
-DB is the source of truth — verify directly:
+The database holds the real value. Check it directly:
 ```bash
 kubectl exec -n authentik deploy/authentik-worker -- ak shell -c "
 from authentik.stages.authenticator_validate.models import AuthenticatorValidateStage
@@ -147,7 +159,7 @@ print(v.device_classes, v.not_configured_action)
 
 ## Lockout recovery (worst case — cannot log in at all)
 
-1. Shell into worker, force-reset target stages via Django ORM:
+1. Open a shell in the worker and reset the stages through the Django ORM:
 
    ```bash
    kubectl exec -n authentik deploy/authentik-worker -it -- ak shell
@@ -201,6 +213,6 @@ agents/skills/_shared/restart-workload.sh authentik app=authentik,component=work
 
 ## Known behaviors / gotchas
 
-- **WebAuthn devices API returns `rp_id: null` at registration**: this is a display-only field, populated after first assertion. Credential works regardless. Do NOT treat `rp_id: null` as a broken credential on fresh enrollments.
+- **WebAuthn devices API returns `rp_id: null` at registration**: the field is display-only and fills in after the first sign-in with that passkey. The credential works either way, so `rp_id: null` on a new enrolment does not mean it is broken.
 - **`/api/v3/managed/blueprints/` is paginated**: default 20/page. Use `?page_size=100` to list all 25+ on a typical install (20 defaults + 5 custom).
 - **TOTP/WebAuthn pk collision in UI** (#18232): deleting via UI checkboxes can target the wrong device class. Always delete WebAuthn devices via API by UUID / integer pk.

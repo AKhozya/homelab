@@ -28,11 +28,11 @@ All times are UTC. Every backup job runs on `worker-node` and writes under
 
 | Backup | CronJob (namespace) | When | Output | Kept |
 |---|---|---|---|---|
-| PostgreSQL | `postgres-backup` (`databases`) | daily 03:00 | `pg_dump -F c` of each database, tarred and gzipped, with a SHA-256 file | 30 days |
-| CouchDB | `couchdb-backup` (`databases`) | daily 03:05 | `@cloudant/couchbackup` export of each database, tarred and gzipped, with a SHA-256 file | 30 days |
-| App volumes | `pvc-backup` (`kube-system`) | daily 03:10 | one tar per PVC, with a SHA-256 file | 30 days |
-| MySQL | `mysql-backup` (`databases`) | daily 03:15 | `mysqldump` of each database, with a SHA-256 file | 30 days |
-| Copy to the NAS | `backup-replication` (`backup-replication`) | daily 03:30 | the four backups above, copied to the NAS | 30 days on the NAS |
+| PostgreSQL | `postgres-backup` (`databases`) | daily 03:00 | `pg_dump -F c` of each database, tarred and gzipped, with a SHA-256 file | until the copy to the NAS, then 30 days there |
+| CouchDB | `couchdb-backup` (`databases`) | daily 03:05 | `@cloudant/couchbackup` export of each database, tarred and gzipped, with a SHA-256 file | until the copy to the NAS, then 30 days there |
+| App volumes | `pvc-backup` (`kube-system`) | daily 03:10 | one tar per PVC, with a SHA-256 file | until the copy to the NAS, then 30 days there |
+| MySQL | `mysql-backup` (`databases`) | daily 03:15 | `mysqldump` of each database, with a SHA-256 file | until the copy to the NAS, then 30 days there |
+| Copy to the NAS | `backup-replication` (`backup-replication`) | daily 03:30 | the four backups above, copied to the NAS; it then deletes the copies on worker-node | 30 days on the NAS |
 | Immich library | `immich-backup` (`backup-replication`) | Sunday 03:00 | an uncompressed tar of the library and a SHA-256 file, on worker-node-2 and on the NAS | the newest 2 of each |
 | Secrets | `.backup/secrets-backup.sh`, by hand | monthly, and before a large change | a GPG-encrypted archive | as long as you keep it; store the passphrase in 1Password |
 

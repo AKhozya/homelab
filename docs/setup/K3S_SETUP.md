@@ -25,7 +25,7 @@ Set up the control plane first, then the workers.
 
 ## Control plane
 
-`config.yaml` must exist before K3s first starts. K3s applies `node-taint` and `node-label` only
+K3s applies `node-taint` and `node-label` only
 when a node first registers, and the `disable:` list keeps the bundled CoreDNS, Traefik and
 helm-controller from ever starting. If they start once, a later restart with `disable:` deletes
 their add-on objects, including the `kube-dns` Service.
@@ -147,7 +147,8 @@ curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<nod
 `immich-vm` is the GPU worker: a VM on the NAS with the Intel GPU passed through.
 
 Never reboot this guest from inside it, and never `virsh reboot`, `reset` or `destroy` it. Each one
-hits the GPU reset bug and crashes the NAS host. The only safe restart runs on the NAS host:
+hits the GPU reset bug: the GPU wedges, and a `destroy` crashes the NAS host. The
+only safe restart runs on the NAS host:
 
 ```bash
 virsh shutdown immich-vm --mode acpi
@@ -186,7 +187,7 @@ hand.
 
 ## What `setup-node.sh` does
 
-`scripts/setup-node.sh` only bootstraps a node; its header says so. It takes the node role as its
+`scripts/setup-node.sh` only bootstraps a node. It takes the node role as its
 argument, or reads it from a running `k3s` or `k3s-agent` unit, and does three things:
 
 | # | Step |
@@ -217,9 +218,10 @@ K3s ServiceLB gives each LoadBalancer Service an address on the nodes that allow
 | Node | Label `svccontroller.k3s.cattle.io/enablelb` |
 |---|---|
 | control plane | `false` |
-| workers | `true` |
+| `worker-node`, `worker-node-2` | `true` |
 
-So Traefik's `EXTERNAL-IP` lists the worker IPs only.
+`immich-vm` carries no such label (`host_vars/immich-vm.yml`), so Traefik's `EXTERNAL-IP` lists
+the two worker IPs only.
 
 ## Upgrading K3s
 

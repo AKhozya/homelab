@@ -323,11 +323,11 @@ Not caused by the review: at about 10:58Z a NAS firmware auto-update rebooted th
 | VNC on the NAS loopback | The fix in Git (`aba0768e`) does not reach the NAS by itself, because the heal watchdog does not check `<graphics>`. An in-place edit of the NAS definition changes only the two `listen` values, and a cold restart (`shutdown --mode acpi`, shut off in ~10 s) makes it live. Port 5900 no longer answers from the LAN. The node is Ready and the Immich server and ML pods are Running ~7 min after the start. The server fails its startup probe once on the cold VM. How to apply such a change and reach the console: [gpu-node/README.md](../apps/immich/gpu-node/README.md) |
 | Bot node host keys | The bot's SOPS `known_hosts` keeps only the `github.com` keys (`3eb0d6a2`). `node-maintenance/lib/known_hosts` (`391fd839`) is the one copy of the node keys; the bot appends it at start. SSH from the bot to all four nodes passes with `StrictHostKeyChecking yes` |
 
-### 2026-09-28 — SP5 whole-repo review: 209 findings, 198 fixed
+### 2026-09-28 — Whole-repo review before going public: 209 findings, 198 fixed
 
 Nine review agents read 737 of the 803 files at `8f78a8c8`, and seven fix agents fixed the
-findings area by area. Method, counts, decisions and open items are in
-[the open-source prep plan](plans/2026-09-26-open-source-prep.md), section SP5.
+findings area by area. The review was part of the open-source prep plan, which left git in
+`f1477f56`.
 
 | Area | What changed | Commits |
 |---|---|---|
@@ -359,7 +359,7 @@ config that sshd rejects fails every run until someone fixes it.
 
 ### 2026-09-28 — three tokens rotated before the repo goes public
 
-The SP4 secret scan read every ref GitHub serves, not only `main`: `gitleaks git
+The pre-public secret scan read every ref GitHub serves, not only `main`: `gitleaks git
 --log-opts=--all` on a mirror clone. `main` held the same 11 findings as the 2026-07-26 audit,
 which judged each one rotated or decommissioned. Four more findings are in commits that only
 `refs/pull/*` reach, from before the 2026-06-12 history rewrite. Two of those were working
@@ -370,8 +370,8 @@ credentials:
 | Cloudflare API token `dns_and_certs` (Zone.DNS edit on `h0melab.work`) | `.backup/QUICK_REFERENCE.md`, commit `7349f6cc`, 2025-10-07; 18 PR refs | cert-manager's SOPS file had not changed since 2025-10-06, so it held the same value. The rotation table's "2025-10-19" was never a rotation |
 | Telegram bot token for @h0melab_alerts_bot | same commit | Alertmanager, Flux notifications and the backup job use it. Its file had not changed since 2025-10-07 |
 
-The repo owner cannot delete PR refs, and plan decision 7 keeps the repo rather than recreating
-it, so rotation was the only fix. The operator made new values for both tokens, and for the
+The repo owner cannot delete PR refs, and the open-source prep plan keeps the repo rather than
+recreating it, so rotation was the only fix. The operator made new values for both tokens, and for the
 claude-telegram bot's token too, and saved each in 1Password. `scripts/rotate-token.sh` checked
 each value with its issuer and wrote it into the SOPS files (`52ce08aa`). Cloudflare reports the
 new token active. A test alert raised Alertmanager's Telegram send count with 0 failures, and
@@ -421,7 +421,8 @@ The operator keeps the original files in a separate dotfiles repository, and no 
 | `scripts/sync-agents.sh` | `--update` refreshes the copies. `--check` reports copies that differ from dotfiles, gaps in the allowlist, forbidden entries, secrets and private terms |
 
 The monthly review runs `--check`. `renovate.json` ignores `agents/**`, and the two pre-commit
-hooks that rewrite files skip the byte copies. Plan: `docs/plans/2026-09-26-open-source-prep.md`.
+hooks that rewrite files skip the byte copies. This was part of the open-source prep plan, which
+left git in `f1477f56`.
 
 ### 2026-09-26 — node-maintenance moved out of `docs/`
 
@@ -440,8 +441,8 @@ path, so the move ships in two commits:
 | B | deletes the symlink after the control plane shows the new sync script installed |
 
 `renovate.json` now ignores `node-maintenance/**`. Renovate never read the folder before, because
-it sat under the ignored `docs/**`. Entries below this one keep the old path. Plan:
-`docs/plans/2026-09-26-open-source-prep.md`.
+it sat under the ignored `docs/**`. Entries below this one keep the old path. This was part of the
+open-source prep plan, which left git in `f1477f56`.
 
 ### 2026-09-26 — Kernel 6.18.54, k3s v1.36.3 → v1.36.4 → v1.37.0, and a certificate rotation that broke `kubectl exec`
 
@@ -543,7 +544,8 @@ at that point cannot cover the moment that the early run itself creates, so the 
 watchdog: it now reads a `paused` or `in shutdown` state a second time, 20 s later, before it
 decides.
 
-This does not relax the C3 safety rule. The watchdog acts on no new state: a domain still `paused`
+This does not relax the safety rule: the watchdog never destroys or restarts a running domain,
+because that can crash the NAS host. The watchdog acts on no new state: a domain still `paused`
 20 s later fails as before. It re-reads no other state, because it must start a `shut off` domain
 on the run that finds it, not wait.
 
@@ -701,8 +703,7 @@ custom resource, never the chart's own templates. The `helm-render` job adds tha
 
 Earlier on 2026-09-06, the Immich machine-learning (ML) service moved to immich-vm and ran there on
 the CPU. The `-openvino` image runs inference, the model computations, on the VM's Meteor Lake Arc
-integrated GPU through ONNX Runtime's OpenVINO execution provider. Commit: `4a5255cf`. Plan:
-`docs/plans/2026-09-06-immich-ml-openvino.md` (removed after `aadf03e6`).
+integrated GPU through ONNX Runtime's OpenVINO execution provider. Commit: `4a5255cf`. The design plan was removed after `aadf03e6`.
 
 | Change | Detail |
 |---|---|
@@ -1922,10 +1923,10 @@ replication loses nothing.
 A manual cleanup the same day deleted the 129G of old folders on worker-node. The replication log
 now shows `/source-backups/immich/` at 4.0K. Nothing further is open here.
 
-### 2026-07-26 — cert-manager PDBs turned on, and a same-day correction to the B6-2 claim about autogen
+### 2026-07-26 — cert-manager PDBs turned on, and a same-day correction to the hostPath entry's claim about autogen
 
 **The correction comes first, because it overturns something written earlier the same day.** The
-B6-2 entry below claimed that Kyverno autogen copies `matchConditions` **word for word** into the
+`disallow-host-path` entry below claimed that Kyverno autogen copies `matchConditions` **word for word** into the
 rules it generates for controllers. (Autogen turns a rule written for pods into matching rules for
 the controllers that create pods, such as Deployments and CronJobs.) That claim is **wrong**.
 Autogen rewrites `object.metadata` to the path of the pod template, in matchConditions as well as in
@@ -1951,7 +1952,8 @@ The consequences are all cosmetic. **The shipped policy is correct and unchanged
 - The `app` labels on `metadata` and `spec.jobTemplate.metadata` of the five backup CronJobs were
   not needed, because their pod templates already carried `app`. They are removed, together with
   the comments that stated the false rule.
-- The B6-2 plan now marks its assumptions C2/C3 REFUTED, and its offline autogen test rows unsound.
+- The hostPath narrowing plan marked the two assumptions behind the claim refuted, and its offline
+  autogen test rows unsound. The plan was removed after `0cb04187`.
 
 The **live** checks after deploy are what prove the change, and they still hold:
 
@@ -2020,7 +2022,7 @@ backup failures earlier in the same week.
 
 ### 2026-07-26 — Kyverno namespace excludes audited: 1 unneeded exclude removed, a wholesale narrowing rejected
 
-This follows B6-2, which narrowed `disallow-host-path` (see the next entry). Four other policies
+This follows the narrowing of `disallow-host-path` (see the next entry). Four other policies
 still had excludes that exempt a whole namespace, so the same change looked possible there. The
 measurement showed otherwise.
 
@@ -2033,7 +2035,7 @@ The share of pods that would break each policy, across every app namespace that 
 | `disallow-privilege-escalation` | 24 | 12 (50%) |
 | `require-drop-all-capabilities` | 24 | 13 (54%) |
 
-B6-2 was worth doing because only ~15% of pods in its namespaces needed the exemption. At 45–67%, a
+That narrowing was worth doing because only ~15% of pods in its namespaces needed the exemption. At 45–67%, a
 rewrite keyed on labels would need dozens of selectors in policies that deny pods (Deny mode). Those
 selectors would be more fragile than the gap they close. **The evidence, not a preference, rejected
 the wholesale narrowing.**
@@ -2069,13 +2071,13 @@ namespaces, so the policy never evaluates them, and they are not the reason the 
 loose. To harden the policy, audit the namespaces that it does match. The Codex reviewer caught the
 error.)*
 
-### 2026-07-26 — B6-2: `disallow-host-path` exempts listed workloads instead of whole namespaces
+### 2026-07-26 — `disallow-host-path` exempts listed workloads instead of whole namespaces
 
 This was the last open item in the plan that fixed the findings of the 2026-07-24 ultrareview. The
 plan file was removed after `d6d67c20`. On 07-25 the work
 waited for a supervised Audit soak: a period in which Kyverno only reports violations while someone
-watches. Instead, it shipped on proof from tests that give the same result every run. Plan and full
-test matrix: the B6-2 hostPath narrowing plan (removed after `0cb04187`).
+watches. Instead, it shipped on proof from tests that give the same result every run. The plan for
+this change, with the full test matrix, was removed after `0cb04187`.
 
 **The gap was wider than recorded.** The policy exempted six whole namespaces. Five of them
 (`monitoring`, `loki`, `databases`, `immich`, `backup-replication`) also set the Pod Security
@@ -2091,8 +2093,8 @@ believed to be a hidden danger. It was not; see the correction in the cert-manag
 
 **A scan would have missed `couchrestore`.** That one-shot disaster-recovery Job, described in
 `.backup/README.md` (now `docs/disaster-recovery/README.md`), mounts a hostPath, and no scan of live pods can see it. Without an allowlist
-entry, the policy denies it. That would break ultrareview finding H2 again, which was closed two
-days earlier. A test confirmed this: with the entry removed, the Job failed.
+entry, the policy denies it. That would reintroduce the CouchDB restore failure
+fixed two days earlier. A test confirmed this: with the entry removed, the Job failed.
 
 **No Audit soak.** Instead, every check ran in both directions, because a Kyverno `skip` result can
 mean either "exempted" or "never matched". The tests ran 8 exempt / 8 denied pairs across pods,
@@ -2236,16 +2238,16 @@ on their own, and to name the gap that follows: nothing checks `kubectl debug` c
 seccomp or for a floating tag. The gap is deliberate. If the policies enforced these checks on
 debug containers too, debugging during an incident would break.
 
-**The narrowing of `disallow-host-path` (B6-2) was NOT shipped, on purpose.** The A11 spike
-succeeded: every hostPath workload does carry a label that a rule can target. But the spike also
+**The narrowing of `disallow-host-path` was NOT shipped, on purpose.** The spike (a preliminary
+test) succeeded: every hostPath workload does carry a label that a rule can target. But the spike also
 showed that the change needs **nine** correct selectors in a policy that enforces **Deny**. Six of
 the affected workloads are CronJobs, whose pods exist only while they run. So the
 `kubectl get pods` scan that such a change would normally be built from cannot see them. 41 pods
 across the six excluded namespaces mount no hostPath at the time of writing, and nothing guards
 them, so the gap is real. But nothing is broken on that date. If the change is wrong, the result is
 a backup Job denied at 03:00 with nobody watching. That is the kind of unreported failure that this
-whole review set out to remove. The plan records the full analysis and a rollout path that starts
-in Audit mode (Kyverno reports violations without blocking them).
+whole review set out to remove. The plan proposed a rollout that starts in Audit mode (Kyverno
+reports violations without blocking them).
 
 ### 2026-07-25 — Ultrareview fixes, Batch 8: bringing the documentation up to date
 
@@ -2493,8 +2495,8 @@ this entry). Every fix was checked against the live cluster, not against the tex
 
 | Item | What it needs first |
 |---|---|
-| A11: narrow the whole-namespace excludes of `disallow-host-path` to label-keyed `matchConditions` | finding the rendered labels of each workload, plus an admission test for each |
-| A10: drop uptime-kuma's four unused egress ports | the live list of monitors, because a port that looks unused may serve a configured check |
+| narrow the whole-namespace excludes of `disallow-host-path` to label-keyed `matchConditions` | finding the rendered labels of each workload, plus an admission test for each |
+| drop uptime-kuma's four unused egress ports | the live list of monitors, because a port that looks unused may serve a configured check |
 
 Also deferred: correcting three `ephemeralContainers` comments in the Kyverno policies. That needs
 its own check of whether the code can be reached, not just a text edit.
@@ -2646,7 +2648,7 @@ test pulled the 16.6 MB archive from 2026-07-24.
 Both manifests were rendered again *from the committed markdown*, then validated again with
 kubeconform and a live `--dry-run=server`. So the documented commands are the ones that ran.
 
-**Deferred:** B3-2. The runbook for restoring PVCs (persistent volume claims) covers 3 apps, while `CRITICAL_PVCS` backs up 10. The
+**Deferred:** the runbook for restoring PVCs (persistent volume claims) covers 3 apps, while `CRITICAL_PVCS` backs up 10. The
 fix first needs a mapping from each workload to its restore target, added to
 `pvc-backup-cronjob.yaml`. It moved to its own batch rather than making this one longer.
 
@@ -2822,7 +2824,7 @@ never contained the shellcheck severity flag.
 
 This was the first batch of the plan to fix the findings of the 2026-07-24 ultrareview, a broad
 review. The plan file was removed after `d6d67c20`. The review had 58 findings,
-and 0 of them were refuted. Finding H3, the exposed CouchDB, was closed the same day with
+and 0 of them were refuted. The finding about the exposed CouchDB was closed the same day with
 Cloudflare Access Service Auth.
 
 - **`apps/pricebuddy/apprise-configmap.yaml`.** The apprise init script (an init container runs
@@ -2986,7 +2988,7 @@ Codex ran a static review for 3 rounds:
 | R2 | BLOCK | a fallback that failed open (HIGH), an alert that fired twice (MED), plan sections (LOW) |
 | R3 | BLOCK | 1 MED: the persisted text file could make an alert fire twice; no HIGH. Fixed after the round, which reached the round limit |
 
-Plan: `docs/plans/2026-07-10-node-isolation-heal.md` (removed after `e26a42aa`).
+The plan was removed after `e26a42aa`.
 
 ### 2026-07-20 — Self-hosted RustDesk server (open source) for remote desktop on the LAN
 
@@ -3044,7 +3046,7 @@ depend on the server key.
 | a real RustDesk client on the Mac | reached hbbs over **UDP 21116** (NAT responses on 21116 and 21115, latency 2.7ms, `register_pk` started). This proves the UDP app path and registration against the self-hosted server |
 
 Peer review: Codex static review of the plan (2 rounds) and of the manifests (1 round, verdict SHIP,
-one NIT fixed). Plan: `docs/plans/2026-07-19-rustdesk-server.md` (removed after `92a89d1d`).
+one NIT fixed). The plan was removed after `92a89d1d`.
 
 ### 2026-07-18 — immich-vm modprobe failure chain: kernel-modules-hook wrongly labelled AUR, and two weeks of package upgrades that failed unnoticed
 
@@ -3309,7 +3311,7 @@ the NAS:
 | retention | delete backups older than 30d, keeping at least two (keep-2) |
 
 So the W2 copy added nothing. Its `--delete` behaviour had also already shown a risk: on 2026-07-14,
-the T7 planning (the Immich backup change, below) considered how a `--delete` in one job would
+the planning for the Immich backup change (below) considered how a `--delete` in one job would
 interact with the W2 immich tar path of another job.
 
 Changes in `infrastructure/configs/backup-replication/`:
@@ -3359,7 +3361,7 @@ Other changes:
 |---|---|
 | `CODEMAPS/architecture.md` | deleted, because ~80% of it repeated AGENTS.md. Its unique content moved. The list of named Cloudflare hostnames and the coredns `--disable` deadlock went to networking.md. The SOPS edit pattern and the Flux path tree went to the README index |
 | apps.md | home-assistant is now marked internal-only. It is absent from the tunnel's SOPS config, but apps.md had wrongly said "both" |
-| ARCHITECTURE.md:133 | 5 daily backup CronJobs are pinned to W1 (worker-node). The weekly immich-backup makes its copy on W2, the second worker, and survives the loss of W1. The line had said "all 6 on W1", which contradicted the T7 entry (the Immich backup change, below) |
+| ARCHITECTURE.md:133 | 5 daily backup CronJobs are pinned to W1 (worker-node). The weekly immich-backup makes its copy on W2, the second worker, and survives the loss of W1. The line had said "all 6 on W1", which contradicted the Immich backup change (below) |
 | the monthly-review skill | Step 2 changed from refreshing the codemaps to verifying them: no dump of live facts, and a grep for rule violations |
 
 Follow-ups noted at the time: several Helm chart-default images were unpinned in git (traefik, CNPG
@@ -3451,7 +3453,7 @@ After Flux reconciled, the aquasecurity
 CRDs and the orphaned VulnerabilityReports were deleted by hand, because helm uninstall leaves CRDs
 behind.
 
-### 2026-07-14 — Immich T7: backup redesigned (W2 makes the copy) and the W1 library PVC removed
+### 2026-07-14 — Immich backup redesigned (W2 makes the copy) and the W1 library PVC removed
 
 This closed the follow-up from Path B, the design that runs Immich on a GPU virtual machine on
 the NAS. It took two commits, and Codex reviewed both statically against
@@ -3565,8 +3567,7 @@ a cold restart for testing on demand.
 
 ### 2026-07-12 — July overdue items closed: Kyverno CP-to-VP Phases 2-4 complete, a right-sizing pass, and failure alerts for security-scan
 
-One pass in a worktree (`wt-overdue-closeout`; plan
-`docs/superpowers/plans/2026-07-12-monthly-review-overdue-closeout.md`, removed after `fc94832c`) closed the three real
+One pass in a worktree (`wt-overdue-closeout`; its plan was removed after `fc94832c`) closed the three real
 overdue items from the July monthly review. Codex reviewed every commit, statically and from git
 only, against the `.claude/review-invariants.md` rubric.
 
@@ -3648,7 +3649,7 @@ Also closed, because they were already done: the immich-backup Sunday slot was v
 concurrency reduced from 2 to 1). CI has been blocked by billing since 07-10, so, as the plan said,
 the checks ran locally: yamllint, kubeconform ×5 roots, shellcheck.
 
-### 2026-07-12 — Immich Path B cutover (4E): the server pod and the library moved to the immich-vm GPU node
+### 2026-07-12 — Immich cutover: the server pod and the library moved to the immich-vm GPU node
 
 The `immich-server` pod moved off `worker-node` (W1, AMD) onto the `immich-vm` k3s node (Meteor
 Lake iGPU, Intel QSV). Its photo library moved from the local-path PVC on W1 (a PVC is a pod's
@@ -3664,8 +3665,7 @@ pod gets the GPU through the non-privileged **Intel device-plugin** (`gpu.intel.
 GID 987), with no `/dev/dri` hostPath and no privileged container. The namespace stays
 PSS-privileged only for the library hostPath. A Kustomize **postRenderer** JSON patch (a change
 applied to the chart's rendered output) swaps in the library volume, because the chart's schema
-rejects a native hostPath library. Spec `ba250045`, plan
-`docs/superpowers/plans/2026-07-12-immich-path-b-cutover.md` (removed after `865b398b`).
+rejects a native hostPath library. Spec `ba250045`; the plan was removed after `865b398b`.
 
 - **Clients were down for ≈ 13 min, not "~1 min".** The cutover blocked ALL client HTTP to `:2283`
   by removing the NetworkPolicy (NP) ingress rules for traefik and cloudflare-tunnel. Cloudflare
@@ -3694,17 +3694,17 @@ rejects a native hostPath library. Spec `ba250045`, plan
   Transcode job, and confirm that the pod's ffmpeg uses `hevc_qsv` and logs no line about a
   software fallback. The cutover's test ("raw `hevc_qsv` proven in-pod") made the setup look
   ready, but that test bypassed Immich's own config path.
-- **The backup CronJob is out of date after the cutover (T7).** `immich-backup` (kube-system,
+- **The backup CronJob is out of date after the cutover.** `immich-backup` (kube-system,
   Sundays 03:00 UTC, `nodeSelector: worker-node`, so it runs only on that node) still reads
   `/mnt/k8s-storage/*immich-library*` on W1. That folder now holds the frozen copy from before the
   cutover, not the live NAS library. So the backup reports success while it saves stale data. Once
   the W1 PVC is decommissioned, it will fail visibly with `exit 1`. The next run, `2026-07-19`,
-  comes after the 48h soak (observation period) and T7. **T7 must point it at the NAS library before
-  07-19, using the Task 4 design in which W2 produces the backup.** The risk during the soak is
+  comes after the 48h soak (observation period) and the planned backup fix. **That fix must point it
+  at the NAS library before 07-19, using the design in which W2 produces the backup.** The risk during the soak is
   negligible. The CronJob will not run in that window, and three copies cover the current data: the
   intact W1 PVC, the live NAS, and the tar `20260712_030000`, whose sha was verified. Uploads also
   need an OIDC login.
-- A 48h stability soak is running, and it ends ~2026-07-14 18:35. T7 waits until after the soak:
+- A 48h stability soak is running, and it ends ~2026-07-14 18:35. The backup fix waits until after the soak:
   the backup produced on W2, and decommissioning the W1 library PVC and its PV `pvc-495129ee`.
 
 ### 2026-07-12 — immich-vm resilience HOTFIX: the same day's GitOps change caused two live regressions
@@ -3917,8 +3917,8 @@ the Stale alert. The review also corrected the NAS SSH port in the design doc fr
 
 Until the key is added, the Job fails without touching the VM: it reports `ssh_unreachable`, and
 ImmichVMHealJobFailing fires. That is the correct signal. The Tier-1 self-heal inside the guest
-shipped earlier, in Step-4. The last Path-B piece is 4E, moving the Immich pod, and it still needs
-design approval first.
+shipped earlier, on 2026-07-10 (`18fc84f7`). The remaining step is moving the Immich pod onto
+immich-vm, and it still needs design approval first.
 
 ### 2026-07-10 — A UFW reload cut W2 off for 90 min; the reload is now conditional, and a node_isolation_heal watchdog exists
 
@@ -4037,7 +4037,7 @@ otherwise idle capacity.
 
 A one-shot `rebuilderd_teardown` Ansible role did the removal. It ran as part of the workers'
 drift-heal (the run that puts each node back to its declared configuration), and was itself removed
-after the nodes checked clean. Plan: `docs/superpowers/plans/2026-07-06-rebuilderd-removal-plan.md` (removed after `04b30edc`).
+after the nodes checked clean. The plan was removed after `04b30edc`.
 Codex reviewed it and returned SHIP-WITH-FIXES; every fix was applied.
 
 ### 2026-07-05 — trivy CVE triage: unfixed CVEs ignored, a weekly digest, and 3 upstream issues
@@ -4165,7 +4165,7 @@ Shipped (commits `e78a033f`, `492911f9`, `eb0774b7`):
   Service URL, which sent every alert to one endpoint. alertmanager-0 held no alert state at all,
   not even Watchdog. vmalert now uses `notifiers[]` with the full DNS names (FQDNs) of both pods,
   and the gossip between the Alertmanager pods (the way they share state) removes duplicates. A
-  check confirmed that AM-0 now receives alerts.
+  check confirmed that alertmanager-0 now receives alerts.
 - **A claim about n8n's statement_timeout proved false.** A community report, n8n#25705, said the
   problem was fixed in ≥2.17.3. On that basis, `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` was removed as a
   trial. Version 2.28.6 then crash-looped (crashed and restarted again and again) with
@@ -4204,7 +4204,7 @@ Investigated, and closed without code:
   | k8s-sidecar#531 | open, so the loki probes (the health checks Kubernetes runs on the pods) stay disabled |
   | Stirling#6211 | open; PR #6475 unmerged. Fine on 2.11.0-fat |
   | passkey lockout watch | closed; no edge cases |
-  | UR2 vmalert watch | closed: 129 rules, 0 unhealthy, no bursts of false positives |
+  | vmalert watch from the June ultrareview | closed: 129 rules, 0 unhealthy, no bursts of false positives |
 
 - The 16:01 Flux alert for the linkwarden webhook was transient. It fired during the disruption from
   a no-op kyverno Helm v23 upgrade (Flux 2.9.0 controllers restart). The apps Kustomization (the
@@ -4247,7 +4247,7 @@ Decisions:
 | Topic | Decision |
 |---|---|
 | image CVE scanning | **trivy-operator in the cluster** (shipped the same day, above) |
-| CSP (Content Security Policy) Tier B/C | continue, checked app by app in a browser |
+| CSP (Content Security Policy) for the apps not yet enforced | continue, checked app by app in a browser |
 | POP-1100/1110 on the mysql-primary Service | accepted as an operator cosmetic issue; dropped from the monthly checks |
 | moving rebuilderd off W2 | deferred (28% disk) |
 

@@ -11,7 +11,7 @@ A snapshot of what runs in the cluster and how it's postured. For *why* it's bui
 - **12** Kyverno CEL `ValidatingPolicy` resources (policies.kyverno.io/v1) — **all Deny-enforcing**, sole policy engine since 2026-07-12 (kyverno.io/v1 ClusterPolicies deleted after 8-day parity soak; live admission attribution proven per-policy). `require-networkpolicy` matches controllers directly with autogen off (autogen rewrites void top-level-metadata checks)
 - **59** SOPS-encrypted Secrets in git — no plaintext secret in Git
 - **12** HelmReleases (live = git) — drift detection enabled, with targeted timeouts; rollback on all but immich, which retries a failed upgrade (RetryOnFailure) because rollback cannot reverse its DB migrations
-- **3** PriorityClasses (critical / standard / batch) — every workload annotated except `rustdesk`, `warp-beacon` and the `intel-gpu-plugin` DaemonSet (live, 2026-09-28)
+- **3** PriorityClasses (critical / standard / batch) — every workload sets one except `rustdesk`, `warp-beacon` and the `intel-gpu-plugin` DaemonSet (live, 2026-09-28)
 - Monthly image-CVE scan: the `trivy-scan` CronJob, on the 1st at 08:00 UTC (replaced the always-on trivy-operator 2026-07-14)
 - **PSS:** 12 namespaces `restricted`, 10 `baseline`, 6 `privileged` (each justified — GPU, hostPath, host-network)
 
@@ -68,7 +68,7 @@ DB role name = app name. Postgres roles and databases come from CNPG (`managed.r
 - **Loki + Grafana Alloy** — log aggregation (DaemonSet).
 - **Alertmanager** — Telegram alerts.
 - **Popeye** — weekly cluster-hygiene scan.
-- **Kyverno** — `KyvernoAdmissionControllerDown` availability alert. There is no policy-violation digest: the `KyvernoPolicyViolationsDailySummary` VMRule this file used to claim does not exist in git or in the cluster.
+- **Kyverno** — `KyvernoAdmissionControllerDown` availability alert. No alert summarizes policy violations.
 
 ## External access
 
@@ -81,7 +81,7 @@ DB role name = app name. Postgres roles and databases come from CNPG (`managed.r
 
 - worker-node: 4.22 TB LVM (2 NVMe SSDs) — hosts the bulk of app PVCs.
 - worker-node-2: 863 GB extra storage.
-- NAS: 15 TB pool (git first records this figure on 2026-07-13; the 500 GB figure is a soft self-limit inside the replication job, not a quota) — `zl-nas`, ZettLab/zettOS (Debian 12) at `192.168.1.136`. Out-of-cluster backup sink; admin SSH on `:56634` (key-based, sudo password-gated). The appliance itself is not a K3s node and not in ansible/k3s scope (the `immich-vm` K3s worker is a VM hosted on it).
+- NAS: 15 TB pool, as recorded on 2026-07-13 (the 500 GB figure above is a soft limit inside the replication job, not a quota) — `zl-nas`, ZettLab/zettOS (Debian 12) at `192.168.1.136`. Out-of-cluster backup sink; admin SSH on `:56634` (key-based, sudo password-gated). The appliance itself is not a K3s node and not in ansible/k3s scope (the `immich-vm` K3s worker is a VM hosted on it).
 
 Storage is node-local (`local-path-provisioner`) — no distributed storage layer by choice; durability comes from the backup chain, not replicated volumes.
 
@@ -93,14 +93,14 @@ Worker self-heal watchdogs: `clusterip_heal` (post-reboot kube-proxy DNAT wedge 
 
 ### Upcoming deadlines
 
-Forward calendar of dated obligations. [SECRETS_ROTATION.md](SECRETS_ROTATION.md) is authoritative for rotation specifics; this table is the at-a-glance roll-up. Recurring timers (sync 10 min, drift-heal 03:00 and 15:00, weekly update Sat, security scan 1st) are not listed.
+[SECRETS_ROTATION.md](SECRETS_ROTATION.md) is authoritative for rotation details. Recurring timers (sync 10 min, drift-heal 03:00 and 15:00, weekly update Sat, security scan 1st) are not listed.
 
 | Due | Item |
 |---|---|
-| unscheduled | Deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only); the SP5 carried-forward items: the control-plane first-start drill, the sshd drop-in rename (SP5 of the operator's local open-source plan) |
-| monthly review | Upstream watches: n8n PR #27295 (sets `statement_timeout` with `SET`; issue #25705 closed 2026-07-14 but the PR is unmerged, so `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` stays), Stirling#6211 (open; re-measure memory on 3.0.2, deployed 2026-10-02) |
+| unscheduled | Deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only); a first-start drill of the control plane; a rename of the sshd drop-in |
+| monthly review | Upstream watches: n8n PR #27295 (sets `statement_timeout` with `SET`; issue #25705 closed 2026-07-14 but the PR is unmerged, so `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` stays), Stirling#6211 (open; 3.0.2 deployed 2026-10-02) |
 | 2026-11 (monthly review) | Re-measure Stirling memory on 3.0.2 (Stirling#6211) |
 | 2026-10-31 | First certificate renewals with the Cloudflare token rotated 2026-09-28 (`52ce08aa`). After that date, `kubectl get certificates -A -o json \| jq -r '[.items[].status.notAfter] \| min'` must print a date later than `2026-11-30T20:27:49Z`, every certificate must be `True`, and `kubectl get challenges -A` must find none. If the earliest date has not moved, renewal did not happen and the token is not yet proven: read the cert-manager log and the Certificate, Order and Challenge events before blaming the token |
 | 2026-12-31 | `cloudflare-tunnel-mgmt-token` rotation |
 | 2027-01-30 | `gh-homelab` deploy key rotation (in the `claude-telegram-ssh` Secret). The only key the bot holds that can write to this repo, so a push with it is a deploy inside 5 min — 180 days, not the annual cadence the read-only deploy keys get |
-| 2027-03-31 | 180-day secret rotation — every row in SECRETS_ROTATION.md that shows 2027-03-31 (the 2026-10-02 batch). Run it with the `secrets-rotation` skill. Blocky's PostgreSQL user keeps its own date (2026-12-05) |
+| 2027-03-31 | 180-day secret rotation — every row in SECRETS_ROTATION.md that shows 2027-03-31 (the 2026-10-02 batch). Follow [SECRETS_ROTATION.md](SECRETS_ROTATION.md). Blocky's PostgreSQL user keeps its own date (2026-12-05) |
