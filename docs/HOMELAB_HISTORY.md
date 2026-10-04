@@ -17,6 +17,23 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-10-04 — W1's two-month `CertificateExpirationWarning` came from a dead install's control-plane state, not from its own certificates
+
+Since 2026-08-08 the `k3s-cert-monitor` on worker-node had warned that "node certificates require attention — restart k3s on this node to trigger automatic rotation", naming leaf certificates that expire 2026-11-08. The advice was unachievable: every file it listed is a **server** certificate (`admin/`, `supervisor/`, `auth-proxy/`, `api-server/`, `scheduler/`, `controller-manager/`, `cloud-controller/`, `etcd/`), W1 runs `k3s-agent` only, and an agent cannot re-issue those. A rotation of all three agents' certificates on 2026-10-04 left the warning firing unchanged, which is what pointed at the real cause.
+
+The monitor scans `<data-dir>/server/tls`, and W1's data dir is `/mnt/k8s-storage/rancher/k3s` (per-host `k3s_data_dir`). That path still held the full server state of the single-node install from 2025-11-08 whose unit files the 2026-09-26 cleanup removed — it deleted `k3s.service`, its env file and `k3s-uninstall.sh`, and left the data. `/var/lib/rancher/k3s/` holds only `agent/`, so the tree's `agent-token` and `node-token` symlinks into `/var/lib/rancher/k3s/server/token` were dangling and no second tree existed.
+
+That state included CA private keys, so the first question was whether they sign anything this cluster trusts:
+
+| | Live cluster | W1's stale tree |
+|---|---|---|
+| Server CA | `CN=k3s-server-ca@1759844691`, created Oct 7 2025 | `CN=k3s-server-ca@1762561602`, created Nov 8 2025 |
+| sha256 | `C1:0E:84:8C…63:A9:0A:43` | `C3:8F:D4:35…90:61:75:B5` |
+
+Different CA, a month apart, and the client CA likewise (`k3s-client-ca@1762561602`). The install never joined this cluster, so its `server-ca.key` mints nothing the live API server accepts, and the tree was `0700`/`0600` root-only, out of reach of any pod. `db/state.db` was 7.1 MB with a zero-length WAL and an mtime of Nov 8 2025 — written once, never reopened.
+
+The directory was renamed to `server.stale-20261104-dead-install` rather than deleted, which both takes it out of the monitor's scan path and keeps it recoverable; `agent/` under either prefix was left alone, since the live kubelet serves out of it. After the agent restart at 21:30:14 UTC the monitor logged its broadcaster and emitted no event, where before the warning had followed in the same second. W1 Ready, no unhealthy pod, and `kubectl logs` against a pod on it still worked. Delete the renamed directory at a monthly review once nothing has missed it.
+
 ### 2026-10-04 — The `gateway-api-crd` addon has been failing since the k3s v1.37.0 upgrade
 
 k3s v1.37.0 moved the Gateway API CRDs out of the traefik chart into a packaged component of their own, and that component is a `HelmChart` CR. This cluster sets `disable-helm-controller: true`, so the `helm.cattle.io` group is not registered and the deploy controller cannot resolve the kind. Since the 2026-09-26 upgrade it retried `/var/lib/rancher/k3s/server/manifests/gateway-api-crd.yaml` every ~18s:
