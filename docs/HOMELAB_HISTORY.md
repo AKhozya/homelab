@@ -17,6 +17,59 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-10-04 — Comment sweep: false comments fixed, plan pointers removed
+
+A repo-wide pass judged every code comment against the code it covers. Agents re-checked each sure or fairly-sure finding against the code before editing, and left the low-confidence ones unchanged.
+
+| Measure | Count |
+|---|---|
+| comment lines scanned | 6,264 in 502 files |
+| findings | 449 |
+| findings rated sure or fairly sure, acted on | 312 |
+| low-confidence findings, left unchanged | 137 |
+
+| Kind of finding | Flagged | Fix applied to the acted-on subset |
+|---|---|---|
+| false | 97 | the comment now matches the code, or goes |
+| pointer to a plan, review ID or private note | 52 | the comment states the problem itself; pointers to removed design plans are gone |
+| internal label (Tier-2, Track-0, skill names) | 28 | plain words |
+| restates the code | 123 | cut |
+| wordier than its point | 136 | shortened; SHAs, dates and repro commands kept |
+| wrong block | 12 | moved or rewritten |
+| commented-out code | 1 | kept, by operator decision |
+
+| Gate | Result |
+|---|---|
+| Codex round 1: 23 chunks | 11 HIGH findings |
+| Codex round 2: the 53 files changed since round 1 | 3 HIGH findings |
+| Codex round 3: the 8 files changed since round 2 | approved |
+| Kustomize roots rendered with comments stripped | 31 of 34 match; the other 3 differ by a blank script line and SQL comments |
+
+| Also fixed | Commit |
+|---|---|
+| `worktree-guard.sh`: an early `awk` exit could SIGPIPE `git`, and under pipefail the hook then exited non-zero, which lets the edit through | `018f940e` |
+| `install.sh --help` ran the root check first and printed `set -euo pipefail` | `9ab1d93f` |
+| a heal-harness scenario held a `systemctl` stub that the next `behave` call overwrote | `8034bbde` |
+| the postgres PodMonitor had no reader; VMPodScrape `postgres` scrapes CNPG | `5dc08f16` |
+| CoreDNS NodeHosts lacked immich-vm | `a816753f` |
+| `setup-node.sh` listed 8 of 16 roles and said "daily" | `768c1b96` |
+| `ufw-heal-watchdog.service` claimed exit 1 does not fail the unit; nothing set that, and the operator chose to keep the alert | `ce12d016` |
+| the rustdesk Service annotation and the networking map said servicelb advertises .126; it advertises only .129 | `78dacdd9` |
+
+Open: `ufw-heal-post-k3s.sh` and `firewall-preflight.sh` disagree on whether `nft monitor` reports kube-proxy churn. A measurement on a node would settle it.
+
+### 2026-10-04 — LAN outage, 16:39 to 21:19 BST
+
+From 16:39 BST (first seen) every node and the NAS stopped answering on the LAN: no ping, no ARP reply. The router answered. Cloudflare returned 530 for every public hostname.
+
+| Observation | Source |
+|---|---|
+| no node rebooted: boot times are 2026-10-03 05:33 to 12:20, node-local time | `uptime -s` on each node |
+| cloudflared logged `lookup ... on 10.43.0.10:53: server misbehaving`, and Flux failed to look up github.com | pod logs, `flux get sources git` |
+| after recovery: CNPG 2/2 healthy, Percona `ready`, Redis and CouchDB pods Running | `kubectl get` |
+
+The nodes answered again at 21:19 BST. The cause is not recorded. A refresh of Flux's GitRepository and HelmRepositories cleared their outage errors. cloudflared recovered on its own. The bot came back when the comment sweep's rollout replaced its pod.
+
 ### 2026-10-03 — The repo is public
 
 The operator makes the repo public after a pre-public audit. The audit finds no live credential:
