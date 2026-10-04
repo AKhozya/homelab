@@ -227,9 +227,8 @@ echo "  - Bootloader: efi_pstore, printk dump, panic=10, pcie_aspm=off" \
      "$([ "$CPU_TYPE" = "AMD" ] && echo ', amd_pstate=active')"
 echo "  - K3s config directory stub"
 echo ""
-echo "Ansible roles own (applied after install.sh, drift-healed daily):"
-echo "  packages / base_config / k3s_config / k3s_image_gc / firewall /"
-echo "  hardening / security_scan / ad_hoc"
+echo "The roles in node-maintenance/ansible/node-config.yml own the rest. install.sh applies"
+echo "them, and node-maintenance-config.timer re-applies them at 03:00 and 15:00 UTC."
 echo ""
 if [ "$NODE_TYPE" = "control-plane" ]; then
     echo "Next steps (docs/setup/K3S_SETUP.md, Control plane):"
