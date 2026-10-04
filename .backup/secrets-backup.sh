@@ -154,7 +154,7 @@ kubectl get secret couchdb-couchdb -n databases -o json > "${BACKUP_DIR}/secrets
 kubectl get secret nas-rsync-credentials -n backup-replication -o json > "${BACKUP_DIR}/secrets/nas-rsync-credentials.json" 2>/dev/null || echo "   ⚠️  No backup-replication/nas-rsync-credentials"
 kubectl get secret backup-telegram -n backup-replication -o json > "${BACKUP_DIR}/secrets/backup-telegram.json" 2>/dev/null || echo "   ⚠️  No backup-replication/backup-telegram"
 
-# Cloudflare Tunnel config (contains tunnel config with metrics endpoint)
+# Cloudflare Tunnel config
 kubectl get secret cloudflared-config -n cloudflare-tunnel -o json > "${BACKUP_DIR}/secrets/cloudflared-config.json" 2>/dev/null || echo "   ⚠️  No cloudflare-tunnel/cloudflared-config"
 
 # Cloudflare Tunnel management API token (for syncing tunnel config from Git)

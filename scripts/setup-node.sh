@@ -84,11 +84,10 @@ if [ "$NODE_TYPE" = "control-plane" ]; then
     pacman -S --noconfirm --needed ansible jq rsync logrotate python-kubernetes
 fi
 
-# AUR firmware (mkinitcpio warning suppressors). Kept in bash because:
-# kewlfft.aur module requires per-user makepkg.conf on node-maintenance user
-# to guarantee a writable BUILDDIR (overrides any system /etc/makepkg.conf.d/). These
-# packages install once, never update — zero drift-heal value. yay itself
-# is AUR, chicken-egg before any AUR ansible task could run.
+# AUR firmware (mkinitcpio warning suppressors). Kept in bash, not ansible, for two reasons.
+# The kewlfft.aur module needs a per-user makepkg.conf on the node-maintenance user
+# to guarantee a writable BUILDDIR that overrides any system /etc/makepkg.conf.d/ entry.
+# These packages install once and never update, so drift-heal gains nothing.
 echo "Installing AUR firmware..."
 # kernel-modules-hook does not belong here: it lives in `extra`, not the AUR.
 # ansible's pacman_packages_base installs it on every node-config run. It moved out

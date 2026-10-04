@@ -24,6 +24,7 @@ If an outside contributor opens a PR from a fork, GitHub runs its workflows only
 |---|---|---|
 | `yamllint` | YAML syntax and style | `yamllint .` |
 | `shellcheck` | shell scripts across the repo | inline |
+| `node-script-tests` | offline tests for the node-maintenance scripts | three `test-*.sh` scripts under `node-maintenance/**/tests/` |
 | `sops-check` | every Secret manifest is SOPS-encrypted | `scripts/ci/check-sops-encrypted.sh` |
 | `init-resources` | every init container sets resource limits | `scripts/ci/check-init-resources.sh` |
 | `image-pin` | every image is pinned to `major.minor.patch`; the script holds a small allowlist | `scripts/ci/image-pin-audit.sh` |

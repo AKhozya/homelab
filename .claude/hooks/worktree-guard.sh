@@ -36,7 +36,6 @@ main_tree=$(git -C "$dir" worktree list --porcelain 2>/dev/null | awk '/^worktre
 
 # Only guard the homelab main tree; never block edits to other repos.
 [[ "$main_tree" == "$HOMELAB_MAIN" ]] || exit 0
-# Inside a linked worktree (toplevel != main tree) -> allow.
 [[ "$toplevel" != "$main_tree" ]] && exit 0
 
 rel=${fp#"$main_tree"/}

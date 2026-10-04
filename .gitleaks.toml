@@ -43,7 +43,7 @@ paths = [
   '''clusters/flux-system/gotk-components\.yaml''',
 ]
 # Case-insensitive substring match — skips obvious placeholder tokens in docs
-# (e.g. `Authorization: Bearer YOUR_TOKEN`) instead of crying wolf on them.
+# (e.g. `Authorization: Bearer YOUR_TOKEN`).
 stopwords = [
   "your_token",
   "placeholder",

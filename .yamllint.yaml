@@ -15,7 +15,7 @@ ignore: |
   .playwright-mcp/
   .backup/
   clusters/flux-system/gotk-components.yaml
-  # SOPS-managed files — encrypted blocks rewritten by sops, fighting yamllint here is futile.
+  # SOPS-managed files: sops rewrites the encrypted blocks, so lint fixes do not survive.
   **/*-secret.yaml
   **/*-secrets.yaml
   **/secret.yaml
@@ -36,6 +36,7 @@ rules:
     level: warning
     allow-non-breakable-words: true
     allow-non-breakable-inline-mappings: true
+    # Exempt, because a line-length fix changes the file's bytes.
     # Authentik re-applies a blueprint whenever its file's bytes change, even if it parses the same.
     # The apply resets each attribute the blueprint lists, undoing any UI change to it since the last apply.
     ignore: |

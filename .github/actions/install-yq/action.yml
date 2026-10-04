@@ -6,7 +6,6 @@ runs:
     - shell: bash
       run: |
         set -euo pipefail
-        # The calling workflow supplies both pins through its env. If either is missing, the step fails here.
         : "${YQ_VERSION:?set YQ_VERSION in the workflow env}" "${YQ_SHA256:?set YQ_SHA256 in the workflow env}"
         mkdir -p "$HOME/.local/bin"
         echo "$HOME/.local/bin" >> "$GITHUB_PATH"

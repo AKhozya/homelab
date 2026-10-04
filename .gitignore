@@ -1,4 +1,4 @@
-# Generic operating system and IDE files
+# Operating system, IDE and agent-tool files
 .DS_Store
 .vscode/
 .idea/
@@ -38,7 +38,7 @@ build/
 dist/
 target/
 
-# Backup directory with secrets
+# Backup directory with secrets, and .monitoring/
 .backup/secrets/
 .backup/*.tar.gz.gpg
 .backup/secrets/*.json

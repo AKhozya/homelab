@@ -69,7 +69,6 @@ check_tag() {
 # Every YAML file under $root. The per-doc kind filters below split HelmRelease values
 # from workloads.
 while IFS= read -r -d '' file; do
-  # Skip SOPS-encrypted files.
   if grep -q 'ENC\[AES256_GCM' "$file" 2>/dev/null; then
     continue
   fi
@@ -92,7 +91,6 @@ while IFS= read -r -d '' file; do
     # between matches in a multi-doc file, e.g. gotk-components.yaml).
     [[ -z "$img" || "$img" == "null" || "$img" == "---" ]] && continue
 
-    # Digest-pinned is acceptable (stricter than a tag).
     if [[ "$img" == *"@sha256:"* ]]; then
       continue
     fi

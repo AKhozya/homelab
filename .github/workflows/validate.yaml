@@ -21,7 +21,7 @@ env:
   # Must match what kustomize-controller embeds, or CI renders a different tree
   # than the cluster does. Chain: controller v1.9.4 -> sigs.k8s.io/kustomize/api
   # v0.21.1 -> kustomize CLI v5.8.1. Re-derive from the controller's go.mod on
-  # any Flux bump; v5.5.0 (api v0.18.0) had drifted three minors behind.
+  # any Flux bump.
   KUSTOMIZE_VERSION: v5.8.1
   # Track the live cluster (v1.37.0+k3s1). yannh/kubernetes-json-schema ships
   # v1.37.0 schemas. Update this with any k3s upgrade, together with the
@@ -148,8 +148,8 @@ jobs:
           set -euo pipefail
           # SOPS-encrypted Secrets carry a top-level `sops:` field that schemas reject.
           # Strip the field across all docs before piping to kubeconform.
-          # Missing CRDs (operator-defined) are tolerated by `-ignore-missing-schemas`,
-          # but for first-party operators we still ship Datree's CRDs-catalog fallback.
+          # `-ignore-missing-schemas` tolerates CRDs with no schema; Datree's CRDs-catalog
+          # supplies schemas for the CRDs it covers.
           out=$(mktemp)
           kustomize build --enable-helm "${{ matrix.root }}" > "$out"
           printf 'Built %s (%d lines)\n' "${{ matrix.root }}" "$(wc -l < "$out")"

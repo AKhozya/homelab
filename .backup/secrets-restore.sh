@@ -21,7 +21,6 @@ echo "🔄 Restoring ALL secrets to cluster for disaster recovery..."
 if [ ! -d "${BACKUP_DIR}/secrets" ]; then
     echo "📦 Secrets directory not found. Looking for encrypted backups..."
 
-    # Find the latest encrypted backup
     LATEST_BACKUP=$(ls -t "${BACKUP_DIR}"/secrets-backup-*.tar.gz.gpg 2>/dev/null | head -1 || true)
 
     if [ -z "${LATEST_BACKUP}" ]; then
