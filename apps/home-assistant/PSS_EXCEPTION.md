@@ -6,6 +6,8 @@
 
 The namespace enforces **privileged**; baseline audit and warn report baseline violations. Every capability the container now adds is on the baseline allowlist, because `NET_RAW` and `NET_ADMIN` are dropped (see below). Lowering enforce to baseline is a separate change: prove it with `kubectl apply --dry-run=server` on the namespace first.
 
+The Kyverno policies `require-non-root` and `require-readonly-rootfs` exclude this namespace (`infrastructure/configs/kyverno-policies/`).
+
 ## Security Context Configuration
 
 ### Pod-Level Security
@@ -37,29 +39,16 @@ securityContext:
 
 ## Why Root Access Required
 
-HA **officially requires root access** — architecture + integration requirements. Known container image limitation, documented by HA dev team.
+The Home Assistant container image requires root. This is an upstream limitation.
 
 ### Required Capabilities Explained
 
-1. **NET_BIND_SERVICE**
-   - **Purpose:** Bind to privileged ports (< 1024)
-   - **Use:** HA binds standard ports for various protocols
-   - **Impact:** Low — port binding only
-
-2. **CHOWN**
-   - **Purpose:** Change file/dir ownership
-   - **Use:** Manage `/config` permissions for file access
-   - **Impact:** Low — pod filesystem, PVC isolated
-
-3. **SETGID / SETUID**
-   - **Purpose:** Set group/user ID for processes
-   - **Use:** HA process management (spawning workers)
-   - **Impact:** Medium — contained within pod
-
-4. **DAC_OVERRIDE**
-   - **Purpose:** Bypass file r/w/x permission checks
-   - **Use:** R/w config files with varied ownership in `/config`
-   - **Impact:** Low — pod filesystem, PVC isolated
+| Capability | Lets the process | HA uses it to | Impact |
+|---|---|---|---|
+| `NET_BIND_SERVICE` | bind ports below 1024 | bind standard ports for some protocols | Low: port binding only |
+| `CHOWN` | change file ownership | manage permissions under `/config` | Low: pod filesystem and its own PVC |
+| `SETGID` / `SETUID` | set the group or user ID of a process | spawn worker processes | Medium: stays inside the pod |
+| `DAC_OVERRIDE` | skip file read, write and execute checks | read and write config files with mixed owners in `/config` | Low: pod filesystem and its own PVC |
 
 ### Capabilities deliberately not granted
 
@@ -70,20 +59,18 @@ HA **officially requires root access** — architecture + integration requiremen
 
 ## Security Mitigations
 
-Despite root + elevated caps, controls in place:
-
 ### 1. Disabled Privilege Escalation
 ```yaml
 allowPrivilegeEscalation: false
 ```
-Root container **cannot gain additional privileges** beyond granted.
+The root process cannot gain privileges beyond the ones granted.
 
 ### 2. Seccomp Profile
 ```yaml
 seccompProfile:
   type: RuntimeDefault
 ```
-**Runtime default seccomp** restricts dangerous syscalls, prevents exploitation even with root.
+The runtime default seccomp profile blocks dangerous syscalls, even for root.
 
 ### 3. Capability Dropping
 ```yaml
@@ -92,90 +79,51 @@ capabilities:
     - ALL
   add: [only required capabilities]
 ```
-Drop all first, grant only **minimum required**. Principle of least privilege.
 
 ### 4. Network Isolation
-- **NetworkPolicy** restricts net access to authorized services
-- Pod net namespace isolates from host net
-- No `hostNetwork: true` (pod can't access host net interfaces)
+- A NetworkPolicy limits which services the pod can reach and be reached from.
+- No `hostNetwork`, `hostPID` or `hostIPC`: the pod sees only its own network, processes and IPC.
 
 ### 5. Filesystem Isolation
-- **No host path mounts** (no node filesystem access)
-- PVC storage isolated to `/config`
-- `readOnlyRootFilesystem` not enabled — HA needs write to `/tmp` + runtime dirs
-
-### 6. No Host Access
-
-Deployment avoids:
-- `hostNetwork: false` (default) — no host net access
-- `hostPID: false` (default) — no host processes
-- `hostIPC: false` (default) — no host IPC
-- No `hostPath` volumes — no node filesystem
-- `privileged: false` (default) — not privileged
+- The Deployment sets no `hostPath` volume and no `privileged` container.
+- Persistent storage is one PVC at `/config`.
+- `readOnlyRootFilesystem` is off: HA writes to runtime dirs on the root filesystem. `/tmp` is an emptyDir.
 
 ## Risk Assessment
 
 ### Risk Level: **MEDIUM**
 
-**Justification:**
-- Root **architecturally required** by HA
-- Elevated caps **functionally necessary** for integrations
-- Security controls reduce the attack surface
-- Blast radius **contained** to pod scope (no host access)
-- HA = **smart home controller** needing hardware-level access
+**Justification:** HA needs root, and the added capabilities serve `/config` file handling and worker processes. The pod has no `hostPath` volume, no `privileged` container, and none of `hostNetwork`, `hostPID` or `hostIPC`, which limits what a compromise reaches on the node. A compromise can still reach whatever the NetworkPolicy allows, and a kernel or container-runtime escape would bypass these controls.
 
 ### Attack Vectors Mitigated
 
-1. **Container Escape:**
-   - Mitigated: seccomp profile, no hostPath mounts, allowPrivilegeEscalation: false
-   - Residual Risk: Low
-
-2. **Privilege Escalation:**
-   - Mitigated: allowPrivilegeEscalation: false, cap dropping
-   - Residual Risk: Low
-
-3. **Network Attacks:**
-   - Mitigated: NetworkPolicy, pod net namespace isolation
-   - Residual Risk: Low
-
-4. **Filesystem Access:**
-   - Mitigated: no hostPath mounts, PVC isolation, seccomp filtering
-   - Residual Risk: Low
+| Vector | Mitigations | Residual risk |
+|---|---|---|
+| Container escape | seccomp profile, no `hostPath`, `allowPrivilegeEscalation: false` | Low |
+| Privilege escalation | `allowPrivilegeEscalation: false`, capabilities dropped | Low |
+| Network attacks | NetworkPolicy, own network namespace | Low |
+| Filesystem access | no `hostPath`, one PVC, seccomp | Low |
 
 ### Accepted Risks
 
-1. **Root Execution:**
-   - **Reason:** HA architectural requirement
-   - **Acceptance:** Required for smart home functionality
-   - **Mitigation:** Seccomp, cap dropping, filesystem isolation
-
-2. **DAC_OVERRIDE Capability:**
-   - **Reason:** Config file mgmt with varied permissions
-   - **Acceptance:** Required for reliable config persistence
-   - **Mitigation:** Pod filesystem only, no host access
+| Risk | Reason | Mitigation |
+|---|---|---|
+| Root execution | the HA image requires it | seccomp, capabilities dropped, no host filesystem |
+| `DAC_OVERRIDE` | config files in `/config` have mixed owners | pod filesystem only, no host access |
 
 ## Security Recommendations
 
 ### Current Implementation: APPROVED
 
-Current config **appropriate + necessary** for HA functionality while implementing **max possible security** given architectural constraints.
+Root execution stays until HA supports a non-root image. The capability audit below decides each of the five added capabilities on its own.
 
 ### Future Improvements
 
-1. **Monitor for Rootless HA**
-   - Track HA dev for official rootless container support
-   - Migrate to non-root when officially supported
-   - **Status:** Not available (2025-10-26)
-
-2. **Capability Audit**
-   - Periodic review of required caps as HA evolves
-   - If you disable integrations, remove their unused capabilities
-   - **Frequency:** Quarterly
-
-3. **Runtime Monitoring**
-   - Monitor unexpected privilege usage via runtime security tools
-   - Alert on anomalous behavior (unexpected connections, file access)
-   - **Status:** Planned (Falco/Tetragon)
+| Improvement | What to do | Status |
+|---|---|---|
+| Rootless HA | move to non-root when HA supports it officially | not available (2025-10-26) |
+| Capability audit | review the added capabilities as HA changes; if you disable an integration, remove the capabilities only it used | quarterly |
+| Runtime monitoring | alert on unexpected privilege use, connections or file access with a runtime security tool | planned (Falco or Tetragon) |
 
 ## References
 
@@ -191,4 +139,4 @@ Current config **appropriate + necessary** for HA functionality while implementi
 **Date:** 2025-10-26
 **Next Review:** overdue since 2026-01-26 (quarterly)
 
-**Conclusion:** HA elevated privilege requirements **architecturally necessary + appropriately secured** with defense-in-depth. Privileged enforce with baseline audit and warn = correct classification.
+**Conclusion:** privileged enforce with baseline audit and warn is the correct classification.

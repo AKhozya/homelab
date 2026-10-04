@@ -152,15 +152,14 @@ spec:
                   secretKeyRef:
                     name: immich-db-password
                     key: password
-              # REDIS_URL=ioredis://<base64(json)>. JSON is a PLAIN ioredis client pointed at
-              # the OT operator's master-following Service redis-replication-master (selector
-              # redis-role=master). Failover is handled at the INFRA layer: on a node-reboot the
-              # operator repoints that Service to the promoted master, so ioredis just reconnects
-              # to the same stable ClusterIP — no flaky client-side Sentinel discovery (which held
-              # a stale master and needed a manual rollout restart, 2026-06-28). Same pattern as
-              # paperless. NB: ioredis failoverDetector:true also recovers but leaks sentinel
-              # connections on every failover (ioredis known bug) — rejected. Config lives in the
-              # SOPS secret immich-redis-url (not visible here).
+              # REDIS_URL=ioredis://<base64(json)>, held in the SOPS secret immich-redis-url. The
+              # JSON is a plain ioredis client pointed at the opstree operator's master-following
+              # Service redis-replication-master (selector redis-role=master). On failover the
+              # operator repoints that Service to the promoted master, so ioredis reconnects to the
+              # same ClusterIP. Same pattern as paperless.
+              # Rejected: client-side Sentinel discovery held a stale master and needed a manual
+              # rollout restart (2026-06-28). ioredis failoverDetector:true also recovers, but leaks
+              # sentinel connections on every failover (known ioredis bug).
               REDIS_URL:
                 valueFrom:
                   secretKeyRef:
@@ -315,9 +314,9 @@ spec:
                     periodSeconds: 10
                     timeoutSeconds: 5
                     failureThreshold: 5
-              # Non-privileged container (device-plugin GPU, no /dev/dri hostPath). immich ns is
-              # Kyverno-excluded from RoRFS only, so RoRFS is not set (server writes to /data);
-              # non-root comes from the pod-level runAsUser 1000.
+              # Non-privileged container (device-plugin GPU, no /dev/dri hostPath). The immich
+              # namespace is excluded from the Kyverno readOnlyRootFilesystem policy, so the field
+              # is not set (server writes to /data); non-root comes from the pod-level runAsUser 1000.
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:

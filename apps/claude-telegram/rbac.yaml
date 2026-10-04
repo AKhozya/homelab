@@ -70,23 +70,23 @@ rules:
   - apiGroups: ["postgresql.cnpg.io", "pxc.percona.com", "ps.percona.com"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
-  # Monitoring (VictoriaMetrics + Prometheus CRDs — dry-run + status)
+  # Monitoring (VictoriaMetrics + Prometheus CRDs — read + status)
   - apiGroups: ["operator.victoriametrics.com", "monitoring.coreos.com"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
-  # Cert-manager (dry-run certificates/issuers)
+  # Cert-manager (read certificates/issuers)
   - apiGroups: ["cert-manager.io"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
-  # Traefik CRDs (dry-run middleware/ingressroute)
+  # Traefik CRDs (read middleware/ingressroute)
   - apiGroups: ["traefik.io"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
-  # Flux notifications (dry-run alert/provider)
+  # Flux notifications (read alert/provider)
   - apiGroups: ["notification.toolkit.fluxcd.io"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
-  # Redis operator (dry-run redis CR)
+  # Redis operator (read redis CR)
   - apiGroups: ["redis.redis.opstreelabs.in"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
@@ -97,11 +97,11 @@ rules:
   - apiGroups: ["wgpolicyk8s.io"]
     resources: ["policyreports", "clusterpolicyreports"]
     verbs: ["get", "list", "delete"]
-  # Scheduling + policy (dry-run PriorityClass, PDB)
+  # Scheduling + policy (read PriorityClass, PDB)
   - apiGroups: ["scheduling.k8s.io", "policy"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]
-  # RBAC (dry-run own role changes)
+  # RBAC (read-only)
   - apiGroups: ["rbac.authorization.k8s.io"]
     resources: ["*"]
     verbs: ["get", "list", "watch"]

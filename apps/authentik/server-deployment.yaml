@@ -31,7 +31,6 @@ spec:
         - key: node-role.kubernetes.io/control-plane
           operator: Exists
           effect: NoSchedule
-      # Distribute across nodes for HA
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

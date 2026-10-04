@@ -38,11 +38,11 @@ spec:
                 name: stirling-pdf-env
           securityContext:
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false # Stirling PDF v2.0 needs to write temp files and modify system configs
+            readOnlyRootFilesystem: false # Stirling PDF writes temp files and modifies system configs
             capabilities:
               drop: ["ALL"]
               add: ["SETGID", "SETUID", "CHOWN", "DAC_OVERRIDE"] # Required for su-exec privilege dropping, directory ownership, and nginx file access
-          # v2.0.3 requires authentication on / - use /api/v1/info/status for health checks
+          # / requires authentication (since v2.0.3), so health checks use /api/v1/info/status.
           # startupProbe allows 300s for slow cold start (30 * 10s). Spring Boot 4 + license check
           # + H2 initialization can exceed 90s on a cold node (measured on 2.11.0-fat)
           startupProbe:

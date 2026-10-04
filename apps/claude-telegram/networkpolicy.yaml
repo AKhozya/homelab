@@ -32,12 +32,10 @@ spec:
           port: 443
         - protocol: TCP
           port: 80
-    # No port-22 egress: node SSH runs on 65300. The pod DOES ssh the nodes for the OS
-    # diagnostics kubectl cannot serve (journalctl, systemctl, uptime) — 213 calls in the 30
-    # days of transcripts the PVC keeps. Count `tool_use` records to measure that, not
-    # `grep -c` over the JSONL: the JSONL also holds the AGENTS.md cluster table, which
-    # quotes `ssh -p 65300 …` back into every session that reads it, and inflates the count
-    # to ~3350.
+    # No port-22 egress: node SSH runs on 65300. The pod does SSH to the nodes for OS
+    # diagnostics kubectl cannot serve (journalctl, systemctl, uptime): 213 calls in the 30
+    # days of transcripts the PVC keeps. To re-measure, count `tool_use` records; a `grep -c`
+    # over the JSONL also counts the AGENTS.md cluster table quoted into every session (~3350).
     #
     # /32 per node rather than the /24: 254 reachable hosts to talk to 4 is not least privilege,
     # and the pod has no business reaching the NAS or anything else on the LAN. This bounds the

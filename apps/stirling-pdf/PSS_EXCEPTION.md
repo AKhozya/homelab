@@ -2,7 +2,9 @@
 
 ## Pod Security Standards Classification: BASELINE
 
-**Rationale:** Stirling PDF needs root during container startup for system config. The image is `frooodle/s-pdf:3.0.0-fat`; the sections below describe v2.0.
+**Rationale:** Stirling PDF needs root during container startup for system config. `deployment.yaml` pins a 3.x `frooodle/s-pdf` image; the sections below describe the v2.0 startup, which this doc has not re-checked against 3.x.
+
+The Kyverno policies `require-non-root` and `require-readonly-rootfs` exclude this namespace (`infrastructure/configs/kyverno-policies/`).
 
 ---
 
@@ -10,7 +12,7 @@
 
 ### V2.0 Architecture Change
 
-Stirling PDF v2.0 = unified container arch ("BOTH mode"): frontend + backend in single container. Entrypoint script ops need root:
+Stirling PDF v2.0 runs frontend and backend in one container ("BOTH mode"). These entrypoint steps need root:
 
 1. **User/Group Management**
    - Modifies `/etc/passwd` + `/etc/group`
@@ -40,8 +42,6 @@ Stirling PDF v2.0 = unified container arch ("BOTH mode"): frontend + backend in 
 
 ### Capabilities Restrictions
 
-Even with root, strict capability controls:
-
 ```yaml
 securityContext:
   allowPrivilegeEscalation: false
@@ -56,8 +56,6 @@ securityContext:
 - **CHOWN:** Change dir ownership at startup
 - **DAC_OVERRIDE:** Bypass file permission checks (nginx needs /var/lib/nginx)
 
-**Impact:** Container runs as root but only 4 specific Linux capabilities.
-
 ### Pod Security Standards
 
 **Classification:** BASELINE (not RESTRICTED)
@@ -67,31 +65,22 @@ securityContext:
 - `readOnlyRootFilesystem: true` — can't set (v2.0 modifies system files)
 
 **PSS Compliance with Baseline:**
-- `allowPrivilegeEscalation: false` — prevents gaining privileges
-- `capabilities.drop: ["ALL"]`, then four added back (SETGID, SETUID, CHOWN, DAC_OVERRIDE), all within baseline
-- `seccompProfile: RuntimeDefault` — syscall filtering on
-- No host namespaces (no hostNetwork, hostPID, hostIPC)
-- No host path volumes
-- No privileged containers
+- `allowPrivilegeEscalation: false`
+- `capabilities.drop: ["ALL"]`, then the four above added back, all within baseline
+- `seccompProfile: RuntimeDefault`
+- No `hostNetwork`, `hostPID`, `hostIPC`, `hostPath` volumes or privileged containers
 
 ### Additional Mitigations
 
-1. **Network Isolation:** NetworkPolicy restricts access to:
-   - Traefik namespace (internal ingress)
-   - Cloudflare Tunnel namespace (external access)
-   - Uptime Kuma namespace (monitoring)
-   - DNS (CoreDNS)
-   - Internet egress (HTTPS for metadata/updates)
+1. **Network Isolation:** NetworkPolicy allows:
+   - ingress on port 8080 from the Traefik, Cloudflare Tunnel and Uptime Kuma namespaces
+   - egress to DNS, and to TCP 443 at any destination (the manifest comment names Authentik OIDC)
 
-2. **Seccomp Profile:** RuntimeDefault filters syscalls at kernel level
+2. **Resource Limits:** CPU and memory limits prevent exhaustion
 
-3. **No Privilege Escalation:** `allowPrivilegeEscalation: false` prevents gaining privileges
+3. **Service Account:** own ServiceAccount, with no API token mounted
 
-4. **Resource Limits:** CPU + memory limits prevent exhaustion
-
-5. **Service Account:** Custom SA, minimal perms
-
-6. **TLS Encryption:** All ingress traffic via Let's Encrypt
+4. **TLS Encryption:** the Traefik ingress serves a Let's Encrypt certificate
 
 ---
 
@@ -105,21 +94,17 @@ securityContext:
 - If compromised, attacker has root within container
 
 **Mitigations:**
-- NetworkPolicy restricts lateral movement
-- Four capabilities only, so limited damage even as root
-- Seccomp filters dangerous syscalls
-- No host access (no hostPath, hostNetwork, etc.)
-- Regular security updates via Renovate
+- the controls above: NetworkPolicy, four capabilities, seccomp, no host access
+- security updates via Renovate
 
-**Acceptable Trade-off:** Root required by app architecture. Security controls (four caps only, NetworkPolicy, seccomp) reduce risk to acceptable for homelab.
+**Acceptable Trade-off:** the app needs root, and these controls reduce the risk to an acceptable level for a homelab.
 
 ---
 
 ## Future Improvements
 
 1. **Monitor Upstream:** Watch [GitHub Issue #1516](https://github.com/Stirling-Tools/Stirling-PDF/issues/1516) for rootless support
-2. **Migrate When Available:** Switch to non-root when v2.x supports
-3. **Regular Updates:** Keep Stirling PDF updated via Renovate
+2. **Migrate When Available:** switch to non-root when upstream supports it
 
 ---
 
@@ -133,4 +118,4 @@ securityContext:
 ---
 
 **Last Updated:** 2025-11-26
-**Next Review:** When rootless support added to Stirling PDF v2.x
+**Next Review:** When Stirling PDF adds rootless support

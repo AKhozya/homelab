@@ -1,21 +1,15 @@
 # Home Assistant OIDC Setup with Authentik
 
-Manual steps for HA OIDC integration with Authentik.
-
 ## Prerequisites
 
 Auto-configured via GitOps:
 - HA configuration.yaml with `auth_oidc`
-- Secrets for OIDC client creds
-- Config mounted to `/config/secrets.yaml`
-- HACS auto-installed via init container
-- hass-oidc-auth auto-installed via init container
+- OIDC client secret, mounted at `/config/secrets.yaml`
+- HACS and hass-oidc-auth, installed by init containers on pod startup
 
 ## Manual Setup Steps
 
 ### 1. ~~Install hass-oidc-auth via HACS~~ (Auto-installed)
-
-**Automated!** HACS + hass-oidc-auth auto-install on pod startup via init containers.
 
 ### 2. (Optional) Configure HACS
 
@@ -57,8 +51,7 @@ The `home-assistant` OAuth2 provider + application already exist in Authentik (s
 1. Navigate to https://ha.h0melab.work
 2. See "OpenID Connect" login button
 3. Click → auth via Authentik
-4. First login creates new HA user auto
-5. User linked to Authentik account
+4. The first login creates an HA user linked to the Authentik account
 
 ## Configuration Details
 
@@ -73,8 +66,7 @@ The `home-assistant` OAuth2 provider + application already exist in Authentik (s
 
 - OIDC client secret SOPS-encrypted in repo
 - `secrets.yaml` mounted read-only from K8s Secret
-- Users auto-created on first login (no pre-provisioning)
-- HA uses the Authentik `preferred_username` claim as the username
+- No user pre-provisioning: the first OIDC login creates the HA user
 
 ## Troubleshooting
 

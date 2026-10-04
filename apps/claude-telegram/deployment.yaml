@@ -666,10 +666,12 @@ spec:
             secretName: claude-telegram-codex
             defaultMode: 0400
         - name: tmp
-          # Circuit breaker, not a quota: breaching this evicts the Pod, it never prunes.
+          # Not a cap on writes: kubelet scans usage periodically and evicts the Pod once it
+          # sees usage above this limit. It never prunes files.
           # Routine cleanup is the app's reaper (TEMP_REAP_INTERVAL_MS and
-          # TEMP_RETENTION_HOURS above) — this only stops a runaway from filling node
-          # ephemeral storage and evicting its neighbours too.
+          # TEMP_RETENTION_HOURS above). This limit lets kubelet evict a runaway on its next
+          # scan, instead of waiting until node ephemeral storage fills and the node evicts its
+          # neighbours too.
           # 4Gi holds many concurrent downloads at the Telegram per-file ceiling, so
           # lowering it means lowering the retention window with it. Only in-flight media
           # is lost; state lives on the PVC.

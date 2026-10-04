@@ -33,10 +33,9 @@ entries:
       meta_launch_url: https://home.h0melab.work
       meta_description: Homelab dashboard
 
-  # Bind to the embedded outpost that ships inside the authentik server. Verified before
-  # writing this: the embedded outpost currently has ZERO providers bound, so this
-  # assignment cannot displace an existing one — `attrs.providers` REPLACES the list.
-  # Anything added here later must list every provider, not just the new one.
+  # Bind to the embedded outpost that ships inside the authentik server. `attrs.providers`
+  # REPLACES the list, so this entry must list every provider bound to the embedded outpost,
+  # not just a new one. When this was written, the embedded outpost had no other provider.
   - model: authentik_outposts.outpost
     state: present
     identifiers:

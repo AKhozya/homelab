@@ -142,10 +142,10 @@ spec:
               cpu: "100m"
               memory: "256Mi"
             limits:
-              # Increased to 1000m to eliminate CPU throttling alerts
-              # PHP/Laravel has bursty CPU patterns during request handling
+              # 1000m: PHP/Laravel bursts CPU during request handling, and a lower limit fired
+              # CPU throttling alerts.
               cpu: "1000m"
-              # Increased from 540Mi to 700Mi (2025-12-30) - 82% usage triggered alert
+              # 700Mi (2025-12-30): at 540Mi, 82% usage fired the memory alert.
               memory: "700Mi"
           volumeMounts:
             - name: storage
@@ -207,7 +207,7 @@ spec:
               mountPath: /attach
             - name: apprise-tmp
               mountPath: /tmp
-          # post-#273 (v1.4.x) runs non-root natively — no chown caps needed.
+          # The apprise image runs non-root natively since v1.4.x, so it needs no chown caps.
           # nginx/gunicorn/supervisord write only to /tmp under RoRFS (upstream README
           # hardened pattern). runAsUser 1000 + fsGroup 33 (pod) → writes the
           # group-writable /config emptyDir via supplemental group.

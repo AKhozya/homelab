@@ -16,7 +16,7 @@ resources:
   - immich-redis-url-secret.yaml
   - admin-secret.yaml
   # OIDC config is stored in immich's DB (configured via admin web UI)
-  # Tier-2 GPU-node substrate watchdog (SSHes NAS + virsh; see gpu-node/README.md)
+  # GPU-node watchdog: SSHes to the NAS and drives virsh (see gpu-node/README.md)
   - gpu-node/heal-serviceaccount.yaml
   - gpu-node/heal-networkpolicy.yaml
   - gpu-node/nas-known-hosts-configmap.yaml
