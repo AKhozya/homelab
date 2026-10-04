@@ -64,7 +64,7 @@ spec:
               - op: add
                 path: /spec/template/spec/priorityClassName
                 value: homelab-standard
-          # seccomp RuntimeDefault (UR2-4) — node-exporter uses hostNetwork/hostPID and reads
+          # seccomp RuntimeDefault: node-exporter uses hostNetwork/hostPID and reads
           # /proc,/sys. RuntimeDefault blocks none of that. Strategic-merge keeps the chart's
           # own securityContext; a JSON6902 replace would clobber it.
           - target:
@@ -181,6 +181,8 @@ spec:
     # chart rendering the Secret that field points at.
     # Nothing consumes these ServiceMonitors — vmagent scrapes through the hand-written
     # VMServiceScrapes in monitoring/configs/ and every VM prometheus-converter is off.
+    # So the kubelet and API server metric drops live in those VMServiceScrapes, and a
+    # metricRelabelings entry here would change nothing.
     # Clearing authorization rather than disabling the component keeps each Grafana
     # dashboard, which the chart gates on the same enabled flag.
     kubelet:
@@ -337,11 +339,10 @@ spec:
     prometheusOperator:
       revisionHistoryLimit: 2
       # The chart's pre-upgrade admission-webhook cert patch Jobs (job-createSecret /
-      # job-patchWebhook) ship with NO resource limits — Kyverno require-resource-limits
-      # denies them at admission, which wedged every chart upgrade since the VP migration
-      # (87.15.2 and 87.16.0 both stalled after 4 attempts, rolled back to 87.15.1).
-      # Helm hook Jobs go through admission like any workload; charts must be given
-      # limits via values.
+      # job-patchWebhook) ship with no resource limits. Kyverno require-resource-limits denies
+      # them at admission, so the chart upgrade stalls (87.15.2 and 87.16.0 both stalled after
+      # 4 attempts and rolled back to 87.15.1). Helm hook Jobs pass admission like any workload,
+      # so their limits must come from values.
       admissionWebhooks:
         patch:
           resources:
@@ -485,6 +486,3 @@ spec:
         limits:
           cpu: 500m
           memory: 128Mi
-
-    # kubeApiServer and kubelet metricRelabelings removed — VMAgent handles scraping
-    # with equivalent metric drops in VMServiceScrape configs

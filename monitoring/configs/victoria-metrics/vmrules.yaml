@@ -357,8 +357,7 @@ spec:
         summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash looping"
         description: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} has been in CrashLoopBackOff for more than 15 minutes"
 
-    # Phase, not readiness — renamed from PodNotReady 2026-07-26 because the old name
-    # described something it never measured. Catches Pending/Failed/Unknown only.
+    # Phase, not readiness: catches Pending/Failed/Unknown only. PodRunningNotReady below covers readiness.
     # This rule excludes the pods of the immich/immich-vm-heal CronJob. A NAS reboot fails some of
     # its 5-min runs, and each failed pod stays until its Job's 1h TTL, so this rule fired for 6 heal
     # pods in the 30 days to 2026-10-03. ImmichVMHealJobFailing and ImmichVMHealStale cover that CronJob.
@@ -511,9 +510,8 @@ spec:
         summary: "Certificate {{ $labels.name }} in {{ $labels.namespace }} not ready"
         description: "Certificate has been in NotReady state for more than 10 minutes. Check cert-manager logs and issuer status."
 
-    # CertificateRenewalFailed removed UR2 2026-06-06: it used certmanager_certificate_renewal_failure_count
-    # which does not exist (permanently dead), and CertificateNotReady above already detects a
-    # Certificate whose Ready condition is not True (condition="False" > 0) — the same failure mode.
+    # No CertificateRenewalFailed rule (removed 2026-06-06): certmanager_certificate_renewal_failure_count
+    # does not exist. CertificateNotReady above already catches a Certificate whose Ready condition is False.
 
   - name: kubernetes-alerts
     interval: 60s
@@ -914,10 +912,11 @@ spec:
         summary: "MySQL connection usage high"
         description: "MySQL is using {{ printf \"%.1f\" $value }}% of max connections. May reject new connections soon."
 
-    # Replica replication health — restored 2026-06-07 via mysql-replica-exporter (HAProxy
-    # reader backend :3307 → the read-only replica). MySQL 8.4 SHOW REPLICA STATUS exposes
-    # mysql_slave_status_replica_{sql,io}_running + _seconds_behind_source (NOT the legacy
-    # slave_*/master names removed UR2 2026-06-06). Orchestrator still covers failover quorum.
+    # Replica health comes from mysql-replica-exporter (since 2026-06-07), which reaches the
+    # read-only replica through the HAProxy reader backend :3307. The exporter maps MySQL 8.4
+    # SHOW REPLICA STATUS fields to mysql_slave_status_replica_{sql,io}_running and
+    # mysql_slave_status_seconds_behind_source, not the legacy slave_*/master names.
+    # Orchestrator still covers failover quorum.
     - alert: MySQLReplicaExporterDown
       expr: mysql_up{job="mysql-replica-exporter"} == 0
       for: 5m
@@ -1123,8 +1122,8 @@ spec:
           limiting. If this is not an attack, rate limits may need to be relaxed. Current limits: standard 300 req/min,
           high-frequency 600 req/min."
 
-    # These alerts need Traefik metrics in the scrape config. If 429s occur but no alert
-    # fires, check the Traefik ServiceMonitor and that the query
+    # These alerts need Traefik metrics. If 429s occur but no alert fires, check the
+    # traefik VMServiceScrape in scrape-apps.yaml and that the query
     # traefik_service_requests_total{code="429"} returns data.
 
   - name: resource-exhaustion-alerts
@@ -1251,7 +1250,9 @@ spec:
         description: "Loki is experiencing {{ printf \"%.2f\" $value }} failed append operations per second. Check Loki logs for details."
 
     - alert: LokiCompactorNotRunning
-      # boltdb-shipper mode emits loki_boltdb_shipper_compactor_running, not loki_compactor_running.
+      # Loki runs store: tsdb, but its compactor still registers this gauge under the
+      # loki_boltdb_shipper prefix (pkg/compactor/metrics.go upstream, checked 2026-10-04).
+      # loki_compactor_running does not exist.
       expr: sum(loki_boltdb_shipper_compactor_running) == 0
       for: 10m
       labels:
@@ -1463,8 +1464,8 @@ spec:
   - name: node-maintenance-alerts
     interval: 60s
     rules:
-      # Fires if weekly run hasn't completed in >8 days. Normal cadence: Sat 04:30 UTC (7d).
-      # Grace: +1d for manual delay / intervention window.
+      # The run starts Sat 04:30 UTC (node-maintenance.timer). 8 days = the 7-day cadence
+      # + 1 day for a manual delay.
       - alert: NodeMaintenanceMissedRun
         expr: |
           (time() - node_maintenance_last_run_unixtime > 8 * 86400)
@@ -1559,10 +1560,8 @@ spec:
         description: "A redis-replication or redis-sentinel pod is unreachable. HA is degraded but failover may still work depending on which pod."
 
     - alert: RedisHAAllDown
-      # `or vector(0)` is what makes this alert work AT ALL: when every redis pod is
-      # down its exporter targets go away, redis_up disappears, and count() over the
-      # empty vector produces no series — so `== 0` matched nothing in exactly the
-      # total-outage case this alert is named for.
+      # `or vector(0)`: if every redis pod is down, redis_up disappears and count() over the
+      # empty vector returns no series, so `== 0` alone never fires in a total outage.
       expr: (count(redis_up{namespace="databases", job=~".*redis-replication.*"} == 1) or vector(0)) == 0
       # 5m, raised from 1m for the same reason as RedisHASentinelQuorumLost: with
       # `or vector(0)` a scrape gap reads as "all down", so a short absence must not page.
@@ -1574,17 +1573,13 @@ spec:
         description: "Both redis-replication-0 and redis-replication-1 are unreachable. Immich and Paperless will be impacted."
 
     - alert: RedisHASentinelQuorumLost
-      # Two separate traps here. `== 1` is load-bearing: KSM emits a phase="Running"
-      # series valued 0 for pods that are NOT running, so a bare count() counts every
-      # sentinel regardless of state and never falls below 2. And `or vector(0)` is
-      # load-bearing too: count() over an EMPTY vector yields no series at all, so with
-      # zero sentinels running — the total outage this alert exists for — the comparison
-      # would silently produce nothing.
+      # `== 1`: KSM emits a phase="Running" series valued 0 for a pod that is not running,
+      # so a bare count() also counts sentinels that are not running.
+      # `or vector(0)`: count() over an empty vector returns no series, so with no sentinel
+      # running the comparison returns nothing.
       expr: (count(kube_pod_status_phase{namespace="databases",pod=~"redis-sentinel-sentinel.*",phase="Running"} == 1) or vector(0)) < 2
-      # 5m, raised from 1m alongside `or vector(0)`: absence of the series now evaluates
-      # to 0 rather than to nothing, so a kube-state-metrics restart or a node reboot
-      # would page at 1m. 5m rides out those gaps and still reports a real outage
-      # promptly. Trading four minutes of latency for an alert that fires at all.
+      # 5m, not 1m: with `or vector(0)`, a missing series evaluates to 0, so a kube-state-metrics
+      # restart or a node reboot would page at 1m. 5m covers those gaps and still reports a real outage soon.
       for: 5m
       labels:
         severity: critical
@@ -1646,8 +1641,9 @@ spec:
       # `unless recent-success`: a NAS-host reboot makes the watchdog fail ~2 jobs
       # (its SSH key + the library gate both live on `/home/akhozya`, which zettOS
       # takes ~9min to re-establish after boot) over the measured ~11min NAS-reboot
-      # RTO; the failed Job then LINGERS (failedJobsHistoryLimit) so a raw `>0` would
-      # keep firing for hours off one transient reboot. Suppress while the watchdog
+      # RTO. Each failed Job stays until its 1h TTL (ttlSecondsAfterFinished in
+      # heal-cronjob.yaml), so a raw `>0` would keep firing for up to an hour off one
+      # transient reboot. Suppress while the watchdog
       # has succeeded within 20min (> observed RTO) — so a normal reboot is silent
       # but a genuinely stuck VM (no heal success >20min) still fires. ImmichVMHealStale
       # (no success >30min) remains the backstop; NodeNotReady covers a down VM directly.

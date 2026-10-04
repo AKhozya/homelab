@@ -42,8 +42,8 @@ spec:
               image: rancher/shell:v0.8.2
               command: ["/bin/bash", "-c"]
               # pipefail + non-empty guard: a kubectl/RBAC failure must fail the
-              # init container, not hand trivy an empty list (silent zero-image
-              # "success" — the backup success-theater bug class)
+              # init container, not hand trivy an empty list (a silent zero-image
+              # "success").
               args:
                 - >-
                   set -euo pipefail;

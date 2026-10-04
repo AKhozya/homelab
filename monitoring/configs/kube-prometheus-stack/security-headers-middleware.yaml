@@ -6,15 +6,10 @@ metadata:
 spec:
   headers:
     customResponseHeaders:
-      # Prevent MIME-type sniffing
       X-Content-Type-Options: "nosniff"
-      # Prevent clickjacking (allow same-origin iframes)
       X-Frame-Options: "SAMEORIGIN"
-      # Control referrer information
       Referrer-Policy: "strict-origin-when-cross-origin"
-      # Disable FLoC tracking
       Permissions-Policy: "interest-cohort=()"
-      # Force HTTPS (1 year max-age - final step)
       Strict-Transport-Security: "max-age=31536000"
-      # Remove server version info
+      # An empty value makes Traefik remove the header.
       X-Powered-By: ""

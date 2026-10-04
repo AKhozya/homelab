@@ -30,8 +30,8 @@ spec:
   postRenderers:
     - kustomize:
         patches:
-          # seccomp RuntimeDefault (UR2-4 soak) — alloy reads host journal via file mounts, not
-          # blocked syscalls; RuntimeDefault is safe. Strategic-merge preserves chart securityContext.
+          # seccomp RuntimeDefault: alloy reads the host journal through file mounts, which
+          # RuntimeDefault does not block. Strategic-merge keeps the chart's securityContext.
           - target:
               kind: DaemonSet
               name: alloy
@@ -54,7 +54,7 @@ spec:
       tolerations:
         - effect: NoSchedule
           operator: Exists
-      # hostPath for node-maintenance systemd journal (F2 follow-up)
+      # Host journal and machine-id for loki.source.journal below.
       volumes:
         extra:
           - name: journal
@@ -66,10 +66,9 @@ spec:
               type: File
 
     alloy:
-      # Alloy uses roughly twice the memory of a plain log shipper.
-      # 768Mi: working_set counts tailed-log page cache — on the busiest node
+      # 768Mi: working_set counts tailed-log page cache. On the busiest node
       # (W1, ~70 pods) anon is only ~200Mi but cache pins working_set at ~430Mi,
-      # flapping ContainerMemoryNearLimit at the old 512Mi limit.
+      # which flapped ContainerMemoryNearLimit at the old 512Mi limit.
       resources:
         requests:
           cpu: 50m
@@ -78,8 +77,8 @@ spec:
           cpu: 200m
           memory: 768Mi
 
-      # hostPath mounts for node-maintenance systemd journal (F2 follow-up). Read-only.
-      # Mount-only — blast radius limited by loki.source.journal matches below.
+      # Read-only host journal mounts. The loki.source.journal matches below limit which
+      # entries Alloy ships.
       mounts:
         extra:
           - name: journal
@@ -152,7 +151,7 @@ spec:
           }
 
           // ── node-maintenance host journal tail ──
-          // Only node-maintenance* units surface; other journal entries dropped.
+          // loki.source.journal `matches` below keeps only node-maintenance units. This block only maps journal fields to labels.
           loki.relabel "nodemaint_journal" {
             forward_to = []
             rule {

@@ -125,9 +125,8 @@ spec:
       enabled: true
       replicas: 1
       image:
-        # chart default floats 1.31-alpine — image-pin invariant. repository must be
-        # spelled out or Renovate cannot resolve a bare tag, which is how this drifted
-        # a patch behind the same image in apps/rustdesk/beacon-deployment.yaml.
+        # The chart default floats 1.31-alpine, so pin the tag. Spell out repository too:
+        # Renovate cannot resolve a bare tag.
         repository: nginxinc/nginx-unprivileged
         tag: "1.31.6-alpine"
       resources:

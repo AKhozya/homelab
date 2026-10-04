@@ -3,7 +3,7 @@ kind: Kustomization
 # No namespace transform: every resource self-namespaces monitoring. (Config objects for the
 # kube-prometheus-stack HelmRelease's grafana + alertmanager components + their NPs/ingress.)
 resources:
-  # Network policies + PDB (formerly base/)
+  # Network policies + PDB
   - grafana-networkpolicy.yaml
   - kube-state-metrics-networkpolicy.yaml
   - prometheus-operator-networkpolicy.yaml

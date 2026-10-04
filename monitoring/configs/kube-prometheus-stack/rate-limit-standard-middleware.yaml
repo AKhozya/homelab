@@ -12,7 +12,6 @@ spec:
     average: 100
     period: 1m
     burst: 150
-    # Rate limit based on client IP
     sourceCriterion:
       ipStrategy:
         depth: 0

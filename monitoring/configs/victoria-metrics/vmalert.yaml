@@ -5,19 +5,21 @@ metadata:
   namespace: monitoring
 spec:
   priorityClassName: homelab-critical
-  # Query metrics from VMSingle
   datasource:
     url: "http://vmsingle-vmsingle.monitoring.svc:8429"
-  # Write recording rule results to VMSingle
+  # The repo has no recording rules, but vmalert still writes its ALERTS and
+  # ALERTS_FOR_STATE series here. If remoteWrite is unset, ALERTS{} queries return nothing.
   remoteWrite:
     url: "http://vmsingle-vmsingle.monitoring.svc:8429"
-  # Send alerts to BOTH Alertmanager replicas by pod FQDN — a single service URL
-  # pins one endpoint (kube-proxy sticky conn), leaving the other replica with zero
-  # alert state (found 2026-07-04: alertmanager-0 dark, HA theater). AM gossip dedupes.
+  # Send alerts to both Alertmanager replicas by pod FQDN. A single Service URL keeps one
+  # kept-alive connection, which kube-proxy routes to one pod, so the other replica holds
+  # no alerts (seen 2026-07-04: alertmanager-0 had none). Alertmanager gossip removes
+  # duplicate notifications.
   notifiers:
     - url: "http://alertmanager-kube-prometheus-stack-alertmanager-0.alertmanager-operated.monitoring.svc:9093"
     - url: "http://alertmanager-kube-prometheus-stack-alertmanager-1.alertmanager-operated.monitoring.svc:9093"
-  # Select all VMRules from all namespaces
+  # {} matches every VMRule in every namespace. If both selectors are unset, the operator
+  # selects no VMRules (selectAllByDefault is unset here).
   ruleNamespaceSelector: {}
   ruleSelector: {}
   evaluationInterval: "60s"
