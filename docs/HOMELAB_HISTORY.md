@@ -56,7 +56,7 @@ A repo-wide pass judged every code comment against the code it covers. Agents re
 | `ufw-heal-watchdog.service` claimed exit 1 does not fail the unit; nothing set that, and the operator chose to keep the alert | `ce12d016` |
 | the rustdesk Service annotation and the networking map said servicelb advertises .126; it advertises only .129 | `78dacdd9` |
 
-Open: `ufw-heal-post-k3s.sh` and `firewall-preflight.sh` disagree on whether `nft monitor` reports kube-proxy churn. A measurement on a node would settle it.
+`ufw-heal-post-k3s.sh` and `firewall-preflight.sh` disagreed on how `nft monitor` behaves. In 30 days of phase-a logs on W1, W2 and the CP, its count varies between 0 and several hundred in back-to-back windows while the sampled UFW chain hash stays the same. Both comments now state that measurement.
 
 ### 2026-10-04 — LAN outage: the router lost power, 16:39 to 21:19 BST
 
