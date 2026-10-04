@@ -248,10 +248,10 @@ spec:
             receiver: 'telegram-backup'
             continue: false
         inhibit_rules:
-          # NodeDown inhibit removed 2026-07-25: it never matched. NodeDown comes from
-          # up{job="...node-exporter"}, whose `instance` is 192.168.1.x:9100, while the
-          # pod/container alerts it was meant to suppress carry kube-state-metrics'
-          # instance (10.42.x.x:8080) — equal:[instance] can never be satisfied.
+          # No NodeDown inhibit (cut 2026-07-25): equal:[instance] never matches.
+          # NodeDown's instance is the node IP and port (192.168.1.x:9100).
+          # The pod alerts carry the kube-state-metrics pod IP and port (10.42.x.x:8080).
+          # NodeDown also has no node label (live up{} series, 2026-10-04).
           - source_matchers:
               - severity = critical
             target_matchers:
