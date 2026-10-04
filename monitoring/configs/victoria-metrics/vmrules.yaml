@@ -997,7 +997,7 @@ spec:
         description: "up{job=\"vmagent-vmagent\"} has been absent for 10m. Nothing is confirming that metrics are still
           being ingested; most other alerts will fall silent rather than fire while this is true."
 
-    # Weak-surface backstop (2026-06-15): vm-operator's :8081 health probe is independent of its :8080
+    # Added 2026-06-15: vm-operator's :8081 health probe is independent of its :8080
     # reconcile/metrics surface, so the loop can wedge while the pod stays Ready. ScrapeTargetDown only
     # catches a full :8080 outage (up==0); this catches "up but not reconciling". Baseline rate is a
     # steady ~0.05/s (never 0 over 6h observed), so ==0 for 30m is low-false-positive. sum() (not by job)
@@ -1563,8 +1563,8 @@ spec:
       # `or vector(0)`: if every redis pod is down, redis_up disappears and count() over the
       # empty vector returns no series, so `== 0` alone never fires in a total outage.
       expr: (count(redis_up{namespace="databases", job=~".*redis-replication.*"} == 1) or vector(0)) == 0
-      # 5m, raised from 1m for the same reason as RedisHASentinelQuorumLost: with
-      # `or vector(0)` a scrape gap reads as "all down", so a short absence must not page.
+      # 5m, not 1m: with `or vector(0)` a scrape gap reads as "all down", so a short absence
+      # must not page.
       for: 5m
       labels:
         severity: critical

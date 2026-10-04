@@ -18,8 +18,8 @@ chains are set in the HelmRelease values, not here.
 | `grafana.h0melab.work` | Grafana | redirect-https · security-headers · rate-limit-standard · csp |
 | `am.h0melab.work` | Alertmanager | redirect-https · security-headers · rate-limit-standard · **basic-auth** · csp |
 
-Alertmanager's basic-auth sits after rate-limit on purpose: a 401 short-circuits the
-chain, so auth placed earlier would leave brute-force attempts unthrottled.
+Alertmanager's basic-auth sits after rate-limit: a 401 ends the chain, so auth placed
+earlier would leave brute-force attempts unthrottled.
 
 Certificates come from cert-manager over DNS-01 (`grafana-certificate.yaml`,
 `alertmanager-certificate.yaml`). Both are LAN-only: the SOPS-encrypted tunnel config has
@@ -45,7 +45,7 @@ kubectl get secret -n monitoring grafana-admin-secret -o jsonpath='{.data.admin-
 | File | Scope |
 |---|---|
 | `grafana-networkpolicy.yaml` | ingress from any namespace on 3000; egress to DNS, the K8s API (dashboard sidecar), VictoriaMetrics, Alertmanager, Loki, and plugin downloads |
-| `alertmanager-networkpolicy.yaml` | ingress on 9093 from the `monitoring`, `loki`, `uptime-kuma` and `traefik` namespaces, plus cluster gossip on 9094; egress to DNS, gossip, and webhook notifications |
+| `alertmanager-networkpolicy.yaml` | ingress on 9093 from the `monitoring`, `loki`, `uptime-kuma` and `traefik` namespaces and from `10.42.0.0/32` (the API server service proxy), plus gossip on 9094 between Alertmanager pods; egress to DNS, gossip, and webhook notifications |
 | `kube-state-metrics-networkpolicy.yaml` | metrics scrape only |
 | `prometheus-operator-networkpolicy.yaml` | ingress on 10250 from any source (metrics scrape, and the admission webhook the API server calls); egress to DNS and the K8s API |
 

@@ -14,9 +14,8 @@ spec:
     - Egress
   ingress:
     # Port 10250 (https) serves BOTH operator metrics (scraped by VMAgent) AND the
-    # admission webhook (called by the API server, whose source IPs vary across
-    # control-plane nodes). Allow all sources on this single port — same pattern as
-    # cnpg-operator-policy's webhook rule.
+    # admission webhook (called by the API server, whose source IP varies). Allow all
+    # sources on this single port — same pattern as cnpg-operator-policy's webhook rule.
     - ports:
         - protocol: TCP
           port: 10250

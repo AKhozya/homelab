@@ -215,7 +215,7 @@ spec:
       ports:
         - protocol: UDP
           port: 53
-    # VMSingle (datasource queries)
+    # VMSingle (datasource queries and remoteWrite)
     - to:
         - podSelector:
             matchLabels:

@@ -47,7 +47,6 @@ spec:
                       seccompProfile:
                         type: RuntimeDefault
   values:
-    # DaemonSet: one log reader per node.
     controller:
       type: daemonset
       priorityClassName: homelab-standard
@@ -105,7 +104,6 @@ spec:
             }
           }
 
-          // Add namespace, pod, container, app labels from pod metadata
           discovery.relabel "pods" {
             targets = discovery.kubernetes.pods.targets
 
@@ -131,7 +129,6 @@ spec:
             }
           }
 
-          // Tail container logs via Kubernetes API
           loki.source.kubernetes "pods" {
             targets    = discovery.relabel.pods.output
             forward_to = [loki.process.pipeline.receiver]
@@ -178,7 +175,6 @@ spec:
             forward_to = [loki.write.default.receiver]
           }
 
-          // Push to Loki
           loki.write "default" {
             endpoint {
               url = "http://loki-gateway.loki.svc.cluster.local/loki/api/v1/push"

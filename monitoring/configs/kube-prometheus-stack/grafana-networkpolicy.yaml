@@ -16,7 +16,7 @@ spec:
         - namespaceSelector: {}
       ports:
         - protocol: TCP
-          port: 3000  # Grafana default port
+          port: 3000
   egress:
     # DNS
     - to:

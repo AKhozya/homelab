@@ -291,7 +291,7 @@ spec:
           - bot_token_file: /etc/alertmanager/secrets/alertmanager-telegram/bot_token
             chat_id_file: /etc/alertmanager/secrets/alertmanager-telegram/chat_id
             parse_mode: 'HTML'
-            # Limit to 5 alerts max to avoid Telegram 4096 char limit truncation
+            # Same 5-alert cap as the telegram receiver above.
             message: |
               💾 {{ if eq .Status "firing" }}🔥 <b>BACKUP FIRING</b>{{ else }}✅ <b>BACKUP RESOLVED</b>{{ end }} · {{ len .Alerts }} alert{{ if gt (len .Alerts) 1 }}s{{ end }}
               {{ range $i, $a := .Alerts }}{{ if lt $i 5 }}
