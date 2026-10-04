@@ -35,7 +35,6 @@ spec:
         !(request.namespace == 'monitoring' &&
         object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') == 'prometheus-node-exporter')
   validations:
-    # =() soft-anchor parity: absent field passes, present must be false.
     - expression: >-
         object.spec.?hostNetwork.orValue(false) == false &&
         object.spec.?hostPID.orValue(false) == false &&

@@ -6,23 +6,23 @@ metadata:
 spec:
   priorityClassName: homelab-critical  # critical tier (DB outranks standard/batch under node pressure)
   instances: 2  # 1 primary + 1 replica on worker node only
-  # Grace period before failover on a failed primary probe (default 0 = instant). Filters the
-  # transient-blip class: 2026-06-04 the operator (leader on wn2, flaky VXLAN) shot the HEALTHY
-  # W1 primary on a probe blip -> spurious failover into the broken node. 30s rides out 1-10s
-  # blips; costs +30s RTO on genuine primary death (rare, acceptable). Sustained flakiness
-  # exceeds any sane delay -> see operator nodeAffinity in controllers/databases/postgres.
+  # Wait 30s before failover on a failed primary probe (default 0 = instant). On 2026-06-04
+  # the operator leader on worker-node-2, whose VXLAN was flaky, failed over from a healthy
+  # worker-node primary to worker-node-2 after one probe blip. 30s covers 1-10s blips and
+  # adds 30s to recovery if the primary really dies. A longer delay cannot cover sustained
+  # flakiness: see the operator nodeAffinity in
+  # infrastructure/controllers/databases/postgres/release.yaml.
   failoverDelay: 30
   inheritedMetadata:
     labels:
       release: kube-prometheus-stack
   imageName: ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie
-  # false: the PgBouncer Pooler does NOT need this — the operator creates
-  # cnpg_pooler_pgbouncer via local instance-manager SQL and PgBouncer auths
+  # false: the PgBouncer Pooler does not need the postgres superuser. The operator creates
+  # cnpg_pooler_pgbouncer through local instance-manager SQL, and PgBouncer authenticates
   # with an operator-issued TLS client cert (CNPG 1.30 connection_pooling docs).
-  # Leaving it true kept a live `postgres` superuser Secret that nothing
-  # consumes and no rotation tracked. Disabling makes CNPG blank the postgres
-  # password + delete the secret (SQL, no pod restart). Maintenance still uses
-  # the managed postgres-admin role and local peer auth via `kubectl exec`.
+  # If enableSuperuserAccess is false, CNPG blanks the postgres password and deletes its
+  # Secret (SQL, no pod restart). Maintenance uses the managed postgres-admin role and
+  # local peer auth via `kubectl exec`.
   enableSuperuserAccess: false
 
   # Worker nodes only - control-plane has NoSchedule taint
@@ -40,7 +40,7 @@ spec:
   storage:
     size: 10Gi
     storageClass: "local-path"
-  monitoring: {}  # Metrics handled by manually managed PodMonitor (see podmonitor.yaml)
+  monitoring: {}  # Scraped by VMPodScrape postgres in monitoring/configs/victoria-metrics/scrape-databases.yaml
   bootstrap:
     initdb:
       database: postgres

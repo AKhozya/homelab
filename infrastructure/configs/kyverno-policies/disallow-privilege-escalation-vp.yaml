@@ -19,13 +19,13 @@ spec:
         operations: ["CREATE", "UPDATE"]
         resources: ["pods"]
   matchConditions:
-    # databases: operator/CRD/Helm pods (redis-operator, redis CRD, couchdb, Percona
-    # main-mysql) — spec not editable.
-    # `percona-mysql` removed 2026-07-26: the namespace holds only `ps-operator`, and the
-    # pinned ps-operator-1.2.0 chart already sets allowPrivilegeEscalation: false. If a
-    # future chart bump drops it the HelmRelease will fail to apply — loud, and worth
-    # knowing. Its `require-drop-all-capabilities` exclude stays: the operator does not
-    # drop ALL.
+    # databases: operator-, CRD- and Helm-managed pods (redis-operator, the redis CRD,
+    # couchdb, Percona main-mysql) whose spec this repo cannot edit.
+    # `percona-mysql` is not excluded (since 2026-07-26): it holds only `ps-operator`, and
+    # the pinned ps-operator-1.2.0 chart sets allowPrivilegeEscalation: false. If a chart
+    # bump drops that, Kyverno denies the ps-operator workload, so the change cannot pass
+    # unnoticed. `require-drop-all-capabilities` still excludes percona-mysql, because the
+    # operator does not drop ALL.
     - name: exclude-namespaces
       expression: >-
         !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
@@ -41,9 +41,9 @@ spec:
         !(request.namespace == 'monitoring' &&
         object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') == 'prometheus-node-exporter')
   validations:
-    # Container-set parity (Design rule 3b): containers HARD + initContainers/
-    # ephemeralContainers soft at list level; inner securityContext HARD-anchored
-    # (missing securityContext or missing field = fail → orValue(true) fails).
+    # Every entry in containers must set allowPrivilegeEscalation: false; initContainers
+    # and ephemeralContainers are checked only if present. A missing securityContext or
+    # field fails.
     # The ephemeralContainers clause is REPORT-ONLY, not enforced: matchConstraints binds
     # `resources: ["pods"]`, but kubectl debug adds a container through the
     # pods/ephemeralcontainers SUBRESOURCE, which a pods-scoped webhook never receives.

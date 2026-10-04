@@ -6,12 +6,12 @@ metadata:
 spec:
   headers:
     customResponseHeaders:
-      # GLOBAL DEFAULT CSP — INVERTED to the safe inline tier 2026-06-04 (was permissive with 'unsafe-eval').
-      # A new app whose ingress chain lists `traefik-csp` inherits THIS: script-src 'self' 'unsafe-inline' — NO eval.
-      # Apps that genuinely need eval/wasm must EXPLICITLY opt into `csp-permissive-enforced`; stricter = `csp-strict-enforced`.
-      # Body is identical to `csp-inline-enforced` (the explicit-inline alias used by
-      # paperless/homepage/mealie/homehub/audiobookshelf) — collapse candidate, kept separate so the default has a stable `csp` name.
-      # report-uri omitted: csp-reporter is cluster-internal HTTP, unreachable from a browser (was Mixed-Content noise).
+      # Global default CSP: script-src 'self' 'unsafe-inline', no eval (since 2026-06-04).
+      # A new app whose ingress chain lists `traefik-csp` gets this. An app that needs eval or wasm
+      # must opt into `csp-permissive-enforced`; the stricter option is `csp-strict-enforced`.
+      # The body matches `csp-inline-enforced` (paperless/homepage/mealie/homehub/audiobookshelf).
+      # It stays a separate middleware so the default keeps the stable name `csp`.
+      # No report-uri: csp-reporter is cluster-internal HTTP, which a browser cannot reach.
       Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';
         img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self'
         blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'
@@ -41,7 +41,8 @@ spec:
   headers:
     customResponseHeaders:
       # This policy matches the default `csp`.
-      # Applied to paperless-ngx: Angular UI emits inline scripts (browser-verified 2026-06-04, no eval needed).
+      # Applied to paperless-ngx, homepage, mealie, homehub and audiobookshelf. paperless-ngx's
+      # Angular UI emits inline scripts (browser-verified 2026-06-04, no eval needed).
       # report-uri omitted: csp-reporter is cluster-internal HTTP, unreachable from a browser (Mixed-Content).
       Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';
         img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self'
@@ -56,11 +57,10 @@ metadata:
 spec:
   headers:
     customResponseHeaders:
-      # Permissive enforced CSP — script-src 'self' 'unsafe-inline' 'unsafe-eval'. EXPLICIT eval/wasm opt-in.
-      # For apps browser-confirmed (2026-06-04) to need eval/wasm: authentik, linkwarden, n8n (expression eval),
-      # stirling-pdf (PDF wasm) + immich, home-assistant, pricebuddy, uptime-kuma (Tier-C, eval/wasm-needing).
-      # This is the policy the global `csp` default carried until 2026-06-04, when `csp` was INVERTED to the safe
-      # inline tier so a newly-added app can't silently inherit 'unsafe-eval'. Eval now requires opting into THIS.
+      # Permissive enforced CSP: script-src 'self' 'unsafe-inline' 'unsafe-eval'. An app opts in explicitly.
+      # Users: authentik, linkwarden, n8n (expression eval), stirling-pdf (PDF wasm), browser-confirmed
+      # 2026-06-04; also immich, home-assistant, pricebuddy, uptime-kuma, which need eval or wasm.
+      # The default `csp` dropped eval on 2026-06-04, so a new app cannot inherit it by accident.
       Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self'
         'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:;
         worker-src 'self' blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'

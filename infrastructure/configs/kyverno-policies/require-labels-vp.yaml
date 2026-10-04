@@ -26,7 +26,6 @@ spec:
         !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
         'flux-system', 'kyverno'])
   validations:
-    # Hard-anchor parity (UR2 P3-3): label must exist AND be non-empty.
     - expression: >-
         object.metadata.?labels[?'app'].orValue('') != '' ||
         object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') != ''

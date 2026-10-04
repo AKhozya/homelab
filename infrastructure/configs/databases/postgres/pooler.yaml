@@ -14,7 +14,7 @@ spec:
     rollingUpdate:
       maxSurge: 0
       maxUnavailable: 1
-  type: rw      # Read-write pooler
+  type: rw
   pgbouncer:
     poolMode: transaction  # Transaction pooling (works with most apps)
     parameters:

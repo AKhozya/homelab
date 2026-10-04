@@ -24,16 +24,12 @@ spec:
       expression: >-
         !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
         'flux-system', 'kyverno'])
-    # Replaces whole-namespace excludes for monitoring, loki, databases, immich and
-    # backup-replication. All five enforce PSS `privileged` because their hostPath
-    # workloads require it, so Pod Security Admission does not guard them either —
-    # between the two, every pod in those namespaces could mount any host path.
-    # Verified 2026-07-26 by server dry-run: an innocent pod plus an injected hostPath
-    # was admitted in all five, and denied in home-assistant, which is also `privileged`
-    # but was never excluded here.
-    #
-    # `couchdb` was in the old namespace list; that namespace no longer exists. CouchDB
-    # runs in `databases`.
+    # Per-workload excludes, not whole namespaces. monitoring, loki, databases, immich and
+    # backup-replication all enforce PSS `privileged` for their hostPath workloads, so Pod
+    # Security Admission does not guard them. A namespace-wide exclude here let any pod
+    # there mount any host path. Verified 2026-07-26 by server dry-run: a plain pod with an
+    # added hostPath was admitted in all five, and denied in home-assistant, which is also
+    # `privileged` but was never excluded here.
     #
     # These are POD labels. Autogen rewrites `object.metadata` to the pod-template path in
     # its controller clones (`object.spec.template.metadata.labels`, and

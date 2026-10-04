@@ -59,9 +59,10 @@ spec:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
         effect: NoSchedule
-    # orchestrator.configuration takes a JSON object string. Operator 1.2.0 merges it into the
-    # orchestrator ConfigMap but silently skips the keys it owns (RaftNodes, TLS paths, failover
-    # hooks): reservedOrchestratorConfigKeys in pkg/orchestrator/orchestrator.go, tag v1.2.0 of
+    # orchestrator.configuration is not set. If you add it, it takes a JSON object string.
+    # Operator 1.2.0 merges it into the orchestrator ConfigMap but silently skips the keys it
+    # owns (RaftNodes, TLS paths, failover hooks): reservedOrchestratorConfigKeys in
+    # pkg/orchestrator/orchestrator.go, tag v1.2.0 of
     # https://github.com/percona/percona-server-mysql-operator
 
   # Backup configuration (required even if not using backups)
@@ -118,12 +119,12 @@ spec:
       periodSeconds: 10
       timeoutSeconds: 43200  # 12 hours for clone operations
     readinessProbe:
-      failureThreshold: 6     # Increased from 3 - more tolerance during recovery
+      failureThreshold: 6
       initialDelaySeconds: 30
       periodSeconds: 10       # Increased from 5 - less aggressive probing
       timeoutSeconds: 5
     livenessProbe:
-      failureThreshold: 6     # Increased from 3 - prevent premature kills
+      failureThreshold: 6
       initialDelaySeconds: 300  # 5 min - allow time for recovery
       periodSeconds: 10
       timeoutSeconds: 5
@@ -131,9 +132,8 @@ spec:
     podDisruptionBudget:
       minAvailable: 1
 
-    # Resources - optimized for homelab (10MB actual data)
-    # MySQL 8.4 base memory ~400-500MB + 512MB buffer pool = ~1GB typical
-    # 1.5GB limit gives ~500MB headroom for growth
+    # MySQL 8.4 base memory is about 400-500MB, plus the 256MB buffer pool set in
+    # configuration below. The 1536Mi limit leaves headroom above that.
     resources:
       requests:
         cpu: "100m"
@@ -204,11 +204,10 @@ spec:
           cpu: "500m"
           memory: "128Mi"
 
-      # mysql-monit sidecar previously ran on databases-ns LimitRange defaults (1 CPU/1Gi
-      # injected at pod admission) — template itself had no limits, which the CEL
-      # ValidatingPolicy flags at controller level (the retired ClusterPolicy never did:
-      # selector-based excludes suppress Kyverno autogen). Explicit modest values; it is
-      # a lightweight health-check loop (right-sizing pass 2026-07-06 may tune further).
+      # The operator's template gives mysql-monit no limits. Without these values it gets
+      # the databases LimitRange defaults (1 CPU/1Gi) at admission, and
+      # require-resource-limits flags the template. It is a light health-check loop, so
+      # the values are small.
       sidecarResources:
         mysql-monit:
           requests:

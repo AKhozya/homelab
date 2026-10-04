@@ -15,8 +15,6 @@ spec:
         kind: HelmRepository
         name: ot-helm
         namespace: databases
-  # match cnpg-operator HR shape — auto-retry on install/upgrade failure +
-  # remediate-last-failure on upgrade. Parity with other DB operators (cnpg + ps).
   install:
     crds: Create
     remediation:
@@ -46,9 +44,8 @@ spec:
     # critical tier: operator coordinates Redis Sentinel + CR reconcile
     priorityClassName: homelab-critical
 
-    # seccomp RuntimeDefault (UR2-4 soak). Renders to the Deployment's pod-level
-    # securityContext, replacing the postRenderer this needed before the chart grew
-    # the hook — proven render-identical against the patched output.
+    # seccomp RuntimeDefault, set through the chart's podSecurityContext value on the
+    # Deployment's pod-level securityContext.
     podSecurityContext:
       seccompProfile:
         type: RuntimeDefault

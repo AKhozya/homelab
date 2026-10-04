@@ -20,8 +20,9 @@ spec:
         operations: ["CREATE", "UPDATE"]
         resources: ["pods"]
   matchConditions:
-    # Per-namespace rationale in git history (CP require-readonly-rootfs.yaml, deleted Phase 3 2026-07-12) —
-    # operator-managed specs, s6-overlay /run writes, privileged GPU apps, etc.
+    # Namespaces excluded for operator-managed specs, s6-overlay writes to /run, privileged
+    # GPU apps and similar. The per-namespace reasons are in the git history of the deleted
+    # ClusterPolicy require-readonly-rootfs.yaml (2026-07-12).
     - name: exclude-namespaces
       expression: >-
         !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
@@ -39,8 +40,8 @@ spec:
         !(request.namespace == 'monitoring' &&
         object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') == 'grafana')
   validations:
-    # Container-set parity (Design rule 3b): containers HARD + init/ephemeral soft at
-    # list level; readOnlyRootFilesystem HARD inside each (missing → orValue(false) → fail).
+    # Every entry in containers must set readOnlyRootFilesystem: true; initContainers and
+    # ephemeralContainers are checked only if present. A missing field fails.
     # The ephemeralContainers clause is REPORT-ONLY, not enforced: matchConstraints binds
     # `resources: ["pods"]`, but kubectl debug adds a container through the
     # pods/ephemeralcontainers SUBRESOURCE, which a pods-scoped webhook never receives.

@@ -32,7 +32,6 @@ spec:
               MAX_RETRIES=60
               RETRY_COUNT=0
 
-              # First wait for PostgreSQL cluster to be accessible
               until psql -h main-postgres-rw -U postgres-admin -d postgres -c '\q' 2>/dev/null; do
                 RETRY_COUNT=$((RETRY_COUNT + 1))
                 if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
@@ -81,7 +80,6 @@ spec:
               echo "Primary runs '$WANT_VERSION'. Creating extensions..."
 
               psql -v ON_ERROR_STOP=1 -h main-postgres-rw -U postgres-admin -d immich <<-EOSQL
-                -- Create extensions if they don't exist
                 CREATE EXTENSION IF NOT EXISTS vector CASCADE;
                 CREATE EXTENSION IF NOT EXISTS cube CASCADE;
                 CREATE EXTENSION IF NOT EXISTS earthdistance CASCADE;

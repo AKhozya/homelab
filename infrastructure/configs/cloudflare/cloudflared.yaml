@@ -45,8 +45,8 @@ spec:
       - name: sync-tunnel-config
         image: curlimages/curl:8.22.0
         env:
-        # CF_ACCOUNT_ID + CF_TUNNEL_UUID sourced from SOPS-encrypted Secret
-        # (previously hardcoded in command field, which .sops.yaml regex does not cover).
+        # CF_ACCOUNT_ID and CF_TUNNEL_UUID come from a SOPS-encrypted Secret. Do not inline
+        # them in command: .sops.yaml encrypts only data/stringData.
         - name: CF_ACCOUNT_ID
           valueFrom:
             secretKeyRef:

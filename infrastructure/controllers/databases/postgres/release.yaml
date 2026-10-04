@@ -56,9 +56,11 @@ spec:
               matchLabels:
                 app.kubernetes.io/name: cloudnative-pg
             topologyKey: kubernetes.io/hostname
-      # Keep operator (esp. the leader) OFF worker-node-2: 2026-06-04 the leader replica on wn2
-      # probed the healthy W1 primary across wn2's flaky VXLAN -> spurious failover. Soft pref
-      # (weight 100) -> both replicas land CP+W1 in steady state; wn2 still usable if 2 nodes down.
+      # Keep the operator, especially its leader, off worker-node-2. On 2026-06-04 the leader on
+      # worker-node-2 probed the healthy worker-node primary across worker-node-2's flaky VXLAN
+      # and caused a spurious failover. The soft preference (weight 100) favours the control
+      # plane and worker-node, but it does not guarantee placement or keep a replica off
+      # worker-node-2.
       nodeAffinity:
         preferredDuringSchedulingIgnoredDuringExecution:
           - weight: 100

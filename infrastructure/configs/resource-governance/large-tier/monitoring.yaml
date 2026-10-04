@@ -30,7 +30,7 @@ metadata:
   namespace: monitoring
 spec:
   hard:
-    # Increased for HA (Prometheus/Alertmanager 2 replicas)
+    # Sized for HA (Alertmanager runs 2 replicas)
     requests.cpu: "5"
     requests.memory: 10Gi
     limits.cpu: "15"

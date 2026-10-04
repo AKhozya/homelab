@@ -4,8 +4,8 @@ metadata:
   name: coredns
   namespace: kube-system
 data:
-  # Byte-exact copy of the live k3s-addon coredns Corefile (captured 2026-05-31) so Flux can adopt
-  # it without churn while the addon still co-owns it. After --disable, Flux owns it outright.
+  # Started as a byte-exact copy of the k3s-addon Corefile (captured 2026-05-31), so Flux adopted
+  # it without churn. Since --disable=coredns, Flux owns it outright.
   Corefile: |
     .:53 {
         errors

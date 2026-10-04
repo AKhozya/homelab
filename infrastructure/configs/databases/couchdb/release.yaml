@@ -44,7 +44,6 @@ spec:
       tag: "1.38.0"
       pullPolicy: IfNotPresent
 
-    # Init container resources
     initResources:
       requests:
         cpu: 50m
@@ -96,7 +95,6 @@ spec:
       accessModes:
         - ReadWriteOnce
 
-    # Resource limits
     resources:
       requests:
         cpu: 200m
@@ -111,9 +109,9 @@ spec:
 
     enableSearch: false
 
-    # Monitoring: metrics scraped via external ServiceMonitor on port 5984 with basic auth
-    # (the chart key is prometheusPort, not prometheus. The standalone unauthenticated
-    # metrics port stays off — the ServiceMonitor already covers scraping.)
+    # Monitoring: VMServiceScrape couchdb (monitoring/configs/victoria-metrics/scrape-databases.yaml)
+    # scrapes port 5984 with basic auth. The chart key is prometheusPort, not prometheus; its
+    # standalone unauthenticated metrics port stays off.
 
     livenessProbe:
       enabled: true

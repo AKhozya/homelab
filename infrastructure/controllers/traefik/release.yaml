@@ -67,7 +67,6 @@ spec:
       spec:
         type: LoadBalancer
 
-    # Resource limits
     resources:
       requests:
         cpu: 100m

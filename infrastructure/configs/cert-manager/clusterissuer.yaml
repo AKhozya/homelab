@@ -4,8 +4,8 @@ metadata:
   name: letsencrypt-prod
 spec:
   acme:
-    # Let's Encrypt production ACME server (renamed from letsencrypt-staging 2026-07-03 —
-    # it always pointed at prod; the "staging" name was a leftover misnomer).
+    # This issuer has always used production ACME. Before 2026-07-03 it was misnamed
+    # letsencrypt-staging.
     server: https://acme-v02.api.letsencrypt.org/directory
     email: acme@h0melab.work
     privateKeySecretRef:

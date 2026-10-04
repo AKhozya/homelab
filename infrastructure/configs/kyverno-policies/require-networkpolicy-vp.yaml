@@ -1,13 +1,11 @@
-# Sole enforcement since Phase 3 (2026-07-12) — CP twin deleted.
-# Carries BOTH 2026-07-03 namespace-teardown wedge fixes: CREATE/UPDATE-only ops +
-# deletionTimestamp skip (a "require NP present" deny during teardown deadlocks the
-# namespace in Terminating — csp-reporter incident).
-# Direct controller match, autogen OFF (2026-07-12, Codex catch): autogen clones rewrite
-# object.metadata to pod-TEMPLATE metadata (live-verified: skip-terminating became
-# object.spec.template.metadata.deletionTimestamp — vacuously true, never skips), so a
-# terminating controller's finalizer UPDATE lost the CP's request.object protection.
-# Matching controllers in the BASE policy means no rewrite: object.metadata is always the
-# admission object's own metadata, so the skip works for every kind.
+# Two guards against a namespace teardown deadlock (2026-07-03): the policy matches CREATE
+# and UPDATE only, and it skips objects with a deletionTimestamp. A "require NetworkPolicy"
+# deny during teardown leaves the namespace stuck in Terminating.
+# Autogen is off and the policy matches controllers directly (2026-07-12). Autogen clones
+# rewrite object.metadata to the pod template's metadata, so skip-terminating read
+# object.spec.template.metadata.deletionTimestamp and never fired (verified live). Matched
+# directly, object.metadata is the admission object's own metadata, so the skip works for
+# every kind.
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:

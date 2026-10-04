@@ -118,10 +118,10 @@ spec:
         - protocol: TCP
           port: 3306
 ---
-# Second exporter targeting the HAProxy reader backend (mysql-replicas, port 3307),
-# which routes to the read-only replica. The primary-only mysql-exporter (3306/writer)
-# returns an empty SHOW REPLICA STATUS, so replica health (SQL/IO threads, lag) was
-# unmonitored — UR2 2026-06-06 removed the dead replication alerts. This restores them.
+# Second exporter, on the HAProxy reader backend (mysql-replicas, port 3307), which routes
+# to the read-only replica. The primary-only mysql-exporter (3306) gets an empty SHOW
+# REPLICA STATUS, so only this exporter reports replica thread state and lag
+# (MySQLReplicationNotRunning, MySQLReplicationLag).
 apiVersion: apps/v1
 kind: Deployment
 metadata:

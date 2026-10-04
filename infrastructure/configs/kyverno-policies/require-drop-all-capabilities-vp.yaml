@@ -19,7 +19,8 @@ spec:
         operations: ["CREATE", "UPDATE"]
         resources: ["pods"]
   matchConditions:
-    # Same exclude set as disallow-privilege-escalation (see that file for rationale).
+    # disallow-privilege-escalation's exclude set plus percona-mysql: ps-operator does not
+    # drop ALL capabilities. That file gives the reason for databases.
     - name: exclude-namespaces
       expression: >-
         !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
@@ -33,8 +34,8 @@ spec:
         !(request.namespace == 'monitoring' &&
         object.metadata.?labels[?'app.kubernetes.io/name'].orValue('') == 'prometheus-node-exporter')
   validations:
-    # Container-set parity (Design rule 3b): containers HARD + init/ephemeral soft at
-    # list level; drop list must CONTAIN 'ALL' (missing chain → orValue([]) → fail).
+    # Every entry in containers must drop ALL; initContainers and ephemeralContainers are
+    # checked only if present. A missing capabilities.drop list fails.
     # The ephemeralContainers clause is REPORT-ONLY, not enforced: matchConstraints binds
     # `resources: ["pods"]`, but kubectl debug adds a container through the
     # pods/ephemeralcontainers SUBRESOURCE, which a pods-scoped webhook never receives.

@@ -62,7 +62,6 @@ spec:
                 path: /spec/template/spec/priorityClassName
                 value: homelab-standard
   values:
-    # Admission controller configuration
     # HA: 2 replicas for webhook availability during node reboots
     admissionController:
       replicas: 2
@@ -74,8 +73,8 @@ spec:
           operator: Exists
           effect: NoSchedule
 
-      # Rolling update strategy: delete old pod before creating new
-      # Required with 2 replicas + required anti-affinity on 2 worker nodes
+      # Delete the old pod before creating the new one (maxSurge 0). Hard anti-affinity allows
+      # one pod per node, so a surge pod needs a spare eligible node.
       updateStrategy:
         type: RollingUpdate
         rollingUpdate:
@@ -116,7 +115,6 @@ spec:
           seccompProfile:
             type: RuntimeDefault
 
-      # Service monitor for Prometheus
       serviceMonitor:
         enabled: true
         interval: 60s
@@ -129,7 +127,6 @@ spec:
       replicas: 1
       revisionHistoryLimit: 2
 
-      # Resource limits
       resources:
         requests:
           cpu: 50m
@@ -138,7 +135,6 @@ spec:
           cpu: 300m
           memory: 256Mi
 
-      # Security context
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -162,7 +158,6 @@ spec:
       replicas: 1
       revisionHistoryLimit: 2
 
-      # Resource limits
       # Peak usage: 120Mi (was hitting 93% of 128Mi limit)
       resources:
         requests:
@@ -172,7 +167,6 @@ spec:
           cpu: 200m
           memory: 256Mi
 
-      # Security context
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -196,19 +190,18 @@ spec:
       replicas: 1
       revisionHistoryLimit: 2
 
-      # Resource limits
       # Peak usage: 206Mi (was hitting 81% of 256Mi limit)
       resources:
         requests:
           cpu: 50m
           memory: 192Mi
         limits:
-          # 500m->800m (2026-07-13): post-VP-migration hourly background-scan spikes
-          # still throttle to 48% at 500m (avg fine at ~11%); stale-polr risk
+          # 800m since 2026-07-13: after the move to ValidatingPolicies, the hourly background
+          # scan still throttled to 48% at 500m (average about 11%). Throttling risks stale
+          # PolicyReports.
           cpu: 800m
           memory: 384Mi
 
-      # Security context
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
@@ -228,11 +221,9 @@ spec:
 
     # Feature flags
     features:
-      # Generate policy reports in background
       policyReports:
         enabled: true
 
-      # Admission reports for real-time validation
       admissionReports:
         enabled: true
 
@@ -251,5 +242,4 @@ spec:
       resourceFiltersIncludeNamespaces:
         - flux-system
 
-      # Webhook configuration
       webhookAnnotations: {}

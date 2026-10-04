@@ -5,10 +5,9 @@ metadata:
   namespace: traefik
 spec:
   rateLimit:
-    # Standard rate limit for normal web apps: 300 req/min per client IP.
-    # `average` is per `period` — WITHOUT period it defaults to 1s, which
-    # silently made the old "100/min" comment enforce 100/SECOND (6000/min).
-    # Calibrated 2026-07-03: standard-tier 7d peak ≤~100/min → 3x headroom.
+    # 300 req/min per client IP, for normal web apps. `average` is per
+    # `period`; if period is omitted, it defaults to 1s, so keep period set.
+    # Calibrated 2026-07-03: standard-tier 7d peak at most ~100/min, so 3x headroom.
     average: 300
     period: 1m
     burst: 150

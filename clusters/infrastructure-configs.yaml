@@ -5,8 +5,9 @@ metadata:
   namespace: flux-system
 spec:
   interval: 1m0s
-  # 2m (was 45s): cnpg-operator cold-start on reboot (image pull + CRD + pod ready) can exceed
-  # 45s, false-failing this health-gated reconcile and churning dependents. UR2 P3-1.
+  # 2m: on reboot the cnpg-operator cold start (image pull, CRD, pod ready) can exceed
+  # the former 45s timeout, which fails this health-gated reconcile falsely and churns
+  # its dependents.
   timeout: 2m
   dependsOn:
     - name: infrastructure-controllers

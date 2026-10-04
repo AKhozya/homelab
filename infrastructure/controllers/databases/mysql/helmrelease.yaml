@@ -43,7 +43,7 @@ spec:
               - op: add
                 path: /spec/revisionHistoryLimit
                 value: 2
-          # seccomp RuntimeDefault (UR2-4 soak) — chart 1.2.0 has no securityContext hook.
+          # seccomp RuntimeDefault by patch: chart 1.2.0 has no value for the pod securityContext.
           - target:
               kind: Deployment
               name: ps-operator
@@ -59,8 +59,8 @@ spec:
                       seccompProfile:
                         type: RuntimeDefault
   values:
-    # Operator runs in percona-mysql namespace
-    # Watches all namespaces for PerconaServerForMySQL CRs
+    # The operator runs in percona-mysql and watches all namespaces for PerconaServerMySQL CRs
+    # (the cluster is in databases).
     watchAllNamespaces: true
 
     # Resource limits for Kyverno compliance

@@ -9,14 +9,14 @@ spec:
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
-  concurrencyPolicy: Forbid  # Don't run concurrent backups
+  concurrencyPolicy: Forbid
   jobTemplate:
     spec:
       # No retry. Each attempt writes a new /backup/<timestamp> dir, and the usual failure
       # (a PVC missing from worker-node) repeats on every attempt, so retries only add
       # generations that backup-replication then has to sync.
       backoffLimit: 0
-      ttlSecondsAfterFinished: 86400  # Keep job for 24h for debugging
+      ttlSecondsAfterFinished: 86400
       template:
         metadata:
           labels:
@@ -69,8 +69,6 @@ spec:
                   echo "=== PVC Backup Started ==="
                   echo "Timestamp: $(date)"
 
-                  # No additional tools needed (tar and gzip built-in)
-
                   TIMESTAMP=$(date +%Y%m%d_%H%M%S)
                   BACKUP_ROOT="/backup/$TIMESTAMP"
                   mkdir -p "$BACKUP_ROOT"
@@ -83,7 +81,7 @@ spec:
                   #   - CouchDB / PostgreSQL / MySQL data dirs — DB-native dumps (separate CronJobs)
                   #   - immich/immich-library — weekly via immich-backup CronJob (63G, too big for daily)
                   #   - immich/immich-ml-cache — regenerable ML cache (on immich-vm since 2026-09-06)
-                  #   - uptime-kuma — removed 2026-05-22 (UK switched to emptyDir, state lives in MySQL)
+                  #   - uptime-kuma — no PVC; its state lives in MySQL (emptyDir since 2026-05-22)
                   #   - claude-telegram/claude-telegram-home-pvc — expendable (session-only state,
                   #     bot self-rebuilds on restart, secrets live in SOPS)
                   #   - loki/storage-loki-0, monitoring/vmsingle-vmsingle — log/metric buffers, ephemeral
@@ -233,7 +231,6 @@ spec:
                     fi
                   done
 
-                  # Calculate total size
                   total_size=$(du -sb "$BACKUP_ROOT" 2>/dev/null | cut -f1 || echo "0")
 
                   echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -304,10 +301,10 @@ spec:
               resources:
                 requests:
                   cpu: "500m"
-                  memory: "256Mi"  # Increased from 32Mi for 60GB+ backup operations
+                  memory: "256Mi"
                 limits:
                   cpu: "2000m"
-                  memory: "512Mi"  # Increased from 64Mi to prevent OOMKills during tar/gzip
+                  memory: "512Mi"  # 64Mi risked OOM kills during tar/gzip
           volumes:
             - name: k8s-storage
               hostPath:

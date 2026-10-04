@@ -19,17 +19,18 @@ spec:
         operations: ["CREATE", "UPDATE"]
         resources: ["pods"]
   matchConditions:
-    # Per-namespace rationale in git history (CP require-non-root.yaml, deleted Phase 3 2026-07-12).
+    # The per-namespace reasons are in the git history of the deleted ClusterPolicy
+    # require-non-root.yaml (2026-07-12).
     - name: exclude-namespaces
       expression: >-
         !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease',
         'flux-system', 'kyverno', 'databases', 'mealie', 'home-assistant',
         'pricebuddy', 'stirling-pdf', 'loki', 'backup-replication', 'paperless-ngx'])
   validations:
-    # anyPattern parity — 4 DISTINCT branches, not mixable: a pod with one container
-    # using runAsNonRoot and another using runAsUser fails the CP (each branch must
-    # match ALL containers) and must fail here too. Inner securityContext HARD-anchored
-    # (UR2 P3-4); initContainers soft at list level.
+    # If neither pod-level setting passes, every container and init container must pass the
+    # same container-level branch: a pod where one container sets runAsNonRoot and another
+    # sets runAsUser fails. A container with no securityContext fails both container-level
+    # branches. If initContainers are absent, their checks pass.
     - expression: >-
         object.spec.?securityContext.?runAsNonRoot.orValue(false) == true ||
         object.spec.?securityContext.?runAsUser.orValue(0) > 0 ||

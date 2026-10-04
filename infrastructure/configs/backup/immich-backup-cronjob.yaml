@@ -82,10 +82,10 @@ spec:
                   rm -rf "$WIP" "$STAGING"
                   mkdir -p "$WIP" "$STAGING"
 
-                  # Remove a partial dir from the NAS pool on failure (parent-scoped husk-delete:
-                  # removes /<name>/** AND its shell; siblings protected by --exclude='*'). This
-                  # is the proven idiom from backup-replication — a partial pool dir must not
-                  # pollute the pool keep-2 window.
+                  # If the push or the check fails, remove this run's partial dir from the NAS pool, so it never
+                  # counts as one of the two sets that keep-2 keeps. Syncing an empty dir into
+                  # the parent with --delete removes the target dir and its contents;
+                  # --exclude='*' protects its siblings. backup-replication prunes the same way.
                   cleanup_pool_partial() {
                     local rc=0
                     mkdir -p /tmp/empty
@@ -134,9 +134,9 @@ spec:
                   #    Only now does a complete, dated W2 copy exist (1st physical copy, on a node).
                   mv "$WIP" "$BACKUP_ROOT"
 
-                  # 6) Push the tar dir to the NAS akhozya-pool1 history pool = 2nd physical copy
-                  #    on a DIFFERENT filesystem than personal_folder/library (non-circular, D6).
-                  #    On any push/verify failure, remove the partial pool dir.
+                  # 6) Push the tar dir to the NAS akhozya-pool1 history pool: the second physical
+                  #    copy, on a different filesystem from the live library in personal_folder.
+                  #    If the push or the check fails, remove the partial pool dir.
                   echo "=== Push tar to NAS akhozya-pool1 pool ==="
                   if ! RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync -a --port=50555 \
                        "$BACKUP_ROOT/" "${POOL}/${TIMESTAMP}/"; then

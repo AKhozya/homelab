@@ -1,6 +1,6 @@
 # CEL ValidatingPolicy — sole policy engine since 2026-07-12 (migrated from the require-resource-limits ClusterPolicy).
-# One VP, two validations (cpu/memory) — mirrors the CP's two rules with separate
-# messages + report results (parity Class 3 counts on this).
+# One policy, two validations (cpu and memory), so each gets its own message and report
+# result.
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:
@@ -37,9 +37,9 @@ spec:
         !(request.namespace == 'monitoring' &&
         object.metadata.?labels[?'managed-by'].orValue('') == 'vm-operator')
   validations:
-    # containers HARD + initContainers soft at list level; NO ephemeralContainers
-    # (k8s rejects resources on ephemeral containers — API-impossible). Key presence
-    # in limits map == the CP's `cpu: "?*"` (a present Quantity is never empty).
+    # containers must set limits; initContainers too, if present. ephemeralContainers are
+    # skipped: the API rejects resources on them. A key present in limits is enough,
+    # because a present Quantity is never empty.
     - expression: >-
         object.spec.containers.all(c,
         'cpu' in c.?resources.?limits.orValue({})) &&

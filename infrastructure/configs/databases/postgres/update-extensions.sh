@@ -14,11 +14,9 @@ set -e
 
 echo "Updating PostgreSQL extensions in immich database..."
 
+# ON_ERROR_STOP makes psql exit non-zero instead of reporting the error and continuing.
 PSQL="psql -v ON_ERROR_STOP=1 -h main-postgres-rw -U postgres-admin -d immich"
 
-# One psql call per extension, deliberately not a single DO block: a DO block is one
-# transaction, so a final RAISE that fails the job also rolls back every successful ALTER.
-# ON_ERROR_STOP makes psql exit non-zero instead of reporting the error and continuing.
 # If psql fails inside `for ... in $(psql)`, the loop receives an empty word list, does
 # nothing and exits 0. Assign first, so set -e aborts on the failure instead.
 # shellcheck disable=SC2086  # $PSQL holds a command with arguments and must word-split.
@@ -28,6 +26,8 @@ if [ -z "$EXTS" ]; then
   exit 1
 fi
 
+# One psql call per extension, deliberately not a single DO block: a DO block is one
+# transaction, so a final RAISE that fails the job also rolls back every successful ALTER.
 # Read one row per line rather than `for EXT in $EXTS`, which splits on any whitespace inside
 # a quoted extension name. Use a here-doc, because a pipe runs the loop in a subshell and
 # discards its RC assignment.

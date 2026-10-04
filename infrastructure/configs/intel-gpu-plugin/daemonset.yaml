@@ -2,12 +2,12 @@
 # it with NO privileged / NO hostPath on the app pod (PSS-clean). Vendored from upstream
 # intel-device-plugins-for-kubernetes (deployments/gpu_plugin/base/intel-gpu-plugin.yaml).
 #
-# Placement = standalone DaemonSet in kube-system (NOT the operator — the operator overrides pinned
-# images, violating the image-pin invariant). kube-system is already EXCLUDED from disallow-host-path
-# + require-non-root (both ValidatingPolicies), and the plugin natively satisfies the other PSS policies
-# (drop ALL caps, allowPrivilegeEscalation:false, readOnlyRootFilesystem:true, no host namespaces) →
-# ZERO Kyverno edits. The DaemonSet itself needs hostPath (/dev/dri, /sys/class/drm, the kubelet
-# device-plugin socket, CDI) + runs as root — that is why it lives in an excluded ns.
+# Standalone DaemonSet in kube-system, not the operator: the operator overrides pinned images,
+# which breaks the image-pin rule. The DaemonSet needs hostPath (/dev/dri, /sys/class/drm, the
+# kubelet device-plugin socket, CDI) and runs as root. kube-system is excluded from
+# disallow-host-path and require-non-root, and the plugin meets the other pod-security policies
+# as shipped (drop ALL, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, no host
+# namespaces).
 #
 # Deltas vs upstream base: image pinned (Renovate bumps the tag); arg -shared-dev-num=10 (Immich server + ML
 # time-share the single iGPU); nodeSelector binds it to the GPU node via the homelab/gpu=intel label

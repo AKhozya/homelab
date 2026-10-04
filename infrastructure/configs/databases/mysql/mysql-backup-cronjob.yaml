@@ -9,11 +9,11 @@ spec:
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 7
   failedJobsHistoryLimit: 3
-  concurrencyPolicy: Forbid  # Don't run concurrent backups
+  concurrencyPolicy: Forbid
   jobTemplate:
     spec:
       backoffLimit: 2
-      ttlSecondsAfterFinished: 86400  # Keep job for 24h for debugging
+      ttlSecondsAfterFinished: 86400
       template:
         metadata:
           labels:
@@ -143,7 +143,6 @@ spec:
                   $(du -sh $BACKUP_DIR)
                   EOF
 
-                  # Compress backup directory with gzip
                   echo "Compressing backup with gzip..."
                   cd /backup
                   tar -czf "mysql_${TIMESTAMP}.tar.gz" "$TIMESTAMP"
@@ -157,7 +156,6 @@ spec:
 
                   rm -rf "$TIMESTAMP"
 
-                  # List current backups
                   echo ""
                   echo "=== Current Backups ==="
                   ls -lh /backup/mysql_*.tar.gz 2>/dev/null || echo "No backups found"
