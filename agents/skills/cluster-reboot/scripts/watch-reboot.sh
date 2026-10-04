@@ -363,7 +363,7 @@ snapshot() {
         echo "    (reboot run ACTIVE — do NOT reboot the CP manually; let phase2 finish, then re-check.)"
       else
         echo "    REMEDIATE: ssh -t $CP \"sudo reboot\""
-        echo "    (CP loopback wedge → reboot the CP; do NOT 'restart k3s' on the CP — it HANGS)"
+        echo "    (CP loopback wedge → reboot the CP. If the CP API server is unstable, 'restart k3s' can hang.)"
       fi
     fi
   fi

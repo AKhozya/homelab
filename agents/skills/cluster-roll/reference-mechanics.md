@@ -8,13 +8,23 @@ Replaces the dangerous blanket `kubectl rollout restart -A` primitive that casca
 
 The `--dry-run` enumerates **every** live deploy/sts/ds and asserts each maps to a tier or SKIP with a ZERO-orphan cross-check. Preflight runs the same check, so a live roll aborts on an orphan. Fix the map, then re-run.
 
-## Flux-stale-pod → delete-pod fallback (Deployments only)
+## Flux-stale-pod fallback (Deployments only)
 
-**Flux-stale-pod → delete-pod fallback** is baked into the script (**Deployments only**): Flux can
-revert `rollout restart`'s annotation, abandoning the new RS so stale pods survive a "successful"
-rollout; the script detects surviving pod UIDs (`comm -12`) and deletes just those by name.
+On Flux-managed Deployments, Flux drift detection can revert the `restartedAt` annotation that `rollout restart` writes. The Deployment controller then abandons the new RS, and **stale pod(s) survive** a "successful" rollout (same pod name and age). If the Deployment has ≥2 replicas under a PDB, the revert can happen during the rollout, so only *some* pods cycle.
 
-Baked into the script. On Flux-managed Deployments, `rollout restart`'s `restartedAt` annotation can be reverted by Flux drift-detection — the new RS is abandoned and **stale pod(s) survive** (same pod name+age after "rolled out"). With ≥2 replicas under a PDB the revert can land mid-roll, so only *some* pods cycle and the rest stay stale. The script captures the pre-roll pod UIDs and, after a "successful" rollout, checks whether **any** old UID survived into the after-set (set intersection via `comm -12`). If any survived (full- or partial-stale), it deletes **just those surviving stale pods by name** (Flux manages the *Deployment*, not pods → the RS recreates fresh and Flux doesn't fight it), then re-checks `rollout status`. The fallback is gated to `kind == deploy` only — the abandoned-RS rationale is Deployment-specific; DaemonSets (`ds/alloy`, `ds/loki-canary`) and StatefulSets have no RS and are trusted to `rollout status` alone, so a false "did not cycle" never deletes DS pods across all nodes at once.
+The script captures the pre-roll pod UIDs. After the rollout it checks whether **any** old UID is still in the after-set (`comm -12`). If any is, it runs `_shared/restart-workload.sh` on the workload's selector:
+
+| Property | Why it matters here |
+|---|---|
+| deletes one pod at a time and waits for the Ready count to return to baseline | if every replica survived, a loop of `delete pod` would take the workload fully down |
+| refuses if a PDB covering the workload allows no disruption | a direct `delete pod` bypasses the PDB; only the Eviction API honours it |
+| Flux manages the Deployment, not its pods | the RS recreates the deleted pods, and Flux does not revert the deletions |
+
+The script then re-checks the UID intersection and exits with an error if any old pod still runs.
+
+The script runs the fallback only for Deployments (`kind == deploy`). The abandoned-RS failure needs a ReplicaSet. DaemonSets (`ds/alloy`, `ds/loki-canary`) and StatefulSets have none, so the script trusts `rollout status` for them.
+
+Test: `bash tests/test-roll-fallback.sh` (bash ≥4.3) stubs `kubectl` and `restart-workload.sh` and checks the four fallback cases.
 
 ## Authentik → pooler → DNS chain
 

@@ -6,13 +6,13 @@ description: >-
   rollout status + a ClusterIP re-probe on all 4 nodes. Fires when you need to restart
   workloads after a config/secret/DNS change, clear cached Go-resolver/PgBouncer DNS failures, or
   bounce the fleet. NOT for node reboots — use the cluster-reboot skill for that. kubectl-only
-  (+ SSH probe), no sudo. GitOps-safe: rollout restart + delete-pod fallback only, never
-  edit/patch/replace.
+  (+ SSH probe), no sudo. GitOps-safe: rollout restart + a restart-workload.sh fallback only,
+  never edit/patch/replace.
   OPERATOR-ONLY — run from a workstation, not from the claude-telegram bot. It is built on
   `kubectl rollout restart`, and the bot's ServiceAccount lost workload `patch` on 2026-08-06;
   the script calls `die` on the first non-zero restart, so from the bot it aborts on workload one.
-  The delete-pod path inside it is a stale-pod fallback after a SUCCESSFUL restart, not a
-  permission fallback.
+  The restart-workload.sh path inside it is a stale-pod fallback after a SUCCESSFUL restart,
+  not a permission fallback.
 ---
 
 # cluster-roll
@@ -72,8 +72,8 @@ reports an orphan, fix the map before any live roll → `reference-mechanics.md`
 - **Authentik depends on PG pooler (tier 4) + DNS (tier 1).** Rolled in tier 3 after DNS is healthy;
   pooler rerolled in tier 4. If authentik misbehaves post-roll, reroll pooler then authentik →
   `reference-mechanics.md` § Authentik → pooler → DNS chain.
-- If stale pods survive a "successful" rollout, read `reference-mechanics.md` § Flux-stale-pod → delete-pod fallback. Full
-  mechanic + DS/STS exclusion rationale → `reference-mechanics.md` § Flux-stale-pod → delete-pod fallback.
+- If stale pods survive a "successful" rollout, read `reference-mechanics.md` § Flux-stale-pod fallback for the
+  mechanic and the DS/STS exclusion rationale.
 
 ## Flags (tier by NAME, not index)
 - `--dry-run` — print the full ordered plan (every workload → tier or SKIP) + orphan cross-check,
@@ -95,7 +95,7 @@ bash scripts/cluster-roll.sh                      # full ordered roll
 
 ## Cross-refs
 - `/gitops-workflow` — GitOps invariants; cluster-roll uses only operational verbs (rollout restart,
-  delete pod), never edit/patch/replace of git-managed specs.
+  pod deletes through restart-workload.sh), never edit/patch/replace of git-managed specs.
 - `/k8s-diagnostics` — symptom-driven triage if a tier gate fails (CrashLoop, NetworkPolicy gap, DB).
 - `kyverno-policy-promotion` — kyverno admission (tier 3) vs background/cleanup/reports (tier 2) split.
 - `cluster-reboot` skill — node reboots (drain/cordon/CP-loopback/kube-proxy wedge). cluster-roll

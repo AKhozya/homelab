@@ -32,6 +32,7 @@ set -euo pipefail
 SKILLS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)" # scripts → cluster-roll → skills
 VERIFY_CLUSTERIP="$SKILLS_DIR/cluster-reboot/scripts/verify-clusterip.sh"
 POD_HEALTH="$SKILLS_DIR/_shared/pod-health.sh"
+RESTART_WORKLOAD="$SKILLS_DIR/_shared/restart-workload.sh"
 # immich-vm included since 2026-07-16: tier 5 rolls immich-server, which is pinned to it —
 # a wedged immich-vm kube-proxy would otherwise go unprobed.
 NODES=(gmk-k3s-control-plane worker-node worker-node-2 immich-vm)
@@ -193,9 +194,10 @@ workload_selector() {
     jq -r '.spec.selector.matchLabels | to_entries | map("\(.key)=\(.value)") | join(",")'
 }
 
-# Roll one workload: rollout restart → rollout status → Flux-stale detection → delete-pod fallback.
+# Flux can revert the restartedAt annotation that `rollout restart` writes, so after `rollout status`
+# roll_one re-checks a Deployment's pod UIDs before it treats the restart as complete.
 roll_one() {
-  local entry="$1" ns kind name target sel before_uids before_map after_json after_uids surviving_uids stale_names
+  local entry="$1" ns kind name target sel before_uids after_json after_uids surviving_uids
   ns="${entry%%:*}"
   target="${entry#*:}" # e.g. deploy/coredns
   kind="${target%%/*}"
@@ -204,12 +206,8 @@ roll_one() {
   echo "  → rolling $ns/$target"
   sel="$(workload_selector "$ns" "$kind" "$name")"
   [ -n "$sel" ] || die "could not resolve selector for $ns/$target"
-  # Capture the pre-roll pods as both a sorted UID set (for the set-intersection test) and a
-  # uid<TAB>name map (pods don't support a metadata.uid field-selector, so we delete survivors
-  # by name).
-  before_map="$(kubectl -n "$ns" get pods --selector="$sel" \
-    -o jsonpath='{range .items[*]}{.metadata.uid}{"\t"}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)"
-  before_uids="$(printf '%s\n' "$before_map" | awk 'NF{print $1}' | sort || true)"
+  before_uids="$(kubectl -n "$ns" get pods --selector="$sel" \
+    -o jsonpath='{range .items[*]}{.metadata.uid}{"\n"}{end}' 2>/dev/null | awk 'NF' | sort || true)"
 
   if ! kubectl -n "$ns" rollout restart "$target"; then
     die "rollout restart failed for $ns/$target"
@@ -222,12 +220,11 @@ roll_one() {
   # the restartedAt annotation, abandon the new RS, and leave STALE pod(s) alive while `rollout
   # status` still reports success. With ≥2 replicas under a PDB the revert can land mid-roll, so
   # only SOME pods cycle and the rest stay stale. So check whether ANY old pod UID remains in
-  # the after-set. If any remains, delete just those pods by name: Flux owns the Deployment, not
-  # the pods, so the RS recreates them and Flux does not revert those pod deletions.
+  # the after-set. If any remains, cycle the pods with restart-workload.sh: Flux owns the
+  # Deployment, not the pods, so the RS recreates them and Flux does not revert the deletions.
   #
-  # Deployment-only because DaemonSets and StatefulSets have no ReplicaSet and roll differently;
-  # a false "did not cycle" on a DaemonSet would delete pods on ALL nodes at once (a fleet-wide
-  # gap, e.g. alloy log shipping). For those kinds, trust `rollout status` alone.
+  # Deployment-only: the abandoned-ReplicaSet failure needs a ReplicaSet, and DaemonSets and
+  # StatefulSets have none. For those kinds, trust `rollout status` alone.
   if [ "$kind" = "deploy" ] && [ -n "$before_uids" ]; then
     # Exclude Terminating pods (deletionTimestamp set): after a successful roll the old
     # pods can linger in their grace period and would read as false "survivors".
@@ -242,33 +239,23 @@ roll_one() {
     # Surviving old pods = intersection of before-UIDs and after-UIDs.
     surviving_uids="$(comm -12 <(printf '%s\n' "$before_uids") <(printf '%s\n' "$after_uids") | awk 'NF')"
     if [ -n "$surviving_uids" ]; then
-      # Map surviving UIDs back to pod names via the pre-roll uid<TAB>name map. Two-file awk
-      # (UIDs first, then the map) keeps this portable to BSD awk (macOS) — a multi-line -v var
-      # is rejected there.
-      stale_names="$(awk 'FNR==NR{if($1!="")keep[$1]=1;next} NF && ($1 in keep){print $2}' \
-        <(printf '%s\n' "$surviving_uids") <(printf '%s\n' "$before_map"))"
-      echo "    ! $(printf '%s\n' "$stale_names" | awk 'NF' | wc -l | tr -d ' ') stale pod(s) survived (Flux likely reverted restartedAt) — delete-pod fallback"
-      # Delete only the survivors (old pods that never cycled), not the freshly-rolled ones.
-      # `|| true` on the delete: a survivor may vanish between listing and delete (benign race);
-      # the post-check below is what guarantees the fallback actually worked.
-      printf '%s\n' "$stale_names" | while IFS= read -r pod; do
-        [ -n "$pod" ] || continue
-        kubectl -n "$ns" delete pod "$pod" --wait=false 2>/dev/null || true
-      done
-      if ! kubectl -n "$ns" rollout status "$target" --timeout="$ROLLOUT_TIMEOUT"; then
-        die "rollout status failed for $ns/$target after delete-pod fallback"
-      fi
-      # Post-check: rollout status succeeds trivially on an already-stable (Flux-reverted)
-      # deployment, so re-run the UID intersection and exit with an error if any old pod STILL
+      echo "    ! $(printf '%s\n' "$surviving_uids" | wc -l | tr -d ' ') stale pod(s) survived (Flux likely reverted restartedAt) — cycling via restart-workload.sh"
+      # restart-workload.sh deletes one pod at a time. It waits for the Ready count to return to
+      # baseline before the next delete. If a PDB allows no disruption, it refuses. If every replica
+      # survived, a loop of `delete pod` would take them all down at once. A direct delete also
+      # bypasses the PDB.
+      "$RESTART_WORKLOAD" "$ns" "$sel" "${ROLLOUT_TIMEOUT%s}" ||
+        die "restart-workload.sh could not cycle $ns/$target — manual intervention needed"
+      # Post-check: re-run the UID intersection and exit with an error if any old pod STILL
       # survives. Same Terminating exclusion, and the same error exit if fetching or parsing fails.
       after_json="$(kubectl -n "$ns" get pods --selector="$sel" -o json 2>/dev/null)" ||
-        die "could not list pods to verify delete-pod fallback for $ns/$target"
+        die "could not list pods to verify the fallback for $ns/$target"
       [ -n "$after_json" ] || die "empty pod list JSON after fallback for $ns/$target"
       after_uids="$(printf '%s' "$after_json" |
         jq -r '.items[] | select(.metadata.deletionTimestamp == null) | .metadata.uid' | sort)" ||
         die "could not parse pod list after fallback for $ns/$target"
       surviving_uids="$(comm -12 <(printf '%s\n' "$before_uids") <(printf '%s\n' "$after_uids") | awk 'NF')"
-      [ -z "$surviving_uids" ] || die "stale pod(s) STILL alive after delete-pod fallback for $ns/$target — manual intervention needed"
+      [ -z "$surviving_uids" ] || die "stale pod(s) STILL alive after the restart-workload fallback for $ns/$target — manual intervention needed"
     fi
   fi
 }
@@ -409,6 +396,7 @@ main() {
   command -v jq >/dev/null || die "jq not found"
   [ -x "$VERIFY_CLUSTERIP" ] || die "verify-clusterip.sh not executable at $VERIFY_CLUSTERIP"
   [ -x "$POD_HEALTH" ] || die "pod-health.sh not executable at $POD_HEALTH"
+  [ -x "$RESTART_WORKLOAD" ] || die "restart-workload.sh not executable at $RESTART_WORKLOAD"
 
   # Strict arg counts: if extra args were ignored, `--tier dns --dry-run` would run LIVE.
   case "${1:-}" in
