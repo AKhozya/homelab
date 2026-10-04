@@ -252,7 +252,7 @@ read -r action win count < <(decide "$now" "$win" "$count" "$last")
 
 case "$action" in
 giveup)
-	log "render still down after ${count} load-i915 restart(s) in $((WINDOW / 60))min — giving up. Likely a reset-bug/vfio wedge needing a HOST cold-restart (Tier-2). NOT restarting again."
+	log "render still down after ${count} load-i915 restart(s) in $((WINDOW / 60))min — giving up. Likely a reset-bug/vfio wedge needing a cold restart of the VM from the NAS host. NOT restarting again."
 	write_state "$win" "$count" "$total" "$last" "$last_qsv" || true
 	emit_metric 0 -1 "$vfs_ok" "$total" 1 "$qsv_stuck"
 	exit 1
