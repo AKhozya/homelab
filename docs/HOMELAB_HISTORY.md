@@ -58,9 +58,9 @@ A repo-wide pass judged every code comment against the code it covers. Agents re
 
 Open: `ufw-heal-post-k3s.sh` and `firewall-preflight.sh` disagree on whether `nft monitor` reports kube-proxy churn. A measurement on a node would settle it.
 
-### 2026-10-04 — LAN outage, 16:39 to 21:19 BST
+### 2026-10-04 — LAN outage: the router lost power, 16:39 to 21:19 BST
 
-From 16:39 BST (first seen) every node and the NAS stopped answering on the LAN: no ping, no ARP reply. The router answered. Cloudflare returned 530 for every public hostname.
+From 16:39 BST (first seen) every node and the NAS stopped answering on the LAN: no ping, no ARP reply. 192.168.1.1 still answered ping from the operator's Mac. Cloudflare returned 530 for every public hostname.
 
 | Observation | Source |
 |---|---|
@@ -68,7 +68,7 @@ From 16:39 BST (first seen) every node and the NAS stopped answering on the LAN:
 | cloudflared logged `lookup ... on 10.43.0.10:53: server misbehaving`, and Flux failed to look up github.com | pod logs, `flux get sources git` |
 | after recovery: CNPG 2/2 healthy, Percona `ready`, Redis and CouchDB pods Running | `kubectl get` |
 
-The nodes answered again at 21:19 BST. The cause is not recorded. A refresh of Flux's GitRepository and HelmRepositories cleared their outage errors. cloudflared recovered on its own. The bot came back when the comment sweep's rollout replaced its pod.
+The nodes answered again at 21:19 BST. The operator reports that the router lost power. A refresh of Flux's GitRepository and HelmRepositories cleared their outage errors. cloudflared recovered on its own. The bot came back when the comment sweep's rollout replaced its pod.
 
 ### 2026-10-03 — The repo is public
 
