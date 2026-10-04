@@ -90,7 +90,10 @@ ensure_chain() {
 
 # Phase A — wait for UFW chain stability across N consecutive windows.
 # Phase A logs nft monitor events for diagnostics only. 457c67a5 (2026-04-28) removed them
-# as a settle gate here and in firewall-preflight.sh.
+# as a settle gate here and in firewall-preflight.sh. In the phase-a logs of W1, W2 and the CP
+# (2026-09-04 to 2026-10-04), the count varies between 0 and several hundred in back-to-back
+# windows while the sampled UFW chain hash stays the same. So the count alone does not show
+# that the UFW chains are stable.
 # Hash gate is on ufw chains only: rules we control + chains UFW manages.
 # Falls through on timeout — never blocks heal.
 phase_a_settle() {

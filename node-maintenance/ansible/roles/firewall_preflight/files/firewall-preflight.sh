@@ -3,12 +3,13 @@
 # Settle barrier + per-chain repair, run BEFORE any community.general.ufw or
 # /usr/sbin/ufw call from ansible during drift-heal.
 #
-# 2026-04-29 settle-signal swap:
-#   - Old signal: `nft monitor` event count. Found unreliable — emits 0 even
-#     when iptables-nft compat is actively churning (kube-proxy, flannel),
-#     leading to false-positive "settled" reports.
-#   - New signal: `flock -n /run/xtables.lock` probe + ufw-chain hash stable
-#     across N consecutive windows. Lock-free + hash-stable = real quiescence.
+# Settle signal since 457c67a5 (2026-04-28):
+#   - Old signal: `nft monitor` event count. In the ufw-heal phase-a logs from
+#     2026-09-04 to 2026-10-04 it varies between 0 and several hundred in
+#     back-to-back 5s windows while the sampled UFW chain hash stays the same.
+#     The count alone does not establish UFW chain stability.
+#   - New signal: the settle gate requires a free `flock -n /run/xtables.lock`
+#     probe and an unchanged UFW chain hash across N consecutive windows.
 #
 # Sequence (see main() — this is the order it runs):
 #   1. Settle: xtables-lock-free + ufw-hash-stable (3× 5s windows). Max 90s.
