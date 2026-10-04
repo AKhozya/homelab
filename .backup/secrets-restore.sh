@@ -34,23 +34,19 @@ if [ ! -d "${BACKUP_DIR}/secrets" ]; then
     echo "🔓 Found encrypted backup: $(basename "${LATEST_BACKUP}")"
     echo ""
 
-    # Get passphrase (prompt if not set as environment variable)
     if [ -z "${GPG_PASSPHRASE}" ]; then
         echo "⚠️  This backup is encrypted. You need the passphrase to decrypt it."
         echo ""
 
-        # Prompt for passphrase (hidden input)
         read -rs -p "Enter passphrase: " GPG_PASSPHRASE
         echo ""
 
-        # Verify passphrase is not empty
         if [ -z "${GPG_PASSPHRASE}" ]; then
             echo "❌ ERROR: Passphrase cannot be empty!"
             exit 1
         fi
     fi
 
-    # Decrypt and extract backup
     echo "🔓 Decrypting backup..."
     if gpg --decrypt --batch --passphrase-file <(echo "${GPG_PASSPHRASE}") "${LATEST_BACKUP}" | tar -xzf - -C "${BACKUP_DIR}"; then
         echo "✅ Backup decrypted successfully"
@@ -61,7 +57,6 @@ if [ ! -d "${BACKUP_DIR}/secrets" ]; then
     fi
 fi
 
-# Verify secrets directory exists now
 if [ ! -d "${BACKUP_DIR}/secrets" ]; then
     echo "❌ Error: Secrets directory still not found after decryption"
     exit 1
@@ -189,7 +184,7 @@ kubectl create namespace paperless-ngx --dry-run=client -o yaml | kubectl apply 
 kubectl apply -f "${BACKUP_DIR}/secrets/paperless-env.json"
 echo "   ✅ Paperless-NGX"
 
-# LinkWarden (replaced Linkding + Wallabag)
+# LinkWarden
 kubectl create namespace linkwarden --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "${BACKUP_DIR}/secrets/linkwarden.json"
 kubectl apply -f "${BACKUP_DIR}/secrets/meilisearch.json"
@@ -295,24 +290,24 @@ echo "   ✅ OIDC integration secrets restored"
 # =============================================================================
 # Namespaces this script restores nothing into — bootstrap prerequisite
 # =============================================================================
-# Every namespace above is created as a side effect of restoring a secret into
-# it. homepage restores nothing, and rustdesk's only secret (beacon-key) is
-# SOPS-encrypted in git rather than backed up here, so neither was ever created
-# — but infrastructure-configs still applies namespaced objects into both
-# (resource-governance ResourceQuota/LimitRange, claude-telegram RoleBindings).
-# The apps Kustomization that owns apps/*/namespace.yaml declares
-# dependsOn: infrastructure-configs, so on a bare cluster infrastructure-configs
-# fails with `namespaces "homepage" not found`, never goes Ready, and apps never
-# runs to create them — a deadlock no retry can clear. Pre-creating them here
-# breaks the cycle before Flux is bootstrapped.
+# The script creates each namespace above only to restore a secret into it.
+# homepage restores nothing. rustdesk's only secret (beacon-key) is SOPS-encrypted
+# in git, not backed up here. So on a bare cluster neither namespace exists yet.
+# infrastructure-configs still applies objects into both: resource-governance
+# ResourceQuota/LimitRange and claude-telegram RoleBindings.
+# The apps Kustomization owns apps/*/namespace.yaml and declares
+# dependsOn: infrastructure-configs. So infrastructure-configs fails with
+# `namespaces "homepage" not found`, never goes Ready, and apps never runs.
+# No retry clears this. Creating both namespaces here, before Flux bootstrap,
+# breaks the cycle.
 #
-# This is NOT the whole DR ordering story. `require-networkpolicy` is a Deny
-# ValidatingPolicy that counts LIVE NetworkPolicies in the target namespace, and
-# Flux server-side dry-runs its whole apply set before persisting any of it — so
-# a workload and the NetworkPolicy that satisfies it, arriving in the same set,
-# still fail. That is the documented 2-commit new-namespace dance
-# (.claude/review-invariants.md) hitting every namespace at once on a rebuild.
-# Unsolved here; see docs/disaster-recovery/README.md before attempting a full restore.
+# A second ordering problem stays unsolved. `require-networkpolicy` is a Deny
+# ValidatingPolicy that counts the NetworkPolicies already live in the target
+# namespace. Flux server-side dry-runs its whole apply set before it persists any
+# of it. So if a workload and the NetworkPolicy that satisfies it arrive in the
+# same set, the workload fails, and a new namespace needs two commits.
+# A rebuild hits this in every namespace at once.
+# Read docs/disaster-recovery/README.md before a full restore.
 echo "📦 Pre-creating namespaces with nothing to restore (Flux bootstrap ordering)..."
 kubectl create namespace homepage --dry-run=client -o yaml | kubectl apply -f -
 kubectl create namespace rustdesk --dry-run=client -o yaml | kubectl apply -f -

@@ -8,9 +8,9 @@
 # Encrypted SOPS values (ENC[AES256_GCM,...]) and the Flux-generated bootstrap
 # manifest are allowlisted as expected, not leaks.
 #
-# Personal-PII sweeps (emails, usernames) deliberately live in the pii-scrub
-# skill, which sources identifiers at runtime — kept OUT of this committed,
-# public file so the scanner config never itself re-exposes PII.
+# Personal-identifier sweeps (emails, usernames) run from a separate tool outside
+# this repo, which loads the identifiers at runtime. They stay out of this public
+# file, so the scanner config never exposes them itself.
 
 title = "homelab"
 
@@ -19,9 +19,7 @@ useDefault = true
 
 # Custom rule: SQL password literals. gitleaks' default generic-api-key catches
 # `password: x` / `PASSWORD=x` assignment forms, but NOT the SQL DDL form
-# `CREATE/ALTER USER ... IDENTIFIED BY 'x'` — which is precisely how the 3
-# plaintext MySQL passwords were embedded in the tracked .sql file. This closes
-# that exact gap.
+# `CREATE/ALTER USER ... IDENTIFIED BY 'x'` that the 2025-12 .sql leak used.
 [[rules]]
 id = "sql-identified-by"
 description = "SQL password literal (… IDENTIFIED BY '…')"

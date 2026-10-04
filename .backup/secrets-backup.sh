@@ -11,7 +11,6 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 echo "🔐 Backing up ALL secrets from cluster for disaster recovery..."
 
-# Create backup directory
 mkdir -p "${BACKUP_DIR}/secrets"
 
 # =============================================================================
@@ -62,7 +61,9 @@ kubectl get secret main-postgres-pooler -n databases -o json > "${BACKUP_DIR}/se
 kubectl get secret main-postgres-ca -n databases -o json > "${BACKUP_DIR}/secrets/main-postgres-ca.json" 2>/dev/null || echo "   ⚠️  No databases/main-postgres-ca"
 kubectl get secret main-postgres-server -n databases -o json > "${BACKUP_DIR}/secrets/main-postgres-server.json" 2>/dev/null || echo "   ⚠️  No databases/main-postgres-server"
 
-# PostgreSQL database users (CloudNativePG auto-generates these, but backup for safety)
+# PostgreSQL app-user Secrets. They are SOPS files in git, under
+# infrastructure/configs/databases/postgres/. cluster.yaml names each one as a
+# managed role's passwordSecret.
 kubectl get secret authentik-db-user -n databases -o json > "${BACKUP_DIR}/secrets/authentik-db-user.json"
 kubectl get secret immich-db-user -n databases -o json > "${BACKUP_DIR}/secrets/immich-db-user.json"
 kubectl get secret linkwarden-db-app-user -n databases -o json > "${BACKUP_DIR}/secrets/linkwarden-db-user.json"
@@ -111,7 +112,7 @@ kubectl get secret mealie-user-credentials -n mealie -o json > "${BACKUP_DIR}/se
 # Paperless-NGX
 kubectl get secret paperless-env -n paperless-ngx -o json > "${BACKUP_DIR}/secrets/paperless-env.json"
 
-# LinkWarden (replaced Linkding + Wallabag)
+# LinkWarden
 kubectl get secret linkwarden -n linkwarden -o json > "${BACKUP_DIR}/secrets/linkwarden.json"
 kubectl get secret meilisearch -n linkwarden -o json > "${BACKUP_DIR}/secrets/meilisearch.json"
 
@@ -178,16 +179,12 @@ kubectl get secret grafana-oidc -n monitoring -o json > "${BACKUP_DIR}/secrets/g
 # =============================================================================
 echo "📝 Extracting plaintext values for reference..."
 
-# Cloudflare API token
 kubectl get secret cloudflare-api-token -n cert-manager -o jsonpath='{.data.api-token}' | base64 -d > "${BACKUP_DIR}/secrets/cloudflare-api-token.txt" 2>/dev/null
 
-# Grafana admin password
 kubectl get secret grafana-admin-secret -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d > "${BACKUP_DIR}/secrets/grafana-admin-password.txt" 2>/dev/null
 
-# Telegram bot token
 kubectl get secret alertmanager-telegram -n monitoring -o jsonpath='{.data.bot_token}' | base64 -d > "${BACKUP_DIR}/secrets/telegram-bot-token.txt" 2>/dev/null
 
-# Redis passwords (immich + blocky)
 kubectl get secret redis-passwords -n databases -o jsonpath='{.data.immich-password}' | base64 -d > "${BACKUP_DIR}/secrets/redis-password-immich.txt" 2>/dev/null
 kubectl get secret redis-passwords -n databases -o jsonpath='{.data.blocky-password}' | base64 -d > "${BACKUP_DIR}/secrets/redis-password-blocky.txt" 2>/dev/null
 
@@ -210,28 +207,23 @@ done
 # =============================================================================
 echo "🔐 Encrypting backup with GPG..."
 
-# Get passphrase (prompt if not set as environment variable)
 if [ -z "${GPG_PASSPHRASE:-}" ]; then
   echo ""
   echo "⚠️  You need a passphrase to encrypt this backup."
   echo "⚠️  Store this passphrase securely in 1Password - you'll need it to decrypt!"
   echo ""
 
-  # Prompt for passphrase (hidden input)
   read -rs -p "Enter passphrase: " GPG_PASSPHRASE
   echo ""
 
-  # Confirm passphrase
   read -rs -p "Confirm passphrase: " GPG_PASSPHRASE_CONFIRM
   echo ""
 
-  # Verify passwords match
   if [ "${GPG_PASSPHRASE}" != "${GPG_PASSPHRASE_CONFIRM}" ]; then
     echo "❌ ERROR: Passphrases do not match!"
     exit 1
   fi
 
-  # Verify passphrase is not empty
   if [ -z "${GPG_PASSPHRASE}" ]; then
     echo "❌ ERROR: Passphrase cannot be empty!"
     exit 1
@@ -253,7 +245,6 @@ if tar -czf - -C "${BACKUP_DIR}" secrets \
   echo "✅ Encrypted backup created: ${ENCRYPTED_FILE}"
   echo "📊 Backup size: $(du -h "${ENCRYPTED_FILE}" | awk '{print $1}')"
 
-  # Remove unencrypted secrets directory
   echo "🗑️  Removing unencrypted secrets directory for security..."
   rm -rf "${BACKUP_DIR}/secrets"
 

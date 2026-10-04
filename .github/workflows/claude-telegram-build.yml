@@ -8,7 +8,7 @@ on:
         required: false
         default: ''
   schedule:
-    # Bi-weekly rebuild — Mon + Thu @ 23:00 UTC. Picks up SDK/CLI/base-image bumps.
+    # Twice-weekly rebuild, Mon and Thu at 23:00 UTC, to include SDK, CLI and base-image updates.
     - cron: '0 23 * * 1,4'
 
 env:

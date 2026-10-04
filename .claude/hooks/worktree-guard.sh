@@ -29,7 +29,7 @@ while [[ "$dir" != "/" && ! -d "$dir" ]]; do dir=$(dirname "$dir"); done
 
 # Outside any git repo (e.g. ~/.claude dotfiles) -> not our concern.
 toplevel=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
-# The first `worktree` entry is always the main working tree.
+# git worktree list lists the main working tree first.
 main_tree=$(git -C "$dir" worktree list --porcelain 2>/dev/null | awk '/^worktree /{print substr($0, 10); exit}')
 [[ -z "$main_tree" ]] && exit 0
 

@@ -56,9 +56,8 @@ jobs:
           # Scans the CURRENT TREE (gitleaks dir), not git history. The repo invariant
           # is that the checked-out tree carries no plaintext secret; sops-check only
           # proves designated files are encrypted, not that arbitrary content is clean.
-          # History is deliberately NOT scanned — it holds already-ROTATED (dead) values
-          # that would red this gate forever. Per-commit coverage = the pre-commit
-          # gitleaks hook (.pre-commit-config.yaml); config = .gitleaks.toml.
+          # Per-commit coverage: the pre-commit gitleaks hook (.pre-commit-config.yaml)
+          # and the range scan below.
           gitleaks dir . --config .gitleaks.toml --no-banner --redact
       - name: Scan commits this change adds
         env:

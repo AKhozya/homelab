@@ -90,8 +90,8 @@ expect() { # expect <label> <mode> <exit code>
   else
     bad "$1: $2 exited $code, want $3. Output: $out"
   fi
-  # A failed probe inside a process substitution reports an internal error but
-  # does not change the exit code, so the exit code alone would miss it.
+  # Also fail on an "internal error" line under any exit code but 70.
+  # An internal failure that does not reach the exit code would otherwise pass.
   case $3:$out in 70:*) ;; *"internal error"*) bad "$1: $2 reported an internal error: $out" ;; esac
 }
 

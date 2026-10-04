@@ -8,14 +8,12 @@
 # K3s config directory. Everything else — sysctls, sshd, kubelet, udev,
 # tmpfiles, journald, logrotate, UFW, packages, K3s config.yaml — is owned
 # by ansible roles (node-maintenance/ansible/roles/) and
-# drift-healed daily by node-maintenance-config.timer.
+# drift-healed twice a day (03:00 and 15:00 UTC) by node-maintenance-config.timer.
 #
 # Sections:
 #   1. Bootstrap packages (ansible stack CP-only + AUR firmware suppressors)
 #   2. Bootloader kernel params (systemd-boot entries — not ansible-managed)
 #   3. K3s config directory stub
-#
-# Works for both control-plane and worker nodes (auto-detected).
 
 set -euo pipefail
 
@@ -53,7 +51,7 @@ case "$NODE_TYPE" in
         ;;
 esac
 
-# CPU vendor: used for AUR conditional + AMD amd_pstate boot param.
+# CPU vendor decides the AMD amd_pstate boot param.
 # Microcode package: ansible-managed (host_vars/*.yml ucode_pkg).
 CPU_VENDOR=$(grep -m1 "vendor_id" /proc/cpuinfo | awk '{print $3}')
 if [ "$CPU_VENDOR" = "GenuineIntel" ]; then
@@ -92,11 +90,9 @@ fi
 # packages install once, never update — zero drift-heal value. yay itself
 # is AUR, chicken-egg before any AUR ansible task could run.
 echo "Installing AUR firmware..."
-# kernel-modules-hook was listed here until 2026-07-18 and does NOT belong: it lives in
-# `extra`, not the AUR. Carrying it here meant a bootstrap-only, best-effort install (the
-# loop below swallows failures with `2>/dev/null ... || true`), which is exactly how
-# immich-vm ended up without it and hit the modprobe cascade. It is now declared in
-# ansible's pacman_packages_base and installed on every node-config run.
+# kernel-modules-hook does not belong here: it lives in `extra`, not the AUR.
+# ansible's pacman_packages_base installs it on every node-config run. It moved out
+# of this list on 2026-07-18.
 AUR_PKGS="aic94xx-firmware ast-firmware wd719x-firmware upd72020x-fw"
 AUR_HELPER=""
 if command -v yay &>/dev/null; then
@@ -122,13 +118,11 @@ MKEOF
             chown "$SUDO_USER:$SUDO_USER" "$USER_MAKEPKG"
             sudo -u "$SUDO_USER" mkdir -p "$USER_HOME/.cache/makepkg"/{build,sources,packages}
         fi
-        # Failures are collected and reported, NOT swallowed. The old form
-        # (`... 2>/dev/null && echo Installed || true`) hid both the error output and
-        # the fact that anything went wrong, so a node could finish bootstrap missing
-        # packages with nothing in the log. That is how immich-vm ended up without
-        # kernel-modules-hook until the modprobe cascade surfaced it on 2026-07-18.
-        # Still non-fatal: these are optional HW firmware blobs and a build failure
-        # must not abort the rest of the bootstrap. Loud, not fatal.
+        # Report failures so a node cannot finish bootstrap silently
+        # missing packages. immich-vm lacked kernel-modules-hook
+        # that way until the modprobe cascade surfaced it on 2026-07-18.
+        # Still non-fatal: these are optional HW firmware blobs, and a build failure
+        # must not abort the rest of the bootstrap.
         AUR_FAILED=""
         for pkg in $AUR_PKGS; do
             if ! pacman -Qi "$pkg" &>/dev/null; then

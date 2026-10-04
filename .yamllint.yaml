@@ -1,7 +1,8 @@
 ---
 # Homelab yamllint config — CI gate.
 # Tuned for Flux Helm-released YAML (long auto-generated lines) and Kustomize patches.
-# `truthy` strict to catch `on:`/`off:` accidents in K8s manifests.
+# `truthy` allows only `true`/`false` as values, so a bare `on`/`off`/`yes` value fails.
+# check-keys is false, so a key such as a workflow's `on:` passes.
 
 extends: default
 

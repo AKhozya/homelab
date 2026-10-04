@@ -24,7 +24,8 @@ env:
   # any Flux bump; v5.5.0 (api v0.18.0) had drifted three minors behind.
   KUSTOMIZE_VERSION: v5.8.1
   # Track the live cluster (v1.37.0+k3s1). yannh/kubernetes-json-schema ships
-  # v1.37.0 schemas. Bump alongside any k3s upgrade (k3s-upgrade skill checklist).
+  # v1.37.0 schemas. Update this with any k3s upgrade, together with the
+  # KUBERNETES_VERSION default in scripts/ci/helm-render-check.sh.
   KUBERNETES_VERSION: "1.37.0"
   # Each digest is the SHA-256 of the linux amd64 asset, from that release's published
   # checksums file. Bump a digest together with its version, or the install step fails.

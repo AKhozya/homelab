@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Asserts every authored initContainer carries cpu+memory requests AND limits.
-# Mirrors the in-cluster Kyverno `require-cpu-limit` / `require-memory-limit` policies
-# extended to initContainers (2026-05-23).
-# Operator-managed Pods (CNPG pooler, vmagent, Percona) are excluded by label-selector
-# at the Kyverno layer, not here.
+# The in-cluster Kyverno ValidatingPolicy `require-resource-limits` checks only limits,
+# for containers and initContainers. This offline check also requires requests.
+# That policy exempts CNPG pooler and vm-operator pods through its matchConditions.
 
 set -euo pipefail
 

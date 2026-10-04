@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Audit authored manifests for images NOT pinned to major.minor.patch[-variant].
 #
-# The gap this closes: Kyverno's image-pin policy + CI only reject `:latest` or a missing
-# tag. A major-only (`:8`) or major.minor (`:1.0`, `:1.22`) tag is a real silent-drift hole —
-# `repo:1.0` floats across every 1.0.x rebuild. CLAUDE.md invariant: "Pin all images
-# major.minor.patch-variant." This script enforces that invariant offline, repo-wide.
+# Kyverno's disallow-latest-tag policy rejects only `:latest` or a
+# missing tag. A major-only (`:8`) or major.minor (`:1.0`, `:1.22`) tag drifts silently:
+# `repo:1.0` follows every 1.0.x rebuild. This script enforces the repo rule "pin all
+# images major.minor.patch-variant" offline, repo-wide.
 # Surfaced 2026-05-29: `seleniumbase-scrapper:v1.0` + `claude-telegram:1.22`.
 #
 # Scope: container/init/ephemeral `image:` refs in authored workloads, plus image tags
@@ -74,6 +74,11 @@ while IFS= read -r -d '' file; do
     continue
   fi
 
+  # The first yq pass extracts every container/init/ephemeral image from non-HelmRelease
+  # docs. `..` recurses all nodes (covers containers[], initContainers[],
+  # ephemeralContainers[], CronJob jobTemplate nesting, bare Pods); select keeps maps that
+  # have an `image` key. Doc-level select(.kind!="HelmRelease") drops HelmRelease
+  # values.image false-positives.
   # A yq error fails the file. Ignoring a yq error would let an unchecked file pass.
   if ! imgs=$(yq ea 'select(tag == "!!map") | select(.kind != "HelmRelease") | .. | select(tag == "!!map" and has("image")) | .image' "$file") ||
     ! vals=$(yq ea 'select(tag == "!!map") | select(.kind == "HelmRelease") | .spec.values | .. | select(tag == "!!map") | select((has("tag") and (((path[-1] | tostring | downcase) | test("image$")) or has("repository"))) or has("imageTag")) | [(.repository // "NONE"), (.tag // .imageTag), (.digest // "NONE")] | @tsv' "$file"); then
@@ -82,10 +87,6 @@ while IFS= read -r -d '' file; do
     continue
   fi
 
-  # Extract every container/init/ephemeral image from non-HelmRelease docs.
-  # `..` recurses all nodes (covers containers[], initContainers[], ephemeralContainers[],
-  # CronJob jobTemplate nesting, bare Pods); select keeps maps that have an `image` key.
-  # Doc-level select(.kind!="HelmRelease") drops HelmRelease values.image false-positives.
   while IFS= read -r img; do
     # Skip blanks, nulls, and yq's `---` inter-document separators (emitted by `ea`
     # between matches in a multi-doc file, e.g. gotk-components.yaml).

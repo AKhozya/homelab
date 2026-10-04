@@ -47,7 +47,7 @@ target/
 .backup/ENV_VARS.md
 .monitoring/
 
-# SkillOpt-Sleep local staging (offline self-evolution proposals)
+# Local staging output of a tool that lives outside this repo
 .skillopt-sleep/
 
 # Plans and specs stay local: the repo is public, and plans are internal working notes
