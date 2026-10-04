@@ -37,4 +37,5 @@ data:
     192.168.1.126 worker-node-2
     192.168.1.127 gmk-k3s-control-plane
     192.168.1.129 worker-node
+    192.168.1.231 immich-vm
     fd00::3a05:25ff:fe34:1171 worker-node-2
