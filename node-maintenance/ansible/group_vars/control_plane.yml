@@ -7,17 +7,13 @@ k3s_default_storage_path: /mnt/k8s-storage
 k3s_disable_helm_controller: true
 k3s_disable:
   - traefik
-  # coredns disabled: CoreDNS self-managed via Flux (infrastructure/coredns/ — coredns-ha DaemonSet +
-  # kube-dns Service/CM/SA/RBAC; now owner-label-free so k3s --disable can't delete them).
-  # DNS-DEADLOCK GOTCHA (2026-05-31 cutover): on the FIRST CP restart, k3s --disable deleted the still-
-  # addon-owned Service/CM/SA/RBAC, and Flux could NOT recreate them — kustomize-controller resolves
-  # source-controller.flux-system.svc via cluster DNS = the just-deleted 10.43.0.10 VIP, so the source
-  # fetch i/o-timed-out and EVERY reconcile stalled cluster-wide (the "force flux reconcile" mitigation
-  # is useless for the same reason). phase2 Flux-Ready preflight then failed (exit=2). Broke it with
-  # break-glass `kubectl apply -k infrastructure/coredns/` (recreates from git → DNS up → Flux adopts).
-  # The recreated objects carry NO objectset.rio.cattle.io/owner label, so FUTURE --disable restarts no
-  # longer delete them → deadlock is a one-time transition cost. Steady state: Flux owns DNS, addon off,
-  # coredns-ha (one pod per node) serves.
+  # coredns disabled: Flux manages CoreDNS (infrastructure/coredns/ — coredns-ha DaemonSet, one pod per
+  # node, plus the kube-dns Service/CM/SA/RBAC). Those objects carry no objectset.rio.cattle.io/owner
+  # label, so k3s --disable cannot delete them.
+  # DNS deadlock (2026-05-31 cutover): the first CP restart with --disable deleted the still-addon-owned
+  # objects. Flux could not recreate them, because kustomize-controller reaches source-controller through
+  # cluster DNS, so every reconcile stalled; forcing a reconcile fails for the same reason. Break-glass:
+  # `kubectl apply -k infrastructure/coredns/`; Flux adopts the objects on its next reconcile.
   - coredns
 k3s_node_taints:
   - "node-role.kubernetes.io/control-plane:NoSchedule"
@@ -26,17 +22,11 @@ k3s_node_labels:
 k3s_terminated_pod_gc_threshold: 20
 k3s_secrets_encryption: true
 
-# CoreDNS HA: handled by the Flux-managed `coredns-ha` DaemonSet (infrastructure/coredns/,
-# one pod per node) since the 2026-05-31 --disable=coredns convergence. The old
-# `coredns_replicas` var + k3s_config addon-manifest patch were removed (the addon manifest
-# no longer exists → the patch task failed every drift-heal run). See the k3s_disable comment above.
-
-# kube-controller-manager node-lease tuning. Lockstep with kubelet
-# nodeLeaseDurationSeconds=60 in roles/hardening/files/k3s-kubelet.yaml.
-# Rule: grace_period >= lease_duration + one_renewal (60s + 15s = 75s).
-# Bump rationale: tolerate brief network blips (UFW reload race during
-# drift-heal, kube-proxy/flannel iptables churn). 2026-05-02 W2 NotReady
-# incident motivated the change.
+# kube-controller-manager node-lease tuning. A node goes NotReady (Unknown) after
+# k3s_node_monitor_grace_period without a heartbeat: a lease renewal (every ~15s, 25% of
+# nodeLeaseDurationSeconds=60 in roles/hardening/files/k3s-kubelet.yaml) or a status update.
+# 75s tolerates brief network drops (UFW reload during drift-heal, kube-proxy and
+# flannel iptables churn). Raised in 086c33f9 after the 2026-05-02 W2 NotReady incident.
 k3s_node_monitor_period: 5s
 k3s_node_monitor_grace_period: 75s
 

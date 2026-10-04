@@ -1,17 +1,16 @@
 ---
-# workers group overrides (worker-node, worker-node-2).
-# Per-worker UFW rules live in host_vars/ — both workers diverge on pod-to-node
+# workers group overrides (worker-node, worker-node-2, immich-vm).
+# Per-worker UFW rules live in host_vars/ — the two physical workers diverge on the pod-to-node
 # route comment (W2: "to nodes", W1: "(API server)") + W2 broad routes + 8472 LAN.
 
-# ---- K3s config (Step 5 — §A) ----
+# ---- K3s config ----
 # Drift-alert only, no auto-restart. Restart via: sudo systemctl restart k3s-agent.
 k3s_node_labels:
   - "svccontroller.k3s.cattle.io/enablelb=true"
 
 # Use k3s's bundled iptables binaries (not the host's xtables-nft v1.8.13) to avoid the stale-chain
-# iptables-restore conflict that wedges kube-proxy ClusterIP DNAT on reboot (2026-05-25 research,
-# gotcha_k3s_reboot_ordering). Applies on next k3s-agent restart — config.yaml drift is alerted, not
-# auto-restarted. Validate on ONE worker first (restart k3s-agent, confirm ClusterIP stays healthy).
+# iptables-restore conflict that wedges kube-proxy ClusterIP DNAT on reboot (commit 9d8d57a1,
+# 2026-05-25). Applies on the next k3s-agent restart; config.yaml drift is alerted, not auto-restarted.
 k3s_prefer_bundled_bin: true
 
 # Workers extend universal kernel cmdline assertions with AMD-specific tuning.

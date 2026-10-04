@@ -41,7 +41,8 @@ NM_USER="node-maintenance"
 NM_PORT=65300
 CP_NODE="gmk-k3s-control-plane"
 
-# Agents: name|ip  (hardcoded like phase2.yml's cleanup loop — the fleet is small + fixed).
+# Agents: name|ip. Hardcoded because the fleet is small and fixed. Keep this list matched to
+# the workers in node-maintenance/ansible/inventory.yml.
 AGENTS=(
   "worker-node|192.168.1.129"
   "worker-node-2|192.168.1.126"
@@ -244,11 +245,9 @@ for a in "${AGENTS[@]}"; do
   name="${a%%|*}"
   ip="${a##*|}"
   log "Agent $name ($ip): updating K3S_TOKEN + restarting k3s-agent…"
-  # The remote script runs as root (node-maintenance has NOPASSWD sudo). The token is embedded in
-  # this UNQUOTED heredoc (interpolated CP-side) so it travels over ssh stdin, never in argv/ps.
-  # Remote-side $vars are escaped (\$) so they expand on the agent. `timeout` bounds a hung restart.
-  # SC2087: the unquoted heredoc is DELIBERATE — CP-side expansion embeds the new token into the
-  # script stream (non-leaking); remote-only vars are escaped as \$ to defer to the agent.
+  # The remote script runs as root (node-maintenance has NOPASSWD sudo). `timeout` bounds a hung restart.
+  # SC2087: the heredoc is unquoted on purpose. The CP expands it, so the new token travels in the
+  # ssh stdin stream, never in argv/ps. Remote-only vars are escaped as \$ so they expand on the agent.
   # shellcheck disable=SC2087
   if timeout 150 ssh "${SSH_OPTS[@]}" "$NM_USER@$ip" "sudo bash -s" <<EOF; then
 set -euo pipefail
@@ -262,8 +261,8 @@ rm -f "\$tmp"
 systemctl restart k3s-agent
 systemctl is-active --quiet k3s-agent
 EOF
-    # Reference epoch = the instant the restart returned (old kubelet already dead). Require a Lease
-    # renewTime strictly LATER than this → provably the NEW kubelet heartbeating, not a stale/old read.
+    # Sample the cutoff after the restart returns. If the script samples it earlier, a renewal by
+    # the old kubelet can pass as proof that the new one is heartbeating.
     restart_epoch="$(date -u +%s)"
     if wait_lease_after "$name" "$restart_epoch" 30; then
       log "  $name rejoined with a fresh kubelet heartbeat on the new token ✓"

@@ -22,15 +22,12 @@ primary_network_file: 20-ethernet.network
 #   console=hvc0                        virsh-console recovery token.
 #   modprobe.blacklist=i915             keeps i915 out of the boot path (loads post-boot via
 #                                       load-i915.service — early load on the passed IGD wedges boot).
-#   drm_kms_helper.fbdev_emulation=0    Track-0 wedge fix — no kernel fbdev consumer to D-lock on the
-#   fbcon=off                           stalled host virtio-gpu virtqueue (holds drm_modeset_lock).
-# All four are live in /proc/cmdline (confirmed 2026-07-12). `-Fw` matches the whole token bounded by
-# non-word chars, so `modprobe.blacklist=i915` also matches the running kernel once the immich_gpu_node
-# role's cmdline task merges `xe` into the token (→ `modprobe.blacklist=i915,xe`). This list
-# DELIBERATELY omits `modprobe.blacklist=i915,xe`: the `xe` merge lands in the UKI *source* now but reaches
-# the RUNNING kernel only after the next cold-cycle (now automated by phase2 PLAY 1b on a kernel bump;
-# also operator/watchdog) — asserting it against /proc/cmdline pre-reboot would be a false alert. `xe`
-# drift is enforced at the source by the role's cmdline task.
+#   drm_kms_helper.fbdev_emulation=0    the virtio-gpu fbdev wedge fix — no kernel fbdev consumer to
+#   fbcon=off                           block on the stalled host virtio-gpu virtqueue.
+# All four are live in /proc/cmdline (confirmed 2026-07-12). `-Fw` matches a whole word, so
+# `modprobe.blacklist=i915` also matches `modprobe.blacklist=i915,xe`. Do not assert the `,xe` form:
+# the role's cmdline task writes it to the UKI source, but the running kernel sees it only after the
+# next cold-cycle, so the assert would alert falsely until then.
 expected_kernel_params:
   - console=hvc0
   - modprobe.blacklist=i915
@@ -69,16 +66,16 @@ immich_gpu_authorized_keys:
 # exclusively, so it adds the same restricted line; otherwise each heal would remove it again.
 agent_diag_bot_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII6y/bDuSaR/mRuwgRj0Amuzcwev30tNoenExFvFjCIM claude-telegram-bot"
 
-# ---- K3s config (step-4 join decisions) ----
+# ---- K3s config ----
 # Data-dir on the 126Gi home LV, NOT the 32Gi root: containerd images + the Immich working set are
 # far too big for root (mirrors W1/W2's big-volume data-dir + the W2 DiskPressure lesson). k3s_config
 # writes this into /etc/rancher/k3s/config.yaml; the k3s installer reads it at first registration.
 k3s_data_dir: /home/k3s
 
-# Node label so the Intel GPU device-plugin DaemonSet + (later) the Immich server/ML pods can
-# nodeSelector this node. This REPLACES the workers-group inherited label
-# (svccontroller.k3s.cattle.io/enablelb=true) — deliberate: the GPU transcode node is not a servicelb
-# ingress endpoint. If servicelb parity is ever wanted, add that label back here alongside gpu=intel.
+# Node label so the Intel GPU device-plugin DaemonSet and the Immich pods can nodeSelector this node.
+# This replaces the workers-group label (svccontroller.k3s.cattle.io/enablelb=true) on purpose: the GPU
+# transcode node is not a servicelb ingress endpoint. If servicelb parity is ever wanted, add that
+# label back here alongside gpu=intel.
 k3s_node_labels:
   - "homelab/gpu=intel"
 
@@ -89,6 +86,5 @@ k3s_node_labels:
 k3s_node_taints:
   - "homelab/dedicated=immich:NoSchedule"
 
-# NOTE: k3s_prefer_bundled_bin is NOT set here — it is inherited as `true` from group_vars/workers.yml
-# (the VM is a `workers` member), which is the desired value (iptables-nft stale-chain avoidance,
-# gotcha_k3s_reboot_ordering). Re-declaring it would be redundant.
+# k3s_prefer_bundled_bin is inherited as `true` from group_vars/workers.yml (immich-vm is a workers
+# member); do not re-declare it.

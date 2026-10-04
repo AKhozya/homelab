@@ -14,14 +14,13 @@
 
   tasks:
     - name: CP control-plane gate — verify k3s loopback LB (127.0.0.1:6443) routes to apiserver
-      # phase1 just rebooted the CP. The k3s client loadbalancer on 127.0.0.1:6443 — which the
-      # embedded controller-manager AND every kubectl check below dial — can wedge post-reboot
-      # while the apiserver is fine on the node IP. Controllers then stall SILENTLY (2026-05-25:
-      # coredns scale frozen, observedGeneration stuck). Probe it FIRST so a wedge fails fast +
-      # clear instead of 5 min of opaque "not ready" retries below. 401|200 = routed. Bounded
-      # retry (tolerate the LB coming up slowly post-reboot; never single-shot). No auto-restart
-      # of k3s here: a persistent fail leaves phase2-pending set for the operator, who restarts
-      # k3s or reboots the CP. See gotcha_k3s_reboot_ordering.
+      # phase1 just rebooted the CP. After a reboot the k3s client load balancer on 127.0.0.1:6443 can
+      # wedge while the apiserver still answers on the node IP. The embedded controller-manager and every
+      # kubectl check below dial 127.0.0.1:6443, so controllers stall silently (2026-05-25: coredns scale
+      # frozen, observedGeneration stuck). Probe it first so a wedge fails fast instead of 5 min of opaque
+      # retries. 401 or 200 means routed. Retry, because the load balancer can come up slowly. No
+      # auto-restart: if the probe keeps failing, phase2-pending stays set and the operator restarts k3s
+      # or reboots the CP.
       ansible.builtin.shell: |
         set -o pipefail
         code=$(curl -sS -m5 -k -o /dev/null -w '%{http_code}' https://127.0.0.1:6443/healthz 2>/dev/null) || code=000
@@ -126,10 +125,9 @@
 # PLAY 1: Per-worker rolling update (serial: 1)
 # ──────────────────────────────────────────────────────────────
 - name: Node maintenance — Phase 2 (worker rolling update)
-  # `workers:!virtual` — physical workers only. The GPU-passthrough VM (`virtual` group) must
-  # NEVER be in-guest rebooted: an in-guest reboot wedges the passed-through iGPU → NAS host
-  # crash (reset-bug C3). Its weekly patching runs in PLAY 1b below with NO reboot; the reboot
-  # half is a NAS-side `virsh shutdown --mode acpi` → poll domstate → `virsh start` (operator/Tier-2).
+  # `workers:!virtual` — physical workers only. The GPU-passthrough VM (`virtual` group) must never be
+  # rebooted from inside the guest: that wedges the passed-through iGPU and crashes the NAS host
+  # (2026-07-10). PLAY 1b below patches it without a reboot and cold-cycles it on a kernel bump.
   hosts: workers:!virtual
   serial: 1
   gather_facts: false
@@ -274,9 +272,9 @@
           retries: 12
           delay: 10
           changed_when: false
-          # Still failing here → task errors → serial:1 play aborts: this worker stays CORDONED,
-          # phase2-pending retained, the NEXT worker is never processed. Operator re-triggers after
-          # manual remediation (cluster-reboot SKILL.md partial-completion model).
+          # If the re-probe still fails, the serial:1 play aborts: this worker stays cordoned,
+          # phase2-pending stays set, and the next worker is never processed. The operator
+          # re-triggers after fixing it by hand.
 
     - name: Pod-network gate — verify nat POSTROUTING jumps present before uncordon (self-heal if wedged)
       # The host-netns clusterip-probe.sh above PASSES while pod→ClusterIP/DNS is dead in the
@@ -381,15 +379,14 @@
       become: false
 
 # ──────────────────────────────────────────────────────────────
-# PLAY 1b: GPU VM weekly update (NO in-guest reboot — reset-bug C3)
+# PLAY 1b: GPU VM weekly update (NO in-guest reboot — GPU reset bug)
 # ──────────────────────────────────────────────────────────────
-# The `virtual` group is excluded from PLAY 1's reboot rollout. It still gets weekly package
-# updates here — but NEVER an in-guest reboot (that wedges the passed-through iGPU → NAS host
-# crash). A kernel bump triggers a cold-cycle the ONLY reset-bug-safe way: a graceful in-guest
-# poweroff (== `virsh shutdown --mode acpi`; domain → "shut off") then let the existing immich-vm-heal
-# watchdog cold-`virsh start` it (that watchdog holds the NAS key + only ever starts a shut-off
-# domain — ansible never touches the NAS). PLAY 1b nudges the watchdog at once for a short RTO; its
-# 5-min CronJob schedule is the backstop if the nudge races. No cordon/drain: the VM is a leaf node.
+# PLAY 1 skips the `virtual` group, so the GPU VM gets its weekly packages here, never with an in-guest
+# reboot. If the installed kernel differs from the running one, the play cold-cycles the VM the only
+# reset-bug-safe way: a graceful in-guest poweroff (the domain reaches "shut off"), then the
+# immich-vm-heal CronJob runs `virsh start`.
+# That CronJob holds the NAS key; ansible never touches the NAS. PLAY 1b creates a Job from the CronJob
+# at once for a short outage; the 5-min schedule is the backstop. No cordon or drain: the VM is a leaf node.
 - name: Node maintenance — Phase 2 (GPU VM update, no reboot)
   hosts: virtual
   serial: 1
@@ -477,11 +474,10 @@
       register: vm_reboot_needed
       changed_when: false
 
-    # Auto cold-cycle: kernel bumped (or forced for testing). The ONLY reset-bug-safe reboot is
-    # graceful in-guest poweroff (domain → "shut off") + a cold `virsh start` by the immich-vm-heal
-    # watchdog. Wrapped in block/rescue so a stall NEVER hard-fails PLAY 2 (a hard-fail here leaves
-    # phase2-pending stuck → gates sync + config drift-heal cluster-wide, 2026-06-20 ~1.7h). On any
-    # failure we alert and let the play complete; NodeNotReady + ImmichVMHealStale are the backstops.
+    # Cold-cycle if the installed kernel differs from the running one or vm_cold_cycle_force is set.
+    # block/rescue keeps a stall from failing the play: a hard fail would leave phase2-pending stuck,
+    # as in the yay rescue above. On any failure the rescue alerts; NodeNotReady and ImmichVMHealStale
+    # are the backstops.
     - name: Cold-cycle immich-vm when a kernel bump landed (or forced)
       when: vm_reboot_needed.stdout == "pending" or (vm_cold_cycle_force | default(false) | bool)
       vars:
@@ -501,7 +497,7 @@
         # VM halts. poweroff == `virsh shutdown --mode acpi` (domain → "shut off"), the SAFE path.
         # NEVER `reboot`/`shutdown -r` — an in-guest reboot re-binds the dirty iGPU → NAS host crash.
         - name: Graceful in-guest poweroff (async — connection drops as the VM halts)
-          ansible.builtin.command: /usr/bin/poweroff   # graceful == virsh shutdown --mode acpi
+          ansible.builtin.command: /usr/bin/poweroff
           async: 45
           poll: 0
           ignore_errors: true   # noqa: ignore-errors  (SSH tears down mid-launch; expected)
@@ -658,18 +654,16 @@
       changed_when: false
       failed_when: false
 
-    # A graceful node shutdown leaves each evicted pod in a terminal phase and no controller
-    # removes it. The ReplicaSet controller ignores terminal pods it owns, and the pod-GC
-    # controller acts only past --terminated-pod-gc-threshold, which defaults to 12500. Every
-    # reboot round therefore adds one leftover pod per evicted pod, and those keep
-    # PodPhaseNotRunning and the replica-mismatch alerts firing: 14 leftovers and 4 alerts on
-    # 2026-08-01, 11 more on 2026-08-08. Succeeded as well as Failed — 10 of those 11 exited 0.
+    # A graceful node shutdown leaves each evicted pod in a terminal phase, and no controller removes
+    # it. The ReplicaSet controller ignores terminal pods it owns. The pod-GC controller acts only past
+    # --terminated-pod-gc-threshold, which this cluster sets to 20 (k3s_terminated_pod_gc_threshold), so
+    # one reboot round of leftovers can sit under it. They keep PodPhaseNotRunning and the
+    # replica-mismatch alerts firing: 14 leftovers and 4 alerts on 2026-08-01, 11 more on 2026-08-08.
+    # Delete Succeeded as well as Failed — 10 of those 11 exited 0.
     #
-    # Selection is by owner, not by namespace. The namespace allowlist this replaces skipped
-    # app namespaces and matched Failed only. A terminal pod whose controller already replaced
-    # it holds no state, and Alloy has shipped its logs to Loki, so deleting it costs nothing.
-    # Job-owned pods stay — that history belongs to the CronJob, and ttlSecondsAfterFinished
-    # clears it. Pods with no controller stay too.
+    # Select by owner. A terminal pod whose controller already replaced it holds no state, and Alloy has
+    # shipped its logs to Loki, so deleting it costs nothing. Job-owned pods stay: the CronJob owns that
+    # history and ttlSecondsAfterFinished clears it. Pods with no controller stay too.
     #
     # The delete re-tests the phase server-side with --field-selector instead of trusting the
     # listing. StatefulSet pod names are stable, so if anything else deletes a terminal pod

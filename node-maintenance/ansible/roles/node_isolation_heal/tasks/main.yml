@@ -5,8 +5,7 @@
 #
 # node_isolation_dry_run=true → the watchdog logs the decision it WOULD take + emits
 # metrics, acts on nothing. ACTIVE (false) requires the interlocks: phase2 maint-hold,
-# shared restart cooldown, VMRules. See the
-# node-isolation-heal design plan, removed after e26a42aa.
+# shared restart cooldown, VMRules.
 
 - name: Ensure node-isolation-heal state dir
   ansible.builtin.file:

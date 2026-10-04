@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # node-maintenance-lock.sh <skip|wait> -- <command> [args...]
 #
-# Serializes node-maintenance runs behind a single flock (/run/node-maintenance.lock) so a
-# drift-heal (config), a sync, and a reboot (phase1/phase2) never run CONCURRENTLY. Before this,
-# the ~9-min config heal could overlap itself (10-min sync re-triggers it) or run during the
-# phase1→phase2 reboot window — concurrent ansible runs racing on node config + the
-# /etc/node-maintenance/ansible rsync. 2026-05-25.
+# Serializes node-maintenance runs behind one flock (/run/node-maintenance.lock) so a
+# drift-heal (config), a sync and a reboot (phase1/phase2) never run at once. Unlocked, the
+# ~9-min heal could overlap itself (the 10-min sync re-triggers it) or run during the
+# phase1→phase2 reboot window, so ansible runs raced on node config and the
+# /etc/node-maintenance/ansible rsync (2026-05-25).
 #
 #   skip : if the lock is held, exit 0 WITHOUT running. For the frequent, idempotent heals
 #          (config) — don't pile up; the next cycle / timer will catch up.

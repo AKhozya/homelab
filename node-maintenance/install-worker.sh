@@ -8,8 +8,8 @@
 #   - sudoers bootstrap (ansible owns going forward; first-run needs it to connect)
 #
 # Non-bootstrap config (logrotate, journald, security-scan
-# script + service/timer, sudoers, user shell) is deployed by ansible from CP on first
-# node-config.yml run against this worker.
+# script + service/timer, /var/log/node-maintenance, sudoers, user shell) is deployed by
+# ansible from CP on first node-config.yml run against this worker.
 set -euo pipefail
 
 PUB_KEY="__REPLACE_WITH_ACTUAL_PUBKEY__"
@@ -39,15 +39,11 @@ chmod 0600 "$AK"
 # ── sudoers bootstrap ──
 # Required for first ansible SSH connection (node-maintenance → sudo).
 # Ansible node-config playbook owns this file going forward.
-# shellcheck disable=SC2016
 cat > /etc/sudoers.d/node-maintenance <<'EOF'
 node-maintenance ALL=(ALL) NOPASSWD: ALL
 EOF
 chmod 0440 /etc/sudoers.d/node-maintenance
 visudo -c -f /etc/sudoers.d/node-maintenance
-
-# security-scan.sh, its service/timer and /var/log/node-maintenance belong to ansible
-# roles/security_scan, deployed from CP on the first node-config.yml run here.
 
 echo "Worker bootstrap complete on ${HOSTNAME:-$(cat /etc/hostname 2>/dev/null || echo unknown)}."
 echo "Next: ansible node-config.yml will deploy security-scan + logrotate + journald."

@@ -75,13 +75,13 @@
     # (restart k3s-agent when 10.43.0.1 DNAT is missing). Workers here; the CP is
     # handled by clusterip_heal_cp below (pod-netns probe + k3s restart).
     - role: clusterip_heal
-    # Node-local self-recovery for CP-isolation (k3s-agent tunnel wedged / kubelet
-    # NotReady while the host is alive) — the 2026-07-10 W2 90-min-isolation class that
-    # no existing watchdog caught. Ladder: restart k3s-agent -> staggered self-reboot.
-    # ACTIVE since 2026-07-23 (13-day dry-run soak clean); dry-run via node_isolation_dry_run.
-    # EXCLUDED on the `virtual` group: its escalation ladder ends in an in-guest `systemctl
-    # reboot`, which on the GPU-passthrough VM wedges the iGPU → NAS host crash (reset-bug C3).
-    # clusterip_heal (above) is kept — its k3s-agent restart is the safe isolation recovery.
+    # Node-local self-recovery for CP isolation (k3s-agent tunnel wedged, node NotReady, host still
+    # alive): the 2026-07-10 W2 90-min isolation that no other watchdog caught. Ladder: restart
+    # k3s-agent, then a staggered self-reboot. Active since 2026-07-23 after a clean 13-day dry-run;
+    # node_isolation_dry_run switches it back to dry-run.
+    # Excluded on the `virtual` group: its ladder ends in an in-guest `systemctl reboot`, which on the
+    # GPU-passthrough VM wedges the iGPU and crashes the NAS host. clusterip_heal (above) still runs
+    # there; its k3s-agent restart is the safe recovery.
     - role: node_isolation_heal
       when: "'virtual' not in group_names"
 
@@ -91,11 +91,10 @@
   gather_facts: false
   roles:
     # CP counterpart of clusterip_heal. The CP host-netns ClusterIP probe false-reads wedged, so this
-    # uses a pod-netns probe (nsenter into coredns) + a timeout-guarded `systemctl restart k3s`. The
-    # "restart-k3s-on-CP hangs" caveat was disproven 2026-06-29 (clean ~30-60s restart that
-    # reprogrammed the DNAT); the timeout makes any future hang a give-up+alert, never an indefinite
-    # control-plane wedge. Fixes the gap where a CP-pinned pod (e.g. uptime-kuma) stays DNS-dead
-    # post-reboot with no auto-heal.
+    # uses a pod-netns probe (nsenter into coredns) and a timeout-guarded `systemctl restart k3s`. A CP
+    # k3s restart took ~30-60s and reprogrammed the DNAT when tested 2026-06-29; the timeout turns any
+    # future hang into a give-up alert. If ClusterIP DNAT stays broken after a reboot, a CP-pinned pod
+    # (e.g. uptime-kuma) stays DNS-dead without this role.
     - role: clusterip_heal_cp
   tasks:
     # This unit serves `kubectl proxy` as root with the admin kubeconfig on 127.0.0.1:8001 and no

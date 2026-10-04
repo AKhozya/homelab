@@ -1,12 +1,13 @@
 ---
 # immich_gpu_node — Immich GPU node (Arch VM) i915 render config + guest-local heal watchdog.
-# Applied to the `virtual` inventory group only (node-config.yml Play "immich-gpu-node"): the passed-
-# through Meteor Lake iGPU exists only on this VM; running this on a physical node is meaningless.
+# Applied to the `virtual` inventory group only (node-config.yml's Immich GPU node play): the passed-
+# through Meteor Lake iGPU exists only on this VM.
 #
-# i915 is render-only (disable_display=1) + boot-blacklisted (loads post-boot via load-i915.service);
-# see files/i915-render.conf + files/load-i915.service. The heal watchdog mirrors clusterip_heal
-# (bounded restart + node-exporter textfile metrics) but heals ONLY the render node — k3s-agent is
-# clusterip_heal's job, the reset-bug wedge is the Tier-2 host watchdog's. See files/immich-gpu-heal.sh.
+# i915 is render-only (disable_display=1) and boot-blacklisted; load-i915.service loads it after boot
+# (see files/i915-render.conf + files/load-i915.service). The heal watchdog mirrors clusterip_heal
+# (bounded restart + node-exporter textfile metrics) but heals only the render node. clusterip_heal
+# owns k3s-agent. A reset-bug wedge needs the operator to cold-restart the host; the immich-vm-heal
+# CronJob only starts a shut-off domain. See files/immich-gpu-heal.sh.
 
 # ---- i915 render-only driver config ----
 
@@ -19,15 +20,15 @@
     mode: "0644"
   tags: [immich-gpu-node, i915]
 
-# Idempotent token-set management of the guest UKI cmdline. Three concerns, all order-independent:
-#   - modprobe.blacklist  — a single comma-list token; MERGE i915 + xe into it (i915 keeps the IGD out
-#                           of the boot path → loads render-only post-boot; xe is a second driver that
-#                           probes the iGPU at boot and binds nothing → hygiene, keep it out too).
-#   - drm_kms_helper.fbdev_emulation=0 + fbcon=off — the Track-0 wedge fix: remove the kernel fbdev
-#                           consumer whose damage-work D-locks on the stalled host virtio-gpu virtqueue
-#                           (holds drm_modeset_lock → every GPU open D-states → box wedges). Proven live.
-# Standalone tokens are appended only if the exact token is absent; the blacklist merges missing drivers
-# into the existing token (never a duplicate token). Run-twice → zero changes (asserted in role tests).
+# Manage the guest UKI cmdline as a token set, independent of order:
+#   - modprobe.blacklist  — one comma-list token; merge i915 and xe into it. i915 stays out of the
+#                           boot path and loads render-only after boot. xe probes the iGPU at boot and
+#                           binds nothing, so keep it out too.
+#   - drm_kms_helper.fbdev_emulation=0 + fbcon=off — the virtio-gpu fbdev wedge fix. They remove the
+#                           kernel fbdev consumer whose damage work blocks on the stalled host virtio-gpu
+#                           virtqueue while holding drm_modeset_lock, so every GPU open hangs in D-state.
+# Standalone tokens are appended only if absent; missing drivers merge into the existing blacklist
+# token, never a second one. A second run changes nothing.
 - name: Ensure GPU/display kernel cmdline tokens on the UKI (fbdev-off + i915,xe blacklist)
   ansible.builtin.shell: |
     set -euo pipefail
@@ -97,14 +98,14 @@
     daemon_reload: true
   tags: [immich-gpu-node, i915]
 
-# ---- Reset-bug safety: never auto-reboot in-guest (C3) ----
-# On this GPU-passthrough VM an in-guest reboot wedges the passed-through iGPU → NAS host crash. Two
-# in-guest auto-reboot vectors are inherited from the `hardening` role (hosts: all) and MUST be
-# neutralized here (hardening runs before this play, so its files are on disk to override):
-#   #5 kernel.panic=10 + softlockup/hardlockup_panic=1 → 0 (sysctl drop-in, applied by `sysctl --system`)
-#   #6 systemd RuntimeWatchdogSec=30 pinging the q35 iTCO /dev/watchdog0 → 0 (system.conf.d drop-in,
-#      applied by `systemctl daemon-reexec` — Manager config is only re-read on re-exec, not reload).
-# #6 is NOT covered by #5: a hardware-watchdog reset fires while the kernel is still ALIVE (no panic).
+# ---- Reset-bug safety: never auto-reboot in-guest ----
+# On this GPU-passthrough VM an in-guest reboot wedges the passed-through iGPU and crashes the NAS host
+# (2026-07-10). The `hardening` role (hosts: all) brings two in-guest auto-reboot paths, and this role
+# overrides both (hardening runs before this play, so its files are on disk to override):
+#   - kernel.panic=10 + softlockup/hardlockup_panic=1 → 0 (sysctl drop-in, applied by `sysctl -p`)
+#   - systemd RuntimeWatchdogSec=30 on the q35 iTCO /dev/watchdog0 → 0 (system.conf.d drop-in, applied
+#     by `systemctl daemon-reexec`; systemd re-reads Manager config only on re-exec, not reload).
+# The sysctls do not cover the watchdog: a hardware-watchdog reset fires while the kernel is still alive.
 
 - name: Disable auto-reboot-on-panic (reset-bug safety — overrides hardening 99-watchdog.conf sysctls)
   ansible.builtin.copy:
@@ -164,13 +165,11 @@
   tags: [immich-gpu-node, tpm]
 
 # ---- Admin-sudo parity (remove the VM-build NOPASSWD override) ----
-# The VM image shipped /etc/sudoers.d/akhozya-nopasswd (`akhozya ALL=(ALL) NOPASSWD:ALL`). sudoers is
-# last-match-wins in lexical file order, so that file SHADOWS base_config's `00_akhozya`
-# (`akhozya ALL=(ALL) ALL`, password-required) → akhozya is effectively NOPASSWD on this node, unlike
-# the physical nodes where the admin user is password-required. base_config deploys the password rule
-# but never REMOVES this build artifact, so the gap is silent. Remove it here (drift-enforced) → the
-# already-present 00_akhozya governs → admin-sudo parity with the fleet. Safe: akhozya has a login
-# password (node-maintenance keeps NOPASSWD for automation; virsh console is the ultimate break-glass).
+# The VM image shipped /etc/sudoers.d/akhozya-nopasswd (`akhozya ALL=(ALL) NOPASSWD:ALL`). sudoers
+# applies the last matching rule, reading files in lexical order, so that file overrides base_config's
+# password-required `00_akhozya`. base_config never removes it. Removing it here restores parity with
+# the physical nodes. Safe: akhozya has a login password, node-maintenance keeps NOPASSWD for
+# automation, and virsh console gives emergency access.
 - name: Remove VM-build akhozya NOPASSWD sudoers override (admin-sudo parity — 00_akhozya governs)
   ansible.builtin.file:
     path: /etc/sudoers.d/akhozya-nopasswd
@@ -209,16 +208,15 @@
   tags: [immich-gpu-node, user, authorized-keys]
 
 # ---- yay AUR helper bootstrap (parity with physical nodes) ----
-# Physical nodes seed yay once at build via setup-node.sh; this VM's GPU-onboarding path skipped it,
-# so phase2's `yay_cmd` (sudo -u node-maintenance yay -Syyu) silently no-op'd (`yay: command not
-# found`, swallowed by the old rescue) → the VM went unpatched, undetected until 2026-07-11. Bootstrap
-# it here, drift-enforced + idempotent (only when absent — thereafter the weekly yay_cmd self-updates
-# yay). AUR-in-drift-heal is otherwise out of scope, but yay is the updater itself, a bootstrap gap not
-# a package-set choice. Build/install SPLIT: makepkg refuses root, and akhozya has NO NOPASSWD on this
-# node (the admin-parity task above removes it), so `makepkg -si` — which self-calls `sudo pacman` —
-# would hang. Build as akhozya (deps pre-installed as root so no `-s` sudo), then `pacman -U` as root.
-# stat, not `command -v yay`: ansible.builtin.command runs no shell and `command` is a shell builtin,
-# so it would never resolve → the guard would report "missing" forever → bootstrap every drift-heal.
+# phase2's yay_cmd needs yay. The operator installed it by hand on the physical nodes (setup-node.sh
+# only uses yay if present); this VM's onboarding skipped it, so the weekly upgrade failed with `yay:
+# command not found`, and the old rescue hid that until 2026-07-11. Install it here only if absent; after that the
+# weekly yay_cmd updates yay itself.
+# Build and install run as separate steps: makepkg refuses root, and akhozya has no NOPASSWD here (see
+# above), so `makepkg -si` would hang on its own `sudo pacman`. Build as akhozya with deps pre-installed,
+# then `pacman -U` as root.
+# stat, not `command -v yay`: ansible.builtin.command runs no shell, and `command` is a shell builtin,
+# so the guard would always report yay missing and rebuild it on every drift-heal.
 - name: Check yay present (AUR helper — the fleet weekly updater)
   ansible.builtin.stat:
     path: /usr/bin/yay
@@ -269,9 +267,9 @@
   tags: [immich-gpu-node, packages]
 
 # qemu-guest-agent talks to the host over the org.qemu.guest_agent.0 virtio channel (already in the
-# domain XML) → the NAS-side watchdog gets a reliable `virsh shutdown --mode agent` (clean even when
-# ACPI is ignored) + domtime/domfsinfo guest-health without SSH. Enabled + started (a plain systemd
-# service — no GPU/reboot interaction, safe to start mid-run, unlike load-i915.service).
+# domain XML), so a NAS-side `virsh shutdown --mode agent` works even if the guest ignores ACPI, and
+# domtime/domfsinfo report guest health without SSH. Safe to start mid-run: a plain systemd service
+# with no GPU or reboot interaction, unlike load-i915.service.
 - name: Enable + start qemu-guest-agent
   ansible.builtin.systemd_service:
     name: qemu-guest-agent.service
@@ -281,10 +279,10 @@
   tags: [immich-gpu-node, packages, guest-agent]
 
 # ---- virtiofs library mount (Immich library share from the NAS host) ----
-# The library lives on the NAS host and is exposed to this guest as a virtiofs share (tag
-# immich-library, defined in the domain XML). Mount it at a stable path so the k3s Immich pod (step 4)
-# bind-mounts a real directory, not an empty one. The unit filename MUST be the systemd escape of the
-# mount path (var-lib-immich\x2dlibrary.mount) — immich-gpu-heal.sh restarts it by that exact name
+# The library lives on the NAS host and reaches this guest as a virtiofs share (tag immich-library, in
+# the domain XML). Mount it at a stable path so the k3s Immich pod bind-mounts a real directory, not an
+# empty one. The unit filename MUST be the systemd escape of the mount path
+# (var-lib-immich\x2dlibrary.mount): immich-gpu-heal.sh restarts it by that exact name
 # (library_unit → systemd-escape -p --suffix=mount /var/lib/immich-library).
 
 - name: Ensure Immich library mountpoint

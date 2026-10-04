@@ -1,6 +1,6 @@
 ---
 # node_isolation_heal — worker CP-isolation self-recovery watchdog.
-# See the node-isolation-heal design plan, removed after e26a42aa. Timings mirror the script defaults.
+# Timings mirror the script defaults.
 
 # false = ACTIVE (L1 k3s-agent restart, staggered L2 self-reboot). Keeping this false
 # REQUIRES the interlocks: phase2 worker-local maint-hold + shared

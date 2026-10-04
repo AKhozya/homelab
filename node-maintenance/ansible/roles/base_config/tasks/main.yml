@@ -1,6 +1,6 @@
 ---
 # base-config — logrotate, journald caps, sudoers, node-maintenance user
-# Applies to: all hosts (CP + workers); CP-only tasks tagged cp-only via when:
+# Applies to: all hosts (CP + workers). CP-only and worker-only tasks use `when: ... in group_names`.
 
 - name: Ensure logrotate installed
   ansible.builtin.package:
@@ -70,13 +70,10 @@
   tags: [base-config, time-sync]
 
 # kernel-modules-hook keeps /usr/lib/modules/<running> populated when pacman upgrades the
-# kernel pkg. Prevents the modprobe-fails-mid-runtime cascade observed 2026-05-02 (W1
-# yay -Syyu mid-session → ufw silent-disable → INPUT chain DROP).
-# The pkg is in `extra` and is declared in pacman_packages_base, so the `packages` role
-# (ordered first in node-config.yml) installs it on every run. It is NOT an AUR package —
-# it used to be mislabelled as one and carried in setup-node.sh's AUR_PKGS, a bootstrap-only
-# best-effort path that failed silently on immich-vm; the cascade then went live there
-# 2026-07-18. This task only enables the cleanup service that fires at boot.
+# kernel package. Without it, a mid-session `yay -Syyu` makes modprobe fail, ufw silently
+# disables and the INPUT chain drops (W1 2026-05-02, immich-vm 2026-07-18).
+# The package is in `extra` and in pacman_packages_base, so the `packages` role (first in
+# node-config.yml) installs it on every run. This task only enables the boot-time cleanup service.
 - name: Check kernel-modules-hook installed
   ansible.builtin.command: pacman -Q kernel-modules-hook
   register: kernel_modules_hook_check
@@ -229,14 +226,12 @@
     shell: /bin/bash
   tags: [base-config, user]
 
-# HOME ships root:root 0750 → node-maintenance(965) can't create ~/.cache. When
-# `yay -Syyu` (phase1 on CP, phase2 on workers) actually COMPILES an AUR pkg, Go
-# defaults GOCACHE to ~/.cache/go-build → `mkdir .cache: permission denied` →
-# build fails, task rc=1. Bit the CP on 2026-06-20 (yay 13.0.1 self-rebuild) →
-# phase1 failed pre-reboot → phase2/workers never ran. All hosts: own HOME +
-# .cache (go-build, yay clonedir) + .config (yay config). On workers ansible
-# already made .cache/.config root-owned as parents of the makepkg dirs, which
-# would block builds there too.
+# HOME ships root:root 0750, so node-maintenance cannot create ~/.cache. If `yay -Syyu`
+# (phase1 on CP, phase2 on workers) compiles an AUR package, Go puts GOCACHE in
+# ~/.cache/go-build and the build fails with `mkdir .cache: permission denied`. On 2026-06-20
+# this failed CP phase1 (yay 13.0.1 self-rebuild), so phase2 never ran on the workers.
+# So on every host, node-maintenance owns HOME, .cache (go-build, yay clonedir) and .config (yay config). On workers
+# ansible had already created .cache and .config root-owned as parents of the makepkg dirs.
 - name: Own node-maintenance HOME + dotdirs (writable for AUR builds)
   ansible.builtin.file:
     path: "{{ item.path }}"
@@ -477,7 +472,8 @@
 
 # /etc/hosts — declarative cluster node entries. Inventory is source of truth;
 # any drift gets reconciled. Block markers preserve other entries (e.g. user
-# customizations, virt managers). LAN-only — DNS via Blocky for everything else.
+# customizations, virt managers). Other names resolve through systemd-resolved's
+# public upstreams (hardening role: resolved-upstream-dns.conf), not Blocky.
 - name: Manage /etc/hosts cluster block
   ansible.builtin.blockinfile:
     path: /etc/hosts

@@ -25,8 +25,9 @@ ExecStart=/usr/local/sbin/node-maintenance-lock.sh wait -- /usr/bin/ansible-play
 ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance phase2 failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). Retries in 15min, up to 3 starts within 2h. Log: /var/log/node-maintenance/phase2-$(date -u +%%d-%%m-%%Y).log" || true'
 ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" = "success" ] && /usr/local/sbin/telegram-notify-claude.sh "Weekly update and reboot flow finished. Review and fix all alerts, then cleanup stale stuff in the cluster." || true'
 # Retry on transient failures (Flux timeout, SSH blip). 3 attempts at 15-min
-# intervals within 2h window. After exhaustion → failed state, flag retained,
-# L3 stale-flag auto-clear in config.service takes over after 2h.
+# intervals within 2h window. After exhaustion → failed state, flag retained.
+# If the flag is at least 2h old and Flux is healthy, config.service's
+# ExecCondition (check-phase2-flag-age.sh) clears it.
 Restart=on-failure
 RestartSec=900
 TimeoutStartSec=90min

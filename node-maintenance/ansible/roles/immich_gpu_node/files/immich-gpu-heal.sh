@@ -11,12 +11,12 @@
 # NOT healed here, by design:
 #   - k3s-agent / node-NotReady → clusterip_heal owns that (this VM is a workers-group node). Two
 #     watchdogs restarting k3s-agent would fight; render health is this one's only job.
-#   - reset-bug guest wedge (recovers ONLY via a HOST cold-restart / vfio reset) → Tier-2 host
-#     CronJob watchdog. A guest-local i915 reload can't reset a wedged IGD; the give-up here is the
-#     signal that surfaces it for Tier 2.
+#   - reset-bug guest wedge (recovers only via a host cold-restart / vfio reset). A guest-local i915
+#     reload cannot reset a wedged IGD. The give-up metric here is the signal for the operator; the
+#     immich-vm-heal CronJob never restarts a running domain.
 #
-# Deploy-safe pre-passthrough: no-ops (exit 0) when no Intel display GPU is on the PCI bus, so it
-# stays inert until the domain gains <hostdev> (step 3) and never storms on absent hardware.
+# If no Intel display GPU is on the PCI bus, exit 0: the watchdog stays inert without the <hostdev>
+# passthrough and never storms on absent hardware.
 #
 # Self-test: `immich-gpu-heal.sh --selfcheck` asserts the bounded decision + metric/state logic.
 
@@ -82,8 +82,9 @@ virtiofs_state() {
 }
 
 # vainfo lists a QSV encode entrypoint on the Intel render node. rc 0=ok, 1=no-encode, 2=unverifiable.
-# `timeout` bounds a NORMAL (killable) hang. The pre-Track-0 fbdev wedge hung vainfo in D-state where
-# SIGKILL is ignored — timeout can't reap that; qsv_probe_stuck() catches the leftover instead (below).
+# `timeout` bounds a normal (killable) hang. The virtio-gpu fbdev wedge (fixed by fbdev_emulation=0 +
+# fbcon=off on the cmdline) hung vainfo in D-state, where SIGKILL is ignored; qsv_probe_stuck() catches
+# that leftover.
 qsv_probe() {
 	command -v vainfo >/dev/null 2>&1 || return 2
 	local out
@@ -224,8 +225,8 @@ if [ "$vfs" = down ]; then
 fi
 
 # Hourly QSV probe (only when the render node exists; do not contend with a live transcode each cycle).
-# If a prior probe is still stuck in D-state (the pre-Track-0 fbdev wedge signature), surface it via
-# immich_gpu_qsv_stuck instead of launching another that accumulates unkillably.
+# If a prior probe is still stuck in D-state (the fbdev wedge signature), surface it via
+# immich_gpu_qsv_stuck instead of launching another probe that would stick in D-state too.
 qsv_metric=-1
 qsv_stuck=0
 if qsv_probe_stuck; then

@@ -4,12 +4,11 @@
 # after a successful weekly run, so Claude reviews the post-reboot alerts in the
 # operator's normal Telegram DM.
 #
-# The secret comes from the bot's own environment inside the pod. The CP keeps no copy.
-# Two copies went out of step once: the rotation on 2026-07-31 updated SOPS, and
-# /etc/node-maintenance/claude-trigger-secret kept its 2026-04-27 value. The bot then
-# answered 403, `|| true` in the caller discarded that, and two weekly runs got no alert
-# review before anyone noticed on 2026-08-08. Reading the pod's variable grants nothing
-# new — whoever can `kubectl exec` into that container can already read it.
+# The secret comes from the bot's own environment inside the pod. The CP keeps no copy:
+# the 2026-07-31 rotation updated SOPS but not /etc/node-maintenance/claude-trigger-secret,
+# the bot answered 403, the caller's `|| true` hid it, and two weekly runs got no alert
+# review (found 2026-08-08). Reading the pod's variable grants nothing new: anyone who can
+# `kubectl exec` into the container can already read it.
 #
 # Usage: telegram-notify-claude.sh "prompt text"
 set -euo pipefail

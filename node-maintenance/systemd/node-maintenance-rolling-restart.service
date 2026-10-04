@@ -5,7 +5,7 @@ After=network-online.target
 Wants=network-online.target
 # Skip during weekly maintenance — phase1/phase2 own the reboot+rollout
 # window. Rolling-restart triggered mid-phase2 would race with worker
-# reboot loop. Same guard as config.service.
+# reboot loop. Same guard as sync.service.
 ConditionPathExists=!/var/lib/node-maintenance/phase2-pending
 
 [Service]

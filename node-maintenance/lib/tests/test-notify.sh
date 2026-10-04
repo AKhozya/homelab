@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Offline check for node-config-notify.sh: drives all three branches against a synthetic
-# ansible log in a temp dir, with the Telegram notifier mocked. No root, no journald, no network.
+# Offline check for node-config-notify.sh: drives every branch (failure, changed, silent,
+# exec-condition skip, missing log) against a synthetic ansible log in a temp dir, with the
+# Telegram notifier mocked. No root, no journald, no network.
 # Run: bash tests/test-notify.sh
 set -uo pipefail
 

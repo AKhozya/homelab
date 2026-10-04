@@ -10,11 +10,12 @@
 # defense-in-depth for the CLASS — the specific trigger (the firewall role's gratuitous
 # `ufw reload`) is already fixed in ff2b486b.
 #
-# Signals (see the node-isolation-heal design plan, removed after e26a42aa):
+# Signals:
 #   tunnel   : curl https://127.0.0.1:6444/cacerts   k3s-agent client LB → CP apiserver
 #   cp_direct: TCP 192.168.1.127:6443                CP apiserver, LB-independent
 #   kubelet  : curl http://127.0.0.1:10248/healthz   kubelet local healthz (logged only)
 #   gateway  : ping 192.168.1.1                       LAN reachability (logged only)
+#   peers    : TCP <peer worker>:PEER_PORT            another worker answers (vetoes L2)
 # ISOLATED = tunnel down (agent can't reach the CP). kubelet stays healthy during isolation
 # so it does NOT gate. cp_direct + gateway are the discriminators — cp_direct GATES the
 # reboot (only reboot when the node genuinely can't reach the CP, not a mere LB glitch);
@@ -24,8 +25,9 @@
 #   L1  restart k3s-agent (rebuild tunnel/LB/CNI)     wedged >= RESTART_AFTER_S
 #   L2  controlled self-reboot (LAST RESORT — the      wedged >= REBOOT_BASE_S + NODE_INDEX
 #       only thing that recovered W2), STAGGERED per      * REBOOT_STAGGER_S, AND cp_direct
-#       node so two simultaneously-isolated workers        down, AND an L1 already tried.
-#       never reboot together (leaderless rolling reboot → HA DB loses ≤1 replica).
+#       node so two simultaneously-isolated workers        down, AND no peer answers on
+#       never reboot together (leaderless rolling        PEER_PORT, AND an L1 already tried.
+#       reboot → HA DB loses ≤1 replica).
 #
 # DRY_RUN=1 (safe script fallback — the ansible-managed env file sets the live value):
 # probe + log the decision it WOULD take + emit metrics; take NO destructive action.

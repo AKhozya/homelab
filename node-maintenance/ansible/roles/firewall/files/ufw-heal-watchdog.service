@@ -1,7 +1,7 @@
 [Unit]
 Description=UFW heal watchdog (periodic)
 Documentation=man:ufw(8)
-# Only run if UFW is supposed to be enabled
+# Skip if the heal script or ufw is not installed. The script exits 0 at once if ufw is active.
 ConditionPathExists=/usr/local/sbin/ufw-heal-post-k3s.sh
 ConditionPathExists=/usr/sbin/ufw
 

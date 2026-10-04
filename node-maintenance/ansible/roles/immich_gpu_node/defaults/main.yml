@@ -5,16 +5,16 @@
 # (systemd-boot + UKI; mkinitcpio bakes /etc/kernel/cmdline into /boot/EFI/Linux/<preset>.efi).
 immich_gpu_kernel_preset: linux-lts
 
-# Add `modprobe.blacklist=i915` to the UKI cmdline so the passed-through IGD never loads i915 at boot
-# (early load with no vBIOS/opregion wedges the guest); load-i915.service loads it render-only after
-# multi-user.target. A cmdline change requires a UKI rebuild (handler) + reboot to take effect — set
-# false only for a role test that must not trigger that reboot.
+# Gates the role's UKI cmdline task: i915,xe in modprobe.blacklist (an early i915 load on the passed-
+# through IGD, with no vBIOS/opregion, wedges the guest; load-i915.service loads it render-only after
+# multi-user.target), plus drm_kms_helper.fbdev_emulation=0 and fbcon=off. A cmdline change needs a UKI
+# rebuild (handler) and a cold-cycle to take effect. Set false to skip the task and that rebuild.
 immich_gpu_boot_blacklist: true
 
-# Guest packages for the watchdog's QSV verification (vainfo) + the iHD VAAPI driver. The Immich
-# container ships its own iHD; these are only for on-guest health probing. qemu-guest-agent gives the
-# NAS-side Tier-2 watchdog a reliable `virsh shutdown --mode agent` + guest-health signal (domtime/
-# domfsinfo) over the org.qemu.guest_agent.0 channel already in the domain XML — no SSH into the guest.
+# Guest packages for the watchdog's QSV check (vainfo) + the iHD VAAPI driver. The Immich container
+# ships its own iHD; these are only for on-guest health probing. qemu-guest-agent lets a NAS-side
+# `virsh shutdown --mode agent` and domtime/domfsinfo reach the guest over the org.qemu.guest_agent.0
+# channel already in the domain XML — no SSH into the guest.
 immich_gpu_packages:
   - intel-media-driver
   - libva-utils

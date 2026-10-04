@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # node-config-notify.sh — parses ansible playbook log + fires Telegram alert.
 # Invoked by node-maintenance-config.service ExecStopPost.
-# Alerts on: SERVICE_RESULT != success OR failed > 0 OR changed > 0.
-# Silent when idempotent (changed=0, failed=0, success).
+# Alerts on: a missing log; SERVICE_RESULT != success OR failed > 0 (failure alert);
+# changed > 0 (change report). Silent if idempotent (changed=0, failed=0, success) or
+# if ExecCondition skipped the run (result=exec-condition) and the log exists.
 #
 # Failure attribution: the controller is the CP node (ansible_connection: local).
-# A worker-side failure is reported by ansible as `fatal: [<worker>]: ...`
-# — but skim-readers may misread the alert as a CP failure because the alert
-# fires from CP. The "Failed on:" line is therefore placed in the SUBJECT
-# (first body line) so target nodes are unambiguous.
+# Ansible reports a worker-side failure as `fatal: [<worker>]: ...`, but the alert
+# comes from the CP, so a quick reader may take it for a CP failure. The
+# "Failed on:" line therefore comes right after the alert's first line.
 set -uo pipefail
 
 # Paths are env-overridable so tests/test-notify.sh can drive the whole dump path in a
@@ -97,7 +97,8 @@ extract_failed_hosts() {
     | paste -sd, -
 }
 
-# UTC ISO timestamps bracketing the fatal — for `journalctl --since/--until`.
+# UTC ISO window from the log's first timestamp (the run start) to now, for
+# `journalctl --since/--until`. Prints nothing if the log has no fatal line.
 extract_journal_window() {
   local fatal_line last_ts first_ts
   fatal_line=$(grep -nE '^(fatal|failed):' "$LOG" | tail -1 | cut -d: -f1 || true)
@@ -107,12 +108,9 @@ extract_journal_window() {
   [ -n "${first_ts:-}" ] && printf 'window: %s..%s\n' "$first_ts" "$last_ts"
 }
 
-# exec-condition = the unit's ExecCondition SKIPPED the heal — a benign skip, NOT a failure:
-# either the phase2-pending maintenance window (heal correctly does not run during a reboot) or a
-# pacman db.lck mid-transaction. ExecStart never ran, so $LOG still holds the PREVIOUS run's RECAP —
-# alerting here is a false alarm (the source of the "drift-heal FAILED (result=exec-condition)" noise,
-# 2026-05-25). Treat like success: stay silent. Real failures (exit-code/signal/timeout/oom-kill/…)
-# still fall through to the alert below.
+# exec-condition means ExecCondition skipped the run: the phase2-pending window or a pacman
+# db.lck. ExecStart never ran, so $LOG still holds the previous run's RECAP, and alerting on it
+# was a false alarm (2026-05-25). Stay silent; real failures still alert below.
 if [ "$RESULT" = "exec-condition" ]; then
   exit 0
 fi

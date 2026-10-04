@@ -7,20 +7,20 @@ Wants=network-online.target
 # before reboot; phase2 clears it after successful worker rollout. Drift-
 # heal targets workers via SSH, which fails when phase2 is mid-reboot.
 #
-# ExecCondition replaces static ConditionPathExists (2026-05-16):
+# check-phase2-flag-age.sh (ExecCondition, since 2026-05-16) decides:
 #   - Flag absent → proceed
 #   - Flag < 2h old → skip (maintenance in progress)
 #   - Flag >= 2h + Flux healthy → auto-clear + Telegram warn + proceed
 #   - Flag >= 2h + Flux unhealthy → skip (needs investigation)
-# Prevents stale flag from blocking drift-heal all day after transient
-# phase2 failure (e.g. Flux source-controller SSH timeout post-reboot).
+# A static ConditionPathExists let a stale flag block drift-heal all day after a
+# transient phase2 failure (e.g. Flux source-controller SSH timeout post-reboot).
 #
 # Second ExecCondition (2026-05-22): skip if pacman is mid-transaction.
-# Concurrent `pacman -Syu` (manual or otherwise) that upgrades ansible-core
-# mid-run causes a fatal in-memory/on-disk mismatch — action plugins reload
-# from the new core (e.g. copy.py passing templar=) while ConfigManager
-# stays on the old import → TypeError. Skipping is safe; next timer cycle
-# (10min) catches up after pacman releases the DB lock.
+# A concurrent `pacman -Syu` that upgrades ansible-core mid-run makes action
+# plugins load from the new core (e.g. copy.py passing templar=) while
+# ConfigManager stays on the old import → TypeError. Skipping is safe: the
+# config timer (03:00/15:00 UTC) or the next sync that brings a new commit
+# retries the skipped configuration run.
 
 [Service]
 Type=oneshot

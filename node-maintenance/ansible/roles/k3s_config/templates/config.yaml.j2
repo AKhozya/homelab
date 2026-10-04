@@ -61,9 +61,10 @@ prefer-bundled-bin: true
 # Controller-manager flags (CP only).
 # - terminated-pod-gc-threshold: Default 12500 too high for homelab —
 #   eviction leftovers linger after reboots. 20 allows ~10 normal Job pods + headroom.
-# - node-monitor-grace-period: lockstep with kubelet nodeLeaseDurationSeconds (60s).
-#   CM marks node Unknown when (now > lease.renewTime + grace). Must be >= lease + 1
-#   renewal interval (60 + 15 = 75s minimum). Default 50s would override the lease bump.
+# - node-monitor-grace-period: the controller marks a node Unknown if it sees no heartbeat
+#   for this long. A heartbeat is a lease renewal or a node-status update. The controller
+#   ignores the duration the kubelet advertises in its Lease (nodeLeaseDurationSeconds), so
+#   raising that value does not widen this timeout.
 # - node-monitor-period: how often CM checks lease state. Default 5s, kept explicit.
 kube-controller-manager-arg:
 {% if k3s_terminated_pod_gc_threshold is defined %}

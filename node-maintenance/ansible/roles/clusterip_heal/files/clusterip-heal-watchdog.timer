@@ -7,7 +7,7 @@ ConditionPathExists=/usr/local/sbin/clusterip-heal.sh
 # Boot is the primary wedge moment; give k3s-agent time to come up + (fail to) program rules first.
 OnBootSec=90s
 OnUnitActiveSec=3min
-# Stagger the two workers so they don't restart k3s-agent at the same instant.
+# Stagger the workers so they don't restart k3s-agent at the same instant.
 RandomizedDelaySec=20s
 
 [Install]

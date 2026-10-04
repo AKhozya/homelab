@@ -3,10 +3,10 @@
 #   0x010601 = SATA controller (AHCI)
 #   0x010802 = NVMe controller
 #   0x020000 = Ethernet controller
-# Setting power/control=on prevents the kernel from auto-suspending the
-# device, which has been observed to cause spurious link drops (igc/r8169)
-# and SSD latency spikes (NVMe APST). Belt-and-suspenders alongside
-# `pcie_aspm=off` kernel cmdline (which disables ASPM link-level only).
+# Setting power/control=on stops the kernel from runtime-suspending the
+# device, which has caused spurious link drops (igc/r8169). It adds to the
+# `pcie_aspm=off` kernel parameter, which disables only link-level ASPM.
+# NVMe APST, a cause of SSD latency spikes, is off in modprobe-nvme-no-apst.conf.
 ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x010601", ATTR{power/control}="on"
 ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x010802", ATTR{power/control}="on"
 ACTION=="add", SUBSYSTEM=="pci", ATTR{class}=="0x020000", ATTR{power/control}="on"

@@ -1,12 +1,8 @@
 ---
 # clusterip_heal_cp — CONTROL-PLANE self-heal for the post-reboot kube-proxy ClusterIP DNAT wedge.
 # CP counterpart of clusterip_heal (workers). Wired in node-config.yml on hosts: control_plane.
-# Uses a POD-NETNS probe (the host-netns probe false-reads on the CP) + a timeout-guarded
-# `systemctl restart k3s` (the "restart-k3s-on-CP hangs" caveat was disproven 2026-06-29; the
-# timeout converts any future hang into a give-up + alert, never an indefinite control-plane wedge).
-# See files/clusterip-heal-cp.sh. State (clusterip-heal-cp.state) is written as root inside
-# /var/lib/node-maintenance (node-maintenance:node-maintenance 0751, owned by base_config) — do NOT
-# re-assert ownership here; root writes fine with o+x on the parent.
+# Probe, restart and guards: files/clusterip-heal-cp.sh.
+# Do not manage /var/lib/node-maintenance here: base_config owns it (node-maintenance, 0751).
 
 - name: Ensure node-exporter textfile dir (heal metrics)
   ansible.builtin.file:

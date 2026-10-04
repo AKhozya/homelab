@@ -3,10 +3,9 @@
 #
 # CP counterpart of clusterip-heal.sh (workers). The CP runs k3s.service (not k3s-agent) and its
 # host-netns ClusterIP probe false-reads wedged, so this uses the POD-NETNS probe
-# (clusterip-probe-cp.sh) and restarts k3s. The old "restart-k3s-on-CP hangs" caveat was DISPROVEN
-# 2026-06-29 (a manual `systemctl restart k3s` returned cleanly in ~30-60s and reprogrammed the DNAT);
-# the restart is nonetheless `timeout`-guarded here so a future hang can NEVER wedge the control plane
-# indefinitely — it converts to a give-up + alert instead.
+# (clusterip-probe-cp.sh) and restarts k3s. A manual `systemctl restart k3s` on 2026-06-29 returned in
+# ~30-60s and reprogrammed the DNAT. The restart still runs under `timeout`: if it hangs, the run
+# reports wedged (ClusterIPHealWedged fires after 8 min) and the attempt counts toward the cap.
 #
 # Same guard model as the worker heal: act only when POSITIVELY wedged, with a cooldown between
 # restarts and a max-per-window cap; past the cap, back off and emit a give-up metric (alert) — a

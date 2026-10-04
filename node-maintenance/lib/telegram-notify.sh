@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# telegram-notify.sh — CLI wrapper used by systemd ExecStopPost on phase failure.
+# telegram-notify.sh — send one message to the node-maintenance Telegram chat. Callers
+# include systemd ExecStopPost hooks, ansible tasks and other node-maintenance scripts.
 # Reads token + chat-id from /etc/node-maintenance/, POSTs to Telegram Bot API.
 # Usage: telegram-notify.sh "message text"
 #

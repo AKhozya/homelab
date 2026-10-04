@@ -1,10 +1,8 @@
 [Unit]
 Description=Heal UFW after K3s + fail2ban fully populate ip6tables chains
 Documentation=https://bugs.launchpad.net/ufw/+bug/1987227
-# k3s-wait-ready.service is the readiness barrier (oneshot, RemainAfterExit=yes).
-# After= it = run after wait-ready completes. Wants= it = pull it into the
-# transaction. ConditionPathExists=/run/k3s-ready = belt-and-braces (skip if
-# sentinel absent — wait-ready may have failed to start).
+# k3s-wait-ready.service is the readiness barrier (oneshot, RemainAfterExit=yes). If it did
+# not complete, /run/k3s-ready is absent and this unit skips.
 After=k3s-wait-ready.service ufw.service fail2ban.service network-online.target
 Wants=k3s-wait-ready.service ufw.service
 ConditionPathExists=/usr/sbin/ufw

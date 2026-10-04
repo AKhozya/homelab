@@ -89,7 +89,8 @@ ensure_chain() {
 
 
 # Phase A — wait for UFW chain stability across N consecutive windows.
-# nft monitor logged for diagnostics but NOT gating (kube-* always churns it).
+# Phase A logs nft monitor events for diagnostics only. 457c67a5 (2026-04-28) removed them
+# as a settle gate here and in firewall-preflight.sh.
 # Hash gate is on ufw chains only: rules we control + chains UFW manages.
 # Falls through on timeout — never blocks heal.
 phase_a_settle() {
@@ -373,8 +374,9 @@ phase_g_cni_heal() {
     return 0
 }
 
-# A failure sends one Telegram alert. The boot unit, the watchdog and the firewall role's rescue
-# do not alert on this script's exit code.
+# A failure sends one Telegram alert at once. The firewall role's rescue ignores this script's
+# exit code. If the boot unit exits non-zero, it stays failed and NodeSystemdUnitFailed fires after
+# 15 min. The watchdog's failed state clears on its next run if UFW is active by then.
 run_cni_heal() {
     phase_g_cni_heal && return 0
     /usr/local/sbin/telegram-notify.sh "⚠️ $(hostname): after a UFW flush-all, ufw-heal could not restore the portmap CNI rules (CNI-HOSTPORT-DNAT/MASQ jumps). hostPort traffic (svclb) may be broken until k3s restarts. See journalctl -t ufw-heal." || true

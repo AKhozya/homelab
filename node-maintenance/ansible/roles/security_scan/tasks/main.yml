@@ -1,7 +1,6 @@
 ---
 # security_scan — monthly lynis + rkhunter scan. Applies to all hosts.
-# Deploys canonical script (was duplicated between CP bin/ and 100-line heredoc in install-worker.sh)
-# plus systemd service + timer. Preconditions (lynis + rkhunter pkgs) installed by `packages` role.
+# Requires lynis and rkhunter from the `packages` role.
 
 - name: Ensure /var/log/node-maintenance exists (owner root:adm 0750)
   ansible.builtin.file:

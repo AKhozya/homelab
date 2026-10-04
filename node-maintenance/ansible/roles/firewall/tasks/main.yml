@@ -93,17 +93,18 @@
     mode: "0755"
   tags: [firewall, diag]
 
-# Drift fingerprint gate — skip rules block when live state matches last known good.
-# Cache lives at /var/lib/ufw-state/ufw-fingerprint. Each successful run
-# updates it. Daily drift-heal on a healthy node = no UFW reload, no race.
+# Drift fingerprint gate — skip the rules block when live state matches the last clean run.
+# Cache: /var/lib/ufw-state/ufw-fingerprint. A clean run of the rules block rewrites it, so
+# drift-heal on a healthy node skips the UFW reload.
 #
-# Fingerprint inputs (sha256):
+# One sha256 over:
 #   - /etc/default/ufw            (default policies + logging)
-#   - `ufw status verbose`         (rules + numbered state)
-#   - sha256 of each ufw_rules_*   (var-side drift detection, ufw_rules_absent
-#                                   included, so a new delete entry re-runs the block)
+#   - `ufw status verbose`        (live rules)
+#   - ufw_policy_* and ufw_logging
+#   - ufw_rules_*, ufw_rules_absent and ufw_route_rules_* as JSON, so a new delete entry
+#     re-runs the block
 #
-# To force re-run after manual rule edit: `rm /var/lib/ufw-state/ufw-fingerprint`
+# To force a re-run after a manual rule edit: `rm /var/lib/ufw-state/ufw-fingerprint`
 - name: Compute current UFW fingerprint
   ansible.builtin.shell: |
     set -o pipefail
@@ -162,12 +163,9 @@
     quiet: true
   tags: [firewall]
 
-# UFW rule application — wrapped in block/rescue for L3 resilience.
-# Per-task retries (L2): retries=10 delay=20 = 200s window/task. Survives
-# longer kube-proxy/flannel race bursts (50s window was insufficient
-# 2026-04-29; multiple W2 fatals at attempts=5).
-#
-# Gated on ufw_drift_detected (above). Default-true on first run (no cache).
+# UFW rule application, in block/rescue (L3). Per-task retries (L2): a 50s window failed
+# on W2 on 2026-04-29 (several fatals at attempts=5).
+# Gated on ufw_drift_detected (above). A first run has no cache, so the block runs.
 - name: UFW rules block (with rescue heal)
   when: ufw_drift_detected | default(true)
   tags: [firewall]

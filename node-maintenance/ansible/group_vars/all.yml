@@ -40,16 +40,13 @@ flux_kustomizations:
   - monitoring-controllers
 
 # Used by phase2 (workers and immich-vm).
-# -Syyu (double y) forces re-download of mirror DB even if cache appears fresh —
-# catches mirror-staleness where DB lists package files that have rotated.
-# --cleanafter clears the per-package tree under .cache/yay/ after a successful
-# install, sources included. It cleans nothing outside that tree, so it only
-# covers sources while SRCDEST stays unset (see base_config makepkg.conf). A
-# surviving source shadows the URL — makepkg validates the file already on disk
-# and never re-downloads, so a checksum corrected upstream can never be
-# satisfied. Cost us 2026-08-01: flux-bin pkgrel=2 fixed a stale _srcver, the
-# old tarball was still parked under the new pkgver filename, validity check
-# failed, phase1 died fail-fast — no reboot, phase2 never ran, workers unpatched.
+# -Syyu forces a mirror DB re-download even if the cache looks fresh, which catches a DB that lists
+# package files the mirror has rotated out.
+# --cleanafter clears the per-package tree under .cache/yay/ after a successful install. If SRCDEST
+# stays unset (see base_config makepkg.conf), that tree holds the sources, so they go too.
+# If a cached source remains, makepkg validates the file on disk and never re-downloads it. So if
+# upstream replaces the file and the PKGBUILD checksum follows, the old copy fails every run. 2026-08-01:
+# flux-bin pkgrel=2 hit this, phase1 failed fast, phase2 never ran, and the workers stayed unpatched.
 yay_cmd: "sudo -u node-maintenance yay -Syyu --noconfirm --answerdiff=None --answerclean=None --removemake --cleanafter"
 # phase1 (CP): AUR packages only. phase1.service runs `pacman -Syu` before the play; `-a` keeps
 # yay from refreshing and upgrading repo packages (python, ansible) under the running play.
@@ -102,14 +99,12 @@ pacman_packages_base:
   - inetutils
   - jc
   - jq
-  # kernel-modules-hook KEEPS /usr/lib/modules/<running> populated when pacman upgrades the
-  # kernel package. Without it, a mid-session `pacman -Syu` lets 60-mkinitcpio-remove.hook delete
-  # the RUNNING kernel's modules dir → every subsequent modprobe FATALs → the 2026-05-02 W1
-  # cascade (ufw silent-disable → INPUT chain DROP).
-  # Declared here rather than in setup-node.sh's AUR_PKGS: it lives in `extra`, NOT the AUR. The
-  # old "(AUR)" labelling routed it through a bootstrap-only best-effort install that failed
-  # silently on immich-vm, and the cascade went live there 2026-07-18 (kernel 6.18.38-2 → -4).
-  # Declarative here = every node, every node-config run, with the role's retries.
+  # kernel-modules-hook keeps /usr/lib/modules/<running> when pacman upgrades the kernel. Without it, a
+  # mid-session `pacman -Syu` lets 60-mkinitcpio-remove.hook delete the running kernel's modules dir, and
+  # every later modprobe fails (2026-05-02 W1: ufw silently disabled → INPUT chain DROP).
+  # It lives in `extra`, not the AUR, so it belongs here: every node, every node-config run. A
+  # bootstrap-only install failed silently on immich-vm, which hit the same cascade on 2026-07-18
+  # (kernel 6.18.38-2 → -4).
   - kernel-modules-hook
   # k8s-adjacent (most useful on control plane; small on workers)
   - kubectl
@@ -141,15 +136,15 @@ pacman_packages_base:
   - yamllint
   - yq
   - zoxide
-# Note: `yay` deliberately NOT here — AUR-only, pacman cannot install it.
-# Bootstrapped manually once per node (makepkg). setup-node.sh Section 1 uses it for firmware AUR pkgs.
+# Note: `yay` is not here: it is AUR-only, so pacman cannot install it. It was installed by hand on the
+# physical nodes; the immich_gpu_node role bootstraps it on immich-vm. setup-node.sh Section 1 uses it
+# for the AUR firmware packages.
 # Note: `taplo` (TOML lint) intentionally not on nodes — not in extra or AUR.
 # Mac-only via Homebrew. Nodes have ~no TOML files; cost > benefit to track GH releases.
-# Note: 2026-07-18 fleet-parity audit (immich-vm vs W1/W2) found 19 packages hand-installed on
-# both workers but never declared. The repo-installable ones are now listed above. Deliberately
-# still excluded:
+# Note: deliberately excluded from the 19 packages the 2026-07-18 fleet-parity audit found
+# hand-installed on W1/W2 (the repo-installable ones are listed above):
 #   flux-bin, viddy, zsh-you-should-use — AUR-only; this list is pacman-only by design.
-#   packagekit, pkgstats, udisks2      — dependency leftovers on W1/W2, not deliberate installs.
+#   packagekit, pkgstats, udisks2      — dependency leftovers, not deliberate installs.
 # Node-local extras beyond this list are tolerated drift; the list is a floor, not a whitelist.
 
 # Base rules common to all 4 nodes.

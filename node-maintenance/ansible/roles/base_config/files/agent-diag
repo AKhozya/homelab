@@ -16,8 +16,8 @@
 #   journalctl -n1 --cursor-file=/f   writes a caller-named file
 # The first two spawn ssh. An allowlist is immune to all four: an unlisted spelling is unlisted.
 #
-# `sar` is absent for the same reason it cannot be made safe cheaply: `sar -o <file>` writes an
-# arbitrary file, and the 30-day transcript corpus contains no use of it.
+# `sar` is absent because it cannot be made safe cheaply: `sar -o <file>` writes an arbitrary
+# file, and the bot's commands over 30 days never used it.
 set -u
 
 cmd=${SSH_ORIGINAL_COMMAND-}
@@ -50,9 +50,7 @@ opt_ok() {
         --unit=*|--lines=*|--since=*|--until=*|--priority=*|--output=*|--grep=*) return 0 ;;
         --boot|--dmesg|--reverse|--catalog|--no-pager|--no-hostname|--quiet|--system|--utc|--full)
           return 0 ;;
-        # Crash forensics needs the boot BEFORE the one that is running. `-b` takes an optional
-        # argument, so the offset must be attached — the separated `-b -1` cannot work here and
-        # is not meant to: a lone `-1` is a dash token, and no dash token is ever an operand.
+        # Crash forensics needs the previous boot. The offset must be attached (`-b-1`), as above.
         -b-[0-9]*|--boot=-[0-9]*|--boot=[0-9a-f]*|--list-boots) return 0 ;;
       esac ;;
     systemctl)
@@ -79,10 +77,9 @@ opt_ok() {
       case $2 in -p|-s) return 0 ;; esac ;;
     cat) ;;
     path-operand)
-      # cat and ls take a path, and until this existed they took ANY path — the forced command
-      # read anything the login user could, which is the same account the operator logs in with.
-      # Prefixes cover what the 30-day corpus actually reads: unit files and k3s config under
-      # /etc, node-maintenance state, journald spill in /var/log, per-process data in /proc.
+      # cat and ls take a path. The login account is the operator's own, so an open path would
+      # read anything the operator can. Allowed: /etc, /sys, /var/log, /usr/local/bin,
+      # /usr/local/sbin, and the /proc files listed below.
       # `..` is refused outright rather than resolved: the charset gate passes `.` and `/`, so
       # /etc/../home/user/.ssh/id_ed25519 would otherwise satisfy any prefix test.
       case $2 in *..*) return 1 ;; esac

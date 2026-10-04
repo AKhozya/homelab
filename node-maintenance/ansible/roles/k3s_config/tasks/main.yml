@@ -105,10 +105,6 @@
     - k3s_secrets_encryption | default(false)
   tags: [k3s-config, secrets-encryption]
 
-# CoreDNS HA is NO LONGER patched into the k3s addon manifest here. As of the
-# 2026-05-31 convergence (--disable=coredns in control_plane.yml), k3s deletes the
-# addon manifest /var/lib/rancher/k3s/server/manifests/coredns.yaml, so the old
-# `ansible.builtin.replace` insert-replicas task failed every drift-heal run
-# (exit=2 INVALIDARGUMENT on the missing file). HA is now the Flux-managed
-# `coredns-ha` DaemonSet (infrastructure/coredns/, one pod per node). The
-# deadlock itself is written up in ansible/group_vars/control_plane.yml.
+# No CoreDNS replicas patch here: --disable=coredns (group_vars/control_plane.yml) makes k3s delete
+# the addon manifest /var/lib/rancher/k3s/server/manifests/coredns.yaml, so a patch task would fail
+# every run. The Flux-managed coredns-ha DaemonSet (infrastructure/coredns/) provides HA.

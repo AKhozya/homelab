@@ -11,7 +11,3 @@ skip_list:
   - var-naming[no-role-prefix]  # vars are domain-scoped (k3s_*, ufw_*, etc.) —
                                 # shared across roles, group_vars, host_vars. Role-prefix
                                 # renaming would inflate 30+ refs with zero clarity gain.
-
-# Declare collections explicitly — avoids false "unknown module" for kubernetes.core
-# when ansible-lint runs in isolated env. Requires `ansible-galaxy collection install`
-# to have been run with the user's ANSIBLE_COLLECTIONS_PATH.

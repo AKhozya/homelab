@@ -1,7 +1,5 @@
 ---
 # worker-node-2 (192.168.1.126) — AMD Ryzen 7 8745H, 8c/16t, 32GB, Radeon 780M iGPU.
-# Workload memory limits here were cut after repeated OOM incidents (2026-02-21 DPDK
-# build, 2026-04-26 host OOM). Their driver, rebuilderd, was removed 2026-07-06.
 
 # Cluster LAN IP for /etc/hosts block (mirrors ansible_host but explicit).
 node_ip: 192.168.1.126

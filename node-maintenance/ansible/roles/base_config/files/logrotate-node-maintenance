@@ -1,5 +1,7 @@
 # Node maintenance phase1/phase2 + config drift-heal ansible logs (CP only).
-# File names include DD-MM-YYYY, so re-runs on same day append (hence maxsize).
+# phase1/phase2 names include DD-MM-YYYY, so a same-day re-run appends (hence maxsize).
+# Drift-heal writes config-latest.log and truncates it on each run. Its per-run copies sit in
+# config-archive/, which this glob does not reach; node-maintenance-config.service keeps the 50 newest.
 /var/log/node-maintenance/phase1-*.log /var/log/node-maintenance/phase2-*.log /var/log/node-maintenance/config-*.log {
     weekly
     rotate 8

@@ -167,9 +167,8 @@ main() {
 
     wait_iptables_stable "$(phase_deadline "$SETTLE_TIMEOUT_SEC")" || log "WARN: iptables not stable"
 
-    # Always touch sentinel — boot must proceed even on timeout.
-    # Downstream services treat sentinel as "best-effort wait done", not
-    # absolute readiness guarantee.
+    # Write the sentinel even if a wait times out, so boot can proceed. Downstream units treat it as
+    # "best-effort wait done", not a readiness guarantee.
     touch "$SENTINEL"
     chmod 0644 "$SENTINEL"
     local elapsed=$(( $(date +%s) - start ))
