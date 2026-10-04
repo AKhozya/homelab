@@ -29,8 +29,9 @@ while [[ "$dir" != "/" && ! -d "$dir" ]]; do dir=$(dirname "$dir"); done
 
 # Outside any git repo (e.g. ~/.claude dotfiles) -> not our concern.
 toplevel=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
-# git worktree list lists the main working tree first.
-main_tree=$(git -C "$dir" worktree list --porcelain 2>/dev/null | awk '/^worktree /{print substr($0, 10); exit}')
+# git worktree list lists the main working tree first. awk reads all input: an early exit can
+# SIGPIPE git, and pipefail would then kill the hook, which lets the edit through.
+main_tree=$(git -C "$dir" worktree list --porcelain 2>/dev/null | awk '/^worktree /{if (!n++) print substr($0, 10)}') || exit 0
 [[ -z "$main_tree" ]] && exit 0
 
 # Only guard the homelab main tree; never block edits to other repos.
