@@ -56,22 +56,28 @@ spec:
 
               python3 << 'PYEOF'
               from uptime_kuma_api import UptimeKumaApi
-              import os, time
+              import contextlib, os, time
 
+              # Retry the connect and needSetup together. 14 of 31 setup pods in Loki (29 days to
+              # 2026-10-05) logged a needSetup TimeoutError. On 2026-10-05 it timed out even with a
+              # 30s timeout, and the restarted container, with a new connection, succeeded.
               max_retries = 5
               for i in range(max_retries):
+                  api = None
                   try:
-                      # The default 10s socket.io call timeout made need_setup() fail on the first
-                      # attempt in 18 of 30 runs (Loki, 2026-09-05..10-04); the next container attempt succeeded.
-                      api = UptimeKumaApi('http://uptime-kuma.uptime-kuma.svc.cluster.local:3001', timeout=30)
+                      api = UptimeKumaApi('http://uptime-kuma.uptime-kuma.svc.cluster.local:3001')
+                      needs_setup = api.need_setup()
                       break
                   except Exception as e:
+                      if api is not None:
+                          with contextlib.suppress(Exception):
+                              api.disconnect()
                       if i == max_retries - 1:
                           raise
-                      print(f"WebSocket connect attempt {i+1}/{max_retries} failed: {e}, retrying in 3s...")
+                      print(f"Connect or needSetup attempt {i+1}/{max_retries} failed: {e!r}, retrying in 3s...")
                       time.sleep(3)
 
-              if api.need_setup():
+              if needs_setup:
                   print("Setting up admin user...")
                   api.setup(
                       username=os.environ['UPTIME_KUMA_USERNAME'],
