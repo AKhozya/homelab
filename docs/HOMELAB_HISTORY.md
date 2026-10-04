@@ -17,6 +17,33 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-10-04 — Second sweep: low-confidence comments, Markdown docs and skill scripts
+
+The operator asked for everything the first comment sweep left, except Flux's generated `gotk-*.yaml`.
+
+| Scope | Result | Commits |
+|---|---|---|
+| 137 low-confidence comment findings | re-checked against the code: 116 applied, 16 skipped (12 sit in pod templates), 5 left for the operator | `ad277775`..`a971f6c2` |
+| Markdown: HOMELAB_HISTORY.md | 13 removed-plan paths replaced by the commit that removed the plan, 18 private labels decoded | `77ed8260` |
+| Markdown: 23 other docs, AGENTS.md and CLAUDE.md included | false claims fixed, among them the README dependency tree, a CVE ID, and AGENTS.md calling a reminder hook enforcing | `77ed8260` |
+| `docs/disaster-recovery/README.md`, `docs/SECRETS_ROTATION.md` | not swept: the permission check blocked edits to these runbooks | none |
+| 43 files in 16 of the operator's own dotfiles skills plus `_shared` (third-party skills untouched) | 15 false comments fixed, private labels and doc pointers removed; `agents/` refreshed | dotfiles `566820c`, `8cfc2e08` |
+
+| Review | Result |
+|---|---|
+| repo, 22 chunks then two deltas | round 1: 10 HIGH; round 2: 2 HIGH; round 3: approved |
+| skills, operator rule: iterate until no finding, NIT included | 5 full passes and 8 delta reviews; the last full pass approved all 6 chunks with no finding |
+| Kustomize roots rendered with comments stripped | all 21 touched roots match |
+
+Review caught first-round rewrites that were wrong. The docs now state:
+
+| Topic | Correct behaviour |
+|---|---|
+| Flux `wait` | `wait: true` ignores `healthChecks`; `wait: false` still runs them |
+| Traefik `burst` | sets the token-bucket size; it does not limit requests in flight |
+| `emptyDir.sizeLimit` on a disk-backed emptyDir | kubelet evicts the pod; the limit does not cap writes |
+| shell `&&` and `||` | equal precedence, grouped left to right |
+
 ### 2026-10-04 — W1's two-month `CertificateExpirationWarning` came from a dead install's control-plane state, not from its own certificates
 
 Since 2026-08-08 the `k3s-cert-monitor` on worker-node had warned that "node certificates require attention — restart k3s on this node to trigger automatic rotation", naming leaf certificates that expire 2026-11-08. The advice was unachievable: every file it listed is a **server** certificate (`admin/`, `supervisor/`, `auth-proxy/`, `api-server/`, `scheduler/`, `controller-manager/`, `cloud-controller/`, `etcd/`), W1 runs `k3s-agent` only, and an agent cannot re-issue those. A rotation of all three agents' certificates on 2026-10-04 left the warning firing unchanged, which is what pointed at the real cause.
