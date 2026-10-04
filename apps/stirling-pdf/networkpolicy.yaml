@@ -36,7 +36,16 @@ spec:
         - protocol: TCP
           port: 8080
   egress:
-    # Authentik OIDC
+    # HTTPS to any address. The OIDC issuer https://authentik.h0melab.work resolves to
+    # Cloudflare's public IPs, because the nodes use public DNS. A rule that allowed
+    # only the authentik namespace crash-looped the app (15287e7d); a second try
+    # (0429c041) was reverted the same day (c7429112).
+    # Other HTTPS calls Stirling 3.0.2 makes from the pod:
+    #   - at start and every 7 days: the license check to api.keygen.sh (premium.enabled is on)
+    #   - if an admin downloads OCR languages: raw.githubusercontent.com, api.github.com
+    #   - if an admin installs another form-detection model: huggingface.co
+    #   - if a user requests a timestamp: the chosen TSA server, such as freetsa.org
+    #   - if enabled in settings: Adobe and EU trust lists, PostHog analytics
     - ports:
         - protocol: TCP
           port: 443

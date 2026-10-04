@@ -41,7 +41,7 @@ spec:
             readOnlyRootFilesystem: false # Stirling PDF writes temp files and modifies system configs
             capabilities:
               drop: ["ALL"]
-              add: ["SETGID", "SETUID", "CHOWN", "DAC_OVERRIDE"] # Required for su-exec privilege dropping, directory ownership, and nginx file access
+              add: ["SETGID", "SETUID", "CHOWN", "DAC_OVERRIDE"] # entrypoint: setpriv to app users (SETUID/SETGID), chown -R app paths (CHOWN), root writes into other users' dirs (DAC_OVERRIDE)
           # / requires authentication (since v2.0.3), so health checks use /api/v1/info/status.
           # startupProbe allows 300s for slow cold start (30 * 10s). Spring Boot 4 + license check
           # + H2 initialization can exceed 90s on a cold node (measured on 2.11.0-fat)
@@ -90,10 +90,6 @@ spec:
               mountPath: /var/cache/fontconfig
             - name: tessdata-dir
               mountPath: /usr/share/tessdata
-            - name: nginx-logs-dir
-              mountPath: /var/lib/nginx/logs
-            - name: nginx-tmp-dir
-              mountPath: /var/lib/nginx/tmp
             - name: custom-settings
               mountPath: /configs/custom_settings.yml
               subPath: custom_settings.yml
@@ -115,10 +111,6 @@ spec:
         - name: tessdata-dir
           persistentVolumeClaim:
             claimName: stirling-pdf-tessdata-pvc
-        - name: nginx-logs-dir
-          emptyDir: {}
-        - name: nginx-tmp-dir
-          emptyDir: {}
         - name: custom-settings
           secret:
             secretName: stirling-pdf-custom-settings
