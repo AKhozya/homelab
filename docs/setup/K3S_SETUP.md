@@ -148,12 +148,15 @@ curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<nod
 
 Never reboot this guest from inside it, and never `virsh reboot`, `reset` or `destroy` it. Each one
 hits the GPU reset bug: the GPU wedges, and a `destroy` crashes the NAS host. The
-only safe restart runs on the NAS host:
+only safe restart runs on the NAS host. The libvirt domain's name is a UUID; `immich-vm` is
+only its title, so `virsh … immich-vm` fails with `failed to get domain`. Without
+`-c qemu:///system`, a non-root `virsh` lists the empty session connection instead:
 
 ```bash
-virsh shutdown immich-vm --mode acpi
-virsh domstate immich-vm     # wait for "shut off" before the next line
-virsh start immich-vm
+D=0398541a-c088-48cd-b16a-4b45d31a92f3; V="virsh -c qemu:///system"
+$V shutdown $D --mode acpi
+$V domstate $D     # wait for "shut off" before the next line
+$V start $D
 ```
 
 The NAS host supplies the GPU and the virtiofs library mount, so start the guest before installing

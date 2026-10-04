@@ -100,7 +100,7 @@ readiness.
 | `infrastructure-controllers` | flux-system (source) | Operators and CRDs: cert-manager, Traefik, Kyverno, CNPG, Percona, Redis |
 | `coredns` | nothing (flux-system source only) | Cluster DNS |
 | `infrastructure-configs` | infrastructure-controllers | Database clusters, NetworkPolicies, quotas, secrets, backups, Traefik Middlewares |
-| `apps` | infrastructure-configs | The 17 app stacks; their databases and NetworkPolicies must exist first |
+| `apps` | infrastructure-configs | The app stacks; their databases and NetworkPolicies must exist first |
 | `monitoring-controllers` | infrastructure-controllers | VictoriaMetrics, Loki, Alloy |
 | `monitoring-configs` | monitoring-controllers | Scrape configs, alert rules, dashboards, alert templates |
 
@@ -141,7 +141,7 @@ Service port directly. It has no egress to the `traefik` namespace:
 
 | cloudflared may reach | Why |
 |---|---|
-| 8 app namespaces: audiobookshelf, authentik, immich, linkwarden, mealie, n8n, paperless-ngx, stirling-pdf | their tunnel hostnames |
+| App namespaces: audiobookshelf, authentik, immich, linkwarden, mealie, n8n, paperless-ngx, stirling-pdf | their tunnel hostnames |
 | `databases` | CouchDB, for Obsidian sync |
 | `rustdesk` | RustDesk clients on Cloudflare WARP (Cloudflare's device VPN) |
 | `kube-system` | DNS |
@@ -168,7 +168,7 @@ If you add a tunnel hostname, pick one of these three rows and add the hostname 
 ```mermaid
 flowchart TB
   L1["1 · Secrets at rest: SOPS with age, encrypted in Git"]
-  L2["2 · Admission: 12 Kyverno policies, all Deny, plus Pod Security Standards"]
+  L2["2 · Admission: Kyverno policies, all Deny, plus Pod Security Standards"]
   L3["3 · Network: an allow-list NetworkPolicy per workload; Kyverno rejects a workload in a non-system namespace without one"]
   L4["4 · Runtime, by default: non-root, read-only root filesystem, all capabilities dropped, seccomp RuntimeDefault; documented exceptions"]
   L5["5 · Identity and transport: Authentik sign-in, cert-manager TLS"]
@@ -221,7 +221,7 @@ drop a database by hand; change the resource in Git, then `kubectl rollout resta
 | Failure | Effect | What still works | Recovery |
 |---|---|---|---|
 | Control-plane node down | Flux and admission stop; new pods cannot be scheduled | Running pods and Services keep serving; kube-proxy on the workers does not need the control plane | Reboot the node; Flux catches up |
-| `worker-node` (W1) down | Most app volumes, the five nightly backup CronJobs (pinned to W1) and Loki are on W1, so most stateful apps, logs and the nightly backups stop. Nothing fails over, because each volume is bound to W1's disk. | Workloads on other nodes; metrics and alerts (on W2); Immich (on `immich-vm`); the weekly Immich backup (on W2) | Reboot or replace W1; apps and backups resume |
+| `worker-node` (W1) down | Most app volumes, the nightly backup CronJobs (pinned to W1) and Loki are on W1, so most stateful apps, logs and the nightly backups stop. Nothing fails over, because each volume is bound to W1's disk. | Workloads on other nodes; metrics and alerts (on W2); Immich (on `immich-vm`); the weekly Immich backup (on W2) | Reboot or replace W1; apps and backups resume |
 | `immich-vm` down | Immich web, API and machine learning stop | Everything else. Immich data is safe: the library is on the NAS and the database is in CNPG. | If the VM is shut off, the `immich-vm-heal` CronJob starts it. If the VM hangs while running, the operator steps in; never `virsh destroy` it (the GPU does not reset cleanly). |
 | `worker-node-2` (W2) down | Metrics and in-cluster alerting stop: the single VictoriaMetrics instance keeps its volume on W2. The always-firing Watchdog alert then stops, so healthchecks.io stops receiving pings and raises an alert from outside the cluster. | Apps, logs and backups on W1 | Reboot or replace W2; monitoring resumes |
 | Cloudflare edge or tunnel down | Apps published on the tunnel are unreachable from the internet | LAN access through Traefik | Wait for Cloudflare |
@@ -269,11 +269,11 @@ command. Adding one new namespace hits the same problem, which is why a new app 
 ([.claude/review-invariants.md](../.claude/review-invariants.md)).
 
 An ordered bootstrap layer would fix both, but it is **deliberately not built**. `clusters/apps.yaml`
-sets `prune: true`, and the `apps` Kustomization owns all 17 `namespace.yaml` files. If those files
+sets `prune: true`, and the `apps` Kustomization owns every app's `namespace.yaml`. If those files
 moved to another Kustomization, Flux would prune the Namespace objects, and deleting a Namespace
 deletes every workload and PVC in it. Nothing guarantees that the new layer recreates them
 first. Moving the Redis-HA and CouchDB resources between Kustomizations already needed a
-two-stage move for this reason (commits `8595de63` and `d771464d`). Risking all 17 namespaces to save two lines in a DR
+two-stage move for this reason (commits `8595de63` and `d771464d`). Risking every app namespace to save two lines in a DR
 script and one commit per new app is a bad trade while the workaround works. If a DR drill shows
 the manual pass is error-prone, or new apps arrive often enough that the extra commit slows work,
 revisit this.

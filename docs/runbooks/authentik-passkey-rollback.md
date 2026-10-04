@@ -89,8 +89,7 @@ Restore the **password** binding first. Blueprint 40 removed the password stage 
 
 3. Check that a sign-in asks for the password before you revert the phases.
 
-The phase commits edited `apps/base/authentik/`, before `b92a8032` moved it to `apps/authentik/`, so
-the `git log -- apps/authentik/` search below finds none of them. Use these:
+The phase commits edited `apps/base/authentik/`, before `b92a8032` moved it to `apps/authentik/`:
 
 | Phase | Commit | Adds |
 |---|---|---|
@@ -99,18 +98,16 @@ the `git log -- apps/authentik/` search below finds none of them. Use these:
 | 2 | `55385305`, fixed by `6e4646c4` | `20-passkey-first.yaml` |
 | 3 | `bada5b6a`, then `a2bf7649` added TOTP to `device_classes` | `30-enforce.yaml` |
 
-Revert `a2bf7649` before `bada5b6a`. Do not revert phase 0: blueprint 50 still uses its ConfigMap and mount.
+Remove the phase blueprints by hand; do not `git revert` the phase commits. Later commits changed `30-enforce.yaml` and the kustomization, so a revert of `bada5b6a` stops on a conflict (tested 2026-10-04). Keep phase 0 (`7d3d55d0`): blueprint 50 still loads through its ConfigMap and mount, and it refers only to authentik's default flows.
 
 ```bash
-# Find Phase commits (search commit subject pattern):
-git log --oneline --grep="Authentik:" -- apps/authentik/
-
-# Revert in reverse landing order (Phase 3 → Phase 2 → Phase 1):
-git revert --no-edit <PHASE3_SHA>
-git revert --no-edit <PHASE2_FIX_SHA>
-git revert --no-edit <PHASE2_SHA>
-git revert --no-edit <PHASE1_SHA>
-# Optionally revert Phase 0 (plumbing) too — keeps the empty ConfigMap mount; harmless.
+git rm apps/authentik/blueprints/30-enforce.yaml apps/authentik/blueprints/20-passkey-first.yaml \
+  apps/authentik/blueprints/10-voluntary-enrollment.yaml
+# Then delete those three lines from configMapGenerator.files in apps/authentik/kustomization.yaml.
+kustomize build apps/authentik >/dev/null
+# git rm stages only the deletions; stage the kustomization edit too.
+git add apps/authentik/kustomization.yaml
+git commit -m "authentik: roll back passkey phases 1-3"
 
 git push
 flux reconcile source git flux-system --timeout=90s
@@ -196,7 +193,8 @@ If a newly-pushed blueprint file doesn't appear in the API:
 # Confirm file is mounted on worker
 kubectl exec -n authentik deploy/authentik-worker -- ls -la /blueprints/custom/
 
-# Force blueprint discovery via ak shell (runs sync'd task)
+# Queue a blueprint discovery. .send() only enqueues the dramatiq task and returns.
+# The command does not wait for discovery to finish.
 kubectl exec -n authentik deploy/authentik-worker -- ak shell -c "
 from authentik.blueprints.v1.tasks import blueprints_discovery
 blueprints_discovery.send()
