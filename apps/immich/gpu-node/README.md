@@ -64,7 +64,8 @@ Domain name = `0398541a-c088-48cd-b16a-4b45d31a92f3` (internal uuid
 - Autostart **OFF** (appliance soft-restart re-wedges the passthrough iGPU).
 - Cold-restart = graceful `virsh shutdown --mode acpi <dom>` (no `--timeout` — the flag does
   not exist on the NAS libvirt), then poll `virsh domstate` until `shut off`, then `virsh start`.
-  `--mode agent` is the reliable primary now qemu-guest-agent is installed.
+  qemu-guest-agent answers `guest-ping` (checked 2026-10-04), but `--mode agent` shutdown is
+  untested. The procedures here use `acpi`.
   **Never `virsh destroy`/`reset`** a passthrough VM — dirty iGPU re-binds to host i915 →
   NAS host crash. A true wedge (never reaches `shut off`) = alert + NAS host reboot, never destroy/reset.
 - Clobber recovery: `virsh define immich-vm-domain.xml` → graceful shutdown → `virsh start`.

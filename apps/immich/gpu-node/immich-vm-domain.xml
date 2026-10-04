@@ -34,14 +34,15 @@
        destroy|restart for on_reboot (preserve is on_crash-only — `virsh define` rejects it: "qemu
        driver doesn't support the 'preserve' action for 'on_reboot'/'on_poweroff'", proven 2026-07-12).
        Both supported values are unsafe on a slipped in-guest reboot — restart = in-place iGPU reset
-       while bound (C4 wedge); destroy = managed re-attach to host i915 (C3 crash) — so on_reboot can't
-       be the reset-bug belt. The real guards are elsewhere: kernel.panic=0 + HW watchdog off neutralize
-       the in-guest-reboot vectors, and the watchdog NEVER destroy/resets. restart = the lesser evil
-       (wedge is NAS-host-reboot-recoverable; a host crash is not) and matches the live domain. -->
+       while bound (the iGPU hangs; a NAS reboot recovers it); destroy = managed re-attach of the
+       still-dirty iGPU to host i915 (the NAS host crashes) — so on_reboot cannot
+       stop an in-guest reboot from breaking the iGPU. The real guards are elsewhere: kernel.panic=0 + HW watchdog off neutralize
+       the in-guest-reboot vectors, and the watchdog NEVER destroy/resets. restart does less harm:
+       a NAS host reboot clears its iGPU hang, while destroy crashes the NAS host. It also matches the live domain. -->
   <on_reboot>restart</on_reboot>
   <!-- preserve (not destroy): destroy would tear the domain down on a guest crash,
-       re-binding the still-dirty iGPU to the host i915 (managed='yes') = the C3
-       host-crash path, and would leave the domain 'shut off' so the watchdog
+       re-binding the still-dirty iGPU to the host i915 (managed='yes'), which crashes
+       the NAS host, and would leave the domain 'shut off' so the watchdog
        auto-starts it. preserve keeps it 'crashed' → watchdog alerts, operator
        does a clean NAS host reboot. -->
   <on_crash>preserve</on_crash>
