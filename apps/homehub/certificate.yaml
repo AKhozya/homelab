@@ -10,7 +10,6 @@ spec:
     kind: ClusterIssuer
   dnsNames:
     - hh.h0melab.work
-  # Auto-renew 30 days before expiration
   renewBefore: 720h  # 30 days
   # Certificate valid for 90 days (Let's Encrypt default)
   duration: 2160h  # 90 days

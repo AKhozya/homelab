@@ -148,14 +148,13 @@ spec:
               # Never a bare `fetch`, never `@{u}`: both resolve through branch.<name>.remote and
               # branch.<name>.merge, which are ordinary config no regex can strip without breaking
               # the legitimate case. Pointing branch.master.remote at a second, attacker-added
-              # remote redirects the fetch even though origin itself is pinned — and the run_*
-              # scripts in that repo would be TRACKED, so neither the reset nor the clean below
-              # touches them.
-              # The refspec carries an explicit DESTINATION for the same reason. A source-only
-              # `fetch origin master` leaves the remote-tracking ref to remote.origin.fetch, so
-              # tampering with that mapping lets a pre-forged refs/remotes/origin/master survive
-              # the fetch and be exactly what the reset below lands on. Spelling the destination
-              # out overrides the config. The dotfiles repo is on master, not main.
+              # remote redirects the fetch even though origin itself is pinned. The run_* scripts
+              # in that repo would be TRACKED, so neither the reset nor the clean below removes them.
+              # The refspec spells out its DESTINATION for the same reason. A source-only
+              # `fetch origin master` leaves the remote-tracking ref to remote.origin.fetch, so a
+              # tampered mapping lets a pre-forged refs/remotes/origin/master survive the fetch
+              # and become the target of the reset below. Spelling the destination out overrides
+              # the config. The dotfiles repo is on master, not main.
               dotfiles_synced=0
               if [ -d ~/.local/share/chezmoi/.git ]; then
                 echo "Dotfiles exist, syncing (hard reset — survives force-push/rewrite)..."
@@ -193,27 +192,27 @@ spec:
               scrub_git_config ~/.gitconfig
               scrub_git_config ~/.config/git/config
 
-              # The hook scripts now ship in the image, where the read-only rootfs puts them
-              # beyond anything the model runs. Assert before rewiring: without this a
-              # packaging slip would delete the PVC copies below and leave nothing behind.
+              # The hook scripts ship in the image, where the read-only rootfs prevents anything
+              # the model runs from modifying them. Assert they exist before rewiring: without this
+              # check, a packaging slip would go unnoticed and the rm below would leave no hooks.
               for h in validate-safe-bash.sh flux-push-reminder.sh session-pull.sh context-mode-cache-heal.mjs; do
                 [ -x "/app/hooks/$h" ] || { echo "FATAL: /app/hooks/$h missing or not executable" >&2; exit 1; }
               done
 
               # ~/.claude/settings.json is .chezmoiignore'd on linux (it carries macOS /Users paths),
-              # so chezmoi never sets model/effort here — the PVC copy would drift forever otherwise.
+              # so chezmoi never sets model/effort here, and the PVC copy would otherwise drift.
               # ANTHROPIC_MODEL below also pins the model; this keeps the file honest if that env is lost.
-              # Unguarded on purpose, unlike the || true below: only ENOENT is tolerated, so malformed
-              # JSON aborts init rather than rewriting the PVC-only file (not in git) down to three keys.
-              # hooks is REPLACED, never merged — a merge would keep an injected entry forever. The
-              # Bash denylist is deliberately absent: SAFETY_HOOK runs it from bot code instead, so
-              # deleting this key cannot disarm it. What is left denies nothing.
-              # Temp file plus rename because an interrupted write leaves malformed JSON, which the
-              # throw above then turns into a pod that never starts.
-              # PARSEABLE is not the same as USABLE: `[]`, `5`, `"oops"` and `true` all parse, and
-              # assigning a property to a primitive is a silent no-op in sloppy mode while
-              # JSON.stringify drops properties added to an array — so each one wrote the junk back
-              # with no hooks and exit 0. Anything that is not a plain object is discarded.
+              # No `|| true` on purpose: only ENOENT is tolerated, so malformed JSON aborts init
+              # rather than rewriting the PVC-only file (not in git) down to three keys.
+              # hooks is REPLACED, never merged, because a merge would keep an injected entry. The
+              # Bash denylist is absent on purpose: SAFETY_HOOK runs it from bot code, so deleting
+              # this key cannot disarm it. What is left denies nothing.
+              # The write goes to a temp file and a rename, because an interrupted write leaves
+              # malformed JSON, which the throw then turns into a pod that never starts.
+              # Parseable is not usable: `[]`, `5`, `"oops"` and `true` all parse. Assigning a
+              # property to a primitive is a silent no-op in sloppy mode, and JSON.stringify drops
+              # properties added to an array, so each would be written back with no hooks and exit 0.
+              # Anything that is not a plain object is replaced with {}.
               node -e 'const fs=require("fs"),d=process.env.HOME+"/.claude",p=d+"/settings.json";let s={};try{s=JSON.parse(fs.readFileSync(p,"utf8"))}catch(e){if(e.code!=="ENOENT")throw e}if(typeof s!=="object"||s===null||Array.isArray(s))s={};s.model="claude-opus-5";s.effortLevel="xhigh";s.hooks={PostToolUse:[{matcher:"Bash",hooks:[{type:"command",command:"/app/hooks/flux-push-reminder.sh"}]}],SessionStart:[{hooks:[{type:"command",command:"/app/hooks/session-pull.sh"}]},{hooks:[{type:"command",command:"/app/hooks/context-mode-cache-heal.mjs"}]}]};fs.mkdirSync(d,{recursive:true});fs.writeFileSync(p+".tmp",JSON.stringify(s,null,2)+"\n");fs.renameSync(p+".tmp",p)'
 
               # Nothing references the PVC copies now. Left in place they invite an edit that
@@ -419,8 +418,9 @@ spec:
             # NetworkPolicy. env-secret scrub, strictMcpConfig, and the native-tool gates stay on.
             - name: BASH_SANDBOX_ENABLED
               value: "false"
-            # Arms the external Bash denylist. Unset would silently switch that layer off,
-            # so the init assertion above fails the pod rather than let the path go stale.
+            # Arms the external Bash denylist. If this is unset, that layer switches off silently.
+            # The chezmoi-init container asserts that this script exists and is executable, so a
+            # stale path fails the pod.
             - name: SAFETY_HOOK
               value: /app/hooks/validate-safe-bash.sh
             - name: SESSION_FILE_PATH

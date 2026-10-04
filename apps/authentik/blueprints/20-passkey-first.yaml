@@ -62,7 +62,7 @@ entries:
       invalid_response_action: retry
       policy_engine_mode: any
 
-  # 5. Passkey enrollment configure_flow (target for inline enrollment in Phase 3)
+  # 5. Passkey enrollment configure_flow (target for inline passkey enrollment)
   - model: authentik_flows.flow
     state: present
     identifiers:

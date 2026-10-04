@@ -112,11 +112,10 @@ spec:
             readOnlyRootFilesystem: false
             capabilities:
               drop: ["ALL"]
-          # Use /up endpoint to avoid session creation (Laravel 11 health route)
+          # Probe /up, the Laravel 11 health route, because it creates no session.
           # See: https://github.com/jez500/pricebuddy/issues/103
-          # Budget: 18×5s = 90s total
-          # Bumped failureThreshold 12→18: Laravel needs headroom when
-          # MySQL is slow to accept connections after node reboot (was 60s)
+          # Budget: 18×5s = 90s. Laravel needs that headroom if MySQL is slow to accept
+          # connections after a node reboot; 12×5s = 60s was too short.
           startupProbe:
             httpGet:
               path: /up

@@ -164,10 +164,10 @@ data:
             podSelector: "app=homehub"
 
   widgets.yaml: |
-    # NOTE: Kubernetes widget disabled due to "NaN undefined undefined" errors in v1.5.0
+    # Kubernetes widget disabled: on homepage v1.5.0 it failed to parse metrics API
+    # responses and showed "NaN undefined undefined".
     # See: https://github.com/gethomepage/homepage/discussions/3935
-    # The widget fails to parse metrics API responses, causing constant errors.
-    # Re-enable when fixed in a future version or when using a working workaround.
+    # Retest the widget with the current Homepage image before re-enabling it.
     # - kubernetes:
     #     cluster:
     #       show: true

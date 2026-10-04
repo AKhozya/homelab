@@ -10,16 +10,14 @@ metadata:
 # `pods/exec` in `claude-telegram-exec`, Job creation in `claude-telegram-jobs`, both below.
 # The RoleBindings, and the one list of which namespaces get them and why, live in
 # infrastructure/configs/claude-telegram-rbac/rolebindings.yaml.
-# Workload patch is granted nowhere at all since 2026-08-06 — see that role's header.
+# No role grants workload `patch` (since 2026-08-06); the claude-telegram-exec header below
+# says why.
 #
-# This split replaces the previous posture ("EFFECTIVE PRIVILEGE = CLUSTER-ADMIN-EQUIVALENT …
-# treat a bot compromise as a cluster compromise", ultrareview 2026-07-03). Two findings on
-# 2026-08-02 moved it:
+# Why exec is per namespace and Flux is read-only (2026-08-02):
 #   - `patch` on the Flux CRDs was cluster-wide, and all 7 Kustomizations live in flux-system
 #     alongside `sops-age`, the key that decrypts every SOPS secret in the repo. One patch
 #     repointing a Kustomization's sourceRef/path makes kustomize-controller apply arbitrary
-#     manifests. It also contradicted the old header, which named GitOps drift-heal as a real
-#     control while leaving the bot able to suspend it. Flux is now read-only here.
+#     manifests.
 #   - `pods/exec create` cluster-wide reached any pod's mounted Secrets and SA token, which made
 #     the `secrets` exclusion below cosmetic rather than a boundary.
 #

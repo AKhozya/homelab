@@ -4,9 +4,10 @@ metadata:
   name: rustdesk
   namespace: rustdesk
   annotations:
-    # servicelb advertises every pool-node IP (.129 W1 + .126 W2); with the pod
-    # pinned to W1 and ETP=Local, only 192.168.1.129 carries traffic - clients
-    # must be configured with .129. ETP=Local also preserves client source IP.
+    # If ETP=Local, servicelb lists in the Service status only the pool nodes
+    # that hold a ready pod (k3s pkg/cloudprovider/servicelb.go getStatus). The
+    # pod is pinned to W1, so only 192.168.1.129 appears and carries traffic -
+    # clients must be configured with .129. ETP=Local also preserves client source IP.
     description: "RustDesk hbbs+hbbr. Client-facing IP = 192.168.1.129 (W1 pin); .126 is advertised but blackholes by design."
 spec:
   type: LoadBalancer

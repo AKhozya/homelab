@@ -102,10 +102,11 @@ spec:
             - name: tmp
               mountPath: /tmp
       volumes:
-        # /app/data is effectively throwaway when DB backend is MariaDB —
-        # it holds db-config.json (regenerated from env on boot), screenshots,
-        # and error.log. Real state lives in MySQL. Switching off local-path
-        # PVC frees the pod from W1-pinning required for CP-only scheduling.
+        # If the DB backend is MariaDB, /app/data is disposable: it holds
+        # db-config.json (regenerated from env on boot), screenshots and
+        # error.log. Real state lives in MySQL. An emptyDir, not a local-path
+        # PVC: a local-path PV pins the pod to the node that first bound it,
+        # and this pod must run on the CP.
         - name: data
           emptyDir: {}
         - name: tmp

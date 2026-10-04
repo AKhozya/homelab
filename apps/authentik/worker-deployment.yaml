@@ -6,8 +6,8 @@ metadata:
 spec:
   replicas: 2
   revisionHistoryLimit: 2
-  # Rolling update strategy: delete old pod before creating new
-  # Required with 2 replicas + required anti-affinity on 2 worker nodes
+  # maxSurge 0: the old pod goes before the new one starts, so a rollout never needs a
+  # node beyond the two that the required anti-affinity below already holds.
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -40,13 +40,10 @@ spec:
                   app: authentik
                   component: worker
               topologyKey: kubernetes.io/hostname
-      # NOTE: Worker waits for server to be ready before starting
-      #
-      # WHY: Both server and worker run Django migrations on startup. To avoid
-      # race conditions ("table already exists" errors), the worker waits for
-      # the server's readiness probe to succeed, ensuring migrations are complete
-      # before the worker starts. This simple approach eliminates the need for a
-      # separate migration Job or complex Flux Kustomization dependencies.
+      # Server and worker both run Django migrations on startup. If both run at once, the
+      # worker can fail with "table already exists". So this init container waits until the
+      # server's /-/health/ready/ endpoint answers, which happens once migrations are complete.
+      # That avoids a separate migration Job or a Flux dependsOn.
       initContainers:
         - name: wait-for-server
           image: curlimages/curl:8.22.0

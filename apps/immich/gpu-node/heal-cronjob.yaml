@@ -4,8 +4,10 @@ metadata:
   name: immich-vm-heal
   namespace: immich
 spec:
-  # Every 5 min: on a NAS reboot the VM does NOT auto-start (UI autostart OFF by
-  # design — C2/C4), so this watchdog IS the autostart. 5 min bounds VM-down time.
+  # Every 5 min: on a NAS reboot the VM does NOT auto-start (UI autostart is OFF by
+  # design), so this watchdog IS the autostart. The schedule sets how often a stopped
+  # VM gets a start attempt. It does not bound VM-down time: if the NAS library is not
+  # mounted, the script skips the start, and the next scheduled run tries again.
   schedule: "*/5 * * * *"
   timeZone: "UTC"
   concurrencyPolicy: Forbid
@@ -52,8 +54,8 @@ spec:
               type: RuntimeDefault
           containers:
             - name: heal
-              # alpine/git bundles openssh (ssh client) on Alpine/busybox — no runtime
-              # apk install, so egress stays NAS-only. Pin: verify tag at go-live.
+              # alpine/git bundles the openssh client, so the pod needs no runtime apk
+              # install and its egress stays limited to the NAS and DNS.
               image: alpine/git:2.54.0
               command: ["sh", "/heal/immich-vm-heal.sh"]
               env:

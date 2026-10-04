@@ -30,7 +30,8 @@ spec:
             - secretRef:
                 name: mealie-env
           env:
-            # Override DB_HOST for init check - use direct connection for consistency
+            # mealie-env points POSTGRES_SERVER at the PgBouncer pooler; this check overrides it
+            # to reach main-postgres-rw directly.
             - name: POSTGRES_SERVER
               value: main-postgres-rw.databases.svc.cluster.local
           command:

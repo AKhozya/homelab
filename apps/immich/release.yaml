@@ -29,7 +29,9 @@ spec:
     strategy:
       name: RetryOnFailure
       retryInterval: 10m
-  # Post-renderer to patch service accounts (Helm chart doesn't support per-component serviceAccount)
+  # Post-renderer patches the chart output: service account and token automount (the chart has no
+  # per-component serviceAccount), priority class, revision history, Recreate strategy, the NAS
+  # library volume, a writable RapidOCR model dir and the ML readiness timeout.
   postRenderers:
     - kustomize:
         patches:
@@ -57,9 +59,9 @@ spec:
               # Library: swap the chart's PVC library volume (index 0, name=data) for the
               # NAS virtiofs hostPath. Mount path /data is unchanged (DB asset paths are
               # relative to it). virtiofs accessmode=passthrough → pod uid/gid 1000 maps 1:1
-              # to NAS akhozya/zettos-admins. Replaces the W1-pinned local-path PVC (removed
-              # after soak). volumes[0]=data is render-verified stable (server's only volume;
-              # GPU now uses the Intel device-plugin, not a /dev/dri hostPath).
+              # to NAS akhozya/zettos-admins. volumes[0]=data is render-verified: it is the
+              # server's only volume, since the GPU comes from the Intel device-plugin, not a
+              # /dev/dri hostPath.
               # Guard: if a future chart bump shifts the volume order, this `test` fails the
               # whole patch (reconcile errors, release stays last-good) rather than silently
               # replacing the wrong volume.
@@ -208,8 +210,8 @@ spec:
               supplementalGroups:
                 - 983  # video group on immich-vm
                 - 987  # render group on immich-vm
-              # Pod-level RuntimeDefault (UR2-4 seccomp soak). Pod-level so it also covers the
-              # main container (whose own securityContext sets allowPrivilegeEscalation/drop-ALL).
+              # Pod-level RuntimeDefault, so it also covers the main container, whose own
+              # securityContext sets only allowPrivilegeEscalation and drop-ALL.
               seccompProfile:
                 type: RuntimeDefault
           initContainers:
@@ -420,7 +422,7 @@ spec:
           enabled: true
           type: persistentVolumeClaim
           # existingClaim excludes size/storageClass/accessMode (chart schema oneOf). The claim is
-          # apps/immich/ml-cache-pvc.yaml; Helm deletes the old chart-owned PVC on worker-node during this upgrade.
+          # apps/immich/ml-cache-pvc.yaml.
           existingClaim: immich-ml-cache
         tmp:
           enabled: true

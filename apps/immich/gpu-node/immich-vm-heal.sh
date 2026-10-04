@@ -1,20 +1,20 @@
 #!/usr/bin/env sh
-# immich-vm-heal.sh — Tier-2 host watchdog for the Immich GPU node (Path B).
+# immich-vm-heal.sh — host watchdog for the Immich GPU node.
 #
 # Runs in-cluster as a k8s CronJob scheduled OFF the GPU node, SSHes the zettOS
 # NAS host and drives libvirt via `virsh` (akhozya is in the NAS `libvirt` group —
 # no root). It keeps the immich-vm domain (a) defined from the Git canonical XML
-# and (b) running. Design: the Immich GPU-node
-# substrate heal design plan, removed after 7a9add14.
+# and (b) running.
 #
-# SAFETY — host-crash class (incident C3, 2026-07-10):
+# SAFETY — host-crash class (incident 2026-07-10):
 #   * NEVER `virsh destroy`. Force-destroying this passthrough VM re-binds the
 #     still-dirty iGPU to the host i915 (managed='yes') → host GuC wedge → NAS
 #     crash. There is no line in this script that destroys.
 #   * NEVER restart a *running* domain. The only start path is `virsh start` on a
 #     `shut off` domain (a cold start cleanly resets the iGPU). A wedged-but-running
 #     guest is left to NodeNotReady alerting + an operator (graceful shutdown or NAS
-#     host reboot) — auto cold-restart is barred (kills live transcodes / risks C3).
+#     host reboot) — auto cold-restart is barred (kills live transcodes, risks the
+#     host crash above).
 #   * Heal actions are limited to: `virsh define` (from Git canonical XML) on
 #     drift/missing, and `virsh start` on a shut-off domain. Everything else alerts.
 #
@@ -38,9 +38,9 @@ fail() {
 }
 
 # Materialize the NAS key from the SSH_PRIVATE_KEY secret env into an owner-only
-# 0400 file. The pod runs non-root (Kyverno require-non-root Enforce covers immich),
-# so a secret *volume* — mounted root-owned — can't be chmod'd to the perms sshd's
-# StrictModes demands; writing it self-owned into the HOME emptyDir side-steps that.
+# 0400 file in the HOME emptyDir. The pod runs non-root (Kyverno require-non-root
+# Enforce covers immich), so it cannot chmod a root-owned secret *volume*. Writing
+# the key itself lets the pod set the file's owner and mode.
 if [ -n "${SSH_PRIVATE_KEY:-}" ]; then
   mkdir -p "$(dirname "$SSH_KEY")"
   (umask 077 && printf '%s\n' "$SSH_PRIVATE_KEY" >"$SSH_KEY")
@@ -93,7 +93,7 @@ if ! LIVE_XML="$(vsh "dumpxml --inactive $DOMAIN" 2>/tmp/virsh.err)"; then
   LIVE_XML="$(vsh "dumpxml --inactive $DOMAIN")"
 fi
 
-# 4. Drift = the appliance/UI regenerated the domain from its template (C2/C5),
+# 4. Drift = the appliance/UI regenerated the domain from its template,
 #    dropping the passthrough edits. libvirt re-emits dumpxml with runtime <address>
 #    elements, so a byte-diff false-drifts every run — match the load-bearing markers
 #    instead. Any missing marker = clobber → re-define from Git.
@@ -117,7 +117,7 @@ check_marker "52:54:00:82:be:df" mac_changed
 check_marker "domain='0x0000' bus='0x00' slot='0x02' function='0x0'" hostdev_gpu_source_missing
 check_marker "managed='yes'" hostdev_gpu_unmanaged
 # Pin on_reboot=restart. QEMU supports only destroy|restart here (preserve is on_crash-only → `define`
-# rejects it). Both are imperfect on a slipped in-guest reboot, but `destroy` is the C3 host-crash path
+# rejects it). Both are imperfect if the guest reboots itself, but `destroy` is the host-crash path
 # (managed iGPU re-attach) while `restart` only wedges (NAS-host-reboot recoverable) — so if an
 # appliance regen flips it to destroy, treat it as drift and re-define back to the canonical restart.
 check_marker "<on_reboot>restart</on_reboot>" on_reboot_not_restart
@@ -133,7 +133,8 @@ if [ "$drift" -eq 1 ]; then
   if [ "$STATE" = "running" ]; then
     # define only updates persistent config; the running (clobbered, GPU-less)
     # instance is untouched and Immich transcode is degraded until an operator
-    # gracefully restarts it. Do NOT auto-restart (reset-bug C3 / live transcodes).
+    # gracefully restarts it. Do NOT auto-restart: the iGPU reset bug can crash the
+    # NAS host, and a restart kills live transcodes.
     log "WARN=drift_while_running operator='virsh shutdown --mode acpi $DOMAIN → poll domstate for shut off → virsh start (NEVER destroy/reset)'"
     fail drift_while_running 8
   fi
@@ -156,7 +157,8 @@ case "$STATE" in
 esac
 
 # 5. Ensure running. Only a shut-off domain is started (cold start = clean iGPU
-#    reset). This IS the autostart — UI/native autostart is OFF by design (C2/C4).
+#    reset). This IS the autostart — UI/native autostart is OFF by design, because an
+#    appliance soft-restart re-wedges the passthrough iGPU.
 case "$STATE" in
   running)
     log "OK=domain_running"
