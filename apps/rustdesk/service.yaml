@@ -8,7 +8,7 @@ metadata:
     # that hold a ready pod (k3s pkg/cloudprovider/servicelb.go getStatus). The
     # pod is pinned to W1, so only 192.168.1.129 appears and carries traffic -
     # clients must be configured with .129. ETP=Local also preserves client source IP.
-    description: "RustDesk hbbs+hbbr. Client-facing IP = 192.168.1.129 (W1 pin); .126 is advertised but blackholes by design."
+    description: "RustDesk hbbs+hbbr. Client-facing IP = 192.168.1.129 (W1 pin); servicelb advertises only that node."
 spec:
   type: LoadBalancer
   externalTrafficPolicy: Local
