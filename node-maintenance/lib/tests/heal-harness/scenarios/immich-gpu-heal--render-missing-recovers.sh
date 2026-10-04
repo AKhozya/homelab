@@ -10,8 +10,5 @@ mkdir -p /sys/module/i915
 echo "0 0 0 0 $((FAKE_NOW - 60))" >/var/lib/node-maintenance/immich-gpu-heal.state
 behave systemctl <<'EOF'
 [ "$1" = cat ] && rc=1
-EOF
-behave systemctl <<'EOF'
-[ "$1" = cat ] && rc=1
 [ "$1" = restart ] && mkdir -p /dev/dri && touch /dev/dri/renderD129
 EOF
