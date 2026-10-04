@@ -19,13 +19,13 @@ spec:
     poolMode: transaction  # Transaction pooling (works with most apps)
     parameters:
       max_client_conn: "75"       # Max client connections (7 apps × ~10 conn + buffer)
-      default_pool_size: "20"     # Connections per user/db to PostgreSQL
-      reserve_pool_size: "5"      # Reserved connections for emergencies
+      default_pool_size: "20"     # Server connections per user/database pair, not a global cap
+      reserve_pool_size: "5"
       max_db_connections: "0"     # Unlimited per-database (use default_pool_size)
       max_user_connections: "0"   # Unlimited per-user (use default_pool_size)
       server_idle_timeout: "300"  # Close idle server connections after 5min (faster cleanup)
-      server_lifetime: "3600"     # Recycle connections every hour
-      server_connect_timeout: "15" # Connection timeout to PostgreSQL
+      server_lifetime: "3600"
+      server_connect_timeout: "15"
       query_timeout: "0"          # No query timeout (apps handle this)
       idle_transaction_timeout: "600" # Kill idle transactions after 10min
   template:

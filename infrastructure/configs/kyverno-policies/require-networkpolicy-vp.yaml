@@ -46,9 +46,8 @@ spec:
       expression: "!has(object.metadata.deletionTimestamp)"
   variables:
     - name: npcount
-      # request.namespace (not object.metadata.namespace) — populated in background
-      # report mode too (live-verified via matchCondition skip rows) and mirrors the
-      # CP-era {{ request.namespace }} apiCall.
+      # request.namespace, not object.metadata.namespace: it is set in background report mode
+      # too (verified live via matchCondition skip rows).
       expression: >-
         resource.List("networking.k8s.io/v1", "networkpolicies",
         request.namespace).items.size()

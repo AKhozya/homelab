@@ -4,7 +4,7 @@ metadata:
   name: postgres-backup
   namespace: databases
 spec:
-  schedule: "0 3 * * *"  # 3:00 AM UTC daily
+  schedule: "0 3 * * *"
   timeZone: "UTC"
   startingDeadlineSeconds: 3600
   successfulJobsHistoryLimit: 7

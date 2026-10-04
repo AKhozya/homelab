@@ -70,10 +70,10 @@ spec:
                   operator: NotIn
                   values: ["worker-node-2"]
 
-    # CP toleration is REQUIRED for the nodeAffinity pref to be satisfiable: without it only
-    # W1+wn2 are schedulable, and replicaCount 2 + hard anti-affinity FORCES one replica onto
-    # wn2 (pref becomes dead config). With it the pair lands CP+W1. Operator is control-plane
-    # logic only (100m/128Mi) — no data path on CP.
+    # The control-plane toleration is required for the nodeAffinity preference to hold. Without
+    # it only worker-node and worker-node-2 are schedulable, and replicaCount 2 with hard
+    # anti-affinity forces one replica onto worker-node-2. With it the pair lands on the control
+    # plane and worker-node. The operator is control logic only (100m/128Mi), with no data path.
     tolerations:
       - key: node-role.kubernetes.io/control-plane
         operator: Exists
@@ -86,7 +86,6 @@ spec:
         maxSurge: 0
         maxUnavailable: 1
 
-    # Resource limits for CNPG operator
     resources:
       requests:
         cpu: 100m

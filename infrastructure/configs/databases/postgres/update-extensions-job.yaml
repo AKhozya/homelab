@@ -39,7 +39,6 @@ spec:
                 - /bin/sh
                 - /scripts/update-extensions.sh
               env:
-                # PGPASSWORD for postgres-admin superuser
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:

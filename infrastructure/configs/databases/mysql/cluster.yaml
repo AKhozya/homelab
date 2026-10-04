@@ -6,9 +6,8 @@ metadata:
   finalizers:
     - percona.com/delete-mysql-pods-in-order
 spec:
-  # crVersion tracks the ps-operator chart minor (bumped from 1.0.0 on 2026-07-03).
-  # SmartUpdate rolls replicas first and the primary last; the PDB (minAvailable: 1)
-  # holds HA through the roll.
+  # crVersion tracks the ps-operator chart minor. SmartUpdate rolls replicas first and the
+  # primary last; the PDB (minAvailable: 1) holds HA through the roll.
   crVersion: "1.2.0"
 
   # Online volume expansion. The older spec.enableVolumeExpansion was deprecated in
@@ -105,7 +104,7 @@ spec:
     # Longer than the defaults: a large clone hits "query interrupted" at the stock timeouts.
     env:
       - name: BOOTSTRAP_CLONE_TIMEOUT
-        value: "7200"  # 2 hours (default 3600s, increased for stability)
+        value: "7200"  # 2 hours; default 3600
       - name: BOOTSTRAP_READ_TIMEOUT
         value: "3600"
       - name: BOOTSTRAP_WRITE_TIMEOUT

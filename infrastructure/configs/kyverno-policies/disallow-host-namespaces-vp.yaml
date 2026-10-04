@@ -1,5 +1,4 @@
-# CEL ValidatingPolicy — sole policy engine since 2026-07-12 (migrated from the
-# disallow-host-namespaces ClusterPolicy; kyverno.io/v1 removal deadline met early).
+# CEL ValidatingPolicy. Replaced the disallow-host-namespaces ClusterPolicy on 2026-07-12.
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:

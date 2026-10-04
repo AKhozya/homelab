@@ -299,9 +299,8 @@ subjects:
     name: claude-telegram
     namespace: claude-telegram
 ---
-# Job creation, popeye only. Separate from the exec bindings above so that widening it is a
-# deliberate edit; a Job picks its own ServiceAccount and mounts, so binding it beside exec
-# everywhere would have made removing the apps-patch grant pointless.
+# Job creation, popeye only. A separate binding, so widening it is a deliberate edit. A Job
+# picks its own ServiceAccount and mounts, the same class of grant as exec.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:

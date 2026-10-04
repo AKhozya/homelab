@@ -190,9 +190,9 @@ spec:
                   cpu: "2000m"
                   memory: "512Mi"
           volumes:
-            # Sibling of /mnt/extra-storage/backups/ — that dir was the --delete target of
-            # the W1->W2 replication mirror (removed 2026-07-17); the sibling path kept
-            # this job's tars out of its wipe scope and stays for continuity.
+            # The worker-node -> worker-node-2 mirror (removed 2026-07-17) used the sibling
+            # /mnt/extra-storage/backups/ as its --delete target, so this job wrote here instead.
+            # The path stays so existing backup sets keep their place.
             - name: backup-storage
               hostPath:
                 path: /mnt/extra-storage/immich-backup
