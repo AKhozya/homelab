@@ -9,8 +9,8 @@
 #
 #   skip : if the lock is held, exit 0 WITHOUT running. For the frequent, idempotent heals
 #          (config) — don't pile up; the next cycle / timer will catch up.
-#   wait : block up to 15 min for the lock, then run. For the reboot (phase1/phase2), which must
-#          run and must not be skipped — it waits out an in-progress heal instead.
+#   wait : block up to 15 min for the lock, then run. For runs that must not be skipped
+#          (phase1/phase2 reboot, rolling restart) — it waits out an in-progress heal instead.
 #
 # The lock lives in /run (tmpfs): flock auto-creates the file, and it's cleared each boot so a
 # crash can never leave a stale lock across a reboot.

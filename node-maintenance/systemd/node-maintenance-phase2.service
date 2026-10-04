@@ -4,9 +4,8 @@ ConditionPathExists=/var/lib/node-maintenance/phase2-pending
 Wants=network-online.target
 After=network-online.target k3s.service
 Documentation=https://github.com/AKhozya/homelab/tree/main/node-maintenance
-# Rate limit for the Restart= below. Both keys belong in [Unit]; systemd logged
-# "Unknown key 'StartLimitIntervalSec' in section [Service], ignoring" on every
-# reload while they sat under [Service], so the 3-attempt cap did nothing.
+# Rate limit for the Restart= below. Both keys must sit in [Unit]: under [Service] systemd logs
+# "Unknown key 'StartLimitIntervalSec' in section [Service], ignoring" and the 3-attempt cap does nothing.
 StartLimitIntervalSec=7200
 StartLimitBurst=3
 

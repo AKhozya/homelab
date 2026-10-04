@@ -15,7 +15,6 @@ ExecStart=/bin/sh -c '[ -n "${FORCE_SPEED:-}" ] && /usr/bin/ethtool -s %i autone
 ExecStart=/usr/bin/ethtool --set-eee %i eee off
 # Disable Wake-on-LAN (defensive — eliminates magic-packet wake path).
 ExecStart=/bin/sh -c '/usr/bin/ethtool -s %i wol d || true'
-# Verify
 ExecStart=/usr/bin/sh -c '/usr/bin/ethtool %i | grep -E "Speed|Duplex|Auto-negotiation|Wake-on"'
 
 [Install]

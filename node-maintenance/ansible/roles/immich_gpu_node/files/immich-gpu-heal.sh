@@ -207,8 +207,8 @@ if [ -r "$STATE" ]; then
 fi
 now="$(date +%s)"
 
-# No Intel GPU on the bus → inert. Pre-passthrough (fine) OR the hostdev vanished (a HOST fault for
-# Tier 2 — a guest reload can't bring back a detached PCI device). render_ok=0, giveup stays 0.
+# No Intel GPU on the bus → inert. Either passthrough is not set up, or the hostdev vanished (a host
+# fault: a guest reload cannot bring back a detached PCI device). render_ok=0, giveup stays 0.
 if ! has_intel_gpu; then
 	log "no Intel display GPU on PCI bus — inert (pre-passthrough or GPU detached)."
 	emit_metric 0 -1 1 "$total" 0

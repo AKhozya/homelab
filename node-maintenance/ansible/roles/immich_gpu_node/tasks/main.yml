@@ -36,7 +36,7 @@
     # If the file is missing or empty, the rewrite below would produce a UKI with no root=,
     # which does not boot.
     [ -s "$f" ] || { echo "$f is missing or empty" >&2; exit 1; }
-    read -r -a toks < <(head -n1 "$f") || true   # split the single cmdline line into tokens
+    read -r -a toks < <(head -n1 "$f") || true
     case " ${toks[*]} " in
       *" root="*) ;;
       *) echo "$f has no root= token; refusing to rewrite it" >&2; exit 1 ;;
@@ -177,11 +177,12 @@
   tags: [immich-gpu-node, sudoers, hardening]
 
 # ---- Admin user (akhozya) SSH authorized_keys ----
-# Seed the operator + automation pubkeys on the guest, EXCLUSIVE (drift-heal reconciles adds/removes +
-# de-dups). /home is persistent ext4 LVM (no cloud-init) so keys survive reboots once written — closes
-# the build-onboarding gap where the operator re-added the key every boot. Mirrors base_config's
-# node-maintenance authorized_keys pattern. StrictModes needs 0700 dir / 0600 file, asserted here; the
-# recurring NAS-side ~/.ssh 0771 reset is appliance-side (out of IaC) → operator `chmod 700 ~/.ssh`.
+# Seed the operator + automation pubkeys, exclusive, so drift-heal reconciles adds, removes and
+# duplicates. /home is persistent ext4 LVM (no cloud-init), so keys survive reboots. sshd StrictModes
+# refuses the keys if ~/.ssh, the file or the home directory is writable by other users (sshd(8));
+# this role sets 0700 and 0600. The recurring NAS-side ~/.ssh 0771 reset is group-writable, so
+# StrictModes refuses key logins there. It happens on the appliance, outside IaC; the operator fixes
+# it with `chmod 700 ~/.ssh`.
 - name: Ensure admin_user ~/.ssh dir (StrictModes 0700)
   ansible.builtin.file:
     path: "/home/{{ admin_user }}/.ssh"

@@ -38,7 +38,6 @@ install -d -m 0750 -o root -g adm "$OUT_DIR" 2>/dev/null || true
   journalctl -t ufw-heal -t firewall-preflight -n 20 --no-pager 2>/dev/null || true
 } > "$OUT" 2>&1
 
-# Retain 20 most recent
 ls -1t "${OUT_DIR}"/ufw-diag-*.txt 2>/dev/null | tail -n +21 | xargs -r rm -f --
 
 logger -t ufw-diag-snapshot -- "captured ${OUT} reason=${REASON}"

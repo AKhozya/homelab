@@ -6,8 +6,8 @@
 # transitively invokes ufw via community.general.ufw or shells out to
 # /usr/sbin/ufw has a clean netfilter state to operate against.
 #
-# Scope: best-effort. All tasks have changed_when:false and never fail-stop the
-# play — failures surface in downstream firewall tasks. The one exception: if the script
+# Scope: best-effort. The preflight run reports no change and does not fail the play; failures
+# surface in the later firewall tasks. The one exception: if the script
 # cannot load node-script-lib.sh, the settle barrier is gone, so the host fails here and
 # Ansible skips its later plays (no firewall change without the barrier).
 

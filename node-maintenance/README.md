@@ -30,10 +30,10 @@ nodes and applies these 14 roles in order:
 | `nic_tuning` | the three physical nodes (each host's `nic_tuning_iface`; `immich-vm` has none) | turns EEE (Energy-Efficient Ethernet) off through `nic-tune@.service`, and on the CP also forces the Intel I226-V NIC to 1 Gbps; it removes the old `igc-tune@` unit |
 | `security_scan` | all | the monthly scan timer and script |
 | `ad_hoc` | on demand | tasks run only by tag, such as firmware (see below) |
-| `clusterip_heal` | workers | a watchdog: if a probe through a ClusterIP fails (a stuck DNAT rule after a reboot), it restarts `k3s-agent`. Journal tag `clusterip-heal`. |
-| `clusterip_heal_cp` | CP | a watchdog that probes CoreDNS from inside a pod's network namespace; if the probe fails, it restarts K3s with `timeout 120`. Journal tag `clusterip-heal-cp`. |
-| `node_isolation_heal` | the two physical workers | if a worker loses the CP, it first restarts `k3s-agent`, then reboots itself on a staggered timer. Active since 2026-07-23. |
 | `immich_gpu_node` | `immich-vm` | the GPU node's heal script, watchdog units, sysctl and kernel-command-line guards, and the local-path bind mount |
+| `clusterip_heal` | workers | a watchdog: if a probe through a ClusterIP fails (a stuck DNAT rule after a reboot), it restarts `k3s-agent`. Journal tag `clusterip-heal`. |
+| `node_isolation_heal` | the two physical workers | if a worker loses the CP, it first restarts `k3s-agent`, then reboots itself on a staggered timer. Active since 2026-07-23. |
+| `clusterip_heal_cp` | CP | a watchdog that probes CoreDNS from inside a pod's network namespace; if the probe fails, it restarts K3s with `timeout 120`. Journal tag `clusterip-heal-cp`. |
 
 | Setting | Value |
 |---|---|
@@ -71,7 +71,7 @@ script that sources it.
 
 | Function | Used by | What it does |
 |---|---|---|
-| `textfile_write PATH` | the 4 heal watchdogs, `firewall-preflight.sh` | writes a node-exporter metric atomically, mode 0644; returns 1 on failure, and the callers ignore that |
+| `textfile_write PATH` | the 4 heal watchdogs, `firewall-preflight.sh`, `ufw-state-metric.sh` | writes a node-exporter metric atomically, mode 0644; returns 1 on failure, and the callers ignore that |
 | `state_write PATH FIELD...` | the 4 heal watchdogs | writes a one-line state file atomically, mode 0600; returns 1 on failure. If the save before a restart or reboot fails, the watchdog skips that action |
 | `ufw_chains_hash` | `firewall-preflight.sh`, `k3s-wait-ready.sh`, `ufw-heal-post-k3s.sh` | hashes the ufw chains only, the settle signal |
 
@@ -145,8 +145,8 @@ Each node runs the scan on its own; nothing coordinates them.
 | Alerts | Telegram if the scan fails to run (the unit's `ExecStopPost`). The monthly review reads the findings. |
 
 The timer keeps `Persistent=false`: if a node is down at the scheduled time, it skips that month's
-scan. The comment in the timer file says why: the stamp files still date from July 2026, so
-`Persistent=true` would start a catch-up scan on the next restart of the timer.
+scan. Each node's stamp file still dates from July 2026, so `Persistent=true` would start a
+catch-up scan on the next restart of the timer.
 
 Run it by hand:
 
@@ -171,8 +171,8 @@ four nodes on the next drift-heal run.
    ```
 2. `install.sh` writes `/tmp/install-worker-ready.sh` (`install-worker.sh` with the CP's public key
    filled in) and prints the commands that copy and run it on worker-node and worker-node-2. Run
-   the same on `immich-vm`: the inventory reaches it as the `node-maintenance` user too, and the
-   printed commands predate it.
+   the same on `immich-vm`, which the printed commands omit: the inventory reaches it as the
+   `node-maintenance` user too.
 3. Check:
    ```bash
    sudo -u node-maintenance ssh -p 65300 -i /var/lib/node-maintenance/.ssh/id_ed25519 \
@@ -362,7 +362,7 @@ scp -P 65300 -r node-maintenance akhozya@gmk-k3s-control-plane:
 # On CP: run install
 ssh -p 65300 akhozya@gmk-k3s-control-plane
 sudo bash ~/node-maintenance/install.sh
-# Follow printed instructions to scp + run install-worker.sh on both workers
+# Follow printed instructions to scp + run install-worker.sh on both workers, then on immich-vm
 ```
 
 `install.sh` shreds `/tmp/node-maintenance-ssh-key` after it copies it to
@@ -374,7 +374,7 @@ sudo bash ~/node-maintenance/install.sh
 # 1. On Mac: generate fresh keypair
 ssh-keygen -t ed25519 -f /tmp/new_key -N "" -C "node-maintenance@gmk-k3s-control-plane"
 
-# 2. Wrap as SOPS Secret YAML (same as spec §15):
+# 2. Wrap as SOPS Secret YAML:
 cat > /tmp/new-secret.yaml <<EOF
 apiVersion: v1
 kind: Secret

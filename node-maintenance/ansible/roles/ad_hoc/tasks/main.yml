@@ -1,5 +1,5 @@
 ---
-# ad_hoc — on-demand tasks. All tasks tagged `never` so daily drift-heal skips them.
+# ad_hoc — on-demand tasks. Every task is tagged `never`, so a drift-heal run (no `--tags`) skips them.
 # Invoke explicitly: ansible-playbook -t <tag> node-config.yml --limit <host>
 #
 # Available tags:

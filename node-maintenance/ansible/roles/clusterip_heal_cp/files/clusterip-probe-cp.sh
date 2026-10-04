@@ -60,7 +60,6 @@ for _ in $(seq 1 "$samples"); do
 		fail=$((fail + 1))
 		;;
 	"")
-		# no output → nsenter/curl could not run (stale PID, exec error) = UNKNOWN, NOT a wedge.
 		detail="$detail [unk]"
 		unknown=$((unknown + 1))
 		;;

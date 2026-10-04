@@ -303,10 +303,8 @@ if [ "$wedged_s" -ge "$reboot_threshold" ] && [ "$cp_up" -eq 0 ]; then
 		exit 1
 	fi
 	log "SELF-REBOOT: isolated ${wedged_s}s, cannot reach CP, L1 didn't recover — rebooting (staggered index=$NODE_INDEX)."
-	# pending_action goes to the textfile under /var/lib, which SURVIVES the reboot —
-	# node-exporter would re-expose a stale 2 for ~2min post-boot (watchdog OnBootSec)
-	# and double-fire PendingReboot on top of Rebooted. Emit 0 before rebooting; the
-	# completed reboot is signaled by node_isolation_heal_last_reboot_timestamp alone.
+	# Emit pending_action=0 before rebooting: the textfile survives the reboot, and a stale 2 would
+	# double-fire PendingReboot on top of Rebooted (see emit_metric).
 	emit_metric 1 "$wedged_s" 0 0
 	systemctl reboot
 	exit 0

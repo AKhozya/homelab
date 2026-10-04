@@ -3,8 +3,7 @@
 #
 # WORKERS ONLY. node-config.yml applies this role only to workers, and it acts on k3s-agent, which does
 # not exist on the control-plane (the CP runs k3s.service). The CP host-netns path to 10.43.0.1 reads
-# 000 even when healthy (documented quirk), so the CP has its own pod-netns watchdog,
-# clusterip_heal_cp.
+# 000 even when healthy, so the CP has its own pod-netns watchdog, clusterip_heal_cp.
 #
 # Why: the legacy iptables kube-proxy programs services via one atomic iptables-restore. On reboot a
 # stale nft chain ("CHAIN_USER_ADD failed (File exists)") makes that restore fail → KUBE-SERVICES (the

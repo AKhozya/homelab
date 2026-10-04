@@ -38,8 +38,8 @@ k3s_secrets_encryption: true
 k3s_node_monitor_period: 5s
 k3s_node_monitor_grace_period: 75s
 
-# API-server cert SANs. Restart K3s after change to regenerate cert.
-# Cert lifetime: K3s rotates internally, but SAN list is set once at install.
+# API-server cert SANs. Restart K3s after a change to regenerate the cert.
+# Cert lifetime: K3s rotates internally.
 k3s_tls_san:
   - 127.0.0.1
   - localhost

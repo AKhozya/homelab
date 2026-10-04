@@ -22,12 +22,10 @@ KUBECONFIG=/etc/rancher/k3s/k3s.yaml
 MAX_AGE_SEC=7200  # 2 hours
 NOTIFY=/usr/local/sbin/telegram-notify.sh
 
-# No flag → proceed with drift-heal
 if [ ! -f "$FLAG" ]; then
     exit 0
 fi
 
-# Flag exists — check age
 FLAG_MTIME=$(stat -c %Y "$FLAG")
 NOW=$(date +%s)
 AGE=$(( NOW - FLAG_MTIME ))

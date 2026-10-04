@@ -20,14 +20,12 @@ fi
 
 mkdir -p "$OUTDIR"
 
-# Config enabled flag
 if grep -q "^ENABLED=yes" /etc/ufw/ufw.conf 2>/dev/null; then
     ENABLED=1
 else
     ENABLED=0
 fi
 
-# Systemd service active
 if systemctl is-active --quiet ufw.service 2>/dev/null; then
     ACTIVE=1
 else

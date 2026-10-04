@@ -24,9 +24,8 @@ if [ ! -r "$LOG" ]; then
   exit 0
 fi
 
-# Everything from the LAST `PLAY RECAP` line to EOF. Scoping to the recap is what makes the
-# counts below node-count-agnostic: the old `grep … | tail -3` summed the last three matches in
-# the whole log, so the first host silently dropped out once immich-vm made this a 4-node cluster
+# Everything from the LAST `PLAY RECAP` line to EOF. Scoping to the recap counts every host,
+# whatever the node count. A fixed `grep … | tail -3` dropped the first host on 4 nodes
 # (2026-08-07: a 12-change run alerted as 9).
 recap_body() {
   awk '/^PLAY RECAP/ {buf=$0 "\n"; cap=1; next} cap {buf=buf $0 "\n"} END {printf "%s", buf}' "$LOG"

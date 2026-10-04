@@ -63,8 +63,8 @@ opt_ok() {
       case $2 in -l|-a|-A|-h|-t|-r|-1|-la|-lh|-lt|-ltr|-lah|-lart|--full-time) return 0 ;; esac ;;
     ps)
       # No -o/-eo: both need a format list as the next argument, which the operand check below
-      # refuses, so every -eo call died anyway. `ps aux` already carries RSS and the corpus shows
-      # no other use — the same reasoning that keeps `sar` out.
+      # refuses, so every -eo call died anyway. `ps aux` already carries RSS, and the bot's commands
+      # show no other use.
       case $2 in -e|-f|-ef|--sort=*) return 0 ;; esac ;;
     ps-operand)
       # procps takes BSD options with no dash, so an operand check that only looks at tokens

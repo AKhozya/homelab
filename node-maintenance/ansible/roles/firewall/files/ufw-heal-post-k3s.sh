@@ -66,7 +66,6 @@ if ! . "$NODE_SCRIPT_LIB" || ! declare -F ufw_chains_hash >/dev/null; then
     exit 1
 fi
 
-# Extract ":<chain>" declarations from UFW rules files → list of chain names
 extract_chains() {
     local file="$1"
     grep -E '^:[a-zA-Z0-9_-]+' "$file" 2>/dev/null | awk -F'[: ]' '{print $2}'
@@ -209,7 +208,6 @@ phase_b_reload() {
             pin_ufw_enabled
             sleep 2  # brief settle — let any in-flight kube-proxy writes land
 
-            # Verify status survived the race window
             local verify_status
             verify_status=$("$UFW_BIN" status 2>&1 || true)
             if echo "$verify_status" | grep -qi "Status: active"; then

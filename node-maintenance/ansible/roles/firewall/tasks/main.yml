@@ -317,9 +317,6 @@
       ansible.builtin.set_fact:
         ufw_rescue_ran: true
 
-# Update fingerprint cache after a clean block run. Skipped if rescue ran
-# (state may be partially healed; want next run to re-evaluate, not cache
-# bad state).
 - name: Ensure UFW state cache directory
   ansible.builtin.file:
     path: /var/lib/ufw-state
@@ -330,6 +327,9 @@
   when: ufw_drift_detected | default(true)
   tags: [firewall]
 
+# Update fingerprint cache after a clean block run. Skipped if rescue ran
+# (state may be partially healed; want next run to re-evaluate, not cache
+# bad state).
 - name: Recompute UFW fingerprint after rules apply
   ansible.builtin.shell: |
     set -o pipefail

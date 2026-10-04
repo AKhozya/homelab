@@ -199,9 +199,8 @@ log "Backed up CP token + env to $BACKUP_DIR (0700)."
 OLD_TOKEN="$(cat "$CP_TOKEN_FILE")"
 
 log "Rotating the server token in the datastore (irreversible)…"
-# Non-leaking: OLD token via the K3S_TOKEN env (root-only /proc/<pid>/environ, NOT world-readable
-# argv); --new-token OMITTED so k3s GENERATES the new token straight into the token file — it never
-# appears on the command line. stdout/stderr suppressed in case the value is echoed.
+# Non-leaking (see header): old token via env, new token generated into the file, so neither is in argv.
+# Output is dropped in case k3s echoes a token.
 if ! K3S_TOKEN="$OLD_TOKEN" k3s token rotate --data-dir "$DATA_DIR" >/dev/null 2>&1; then
   die 10 "k3s token rotate FAILED — nothing restarted, cluster still on the OLD token (backup: $BACKUP_DIR)"
 fi

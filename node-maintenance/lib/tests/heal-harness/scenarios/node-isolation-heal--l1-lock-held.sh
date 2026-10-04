@@ -5,8 +5,9 @@ mkdir -p /var/lib/node-isolation-heal
 export NIH_MOCK_KUBELET=0 NIH_MOCK_GW=0 NIH_MOCK_PEERS=1 NIH_DRY_RUN=0 NIH_UPTIME_OVERRIDE=50000
 export NIH_MOCK_TUNNEL=1 NIH_MOCK_CP=0
 echo "$((FAKE_NOW - 400)) 2 0 0" >/var/lib/node-isolation-heal/state
-# clusterip-heal holds the shared restart lock for the whole run.
+# The cooldown file is an hour old, past the cooldown.
 mkdir -p /var/lib/k3s-agent-restart && touch -d "@$((FAKE_NOW - 3600))" /var/lib/k3s-agent-restart/cooldown
+# clusterip-heal holds the shared restart lock for the whole run.
 # tail, not sleep: sleep is a stub here. The holder blocks for the lock, so the probe loop below
 # cannot make it lose a -n race and exit.
 flock /var/lib/k3s-agent-restart/cooldown tail -f /dev/null &

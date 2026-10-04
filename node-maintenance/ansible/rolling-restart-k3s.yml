@@ -6,8 +6,8 @@
 # The unit holds the node-maintenance lock. A direct ansible-playbook run skips that lock and
 # shares root's SSH ControlMaster with any running drift-heal, whose exit can kill this run.
 #
-# CP first (CM grace-period change applies on k3s.service restart), then workers
-# serially. serial: 1 = at most one node disrupted at a time.
+# CP first (a controller-manager node-monitor-grace-period change applies on k3s.service restart),
+# then workers serially. serial: 1 = at most one node disrupted at a time.
 #
 # Verifies kubelet config landed via /api/v1/nodes/<n>/proxy/configz.
 # Fails play if expected fields missing — surfaces silent K3s field-stripping

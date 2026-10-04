@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# sync-from-git.sh — pull homelab repo on CP, run install.sh --sync-only if SHA changed.
+# sync-from-git.sh — pull the homelab repo on the CP; run install.sh --sync-only when HEAD
+# differs from the last SHA install.sh applied.
 # Invoked by node-maintenance-sync.service (systemd oneshot, root).
-# Runs install.sh only when HEAD differs from the last SHA install.sh applied.
 set -euo pipefail
 
 REPO_DIR="${NODE_MAINT_REPO_DIR:-/var/lib/node-maintenance/homelab}"

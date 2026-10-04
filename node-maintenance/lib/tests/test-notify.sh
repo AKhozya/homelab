@@ -85,8 +85,7 @@ bash "$SCRIPT" exec-condition >/dev/null 2>&1
 chk "exec-condition: silent" 0 "$(wc -c <"$MOCK_TG" | tr -d ' ')"
 
 # --- 4-host recap: every host counts, including the first ---
-# The counts used to come from `grep … | tail -3`, which dropped the first host once immich-vm
-# made this a 4-node cluster. Live proof 2026-08-07: a 12-change run alerted as "9 change(s)".
+# Regression: a fixed `tail -3` dropped the first host on 4 nodes (2026-08-07: 12 changes alerted as 9).
 write_recap_4() { # $1 changed-per-host  $2 failed-per-host
 	{
 		echo "=== start: 2026-08-07T17:30:00+00:00 ==="

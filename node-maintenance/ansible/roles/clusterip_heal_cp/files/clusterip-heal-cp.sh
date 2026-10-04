@@ -21,7 +21,7 @@ METRIC="${METRIC_DIR}/clusterip_heal_cp.prom"
 COOLDOWN=300        # min seconds between restarts (let the last one settle)
 WINDOW=1800         # cap window (s)
 MAX_RESTARTS=3      # max restarts within WINDOW before giving up + alerting
-RESTART_TIMEOUT=120 # hard cap on `systemctl restart k3s` (gate: clean restart ~30-60s)
+RESTART_TIMEOUT=120 # hard cap on `systemctl restart k3s` (a clean restart takes ~30-60s)
 REPROBE_WAIT=30     # k3s + kube-proxy take longer than k3s-agent to come up + reprogram
 
 log() {

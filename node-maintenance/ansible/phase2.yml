@@ -187,8 +187,8 @@
           changed_when: "'there is nothing to do' not in yay_result_retry.stdout"
           failed_when: false
 
-    # The block above intentionally swallows a failed upgrade so the reboot still happens.
-    # Record the real outcome so it is not also invisible — see tasks/pkg-upgrade-metric.yml.
+    # The block above swallows a failed upgrade so the reboot still happens. Record the real outcome
+    # so the failure stays visible.
     - name: Record package-upgrade outcome
       ansible.builtin.include_tasks: tasks/pkg-upgrade-metric.yml
       vars:
@@ -436,10 +436,9 @@
           register: vm_yay_retry
           changed_when: "'there is nothing to do' not in vm_yay_retry.stdout"
           failed_when: false
-        # Do NOT re-raise a persistent failure: a hard-fail here leaves phase2-pending stuck →
-        # gates sync + config drift-heal cluster-wide (2026-06-20 ~1.7h stall). Alert instead so
-        # the play completes. This replaces a silent swallow that let `yay: command not found`
-        # report success → the VM went unpatched undetected until 2026-07-11.
+        # Do not re-raise a persistent failure: a hard failure here leaves phase2-pending set, which
+        # blocks sync and config drift-heal cluster-wide (2026-06-20, ~1.7h stall). Alert instead so
+        # the play completes. A silent swallow here hid `yay: command not found` until 2026-07-11.
         - name: Alert if the GPU-VM upgrade still failed after retry (surfaced, not swallowed)
           ansible.builtin.command: >-
             /usr/local/sbin/telegram-notify.sh
@@ -583,8 +582,7 @@
           delegate_to: "{{ groups['control_plane'][0] }}"
           become: false
           changed_when: false
-          failed_when: false   # rescue must NEVER re-raise — a notify failure here would hard-fail
-          # PLAY 1b, leaving phase2-pending stuck → cluster-wide sync+config drift-heal stall (~1.7h)
+          failed_when: false   # a failed notify must not fail this rescue: phase2-pending would stay set
 
 # ──────────────────────────────────────────────────────────────
 # PLAY 2: Cluster-level post-tasks (cleanup + alerts + notify)
@@ -619,11 +617,9 @@
       retries: 3
       delay: 60
       changed_when: false
-      # Best-effort nudge only — Flux reconciles on its own timer regardless. A transient
-      # timeout here must NOT fail PLAY 2, else phase2-pending is left stuck (PLAY 2 never
-      # reaches its clear step) → sync + config drift-heal gated cluster-wide until the 2h
-      # age-clear (2026-06-20: ~1.7h stall during the W1 DNAT wedge). Outcome still logged
-      # via flux_results; Flux's own kustomization-failed alerts cover a real reconcile fault.
+      # Best-effort nudge: Flux reconciles on its own timer anyway. A hard failure here would leave
+      # phase2-pending set (2026-06-20, ~1.7h stall). Flux's own kustomization-failed alerts cover
+      # a real reconcile fault.
       failed_when: false
       environment:
         KUBECONFIG: "{{ kubeconfig_path }}"

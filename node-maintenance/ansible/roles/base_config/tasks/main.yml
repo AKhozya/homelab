@@ -206,9 +206,8 @@
     validate: /usr/sbin/visudo -c -f %s
   tags: [base-config, sudoers]
 
-# Admin user sudoers — pwd-required interactive sudo. File name `00_<user>`
-# matches archinstall convention (00 prefix sorts before `node-maintenance`,
-# alphabetical mostly cosmetic — sudoers.d files all read).
+# Admin user sudoers: interactive sudo with a password. The `00_<user>` name follows the
+# archinstall convention.
 - name: Deploy sudoers for admin user
   ansible.builtin.copy:
     dest: "/etc/sudoers.d/00_{{ admin_user }}"
@@ -296,9 +295,8 @@
 # On immich-vm the immich_gpu_node role rewrites authorized_keys exclusively and writes this same
 # line, byte for byte, so the two tasks agree.
 #
-# Drift-heal is the reason this lives here rather than in a one-off script: a `command=` entry
-# edited by hand disappears silently the moment anything rewrites the file, and a security control
-# that can vanish without a signal is the failure this is meant to prevent.
+# This lives in drift-heal, not a one-off script: anything that rewrites authorized_keys
+# silently drops a hand-edited `command=` entry.
 - name: Install agent-diag forced command wrapper
   ansible.builtin.copy:
     src: agent-diag
