@@ -15,8 +15,7 @@ to run it on a node. The secret-backup blocks change into `.backup/` themselves.
 
 ## Secret backups
 
-The cluster's secrets are backed up by hand, separately from the data. The scripts live in
-`.backup/`, and every archive is encrypted.
+You back up the cluster's secrets manually with the scripts in `.backup/`, separately from the data.
 
 | Rule | Detail |
 |---|---|
@@ -57,8 +56,8 @@ gpg --decrypt --batch --passphrase-file <(echo "$GPG_PASSPHRASE") \
   secrets-backup-20251030_120000.tar.gz.gpg | tar -xzf - -C .
 ```
 
-The archive unpacks to `secrets/`, one JSON file per secret. It holds every secret a full rebuild
-needs:
+The archive unpacks to `.backup/secrets/`, which Git ignores. It holds a JSON file per secret, plus
+plain copies of the age key and a few tokens: every secret a full rebuild needs.
 
 | Group | Secrets |
 |---|---|
@@ -68,12 +67,9 @@ needs:
 | Apps | Authentik, Immich, Home Assistant, n8n, Linkwarden, Mealie, Paperless-NGX, Audiobookshelf, Uptime Kuma, Stirling-PDF, HomeHub, PriceBuddy, CouchDB (Obsidian sync) |
 | Backup replication | the NAS rsync credentials; the Telegram bot token for backup failure alerts |
 
-The files land in `.backup/secrets/`, which Git ignores.
-
 ## Automated data backups
 
-CronJobs run the data backups on the schedules below, without any manual step. [BACKUP_STRATEGY.md](../BACKUP_STRATEGY.md)
-has the full policy.
+CronJobs run the data backups. [BACKUP_STRATEGY.md](../BACKUP_STRATEGY.md) has the full policy.
 
 | Backup | When (UTC) | Where | Kept |
 |---|---|---|---|
@@ -121,15 +117,13 @@ chmod +x secrets-restore.sh
 # Set GPG_PASSPHRASE env var to skip prompt
 ```
 
-The script decrypts the archive and restores every secret the cluster needs.
-
 ### Step 5: Bootstrap Flux
 
-Start CoreDNS first. The control plane's K3s config turns off the bundled CoreDNS, and Flux is the
+Start CoreDNS first. The control plane's K3s config turns off the bundled CoreDNS, so Flux is the
 only source of the cluster's DNS (`infrastructure/coredns/`). Flux's own controllers need that DNS
-to reach GitHub, so without this apply the bootstrap cannot fetch the repo. This apply from a
-checkout is a second exception to the GitOps-only rule; Flux adopts the objects on its first
-reconcile of the `coredns` Kustomization.
+to reach GitHub, so without this apply the bootstrap cannot fetch the repo. This apply is one of
+the two exceptions to the GitOps-only rule. Flux adopts the objects on its first reconcile of the
+`coredns` Kustomization.
 
 ```bash
 # From a checkout of this repo
@@ -166,9 +160,9 @@ same set, so the dry run rejects the workload while its policy is still unwritte
 admission webhook denied the request: Namespace must declare at least one NetworkPolicy
 ```
 
-This is the two-commit new-namespace problem (`.claude/review-invariants.md`) hitting every
-namespace at once, and the repo has no fix for it yet. To unblock it, apply the namespaces and
-NetworkPolicies on their own; the workloads wait on nothing else. Then let Flux reconcile the rest.
+The same check is why a single new namespace takes two commits; during a rebuild it affects every
+namespace at once, and the repo has no fix for it yet. To unblock it, apply the namespaces and NetworkPolicies
+on their own; the workloads wait on nothing else. Then let Flux reconcile the rest.
 
 Run this **after** `flux bootstrap`, not before: it repairs a reconcile that has already failed,
 and it is not part of the secret restore. Once the policies exist, Flux converges on its next
@@ -398,10 +392,10 @@ if [ -n "$FAILED" ]; then echo "RESTORE FAILED:$FAILED — fix these before you 
 
 #### CouchDB
 
-> The restore Jobs on this page are applied straight to the cluster, not committed to Git. That
-> is the one exception to the GitOps-only rule in AGENTS.md, which notes it too. Committing them
-> would make Flux re-run a destructive restore on every reconcile. They run once and are deleted
-> when complete.
+> The restore Jobs on this page are applied straight to the cluster, not committed to Git. They
+> are the other exception to the GitOps-only rule in AGENTS.md. If committed, Flux would recreate a
+> Job after it is deleted or cleaned up, and so repeat the destructive restore. They run once and
+> are deleted when complete.
 
 The CouchDB image does not contain `couchrestore`; it ships with `@cloudant/couchbackup` (npm), the
 same tool the backup CronJob uses. So the restore runs as a Job that reads the archive straight off
@@ -418,7 +412,7 @@ Four things make a plain `kubectl run` fail here. Each was found by running it:
 
 | # | Problem | Fix in the Job below |
 |---|---|---|
-| 1 | **Kyverno denies it.** All 12 policies deny. The `app` label (require-labels), requests and limits (require-resource-limits), runAsNonRoot (require-non-root), seccompProfile (require-seccomp-runtimedefault), drop ALL (require-drop-all-capabilities), `allowPrivilegeEscalation: false` (disallow-privilege-escalation), readOnlyRootFilesystem (require-readonly-rootfs) and a non-default serviceAccountName (require-non-default-serviceaccount, so `couchdb-jobs`) are each required by one of them. The webhook names only the first failing policy, so a missing field gives one misleading error, not a list. | every field is set |
+| 1 | **Kyverno denies it.** All 12 policies deny. The `app` label (require-labels), requests and limits (require-resource-limits), runAsNonRoot (require-non-root), seccompProfile (require-seccomp-runtimedefault), drop ALL (require-drop-all-capabilities), `allowPrivilegeEscalation: false` (disallow-privilege-escalation), readOnlyRootFilesystem (require-readonly-rootfs) and a non-default serviceAccountName (require-non-default-serviceaccount, so `couchdb-jobs`) are each required by one of them. The `app: couchrestore` label also matches the disallow-host-path exemption, which lets the Job mount the backup `hostPath`. The webhook names only the first failing policy, so a missing field gives one misleading error, not a list. | every field is set |
 | 2 | **The ResourceQuota denies it too.** `namespace-quota` on `databases` leaves only about 800m CPU free on a running cluster, so a 1-CPU limit is rejected even after Kyverno passes. Check first: `kubectl get resourcequota namespace-quota -n databases`. In a real full restore the namespace is mostly empty, so there is room. | a 500m limit |
 | 3 | **`readOnlyRootFilesystem` breaks npm.** Its default `~/.npm` is not writable, so `npm install` fails and `couchrestore` is simply missing. | `HOME` and `npm_config_cache` point into the `/tmp` emptyDir |
 | 4 | **The default `--parallelism 5` breaks authentication part-way.** It shows up only after several batches succeed, so it looks like a partial success. The comment on the `couchrestore` call explains it. | `--parallelism 1` |
@@ -839,7 +833,7 @@ stable point to return to.
 
 | Tag | What it marks |
 |---|---|
-| `pre-ultrareview-2026-07-03` | The state before the fix waves of the 2026-07-03 ultrareview (52 findings) |
+| `pre-ultrareview-2026-07-03` | The state before the fixes from the 2026-07-03 repo review (52 findings) |
 
 ```bash
 # Inspect a handle

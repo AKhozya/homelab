@@ -1,18 +1,13 @@
 # Secrets Rotation Playbook
 
-**Cluster**: K3s Homelab (k3s v1.37.0+k3s1, 4 nodes) | **Last Updated**: 2026-10-02
+**Cluster**: K3s Homelab (k3s v1.37.0+k3s1, 4 nodes) | **Last Updated**: 2026-10-04
 **Audit Trail**: rotation dates in git commit history
 
-Every secret in this cluster lives encrypted in Git using SOPS with an age key. The
-ciphertext is committed alongside the manifests that consume it; only the cluster's age
-key can decrypt it, so the repository can be public without exposing any value. The point
-of doing it this way is to have one auditable source of truth: every secret change is a
-reviewable commit, there is no external secret store to stand up or keep available before
-the cluster can boot, and disaster recovery only needs the repo plus the age key. This
-document tracks the rotation cadence for each class of secret — database credentials
-(PostgreSQL/CNPG, MySQL/Percona, CouchDB, Redis), the Cloudflare tunnel, GitHub deploy
-keys, node-maintenance and bot SSH keys, and TLS certificates (auto-renewed by
-cert-manager).
+Every Kubernetes Secret this repo deploys lives in Git, encrypted with SOPS and an age key, next to
+the manifests that use it. Only the cluster's age key decrypts it, so the repo can be public without
+exposing a value. Each secret change is a reviewable commit, no external secret store has to run
+before the cluster boots, and restoring those Secrets needs only the repo and the age key. This page tracks the rotation
+dates and procedures for each class of secret.
 
 ---
 
@@ -31,7 +26,6 @@ cert-manager).
 | `paperless-db-user` | Paperless-NGX | 2026-10-02 | 2027-03-31 | Medium |
 | `authentik-db-user` | Authentik | 2026-10-02 | 2027-03-31 | Critical |
 | `blocky-db-user` | Blocky (queryLog) | 2026-06-05 | 2026-12-05 | Low |
-| `trivy-dockerhub` | trivy-scan CronJob (Docker Hub read-only PAT, 1Password `docker_hub_ro`; PAT non-expiring — revoke+reissue) | 2026-07-14 | 2027-07-14 | Low |
 
 Grafana and Audiobookshelf use SQLite, so they have no database Secret.
 
@@ -124,6 +118,7 @@ Since authentik 2023.6, `AUTHENTIK_SECRET_KEY` signs cookies and no longer feeds
 | `sops-age` (`flux-system` ns) | SOPS decryption key for every secret in this repo | 2025-10-19 (bootstrap) | Never* | Critical |
 | `alertmanager-basic-auth` (`monitoring` ns) | Traefik basicAuth on `am.h0melab.work` | 2026-07-25 | 2027-07-25 | Medium |
 | `FLUX_UPDATE_TOKEN` (GitHub Actions repo secret) | `flux-update.yaml` opens the weekly Flux update PR; fine-grained PAT `homelab-flux-update`, repo `homelab` only, Contents + Pull requests write; 1Password `homelab-flux-update-token` | 2026-10-01 (created) | 2027-03-30 | Critical |
+| `trivy-dockerhub` | trivy-scan CronJob (Docker Hub read-only PAT, 1Password `docker_hub_ro`; PAT non-expiring — revoke+reissue) | 2026-07-14 | 2027-07-14 | Low |
 
 \* Rotate only if compromised
 
@@ -134,7 +129,7 @@ deadline rather than the annual one the other deploy keys get. The three `gh-*` 
 that file, not replacing it. Confirm scope against GitHub rather than this table before trusting
 it: `gh api repos/AKhozya/<repo>/keys --jq '.[] | "\(.title) read_only=\(.read_only)"'`.
 
-**`FLUX_UPDATE_TOKEN`** can push to `main`, and no branch rule guards `main`, so like `gh-homelab` a push with it is a deploy. For that reason you rotate it every 180 days, like `gh-homelab`. Each counts from its own last rotation, so the two deadlines in the table above differ. The PAT itself never expires, so GitHub does not enforce that deadline. It is a fine-grained PAT, separate from the classic PAT that owns Flux's deploy key. Deleting that classic PAT also deletes the deploy key. If it leaks or you rotate it: regenerate `homelab-flux-update` at github.com/settings/personal-access-tokens, save the new value in the 1Password item, then load it and test it:
+**`FLUX_UPDATE_TOKEN`** can push to `main`. The `main` ruleset lets the repo admin role bypass it, and this PAT acts as the owner, so treat a push with it as a deploy, like one with `gh-homelab`. For that reason you rotate it every 180 days, like `gh-homelab`. Each counts from its own last rotation, so the two deadlines in the table above differ. The PAT itself never expires, so GitHub does not enforce that deadline. It is a fine-grained PAT, separate from the classic PAT that owns Flux's deploy key. Deleting that classic PAT also deletes the deploy key. If it leaks or you rotate it: regenerate `homelab-flux-update` at github.com/settings/personal-access-tokens, save the new value in the 1Password item, then load it and test it:
 
 ```bash
 op read 'op://Personal/homelab-flux-update-token/credential' | gh secret set FLUX_UPDATE_TOKEN --repo AKhozya/homelab
@@ -149,7 +144,7 @@ If the secret is empty or missing, the workflow's `Require FLUX_UPDATE_TOKEN` st
 
 **The Cloudflare and alerts-bot tokens (2026-09-28).** A pre-rewrite commit (`7349f6cc`, 2025-10-07) holds both values, and 18 `refs/pull/*` still reach that commit. The repo owner cannot delete PR refs, so the operator rotated both tokens. The operator rotated the claude-telegram token in the same pass, although that commit does not hold it. Before the rotation, the Cloudflare row said "2025-10-19", but the SOPS file had not changed since 2025-10-06, so the value in it could not be newer. If this table and a file's `sops.lastmodified` disagree, the value is no newer than `sops.lastmodified`. Procedure: [section 6](#6-cloudflare-api-token-and-telegram-bot-tokens).
 
-**`claude-telegram-ssh` (2026-06-12)**: rotated after the old key was found in pre-rewrite git history (an account-wide GitHub auth key that doubled as a node SSH key). Procedure: new key added to GitHub + the 3 nodes' `authorized_keys` + SOPS secret → bot restart → verified GitHub and node auth → old key removed everywhere. The bot also reaches GitHub over `ssh.github.com:443`, since the cluster's egress firewall blocks outbound `:22`.
+**`claude-telegram-ssh` (2026-06-12)**: rotated after the old key was found in pre-rewrite git history (an account-wide GitHub auth key that doubled as a node SSH key). Procedure: new key added to GitHub + the 3 nodes' `authorized_keys` + SOPS secret → bot restart → verified GitHub and node auth → old key removed everywhere. The bot also reaches GitHub over `ssh.github.com:443`, because its NetworkPolicy allows no egress to port 22.
 
 ### TLS Certificates
 
@@ -195,7 +190,8 @@ If the secret is empty or missing, the workflow's `Require FLUX_UPDATE_TOKEN` st
 drift correction removes the `restartedAt` annotation it adds, so the old pod keeps running on the
 old secret (n8n, recorded in `d6d67c20`). Delete the pods instead. `agents/skills/_shared/restart-workload.sh`
 deletes one pod at a time and waits until the workload is Ready again before the next, so a
-two-replica app keeps serving. It refuses databases; Redis has its own step in section 2.
+two-replica app keeps serving. It is not for databases, although nothing in it stops you; Redis
+has its own restart step in section 2.
 
 | App | Namespace | Selector | Replicas |
 |---|---|---|---|
@@ -219,10 +215,10 @@ agents/skills/_shared/restart-workload.sh <namespace> <selector>
 
 ### 1. PostgreSQL Password (CNPG)
 
-`_shared/rotate-pg-roles.sh <role>...` (the `secrets-rotation` skill) does steps 1-3 for every
-copy at once: it finds each copy by the current value, including DSNs, so no file list becomes outdated.
-Apps behind the PgBouncer pooler show old server connections in `pg_stat_activity`; prove the new
-login with `_shared/pooler-login-proof.sh` instead.
+`agents/skills/_shared/rotate-pg-roles.sh <role>...` does steps 1-3 for every copy at once. It
+finds each copy by the current value, including DSNs, so no file list becomes outdated. Apps behind the
+PgBouncer pooler show old server connections in `pg_stat_activity`; prove the new login with
+`agents/skills/_shared/pooler-login-proof.sh` instead.
 
 ```bash
 # 1. Generate new password (64-char hex for URL safety)
@@ -292,11 +288,12 @@ agents/skills/_shared/restart-workload.sh <namespace> <selector>
 ### 2. Redis Password (redis-ha)
 
 **Preferred since 2026-10-02: three passes that overlap the old and new password**, run with the
-`secrets-rotation` skill helpers (`rotate-redis-users.sh`, `redis-restart.sh`,
-`redis-acl-drop-old.sh`). Redis never rejects a client's password, because both the old and the
-new one are accepted until every client holds the new one. That matters because blocky sets redis
-`required: true` and serves DNS. Restarts and failovers can still interrupt clients briefly. The single-password steps below refuse every consumer between the
-Redis restart and its own restart. What the 2026-10-02 run showed:
+helpers in `agents/skills/_shared/` (`rotate-redis-users.sh`, `redis-restart.sh`,
+`redis-acl-drop-old.sh`). Redis accepts both passwords until every client holds the new one, so it
+never rejects a client's password. That matters because blocky sets redis `required: true` and
+serves DNS. Restarts and failovers can still interrupt clients briefly. The single-password steps
+below lock out each consumer from the Redis restart until its own restart. What the 2026-10-02 run
+showed:
 
 | Observation | Consequence |
 |---|---|
@@ -432,6 +429,39 @@ restart_old redis-sentinel-sentinel-0 && restart_old redis-sentinel-sentinel-1 &
 
 ---
 
+#### Blocky DNS (Redis password coordinated rotation)
+```bash
+# 1. Generate new password
+NEW=$(openssl rand -base64 32 | tr -d '\n=/+' | head -c 40)
+
+# 2. Update redis-passwords (databases ns)
+sops infrastructure/configs/databases/redis-ha/passwords-secret.yaml
+# Replace blocky-password value with $NEW
+
+# 3. Update redis-acl-secret (databases ns) — replace blocky line `>${OLD}` with `>${NEW}`
+sops infrastructure/configs/databases/redis-ha/acl-secret.yaml
+
+# 4. Update Blocky's inlined config Secret
+sops apps/blocky/config-secret.yaml
+# Find redis.password: <OLD> → replace with <NEW>
+
+# 5. Commit, push, reconcile
+git add infrastructure/configs/databases/redis-ha/passwords-secret.yaml \
+        infrastructure/configs/databases/redis-ha/acl-secret.yaml \
+        apps/blocky/config-secret.yaml
+git commit -m "Rotate blocky redis password"
+git push
+flux reconcile source git flux-system --timeout 45s
+flux reconcile kustomization infrastructure-configs --timeout 60s
+flux reconcile kustomization apps --timeout 60s
+
+# 6. Restart the Redis pods: section 2, step 5 (never `rollout restart` them)
+
+# 7. Restart Blocky one pod at a time (2 replicas), then verify
+agents/skills/_shared/restart-workload.sh blocky app=blocky
+kubectl logs -n blocky -l app=blocky --tail=20 | grep -iE "redis|error"
+```
+
 ### 3. MySQL Password (Percona)
 
 The Percona operator has no user resource. The app users come from SQL
@@ -552,15 +582,12 @@ Immich, Audiobookshelf and Cloudflare Access do not use steps 3-5. Done 2026-10-
 
 | App | Where the secret sits | How |
 |---|---|---|
-| Immich | PostgreSQL `immich` db, `system_metadata` row `system-config`, `value->'oauth'->>'clientSecret'` | `UPDATE ... jsonb_set(value, '{oauth,clientSecret}', ...)` on stdin through `pg-primary.sh exec immich -`, then restart immich-server (it caches the config) |
+| Immich | PostgreSQL `immich` db, `system_metadata` row `system-config`, `value->'oauth'->>'clientSecret'` | `UPDATE ... jsonb_set(value, '{oauth,clientSecret}', ...)` on stdin through `agents/skills/db-operations/scripts/pg-primary.sh exec immich -`, then restart immich-server (it caches the config) |
 | Audiobookshelf | `/config/absdatabase.sqlite`, `settings` row `server-settings`, JSON field `authOpenIDClientSecret` | no `sqlite3` binary in the image: `node -e` from `/app` with the app's own `sqlite3` module, then restart; the row still held the new value after the restart |
 | Cloudflare Access | Zero Trust dashboard: Integrations → Identity providers → Authentik → Client secret | the agent puts a new value on the clipboard (`pbcopy`), opens the edit form and empties the field; the operator pastes and saves (an agent must not type a secret into a web form); the agent PATCHes provider 50; the operator clicks **Test**. On 2026-10-02 a paste into the unemptied field gave `Invalid client secret` in the Authentik log; emptying it first fixed it |
 
-**Provider PK Reference**:
-- 1: Grafana, 3: Immich, 5: Paperless-NGX, 11: Mealie
-- 13: Audiobookshelf, 14: Home Assistant, 16: Stirling PDF
-- 48: Linkwarden, 50: Cloudflare Access
-- n8n: no OIDC in free version
+The provider PKs are in the `PK=` comment in step 2. n8n has no provider: its free version has no
+OIDC.
 
 ---
 
@@ -590,39 +617,6 @@ git push
 flux reconcile source git flux-system --timeout 45s
 flux reconcile kustomization apps --timeout 45s
 agents/skills/_shared/restart-workload.sh homehub app=homehub
-```
-
-#### Blocky DNS (Redis password coordinated rotation)
-```bash
-# 1. Generate new password
-NEW=$(openssl rand -base64 32 | tr -d '\n=/+' | head -c 40)
-
-# 2. Update redis-passwords (databases ns)
-sops infrastructure/configs/databases/redis-ha/passwords-secret.yaml
-# Replace blocky-password value with $NEW
-
-# 3. Update redis-acl-secret (databases ns) — replace blocky line `>${OLD}` with `>${NEW}`
-sops infrastructure/configs/databases/redis-ha/acl-secret.yaml
-
-# 4. Update Blocky's inlined config Secret
-sops apps/blocky/config-secret.yaml
-# Find redis.password: <OLD> → replace with <NEW>
-
-# 5. Commit, push, reconcile
-git add infrastructure/configs/databases/redis-ha/passwords-secret.yaml \
-        infrastructure/configs/databases/redis-ha/acl-secret.yaml \
-        apps/blocky/config-secret.yaml
-git commit -m "Rotate blocky redis password"
-git push
-flux reconcile source git flux-system --timeout 45s
-flux reconcile kustomization infrastructure-configs --timeout 60s
-flux reconcile kustomization apps --timeout 60s
-
-# 6. Restart the Redis pods: section 2, step 5 (never `rollout restart` them)
-
-# 7. Restart Blocky one pod at a time (2 replicas), then verify
-agents/skills/_shared/restart-workload.sh blocky app=blocky
-kubectl logs -n blocky -l app=blocky --tail=20 | grep -iE "redis|error"
 ```
 
 ### 6. Cloudflare API token and Telegram bot tokens
@@ -798,7 +792,7 @@ If compromised:
   document with `yq` → `sops -e`, never a partial edit of the ciphertext.
 
 ### 2026 Q4 (Oct-Dec)
-- [x] 2026-10-02: 180-day rotation, run end to end by the agent with the `secrets-rotation` skill:
+- [x] 2026-10-02: 180-day rotation, run end to end by an agent:
 
   | Batch | Commits |
   |---|---|
