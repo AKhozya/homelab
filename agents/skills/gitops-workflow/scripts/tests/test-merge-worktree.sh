@@ -58,7 +58,7 @@ on_main() { git --git-dir="$C/origin.git" merge-base --is-ancestor "$(git -C "$C
 primary_synced() { [ "$(git -C "$C/primary" rev-parse HEAD)" = "$(git --git-dir="$C/origin.git" rev-parse main)" ]; }
 merge_commit_on_main() { [ "$(git --git-dir="$C/origin.git" rev-list --merges --count main)" -ge 1 ]; }
 calls() { grep -c -- "$1" "$C/ghs/calls" 2>/dev/null || true; }
-pr_state() { jq -r ".[] | select(.number == ${2:-100}) | .state" "$C/ghs/prs.json"; }
+pr_state() { jq -r '.[] | select(.number == 100) | .state' "$C/ghs/prs.json"; }
 
 setup green
 printf 'none\npending\npass\n' >"$C/ghs/checks_seq"
