@@ -18,16 +18,41 @@ flux build kustomization <name> --path <path> --kustomization-file clusters/<nam
 
 ## CI content-red vs infra-red classification
 
-"Block `fr` on CI red" only holds when the red is YOUR manifest. Don't eyeball it — run `_shared/ci-red-classify.sh [branch] [sha]`:
-- `GREEN` (exit 0) → proceed to `fr`.
-- `CONTENT-RED` (exit 10) → real failure (some jobs passed, or predecessors were green). BLOCK `fr`; fix via `gh run view <id> --log-failed`.
-- `INFRA-RED` (exit 11) → runner not executing. Two signals, either fires: (a) every job on the target run failed with **0 steps executed** (fail-to-start — billing block's signature since 2026-07-22; needs no predecessor corroboration because cancelled runs in history broke the all-red check); (b) every job dead + the last N runs incl. SHAs you didn't author all `failure`. Local validate (`/homelab-yaml-validate`) + peer static review are the **authorized gate of record** — proceed to `fr`. Recurred thrice (`b53a4cab`, `8de095cd`, `cda83418`).
+Run `_shared/ci-red-classify.sh <branch> <sha>` to classify a `ci-ok` failure before you read its log. The classifier reads only `validate.yaml`. If `gitleaks secret scan` fails, read that run's log. The classifier applies at two points:
 
-Never hand-wave CONTENT-RED through. Accepted bypass on signal (a): a workflow-file content error that breaks job dispatch (bad `runs-on`) also presents all-zero-step — if your diff touched `.github/workflows`, treat the verdict as content-red.
+| Point | Branch and sha to pass |
+|---|---|
+| `ci-ok` failed on the PR, so `merge-worktree.sh` exited 1 | the PR branch and its head sha |
+| the merge commit's run on `main` is red | `main` and the merge commit sha |
+
+| Verdict | Exit | Means | On the PR | On `main` |
+|---|---|---|---|---|
+| `GREEN` | 0 | the run passed | run `merge-worktree.sh` again; it re-checks both required checks | `fr` |
+| `CONTENT-RED` | 10 | a real failure: some jobs passed, or earlier runs were green | read `gh run view <id> --log-failed`, commit the fix in the worktree, run `merge-worktree.sh` again | no `fr`; revert through a PR |
+| `INFRA-RED` | 11 | the runner failed, not the change (signals below) | nothing merges until the runner works; ask the operator | `gh run rerun <id>`, then watch again |
+| `CANCELLED` | 12 | no run finished checking the sha | `gh run rerun <id>` | `gh run rerun <id>`, then watch again |
+
+If either test matches, the classifier reports INFRA-RED:
+
+| Signal | Test | Note |
+|---|---|---|
+| fail-to-start | the target run's conclusion is `failure` and every job executed **0 steps**, whatever the job's own conclusion | the billing block's signature since 2026-07-22. It needs no check of earlier runs, because cancelled runs in the history broke the all-red test |
+| all red | every job failed, and the last N runs, including SHAs you did not author, all failed | |
+
+| Infra-red recurrence | Commit | Note |
+|---|---|---|
+| 1 | `b53a4cab` | |
+| 2 | `8de095cd` | |
+| 3 | `cda83418` | |
+| 4, 2026-07-23 | `9c3421a5` | 12 failed jobs and 1 job with no conclusion, all with 0 steps |
+
+On recurrence 4 the old zero-step filter counted only `conclusion=="failure"`, so it undercounted and reported a false CONTENT-RED. The classifier now counts zero-step jobs whatever their conclusion, but only if the run's conclusion is `failure`. A cancelled run is never infra-red.
+
+Never treat CONTENT-RED as anything but a real failure. Caveat on the fail-to-start signal: a workflow-file error that breaks job dispatch (bad `runs-on`) also shows every job with 0 steps. If your diff touched `.github/workflows`, treat the verdict as content-red.
 
 ## Flux cascade timing (don't tight-loop poll)
 
-All six `fr`-reconciled kustomizations settle in **~5 minutes** post-push (the graph branches — see SKILL.md § 4). Don't tight-loop poll `flux get kustomization`:
+All six `fr`-reconciled kustomizations settle in **~5 minutes** after the merge (the graph branches — see SKILL.md § 4). Don't tight-loop poll `flux get kustomization`:
 
 ```bash
 sleep 75            # GitRepository fetch + first Kustomization Ready
@@ -61,8 +86,10 @@ git push origin pre-<wavename>-$(date +%Y-%m-%d)
 
 Lightweight tags (`git tag <name>` without `-a`) FAIL when `~/.gitconfig` has `[tag] gpgsign = true`. Always use `-a`.
 
-Rollback path: revert the first-parent commits after the tag, newest first. Push only if the
-loop prints `ROLLBACK COMPLETE`:
+Rollback path: run `git fetch origin main`, make a new worktree from `origin/main`, and revert
+the first-parent commits after the tag there, newest first. If the loop prints
+`ROLLBACK COMPLETE`, merge the revert branch with `merge-worktree.sh`. If it prints anything
+else, do not merge:
 
 ```bash
 ok=1
@@ -74,7 +101,7 @@ while [ "$ok" = 1 ] && IFS= read -r c; do
     git revert --no-edit "$c" || ok=0
   fi
 done <<<"$commits"
-[ "$ok" = 1 ] && echo "ROLLBACK COMPLETE — push" || echo "ROLLBACK STOPPED — resolve or git revert --abort; do NOT push"
+[ "$ok" = 1 ] && echo "ROLLBACK COMPLETE — merge it with merge-worktree.sh" || echo "ROLLBACK STOPPED — resolve or git revert --abort; do NOT merge"
 ```
 
 `--first-parent` skips the commits inside a merged branch; their merge commit's `-m 1` revert already undoes them. Never force-push `main`: Flux and every worktree track it, and after a rewrite their history no longer matches the remote branch.
@@ -88,11 +115,16 @@ flux suspend kustomization <name>
 # 2. Delete resources manually
 kubectl delete -f <file.yaml>
 
-# 3. Remove from Git
+# 3. Remove from Git (in the task worktree), then merge it through a PR
 git rm <files>
 git commit -m "Remove: <resource>"
-git push
+~/.agents/skills/_shared/merge-worktree.sh wt-<task>
+```
 
+If the script exits 0 or 3 and SKILL.md step 3c reports GREEN, resume. Otherwise stop: if the
+PR did not merge, git still holds the resources, so resuming Flux recreates them.
+
+```bash
 # 4. Resume Flux
 flux resume kustomization <name>
 
@@ -100,11 +132,9 @@ flux resume kustomization <name>
 flux reconcile kustomization <name> --timeout=60s
 ```
 
-- 2026-07-23 recurrence #4 (`9c3421a5`): 12 failure + 1 NULL-conclusion job, all 0 steps — old `conclusion=="failure"` zerostep filter undercounted → false CONTENT-RED. Classifier now conclusion-agnostic on zerostep, gated on run `conclusion=="failure"`, and cancelled runs exit 12 CANCELLED (never infra-red — sha was never validated).
-
 ## validate.yaml jobs
 
-After push, `.github/workflows/validate.yaml` runs 14 parallel jobs, ~45s p95. gitleaks is not one of them. It runs in its own `gitleaks.yaml`.
+On every PR to `main` and every push to `main` (a merge commit included), `.github/workflows/validate.yaml` runs 14 parallel jobs, ~45s p95. gitleaks is not one of them. It runs in its own `gitleaks.yaml`.
 
 | Job | Legs |
 |---|---|
@@ -123,9 +153,8 @@ If Actions billing blocks jobs again (it did 2026-09-10 to 2026-10-01):
 
 | Fact | Consequence |
 |---|---|
-| GitHub creates a `validate.yaml` run for a push that CI covers, but no job starts; every job fails with 0 steps | `wait-for-ci.sh` exits 11 INFRA-RED for that push until the account owner fixes billing |
-| a docs/markdown-only push creates no run | `wait-for-ci.sh` exits 3, as before |
-| CI therefore checks nothing | run the pre-commit review loop and `/homelab-yaml-validate` before the commit; they are the checks that still run |
+| GitHub creates a `validate.yaml` run, but no job starts; every job fails with 0 steps | the required checks fail, so `merge-worktree.sh` exits 1 and nothing merges |
+| the ruleset has no bypass | only the operator can let a change through, by changing the ruleset; ask, never work around it |
 
 ## `fr` serial order vs the dependency graph
 
@@ -149,9 +178,9 @@ The recurring trip is a benign `cd /path`⏎`git commit …` two-liner: the newl
 
 Example of the class: Wave-1 caught a `vm-operator` → `victoria-metrics-operator` Flux healthCheck name mismatch in `clusters/monitoring.yaml` before it reached the cluster.
 
-## Why a docs-only push skips 3c and `fr`
+## Why a docs-only change skips the 3c watch and `fr`
 
-**Docs/markdown/asset-only push? SKIP 3b + 3c + `fr` entirely.** Both workflows run on every push to `main` and every PR targeting `main`. `validate.yaml` has no path filter, because the `main` ruleset requires its `ci-ok` check, and a path-filtered required check stays pending on a docs-only PR. A docs-only push changes nothing Flux applies, so waiting for CI protects no deploy, and `fr` is a no-op. If CI fails on a docs-only push, read the failed check: the secret scan covers markdown too.
+Both workflows run on every push to `main` and every PR targeting `main`. `validate.yaml` has no path filter, because the `main` ruleset requires its `ci-ok` check, and a path-filtered required check stays pending on a docs-only PR. So the required checks still gate a docs-only merge. A docs-only merge changes nothing Flux applies, so watching its run on `main` protects no deploy, and `fr` is a no-op. If a check fails on a docs-only PR, read it: the secret scan covers markdown too.
 
 ## Why withholding `fr` is not a gate
 
@@ -161,7 +190,7 @@ Example of the class: Wave-1 caught a `vm-operator` → `victoria-metrics-operat
 | Kustomization `flux-system` | 5 min |
 | the other six Kustomizations | 1 min |
 
-CI finishes in ~45s, so a red run may finish before the next poll. The gate is the pre-commit review loop, which runs before the commit exists.
+CI finishes in ~45s, so a red run may finish before the next poll. The gates are the pre-commit review loop, which runs before the commit exists, and the required checks, which run before the merge.
 
 ## Why an applied StatefulSet fix can leave the pod down
 

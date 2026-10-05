@@ -71,7 +71,7 @@ flowchart TB
 | No inbound ports | Internet traffic comes in through a Cloudflare Tunnel, which the cluster opens from the inside. The home router forwards nothing. |
 | Databases and backups | Postgres runs a primary and a replica. Every night, jobs export Postgres, MySQL, CouchDB and the app volumes, and a 03:30 job copies the backups to a NAS. A [runbook](docs/disaster-recovery/README.md) covers a full restore. |
 | Single sign-on | Authentik signs users in to the apps. Most apps use OIDC (the app hands sign-in to Authentik); Homepage sits behind forward-auth (Traefik asks Authentik before it passes each request on). |
-| Upkeep | Renovate opens pull requests for dependency updates. CI checks each push but does not block the owner's direct push; see [Trade-offs](#trade-offs). |
+| Upkeep | Renovate opens pull requests for dependency updates. Every change, the owner's included, reaches `main` through a pull request whose checks pass; see [Trade-offs](#trade-offs). |
 
 ## Tech stack
 
@@ -159,9 +159,9 @@ Flux deploys whatever reaches `main`. A check blocks a deploy only if a rule on 
 
 | Rule on `main` | Effect |
 |---|---|
-| The `main` ruleset requires a PR with 1 approval, a successful `gitleaks secret scan` and a successful `ci-ok` | if the owner does not use the bypass, a PR merges only after the owner approves it and both checks succeed |
-| The repo admin role bypasses the ruleset | GitHub accepts the owner's direct pushes and merges without an approval or finished checks. Both workflows still run on each push |
-| The ruleset blocks force pushes and branch deletion | the rules bind everyone except the owner, including Renovate and any app token |
+| The `main` ruleset requires a PR whose `gitleaks secret scan` and `ci-ok` checks succeed. It requires no approval | a PR merges only after both checks succeed |
+| The ruleset has no bypass actor | nobody, the owner included, can push to `main` directly or merge a PR before its checks succeed |
+| The ruleset allows merge commits only, and blocks force pushes and branch deletion | the rules bind everyone, including Renovate and any app token |
 
 ## Repository layout
 
@@ -220,7 +220,7 @@ _Grafana and Homepage dashboards: screenshots to come._
 |---|---|
 | Most apps run one pod | An app's volume lives on one node's disk. If that node fails, the app stays down until the node returns or a restore runs. Among the apps, only Authentik and Blocky run two copies; the databases, Traefik and the tunnel also run two or more. |
 | One control-plane node | If it goes down, running pods and Services keep serving, but nothing new deploys until it returns. Git and the backups can rebuild the cluster. |
-| CI does not gate the owner's pushes (as of 2026-09-28) | The ruleset requires passing checks on a PR, but the owner's admin role bypasses it and pushes to `main` directly. Instead, an AI agent from the other model family (Codex for a Claude change, Claude for a Codex change) reviews each non-trivial change before the author commits it. |
+| A PR need not be up to date with `main` (as of 2026-10-05) | The required checks run on GitHub's test merge with `main` as it was then. If `main` moved since, only the merge commit's own run checks the result, and Flux may deploy it first. Requiring an up-to-date branch would make a PR update its branch and re-run its checks whenever `main` moved before it merged. An AI agent from the other model family (Codex for a Claude change, Claude for a Codex change) also reviews each non-trivial change before the author commits it. |
 | Database exports, no point-in-time recovery | Nightly `pg_dump`-style exports, not a continuous copy of the database's write log. A restore goes back to last night, not to a chosen minute. That fits the data volumes here; [BACKUP_STRATEGY.md](docs/BACKUP_STRATEGY.md) has the reasons. |
 | No offsite copy | The nodes and the NAS share one building, so a fire or theft loses every copy. |
 

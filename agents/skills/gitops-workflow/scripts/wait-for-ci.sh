@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# wait-for-ci.sh [sha] [branch] — gitops-workflow §3c gate, scripted.
-# Run right after `git push`, before `fr`: resolves the validate.yaml run for the pushed
-# SHA (retries — Actions takes a few seconds to register the run), blocks until it
-# finishes, then hands the verdict to _shared/ci-red-classify.sh.
+# wait-for-ci.sh [sha] [branch] — gitops-workflow §3c, scripted.
+# Run after merge-worktree.sh merges a PR, before `fr`, with the merge commit's SHA. The PR's
+# checks ran on GitHub's test merge with main as it was then, so the real merge commit needs its
+# own run. The script finds the validate.yaml run for the SHA, retrying because Actions takes a
+# few seconds to register it. It waits for the run to finish, then passes the result to
+# _shared/ci-red-classify.sh.
 #
 # Defaults: sha=HEAD of the cwd repo, branch=main. Scripted because a check by hand reads
 # "the latest run", which can belong to a neighbouring push. Operators also omit the classify
 # step during manual checks.
 #
-# Exit (ci-red-classify taxonomy): 0 GREEN → fr | 10 CONTENT-RED → block, fix manifest
-#   | 11 INFRA-RED → peer+local gate of record, proceed | 5 PENDING (watch died early —
-#   re-run) | 3 no-run/tooling | 2 misuse
+# Exit (ci-red-classify taxonomy): 0 GREEN → fr | 10 CONTENT-RED → no fr, revert through a PR
+#   | 11 INFRA-RED → runner failed: gh run rerun, watch again | 12 CANCELLED → re-run
+#   | 5 PENDING (watch died early — re-run) | 3 no-run/tooling | 2 misuse
 set -euo pipefail
 
 sha="${1:-$(git rev-parse HEAD 2>/dev/null)}"

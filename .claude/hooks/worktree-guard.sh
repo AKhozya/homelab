@@ -48,7 +48,7 @@ cat >&2 <<EOF
     git worktree add .claude/worktrees/<task> -b wt-<task>
     cd .claude/worktrees/<task>        # re-run the edit from here
 
-  Done: merge wt-<task> -> main, push, then \`fr\`.
+  Done: ~/.agents/skills/_shared/merge-worktree.sh wt-<task> (a PR), then \`fr\`.
   Solo session, no other Claude running? touch .claude/.allow-main-edits
   One-off bypass: WORKTREE_GUARD_SKIP=1
 EOF

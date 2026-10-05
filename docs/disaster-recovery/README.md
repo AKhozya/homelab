@@ -839,9 +839,12 @@ stable point to return to.
 # Inspect a handle
 git show pre-ultrareview-2026-07-03 --stat
 
-# Roll config back (only if no downstream collaborator commits since the tag)
-git reset --hard pre-ultrareview-2026-07-03
-git push --force-with-lease origin main
+# Roll config back. The main ruleset blocks force pushes for everyone, so commit the tag's tree
+# on a worktree branch made from a freshly fetched origin/main, and merge it through a PR.
+# The restore also rolls back this repo's agents/ copy, so run the dotfiles copy of the script.
+git restore --source=pre-ultrareview-2026-07-03 --staged --worktree -- .
+git commit -m "Roll config back to pre-ultrareview-2026-07-03"
+~/.agents/skills/_shared/merge-worktree.sh "$(git branch --show-current)"
 # Flux fetches main every 5 min and applies the reverted manifests (to force it: flux reconcile source git flux-system)
 ```
 

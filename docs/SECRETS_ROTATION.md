@@ -129,7 +129,14 @@ deadline rather than the annual one the other deploy keys get. The three `gh-*` 
 that file, not replacing it. Confirm scope against GitHub rather than this table before trusting
 it: `gh api repos/AKhozya/<repo>/keys --jq '.[] | "\(.title) read_only=\(.read_only)"'`.
 
-**`FLUX_UPDATE_TOKEN`** can push to `main`. The `main` ruleset lets the repo admin role bypass it, and this PAT acts as the owner, so treat a push with it as a deploy, like one with `gh-homelab`. For that reason you rotate it every 180 days, like `gh-homelab`. Each counts from its own last rotation, so the two deadlines in the table above differ. The PAT itself never expires, so GitHub does not enforce that deadline. It is a fine-grained PAT, separate from the classic PAT that owns Flux's deploy key. Deleting that classic PAT also deletes the deploy key. If it leaks or you rotate it: regenerate `homelab-flux-update` at github.com/settings/personal-access-tokens, save the new value in the 1Password item, then load it and test it:
+**`FLUX_UPDATE_TOKEN`**:
+
+| Fact | Consequence |
+|---|---|
+| it has Contents and Pull requests write on this repo | it can merge a PR whose checks pass, so treat its use as a deploy, like one with `gh-homelab` |
+| the `main` ruleset has no bypass | it cannot push to `main` |
+
+For that reason you rotate it every 180 days, like `gh-homelab`. Each counts from its own last rotation, so the two deadlines in the table above differ. The PAT itself never expires, so GitHub does not enforce that deadline. It is a fine-grained PAT, separate from the classic PAT that owns Flux's deploy key. Deleting that classic PAT also deletes the deploy key. If it leaks or you rotate it: regenerate `homelab-flux-update` at github.com/settings/personal-access-tokens, save the new value in the 1Password item, then load it and test it:
 
 ```bash
 op read 'op://Personal/homelab-flux-update-token/credential' | gh secret set FLUX_UPDATE_TOKEN --repo AKhozya/homelab
@@ -213,6 +220,17 @@ has its own restart step in section 2.
 agents/skills/_shared/restart-workload.sh <namespace> <selector>
 ```
 
+**Merging a rotation.** The `main` ruleset rejects direct pushes, so each procedure below merges
+its commit through a PR. Run the procedures in a worktree (AGENTS.md "Sessions & Worktrees") and
+define this function once per shell. If `merged` fails, stop the procedure there: nothing merged,
+or the outcome is unknown.
+
+```bash
+# Exit 3 means the PR merged but a later local step failed. Flux still deploys the merge, so the
+# rotation must go on to its reconcile and restart.
+merged() { agents/skills/_shared/merge-worktree.sh "$(git branch --show-current)"; local rc=$?; [ "$rc" = 0 ] || [ "$rc" = 3 ] || { echo "STOP: merge not confirmed (exit $rc); do not run the next steps"; return 1; }; }
+```
+
 ### 1. PostgreSQL Password (CNPG)
 
 `agents/skills/_shared/rotate-pg-roles.sh <role>...` does steps 1-3 for every copy at once. It
@@ -250,11 +268,11 @@ printf '"%s"' "$NEW_PASSWORD" | sops set --ignore-mac --value-stdin \
 # `kubectl -n databases get cluster main-postgres -o jsonpath='{.status.managedRolesStatus}'`
 # (role in .reconciled at the new secret resourceVersion) before/after the app restart.
 
-# 4. Commit and push
+# 4. Commit and merge. If merged fails, stop here.
 git add infrastructure/configs/databases/postgres/<app>-db-user.yaml \
       apps/<app>/<secret-file>.yaml
 git commit -m "Rotate <app> database password"
-git push
+merged
 
 # 5. Force Flux to reconcile
 flux reconcile source git flux-system --timeout 60s
@@ -272,9 +290,10 @@ kubectl logs -n <app> deployment/<app> --tail=20 | grep -i "database\|error"
 
 **Rollback:**
 ```bash
-# 1. Revert git commit
-git revert HEAD
-git push
+# 1. Revert the rotation's merge commit (in a worktree from a fresh origin/main) and merge it.
+#    If merged fails, stop here.
+git revert -m 1 --no-edit <merge-SHA>
+merged
 
 # 2. Force reconcile and restart (CNPG will revert the DB password from the reverted secret)
 flux reconcile source git flux-system --timeout 60s
@@ -326,12 +345,12 @@ sops infrastructure/configs/databases/redis-ha/acl-secret.yaml   # same password
 sops apps/immich/immich-redis-url-secret.yaml        # rebuild the base64(json) REDIS_URL
 # or: sops apps/paperless-ngx/paperless-env-secret.yaml
 
-# 4. Commit and push
+# 4. Commit and merge. If merged fails, stop here.
 git add infrastructure/configs/databases/redis-ha/passwords-secret.yaml \
         infrastructure/configs/databases/redis-ha/acl-secret.yaml \
         apps/<app>/<secret-file>.yaml
 git commit -m "Rotate Redis <user> password"
-git push
+merged
 
 # infrastructure-configs, not -controllers: the Redis secrets live under
 # infrastructure/configs/databases/redis-ha/, which is the -configs Kustomization's path.
@@ -414,7 +433,7 @@ The sentinels log in to Redis with `admin-password`, and they read it only when 
 Redis pod accepts only the new password, the sentinels that still hold the old one cannot log in
 to it. They then cannot promote it after a failover. Redis accepts several passwords for one ACL
 user, so rotate in three passes that overlap the old and the new password. In each pass, make the
-change, then commit, push and reconcile as in step 4, then record the UIDs and restart as in step 5:
+change, then commit, merge and reconcile as in step 4, then record the UIDs and restart as in step 5:
 
 | Pass | Change | Restart |
 |---|---|---|
@@ -445,12 +464,12 @@ sops infrastructure/configs/databases/redis-ha/acl-secret.yaml
 sops apps/blocky/config-secret.yaml
 # Find redis.password: <OLD> → replace with <NEW>
 
-# 5. Commit, push, reconcile
+# 5. Commit, merge, reconcile. If merged fails, stop here.
 git add infrastructure/configs/databases/redis-ha/passwords-secret.yaml \
         infrastructure/configs/databases/redis-ha/acl-secret.yaml \
         apps/blocky/config-secret.yaml
 git commit -m "Rotate blocky redis password"
-git push
+merged
 flux reconcile source git flux-system --timeout 45s
 flux reconcile kustomization infrastructure-configs --timeout 60s
 flux reconcile kustomization apps --timeout 60s
@@ -502,8 +521,8 @@ the new password, the database does not change. If the `ALTER USER` fails, the a
 restart.
 
 ```bash
-# 3. Commit, push, reconcile; check the live Secret; change the user; restart the app
-if git add "$SECRET_FILE" && git commit -m "Rotate $APP_NS MySQL password" && git push &&
+# 3. Commit, merge, reconcile; check the live Secret; change the user; restart the app
+if git add "$SECRET_FILE" && git commit -m "Rotate $APP_NS MySQL password" && merged &&
    flux reconcile source git flux-system --timeout 45s &&
    flux reconcile kustomization apps --timeout 60s &&
    case "$(kubectl get secret -n "$APP_NS" "$SECRET_NAME" -o json | jq -r --arg k "$READ_KEY" '.data[$k] | @base64d')" in
@@ -556,7 +575,7 @@ if [ "$code" = 200 ] &&
    if [ -n "$KEY" ]; then
      printf '"%s"' "$NEW_SECRET" | sops set --value-stdin "$FILE" "[\"stringData\"][\"$KEY\"]"
    else sops "$FILE"; fi &&
-   git add "$FILE" && git commit -m "Rotate $NS OIDC client secret" && git push &&
+   git add "$FILE" && git commit -m "Rotate $NS OIDC client secret" && merged &&
    flux reconcile source git flux-system --timeout 60s &&
    flux reconcile kustomization "$KS" --timeout 60s &&
    agents/skills/_shared/restart-workload.sh "$NS" "$SEL"; then
@@ -610,10 +629,10 @@ else
   echo "STOPPED: empty password or failed read"
 fi
 
-# 2. Commit, push, reconcile, restart
+# 2. Commit, merge, reconcile, restart. If merged fails, stop here.
 git add apps/homehub/secret.yaml
 git commit -m "Rotate HomeHub password"
-git push
+merged
 flux reconcile source git flux-system --timeout 45s
 flux reconcile kustomization apps --timeout 45s
 agents/skills/_shared/restart-workload.sh homehub app=homehub

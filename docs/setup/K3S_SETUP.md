@@ -246,8 +246,8 @@ and the bot refuse SSH to that node.
    ```bash
    awk '{print "[<name>]:65300,[<ip>]:65300", $1, $2}' /etc/ssh/ssh_host_ed25519_key.pub
    ```
-2. Replace that node's line in `node-maintenance/lib/known_hosts` with the output. Commit it,
-   merge it to `main` and push `main`. The next sync installs it on the control plane. Restart the bot pod
+2. Replace that node's line in `node-maintenance/lib/known_hosts` with the output. Commit it in a
+   worktree and merge it with `merge-worktree.sh`, which opens a PR. The next sync installs it on the control plane. Restart the bot pod
    (`kubectl delete pod -n claude-telegram -l app=claude-telegram`) so it reads the file again.
 3. On your workstation, drop the old key under both names:
    `ssh-keygen -R '[<ip>]:65300'` and `ssh-keygen -R '[<name>]:65300'`.

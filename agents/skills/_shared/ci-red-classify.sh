@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # Classify the latest validate.yaml CI run as GREEN / CONTENT-RED / INFRA-RED.
 #
-# Why: the deployment workflow skips the manual `fr` on CI red, but only content-red (any
-# failure outside the INFRA-RED criteria below) is a real block. If the Actions runner cannot
-# execute (billing or minutes exhausted, runner outage), jobs can fail within seconds with no
-# logs, on other authors' commits too. That is infra-red, and local validation plus the peer
-# static review are the gate of record.
+# Why: only content-red (any failure outside the INFRA-RED criteria below) means the change is
+# broken. If the Actions runner cannot execute (billing or minutes exhausted, runner outage),
+# jobs can fail within seconds with no logs, on other authors' commits too. That is infra-red:
+# the required PR checks cannot pass, so nothing merges until the runner works again.
 #
 # Signal (robust, no timestamp math):
 #   GREEN       target run conclusion == success
@@ -17,7 +16,7 @@
 #   ci-red-classify.sh [branch] [sha] [depth]    # defaults: main, latest run, 6
 #
 # Exit: 0 GREEN | 5 PENDING (run not finished) | 10 CONTENT-RED (block, fix manifest)
-#       11 INFRA-RED (proceed via peer+local gate) | 12 CANCELLED (sha never validated —
+#       11 INFRA-RED (nothing merges; on main, re-run) | 12 CANCELLED (sha never validated —
 #       re-run; NOT infra-red) | 2 misuse | 3 gh/jq missing
 
 set -euo pipefail
@@ -93,12 +92,12 @@ zerostep="$(jq '[.[]|select(((.steps // [])|length)==0)]|length' <<<"$jobs")"
 red_runs="$(jq '[.[]|select(.conclusion=="failure")]|length' <<<"$runs")"
 
 if [[ "$conclusion" == "failure" && "$total" -gt 0 && "$zerostep" -eq "$total" ]]; then
-  verdict "INFRA-RED ⚙️ — all $total jobs failed with 0 steps executed (fail-to-start: billing/runner — but content-red if your diff touched .github/workflows). peer review+local = gate of record; proceed to fr"
+  verdict "INFRA-RED ⚙️ — all $total jobs failed with 0 steps executed (fail-to-start: billing/runner — but content-red if your diff touched .github/workflows). Nothing merges until the runner works; on main: gh run rerun $id"
   exit 11
 fi
 
 if [[ "$total" -gt 0 && "$failed" -eq "$total" && "$red_runs" -eq "$(jq 'length' <<<"$runs")" ]]; then
-  verdict "INFRA-RED ⚙️ — runner/billing, NOT your content (all $total jobs failed; last $red_runs runs incl. other SHAs all red). peer review+local = gate of record; proceed to fr"
+  verdict "INFRA-RED ⚙️ — runner/billing, NOT your content (all $total jobs failed; last $red_runs runs incl. other SHAs all red). Nothing merges until the runner works; on main: gh run rerun $id"
   exit 11
 fi
 
