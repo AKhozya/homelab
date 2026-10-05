@@ -2,12 +2,13 @@
 
 This folder holds four workflows. The ruleset requires two checks:
 
-| Fact (2026-10-03) | Effect |
+| Fact (2026-10-05) | Effect |
 |---|---|
-| The `main` ruleset requires a PR with 1 approval, a successful `gitleaks secret scan` and a successful `ci-ok` | if the owner does not use the bypass, a PR merges only after the owner approves it and both checks succeed |
-| The repo admin role bypasses the ruleset | GitHub accepts the owner's direct pushes and merges without an approval or finished checks. Both workflows still run on each push |
-| The ruleset blocks force pushes and branch deletion | the rules bind everyone except the owner, including Renovate and any app token |
-| Flux applies `main` every few minutes | a commit with failed checks still deploys |
+| The `main` ruleset requires a PR whose `gitleaks secret scan` and `ci-ok` checks succeed. It requires no approval | a PR merges only after both checks succeed |
+| The ruleset has no bypass actor | nobody, the owner included, can push to `main` directly or merge a PR before its checks succeed |
+| The ruleset allows merge commits only, and blocks force pushes and branch deletion | the rules bind everyone, including Renovate and any app token |
+| A branch need not be up to date with `main` before it merges | the checks run on GitHub's test merge with `main` as it was then. If `main` moves after that, only the merge commit's own run on `main` checks the combined result |
+| Flux applies `main` every few minutes | if the merge commit's run fails, that commit still deploys |
 
 If an outside contributor opens a PR from a fork, GitHub runs its workflows only after the owner approves the run.
 

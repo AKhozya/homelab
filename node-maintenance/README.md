@@ -391,7 +391,7 @@ EOF
 sops --encrypt /tmp/new-secret.yaml > node-maintenance/secrets/ssh-key.sops.yaml
 git add node-maintenance/secrets/ssh-key.sops.yaml
 git commit -m "Rotate node-maintenance-ssh (YYYY-MM-DD)"
-git push
+agents/skills/_shared/merge-worktree.sh "$(git branch --show-current)"   # a PR; run in a worktree
 
 # 4. Add the new pub key next to the old one on all three workers
 cat /tmp/new_key.pub

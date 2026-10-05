@@ -22,7 +22,7 @@ a concurrent session's uncommitted files, do edits in a worktree:
 
   git worktree add .claude/worktrees/<task> -b wt-<task> && cd .claude/worktrees/<task>
 
-Commit there, merge wt-<task> -> main, push, `fr`. Main-tree edits are blocked
+Commit there, ~/.agents/skills/_shared/merge-worktree.sh wt-<task> (a PR), `fr`. Main-tree edits are blocked
 by the worktree-guard hook. Solo session, no other Claude running?
 `touch .claude/.allow-main-edits` to edit the main tree directly.
 EOF

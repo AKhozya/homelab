@@ -36,10 +36,13 @@ kubectl exec -n authentik deploy/authentik-server -- curl -s -H "Authorization: 
 ## Quick rollback (single phase)
 
 ```bash
-git log --oneline -5 -- apps/authentik/
-# Identify offending commit. Then:
-git revert --no-edit <SHA>
-git push
+# --first-parent lists the PR merge commits; without it, git log shows the commits inside them.
+git log --first-parent --oneline -5 -- apps/authentik/
+# In a worktree from a freshly fetched origin/main, revert the offending merge commit.
+# If the offending commit has one parent, drop -m 1.
+git revert -m 1 --no-edit <merge-SHA>
+agents/skills/_shared/merge-worktree.sh "$(git branch --show-current)"
+# If it exits 0 or 3, go on; otherwise stop and read its message.
 flux reconcile source git flux-system --timeout=90s
 flux reconcile kustomization apps --timeout=120s
 ```
@@ -109,7 +112,8 @@ kustomize build apps/authentik >/dev/null
 git add apps/authentik/kustomization.yaml
 git commit -m "authentik: roll back passkey phases 1-3"
 
-git push
+agents/skills/_shared/merge-worktree.sh "$(git branch --show-current)"   # a PR; run in a worktree
+# If it exits 0 or 3, go on; otherwise stop and read its message.
 flux reconcile source git flux-system --timeout=90s
 flux reconcile kustomization apps --timeout=120s
 # Delete pods, not `rollout restart`: Flux's drift correction reverts the restartedAt annotation.

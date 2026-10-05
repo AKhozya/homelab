@@ -51,11 +51,17 @@ Read cluster state with `kubectl` (+ `jq`); the API is reachable directly from a
 
   | Rule | Effect |
   |---|---|
-  | a PR to `main` needs 1 approval, a successful `gitleaks secret scan` and a successful `ci-ok` | only the owner has write access, so only the owner's approval counts |
-  | the repo admin role is a bypass actor (mode `always`) | the owner pushes to `main` directly and can merge a PR without an approval or finished checks |
-  | force pushes and deletion of `main` are blocked | the rules bind everyone except the owner, including Renovate |
+  | a PR to `main` needs a successful `gitleaks secret scan` and a successful `ci-ok`, and no approval | an agent merges its own PR once both checks succeed |
+  | no bypass actor | nobody, the owner included, can push to `main` directly or merge a PR before its checks succeed |
+  | merge commits only; force pushes and deletion of `main` are blocked | the rules bind everyone, including Renovate |
+  | a branch need not be up to date with `main` | the checks run on GitHub's test merge with `main` as it was then. If `main` moves after that, only the merge commit's own run on `main` checks the combined result (`/gitops-workflow` step 3c) |
 
-  A direct push reaches prod whatever CI reports, because Flux syncs `main` every 5 min. If checks fail, `/gitops-workflow` step 3c skips the manual `fr` reconcile, and Flux still deploys on its next sync. Before a direct push, only two checks run: the pre-commit review loop below and `/homelab-yaml-validate`.
+  | Case | Then |
+  |---|---|
+  | any change | merge it with `~/.agents/skills/_shared/merge-worktree.sh` (`/gitops-workflow` step 3) |
+  | the main tree's `main` is behind `origin/main` | only that script fast-forwards it; never `git pull` or `git merge` there by hand |
+  | the in-cluster bot, which has no GitHub login, runs the script | the script pushes the branch, prints a compare URL for the owner and exits 4 |
+  | the checks cannot succeed (an Actions outage or billing block) | nothing merges: stop and ask the owner. If there is an emergency, only the owner may edit the ruleset, under the repo's Settings → Rules → Rulesets, and must restore it afterwards |
 - **Pre-commit review loop (substantive code/config — gate-of-record).** Before committing a non-trivial diff: (1) dispatch the opposite-family peer (resolve via `peer-reviewed-implementation/scripts/reviewer-peer`; from Claude = Codex `codex-rescue`, from Codex = Claude) for a **STATIC git-only** review — allowed `git diff/show/log` + file reads, FORBIDDEN run-anything (state gates already ran green; unconstrained it re-runs the full local gate and stalls ~14min with no verdict), demand a **one-message verdict** (no loop), point it at `.claude/review-invariants.md`. `codex-review.sh` defaults to `xhigh`; `--effort` overrides it. A `codex-rescue` dispatch that sets no effort runs at `high`, the `~/.codex/config.toml` default. The peer-reviewed-implementation flow requires `xhigh` for plan and code reviews (`~/.codex/AGENTS.md`), so a review in that flow must request the effort `reviewer-peer` prints. (2) Process findings via `superpowers:receiving-code-review` — verify each against the code, push back on wrong/YAGNI, fix in severity order, test each. (3) Re-review **delta-scoped**. Severity decides whether you may commit. The round count decides when to escalate to the user.
 
 | Round returns | Rounds 1-5 | Round 6 |
@@ -91,8 +97,8 @@ Rounds 4 and 5 found them. The severity rule requires both rounds. If a 3-round 
 ## Sessions & Worktrees (blast radius = uncommitted files)
 Concurrent agent sessions that share one checkout silently overwrite each other's files. So:
 - **Main tree = pristine.** `/Users/akhozya/source-code/homelab` is the checkout Flux reconciles. NEVER edit files there directly — `worktree-guard` PreToolUse hook BLOCKS Edit/Write/MultiEdit on it.
-- **Edit in a worktree.** Per task: `git worktree add .claude/worktrees/<task> -b wt-<task> && cd .claude/worktrees/<task>`. Commit there → merge `wt-<task>` → main → push → `fr`. Flux source = `branch: main`, so worktree branches are invisible to the cluster until merged.
-- **Solo escape.** No other agent session running? `touch .claude/.allow-main-edits` (gitignored, local) to edit main directly. One-off: `WORKTREE_GUARD_SKIP=1`.
+- **Edit in a worktree.** Per task: `git worktree add .claude/worktrees/<task> -b wt-<task> && cd .claude/worktrees/<task>`. Commit there → `~/.agents/skills/_shared/merge-worktree.sh wt-<task>` (a PR) → `fr`. Flux source = `branch: main`, so worktree branches are invisible to the cluster until merged.
+- **Solo escape.** No other agent session running? `touch .claude/.allow-main-edits` (gitignored, local) to edit main directly. One-off: `WORKTREE_GUARD_SKIP=1`. Commit the changes in a worktree. If the main tree's `main` holds a local commit, `merge-worktree.sh` still merges your PR, but it cannot fast-forward the main tree and exits 3.
 - **Scope = this repo only.** Worktree isolates the homelab tree, NOT `~/.claude/**` (skills/hooks/dotfiles = separate chezmoi repo) — two sessions editing those still race.
 - **Worktree ≠ cluster mutex.** Isolates FILES, not the live cluster. Concurrent `fr`/rollout/SSH still collide (cause of 2026-05-24 wedge). Serialize cluster ops via `cluster-reboot`/`cluster-roll`.
 
