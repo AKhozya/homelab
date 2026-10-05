@@ -14,8 +14,11 @@ A NAS-only backup is insufficient — hence Git.
 ## Host watchdog (this dir, wired into `apps/immich/kustomization.yaml`)
 A CronJob (`immich-vm-heal`, immich ns, every 5 min, scheduled OFF the GPU node)
 SSHes the NAS host and drives `virsh` to keep the domain **defined-from-Git + running**.
-It IS the autostart. Native/UI autostart is OFF: a UI op regenerates the domain, and the
-appliance's autostart soft-restarts a running VM, which wedges the iGPU.
+After the 2026-10-03 NAS reboot, its 11:20 UTC run found the VM stopped and started it, about
+2 minutes after boot. The libvirt autostart flag is on (`virsh dominfo`, link dated 2026-07-11).
+Never toggle autostart in the zettOS UI. A UI action regenerates the domain. The July 2026
+incident notes (`0a6e3dcd`) also record that the appliance's autostart restarts a running VM,
+which leaves the iGPU unresponsive.
 
 | File | Role |
 |---|---|
@@ -61,7 +64,8 @@ Domain name = `0398541a-c088-48cd-b16a-4b45d31a92f3` (internal uuid
 
 ## Lifecycle rules (from live incidents, July 2026)
 - **`virsh` only, never the zettOS UI.** virsh needs `-c qemu:///system` (SYSTEM domains).
-- Autostart **OFF** (appliance soft-restart re-wedges the passthrough iGPU).
+- **Do not rely on autostart.** The libvirt flag is on, but after the 2026-10-03 NAS reboot the
+  CronJob started the VM (see Host watchdog). Never toggle autostart in the zettOS UI.
 - Cold-restart = graceful `virsh shutdown --mode acpi <dom>` (no `--timeout` — the flag does
   not exist on the NAS libvirt), then poll `virsh domstate` until `shut off`, then `virsh start`.
   qemu-guest-agent answers `guest-ping` (checked 2026-10-04), but `--mode agent` shutdown is

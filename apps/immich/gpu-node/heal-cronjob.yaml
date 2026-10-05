@@ -4,10 +4,11 @@ metadata:
   name: immich-vm-heal
   namespace: immich
 spec:
-  # Every 5 min: on a NAS reboot the VM does NOT auto-start (UI autostart is OFF by
-  # design), so this watchdog IS the autostart. The schedule sets how often a stopped
-  # VM gets a start attempt. It does not bound VM-down time: if the NAS library is not
-  # mounted, the script skips the start, and the next scheduled run tries again.
+  # Every 5 min. After the 2026-10-03 NAS reboot this watchdog found the VM stopped and
+  # started it, although the libvirt autostart flag is on. The schedule sets how often
+  # a stopped VM gets a start attempt. The schedule does not bound VM downtime. If the
+  # NAS library is not mounted, the script skips the start. The next scheduled run
+  # tries again.
   schedule: "*/5 * * * *"
   timeZone: "UTC"
   concurrencyPolicy: Forbid

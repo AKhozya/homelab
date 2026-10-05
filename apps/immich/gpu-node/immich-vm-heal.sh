@@ -157,8 +157,10 @@ case "$STATE" in
 esac
 
 # 5. Ensure running. Only a shut-off domain is started (cold start = clean iGPU
-#    reset). This IS the autostart — UI/native autostart is OFF by design, because an
-#    appliance soft-restart re-wedges the passthrough iGPU.
+#    reset). After the 2026-10-03 NAS reboot this step started the VM, although the
+#    libvirt autostart flag is on. Never toggle autostart in the zettOS UI: a UI action
+#    regenerates the domain. The July 2026 incident notes (0a6e3dcd) record that the
+#    appliance's autostart restarts a running VM, which leaves the iGPU unresponsive.
 case "$STATE" in
   running)
     log "OK=domain_running"
