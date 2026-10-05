@@ -17,6 +17,18 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-10-05 — Every change to `main` goes through a PR
+
+The owner asked for no more direct pushes: every change must reach `main` through a PR.
+
+| Item | Evidence | Change |
+|---|---|---|
+| `main` ruleset `24432813` | Before: 1 approval, merge/squash/rebase, the repo admin role as a bypass actor (mode `always`). Read back after the change: no bypass actor, `current_user_can_bypass` = `never`. | 0 approvals and merge commits only. The ruleset keeps its two required checks (`ci-ok`, `gitleaks secret scan`) and still blocks force pushes and deletion. |
+| Direct push refused | An empty commit pushed to `main` got `GH013 ... Changes must be made through a pull request`, and `main` still pointed at the same commit. | — |
+| `merge-worktree.sh` | 53 test cases run against a bare repo and a fake `gh`. PR #1235 was its first use on GitHub. The first run stopped on a failed `ci-ok` (shellcheck SC2120 in the new test file) and merged nothing. The second run merged `a17d9b53`. It then synced the main tree and removed the worktree. The merge commit's own run on `main` passed. | In order, the script pushes the branch, opens or reuses the PR, waits for both checks, merges with a merge commit, and fast-forwards the main tree. If there is no GitHub login (the in-cluster bot), it pushes the branch, prints a compare URL and exits 4. |
+| PR checks and the merge result | PR runs check out GitHub's test merge (`refs/remotes/pull/<n>/merge`). The ruleset does not require an up-to-date branch. | The gitops-workflow skill waits for the merge commit's own run on `main` before `fr`. |
+| Docs and runbooks | SECRETS_ROTATION.md, the DR rollback (`reset --hard` and a force push), the authentik rollback, K3S_SETUP.md, node-maintenance and two hook messages told readers to push to `main`. | Each now tells readers to merge through a PR (`bc26d263`, merged in `a17d9b53`). The DR rollback commits the tag's tree with `git restore --source` instead. |
+
 ### 2026-10-05 — Sweep follow-ups: checks, fixes and open questions
 
 | Item | Evidence | Change |
