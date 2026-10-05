@@ -2,11 +2,13 @@
 
 Read this when you need the reason behind a push or deploy step, or the background on model and effort.
 
-## Why pull before tagging
+## Why tag after the merge
 
-Order matters: homelab has `fetch.pruneTags`, so a `git pull` deletes any local tag the remote
-does not have — tagging first then pulling silently drops the tag, and the push succeeds without
-it.
+The tag must name the merge commit that carries the version bump, and that commit exists on
+`main` only after the PR merges. Push the tag right after you make it: homelab has
+`fetch.pruneTags`, so a plain `git fetch` or `git pull` deletes any local tag the remote does not
+have. A fetch with an explicit refspec, such as the `git fetch origin main` that
+`merge-worktree.sh` runs, leaves local tags alone (tested 2026-10-05).
 
 ## Rollout timing
 

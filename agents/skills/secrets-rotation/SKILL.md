@@ -104,4 +104,4 @@ Before rotating, list every copy by value and every workload that reads each Sec
 
 - `db-operations` skill — `mysql-exec.sh` / `pg-primary.sh`.
 - `pii-scrub` — find the leak that triggered the rotation.
-- `gitops-workflow` — the worktree -> merge -> push -> reconcile loop.
+- `gitops-workflow` — the worktree -> PR merge -> reconcile loop.

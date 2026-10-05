@@ -1,6 +1,6 @@
 ---
 name: gitops-workflow
-description: Use when making changes to homelab GitOps repo. Canonical flow validate→commit→push→Flux reconcile (`fr`)→verify→teardown→rollback. Enforces no kubectl edit/patch, dry-run-first, image pinning, single-line commits.
+description: Use when making changes to homelab GitOps repo. Canonical flow validate→commit→PR merge→Flux reconcile (`fr`)→verify→teardown→rollback. Enforces PR-only changes to main, no kubectl edit/patch, dry-run-first, image pinning, single-line commits.
 user-invocable: false
 ---
 
@@ -16,7 +16,7 @@ git worktree add .claude/worktrees/<task> -b wt-<task> && cd .claude/worktrees/<
 ```
 
 If you need why the main tree is guarded, or the worktree mechanics, read reference-edge-cases.md § "Why the main tree is guarded".
-Flux source = `branch: main`, so finish by merging `wt-<task>` → main → push → `fr` (worktree branches are invisible to the cluster until merged). Teardown after merge (step 6): `git worktree remove .claude/worktrees/<task>`. Solo session, no other agent session running? `touch .claude/.allow-main-edits` (gitignored) to edit the main tree directly; one-off `WORKTREE_GUARD_SKIP=1`.
+Flux source = `branch: main`, so finish by merging `wt-<task>` into main through a PR (step 3), then `fr`. Worktree branches are invisible to the cluster until merged. `merge-worktree.sh --teardown` removes the worktree and branch after the merge. Solo session, no other agent session running? `touch .claude/.allow-main-edits` (gitignored) to edit the main tree directly; one-off `WORKTREE_GUARD_SKIP=1`.
 
 ### 1. Plan
 - Identify affected resources
@@ -36,9 +36,6 @@ kubectl apply -f <file.yaml> --dry-run=client
 
 ### 3. Git Operations
 ```bash
-# Create feature branch (for major changes)
-git checkout -b feature/<name>
-
 # ~/.gitignore_global ignores *.env. If you stage a directory, Git leaves out a
 # configMapGenerator envs: file with no warning, and Flux fails the app's build.
 # Give that file a .properties extension, and update envs: to the new name before you stage.
@@ -51,10 +48,8 @@ git diff --cached --name-only <dir>/
 # Commit with single-line message (no AI-agent mention)
 git commit -m "Add/Update/Fix: brief description"
 
-# Push
-git push origin <branch>
-# Confirm the generator input reached the pushed branch:
-git ls-tree origin/<branch> <dir>/ --name-only
+# Confirm the generator input is in the commit:
+git ls-tree HEAD <dir>/ --name-only
 ```
 
 **Commit command MUST be one physical line.** `~/.claude/hooks/git-commit-style.sh` exits 2 (BLOCK) on ANY command containing `git commit` that holds a literal newline (`case *$'\n'*`) — NOT just compound chains. If you need an example of a blocked commit command, read reference-edge-cases.md § "Why the hook blocks multiline commit commands". Fix: drop the `cd`, address the repo with `-C`, keep it on one line:
@@ -70,11 +65,29 @@ git -C /abs/repo add fileA fileB && git -C /abs/repo commit -m 'subject ~72 char
 
 Also one `add`+`commit` per call (no `commit && commit` batching). See bash-scripting quirk #6.
 
-**Merge worktree → main DETERMINISTICALLY.** If you need why, read reference-edge-cases.md § "Why a hand-merge from a worktree fails". Don't hand-merge; use the helper, which addresses the primary tree via `git -C` and guards on-main + clean-tree + ff-only:
+**Merge the worktree branch into main through a PR.** The `main` ruleset rejects every direct push and has no bypass, so a change reaches main only as a PR whose required checks (`ci-ok`, `gitleaks secret scan`) passed. Use the helper. In order, it:
+
+1. pushes the branch;
+2. opens the PR, or reuses an open one;
+3. waits for the required checks;
+4. merges with a merge commit;
+5. fast-forwards the primary tree's `main`.
+
 ```bash
-~/.agents/skills/_shared/merge-worktree.sh wt-<task>             # fetch, ff-only onto origin/main, push origin HEAD:main
+~/.agents/skills/_shared/merge-worktree.sh wt-<task>             # PR, required checks, merge commit, sync the primary tree
 ~/.agents/skills/_shared/merge-worktree.sh wt-<task> --teardown  # + remove THAT worktree & branch (branch-scoped)
 ```
+
+| Exit | Meaning | Next |
+|---|---|---|
+| 0 | merged, primary tree synced | 3c, then `fr`, verify |
+| 3 | merged on GitHub, but a later step failed (fetch, lock, primary sync, teardown) | 3c and `fr` anyway: Flux reads GitHub, not the local checkout. Then fix the primary tree by hand or ask the operator. Never reset it |
+| 5 | merge outcome unknown | `gh pr view <n> --json state`: MERGED → treat as 3; OPEN or CLOSED → treat as 1. If the lookup fails, the outcome stays unknown: no `fr`, ask the operator |
+| 4 | branch pushed, no GitHub login (the in-cluster bot) | give the operator the compare URL. Nothing is deployed, so no `fr` |
+| 1 | stopped before the merge | nothing is deployed. Read the message, fix, re-run. An open PR stays open |
+| 2 | usage error | fix the call |
+
+Only this script changes the primary tree, so never `git pull` or `git merge` there by hand. If you need why a hand-merge from a worktree fails, read reference-edge-cases.md § "Why a hand-merge from a worktree fails".
 
 ### 3b. Pre-commit review loop (opposite-family peer — gate-of-record; see CLAUDE.md)
 
@@ -90,9 +103,11 @@ Review is **pre-commit**, not pre-push. The AGENTS.md "Pre-commit review loop" h
 
 Reviewers MUST check the diff against `.claude/review-invariants.md` — semantic bug-classes CI misses. If you need an example of the class, read reference-edge-cases.md § "Example review-invariants catch". Grep the target file to confirm name/GVK claims before flagging.
 
-### 3c. CI gate — wait for `validate.yaml` green (post-push, pre-`fr`)
+### 3c. CI — the required checks gate the merge; watch the merge result before `fr`
 
-**Docs/markdown/asset-only push? SKIP 3b + 3c + `fr` entirely.** If you need why, read reference-edge-cases.md § "Why a docs-only push skips 3c and `fr`". The pre-commit peer review (3b) applies to substantive code/config commits; docs/markdown are exempt. Pure docs/memory flow = commit → merge → push → done. Reserve CI-watch for pushes CI can fail on (any `.yaml`/`.sh`/manifest — `node-maintenance/**` and `scripts/**` shell is linted). Mixed md+yaml push → watch CI normally.
+`merge-worktree.sh` merges only after the required checks pass. Those checks ran on GitHub's test merge of the branch with `main` as it was when GitHub made that test merge. The ruleset does not require the branch to be up to date, so if `main` moved since, the real merge commit is untested until its own `validate.yaml` run on `main` finishes. After exit 0 or 3, watch that run before `fr`.
+
+**If the change is docs, markdown or assets only, skip 3b, the 3c watch and `fr`.** The required checks still run on the PR, so the merge waits for them. If you need why, read reference-edge-cases.md § "Why a docs-only change skips the 3c watch and `fr`". The pre-commit peer review (3b) applies to substantive code/config commits; docs/markdown are exempt. Pure docs/memory flow = commit → `merge-worktree.sh` → done. Mixed md+yaml change → watch CI normally.
 
 If you read a CI result or change `validate.yaml`, read reference-edge-cases.md § "validate.yaml jobs" for its jobs, legs and run time.
 
@@ -102,17 +117,21 @@ If you need the poll intervals behind this, read reference-edge-cases.md § "Why
 Read the fetched revision before deciding: `flux get source git flux-system`. If it already names your commit, this is an incident, not a gate.
 
 ```bash
-# One command: resolves the run for the JUST-PUSHED sha (never "latest" — that races with
-# neighbouring pushes), watches it, then auto-classifies via _shared/ci-red-classify.sh.
-bash ~/.agents/skills/gitops-workflow/scripts/wait-for-ci.sh
-# Exit 0 GREEN → fr | 10 CONTENT-RED → STOP, gh run view <id> --log-failed
-# | 11 INFRA-RED → local gate + peer review authorize fr | 3 no run appeared
+# Resolves the run for THIS sha (never "latest" — that races with neighbouring merges), watches
+# it, then classifies it via _shared/ci-red-classify.sh. The sha is in the script's OK line; after
+# exit 3, read it with: gh pr view <n> --json mergeCommit -q .mergeCommit.oid
+bash ~/.agents/skills/gitops-workflow/scripts/wait-for-ci.sh <merge-commit-sha>
+# Any exit but 0 → no fr until a later watch exits 0.
+# 0 GREEN → fr | 10 CONTENT-RED → the merge result is broken: revert through a PR
+# | 11 INFRA-RED → the runner failed, not the change: gh run rerun <id>, watch again
+# | 12 CANCELLED → gh run rerun <id>, watch again | 5 PENDING → watch again
+# | 3 no run or a tooling error → fix the cause, watch again | 2 misuse → fix the arguments, watch again
 ```
 
-If Actions billing blocks every job again, CI checks nothing. Run the pre-commit review loop and `/homelab-yaml-validate` before each commit.
+If Actions billing blocks every job again, the required checks cannot pass and nothing merges. Stop and ask the operator: the ruleset has no bypass, so only the operator can change it.
 Then read reference-edge-cases.md § "Actions billing block".
 
-**Content-red vs infra-red — classify before blocking.** "Block `fr` on CI red" only holds when the red is YOUR manifest. If CI is red, don't eyeball it — run `_shared/ci-red-classify.sh [branch] [sha]` (exit-code map in the block above). Full classification + the never-hand-wave rule → `reference-edge-cases.md` § CI content-red vs infra-red.
+**Content-red vs infra-red — classify before acting.** If `ci-ok` fails on the PR (`merge-worktree.sh` exits 1) or the merge commit's run is red, run `_shared/ci-red-classify.sh <branch> <sha>` before you read the log. The classifier reads only `validate.yaml`. If `gitleaks secret scan` fails, read that run's log. Full classification and the rule never to ignore CONTENT-RED → `reference-edge-cases.md` § CI content-red vs infra-red.
 
 ### 4. Flux Reconciliation
 
@@ -122,7 +141,7 @@ If a Kustomization reconciles out of the order you expect, read reference-edge-c
 
 **Granular**:
 ```bash
-# Git source first if commit pushed
+# Git source first if a commit merged
 flux reconcile source git flux-system --timeout=60s
 
 # Then specific kustomization
@@ -135,7 +154,7 @@ flux reconcile helmrelease <name> -n <namespace> --timeout=60s
 flux get kustomization <name> -w
 ```
 
-**Cascade timing.** Full chain takes **~5 minutes** post-push — don't tight-loop poll `flux get kustomization`; pace with `sleep 75` (first Kustomization Ready) → reconcile next → `sleep 60` (downstream). Per-stage numbers → `reference-edge-cases.md` § Flux cascade timing.
+**Cascade timing.** Full chain takes **~5 minutes** after the merge — don't tight-loop poll `flux get kustomization`; pace with `sleep 75` (first Kustomization Ready) → reconcile next → `sleep 60` (downstream). Per-stage numbers → `reference-edge-cases.md` § Flux cascade timing.
 
 **Path / layout moves (Kustomization `spec.path` change).** Repointing Flux at a moved/flattened dir (F-13/F-14): prove render-identical FIRST (`_shared/kustomize-render-diff.sh` → `BYTE-IDENTICAL`), then either 2-commit hands-off or atomic `--with-source` to dodge the path-change race. Full playbook → `reference-edge-cases.md` § Path / layout moves.
 
@@ -171,6 +190,7 @@ Removing a git-managed resource = suspend → delete → git rm → resume → r
 Full command sequence: `reference-edge-cases.md` § Teardown pattern.
 
 ## Safety Rules
+- **Never**: push to `main` directly or merge a PR around its required checks
 - **Never**: `kubectl apply -f` without `--dry-run=server` first
 - **Never**: Direct DB drops - use CRDs
 - **Never**: Force-delete DB pods
@@ -179,12 +199,15 @@ Full command sequence: `reference-edge-cases.md` § Teardown pattern.
 
 ## Rollback
 ```bash
-# Git revert last commit
-git revert HEAD --no-edit
-git push
+# In a new worktree from a fresh origin/main, revert the PR's merge commit, then merge the revert
+# through a PR. Then follow step 3's exit-code table and step 3c before fr.
+git fetch origin main
+git worktree add .claude/worktrees/revert-<task> -b wt-revert-<task> origin/main
+git -C .claude/worktrees/revert-<task> revert -m 1 --no-edit <merge-commit-sha>
+~/.agents/skills/_shared/merge-worktree.sh wt-revert-<task> --teardown
 
-# Flux will auto-reconcile in 60s, or force:
-flux reconcile kustomization <name> --timeout=60s
+# Flux fetches main within 5 min, or force:
+flux reconcile kustomization <name> --with-source --timeout=60s
 ```
 
 ## Tools Allowed

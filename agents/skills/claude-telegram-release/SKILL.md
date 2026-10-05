@@ -252,18 +252,27 @@ git worktree add .claude/worktrees/bot-<VERSION> -b wt-bot-<VERSION>
 ```
 
 Bump **all three** image refs in `apps/claude-telegram/deployment.yaml` (init containers share
-the tag — `rg -c` should return 3 before and after). Then `/homelab-yaml-validate`, commit,
-merge to main, **`git pull --rebase` BEFORE tagging**, then tag and push both in one command:
+the tag — `rg -c` should return 3 before and after). Then `/homelab-yaml-validate` and commit.
+Merge the version-bump PR:
+
+```bash
+~/.agents/skills/_shared/merge-worktree.sh wt-bot-<VERSION> --teardown
+```
+
+If the script exits 0 or 3, continue. If it exits with any other code, stop. If it exits 3, fix
+the primary tree first (gitops-workflow step 3). The `OK:` line names the merge commit. After
+exit 3, read it with `gh pr view <n> --json mergeCommit -q .mergeCommit.oid`. Tag that commit, not the primary
+tree's HEAD, because another PR can merge after yours. Push only the tag:
 
 ```bash
 git -C /Users/akhozya/source-code/homelab -c tag.gpgsign=false \
-  tag -a claude-telegram-v<VERSION> -m "claude-telegram <VERSION>"
-git -C /Users/akhozya/source-code/homelab push origin main claude-telegram-v<VERSION>
+  tag -a claude-telegram-v<VERSION> -m "claude-telegram <VERSION>" <merge-commit-sha>
+git -C /Users/akhozya/source-code/homelab push origin claude-telegram-v<VERSION>
 ```
 
-If you need the reason for this order, read reference-deploy.md § "Why pull before tagging".
+If you need the reason for this order, read reference-deploy.md § "Why tag after the merge".
 Also note `git -C <repo>` targets the MAIN worktree; commits inside a release worktree need
-`git -C <worktree-path>`. Then `flux reconcile` and:
+`git -C <worktree-path>`. Then watch the merge commit's run (gitops-workflow step 3c). If it is GREEN, `flux reconcile` and:
 
 ```bash
 kubectl rollout status deploy/claude-telegram -n claude-telegram --timeout=480s
