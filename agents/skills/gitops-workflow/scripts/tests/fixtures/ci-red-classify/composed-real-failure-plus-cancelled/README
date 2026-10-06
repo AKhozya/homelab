@@ -1,0 +1,2 @@
+Composed, not captured: the jobs of outage-cancelled with its cancelled shellcheck job replaced by
+the real failed shellcheck job from content-red. No captured run mixes the two.

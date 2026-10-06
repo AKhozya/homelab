@@ -43,7 +43,9 @@ Grafana and Audiobookshelf use SQLite, so they have no database Secret.
 |-------------|-----|--------------|---------------|----------|
 | CouchDB admin, three copies (see [Standard](#standard-180-days--single-cadence-for-all-scheduled-rotations)) | Obsidian Sync | 2026-10-02 | 2027-03-31 | — |
 
-The sync user `couchdb-credentials` is not rotated; it is under User Login Passwords.
+The sync user `couchdb-credentials` is not rotated; it is under User Login Passwords. The LiveSync
+devices log in as the admin instead. If a device keeps the old password after a rotation, its sync
+requests return 401 (see the Standard section).
 
 ### Redis
 
@@ -75,7 +77,7 @@ Since authentik 2023.6, `AUTHENTIK_SECRET_KEY` signs cookies and no longer feeds
 | `homehub-password` | HomeHub | User login — NO auto-rotate |
 | `grafana-admin-secret` | Grafana | User login — NO auto-rotate |
 | `audiobookshelf-admin` | Audiobookshelf | User login — NO auto-rotate |
-| `couchdb-credentials` (ns `obsidian`) | Obsidian Sync | Sync user that the LiveSync clients log in with — NO rotate |
+| `couchdb-credentials` (ns `obsidian`) | Obsidian Sync | Sync user, admin of `obsidian-personal` only. The LiveSync devices log in as the CouchDB admin. The plugin's database-configuration fixes change server settings, which needs a server admin — NO rotate |
 
 ### OIDC/OAuth Secrets
 
@@ -171,13 +173,18 @@ If the secret is empty or missing, the workflow's `Require FLUX_UPDATE_TOKEN` st
 - CouchDB admin. After the three files deploy, delete the CouchDB pods one at a time. If the new
   pod is Ready and its login check passes, delete the next one. Why a restart applies it: the image entrypoint writes the admin from
   `COUCHDB_PASSWORD` into `local.d`, which is not mounted, so each new container takes the new
-  value. Three SOPS files hold it, and all three must match:
+  value. Three SOPS files and the operator's devices hold it, and all must match:
 
   | File | Secret (namespace) | Keys | Reader |
   |---|---|---|---|
   | `infrastructure/configs/databases/couchdb/admin-secret.yaml` | `couchdb-couchdb` (`databases`) | `adminUsername`, `adminPassword` | CouchDB, backup CronJob |
   | `monitoring/configs/victoria-metrics/couchdb-auth-secret.yaml` | `couchdb-couchdb` (`monitoring`) | `adminUsername`, `adminPassword` | VMAgent scrape |
   | `apps/obsidian/couchdb-admin-credentials.yaml` | `couchdb-admin-credentials` (`obsidian`) | `username`, `password` | Obsidian init Job |
+  | none in git | the LiveSync settings on each of the operator's devices | username, password | Obsidian LiveSync |
+
+  If both pods pass the login check, stop and tell the operator to put the new password into
+  LiveSync on every device. If a device keeps the old password, its sync fails with 401.
+  1Password holds no copy. The operator reads it from `admin-secret.yaml` with `sops -d`.
 - Authentik Django secret key
 
 90-day High tier retired 2026-07-02 — Priority column in the inventory ranks blast-radius, not cadence. Annual infrastructure keys (SSH, deploy, CF mgmt token) keep their own dates.
