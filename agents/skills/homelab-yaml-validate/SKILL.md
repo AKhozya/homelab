@@ -138,7 +138,7 @@ Other invariants live in canonical skills:
 
 ## After validation passes
 
-Commit, push, `fr` (Flux reconcile zsh function). See `/gitops-workflow` for the full flow.
+Commit, merge through a PR with `merge-worktree.sh`, then `fr` (Flux reconcile zsh function). See `/gitops-workflow` for the full flow.
 
 ## CI backstop
 

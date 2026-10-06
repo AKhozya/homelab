@@ -5,13 +5,16 @@ description: Use when running the monthly homelab review ("monthly review", "hom
 
 # Homelab monthly review
 
-**Lesson (2026-06-05): checklist-following ≠ completeness** — sweep every posture surface, then act. ANALYSIS `Monthly Review Checklist` section points here.
+**Lesson (2026-06-05): checklist-following ≠ completeness** — sweep every posture surface, then act.
 
 ## Phase 0 — prep
-1. `git pull --ff-only origin main` in main tree.
-2. Worktree: `git worktree add .claude/worktrees/monthly-review -b wt-monthly-review`.
-3. Gather: ANALYSIS `Upcoming deadlines` table, `docs/SECRETS_ROTATION.md` due dates, memory `project_maintenance_schedules` rotation deadlines, HOMELAB_HISTORY last-month entries.
-4. List overdue + due-this-month + event-gated items whose event fired (check evidence, e.g. kernel upgrade for UFW-class validations).
+1. `git fetch origin main`. Never pull in the main tree: only `merge-worktree.sh` moves it.
+2. Worktree: `git worktree add .claude/worktrees/monthly-review -b wt-monthly-review origin/main`.
+3. Ledger: `~/homelab-monthly-review-<YYYY-MM>.md`, outside the worktree, because a cleanup run can
+   delete a worktree that still holds uncommitted files (memory `gotcha_fresh_worktree_reaped_by_cleanup`).
+   Record each finished item as one row with its evidence (commit, PR, command output).
+4. Gather: ANALYSIS `Upcoming deadlines` table, `docs/SECRETS_ROTATION.md` due dates, memory `project_maintenance_schedules` rotation deadlines, HOMELAB_HISTORY last-month entries.
+5. List overdue + due-this-month + event-gated items whose event fired (check evidence, e.g. kernel upgrade for UFW-class validations).
 
 ## Phase 1 — posture sweep (read-only, parallel-safe)
 
@@ -21,9 +24,9 @@ description: Use when running the monthly homelab review ("monthly review", "hom
 | Kyverno | `kubectl get vpol` (12 CEL ValidatingPolicies, all READY true + `validationActions: [Deny]` — sole engine since 2026-07-12, CPs/parity retired) + polr summary jq below | fail must = 0 |
 | Image CVEs — trivy-scan (monthly CronJob in `trivy-scan` ns since 2026-07-14; replaced trivy-operator) | **Run it on review night**: `kubectl create job trivy-scan-manual-<date> --from=cronjob/trivy-scan -n trivy-scan` → ~15-30min for ~80 images (11min measured 2026-07-14 authenticated) → `kubectl logs job/... -c trivy` (per-image CRITICAL/HIGH tables; job FAILS on any image error — rerun after checking FATAL lines). Scheduled run (1st 08:00 UTC) output lands in Loki if pod already TTL-reaped (24h). **Saturday caveat**: weekly upgrade+rolling-reboot window = Sat 04:30 UTC + cascade — a reboot mid-scan kills the job; review night on a Saturday → launch well clear of the window (late evening UTC or Sunday) | per-image CRITICAL/HIGH tally trend; fixable = Renovate bump or upstream issue (see 3 filed 2026-07-05) |
 | Popeye | `kubectl create job --from=cronjob/popeye popeye-manual-<date> -n popeye` → wait → logs | score + section deltas. Resource warns (POP-109/110/505) = right-sizing class, load-dependent — don't panic-tune. Operator-owned Service lints in `databases/` (POP-1106/1100/1102 on Percona/Redis svcs) = known cosmetic |
-| Alerts | Alertmanager v2 via pod exec, exclude Watchdog | 0 expected |
+| Alerts | `bash ~/.agents/skills/_shared/check-alerts.sh` (VMAlert and Alertmanager; reports a failed fetch instead of an empty list) | only Watchdog |
 | Flux | `flux get kustomizations` — READY is column 4, not 3 | all True |
-| CI | `gh run list --limit 1` | green |
+| CI | `gh run list --branch main --limit 10` (both required workflows: Validate and Secret scan). Classify a red Validate run with `bash ~/.agents/skills/_shared/ci-red-classify.sh main <sha>`; for a red Secret scan, read its log. If concurrency cancels a Validate run because a newer push supersedes it (`cancel-in-progress`), judge the newer run | newest run of each green, or INFRA-RED with a GitHub incident to match |
 | Certs | `kubectl get certificate -A` — any not Ready / renewal near | all Ready |
 | Backups | 6 backup CronJobs last-run status + NAS replication recency | all on schedule |
 | Disk | per-node `df` on `/` + W2 `/mnt/extra-storage` (DiskPressure history) | % used trend |
@@ -43,6 +46,8 @@ bash ~/.agents/skills/_shared/check-kyverno.sh --summary
 ## Phase 2 — checklist core
 1. **Skill stocktake + skill review/actualization pass** — `/skill-stocktake full` (background agent OK; read-only verdicts; apply factual fixes + `/chezmoi-sync` after). Then over `~/.agents/skills/` (method validated by the 2026-07-16 full skills review — read-only finder agents per axis, verify STALE against repo before editing, lossless-verify on relocations):
    - **Mechanical**: `bash ~/.agents/skills/kb-hygiene/scripts/lint-skill-scripts.sh` (shellcheck + shfmt + rg-as-command) + `bash ~/.agents/skills/kb-hygiene/scripts/skill-sizes.sh` (FAT >1000w → relocate situational detail to `reference-*.md`, keep routing pointer in SKILL.md).
+   - **Test suites**: run every skill test and require each to pass:
+     `for t in $(find ~/.agents/skills -path '*/tests/test-*.sh' -not -path '*/node_modules/*'); do bash "$t" >/dev/null 2>&1 </dev/null && echo "PASS $t" || echo "FAIL $t"; done`
    - **Descriptions**: frontmatter `description:` loads into EVERY session's system prompt — trim body-detail/history narration, but preserve ALL trigger phrases, "NOT for → sibling-skill" routing, and NEVER/ONLY safety rules. Touch only the description value, never other frontmatter keys (`metadata.triggers`, `user-invocable`).
    - **Retirement propagation**: for anything retired/replaced since last review, `grep -ril "<name>" ~/.agents/skills` — the dominant skill-rot class (2026-07-16 run: trivy-operator ghosts in 3 skills, 3-node fleet claims in 4 skills after immich-vm joined).
    - If you edit a skill body, read reference-skill-review.md § Changelog narration and codification.
@@ -73,17 +78,17 @@ bash ~/.agents/skills/_shared/check-kyverno.sh --summary
 
 ## Phase 3 — pending sweep + upstream re-checks
 - Re-check each pending item's upstream issue state (`gh api repos/<o>/<r>/issues/<n>`); retarget or close with evidence.
-- Anything metric-gated (memory limits, soak windows): query VMSingle (`port-forward svc/vmsingle-vmsingle 8429` + `max_over_time(...)`) — record peak windows, not just instant. Limit ≠ reservation — don't shrink limits on critical-path (DNS) for cosmetic savings.
+- Anything metric-gated (memory limits, soak windows): query VMSingle through the API-server proxy, which needs no port-forward: `kubectl get --raw "/api/v1/namespaces/monitoring/services/vmsingle-vmsingle:8429/proxy/api/v1/query?query=<url-encoded max_over_time(...)>"`. Record peak windows, not just instant values. Limit ≠ reservation — don't shrink limits on critical-path (DNS) for cosmetic savings.
 
 ## Phase 4 — actions
 - Decisions (security tradeoffs, live failovers) → AskUserQuestion ONCE, batched.
 - Live cluster ops (failover tests, re-pins) serialized, AFTER GitOps edits validated; verify app reconnect (immich ioredis — see `db-primary-pin` caveats).
-- Edits: worktree → `/homelab-yaml-validate` → peer static pre-commit review loop (per /gitops-workflow) → commit → merge → push → CI green → `fr` → verify.
+- Edits: worktree → `/homelab-yaml-validate` → peer static pre-commit review loop (per /gitops-workflow) → commit → `merge-worktree.sh` (a PR; the required checks gate the merge) → watch the merge commit's run (/gitops-workflow step 3c) → `fr` → verify. If GitHub Actions is down, nothing merges: re-run the cancelled jobs after it recovers (githubstatus.com).
 - Rotation batch due (Phase 0 found it) → `secrets-rotation` skill, run after the Phase 1 sweep (baseline first). The agent runs it end to end, merges included, one engine per merge (operator, 2026-10-02).
 - The review loop's state table decides when to commit.
 
 ## Phase 5 — docs + memory
-1. ANALYSIS: pending table rows (close/retarget with evidence), changelog highlight, `**Next Review**` date.
+1. ANALYSIS: `Upcoming deadlines` rows (close or retarget with evidence; add next month's items).
 2. HISTORY: one dated entry at the top, per-item outcome + evidence. Then trim: HISTORY keeps 3 months. First read the `## Milestones` table at the top of HISTORY: if an entry you are about to delete falls in a quarter that no row covers, add a `| Q<n> <year> |` row that names that quarter's main changes, read from its entries. Delete every entry whose `### YYYY-MM-DD` date is more than 3 months before the review date. An entry runs from its heading to the next `## ` or `### ` heading. Git keeps the deleted text. Then, for each deleted date, find every reference to it. Most are plain text ("see HOMELAB_HISTORY 2026-06-28", "2026-07-31, see HISTORY"), not links, so search for the date near the word HISTORY as well as for anchors:
 
    - repo, outside HISTORY: `git grep -n -E -e 'HISTORY.{0,40}<date>' -e '<date>.{0,40}HISTORY' -- . ':!docs/HOMELAB_HISTORY.md' ':!agents/'`
@@ -93,7 +98,7 @@ bash ~/.agents/skills/_shared/check-kyverno.sh --summary
    Replace each with a commit: the commit that made the change or, if the change had no commit (a live fix), the commit that added the entry's heading line. Several entries can share a date, so search for the full heading line: `git log --format=%h -S '<heading line>' -- docs/HOMELAB_HISTORY.md | tail -1`. If the 2026-09-28 rewrite introduced the heading, this returns the rewrite commit. That commit's diff also holds the whole entry. Check each SHA with `git merge-base --is-ancestor <sha> origin/main`.
 3. Memory: update files whose claims changed (e.g. auth flow shape); MEMORY.md index hooks.
 4. `/chezmoi-sync` any `~/.claude/**` edits.
-5. Teardown worktree. Quarterly (every 3rd month, see ANALYSIS): add `/automation-audit-ops`.
+5. Teardown worktree. Quarterly, in the January, April, July and October reviews: add `/automation-audit-ops`.
 
 ## Known gap-classes (keep honest)
 If you mark a Popeye score, a DB primary pin or an event-gated item clean, first read reference-gap-classes.md § Gap classes.
