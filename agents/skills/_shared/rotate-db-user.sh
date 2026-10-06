@@ -156,7 +156,7 @@ fi
 cat <<EOF
 
 Next (GitOps — the new pw is in the secret file but NOT yet in the cluster):
-  1. commit the SOPS change in your worktree, merge -> main, push
+  1. commit the SOPS change in your worktree, merge it through a PR: ~/.agents/skills/_shared/merge-worktree.sh <branch>
   2. flux reconcile source git flux-system && flux reconcile kustomization apps
   3. cycle the app pods onto the new secret one at a time — do NOT rollout-restart:
        ~/.agents/skills/_shared/restart-workload.sh <ns> ${selector:-<app-selector>}
