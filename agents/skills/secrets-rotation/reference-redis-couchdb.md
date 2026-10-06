@@ -42,8 +42,18 @@ Why a pod restart applies it: the image entrypoint writes `[admins] <user> = <CO
 into `/opt/couchdb/etc/local.d/docker.ini` if no admin of that name is defined, and `local.d` is not
 mounted, so every new container starts without one and takes the env value. The data PVC holds no
 admin. While one pod has restarted and the other has not, the two nodes disagree for a minute or
-two; LiveSync clients use the separate sync user and are unaffected.
+two.
+
+Obsidian LiveSync on the operator's devices logs in as this admin user, not as the sync user
+(operator, 2026-10-06). The plugin's database-configuration fixes change CouchDB server settings.
+The sync user is admin of `obsidian-personal` only. After the 2026-10-02 rotation, CouchDB logged
+401 for the devices' sync requests, through Cloudflare and from the LAN.
 
 Proof per pod: `curl -u "$COUCHDB_USER:$COUCHDB_PASSWORD" http://127.0.0.1:5984/_session` inside
 the pod (its env holds the new Secret value) returns 200, and `_membership` lists both nodes in `all_nodes` and `cluster_nodes`.
+
+If both pods pass, stop and tell the operator to put the new password into LiveSync on every
+device. 1Password holds no copy. The operator reads it with
+`sops -d --extract '["stringData"]["adminPassword"]' infrastructure/configs/databases/couchdb/admin-secret.yaml`.
+
 The next morning's `backup-nightly-verify` confirms the backup CronJob.

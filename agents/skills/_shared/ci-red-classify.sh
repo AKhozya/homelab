@@ -8,9 +8,12 @@
 #
 # Signal (robust, no timestamp math):
 #   GREEN       target run conclusion == success
-#   INFRA-RED   target failed AND 100% of its jobs failed AND all of the last N runs failed
-#               (i.e. predecessors by other SHAs are equally all-red → runner not executing)
-#   CONTENT-RED any other failure (partial job failure, or predecessors were green → it's you)
+#   INFRA-RED   target failed, and one of:
+#                 - every job failed with 0 steps executed (fail-to-start)
+#                 - every job that ran a step succeeded (ci-ok aside), and some job ran 0
+#                   steps and did not succeed. ci-ok then fails only because of those jobs
+#                 - every job failed AND all of the last N runs failed (other SHAs too)
+#   CONTENT-RED any other failure (a job failed on its own steps, or predecessors were green)
 #
 # Usage:
 #   ci-red-classify.sh [branch] [sha] [depth]    # defaults: main, latest run, 6
@@ -89,10 +92,24 @@ failed="$(jq '[.[]|select(.conclusion=="failure")]|length' <<<"$jobs")"
 # Caveat: a workflow-file content error that breaks job dispatch (e.g. bad runs-on) presents
 # the same way — if YOUR diff touched .github/workflows, treat this verdict as content-red.
 zerostep="$(jq '[.[]|select(((.steps // [])|length)==0)]|length' <<<"$jobs")"
+# ci-ok (validate.yaml) aggregates the other jobs' results, so its failure alone says nothing.
+# If you rename ci-ok in validate.yaml, update this filter.
+# A job that hits timeout-minutes ends cancelled after running steps, so count every
+# conclusion but success, not only failure.
+own_fail="$(jq '[.[]|select(((.steps // [])|length)>0 and .conclusion!="success" and .name!="ci-ok")]|length' <<<"$jobs")"
+never_ran="$(jq '[.[]|select(((.steps // [])|length)==0 and .conclusion!="success")]|length' <<<"$jobs")"
 red_runs="$(jq '[.[]|select(.conclusion=="failure")]|length' <<<"$runs")"
 
 if [[ "$conclusion" == "failure" && "$total" -gt 0 && "$zerostep" -eq "$total" ]]; then
   verdict "INFRA-RED ⚙️ — all $total jobs failed with 0 steps executed (fail-to-start: billing/runner — but content-red if your diff touched .github/workflows). Nothing merges until the runner works; on main: gh run rerun $id"
+  exit 11
+fi
+
+# GitHub cancels a job that waits in the queue too long, before any step (2026-10-05 Actions
+# incident: 6 of 16 jobs). A cancelled run exits above as CANCELLED. This run concluded
+# failure only because ci-ok saw those jobs fail to succeed.
+if [[ "$conclusion" == "failure" && "$own_fail" -eq 0 && "$never_ran" -gt 0 ]]; then
+  verdict "INFRA-RED ⚙️ — $never_ran job(s) never started (0 steps) and every job that ran a step succeeded, ci-ok aside (GitHub queue/runner — but content-red if your diff touched .github/workflows). Re-run them: gh run rerun $id --failed"
   exit 11
 fi
 

@@ -1,0 +1,86 @@
+[
+  {
+    "name": "yamllint",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  },
+  {
+    "name": "kubeconform (infrastructure/coredns)",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  },
+  {
+    "name": "HOMELAB_ANALYSIS keyfact drift (warn-only)",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  },
+  {
+    "name": "sops encryption presence",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  },
+  {
+    "name": "initContainer resource limits guard",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  },
+  {
+    "name": "shellcheck",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  },
+  {
+    "name": "helm render (HelmRelease charts)",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  },
+  {
+    "name": "image pin audit (major.minor.patch)",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  },
+  {
+    "name": "kubeconform (infrastructure/controllers)",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  },
+  {
+    "name": "kubeconform (monitoring/controllers)",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  },
+  {
+    "name": "kubeconform (clusters)",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  },
+  {
+    "name": "kubeconform (monitoring/configs)",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  },
+  {
+    "name": "kubeconform (apps)",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  },
+  {
+    "name": "kubeconform (infrastructure/configs)",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": []
+  }
+]

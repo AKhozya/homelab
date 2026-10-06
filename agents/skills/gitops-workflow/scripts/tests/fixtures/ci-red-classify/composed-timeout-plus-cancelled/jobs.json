@@ -1,0 +1,365 @@
+[
+  {
+    "name": "helm render (HelmRelease charts)",
+    "status": "completed",
+    "conclusion": "success",
+    "steps": [
+      {
+        "name": "Set up job",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run ./.github/actions/install-yq",
+        "conclusion": "success"
+      },
+      {
+        "name": "Render every HelmRelease chart",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Complete job",
+        "conclusion": "success"
+      }
+    ]
+  },
+  {
+    "name": "image pin audit (major.minor.patch)",
+    "status": "completed",
+    "conclusion": "cancelled",
+    "steps": []
+  },
+  {
+    "name": "initContainer resource limits guard",
+    "status": "completed",
+    "conclusion": "success",
+    "steps": [
+      {
+        "name": "Set up job",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run ./.github/actions/install-yq",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run scripts/ci/check-init-resources.sh",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Complete job",
+        "conclusion": "success"
+      }
+    ]
+  },
+  {
+    "name": "sops encryption presence",
+    "status": "completed",
+    "conclusion": "success",
+    "steps": [
+      {
+        "name": "Set up job",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run scripts/ci/check-sops-encrypted.sh",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Complete job",
+        "conclusion": "success"
+      }
+    ]
+  },
+  {
+    "name": "kubeconform (infrastructure/coredns)",
+    "status": "completed",
+    "conclusion": "success",
+    "steps": [
+      {
+        "name": "Set up job",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Install kustomize + kubeconform + yq",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run ./.github/actions/install-yq",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build + validate",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Complete job",
+        "conclusion": "success"
+      }
+    ]
+  },
+  {
+    "name": "shellcheck",
+    "status": "completed",
+    "conclusion": "cancelled",
+    "steps": [
+      {
+        "name": "Set up job",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run shellcheck",
+        "conclusion": "failure"
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Complete job",
+        "conclusion": "success"
+      }
+    ]
+  },
+  {
+    "name": "kubeconform (monitoring/controllers)",
+    "status": "completed",
+    "conclusion": "success",
+    "steps": [
+      {
+        "name": "Set up job",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Install kustomize + kubeconform + yq",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run ./.github/actions/install-yq",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build + validate",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Complete job",
+        "conclusion": "success"
+      }
+    ]
+  },
+  {
+    "name": "yamllint",
+    "status": "completed",
+    "conclusion": "success",
+    "steps": [
+      {
+        "name": "Set up job",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run pip install yamllint==1.35.1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run yamllint .",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Complete job",
+        "conclusion": "success"
+      }
+    ]
+  },
+  {
+    "name": "HOMELAB_ANALYSIS keyfact drift (warn-only)",
+    "status": "completed",
+    "conclusion": "success",
+    "steps": [
+      {
+        "name": "Set up job",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Count live invariants vs documented",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Complete job",
+        "conclusion": "success"
+      }
+    ]
+  },
+  {
+    "name": "node-script-tests",
+    "status": "completed",
+    "conclusion": "success",
+    "steps": [
+      {
+        "name": "Set up job",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Offline tests for the node-maintenance scripts",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Complete job",
+        "conclusion": "success"
+      }
+    ]
+  },
+  {
+    "name": "kubeconform (apps)",
+    "status": "completed",
+    "conclusion": "cancelled",
+    "steps": []
+  },
+  {
+    "name": "kubeconform (clusters)",
+    "status": "completed",
+    "conclusion": "cancelled",
+    "steps": []
+  },
+  {
+    "name": "kubeconform (infrastructure/controllers)",
+    "status": "completed",
+    "conclusion": "cancelled",
+    "steps": []
+  },
+  {
+    "name": "kubeconform (infrastructure/configs)",
+    "status": "completed",
+    "conclusion": "cancelled",
+    "steps": []
+  },
+  {
+    "name": "kubeconform (monitoring/configs)",
+    "status": "completed",
+    "conclusion": "success",
+    "steps": [
+      {
+        "name": "Set up job",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Install kustomize + kubeconform + yq",
+        "conclusion": "success"
+      },
+      {
+        "name": "Run ./.github/actions/install-yq",
+        "conclusion": "success"
+      },
+      {
+        "name": "Build + validate",
+        "conclusion": "success"
+      },
+      {
+        "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "conclusion": "success"
+      },
+      {
+        "name": "Complete job",
+        "conclusion": "success"
+      }
+    ]
+  },
+  {
+    "name": "ci-ok",
+    "status": "completed",
+    "conclusion": "failure",
+    "steps": [
+      {
+        "name": "Set up job",
+        "conclusion": "success"
+      },
+      {
+        "name": "Every job succeeded",
+        "conclusion": "failure"
+      },
+      {
+        "name": "Complete job",
+        "conclusion": "success"
+      }
+    ]
+  }
+]

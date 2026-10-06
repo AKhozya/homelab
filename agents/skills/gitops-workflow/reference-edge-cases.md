@@ -32,12 +32,13 @@ Run `_shared/ci-red-classify.sh <branch> <sha>` to classify a `ci-ok` failure be
 | `INFRA-RED` | 11 | the runner failed, not the change (signals below) | nothing merges until the runner works; ask the operator | `gh run rerun <id>`, then watch again |
 | `CANCELLED` | 12 | no run finished checking the sha | `gh run rerun <id>` | `gh run rerun <id>`, then watch again |
 
-If either test matches, the classifier reports INFRA-RED:
+If any test matches, the classifier reports INFRA-RED:
 
 | Signal | Test | Note |
 |---|---|---|
 | fail-to-start | the target run's conclusion is `failure` and every job executed **0 steps**, whatever the job's own conclusion | the billing block's signature since 2026-07-22. It needs no check of earlier runs, because cancelled runs in the history broke the all-red test |
 | all red | every job failed, and the last N runs, including SHAs you did not author, all failed | |
+| never started | the target run's conclusion is `failure`, every job that executed a step succeeded (`ci-ok` aside), and at least one job executed 0 steps and did not succeed | `ci-ok` then fails only because those jobs did not succeed. In the 2026-10-05 Actions incident GitHub cancelled 6 of 16 queued jobs; the old classifier called that CONTENT-RED. Re-run with `gh run rerun <id> --failed` |
 
 | Infra-red recurrence | Commit | Note |
 |---|---|---|

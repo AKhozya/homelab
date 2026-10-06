@@ -1,0 +1,3 @@
+Composed, not captured: the jobs of outage-cancelled with its shellcheck job replaced by the real
+shellcheck job from content-red, its conclusion set to cancelled. It stands for a job that hit
+timeout-minutes after running steps.
