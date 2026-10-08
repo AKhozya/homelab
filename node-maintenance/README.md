@@ -108,6 +108,13 @@ moves to the next node, the run checks through `configz` that the node reports t
 against K3s bugs that dropped those fields in the past. Telegram reports a failure. It takes about
 3 to 7 minutes, plus up to 15 minutes waiting for the lock.
 
+A dry run restarts nothing and still checks each node's live `configz`. Hold the lock while it runs:
+
+```bash
+sudo /usr/local/sbin/node-maintenance-lock.sh wait -- ansible-playbook --check \
+  -i /etc/node-maintenance/ansible/inventory.yml /etc/node-maintenance/ansible/rolling-restart-k3s.yml
+```
+
 ### K3s version
 
 `k3s_version` in `ansible/group_vars/all.yml` names the K3s version every node runs. Renovate opens
@@ -126,8 +133,8 @@ reject the move, the drift-heal fails and alerts instead. The rolling restart th
 1. checks the move once on the CP (`tasks/k3s-version-verdict.yml`) and refuses it before touching
    any node if it skips a minor, changes the major, downgrades, or the API's nodes differ from the
    inventory;
-2. downloads the binary once to `/var/cache/node-maintenance/k3s/` and checks its sha256 against the
-   release's `sha256sum-amd64.txt`;
+2. downloads the binary once to `/var/cache/node-maintenance/k3s/`, checks its sha256 against the
+   release's `sha256sum-amd64.txt`, and deletes the cached binaries of other versions;
 3. on each node, CP first, swaps the binary in immediately before that node's restart and keeps the
    old one as `/usr/local/bin/k3s.prev`, then waits for the node to report `k3s_version`, Ready, and
    a heartbeat newer than the restart.

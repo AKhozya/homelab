@@ -58,6 +58,7 @@
     - name: Fetch k3s_version
       when: k3s_version_verdict != 'same'
       block:
+        # check_mode false: get_url refuses a missing destination directory even in check mode.
         - name: Create the binary cache
           ansible.builtin.file:
             path: "{{ k3s_cache_dir }}"
@@ -65,6 +66,7 @@
             owner: root
             group: root
             mode: "0755"
+          check_mode: false
 
         # GitHub's release download path needs the + of v1.37.1+k3s1 as %2B.
         - name: Check the release URL encodes the version
@@ -87,9 +89,26 @@
             checksum_algorithm: sha256
           register: _k3s_cached
 
+        # If check mode finds no cached binary, the empty target hash skips the swap.
         - name: Record the target hash for the restart plays
           ansible.builtin.set_fact:
-            k3s_target_sha256: "{{ _k3s_cached.stat.checksum }}"
+            k3s_target_sha256: "{{ _k3s_cached.stat.checksum | default('') }}"
+
+        # Each version is about 80 MB. A rollback downloads its version again.
+        - name: Find cached binaries of other versions
+          ansible.builtin.find:
+            paths: "{{ k3s_cache_dir }}"
+            patterns: "k3s-*"
+            excludes: "k3s-{{ k3s_version }}"
+          register: _k3s_stale
+
+        - name: Remove cached binaries of other versions
+          ansible.builtin.file:
+            path: "{{ item.path }}"
+            state: absent
+          loop: "{{ _k3s_stale.files }}"
+          loop_control:
+            label: "{{ item.path | basename }}"
 
 - name: Rolling restart k3s control-plane
   hosts: control_plane
@@ -110,6 +129,8 @@
 
     - name: Wait for the restarted node to report k3s_version and Ready
       ansible.builtin.include_tasks: tasks/k3s-wait-node.yml
+      # Check mode restarts nothing, so there is no new kubelet to wait for.
+      when: not ansible_check_mode
 
     - name: Verify kubelet configz reflects expected values
       ansible.builtin.shell: |
@@ -120,6 +141,8 @@
         executable: /bin/bash
       register: configz
       changed_when: false
+      # Read-only, so it runs in check mode too and still checks the live config.
+      check_mode: false
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       failed_when: >-
@@ -149,6 +172,8 @@
     # Worker has no /etc/rancher/k3s/k3s.yaml admin kubeconfig — the wait queries from the CP.
     - name: Wait for the restarted node to report k3s_version and Ready
       ansible.builtin.include_tasks: tasks/k3s-wait-node.yml
+      # Check mode restarts nothing, so there is no new kubelet to wait for.
+      when: not ansible_check_mode
 
     - name: Verify kubelet configz reflects expected values (queried from CP)
       ansible.builtin.shell: |
@@ -160,6 +185,8 @@
       delegate_to: "{{ groups['control_plane'][0] }}"
       register: configz
       changed_when: false
+      # Read-only, so it runs in check mode too and still checks the live config.
+      check_mode: false
       environment:
         KUBECONFIG: /etc/rancher/k3s/k3s.yaml
       failed_when: >-
