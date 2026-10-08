@@ -1,0 +1,16 @@
+---
+# Runs every case in k3s-version-verdict-cases.yml through tasks/k3s-version-verdict.yml.
+# Run through test-k3s-version-verdict.sh, which counts the PASS and FAIL lines.
+- name: K3s version verdict cases
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - k3s-version-verdict-cases.yml
+  tasks:
+    - name: Run each case
+      ansible.builtin.include_tasks: k3s-version-verdict-case.yml
+      loop: "{{ k3s_verdict_cases }}"
+      loop_control:
+        loop_var: case
+        label: "{{ case.name }}"

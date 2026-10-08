@@ -79,6 +79,7 @@ jobs:
           bash node-maintenance/lib/tests/test-node-script-lib.sh
           bash node-maintenance/ansible/roles/node_isolation_heal/tests/test-ladder.sh
           bash node-maintenance/ansible/roles/k3s_config/tests/test-wait-ready.sh
+          bash node-maintenance/ansible/tests/test-k3s-version-verdict.sh
 
   sops-check:
     name: sops encryption presence

@@ -1,13 +1,27 @@
 ---
 # rolling-restart-k3s.yml — serial restart of k3s/k3s-agent across all nodes.
-# Picks up changes to /etc/rancher/k3s/{config,kubelet}.yaml without manual ssh.
+# Picks up changes to /etc/rancher/k3s/{config,kubelet}.yaml without manual ssh, and installs
+# k3s_version (group_vars/all.yml) on each node immediately before restarting that node.
 #
 # Invoke from CP: sudo systemctl start node-maintenance-rolling-restart.service
 # The unit holds the node-maintenance lock. A direct ansible-playbook run skips that lock and
 # shares root's SSH ControlMaster with any running drift-heal, whose exit can kill this run.
+# The drift-heal starts this unit itself if a node runs another version than k3s_version.
+#
+# Preflight on the CP refuses, before any node is touched, a skipped minor, a major change, a
+# downgrade, or a node set that differs from the inventory (tasks/k3s-version-verdict.yml).
+# Patch rollback after reverting k3s_version in git, holding the lock:
+#   sudo /usr/local/sbin/node-maintenance-lock.sh wait -- ansible-playbook \
+#     /etc/node-maintenance/ansible/rolling-restart-k3s.yml -i /etc/node-maintenance/ansible/inventory.yml \
+#     -e k3s_allow_downgrade=true
+#
+# The binary is swapped just before each node's restart, not staged ahead: any other k3s restart
+# (weekly reboot, the clusterip/isolation heal watchdogs) would activate a staged binary on that
+# node alone, possibly a worker ahead of the CP.
 #
 # CP first (a controller-manager node-monitor-grace-period change applies on k3s.service restart),
-# then workers serially. serial: 1 = at most one node disrupted at a time.
+# then workers serially. serial: 1 = at most one node disrupted at a time. A failed node ends the
+# whole playbook (every host of the batch failed), so a CP failure never reaches the workers.
 #
 # Verifies kubelet config landed via /api/v1/nodes/<n>/proxy/configz.
 # Fails play if expected fields missing — surfaces silent K3s field-stripping
@@ -18,6 +32,65 @@
 #     /etc/node-maintenance/ansible/rolling-restart-k3s.yml -i /etc/node-maintenance/ansible/inventory.yml \
 #     -e expected_lease_seconds=90 -e expected_report_frequency=2m0s
 
+- name: Preflight — check and fetch k3s_version
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  any_errors_fatal: true
+  vars:
+    k3s_release_url: "https://github.com/k3s-io/k3s/releases/download/{{ k3s_version | urlencode }}"
+  tasks:
+    - name: Read running versions
+      ansible.builtin.include_tasks: tasks/k3s-running-versions.yml
+
+    - name: Decide whether k3s_version is allowed
+      ansible.builtin.include_tasks: tasks/k3s-version-verdict.yml
+      vars:
+        k3s_expected_nodes: "{{ groups['all'] }}"
+
+    - name: Refuse before touching any node
+      ansible.builtin.fail:
+        msg: "k3s_version {{ k3s_version }} refused ({{ k3s_version_verdict }}); running: {{ k3s_running_versions }}"
+      when: k3s_version_refused | bool
+
+    # A config-only run (every node already on k3s_version) skips the download, so it does not
+    # depend on GitHub; without k3s_target_sha256 the restart plays swap nothing.
+    - name: Fetch k3s_version
+      when: k3s_version_verdict != 'same'
+      block:
+        - name: Create the binary cache
+          ansible.builtin.file:
+            path: "{{ k3s_cache_dir }}"
+            state: directory
+            owner: root
+            group: root
+            mode: "0755"
+
+        # GitHub's release download path needs the + of v1.37.1+k3s1 as %2B.
+        - name: Check the release URL encodes the version
+          ansible.builtin.assert:
+            that: "'%2Bk3s' in k3s_release_url"
+            quiet: true
+
+        - name: Download k3s_version and verify its sha256
+          ansible.builtin.get_url:
+            url: "{{ k3s_release_url }}/k3s"
+            checksum: "sha256:{{ k3s_release_url }}/sha256sum-amd64.txt"
+            dest: "{{ k3s_cache_dir }}/k3s-{{ k3s_version }}"
+            owner: root
+            group: root
+            mode: "0755"
+
+        - name: Hash the cached binary
+          ansible.builtin.stat:
+            path: "{{ k3s_cache_dir }}/k3s-{{ k3s_version }}"
+            checksum_algorithm: sha256
+          register: _k3s_cached
+
+        - name: Record the target hash for the restart plays
+          ansible.builtin.set_fact:
+            k3s_target_sha256: "{{ _k3s_cached.stat.checksum }}"
+
 - name: Rolling restart k3s control-plane
   hosts: control_plane
   become: true
@@ -27,24 +100,16 @@
     expected_lease_seconds: 60
     expected_report_frequency: "1m0s"
   tasks:
+    - name: Install k3s_version
+      ansible.builtin.include_tasks: tasks/k3s-install-binary.yml
+
     - name: Restart k3s.service
       ansible.builtin.systemd_service:
         name: k3s.service
         state: restarted
 
-    - name: Wait for node Ready
-      ansible.builtin.shell: |
-        /usr/local/bin/k3s kubectl get node {{ inventory_hostname }} \
-          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
-      args:
-        executable: /bin/bash
-      register: node_ready
-      until: node_ready.stdout == "True"
-      retries: 30
-      delay: 5
-      changed_when: false
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    - name: Wait for the restarted node to report k3s_version and Ready
+      ansible.builtin.include_tasks: tasks/k3s-wait-node.yml
 
     - name: Verify kubelet configz reflects expected values
       ansible.builtin.shell: |
@@ -73,26 +138,17 @@
     expected_lease_seconds: 60
     expected_report_frequency: "1m0s"
   tasks:
+    - name: Install k3s_version
+      ansible.builtin.include_tasks: tasks/k3s-install-binary.yml
+
     - name: Restart k3s-agent.service
       ansible.builtin.systemd_service:
         name: k3s-agent.service
         state: restarted
 
-    # Worker has no /etc/rancher/k3s/k3s.yaml admin kubeconfig — delegate to CP.
-    - name: Wait for node Ready (queried from CP)
-      ansible.builtin.shell: |
-        /usr/local/bin/k3s kubectl get node {{ inventory_hostname }} \
-          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
-      args:
-        executable: /bin/bash
-      delegate_to: "{{ groups['control_plane'][0] }}"
-      register: node_ready
-      until: node_ready.stdout == "True"
-      retries: 30
-      delay: 5
-      changed_when: false
-      environment:
-        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+    # Worker has no /etc/rancher/k3s/k3s.yaml admin kubeconfig — the wait queries from the CP.
+    - name: Wait for the restarted node to report k3s_version and Ready
+      ansible.builtin.include_tasks: tasks/k3s-wait-node.yml
 
     - name: Verify kubelet configz reflects expected values (queried from CP)
       ansible.builtin.shell: |

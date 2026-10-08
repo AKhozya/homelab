@@ -1,0 +1,19 @@
+---
+# Sets k3s_running_versions: Kubernetes node name -> kubeletVersion. Runs on the CP.
+# check_mode false: it only reads, and the drift-heal's --check run needs the result.
+- name: Read node versions from the API
+  ansible.builtin.command: /usr/local/bin/k3s kubectl get nodes -o json
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  register: _k3s_nodes
+  changed_when: false
+  check_mode: false
+
+# A node without status.nodeInfo maps to "", which the verdict treats as invalid.
+- name: Map node name to kubeletVersion
+  vars:
+    _items: "{{ (_k3s_nodes.stdout | from_json)['items'] }}"
+  ansible.builtin.set_fact:
+    k3s_running_versions: >-
+      {{ dict(_items | map(attribute='metadata.name')
+              | zip(_items | map(attribute='status.nodeInfo.kubeletVersion', default=''))) }}
