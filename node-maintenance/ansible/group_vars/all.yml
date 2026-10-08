@@ -12,7 +12,7 @@ kubeconfig_path: /etc/rancher/k3s/k3s.yaml
 # The k3s version every node runs. Renovate bumps it (renovate.json, custom manager k3s-io/k3s;
 # its matchStrings reads this line). After a merge the drift-heal queues
 # node-maintenance-rolling-restart.service, which installs it node by node, CP first.
-k3s_version: v1.37.0+k3s1
+k3s_version: v1.37.1+k3s1
 k3s_cache_dir: /var/cache/node-maintenance/k3s
 
 # Alertmanager — reached with `kubectl exec` + amtool in the alertmanager pod.
