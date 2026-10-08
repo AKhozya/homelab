@@ -22,6 +22,15 @@
       "managerFilePatterns": ["/cluster\\.yaml$/"],
       "matchStrings": ["imageName:\\s*(?<depName>[^:]+):(?<currentValue>[^\\s]+)"],
       "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "k3s version the node-maintenance rolling restart installs; the regex versioning keeps the +k3sN build number comparable",
+      "managerFilePatterns": ["/^node-maintenance\\/ansible\\/group_vars\\/all\\.yml$/"],
+      "matchStrings": ["k3s_version:\\s*(?<currentValue>v\\S+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "k3s-io/k3s",
+      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
     }
   ],
   "commitMessagePrefix": "chore(deps): ",
@@ -166,13 +175,25 @@
       "description": "rancher/shell: stay on the v0 line. v7.0.0 is a stray March 2026 tag with an older kubectl, and semver ranks it above every v0 release. If upstream starts a v1 line, widen this rule",
       "matchPackageNames": ["rancher/shell"],
       "allowedVersions": "/^v0\\./"
+    },
+    {
+      "description": "k3s: one PR per minor plus a separate patch PR. Without these Renovate offers only the newest release, which can skip a minor; the rolling restart refuses that",
+      "matchDepNames": ["k3s-io/k3s"],
+      "separateMinorPatch": true,
+      "separateMultipleMinor": true
+    },
+    {
+      "description": "k3s minor: Renovate opens the PR only after the owner ticks it on the Dependency Dashboard. Merging it upgrades every node; read the release notes first",
+      "matchDepNames": ["k3s-io/k3s"],
+      "matchUpdateTypes": ["minor"],
+      "dependencyDashboardApproval": true
     }
   ],
   "timezone": "Europe/London",
   "schedule": ["after 6pm and before 11pm"],
   "ignorePaths": [
     "docs/**",
-    "node-maintenance/**",
+    "node-maintenance/ansible/requirements.yml",
     "agents/**",
     "README.md",
     "clusters/flux-system/gotk-components.yaml"

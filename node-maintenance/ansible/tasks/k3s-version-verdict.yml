@@ -1,0 +1,48 @@
+---
+# Decides whether moving the cluster to k3s_version is allowed. Pure: reads only its inputs.
+#
+# Inputs:  k3s_version (target), k3s_running_versions (Kubernetes node name -> kubeletVersion),
+#          k3s_expected_nodes (inventory hostnames), k3s_allow_downgrade (optional; -e passes a string).
+# Outputs: k3s_version_verdict  = same | upgrade | downgrade | skip-minor | invalid
+#          k3s_version_refused  = true if the playbook must not touch any node.
+#
+# Rules, first match wins:
+#   invalid     no nodes, node set differs from the inventory, or any version does not parse
+#   skip-minor  any node on another major, target minor > lowest running minor + 1, or
+#               target minor < highest running minor. Kubernetes allows neither a skipped minor
+#               nor a control-plane minor downgrade, so no override applies.
+#   same        every node already runs the target
+#   downgrade   target < highest running version. Refused unless k3s_allow_downgrade is true and
+#               every node shares the target's major.minor (a patch rollback).
+#   upgrade     otherwise
+- name: Compute the k3s version verdict
+  vars:
+    _re: '^v(\d+)\.(\d+)\.(\d+)\+k3s(\d+)$'
+    _target_raw: "{{ k3s_version | string | regex_search(_re, '\\1', '\\2', '\\3', '\\4') }}"
+    _target: "{{ (_target_raw | map('int') | list) if _target_raw else [] }}"
+    _running_raw: "{{ k3s_running_versions.values() | map('string') | map('regex_search', _re, '\\1', '\\2', '\\3', '\\4') | list }}"
+    _invalid: >-
+      {{ (k3s_running_versions | length == 0)
+         or ((k3s_running_versions.keys() | list | sort) != (k3s_expected_nodes | list | sort))
+         or (_running_raw | select('none') | list | length > 0)
+         or (_target | length == 0) }}
+    _running: "{{ [] if _invalid else (_running_raw | map('map', 'int') | map('list') | list) }}"
+    _verdict: >-
+      {%- if _invalid -%}invalid
+      {%- else -%}
+      {%- set majors = _running | map('first') | unique | list -%}
+      {%- set minors = _running | map('batch', 2) | map('first') | map('last') | list -%}
+      {%- set highest = _running | sort | last -%}
+      {%- if majors != [_target[0]] or _target[1] > (minors | min) + 1 or _target[1] < (minors | max) -%}skip-minor
+      {%- elif _running | reject('equalto', _target) | list | length == 0 -%}same
+      {%- elif _target < highest -%}downgrade
+      {%- else -%}upgrade
+      {%- endif -%}
+      {%- endif -%}
+    _all_on_target_minor: "{{ (_running | map('batch', 2) | map('first') | unique | list) == [_target[0:2]] }}"
+  ansible.builtin.set_fact:
+    k3s_version_verdict: "{{ _verdict }}"
+    k3s_version_refused: >-
+      {{ _verdict in ['invalid', 'skip-minor']
+         or (_verdict == 'downgrade'
+             and not ((k3s_allow_downgrade | default(false) | bool) and (_all_on_target_minor | bool))) }}

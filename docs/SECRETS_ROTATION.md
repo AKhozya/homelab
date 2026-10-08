@@ -1,6 +1,6 @@
 # Secrets Rotation Playbook
 
-**Cluster**: K3s Homelab (k3s v1.37.0+k3s1, 4 nodes) | **Last Updated**: 2026-10-04
+**Cluster**: K3s Homelab (k3s v1.37.1+k3s1, 4 nodes) | **Last Updated**: 2026-10-04
 **Audit Trail**: rotation dates in git commit history
 
 Every Kubernetes Secret this repo deploys lives in Git, encrypted with SOPS and an age key, next to

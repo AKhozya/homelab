@@ -15,6 +15,8 @@
 #   workers only: firewall_preflight, clusterip_heal, node_isolation_heal.
 #   control-plane only: clusterip_heal_cp, kubectl proxy removal.
 #   report a firewall rescue or an unverified CNI heal (all).
+#   k3s version (control-plane): queue the rolling restart if a node runs another version than
+#       k3s_version; fail if that version is refused.
 
 - name: Node config drift-heal — non-disruptive (all hosts, parallel)
   hosts: all
@@ -144,3 +146,39 @@
           stays uncached, so the next drift-heal re-applies the batch. Diag snapshots:
           /var/log/node-maintenance/ufw-diag-*.txt on this node.
       when: ufw_rescue_ran | default(false)
+
+# The rolling restart installs k3s_version node by node; this play only decides whether to start
+# it. The start returns at once, and the unit then waits on the node-maintenance lock until this
+# drift-heal exits. The start reports changed, so node-config-notify.sh reports the queued
+# upgrade. A refused version fails here, so its alert names the verdict.
+# Last play: a host failed here drops out of later plays, and placed before the report play a
+# refused version would hide the CP's firewall alerts for the run.
+- name: Node config drift-heal — queue a k3s upgrade if k3s_version moved
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  tags: [k3s_version]
+  tasks:
+    - name: Read running versions
+      ansible.builtin.include_tasks: tasks/k3s-running-versions.yml
+
+    - name: Decide whether k3s_version is allowed
+      ansible.builtin.include_tasks: tasks/k3s-version-verdict.yml
+      vars:
+        k3s_expected_nodes: "{{ groups['all'] }}"
+
+    - name: Fail if k3s_version is refused
+      ansible.builtin.fail:
+        msg: "k3s_version {{ k3s_version }} refused ({{ k3s_version_verdict }}); running: {{ k3s_running_versions }}"
+      when: k3s_version_refused | bool
+
+    # no_block: a blocking start of this oneshot would wait on the lock this drift-heal holds,
+    # until the 900 s flock timeout fails the rolling restart.
+    - name: Queue node-maintenance-rolling-restart.service to install k3s_version
+      ansible.builtin.systemd_service:
+        name: node-maintenance-rolling-restart.service
+        state: started
+        no_block: true
+      when:
+        - k3s_version_verdict == 'upgrade'
+        - not ansible_check_mode

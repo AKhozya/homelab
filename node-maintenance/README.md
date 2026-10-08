@@ -89,6 +89,7 @@ and exits 1. Where that shows:
 |---|---|---|
 | library unit tests | CI (`node-script-tests`) and the workstation | `bash node-maintenance/lib/tests/test-node-script-lib.sh` |
 | whole-script harness: every changed script in stubbed scenarios, compared byte for byte with fixtures recorded from the pre-library scripts | the workstation (Docker, privileged) | `node-maintenance/lib/tests/heal-harness/run-all.sh check` |
+| k3s version verdict: which version moves the rolling restart allows | CI (`node-script-tests`) and the workstation | `bash node-maintenance/ansible/tests/test-k3s-version-verdict.sh` |
 
 ### Rolling restart of K3s
 
@@ -105,7 +106,42 @@ The CP goes first, then each worker. `serial: 1` means at most one node is down 
 moves to the next node, the run checks through `configz` that the node reports the expected
 `nodeLeaseDurationSeconds` and `nodeStatusReportFrequency`, and stops if it does not; this guards
 against K3s bugs that dropped those fields in the past. Telegram reports a failure. It takes about
-5 to 7 minutes.
+3 to 7 minutes, plus up to 15 minutes waiting for the lock.
+
+### K3s version
+
+`k3s_version` in `ansible/group_vars/all.yml` names the K3s version every node runs. Renovate opens
+a PR when K3s publishes a release (`renovate.json`, dependency `k3s-io/k3s`):
+
+| Update | Renovate | After the merge |
+|---|---|---|
+| patch, or a `+k3sN` rebuild | a PR 3 days after the release | the upgrade runs with no operator action |
+| minor | a PR only after the owner ticks it on the Dependency Dashboard; read the release notes first | the same as a patch |
+
+After the merge, the sync pulls `main` and the drift-heal's last play compares each node's
+`kubeletVersion` with `k3s_version` and applies the same checks as step 1 below. If the result is
+an allowed upgrade, it starts the rolling restart and Telegram reports the change. If the checks
+reject the move, the drift-heal fails and alerts instead. The rolling restart then:
+
+1. checks the move once on the CP (`tasks/k3s-version-verdict.yml`) and refuses it before touching
+   any node if it skips a minor, changes the major, downgrades, or the API's nodes differ from the
+   inventory;
+2. downloads the binary once to `/var/cache/node-maintenance/k3s/` and checks its sha256 against the
+   release's `sha256sum-amd64.txt`;
+3. on each node, CP first, swaps the binary in immediately before that node's restart and keeps the
+   old one as `/usr/local/bin/k3s.prev`, then waits for the node to report `k3s_version`, Ready, and
+   a heartbeat newer than the restart.
+
+The playbook never stages the binary ahead of the restart: the weekly reboot and the heal
+watchdogs also restart K3s, and would activate a staged binary on that node alone. If every node
+already runs `k3s_version`, as in a config-only restart, the playbook downloads and swaps nothing.
+
+| Case | What to do |
+|---|---|
+| a refused version | the drift-heal fails and its Telegram alert names the verdict; fix `k3s_version` in git |
+| a failed run | the next drift-heal starts it again until every node runs `k3s_version` |
+| patch rollback | revert the PR, then, holding the lock, run the playbook with `-e k3s_allow_downgrade=true` (command in the header of `rolling-restart-k3s.yml`) |
+| minor rollback | not supported: Kubernetes does not support a control-plane downgrade. Restore from backup (`docs/disaster-recovery/README.md`) |
 
 ### On-demand tasks
 
@@ -421,4 +457,3 @@ gshred -u /tmp/new_key /tmp/new_key.pub /tmp/new-secret.yaml
 
 # 9. Update docs/SECRETS_ROTATION.md with new rotation date
 ```
-

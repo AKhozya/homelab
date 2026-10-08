@@ -75,7 +75,7 @@ sudo ansible-playbook -i node-maintenance/ansible/inventory.yml \
   --tags k3s-config,kubelet --skip-tags secrets-encryption
 
 # 3. Install pinned K3s. It reads /etc/rancher/k3s/config.yaml on its first start.
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.37.0+k3s1" sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.37.1+k3s1" sh -
 sudo k3s secrets-encrypt status  # Expect: Encryption Status: Enabled
 sudo k3s kubectl get node gmk-k3s-control-plane -o jsonpath='{.spec.taints}'  # Expect: the NoSchedule taint
 
@@ -139,7 +139,7 @@ sudo bash scripts/setup-node.sh worker
 sudo systemctl start node-maintenance-config.service
 
 # 4. On the worker: install pinned K3s agent (replace token)
-curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<node-token> INSTALL_K3S_VERSION="v1.37.0+k3s1" sh -
+curl -sfL https://get.k3s.io | K3S_URL=https://192.168.1.127:6443 K3S_TOKEN=<node-token> INSTALL_K3S_VERSION="v1.37.1+k3s1" sh -
 ```
 
 ## immich-vm
@@ -173,7 +173,7 @@ agent reads when it first registers:
 ```bash
 export K3S_URL=https://192.168.1.127:6443
 export K3S_TOKEN=<token-from-control-plane>
-curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.37.0+k3s1" sh -
+curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION="v1.37.1+k3s1" sh -
 ```
 
 Run these checks on the control-plane node:
@@ -228,11 +228,18 @@ the two worker IPs only.
 
 ## Upgrading K3s
 
-Do not re-run the install script to upgrade. K3s is a manual binary at `/usr/local/bin/k3s`;
-pacman does not manage it, and the weekly node update does not upgrade it. The
-[`k3s-upgrade`](../../agents/skills/k3s-upgrade/SKILL.md) skill describes the procedure: pick a
-version from the channels API, stage the new binary on each node, restart `k3s` or `k3s-agent` one
-node at a time (control plane first, no reboot), check, and keep the old binary for rollback.
+Do not re-run the install script to upgrade. K3s is a binary at `/usr/local/bin/k3s`; pacman does
+not manage it. `k3s_version` in `node-maintenance/ansible/group_vars/all.yml` names the version
+every node runs, and Renovate opens the PR that bumps it. After the merge the drift-heal starts
+`node-maintenance-rolling-restart.service`, which installs the new binary on each node immediately
+before restarting it, control plane first, with no reboot.
+[node-maintenance/README.md](../../node-maintenance/README.md#k3s-version) covers the checks and
+the rollback.
+
+The install commands above pin a version for a new node's first start. Use the current
+`k3s_version`. If a node joins on an older patch of the same minor, or one minor behind, the next
+drift-heal upgrades it. If it joins further behind, on a newer version, or is missing from the
+inventory, the drift-heal refuses and alerts.
 
 ## Reinstalled node: new SSH host key
 

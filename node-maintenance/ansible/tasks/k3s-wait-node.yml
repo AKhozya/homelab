@@ -1,0 +1,37 @@
+---
+# Waits until this node reports k3s_version, Ready=True, and a Ready heartbeat newer than the
+# restart. Ready alone can be the old kubelet's last report: a restart of a node already on
+# k3s_version changes nothing else the API shows. The time comes from the node's own clock,
+# the clock its kubelet stamps lastHeartbeatTime with, and is read after the restart returns
+# so a heartbeat the old kubelet sent just before the restart cannot match.
+- name: Record the node time after the restart
+  ansible.builtin.command: date -u +%Y-%m-%dT%H:%M:%SZ
+  register: _k3s_restarted_at
+  changed_when: false
+
+# The new kubelet posts status at most nodeStatusReportFrequency later. The retries cover the
+# play's expected_report_frequency (a Go duration such as 1m0s) plus 90 s for the restart:
+# 30 x 5 s at 1m0s. If kubectl fails while the CP's API restarts, ansible retries. The until
+# condition tests _k3s_node.rc == 0 before from_json parses stdout.
+- name: Wait for k3s_version, Ready, and a fresh heartbeat (queried from the CP)
+  ansible.builtin.command: /usr/local/bin/k3s kubectl get node {{ inventory_hostname }} -o json
+  environment:
+    KUBECONFIG: "{{ kubeconfig_path }}"
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  register: _k3s_node
+  changed_when: false
+  vars:
+    _status: "{{ (_k3s_node.stdout | from_json).status }}"
+    _ready: "{{ _status.conditions | selectattr('type', 'equalto', 'Ready') | first }}"
+    _report_s: >-
+      {%- set ns = namespace(s=0) -%}
+      {%- for n, u in expected_report_frequency | regex_findall('(\d+)([hms])') -%}
+      {%- set ns.s = ns.s + (n | int) * {'h': 3600, 'm': 60, 's': 1}[u] -%}
+      {%- endfor -%}{{ ns.s }}
+  until: >-
+    _k3s_node.rc == 0
+    and _status.nodeInfo.kubeletVersion == k3s_version
+    and _ready.status == 'True'
+    and _ready.lastHeartbeatTime > _k3s_restarted_at.stdout
+  retries: "{{ ((_report_s | int + 90) / 5) | round(0, 'ceil') | int }}"
+  delay: 5
