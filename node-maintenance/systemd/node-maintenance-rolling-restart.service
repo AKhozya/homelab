@@ -25,9 +25,10 @@ ExecStopPost=/bin/sh -c 'cp -f /var/log/node-maintenance/rolling-restart-latest.
 ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance-rolling-restart failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). Log: journalctl -u node-maintenance-rolling-restart.service -n 80" || true'
 StandardOutput=append:/var/log/node-maintenance/rolling-restart-latest.log
 StandardError=append:/var/log/node-maintenance/rolling-restart-latest.log
-# CP restart + 3× (restart + Ready + verify + 30s pause) ≈ 5-7min real time.
-# The lock adds up to 15min of waiting, so a 15min cap expires before ansible starts.
-TimeoutStartSec=25min
+# Typical work ≈ 3-7min: 2.5min on 2026-10-07. Worst case is 4 × (150s Ready wait + 30s pause)
+# ≈ 12min, plus up to 15min waiting for the lock, so 25min could kill a run between a binary
+# swap and its restart.
+TimeoutStartSec=40min
 Nice=10
 
 [Install]

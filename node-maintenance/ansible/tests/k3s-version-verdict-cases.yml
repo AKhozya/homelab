@@ -1,0 +1,143 @@
+---
+# Cases for tasks/k3s-version-verdict.yml. Each case: running (node -> kubeletVersion), target,
+# allow (k3s_allow_downgrade as -e would pass it), and the expected verdict and refused flag.
+# expected: the inventory hosts; defaults to cp, w1, w2, w3.
+k3s_verdict_cases:
+  - name: every node on target
+    running: {cp: v1.37.1+k3s1, w1: v1.37.1+k3s1, w2: v1.37.1+k3s1, w3: v1.37.1+k3s1}
+    target: v1.37.1+k3s1
+    verdict: same
+    refused: false
+  - name: patch upgrade
+    running: {cp: v1.37.0+k3s1, w1: v1.37.0+k3s1, w2: v1.37.0+k3s1, w3: v1.37.0+k3s1}
+    target: v1.37.1+k3s1
+    verdict: upgrade
+    refused: false
+  - name: resume after the CP upgraded and the workers did not
+    running: {cp: v1.37.1+k3s1, w1: v1.37.0+k3s1, w2: v1.37.0+k3s1, w3: v1.37.0+k3s1}
+    target: v1.37.1+k3s1
+    verdict: upgrade
+    refused: false
+  - name: k3sN rebuild of the same Kubernetes patch
+    running: {cp: v1.37.1+k3s1, w1: v1.37.1+k3s1, w2: v1.37.1+k3s1, w3: v1.37.1+k3s1}
+    target: v1.37.1+k3s2
+    verdict: upgrade
+    refused: false
+  - name: k3sN rebuild downgrade without the override
+    running: {cp: v1.37.1+k3s2, w1: v1.37.1+k3s2, w2: v1.37.1+k3s2, w3: v1.37.1+k3s2}
+    target: v1.37.1+k3s1
+    verdict: downgrade
+    refused: true
+  - name: k3sN rebuild downgrade with the override
+    running: {cp: v1.37.1+k3s2, w1: v1.37.1+k3s2, w2: v1.37.1+k3s2, w3: v1.37.1+k3s2}
+    target: v1.37.1+k3s1
+    allow: true
+    verdict: downgrade
+    refused: false
+  - name: k3sN build numbers compare as numbers
+    running: {cp: v1.37.1+k3s10, w1: v1.37.1+k3s10, w2: v1.37.1+k3s10, w3: v1.37.1+k3s10}
+    target: v1.37.1+k3s2
+    verdict: downgrade
+    refused: true
+  - name: minor upgrade by one
+    running: {cp: v1.37.9+k3s1, w1: v1.37.9+k3s1, w2: v1.37.9+k3s1, w3: v1.37.9+k3s1}
+    target: v1.38.0+k3s1
+    verdict: upgrade
+    refused: false
+  - name: resume a minor upgrade after the CP upgraded
+    running: {cp: v1.38.0+k3s1, w1: v1.37.9+k3s1, w2: v1.37.9+k3s1, w3: v1.37.9+k3s1}
+    target: v1.38.0+k3s1
+    verdict: upgrade
+    refused: false
+  - name: skipped minor
+    running: {cp: v1.37.1+k3s1, w1: v1.37.1+k3s1, w2: v1.37.1+k3s1, w3: v1.37.1+k3s1}
+    target: v1.39.0+k3s1
+    verdict: skip-minor
+    refused: true
+  - name: major change
+    running: {cp: v1.37.1+k3s1, w1: v1.37.1+k3s1, w2: v1.37.1+k3s1, w3: v1.37.1+k3s1}
+    target: v2.0.0+k3s1
+    verdict: skip-minor
+    refused: true
+  - name: patch downgrade without the override
+    running: {cp: v1.37.1+k3s1, w1: v1.37.1+k3s1, w2: v1.37.1+k3s1, w3: v1.37.1+k3s1}
+    target: v1.37.0+k3s1
+    verdict: downgrade
+    refused: true
+  - name: patch downgrade with the override
+    running: {cp: v1.37.1+k3s1, w1: v1.37.1+k3s1, w2: v1.37.1+k3s1, w3: v1.37.1+k3s1}
+    target: v1.37.0+k3s1
+    allow: true
+    verdict: downgrade
+    refused: false
+  - name: minor downgrade with the override
+    running: {cp: v1.38.0+k3s1, w1: v1.38.0+k3s1, w2: v1.38.0+k3s1, w3: v1.38.0+k3s1}
+    target: v1.37.9+k3s1
+    allow: true
+    verdict: skip-minor
+    refused: true
+  - name: override with workers two minors behind the target
+    running: {cp: v1.38.2+k3s1, w1: v1.36.9+k3s1, w2: v1.36.9+k3s1, w3: v1.36.9+k3s1}
+    target: v1.38.1+k3s1
+    allow: true
+    verdict: skip-minor
+    refused: true
+  - name: major downgrade with the override
+    running: {cp: v2.0.1+k3s1, w1: v2.0.1+k3s1, w2: v2.0.1+k3s1, w3: v2.0.1+k3s1}
+    target: v1.99.0+k3s1
+    allow: true
+    verdict: skip-minor
+    refused: true
+  - name: patch downgrade compares numbers, not strings
+    running: {cp: v1.37.10+k3s1, w1: v1.37.10+k3s1, w2: v1.37.10+k3s1, w3: v1.37.10+k3s1}
+    target: v1.37.9+k3s1
+    verdict: downgrade
+    refused: true
+  - name: release-candidate target
+    running: {cp: v1.37.1+k3s1, w1: v1.37.1+k3s1, w2: v1.37.1+k3s1, w3: v1.37.1+k3s1}
+    target: v1.37.1-rc1+k3s1
+    verdict: invalid
+    refused: true
+  - name: one node reports no version
+    running: {cp: v1.37.1+k3s1, w1: "", w2: v1.37.1+k3s1, w3: v1.37.1+k3s1}
+    target: v1.37.1+k3s1
+    verdict: invalid
+    refused: true
+  - name: an inventory node is missing from the API
+    running: {cp: v1.37.1+k3s1, w1: v1.37.1+k3s1, w2: v1.37.1+k3s1}
+    target: v1.37.1+k3s1
+    verdict: invalid
+    refused: true
+  - name: the API has a node outside the inventory
+    running: {cp: v1.37.1+k3s1, w1: v1.37.1+k3s1, w2: v1.37.1+k3s1, w3: v1.37.1+k3s1, extra: v1.37.1+k3s1}
+    target: v1.37.1+k3s1
+    verdict: invalid
+    refused: true
+  - name: the API has the right node count but one unknown name
+    running: {cp: v1.37.1+k3s1, w1: v1.37.1+k3s1, w2: v1.37.1+k3s1, unexpected: v1.37.1+k3s1}
+    target: v1.37.1+k3s1
+    verdict: invalid
+    refused: true
+  - name: no nodes at all
+    running: {}
+    target: v1.37.1+k3s1
+    verdict: invalid
+    refused: true
+  - name: override with workers one minor behind
+    running: {cp: v1.38.2+k3s1, w1: v1.37.9+k3s1, w2: v1.37.9+k3s1, w3: v1.37.9+k3s1}
+    target: v1.38.1+k3s1
+    allow: true
+    verdict: downgrade
+    refused: true
+  - name: override passed by -e as the string true
+    running: {cp: v1.37.1+k3s1, w1: v1.37.1+k3s1, w2: v1.37.1+k3s1, w3: v1.37.1+k3s1}
+    target: v1.37.0+k3s1
+    allow: "true"
+    verdict: downgrade
+    refused: false
+  - name: override passed by -e as the string false
+    running: {cp: v1.37.1+k3s1, w1: v1.37.1+k3s1, w2: v1.37.1+k3s1, w3: v1.37.1+k3s1}
+    target: v1.37.0+k3s1
+    allow: "false"
+    verdict: downgrade
+    refused: true

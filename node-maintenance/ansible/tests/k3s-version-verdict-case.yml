@@ -1,0 +1,16 @@
+---
+# Include parameters outrank the facts an earlier case set, so each case starts from its own inputs.
+- name: Compute the verdict
+  ansible.builtin.include_tasks: ../tasks/k3s-version-verdict.yml
+  vars:
+    k3s_version: "{{ case.target }}"
+    k3s_running_versions: "{{ case.running }}"
+    k3s_expected_nodes: "{{ case.expected | default(['cp', 'w1', 'w2', 'w3']) }}"
+    k3s_allow_downgrade: "{{ case.allow | default(false) }}"
+
+- name: Report the case
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'PASS' if (k3s_version_verdict == case.verdict and k3s_version_refused == case.refused) else 'FAIL' }}:
+      {{ case.name }} (want {{ case.verdict }}/{{ case.refused }},
+      got {{ k3s_version_verdict }}/{{ k3s_version_refused }})
