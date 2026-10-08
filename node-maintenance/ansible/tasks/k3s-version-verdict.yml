@@ -6,7 +6,7 @@
 # Outputs: k3s_version_verdict  = same | upgrade | downgrade | skip-minor | invalid
 #          k3s_version_refused  = true if the playbook must not touch any node.
 #
-# Rules, first match wins:
+# Rules, in order; the first rule that matches decides:
 #   invalid     no nodes, node set differs from the inventory, or any version does not parse
 #   skip-minor  any node on another major, target minor > lowest running minor + 1, or
 #               target minor < highest running minor. Kubernetes allows neither a skipped minor
@@ -27,18 +27,19 @@
          or (_running_raw | select('none') | list | length > 0)
          or (_target | length == 0) }}
     _running: "{{ [] if _invalid else (_running_raw | map('map', 'int') | map('list') | list) }}"
+    # The verdict reads these only if _invalid is false, so _running is never empty here.
+    _minors: "{{ _running | map('batch', 2) | map('first') | map('last') | list }}"
+    _skips_minor: >-
+      {{ (_running | map('first') | unique | list) != [_target[0]]
+         or _target[1] > (_minors | min) + 1
+         or _target[1] < (_minors | max) }}
+    _all_same: "{{ _running | reject('equalto', _target) | list | length == 0 }}"
     _verdict: >-
-      {%- if _invalid -%}invalid
-      {%- else -%}
-      {%- set majors = _running | map('first') | unique | list -%}
-      {%- set minors = _running | map('batch', 2) | map('first') | map('last') | list -%}
-      {%- set highest = _running | sort | last -%}
-      {%- if majors != [_target[0]] or _target[1] > (minors | min) + 1 or _target[1] < (minors | max) -%}skip-minor
-      {%- elif _running | reject('equalto', _target) | list | length == 0 -%}same
-      {%- elif _target < highest -%}downgrade
-      {%- else -%}upgrade
-      {%- endif -%}
-      {%- endif -%}
+      {{ 'invalid' if _invalid
+         else 'skip-minor' if _skips_minor
+         else 'same' if _all_same
+         else 'downgrade' if _target < (_running | sort | last)
+         else 'upgrade' }}
     _all_on_target_minor: "{{ (_running | map('batch', 2) | map('first') | unique | list) == [_target[0:2]] }}"
   ansible.builtin.set_fact:
     k3s_version_verdict: "{{ _verdict }}"
