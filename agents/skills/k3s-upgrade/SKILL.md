@@ -28,8 +28,8 @@ the homelab repo is the reference for the mechanism.
 
 | Step | What happens | Where to look |
 |---|---|---|
-| 1 | Renovate opens a PR that bumps `k3s_version`. Patch or `+k3sN`: once the release is at least 3 days old. Minor: only after the owner ticks it on the Dependency Dashboard (issue #32) | the PR |
-| 2 | the PR merges (`~/.agents/skills/_shared/merge-worktree.sh`) | |
+| 1 | Renovate opens a PR that bumps `k3s_version`, in its 18:00-23:00 Europe/London window. If the update is a patch or `+k3sN`, Renovate waits until the release is at least 3 days old. If the update is a minor, Renovate waits until the owner ticks it on the Dependency Dashboard (issue #32) | the PR; the Dashboard |
+| 2 | the PR merges (`~/.agents/skills/_shared/merge-worktree.sh`, procedure step 3) | |
 | 3 | within 10 min the CP sync pulls `main`; the drift-heal's last play compares each node's `kubeletVersion` with `k3s_version` | `/var/log/node-maintenance/config-latest.log`; Telegram "changed" |
 | 4 | if the move is an allowed upgrade, the drift-heal starts `node-maintenance-rolling-restart.service`; it waits for the lock until the drift-heal exits (about 5 min) | `systemctl show node-maintenance-rolling-restart.service -p ActiveState` |
 | 5 | preflight on the CP: refuses a skipped minor, a major change, a downgrade, or a node set that differs from the inventory; downloads the binary once to `/var/cache/node-maintenance/k3s/` and checks its sha256 | `/var/log/node-maintenance/rolling-restart-latest.log` |
@@ -40,8 +40,21 @@ the homelab repo is the reference for the mechanism.
 1. **If the PR is a minor**: read the k3s release notes and the Kubernetes changelog for removed
    APIs first. A minor cannot be rolled back. Then tick the Dashboard box; do not merge yet.
 2. **Checkpoint**: `/checkpoint create pre-k3s-<ver>`.
-3. **Merge** the PR. If Renovate has not proposed the version you want, edit `k3s_version` in a
-   worktree, commit, and merge it the same way.
+3. **Merge** the PR. The merge script needs a local branch. Renovate's branch exists only on
+   GitHub. These commands merge PR #1259 (2026-10-08):
+   ```bash
+   cd ~/source-code/homelab
+   b=renovate/k3s-io-k3s-1.37.x
+   git fetch -q origin "refs/heads/$b:refs/heads/$b"
+   ~/.agents/skills/_shared/merge-worktree.sh "$b"
+   git update-ref -d "refs/heads/$b"
+   ```
+   The script reuses the open PR. It waits for the required checks, then merges.
+   If you want the PR before Renovate's evening window, edit issue #32: tick "Check this box to
+   trigger a request for Renovate to run again". The update then appears under "Awaiting
+   Schedule". Tick its box there. Renovate opens the PR within minutes.
+   If Renovate has not proposed the version you want, edit `k3s_version` in a worktree, commit,
+   and merge it with `merge-worktree.sh`.
 4. **Watch.** Expect the drift-heal within about 15 min of the merge, then the rolling restart
    (3-7 min of work, plus up to 15 min waiting for the lock). This loop prints one line per change
    and exits when the unit is no longer active:
@@ -67,20 +80,22 @@ the homelab repo is the reference for the mechanism.
 
 | Case | What to do |
 |---|---|
-| the drift-heal fails with `refused (skip-minor)` or `refused (downgrade)` | the pin skips a minor, changes the major, or goes backwards. Fix `k3s_version` in git |
+| the drift-heal fails with `refused (skip-minor)` or `refused (downgrade)` | the pin skips a minor, changes the major, or goes backwards. Fix `k3s_version` in git. Telegram sends two alerts: the drift-heal's, and `node-maintenance-sync failed` from the sync run that started it. Later syncs succeed |
 | the drift-heal fails with `refused (invalid)` | the message lists the running versions. If `k3s_version` does not match `vX.Y.Z+k3sN`, fix it in git. If a node shows `""`, find out why it reports no version (`kubectl get node <name> -o yaml`). If the node names differ from `node-maintenance/ansible/inventory.yml`, fix the cluster membership or the inventory |
 | the rolling restart fails while some node still runs the old version | Telegram reports it; read the log above. The next drift-heal (03:00, 15:00 or a new SHA) starts it again |
-| the rolling restart fails after every node reports `k3s_version` (a Ready, heartbeat or `configz` check on the last node) | the next drift-heal sees `same` and does not retry. Fix the cause, start the unit by hand (`sudo systemctl start --no-block node-maintenance-rolling-restart.service` on the CP), if `ActiveState` is `activating`, run the watch loop from step 4 until it prints `DONE inactive success`. If you start the loop before the unit enters `activating`, it reads the previous run's result. Then repeat step 5 |
+| the rolling restart fails after every node reports `k3s_version` (a Ready, heartbeat or `configz` check on the last node) | the next drift-heal sees `same` and does not retry. Fix the cause. Start the unit by hand (`sudo systemctl start --no-block node-maintenance-rolling-restart.service` on the CP). If `ActiveState` is `activating`, run the watch loop from step 4 until it prints `DONE inactive success`. If you start the loop before the unit enters `activating`, it reads the previous run's result. Then repeat step 5 |
 | patch rollback | revert the PR and merge the revert. Wait until the CP holds the old pin: `ssh -p 65300 akhozya@gmk-k3s-control-plane "grep '^k3s_version:' /etc/node-maintenance/ansible/group_vars/all.yml"` prints the target. Every drift-heal then fails with `downgrade`. Run on the CP: `sudo /usr/local/sbin/node-maintenance-lock.sh wait -- ansible-playbook /etc/node-maintenance/ansible/rolling-restart-k3s.yml -i /etc/node-maintenance/ansible/inventory.yml -e k3s_allow_downgrade=true` |
 | minor rollback | not supported: Kubernetes does not support a control-plane downgrade. Restore from backup (`docs/disaster-recovery/README.md`) |
 
 The override allows only a patch or `+k3sN` downgrade, and only if every node shares the target's
 major.minor.
 
-| Command check | Result |
-|---|---|
-| the rollback command, in a `--check` run on 2026-10-08 | ends preflight (`ok=8`); the downgrade itself has not run |
-| `--check` on the rolling restart beyond preflight | fails at the first node: its wait and `configz` steps read the output of commands that check mode skips. The playbook behaves the same way before PR #1255. Do not use `--check` on it |
+A dry run of the rolling restart (PR #1257) restarts nothing. It still checks each node's live
+`configz`. Run it on the CP:
+```bash
+sudo /usr/local/sbin/node-maintenance-lock.sh wait -- ansible-playbook --check \
+  -i /etc/node-maintenance/ansible/inventory.yml /etc/node-maintenance/ansible/rolling-restart-k3s.yml
+```
 
 ## Why this path
 
@@ -99,11 +114,14 @@ major.minor.
 | 2026-10-07 | v1.37.0 → v1.37.1, Mac-side staging, 4 nodes | zero pod disruption; 2.5 min of work after a 5 min lock wait |
 | 2026-10-08 | first run of the version-pin playbook (PR #1255), config-only | download and swap skipped on every node; the heartbeat wait used 1-15 of 30 retries (worker-node: the new heartbeat came 81 s after the restart) |
 | 2026-10-08 | the watch loop above, run verbatim | printed one line and exited on `inactive` |
+| 2026-10-08 | end-to-end test: pin set back to v1.37.0 (PR #1258) | the drift-heal refuses it as `downgrade` and changes no node |
+| 2026-10-08 | patch rollback v1.37.1 → v1.37.0 with the override command above | The rollback returns rc 0 on all 4 nodes. The heartbeat wait uses at most 16 of 30 retries. The cache holds only v1.37.0 |
+| 2026-10-08 | Renovate opens PR #1259 (v1.37.0 → v1.37.1) from the Dashboard; the operator merges it | With no operator action, the drift-heal queues the rolling restart 4 min after the CP syncs. Every node reaches v1.37.1. The unit ends with `Result=success`. The cleanup removes the v1.37.0 cache file |
 
 | Leftover | Where | Cleanup |
 |---|---|---|
-| one binary per version, about 80 MB each | `/var/cache/node-maintenance/k3s/` on the CP | none; remove old versions by hand |
-| the previous binary | `/usr/local/bin/k3s.prev` on each node | none; the next upgrade overwrites it |
+| the binary of the current version, about 80 MB | `/var/cache/node-maintenance/k3s/` on the CP | each download deletes the other versions |
+| the previous binary | `/usr/local/bin/k3s.prev` on each node | the next upgrade overwrites it |
 
 ## Cross-refs
 

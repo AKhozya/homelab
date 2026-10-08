@@ -28,9 +28,17 @@ On 2026-10-07 the cluster moved from k3s v1.37.0+k3s1 to v1.37.1+k3s1 with the o
 | rolling restart | preflight refuses a skipped minor, a major change, a downgrade or an inventory mismatch before touching any node; the CP downloads the binary once with a sha256 check; each node gets it immediately before its own restart, CP first. The wait now also requires `k3s_version` and a heartbeat newer than the restart. `TimeoutStartSec` 25 → 40 min |
 | rejected | staging the binary ahead (a reboot or heal watchdog would activate it on one node alone); re-running `install.sh`; system-upgrade-controller (its Jobs have no `resources` field, so `require-resource-limits` refuses them) |
 | verified live | the drift-heal on the merged SHA logged verdict `same` and queued nothing; a config-only rolling restart skipped the download and swap, and its heartbeat wait used at most 15 of 30 retries (81 s on worker-node) |
-| skill | `k3s-upgrade` now follows the pin (dotfiles `6db2a1f`); `stage-k3s.sh` is gone |
+| skill | `k3s-upgrade` now follows the pin (dotfiles `6db2a1f`, then `9667ab3` with the test below); `stage-k3s.sh` is gone |
+| follow-up `84d0eafa` (PR #1257) | `--check` on the rolling restart now runs end to end: it restarts nothing, skips the waits and still reads each node's live `configz`. It failed at the first node before, also before PR #1255. The cache keeps only the current version. The verdict template no longer trips ansible-lint's `jinja[spacing]` |
 
-Open: check mode on the rolling restart fails at the first node, as it did before this change; its wait and `configz` steps read the output of commands that check mode skips.
+End-to-end test the same day, on production:
+
+| Step | Result |
+|---|---|
+| pin set back to v1.37.0 (PR #1258) | the drift-heal refuses it as `downgrade` and changes no node. Telegram sends two alerts: the drift-heal's and `node-maintenance-sync failed`, because the sync runs the drift-heal synchronously; later syncs succeed |
+| rollback with `-e k3s_allow_downgrade=true` | all 4 nodes reach v1.37.0, rc 0; the heartbeat wait uses at most 16 of 30 retries |
+| Renovate | a Dashboard "run again" tick lists the update under "Awaiting Schedule"; ticking it there opens PR #1259 outside the 18:00-23:00 window |
+| PR #1259 merged, no further operator action | the drift-heal queues the rolling restart 4 min after the CP syncs; all nodes reach v1.37.1, `Result=success`; the cleanup removes the v1.37.0 cache file |
 
 ### 2026-10-05 — Every change to `main` goes through a PR
 
