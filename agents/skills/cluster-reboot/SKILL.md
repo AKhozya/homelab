@@ -7,8 +7,8 @@ description: >-
   across nodes — bypasses the per-worker serial:1 ClusterIP gate. A node can be Node.Ready while its
   kube-proxy ClusterIP DNAT (worker) or k3s loopback loadbalancer (CP) is wedged — this skill probes
   BOTH surfaces. Single-node reboot = reuse verify-clusterip around it. NOT for in-place pod
-  recycling without a reboot → `cluster-roll` skill. NOT for k3s VERSION upgrades (manual binary —
-  phase1/phase2 does not bump it) → `k3s-upgrade` skill.
+  recycling without a reboot → `cluster-roll` skill. NOT for k3s VERSION upgrades (pinned as
+  `k3s_version` in git; the rolling restart installs it, phase1/phase2 never does) → `k3s-upgrade` skill.
 ---
 
 # cluster-reboot
@@ -137,9 +137,9 @@ If no post-run Claude review arrives, read reference-incidents.md § "Missing po
 
 ## k3s version upgrade
 
-NOT this flow — k3s is a manual binary, NOT pacman/yay-managed; phase1/phase2 never bumps it.
-Use the dedicated `k3s-upgrade` skill (binary stage + rolling-restart activation, no reboot,
-no token).
+NOT this flow — k3s is not pacman/yay-managed; phase1/phase2 never changes it. `k3s_version` in
+`node-maintenance/ansible/group_vars/all.yml` pins it, and the rolling restart installs it. Use the
+`k3s-upgrade` skill.
 
 ## Cross-refs
 
