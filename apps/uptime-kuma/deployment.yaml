@@ -38,7 +38,7 @@ spec:
         - name: uptime-kuma
           # slim omits the bundled Chromium and MariaDB. The database is the external MySQL.
           # If you add a real-browser monitor, move to the full image first.
-          image: louislam/uptime-kuma:2.5.5-slim-rootless
+          image: louislam/uptime-kuma:2.5.6-slim-rootless
           ports:
             - containerPort: 3001
               name: http
