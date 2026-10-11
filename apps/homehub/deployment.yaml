@@ -76,7 +76,7 @@ spec:
               memory: "64Mi"
       containers:
         - name: homehub
-          image: ghcr.io/surajverma/homehub:0.3.0
+          image: ghcr.io/surajverma/homehub:v0.4.0
           ports:
             - containerPort: 5000
           securityContext:
