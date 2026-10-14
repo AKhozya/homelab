@@ -43,7 +43,7 @@ spec:
           type: RuntimeDefault
       initContainers:
       - name: sync-tunnel-config
-        image: curlimages/curl:8.22.0
+        image: curlimages/curl:8.23.0
         env:
         # CF_ACCOUNT_ID and CF_TUNNEL_UUID come from a SOPS-encrypted Secret. Do not inline
         # them in command: .sops.yaml encrypts only data/stringData.

@@ -101,7 +101,7 @@ spec:
               memory: 64Mi
       containers:
         - name: setup
-          image: curlimages/curl:8.22.0
+          image: curlimages/curl:8.23.0
           command:
             - /bin/sh
             - -c
