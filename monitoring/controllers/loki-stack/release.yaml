@@ -128,7 +128,7 @@ spec:
         # The chart default floats 1.31-alpine, so pin the tag. Spell out repository too:
         # Renovate cannot resolve a bare tag.
         repository: nginxinc/nginx-unprivileged
-        tag: "1.31.6-alpine"
+        tag: "1.31.7-alpine"
       resources:
         requests:
           cpu: 10m
