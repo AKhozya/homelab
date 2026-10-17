@@ -465,7 +465,8 @@
     echo "OK"
   register: ssh_fp_check
   changed_when: ssh_fp_check.stdout == "BASELINE-CREATED"
-  failed_when: ssh_fp_check.stdout == "FINGERPRINT-DRIFT"
+  # rc, not stdout: if ssh-keygen cannot parse a key, set -e exits with no output.
+  failed_when: ssh_fp_check.rc != 0
   tags: [base-config, ssh-fingerprints]
 
 # /etc/hosts — declarative cluster node entries. Inventory is source of truth;
