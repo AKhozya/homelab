@@ -74,7 +74,7 @@ spec:
 
   # Toolkit sidecar (required for MySQL pods)
   toolkit:
-    image: percona/percona-toolkit:3.7.1
+    image: percona/percona-toolkit:3.7.2
     imagePullPolicy: IfNotPresent
     resources:
       requests:
