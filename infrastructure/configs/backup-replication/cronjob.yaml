@@ -39,7 +39,7 @@ spec:
               type: RuntimeDefault
           containers:
             - name: rsync
-              image: alpine:3.24.2
+              image: alpine:3.24.3
               env:
                 - name: NAS_RSYNC_USER
                   valueFrom:
