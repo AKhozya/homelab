@@ -61,7 +61,7 @@ spec:
               # Keep the client on the server's 8.4 line (percona-server image in cluster.yaml):
               # a client older than the server can emit a dump the server won't reimport
               # cleanly. renovate.json limits this image to 8.4.x.
-              image: mysql:8.4.11
+              image: mysql:8.4.13
               command:
                 - /bin/bash
                 - -c
