@@ -17,7 +17,11 @@ spec:
 
   # unsafeFlags permit the 2-node MySQL cluster below, under the operator's 3-node
   # minimum. Deliberate for a homelab.
+  # asyncFailoverWithPossibleDataLoss: if an async cluster disables operator backups, the
+  # ps-operator 1.3.0 CRD requires this flag. The flag affects validation only.
+  # mysql-backup-cronjob.yaml runs our backups.
   unsafeFlags:
+    asyncFailoverWithPossibleDataLoss: true
     mysqlSize: true
     orchestrator: true
     orchestratorSize: true
