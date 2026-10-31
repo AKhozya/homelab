@@ -414,8 +414,22 @@ spec:
         summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} was OOM killed"
         description: "Container ran out of memory and was killed. Consider increasing memory limits."
 
+    # Both container-memory alerts below carry the same two filters:
+    #   image!=""       drops the per-POD cgroup series (125 of 361), whose limit is the SUM of the
+    #                   pod's container limits. Without it every container pages twice, once as
+    #                   itself and once as its pod. `image` and not `container`: the pod cgroup
+    #                   series carries neither, and only `image` is unaffected by a relabel on
+    #                   `container`.
+    #   pod!~"alloy-.*" alloy tails the host journal over a hostPath, so its working_set is
+    #                   reclaimable page cache, not anon — measured on immich-vm 2026-10-31:
+    #                   754Mi working_set of a 768Mi limit, but RSS 47Mi and cache 703Mi. The kernel
+    #                   reclaims that before it OOMKills, and page cache parks just under WHATEVER
+    #                   limit the cgroup has, so raising the limit only moves the false positive.
+    #                   A real alloy leak still pages through ContainerOOMKilled. If that
+    #                   after-the-fact signal stops being enough, add an alloy-only rule on
+    #                   container_memory_rss.
     - alert: ContainerMemoryNearLimit
-      expr: (container_memory_working_set_bytes / container_spec_memory_limit_bytes) * 100 > 80 and container_spec_memory_limit_bytes > 0
+      expr: (container_memory_working_set_bytes{image!="",pod!~"alloy-.*"} / container_spec_memory_limit_bytes) * 100 > 80 and container_spec_memory_limit_bytes > 0
       for: 15m
       labels:
         severity: warning
@@ -423,17 +437,16 @@ spec:
         summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} near memory limit"
         description: "Container is using {{ printf \"%.1f\" $value }}% of its memory limit. May be OOM killed soon."
 
-    - alert: ContainerCPUThrottling
-      expr: rate(container_cpu_cfs_throttled_seconds_total[5m]) * 100 > 25
-      for: 15m
-      labels:
-        severity: warning
-      annotations:
-        summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} is being CPU throttled"
-        description: "Container is being CPU throttled {{ printf \"%.1f\" $value }}% of the time for over 15 minutes. Performance may be degraded. Consider increasing CPU limits."
+    # No ContainerCPUThrottling here. CPUThrottlingHigh in node-overrides is the same alert done
+    # right, and it was dead until 2026-10-31, which is the only reason both existed. This one
+    # read `rate(container_cpu_cfs_throttled_seconds_total[5m]) * 100 > 25` — throttled-seconds
+    # per second, not a fraction of the container's quota, so the threshold was not the "25% of
+    # the time" its description claimed and a multi-threaded container could exceed 100. It also
+    # carried no image!="" filter, so it fired once per container and again per pod cgroup.
 
+    # Filters as on ContainerMemoryNearLimit above — see the comment there.
     - alert: ContainerMemoryCritical
-      expr: (container_memory_working_set_bytes / container_spec_memory_limit_bytes) * 100 > 95 and container_spec_memory_limit_bytes > 0
+      expr: (container_memory_working_set_bytes{image!="",pod!~"alloy-.*"} / container_spec_memory_limit_bytes) * 100 > 95 and container_spec_memory_limit_bytes > 0
       for: 2m
       labels:
         severity: critical
@@ -1376,17 +1389,28 @@ spec:
   # ==========================================================================
   - name: node-overrides
     rules:
+      # Since 2026-10-31 this is the cluster's only CPU-throttling alert — see the note where
+      # ContainerCPUThrottling used to be, in the pod-alerts group.
+      #
+      # No metrics_path MATCHER. Upstream's copy of this rule carries
+      # metrics_path="/metrics/cadvisor" because prometheus-operator stamps that label onto a
+      # ServiceMonitor's samples; the VictoriaMetrics operator does not, so both selectors
+      # matched 0 of 200 live series and the rule could never fire — it read as healthy for as
+      # long as it has been here. `job` alone is unambiguous: the kubelet-cadvisor
+      # VMServiceScrape is the only producer of these two metrics. `metrics_path` stays in the
+      # two `sum without (...)` label lists on purpose: dropping an absent label is a no-op, and
+      # keeping upstream's list intact makes the next mixin diff readable.
       - alert: CPUThrottlingHigh
         expr: |
           sum without (id, metrics_path, name, image, endpoint, job, node) (
             topk by (cluster, namespace, pod, container, instance) (1,
-              increase(container_cpu_cfs_throttled_periods_total{container!="", job="kube-prometheus-stack-kubelet", metrics_path="/metrics/cadvisor"}[5m])
+              increase(container_cpu_cfs_throttled_periods_total{container!="", job="kube-prometheus-stack-kubelet"}[5m])
             )
           )
           / on (cluster, namespace, pod, container, instance) group_left
           sum without (id, metrics_path, name, image, endpoint, job, node) (
             topk by (cluster, namespace, pod, container, instance) (1,
-              increase(container_cpu_cfs_periods_total{job="kube-prometheus-stack-kubelet", metrics_path="/metrics/cadvisor"}[5m])
+              increase(container_cpu_cfs_periods_total{job="kube-prometheus-stack-kubelet"}[5m])
             )
           )
           > ( 25 / 100 )

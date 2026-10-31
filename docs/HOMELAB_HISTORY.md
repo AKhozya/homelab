@@ -17,6 +17,25 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-10-31 — One cadvisor relabel had killed a dashboard, doubled an alert and hidden a dead rule
+
+The post-reboot alert review opened on a single critical, `ContainerMemoryCritical` on `loki/alloy-qxxp6`, firing twice. Pulling that thread found one wrong line in `scrape-kubelet-cadvisor.yaml` and two consequences of it, plus an unrelated rule that could never fire.
+
+| Finding | Evidence | Fix |
+|---|---|---|
+| `metricRelabelConfigs` rewrote `container` with `name`. kubelet already sets `container` to the container NAME and `"POD"` for the pause container; under containerd `name` is the container ID | the Loki/Alloy dashboard panels join `on (pod, container)` against kube-state-metrics, where `container` is the name — the alloy memory panel returned **0 series** | drop the rewrite |
+| the two container-memory alerts counted the per-POD cgroup series as well as the container, so every container pages twice | 361 cadvisor series, 236 with `image!=""` — 125 pod cgroups | add `image!=""`. Not `container!=""`: the pod cgroup carries neither label, and only `image` is immune to a relabel on `container` |
+| `CPUThrottlingHigh` was dead. Upstream's copy matches `metrics_path="/metrics/cadvisor"`, a label prometheus-operator stamps on ServiceMonitor samples and the VictoriaMetrics operator does not | both selectors matched **0 of 200** live series; with the matcher removed, 111 | drop the `metrics_path` matcher. `job` alone is unambiguous — kubelet-cadvisor is the only producer |
+| the alloy alert itself was a false positive by construction | immich-vm at 05:04: working_set 754Mi of a 768Mi limit, but **RSS 47Mi and cache 703Mi**. alloy tails the host journal over a hostPath, so its working_set is reclaimable page cache. It self-cleared to 17.6% within the hour, unassisted | exclude `pod!~"alloy-.*"` from both ratio alerts. Raising the limit does not help: page cache parks just under whatever limit the cgroup has. A real leak still pages through `ContainerOOMKilled` |
+
+Reviving `CPUThrottlingHigh` exposed a duplicate. `ContainerCPUThrottling` in `pod-alerts` covered the same condition at `severity: warning`, and nothing had noticed the overlap because the better rule was dead. It is deleted: its expr was `rate(container_cpu_cfs_throttled_seconds_total[5m]) * 100 > 25`, throttled-seconds per second rather than a fraction of the container's quota, so `25` was not the "25% of the time" its description claimed and a multi-threaded container could exceed 100; and with no `image!=""` it fired twice. The surviving rule's `severity: info` changes nothing about who hears it — `InfoInhibitor` is absent (the chart's `defaultRules` are off, so no rule emits it), the matching `inhibit_rule` can therefore never activate, and `info` falls through to the default `telegram` receiver. Keeping both would have sent three Telegram messages per throttling event.
+
+Checked and **not** a defect: `traefik_service_requests_total` and the five `RateLimit*` rules that read it had no series, because Traefik restarted during the reboot and served no request for the next 25 minutes (access log empty, `traefik_open_connections` 8). Those rules are rate-based — absent means no traffic, not no monitoring.
+
+A 142-rule sweep for empty selectors produced the `CPUThrottlingHigh` find. `_shared/vmrules-metric-audit.sh` could not run it: the script needs `yq` and the claude-telegram pod has none. Reading the already-parsed exprs from vmalert's `/api/v1/rules` sidesteps the YAML parser and is worth folding into that script.
+
+Cluster hygiene was otherwise clean after the reboot: 0 failed pods, 0 controller-owned terminal pods (phase2 PLAY 2 swept them), 0 unbound PVCs, 0 released PVs, all 12 HelmReleases and all 7 Kustomizations Ready.
+
 ### 2026-10-08 — The k3s version lives in git, and Renovate bumps it
 
 On 2026-10-07 the cluster moved from k3s v1.37.0+k3s1 to v1.37.1+k3s1 with the old skill: a Mac-side script copied the binary to each node with sudo, then the rolling restart activated it. Nothing in git named the version, so no tool noticed a new release. `267b0f19` (PR #1255) pins it as `k3s_version` in `node-maintenance/ansible/group_vars/all.yml`.

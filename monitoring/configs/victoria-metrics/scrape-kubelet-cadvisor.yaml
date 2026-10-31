@@ -21,8 +21,11 @@ spec:
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       honorLabels: true
       metricRelabelConfigs:
-        - sourceLabels: [name]
-          targetLabel: container
+        # No `name` -> `container` rewrite here. kubelet already sets `container` to the
+        # container NAME ("POD" for the pause container); under containerd its `name` label
+        # is the container ID. Overwriting one with the other broke every
+        # `on (pod, container)` join against kube-state-metrics — the Loki/Alloy dashboard
+        # panels returned 0 series — and put a hex ID in every container alert summary.
         - sourceLabels: [__name__]
           regex: 'container_tasks_state'
           action: drop
