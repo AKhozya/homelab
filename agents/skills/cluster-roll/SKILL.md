@@ -37,7 +37,7 @@ scoped to exactly that tier's objects → ~20s settle → re-run `verify-cluster
 
 | Tier | Name | What | Notes |
 |---|---|---|---|
-| 1 | `dns` | `kube-system` coredns-ha (Flux-managed **DaemonSet**, 1/node since 2026-06-05; k3s addon `deploy/coredns` GONE via `--disable=coredns` 2026-06-04) | Roll **in place**, NEVER scale. Must be Ready before any other tier. |
+| 1 | `dns` | `kube-system` coredns-ha (Flux-managed **DaemonSet**, one pod per node except immich-vm, whose taint it does not tolerate; k3s addon `deploy/coredns` GONE via `--disable=coredns` 2026-06-04) | Roll **in place**, NEVER scale. Must be Ready before any other tier. |
 | 2 | `operators` | cnpg-operator, redis-operator, ps-operator (percona); metrics-server, local-path-provisioner; kyverno background/cleanup/reports; victoria-metrics-operator, kube-prometheus-stack operator; flux source/kustomize/helm/notification controllers | Operators only, no data pods. **Flux controllers roll LAST** within the tier (self-disruption risk). |
 | 3 | `platform` | cert-manager (+ cainjector, webhook) → traefik → cloudflared → kyverno **admission**-controller → authentik server+worker → blocky | Ordered serial chain; PDBs allow=1 so slower. Kyverno admission lives HERE (background/cleanup/reports are tier 2). |
 | 4 | `dnscache` | main-postgres-rw-pooler (PgBouncer), mysql-exporter; vmagent, vmalert, vmsingle, grafana, kube-state-metrics, alertmanager (STS); loki-gateway, alloy (DS), loki-canary (DS) | Restart **after** DNS confirmed healthy — clears Go-resolver/PgBouncer cached DNS failures. The PG pooler belongs ONLY here. |
@@ -69,9 +69,9 @@ reports an orphan, fix the map before any live roll → `reference-mechanics.md`
   | `pod-health.sh --count` baseline | never; preflight prints the count |
 - **CoreDNS rolls in place, never scaled** out-of-band (see tier 1 — pod-per-node IS the scaling).
 - **Never blanket-roll the SKIP set.** Data STS recycle through their operator/CRD/Helm.
-- **Authentik depends on PG pooler (tier 4) + DNS (tier 1).** Rolled in tier 3 after DNS is healthy;
-  pooler rerolled in tier 4. If authentik misbehaves post-roll, reroll pooler then authentik →
-  `reference-mechanics.md` § Authentik → pooler → DNS chain.
+- **Authentik depends on DNS (tier 1) and the PG primary.** It connects to `main-postgres-rw`
+  directly (its Deployment env overrides the pooler host in the Secret), not to the pooler. Rolled in
+  tier 3 after DNS is healthy → `reference-mechanics.md` § Authentik → DNS chain.
 - If stale pods survive a "successful" rollout, read `reference-mechanics.md` § Flux-stale-pod fallback for the
   mechanic and the DS/STS exclusion rationale.
 

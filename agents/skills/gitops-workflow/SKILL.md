@@ -135,7 +135,7 @@ Then read reference-edge-cases.md § "Actions billing block".
 
 ### 4. Flux Reconciliation
 
-**Full-stack** (preferred): `fr` zsh function — reconciles helm repos + git source + 6 kustomizations in dep order.
+**Full-stack** (preferred): `fr` zsh function — reconciles helm repos, the git source and six Kustomizations in a fixed serial order (not the dependency graph). It does not reconcile `coredns`. If you changed `infrastructure/coredns/`, run `flux reconcile kustomization coredns` yourself.
 
 If a Kustomization reconciles out of the order you expect, read reference-edge-cases.md § "`fr` serial order vs the dependency graph".
 

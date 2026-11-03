@@ -86,8 +86,9 @@ spec:
               containerPort: 3000
               protocol: TCP
           env:
+            # Uptime Kuma probes this Service host. Validation matches host:port exactly.
             - name: HOMEPAGE_ALLOWED_HOSTS
-              value: "home.h0melab.work"
+              value: "home.h0melab.work,homepage.homepage.svc.cluster.local:3000"
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

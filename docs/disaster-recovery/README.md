@@ -64,7 +64,7 @@ plain copies of the age key and a few tokens: every secret a full rebuild needs.
 | Critical infrastructure | the SOPS age key, which decrypts everything else; the Cloudflare API token (cert-manager DNS-01); the Cloudflare tunnel credentials and config |
 | Monitoring | Grafana admin credentials; the Alertmanager Telegram bot token |
 | Databases | Redis passwords; the PostgreSQL admin and every app database user; the MySQL cluster secrets and app credentials (Uptime Kuma, PriceBuddy) |
-| Apps | Authentik, Immich, Home Assistant, n8n, Linkwarden, Mealie, Paperless-NGX, Audiobookshelf, Uptime Kuma, Stirling-PDF, HomeHub, PriceBuddy, CouchDB (Obsidian sync) |
+| Apps | Authentik, Immich, Home Assistant, n8n, Linkwarden, Mealie, Paperless-NGX, Audiobookshelf, Uptime Kuma, Stirling-PDF, HomeHub, PriceBuddy, Blocky, claude-telegram, Obsidian, CouchDB (Obsidian sync) |
 | Backup replication | the NAS rsync credentials; the Telegram bot token for backup failure alerts |
 
 ## Automated data backups
@@ -249,7 +249,7 @@ spec:
             type: Directory
       containers:
         - name: nas-fetch
-          image: alpine:3.24.1
+          image: alpine:3.24.3
           volumeMounts:
             - name: source-backups
               mountPath: /source-backups
@@ -471,7 +471,7 @@ spec:
           emptyDir: {}
       containers:
         - name: couchrestore
-          image: node:24.18.0-alpine
+          image: node:26.13.0-alpine
           volumeMounts:
             - name: backup-storage
               mountPath: /backup

@@ -256,7 +256,7 @@ place. A new `base`/`staging` split would break this flat layout.
 | Operator-made NetworkPolicies not listed | The cluster holds more NetworkPolicies than Git, because operators (CNPG, Kyverno) and shared components create their own. |
 | Age-key chain not drawn | The `sops-age` Secret in `flux-system` holds the key; the kustomize-controller reads it and decrypts each SOPS manifest when it applies it. |
 | Cluster boundary | In scope: the four nodes and what runs on them, including the `immich-vm` guest. Out of scope: the NAS appliance (backup target and VM host), the home router (it forwards nothing inbound, because the tunnel connects outward) and the Cloudflare edge. |
-| Reconcile timing not drawn | A push goes live within about 5 minutes. |
+| Reconcile timing not drawn | A merge to `main` goes live within about 5 minutes. |
 
 ### A cold rebuild is not one command
 

@@ -1,5 +1,4 @@
 ---
-# Include parameters outrank the facts an earlier case set, so each case starts from its own inputs.
 - name: Compute the verdict
   ansible.builtin.include_tasks: ../tasks/k3s-version-verdict.yml
   vars:

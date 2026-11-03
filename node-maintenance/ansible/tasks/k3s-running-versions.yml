@@ -1,6 +1,6 @@
 ---
 # Sets k3s_running_versions: Kubernetes node name -> kubeletVersion. Runs on the CP.
-# check_mode false: it only reads, and the drift-heal's --check run needs the result.
+# check_mode false: it only reads, and a --check dry run of the drift-heal needs the result.
 - name: Read node versions from the API
   ansible.builtin.command: /usr/local/bin/k3s kubectl get nodes -o json
   environment:

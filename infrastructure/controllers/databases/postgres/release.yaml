@@ -95,9 +95,7 @@ spec:
         memory: 512Mi
 
     monitoring:
-      podMonitorEnabled: true
-      podMonitorAdditionalLabels:
-        release: kube-prometheus-stack
+      podMonitorEnabled: false
 
     webhook:
       port: 9443

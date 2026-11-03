@@ -503,6 +503,33 @@ spec:
         summary: "Cloudflare tunnel {{ $labels.namespace }} has no traffic"
         description: "No requests received through Cloudflare tunnel in {{ $labels.namespace }} for 4 hours. Likely benign during idle hours; investigate only if external apps unreachable."
 
+  # Uptime Kuma has no notification channel of its own; these rules are its only alert path.
+  - name: uptime-kuma-alerts
+    interval: 60s
+    rules:
+    - alert: UptimeKumaMonitorDown
+      # monitor_status: 1 up, 0 down, 2 pending, 3 maintenance.
+      expr: monitor_status{job="uptime-kuma"} == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Uptime Kuma: {{ $labels.monitor_name }} is down"
+        description: "Uptime Kuma has reported {{ $labels.monitor_name }} ({{ $labels.monitor_type }}) down for more than 5 minutes. See https://uptime.h0melab.work/dashboard for the error."
+
+    - alert: UptimeKumaMetricsDown
+      # absent() also fires if the scrape object or the job label disappears. max by (job) gives
+      # both branches the same labels, so a pod replacement does not restart the 10m timer.
+      expr: max by (job) (up{job="uptime-kuma"}) == 0 or absent(up{job="uptime-kuma"})
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "VMAgent cannot scrape Uptime Kuma metrics"
+        description: >-
+          VMAgent has not scraped Uptime Kuma /metrics for 10 minutes, so UptimeKumaMonitorDown cannot fire.
+          Check the uptime-kuma pod, the uptime-kuma-metrics Secret (Kuma API key) and the NetworkPolicy.
+
   - name: certificate-alerts
     interval: 60s
     rules:

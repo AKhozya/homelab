@@ -34,6 +34,18 @@ Measured 2026-08-07 on an M-series Mac:
   | in-image, hook budget raised so the aborted files run | 526 run · **23+11 fail** (`Not connected`) · 105s |
   | **in-cluster `kubectl exec` (real amd64)** | **526 run · 525 pass / 1 skip / 0 fail · 22s** |
 
+On 2026-10-17 the 1.32.20 image passed in full under the same emulation. Rancher Desktop
+was already running on the same Mac:
+
+  | where | result |
+  |---|---|
+  | in-image via `docker run --platform linux/amd64` | 536 run · 535 pass / 1 skip / 0 fail · 42s |
+  | in-cluster `kubectl exec` | 536 run · 535 pass / 1 skip / 0 fail · 22s |
+
+Nobody has measured why the MCP failures stopped. A clean emulated run is welcome, but it is
+still not evidence: a red emulated run says nothing about the code, so the in-cluster run
+stays the post-deploy gate.
+
 ## Skipped zip-fixture test in the image
 
 On the host it passes, so host and image totals differ by one by design.

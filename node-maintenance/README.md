@@ -59,8 +59,8 @@ sudo ansible-playbook --tags logrotate -D \
   /etc/node-maintenance/ansible/node-config.yml
 ```
 
-**To change a node:** edit the role's file or template under `ansible/roles/<role>/`, then push. The
-CP's sync timer pulls the change, runs `install.sh --sync-only`, then runs
+**To change a node:** edit the role's file or template under `ansible/roles/<role>/`, then merge it to `main`
+through a PR. The CP's sync timer pulls the change, runs `install.sh --sync-only`, then runs
 `node-maintenance-config.service`, which applies it. Telegram reports what changed.
 
 ### Shared shell library
@@ -105,8 +105,8 @@ journalctl -u node-maintenance-rolling-restart.service -n 80 --no-pager
 The CP goes first, then each worker. `serial: 1` means at most one node is down at a time. Before it
 moves to the next node, the run checks through `configz` that the node reports the expected
 `nodeLeaseDurationSeconds` and `nodeStatusReportFrequency`, and stops if it does not; this guards
-against K3s bugs that dropped those fields in the past. Telegram reports a failure. It takes about
-3 to 7 minutes, plus up to 15 minutes waiting for the lock.
+against K3s bugs that dropped those fields in the past. Telegram reports a failure. It took 2.5
+minutes on 2026-10-07, plus up to 15 minutes waiting for the lock.
 
 A dry run restarts nothing and still checks each node's live `configz`. Hold the lock while it runs:
 

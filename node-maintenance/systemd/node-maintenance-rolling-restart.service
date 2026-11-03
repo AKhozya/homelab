@@ -14,18 +14,19 @@ User=root
 WorkingDirectory=/etc/node-maintenance/ansible
 Environment=ANSIBLE_CONFIG=/etc/node-maintenance/ansible/ansible.cfg
 ExecStartPre=/bin/sh -c 'install -d -m 0750 -o root -g adm /var/log/node-maintenance /var/log/node-maintenance/rolling-restart-archive && echo "=== start: $(date -u -Iseconds) ===" > /var/log/node-maintenance/rolling-restart-latest.log'
-# Serialized via node-maintenance-lock (wait mode). An operator triggers this by hand, so it waits
-# out a drift-heal rather than skipping — a silent no-op would read as "restart done".
+# node-maintenance-lock serializes this unit in wait mode. The drift-heal starts it for a k3s
+# upgrade, and an operator starts it by hand. If a drift-heal holds the lock, this unit waits for
+# it rather than skipping, because a silent skip looks the same as a finished restart.
 # Unlocked, it shares root's ansible SSH ControlMaster with a concurrent drift-heal. If that heal
 # finishes first, its master closes and kills this run's in-flight channel. On 2026-08-08 immich-vm
 # restarted but reported UNREACHABLE, so its Ready gate and configz verify never ran.
 ExecStart=/usr/local/sbin/node-maintenance-lock.sh wait -- /usr/bin/ansible-playbook /etc/node-maintenance/ansible/rolling-restart-k3s.yml -i /etc/node-maintenance/ansible/inventory.yml
-# Archive each run + retain 30 most recent (less frequent than config — operator-triggered).
+# Archive each run + retain 30 most recent (it runs less often than the config unit).
 ExecStopPost=/bin/sh -c 'cp -f /var/log/node-maintenance/rolling-restart-latest.log /var/log/node-maintenance/rolling-restart-archive/rolling-restart-$(date -u +%%Y%%m%%dT%%H%%M%%SZ).log 2>/dev/null; ls -1t /var/log/node-maintenance/rolling-restart-archive/rolling-restart-*.log 2>/dev/null | tail -n +31 | xargs -r rm -f --'
 ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance-rolling-restart failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). Log: journalctl -u node-maintenance-rolling-restart.service -n 80" || true'
 StandardOutput=append:/var/log/node-maintenance/rolling-restart-latest.log
 StandardError=append:/var/log/node-maintenance/rolling-restart-latest.log
-# Typical work ≈ 3-7min: 2.5min on 2026-10-07. Worst case is 4 × (150s Ready wait + 30s pause)
+# Measured 2.5min on 2026-10-07. Worst case is 4 × (150s Ready wait + 30s pause)
 # ≈ 12min, plus up to 15min waiting for the lock, so 25min could kill a run between a binary
 # swap and its restart.
 TimeoutStartSec=40min
