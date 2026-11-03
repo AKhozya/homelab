@@ -33,7 +33,7 @@ The November review ran on the evening of the weekly-style upgrade and rolling r
 
 An end-to-end test proved delivery. A temporary monitor at `http://127.0.0.1:9/` fired at 23:02. Alertmanager's Telegram counter went 7 → 8, and 8 → 9 when the alert resolved, with 0 failures. Kuma alerts depend on VMAlert, Alertmanager and Telegram. If that chain fails, the healthchecks.io dead-man switch (Watchdog) is the only signal; the operator confirmed its warnings arrive.
 
-**MySQL.** The pt-heartbeat sidecar used 51.9 of 64 MiB and fired `ContainerMemoryNearLimit`; the limit is now 96 MiB (`be127a54`). `crVersion` stayed at 1.2.0 after Renovate moved the ps-operator chart to 1.3.0 on 2026-10-29, because Renovate does not edit it; it is now 1.3.0 (`b993320b`). The operator rolled HAProxy, MySQL and orchestrator, and the cluster reported `ready` at 23:17 UTC. Each roll moved the primary to worker-node-2; `db-primary-pin` moved it back to worker-node. PriceBuddy logged read-only errors for about two minutes after the first switch and recovered without a restart.
+**MySQL.** The pt-heartbeat sidecar used 51.9 of 64 MiB and fired `ContainerMemoryNearLimit`; the limit is now 96 MiB (`be127a54`). `crVersion` stayed at 1.2.0 after Renovate moved the ps-operator chart to 1.3.0 on 2026-10-29, because Renovate does not edit it; it is now 1.3.0 (`b993320b`). The operator rolled HAProxy, MySQL and orchestrator, and the cluster reported `ready` at 23:17 UTC. Each roll moved the primary to worker-node-2; `db-primary-pin` moved it back to worker-node. PriceBuddy logged read-only errors for about two minutes after the first switch and recovered without a restart. After each re-pin, `MySQLReplicaExporterDown` fired. HAProxy writes its `mysql-replicas` server list when its pod starts. The re-pin swapped the roles, so that list named the new primary. Restarting the two HAProxy pods one at a time (23:32) rebuilt the list. `mysql_up` then returned to 1.
 
 **n8n** no longer needs `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` (`4ccf808f`). The 2026-07-04 crash loop ran on `@n8n/typeorm` 0.3.20-17, before n8n-io/typeorm#50. n8n 2.46.4 vendors typeorm and runs `SET statement_timeout` after connecting, which PgBouncer accepts. The pod started clean. The December review checks a month of logs for statement timeouts.
 
@@ -56,6 +56,43 @@ An end-to-end test proved delivery. A temporary monitor at `http://127.0.0.1:9/`
 | `fr` in `~/.zshrc` | not changed: it skips `coredns` and gives three Kustomizations 90s against a 2m Flux timeout. A patch is waiting for the operator |
 
 HISTORY trimmed to entries from 2026-08-03 on; the Q3 2026 Milestones row covers the July entries that went.
+
+### 2026-11-03 — The same three alerts came back, because the fix was never merged
+
+This week's post-reboot review re-derived the 2026-10-31 finding below from scratch — `ContainerMemoryNearLimit` pending on `loki/alloy-9fqkd`, twice (once as the container, once as the pod cgroup), RSS 48Mi against 649Mi of cache. The diagnosis matched because the cause was unchanged: the branch holding the fix was committed and never merged, so none of it ever reached the cluster. **A fix that stops at a commit is not a fix.** `merge-worktree.sh` exits 4 from the in-cluster bot, which has no GitHub login — when it does, the compare URL it prints needs an owner to act on it, or the work is invisible a week later.
+
+One new finding on top of that branch:
+
+| Finding | Evidence | Fix |
+|---|---|---|
+| `CloudflareTunnelNoConnections` counted requests per POD. Cloudflare routes a request to one of the two `cloudflared` replicas, so a healthy replica can serve zero for hours, and a restarted one starts its counter at 0 | pending on `cloudflared-…-m5mm6` 15 min after the reboot: 0 requests, while its peer served 73 and **both** held 4 HA connections | `sum by (namespace) (increase(…[2h]))`. Proven live: per-pod returned the idle replica, the sum returned none, and `>= 0` returned the namespace at 450, so the `== 0` direction still matches. A single dead replica is `CloudflareTunnelPodNotRunning`'s job |
+
+The description's "4 hours" against a 2h window reads like drift and is not: a 2h lookback that must hold `== 0` for a 2h `for` only fires after ~4h of silence. This review changed it to "2 hours" and then put it back, with a comment on the rule so the next reader does not repeat the round trip.
+
+Verifying the `CPUThrottlingHigh` claim below turned up the same defect in a third place. The CloudNativePG dashboard's CPU- and memory-vs-request panels carried **both** wrong job labels — `job="kubelet"` (live: `kube-prometheus-stack-kubelet`) with the phantom `metrics_path="/metrics/cadvisor"`, and `job="kube-state-metrics"` (live: `kube-prometheus-stack-kube-state-metrics`). Six selectors across four panels, matching 0 of 236 cadvisor and 0 of 119 KSM series. After the fix the memory panel returns 0.366 and the CPU panel 0.6 for `main-postgres-*`. The lesson generalises: **a vendored dashboard or mixin rule carries the job labels of the stack it was written for**, and this cluster renames both of them. Grep any import for `job="kubelet"`, `job="kube-state-metrics"` and `metrics_path` before trusting its panels.
+
+`FluxResourceNotReady` was pending on `flux-system`, `monitoring-controllers` and `monitoring-configs` and needed no fix: a reconciliation blip during the rolling reboot. `gotk_resource_info{ready=~"False|Unknown"}` already returned 0 series and all 7 Kustomizations were Ready, so it aged out inside its 15m `for` window.
+
+`pt-heartbeat` on `main-mysql-mysql-1` at 81% of its 64Mi limit is the same page-cache artifact as alloy, but unlike alloy it is worth a limit bump: its cache is bounded by the image's files, not by a log stream. Stable at working_set 52Mi / RSS 19Mi across 7 days. The 2026-11 monthly review raised the limit to 96Mi in its own PR (`be127a54`), which puts the peak at 54%; the Percona operator rolled the MySQL pods to apply it.
+
+### 2026-10-31 — One cadvisor relabel had killed a dashboard, doubled an alert and hidden a dead rule
+
+The post-reboot alert review opened on a single critical, `ContainerMemoryCritical` on `loki/alloy-qxxp6`, firing twice. Pulling that thread found one wrong line in `scrape-kubelet-cadvisor.yaml` and two consequences of it, plus an unrelated rule that could never fire.
+
+| Finding | Evidence | Fix |
+|---|---|---|
+| `metricRelabelConfigs` rewrote `container` with `name`. kubelet already sets `container` to the container NAME and `"POD"` for the pause container; under containerd `name` is the container ID | the Loki/Alloy dashboard panels join `on (pod, container)` against kube-state-metrics, where `container` is the name — the alloy memory panel returned **0 series** | drop the rewrite |
+| the two container-memory alerts counted the per-POD cgroup series as well as the container, so every container pages twice | 361 cadvisor series, 236 with `image!=""` — 125 pod cgroups | add `image!=""`. Not `container!=""`: the pod cgroup carries neither label, and only `image` is immune to a relabel on `container` |
+| `CPUThrottlingHigh` was dead. Upstream's copy matches `metrics_path="/metrics/cadvisor"`, a label prometheus-operator stamps on ServiceMonitor samples and the VictoriaMetrics operator does not | both selectors matched **0 of 200** live series; with the matcher removed, 111 | drop the `metrics_path` matcher. `job` alone is unambiguous — kubelet-cadvisor is the only producer |
+| the alloy alert itself was a false positive by construction | immich-vm at 05:04: working_set 754Mi of a 768Mi limit, but **RSS 47Mi and cache 703Mi**. alloy tails the host journal over a hostPath, so its working_set is reclaimable page cache. It self-cleared to 17.6% within the hour, unassisted | exclude `pod!~"alloy-.*"` from both ratio alerts. Raising the limit does not help: page cache parks just under whatever limit the cgroup has. A real leak still pages through `ContainerOOMKilled` |
+
+Reviving `CPUThrottlingHigh` exposed a duplicate. `ContainerCPUThrottling` in `pod-alerts` covered the same condition at `severity: warning`, and nothing had noticed the overlap because the better rule was dead. It is deleted: its expr was `rate(container_cpu_cfs_throttled_seconds_total[5m]) * 100 > 25`, throttled-seconds per second rather than a fraction of the container's quota, so `25` was not the "25% of the time" its description claimed and a multi-threaded container could exceed 100; and with no `image!=""` it fired twice. The surviving rule's `severity: info` changes nothing about who hears it — `InfoInhibitor` is absent (the chart's `defaultRules` are off, so no rule emits it), the matching `inhibit_rule` can therefore never activate, and `info` falls through to the default `telegram` receiver. Keeping both would have sent three Telegram messages per throttling event.
+
+Checked and **not** a defect: `traefik_service_requests_total` and the five `RateLimit*` rules that read it had no series, because Traefik restarted during the reboot and served no request for the next 25 minutes (access log empty, `traefik_open_connections` 8). Those rules are rate-based — absent means no traffic, not no monitoring.
+
+A 142-rule sweep for empty selectors produced the `CPUThrottlingHigh` find. `_shared/vmrules-metric-audit.sh` could not run it: the script needs `yq` and the claude-telegram pod has none. Reading the already-parsed exprs from vmalert's `/api/v1/rules` sidesteps the YAML parser and is worth folding into that script.
+
+Cluster hygiene was otherwise clean after the reboot: 0 failed pods, 0 controller-owned terminal pods (phase2 PLAY 2 swept them), 0 unbound PVCs, 0 released PVs, all 12 HelmReleases and all 7 Kustomizations Ready.
 
 ### 2026-10-08 — The k3s version lives in git, and Renovate bumps it
 

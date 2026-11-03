@@ -21,8 +21,8 @@ spec:
       bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
       honorLabels: true
       metricRelabelConfigs:
-        - sourceLabels: [name]
-          targetLabel: container
+        # No `name` -> `container` rewrite. kubelet sets `container` to the container name, which
+        # joins to kube-state-metrics on (pod, container). Under containerd, `name` holds the ID.
         - sourceLabels: [__name__]
           regex: 'container_tasks_state'
           action: drop
