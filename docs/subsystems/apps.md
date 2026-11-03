@@ -26,7 +26,7 @@ Each app has one directory under `apps/<name>/`. Image versions: pinned in each 
 
 ## Key infrastructure namespaces (not "apps")
 - `databases` — CNPG (`main-postgres`), Percona Server for MySQL (`main-mysql` — single-master + replica + HAProxy + 3-node Orchestrator; **not** PXC), CouchDB STS, Redis HA (OT-CONTAINER-KIT: RedisReplication 1+1 + RedisSentinel 3). Detail: [databases.md](databases.md)
-- `monitoring` — VM stack (vmsingle, vmagent, vmalert), Grafana (PVC, sqlite, OIDC, LAN Ingress only), Alertmanager, kube-state-metrics, node-exporter (kube-prometheus-stack chart trimmed — no Prometheus pod)
+- `monitoring` — VM stack (vmsingle, vmagent, vmalert), Grafana (sqlite on an emptyDir: if Kubernetes deletes or replaces the pod, Grafana loses that data; OIDC, LAN Ingress only), Alertmanager, kube-state-metrics, node-exporter (kube-prometheus-stack chart trimmed — no Prometheus pod)
 - `loki` — Loki + Alloy (own namespace, not monitoring)
 - `traefik` — ingress controller + shared middleware CRDs
 - `cert-manager`, `cloudflare-tunnel`, `kyverno`

@@ -21,6 +21,10 @@ Read this when you run the tool-surface probe or the tool-gap log check and need
 
   | Where | Image / checkout | CLI | Built-ins | Date | Exit |
   | --- | --- | --- | --- | --- | --- |
+  | Pod `claude-telegram-5d656d5d98-c92d8` | `ghcr.io/akhozya/claude-telegram-bot:1.32.21` | 2.1.302 | 22 | 2026-10-17 | 0 |
+  | Pod `claude-telegram-676cf74d45-d9mmv` | `ghcr.io/akhozya/claude-telegram-bot:1.32.20` | 2.1.302 | 22 | 2026-10-17 | 0 |
+  | Pod `claude-telegram-f9c484657-mksp8` | `ghcr.io/akhozya/claude-telegram-bot:1.32.19` | 2.1.301 | 22 | 2026-10-17 | 0 |
+  | Dev Mac checkout | SDK 0.3.302 | 2.1.302 | 23 | 2026-10-17 | 0 |
   | Pod `claude-telegram-774f8f8fdf-5v9rn` | `ghcr.io/akhozya/claude-telegram-bot:1.32.14` | 2.1.283 | 22 | 2026-09-26 | 0 |
   | Dev Mac checkout | SDK 0.3.282 | 2.1.282 | 23 | 2026-09-26 | 0 |
   | Pod `claude-telegram-58b94547cb-q7hp5` | `ghcr.io/akhozya/claude-telegram-bot:1.32.13` | 2.1.273 | 23 | 2026-09-16 | 0 |
@@ -44,7 +48,17 @@ Read this when you run the tool-surface probe or the tool-gap log check and need
   ```
 
   The 2026-09-26 probes, pod CLI 2.1.283 and Mac CLI 2.1.282, match the lists above except that
-  `TaskOutput` is gone from both. They add no new names.
+  `TaskOutput` is gone from both. They add no new names. The 2026-10-17 probes (pod 2.1.301, Mac
+  2.1.302) print the same lists as 2026-09-26.
+
+  **Plugin MCP tools get past `strictMcpConfig`.** On 2026-10-17 both the pod and the Mac served
+  `mcp__explain-as__show` (source `plugin`) with `strictMcpConfig: true`, although the SDK docs say
+  it ignores plugins. Since 1.32.20 (fork PR #159) the gate allows an `mcp__` tool only if its
+  server is a key in `mcp-config.ts`, so the hook refuses plugin tools. The 1.32.20 pod still
+  serves `mcp__explain-as__show`. To see MCP tools, print the `mcp__` names and
+  `e.mcp_servers` from the init event; the probe above filters them out.
+  claude.ai connectors (source `claudeai`) do not get past it: 0 with strict on, 58 with it off on
+  the Mac account.
 
   **The CLI version does not explain the difference.** The pod and the Mac both run 2.1.273 and
   still differ in both directions, so read a name's absence as a property of the environment that

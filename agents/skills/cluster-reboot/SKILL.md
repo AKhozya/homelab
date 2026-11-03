@@ -1,12 +1,12 @@
 ---
 name: cluster-reboot
 description: >-
-  Use when the user wants to UPDATE + REBOOT the homelab K3s nodes safely (CP gmk-k3s-control-plane
-  + workers worker-node / worker-node-2). ONLY sanctioned path: trigger the ansible node-maintenance
-  phase1 → phase2 rolling-reboot flow and monitor it. NEVER hand-roll `ssh ... sudo reboot` in a loop
-  across nodes — bypasses the per-worker serial:1 ClusterIP gate. A node can be Node.Ready while its
-  kube-proxy ClusterIP DNAT (worker) or k3s loopback loadbalancer (CP) is wedged — this skill probes
-  BOTH surfaces. Single-node reboot = reuse verify-clusterip around it. NOT for in-place pod
+  Use when the user wants to UPDATE + REBOOT the homelab K3s nodes safely (all 4: CP
+  gmk-k3s-control-plane, workers worker-node / worker-node-2, and immich-vm, which reboots only
+  through the phase2 carve-out — NEVER an in-guest reboot or virsh destroy). ONLY sanctioned path:
+  trigger the ansible node-maintenance phase1 → phase2 rolling-reboot flow and monitor it. NEVER
+  hand-roll `ssh ... sudo reboot` in a loop across nodes — bypasses the per-worker serial:1 ClusterIP
+  gate. Single-node reboot = reuse verify-clusterip around it. NOT for in-place pod
   recycling without a reboot → `cluster-roll` skill. NOT for k3s VERSION upgrades (pinned as
   `k3s_version` in git; the rolling restart installs it, phase1/phase2 never does) → `k3s-upgrade` skill.
 ---

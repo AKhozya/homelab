@@ -148,8 +148,7 @@
       when: ufw_rescue_ran | default(false)
 
 # The rolling restart installs k3s_version node by node; this play only decides whether to start
-# it. The start returns at once, and the unit then waits on the node-maintenance lock until this
-# drift-heal exits. The start reports changed, so node-config-notify.sh reports the queued
+# it. The start reports changed, so node-config-notify.sh reports the queued
 # upgrade. A refused version fails here, so its alert names the verdict.
 # Last play: a host failed here drops out of later plays, and placed before the report play a
 # refused version would hide the CP's firewall alerts for the run.

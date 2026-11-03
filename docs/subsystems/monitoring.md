@@ -9,7 +9,7 @@ VictoriaMetrics primary stack. **No Prometheus pod** — kube-prometheus-stack c
 | `vmagent-vmagent` | VMAgent (Deploy 1x) | Scraper (reads VMServiceScrape + VMPodScrape) |
 | `vmalert-vmalert` | VMAlert (Deploy 1x) | Rule evaluator (reads VMRule) |
 | `victoria-metrics-operator` | Deploy 1x | Reconciles VM CRDs |
-| `kube-prometheus-stack-grafana` | Deploy | UI (PVC, sqlite, OIDC, LAN Ingress only) |
+| `kube-prometheus-stack-grafana` | Deploy | UI (sqlite on an emptyDir: if Kubernetes deletes or replaces the pod, Grafana loses that data; OIDC, LAN Ingress only) |
 | `alertmanager-kube-prometheus-stack-alertmanager` | STS 2x | Alert routing (HA via gossip) |
 | `kube-prometheus-stack-operator` | Deploy 1x | prom-operator (manages PrometheusRule/SM CRDs — NOT consumed, see converter warning) |
 | `kube-prometheus-stack-kube-state-metrics` | Deploy 1x | k8s state metrics |

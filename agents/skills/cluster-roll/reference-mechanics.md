@@ -26,9 +26,9 @@ The script runs the fallback only for Deployments (`kind == deploy`). The abando
 
 Test: `bash tests/test-roll-fallback.sh` (bash ≥4.3) stubs `kubectl` and `restart-workload.sh` and checks the four fallback cases.
 
-## Authentik → pooler → DNS chain
+## Authentik → DNS chain
 
-Authentik depends on the PG pooler (tier 4) and DNS (tier 1). It's rolled in tier 3 *after* DNS is confirmed healthy, but its DB pooler is rerolled in tier 4 (clearing PgBouncer cached DNS). If authentik misbehaves post-roll, reroll the pooler (tier 4) then authentik again.
+Authentik depends on DNS (tier 1) and the PG primary. It connects to `main-postgres-rw` directly: `apps/authentik/server-deployment.yaml` sets `AUTHENTIK_POSTGRESQL__HOST`, which overrides the pooler host in the Secret, so the tier-4 pooler reroll does not affect it. It's rolled in tier 3 *after* DNS is confirmed healthy. If authentik misbehaves post-roll, check DNS and the CNPG primary, then roll authentik again.
 
 ## Priority-class audit — `--missing` not just `--count` (F-30 2026-05-29)
 

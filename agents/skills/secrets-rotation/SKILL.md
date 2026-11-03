@@ -1,7 +1,7 @@
 ---
 name: secrets-rotation
 description: >-
-  Use to rotate homelab database passwords (MySQL/Percona, PostgreSQL/CNPG, Redis ACL users, CouchDB admin), the Authentik secret key and OIDC client secrets — after a leak/compromise, on the SECRETS_ROTATION.md schedule (the 180-day batch), or when the user says "rotate the <app> db password". Covers SOPS + live change + GitOps deploy + pod cycle + proof the app logged in. Cycle app pods with `_shared/restart-workload.sh`, NEVER `kubectl rollout restart` (Flux reverts the restartedAt annotation to the old secret).
+  Use to rotate homelab database passwords (MySQL/Percona, PostgreSQL/CNPG, Redis ACL users, CouchDB admin), the Authentik secret key and OIDC client secrets — after a leak/compromise, on the SECRETS_ROTATION.md schedule (the 180-day batch), or when the user says "rotate the <app> db password". Covers SOPS + live change + GitOps deploy + pod cycle + proof the app logged in. Cycle app pods with `_shared/restart-workload.sh`, NEVER `kubectl rollout restart` (Flux strips the restartedAt annotation, so the restart does nothing).
 ---
 
 # Secrets Rotation (DB users)
@@ -73,7 +73,7 @@ R=~/.agents/skills/_shared/rotate-pg-roles.sh
 "$R" --list mealie linkwarden paperless immich n8n   # same copies again = they all agree
 # commit, merge-worktree.sh, fr: source, infrastructure-configs, apps
 # then cycle every app at once (parallel restart-workload.sh, one per app)
-~/.agents/skills/_shared/pooler-login-proof.sh <fr time, RFC3339> mealie linkwarden paperless immich n8n
+~/.agents/skills/_shared/pooler-login-proof.sh <fr time, RFC3339> mealie linkwarden paperless n8n
 ```
 
 Authentik is a CNPG role too: rotate it with its Django key as one step, before the OIDC batch

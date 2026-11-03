@@ -6,7 +6,8 @@
 # Invoke from CP: sudo systemctl start node-maintenance-rolling-restart.service
 # The unit holds the node-maintenance lock. A direct ansible-playbook run skips that lock and
 # shares root's SSH ControlMaster with any running drift-heal, whose exit can kill this run.
-# The drift-heal starts this unit itself if a node runs another version than k3s_version.
+# If the version verdict is `upgrade`, the drift-heal starts this unit itself. A downgrade
+# needs the manual run below.
 #
 # Preflight on the CP refuses, before any node is touched, a skipped minor, a major change, a
 # downgrade, or a node set that differs from the inventory (tasks/k3s-version-verdict.yml).
