@@ -86,7 +86,8 @@ spec:
         memory: "32Mi"
       limits:
         cpu: "100m"
-        memory: "64Mi"
+        # pt-heartbeat peaks at 52Mi, above ContainerMemoryNearLimit's 80% line at a 64Mi limit.
+        memory: "96Mi"
 
   mysql:
     clusterType: async
