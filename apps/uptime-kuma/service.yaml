@@ -3,6 +3,9 @@ kind: Service
 metadata:
   name: uptime-kuma
   namespace: uptime-kuma
+  labels:
+    # The uptime-kuma VMServiceScrape in monitoring selects this Service by this label.
+    app: uptime-kuma
 spec:
   ports:
     - port: 3001
