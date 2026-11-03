@@ -414,20 +414,12 @@ spec:
         summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} was OOM killed"
         description: "Container ran out of memory and was killed. Consider increasing memory limits."
 
-    # Both container-memory alerts below carry the same two filters:
-    #   image!=""       drops the per-POD cgroup series (125 of 361), whose limit is the SUM of the
-    #                   pod's container limits. Without it every container pages twice, once as
-    #                   itself and once as its pod. `image` and not `container`: the pod cgroup
-    #                   series carries neither, and only `image` is unaffected by a relabel on
-    #                   `container`.
-    #   pod!~"alloy-.*" alloy tails the host journal over a hostPath, so its working_set is
-    #                   reclaimable page cache, not anon — measured on immich-vm 2026-10-31:
-    #                   754Mi working_set of a 768Mi limit, but RSS 47Mi and cache 703Mi. The kernel
-    #                   reclaims that before it OOMKills, and page cache parks just under WHATEVER
-    #                   limit the cgroup has, so raising the limit only moves the false positive.
-    #                   A real alloy leak still pages through ContainerOOMKilled. If that
-    #                   after-the-fact signal stops being enough, add an alloy-only rule on
-    #                   container_memory_rss.
+    # Both container-memory alerts filter the numerator:
+    #   image!=""        drops the per-pod cgroup series. Their limit is the sum of the pod's
+    #                    container limits, so each container would alert a second time as its pod.
+    #   pod!~"alloy-.*"  alloy reads the host journal through a hostPath, so most of its working set
+    #                    is page cache, and raising the limit only raises the cache. AlloyMemoryNearLimit
+    #                    watches its RSS instead.
     - alert: ContainerMemoryNearLimit
       expr: (container_memory_working_set_bytes{image!="",pod!~"alloy-.*"} / container_spec_memory_limit_bytes) * 100 > 80 and container_spec_memory_limit_bytes > 0
       for: 15m
@@ -437,14 +429,11 @@ spec:
         summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} near memory limit"
         description: "Container is using {{ printf \"%.1f\" $value }}% of its memory limit. May be OOM killed soon."
 
-    # No ContainerCPUThrottling here. CPUThrottlingHigh in node-overrides is the same alert done
-    # right, and it was dead until 2026-10-31, which is the only reason both existed. This one
-    # read `rate(container_cpu_cfs_throttled_seconds_total[5m]) * 100 > 25` — throttled-seconds
-    # per second, not a fraction of the container's quota, so the threshold was not the "25% of
-    # the time" its description claimed and a multi-threaded container could exceed 100. It also
-    # carried no image!="" filter, so it fired once per container and again per pod cgroup.
+    # CPU throttling alerts come from CPUThrottlingHigh in node-overrides, which measures throttled
+    # CFS periods as a fraction of all periods. A rule on throttled seconds per second here would
+    # duplicate it with a threshold that does not mean a percentage.
 
-    # Filters as on ContainerMemoryNearLimit above — see the comment there.
+    # Same filters as ContainerMemoryNearLimit.
     - alert: ContainerMemoryCritical
       expr: (container_memory_working_set_bytes{image!="",pod!~"alloy-.*"} / container_spec_memory_limit_bytes) * 100 > 95 and container_spec_memory_limit_bytes > 0
       for: 2m
@@ -453,6 +442,16 @@ spec:
       annotations:
         summary: "Container {{ $labels.container }} in {{ $labels.namespace }}/{{ $labels.pod }} critically low on memory"
         description: "Container is using {{ printf \"%.1f\" $value }}% of its memory limit. OOMKill imminent! Immediate action required."
+
+    - alert: AlloyMemoryNearLimit
+      # RSS excludes the journal page cache that inflates alloy's working set (see above).
+      expr: (container_memory_rss{pod=~"alloy-.*",image!=""} / container_spec_memory_limit_bytes) * 100 > 80 and container_spec_memory_limit_bytes > 0
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Alloy {{ $labels.namespace }}/{{ $labels.pod }} RSS near memory limit"
+        description: "Alloy RSS is {{ printf \"%.1f\" $value }}% of its memory limit. RSS excludes page cache."
 
     - alert: PodImagePullError
       expr: kube_pod_container_status_waiting_reason{reason=~"ImagePullBackOff|ErrImagePull"} > 0
@@ -484,16 +483,9 @@ spec:
         summary: "Cloudflare tunnel pod {{ $labels.namespace }}/{{ $labels.pod }} is not running"
         description: "Cloudflare tunnel pod is in {{ $labels.phase }} state. Public access to {{ $labels.namespace }} may be down."
 
-    # Summed over the namespace, not per pod. Cloudflare picks ONE of the two cloudflared
-    # replicas per request, so a healthy replica can legitimately serve zero requests for
-    # hours — and a restarted one starts its counter at 0. Per pod this alerted on the idle
-    # replica while the tunnel was fine (both at 4 HA connections, 2026-11-03 post-reboot).
-    # The condition worth knowing is "no traffic through the tunnel AT ALL", which is the sum.
-    # A single DEAD replica is CloudflareTunnelPodNotRunning's job, above.
-    #
-    # "4 hours" in the description is deliberate and is NOT drift from the 2h window: a 2h
-    # lookback that must stay == 0 for a 2h `for` only fires after ~4h of silence. Keep the
-    # two numbers in step if either changes.
+    # Summed per namespace. Cloudflare sends each request to one replica, so one replica can serve
+    # no requests for hours while the tunnel works. CloudflareTunnelPodNotRunning covers a dead replica.
+    # The description says 4 hours on purpose: the 2h window must stay at 0 for the 2h `for`.
     - alert: CloudflareTunnelNoConnections
       expr: sum by (namespace) (increase(cloudflared_tunnel_total_requests[2h])) == 0
       for: 2h
@@ -1426,17 +1418,9 @@ spec:
   # ==========================================================================
   - name: node-overrides
     rules:
-      # Since 2026-10-31 this is the cluster's only CPU-throttling alert — see the note where
-      # ContainerCPUThrottling used to be, in the pod-alerts group.
-      #
-      # No metrics_path MATCHER. Upstream's copy of this rule carries
-      # metrics_path="/metrics/cadvisor" because prometheus-operator stamps that label onto a
-      # ServiceMonitor's samples; the VictoriaMetrics operator does not, so both selectors
-      # matched 0 of 200 live series and the rule could never fire — it read as healthy for as
-      # long as it has been here. `job` alone is unambiguous: the kubelet-cadvisor
-      # VMServiceScrape is the only producer of these two metrics. `metrics_path` stays in the
-      # two `sum without (...)` label lists on purpose: dropping an absent label is a no-op, and
-      # keeping upstream's list intact makes the next mixin diff readable.
+      # No metrics_path matcher: the VictoriaMetrics operator does not add that label, so upstream's
+      # matcher selects nothing. `job` alone identifies the kubelet-cadvisor scrape. metrics_path stays
+      # in the `sum without` lists, where an absent label changes nothing.
       - alert: CPUThrottlingHigh
         expr: |
           sum without (id, metrics_path, name, image, endpoint, job, node) (
