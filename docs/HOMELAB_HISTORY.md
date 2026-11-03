@@ -17,6 +17,24 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-03 — The same three alerts came back, because the fix was never merged
+
+This week's post-reboot review re-derived the 2026-10-31 finding below from scratch — `ContainerMemoryNearLimit` pending on `loki/alloy-9fqkd`, twice (once as the container, once as the pod cgroup), RSS 48Mi against 649Mi of cache. The diagnosis matched because the cause was unchanged: the branch holding the fix was committed and never merged, so none of it ever reached the cluster. **A fix that stops at a commit is not a fix.** `merge-worktree.sh` exits 4 from the in-cluster bot, which has no GitHub login — when it does, the compare URL it prints needs an owner to act on it, or the work is invisible a week later.
+
+One new finding on top of that branch:
+
+| Finding | Evidence | Fix |
+|---|---|---|
+| `CloudflareTunnelNoConnections` counted requests per POD. Cloudflare routes a request to one of the two `cloudflared` replicas, so a healthy replica can serve zero for hours, and a restarted one starts its counter at 0 | pending on `cloudflared-…-m5mm6` 15 min after the reboot: 0 requests, while its peer served 73 and **both** held 4 HA connections | `sum by (namespace) (increase(…[2h]))`. Proven live: per-pod returned the idle replica, the sum returned none, and `>= 0` returned the namespace at 450, so the `== 0` direction still matches. A single dead replica is `CloudflareTunnelPodNotRunning`'s job |
+
+The description's "4 hours" against a 2h window reads like drift and is not: a 2h lookback that must hold `== 0` for a 2h `for` only fires after ~4h of silence. This review changed it to "2 hours" and then put it back, with a comment on the rule so the next reader does not repeat the round trip.
+
+Verifying the `CPUThrottlingHigh` claim below turned up the same defect in a third place. The CloudNativePG dashboard's CPU- and memory-vs-request panels carried **both** wrong job labels — `job="kubelet"` (live: `kube-prometheus-stack-kubelet`) with the phantom `metrics_path="/metrics/cadvisor"`, and `job="kube-state-metrics"` (live: `kube-prometheus-stack-kube-state-metrics`). Six selectors across four panels, matching 0 of 236 cadvisor and 0 of 119 KSM series. After the fix the memory panel returns 0.366 and the CPU panel 0.6 for `main-postgres-*`. The lesson generalises: **a vendored dashboard or mixin rule carries the job labels of the stack it was written for**, and this cluster renames both of them. Grep any import for `job="kubelet"`, `job="kube-state-metrics"` and `metrics_path` before trusting its panels.
+
+`FluxResourceNotReady` was pending on `flux-system`, `monitoring-controllers` and `monitoring-configs` and needed no fix: a reconciliation blip during the rolling reboot. `gotk_resource_info{ready=~"False|Unknown"}` already returned 0 series and all 7 Kustomizations were Ready, so it aged out inside its 15m `for` window.
+
+`pt-heartbeat` on `main-mysql-mysql-1` at 81% of its 64Mi limit is the same page-cache artifact as alloy, but unlike alloy it is worth a limit bump — its cache is bounded by the image's files, not by a log stream. Stable at working_set 52Mi / RSS 19Mi across 7 days, so 128Mi puts it at 41% permanently rather than moving the false positive. Held back to its own PR: the Percona operator rolls the MySQL pods to apply it, and that restart should not ride along with a monitoring-only change.
+
 ### 2026-10-31 — One cadvisor relabel had killed a dashboard, doubled an alert and hidden a dead rule
 
 The post-reboot alert review opened on a single critical, `ContainerMemoryCritical` on `loki/alloy-qxxp6`, firing twice. Pulling that thread found one wrong line in `scrape-kubelet-cadvisor.yaml` and two consequences of it, plus an unrelated rule that could never fire.

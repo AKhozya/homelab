@@ -484,8 +484,18 @@ spec:
         summary: "Cloudflare tunnel pod {{ $labels.namespace }}/{{ $labels.pod }} is not running"
         description: "Cloudflare tunnel pod is in {{ $labels.phase }} state. Public access to {{ $labels.namespace }} may be down."
 
+    # Summed over the namespace, not per pod. Cloudflare picks ONE of the two cloudflared
+    # replicas per request, so a healthy replica can legitimately serve zero requests for
+    # hours — and a restarted one starts its counter at 0. Per pod this alerted on the idle
+    # replica while the tunnel was fine (both at 4 HA connections, 2026-11-03 post-reboot).
+    # The condition worth knowing is "no traffic through the tunnel AT ALL", which is the sum.
+    # A single DEAD replica is CloudflareTunnelPodNotRunning's job, above.
+    #
+    # "4 hours" in the description is deliberate and is NOT drift from the 2h window: a 2h
+    # lookback that must stay == 0 for a 2h `for` only fires after ~4h of silence. Keep the
+    # two numbers in step if either changes.
     - alert: CloudflareTunnelNoConnections
-      expr: increase(cloudflared_tunnel_total_requests[2h]) == 0
+      expr: sum by (namespace) (increase(cloudflared_tunnel_total_requests[2h])) == 0
       for: 2h
       labels:
         severity: info
