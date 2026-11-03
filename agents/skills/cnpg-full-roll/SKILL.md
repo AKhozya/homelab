@@ -1,6 +1,6 @@
 ---
 name: cnpg-full-roll
-description: Full-cluster CNPG (CloudNativePG) instance rolling restart for spec-changes that the operator doesn't treat as a rolling-update trigger (e.g., priorityClassName on v1.29.x). Use when "CNPG pods didn't pick up spec change", "homelab-critical not on Postgres instances after edit", or after editing Cluster.spec for fields the operator-versioned reconciler skips.
+description: Full-cluster CNPG (CloudNativePG) instance rolling restart for spec-changes that the operator doesn't treat as a rolling-update trigger. Use when "CNPG pods didn't pick up spec change", "homelab-critical not on Postgres instances after edit", or after editing Cluster.spec for fields the operator-versioned reconciler skips.
 user-invocable: false
 ---
 
@@ -29,7 +29,7 @@ bash ~/.agents/skills/cnpg-full-roll/scripts/roll.sh databases main-postgres
 
 ## Why this exists
 
-CNPG v1.29.x does **not** consider `Cluster.spec.priorityClassName` (and certain other soft spec fields) a rolling-update trigger. A spec edit lands in the CR but instance pods stay on the old spec until a manual restart. Both `cnpg restart` (replica-only) and a promote+restart (primary) are needed for a full roll. This script wraps the 4-step dance into one call.
+CNPG v1.29.x (seen on 1.29.1; not re-tested on the live 1.30.1) does **not** consider `Cluster.spec.priorityClassName` (and certain other soft spec fields) a rolling-update trigger. A spec edit lands in the CR but instance pods stay on the old spec until a manual restart. Both `cnpg restart` (replica-only) and a promote+restart (primary) are needed for a full roll. This script wraps the 4-step dance into one call.
 
 See `[[gotchas]]` "CNPG v1.29.x: priorityClassName change is NOT a rolling-update trigger" for context.
 

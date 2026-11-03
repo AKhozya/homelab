@@ -23,7 +23,7 @@ The 17 apps, with namespace, storage, database, SSO and external access, are lis
 |---|---|
 | read | cluster-wide |
 | delete | `pods`, `replicasets`, PolicyReports, ClusterPolicyReports |
-| `pods/exec` | 13 namespaces: not its own, not `monitoring`, and not backup-replication, n8n, trivy-scan or home-assistant, because the bot made no exec calls there. Egress is not the boundary (`infrastructure/configs/claude-telegram-rbac/rolebindings.yaml`) |
+| `pods/exec` | 13 namespaces, listed in `infrastructure/configs/claude-telegram-rbac/rolebindings.yaml`: app namespaces where the bot has needed exec, plus `loki`. Never its own or `monitoring`. Egress is not the boundary |
 | `services/proxy` `get` | `monitoring`: vmsingle, vmalert and Alertmanager only |
 | Job create and delete | `popeye` only |
 | workload patch | none |
@@ -98,10 +98,8 @@ Worker self-heal watchdogs: `clusterip_heal` (post-reboot kube-proxy DNAT wedge 
 | Due | Item |
 |---|---|
 | unscheduled | Deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only); a first-start drill of the control plane; a rename of the sshd drop-in |
-| monthly review | Upstream watches: n8n PR #27295 (sets `statement_timeout` with `SET`; issue #25705 closed 2026-07-14 but the PR is unmerged, so `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` stays), Stirling#6211 (open; 3.0.2 deployed 2026-10-02) |
-| 2026-11 (monthly review) | Re-measure Stirling memory on 3.0.2 (Stirling#6211). On W1, delete `/mnt/k8s-storage/rancher/k3s/server.stale-20261104-dead-install` if nothing has needed it since 2026-10-04. The directory holds a dead install's server state. The cert monitor no longer scans it (`00aab2a6`). Use sudo to inspect and delete it |
-| 2026-11 (monthly review), then each review until done | Check that a k3s minor PR waits for Dashboard approval; no release has tested this yet. If `gh api 'repos/k3s-io/k3s/git/matching-refs/tags/v1.38.' --jq length` prints 0, k3s has no 1.38 yet: keep this row. Otherwise `gh issue view 32 -R AKhozya/homelab --json body --jq .body \| grep -A3 -i '^## Pending Approval'` must list the k3s update, and no open k3s PR may exist before you tick it. Then follow the `k3s-upgrade` skill (release notes first) and delete this row |
-| 2026-10-31 | First certificate renewals with the Cloudflare token rotated 2026-09-28 (`52ce08aa`). After that date, `kubectl get certificates -A -o json \| jq -r '[.items[].status.notAfter] \| min'` must print a date later than `2026-11-30T20:27:49Z`, every certificate must be `True`, and `kubectl get challenges -A` must find none. If the earliest date has not moved, renewal did not happen and the token is not yet proven: read the cert-manager log and the Certificate, Order and Challenge events before blaming the token |
+| 2026-12 (monthly review) | On W1, delete `/mnt/k8s-storage/rancher/k3s/server.stale-20261104-dead-install` if nothing has needed it since 2026-10-04. The directory holds a dead install's server state. The cert monitor no longer scans it (`00aab2a6`). Use sudo to inspect and delete it |
+| Each monthly review until done | Check that a k3s minor PR waits for Dashboard approval; no release has tested this yet. If `gh api 'repos/k3s-io/k3s/git/matching-refs/tags/v1.38.' --jq length` prints 0, k3s has no 1.38 yet: keep this row. Otherwise `gh issue view 32 -R AKhozya/homelab --json body --jq .body \| grep -A3 -i '^## Pending Approval'` must list the k3s update, and no open k3s PR may exist before you tick it. Then follow the `k3s-upgrade` skill (release notes first) and delete this row |
+| 2026-12 (monthly review) | n8n runs without `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` since 2026-11-03 (`911a8c94`). Confirm a month of logs has no "canceling statement due to statement timeout" and no restarts. If timeouts appear, restore the variable and recycle the n8n pooler connections |
 | 2026-12-31 | `cloudflare-tunnel-mgmt-token` rotation |
-| 2027-01-30 | `gh-homelab` deploy key rotation (in the `claude-telegram-ssh` Secret). The only key the bot holds that can write to this repo, so a push with it is a deploy inside 5 min — 180 days, not the annual cadence the read-only deploy keys get |
 | 2027-03-31 | 180-day secret rotation — every row in SECRETS_ROTATION.md that shows 2027-03-31 (the 2026-10-02 batch). Follow [SECRETS_ROTATION.md](SECRETS_ROTATION.md). Blocky's PostgreSQL user keeps its own date (2026-12-05) |

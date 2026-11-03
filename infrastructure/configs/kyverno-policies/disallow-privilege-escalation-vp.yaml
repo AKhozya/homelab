@@ -22,7 +22,7 @@ spec:
     # databases: operator-, CRD- and Helm-managed pods (redis-operator, the redis CRD,
     # couchdb, Percona main-mysql) whose spec this repo cannot edit.
     # `percona-mysql` is not excluded (since 2026-07-26): it holds only `ps-operator`, and
-    # the pinned ps-operator-1.2.0 chart sets allowPrivilegeEscalation: false. If a chart
+    # the pinned ps-operator chart sets allowPrivilegeEscalation: false. If a chart
     # bump drops that, Kyverno denies the ps-operator workload, so the change cannot pass
     # unnoticed. `require-drop-all-capabilities` still excludes percona-mysql, because the
     # operator does not drop ALL.

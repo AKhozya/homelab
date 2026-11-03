@@ -1,6 +1,6 @@
 ---
 name: gitops-verify
-description: Use ONLY for post-deploy verification after pushing infra changes, after Flux reconciliation, or before/after maintenance windows. NOT for symptom-driven diagnosis — use `/k8s-diagnostics` for that. Runs structured checks (git, dry-run, Flux, pods, events, VMAlert+Alertmanager, Kyverno, priority-class audit) and outputs PASS/FAIL/WARN/SKIP report.
+description: Use ONLY for post-deploy verification after a PR merges infra changes, after Flux reconciliation, or before/after maintenance windows. NOT for symptom-driven diagnosis — use `/k8s-diagnostics` for that. Runs structured checks (git, dry-run, Flux, pods, events, VMAlert+Alertmanager, Kyverno, priority-class audit) and outputs PASS/FAIL/WARN/SKIP report.
 ---
 
 # /gitops-verify
@@ -100,7 +100,7 @@ bash ~/.agents/skills/_shared/check-kyverno.sh           # per-policy detail
 |---|-------|--------|---------|
 | 1 | Git Status | [PASS] | Clean working tree |
 | 2 | YAML Dry-Run | [PASS] | 3/3 files valid |
-| 3 | Flux Reconciliation | [PASS] | 6/6 kustomizations ready |
+| 3 | Flux Reconciliation | [PASS] | 7/7 kustomizations ready |
 | 4 | Pod Health | [PASS] | 81 running, 0 unhealthy |
 | 5 | Warning Events | [WARN] | 2 events in last 5 min |
 | 6 | Firing Alerts | [PASS] | No alerts firing |

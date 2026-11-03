@@ -74,7 +74,7 @@ TIER_OPERATORS=(
 
 # Tier 3 — Platform / edge. ORDERED serial chain; PDBs allow=1 so slower.
 # cert-manager → traefik → cloudflared → kyverno admission → authentik (svr+wkr) → blocky.
-# Authentik depends on the PG pooler (tier 4) + DNS (tier 1): kept after DNS, before its pooler reroll.
+# Authentik connects to the PG primary directly (not the pooler) and needs DNS (tier 1), so it rolls after DNS.
 # shellcheck disable=SC2034
 TIER_PLATFORM=(
   "cert-manager:deploy/cert-manager"
@@ -199,7 +199,7 @@ workload_selector() {
 roll_one() {
   local entry="$1" ns kind name target sel before_uids after_json after_uids surviving_uids
   ns="${entry%%:*}"
-  target="${entry#*:}" # e.g. deploy/coredns
+  target="${entry#*:}" # e.g. ds/coredns-ha
   kind="${target%%/*}"
   name="${target#*/}"
 

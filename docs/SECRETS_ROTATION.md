@@ -111,7 +111,7 @@ Since authentik 2023.6, `AUTHENTIK_SECRET_KEY` signs cookies and no longer feeds
 | `node-maintenance-ssh` | Node Auto-Update (CP → workers) | 2026-04-17 | 2027-04-17 | High |
 | `homelab-deploy` (GitHub deploy key) | Node-Maintenance git sync (CP `/root/.ssh/homelab-deploy`, read-only) | 2026-04-18 | 2027-04-18 | Medium |
 | `claude-telegram-ssh` → `id_ed25519` | Telegram bot — node SSH only (pinned to the `agent-diag` forced command since 2026-08-03, read-only diagnostics) | 2026-06-12 (compromise) | 2027-06-12 | High |
-| `claude-telegram-ssh` → `gh-homelab` | Telegram bot — GitHub deploy key, repo `homelab`, **WRITE** (`read_only=false`) | 2026-08-03 | 2027-01-30 | Critical |
+| `claude-telegram-ssh` → `gh-homelab` | Telegram bot — GitHub deploy key, repo `homelab`, **WRITE** (`read_only=false`) | 2026-08-03 | 2027-08-03 | Critical |
 | `claude-telegram-ssh` → `gh-dotfiles` | Telegram bot — GitHub deploy key, repo `dotfiles`, read-only | 2026-08-03 | 2027-08-03 | Medium |
 | `claude-telegram-ssh` → `gh-fork` | Telegram bot — GitHub deploy key, repo `claude-telegram-bot`, read-only | 2026-08-03 | 2027-08-03 | Low |
 | `cloudflare-api-token` (`cert-manager` ns) | cert-manager DNS-01 for the `h0melab.work` zone; Cloudflare token `dns_and_certs` (Zone.Zone + Zone.DNS, one zone) | 2026-09-28 (compromise) | 2027-09-28 | Critical |
@@ -119,14 +119,16 @@ Since authentik 2023.6, `AUTHENTIK_SECRET_KEY` signs cookies and no longer feeds
 | `claude-telegram-env` → `telegram-bot-token` | Telegram bot @ClaudeSelfHostedBot (claude-telegram) | 2026-09-28 | Never* | High |
 | `sops-age` (`flux-system` ns) | SOPS decryption key for every secret in this repo | 2025-10-19 (bootstrap) | Never* | Critical |
 | `alertmanager-basic-auth` (`monitoring` ns) | Traefik basicAuth on `am.h0melab.work` | 2026-07-25 | 2027-07-25 | Medium |
+| `uptime-kuma-metrics` (`monitoring` ns) | Uptime Kuma API key `vmagent-metrics`; VMAgent scrapes Kuma `/metrics` with it. 1Password `uptime-kuma-metrics`. To rotate: add a new key in Kuma (Settings → API Keys), re-encrypt the SOPS file and merge. Wait until Flux applies it and `up{job="uptime-kuma"}` is 1, then delete the old key in Kuma. If it breaks, `UptimeKumaMetricsDown` fires | 2026-11-03 | 2027-11-03 | Medium |
 | `FLUX_UPDATE_TOKEN` (GitHub Actions repo secret) | `flux-update.yaml` opens the weekly Flux update PR; fine-grained PAT `homelab-flux-update`, repo `homelab` only, Contents + Pull requests write; 1Password `homelab-flux-update-token` | 2026-10-01 (created) | 2027-03-30 | Critical |
 | `trivy-dockerhub` | trivy-scan CronJob (Docker Hub read-only PAT, 1Password `docker_hub_ro`; PAT non-expiring — revoke+reissue) | 2026-07-14 | 2027-07-14 | Low |
 
 \* Rotate only if compromised
 
-**`gh-homelab`** is the only key here that can change what runs in the cluster. Flux reconciles
-`main` every 5 minutes, so a push with this key is a deploy — which is why it carries a 180-day
-deadline rather than the annual one the other deploy keys get. The three `gh-*` keys and
+**`gh-homelab`** is the only key here that can write to this repo. It can push branches other than
+`main`: the `main` ruleset (pull request required, no bypass actors) keeps a branch out of `main` until
+a PR merges, and a merge needs a GitHub login that the bot does not hold. So it rotates yearly, like the
+other deploy keys (operator decision, 2026-11-03). The three `gh-*` keys and
 `id_ed25519` all live in the single `claude-telegram-ssh` Secret; rotating one means re-encrypting
 that file, not replacing it. Confirm scope against GitHub rather than this table before trusting
 it: `gh api repos/AKhozya/<repo>/keys --jq '.[] | "\(.title) read_only=\(.read_only)"'`.
@@ -135,10 +137,10 @@ it: `gh api repos/AKhozya/<repo>/keys --jq '.[] | "\(.title) read_only=\(.read_o
 
 | Fact | Consequence |
 |---|---|
-| it has Contents and Pull requests write on this repo | it can merge a PR whose checks pass, so treat its use as a deploy, like one with `gh-homelab` |
+| it has Contents and Pull requests write on this repo | it can merge a PR whose checks pass, so treat its use as a deploy |
 | the `main` ruleset has no bypass | it cannot push to `main` |
 
-For that reason you rotate it every 180 days, like `gh-homelab`. Each counts from its own last rotation, so the two deadlines in the table above differ. The PAT itself never expires, so GitHub does not enforce that deadline. It is a fine-grained PAT, separate from the classic PAT that owns Flux's deploy key. Deleting that classic PAT also deletes the deploy key. If it leaks or you rotate it: regenerate `homelab-flux-update` at github.com/settings/personal-access-tokens, save the new value in the 1Password item, then load it and test it:
+For that reason you rotate it every 180 days. The PAT itself never expires, so GitHub does not enforce that deadline. It is a fine-grained PAT, separate from the classic PAT that owns Flux's deploy key. Deleting that classic PAT also deletes the deploy key. If it leaks or you rotate it: regenerate `homelab-flux-update` at github.com/settings/personal-access-tokens, save the new value in the 1Password item, then load it and test it:
 
 ```bash
 op read 'op://Personal/homelab-flux-update-token/credential' | gh secret set FLUX_UPDATE_TOKEN --repo AKhozya/homelab
@@ -573,7 +575,7 @@ code=$(printf '%s %s' "$PK" "$NEW_SECRET" |
   kubectl exec -i -n authentik deploy/authentik-server -- python3 -c "$PY")
 if [ "$code" = 200 ]; then echo "Authentik updated"; else echo "PATCH FAILED (HTTP $code): stop here"; fi
 
-# 3-5. Only if step 2 printed "Authentik updated": write the app-side copy, commit, push,
+# 3-5. Only if step 2 printed "Authentik updated": write the app-side copy, commit, merge the PR,
 #      reconcile, restart. Take the values from the table below and the selector table under
 #      ROTATION PROCEDURES. For a secret inside a larger value, leave KEY empty: sops then opens
 #      the file for a hand edit.
@@ -670,7 +672,7 @@ edits the checkout it lives in.
    ```
    For `tg`, the script updates every listed secret whose token has the same bot id (the part
    before `:`), so it finds each file that bot uses.
-3. Commit, merge, push, then `flux reconcile source git flux-system` and reconcile
+3. Commit, merge the PR, then `flux reconcile source git flux-system` and reconcile
    `infrastructure-controllers`, `infrastructure-configs`, `monitoring-configs` and `apps`.
 4. Each consumer picks up the value as follows:
 
@@ -728,7 +730,7 @@ edits the checkout it lives in.
 ## VERIFICATION CHECKLIST
 
 After rotating any secret:
-- [ ] Git commit pushed
+- [ ] PR merged to `main`
 - [ ] Flux reconciliation done
 - [ ] Pods restarted
 - [ ] No auth errors in logs
@@ -833,7 +835,6 @@ If compromised:
 - [ ] 2026-12-31: `cloudflare-tunnel-mgmt-token`
 
 ### 2027 Q1 (Jan-Mar)
-- [ ] 2027-01-30: `claude-telegram-ssh` → `gh-homelab` (write deploy key, 180 days)
 - [ ] 2027-03-30: `FLUX_UPDATE_TOKEN` (180 days from creation)
 - [ ] 2027-03-31: 180-day rotation — every row above that shows 2027-03-31
 

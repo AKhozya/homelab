@@ -1,4 +1,4 @@
-<!-- Source-sha256: 5ac569c417d4acbfb56ba0ee74323fc6d11c65bca47876a8377fffe929a33008 -->
+<!-- Source-sha256: 6f49a1b4d20dd5209ca2ce98d811d1463624ded99fadda849ff3af1c88d28abd -->
 <!-- Hand-edited export of the operator's global ~/.claude/CLAUDE.md, with personal sections and private incidents removed. agents/README.md maps the ~/.agents/skills paths to this folder. -->
 # Claude - Global Settings
 
@@ -88,7 +88,7 @@ Apply the same writing rules to Markdown files:
 - Lean ≠ lossy: KEEP the why, the gotcha, the repro command, dates, commit SHAs. Cutting substance to look terse is the opposite failure.
 
 ## Plain English
-**Write for someone new to the subject.** This applies to every report, page, doc and script.
+**Write for someone new to the subject.** This applies to every report, page, doc and script. Stick close to ASD-STE100 (Simplified Technical English) for artifacts and output of technical docs.
 
 | Rule | Instead of | Write |
 |---|---|---|

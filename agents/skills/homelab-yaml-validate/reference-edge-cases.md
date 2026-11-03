@@ -70,7 +70,7 @@ reconciliation rather than half-applying, but it blocks every app until reverted
 
 ## CI backstop — limits
 
-`validate.yaml` and `gitleaks.yaml` run on every push to `main` and every PR targeting `main`. The `main` ruleset requires `ci-ok` and `gitleaks secret scan` on a PR. The owner bypasses the ruleset, so a direct push reaches `main` whatever CI reports. Withholding `fr` delays reconciliation until Flux polls `main`, which it does every 5 min. It does not prevent deployment. This validation ladder and the pre-commit review loop can stop the commit, because both run before it exists.
+`validate.yaml` and `gitleaks.yaml` run on every push to `main` and every PR targeting `main`. The `main` ruleset requires `ci-ok` and `gitleaks secret scan` on a PR. The ruleset has no bypass actors, so nothing reaches `main` without a PR whose checks pass. Once a PR merges, withholding `fr` delays reconciliation until Flux polls `main`, which it does every 5 min. It does not prevent deployment. This validation ladder and the pre-commit review loop can stop the commit, because both run before it exists.
 
 ## Tools
 

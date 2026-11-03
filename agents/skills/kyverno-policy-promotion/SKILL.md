@@ -1,6 +1,9 @@
 ---
 name: kyverno-policy-promotion
-description: Use when authoring a new Kyverno CEL ValidatingPolicy (policies.kyverno.io/v1) or promoting one from Audit to Deny (validationActions flip). Drives the Audit→scan→fix-forward→Deny workflow: read-only PolicyReport scanner, live-action checker, local Audit→Deny flip with validation. Pairs with /gitops-workflow for commit + push + reconcile.
+description: >-
+  Use when authoring a new Kyverno CEL ValidatingPolicy (policies.kyverno.io/v1) or promoting one
+  from Audit to Deny (validationActions flip). Drives the Audit → scan → fix-forward → Deny workflow.
+  Commit and merge through /gitops-workflow.
 user-invocable: false
 ---
 
