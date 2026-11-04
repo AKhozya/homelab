@@ -42,9 +42,10 @@ was already running on the same Mac:
   | in-image via `docker run --platform linux/amd64` | 536 run · 535 pass / 1 skip / 0 fail · 42s |
   | in-cluster `kubectl exec` | 536 run · 535 pass / 1 skip / 0 fail · 22s |
 
-Nobody has measured why the MCP failures stopped. A clean emulated run is welcome, but it is
-still not evidence: a red emulated run says nothing about the code, so the in-cluster run
-stays the post-deploy gate.
+Nobody has measured why the MCP failures stopped, so the in-cluster run stays the post-deploy gate.
+If an emulated run fails, compare each failing test with the in-cluster run. A test that also
+fails in the cluster is a code defect. A test that fails only under emulation is the
+`Not connected` class above.
 
 ## Skipped zip-fixture test in the image
 
