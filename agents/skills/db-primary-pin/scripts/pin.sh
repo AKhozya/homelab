@@ -84,10 +84,31 @@ percona)
   primary_idx() {
     awk '/rw,/{print $1; exit}' | sed -n "s/^${CLUSTER}-mysql-\([0-9][0-9]*\)\..*/\1/p"
   }
-  [ "${PIN_PARSE_ONLY:-}" = 1 ] && {
+  # mysql-replicas server names are pod IPs with dashes: "server 10-42-2-71 10-42-2-71.<svc>:3306 ...".
+  replica_servers() {
+    awk '$1=="backend"{f=($2=="mysql-replicas"); next} f && $1=="server"{print $2}' | sort
+  }
+  PROXY_SEL="app.kubernetes.io/instance=$CLUSTER,app.kubernetes.io/component=proxy"
+  haproxy_ready() {
+    kubectl get pod -n "$NS" "$1" -o json 2>/dev/null |
+      jq -e --arg u "$2" '.metadata.uid != $u and any(.status.conditions[]?; .type=="Ready" and .status=="True")' >/dev/null
+  }
+  # If no other proxy is Ready, deleting this one stops all MySQL access until its replacement is Ready.
+  other_proxy_ready() {
+    kubectl get pod -n "$NS" -l "$PROXY_SEL" -o json |
+      jq -e --arg x "$1" 'any(.items[]; .metadata.name != $x and .metadata.deletionTimestamp == null
+        and any(.status.conditions[]?; .type=="Ready" and .status=="True"))' >/dev/null
+  }
+  case "${PIN_PARSE_ONLY:-}" in
+  1)
     primary_idx
     exit 0
-  }
+    ;;
+  haproxy)
+    replica_servers
+    exit 0
+    ;;
+  esac
 
   current_idx=$(orc -c topology -i "$(fqdn_for 0)" | primary_idx)
   [ -z "$current_idx" ] && die "could not determine current primary index"
@@ -122,6 +143,25 @@ percona)
   new_node=$(kubectl get pod -n "$NS" "${CLUSTER}-mysql-${new_idx}" -o jsonpath='{.spec.nodeName}')
   [ "$new_node" = "$NODE" ] || die "takeover landed on ${CLUSTER}-mysql-${new_idx} ($new_node), NOT $NODE — re-run or fix placement"
   echo "OK: primary pod ${CLUSTER}-mysql-${new_idx} on $NODE"
+
+  # HAProxy writes its mysql-replicas list only at pod start, and a takeover keeps the pod IPs, so
+  # the list now names the new primary and MySQLReplicaExporterDown fires. Restart the proxies one
+  # at a time, so one always serves, and require each list to name exactly the replicas.
+  want=$(kubectl get pod -n "$NS" -l "app.kubernetes.io/instance=$CLUSTER,app.kubernetes.io/component=database" -o json |
+    jq -r --arg p "${CLUSTER}-mysql-${new_idx}" '.items[] | select(.metadata.name != $p) | .status.podIP // "" | gsub("\\."; "-")' | sort)
+  [ -n "$want" ] || die "found no replica pod IPs for $CLUSTER"
+  proxies=$(kubectl get pod -n "$NS" -l "$PROXY_SEL" -o json |
+    jq -r '.items[].metadata.name' | sort -r)
+  [ -n "$proxies" ] || die "found no HAProxy pods for $CLUSTER"
+  for hp in $proxies; do
+    other_proxy_ready "$hp" || die "no other Ready HAProxy pod, so $hp stays up; restart it by hand once another proxy is Ready"
+    old_uid=$(kubectl get pod -n "$NS" "$hp" -o jsonpath='{.metadata.uid}')
+    kubectl delete pod -n "$NS" "$hp"
+    wait_until "$hp recreated and Ready" 300 "haproxy_ready '$hp' '$old_uid'"
+    got=$(kubectl exec -n "$NS" "$hp" -c haproxy -- cat /etc/haproxy/mysql/haproxy.cfg | replica_servers)
+    [ "$got" = "$want" ] || die "$hp mysql-replicas lists '${got//$'\n'/ }', want '${want//$'\n'/ }'"
+    echo "OK: $hp mysql-replicas = ${want//$'\n'/ }"
+  done
   ;;
 
 redis)
