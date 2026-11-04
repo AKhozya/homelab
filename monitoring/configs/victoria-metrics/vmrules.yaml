@@ -903,6 +903,31 @@ spec:
   - name: mysql-alerts
     interval: 60s
     rules:
+    - alert: PerconaOperatorReconcileErrors
+      # No metric exports the CR's state=error, so reconcile errors are the only signal.
+      # A failover causes a few errors, so the alert needs 30m of them.
+      expr: sum by (controller) (rate(controller_runtime_reconcile_errors_total{job="monitoring/ps-operator"}[15m])) > 0
+      for: 30m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Percona MySQL operator: {{ $labels.controller }} reconcile keeps failing"
+        description: >-
+          The Percona Server MySQL operator has failed {{ $labels.controller }} reconciles for 30 minutes,
+          and repeated failures can stop it from applying CR changes. Read the error: kubectl -n percona-mysql logs deploy/ps-operator --since=30m | grep ERROR
+
+    - alert: PerconaOperatorMetricsDown
+      # absent() also fires if the scrape object or the job label disappears.
+      expr: max by (job) (up{job="monitoring/ps-operator"}) == 0 or absent(up{job="monitoring/ps-operator"})
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "VMAgent cannot scrape the Percona MySQL operator"
+        description: >-
+          VMAgent has not scraped ps-operator metrics for 15 minutes, so PerconaOperatorReconcileErrors cannot fire.
+          Check the ps-operator pod and the percona-operator-network-policy NetworkPolicy.
+
     - alert: MySQLDown
       expr: mysql_up{job="mysql-exporter"} == 0
       for: 2m
