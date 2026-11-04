@@ -18,6 +18,32 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-04 — The Percona operator had failed every reconcile for a day; a switchover test proves pin.sh
+
+**Cause.** The crVersion 1.3.0 change (`b993320b`) made the operator apply the `[mysqld]` config with `SET GLOBAL`. The operator rejects a config name that contains a dash. So `skip-replica-start` stopped every reconcile at the MySQL config step from 2026-11-03 23:17 (5202 errors, CR `state=error`). MySQL kept serving. Nothing alerted, because nothing scraped the operator.
+
+| Change | Commit | Effect |
+|---|---|---|
+| `skip_replica_start=ON` | `08755b89` | the operator accepts the name. If a read-only variable already holds the configured value, the operator skips the restart (`mysql_config.go`, v1.3.0). Result: CR `ready`, `MySQLConfigSynced=True`, 0 MySQL restarts |
+| VMPodScrape `ps-operator` | `146916fa`, `33d33286` | the pod declares no port, and `port`, `portNumber` and `targetPort` each keep only declared ports. So the scrape sets `__address__` to the pod IP and port 8080 |
+| NetworkPolicy ingress | `146916fa` | admits VMAgent on TCP 8080 |
+| `PerconaOperatorReconcileErrors` | `146916fa` | fires after 30m of reconcile errors. It went pending on the live errors at 23:00, before the fix |
+| `PerconaOperatorMetricsDown` | `146916fa` | fires if the scrape fails or its `up` series is absent for 15m |
+
+**Switchover test.** `pin.sh` now restarts the HAProxy pods after a takeover (dotfiles `5e69c90`).
+
+| Run | Start | Duration | HAProxy `mysql-replicas` after the run |
+|---|---|---|---|
+| W1 → W2 | 23:05:50 | 2m48s | both pods list the new replica |
+| W2 → W1 | 23:10:09 | 2m48s | both pods list the new replica |
+
+After each run, `mysql_up` was 1 on both exporters and `check-alerts.sh` showed only Watchdog.
+
+| App | Errors |
+|---|---|
+| PriceBuddy | read-only errors 23:05:53–23:05:58 and 23:10:10–23:10:25. On 2026-11-03 a takeover gave ~2 minutes of them |
+| Home Assistant | lost connections at 23:08:15 and 23:12:15, when pin.sh deleted the HAProxy pods, and at 23:10:10 and 23:10:13, during the second takeover |
+
 ### 2026-11-03 — Monthly review: Uptime Kuma had no alert channel, MySQL moves to crVersion 1.3.0, n8n drops its statement-timeout workaround
 
 The November review ran on the evening of the weekly-style upgrade and rolling reboot (21:44–22:17 UTC, all 4 nodes, kernel `6.18.60-1-lts`, phase1 and phase2 `success`).
