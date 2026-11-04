@@ -11,6 +11,10 @@ spec:
     matchLabels:
       app.kubernetes.io/name: ps-operator
   podMetricsEndpoints:
-    # The chart declares no container port, so there is no port name to select.
-    - portNumber: 8080
-      interval: "60s"
+    # The chart declares no container port. port, portNumber and targetPort each keep only declared
+    # ports, so they drop this pod; the relabel sets the address instead.
+    - interval: "60s"
+      relabelConfigs:
+        - sourceLabels: [__meta_kubernetes_pod_ip]
+          targetLabel: __address__
+          replacement: "$1:8080"
