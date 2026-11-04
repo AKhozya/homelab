@@ -1,0 +1,16 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: ps-operator
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - percona-mysql
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ps-operator
+  podMetricsEndpoints:
+    # The chart declares no container port, so there is no port name to select.
+    - portNumber: 8080
+      interval: "60s"
