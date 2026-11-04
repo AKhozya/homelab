@@ -180,7 +180,10 @@ spec:
       # Without this, the primary retains replica config from PVC and starts SQL thread,
       # causing HAProxy health check to reject it as primary (<NOSRV>)
       # Orchestrator handles START REPLICA on the actual replica
-      skip-replica-start
+      # Underscores and a value: from crVersion 1.3.0 the operator runs SET GLOBAL for every key, and a
+      # dashed name fails every reconcile. If this read-only variable already holds ON, the operator
+      # skips the restart.
+      skip_replica_start=ON
 
   # HAProxy for connection routing (required for async replication)
   proxy:
