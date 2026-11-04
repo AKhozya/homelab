@@ -98,7 +98,6 @@ Worker self-heal watchdogs: `clusterip_heal` (post-reboot kube-proxy DNAT wedge 
 | Due | Item |
 |---|---|
 | unscheduled | Deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only); a first-start drill of the control plane; a rename of the sshd drop-in |
-| 2026-12 (monthly review) | On W1, delete `/mnt/k8s-storage/rancher/k3s/server.stale-20261104-dead-install` if nothing has needed it since 2026-10-04. The directory holds a dead install's server state. The cert monitor no longer scans it (`00aab2a6`). Use sudo to inspect and delete it |
 | Each monthly review until done | Check that a k3s minor PR waits for Dashboard approval; no release has tested this yet. If `gh api 'repos/k3s-io/k3s/git/matching-refs/tags/v1.38.' --jq length` prints 0, k3s has no 1.38 yet: keep this row. Otherwise `gh issue view 32 -R AKhozya/homelab --json body --jq .body \| grep -A3 -i '^## Pending Approval'` must list the k3s update, and no open k3s PR may exist before you tick it. Then follow the `k3s-upgrade` skill (release notes first) and delete this row |
 | 2026-12 (monthly review) | n8n runs without `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` since 2026-11-03 (`911a8c94`). Confirm a month of logs has no "canceling statement due to statement timeout" and no restarts. If timeouts appear, restore the variable and recycle the n8n pooler connections |
 | 2026-12-31 | `cloudflare-tunnel-mgmt-token` rotation |

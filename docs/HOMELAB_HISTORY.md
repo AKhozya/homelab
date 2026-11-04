@@ -53,7 +53,8 @@ An end-to-end test proved delivery. A temporary monitor at `http://127.0.0.1:9/`
 | Operator decision | Result |
 |---|---|
 | `gh-homelab` deploy key | yearly, like the other deploy keys: it can push branches but cannot reach `main` without a merge. Next 2027-08-03 |
-| `fr` in `~/.zshrc` | not changed: it skips `coredns` and gives three Kustomizations 90s against a 2m Flux timeout. A patch is waiting for the operator |
+| `fr` in `~/.zshrc` | the operator applied the patch on 2026-11-04 (dotfiles `79ea426`): `fr` now reconciles `coredns` and gives three Kustomizations their 2m Flux timeout |
+| W1 `server.stale-20261104-dead-install` | the operator deleted it with sudo on 2026-11-04. Nothing had needed it since 2026-10-04 |
 
 HISTORY trimmed to entries from 2026-08-03 on; the Q3 2026 Milestones row covers the July entries that went.
 
