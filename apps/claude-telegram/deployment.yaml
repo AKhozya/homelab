@@ -52,21 +52,18 @@ spec:
               set -e
               export HOME=/home/akhozya
 
-              # Repo metadata is a code-execution surface nothing else heals. Every key below names
-              # a program git runs, or points at another config that can; .git/info/attributes is
-              # what arms a filter driver, and a hook may be a symlink (hence `! -type d`, not
-              # `-type f`). The sync sidecar calls `git status` in both checkouts every 30 min, so
-              # a planted value executes on a timer. A hard reset never touches .git/config,
-              # .git/hooks or .git/info, and chezmoi manages none of them on Linux — nothing else
-              # here removes them. Must run before any other git command; `git config` does not
-              # refresh the index, so it cannot fire fsmonitor itself. Matched by regex rather than
-              # a fixed key list because includeIf/filter/diff/merge keys carry a caller-chosen
-              # subsection name.
-              # The pattern itself lives in the claude-telegram-git-exec ConfigMap so that this
-              # container and the sync sidecar use the identical one; see that file for what is in
-              # it and why. Guarded, never defaulted: an empty pattern makes every sweep below
-              # match nothing and report success, which is the exact failure this block exists to
-              # prevent.
+              # Repo metadata can run code, and nothing else removes a planted entry: a hard reset
+              # never touches .git/config, .git/hooks or .git/info, and chezmoi does not manage them
+              # on Linux. Every key below names a program git runs, or a config that can name one.
+              # .git/info/attributes arms a filter driver, and a hook may be a symlink, hence
+              # `! -type d`. The sync sidecar runs `git status` in both checkouts every 30 min, so
+              # a planted value runs on a timer.
+              # Run this before any other git command. `git config` does not refresh the index, so
+              # it cannot fire fsmonitor itself.
+              # A regex, not a key list: includeIf/filter/diff/merge keys carry a subsection name
+              # the attacker chooses. It lives in the claude-telegram-git-exec ConfigMap, shared
+              # with the sync sidecar. If it is empty, every sweep matches nothing and reports
+              # success, so exit instead of defaulting it.
               [ -n "${GIT_EXEC_RE:-}" ] || { echo "FATAL: GIT_EXEC_RE empty or unset" >&2; exit 1; }
               # Per FILE, not per scope: `--global` reads ~/.gitconfig AND ~/.config/git/config but
               # writes only one, so a key planted in the other survives a --global --unset-all.
@@ -195,20 +192,18 @@ spec:
                 [ -x "/app/hooks/$h" ] || { echo "FATAL: /app/hooks/$h missing or not executable" >&2; exit 1; }
               done
 
-              # ~/.claude/settings.json is .chezmoiignore'd on linux (it carries macOS /Users paths),
-              # so chezmoi never sets model/effort here, and the PVC copy would otherwise drift.
-              # ANTHROPIC_MODEL below also pins the model; this keeps the file honest if that env is lost.
-              # No `|| true` on purpose: only ENOENT is tolerated, so malformed JSON aborts init
-              # rather than rewriting the PVC-only file (not in git) down to three keys.
+              # chezmoi ignores ~/.claude/settings.json on Linux (it carries macOS /Users paths), so
+              # this sets model and effort, or the PVC copy drifts. ANTHROPIC_MODEL below also pins
+              # the model. If that env is lost, the file still selects the same model.
+              # Init tolerates only ENOENT: malformed JSON aborts init rather than rewriting the
+              # PVC-only file (not in git) down to three keys.
               # hooks is REPLACED, never merged, because a merge would keep an injected entry. The
               # Bash denylist is absent on purpose: SAFETY_HOOK runs it from bot code, so deleting
-              # this key cannot disarm it. What is left denies nothing.
-              # The write goes to a temp file and a rename, because an interrupted write leaves
-              # malformed JSON, which the throw then turns into a pod that never starts.
-              # Parseable is not usable: `[]`, `5`, `"oops"` and `true` all parse. Assigning a
-              # property to a primitive is a silent no-op in sloppy mode, and JSON.stringify drops
-              # properties added to an array, so each would be written back with no hooks and exit 0.
-              # Anything that is not a plain object is replaced with {}.
+              # this key cannot disarm it.
+              # Write a temp file and rename it. If a direct write is interrupted, the malformed JSON
+              # makes the next init throw, and the pod never starts.
+              # `[]`, `5`, `"oops"` and `true` all parse, but setting hooks on them is lost on write,
+              # so anything that is not a plain object becomes {}.
               node -e 'const fs=require("fs"),d=process.env.HOME+"/.claude",p=d+"/settings.json";let s={};try{s=JSON.parse(fs.readFileSync(p,"utf8"))}catch(e){if(e.code!=="ENOENT")throw e}if(typeof s!=="object"||s===null||Array.isArray(s))s={};s.model="claude-opus-5";s.effortLevel="xhigh";s.hooks={PostToolUse:[{matcher:"Bash",hooks:[{type:"command",command:"/app/hooks/flux-push-reminder.sh"}]}],SessionStart:[{hooks:[{type:"command",command:"/app/hooks/session-pull.sh"}]},{hooks:[{type:"command",command:"/app/hooks/context-mode-cache-heal.mjs"}]}]};fs.mkdirSync(d,{recursive:true});fs.writeFileSync(p+".tmp",JSON.stringify(s,null,2)+"\n");fs.renameSync(p+".tmp",p)'
 
               # Nothing references the PVC copies now. Left in place they invite an edit that
@@ -306,7 +301,7 @@ spec:
                 echo "codex auth.json seeded from secret"
               fi
 
-              # Versions pinned at image build (bi-weekly GHA rebuild); Renovate bumps the tag.
+              # Versions pinned at image build (twice-weekly GHA rebuild); Renovate bumps the tag.
               CLI=$("$CC" --version 2>/dev/null || echo "unknown")
               SDK=$(node -e "console.log(require('/app/node_modules/@anthropic-ai/claude-agent-sdk/package.json').version)" 2>/dev/null || echo "unknown")
               CODEX=$(codex --version 2>/dev/null || echo "missing")

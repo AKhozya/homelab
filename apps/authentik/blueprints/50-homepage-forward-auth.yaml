@@ -35,7 +35,8 @@ entries:
 
   # Bind to the embedded outpost that ships inside the authentik server. `attrs.providers`
   # REPLACES the list, so this entry must list every provider bound to the embedded outpost,
-  # not just a new one. When this was written, the embedded outpost had no other provider.
+  # not just a new one. Only homepage uses the authentik-forward-auth middleware, so the list
+  # holds only homepage-provider.
   - model: authentik_outposts.outpost
     state: present
     identifiers:
