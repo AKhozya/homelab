@@ -26,8 +26,7 @@ spec:
   headers:
     customResponseHeaders:
       # Strict enforced CSP — script-src 'self' only. Applied per-ingress to couchdb/Fauxton.
-      # Browser-verified clean 2026-06-04: zero inline-script/eval violations under report-only soak.
-      # report-uri omitted: csp-reporter is cluster-internal HTTP, unreachable from a browser (Mixed-Content).
+      # Browser test 2026-06-04 in report-only mode: zero inline-script or eval violations.
       Content-Security-Policy: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'
         data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self' blob:; frame-src
         'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self' https://authentik.h0melab.work"
@@ -43,7 +42,6 @@ spec:
       # This policy matches the default `csp`.
       # Applied to paperless-ngx, homepage, mealie, homehub and audiobookshelf. paperless-ngx's
       # Angular UI emits inline scripts (browser-verified 2026-06-04, no eval needed).
-      # report-uri omitted: csp-reporter is cluster-internal HTTP, unreachable from a browser (Mixed-Content).
       Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';
         img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' blob: data:; worker-src 'self'
         blob:; frame-src 'self'; frame-ancestors 'self'; base-uri 'self'; form-action 'self'

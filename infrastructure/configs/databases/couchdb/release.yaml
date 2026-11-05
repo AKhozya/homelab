@@ -31,14 +31,12 @@ spec:
     # critical tier: CouchDB outranks standard/batch under node pressure
     priorityClassName: homelab-critical
 
-    # Pod-level seccomp baseline — satisfies require-seccomp-runtimedefault Kyverno
-    # policy. Chart renders this at pod securityContext; kubelet applies pod-level
-    # seccomp to all containers incl. init unless a container overrides it.
+    # Pod-level seccomp for the require-seccomp-runtimedefault Kyverno policy. It also
+    # covers the init container.
     podSecurityContext:
       seccompProfile:
         type: RuntimeDefault
 
-    # Init container image (pin version, don't use :latest)
     initImage:
       repository: busybox
       tag: "1.38.0"
@@ -52,10 +50,8 @@ spec:
         cpu: 200m
         memory: 128Mi
 
-    # CouchDB cluster configuration - 2 replicas for HA
     clusterSize: 2
 
-    # Distribute across worker nodes for HA
     affinity:
       podAntiAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
@@ -82,7 +78,6 @@ spec:
       # Compaction: smoosh defaults (CouchDB 3.x auto-compaction daemon) — tune
       # [smoosh.<channel>] here if bloat ever becomes a problem
 
-    # Admin credentials (chart will read an existing secret instead of creating one)
     adminUsername: admin
     # The chart reads the password from the SOPS Secret couchdb-couchdb (couchdb/admin-secret.yaml).
     createAdminSecret: false

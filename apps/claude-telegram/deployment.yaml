@@ -17,14 +17,10 @@ spec:
         app: claude-telegram
     spec:
       serviceAccountName: claude-telegram
-      # The bot uses kubectl for cluster diagnostics. rbac.yaml grants cluster-wide READ;
-      # infrastructure/configs/claude-telegram-rbac/rolebindings.yaml grants exec and Job creation
-      # per namespace, and its header is the one list.
-      # The bot can run code inside pods in 13 namespaces through `pods/exec`, with each pod's
-      # network reach; this pod's own egress policy does not limit it. None of them runs pods in a
-      # node's host network. In monitoring it reads vmsingle, vmalert and Alertmanager through the
-      # API server's service proxy instead. Node SSH runs under the agent-diag forced command
-      # (read-only diagnostics). The bot can create Jobs only in popeye.
+      # rbac.yaml grants cluster-wide read. infrastructure/configs/claude-telegram-rbac/rolebindings.yaml
+      # grants exec and Job creation per namespace, and its header is the one list.
+      # Exec gives the bot the target pod's network reach, which this pod's egress policy does not limit.
+      # No bound namespace runs host-network pods.
       automountServiceAccountToken: true
       priorityClassName: homelab-standard
       hostAliases:
@@ -405,17 +401,15 @@ spec:
               value: /home/akhozya/source-code/homelab
             - name: ALLOWED_PATHS
               value: "/home/akhozya"
-            # OS-level Bash sandbox off in-pod: its Linux backend is bubblewrap, which needs
-            # unprivileged user namespaces. Blocked by seccompProfile RuntimeDefault COMBINED WITH
-            # capabilities.drop ALL — containerd builds its default profile from the bounding
-            # capability set and allowlists unshare/mount/clone3 only under CAP_SYS_ADMIN, while
-            # pivot_root is absent from that profile entirely, so bwrap fails even with the
-            # capability. Same reason codex runs danger-full-access above — true for codex >= 0.115,
-            # which moved the Linux backend from Landlock to bwrap, so re-verify on a major bump.
-            # Running codex danger-full-access inside a container is OpenAI's own documented
-            # guidance when the container is the intended boundary. The pod IS the sandbox —
-            # readOnlyRootFilesystem confines writes to the mounted paths, caps dropped, egress
-            # NetworkPolicy. env-secret scrub, strictMcpConfig, and the native-tool gates stay on.
+            # The OS-level Bash sandbox cannot run here. Its Linux backend, bubblewrap, needs
+            # unprivileged user namespaces, and seccompProfile RuntimeDefault with
+            # capabilities.drop ALL blocks them: containerd allows unshare/mount/clone3 only under
+            # CAP_SYS_ADMIN, and its profile omits pivot_root, so bwrap fails even with the
+            # capability. The same limit makes codex run danger-full-access above (codex >= 0.115
+            # uses bwrap; re-verify on a major bump). OpenAI documents danger-full-access for a
+            # container that is the intended boundary. The pod is the sandbox: read-only rootfs,
+            # caps dropped, egress NetworkPolicy. env-secret scrub, strictMcpConfig and the
+            # native-tool gates stay on.
             - name: BASH_SANDBOX_ENABLED
               value: "false"
             # Arms the external Bash denylist. If this is unset, that layer switches off silently.
@@ -432,16 +426,13 @@ spec:
               value: /tmp/claude-telegram-poll-heartbeat
             - name: AUDIT_LOG_PATH
               value: /home/akhozya/data/audit.log
-            # Pinned here rather than left on the code defaults so the cadence is
-            # tunable without rebuilding the image.
             - name: TEMP_REAP_INTERVAL_MS
               value: "3600000"
             - name: TEMP_RETENTION_HOURS
               value: "24" # an ask_user pause holds a download open; a longer pause loses it
             # Tracks the CPU limit below. nproc reports the node's 16 cores inside a capped
-            # pod, so whisper.cpp cannot derive this itself; left at its default of 2 the
-            # extra core would go unused. Matching threads to the cap beats oversubscribing —
-            # measured at the old 2-core cap, where -t 2 beat -t 4 by 44%.
+            # pod, so whisper.cpp cannot derive this, and its default of 2 leaves a core idle.
+            # Do not oversubscribe: at the old 2-core cap, -t 2 beat -t 4 by 44%.
             - name: WHISPER_THREADS
               value: "3"
             # Use ANTHROPIC_MODEL, not CLAUDE_CODE_DEFAULT_MODEL: the latter has no consumer
@@ -473,12 +464,12 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
-          # Poll-heartbeat freshness (the bot touches the file on every successful
-          # getUpdates), not process-aliveness: on 2026-08-07 the poller slept out an
-          # hours-long retry backoff after a network outage while a pgrep-style check
-          # stayed green and 7 updates queued server-side. 10min staleness + 3 failures
-          # restarts ~13min after polling dies; polling continues during long Claude
-          # queries, so a busy bot is not a stale bot.
+          # Checks poll-heartbeat freshness, not process liveness. The bot touches the file on
+          # every successful getUpdates. On 2026-08-07 the poller waited out an hours-long
+          # retry backoff after a network outage, while a pgrep-style check kept passing and
+          # 7 updates queued server-side. 10 min staleness and 3 failures restart the container about
+          # 13 min after polling stops. Polling continues during long Claude queries, so a busy
+          # bot does not look stale.
           livenessProbe:
             exec:
               command:
@@ -489,7 +480,7 @@ spec:
             periodSeconds: 60
             timeoutSeconds: 5
             failureThreshold: 3
-          # Trigger server binds 127.0.0.1 — exec probe required (kubelet can't reach localhost)
+          # The trigger server binds 127.0.0.1, which kubelet cannot reach, so the probe is exec.
           readinessProbe:
             exec:
               command: ["curl", "-sf", "--max-time", "2", "http://127.0.0.1:8080/healthz"]
@@ -666,14 +657,13 @@ spec:
             secretName: claude-telegram-codex
             defaultMode: 0400
         - name: tmp
-          # Not a cap on writes: kubelet scans usage periodically and evicts the Pod once it
-          # sees usage above this limit. It never prunes files.
-          # Routine cleanup is the app's reaper (TEMP_REAP_INTERVAL_MS and
-          # TEMP_RETENTION_HOURS above). This limit lets kubelet evict a runaway on its next
-          # scan, instead of waiting until node ephemeral storage fills and the node evicts its
-          # neighbours too.
-          # 4Gi holds many concurrent downloads at the Telegram per-file ceiling, so
-          # lowering it means lowering the retention window with it. Only in-flight media
-          # is lost; state lives on the PVC.
+          # sizeLimit neither caps writes nor prunes files: kubelet evicts the Pod on the next
+          # periodic scan that sees usage above it. The app's reaper (TEMP_REAP_INTERVAL_MS,
+          # TEMP_RETENTION_HOURS) does routine cleanup. This limit lets kubelet evict a runaway on
+          # its next scan, instead of waiting until node ephemeral storage fills and the node
+          # evicts its neighbours too.
+          # 4Gi holds many concurrent downloads at the Telegram per-file ceiling. If you lower
+          # it, lower the retention window too. Eviction loses only in-flight media; state
+          # lives on the PVC.
           emptyDir:
             sizeLimit: 4Gi

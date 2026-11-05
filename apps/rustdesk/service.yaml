@@ -6,8 +6,9 @@ metadata:
   annotations:
     # If ETP=Local, servicelb lists in the Service status only the pool nodes
     # that hold a ready pod (k3s pkg/cloudprovider/servicelb.go getStatus). The
-    # pod is pinned to W1, so only 192.168.1.129 appears and carries traffic -
-    # clients must be configured with .129. ETP=Local also preserves client source IP.
+    # pod is pinned to W1, so only 192.168.1.129 appears and carries traffic, and
+    # clients must use .129. ETP=Local also preserves the client source IP, which the
+    # NetworkPolicy's LAN-client rule matches on.
     description: "RustDesk hbbs+hbbr. Client-facing IP = 192.168.1.129 (W1 pin); servicelb advertises only that node."
 spec:
   type: LoadBalancer

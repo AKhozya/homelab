@@ -8,7 +8,7 @@
 # Surfaced 2026-05-29: `seleniumbase-scrapper:v1.0` + `claude-telegram:1.22`.
 #
 # Scope: container/init/ephemeral `image:` refs in authored workloads, plus image tags
-# mirrored into HelmRelease `spec.values`. The values pass was added after two escapes that
+# mirrored into HelmRelease `spec.values`. The values pass exists because of two escapes
 # the container pass could not see: the loki gateway tag drifted a patch behind the same
 # image elsewhere in the repo, and redis-operator's `imageTag` froze the operator on v0.24.0
 # while its chart moved to 0.25.0. Chart-default images (no tag in values) are pinned by the
@@ -38,9 +38,8 @@ root="${1:-.}"
 
 # major.minor.patch with optional leading v and optional -variant / .build suffix.
 semver_re='^v?[0-9]+\.[0-9]+\.[0-9]+([-.+].*)?$'
-# The audit also accepts two-component tags for upstreams that use two-part releases without a
-# patch component.
-#   postgres / cloudnative-pg postgresql → `18.4`, `18.4-standard-trixie` (no patch component).
+# Upstreams that publish two-part versions with no patch component, so a major.minor tag is
+# pinned: postgres and cloudnative-pg postgresql (`18.4`, `18.4-standard-trixie`).
 twocomp_ok_re='(^|/)(postgres|postgresql)$'
 twocomp_re='^v?[0-9]+\.[0-9]+(\.[0-9]+)?([-.+].*)?$'
 
@@ -55,7 +54,6 @@ check_tag() {
     echo "FAIL: $file  $ref  (:latest)"
     found=1
   elif [[ "$repo" =~ $twocomp_ok_re ]]; then
-    # Upstream uses native 2-component versioning — accept major.minor[.patch].
     if [[ ! "$tag" =~ $twocomp_re ]]; then
       echo "FAIL: $file  $ref  (not a pinned version)"
       found=1
@@ -73,11 +71,9 @@ while IFS= read -r -d '' file; do
     continue
   fi
 
-  # The first yq pass extracts every container/init/ephemeral image from non-HelmRelease
-  # docs. `..` recurses all nodes (covers containers[], initContainers[],
-  # ephemeralContainers[], CronJob jobTemplate nesting, bare Pods); select keeps maps that
-  # have an `image` key. Doc-level select(.kind!="HelmRelease") drops HelmRelease
-  # values.image false-positives.
+  # `..` recurses every node, so the first pass covers containers[], initContainers[],
+  # ephemeralContainers[], CronJob jobTemplate nesting and bare Pods. Excluding HelmRelease
+  # docs drops values.image false positives; the second pass checks those.
   # A yq error fails the file. Ignoring a yq error would let an unchecked file pass.
   if ! imgs=$(yq ea 'select(tag == "!!map") | select(.kind != "HelmRelease") | .. | select(tag == "!!map" and has("image")) | .image' "$file") ||
     ! vals=$(yq ea 'select(tag == "!!map") | select(.kind == "HelmRelease") | .spec.values | .. | select(tag == "!!map") | select((has("tag") and (((path[-1] | tostring | downcase) | test("image$")) or has("repository"))) or has("imageTag")) | [(.repository // "NONE"), (.tag // .imageTag), (.digest // "NONE")] | @tsv' "$file"); then

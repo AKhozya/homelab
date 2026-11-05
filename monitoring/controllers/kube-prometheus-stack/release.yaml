@@ -30,9 +30,8 @@ spec:
     cleanupOnFail: true
   driftDetection:
     mode: enabled
-  # standard-tier — postRenderers for chart-managed Deployments/DS; alertmanager STS
-  # picks up priorityClassName via values.alertmanager.alertmanagerSpec.priorityClassName below
-  # (Prometheus Operator propagates Alertmanager CR field to the generated STS).
+  # The Prometheus Operator creates the Alertmanager StatefulSet after Helm renders, so these
+  # postRenderers cannot reach it. It gets its priority from alertmanagerSpec.priorityClassName.
   postRenderers:
     - kustomize:
         patches:
@@ -222,12 +221,10 @@ spec:
           routes:
           - matchers:
               - alertname = Watchdog
-            # Dead-man switch: Watchdog always fires, so alertmanager re-notifies
-            # every repeat_interval → one heartbeat ping to healthchecks.io per
-            # interval. If the monitoring stack dies (e.g. W2 loss takes VMSingle),
-            # Watchdog stops, pings stop, healthchecks.io alerts EXTERNALLY — the
-            # one alert path that survives cluster-internal monitoring death.
-            # 10m cadence: keep the healthchecks.io period+grace comfortably above it.
+            # Dead-man switch: Watchdog always fires, so this route pings healthchecks.io
+            # every repeat_interval. If the monitoring stack dies, the pings stop and
+            # healthchecks.io alerts from outside the cluster. Keep the healthchecks.io
+            # period plus grace above 10m to allow time for delayed pings.
             receiver: 'deadman'
             group_wait: 0s
             repeat_interval: 10m
@@ -315,7 +312,6 @@ spec:
             hosts:
             - am.h0melab.work
       alertmanagerSpec:
-        # standard-tier — Prometheus Operator propagates to the generated STS.
         priorityClassName: homelab-standard
         replicas: 2
         podAntiAffinity: "hard"

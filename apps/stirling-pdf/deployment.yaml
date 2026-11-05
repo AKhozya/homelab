@@ -43,8 +43,8 @@ spec:
               drop: ["ALL"]
               add: ["SETGID", "SETUID", "CHOWN", "DAC_OVERRIDE"] # entrypoint: setpriv to app users (SETUID/SETGID), chown -R app paths (CHOWN), root writes into other users' dirs (DAC_OVERRIDE)
           # / requires authentication (since v2.0.3), so health checks use /api/v1/info/status.
-          # startupProbe allows 300s for slow cold start (30 * 10s). Spring Boot 4 + license check
-          # + H2 initialization can exceed 90s on a cold node (measured on 2.11.0-fat)
+          # Spring Boot 4, the license check and H2
+          # initialization can exceed 90s on a cold node (measured on 2.11.0-fat).
           startupProbe:
             httpGet:
               path: /api/v1/info/status

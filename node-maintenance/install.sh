@@ -25,9 +25,7 @@ KUBECONFIG_PATH="/etc/rancher/k3s/k3s.yaml"
 SSH_KEY_PATH="/var/lib/node-maintenance/.ssh/id_ed25519"
 
 # ── Preconditions ──
-# ansible / jq / rsync / logrotate / python-kubernetes bootstrapped by
-# setup-node.sh (CP-only section). Re-check here as safety net — if anything
-# missing, stop with actionable error instead of obscure failure mid-run.
+# setup-node.sh (CP-only section) installs ansible, jq, rsync, logrotate and python-kubernetes.
 for bin in ansible-playbook jq rsync logrotate kubectl flux; do
   command -v "$bin" >/dev/null 2>&1 \
     || { echo "$bin missing — run setup-node.sh first" >&2; exit 1; }
@@ -121,7 +119,6 @@ if [ "$SYNC_ONLY" -eq 0 ]; then
       "$KEY_SRC" "$SSH_KEY_PATH"
     shred -u "$KEY_SRC" 2>/dev/null || rm -f "$KEY_SRC"
 
-    # Derive pub key from private (no separate storage)
     ssh-keygen -y -f "$SSH_KEY_PATH" > "${SSH_KEY_PATH}.pub"
     chown node-maintenance:node-maintenance "${SSH_KEY_PATH}.pub"
     chmod 0644 "${SSH_KEY_PATH}.pub"
@@ -142,8 +139,7 @@ fi
 
 # ── notify helper + sync helper + systemd units ──
 install -m 0750 -o root -g root "$REPO_DIR/lib/telegram-notify.sh" /usr/local/sbin/telegram-notify.sh
-# phase2's ExecStopPost runs this copy. If this line is missing, an edit in git never
-# reaches the CP copy, as was the case until 2026-08-08.
+# phase2's ExecStopPost runs this installed copy. If you skip this copy step, repo changes do not update it.
 install -m 0750 -o root -g root "$REPO_DIR/lib/telegram-notify-claude.sh" /usr/local/sbin/telegram-notify-claude.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/sync-from-git.sh"   /usr/local/sbin/node-maintenance-sync-from-git.sh
 install -m 0750 -o root -g root "$REPO_DIR/lib/node-config-notify.sh" /usr/local/sbin/node-maintenance-config-notify.sh
@@ -167,7 +163,6 @@ done
 
 systemctl daemon-reload
 
-# Enable node-config drift-heal timer (security-scan timer enabled by ansible security_scan role).
 systemctl enable --now node-maintenance-config.timer
 
 # ── run initial node-config drift-heal (ansible owns logrotate/journald/sudoers/user) ──

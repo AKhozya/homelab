@@ -1,4 +1,3 @@
-# CEL ValidatingPolicy. Replaced the disallow-host-namespaces ClusterPolicy on 2026-07-12.
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:

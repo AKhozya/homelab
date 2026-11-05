@@ -17,10 +17,8 @@ spec:
       serviceAccountName: uptime-kuma
       automountServiceAccountToken: false
       priorityClassName: homelab-standard
-      # Pin to control-plane so probes targeting worker nodes always traverse
-      # external networking, not pod-local loopback. Avoids "monitor blind to
-      # its own node failure" (e.g. UK on W1 → W1 SSH probe stays green
-      # while host INPUT chain drops external traffic).
+      # Pinned to the control plane so probes to the worker nodes cross the network. If Kuma
+      # runs on W1, its W1 SSH probe passes while the host INPUT chain drops external traffic.
       nodeSelector:
         node-role.kubernetes.io/control-plane: "true"
       tolerations:
@@ -102,7 +100,7 @@ spec:
             - name: tmp
               mountPath: /tmp
       volumes:
-        # If the DB backend is MariaDB, /app/data is disposable: it holds
+        # If UPTIME_KUMA_DB_TYPE=mariadb, /app/data is disposable: it holds
         # db-config.json (regenerated from env on boot), screenshots and
         # error.log. Real state lives in MySQL. An emptyDir, not a local-path
         # PVC: a local-path PV pins the pod to the node that first bound it,

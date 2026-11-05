@@ -37,18 +37,17 @@ fail() {
   exit "${2:-1}"
 }
 
-# Materialize the NAS key from the SSH_PRIVATE_KEY secret env into an owner-only
-# 0400 file in the HOME emptyDir. The pod runs non-root (Kyverno require-non-root
-# Enforce covers immich), so it cannot chmod a root-owned secret *volume*. Writing
-# the key itself lets the pod set the file's owner and mode.
+# The key comes from an env var, not a secret volume: the pod runs non-root (Kyverno
+# require-non-root denies root in immich), so it cannot chmod a root-owned volume file.
+# Writing the file itself lets the pod own it at mode 0400.
 if [ -n "${SSH_PRIVATE_KEY:-}" ]; then
   mkdir -p "$(dirname "$SSH_KEY")"
   (umask 077 && printf '%s\n' "$SSH_PRIVATE_KEY" >"$SSH_KEY")
   chmod 400 "$SSH_KEY"
 fi
 
-# ssh to the NAS. No agent, key-only, pinned host key (a NAS rekey by a firmware
-# update → StrictHostKeyChecking fails → surfaces as ssh_unreachable, correct).
+# Pinned host key: if a firmware update rekeys the NAS, StrictHostKeyChecking fails and
+# the run reports ssh_unreachable, which is the intended result.
 ssh_nas() {
   ssh -i "$SSH_KEY" \
     -o IdentitiesOnly=yes \
@@ -68,21 +67,19 @@ vsh() { ssh_nas "virsh -c qemu:///system $1"; }
 
 log "immich-vm-heal start domain=$DOMAIN nas=$NAS_HOST:$NAS_PORT"
 
-# 1. SSH reachability = key present + NAS up + host key matches. All three fail
-#    modes (key wiped by update, NAS down, NAS rekeyed) are operator-fix only.
+# Its three causes (key wiped by an update, NAS down, NAS rekeyed) each need an operator.
 if ! ssh_nas true 2>/tmp/ssh.err; then
   log "DIAGNOSE=ssh_unreachable detail=$(tr '\n' ' ' </tmp/ssh.err)"
   fail ssh_unreachable 3
 fi
 
-# 2. libvirt group membership. A zettOS update can rewrite /etc/group: SSH still
-#    works but every virsh call would silently fail. Detect explicitly.
+# A zettOS update can rewrite /etc/group. SSH then still works, but every virsh call
+# fails silently.
 if ! ssh_nas "getent group libvirt" | grep -qw "$NAS_USER"; then
   log "DIAGNOSE=libvirt_group_missing fix='usermod -aG libvirt $NAS_USER (needs NAS root)'"
   fail libvirt_group_missing 4
 fi
 
-# 3. Defined? Fetch inactive XML; failure = domain missing → define from canonical.
 if ! LIVE_XML="$(vsh "dumpxml --inactive $DOMAIN" 2>/tmp/virsh.err)"; then
   log "DIAGNOSE=domain_undefined detail=$(tr '\n' ' ' </tmp/virsh.err)"
   if vsh "define /dev/stdin" <"$CANONICAL_XML"; then
@@ -93,10 +90,9 @@ if ! LIVE_XML="$(vsh "dumpxml --inactive $DOMAIN" 2>/tmp/virsh.err)"; then
   LIVE_XML="$(vsh "dumpxml --inactive $DOMAIN")"
 fi
 
-# 4. Drift = the appliance/UI regenerated the domain from its template,
-#    dropping the passthrough edits. libvirt re-emits dumpxml with runtime <address>
-#    elements, so a byte-diff false-drifts every run — match the load-bearing markers
-#    instead. Any missing marker = clobber → re-define from Git.
+# Drift means the appliance UI regenerated the domain from its template and dropped the
+# passthrough edits. libvirt re-emits dumpxml with runtime <address> elements, so a byte
+# diff reports drift on every run; match the required markers instead.
 drift=0
 check_marker() {
   if ! printf '%s' "$LIVE_XML" | grep -q "$1"; then
@@ -109,17 +105,16 @@ check_marker "type='memfd'" memfd_missing
 check_marker "type='virtiofs'" virtiofs_missing
 check_marker "immich-library" virtiofs_target_missing
 check_marker "52:54:00:82:be:df" mac_changed
-# The iGPU passthrough: match the FULL host PCI source address as one marker (not
-# slot+function alone — that would pass a managed hostdev on a different bus) plus
-# managed passthrough. NOT a bare "<hostdev", which any clobbered hostdev satisfies.
-# Inactive XML strips guest-side <address> elements, so this source address is
-# unique to the GPU hostdev.
+# Match the full host PCI source address as one marker: slot+function alone would pass
+# a managed hostdev on a different bus, and a bare "<hostdev" passes any other hostdev.
+# Inactive XML strips guest-side <address> elements, so this address is unique to the
+# GPU hostdev.
 check_marker "domain='0x0000' bus='0x00' slot='0x02' function='0x0'" hostdev_gpu_source_missing
 check_marker "managed='yes'" hostdev_gpu_unmanaged
-# Pin on_reboot=restart. QEMU supports only destroy|restart here (preserve is on_crash-only → `define`
-# rejects it). Both are imperfect if the guest reboots itself, but `destroy` is the host-crash path
-# (managed iGPU re-attach) while `restart` only wedges (NAS-host-reboot recoverable) — so if an
-# appliance regen flips it to destroy, treat it as drift and re-define back to the canonical restart.
+# QEMU accepts only destroy or restart for on_reboot (preserve is on_crash-only, and
+# `define` rejects it). If the guest reboots itself, destroy can crash the NAS host when
+# libvirt re-attaches the managed iGPU, while restart leaves the VM unresponsive until the
+# NAS host reboots. So a regenerated domain with on_reboot=destroy counts as drift.
 check_marker "<on_reboot>restart</on_reboot>" on_reboot_not_restart
 
 STATE="$(vsh "domstate $DOMAIN" 2>/dev/null || echo unknown)"
@@ -156,11 +151,11 @@ case "$STATE" in
     ;;
 esac
 
-# 5. Ensure running. Only a shut-off domain is started (cold start = clean iGPU
-#    reset). After the 2026-10-03 NAS reboot this step started the VM, although the
-#    libvirt autostart flag is on. Never toggle autostart in the zettOS UI: a UI action
-#    regenerates the domain. The July 2026 incident notes (0a6e3dcd) record that the
-#    appliance's autostart restarts a running VM, which leaves the iGPU unresponsive.
+# Only a shut-off domain is started: a cold start resets the iGPU cleanly. After the
+# 2026-10-03 NAS reboot this step started the VM, although the libvirt autostart flag
+# is on. Never toggle autostart in the zettOS UI: a UI action regenerates the domain.
+# The July 2026 incident notes (0a6e3dcd) record that the appliance's autostart
+# restarts a running VM, which leaves the iGPU unresponsive.
 case "$STATE" in
   running)
     log "OK=domain_running"

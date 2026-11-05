@@ -54,7 +54,6 @@ spec:
       # Reaches the three Deployments and the startupapicheck Job, a post-install-only hook.
       priorityClassName: homelab-standard
 
-    # High availability: 2 replicas with pod anti-affinity
     replicaCount: 2
 
     # Chart default is false; upstream values say to enable it whenever replicaCount > 1.

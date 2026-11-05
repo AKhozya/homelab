@@ -44,7 +44,6 @@
     mode: "0644"
   tags: [clusterip-heal]
 
-# daemon_reload picks up any unit-file change; enabling+starting the timer is idempotent.
 - name: Enable + start clusterip-heal-watchdog.timer
   ansible.builtin.systemd_service:
     name: clusterip-heal-watchdog.timer

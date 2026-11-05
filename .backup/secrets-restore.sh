@@ -250,7 +250,7 @@ if [ -f "${BACKUP_DIR}/secrets/couchdb-couchdb.json" ]; then
     echo "   ✅ CouchDB"
 fi
 
-# Backup Replication (NAS rsync credentials + Telegram; W2 SSH key retired 2026-07-17)
+# Backup Replication (NAS rsync credentials + Telegram)
 if [ -f "${BACKUP_DIR}/secrets/nas-rsync-credentials.json" ]; then
     kubectl create namespace backup-replication --dry-run=client -o yaml | kubectl apply -f -
     kubectl apply -f "${BACKUP_DIR}/secrets/nas-rsync-credentials.json"
@@ -289,23 +289,20 @@ echo "   ✅ OIDC integration secrets restored"
 # =============================================================================
 # Namespaces this script restores nothing into — bootstrap prerequisite
 # =============================================================================
-# The script creates each namespace above only to restore a secret into it.
-# homepage restores nothing. rustdesk's only secret (beacon-key) is SOPS-encrypted
-# in git, not backed up here. So on a bare cluster neither namespace exists yet.
+# homepage has no secret to restore, and rustdesk's only secret (beacon-key) is
+# SOPS-encrypted in git, so on a bare cluster neither namespace exists yet.
 # infrastructure-configs still applies objects into both: resource-governance
-# ResourceQuota/LimitRange and claude-telegram RoleBindings.
-# The apps Kustomization owns apps/*/namespace.yaml and declares
-# dependsOn: infrastructure-configs. So infrastructure-configs fails with
-# `namespaces "homepage" not found`, never goes Ready, and apps never runs.
-# No retry clears this. Creating both namespaces here, before Flux bootstrap,
+# ResourceQuota/LimitRange and claude-telegram RoleBindings. The apps Kustomization
+# owns apps/*/namespace.yaml and declares dependsOn: infrastructure-configs. So
+# infrastructure-configs fails with `namespaces "homepage" not found`, and apps never
+# runs. No retry clears this. Creating both namespaces here, before Flux bootstrap,
 # breaks the cycle.
 #
-# A second ordering problem stays unsolved. `require-networkpolicy` is a Deny
-# ValidatingPolicy that counts the NetworkPolicies already live in the target
-# namespace. Flux server-side dry-runs its whole apply set before it persists any
-# of it. So if a workload and the NetworkPolicy that satisfies it arrive in the
-# same set, the workload fails, and a new namespace needs two commits.
-# A rebuild hits this in every namespace at once.
+# Unsolved: `require-networkpolicy` is a Deny ValidatingPolicy that counts the
+# NetworkPolicies already live in the target namespace. Flux server-side dry-runs its
+# whole apply set before it persists any of it. If a workload and the NetworkPolicy
+# that satisfies it arrive in the same set, the workload fails, so a new namespace
+# needs two commits. A rebuild meets this in every namespace at once.
 # Read docs/disaster-recovery/README.md before a full restore.
 echo "📦 Pre-creating namespaces with nothing to restore (Flux bootstrap ordering)..."
 kubectl create namespace homepage --dry-run=client -o yaml | kubectl apply -f -

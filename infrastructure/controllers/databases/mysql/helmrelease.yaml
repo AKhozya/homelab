@@ -26,8 +26,8 @@ spec:
     crds: CreateReplace
     remediation:
       retries: 3
-  # The chart (1.3.0 too) exposes no priorityClassName value, so this patch assigns critical-tier.
-  # Parity with cnpg-operator + redis-operator (DB control plane).
+  # Chart 1.3.0 exposes no priorityClassName value, so this patch sets the critical tier, as
+  # cnpg-operator and redis-operator have.
   postRenderers:
     - kustomize:
         patches:
@@ -43,7 +43,7 @@ spec:
               - op: add
                 path: /spec/revisionHistoryLimit
                 value: 2
-          # The chart (1.3.0 too) exposes no pod securityContext value, so this patch sets seccomp RuntimeDefault.
+          # Chart 1.3.0 exposes no pod securityContext value, so this patch sets seccomp RuntimeDefault.
           - target:
               kind: Deployment
               name: ps-operator

@@ -29,9 +29,7 @@ spec:
     strategy:
       name: RetryOnFailure
       retryInterval: 10m
-  # Post-renderer patches the chart output: service account and token automount (the chart has no
-  # per-component serviceAccount), priority class, revision history, Recreate strategy, the NAS
-  # library volume, a writable RapidOCR model dir and the ML readiness timeout.
+  # The chart has no per-component serviceAccount, so these patches set it and the token automount.
   postRenderers:
     - kustomize:
         patches:
@@ -108,10 +106,9 @@ spec:
                   # on python:3.13, the CPU image on 3.11. Bump it with the tag. A version-independent
                   # symlink does not work: root owns /opt/venv and the container runs as uid 1000.
                   mountPath: /opt/venv/lib/python3.13/site-packages/rapidocr/models
-          # Strategic merge patch: bump readiness timeoutSeconds 1→5.
-          # JSON patch op in the block above silently failed (Kustomize
-          # treats multi-doc JSON-patch arrays as SMP when target lacks
-          # explicit patch type). SMP on named container works reliably.
+          # A JSON patch op in
+          # the block above failed silently: Kustomize treats a multi-doc JSON-patch array as a
+          # strategic merge patch if the target has no explicit patch type.
           - target:
               kind: Deployment
               name: immich-machine-learning
@@ -127,10 +124,6 @@ spec:
                       - name: main
                         readinessProbe:
                           timeoutSeconds: 5
-  # Hardware acceleration (QSV/VAAPI) for GPU transcoding on the immich-vm Intel iGPU.
-  # GPU via the Intel device-plugin (gpu.intel.com/i915) — non-privileged, no /dev/dri
-  # hostPath. Library on the NAS via virtiofs hostPath (postRenderer above). immich ns
-  # stays PSS privileged (hostPath library) but the pod is non-root, drop-ALL.
   values:
     controllers:
       main:
@@ -204,8 +197,8 @@ spec:
               runAsUser: 1000
               runAsGroup: 1000
               fsGroup: 1000
-              # Video (983) and render (987) groups for Intel GPU device access on immich-vm
-              # (device-plugin injects /dev/dri; render GID grants access to the non-root pod).
+              # The injected /dev/dri nodes are root:video (card*) and root:render (renderD*) on
+              # immich-vm; these GIDs let the non-root pod open them.
               supplementalGroups:
                 - 983  # video group on immich-vm
                 - 987  # render group on immich-vm
@@ -274,9 +267,8 @@ spec:
                 tag: v3.3.6
                 pullPolicy: IfNotPresent
               env:
-                # Hardware acceleration on the immich-vm Intel iGPU. accel (QSV) is set in
-                # the admin UI ffmpeg settings. iHD = Intel media driver. Spike-proven:
-                # hevc_qsv 25.3x, non-privileged.
+                # iHD is the Intel media driver. The QSV accel setting lives in the admin UI
+                # ffmpeg settings, not here. A spike ran hevc_qsv at 25.3x, non-privileged.
                 LIBVA_DRIVER_NAME: iHD
               resources:
                 requests:
@@ -290,9 +282,9 @@ spec:
                   cpu: "3000m"
                   memory: 5Gi
                   gpu.intel.com/i915: "1"
-              # Probe timeout hardened (chart/bjw-s default timeoutSeconds:1) — same reboot-recovery
-              # fragility as machine-learning: a CPU-starved /api/server/ping answering in >1s reads
-              # as a probe failure and can SIGTERM a healthy pod. timeout 5s + liveness headroom.
+              # The chart default timeoutSeconds is 1. After a reboot a CPU-starved /api/server/ping
+              # can take longer, and the failed probe can SIGTERM a healthy pod (same cause as
+              # machine-learning below).
               probes:
                 startup:
                   enabled: true
@@ -314,9 +306,9 @@ spec:
                     periodSeconds: 10
                     timeoutSeconds: 5
                     failureThreshold: 5
-              # Non-privileged container (device-plugin GPU, no /dev/dri hostPath). The immich
-              # namespace is excluded from the Kyverno readOnlyRootFilesystem policy, so the field
-              # is not set (server writes to /data); non-root comes from the pod-level runAsUser 1000.
+              # readOnlyRootFilesystem is unset: the server writes to /data, and the Kyverno
+              # readOnlyRootFilesystem policy excludes the immich namespace. Non-root comes from
+              # the pod-level runAsUser 1000.
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:
@@ -338,11 +330,10 @@ spec:
                 pullPolicy: IfNotPresent
               env:
                 TRANSFORMERS_CACHE: /cache
-                # gunicorn 25.1.0 added a "control socket" (default relative path "gunicorn.ctl",
-                # joined to the read-only cwd → Errno 30 "Read-only file system"). That failed
-                # write intermittently hangs the gunicorn worker fork → ~50% of restarts deadlock
-                # at boot (observed 2026-05-31 reboot recovery). immich doesn't use gunicorn's
-                # control CLI, so disable it — eliminates the error while keeping readOnlyRootFilesystem.
+                # gunicorn 25.1.0 added a control socket at the relative path "gunicorn.ctl". In the
+                # read-only cwd the write fails with Errno 30, and that failure intermittently hangs
+                # the worker fork: about half the restarts deadlocked at boot in the 2026-05-31
+                # reboot recovery. immich does not use gunicorn's control CLI, so turn it off.
                 GUNICORN_CMD_ARGS: "--no-control-socket"
               # gpu.intel.com/i915: the Intel device plugin injects /dev/dri (10 shares per node, the
               # server holds one). OpenVINO keeps model buffers in system RAM charged to this cgroup.
@@ -369,12 +360,11 @@ spec:
                 capabilities:
                   drop:
                     - ALL
-              # Probe timeout hardened (chart/bjw-s default timeoutSeconds:1 is too tight). During
-              # 2026-05-31 reboot recovery the CPU-starved single ML worker couldn't answer /ping
-              # within 1s → every probe "failed" → startup burned its 600s budget then SIGTERM
-              # (2 restarts). timeout 5s tolerates slow /ping under load; liveness gets headroom
-              # so it can't kill a momentarily-busy worker. Readiness bumped via postRenderer
-              # (bjw-s ignores readiness custom probe override in values).
+              # The chart default timeoutSeconds of 1 is too tight. In the 2026-05-31 reboot
+              # recovery the CPU-starved single ML worker could not answer /ping within 1s, so every
+              # probe failed, startup used up its 600s budget and the pod got SIGTERM (2 restarts).
+              # Readiness is set in the postRenderer, because bjw-s ignores a custom readiness
+              # probe in values.
               probes:
                 startup:
                   enabled: true
@@ -409,8 +399,7 @@ spec:
               runAsUser: 1000
               runAsGroup: 1000
               fsGroup: 1000
-              # The injected /dev/dri nodes are root:video (card*) and root:render (renderD*) on
-              # immich-vm; the GIDs let the non-root pod open them. Same block as the server.
+              # Same GIDs as the server, for the same /dev/dri nodes.
               supplementalGroups:
                 - 983  # video group on immich-vm
                 - 987  # render group on immich-vm

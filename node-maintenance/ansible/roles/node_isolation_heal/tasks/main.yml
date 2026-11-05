@@ -2,10 +2,8 @@
 # node_isolation_heal — worker CP-isolation self-recovery watchdog. WORKERS ONLY
 # (node-config.yml's workers-only play). The script also no-ops where the
 # k3s-agent unit is absent (the control-plane), as a second guard.
-#
-# node_isolation_dry_run=true → the watchdog logs the decision it WOULD take + emits
-# metrics, acts on nothing. ACTIVE (false) requires the interlocks: phase2 maint-hold,
-# shared restart cooldown, VMRules.
+# node_isolation_dry_run=true logs decisions without acting. Active mode (false) needs the
+# interlocks listed in defaults/main.yml.
 
 - name: Ensure node-isolation-heal state dir
   ansible.builtin.file:

@@ -1,6 +1,4 @@
 ---
-# immich_gpu_node role defaults.
-
 # Kernel package whose UKI is rebuilt when the i915 boot-blacklist cmdline token changes
 # (systemd-boot + UKI; mkinitcpio bakes /etc/kernel/cmdline into /boot/EFI/Linux/<preset>.efi).
 immich_gpu_kernel_preset: linux-lts

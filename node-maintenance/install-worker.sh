@@ -3,7 +3,7 @@
 # Run as root on each worker node.
 # install.sh on CP substitutes PUB_KEY placeholder before scp.
 #
-# Scope (bootstrap-critical only — everything else moved to ansible node-config.yml):
+# Scope (bootstrap-critical only — ansible node-config.yml owns everything else):
 #   - node-maintenance user + SSH authorized_keys (needs CP-provided pubkey substitution)
 #   - sudoers bootstrap (ansible owns going forward; first-run needs it to connect)
 #

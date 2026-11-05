@@ -316,7 +316,7 @@
           retries: 6
           delay: 10
           changed_when: false
-          # Still failing → serial:1 aborts, worker stays CORDONED (existing partial-completion model).
+          # If it still fails, the serial:1 play aborts and this worker stays cordoned.
 
     - name: Stabilization settle + final re-probe before uncordon (catch a post-gate re-wedge)
       # The gate above can pass on a node whose kube-proxy then RE-wedges seconds later (observed

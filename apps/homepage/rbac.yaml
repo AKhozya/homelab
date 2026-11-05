@@ -5,7 +5,8 @@ metadata:
   labels:
     app.kubernetes.io/name: homepage
 # Cluster-wide READ of discovery resources (namespaces/pods/nodes/services/ingresses/metrics) for
-# Homepage's Kubernetes service-discovery widgets. Per-namespace Roles would mean 16+ Roles.
+# Homepage's Kubernetes service-discovery widgets. A namespaced Role cannot grant nodes or
+# namespaces, which are cluster-scoped.
 # No `secrets`: Homepage reads no secrets via the K8s API — widgets are pod-status + static
 # links, the kubernetes widget is disabled, and the Deployment mounts no secret env.
 # No write access anywhere. Mitigations: NetworkPolicy, non-root, readOnlyRootFilesystem.

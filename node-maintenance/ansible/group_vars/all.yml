@@ -57,11 +57,10 @@ yay_cmd: "sudo -u node-maintenance yay -Syyu --noconfirm --answerdiff=None --ans
 # yay from refreshing and upgrading repo packages (python, ansible) under the running play.
 yay_aur_cmd: "sudo -u node-maintenance yay -Sua --noconfirm --answerdiff=None --answerclean=None --removemake --cleanafter"
 
-# Expected kernel cmdline params, universal across all nodes. Set by
-# bootloader (systemd-boot) at install via setup-node.sh — bootstrap-only,
-# never re-applied. base_config asserts presence in /proc/cmdline; drift =
-# missing param → fail task → telegram alert. Reading is read-only — operator
-# investigates by editing /boot/loader/entries/*.conf and rebooting.
+# Kernel cmdline params. scripts/setup-node.sh writes them once; ansible only checks
+# /proc/cmdline in base_config and fails the run if one is missing (see that task for the fix).
+# group_vars/workers.yml and host_vars/immich-vm.yml replace this list, so a param every
+# node needs goes in those too.
 expected_kernel_params:
   - pcie_aspm=off
   - efi_pstore.pstore_disable=0
@@ -186,7 +185,6 @@ ufw_rules_absent:
   - { rule: allow, from_ip: 192.168.1.0/24, to_port: 9090, proto: tcp }  # CP: Prometheus, removed; no listener
   - { rule: allow, to_port: 8472, proto: udp }    # flannel VXLAN; peers send from the four node IPs
 
-# Base route rules common to all 4 nodes.
 ufw_route_rules_base:
   - { comment: "K3s pod-to-pod traffic", rule: allow, from_ip: 10.42.0.0/16, to_ip: 10.42.0.0/16 }
 

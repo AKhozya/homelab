@@ -81,7 +81,6 @@ spec:
           maxSurge: 0
           maxUnavailable: 1
 
-      # Hard anti-affinity: one admission controller per node (true HA)
       podAntiAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
           - labelSelector:
@@ -196,9 +195,8 @@ spec:
           cpu: 50m
           memory: 192Mi
         limits:
-          # 800m since 2026-07-13: after the move to ValidatingPolicies, the hourly background
-          # scan still throttled to 48% at 500m (average about 11%). Throttling risks stale
-          # PolicyReports.
+          # At 500m the hourly background scan of the ValidatingPolicies throttled to 48%
+          # (average about 11%, 2026-07-13). Throttling risks stale PolicyReports.
           cpu: 800m
           memory: 384Mi
 

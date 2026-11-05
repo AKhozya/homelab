@@ -4,17 +4,15 @@ metadata:
   name: claude-telegram-ops
   labels:
     app: claude-telegram
-# Cluster-wide READ, plus two low-damage cleanup verbs (`pods delete`, `replicasets delete`) —
+# Cluster-wide READ, plus low-damage `delete` on pods, replicasets and policy reports —
 # enough to restart a wedged workload without being able to rewrite what it runs.
 # The verbs that amount to code execution are bound per namespace, never cluster-wide:
 # `pods/exec` in `claude-telegram-exec`, Job creation in `claude-telegram-jobs`, both below.
 # The RoleBindings, and the one list of which namespaces get them and why, live in
 # infrastructure/configs/claude-telegram-rbac/rolebindings.yaml.
-# No role grants workload `patch` (since 2026-08-06); the claude-telegram-exec header below
-# says why.
 #
 # Why exec is per namespace and Flux is read-only (2026-08-02):
-#   - `patch` on the Flux CRDs was cluster-wide, and all 7 Kustomizations live in flux-system
+#   - `patch` on the Flux CRDs was cluster-wide, and every Kustomization lives in flux-system
 #     alongside `sops-age`, the key that decrypts every SOPS secret in the repo. One patch
 #     repointing a Kustomization's sourceRef/path makes kustomize-controller apply arbitrary
 #     manifests.
@@ -184,7 +182,7 @@ metadata:
 # Manual Popeye scans, and nothing else — bound in `popeye` alone. Not backups: every backup
 # CronJob lives in databases, backup-replication or kube-system, none of which is bound.
 # Creating a Job is creating a Pod, so this is the same class of grant as exec: it picks its own
-# ServiceAccount and mounts. Kept separate from claude-telegram-exec precisely so widening the
+# ServiceAccount and mounts. Kept separate from claude-telegram-exec so widening the
 # namespace list is a deliberate edit rather than a side effect of wanting exec somewhere.
 rules:
   - apiGroups: ["batch"]

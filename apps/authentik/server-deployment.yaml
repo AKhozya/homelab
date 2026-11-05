@@ -66,14 +66,11 @@ spec:
           envFrom:
             - secretRef:
                 name: authentik
-          # Override PgBouncer host with direct CNPG connection.
-          # Since v2026.5.0 the server runs the Postgres-backed channel
-          # layer (django_channels_postgres), which holds a persistent
-          # LISTEN/NOTIFY connection. PgBouncer transaction pooling drops
-          # the LISTEN context when it recycles the connection, so flow
-          # WebSocket events stop delivering — login hangs at
-          # "Authenticating...". Direct connection keeps LISTEN alive.
-          # (Worker already does this for server-side cursors — 8c58c6af.)
+          # Direct CNPG connection, not PgBouncer. Since v2026.5.0 the server runs the
+          # Postgres-backed channel layer (django_channels_postgres), which holds a
+          # LISTEN/NOTIFY connection. PgBouncer transaction pooling drops the LISTEN context
+          # when it recycles the connection, so flow WebSocket events stop and login hangs at
+          # "Authenticating...". The worker does the same for server-side cursors (8c58c6af).
           env:
             - name: AUTHENTIK_POSTGRESQL__HOST
               value: main-postgres-rw.databases.svc.cluster.local
@@ -90,11 +87,10 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
-          # Budget: 60s delay + 30×5s = 210s total
-          # Bumped failureThreshold 12→30 (2026-06-19): on the control-plane node,
-          # bootstrap+migration-check contends with k3s server and pushed gunicorn
-          # boot to ~146s — past the old 120s budget → SIGKILL (exit 137), 16 restarts
-          # over 6d on the CP replica (worker replica boots fast, 0 restarts).
+          # Budget: 60s delay + 30×5s = 210s. On the control-plane node, bootstrap and the
+          # migration check contend with the k3s server, which pushed gunicorn boot to ~146s,
+          # past the old 120s budget. The CP replica was SIGKILLed (exit 137) 16 times in the
+          # 6 days before 2026-06-19; the worker replica booted fast, with 0 restarts.
           startupProbe:
             httpGet:
               path: /-/health/live/
