@@ -19,7 +19,7 @@
 #
 # Safety: acts only when k3s-agent is active AND clusterip-probe.sh confirms WEDGED. A cooldown
 # between restarts and a max-restarts-per-window cap stop a restart that does NOT fix the wedge from
-# storming; past the cap it backs off and emits a give-up metric so an alert fires — a persistent
+# repeating; past the cap it backs off and emits a give-up metric so an alert fires — a persistent
 # wedge is a deeper fault, and masking it with endless restarts is worse than surfacing it.
 
 set -euo pipefail

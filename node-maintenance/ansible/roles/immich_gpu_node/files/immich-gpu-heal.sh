@@ -6,7 +6,7 @@
 # (renderD129) going missing — i915 unloaded, or load-i915.service not yet run — recovered by
 # restarting load-i915.service (which modprobes i915 render-only). Bounded so a restart that does
 # NOT fix it (a deeper fault: reset-bug wedge, vfio not bound) backs off + emits a give-up metric
-# so an alert fires instead of storming pointless reloads.
+# so an alert fires instead of repeating reloads that cannot help.
 #
 # NOT healed here, by design:
 #   - k3s-agent / node-NotReady → clusterip_heal owns that (this VM is a workers-group node). Two
@@ -16,7 +16,7 @@
 #     immich-vm-heal CronJob never restarts a running domain.
 #
 # If no Intel display GPU is on the PCI bus, exit 0: the watchdog stays inert without the <hostdev>
-# passthrough and never storms on absent hardware.
+# passthrough and never loops on absent hardware.
 #
 # Self-test: `immich-gpu-heal.sh --selfcheck` asserts the bounded decision + metric/state logic.
 

@@ -1,6 +1,7 @@
 {% set is_cp = inventory_hostname in groups['control_plane'] -%}
 # K3s {{ 'Control Plane' if is_cp else 'Worker' }} Configuration
-# Deployed by ansible roles/k3s_config — drift-healed daily by node-maintenance-config.timer.
+# Ansible roles/k3s_config deploys this file. node-maintenance-config re-applies it at 03:00 and 15:00 UTC
+# and after each new commit on main.
 # Edit group_vars/control_plane.yml, group_vars/workers.yml, or host_vars/*.yml to change.
 # Applies on next K3s restart (no auto-restart — manual control over API/pod disruption).
 {% if is_cp and k3s_default_storage_path is defined %}
@@ -82,7 +83,7 @@ secrets-encryption: true
 {% if is_cp and k3s_tls_san is defined and k3s_tls_san | length > 0 %}
 
 # Additional API-server cert SANs. Drift here = template change → telegram alert.
-# Restart K3s to regenerate cert: sudo systemctl restart k3s
+# A K3s restart regenerates the cert: sudo systemctl start node-maintenance-rolling-restart.service
 tls-san:
 {% for s in k3s_tls_san %}
   - "{{ s }}"

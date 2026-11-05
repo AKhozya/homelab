@@ -9,7 +9,7 @@
 #
 # Same guard model as the worker heal: act only when POSITIVELY wedged, with a cooldown between
 # restarts and a max-per-window cap; past the cap, back off and emit a give-up metric (alert) — a
-# persistent wedge is a deeper fault, and storming `restart k3s` on the CP is worse than surfacing it.
+# persistent wedge is a deeper fault, and repeating `restart k3s` on the CP is worse than surfacing it.
 
 set -euo pipefail
 

@@ -227,7 +227,7 @@ phase_b_reload() {
 
 # Phase E — final reload attempt.
 # SKIP if phase-b just recovered from disabled. The `--force enable` already
-# loaded all rules. A second `ufw reload` during K3s boot-storm races
+# loaded all rules. A second `ufw reload` while K3s is still loading rules at boot races
 # iptables-restore and can fail, which causes UFW to flip ENABLED=no in config
 # (observed 2026-05-16 05:45:39). Skipping avoids the race entirely.
 phase_e_final_reload() {
