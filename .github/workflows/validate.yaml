@@ -21,12 +21,13 @@ env:
   # Must match what kustomize-controller embeds, or CI renders a different tree
   # than the cluster does. Re-derive it on any Flux bump: the controller's go.mod
   # names a sigs.k8s.io/kustomize/api version, and the kustomize CLI release built
-  # on that api version is the match.
+  # on that api version is the match. A replace directive in that go.mod overrides
+  # the require line: v1.10.1 requires api v0.21.2 but replaces it with v0.21.1.
   KUSTOMIZE_VERSION: v5.8.1
   # Schema version for kubeconform (yannh/kubernetes-json-schema). Keep it at the live k3s
   # version: update it with any k3s upgrade, together with the KUBERNETES_VERSION default in
   # scripts/ci/helm-render-check.sh.
-  KUBERNETES_VERSION: "1.37.0"
+  KUBERNETES_VERSION: "1.37.2"
   # Each digest is the SHA-256 of the linux amd64 asset, from that release's published
   # checksums file. Bump a digest together with its version, or the install step fails.
   KUSTOMIZE_SHA256: 029a7f0f4e1932c52a0476cf02a0fd855c0bb85694b82c338fc648dcb53a819d

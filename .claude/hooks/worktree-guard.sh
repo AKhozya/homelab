@@ -13,7 +13,7 @@ set -euo pipefail
 # This repo's main working tree, found from the hook's own location, so a clone at any
 # path works. The first `worktree` entry is always the main tree.
 HOMELAB_MAIN=$(git -C "$(dirname "${BASH_SOURCE[0]}")" worktree list --porcelain 2>/dev/null |
-  awk '/^worktree /{print substr($0, 10); exit}') || exit 0
+  awk '/^worktree /{if (!n++) print substr($0, 10)}') || exit 0
 [[ -n "$HOMELAB_MAIN" ]] || exit 0
 
 [[ "${WORKTREE_GUARD_SKIP:-0}" == "1" ]] && exit 0
