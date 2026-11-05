@@ -80,9 +80,8 @@ kubectl get secret mysql-cluster-secrets -n databases -o json > "${BACKUP_DIR}/s
 # operator creates its users from this Secret. Restoring it keeps the old passwords.
 kubectl get secret internal-main-mysql -n databases -o json > "${BACKUP_DIR}/secrets/internal-main-mysql.json" 2>/dev/null || echo "   ⚠️  No databases/internal-main-mysql"
 
-# MySQL app credentials live in their app namespaces — grouped with each app below
-# (uptime-kuma-mysql-credentials, pricebuddy-mysql-credentials) so backup + restore
-# share the same per-app layout.
+# MySQL app credentials (uptime-kuma-mysql-credentials, pricebuddy-mysql-credentials)
+# live in their app namespaces, so backup and restore both handle them with each app below.
 
 # =============================================================================
 # Application Secrets (user credentials, API keys, environment variables)
@@ -150,7 +149,7 @@ kubectl get secret couchdb-credentials -n obsidian -o json > "${BACKUP_DIR}/secr
 # CouchDB (for Obsidian) - in databases namespace
 kubectl get secret couchdb-couchdb -n databases -o json > "${BACKUP_DIR}/secrets/couchdb-couchdb.json" 2>/dev/null || echo "   ⚠️  No databases/couchdb-couchdb"
 
-# Backup Replication (NAS rsync credentials + Telegram; W2 SSH key retired 2026-07-17)
+# Backup Replication (NAS rsync credentials + Telegram)
 kubectl get secret nas-rsync-credentials -n backup-replication -o json > "${BACKUP_DIR}/secrets/nas-rsync-credentials.json" 2>/dev/null || echo "   ⚠️  No backup-replication/nas-rsync-credentials"
 kubectl get secret backup-telegram -n backup-replication -o json > "${BACKUP_DIR}/secrets/backup-telegram.json" 2>/dev/null || echo "   ⚠️  No backup-replication/backup-telegram"
 

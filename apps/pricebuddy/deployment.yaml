@@ -208,9 +208,9 @@ spec:
             - name: apprise-tmp
               mountPath: /tmp
           # The apprise image runs non-root natively since v1.4.x, so it needs no chown caps.
-          # nginx/gunicorn/supervisord write only to /tmp under RoRFS (upstream README
-          # hardened pattern). runAsUser 1000 + fsGroup 33 (pod) → writes the
-          # group-writable /config emptyDir via supplemental group.
+          # nginx, gunicorn and supervisord write only to /tmp under a read-only rootfs (the
+          # upstream README hardened pattern). runAsUser 1000 writes the group-writable /config
+          # emptyDir through the pod's fsGroup 33.
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -225,10 +225,10 @@ spec:
             limits:
               cpu: "200m"
               memory: "300Mi"
-          # gunicorn+gevent cold-start: socket appears ~15s in, first /status
-          # request blocks >3s on worker import. timeoutSeconds:3 timed out each
-          # probe → startup/liveness SIGTERM mid-boot → CrashLoopBackOff on exit 0
-          # (2026-05-28, post-reboot under load). timeout 10s + wide startup window.
+          # On a gunicorn+gevent cold start the socket appears about 15s in, and the first
+          # /status request blocks for over 3s on worker import. With timeoutSeconds 3 every
+          # probe timed out, so startup and liveness killed the pod mid-boot into
+          # CrashLoopBackOff on exit 0 (2026-05-28, after a reboot under load).
           startupProbe:
             httpGet:
               path: /status

@@ -1,4 +1,3 @@
-# CEL ValidatingPolicy — sole policy engine since 2026-07-12 (migrated from the disallow-privilege-escalation ClusterPolicy).
 apiVersion: policies.kyverno.io/v1
 kind: ValidatingPolicy
 metadata:
@@ -21,7 +20,7 @@ spec:
   matchConditions:
     # databases: operator-, CRD- and Helm-managed pods (redis-operator, the redis CRD,
     # couchdb, Percona main-mysql) whose spec this repo cannot edit.
-    # `percona-mysql` is not excluded (since 2026-07-26): it holds only `ps-operator`, and
+    # `percona-mysql` is not excluded: it holds only `ps-operator`, and
     # the pinned ps-operator chart sets allowPrivilegeEscalation: false. If a chart
     # bump drops that, Kyverno denies the ps-operator workload, so the change cannot pass
     # unnoticed. `require-drop-all-capabilities` still excludes percona-mysql, because the
@@ -44,12 +43,10 @@ spec:
     # Every entry in containers must set allowPrivilegeEscalation: false; initContainers
     # and ephemeralContainers are checked only if present. A missing securityContext or
     # field fails.
-    # The ephemeralContainers clause is REPORT-ONLY, not enforced: matchConstraints binds
-    # `resources: ["pods"]`, but kubectl debug adds a container through the
-    # pods/ephemeralcontainers SUBRESOURCE, which a pods-scoped webhook never receives.
-    # It evaluates on a pod CREATE/UPDATE that already lists ephemeralContainers — which
-    # the API does not accept — so in practice it only ever shows up in PolicyReports.
-    # Adding the subresource here would start denying kubectl debug mid-incident.
+    # The ephemeralContainers clause only reports, in PolicyReports. kubectl debug adds a
+    # container through the pods/ephemeralcontainers subresource, which this pods-only
+    # matchConstraints never receives. Adding that subresource would deny kubectl debug
+    # during an incident.
     - expression: >-
         object.spec.containers.all(c,
         c.?securityContext.?allowPrivilegeEscalation.orValue(true) == false) &&

@@ -85,8 +85,9 @@ node_ready() {
 }
 
 lease_renew() {
-  # the node's kubelet Lease (kube-node-lease/<node>) renewTime — advances ~every 10s while the
-  # kubelet is alive, FREEZES when it dies. A post-restart advance proves a fresh heartbeat.
+  # the node's kubelet Lease (kube-node-lease/<node>) renewTime — advances ~every 15s (25% of
+  # nodeLeaseDurationSeconds=60) while the kubelet is alive, and stops when it dies. A
+  # post-restart advance proves a fresh heartbeat.
   kc get lease "$1" -n kube-node-lease -o jsonpath='{.spec.renewTime}' 2>/dev/null || true
 }
 

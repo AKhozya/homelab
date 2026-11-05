@@ -6,12 +6,8 @@ metadata:
 
 spec:
   groups:
-  # Dead-man source. This cluster runs defaultRules.create:false (alerts via VMRules
-  # only), which removed kube-prometheus-stack's built-in always-firing Watchdog — so
-  # it is re-supplied here. Routed to the 'deadman' alertmanager receiver (Watchdog
-  # route in kube-prometheus-stack/release.yaml) → healthchecks.io ping every AM
-  # repeat_interval (10m). If VMAlert/VMSingle/alertmanager die (e.g. W2 loss takes
-  # VMSingle), this stops firing → pings stop → healthchecks.io alerts EXTERNALLY.
+  # Dead-man source. defaultRules.create is false, so this replaces the chart's own Watchdog.
+  # The Watchdog route in kube-prometheus-stack/release.yaml turns it into healthchecks.io pings.
   - name: watchdog
     interval: 60s
     rules:
@@ -55,9 +51,8 @@ spec:
         description: "Node {{ $labels.node }} has been in NotReady state for more than 5 minutes. Check node status and logs."
 
     - alert: ClusterIPHealWedged
-      # Worker kube-proxy ClusterIP DNAT wedge that clusterip_heal has NOT cleared within ~2
-      # heal cycles (timer every 3min + 5min restart cooldown). Self-heals in the normal case;
-      # sustained = the k3s-agent restart isn't restoring the 10.43.0.1 DNAT.
+      # 8m is about two heal cycles (3-min timer plus 5-min restart cooldown). clusterip_heal
+      # normally clears a wedge inside that time.
       expr: node_clusterip_heal_wedged == 1
       for: 8m
       labels:
@@ -69,8 +64,6 @@ spec:
           kube-proxy (:10256) and restart k3s-agent."
 
     - alert: ClusterIPHealGaveUp
-      # Watchdog hit MAX_RESTARTS within its window and backed off — a wedge that
-      # restart-k3s-agent does NOT fix = deeper fault, needs a human.
       # If the fault persists, the gauge drops to 0 when the 30-min window expires. The script then
       # tries its 3 restarts again, and the gauge returns to 1 after the third.
       # The worker script sets the longest gap, about 22 min: a restart over 60s pushes each 300s
@@ -260,10 +253,9 @@ spec:
         description: "Disk {{ $labels.mountpoint }} has less than 5% free space (current: {{ $value }}%)"
 
     - alert: NASLibraryMountMissing
-      # NodeDiskSpaceLow/Critical already cover this mount's CAPACITY, but only while the
-      # series exists. If the NAS detaches, node_filesystem_* for it simply disappears and
-      # those alerts go quiet rather than firing — absent() is what makes the loss loud.
-      # Deliberately not pinned to an instance: any node reporting the mount satisfies it.
+      # NodeDiskSpaceLow/Critical cover this mount's capacity only while its series exists. If
+      # the NAS detaches, node_filesystem_* for the mount disappears and those alerts do not fire.
+      # Not pinned to an instance: any node that reports the mount satisfies it.
       expr: absent(node_filesystem_size_bytes{mountpoint="/var/lib/immich-library"})
       for: 10m
       labels:
@@ -378,11 +370,10 @@ spec:
 
     # The gap PodPhaseNotRunning leaves: a pod stays phase=Running while its Ready
     # condition is false, so it is pulled from Service endpoints and serves nothing.
-    # n8n sat in exactly this state for ~8h on 2026-07-25 (HTTP 503, DB pool dead).
+    # n8n sat in this state for ~8h on 2026-07-25 (HTTP 503, DB pool dead).
     #
-    # Deliberately NOT named PodNotReady — that name belonged to the phase alert above
-    # until 2026-07-26, and reusing it would merge two different meanings in alert
-    # history and collide with any silence matching the old name exactly.
+    # Not named PodNotReady: the phase alert above had that name until 2026-07-26, so
+    # reusing it would mix two meanings in alert history and match old silences.
     #
     # Both guards are load-bearing:
     #   `and on(...) phase="Running"` — kube_pod_status_ready reports condition="true"
@@ -695,8 +686,8 @@ spec:
         description: "Critical backup job has failed. Data protection may be compromised! Check logs: kubectl logs -n {{ $labels.namespace }} job/{{ $labels.job_name }}"
 
     - alert: BackupCronJobMissedSchedule
-      # immich-backup excluded (weekly): see CronJobNotScheduled note — next_schedule_time goes
-      # stale on the weekly cadence and false-fires; NoRecentImmichBackup (below) covers it instead.
+      # immich-backup is weekly, so it is excluded for the reason given at CronJobNotScheduled.
+      # NoRecentImmichBackup covers it.
       expr: (time() - kube_cronjob_next_schedule_time{cronjob=~".*backup.*", cronjob!="immich-backup"}) > 3600
       for: 10m
       labels:
@@ -722,13 +713,10 @@ spec:
         summary: "Backup job {{ $labels.namespace }}/{{ $labels.job_name }} running too long"
         description: "Backup job has been running for more than 2 hours. May be stuck or encountering issues. Check: kubectl logs -n {{ $labels.namespace }} job/{{ $labels.job_name }}"
 
-    # Keyed on CronJob .status.lastSuccessfulTime (kube_cronjob_status_last_successful_time),
-    # NOT kube_job_status_completion_time: backup Jobs carry ttlSecondsAfterFinished 24h, so
-    # their Job metric is reaped before any 48h age threshold — and a per-namespace max()
-    # masked a single stopped CronJob when a sibling in the same namespace still ran
-    # (backup-replication holds both backup-replication daily and immich-backup weekly). The CronJob status
-    # metric persists (Flux-managed object) and is evaluated per-cronjob, so every backup is
-    # covered independently.
+    # Keyed on the CronJob's lastSuccessfulTime, not kube_job_status_completion_time: the 24h
+    # Job TTL removes the Job metric before the 48h threshold. A per-namespace max() reports a
+    # sibling's success when one CronJob stops (backup-replication holds two CronJobs). This
+    # metric exists per CronJob, so each backup is checked on its own.
     - alert: NoRecentBackups
       # Daily backups: postgres/mysql/couchdb (databases), pvc-backup (kube-system),
       # backup-replication. immich-backup is weekly — excluded here, own rule below.
@@ -976,7 +964,7 @@ spec:
         summary: "MySQL connection usage high"
         description: "MySQL is using {{ printf \"%.1f\" $value }}% of max connections. May reject new connections soon."
 
-    # Replica health comes from mysql-replica-exporter (since 2026-06-07), which reaches the
+    # Replica health comes from mysql-replica-exporter, which reaches the
     # read-only replica through the HAProxy reader backend :3307. The exporter maps MySQL 8.4
     # SHOW REPLICA STATUS fields to mysql_slave_status_replica_{sql,io}_running and
     # mysql_slave_status_seconds_behind_source, not the legacy slave_*/master names.
@@ -1049,9 +1037,8 @@ spec:
         description: "Cannot scrape {{ $labels.job }} on {{ $labels.instance }}. Monitoring data may be incomplete."
 
     - alert: VMAgentIngestionDown
-      # A dedicated liveness arm: if vmagent stops being scraped entirely its `up` series
-      # vanishes, so any rule of the form `up{...} == 0` goes quiet instead of firing.
-      # absent() is the only form that survives the series disappearing.
+      # If nothing scrapes vmagent, its `up` series vanishes and an `up == 0` rule does not fire.
+      # absent() still fires then.
       expr: absent(up{job="vmagent-vmagent"})
       for: 10m
       labels:
@@ -1061,11 +1048,12 @@ spec:
         description: "up{job=\"vmagent-vmagent\"} has been absent for 10m. Nothing is confirming that metrics are still
           being ingested; most other alerts will fall silent rather than fire while this is true."
 
-    # Added 2026-06-15: vm-operator's :8081 health probe is independent of its :8080
-    # reconcile/metrics surface, so the loop can wedge while the pod stays Ready. ScrapeTargetDown only
-    # catches a full :8080 outage (up==0); this catches "up but not reconciling". Baseline rate is a
-    # steady ~0.05/s (never 0 over 6h observed), so ==0 for 30m is low-false-positive. sum() (not by job)
-    # = whole-operator stall; absent-series (full wedge) yields empty, not 0, so no double-fire with above.
+    # vm-operator's :8081 health probe is independent of its :8080 reconcile loop, so the loop can
+    # stall while the pod stays Ready. ScrapeTargetDown catches only a full :8080 outage (up==0);
+    # this catches "up but not reconciling". The rate stayed near 0.05/s and never reached 0 over
+    # 6h (2026-06-15), so ==0 for 30m rarely fires falsely. sum() has no grouping, so it
+    # detects a whole-operator stall. If the series are absent, the sum is empty, not 0, so
+    # this rule does not fire alongside ScrapeTargetDown.
     - alert: VMOperatorReconcileStalled
       expr: sum(rate(controller_runtime_reconcile_total{job="victoria-metrics-operator"}[15m])) == 0
       for: 30m
@@ -1117,8 +1105,8 @@ spec:
         severity: warning
 
   - name: kyverno-policy-alerts
-    # 60s, not 1h: this group holds a critical (admission controller down). At an
-    # hourly interval it was reported up to an hour after the fact.
+    # 60s, not 1h: this group holds a critical alert (admission controller down), and an
+    # hourly interval reports it up to an hour late.
     interval: 60s
     rules:
     - alert: KyvernoAdmissionControllerDown
@@ -1692,11 +1680,9 @@ spec:
         summary: "Redis client reconnect storm on {{ $labels.instance }}"
         description: "Connected clients changing >50/sec. Likely client-side instability or repeated failovers."
 
-  # immich-vm-heal: the NAS-side heal CronJob for the Immich GPU node (immich-vm). The
-  # watchdog SSHes the NAS + drives virsh; see apps/immich/gpu-node/. The VM being
-  # down is NOT covered here — NodeNotReady (immich-vm) already fires for that.
-  # These two watch the WATCHDOG: an unhealable fault (it exits non-zero) and the
-  # watchdog itself going silent.
+  # immich-vm-heal is the CronJob that SSHes to the NAS and drives virsh for the Immich GPU VM
+  # (apps/immich/gpu-node/). These two rules watch the watchdog: a fault it cannot heal (it
+  # exits non-zero) and the watchdog going silent. NodeNotReady covers a down VM.
   - name: immich-gpu-node-alerts
     interval: 60s
     rules:
@@ -1705,15 +1691,11 @@ spec:
       # libvirt_group_missing, drift_while_running (appliance clobbered the domain
       # while it ran — GPU/virtiofs dropped, Immich degraded), domain in an
       # unexpected state, or a failed virsh define/start.
-      # `unless recent-success`: a NAS-host reboot makes the watchdog fail ~2 jobs
-      # (its SSH key + the library gate both live on `/home/akhozya`, which zettOS
-      # takes ~9min to re-establish after boot) over the measured ~11min NAS-reboot
-      # RTO. Each failed Job stays until its 1h TTL (ttlSecondsAfterFinished in
-      # heal-cronjob.yaml), so a raw `>0` would keep firing for up to an hour off one
-      # transient reboot. Suppress while the watchdog
-      # has succeeded within 20min (> observed RTO) — so a normal reboot is silent
-      # but a genuinely stuck VM (no heal success >20min) still fires. ImmichVMHealStale
-      # (no success >30min) remains the backstop; NodeNotReady covers a down VM directly.
+      # `unless` a recent success: a NAS reboot fails about 2 runs, because the SSH key and the
+      # library gate live on /home/akhozya, which zettOS takes ~9 min to restore after boot
+      # (measured NAS-reboot RTO ~11 min). Each failed Job stays for its 1h TTL
+      # (heal-cronjob.yaml), so a bare `> 0` fires for up to an hour after one reboot.
+      # 20 min is longer than that RTO, so a normal reboot stays silent and a stuck VM fires.
       expr: |
         (kube_job_status_failed{namespace="immich", job_name=~"immich-vm-heal.*"} > 0)
         unless on() (time() - kube_cronjob_status_last_successful_time{namespace="immich", cronjob="immich-vm-heal"} < 1200)
@@ -1726,13 +1708,11 @@ spec:
           job/{{ $labels.job_name }} (or Loki app.kubernetes.io/name=immich-vm-heal). drift_while_running /
           ssh_unreachable need an operator (NAS-side virsh or key re-add)."
     - alert: ImmichVMHealStale
-      # No successful run in >30min (6 missed 5-min cycles) = the watchdog is not
-      # running (suspended, unschedulable, or every run failing) → the VM substrate
-      # is unwatched and would NOT auto-start after a NAS reboot. The absent() arm
-      # covers a watchdog that NEVER succeeds (ImagePullBackOff / admission reject
-      # from day 1) — then last_successful_time never exists and the subtraction
-      # alone is silent. for:10m (2 schedule cycles) keeps a fresh deploy landing
-      # just after a tick from tripping before its first run completes + is scraped.
+      # No success in 30 min (6 missed 5-min runs) means the watchdog is suspended,
+      # unschedulable or failing every run, so the VM would not auto-start after a NAS reboot.
+      # The absent() arm covers a watchdog that has never succeeded (ImagePullBackOff or an
+      # admission denial): last_successful_time then does not exist. for: 10m (2 runs) keeps a
+      # fresh deploy from firing before its first run completes and is scraped.
       expr: |
         (time() - kube_cronjob_status_last_successful_time{namespace="immich", cronjob="immich-vm-heal"} > 1800)
         or absent(kube_cronjob_status_last_successful_time{namespace="immich", cronjob="immich-vm-heal"})

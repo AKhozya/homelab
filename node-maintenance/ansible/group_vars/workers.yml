@@ -4,7 +4,8 @@
 # route comment (W2: "to nodes", W1: "(API server)") + W2 broad routes + 8472 LAN.
 
 # ---- K3s config ----
-# Drift-alert only, no auto-restart. Restart via: sudo systemctl restart k3s-agent.
+# Drift-alert only, no auto-restart. To apply a change, run on the CP:
+# sudo systemctl start node-maintenance-rolling-restart.service
 k3s_node_labels:
   - "svccontroller.k3s.cattle.io/enablelb=true"
 

@@ -19,13 +19,13 @@ concurrency:
 env:
   KUBECONFORM_VERSION: v0.6.7
   # Must match what kustomize-controller embeds, or CI renders a different tree
-  # than the cluster does. Chain: controller v1.9.4 -> sigs.k8s.io/kustomize/api
-  # v0.21.1 -> kustomize CLI v5.8.1. Re-derive from the controller's go.mod on
-  # any Flux bump.
+  # than the cluster does. Re-derive it on any Flux bump: the controller's go.mod
+  # names a sigs.k8s.io/kustomize/api version, and the kustomize CLI release built
+  # on that api version is the match.
   KUSTOMIZE_VERSION: v5.8.1
-  # Track the live cluster (v1.37.0+k3s1). yannh/kubernetes-json-schema ships
-  # v1.37.0 schemas. Update this with any k3s upgrade, together with the
-  # KUBERNETES_VERSION default in scripts/ci/helm-render-check.sh.
+  # Schema version for kubeconform (yannh/kubernetes-json-schema). Keep it at the live k3s
+  # version: update it with any k3s upgrade, together with the KUBERNETES_VERSION default in
+  # scripts/ci/helm-render-check.sh.
   KUBERNETES_VERSION: "1.37.0"
   # Each digest is the SHA-256 of the linux amd64 asset, from that release's published
   # checksums file. Bump a digest together with its version, or the install step fails.
@@ -102,9 +102,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/install-yq
-      # Closes the gap Kyverno's image-pin policy leaves: it only rejects :latest/no-tag,
-      # so major-only / major.minor tags float silently. This asserts major.minor.patch
-      # (or @sha256 digest). Allowlist for native-2-component upstreams in the script.
+      # Kyverno's image-pin policy rejects only :latest and a missing tag, so major-only and
+      # major.minor tags float silently. This audit requires major.minor.patch or an @sha256
+      # digest. The script holds the allowlist for upstreams that publish two-part tags.
       - run: scripts/ci/image-pin-audit.sh .
 
   kubeconform:

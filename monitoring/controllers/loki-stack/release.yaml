@@ -136,9 +136,9 @@ spec:
         limits:
           cpu: 50m
           memory: 64Mi
-      # Default-on exporter sidecar renders with empty resources (Kyverno
-      # enforce-limits blocks) + port 4040 not in NetworkPolicy. Enabling later =
-      # deliberate change with resources + NP port.
+      # The chart enables this exporter sidecar by default with no resources, which Kyverno
+      # require-resource-limits denies, and its port 4040 is not in the NetworkPolicy.
+      # If you enable it, add both.
       metrics:
         enabled: false
 
@@ -182,7 +182,6 @@ spec:
           # monitoring/configs/victoria-metrics/scrape-apps.yaml scrapes Loki instead.
           release: kube-prometheus-stack
 
-    # Disable caching for single binary mode
     chunksCache:
       enabled: false
     resultsCache:

@@ -30,7 +30,6 @@ spec:
       serviceAccountName: cloudflare-tunnel
       automountServiceAccountToken: false
       priorityClassName: homelab-critical  # critical tier (external ingress tunnel)
-      # Pod anti-affinity: require distribution across worker nodes for HA
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:

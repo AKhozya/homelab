@@ -2,10 +2,9 @@
 # k3s_config — declarative /etc/rancher/k3s/config.yaml.
 # Applies to: all hosts. Per-group/host shape via group_vars + host_vars.
 #
-# NO HANDLER by design. Mirrors kubelet.yaml pattern (hardening role):
-# config drift = detected + logged + Telegram-alerted, human restarts K3s
-# deliberately. Rationale: K3s restart = API gap (CP) or pod disruption (workers).
-# Deliberate human gate avoids automatic production disturbance.
+# No restart handler, as for kubelet.yaml in the hardening role: a K3s restart is an API gap
+# on the CP and pod disruption on a worker. Apply a config change from the CP with
+# `sudo systemctl start node-maintenance-rolling-restart.service`.
 
 - name: Ensure /etc/rancher/k3s exists
   ansible.builtin.file:
@@ -23,7 +22,7 @@
     owner: root
     group: root
     # 0644: K3s early-boot subprocess reads this before fully elevating; 0600 triggers
-    # "permission denied" WARN and falls back to defaults. Historical live state was 0644.
+    # "permission denied" WARN and falls back to defaults.
     mode: "0644"
   tags: [k3s-config]
 
@@ -57,11 +56,11 @@
   tags: [k3s-config, k3s-ready]
 
 # ──────────────────────────────────────────────────────────────
-# clusterip-probe.sh — single source of the ClusterIP-DNAT verdict. The phase2
-# worker gate (PLAY 1) runs this on a freshly-rebooted worker before uncordon to
-# prove kube-proxy actually programmed KUBE-SERVICES DNAT for 10.43.0.1 (kubelet
-# Ready does NOT prove that — 2026-05-24 wedge). The cluster-reboot skill's
-# verify-clusterip.sh runs the same check over SSH. All nodes (CP harmless).
+# clusterip-probe.sh — the ClusterIP-DNAT verdict. The phase2 worker gate (PLAY 1) runs it on
+# a rebooted worker before uncordon, and clusterip_heal runs it too. It proves kube-proxy
+# programmed KUBE-SERVICES DNAT for 10.43.0.1, which kubelet Ready does not (2026-05-24 wedge).
+# agents/skills/cluster-reboot/scripts/verify-clusterip.sh carries its own copy of
+# this check; keep the two in sync. All nodes (CP harmless).
 # ──────────────────────────────────────────────────────────────
 - name: Ensure /etc/node-maintenance/bin exists
   ansible.builtin.file:

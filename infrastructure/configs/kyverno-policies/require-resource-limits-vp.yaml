@@ -1,4 +1,3 @@
-# CEL ValidatingPolicy — sole policy engine since 2026-07-12 (migrated from the require-resource-limits ClusterPolicy).
 # One policy, two validations (cpu and memory), so each gets its own message and report
 # result.
 apiVersion: policies.kyverno.io/v1

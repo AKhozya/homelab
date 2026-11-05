@@ -1,4 +1,3 @@
-# CEL ValidatingPolicy — sole policy engine since 2026-07-12 (migrated from the disallow-latest-tag ClusterPolicy).
 # Known gap: a ':' anywhere counts as a tag, so `registry:5000/img` passes. Kyverno's CEL
 # image() library could close it.
 apiVersion: policies.kyverno.io/v1

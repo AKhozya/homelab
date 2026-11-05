@@ -28,7 +28,7 @@ spec:
   # Worker nodes only - control-plane has NoSchedule taint
   affinity:
     enablePodAntiAffinity: true
-    podAntiAffinityType: "required"  # Hard constraint - one instance per worker node (true HA)
+    podAntiAffinityType: "required"
 
   resources:
     requests:

@@ -71,8 +71,7 @@ printf '%s\n' "$POST_SHA" > "$APPLIED_FILE"
 echo "==> Sync applied: ${POST_SHA:0:10}"
 
 # ── node-config drift-heal (ansible) ──
-# Re-apply declarative config after pull. Idempotent (changed=0 if nothing drifted).
-# Runs synchronously; failure = sync.service fails = TG alert via existing ExecStopPost.
+# --wait: if the heal fails, this script fails, and the sync unit's ExecStopPost alerts.
 if [ -x /usr/bin/ansible-playbook ] && [ -f /etc/node-maintenance/ansible/node-config.yml ]; then
   echo "==> Running node-config playbook"
   systemctl start --wait node-maintenance-config.service

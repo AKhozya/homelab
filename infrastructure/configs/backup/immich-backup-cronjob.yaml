@@ -190,9 +190,8 @@ spec:
                   cpu: "2000m"
                   memory: "512Mi"
           volumes:
-            # The worker-node -> worker-node-2 mirror (removed 2026-07-17) used the sibling
-            # /mnt/extra-storage/backups/ as its --delete target, so this job wrote here instead.
-            # The path stays so existing backup sets keep their place.
+            # Not under /mnt/extra-storage/backups/: a mirror removed on 2026-07-17 used that path
+            # as its --delete target. The path stays so existing backup sets keep their place.
             - name: backup-storage
               hostPath:
                 path: /mnt/extra-storage/immich-backup

@@ -327,9 +327,8 @@
   when: ufw_drift_detected | default(true)
   tags: [firewall]
 
-# Update fingerprint cache after a clean block run. Skipped if rescue ran
-# (state may be partially healed; want next run to re-evaluate, not cache
-# bad state).
+# Runs only after a clean block run. After a rescue the state may be only partly healed, so
+# the next run must re-check it instead of caching it.
 - name: Recompute UFW fingerprint after rules apply
   ansible.builtin.shell: |
     set -o pipefail

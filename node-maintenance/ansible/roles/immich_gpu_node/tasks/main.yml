@@ -211,8 +211,7 @@
 # ---- yay AUR helper bootstrap (parity with physical nodes) ----
 # phase2's yay_cmd needs yay. The operator installed it by hand on the physical nodes (setup-node.sh
 # only uses yay if present); this VM's onboarding skipped it, so the weekly upgrade failed with `yay:
-# command not found`, and the old rescue hid that until 2026-07-11. Install it here only if absent; after that the
-# weekly yay_cmd updates yay itself.
+# command not found`. Install it here only if absent; after that the weekly yay_cmd updates yay itself.
 # Build and install run as separate steps: makepkg refuses root, and akhozya has no NOPASSWD here (see
 # above), so `makepkg -si` would hang on its own `sudo pacman`. Build as akhozya with deps pre-installed,
 # then `pacman -U` as root.
@@ -304,9 +303,8 @@
     mode: "0644"
   tags: [immich-gpu-node, virtiofs]
 
-# enabled=at boot (WantedBy, non-fatal), started=mount now on this heal run. A mount failure here alerts
-# (drift) — correct: an unmountable library means Immich is broken, worth a page. The heal watchdog
-# covers transient drops between runs.
+# A mount failure fails this task on purpose, so the run alerts: without the library Immich is broken.
+# The heal watchdog covers transient drops between runs.
 - name: Enable + start immich-library virtiofs mount
   ansible.builtin.systemd_service:
     name: 'var-lib-immich\x2dlibrary.mount'

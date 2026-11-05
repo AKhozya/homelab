@@ -4,11 +4,8 @@ metadata:
   name: immich-vm-heal
   namespace: immich
 spec:
-  # Every 5 min. After the 2026-10-03 NAS reboot this watchdog found the VM stopped and
-  # started it, although the libvirt autostart flag is on. The schedule sets how often
-  # a stopped VM gets a start attempt. The schedule does not bound VM downtime. If the
-  # NAS library is not mounted, the script skips the start. The next scheduled run
-  # tries again.
+  # If the NAS library is not mounted, the script skips the start and the next run tries
+  # again. So the schedule sets how often a start is tried, not how long the VM can stay down.
   schedule: "*/5 * * * *"
   timeZone: "UTC"
   concurrencyPolicy: Forbid
@@ -18,10 +15,10 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0          # one attempt per tick; the next tick is the retry
-      # ssh -o ConnectTimeout bounds the CONNECT only — a session that connects and then
-      # hangs (NAS mid-maintenance, 2026-08-15) runs forever and pins a pod, because
-      # nothing else caps a Job's runtime. Kept under the 5-min tick so a killed run
-      # cannot overlap the next; a healthy run is ~5-20s, so it fires only on a real hang.
+      # ssh -o ConnectTimeout bounds only the connect. A session that connects and then
+      # hangs (NAS mid-maintenance, 2026-08-15) runs for ever and pins a pod, because
+      # nothing else caps a Job's runtime. 240s stays under the 5-min tick, so a killed run
+      # cannot overlap the next. A healthy run takes about 5-20s.
       activeDeadlineSeconds: 240
       ttlSecondsAfterFinished: 3600
       template:
@@ -44,10 +41,9 @@ spec:
                         values: ["intel"]
           securityContext:
             runAsNonRoot: true
-            # 65534 = nobody, which EXISTS in the alpine/git image's /etc/passwd.
-            # ssh calls getpwuid(uid) at startup and aborts ("No user exists for uid")
-            # if the uid has no passwd entry — so an arbitrary uid (e.g. distroless
-            # 65532) breaks ssh before it connects. nobody resolves cleanly.
+            # 65534 is nobody, which exists in the alpine/git image's /etc/passwd. ssh calls
+            # getpwuid(uid) at startup and aborts ("No user exists for uid") if the uid has no
+            # passwd entry, so an arbitrary uid such as distroless 65532 breaks ssh.
             runAsUser: 65534
             runAsGroup: 65534
             fsGroup: 65534        # makes the /tmp + /home emptyDirs writable by non-root

@@ -99,9 +99,8 @@ spec:
 
     webhook:
       port: 9443
-      # Increase startup probe tolerance for node reboots
-      # Gives operator 100s (20 * 5s) to start after reboot
-      # Prevents crash when API server isn't immediately available
+      # After a node reboot the API server can take longer than the default 6 x 5s = 30s to
+      # answer, and the operator then crashes on start.
       startupProbe:
-        failureThreshold: 20  # Default: 6 (30s total)
+        failureThreshold: 20
         periodSeconds: 5

@@ -50,11 +50,9 @@
     - role: security_scan
     - role: ad_hoc
 
-# Immich GPU node (the `virtual` group = the Arch VM on the NAS). Runs the immich_gpu_node role:
-# i915 render config, virtiofs library mount, guest heal watchdog, AND the reset-bug carve-outs
-# (kernel.panic=0 + systemd RuntimeWatchdogSec=0 overrides) that keep a guest lockup from
-# auto-rebooting in-guest → wedging the passed-through iGPU → crashing the NAS host. Runs AFTER
-# `hardening` so its watchdog/panic sysctl + system.conf drop-ins are on disk to override.
+# Runs after `hardening`: immich_gpu_node overrides hardening's kernel.panic sysctl and systemd
+# RuntimeWatchdogSec drop-ins, because an in-guest auto-reboot on this VM wedges the
+# passed-through iGPU and crashes the NAS host.
 - name: Node config drift-heal — Immich GPU node (i915 + virtiofs + guest-heal + reset-bug carve-outs)
   hosts: virtual
   become: true
@@ -79,8 +77,7 @@
     - role: clusterip_heal
     # Node-local self-recovery for CP isolation (k3s-agent tunnel wedged, node NotReady, host still
     # alive): the 2026-07-10 W2 90-min isolation that no other watchdog caught. Ladder: restart
-    # k3s-agent, then a staggered self-reboot. Active since 2026-07-23 after a clean 13-day dry-run;
-    # node_isolation_dry_run switches it back to dry-run.
+    # k3s-agent, then a staggered self-reboot. node_isolation_dry_run: true switches it to dry-run.
     # Excluded on the `virtual` group: its ladder ends in an in-guest `systemctl reboot`, which on the
     # GPU-passthrough VM wedges the iGPU and crashes the NAS host. clusterip_heal (above) still runs
     # there; its k3s-agent restart is the safe recovery.
