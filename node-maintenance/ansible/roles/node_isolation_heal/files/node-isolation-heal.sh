@@ -19,7 +19,7 @@
 # ISOLATED = tunnel down (agent can't reach the CP). kubelet stays healthy during isolation
 # so it does NOT gate. cp_direct + gateway are the discriminators — cp_direct GATES the
 # reboot (only reboot when the node genuinely can't reach the CP, not a mere LB glitch);
-# kubelet + gateway are recorded for soak tuning.
+# The script only records kubelet + gateway, to tune the thresholds.
 #
 # Ladder, only after ISOLATED past a debounce (L1 is always tried before L2):
 #   L1  restart k3s-agent (rebuild tunnel/LB/CNI)     wedged >= RESTART_AFTER_S
@@ -241,7 +241,7 @@ do_l1() {
 	fi
 	emit_metric 1 "$wedged_s" 1 0
 	if [ "$DRY_RUN" = "1" ]; then
-		# Record the SIMULATED L1 so the ladder progresses to the reboot rung in the soak.
+		# Record the SIMULATED L1 so a DRY_RUN trial still reaches the reboot rung.
 		log "DRY_RUN: WOULD restart k3s-agent now (wedged ${wedged_s}s >= ${RESTART_AFTER_S}s). Taking NO action."
 		write_state "$first_fail" "$consecutive" "$now" "$last_reboot"
 		exit 0
