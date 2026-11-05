@@ -18,7 +18,7 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
-### 2026-11-05 — Comment-sweep follow-ups: MySQL drops three unsafe flags; an Authentik blueprint fails as if its binding were already gone
+### 2026-11-05 — Comment-sweep follow-ups: MySQL drops three unsafe flags; an Authentik blueprint fails because its binding is already gone
 
 | Change | Commit | Effect |
 |---|---|---|
@@ -48,7 +48,9 @@ The table summarises the months before the dated entries below.
 | the apply fails with `RelatedObjectDoesNotExist: FlowStageBinding has no policybindingmodel_ptr` | worker logs, 21:58 UTC |
 | upstream bug goauthentik/authentik#27621 (open) has the same symptom | GitHub |
 | if no row matches a `state: absent` entry, the importer builds a new binding with a random `fsb_uuid` pk and calls delete() on it | `importer.py` and `flows/models.py`, version 2026.8.5 |
-| the failure is consistent with the order-20 password binding already being gone | not confirmed: the database check was blocked |
+| `default-authentication-flow` binds only identification (10), MFA validation (30) and login (100); no password stage | read-only query of the `authentik` database, 2026-11-05 |
+| the identification stage has no inline password field (`password_stage_id` is null) | same query |
+| the identification stage's passwordless flow is `homelab-authentication-webauthn-passwordless` | same query |
 
 ANALYSIS tracks the issue.
 
