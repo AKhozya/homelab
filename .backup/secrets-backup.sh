@@ -94,7 +94,7 @@ kubectl get secret authentik -n authentik -o json > "${BACKUP_DIR}/secrets/authe
 # Immich
 kubectl get secret immich-admin-credentials -n immich -o json > "${BACKUP_DIR}/secrets/immich-admin-credentials.json"
 kubectl get secret immich-db-password -n immich -o json > "${BACKUP_DIR}/secrets/immich-db-password.json"
-kubectl get secret immich-redis-url -n immich -o json > "${BACKUP_DIR}/secrets/immich-redis-url.json" 2>/dev/null || echo "   ⚠️  No immich/immich-redis-url (Phase 1 Sentinel SOPS)"
+kubectl get secret immich-redis-url -n immich -o json > "${BACKUP_DIR}/secrets/immich-redis-url.json" 2>/dev/null || echo "   ⚠️  No immich/immich-redis-url (SOPS)"
 
 # Home Assistant
 kubectl get secret home-assistant-admin-credentials -n home-assistant -o json > "${BACKUP_DIR}/secrets/home-assistant-admin-credentials.json"
@@ -284,7 +284,7 @@ echo "      - PostgreSQL CNPG cluster-managed (main-postgres-app/-superuser/-rep
 echo "      - MySQL root & app credentials (3 apps)"
 echo "      - MySQL Percona internal (internal-main-mysql)"
 echo "   📱 All application secrets:"
-echo "      - Authentik, Immich (incl. Sentinel REDIS_URL), Home Assistant"
+echo "      - Authentik, Immich (incl. REDIS_URL), Home Assistant"
 echo "      - N8N, Mealie, Paperless-NGX"
 echo "      - Audiobookshelf, Uptime Kuma, Stirling PDF"
 echo "      - HomeHub, LinkWarden, PriceBuddy, CouchDB (Obsidian)"

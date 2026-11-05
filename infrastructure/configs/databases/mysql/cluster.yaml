@@ -11,8 +11,7 @@ spec:
   # it manually with each chart minor. SmartUpdate rolls replicas first and the primary last.
   crVersion: "1.3.0"
 
-  # Online volume expansion. The older spec.enableVolumeExpansion was deprecated in
-  # operator 1.2.0 and is removed in 1.5.0.
+  # Online volume expansion. The older spec.enableVolumeExpansion is deprecated.
   storageScaling:
     enableVolumeScaling: true
 
@@ -63,9 +62,10 @@ spec:
         operator: Exists
         effect: NoSchedule
     # orchestrator.configuration is not set. If you add it, it takes a JSON object string.
-    # Operator 1.2.0 merges it into the orchestrator ConfigMap but silently skips the keys it
-    # owns (RaftNodes, TLS paths, failover hooks): reservedOrchestratorConfigKeys in
-    # pkg/orchestrator/orchestrator.go, tag v1.2.0 of
+    # The operator merges it into the orchestrator ConfigMap but silently skips the keys it
+    # owns (RaftNodes, TLS paths, failover hooks), and from crVersion 1.3.0 also the failover
+    # gates such as FailMasterPromotionOnLagMinutes: reservedOrchestratorConfigKeys and
+    # failoverConfigKeys in pkg/orchestrator/orchestrator.go, tag v1.3.0 of
     # https://github.com/percona/percona-server-mysql-operator
 
   # Backup configuration (required even if not using backups)
@@ -104,10 +104,16 @@ spec:
       seccompProfile:
         type: RuntimeDefault
 
-    # Longer than the defaults: a large clone hits "query interrupted" at the stock timeouts.
+    # These three do nothing from crVersion 1.3.0 (operator source, tag v1.3.0):
+    # - the operator sets BOOTSTRAP_CLONE_STALL_TIMEOUT=900. If that variable is set, the bootstrap
+    #   ignores BOOTSTRAP_CLONE_TIMEOUT, and a clone aborts only if it makes no progress for 900s.
+    # - BOOTSTRAP_READ_TIMEOUT equals the default of 3600.
+    # - nothing reads BOOTSTRAP_WRITE_TIMEOUT.
+    # Removing them changes the pod template and restarts MySQL, so remove them together with
+    # the next change that restarts MySQL anyway.
     env:
       - name: BOOTSTRAP_CLONE_TIMEOUT
-        value: "7200"  # 2 hours; default 3600
+        value: "7200"
       - name: BOOTSTRAP_READ_TIMEOUT
         value: "3600"
       - name: BOOTSTRAP_WRITE_TIMEOUT
