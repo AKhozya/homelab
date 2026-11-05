@@ -77,7 +77,7 @@ spec:
 
                   # Fresh work dirs — clear any leftover from a crashed prior run. The dated
                   # final dir (/backup/<ts>) is created ONLY by an atomic rename after success
-                  # (step 5), so keep-2 (globs /backup/20*) never counts a partial. .wip is
+                  # (below), so keep-2 (globs /backup/20*) never counts a partial. .wip is
                   # not matched by that glob.
                   rm -rf "$WIP" "$STAGING"
                   mkdir -p "$WIP" "$STAGING"
@@ -96,16 +96,16 @@ spec:
                     [ "$rc" -eq 0 ] || echo "(pool cleanup refused, rsync exit $rc — prune manually)"
                   }
 
-                  # 1) Pull the LIVE NAS library to W2 staging (read-only source; --delete
-                  #    makes staging == source, clearing any leftover).
+                  # Pull the LIVE NAS library to W2 staging (read-only source; --delete
+                  # makes staging == source, clearing any leftover).
                   echo "=== Pull live library (rsync personal_folder module) ==="
                   RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync -a --delete --port=50555 \
                     --exclude='*.tmp' --exclude='.*.swp' \
                     "$LIB" "$STAGING/"
                   echo "Staged: $(du -sh "$STAGING" | cut -f1)"
 
-                  # 2) tar + sha256 into the .wip work dir (no compression — media is already
-                  #    compressed).
+                  # tar + sha256 into the .wip work dir (no compression — media is already
+                  # compressed).
                   BACKUP_FILE="$WIP/immich-library.tar"
                   START=$(date +%s)
                   echo "Creating uncompressed tar..."
@@ -116,12 +116,12 @@ spec:
                   END=$(date +%s)
                   echo "Backup: $(du -h "$BACKUP_FILE" | cut -f1), tar $((TAR_DONE-START))s, sha $((END-TAR_DONE))s"
 
-                  # 3) Free staging immediately — the tar is the retained artifact.
+                  # Free staging immediately — the tar is the retained artifact.
                   rm -rf "$STAGING"
 
-                  # 4) Sanity floor: library is ~61G; a tar under 40G means a truncated/empty
-                  #    pull. Abort (discard .wip) BEFORE anything is published — the last good
-                  #    W2 + pool copies stay untouched.
+                  # Sanity floor: library is ~61G; a tar under 40G means a truncated/empty
+                  # pull. Abort (discard .wip) BEFORE anything is published — the last good
+                  # W2 + pool copies stay untouched.
                   SZ=$(stat -c%s "$BACKUP_FILE" 2>/dev/null || wc -c < "$BACKUP_FILE")
                   MIN_BYTES=$((40 * 1024 * 1024 * 1024))
                   if [ "$SZ" -lt "$MIN_BYTES" ]; then
@@ -130,13 +130,13 @@ spec:
                     exit 1
                   fi
 
-                  # 5) Publish the W2 copy atomically: rename .wip -> /backup/<ts> (same fs).
-                  #    Only now does a complete, dated W2 copy exist (1st physical copy, on a node).
+                  # Publish the W2 copy atomically: rename .wip -> /backup/<ts> (same fs).
+                  # Only now does a complete, dated W2 copy exist (1st physical copy, on a node).
                   mv "$WIP" "$BACKUP_ROOT"
 
-                  # 6) Push the tar dir to the NAS akhozya-pool1 history pool: the second physical
-                  #    copy, on a different filesystem from the live library in personal_folder.
-                  #    If the push or the check fails, remove the partial pool dir.
+                  # Push the tar dir to the NAS akhozya-pool1 history pool: the second physical
+                  # copy, on a different filesystem from the live library in personal_folder.
+                  # If the push or the check fails, remove the partial pool dir.
                   echo "=== Push tar to NAS akhozya-pool1 pool ==="
                   if ! RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync -a --port=50555 \
                        "$BACKUP_ROOT/" "${POOL}/${TIMESTAMP}/"; then
@@ -145,7 +145,6 @@ spec:
                     exit 1
                   fi
 
-                  # 7) Verify the pushed copy is actually listed on the pool (else clean + fail).
                   echo "=== Verify NAS pool copy ==="
                   # Exact name match: a substring match also accepts the .sha256 line.
                   if RSYNC_PASSWORD="$NAS_RSYNC_PASSWORD" rsync --port=50555 --list-only \
@@ -158,9 +157,9 @@ spec:
                     exit 1
                   fi
 
-                  # 8) W2 keep-2 retention — portable (busybox has no 'head -n -N'; use
-                  #    'sort -r | tail -n +3', matching backup-replication's pool sweep). Runs
-                  #    only after the 2nd copy is confirmed, and only complete dated dirs exist.
+                  # W2 keep-2 retention — portable (busybox has no 'head -n -N'; use
+                  # 'sort -r | tail -n +3', matching backup-replication's pool sweep). Runs
+                  # only after the 2nd copy is confirmed, and only complete dated dirs exist.
                   echo "=== W2 keep-2 retention ==="
                   ls -1d /backup/20* 2>/dev/null | sort -r | tail -n +3 | while read -r old; do
                     echo "Deleting old W2 backup: $old"

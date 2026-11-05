@@ -169,16 +169,13 @@ spec:
     configuration: |
       [mysqld]
       max_connections=100
-      # Buffer pool right-sized: only 79MB actually cached, 256MB is 3x headroom
-      # Reduced from 512MB to eliminate memory pressure alerts
+      # 79MB is cached; 256MB gives 3x headroom. 512MB triggers memory-pressure alerts.
       innodb_buffer_pool_size=256M
       innodb_buffer_pool_instances=1
-      # Slow query logging for performance debugging
       slow_query_log=ON
       long_query_time=2
-      # Redo log - 64MB is sufficient for light workload
       innodb_redo_log_capacity=64M
-      # Binlog retention - 7 days sufficient for homelab with daily backups
+      # 7 days of binlog, several times the daily backup interval.
       binlog_expire_logs_seconds=604800
       # Prevent stale replication threads after node restart (operator bug workaround)
       # Without this, the primary retains replica config from PVC and starts SQL thread,
