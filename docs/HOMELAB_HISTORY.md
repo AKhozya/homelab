@@ -18,6 +18,40 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-05 — Comment-sweep follow-ups: MySQL drops three unsafe flags; an Authentik blueprint fails as if its binding were already gone
+
+| Change | Commit | Effect |
+|---|---|---|
+| CI schemas at Kubernetes 1.37.2 | `9d92dba2` | match the 4 nodes (`v1.37.2+k3s1`). `KUSTOMIZE_VERSION` stays v5.8.1: kustomize-controller v1.10.1 requires api v0.21.2, but its go.mod `replace` pins v0.21.1 |
+| MySQL comments for operator 1.3.0 | `9d92dba2` | the comment says why the three `BOOTSTRAP_*_TIMEOUT` env vars have no effect (table below). Removal waits for the next change that restarts MySQL (ANALYSIS) |
+| Comments inside scripts and configs | `e4920fdb` | if comments are ignored, all six roots render identical. The bot pod restarted and the Uptime Kuma setup Job re-ran. Both MySQL pods kept restart count 0 |
+| Node-maintenance comments, unused `NFT_BIN` | `b4b1b5f4` | the drift-heal deployed it to all 4 nodes, `Result=success` |
+| `unsafeFlags` keeps only `asyncFailoverWithPossibleDataLoss` | `c52772e5` | removes `mysqlSize`, `orchestrator` and `orchestratorSize`. A server-side dry-run as `kustomize-controller` passed first. The CR stayed `ready` |
+
+| `BOOTSTRAP_*` variable | Operator v1.3.0 behaviour |
+|---|---|
+| `CLONE_TIMEOUT` | if crVersion is 1.3.0 or later, the operator sets `BOOTSTRAP_CLONE_STALL_TIMEOUT=900`. If that is set, the bootstrap ignores the clone timeout |
+| `READ_TIMEOUT` | our 3600 equals the default |
+| `WRITE_TIMEOUT` | no file in the operator source reads it |
+
+| Unsafe flag | The live 1.3.0 CRD requires it if |
+|---|---|
+| `mysqlSize` | an async cluster has fewer than 2 MySQL pods (we run 2) |
+| `orchestrator` | an async cluster has orchestrator disabled (ours is enabled) |
+| `orchestratorSize` | an async cluster has a positive orchestrator size that is below 3 or even (we run 3) |
+| `asyncFailoverWithPossibleDataLoss` | an async cluster has operator backups off (ours are off, so it stays) |
+
+**Authentik.** The blueprint ConfigMap change made the workers re-apply `40-remove-password-binding`, which `e4920fdb` did not edit:
+
+| Fact | Source |
+|---|---|
+| the apply fails with `RelatedObjectDoesNotExist: FlowStageBinding has no policybindingmodel_ptr` | worker logs, 21:58 UTC |
+| upstream bug goauthentik/authentik#27621 (open) has the same symptom | GitHub |
+| if no row matches a `state: absent` entry, the importer builds a new binding with a random `fsb_uuid` pk and calls delete() on it | `importer.py` and `flows/models.py`, version 2026.8.5 |
+| the failure is consistent with the order-20 password binding already being gone | not confirmed: the database check was blocked |
+
+ANALYSIS tracks the issue.
+
 ### 2026-11-04 — The Percona operator had failed every reconcile for a day; a switchover test proves pin.sh
 
 **Cause.** The crVersion 1.3.0 change (`b993320b`) made the operator apply the `[mysqld]` config with `SET GLOBAL`. The operator rejects a config name that contains a dash. So `skip-replica-start` stopped every reconcile at the MySQL config step from 2026-11-03 23:17 (5202 errors, CR `state=error`). MySQL kept serving. Nothing alerted, because nothing scraped the operator.
