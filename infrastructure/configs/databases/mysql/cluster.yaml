@@ -15,15 +15,12 @@ spec:
   storageScaling:
     enableVolumeScaling: true
 
-  # unsafeFlags relax the operator's size checks for this small homelab cluster.
-  # asyncFailoverWithPossibleDataLoss: operator 1.3.0 rejects an async cluster with operator
-  # backups off unless this flag is true. Without operator backups, a failover cannot recover
-  # transactions left on the old primary. mysql-backup-cronjob.yaml runs our backups.
+  # If operator backups are off, operator 1.3.0 rejects an async cluster that lacks this flag.
+  # If operator backups are off, a failover cannot recover transactions left on the old primary.
+  # mysql-backup-cronjob.yaml runs our backups. The other unsafe flags stay off: 2 MySQL pods,
+  # 3 orchestrator pods and orchestrator.enabled all pass the CRD's checks without them.
   unsafeFlags:
     asyncFailoverWithPossibleDataLoss: true
-    mysqlSize: true
-    orchestrator: true
-    orchestratorSize: true
 
   secretsName: mysql-cluster-secrets
 
