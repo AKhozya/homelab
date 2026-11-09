@@ -20,7 +20,7 @@ What the run showed:
 | A replication restart can leave both pods `role:master` until the operator re-attaches the replica (~50s on 2026-10-02) | the label-based `redis-replication-master` Service has no stable target meanwhile; `redis-restart.sh` waits until one master has one replica with the link up |
 | A replication restart gives both pods new IPs; the sentinels keep monitoring the dead master IP (`s_down,o_down`, failover stuck) | no automatic failover until the sentinels restart. After a sentinel restart the operator needs ~10s to set the master (`NOQUORUM` until then); `redis-restart.sh sentinel` waits until all three name the current master and quorum is OK |
 | `ACL SETUSER <user> !<hash>` removes OLD from a running pod | pass 3 needs no restart. ACL changes do not replicate, so `redis-acl-drop-old.sh` runs on every pod and exits 1 unless every user holds only NEW |
-| blocky sets redis `required: true` | a blocky pod that cannot log in does not start; cycle blocky last, and only after Redis accepts NEW |
+| blocky sets redis `required: false` (since 2026-11-09) | If a blocky pod cannot log in, it still serves DNS, but without the shared cache. Only a WARN log line shows that. Cycle blocky last, and only after Redis accepts NEW |
 | Not tried yet: `ACL SETUSER <user> #<sha256(NEW)>` (pass 1) and `SENTINEL SET myMaster auth-pass` (pass 2) at runtime | could make the whole rotation restart-free; test on a scratch Redis before using it live |
 
 Proof per consumer: `redis-cli CLIENT LIST` on the master, connections with `user=<app>` from the

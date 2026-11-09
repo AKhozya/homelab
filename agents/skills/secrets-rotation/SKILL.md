@@ -61,7 +61,7 @@ Deploy the new Secret before the `ALTER`, so each app keeps working on the old p
 ## PostgreSQL (CNPG): every copy at once
 
 Each password lives in the role's CNPG `passwordSecret` file and in one or more app files, as a
-bare key or inside a DSN (linkwarden `DATABASE_URL`, blocky `config.yml`). CNPG sets the role
+bare key or inside a DSN (linkwarden `DATABASE_URL`, blocky `querylog-dsn`). CNPG sets the role
 password when Flux syncs its file — there is no `ALTER`, and the app fails auth from that sync
 until its pods are cycled. So cycle immediately after `fr`.
 
