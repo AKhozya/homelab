@@ -4,9 +4,15 @@ namespace: blocky
 resources:
   - namespace.yaml
   - serviceaccount.yaml
-  - config-secret.yaml
+  - credentials-secret.yaml
   - deployment.yaml
   - pdb.yaml
   - service-dns.yaml
   - service-metrics.yaml
   - networkpolicy.yaml
+# The name hash changes with config.yml, so a config change rolls the pods.
+# Blocky does not reload its config, and a subPath mount never updates.
+configMapGenerator:
+  - name: blocky-config
+    files:
+      - config.yml

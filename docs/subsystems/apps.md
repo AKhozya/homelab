@@ -7,7 +7,7 @@ Each app has one directory under `apps/<name>/`. Image versions: pinned in each 
 | **homepage** | homepage | configmap | — | forward-auth | int | Dashboard; Authentik proxy provider on the embedded outpost (callback Ingress lives in the `authentik` ns) |
 | **uptime-kuma** | uptime-kuma | none (emptyDir; state in MySQL) | MySQL | — | int | Uptime probes; rootless image |
 | **authentik** | authentik | configmap | PostgreSQL | provider | both | SSO; passkey-first Conditional UI; no Redis (in-memory cache) |
-| **blocky** | blocky | none (Secret config) | PG `blocky` (query log) + Redis HA db1 | — | LAN DNS :53 | 2 replicas, single LB Service on W1+W2 IPs; LAN clients only — nodes + CoreDNS use public DNS |
+| **blocky** | blocky | none (ConfigMap from `config.yml`) | PG `blocky` (query log) + Redis HA db1 | — | LAN DNS :53 | 2 replicas, single LB Service on W1+W2 IPs; LAN clients only — nodes + CoreDNS use public DNS |
 | **stirling-pdf** | stirling-pdf | PVC | — | OIDC | both | PDF tools; `-fat` image variant |
 | **homehub** | homehub | PVC | — | — | int | Family dashboard |
 | **immich** | immich | NAS library (virtiofs hostPath) | PostgreSQL + Redis (static master Service) | OIDC | both | Helm chart `immich` (`apps/immich/release.yaml`); server + ML pods on `immich-vm` (dedicated node, taint `homelab/dedicated=immich`); ML inference on the iGPU via the `-openvino` image |

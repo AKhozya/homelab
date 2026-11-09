@@ -87,8 +87,13 @@ spec:
           volumeMounts:
             - { name: tmp, mountPath: /tmp }
             - { name: config, mountPath: /app/config.yml, subPath: config.yml, readOnly: true }
+            - { name: credentials, mountPath: /secrets, readOnly: true }
       volumes:
         - { name: tmp, emptyDir: { sizeLimit: 64Mi } }
         - name: config
+          configMap:
+            name: blocky-config
+        - name: credentials
           secret:
-            secretName: blocky-config
+            secretName: blocky-credentials
+            defaultMode: 0440  # root-owned; fsGroup 100 gives the uid-100 process read access

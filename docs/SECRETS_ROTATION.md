@@ -264,15 +264,16 @@ printf '"%s"' "$NEW_PASSWORD" | sops set --ignore-mac --value-stdin \
   apps/<app>/<secret-file>.yaml '["stringData"]["<PASSWORD_KEY>"]'
 
 # NOTE — DSN-embedded credential (no discrete key): if the app bakes the password into a
-# connection string rather than its own key — Linkwarden's `DATABASE_URL`, or Blocky queryLog `target: postgres://blocky:PW@...`
-# (pgx can't expand ${VAR}, so the literal is required) — step 3 above does NOT apply. Decrypt the
-# config value, replace the password inside the DSN, re-encrypt:
+# connection string rather than its own key — Linkwarden's `DATABASE_URL`, or Blocky's key
+# `querylog-dsn` (`postgres://blocky:PW@...`) — step 3 above does NOT apply. Decrypt the
+# value, replace the password inside the DSN, re-encrypt:
 # awk takes the password from its environment, not its arguments, so it stays off the command line:
-#   NEWCFG=$(sops -d --extract '["stringData"]["config.yml"]' apps/blocky/config-secret.yaml |
+#   NEWDSN=$(sops -d --extract '["stringData"]["querylog-dsn"]' apps/blocky/credentials-secret.yaml |
 #     NP="$NEW_PASSWORD" awk '{ if (match($0, /:\/\/blocky:[^@]*@main-postgres-rw/))
 #       $0 = substr($0, 1, RSTART - 1) "://blocky:" ENVIRON["NP"] "@main-postgres-rw" substr($0, RSTART + RLENGTH)
-#       print }')
-#   printf '%s' "$NEWCFG" | jq -Rs . | sops set --value-stdin apps/blocky/config-secret.yaml '["stringData"]["config.yml"]'
+#       printf "%s", $0 }')
+#   printf '%s' "$NEWDSN" | jq -Rs . | sops set --value-stdin apps/blocky/credentials-secret.yaml '["stringData"]["querylog-dsn"]'
+# `rotate-pg-roles.sh` finds and rewrites both DSNs by value, so it replaces these manual steps.
 # Verify both carry the same new pw WITHOUT printing it; confirm CNPG synced the role via
 # `kubectl -n databases get cluster main-postgres -o jsonpath='{.status.managedRolesStatus}'`
 # (role in .reconciled at the new secret resourceVersion) before/after the app restart.
@@ -318,8 +319,9 @@ agents/skills/_shared/restart-workload.sh <namespace> <selector>
 **Preferred since 2026-10-02: three passes that overlap the old and new password**, run with the
 helpers in `agents/skills/_shared/` (`rotate-redis-users.sh`, `redis-restart.sh`,
 `redis-acl-drop-old.sh`). Redis accepts both passwords until every client holds the new one, so it
-never rejects a client's password. That matters because blocky sets redis `required: true` and
-serves DNS. Restarts and failovers can still interrupt clients briefly. The single-password steps
+never rejects a client's password. Blocky sets redis `required: false`, so a blocky pod that
+cannot log in still serves DNS. But it runs without the shared cache, and only a WARN log line
+shows it. Restarts and failovers can still interrupt clients briefly. The single-password steps
 below lock out each consumer from the Redis restart until its own restart. What the 2026-10-02 run
 showed:
 
@@ -336,7 +338,7 @@ each consumer's app-side secret (Authentik has had no Redis since 2025-10-29):
 
 - `infrastructure/configs/databases/redis-ha/passwords-secret.yaml` — `redis-passwords` (per-user: admin, immich, paperless, blocky)
 - `infrastructure/configs/databases/redis-ha/acl-secret.yaml` — `redis-acl-secret`, literal user list mounted at `/etc/redis/user.acl`; contains the SAME passwords — regenerate both, never hand-sync one side
-- Consumers: `apps/immich/immich-redis-url-secret.yaml` (key `redis-url`, `ioredis://<base64(json)>` — password embedded in the JSON) · `apps/paperless-ngx/paperless-env-secret.yaml` (key `PAPERLESS_REDIS`, a URL) · Blocky config ([Blocky DNS](#blocky-dns-redis-password-coordinated-rotation))
+- Consumers: `apps/immich/immich-redis-url-secret.yaml` (key `redis-url`, `ioredis://<base64(json)>` — password embedded in the JSON) · `apps/paperless-ngx/paperless-env-secret.yaml` (key `PAPERLESS_REDIS`, a URL) · `apps/blocky/credentials-secret.yaml` (key `redis-password`; [Blocky DNS](#blocky-dns-redis-password-coordinated-rotation))
 
 If you rotate **`admin-password`**, stop here and follow [Rotating admin-password](#rotating-admin-password)
 instead. Do not edit either secret first. Steps 1 to 6 below are for the app users `immich`,
@@ -469,14 +471,14 @@ sops infrastructure/configs/databases/redis-ha/passwords-secret.yaml
 # 3. Update redis-acl-secret (databases ns) — replace blocky line `>${OLD}` with `>${NEW}`
 sops infrastructure/configs/databases/redis-ha/acl-secret.yaml
 
-# 4. Update Blocky's inlined config Secret
-sops apps/blocky/config-secret.yaml
-# Find redis.password: <OLD> → replace with <NEW>
+# 4. Update Blocky's credentials Secret
+sops apps/blocky/credentials-secret.yaml
+# Replace redis-password <OLD> with <NEW>
 
 # 5. Commit, merge, reconcile. If merged fails, stop here.
 git add infrastructure/configs/databases/redis-ha/passwords-secret.yaml \
         infrastructure/configs/databases/redis-ha/acl-secret.yaml \
-        apps/blocky/config-secret.yaml
+        apps/blocky/credentials-secret.yaml
 git commit -m "Rotate blocky redis password"
 merged
 flux reconcile source git flux-system --timeout 45s
@@ -485,7 +487,8 @@ flux reconcile kustomization apps --timeout 60s
 
 # 6. Restart the Redis pods: section 2, step 5 (never `rollout restart` them)
 
-# 7. Restart Blocky one pod at a time (2 replicas), then verify
+# 7. Restart Blocky one pod at a time (2 replicas), then verify. Blocky reads the password
+#    file only at startup, and a Secret change does not roll the pods.
 agents/skills/_shared/restart-workload.sh blocky app=blocky
 kubectl logs -n blocky -l app=blocky --tail=20 | grep -iE "redis|error"
 ```
