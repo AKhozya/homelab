@@ -3,7 +3,7 @@
 #
 # Copies are found by VALUE: each role's current password (from its CNPG passwordSecret file) is
 # searched in the stringData of every SOPS file under apps/ infrastructure/ monitoring/, as a bare
-# key or inside a DSN (linkwarden DATABASE_URL, blocky config.yml). A table of file names goes
+# key or inside a DSN (linkwarden DATABASE_URL, blocky querylog-dsn). A table of file names goes
 # stale; the value does not.
 # No live change: CNPG sets the role password when Flux syncs the CNPG file, so every app using
 # that role fails auth from the sync until its pods are cycled.

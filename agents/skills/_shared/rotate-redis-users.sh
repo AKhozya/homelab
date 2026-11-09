@@ -7,7 +7,7 @@
 # commit would close that gap at the cost of one more merge; the gap is minutes.
 #
 #   pass1  ACL line of each user gets `>OLD >NEW`; redis-passwords app keys and every consumer
-#          (immich redis-url, paperless PAPERLESS_REDIS, blocky config.yml) get NEW.
+#          (immich redis-url, paperless PAPERLESS_REDIS, blocky redis-password) get NEW.
 #          admin-password stays OLD: the sentinels log in with it.
 #          Then: restart Redis replica + master (Redis reads the ACL at startup), then cycle the
 #          consumers.
@@ -17,8 +17,9 @@
 #          Then: restart Redis replica + master.
 #
 # Each pass derives its input from the files, so a lost shell between passes loses nothing.
-# Blocky sets redis `required: true`: a blocky pod that cannot log in to Redis does not start,
-# and blocky serves cluster DNS. That is why pass 1 must restart Redis before cycling consumers.
+# Pass 1 must restart Redis before cycling consumers: until then Redis refuses NEW.
+# Blocky sets redis `required: false`. If a blocky pod cannot log in, it still serves LAN DNS,
+# but without the shared cache. Only a WARN log line shows that.
 # Never prints a password. Passwords go to stdin, environment variables and a private temp dir,
 # never to argv. All checks run before the first write. If a `sops set` still fails mid-pass, the
 # edits are uncommitted: `git checkout -- <the 5 files>` and run the pass again.
@@ -32,7 +33,7 @@ PW=infrastructure/configs/databases/redis-ha/passwords-secret.yaml
 ACL=infrastructure/configs/databases/redis-ha/acl-secret.yaml
 IMMICH=apps/immich/immich-redis-url-secret.yaml
 PAPERLESS=apps/paperless-ngx/paperless-env-secret.yaml
-BLOCKY=apps/blocky/config-secret.yaml
+BLOCKY=apps/blocky/credentials-secret.yaml
 USERS="immich paperless blocky admin"
 
 pass="${1:-}"
@@ -97,7 +98,7 @@ consumer_pw() {
       sed -E 's#^[a-z]+://paperless:([^@]*)@.*#\1#' | tr -d '\n' >"$tmp/consumer.paperless"
     ;;
   blocky)
-    sops -d --extract '["stringData"]["config.yml"]' "$BLOCKY" | yq -r '.redis.password' | tr -d '\n' >"$tmp/consumer.blocky"
+    sops -d --extract '["stringData"]["redis-password"]' "$BLOCKY" | tr -d '\n' >"$tmp/consumer.blocky"
     ;;
   esac
 }
@@ -153,9 +154,9 @@ pass1)
     exit 1
   fi
   mirror_default
-  # Build every consumer's new value before the first write. paperless URL and blocky config
-  # hold the password as plain text; it must occur exactly once, so nothing else changes.
-  for x in "paperless:$PAPERLESS:PAPERLESS_REDIS" "blocky:$BLOCKY:config.yml"; do
+  # Build every consumer's new value before the first write. paperless URL and blocky
+  # redis-password hold the password as plain text; it must occur exactly once, so nothing else changes.
+  for x in "paperless:$PAPERLESS:PAPERLESS_REDIS" "blocky:$BLOCKY:redis-password"; do
     IFS=: read -r u f k <<<"$x"
     sops -d --output-type json "$f" | jq -c --arg k "$k" '.stringData[$k]' >"$tmp/val.$u"
     if [ "$(OLD="$(cat "$tmp/old.$u")" jq '(split(env.OLD) | length) - 1' "$tmp/val.$u")" != 1 ]; then
@@ -182,7 +183,7 @@ pass1)
   done
   echo "redis-passwords: immich, paperless, blocky -> NEW (admin unchanged)"
   set_key "$PAPERLESS" PAPERLESS_REDIS <"$tmp/out.paperless"
-  set_key "$BLOCKY" config.yml <"$tmp/out.blocky"
+  set_key "$BLOCKY" redis-password <"$tmp/out.blocky"
   set_key "$IMMICH" redis-url <"$tmp/out.immich"
   echo "consumers: paperless, blocky, immich -> NEW"
   ;;

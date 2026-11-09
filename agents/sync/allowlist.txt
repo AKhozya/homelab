@@ -68,4 +68,5 @@ _shared/vmagent-queue-check.sh
 _shared/vmalert-state.sh
 _shared/vmrules-metric-audit.sh
 _shared/worktree-cleanup.sh
+_shared/worktree-cleanup-selfcheck.sh
 _shared/REFERENCE-postrenderer-priorityclass.md
