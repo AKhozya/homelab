@@ -18,6 +18,18 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-09 — Blocky v0.36: optional Redis, profiler disabled
+
+| Check or change | Result |
+|---|---|
+| config against the v0.36.0 `config.schema.json` | valid |
+| config keys against the schema's 25 deprecated keys | none used |
+| v0.36 pod startup log | no warnings |
+| `redis.required` | `true` → `false` |
+| `pprof.enable` (new in v0.36) | `false` |
+
+[networking.md](subsystems/networking.md#dns-chain) gives the reason for each setting.
+
 ### 2026-11-05 — Comment-sweep follow-ups: MySQL drops three unsafe flags; an Authentik blueprint fails because its binding is already gone
 
 | Change | Commit | Effect |
