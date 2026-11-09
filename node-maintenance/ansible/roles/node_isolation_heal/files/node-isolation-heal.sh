@@ -15,7 +15,7 @@
 #   cp_direct: TCP 192.168.1.127:6443                CP apiserver, LB-independent
 #   kubelet  : curl http://127.0.0.1:10248/healthz   kubelet local healthz (logged only)
 #   gateway  : ping 192.168.1.1                       LAN reachability (logged only)
-#   peers    : TCP <peer worker>:PEER_PORT            another worker answers (vetoes L2)
+#   peers    : TCP <peer worker>:PEER_PORTS           another worker answers (vetoes L2)
 # ISOLATED = tunnel down (agent can't reach the CP). kubelet stays healthy during isolation
 # so it does NOT gate. cp_direct + gateway are the discriminators — cp_direct GATES the
 # reboot (only reboot when the node genuinely can't reach the CP, not a mere LB glitch);
@@ -50,7 +50,10 @@ CURL_TIMEOUT="${NIH_CURL_TIMEOUT:-5}"
 # Ansible supplies space-separated peer worker addresses excluding this node. If the list is
 # empty, no peer veto protects workers from L2 during a CP outage.
 PEER_HOSTS="${NIH_PEER_HOSTS:-}"
-PEER_PORT="${NIH_PEER_PORT:-10250}"                      # kubelet; a connect proves reachability only
+# sshd first: in the 2026-11-08 CP outage every worker's kubelet (10250) went down, so a
+# kubelet-only probe let both workers count down to L2. Any port that answers vetoes.
+# NIH_PEER_PORT is the pre-2026-11-09 env name, for a run before ansible rewrites the env file.
+PEER_PORTS="${NIH_PEER_PORTS:-${NIH_PEER_PORT:-65300 10250}}"
 MAINT_HOLD_MAX_AGE_S="${NIH_MAINT_HOLD_MAX_AGE_S:-3600}" # ignore a stuck hold older than 1h
 
 TUNNEL_URL="https://127.0.0.1:6444/cacerts"
@@ -141,9 +144,11 @@ probe_gw() {
 probe_peers() {
 	[ -n "${NIH_MOCK_PEERS:-}" ] && return "$NIH_MOCK_PEERS"
 	[ -z "$PEER_HOSTS" ] && return 1
-	local h
+	local h p
 	for h in $PEER_HOSTS; do
-		timeout "$CURL_TIMEOUT" bash -c "exec 3<>/dev/tcp/${h}/${PEER_PORT}" 2>/dev/null && return 0
+		for p in $PEER_PORTS; do
+			timeout "$CURL_TIMEOUT" bash -c "exec 3<>/dev/tcp/${h}/${p}" 2>/dev/null && return 0
+		done
 	done
 	return 1
 }
@@ -179,7 +184,6 @@ probe_tunnel && tunnel_up=1
 probe_cp && cp_up=1
 probe_kubelet && kubelet_up=1
 probe_gw && gw_up=1
-probe_peers && peers_up=1
 
 # tunnel up → the agent reaches the CP → node is a functioning member → clear the episode.
 if [ "$tunnel_up" -eq 1 ]; then
@@ -190,6 +194,8 @@ if [ "$tunnel_up" -eq 1 ]; then
 fi
 
 # ── isolated (tunnel down) ──
+# Peers only on isolated cycles: each probe is a bare connect that the peer's sshd logs.
+probe_peers && peers_up=1
 [ "$first_fail" -eq 0 ] && first_fail="$now"
 consecutive="$((consecutive + 1))"
 wedged_s="$((now - first_fail))"
