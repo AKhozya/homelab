@@ -18,6 +18,27 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-09 — node-isolation-heal: the peer veto also probes sshd
+
+During the 2026-11-08 CP power-off, both workers' kubelets went down within ~2 min. The peer veto probed only kubelet port 10250, so it found no peer, and both workers counted down to the L2 self-reboot:
+
+| Worker | Wedged when the CP returned | L2 threshold |
+|---|---|---|
+| worker-node | 698 s | 900 s |
+| worker-node-2 | 808 s | 1380 s |
+
+| Change | Effect |
+|---|---|
+| the script probes peers on `NIH_PEER_PORTS="65300 10250"` (sshd, then kubelet) | a peer that answers on either port vetoes L2. sshd does not depend on k3s |
+| the script probes peers only on isolated cycles | a healthy node makes no bare connections to peer sshd |
+| test T15 with a real listener | the probe reaches the second port. Mutants (drop the probe; probe only the first port) both fail the suite |
+
+| Checked first | Result |
+|---|---|
+| worker-to-peer TCP 65300 (W1 → .126, .231; W2 → .129, .231) | all open |
+| fail2ban | `ignoreip` holds 192.168.1.0/24 |
+| OpenSSH 10.6 per-source penalties | never blocked an existing 2-minute probe from the CP in 30 days |
+
 ### 2026-11-09 — Blocky v0.36: optional Redis, profiler disabled
 
 | Check or change | Result |

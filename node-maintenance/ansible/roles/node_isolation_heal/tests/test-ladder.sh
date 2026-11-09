@@ -144,5 +144,23 @@ run 1 1 0 2000
 chk "peers down: REBOOT still issued" REBOOT "$(cat "$MOCK_ACTIONS" 2>/dev/null)"
 unset NIH_MOCK_PEERS
 
+# T15: the real probe tries every port. The first port is closed and the second has a listener,
+# so the veto holds only if probe_peers reaches the second port.
+LISTEN_PORT="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')"
+python3 -c 'import socket,sys,time; s=socket.socket(); s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1); s.bind(("127.0.0.1",int(sys.argv[1]))); s.listen(8); time.sleep(30)' "$LISTEN_PORT" &
+LISTENER=$!
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+	(exec 3<>"/dev/tcp/127.0.0.1/$LISTEN_PORT") 2>/dev/null && break
+	sleep 0.2
+done
+export NIH_PEER_HOSTS=127.0.0.1 NIH_PEER_PORTS="1 $LISTEN_PORT"
+rm -f "$NIH_SHARED_COOLDOWN"
+seed "$(($(N) - 1000))" 2 "$(($(N) - 500))" 0
+run 1 1 0 2000
+chk "real probe, second port answers: reboot SUPPRESSED" RESTART "$(cat "$MOCK_ACTIONS" 2>/dev/null)"
+kill "$LISTENER" 2>/dev/null
+wait "$LISTENER" 2>/dev/null
+unset NIH_PEER_HOSTS NIH_PEER_PORTS
+
 echo "---- $pass passed, $fail failed ----"
 [ "$fail" -eq 0 ]
