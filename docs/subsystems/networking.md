@@ -55,12 +55,7 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 
 **Blocky `connectIPVersion: v4` is permanent** — K3s podCIDR is v4-only, dual-stack decided NOT-WORTH-IT. Blocky pods can't initiate v6; v4-only DoH upstreams cover all needs.
 
-The Blocky config is a SOPS Secret, so this table records two of its settings and why:
-
-| Setting | Why |
-|---|---|
-| `redis.required: false` | If `true`, a Blocky pod does not start while Redis is down. If both pods restart during a Redis outage, LAN DNS goes down. Since v0.36 (upstream #2260), an optional client keeps reconnecting after a failed start. The cost: the two pods cache separately until Redis returns. Only a `Redis is optional and unavailable` WARN log line shows it |
-| `pprof.enable: false` | v0.36 (upstream #2344) adds this switch for the Go profiler under `/debug/pprof/` on port 4000. The profiler is on by default. Nothing uses the profiler. `/metrics` and the probes on `/` stay on |
+**Blocky config** is plain text in `apps/blocky/config.yml`; its comments give the reason where a setting needs one. The SOPS Secret `apps/blocky/credentials-secret.yaml` holds only the Redis password and the query-log DSN, which the config reads with `file:` (Blocky v0.31+).
 
 ## UFW firewall (post-reboot drift gotcha)
 At boot, kube-proxy, flannel and fail2ban write netfilter rules while UFW's `iptables-restore` runs, which can leave UFW chains (typically `ufw6-*`) missing. Every node runs `ufw-heal-post-k3s.service` (oneshot, after `k3s-wait-ready.service`): it creates each missing chain, then reloads UFW (`node-maintenance/ansible/roles/firewall/files/ufw-heal-post-k3s.sh`). Metric: `ufw_chains_healthy` (textfile collector). If `UfwChainsUnhealthy` fires: `sudo systemctl start ufw-heal-post-k3s.service` + `sudo systemctl start ufw-state-metric.service`.

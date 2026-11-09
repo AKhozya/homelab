@@ -36,7 +36,7 @@ Whitelist (CRITICAL_PVCS) + `nodeSelector: worker-node` + `hostPath /mnt/k8s-sto
 - `loki/storage-loki-0`, `monitoring/vmsingle-vmsingle` — log/metric buffers, ephemeral
 - `stirling-pdf/stirling-pdf-{pipeline,tessdata}-pvc` — runtime + downloadable model data
 - Redis HA PVCs — cache + queue/broker only (DB0 = BullMQ/Celery/Django sessions, DB1 = TTL'd cache)
-- Blocky — no PVC; config in Secret, query log in PG `blocky` DB
+- Blocky — no PVC; config in git (`apps/blocky/config.yml`), passwords in SOPS, query log in PG `blocky` DB
 
 ## Replication topology
 Source: `infrastructure/configs/backup-replication/cronjob.yaml` (script inline; NAS rsync creds + Telegram = SOPS secrets alongside).

@@ -1,0 +1,105 @@
+ports:
+  dns: 53
+  http: 4000
+
+connectIPVersion: v4
+
+upstreams:
+  init:
+    strategy: blocking
+  groups:
+    default:
+      - https://security.cloudflare-dns.com/dns-query
+      - https://dns.quad9.net/dns-query
+
+bootstrapDns:
+  - upstream: 1.1.1.2
+  - upstream: 9.9.9.9
+
+conditional:
+  mapping:
+    cluster.local: 10.43.0.10
+
+customDNS:
+  customTTL: 1h
+  filterUnmappedTypes: true
+  mapping:
+    h0melab.work: 192.168.1.129,192.168.1.126
+
+clientLookup:
+  upstream: 10.43.0.10
+
+blocking:
+  denylists:
+    default:
+      - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.plus.txt
+      - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.txt
+  allowlists:
+    default:
+      - |
+        # TikTok Studio's uploader waits on this host for the
+        # security SDK's config. hagezi pro.plus sinkholes it, and
+        # the upload page then never finishes loading.
+        mssdk.tiktokw.eu
+        mssdk-va.tiktok.com
+  clientGroupsBlock:
+    default:
+      - default
+  blockType: zeroIp
+  blockTTL: 30s
+  loading:
+    refreshPeriod: 6h
+    downloads:
+      timeout: 5m
+      attempts: 5
+      cooldown: 10s
+    maxErrorsPerSource: 10
+
+caching:
+  minTime: 5m
+  maxTime: 12h
+  cacheTimeNegative: 30m
+  prefetching: true
+  prefetchExpires: 2h
+  prefetchThreshold: 5
+
+redis:
+  address: redis-replication-master.databases.svc.cluster.local:6379
+  username: blocky
+  # /secrets is the blocky-credentials Secret, mounted in deployment.yaml.
+  password: file:/secrets/redis-password
+  database: 1
+  # Blocky is the LAN DNS. If true, a pod does not start while Redis is down.
+  # Since v0.36 (upstream #2260) an optional client reconnects after a failed start.
+  # Cost: the two pods cache separately meanwhile; only a WARN log line shows it.
+  required: false
+  connectionAttempts: 5
+  connectionCooldown: 3s
+
+queryLog:
+  type: postgresql
+  target: file:/secrets/querylog-dsn
+  logRetentionDays: 7
+  flushInterval: 30s
+  fields:
+    - clientIP
+    - clientName
+    - responseReason
+    - responseAnswer
+    - question
+    - duration
+
+prometheus:
+  enable: true
+  path: /metrics
+
+# The Go profiler under /debug/pprof/ is on by default (v0.36, upstream #2344). Nothing uses it.
+pprof:
+  enable: false
+
+log:
+  level: info
+  format: json
+
+# Inert: this config sets no DoT or DoH listener.
+minTlsServeVersion: "1.3"

@@ -27,8 +27,9 @@ The table summarises the months before the dated entries below.
 | v0.36 pod startup log | no warnings |
 | `redis.required` | `true` → `false` |
 | `pprof.enable` (new in v0.36) | `false` |
+| config moves from a SOPS Secret to `apps/blocky/config.yml` | readable in git. A `configMapGenerator` hash rolls the pods on a config change. The Redis password and the query-log DSN stay in the SOPS Secret `blocky-credentials` |
 
-[networking.md](subsystems/networking.md#dns-chain) gives the reason for each setting.
+The comments in `apps/blocky/config.yml` give the reasons for the Redis and profiler settings.
 
 ### 2026-11-05 — Comment-sweep follow-ups: MySQL drops three unsafe flags; an Authentik blueprint fails because its binding is already gone
 
