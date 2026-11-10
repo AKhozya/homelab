@@ -31,16 +31,24 @@ clientLookup:
 
 blocking:
   denylists:
+    # Hagezi's wildcard format (`*.example.com`) is the one it documents for
+    # Blocky: an entry covers the domain and every subdomain. With the adblock
+    # format (`||example.com^`), Blocky blocked doubleclick.net but resolved
+    # ad.doubleclick.net through upstream DNS (tested 2026-11-10).
     default:
-      - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.plus.txt
-      - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.txt
-      # pro.plus lets the LG TV's Alphonso viewing tracker and Alexa's minerva
-      # telemetry through. Hagezi leaves minerva out of Pro because blocked Echo
-      # devices keep retrying it. If the query log grows, check Alexa's volume.
-      - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/native.lgwebos.txt
-      - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/native.amazon.txt
+      - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/pro.plus.txt
+      - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/tif.txt
+      # Pro++ carries only part of each vendor's native-tracker list. Hagezi
+      # leaves Alexa's minerva out of Pro because blocked Echo devices keep
+      # retrying it. If the query log grows, check Alexa's volume.
+      - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.lgwebos.txt
+      - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/native.amazon.txt
   allowlists:
     default:
+      # Pro++ blocks some redirect hosts that shopping-ad and affiliate links
+      # pass through, so those clicks fail. Hagezi's referral allowlist
+      # unblocks only those hosts.
+      - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/wildcard/whitelist-referral-onlydomains.txt
       - |
         # TikTok Studio's uploader waits on this host for the
         # security SDK's config. hagezi pro.plus sinkholes it, and
