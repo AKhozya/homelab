@@ -41,3 +41,37 @@ data:
                 requests fail. A cgroup OOM is the usual cause: compare the container memory limit
                 against the sum of the loaded model families rather than any one of them, and check
                 the node journal for `constraint=CONSTRAINT_MEMCG` to confirm.
+  immich-server.yaml: |
+    groups:
+      - name: immich-server
+        interval: 1m
+        rules:
+          # immich reaches Redis through the opstree operator's master-following Service
+          # redis-replication-master (a plain ioredis client, apps/immich/release.yaml). The Service
+          # only steers NEW connections: a reboot that demotes the pod behind that ClusterIP leaves
+          # immich's established socket attached to a now-read-only replica, and ioredis never
+          # redials because the connection is still open. Every queue write then fails with READONLY
+          # and the api worker never finishes bootstrapping — the pod stays 1/1 Ready, so no
+          # container-level rule sees it. Hit 2026-05-31, 2026-06-28 and 2026-11-10 (70 min, found
+          # only because the then-live metrics scrape went down with it). Fix: restart the CLIENT,
+          # never the DB — agents/skills/_shared/restart-workload.sh immich
+          # 'app.kubernetes.io/instance=immich,app.kubernetes.io/name=server'.
+          # `app` is app.kubernetes.io/name, set by the Alloy relabel in alloy-release.yaml.
+          # for: 10m, not 0m: a failover immich recovers from on its own logs a short burst, and the
+          # [5m] window drains well before two evaluations 10 min apart both see it.
+          - alert: ImmichRedisReadOnlyReplica
+            expr: |
+              sum by (namespace, pod) (
+                count_over_time({namespace="immich", app="server"} |= "READONLY You can't write against a read only replica" [5m])
+              ) > 0
+            for: 10m
+            labels:
+              severity: warning
+            annotations:
+              summary: "immich-server is writing to a read-only Redis replica ({{ $labels.pod }})"
+              description: >-
+                immich-server holds a Redis connection to a demoted replica, so every job-queue write
+                fails. Uploads, thumbnailing, metadata extraction and smart search are dead while this
+                fires, and the pod still reports Ready. Redis itself is healthy — check
+                `kubectl get redisreplication -n databases` for the current master, then restart
+                immich-server with restart-workload.sh. Do NOT restart Redis.

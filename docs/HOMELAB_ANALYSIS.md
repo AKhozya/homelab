@@ -65,7 +65,8 @@ DB role name = app name. Postgres roles and databases come from CNPG (`managed.r
   | textfile | heal watchdogs, UFW state, node-maintenance runs | all | heal, Ufw*, `NodeHealWatchdogStale` |
   | systemd (since 2026-10-02) | service, timer, socket, path and target units (the default excludes mount, automount, device, scope and slice) from the host's system bus, through the chart's read-only `/host/root` mount (`DBUS_SYSTEM_BUS_ADDRESS`); no extra hostPath | unit-state series for `state="failed"` only (timer, unit-count and version series stay): about 1.2k series across 4 nodes, against up to about 6k unfiltered | `NodeSystemdUnitFailed`, `NodeSystemdCollectorFailed` |
 - **Grafana** — dashboards, OIDC login.
-- **Loki + Grafana Alloy** — log aggregation (DaemonSet).
+- **Loki + Grafana Alloy** — log aggregation (DaemonSet). Two log-based alerts, evaluated by the Loki ruler and so invisible to vmalert: `MLWorkerKilled` and `ImmichRedisReadOnlyReplica` (`monitoring/controllers/loki-stack/alerting-rules.yaml`).
+- **immich app metrics — not scraped since 2026-11-10.** immich v3.4.0's OpenTelemetry 3 bump binds its 8081/8082 exporters to localhost (immich-app/immich#33173), so the `immich` VMServiceScrape is commented out in `scrape-apps.yaml`. Nothing in this repo read an `immich_*` series; `ImmichRedisReadOnlyReplica` covers the one failure the scrape used to surface.
 - **Alertmanager** — Telegram alerts.
 - **Popeye** — weekly cluster-hygiene scan.
 - **Kyverno** — `KyvernoAdmissionControllerDown` availability alert. No alert summarizes policy violations.
@@ -88,6 +89,8 @@ Storage is node-local (`local-path-provisioner`) — no distributed storage laye
 ## Maintenance
 
 The cluster is reviewed monthly (security scans, policy reports, alert/backup/cert health, dependency freshness). The agent skills and rules that run these reviews are copied into [agents/](../agents/README.md), and the review runs `scripts/sync-agents.sh --check` to catch a stale copy. [HOMELAB_HISTORY.md](HOMELAB_HISTORY.md) holds the last three months of changes; every change is a commit, so `git log` is the full audit trail.
+
+A stale-resource scan always reports one Job without a TTL, `kyverno/kyverno-migrate-resources`. It is the kyverno chart's `post-upgrade` Helm hook, and Helm's default `before-hook-creation` delete policy replaces it at the next chart upgrade. No alert reads it; adding a TTL would need a chart value that does not exist. Accepted.
 
 Worker self-heal watchdogs: `clusterip_heal` (post-reboot kube-proxy DNAT wedge → k3s-agent restart) and `node_isolation_heal` (CP-isolation ladder — k3s-agent restart at 6 min, staggered self-reboot 15/23 min as last resort; **ACTIVE** since 2026-07-23 after a 13-day dry-run soak). Their k3s-agent restarts are flock-serialized via a shared cooldown; phase2 maintenance reboots set a worker-local hold so orchestrated reboots never count as isolation.
 

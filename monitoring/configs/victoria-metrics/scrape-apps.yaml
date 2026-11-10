@@ -102,25 +102,37 @@ spec:
   endpoints:
     - port: http-metrics
       interval: "60s"
----
-apiVersion: operator.victoriametrics.com/v1beta1
-kind: VMServiceScrape
-metadata:
-  name: immich
-  namespace: monitoring
-spec:
-  namespaceSelector:
-    matchNames:
-      - immich
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: server
-      app.kubernetes.io/instance: immich
-  endpoints:
-    - port: metrics-api
-      interval: "60s"
-    - port: metrics-ms
-      interval: "60s"
+# Immich scrape DISABLED 2026-11-10 (immich v3.4.0). v3.4.0 bumped
+# @opentelemetry/exporter-prometheus to ^0.300.0, whose 0.300.0 breaking change defaults the
+# exporter host to localhost (open-telemetry/opentelemetry-js#6599). Immich constructs
+# PrometheusExporter with a port only (server/src/repositories/telemetry.repository.ts), so both
+# 8081 and 8082 now bind 127.0.0.1 and no pod-network scrape can reach them. The old
+# OTEL_EXPORTER_PROMETHEUS_HOST escape hatch is gone in 0.300.0 too, so there is no env-level fix.
+# Upstream bug immich-app/immich#33173 (open, one-line fix expected). Left enabled, these targets
+# keep ScrapeTargetDown firing for ever, which is worse than no scrape: no rule or dashboard in
+# this repo reads an immich_* app metric. Re-enable (uncomment) once the fixed immich ships.
+# A socat sidecar (the workaround in that issue) is not worth a container for metrics nothing reads.
+# ImmichRedisReadOnlyReplica in monitoring/controllers/loki-stack/alerting-rules.yaml replaces the
+# only signal these targets ever carried in practice: a wedged immich-server.
+# ---
+# apiVersion: operator.victoriametrics.com/v1beta1
+# kind: VMServiceScrape
+# metadata:
+#   name: immich
+#   namespace: monitoring
+# spec:
+#   namespaceSelector:
+#     matchNames:
+#       - immich
+#   selector:
+#     matchLabels:
+#       app.kubernetes.io/name: server
+#       app.kubernetes.io/instance: immich
+#   endpoints:
+#     - port: metrics-api
+#       interval: "60s"
+#     - port: metrics-ms
+#       interval: "60s"
 ---
 apiVersion: operator.victoriametrics.com/v1beta1
 kind: VMServiceScrape

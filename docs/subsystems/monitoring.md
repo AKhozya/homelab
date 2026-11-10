@@ -27,6 +27,8 @@ Operator values: `operator.disable_prometheus_converter: true` + `enable_convert
 
 The cloudflared scrape is the native VMServiceScrape `cloudflared` in `scrape-apps.yaml`. Git holds no coreos `ServiceMonitor`.
 
+The `immich` VMServiceScrape in that file is **commented out since 2026-11-10**: immich v3.4.0's OpenTelemetry 3 bump binds its 8081/8082 Prometheus exporters to localhost (immich-app/immich#33173), so the targets can only report down. The file header holds the re-enable condition.
+
 ## Rules (VMRule)
 - `monitoring/configs/victoria-metrics/vmrules.yaml` — `homelab-alerts` (node, pod, mysql, database, redis, kubernetes, certificate, flux, cloudflare-tunnel, kyverno, loki, traefik, firewall/ufw, node-maintenance, immich-gpu-node groups…)
 - `monitoring/configs/blocky/prometheusrule.yaml` — `blocky-alerts` (filename is a relic; kind is `VMRule`)
@@ -100,3 +102,4 @@ Alertmanager does not authenticate requests to port 9093. The `am.h0melab.work` 
 - Alloy config: pod logs through `loki.source.kubernetes` (K8s API, no hostPath); the node-maintenance systemd journal through read-only hostPath mounts of `/var/log/journal` and `/etc/machine-id` (`alloy-release.yaml`); metrics port 12345 (NOT default; prefix `loki_write_*`)
 - `loki-canary` DS probes ingest/query latency
 - Fresh deploy → "timestamp too old" 400s self-resolve in minutes
+- Log-based alerts live in `loki-stack/alerting-rules.yaml`, one ConfigMap data key per rule file, and are evaluated by the **Loki ruler**, so they never appear in vmalert's `/api/v1/rules`: `MLWorkerKilled` (immich-ml worker SIGKILL) and `ImmichRedisReadOnlyReplica` (immich-server stuck on a demoted Redis replica, added 2026-11-10). The `k8s-sidecar-target-directory: /rules/fake` annotation is load-bearing — see that file's header

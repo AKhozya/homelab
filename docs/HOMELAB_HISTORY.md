@@ -18,6 +18,17 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-10 — immich post-reboot: a wedged Redis client and a dead metrics scrape
+
+The weekly update/reboot run left two `ScrapeTargetDown` alerts on immich-server's 8081/8082. They had two unrelated causes.
+
+| Cause | Evidence | Fix |
+|---|---|---|
+| immich-server held a Redis connection to a pod the reboot demoted to replica | 352k log lines of `READONLY You can't write against a read only replica` in 70 min; no `Immich Server is listening`; migrations done but the api worker never bootstrapped; pod still 1/1 Ready; the `redisreplication` master and the `redis-replication-master` Service both correct | restarted the client with `restart-workload.sh` (never the DB) — booted clean in 12s |
+| immich v3.4.0 binds its Prometheus exporters to localhost | v3.4.0 bumped `@opentelemetry/exporter-prometheus` to `^0.300.0`, whose 0.300.0 breaking change defaults the exporter host to `localhost` (open-telemetry/opentelemetry-js#6599); immich passes only a port. `OTEL_EXPORTER_PROMETHEUS_HOST` no longer works either — upstream bug immich-app/immich#33173 | commented out the `immich` VMServiceScrape; no rule or dashboard in this repo reads an `immich_*` app metric, and left enabled the targets fire for ever |
+
+The 2026-06-28 move from client-side Sentinel discovery to the operator's master-following Service (`cc5c02a1`) does not cover this: that Service steers **new** connections, and ioredis does not redial a socket that stays open. So the failure class survived, silently — the pod reports Ready, and the only thing that noticed was the metrics scrape the same release killed. Replaced that accidental canary with a Loki ruler alert, `ImmichRedisReadOnlyReplica` (warning, `for: 10m`), which watches for the READONLY line directly.
+
 ### 2026-11-10 — Blocky: Hagezi lists switched to the wildcard format; referral allowlist
 
 Since adoption, every denylist used Hagezi's adblock format (`||example.com^`). In a test on 2026-11-10, Blocky blocked `doubleclick.net` and `alphonso.tv` but resolved `ad.doubleclick.net` and `eu-acr1.alphonso.tv` through upstream DNS. Hagezi's FAQ lists the Wildcard (Asterisk) format (`*.example.com`) for Blocky v0.23 and newer.
