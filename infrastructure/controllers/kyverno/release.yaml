@@ -196,8 +196,9 @@ spec:
           memory: 192Mi
         limits:
           # At 500m the hourly background scan of the ValidatingPolicies throttled to 48%
-          # (average about 11%, 2026-07-13). Throttling risks stale PolicyReports.
-          cpu: 800m
+          # (average about 11%, 2026-07-13). At 800m it peaks at 0.91 cores and throttles
+          # 8–13% (measured 2026-11-10). Throttling risks stale PolicyReports.
+          cpu: 1500m
           memory: 384Mi
 
       securityContext:
