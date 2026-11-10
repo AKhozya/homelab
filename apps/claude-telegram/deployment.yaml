@@ -629,7 +629,10 @@ spec:
               cpu: 10m
               memory: 32Mi
             limits:
-              cpu: 200m
+              # Each 30-min cycle is one git + chezmoi burst. At 200m it throttles in
+              # ~44% of its CPU periods (measured 2026-11-10). The namespace quota caps limits.cpu at
+              # 3500m, and the bot's 3000m plus this 500m fill it exactly.
+              cpu: 500m
               memory: 128Mi
           volumeMounts:
             - name: home
