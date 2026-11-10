@@ -354,9 +354,11 @@ spec:
                   fwd 8082 18082 &
                   wait
               resources:
+                # The immich LimitRange minimum per container is 10m / 16Mi; lower requests make
+                # the ReplicaSet fail to create the pod.
                 requests:
-                  cpu: 5m
-                  memory: 8Mi
+                  cpu: 10m
+                  memory: 16Mi
                 limits:
                   cpu: 100m
                   memory: 32Mi
