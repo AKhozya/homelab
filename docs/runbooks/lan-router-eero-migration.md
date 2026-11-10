@@ -65,19 +65,31 @@ eero support: a switch between the modem and the gateway eero "will cause a gate
    - set Custom DNS to 192.168.1.129 and 192.168.1.126;
    - turn IPv6 off;
    - if a Local DNS Caching setting exists, turn it off.
-4. Join the Mac to `test-eero` over Wi-Fi. Then check:
+4. Prepare the Mac, so that every lookup takes the test path:
+
+   | Step | Why |
+   |---|---|
+   | Unplug the USB Ethernet adapter (network service `AX88179B` or `USB 10/100/1000 LAN`), or turn it off in System Settings → Network | both services sit above Wi-Fi in the service order. If an Ethernet connection is active, macOS sends lookups over it and the ZTE path |
+   | Disconnect ProtonVPN | a VPN configures its own DNS servers |
+   | Join `test-eero` over Wi-Fi. Run `route -n get default` | expect the gateway to be the test eero, not 192.168.1.1 |
+
+   `/etc/resolver/h0melab.work` makes the macOS system resolver send `h0melab.work` lookups to .129 and .126, whatever DNS the network provides. So test that name with `dig @<eero-provided DNS server>`, which ignores that file.
+
+5. Check:
 
    | Check | Expect |
    |---|---|
-   | `ipconfig getpacket <wifi interface>` | the DNS servers the eero hands out: Blocky's, or the eero's own address |
+   | `ipconfig getpacket en0` | the DNS servers the eero provides: Blocky's, or the eero's own address |
    | `scutil --dns` | no IPv6 DNS server |
    | 5 unique names through `dscacheutil -q host -a name <name>` | all 5 in Blocky's query log, from the test eero's address on the ZTE LAN |
-   | `dig h0melab.work` | 192.168.1.129, 192.168.1.126 |
-   | `dig doubleclick.net` | 0.0.0.0 |
+   | `dig @<eero-provided DNS server> h0melab.work` | 192.168.1.129, 192.168.1.126 |
+   | `dig @<eero-provided DNS server> doubleclick.net` | 0.0.0.0 |
 
-5. Open DHCP & NAT → Manual and check whether it offers a 192.168.1.x range with the gateway at .1. Do not save it: the test eero's WAN side is already on the ZTE's 192.168.1.0/24, so the two sides would overlap. The swap plan confirms the range on the real gateway, where no ZTE network exists.
-6. Keep the default range. Save a reservation for a MAC that has never connected to `test-eero`. Check that it stays in the list after the app restarts. Then delete it.
-7. Unplug the test eero from the ZTE. Keep the phone on `test-eero`, and try to change one setting in the app. Plug it back in afterwards.
+   Afterwards, plug the adapter back in, or turn it back on.
+
+6. Open DHCP & NAT → Manual and check whether it offers a 192.168.1.x range with the gateway at .1. Do not save it: the test eero's WAN side is already on the ZTE's 192.168.1.0/24, so the two sides would overlap. The swap plan confirms the range on the real gateway, where no ZTE network exists.
+7. Keep the default range. Save a reservation for a MAC that has never connected to `test-eero`. Check that it stays in the list after the app restarts. Then delete it.
+8. Unplug the test eero from the ZTE. Keep the phone on `test-eero`, and try to change one setting in the app. Plug it back in afterwards.
 
 ## After the rehearsal
 
