@@ -58,6 +58,24 @@
     - paccache.timer
   tags: [base-config, timers]
 
+# If you edit files/reflector.conf, the handler refreshes the mirrorlist on every node at once.
+- name: Deploy reflector config (GB, https, 10 most recently synced, fastest first)
+  ansible.builtin.copy:
+    src: reflector.conf
+    dest: /etc/xdg/reflector/reflector.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Refresh the mirrorlist
+  tags: [base-config, reflector]
+
+- name: Ensure reflector.timer enabled + started
+  ansible.builtin.systemd_service:
+    name: reflector.timer
+    enabled: true
+    state: started
+  tags: [base-config, reflector, timers]
+
 # systemd-timesyncd: assert enabled + active. Single source of clock truth
 # for all 4 nodes. Skew breaks certificate validity checks and the 75s node-lease
 # grace; timesyncd holds ≪100ms in practice. NodeClockSkewDetected and
