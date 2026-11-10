@@ -18,6 +18,25 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-10 — immich: a socat sidecar forwards the metrics ports after v3.4.0
+
+| Fact | Evidence |
+|---|---|
+| Renovate's immich v3.4.0 (`f55e7eaf`) brings OpenTelemetry 3 (`@opentelemetry/sdk-node` 0.222 → 0.300) | `server/package.json` at both tags |
+| The exporters listen on `[::1]:8081` and `[::1]:8082` only; 2283 listens on all addresses | the pod's `/proc/<pid>/net/tcp6` on immich-vm |
+| vmagent scrapes of 8081/8082 fail from 20:49 on 2026-11-10, and `ScrapeTargetDown` fires | `up{namespace="immich"}` history in vmsingle; Alertmanager |
+| Upstream tracks it as immich-app/immich#33173; the `OTEL_EXPORTER_PROMETHEUS_HOST` override no longer works | the issue thread |
+
+| Change | Why |
+|---|---|
+| `IMMICH_API_METRICS_PORT=18081`, `IMMICH_MICROSERVICES_METRICS_PORT=18082` | keeps immich off 8081/8082. If a later version honours these variables and listens on all addresses, the sidecar still binds 8081/8082 without a conflict |
+| sidecar `metrics-proxy` (`alpine/socat:1.8.1.3`) forwards 8081/8082 to `[::1]:18081`/`[::1]:18082` | the chart's Service, ServiceMonitor and the NetworkPolicy stay unchanged. Connections to `127.0.0.1` fail, because the exporters listen on `[::1]` only |
+| shell loops retry socat 5s after it exits, without restarting the container | if the sidecar crash-loops, the pod becomes NotReady and immich becomes unavailable. A socat failure stops only the metrics |
+| a `TERM` trap in the shell | `sh` runs as PID 1. If the shell has no `TERM` trap, each pod shutdown waits the full 30s grace period (measured: 30s and exit 137 without it, 0s with it) |
+| postRenderer removes the sidecar's `volumeMounts` | the chart mounts the NAS photo library into every container |
+
+The pending table in HOMELAB_ANALYSIS.md tracks the removal.
+
 ### 2026-11-10 — reflector: ansible now owns the mirrorlist config on all nodes
 
 The rolling reboot on 2026-11-10 moved the CP, W1 and W2 to linux-lts 6.18.62. immich-vm stayed on 6.18.60, because its upgrade found no newer package. The `packages` role installs reflector, but no role configured it:
