@@ -264,7 +264,7 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-server
-                tag: v3.3.6
+                tag: v3.4.0
                 pullPolicy: IfNotPresent
               env:
                 # iHD is the Intel media driver. The QSV accel setting lives in the admin UI
@@ -326,7 +326,7 @@ spec:
                 # -openvino: ONNX Runtime with the OpenVINO execution provider on the VM's Meteor Lake
                 # iGPU. The version part must match the server tag; Renovate keeps the suffix on bumps.
                 # This variant runs Python 3.13, which the rapidocr mountPath in the postRenderer follows.
-                tag: v3.3.6-openvino
+                tag: v3.4.0-openvino
                 pullPolicy: IfNotPresent
               env:
                 TRANSFORMERS_CACHE: /cache
