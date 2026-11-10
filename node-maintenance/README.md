@@ -21,7 +21,7 @@ nodes and applies these 14 roles in order:
 | Role | Nodes | What it manages |
 |---|---|---|
 | `packages` | all | pacman base packages, per-host CPU microcode, per-host GPU stack |
-| `base_config` | all | logrotate, journald limits, sudoers, the `node-maintenance` user, fstrim and paccache timers, and the shared shell library (below) |
+| `base_config` | all | logrotate, journald limits, sudoers, the `node-maintenance` user, fstrim and paccache timers, the reflector mirrorlist config and its weekly timer, and the shared shell library (below) |
 | `k3s_config` | all | `/etc/rancher/k3s/config.yaml`, templated per group and host. It only alerts on drift; it never restarts K3s. |
 | `k3s_image_gc` | all | a weekly `crictl rmi --prune` |
 | `firewall_preflight` | all | settles the packet filter and runs sanity checks before any firewall change; it runs again before the workers-only roles |

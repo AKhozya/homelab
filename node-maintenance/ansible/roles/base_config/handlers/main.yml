@@ -8,3 +8,11 @@
 - name: Reload systemd
   ansible.builtin.systemd_service:
     daemon_reload: true
+
+# If reflector.service fails, the drift-heal run continues. NodeSystemdUnitFailed reports the
+# failed unit. reflector.timer (OnCalendar=weekly) runs it again.
+- name: Refresh the mirrorlist
+  ansible.builtin.systemd_service:
+    name: reflector.service
+    state: started
+  failed_when: false
