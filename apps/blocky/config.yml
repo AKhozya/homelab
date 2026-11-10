@@ -34,6 +34,11 @@ blocking:
     default:
       - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/pro.plus.txt
       - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/tif.txt
+      # pro.plus lets the LG TV's Alphonso viewing tracker and Alexa's minerva
+      # telemetry through. Hagezi leaves minerva out of Pro because blocked Echo
+      # devices keep retrying it. If the query log grows, check Alexa's volume.
+      - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/native.lgwebos.txt
+      - https://cdn.jsdelivr.net/gh/hagezi/dns-blocklists@latest/adblock/native.amazon.txt
   allowlists:
     default:
       - |

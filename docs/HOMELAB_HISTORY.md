@@ -18,6 +18,27 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-10 — Blocky: Hagezi LG webOS and Amazon native lists
+
+A 7-day query-log sweep matched every unblocked name against Hagezi's per-vendor lists:
+
+| List | Unblocked names it catches | Lookups per week |
+|---|---|---|
+| `native.lgwebos` | 20 Alphonso ACR hosts (`*.alphonso.tv`), the TV's viewing tracker | ~1,800 |
+| `native.amazon` | Alexa `minerva` telemetry, `*.advertising.amazon.dev` | ~1,500 |
+
+| Not added | Why |
+|---|---|
+| `native.apple` | it lists Apple's Feedback Assistant and report-upload hosts (`feedbackws.icloud.com`, `radarsubmissions.apple.com`, `iphonesubmissions.apple.com`). The operator files bugs with Apple and ships iOS builds |
+| DoH bypass list | it blocks `mask.icloud.com`, which Apple documents as the way a network switches iCloud Private Relay off. The busiest device with Private Relay on still sends lookups to Blocky: 7,690 in a week, 681 of them blocked |
+| `ultimate` | it blocks 177 more names in use, among them `icanhazip.com` and `ip-api.com`, which the NAS and a cluster pod query ~2,000 times a week |
+| samsung, tiktok, winoffice | 2 or fewer matching lookups a week |
+
+| Check | Result |
+|---|---|
+| Entries in either added list that contain apple, icloud, itunes, mzstatic, aaplimg, apple-dns, cdn-apple, expo, exp.host, fastlane, github, githubusercontent, googleapis, gstatic, rubygems, cocoapods, developer, testflight or appstoreconnect | none |
+| Alexa query volume | Hagezi leaves `minerva` out of Pro because blocked Echo devices keep retrying it. If the query log grows, look there first |
+
 ### 2026-11-09 — node-isolation-heal: the peer veto also probes sshd
 
 During the 2026-11-08 CP power-off, both workers' kubelets went down within ~2 min. The peer veto probed only kubelet port 10250, so it found no peer, and both workers counted down to the L2 self-reboot:
