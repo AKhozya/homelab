@@ -97,6 +97,7 @@ Worker self-heal watchdogs: `clusterip_heal` (post-reboot kube-proxy DNAT wedge 
 
 | Due | Item |
 |---|---|
+| Next session | LAN DNS: the Mac bypasses Blocky through the ISP router's IPv6 DNS (tested), and phones and tablets likely do too. Run the eero rehearsal in [runbooks/lan-router-eero-migration.md](runbooks/lan-router-eero-migration.md), then plan the router swap |
 | unscheduled | Deferred: monitoring-ns Traefik middleware fork (necessary namespaced duplication — low priority); offsite backup (owner decision — accepted, documented-only); a first-start drill of the control plane; a rename of the sshd drop-in |
 | Each monthly review until done | Check that a k3s minor PR waits for Dashboard approval; no release has tested this yet. If `gh api 'repos/k3s-io/k3s/git/matching-refs/tags/v1.38.' --jq length` prints 0, k3s has no 1.38 yet: keep this row. Otherwise `gh issue view 32 -R AKhozya/homelab --json body --jq .body \| grep -A3 -i '^## Pending Approval'` must list the k3s update, and no open k3s PR may exist before you tick it. Then follow the `k3s-upgrade` skill (release notes first) and delete this row |
 | 2026-12 (monthly review) | n8n runs without `DB_POSTGRESDB_STATEMENT_TIMEOUT=0` since 2026-11-03 (`911a8c94`). Confirm a month of logs has no "canceling statement due to statement timeout" and no restarts. If timeouts appear, restore the variable and recycle the n8n pooler connections |
