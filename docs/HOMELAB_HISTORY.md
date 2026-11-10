@@ -18,6 +18,23 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-10 — Blocky: Hagezi lists switched to the wildcard format; referral allowlist
+
+Since adoption, every denylist used Hagezi's adblock format (`||example.com^`). In a test on 2026-11-10, Blocky blocked `doubleclick.net` and `alphonso.tv` but resolved `ad.doubleclick.net` and `eu-acr1.alphonso.tv` through upstream DNS. Hagezi's FAQ lists the Wildcard (Asterisk) format (`*.example.com`) for Blocky v0.23 and newer.
+
+| Change | Effect on the 7-day query log |
+|---|---|
+| `pro.plus`, `tif`, `native.lgwebos`, `native.amazon` → `/wildcard/` URLs | 119 more names blocked, 3,816 lookups/week. All are ad, tracker or telemetry hosts, among them Alphonso ACR, Alexa minerva, Sentry ingest, Datadog intake and `branch.io` |
+| Hagezi referral allowlist (`whitelist-referral-onlydomains.txt`) | keeps `ad.doubleclick.net` and `googleadservices.com` resolving (28 lookups/week). Shopping-ad and affiliate clicks pass through these hosts |
+
+| Add-on list | Newly blocked after the fix | Verdict |
+|---|---|---|
+| dyndns, hoster, urlshortener, popupads, fake, anti.piracy, gambling, the other native lists | 0 | not added |
+| `spam-tlds` | `.work` is on it, so it blocks `h0melab.work` (17,947 lookups/week) | never add |
+| `doh-vpn-proxy-bypass` | an ExpressVPN client (`expressapisv2.net`, 286/week) and iCloud Private Relay | not added |
+
+IPv6 DNS still bypasses Blocky. The ISP router (ZTE H3600) advertises itself as the IPv6 DNS server. Its firmware hides the IPv6 settings. macOS puts that server first in its resolver order. All 5 test lookups through the Mac's system resolver bypassed Blocky.
+
 ### 2026-11-10 — Blocky: Hagezi LG webOS and Amazon native lists
 
 A 7-day query-log sweep matched every unblocked name against Hagezi's per-vendor lists:
