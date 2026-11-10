@@ -1,0 +1,14 @@
+---
+# Renovate bumps this line (renovate.json, custom manager for 0xERR0R/blocky, 7-day release age).
+# It is not grouped with the cluster image spx01/blocky, so the two can differ for a while.
+blocky_fallback_version: v0.36.0
+
+blocky_fallback_install_dir: /opt/blocky-fallback
+blocky_fallback_bin: "{{ blocky_fallback_install_dir }}/{{ blocky_fallback_version }}/blocky"
+blocky_fallback_config: /etc/blocky-fallback/config.yml
+# The CP's git checkout, which node-maintenance-sync pulls before each run. playbook_dir does not
+# work: /etc/node-maintenance/ansible is an rsync of node-maintenance/ansible only.
+blocky_fallback_source_config: "{{ state_dir }}/homelab/apps/blocky/config.yml"
+# systemd CacheDirectory=blocky-fallback creates this path for the dynamic service user.
+blocky_fallback_cache_dir: /var/cache/blocky-fallback
+blocky_fallback_listen_ip: "{{ node_ip }}"

@@ -1,0 +1,31 @@
+---
+# Builds blocky_fallback_rendered from the cluster's Blocky config text in blocky_fallback_source_text.
+# tests/test-render.yml includes this file too, so the test runs the same transform the CP runs.
+- name: Parse the cluster Blocky config
+  ansible.builtin.set_fact:
+    _blocky_src: "{{ blocky_fallback_source_text | from_yaml }}"
+
+# Without clientLookup the fallback cannot map a client name, so a group keyed by a name would
+# match differently on the two resolvers.
+- name: Refuse client groups the fallback cannot reproduce
+  ansible.builtin.assert:
+    that:
+      - (_blocky_src.blocking.clientGroupsBlock | default({}) | list) == ['default']
+    fail_msg: >-
+      apps/blocky/config.yml blocking.clientGroupsBlock has keys other than 'default'. The CP fallback
+      drops clientLookup, so it would answer those clients differently. Extend roles/blocky_fallback first.
+    quiet: true
+
+# redis, clientLookup and the Postgres query log all need the cluster. An absent queryLog means
+# `console` in v0.36, which writes every query to the journal, so the type is set to `none`.
+- name: Derive the fallback config
+  ansible.builtin.set_fact:
+    blocky_fallback_rendered: >-
+      {{ _blocky_src | dict2items
+         | rejectattr('key', 'in', ['redis', 'clientLookup', 'prometheus', 'queryLog', 'ports'])
+         | items2dict
+         | combine({
+             'ports': {'dns': blocky_fallback_listen_ip ~ ':53'},
+             'queryLog': {'type': 'none'},
+             'blocking': {'loading': {'downloads': {'cachePath': blocky_fallback_cache_dir}}}
+           }, recursive=True) }}

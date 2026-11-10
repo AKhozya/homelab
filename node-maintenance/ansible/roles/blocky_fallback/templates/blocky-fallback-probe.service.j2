@@ -1,0 +1,9 @@
+{% set _internal = (blocky_fallback_rendered.customDNS.mapping | dict2items | first) %}
+[Unit]
+Description=Functional DNS probe of the Blocky fallback (writes blocky_fallback.prom)
+Documentation=https://github.com/AKhozya/homelab
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -I /usr/local/sbin/blocky-fallback-probe.py --server {{ blocky_fallback_listen_ip }} --internal-name {{ _internal.key }} --internal-ips {{ _internal.value | replace(' ', '') }} --out /var/lib/node_exporter/textfile/blocky_fallback.prom
+TimeoutStartSec=1min

@@ -31,6 +31,14 @@
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "k3s-io/k3s",
       "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\+k3s(?<build>\\d+)$"
+    },
+    {
+      "customType": "regex",
+      "description": "Blocky version of the CP DNS fallback (role blocky_fallback). Not grouped with the cluster image spx01/blocky, so in the usual case a release reaches the cluster first",
+      "managerFilePatterns": ["/^node-maintenance\\/ansible\\/roles\\/blocky_fallback\\/defaults\\/main\\.yml$/"],
+      "matchStrings": ["blocky_fallback_version:\\s*(?<currentValue>v\\S+)"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "0xERR0R/blocky"
     }
   ],
   "commitMessagePrefix": "chore(deps): ",
@@ -187,6 +195,11 @@
       "matchDepNames": ["k3s-io/k3s"],
       "matchUpdateTypes": ["minor"],
       "dependencyDashboardApproval": true
+    },
+    {
+      "description": "The CP DNS fallback takes a Blocky release only after 7 days. Best effort: release age does not prove the cluster ran it",
+      "matchDepNames": ["0xERR0R/blocky"],
+      "minimumReleaseAge": "7 days"
     }
   ],
   "timezone": "Europe/London",

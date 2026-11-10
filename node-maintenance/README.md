@@ -33,6 +33,7 @@ nodes and applies these 14 roles in order:
 | `immich_gpu_node` | `immich-vm` | the GPU node's heal script, watchdog units, sysctl and kernel-command-line guards, and the local-path bind mount |
 | `clusterip_heal` | workers | a watchdog: if a probe through a ClusterIP fails (a stuck DNAT rule after a reboot), it restarts `k3s-agent`. Journal tag `clusterip-heal`. |
 | `node_isolation_heal` | the two physical workers | if a worker loses the CP, it first restarts `k3s-agent`, then reboots itself on a staggered timer. Active since 2026-07-23. |
+| `blocky_fallback` | CP | runs a second Blocky DNS server under systemd on 192.168.1.127:53, outside Kubernetes, as the router's secondary DNS. Its config comes from `apps/blocky/config.yml`; `blocky validate` gates each change. |
 | `clusterip_heal_cp` | CP | a watchdog that probes CoreDNS from inside a pod's network namespace; if the probe fails, it restarts K3s with `timeout 120`. Journal tag `clusterip-heal-cp`. |
 
 | Setting | Value |

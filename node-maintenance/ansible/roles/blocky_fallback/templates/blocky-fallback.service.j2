@@ -1,0 +1,35 @@
+[Unit]
+Description=Blocky LAN DNS fallback (outside Kubernetes; the router's secondary DNS)
+Documentation=https://github.com/AKhozya/homelab
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+ExecStart={{ blocky_fallback_bin }} serve --config {{ blocky_fallback_config }}
+DynamicUser=yes
+# Port 53 is the only privilege it needs. It binds {{ blocky_fallback_listen_ip }}:53, not 0.0.0.0:53,
+# because systemd-resolved holds 127.0.0.53:53 and 127.0.0.54:53.
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+# The list cache (blocking.loading.downloads.cachePath) lets a restart load the last lists while the
+# list CDN is down.
+CacheDirectory=blocky-fallback
+# This runs on the control plane, so it gets one of the 4 cores and a memory ceiling well above the
+# ~90 MB measured with the full lists.
+CPUQuota=100%
+MemoryMax=512M
+# If the bind fails because the NIC address is not up yet, systemd retries.
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
