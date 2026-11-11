@@ -92,7 +92,7 @@ spec:
     gracePeriod: 30
     # Stay on 8.4 LTS: a 9.x pod cannot clone from an 8.4 donor (error 3864), which caused the
     # 2026-08-05 crashloop. Operator 1.3.0 supports 9.7. The clone restriction still applies.
-    image: percona/percona-server:8.4.11-11.1
+    image: percona/percona-server:8.4.11-12.1
     imagePullPolicy: IfNotPresent
     serviceAccountName: main-mysql
     priorityClassName: homelab-critical
