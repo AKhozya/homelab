@@ -73,13 +73,6 @@ spec:
                   hostPath:
                     path: /var/lib/immich-library
                     type: Directory
-              # The chart mounts the library into every container. The metrics-proxy sidecar
-              # needs no files, so drop its mounts. Same `test` guard as above.
-              - op: test
-                path: /spec/template/spec/containers/1/name
-                value: metrics-proxy
-              - op: remove
-                path: /spec/template/spec/containers/1/volumeMounts
           - target:
               kind: Deployment
               name: immich-machine-learning
@@ -277,12 +270,6 @@ spec:
                 # iHD is the Intel media driver. The QSV accel setting lives in the admin UI
                 # ffmpeg settings, not here. A spike ran hevc_qsv at 25.3x, non-privileged.
                 LIBVA_DRIVER_NAME: iHD
-                # Since v3.4.0 (OpenTelemetry 3) the exporters listen on [::1] only (immich#33173).
-                # The metrics-proxy sidecar forwards 8081/8082, which the chart's Service and
-                # ServiceMonitor target, to these ports. If the deployed immich listens on all
-                # addresses again, remove these two variables, the sidecar and its postRenderer ops.
-                IMMICH_API_METRICS_PORT: "18081"
-                IMMICH_MICROSERVICES_METRICS_PORT: "18082"
               resources:
                 requests:
                   cpu: 200m
@@ -324,47 +311,6 @@ spec:
               # the pod-level runAsUser 1000.
               securityContext:
                 allowPrivilegeEscalation: false
-                capabilities:
-                  drop:
-                    - ALL
-            # Workaround for immich#33173; see IMMICH_API_METRICS_PORT on main.
-            # The loops retry socat after it exits, without restarting the container. If the
-            # sidecar crash-loops, the pod becomes NotReady and immich becomes unavailable.
-            # If socat keeps failing, scrapes fail and ScrapeTargetDown applies its usual rules.
-            # sh runs as PID 1. If PID 1 has no TERM trap, shutdown waits the full grace period.
-            metrics-proxy:
-              image:
-                repository: alpine/socat
-                tag: 1.8.1.3
-                pullPolicy: IfNotPresent
-              command:
-                - /bin/sh
-                - -c
-              args:
-                - |
-                  fwd() {
-                    while true; do
-                      socat -d TCP-LISTEN:"$1",fork,reuseaddr TCP6:[::1]:"$2"
-                      echo "socat $1 -> [::1]:$2 exited with $?; restarting in 5s" >&2
-                      sleep 5
-                    done
-                  }
-                  trap 'exit 0' TERM INT
-                  fwd 8081 18081 &
-                  fwd 8082 18082 &
-                  wait
-              resources:
-                # The immich LimitRange minimum per container is 10m / 16Mi; lower requests make
-                # the ReplicaSet fail to create the pod.
-                requests:
-                  cpu: 10m
-                  memory: 16Mi
-                limits:
-                  cpu: 100m
-                  memory: 32Mi
-              securityContext:
-                allowPrivilegeEscalation: false
-                readOnlyRootFilesystem: true
                 capabilities:
                   drop:
                     - ALL
