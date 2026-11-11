@@ -18,6 +18,21 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-11 — immich: v3.4.1 fixes the metrics listener; the socat sidecar goes
+
+| Fact | Evidence |
+|---|---|
+| Renovate's immich v3.4.1 (`6ad3267a`) includes immich-app/immich#33203, "prometheus exporter should listen on all interfaces". Upstream closed #33173 on 2026-11-11 | v3.4.1 release notes; `gh issue view 33173` |
+| On v3.4.1 the exporters listen on `0.0.0.0:18081` and `0.0.0.0:18082`, IPv4 only | the pod's `/proc/net/tcp` and `/proc/net/tcp6` |
+| The sidecar dials `[::1]`, so each scrape gets "connection refused" | `metrics-proxy` logs |
+| `ScrapeTargetDown` fires for 8081 and 8082 at 20:51 on 2026-11-11 | Alertmanager notification |
+
+| Change | Why |
+|---|---|
+| remove `IMMICH_API_METRICS_PORT` and `IMMICH_MICROSERVICES_METRICS_PORT` | the exporters return to 8081/8082, which the chart's Service, ServiceMonitor and `apps/immich/networkpolicy.yaml` target |
+| remove the `metrics-proxy` sidecar and its postRenderer `volumeMounts` ops | nothing needs a forwarder. The file now matches its state before `1ba9fad6`, apart from the image tags |
+| delete the immich#33173 row from the pending table in HOMELAB_ANALYSIS.md | the cluster runs v3.4.1 |
+
 ### 2026-11-10 — immich: a socat sidecar forwards the metrics ports after v3.4.0
 
 | Fact | Evidence |
