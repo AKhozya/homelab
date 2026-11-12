@@ -119,7 +119,7 @@ Three stages. Each stage needs the operator's go. If stage 1 passes, stage 2 can
 | Assumption | Tier | Checked by |
 |---|---|---|
 | The eero hands out Blocky directly, with no IPv6 DNS | verified (rehearsal) | — |
-| The app accepts 192.168.1.0/24 with the eero at .1 | single source: the rehearsal shows the fields accept it; the rehearsal saved nothing | stage 0 steps 4 and 5 |
+| The app accepts 192.168.1.0/24 with the eero at .1 | single source: the rehearsal confirms the fields accept the values. The Manual IP settings remain unsaved | stage 0 steps 4 and 5 |
 | A reservation for a MAC that never connected saves and survives an app restart | not tested | stage 0 steps 6 and 7 |
 | The app accepts a reservation outside the DHCP pool | not tested | stage 0 steps 6 and 8 |
 | The ZTE's DHCP pool starts at .100 or higher | inferred from the lowest client address | stage 0 step 1 |
@@ -254,7 +254,7 @@ If the eero refuses a renew, the node can lose its address until the eero gives 
 | Check (Claude, no sudo) | Pass |
 |---|---|
 | before the renew: `networkctl status --json=short <interface>`, field `DHCPv4Client.Lease.LeaseTimestampUSec` | record the value |
-| after the renew: the same field | the value changed. The ZTE is off, so only the eero can have sent the new lease. Record option 51 (lease length) too; nobody knows yet what the eero sends |
+| after the renew: the same field | the value differs from the recorded value. The ZTE is off, so only the eero can have sent the new lease. Record option 51 (lease length) too; nobody knows yet what the eero sends |
 | the address | unchanged |
 | `kubectl get nodes` | the node is Ready |
 
