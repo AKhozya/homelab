@@ -47,7 +47,8 @@ eero support: a switch between the modem and the gateway eero "will cause a gate
 | IPv6 | DHCPv6 prefix delegation, /56 | the eero can request this prefix. With IPv6 off it does not |
 | Port forwards, DMZ | none, off | nothing to move |
 | WAN status page | shows **Renew** and **Release** buttons for the IPv4 lease | before the swap, press Release. Not verified: whether the ISP ties the lease to the ZTE's MAC |
-| DHCP bindings | 7: the CP (.127), worker-node (.129), worker-node-2 (.126), the NAS (.136), immich-vm (.231), and two for the operator's Mac | each becomes an eero reservation by MAC. The operator's memory note holds the MAC list; this public repo does not |
+| DHCP bindings | 7: the CP (.127), worker-node (.129), worker-node-2 (.126), the NAS (.136), immich-vm (.231), and two for the operator's Mac | the five homelab hosts become eero reservations by MAC. The plan leaves out the Mac's two: neither the repo nor Home Assistant uses the Mac's address. If something needs it, add a reservation later. The operator's memory note holds the MAC list; this public repo does not |
+| Lease length for the bound hosts | never expires: DHCP option 51 is `ffffffff` on the CP, worker-node and immich-vm (`networkctl status --json=short`), and `dhcp_lease_time = 4294967295` on the NAS (read 2026-11-12) | the hosts keep their addresses without renewing. The eero reservation first matters at a reboot or a manual renew |
 
 | Node | Address source (host config read 2026-11-10) | Needs |
 |---|---|---|
@@ -111,7 +112,22 @@ eero support: a switch between the modem and the gateway eero "will cause a gate
 
 ## Swap plan
 
-Three stages. Each stage needs the operator's go. If stage 1 passes, stage 2 can follow at once, so the household sees one outage.
+Three stages. Each stage needs the operator's go. If stage 1 passes, stage 2 can follow at once, so the household sees one outage. Stage 0 needs no switch and causes no outage, so it can run first, on its own day.
+
+### Assumptions
+
+| Assumption | Tier | Checked by |
+|---|---|---|
+| The eero hands out Blocky directly, with no IPv6 DNS | verified (rehearsal) | — |
+| The app accepts 192.168.1.0/24 with the eero at .1 | single source: the rehearsal confirms the fields accept the values. The Manual IP settings remain unsaved | stage 0 steps 4 and 5 |
+| A reservation for a MAC that never connected saves and survives an app restart | not tested | stage 0 steps 6 and 7 |
+| The app accepts a reservation outside the DHCP pool | not tested | stage 0 steps 6 and 8 |
+| The ZTE's DHCP pool starts at .100 or higher | inferred from the lowest client address | stage 0 step 1 |
+| The line needs no VLAN tag and no ZTE MAC address | sources conflict | stage 1 |
+| The eero's Online status needs working DNS | a guess; the plan sets DNS to Automatic for stage 1 to avoid the question | — |
+| A renewed node keeps its address through its reservation | not tested | the renew section after stage 2 |
+| The repo and Home Assistant reach no home device by address | checked: the repo names no other LAN address; Home Assistant's config entries hold no local-device integration (read 2026-11-12) | — |
+| No other app or device reaches a home device by address, so moving unreserved devices to .20–.99 breaks nothing | assumption | after stage 2: if a device or app stops working, reserve that device at its old address |
 
 | Stage | What changes | Internet outage |
 |---|---|---|
@@ -186,9 +202,9 @@ Sources disagree on two points. Only this test settles them:
 
 1. Power the switch.
 2. Cable the spare eero's free port to the switch.
-3. In the app, `test-eero` → DNS → Custom: .129 and .126. Do it before the next step, so every new lease names Blocky. The eero reaches Blocky after the next step.
-4. Move the three wall cables and the Eufy base station from the ZTE's LAN ports to the switch.
-5. Power off the ZTE. Keep it, with its cables, for rollback.
+3. In the app, `test-eero` → DNS → Custom: .129 and .126. Do it before step 5, so every new lease names Blocky. The eero reaches Blocky after step 5.
+4. Power off the ZTE. Keep it, with its cables, for rollback. Do it before the cables move: if the cable path between the two `z3us` eeros breaks, they fall back to their wireless link, and that link would join the ZTE's network to the eero's. Two routers would then answer at 192.168.1.1.
+5. Move the three wall cables and the Eufy base station from the ZTE's LAN ports to the switch.
 6. Turn the Mac's Ethernet off and on, so it takes a lease from the eero.
 7. Wait 2 minutes. This Claude session reconnects over the Mac's Ethernet.
 
@@ -223,25 +239,32 @@ Sources disagree on two points. Only this test settles them:
 
 The `z3us` eeros need no change. The ZTE still holds every DHCP binding. Devices that took an eero lease hold an address in .20 to .99, below the ZTE's pool, so they do not clash with it.
 
-### After the cut-over: move the DHCP nodes to eero leases, one at a time
+### After the cut-over: test each node's reservation, one at a time
 
-Each node on DHCP still holds its ZTE lease. The NAS's lease never expires. The nodes' lease lengths remain unknown. A renew moves the node to an eero lease and proves its reservation works. Do it while the operator watches: CP, then worker-node, then immich-vm.
+The DHCP nodes hold ZTE leases that never expire, so they keep their addresses without the eero. Their reservations first matter at a reboot. A manual renew tests each reservation now, while the operator watches, instead of at an unplanned reboot.
+
+If the eero refuses a renew, the node can lose its address until the eero gives it one. A short link loss has caused database trouble before (the CP link flap, 2026-09-12). So the order in the table starts with the least critical node.
 
 | Node | Command (the operator runs it; it needs sudo) |
 |---|---|
+| immich-vm | `ssh -t -p 65300 akhozya@immich-vm sudo networkctl renew enp2s0` |
 | CP | `ssh -t -p 65300 akhozya@gmk-k3s-control-plane sudo networkctl renew enp3s0` |
 | worker-node | `ssh -t -p 65300 akhozya@worker-node sudo networkctl renew enp4s0` |
-| immich-vm | `ssh -t -p 65300 akhozya@immich-vm sudo networkctl renew enp2s0` |
 
-| Check before the next node | Pass |
+| Check (Claude, no sudo) | Pass |
 |---|---|
-| `networkctl status <interface>` on the node (no sudo) | a new log line `DHCPv4 address 192.168.1.x/24, gateway 192.168.1.1 acquired from 192.168.1.1`, timed after the renew. The ZTE is off, so only the eero can have sent it |
+| before the renew: `networkctl status --json=short <interface>`, field `DHCPv4Client.Lease.LeaseTimestampUSec` | record the value |
+| after the renew: the same field | the value differs from the recorded value. The ZTE is off, so only the eero can have sent the new lease. Record option 51 (lease length) too; nobody knows yet what the eero sends |
 | the address | unchanged |
 | `kubectl get nodes` | the node is Ready |
 
-If a node gets a different address, stop. Check the node's reservation in the app, then run the renew again.
+| Failure, 3 minutes after the renew | Recovery |
+|---|---|
+| SSH to the node's usual address fails | find the node in the eero app's device list. If it shows a new address, SSH there, fix the reservation in the app, and run the renew again |
+| the node has a new address | stop. Fix its reservation in the app, then run the renew again |
+| the node stays NotReady, or nothing above recovers it within 10 minutes | roll back with the stage 2 rollback. The ZTE still holds the node's binding |
 
-`networkctl renew` exists in systemd 262 on the nodes. This plan has not run it against the eero yet, so Claude checks each result before the next node.
+`networkctl renew` exists in systemd 262 on the nodes. Nobody has run it against the eero yet, so Claude checks each result before the next node.
 
 | Host | Why no renew |
 |---|---|
