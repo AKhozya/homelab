@@ -125,8 +125,10 @@ The node and Mac MAC addresses are in the operator's memory note, not in this pu
 
 | Constraint | Effect on the plan |
 |---|---|
-| If the spare eero's range is 192.168.1.0/24 and it joins the home LAN, two DHCP servers share one network | do not connect the spare eero to the home LAN after step 4 |
-| Devices keep their ZTE addresses after the swap. The NAS's ZTE lease never expires (`dhcp_lease_time = 4294967295`); other devices' lease lengths are not checked | if the eero hands out an address that a device still holds, two devices share it |
+| If the spare eero's range is 192.168.1.0/24 and its LAN side connects to the home LAN, two DHCP servers share one network | after step 4, do not connect the spare eero's LAN side to the home LAN |
+| Devices keep their ZTE addresses after the swap | if the eero hands out an address that a device still holds, two devices share it |
+| The NAS's ZTE lease never expires (`dhcp_lease_time = 4294967295`) | the NAS keeps .136 |
+| Other devices' ZTE lease lengths remain unknown | assume they hold their addresses for a day or more |
 | The lowest address in the ZTE's client table is .100, so its pool probably starts there | the eero's pool is .20 to .99. The reservations sit above it |
 
 1. ZTE admin → Local Network → LAN → IPv4: write down the DHCP start and end addresses. If the start is below .100, stop: the eero range must change.
@@ -178,7 +180,7 @@ Sources disagree on two points. Only this test settles them:
 1. Move the ONT cable back to the ZTE's WAN port.
 2. On the ZTE WAN page, press **Renew**.
 3. If the Mac has no internet after 5 minutes, power the ONT and the ZTE off and on.
-4. If it still has no internet after 15 minutes, the ISP may still hold the eero's lease. The ZTE's own WAN lease was 1 hour, so wait up to 1 hour; that is a working guess, not a known limit. If stage 1 passed, the eero has a working line: instead of waiting, carry out stage 2 in full, so the home LAN moves to the eero with it. If stage 1 failed, wait, then call Hyperoptic.
+4. If it still has no internet after 15 minutes, the ISP may still hold the eero's lease. The ZTE's WAN lease was 1 hour. Wait up to 1 hour; this wait is a guess, not a known limit. If stage 1 passed, the eero has a working line: instead of waiting, carry out stage 2 in full, so the home LAN moves to the eero with it. If stage 1 failed, wait, then call Hyperoptic.
 
 ### Stage 2: cut-over
 
@@ -217,13 +219,13 @@ Sources disagree on two points. Only this test settles them:
 
 1. Unplug the spare eero from the ONT and the switch.
 2. Move the three wall cables and the Eufy back to the ZTE's LAN ports.
-3. Power on the ZTE, and move the ONT cable to its WAN port. If it gets no internet, follow the stage 1 rollback from step 2. If the ZTE still has no internet after 15 minutes, undo steps 1 to 3: the eero setup had a working line, so the home is better off on it while the fault is found.
+3. Power on the ZTE, and move the ONT cable to its WAN port. If it gets no internet, follow the stage 1 rollback from step 2. If the ZTE still has no internet after 15 minutes, undo steps 1 to 3: the eero setup had a working line, so the home stays online on it while the operator investigates.
 
 The `z3us` eeros need no change. The ZTE still holds every DHCP binding. Devices that took an eero lease hold an address in .20 to .99, below the ZTE's pool, so they do not clash with it.
 
 ### After the cut-over: move the DHCP nodes to eero leases, one at a time
 
-Each node on DHCP still holds its ZTE lease. The NAS's lease never expires; the nodes' lease lengths are not checked. A renew moves the node to an eero lease and proves its reservation works. Do it while the operator watches: CP, then worker-node, then immich-vm.
+Each node on DHCP still holds its ZTE lease. The NAS's lease never expires. The nodes' lease lengths remain unknown. A renew moves the node to an eero lease and proves its reservation works. Do it while the operator watches: CP, then worker-node, then immich-vm.
 
 | Node | Command (the operator runs it; it needs sudo) |
 |---|---|
