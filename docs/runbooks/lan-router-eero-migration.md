@@ -123,13 +123,15 @@ The node and Mac MAC addresses are in the operator's memory note, not in this pu
 
 ### Stage 0: prep (no outage)
 
-If the spare eero's range is 192.168.1.0/24, it must not touch the home LAN: the ZTE serves DHCP there too.
+| Constraint | Effect on the plan |
+|---|---|
+| If the spare eero's range is 192.168.1.0/24 and it joins the home LAN, two DHCP servers share one network | do not connect the spare eero to the home LAN after step 4 |
+| Devices keep their ZTE addresses after the swap. The NAS's ZTE lease never expires (`dhcp_lease_time = 4294967295`); other devices' lease lengths are not checked | if the eero hands out an address that a device still holds, two devices share it |
+| The lowest address in the ZTE's client table is .100, so its pool probably starts there | the eero's pool is .20 to .99. The reservations sit above it |
 
-The two DHCP pools must not overlap. Devices keep their ZTE addresses after the swap, and the bound hosts' ZTE leases never expire (the NAS shows `dhcp_lease_time = 4294967295`). If the eero hands out an address that a device still holds, two devices share it. The ZTE's pool appears to start at .100, the lowest address seen in its client table. So the eero's pool is .20 to .99, and the reservations sit above it.
-
-1. ZTE admin → Local Network → LAN → IPv4: write down the DHCP start and end addresses. If the start is not .100 or higher, stop: the eero range below must change.
-2. Unplug the spare eero's cable from the Office eero. Leave the spare eero powered.
-3. Join the phone to `test-eero`.
+1. ZTE admin → Local Network → LAN → IPv4: write down the DHCP start and end addresses. If the start is below .100, stop: the eero range must change.
+2. While the spare eero still has its uplink to the Office eero: `test-eero` → DNS → **Automatic**. In stage 1 the eero cannot reach Blocky. If its DNS stays custom, the eero might fail its own lookups and show Offline even if the line works.
+3. Unplug the spare eero's cable from the Office eero. Leave the spare eero powered. Join the phone to `test-eero`.
 4. DHCP & NAT → Manual IP: subnet IP 192.168.1.0, mask 255.255.255.0, start .20, end .99. Save.
 5. On the phone, open the Wi-Fi details for `test-eero`. Pass: router 192.168.1.1, phone address in .20 to .99. W2's static gateway and the `node-isolation-heal` gateway ping both need the eero at 192.168.1.1.
 6. Reservations & port forwarding → add one reservation per node, by typed MAC:
@@ -144,10 +146,9 @@ The two DHCP pools must not overlap. Devices keep their ZTE addresses after the 
 
    If the app refuses an address outside the pool (.20 to .99), stop: the plan needs a new address layout.
 7. Quit the app (Cmd-Q on the Mac, or swipe it away on the phone). Reopen it. Pass: all five reservations are listed.
-8. Add one reservation for the phone at .200, outside the pool. Rejoin `test-eero` on the phone. Pass: the phone gets .200. Delete that reservation.
-9. DNS → **Automatic** for now. In stage 1 the eero cannot reach Blocky. With custom DNS, the eero might fail its own lookups and show Offline even if the line works.
+8. Add one reservation for the phone at .200, outside the pool. Rejoin `test-eero` on the phone. Pass: the phone gets .200. Delete that reservation. Then forget `test-eero` on the phone and join it again. Pass: the phone's address is back in .20 to .99, so it cannot clash with a ZTE client later.
 
-If the app refuses a save in step 4, 6 or 9 while the eero is offline, cancel. Do those steps in stage 1, once `test-eero` shows Online, and repeat their checks. **Stage 2 starts only after every check in steps 5, 7 and 8 passes.**
+If the app refuses a save in step 4 or 6 while the eero is offline, cancel. Do those steps in stage 1, once `test-eero` shows Online, and repeat their checks. **Stage 2 starts only after every check in steps 5, 7 and 8 passes.**
 
 Leave the spare eero powered and unplugged until stage 1.
 
@@ -165,11 +166,11 @@ Sources disagree on two points. Only this test settles them:
 1. Note the time.
 2. ZTE admin page → WAN status → **Release** the IPv4 lease.
 3. Move the cable from the ZTE's WAN port to a port on the spare eero. Nothing else connects to the spare eero.
-4. Keep the phone on `test-eero`.
+4. Keep the phone on `test-eero`, and turn off its mobile data. Every check then goes through the eero.
 
 | Within 10 minutes | Then |
 |---|---|
-| `test-eero` shows **Online**, and a website opens on the phone over `test-eero` | pass. Go to stage 2, or roll back to stop for today |
+| the eero app opens `test-eero` and shows **Online**, and a website opens on the phone | pass. Go to stage 2, or roll back to stop for today |
 | still offline | roll back. Next, ask Hyperoptic for the WAN settings, or try a VLAN tag (the app has VLAN tagging under Advanced networking) |
 
 **Rollback:**
@@ -177,7 +178,7 @@ Sources disagree on two points. Only this test settles them:
 1. Move the ONT cable back to the ZTE's WAN port.
 2. On the ZTE WAN page, press **Renew**.
 3. If the Mac has no internet after 5 minutes, power the ONT and the ZTE off and on.
-4. If it still has no internet after 15 minutes, the ISP may still hold the eero's lease, which lasts up to 1 hour. If stage 1 passed, the eero is a working fallback: put it back on the ONT. If not, wait up to 1 hour, then call Hyperoptic.
+4. If it still has no internet after 15 minutes, the ISP may still hold the eero's lease. The ZTE's own WAN lease was 1 hour, so wait up to 1 hour; that is a working guess, not a known limit. If stage 1 passed, the eero has a working line: instead of waiting, carry out stage 2 in full, so the home LAN moves to the eero with it. If stage 1 failed, wait, then call Hyperoptic.
 
 ### Stage 2: cut-over
 
@@ -216,13 +217,13 @@ Sources disagree on two points. Only this test settles them:
 
 1. Unplug the spare eero from the ONT and the switch.
 2. Move the three wall cables and the Eufy back to the ZTE's LAN ports.
-3. Power on the ZTE, and move the ONT cable to its WAN port. If it gets no internet, follow the stage 1 rollback from step 2.
+3. Power on the ZTE, and move the ONT cable to its WAN port. If it gets no internet, follow the stage 1 rollback from step 2. If the ZTE still has no internet after 15 minutes, undo steps 1 to 3: the eero setup had a working line, so the home is better off on it while the fault is found.
 
 The `z3us` eeros need no change. The ZTE still holds every DHCP binding. Devices that took an eero lease hold an address in .20 to .99, below the ZTE's pool, so they do not clash with it.
 
 ### After the cut-over: move the DHCP nodes to eero leases, one at a time
 
-Each node on DHCP still holds its ZTE lease, and the bound leases may never expire. A renew moves the node to an eero lease and proves its reservation works. Do it while the operator watches: CP, then worker-node, then immich-vm.
+Each node on DHCP still holds its ZTE lease. The NAS's lease never expires; the nodes' lease lengths are not checked. A renew moves the node to an eero lease and proves its reservation works. Do it while the operator watches: CP, then worker-node, then immich-vm.
 
 | Node | Command (the operator runs it; it needs sudo) |
 |---|---|
