@@ -31,9 +31,13 @@ Hyperoptic ONT ──► spare eero Pro 6E (gateway, network `test-eero`) ──
 
 eero support: a switch between the modem and the gateway eero "will cause a gateway conflict and network instability". The switch goes after the gateway.
 
-The Office and Living Room eeros stay in their own network, `z3us`, in Bridge mode (operator's decision, 2026-11-12). Devices keep their Wi-Fi name and password, and rollback needs no app change. The app then shows two networks. Merging them into one network is a separate, later change.
-
-The ZTE's own Wi-Fi is off, so no device uses it.
+| Item | After the swap |
+|---|---|
+| Office and Living Room eeros | stay in their own network, `z3us`, in Bridge mode (operator's decision, 2026-11-12) |
+| Wi-Fi name and password | unchanged, so no device rejoins |
+| Rollback | needs no app change |
+| eero app | shows two networks. Merging them is a separate, later change |
+| ZTE Wi-Fi | off today, so no device loses Wi-Fi |
 
 ## Facts read from the ZTE (2026-11-10, read only)
 
@@ -49,11 +53,17 @@ The ZTE's own Wi-Fi is off, so no device uses it.
 |---|---|---|
 | CP, worker-node, immich-vm | `DHCP=yes` in systemd-networkd | an eero reservation before the node renews |
 | worker-node-2 | static on the host (`20-wired-static.network`: 192.168.1.126, gateway 192.168.1.1, DNS .129 and 1.1.1.1) | the eero at 192.168.1.1, and .126 kept out of the eero's pool |
-| NAS (.136) | not checked | check before the swap |
+| NAS (.136) | DHCP via NetworkManager (read 2026-11-12). Its ZTE lease never expires (`dhcp_lease_time = 4294967295`) | an eero reservation. It keeps .136 and does not renew |
 
 ## Rehearsal results (2026-11-12)
 
-The spare eero ran as a separate network, `test-eero`, cabled to the Office eero (Bridge mode, so the same LAN as the ZTE ports). Settings: custom DNS .129 and .126, IPv6 off, eero Secure off.
+| Setting | Value |
+|---|---|
+| Network | `test-eero`, separate from `z3us` |
+| Uplink | a cable to the Office eero. That eero is in Bridge mode, so this is the ZTE's LAN |
+| DNS | custom: .129 and .126 |
+| IPv6 | off |
+| eero Secure | off |
 
 | Question | Result |
 |---|---|
@@ -96,7 +106,7 @@ The spare eero ran as a separate network, `test-eero`, cabled to the Office eero
    Afterwards, plug the adapter back in, or turn it back on.
 
 6. Open DHCP & NAT → Manual and check whether it offers a 192.168.1.x range with the gateway at .1. Do not save it: the test eero's WAN side is already on the ZTE's 192.168.1.0/24, so the two sides would overlap. The swap plan confirms the range on the real gateway, where no ZTE network exists.
-7. Keep the default range. Save a reservation for a MAC that has never connected to `test-eero`. Check that it stays in the list after the app restarts. Then delete it.
+7. (Partly done: a reservation for a connected device saved. The rest moves to swap stage 0.) Keep the default range. Save a reservation for a MAC that has never connected to `test-eero`. Check that it stays in the list after the app restarts. Then delete it.
 8. Unplug the test eero from the ZTE. Keep the phone on `test-eero`, and try to change one setting in the app. Plug it back in afterwards.
 
 ## Swap plan
@@ -113,75 +123,106 @@ The node and Mac MAC addresses are in the operator's memory note, not in this pu
 
 ### Stage 0: prep (no outage)
 
-The spare eero must not touch the home LAN once its range is 192.168.1.0/24. The ZTE also serves DHCP at 192.168.1.1 there, so two DHCP servers would share one network.
+If the spare eero's range is 192.168.1.0/24, it must not touch the home LAN: the ZTE serves DHCP there too.
 
-1. Unplug the spare eero's cable from the Office eero. Leave the spare eero powered.
-2. Join the phone to `test-eero`.
-3. DHCP & NAT → Manual IP: subnet IP 192.168.1.0, mask 255.255.255.0, start .20, end .254. Save. If the app refuses the save offline, cancel, and do steps 3 to 6 in stage 1 while the eero is online.
-4. Check on the phone: Wi-Fi details for `test-eero` show router 192.168.1.1 and an address in .20 to .254. W2's static gateway and the `node-isolation-heal` gateway ping both need the eero at 192.168.1.1.
-5. Reservations & port forwarding → add one reservation per node, by typed MAC:
+The two DHCP pools must not overlap. Devices keep their ZTE addresses after the swap, and the bound hosts' ZTE leases never expire (the NAS shows `dhcp_lease_time = 4294967295`). If the eero hands out an address that a device still holds, two devices share it. The ZTE's pool appears to start at .100, the lowest address seen in its client table. So the eero's pool is .20 to .99, and the reservations sit above it.
+
+1. ZTE admin → Local Network → LAN → IPv4: write down the DHCP start and end addresses. If the start is not .100 or higher, stop: the eero range below must change.
+2. Unplug the spare eero's cable from the Office eero. Leave the spare eero powered.
+3. Join the phone to `test-eero`.
+4. DHCP & NAT → Manual IP: subnet IP 192.168.1.0, mask 255.255.255.0, start .20, end .99. Save.
+5. On the phone, open the Wi-Fi details for `test-eero`. Pass: router 192.168.1.1, phone address in .20 to .99. W2's static gateway and the `node-isolation-heal` gateway ping both need the eero at 192.168.1.1.
+6. Reservations & port forwarding → add one reservation per node, by typed MAC:
 
    | Device | Address | Why |
    |---|---|---|
    | CP | .127 | DHCP on the host |
    | worker-node | .129 | DHCP on the host; Blocky's LAN address |
-   | worker-node-2 | .126 | static on the host. The reservation keeps .126 out of the pool; Blocky's LAN address |
+   | worker-node-2 | .126 | static on the host. The reservation stops the eero giving .126 to another device |
    | NAS | .136 | DHCP on the host (NetworkManager) |
    | immich-vm | .231 | DHCP in the VM |
 
-6. Quit the app (Cmd-Q on the Mac, or swipe it away on the phone), reopen it, and check all five reservations are listed.
-7. Add one reservation for the phone at an unused address. Rejoin `test-eero` on the phone and check it gets that address. Delete that reservation.
+   If the app refuses an address outside the pool (.20 to .99), stop: the plan needs a new address layout.
+7. Quit the app (Cmd-Q on the Mac, or swipe it away on the phone). Reopen it. Pass: all five reservations are listed.
+8. Add one reservation for the phone at .200, outside the pool. Rejoin `test-eero` on the phone. Pass: the phone gets .200. Delete that reservation.
+9. DNS → **Automatic** for now. In stage 1 the eero cannot reach Blocky. With custom DNS, the eero might fail its own lookups and show Offline even if the line works.
 
-**Pass:** steps 4, 6 and 7. Leave the spare eero powered and unplugged until stage 1.
+If the app refuses a save in step 4, 6 or 9 while the eero is offline, cancel. Do those steps in stage 1, once `test-eero` shows Online, and repeat their checks. **Stage 2 starts only after every check in steps 5, 7 and 8 passes.**
+
+Leave the spare eero powered and unplugged until stage 1.
 
 ### Stage 1: line test (offline; the operator works alone)
 
-This Claude session loses internet here, so every check uses the eero app over mobile data. Do not test by website name: the eero hands out Blocky, and Blocky is on the home LAN, not on `test-eero`.
+This Claude session loses internet here. Every check uses the phone.
 
-Sources disagree on two points, and only this test settles them:
+Sources disagree on two points. Only this test settles them:
 
 | Unknown | Evidence |
 |---|---|
 | Does the line need a VLAN tag? | the ZTE's WAN page shows DHCP and no VLAN field. A forum user reports Hyperoptic saying "no VLAN required" on an ONT line |
-| Is the line tied to the ZTE's MAC address? | forum reports conflict: one third-party router failed even with a copied MAC address, the same router worked on another Hyperoptic line |
+| Is the line tied to the ZTE's MAC address? | forum reports conflict: one third-party router failed even with a copied MAC address; the same router worked on another Hyperoptic line |
 
 1. Note the time.
 2. ZTE admin page → WAN status → **Release** the IPv4 lease.
 3. Move the cable from the ZTE's WAN port to a port on the spare eero. Nothing else connects to the spare eero.
-4. Turn off Wi-Fi on the phone. In the eero app, open `test-eero`.
+4. Keep the phone on `test-eero`.
 
 | Within 10 minutes | Then |
 |---|---|
-| `test-eero` shows **Online** | pass. Go to stage 2, or roll back to stop for today |
-| still offline | roll back. The next step is to ask Hyperoptic for the WAN settings, or to try a VLAN; the app has VLAN tagging under Advanced networking |
+| `test-eero` shows **Online**, and a website opens on the phone over `test-eero` | pass. Go to stage 2, or roll back to stop for today |
+| still offline | roll back. Next, ask Hyperoptic for the WAN settings, or try a VLAN tag (the app has VLAN tagging under Advanced networking) |
 
-**Rollback:** move the ONT cable back to the ZTE's WAN port. On the ZTE WAN page, press **Renew**. Check that the Mac has internet. Nothing else changed.
+**Rollback:**
+
+1. Move the ONT cable back to the ZTE's WAN port.
+2. On the ZTE WAN page, press **Renew**.
+3. If the Mac has no internet after 5 minutes, power the ONT and the ZTE off and on.
+4. If it still has no internet after 15 minutes, the ISP may still hold the eero's lease, which lasts up to 1 hour. If stage 1 passed, the eero is a working fallback: put it back on the ONT. If not, wait up to 1 hour, then call Hyperoptic.
 
 ### Stage 2: cut-over
 
 1. Power the switch.
 2. Cable the spare eero's free port to the switch.
-3. Move the three wall cables and the Eufy base station from the ZTE's LAN ports to the switch.
-4. Power off the ZTE. Keep it, with its cables, for rollback.
-5. Wait 2 minutes. This Claude session should come back over the Mac's Ethernet.
+3. In the app, `test-eero` → DNS → Custom: .129 and .126. Do it before the next step, so every new lease names Blocky. The eero reaches Blocky after the next step.
+4. Move the three wall cables and the Eufy base station from the ZTE's LAN ports to the switch.
+5. Power off the ZTE. Keep it, with its cables, for rollback.
+6. Turn the Mac's Ethernet off and on, so it takes a lease from the eero.
+7. Wait 2 minutes. This Claude session reconnects over the Mac's Ethernet.
 
 | Check | Who | Pass |
 |---|---|---|
 | the Mac has internet | operator | a website loads |
 | this session answers | operator | a reply within 5 minutes |
 | `route -n get default` on the Mac | Claude | gateway 192.168.1.1 |
-| `scutil --dns` on the Mac | Claude | no `fe80::1`. If it is still listed, turn the Mac's Ethernet off and on, because a router advertisement keeps its DNS entry until its lifetime ends |
+| `ipconfig getpacket` on the Mac's Ethernet | Claude | DNS servers .129 and .126 only |
+| `scutil --dns` on the Mac | Claude | no `fe80::1`. If it is listed, turn the Ethernet off and on again: a router advertisement keeps its DNS entry until its lifetime ends |
+| 5 unique lookups through the Mac's system resolver | Claude | all 5 in Blocky's query log, from the Mac's own address |
+| Blocky's query log | Claude | new lookups from several device addresses, not one |
 | `kubectl get nodes` | Claude | 4 Ready |
 | a ping to 192.168.1.1 from each node | Claude | replies |
-| Blocky's query log | Claude | new lookups from several device addresses, not one |
-| `dig @192.168.1.129 doubleclick.net` and `h0melab.work` | Claude | 0.0.0.0; .129 and .126 |
-| the Cloudflare tunnel and external URLs | Claude | tunnel connected, the public apps answer |
+| a ping and SSH to the NAS (.136) | Claude | replies; SSH logs in |
+| the Cloudflare tunnel and external URLs | Claude | tunnel connected; the public apps answer |
 
-**Rollback trigger:** no internet on the Mac 10 minutes after step 4, or a node stays NotReady. **Rollback:** unplug the spare eero from the ONT and the switch. Move the three wall cables and the Eufy back to the ZTE's LAN ports. Power on the ZTE, and move the ONT cable to its WAN port. The `z3us` eeros need no change. The ZTE still holds every DHCP binding.
+**Rollback triggers:**
 
-### After the cut-over: move the nodes to eero leases, one at a time
+| Failure | Then |
+|---|---|
+| the Mac has no internet 10 minutes after step 5 | roll back |
+| a node stays NotReady for 10 minutes | roll back |
+| the system-resolver lookups do not reach Blocky, and setting custom DNS again does not fix it within 10 minutes | roll back |
+| the tunnel or a public app stays down for 15 minutes | roll back |
 
-Each node on DHCP still holds a lease from the ZTE. When it renews, it asks 192.168.1.1, which is now the eero. With the reservation, the node should keep its address. Renew each one while the operator watches, not at an unknown hour: CP, then worker-node, then immich-vm. Before the next node, Claude checks that the address stayed the same and the node is Ready.
+**Rollback:**
+
+1. Unplug the spare eero from the ONT and the switch.
+2. Move the three wall cables and the Eufy back to the ZTE's LAN ports.
+3. Power on the ZTE, and move the ONT cable to its WAN port. If it gets no internet, follow the stage 1 rollback from step 2.
+
+The `z3us` eeros need no change. The ZTE still holds every DHCP binding. Devices that took an eero lease hold an address in .20 to .99, below the ZTE's pool, so they do not clash with it.
+
+### After the cut-over: move the DHCP nodes to eero leases, one at a time
+
+Each node on DHCP still holds its ZTE lease, and the bound leases may never expire. A renew moves the node to an eero lease and proves its reservation works. Do it while the operator watches: CP, then worker-node, then immich-vm.
 
 | Node | Command (the operator runs it; it needs sudo) |
 |---|---|
@@ -189,9 +230,20 @@ Each node on DHCP still holds a lease from the ZTE. When it renews, it asks 192.
 | worker-node | `ssh -t -p 65300 akhozya@worker-node sudo networkctl renew enp4s0` |
 | immich-vm | `ssh -t -p 65300 akhozya@immich-vm sudo networkctl renew enp2s0` |
 
-worker-node-2 keeps its static address and needs no renew. The NAS (NetworkManager) is not a cluster node, so it renews on its own; Claude checks its address the next day. `networkctl renew` is the systemd-networkd command for a DHCP renew (present in systemd 262 on the nodes); it has not been run against an eero yet, so Claude checks each result before the next node.
+| Check before the next node | Pass |
+|---|---|
+| `networkctl status <interface>` on the node (no sudo) | a new log line `DHCPv4 address 192.168.1.x/24, gateway 192.168.1.1 acquired from 192.168.1.1`, timed after the renew. The ZTE is off, so only the eero can have sent it |
+| the address | unchanged |
+| `kubectl get nodes` | the node is Ready |
 
-Other devices also hold ZTE leases, for up to 24 hours. The eero's pool (.20 to .254) overlaps the ZTE's. The eero could offer an address that a device still holds from the ZTE, and two devices would then share it. If a device loses its connection in the first day, turn its Wi-Fi off and on.
+If a node gets a different address, stop. Check the node's reservation in the app, then run the renew again.
+
+`networkctl renew` exists in systemd 262 on the nodes. This plan has not run it against the eero yet, so Claude checks each result before the next node.
+
+| Host | Why no renew |
+|---|---|
+| worker-node-2 | static address |
+| NAS | not a cluster node. Its ZTE lease never expires, so it keeps .136. Its reservation covers a later reboot |
 
 ### After a day
 
