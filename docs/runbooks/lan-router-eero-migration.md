@@ -47,7 +47,7 @@ eero support: a switch between the modem and the gateway eero "will cause a gate
 | IPv6 | DHCPv6 prefix delegation, /56 | the eero can request this prefix. With IPv6 off it does not |
 | Port forwards, DMZ | none, off | nothing to move |
 | WAN status page | shows **Renew** and **Release** buttons for the IPv4 lease | before the swap, press Release. Not verified: whether the ISP ties the lease to the ZTE's MAC |
-| DHCP bindings | 7: the CP (.127), worker-node (.129), worker-node-2 (.126), the NAS (.136), immich-vm (.231), and two for the operator's Mac | the five homelab hosts become eero reservations by MAC. The Mac's two are dropped: nothing reaches the Mac by address. The operator's memory note holds the MAC list; this public repo does not |
+| DHCP bindings | 7: the CP (.127), worker-node (.129), worker-node-2 (.126), the NAS (.136), immich-vm (.231), and two for the operator's Mac | the five homelab hosts become eero reservations by MAC. The plan leaves out the Mac's two: neither the repo nor Home Assistant uses the Mac's address. If something needs it, add a reservation later. The operator's memory note holds the MAC list; this public repo does not |
 | Lease length for the bound hosts | never expires: DHCP option 51 is `ffffffff` on the CP, worker-node and immich-vm (`networkctl status --json=short`), and `dhcp_lease_time = 4294967295` on the NAS (read 2026-11-12) | the hosts keep their addresses without renewing. The eero reservation first matters at a reboot or a manual renew |
 
 | Node | Address source (host config read 2026-11-10) | Needs |
@@ -119,14 +119,15 @@ Three stages. Each stage needs the operator's go. If stage 1 passes, stage 2 can
 | Assumption | Tier | Checked by |
 |---|---|---|
 | The eero hands out Blocky directly, with no IPv6 DNS | verified (rehearsal) | — |
-| The app accepts 192.168.1.0/24 with the eero at .1 | single source: the fields accepted it, nothing was saved | stage 0 steps 4 and 5 |
+| The app accepts 192.168.1.0/24 with the eero at .1 | single source: the rehearsal shows the fields accept it; the rehearsal saved nothing | stage 0 steps 4 and 5 |
 | A reservation for a MAC that never connected saves and survives an app restart | not tested | stage 0 steps 6 and 7 |
 | The app accepts a reservation outside the DHCP pool | not tested | stage 0 steps 6 and 8 |
 | The ZTE's DHCP pool starts at .100 or higher | inferred from the lowest client address | stage 0 step 1 |
 | The line needs no VLAN tag and no ZTE MAC address | sources conflict | stage 1 |
 | The eero's Online status needs working DNS | a guess; the plan sets DNS to Automatic for stage 1 to avoid the question | — |
 | A renewed node keeps its address through its reservation | not tested | the renew section after stage 2 |
-| Nothing reaches a home device by address, so the move of unreserved devices to .20–.99 breaks nothing | checked: the repo names no other LAN address; Home Assistant has no local-device integration (its config entries, read 2026-11-12) | — |
+| The repo and Home Assistant reach no home device by address | checked: the repo names no other LAN address; Home Assistant's config entries hold no local-device integration (read 2026-11-12) | — |
+| No other app or device reaches a home device by address, so moving unreserved devices to .20–.99 breaks nothing | assumption | after stage 2: if a device or app stops working, reserve that device at its old address |
 
 | Stage | What changes | Internet outage |
 |---|---|---|
@@ -242,7 +243,7 @@ The `z3us` eeros need no change. The ZTE still holds every DHCP binding. Devices
 
 The DHCP nodes hold ZTE leases that never expire, so they keep their addresses without the eero. Their reservations first matter at a reboot. A manual renew tests each reservation now, while the operator watches, instead of at an unplanned reboot.
 
-If the eero refuses a renew, the node drops its address for a few seconds. A short link loss has caused database trouble before (the CP link flap, 2026-09-12). So start with the least critical node: immich-vm, then the CP, then worker-node.
+If the eero refuses a renew, the node can lose its address until the eero gives it one. A short link loss has caused database trouble before (the CP link flap, 2026-09-12). So the order in the table starts with the least critical node.
 
 | Node | Command (the operator runs it; it needs sudo) |
 |---|---|
@@ -250,13 +251,18 @@ If the eero refuses a renew, the node drops its address for a few seconds. A sho
 | CP | `ssh -t -p 65300 akhozya@gmk-k3s-control-plane sudo networkctl renew enp3s0` |
 | worker-node | `ssh -t -p 65300 akhozya@worker-node sudo networkctl renew enp4s0` |
 
-| Check before the next node (Claude, no sudo) | Pass |
+| Check (Claude, no sudo) | Pass |
 |---|---|
-| `networkctl status --json=short <interface>`, field `DHCPv4Client.Lease` | `LeaseTimestampUSec` changed, and option 51 (lease length) is no longer `ffffffff`. The ZTE is off, so only the eero can have sent the new lease |
+| before the renew: `networkctl status --json=short <interface>`, field `DHCPv4Client.Lease.LeaseTimestampUSec` | record the value |
+| after the renew: the same field | the value changed. The ZTE is off, so only the eero can have sent the new lease. Record option 51 (lease length) too; nobody knows yet what the eero sends |
 | the address | unchanged |
 | `kubectl get nodes` | the node is Ready |
 
-If a node gets a different address, stop. Check the node's reservation in the app, then run the renew again.
+| Failure, 3 minutes after the renew | Recovery |
+|---|---|
+| SSH to the node's usual address fails | find the node in the eero app's device list. If it shows a new address, SSH there, fix the reservation in the app, and run the renew again |
+| the node has a new address | stop. Fix its reservation in the app, then run the renew again |
+| the node stays NotReady, or nothing above recovers it within 10 minutes | roll back with the stage 2 rollback. The ZTE still holds the node's binding |
 
 `networkctl renew` exists in systemd 262 on the nodes. Nobody has run it against the eero yet, so Claude checks each result before the next node.
 
