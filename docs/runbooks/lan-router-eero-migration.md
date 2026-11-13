@@ -1,6 +1,6 @@
 # LAN router: replace the ISP router with an eero gateway
 
-**Status (2026-11-12):** rehearsal done; the DNS path passed. Next step: stage 0 of the swap plan, after the operator's go. Nothing on the live network has changed.
+**Status (2026-11-13):** stage 0 done; every check passed. Next step: stages 1 and 2, after the operator's approval. Nothing on the live network has changed.
 
 ## Why
 
@@ -48,6 +48,7 @@ eero support: a switch between the modem and the gateway eero "will cause a gate
 | Port forwards, DMZ | none, off | nothing to move |
 | WAN status page | shows **Renew** and **Release** buttons for the IPv4 lease | before the swap, press Release. Not verified: whether the ISP ties the lease to the ZTE's MAC |
 | DHCP bindings | 7: the CP (.127), worker-node (.129), worker-node-2 (.126), the NAS (.136), immich-vm (.231), and two for the operator's Mac | the five homelab hosts become eero reservations by MAC. The plan leaves out the Mac's two: neither the repo nor Home Assistant uses the Mac's address. If something needs it, add a reservation later. The operator's memory note holds the MAC list; this public repo does not |
+| LAN DHCP pool | .100 to .254 (the operator read it 2026-11-12) | the eero's pool sits below it, at .20 to .99 |
 | Lease length for the bound hosts | never expires: DHCP option 51 is `ffffffff` on the CP, worker-node and immich-vm (`networkctl status --json=short`), and `dhcp_lease_time = 4294967295` on the NAS (read 2026-11-12) | the hosts keep their addresses without renewing. The eero reservation first matters at a reboot or a manual renew |
 
 | Node | Address source (host config read 2026-11-10) | Needs |
@@ -73,7 +74,7 @@ eero support: a switch between the modem and the gateway eero "will cause a gate
 | Blocking and the internal domain | `doubleclick.net` and `eu-acr1.alphonso.tv` returned 0.0.0.0 through the system resolver; `h0melab.work` returned .129 and .126 |
 | Does Manual DHCP accept 192.168.1.0/24? | the fields accepted subnet 192.168.1.0, mask 255.255.255.0, range .20 to .254. Not saved |
 | Does a reservation save? | yes, for a connected device. Not tested: a reservation for a MAC that never connected, and whether it survives an app restart. The form has a free-text MAC field. Stage 0 tests both |
-| Does the app work while the eero has no internet? | yes: the operator changed a small setting from a phone on `test-eero`. Not tested: a DHCP-mode change while offline. Stage 0 tests it |
+| Does the app work while the eero has no internet? | the app opens the network and saves a change. In the stage 0 test (2026-11-13), a Manual IP change saved offline takes effect only once the eero is online. No check covers the rehearsal's small offline change on the eero itself |
 
 ## Rehearsal steps (done 2026-11-12, live network untouched)
 
@@ -119,10 +120,12 @@ Three stages. Each stage needs the operator's go. If stage 1 passes, stage 2 can
 | Assumption | Tier | Checked by |
 |---|---|---|
 | The eero hands out Blocky directly, with no IPv6 DNS | verified (rehearsal) | — |
-| The app accepts 192.168.1.0/24 with the eero at .1 | single source: the rehearsal confirms the fields accept the values. The Manual IP settings remain unsaved | stage 0 steps 4 and 5 |
-| A reservation for a MAC that never connected saves and survives an app restart | not tested | stage 0 steps 6 and 7 |
-| The app accepts a reservation outside the DHCP pool | not tested | stage 0 steps 6 and 8 |
-| The ZTE's DHCP pool starts at .100 or higher | inferred from the lowest client address | stage 0 step 1 |
+| The eero runs 192.168.1.0/24 with itself at .1 | verified (stage 0): a phone got 192.168.1.20 with router 192.168.1.1 | — |
+| A reservation for a MAC that never connected saves and survives an app restart | verified (stage 0) for all five node reservations | — |
+| The eero hands out a reservation outside the DHCP pool | verified (stage 0): a phone reserved at .200 got .200 | — |
+| The ZTE's DHCP pool starts at .100 or higher | verified: the ZTE shows .100 to .254 | — |
+| In the stage 0 test, the eero does not apply the Manual IP change that the app saves offline | verified (one test) | — |
+| A DNS change saved while the eero is online takes effect | assumption: stage 0 step 2 saves one, and no check covers what the eero then hands out | stage 2 check: `ipconfig getpacket` shows .129 and .126 |
 | The line needs no VLAN tag and no ZTE MAC address | sources conflict | stage 1 |
 | The eero's Online status needs working DNS | a guess; the plan sets DNS to Automatic for stage 1 to avoid the question | — |
 | A renewed node keeps its address through its reservation | not tested | the renew section after stage 2 |
@@ -139,20 +142,33 @@ The node and Mac MAC addresses are in the operator's memory note, not in this pu
 
 ### Stage 0: prep (no outage)
 
+**Done 2026-11-13; every check passed.** The steps stay here for a rerun, for example after a factory reset of the spare eero.
+
 | Constraint | Effect on the plan |
 |---|---|
-| If the spare eero's range is 192.168.1.0/24 and its LAN side connects to the home LAN, two DHCP servers share one network | after step 4, do not connect the spare eero's LAN side to the home LAN |
+| If the spare eero's range is 192.168.1.0/24 and its LAN side connects to the home LAN, two DHCP servers share one network | after step 5, do not connect the spare eero's LAN side to the home LAN |
+| If the spare eero's internet side gets a 192.168.1.x address, both of its sides use the same range | in steps 4 to 9 its internet comes from the Mac's Internet Sharing, on 192.168.2.0/24 |
+| Stage 0 test, 2026-11-13: a Manual IP change saved while the eero has no internet stays unapplied through two restarts. The app reports that it "cannot restart your network from the app when the internet is down" | keep the eero online for steps 5 to 9 |
 | Devices keep their ZTE addresses after the swap | if the eero hands out an address that a device still holds, two devices share it |
 | The NAS's ZTE lease never expires (`dhcp_lease_time = 4294967295`) | the NAS keeps .136 |
 | Other devices' ZTE lease lengths remain unknown | assume they hold their addresses for a day or more |
-| The lowest address in the ZTE's client table is .100, so its pool probably starts there | the eero's pool is .20 to .99. The reservations sit above it |
+| The ZTE's pool is .100 to .254 | the eero's pool is .20 to .99. The reservations sit above it |
 
 1. ZTE admin → Local Network → LAN → IPv4: write down the DHCP start and end addresses. If the start is below .100, stop: the eero range must change.
-2. While the spare eero still has its uplink to the Office eero: `test-eero` → DNS → **Automatic**. In stage 1 the eero cannot reach Blocky. If its DNS stays custom, the eero might fail its own lookups and show Offline even if the line works.
-3. Unplug the spare eero's cable from the Office eero. Leave the spare eero powered. Join the phone to `test-eero`.
-4. DHCP & NAT → Manual IP: subnet IP 192.168.1.0, mask 255.255.255.0, start .20, end .99. Save.
-5. On the phone, open the Wi-Fi details for `test-eero`. Pass: router 192.168.1.1, phone address in .20 to .99. W2's static gateway and the `node-isolation-heal` gateway ping both need the eero at 192.168.1.1.
-6. Reservations & port forwarding → add one reservation per node, by typed MAC:
+2. Do this step before step 3, so the eero is online: `test-eero` → DNS → **ISP DNS (Default)** (the app's name for Automatic). In stage 1 the eero cannot reach Blocky. If its DNS stays custom, the eero might fail its own lookups and show Offline even if the line works.
+3. Unplug the spare eero's cable from the Office eero. Leave the spare eero powered.
+4. Give the spare eero internet through the Mac:
+
+   | Step | Why |
+   |---|---|
+   | Join the Mac's Wi-Fi to `z3us` | the Mac shares this connection |
+   | Unplug the home cable from the Mac's Ethernet adapter (`AX88179B`), and cable the adapter to the spare eero | if sharing is on, the Mac runs a DHCP server on that adapter. If the home LAN is on that adapter, the Mac hands out 192.168.2.x addresses to the house |
+   | System Settings → General → Sharing → **Internet Sharing**: share from Wi-Fi, to `AX88179B` only. Turn it on | — |
+   | Pass: `arp -an -i bridge100` lists the eero at a 192.168.2.x address, and the app shows `test-eero` online | — |
+
+5. DHCP & NAT → Manual IP: subnet IP 192.168.1.0, mask 255.255.255.0, start .20, end .99. Save.
+6. Join the phone to `test-eero` and open its Wi-Fi details. Pass: router 192.168.1.1, phone address in .20 to .99. W2's static gateway and the `node-isolation-heal` gateway ping both need the eero at 192.168.1.1.
+7. Reservations & port forwarding → add one reservation per node, by typed MAC:
 
    | Device | Address | Why |
    |---|---|---|
@@ -162,17 +178,34 @@ The node and Mac MAC addresses are in the operator's memory note, not in this pu
    | NAS | .136 | DHCP on the host (NetworkManager) |
    | immich-vm | .231 | DHCP in the VM |
 
-   If the app refuses an address outside the pool (.20 to .99), stop: the plan needs a new address layout.
-7. Quit the app (Cmd-Q on the Mac, or swipe it away on the phone). Reopen it. Pass: all five reservations are listed.
-8. Add one reservation for the phone at .200, outside the pool. Rejoin `test-eero` on the phone. Pass: the phone gets .200. Delete that reservation. Then forget `test-eero` on the phone and join it again. Pass: the phone's address is back in .20 to .99, so it cannot clash with a ZTE client later.
+   If the app refuses an address outside the pool (.20 to .99), stop: the plan needs a new address layout. The list shows no MAC addresses, so open each reservation's **Edit** form, compare the MAC with the memory note, and close the form with ✕.
+8. Quit the app (Cmd-Q on the Mac, or swipe it away on the phone). Reopen it. Pass: all five reservations are listed.
+9. Devices → the phone → reserve .200, outside the pool. Turn the phone's Wi-Fi off and on. Pass: the phone gets .200. Delete that reservation. Then forget `test-eero` on the phone and join it again. Pass: the phone's address is back in .20 to .99, so it cannot clash with a ZTE client later.
+10. Turn Internet Sharing off. Unplug the spare eero, and plug the home cable back into the Mac's adapter.
 
-If the app refuses a save in step 4 or 6 while the eero is offline, cancel. Do those steps in stage 1, once `test-eero` shows Online, and repeat their checks. **Stage 2 starts only after every check in steps 5, 7 and 8 passes.**
+    | Check | Pass |
+    |---|---|
+    | `ifconfig bridge100` | prints "interface bridge100 does not exist" |
+    | `route -n get default` | gateway 192.168.1.1 on the adapter |
 
 Leave the spare eero powered and unplugged until stage 1.
 
-### Stage 1: line test (offline; the operator works alone)
+**Results (2026-11-13):**
 
-This Claude session loses internet here. Every check uses the phone.
+| Step | Result |
+|---|---|
+| 2 | the app saves ISP DNS (Default) while the eero is online |
+| 4 | the eero's internet side: 192.168.2.2. The app: `test-eero` online |
+| 5, 6 | the phone: 192.168.1.20, router 192.168.1.1 |
+| 7 | all five reservations above the pool, each with the right MAC in its Edit form |
+| 8 | the app lists all five after its restart |
+| 9 | the phone: .200 with its reservation, .20 without it |
+| 10 | no sharing bridge; the Mac on Ethernet with router 192.168.1.1; all 4 nodes Ready |
+| side effect | the rehearsal's reservation for the Mac (192.168.4.20) is gone since the range change |
+
+### Stage 1: line test
+
+The home LAN loses internet here. The Mac moves to `test-eero` Wi-Fi, so this Claude session comes back as soon as the eero is online. In the stage 0 test, a Manual IP change saved offline does not take effect. So make every settings change in stages 1 and 2 while the eero is online.
 
 Sources disagree on two points. Only this test settles them:
 
@@ -184,7 +217,15 @@ Sources disagree on two points. Only this test settles them:
 1. Note the time.
 2. ZTE admin page → WAN status → **Release** the IPv4 lease.
 3. Move the cable from the ZTE's WAN port to a port on the spare eero. Nothing else connects to the spare eero.
-4. Keep the phone on `test-eero`, and turn off its mobile data. Every check then goes through the eero.
+4. Unplug the home cable from the Mac's Ethernet adapter, and join the Mac's Wi-Fi to `test-eero`. If the cable stays in, macOS keeps sending traffic to the ZTE, which now has no internet.
+5. Keep the phone on `test-eero`, and turn off its mobile data. Every check then goes through the eero.
+6. If this session answers, Claude checks the Mac. The cluster stays out of reach from the Mac until stage 2.
+
+   | Check | Pass |
+   |---|---|
+   | `route -n get default` | gateway 192.168.1.1 on Wi-Fi |
+   | the Wi-Fi address | in .20 to .99 |
+   | a website | loads |
 
 | Within 10 minutes | Then |
 |---|---|
@@ -193,7 +234,7 @@ Sources disagree on two points. Only this test settles them:
 
 **Rollback:**
 
-1. Move the ONT cable back to the ZTE's WAN port.
+1. Move the ONT cable back to the ZTE's WAN port. Plug the home cable back into the Mac's adapter.
 2. On the ZTE WAN page, press **Renew**.
 3. If the Mac has no internet after 5 minutes, power the ONT and the ZTE off and on.
 4. If it still has no internet after 15 minutes, the ISP may still hold the eero's lease. The ZTE's WAN lease was 1 hour. Wait up to 1 hour; this wait is a guess, not a known limit. If stage 1 passed, the eero has a working line: instead of waiting, carry out stage 2 in full, so the home LAN moves to the eero with it. If stage 1 failed, wait, then call Hyperoptic.
@@ -205,7 +246,7 @@ Sources disagree on two points. Only this test settles them:
 3. In the app, `test-eero` → DNS → Custom: .129 and .126. Do it before step 5, so every new lease names Blocky. The eero reaches Blocky after step 5.
 4. Power off the ZTE. Keep it, with its cables, for rollback. Do it before the cables move: if the cable path between the two `z3us` eeros breaks, they fall back to their wireless link, and that link would join the ZTE's network to the eero's. Two routers would then answer at 192.168.1.1.
 5. Move the three wall cables and the Eufy base station from the ZTE's LAN ports to the switch.
-6. Turn the Mac's Ethernet off and on, so it takes a lease from the eero.
+6. Plug the home cable back into the Mac's adapter, and join the Mac's Wi-Fi to `z3us` again. Ethernet sits above Wi-Fi in the service order, so the Mac's traffic moves to the cable.
 7. Wait 2 minutes. This Claude session reconnects over the Mac's Ethernet.
 
 | Check | Who | Pass |
