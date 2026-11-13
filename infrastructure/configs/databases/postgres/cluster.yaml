@@ -16,7 +16,7 @@ spec:
   inheritedMetadata:
     labels:
       release: kube-prometheus-stack
-  imageName: ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie
+  imageName: ghcr.io/cloudnative-pg/postgresql:18.7-standard-trixie
   # false: the PgBouncer Pooler does not need the postgres superuser. The operator creates
   # cnpg_pooler_pgbouncer through local instance-manager SQL, and PgBouncer authenticates
   # with an operator-issued TLS client cert (CNPG 1.30 connection_pooling docs).
