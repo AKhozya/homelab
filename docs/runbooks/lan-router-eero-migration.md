@@ -1,6 +1,6 @@
 # LAN router: replace the ISP router with an eero gateway
 
-**Status (2026-11-13):** stage 0 done; every check passed. Next step: stages 1 and 2, after the operator's approval. Nothing on the live network has changed.
+**Status (2026-11-14):** stage 1 passed: the line works on the eero. Stage 2 is in progress.
 
 ## Why
 
@@ -126,7 +126,8 @@ Three stages. Each stage needs the operator's go. If stage 1 passes, stage 2 can
 | The ZTE's DHCP pool starts at .100 or higher | verified: the ZTE shows .100 to .254 | — |
 | In the stage 0 test, the eero does not apply the Manual IP change that the app saves offline | verified (one test) | — |
 | A DNS change saved while the eero is online takes effect | assumption: stage 0 step 2 saves one, and no check covers what the eero then hands out | stage 2 check: `ipconfig getpacket` shows .129 and .126 |
-| The line needs no VLAN tag and no ZTE MAC address | sources conflict | stage 1 |
+| The line needs no VLAN tag and no ZTE MAC address | verified (stage 1): the eero is online within minutes, with no VLAN tag and its own MAC address | — |
+| In ISP DNS (Default) mode, the eero hands out its upstream's DNS server, not itself | observed once (stage 1): after stage 0, the Mac's lease names 192.168.2.1, the Internet Sharing address. The eero answers DNS at 192.168.1.1 | stage 1 step 6 checks it; stage 2 step 3 replaces it |
 | The eero's Online status needs working DNS | a guess; the plan sets DNS to Automatic for stage 1 to avoid the question | — |
 | A renewed node keeps its address through its reservation | not tested | the renew section after stage 2 |
 | The repo and Home Assistant reach no home device by address | checked: the repo names no other LAN address; Home Assistant's config entries hold no local-device integration (read 2026-11-12) | — |
@@ -217,7 +218,7 @@ Sources disagree on two points. Only this test settles them:
 1. Note the time.
 2. ZTE admin page → WAN status → **Release** the IPv4 lease.
 3. Move the cable from the ZTE's WAN port to a port on the spare eero. Nothing else connects to the spare eero.
-4. Unplug the home cable from the Mac's Ethernet adapter, and join the Mac's Wi-Fi to `test-eero`. If the cable stays in, macOS keeps sending traffic to the ZTE, which now has no internet.
+4. Unplug the home cable from the Mac's Ethernet adapter, and join the Mac's Wi-Fi to `test-eero`. If the cable stays in, macOS keeps sending traffic to the ZTE, which now has no internet. Step 6 checks the Mac's DNS.
 5. Keep the phone on `test-eero`, and turn off its mobile data. Every check then goes through the eero.
 6. If this session answers, Claude checks the Mac. The cluster stays out of reach from the Mac until stage 2.
 
@@ -225,12 +226,22 @@ Sources disagree on two points. Only this test settles them:
    |---|---|
    | `route -n get default` | gateway 192.168.1.1 on Wi-Fi |
    | the Wi-Fi address | in .20 to .99 |
+   | `ipconfig getpacket en0`, `domain_name_server` | 192.168.1.1 or the ISP's servers. If it shows 192.168.2.1, the eero still hands out the DNS from stage 0's Internet Sharing. Then set the Mac's Wi-Fi DNS to 192.168.1.1 by hand; stage 2 step 6 removes it. Custom DNS cannot fix it yet, because Blocky is out of reach until stage 2 step 5 |
    | a website | loads |
 
 | Within 10 minutes | Then |
 |---|---|
 | the eero app opens `test-eero` and shows **Online**, and a website opens on the phone | pass. Go to stage 2, or roll back to stop for today |
 | still offline | roll back. Next, ask Hyperoptic for the WAN settings, or try a VLAN tag (the app has VLAN tagging under Advanced networking) |
+
+**Results (2026-11-14):**
+
+| Check | Result |
+|---|---|
+| the app | `test-eero` online; the phone loads websites at once |
+| the Mac | 192.168.1.21, router 192.168.1.1; the lease names DNS 192.168.2.1, so lookups fail until the operator sets manual DNS servers on Wi-Fi |
+| `dig @192.168.1.1` | answers |
+| lease length | 4 hours (option 51 = 14400 s) |
 
 **Rollback:**
 
@@ -243,10 +254,18 @@ Sources disagree on two points. Only this test settles them:
 
 1. Power the switch.
 2. Cable the spare eero's free port to the switch.
-3. In the app, `test-eero` → DNS → Custom: .129 and .126. Do it before step 5, so every new lease names Blocky. The eero reaches Blocky after step 5.
+3. In the app, `test-eero` → DNS → Custom: .129 and .126. Do it before step 5, so every new lease names Blocky. It also replaces a stale upstream DNS server, such as 192.168.2.1 after stage 0. The eero reaches Blocky after step 5.
 4. Power off the ZTE. Keep it, with its cables, for rollback. Do it before the cables move: if the cable path between the two `z3us` eeros breaks, they fall back to their wireless link, and that link would join the ZTE's network to the eero's. Two routers would then answer at 192.168.1.1.
 5. Move the three wall cables and the Eufy base station from the ZTE's LAN ports to the switch.
-6. Plug the home cable back into the Mac's adapter, and join the Mac's Wi-Fi to `z3us` again. Ethernet sits above Wi-Fi in the service order, so the Mac's traffic moves to the cable.
+6. On the Mac:
+
+   | Step | Why |
+   |---|---|
+   | plug the home cable back into the adapter | Ethernet sits above Wi-Fi in the service order, so the Mac's traffic moves to the cable |
+   | System Settings → Network → Wi-Fi → Details → DNS: delete every manual server | a manual server on Wi-Fi bypasses Blocky |
+   | join the Wi-Fi to `z3us` | — |
+
+   Pass: `networksetup -getdnsservers Wi-Fi` prints "There aren't any DNS Servers set on Wi-Fi".
 7. Wait 2 minutes. This Claude session reconnects over the Mac's Ethernet.
 
 | Check | Who | Pass |
