@@ -215,9 +215,8 @@
   tags: [hardening, networkd-dns]
 
 # Static IPv4 on the primary NIC, for each host that sets `static_ipv4` in host_vars.
-# This play runs on every host at once. If one merge enables two hosts, both reconfigure
-# together, so enable one host per merge: a CP link loss on 2026-09-12 left both MySQL
-# nodes read-only.
+# This play runs on every host at once. If one merge enables several hosts, they all
+# reconfigure together, so enable one host per merge.
 - name: Switch the primary NIC to a static IPv4 address
   when: static_ipv4 is defined
   tags: [hardening, networkd-static]

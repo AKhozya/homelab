@@ -1,6 +1,7 @@
 # Managed by ansible (hardening role, `static_ipv4` in host_vars). Do not edit on the node.
-# Static, not DHCP: the eero's leases last 4 hours, so a DHCP node needs the router every
-# ~2 hours. The eero keeps a reservation for this address as a guard.
+# Static, not DHCP: the eero's leases expire after 4 hours. If the router stays unreachable
+# past that, a DHCP node has no lease left. The eero keeps a reservation for this address as a
+# guard.
 [Match]
 Name={{ static_ipv4.interface }}
 {% if static_ipv4.required_for_online is defined %}
