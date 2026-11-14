@@ -369,7 +369,7 @@ If the eero refuses a renew, the node can lose its address until the eero gives 
 | Item | Action |
 |---|---|
 | IPv6 | stays off on `test-eero`. The nodes lose their public IPv6 addresses; nothing in the repo uses them |
-| `fe80::1` on the nodes | the ZTE's DHCPv6 lease still lists it as a DNS server in `/run/systemd/resolve/resolv.conf`, so CoreDNS forwards to it too. Check that it is gone from that file on each node. If it stays, a reboot is expected to remove it: check the file again after the next reboot |
+| `fe80::1` on the nodes | the ZTE's DHCPv6 lease still lists it as a DNS server in `/run/systemd/resolve/resolv.conf`, so CoreDNS forwards to it too. Check that it is gone from that file on each node. If it stays, the next reboot should remove it. Check the file again after that reboot |
 | docs | update `docs/subsystems/networking.md` and `docs/HOMELAB_HISTORY.md`: the eero is the router |
 | parked fallback branch | revisit it (next section) |
 | optional | rename `test-eero`; merge the eeros into one network as a separate change |
