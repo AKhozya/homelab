@@ -58,3 +58,14 @@ node_isolation_reboot_index: 0
 # read-only diagnostics instead of a shell. If a host omits the key, both tasks skip it. Public
 # keys are not secret. The tasks preserve the operator's own key on this account.
 agent_diag_bot_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII6y/bDuSaR/mRuwgRj0Amuzcwev30tNoenExFvFjCIM claude-telegram-bot"
+
+# Static IPv4 (hardening role, tag networkd-static). The three optional keys copy the
+# 20-ethernet.network that this replaces. That file matched every en*/eth* port; this one
+# matches enp4s0 only, so a cable in another port gets no network config.
+static_ipv4:
+  interface: enp4s0
+  address: 192.168.1.129/24
+  gateway: 192.168.1.1
+  required_for_online: routable
+  multicast_dns: true
+  ipv6_ra_route_metric: 100
