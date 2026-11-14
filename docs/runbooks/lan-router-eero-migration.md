@@ -442,6 +442,27 @@ If the eero refuses a renew, the node can lose its address until the eero gives 
 | devices do not reconnect after step 4 | check the surviving network's name and password in the app |
 | a node does not ping 192.168.1.1 after step 1 | put the wall cable back into the Office eero |
 
+**Results (2026-11-14, 23:15 to 23:55):**
+
+| Step | Result |
+|---|---|
+| 1 | the operator freed the Mac's switch port; the Office eero stayed in the path (its port 1 to the wall, port 2 to the Office switch) |
+| 2 | the app accepts a second network named `z3us`. The dropdown tells them apart by the old network's location subtitle |
+| 3 | the Office eero is removed (app: ··· → Remove → Remove from network). About a minute later the Mac loses the whole Office switch, so the house loses Blocky. Adding the reset Office eero to the surviving network restores the path |
+| 4 | "Delete network" on the Living Room eero fails twice with "We couldn't update your settings". After the operator restarts the old network, it deletes. The Living Room eero joins the surviving network |
+| cause of the outage | the Cupboard eero's port 1 has no link to the MS308: "0 devices, 0 eeros". Every wired device reaches the gateway through the Office eero's 6 GHz wireless link to the Cupboard. If that eero resets, the wired house has no path to the gateway |
+| fix | a cable from the Cupboard eero's port 1 to the MS308. The Office and Living Room eeros then show "Connected to Cupboard (2.5 Gbps, Port 1)" |
+| final checks | one network, three eeros, each wired. The Mac's lease names .129 and .126 only; no manual DNS on the Mac. 14 clients in Blocky's log in 5 minutes. 4 nodes Ready; the tunnel and public apps answer |
+
+| Lesson | Check |
+|---|---|
+| a wired path can be missing while every eero shows online, because eeros fall back to wireless backhaul | before any change that resets an eero, open each eero → Connected devices & port details, and confirm the gateway's LAN port lists the switch and each eero says "Connected to Cupboard" with a wired link |
+
+| Still open | Action |
+|---|---|
+| Thread | the old network had Thread on; the reset removed it. Turn Thread on in the surviving network, then check smart-home devices that use it |
+| Living Room devices | the operator checks that the TV, Apple TV, PS5 and Xbox are online |
+
 ## Parked related work
 
 Branch `wt-blocky-fallback` (local commit `8c0ab7f3`, not pushed) holds a Blocky DNS fallback role for the CP. Its design assumes the ZTE's two-DNS limit. Revisit it after the router decision.
