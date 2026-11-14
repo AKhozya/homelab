@@ -31,3 +31,10 @@ nic_tuning_force_speed: 1000
 # read-only diagnostics instead of a shell. If a host omits the key, both tasks skip it. Public
 # keys are not secret. The tasks preserve the operator's own key on this account.
 agent_diag_bot_pubkey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII6y/bDuSaR/mRuwgRj0Amuzcwev30tNoenExFvFjCIM claude-telegram-bot"
+
+# Static IPv4 (hardening role, tag networkd-static). The 10-enp3s0.network that this replaces
+# sets nothing else, so no optional keys.
+static_ipv4:
+  interface: enp3s0
+  address: 192.168.1.127/24
+  gateway: 192.168.1.1
