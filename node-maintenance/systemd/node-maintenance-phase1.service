@@ -14,20 +14,24 @@ EnvironmentFile=-/run/node-maintenance.env
 # Serialized via node-maintenance-lock (wait mode): the reboot MUST run, so wait out any in-progress
 # drift-heal (up to 15min) rather than skip — guarantees no heal runs concurrently with the reboot.
 #
-# Three steps, each under the lock; a failure stops the rest and skips the reboot:
+# Four steps, each under the lock. If step 1, 3 or 4 fails, the rest are skipped and so is the
+# reboot:
 #   1. the playbook's preflight tasks alone (tag preflight): no active backup, disk space, Flux
 #      Ready, physical workers reachable. If any fails, nothing is upgraded.
-#   2. the full repo upgrade, outside any ansible process, so python and ansible upgrade
+#   2. a mirrorlist rebuild (ansible/tasks/refresh-mirrorlist.yml says why). The leading `-`
+#      ignores a failure. If reflector fails before it writes, pacman uses the old list.
+#   3. the full repo upgrade, outside any ansible process, so python and ansible upgrade
 #      together. An ansible-core upgrade under a running play makes copy/template tasks load
 #      action plugins from the new core while ConfigManager stays on the old import (TypeError
 #      on `templar=`, seen on 2.20.5 → 2.21.0). A python upgrade under a running play removes
 #      the stdlib the play still imports. Rejected: `pacman -Sy ansible ansible-core` alone, a
 #      partial upgrade.
-#   3. the whole playbook, preflight included, so a backup that started during step 2 still
+#   4. the whole playbook, preflight included, so a backup that started during step 3 still
 #      blocks the reboot. If that second preflight fails, the CP stays upgraded but not
 #      rebooted; kernel-modules-hook keeps the running kernel's modules loadable until the
 #      next reboot.
 ExecStart=/usr/local/sbin/node-maintenance-lock.sh wait -- /usr/bin/ansible-playbook -i inventory.yml phase1.yml --tags preflight
+ExecStart=-/usr/local/sbin/node-maintenance-lock.sh wait -- /usr/bin/systemctl start reflector.service
 ExecStart=/usr/local/sbin/node-maintenance-lock.sh wait -- /usr/bin/pacman -Syu --noconfirm
 ExecStart=/usr/local/sbin/node-maintenance-lock.sh wait -- /usr/bin/ansible-playbook -i inventory.yml phase1.yml
 ExecStartPost=/bin/sh -c 'systemctl reboot'

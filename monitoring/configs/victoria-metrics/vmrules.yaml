@@ -1580,6 +1580,30 @@ spec:
             Common cause: pacman file conflict from a truncated package (empty `desc` in
             /var/lib/pacman/local/<pkg>/) → `sudo pacman -S --overwrite '/usr/*' <pkg>`.
 
+      # Every node runs linux-lts and upgrades in the same weekly run, so after the run all four
+      # run one kernel. NodePackageUpgradeFailed cannot see an upgrade that succeeds but skips the
+      # kernel, for example if a stale mirror has no new linux-lts. Fires for each node outside
+      # the most common release. If two releases tie, topk keeps one of them, so the alert still
+      # fires. `for: 6h` ignores skew that ends within six hours, as during a rolling reboot.
+      - alert: NodeKernelSkew
+        expr: |
+          node_uname_info{job="kube-prometheus-stack-prometheus-node-exporter"}
+            unless on(release)
+          topk(1, count by (release) (node_uname_info{job="kube-prometheus-stack-prometheus-node-exporter"}))
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.nodename }} runs kernel {{ $labels.release }}, unlike other nodes"
+          description: |
+            {{ $labels.nodename }} has run kernel {{ $labels.release }} for 6 hours, and other nodes run a different release.
+            The alert compares each node with the release that runs on the most nodes. If two releases tie, it picks one of them, so check every node.
+            If the node is behind, its last upgrade skipped the kernel, or it has not rebooted since.
+            On the node, compare `pacman -Q linux-lts` (for example 6.18.63-2) with `uname -r` (then 6.18.63-2-lts).
+            If the versions are the same, the package is old: check that the first `Server` in
+            /etc/pacman.d/mirrorlist carries the new linux-lts, and run `sudo systemctl start reflector.service` if not.
+            If they differ, the node needs a reboot (immich-vm: the NAS-side cold cycle, never an in-guest reboot).
+
       # Every telegram-notify.sh caller discards its exit code, so a broken node-maintenance
       # Telegram channel (stale token, missing chat-id file, API error) is otherwise silent.
       # Alertmanager sends this alert using its separate bot token.
