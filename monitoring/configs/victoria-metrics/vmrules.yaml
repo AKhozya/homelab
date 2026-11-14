@@ -1580,6 +1580,29 @@ spec:
             Common cause: pacman file conflict from a truncated package (empty `desc` in
             /var/lib/pacman/local/<pkg>/) → `sudo pacman -S --overwrite '/usr/*' <pkg>`.
 
+      # Every node runs linux-lts and upgrades in the same weekly run, so after the run all four
+      # run one kernel. NodePackageUpgradeFailed cannot see an upgrade that succeeds but skips the
+      # kernel: on 2026-11-14 worker-node's first mirror was a day behind, pacman saw no new
+      # linux-lts, and the node stayed on 6.18.62. Fires for each node outside the most common
+      # release. If two releases tie, topk keeps one of them, so the alert still fires. The rolling
+      # reboot on 2026-10-31 skewed the nodes for 22 minutes, so `for: 6h` skips a normal run.
+      - alert: NodeKernelSkew
+        expr: |
+          node_uname_info{job="kube-prometheus-stack-prometheus-node-exporter"}
+            unless on(release)
+          topk(1, count by (release) (node_uname_info{job="kube-prometheus-stack-prometheus-node-exporter"}))
+        for: 6h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.nodename }} runs kernel {{ $labels.release }}, unlike most nodes"
+          description: |
+            {{ $labels.nodename }} has run kernel {{ $labels.release }} for 6 hours while most nodes run another release.
+            If the node is behind, its last upgrade skipped the kernel, or it has not rebooted since.
+            Compare `pacman -Q linux-lts` with `uname -r` on the node. If they match, the package is old:
+            check that the first `Server` in /etc/pacman.d/mirrorlist carries the new linux-lts.
+            If they differ, the node needs a reboot (immich-vm: the NAS-side cold cycle, never an in-guest reboot).
+
       # Every telegram-notify.sh caller discards its exit code, so a broken node-maintenance
       # Telegram channel (stale token, missing chat-id file, API error) is otherwise silent.
       # Alertmanager sends this alert using its separate bot token.

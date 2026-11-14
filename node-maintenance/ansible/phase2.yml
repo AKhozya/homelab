@@ -171,6 +171,9 @@
       delegate_to: localhost
       become: false
 
+    - name: Refresh the mirrorlist
+      ansible.builtin.include_tasks: tasks/refresh-mirrorlist.yml
+
     - name: Upgrade via yay (best-effort — transient AUR failures must not block reboot)
       block:
         - name: First attempt
@@ -423,6 +426,9 @@
 
         - name: Skip the rest of PLAY 1b for immich-vm
           ansible.builtin.meta: end_host
+
+    - name: Refresh the mirrorlist
+      ansible.builtin.include_tasks: tasks/refresh-mirrorlist.yml
 
     - name: Upgrade via yay (best-effort; NEVER reboots — cold-restart is a NAS-side virsh op)
       block:
