@@ -1,12 +1,14 @@
 ---
 # Rebuild the mirrorlist just before an upgrade. reflector.timer runs weekly and ranks mirrors by
 # speed, so by upgrade day the first mirror can be a day or more behind. pacman then reads its old
-# package database and skips the new packages without an error: on 2026-11-14 worker-node missed
-# linux-lts 6.18.63 this way, and NodePackageUpgradeFailed stayed quiet.
-# If reflector fails, it leaves the old list in place and the upgrade goes on with it.
+# package database and skips the new packages without an error, which NodePackageUpgradeFailed
+# cannot see.
+# `systemctl start`, not systemd_service `state: started`: that module counts an activating unit
+# as started and returns at once, so if reflector.timer is mid-run, yay reads the old list.
+# `systemctl start` waits for the running job to finish.
+# If reflector fails before it writes, the old list stays and the upgrade goes on with it.
 # NodeSystemdUnitFailed reports the failed reflector.service.
 - name: Refresh the mirrorlist before the upgrade
-  ansible.builtin.systemd_service:
-    name: reflector.service
-    state: started
+  ansible.builtin.command: systemctl start reflector.service  # noqa: command-instead-of-module
+  changed_when: true
   failed_when: false

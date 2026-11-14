@@ -19,7 +19,7 @@ EnvironmentFile=-/run/node-maintenance.env
 #   1. the playbook's preflight tasks alone (tag preflight): no active backup, disk space, Flux
 #      Ready, physical workers reachable. If any fails, nothing is upgraded.
 #   2. a mirrorlist rebuild (ansible/tasks/refresh-mirrorlist.yml says why). The leading `-`
-#      ignores a failure: reflector then keeps the old list, and pacman uses it.
+#      ignores a failure. If reflector fails before it writes, pacman uses the old list.
 #   3. the full repo upgrade, outside any ansible process, so python and ansible upgrade
 #      together. An ansible-core upgrade under a running play makes copy/template tasks load
 #      action plugins from the new core while ConfigManager stays on the old import (TypeError

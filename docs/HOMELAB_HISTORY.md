@@ -26,10 +26,12 @@ The table summarises the months before the dated entries below.
 | worker-node's first mirror, `lon.mirror.rackspace.com`, last synced 2026-11-13 02:30 and returns 404 for the 6.18.63-2 package. The second mirror carries it | `curl` of each mirror's `lastsync` and package URL |
 | reflector.timer runs weekly and sorts by rate, so the list in use dates from 2026-11-09 | the mirrorlist's mtime; `files/reflector.conf` |
 | If reflector finds no mirrors or cannot read the mirror status, it exits before it writes the list | `Reflector.py` in reflector 2023, `main()` |
+| Ansible's `systemd_service` counts an `activating` unit as started, so `state: started` returns while reflector.timer is mid-run | `is_running_service()` in `lib/ansible/modules/systemd_service.py` |
+| The weekly run on 2026-10-31, the last one that changed the kernel, left the nodes on two kernels for 22 minutes (04:35–04:56 UTC) | vmsingle range query of `count(count by (release) (node_uname_info))` |
 
 | Change | Why |
 |---|---|
-| `tasks/refresh-mirrorlist.yml` starts `reflector.service` before each worker and immich-vm upgrade in phase2. A failure does not stop the upgrade | pacman reads a list made minutes earlier, not days |
+| `tasks/refresh-mirrorlist.yml` runs `systemctl start reflector.service` before each worker and immich-vm upgrade in phase2. A failure does not stop the upgrade | pacman reads a list made minutes earlier, not days. `systemctl start` waits for a reflector run already in progress |
 | `node-maintenance-phase1.service` runs the same refresh under the lock, before the CP's `pacman -Syu`. The `-` prefix ignores a failure | the CP upgrades outside ansible |
 | `NodeKernelSkew` fires for a node whose running kernel differs from most nodes' for 6 hours | `NodePackageUpgradeFailed` cannot see an upgrade that succeeds but skips the kernel |
 
