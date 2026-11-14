@@ -373,7 +373,49 @@ If the eero refuses a renew, the node can lose its address until the eero gives 
 | `fe80::1` on the nodes | the ZTE's DHCPv6 lease still lists it as a DNS server in `/run/systemd/resolve/resolv.conf`, so CoreDNS forwards to it too. Check that it is gone from that file on each node. If it stays, the next reboot should remove it. Check the file again after that reboot |
 | docs | update `docs/subsystems/networking.md` and `docs/HOMELAB_HISTORY.md`: the eero is the router |
 | parked fallback branch | revisit it (next section) |
-| optional | rename `test-eero`; merge the eeros into one network as a separate change |
+| optional | rename `test-eero`; merge the eeros into one network: the next section |
+
+### Merge the eeros into one network
+
+`test-eero` (the spare, gateway) keeps its DHCP range, reservations and Blocky DNS. The two `z3us` eeros (Office and Living Room, in Bridge mode) move into it. `z3us` holds nothing worth keeping.
+
+| Fact | Effect on the plan |
+|---|---|
+| Removing an eero from a network factory-resets it (eero support, "How do I add or remove eeros from my network?") | each `z3us` eero is reset, then added to `test-eero` |
+| If a network keeps the old Wi-Fi name and password, devices reconnect by themselves (eero support, "Changing your eero Wi-Fi name and password") | `test-eero` takes the `z3us` name and password before the `z3us` eeros go |
+| The Office wall cable feeds the Office eero, and the Office eero feeds a switch with the Mac, the NAS, the CP, worker-node and worker-node-2 | if the Office eero resets in that path, the homelab loses its gateway and the house loses Blocky. Step 1 takes the eero out of the path |
+| That switch has no free port | the Mac gives its port to the wall cable and moves to Wi-Fi |
+| The Living Room eero feeds a switch with the TV, Apple TV, PS5 and Xbox | those devices are offline while that eero resets |
+| The app may refuse to remove a network's Gateway eero | if it does, delete the `z3us` network instead; that resets the eero too |
+| Two networks named `z3us` exist between steps 2 and 5 | before each Remove or Delete, confirm the network by its eero list: the old one shows Bridge mode and the Office and Living Room eeros |
+
+1. Office: unplug the Mac's cable from the switch, and join the Mac's Wi-Fi to `z3us`. Move the wall cable from the Office eero to the freed switch port. Keep exactly one cable between the Office eero and the switch.
+
+   | Check (Claude) | Pass |
+   |---|---|
+   | each node pings 192.168.1.1 | replies |
+   | the Mac's route | gateway 192.168.1.1 on Wi-Fi; a website loads |
+   | the app | the Office eero online in `z3us` |
+
+2. `test-eero` → Settings → Network name and password: the `z3us` name and password, typed by the operator. If the eero restarts, wait until the app shows it online. Then turn the phone's Wi-Fi off and on next to the spare. Pass: the app lists the phone as a client of the renamed network. If the app refuses the duplicate name, skip this step and rename after step 4; devices then rejoin once.
+3. In the old `z3us` network, remove the eero that the app does not mark Gateway. Wait for its solid white LED after the reset. In the renamed network: Add indoor eero, with the phone next to that eero. Pass: the app lists it online, with a wired connection.
+4. Remove the remaining `z3us` eero, or delete the old `z3us` network if the app refuses. Add it to the renamed network as in step 3.
+5. Plug the Mac's cable back only if a switch port is free; otherwise the Mac stays on Wi-Fi.
+
+| Final check | Who | Pass |
+|---|---|---|
+| the app | operator | one network, three eeros, each online with a wired connection |
+| `ipconfig getpacket` on the Mac | Claude | DNS .129 and .126 only |
+| Blocky's query log | Claude | new lookups from many devices |
+| `kubectl get nodes` | Claude | 4 Ready |
+| the Cloudflare tunnel and public apps | Claude | up. If the tunnel pods are in backoff, wait 5 minutes |
+| the Living Room devices | operator | online again |
+
+| Failure | Then |
+|---|---|
+| an eero does not join within 10 minutes | reset it with its button, and add it again |
+| devices do not reconnect after step 4 | check the renamed network's name and password in the app |
+| a node does not ping 192.168.1.1 after step 1 | put the wall cable back into the Office eero |
 
 ## Parked related work
 
