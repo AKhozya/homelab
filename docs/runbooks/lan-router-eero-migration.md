@@ -377,19 +377,32 @@ If the eero refuses a renew, the node can lose its address until the eero gives 
 
 ### Merge the eeros into one network
 
-`test-eero` (the spare, gateway) keeps its DHCP range, reservations and Blocky DNS. The two `z3us` eeros (Office and Living Room, in Bridge mode) move into it. `z3us` holds nothing worth keeping.
+| Network | Eeros | Fate |
+|---|---|---|
+| `test-eero` | the spare, Gateway, on the ONT | stays. It keeps its DHCP range, reservations and Blocky DNS. Step 2 gives it the `z3us` Wi-Fi name and password |
+| old `z3us` | Office and Living Room, Bridge mode | goes. Nothing in it is worth keeping |
 
 | Fact | Effect on the plan |
 |---|---|
-| Removing an eero from a network factory-resets it (eero support, "How do I add or remove eeros from my network?") | each `z3us` eero is reset, then added to `test-eero` |
-| If a network keeps the old Wi-Fi name and password, devices reconnect by themselves (eero support, "Changing your eero Wi-Fi name and password") | `test-eero` takes the `z3us` name and password before the `z3us` eeros go |
-| The Office wall cable feeds the Office eero, and the Office eero feeds a switch with the Mac, the NAS, the CP, worker-node and worker-node-2 | if the Office eero resets in that path, the homelab loses its gateway and the house loses Blocky. Step 1 takes the eero out of the path |
+| Removing an eero from a network factory-resets it (eero support, "How do I add or remove eeros from my network?") | steps 3 and 4 add each reset eero to `test-eero` |
+| If a network keeps the old Wi-Fi name and password, devices reconnect by themselves (eero support, "Changing your eero Wi-Fi name and password") | step 2 renames `test-eero` before any old eero leaves |
+| A factory-reset eero shows a blue LED when it is ready for setup. Solid white means online and configured | add a reset eero once its LED is blue; check for white after it joins |
+| The Office wall cable feeds the Office eero, and the Office eero feeds a switch with the Mac, the NAS, the CP, worker-node and worker-node-2 | if the Office eero resets while it sits in that path, the homelab loses its gateway and the house loses Blocky. Step 1 takes the eero out of the path |
 | That switch has no free port | the Mac gives its port to the wall cable and moves to Wi-Fi |
 | The Living Room eero feeds a switch with the TV, Apple TV, PS5 and Xbox | those devices are offline while that eero resets |
-| The app may refuse to remove a network's Gateway eero | if it does, delete the `z3us` network instead; that resets the eero too |
-| Two networks named `z3us` exist between steps 2 and 5 | before each Remove or Delete, confirm the network by its eero list: the old one shows Bridge mode and the Office and Living Room eeros |
+| The app may refuse to remove a network's Gateway eero | if it does, delete the old `z3us` network instead. That resets the eero too |
+| From step 2 to step 4, two networks may carry the name `z3us` | the guard below runs before each Remove or Delete |
 
-1. Office: unplug the Mac's cable from the switch, and join the Mac's Wi-Fi to `z3us`. Move the wall cable from the Office eero to the freed switch port. Keep exactly one cable between the Office eero and the switch.
+**Guard before each Remove or Delete:** the network on screen shows Bridge mode. Its eero list does not include the spare. It lists exactly the eeros that this step expects: Office and Living Room at step 3, only the remaining one at step 4.
+
+1. In the Office:
+
+   | Action | Why |
+   |---|---|
+   | Unplug the Mac's cable from the switch | frees a port |
+   | Join the Mac's Wi-Fi to `z3us` | the Mac stays online |
+   | Move the wall cable from the Office eero to the freed switch port | the eero leaves the homelab's path |
+   | Keep exactly one cable between the Office eero and the switch | two cables would make a loop |
 
    | Check (Claude) | Pass |
    |---|---|
@@ -397,10 +410,16 @@ If the eero refuses a renew, the node can lose its address until the eero gives 
    | the Mac's route | gateway 192.168.1.1 on Wi-Fi; a website loads |
    | the app | the Office eero online in `z3us` |
 
-2. `test-eero` → Settings → Network name and password: the `z3us` name and password, typed by the operator. If the eero restarts, wait until the app shows it online. Then turn the phone's Wi-Fi off and on next to the spare. Pass: the app lists the phone as a client of the renamed network. If the app refuses the duplicate name, skip this step and rename after step 4; devices then rejoin once.
-3. In the old `z3us` network, remove the eero that the app does not mark Gateway. Wait for its solid white LED after the reset. In the renamed network: Add indoor eero, with the phone next to that eero. Pass: the app lists it online, with a wired connection.
-4. Remove the remaining `z3us` eero, or delete the old `z3us` network if the app refuses. Add it to the renamed network as in step 3.
-5. Plug the Mac's cable back only if a switch port is free; otherwise the Mac stays on Wi-Fi.
+2. In `test-eero` → Settings → Network name and password, the operator enters the `z3us` name and password. If the eero restarts, wait until the app shows it online. Turn the phone's Wi-Fi off and on next to the spare.
+
+   | Result | Then |
+   |---|---|
+   | the app lists the phone as a client of the renamed network | pass |
+   | the app refuses the duplicate name | keep the name `test-eero`. Join the phone and the Mac to `test-eero` now, so they stay online when the last old eero goes. After step 4, rename it to `z3us`, then repeat the step 1 checks. Devices then rejoin by themselves only if the name and password match the old ones |
+
+3. Run the guard. In the old `z3us` network, remove the eero that the app does not mark Gateway. When its LED shows blue, add it to the surviving network: Add indoor eero, with the phone next to that eero. Pass: the app lists it online with a wired connection, and its LED is solid white.
+4. Run the guard. Remove the remaining old eero. If the app refuses, delete the old `z3us` network. Add the eero to the surviving network as in step 3.
+5. If a switch port is free, plug the Mac's cable back in. Otherwise the Mac stays on Wi-Fi.
 
 | Final check | Who | Pass |
 |---|---|---|
@@ -414,7 +433,7 @@ If the eero refuses a renew, the node can lose its address until the eero gives 
 | Failure | Then |
 |---|---|
 | an eero does not join within 10 minutes | reset it with its button, and add it again |
-| devices do not reconnect after step 4 | check the renamed network's name and password in the app |
+| devices do not reconnect after step 4 | check the surviving network's name and password in the app |
 | a node does not ping 192.168.1.1 after step 1 | put the wall cable back into the Office eero |
 
 ## Parked related work
