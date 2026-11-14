@@ -18,6 +18,20 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-14 — LAN: the eero replaces the ISP router; every node gets a static IPv4 address
+
+| Fact | Evidence |
+|---|---|
+| The eero is the gateway at 192.168.1.1 and provides Blocky (.129, .126) as DNS | the runbook's stage 2 results; `ipconfig getpacket` on the Mac |
+| The eero's leases last 4 hours (option 51 = 14400 s) | each node's renewed lease |
+| The ZTE's leases have no expiry (option 51 = 0xffffffff) | the nodes' old ZTE leases |
+| The three recorded switches from DHCP to static through `networkctl reload` show no lost ping | immich-vm: 0 of 4081 pings lost at 0.2 s intervals; CP and worker-node: no loss at the switch |
+
+| Change | Why |
+|---|---|
+| the hardening role writes the primary NIC's `.network` file from `static_ipv4` in host_vars, after it checks that the NIC already holds that address and gateway (`4535b750`) | a DHCP node has no lease left if the router stays unreachable for more than 4 hours |
+| immich-vm (`4535b750`), then the CP (`de0b92a1`), then worker-node (`5a87b0ba`), one per merge | the drift-heal play runs on every host at once |
+
 ### 2026-11-14 — node-maintenance: rebuild the mirrorlist before each upgrade; NodeKernelSkew
 
 | Fact | Evidence |
