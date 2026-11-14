@@ -393,7 +393,13 @@ If the eero refuses a renew, the node can lose its address until the eero gives 
 | The app may refuse to remove a network's Gateway eero | if it does, delete the old `z3us` network instead. That resets the eero too |
 | From step 2 to step 4, two networks may carry the name `z3us` | the guard below runs before each Remove or Delete |
 
-**Guard before each Remove or Delete:** the network on screen shows Bridge mode. Its eero list does not include the spare. It lists exactly the eeros that this step expects: Office and Living Room at step 3, only the remaining one at step 4.
+**Guard before each Remove or Delete.** Every row must hold for the network on screen:
+
+| Check | Step 3 | Step 4 |
+|---|---|---|
+| mode | Bridge | Bridge |
+| the spare in its eero list | absent | absent |
+| its eero list | Office and Living Room | only the remaining old eero |
 
 1. In the Office:
 
@@ -415,9 +421,9 @@ If the eero refuses a renew, the node can lose its address until the eero gives 
    | Result | Then |
    |---|---|
    | the app lists the phone as a client of the renamed network | pass |
-   | the app refuses the duplicate name | keep the name `test-eero`. Join the phone and the Mac to `test-eero` now, so they stay online when the last old eero goes. After step 4, rename it to `z3us`, then repeat the step 1 checks. Devices then rejoin by themselves only if the name and password match the old ones |
+   | the app refuses the duplicate name | keep the name `test-eero`. Join the phone and the Mac to `test-eero` now, so they stay online when the last old eero goes. After step 4, set both the name and the password to the old `z3us` values, then repeat the step 1 checks. If both match the old values, devices rejoin by themselves |
 
-3. Run the guard. In the old `z3us` network, remove the eero that the app does not mark Gateway. When its LED shows blue, add it to the surviving network: Add indoor eero, with the phone next to that eero. Pass: the app lists it online with a wired connection, and its LED is solid white.
+3. Run the guard. In the old `z3us` network, remove the eero that the app does not mark Gateway. If its LED shows blue, add it to the surviving network: Add indoor eero, with the phone next to that eero. Pass: the app lists it online with a wired connection, and its LED is solid white.
 4. Run the guard. Remove the remaining old eero. If the app refuses, delete the old `z3us` network. Add the eero to the surviving network as in step 3.
 5. If a switch port is free, plug the Mac's cable back in. Otherwise the Mac stays on Wi-Fi.
 
