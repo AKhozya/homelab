@@ -214,6 +214,70 @@
   notify: Reload networkd
   tags: [hardening, networkd-dns]
 
+# Static IPv4 on the primary NIC, for each host that sets `static_ipv4` in host_vars.
+# This play runs on every host at once. If one merge enables several hosts, they all
+# reconfigure together, so enable one host per merge.
+- name: Switch the primary NIC to a static IPv4 address
+  when: static_ipv4 is defined
+  tags: [hardening, networkd-static]
+  block:
+    - name: Read the primary NIC's IPv4 addresses
+      ansible.builtin.command: "ip -4 -j addr show dev {{ static_ipv4.interface }}"
+      register: static_ipv4_addr
+      changed_when: false
+
+    - name: Read the default IPv4 routes
+      ansible.builtin.command: ip -4 -j route show default
+      register: static_ipv4_route
+      changed_when: false
+
+    # If host_vars name a different address, interface or gateway than the node uses now,
+    # the reload below would move the node off its address. Refuse instead.
+    - name: Refuse unless the NIC already holds exactly this address and default route
+      ansible.builtin.assert:
+        that:
+          - static_ipv4_live_addrs | length == 1
+          - (static_ipv4_live_addrs[0].local ~ '/' ~ static_ipv4_live_addrs[0].prefixlen) == static_ipv4.address
+          - static_ipv4_live_gateways == [static_ipv4.gateway]
+        fail_msg: >-
+          {{ static_ipv4.interface }} holds {{ static_ipv4_live_addrs | map(attribute='local') | list }}
+          with default gateways {{ static_ipv4_live_gateways }}; host_vars want {{ static_ipv4.address }}
+          via {{ static_ipv4.gateway }}. Nothing written.
+        quiet: true
+      vars:
+        static_ipv4_live_addrs: "{{ ((static_ipv4_addr.stdout | from_json) | first | default({})).addr_info | default([]) }}"
+        static_ipv4_live_gateways: >-
+          {{ static_ipv4_route.stdout | from_json | selectattr('dev', 'equalto', static_ipv4.interface)
+             | map(attribute='gateway') | list }}
+
+    - name: Write the static .network file for the primary NIC
+      ansible.builtin.template:
+        src: primary-static.network.j2
+        dest: "/etc/systemd/network/{{ primary_network_file }}"
+        owner: root
+        group: root
+        mode: "0644"
+        backup: true
+      register: static_ipv4_file
+
+    # Here, not through the Reload networkd handler: the check below must see the new config.
+    - name: Reload networkd so the static config takes over  # noqa: no-handler
+      ansible.builtin.command: networkctl reload
+      when: static_ipv4_file is changed
+      changed_when: true
+
+    - name: Wait until networkd holds the address as static, with no DHCPv4 client
+      ansible.builtin.command: "networkctl status --json=short {{ static_ipv4.interface }}"
+      register: static_ipv4_status
+      changed_when: false
+      retries: 10
+      delay: 3
+      until: >-
+        'DHCPv4Client' not in (static_ipv4_status.stdout | from_json)
+        and ((static_ipv4_status.stdout | from_json).Addresses | default([])
+             | selectattr('Family', 'equalto', 2) | selectattr('ConfigSource', 'equalto', 'static')
+             | map(attribute='Address') | map('join', '.') | list) == [static_ipv4.address.split('/') | first]
+
 # ---------- kubelet ----------
 - name: Deploy kubelet config (applies on next k3s restart)
   ansible.builtin.copy:
