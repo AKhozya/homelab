@@ -22,9 +22,10 @@ The table summarises the months before the dated entries below.
 
 | Fact | Evidence |
 |---|---|
-| The eero is the gateway at 192.168.1.1 and hands out Blocky (.129, .126) as DNS | the runbook's stage 2 results; `ipconfig getpacket` on the Mac |
-| The eero's leases last 4 hours (option 51 = 14400 s). The ZTE's never expired | each node's renewed lease |
-| `networkctl reload` switches a node from DHCP to static with no lost ping | immich-vm: 0 of 4081 pings lost at 0.2 s intervals; CP and worker-node: no loss at the switch |
+| The eero is the gateway at 192.168.1.1 and provides Blocky (.129, .126) as DNS | the runbook's stage 2 results; `ipconfig getpacket` on the Mac |
+| The eero's leases last 4 hours (option 51 = 14400 s) | each node's renewed lease |
+| The ZTE's leases have no expiry (option 51 = 0xffffffff) | the nodes' old ZTE leases |
+| The three recorded switches from DHCP to static through `networkctl reload` show no lost ping | immich-vm: 0 of 4081 pings lost at 0.2 s intervals; CP and worker-node: no loss at the switch |
 
 | Change | Why |
 |---|---|
