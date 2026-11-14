@@ -8,6 +8,7 @@
 | renew test on each DHCP node | pass |
 | home router | the eero |
 | ZTE | off; the operator keeps it for rollback |
+| node addresses | static on every node since PRs #1504 to #1506, so the DHCP renew below matters only for the NAS |
 | next | the "After a day" checks |
 
 ## Why

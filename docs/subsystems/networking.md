@@ -46,6 +46,16 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 - Mgmt token in `cloudflare-tunnel-mgmt-token` Secret — expiry tracked in [SECRETS_ROTATION.md](../SECRETS_ROTATION.md)
 - Traffic path gotcha: tunnel hops `cloudflared → Service` directly — Traefik middlewares (CSP/headers/rate-limit) apply to the **internal path only**; external visitors get Cloudflare WAF + whatever the app itself sets (see ARCHITECTURE.md traffic flow)
 
+## LAN
+
+| Item | Value |
+|---|---|
+| Gateway | the eero at 192.168.1.1, since 2026-11-14 ([runbook](../runbooks/lan-router-eero-migration.md)). The ISP router (ZTE) is off and kept for rollback |
+| DHCP pool | .20 to .99; the eero's leases last 4 hours |
+| DNS the eero hands out | Blocky, .129 and .126 (custom DNS in the eero app) |
+| Node addresses | static on each node: CP .127, worker-node .129, worker-node-2 .126, immich-vm .231. Ansible writes the file from `static_ipv4` in host_vars (hardening role, tag `networkd-static`); W2's file is still hand-made. The eero also reserves each address by MAC |
+| NAS | .136 by DHCP; its old ZTE lease never expires, and the eero reserves .136 |
+
 ## DNS chain
 1. LAN client → Blocky LB IP (.129 or .126) :53
 2. Blocky checks ACL → cache → upstream (DoH: Cloudflare Security + Quad9)
