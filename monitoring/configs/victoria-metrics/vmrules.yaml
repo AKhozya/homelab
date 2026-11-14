@@ -1584,8 +1584,7 @@ spec:
       # run one kernel. NodePackageUpgradeFailed cannot see an upgrade that succeeds but skips the
       # kernel, for example if a stale mirror has no new linux-lts. Fires for each node outside
       # the most common release. If two releases tie, topk keeps one of them, so the alert still
-      # fires. The one measured rolling reboot that changed the kernel skewed the nodes for 22
-      # minutes, so `for: 6h` skips a normal run.
+      # fires. `for: 6h` ignores skew that ends within six hours, as during a rolling reboot.
       - alert: NodeKernelSkew
         expr: |
           node_uname_info{job="kube-prometheus-stack-prometheus-node-exporter"}
@@ -1595,10 +1594,10 @@ spec:
         labels:
           severity: warning
         annotations:
-          summary: "{{ $labels.nodename }} runs kernel {{ $labels.release }}, not the most common release"
+          summary: "{{ $labels.nodename }} runs kernel {{ $labels.release }}, unlike other nodes"
           description: |
-            {{ $labels.nodename }} has run kernel {{ $labels.release }} for 6 hours, and another release runs on more nodes.
-            If the nodes split evenly, the alert picks one release as the common one, so check every node.
+            {{ $labels.nodename }} has run kernel {{ $labels.release }} for 6 hours, and other nodes run a different release.
+            The alert compares each node with the release that runs on the most nodes. If two releases tie, it picks one of them, so check every node.
             If the node is behind, its last upgrade skipped the kernel, or it has not rebooted since.
             On the node, compare `pacman -Q linux-lts` (for example 6.18.63-2) with `uname -r` (then 6.18.63-2-lts).
             If the versions are the same, the package is old: check that the first `Server` in
