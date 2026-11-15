@@ -20,7 +20,7 @@ The table summarises the months before the dated entries below.
 
 ### 2026-11-15 — Blocky DNS fallback on the CP, outside Kubernetes
 
-The eero gateway hands out exactly two IPv4 DNS servers, .129 and .126. Both lead to the cluster's Blocky: one Deployment behind k3s servicelb, so a fault in that path leaves the house without DNS. New role `blocky_fallback` runs the same Blocky version on the CP under systemd, on 192.168.1.127. If the eero's secondary DNS moves from .126 to .127, LAN DNS survives a fault in the cluster's path. The fallback keeps no query log, so lookups that reach it are blocked but not logged per device (the operator accepts this).
+The eero gateway hands out exactly two IPv4 DNS servers, .129 and .126. Both lead to the cluster's Blocky: one Deployment behind k3s servicelb, so a fault in that path leaves the house without DNS. New role `blocky_fallback` runs the same Blocky version on the CP under systemd, on 192.168.1.127. If the eero's secondary DNS moves from .126 to .127, LAN DNS survives a fault in the cluster's path. Lookups that reach the fallback are filtered like the cluster's. The fallback keeps no query log, so they do not appear in the per-device logs; the operator accepts this.
 
 | Spike, 2026-11-10 (Blocky v0.36.0, derived config) | Result |
 |---|---|

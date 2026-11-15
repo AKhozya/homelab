@@ -162,8 +162,8 @@ spec:
           name with dashes plus -watchdog; ufw_state.prom comes from ufw-state-metric.service and blocky_fallback.prom
           from blocky-fallback-probe.service."
 
-    # The CP's Blocky fallback (role blocky_fallback) is the router's secondary DNS. LAN clients use it only
-    # when the cluster's Blocky does not answer, so a broken fallback is invisible until then.
+    # The CP's Blocky fallback (role blocky_fallback) serves LAN DNS independently of Kubernetes. If it
+    # breaks while the cluster's Blocky answers, no client notices, so only these alerts show it.
     - alert: BlockyFallbackDown
       expr: blocky_fallback_check{check=~"listener|internal|blocking"} == 0
       for: 5m

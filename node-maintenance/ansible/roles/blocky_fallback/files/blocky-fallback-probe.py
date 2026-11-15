@@ -77,6 +77,8 @@ def run_checks(ask, internal_name, internal_ips):
         "listener": check("healthcheck.blocky", lambda rcode, addrs: True),
         "internal": check(internal_name, lambda rcode, addrs: rcode == 0 and bool(set(addrs) & internal_ips)),
         "blocking": check("doubleclick.net", lambda rcode, addrs: rcode == 0 and addrs == ["0.0.0.0"]),
+        # Blocky can answer example.com from its cache, so if the upstreams fail, this check still
+        # passes until the cached answer expires. BlockyFallbackNoUpstream starts late by that TTL.
         "public": check("example.com", lambda rcode, addrs: rcode == 0 and any(a != "0.0.0.0" for a in addrs)),
     }
 
