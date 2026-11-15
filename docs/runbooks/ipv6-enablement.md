@@ -8,7 +8,7 @@
 
 **Tech stack:** eero app (firmware 7.x), systemd-networkd, UFW, Blocky v0.36.0 (role `blocky_fallback`), node-exporter textfile metrics, VMRule alerts.
 
-**Status:** reviewed (Codex). Task 0 and the spike ran on 2026-11-15. Tasks 1-3 are live (PR #1515, 2026-11-15). Task 4 is in review. The IPv6-on window has not run.
+**Status:** reviewed (Codex). Task 0 and the spike ran on 2026-11-15. Tasks 1-3 are live (PR #1515, 2026-11-15). Task 4 is live (PR #1516, 2026-11-15). The pre-window IPv6 listener check passed on 2026-11-15. The IPv6-on window has not run.
 
 **Spec:** the operator's request of 2026-11-15: research IPv6, find the firewall rules needed on the eero, the homelab and elsewhere, and give a mitigation for each risk. There is no separate spec file.
 
@@ -111,7 +111,7 @@ Ran on 2026-11-15.
 ### Task 3: Blocky fallback over IPv6
 - [ ] If Ansible finds an `fd…::53` address whose valid lifetime is at least `blocky_fallback_v6_min_lifetime` (default 86400 s), `ports.dns` is `node_ip:53` plus `[<that address>]:53`. Otherwise `ports.dns` is `node_ip:53` only. Set `ports.freeBind: true` in both cases.
 - [ ] Do not configure a `[::]:53` wildcard listener. If the spike runs without root, it cannot test coexistence with systemd-resolved on port 53.
-- [ ] Check before any IPv6-on window. It proves the IPv6 listener and the `fc00::/7` UFW rule on the Thread range, which exists with IPv6 off. Run it after the last merge, because each merge starts a normal run, and a normal run removes the test listener.
+- [x] Check before any IPv6-on window. It proves the IPv6 listener and the `fc00::/7` UFW rule on the Thread range, which exists with IPv6 off. Run it after the last merge, because each merge starts a normal run, and a normal run removes the test listener.
 
   | Step | Who | Action | Pass |
   |---|---|---|---|
@@ -120,7 +120,14 @@ Ran on 2026-11-15.
   | 3 | agent | `ss -ulnH 'sport = :53'` on the CP; from the Mac `dig +short @<thread prefix>::53 doubleclick.net`, then `example.com` | Blocky listens on `[<thread prefix>::53]:53`; `0.0.0.0`; an address |
   | 4 | operator | the command below with `TEST=` empty | the listener is gone. If step 4 is skipped, the next 03:00 or 15:00 run removes it |
 
-  Only the command's `--list-tasks` form has run (2026-11-15, without sudo): it selects the blocky_fallback tasks and the report play only.
+  Ran on 2026-11-15:
+
+  | Step | Result |
+  |---|---|
+  | 1 | the CP held `<thread prefix>::53`; the Mac held a stable address in that range |
+  | 2 | recap `unreachable=0 failed=0 changed=3` |
+  | 3 | Blocky listened on `[<thread prefix>::53]:53`; `doubleclick.net` gave `0.0.0.0`; `example.com` resolved; the probe's `listener6` check was 1; Loki held the IPv6 lookup once, with the Mac's stable private address as the client |
+  | 4 | recap `failed=0`; the listener was gone; the probe was back to its 4 IPv4 checks |
 
   ```sh
   TEST='-e blocky_fallback_v6_min_lifetime=0'
@@ -157,7 +164,7 @@ Spike results (2026-11-15):
 | Loki 3.7.10 `-verify-config` on the rendered chart | valid; a broken `period` fails |
 | Bot access | no change: the bot already has `pods/exec` in the `loki` and `blocky` namespaces |
 
-If Blocky has restarted and the CP's new Alloy pod is Ready, run these checks. Lines written before the pod finds the file never reach Loki, so send a fresh lookup first.
+Passed on 2026-11-15 after PR #1516. If Blocky has restarted and the CP's new Alloy pod is Ready, run these checks. Lines written before the pod finds the file never reach Loki, so send a fresh lookup first.
 
 | Where | Command or query | Pass |
 |---|---|---|
