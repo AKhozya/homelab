@@ -8,6 +8,8 @@
 
 **Tech stack:** eero app (firmware 7.x), systemd-networkd, UFW, Blocky v0.36.0 (role `blocky_fallback`), node-exporter textfile metrics, VMRule alerts.
 
+**Status:** reviewed (Codex, 4 rounds), not yet run. Task 0 and the spike are still open.
+
 **Spec:** the operator's request of 2026-11-15: research IPv6, find the firewall rules needed on the eero, the homelab and elsewhere, and give a mitigation for each risk. There is no separate spec file.
 
 ## Global Constraints
@@ -42,13 +44,13 @@
 
 | Layer | Risk with IPv6 on | Control 1 | Control 2 | Proof |
 |---|---|---|---|---|
-| eero gateway | the internet reaches LAN devices directly | the eero's stateful inbound block (default; eero support documents an opt-in "IPv6 Firewall Rules" list) | keep that list empty | W6: external probe with a positive control |
+| eero gateway | the internet reaches LAN devices directly | the eero's stateful inbound block (default; eero support documents an opt-in "IPv6 Firewall Rules" list) | keep that list empty | W2b: external probe with a positive control |
 | eero DNS | the eero announces Google's IPv6 DNS, so lookups skip Blocky | the fallback's address in the eero's IPv6 DNS field | alert `BlockyIPv6DNSBypass` from the CP's own RA read | W7: packet capture shows client lookups reach the fallback |
 | CP (fallback host) | gains a global address. sshd, 6443, 10250 and node-exporter listen on `[::]` | UFW active for IPv6, default deny; no allow rule without a source | the only IPv6 allow is DNS from `fc00::/7` (private ranges) | W5: LAN test to a CP listener over the global address is refused by UFW |
 | worker-node, worker-node-2, immich-vm | gain global EUI-64 addresses, which expose the MAC and are reachable if the eero fails | `UseAutonomousPrefix=no`: no SLAAC addresses at all | UFW as on the CP | W4: `ip -6 addr show scope global` is empty |
 | NAS (no host firewall, not in Ansible) | gains a global address with SMB, web UI and SSH on it | the operator sets `ipv6.method link-local` | the eero inbound block | W4: no global address |
 | Pods / CoreDNS | RA DNS reaches the node's resolv.conf, and CoreDNS forwards to an IPv6 server it cannot reach | `[IPv6AcceptRA] UseDNS=no` drop-in on all nodes | pods have no IPv6 route, so a connect fails at once (⚠️ inferred) | W2: node `resolv.conf` unchanged; CoreDNS answers |
-| Other home devices (TVs, consoles, plugs, Apple) | reachable only if the eero firewall fails | the eero inbound block | none: they have no host control we manage | W6 covers the eero |
+| Other home devices (TVs, consoles, plugs, Apple) | reachable only if the eero firewall fails | the eero inbound block | none: they have no host control we manage | W2b covers the eero |
 | Blocky fallback process | if its IPv6 address is missing at boot, the IPv4 listener dies too | `ports.freeBind: true` | systemd restarts it | spike T3b |
 | Loss of the only IPv6 DNS server | if the CP is down, lookups over IPv6 time out | clients keep the IPv4 servers .129 and .127 from DHCP | alert `BlockyFallbackDown` | W8: stop the fallback, time a fresh lookup |
 | Per-device logs | the fallback keeps none. Apple rotates its IPv6 addresses daily, so attribution is weak whichever Blocky answers | Task 4 option | — | — |
@@ -58,7 +60,7 @@
 
 | # | Assumption | Tier | Validate in |
 |---|---|---|---|
-| A1 | The eero drops unsolicited inbound IPv6 by default | ✅ eero support + staff post | W6 (must pass) |
+| A1 | The eero drops unsolicited inbound IPv6 by default | ✅ eero support + staff post | W2b (must pass) |
 | A2 | The private range with a ≈30-day lifetime belongs to the eero and appears only while IPv6 is on | ⚠️ inferred from the 00:40 captures | W3: `ndp -pn` names the gateway's link-local address |
 | A3 | The Thread hubs withdraw their range (1800 s lifetime) once another on-link prefix exists | 🟡 OpenThread source | W9 (after more than 30 min) |
 | A4 | The eero accepts a private (fd…) address in the IPv6 DNS field | ⚠️ no source | W7 |
@@ -80,7 +82,7 @@
 - [ ] On each node, run `networkctl cat <primary>` and expect `UseDNS=no` under `[IPv6AcceptRA]`. Run `resolvectl dns` and expect only 1.1.1.1 and 9.9.9.9.
 - [ ] Record the `ss -tulnH` listeners on `[::]` on each node.
 - [ ] On the NAS, record `nmcli -g ipv6.method connection show <conn>` (used for its revert) and its `[::]` listeners.
-- [ ] Run the CP spike `v6spike.sh` (unprivileged, high ports). T2: does a `[::]` wildcard coexist with a held IPv4 socket? T3/T3b: a missing address without and with `freeBind`. T4: an unreachable Postgres log. T5: the console log line.
+- [ ] Run the CP spike `v6spike.sh` (unprivileged, high ports). T3/T3b: a missing address without and with `freeBind`. T4: an unreachable Postgres log. T5: the console log line.
 - Abort rule: if A6 or A7 fails, fix it in Task 1 or Task 2 before anything else.
 
 ### Task 1: Node IPv6 addressing (hardening role)
@@ -93,12 +95,13 @@
 ### Task 2: UFW
 - [ ] In `host_vars/gmk-k3s-control-plane.yml` `ufw_rules_host`, add `{comment: "Blocky fallback DNS over IPv6 from private ranges", rule: allow, from_ip: "fc00::/7", to_port: 53, proto: udp}` and the same rule for tcp.
 - [ ] `roles/firewall` asserts `IPV6=yes` and fails if it is missing. It does not rewrite the value, because that needs `ufw disable` and `enable`.
-- [ ] `roles/firewall` refuses an allow rule that names no source.
+- [ ] `roles/firewall` refuses an allow rule with no source in the input lists `ufw_rules_base`, `ufw_rules_group` and `ufw_rules_host`. It does not check `ufw_rules_absent`, whose no-source entries delete old rules. It does not check the route lists either, such as worker-node-2's `{rule: allow, to_ip: 10.42.0.0/16}`, which names an IPv4 destination and so creates no IPv6 rule.
 - [ ] Check: `ufw show added` lists the two IPv6 rules, and no other IPv6 allow rule exists.
 
 ### Task 3: Blocky fallback over IPv6
-- [ ] If spike T2 shows that `[::]:53` coexists with systemd-resolved: `ports.dns` is the list `node_ip:53`, `[::]:53`. UFW limits the sources.
-- [ ] If T2 fails: `ports.dns` is `node_ip:53` plus `[<live ULA>::53]:53` when Ansible finds an `fd…::53` address with a valid lifetime of at least 1 day; otherwise IPv4 only. `ports.freeBind: true` in both cases.
+- [ ] If Ansible finds an `fd…::53` address whose valid lifetime is at least `blocky_fallback_v6_min_lifetime` (default 86400 s), `ports.dns` is `node_ip:53` plus `[<that address>]:53`. Otherwise `ports.dns` is `node_ip:53` only. Set `ports.freeBind: true` in both cases.
+- [ ] Do not configure a `[::]:53` wildcard listener. If the spike runs without root, it cannot test coexistence with systemd-resolved on port 53.
+- [ ] Check before any IPv6-on window: the operator runs the config once with `-e blocky_fallback_v6_min_lifetime=0`, so the fallback binds the CP's `::53` address in the Thread range. Before the test, check that the CP holds `<thread prefix>::53` (from Task 1) and that the Mac holds a different address in the same range (`ifconfig en0`). From the Mac, `dig @<thread ULA>::53 doubleclick.net` gives `0.0.0.0`. This proves the IPv6 listener and the `fc00::/7` UFW rule. The next normal run removes that listener.
 - [ ] `tests/test-render.yml`: one case with a live ULA, one without.
 - [ ] The probe queries the IPv6 listener too. As root, it also sends a Router Solicitation and parses the RDNSS option into `blocky_fallback_ra_rdnss{state="fallback_only|other|none"}`.
 - [ ] VMRules: `BlockyIPv6DNSBypass` fires if RDNSS holds any address other than the fallback's (`for: 10m`). `BlockyFallbackV6Down` fires if the IPv6 listener does not answer.
@@ -119,16 +122,16 @@ Recommendation: A. Apple's rotating addresses make per-device attribution weak w
 ### Task 6: The IPv6-on window (operator and agent)
 | Step | Who | Action | Pass | If it fails |
 |---|---|---|---|---|
-| W0 | agent | print the watcher, resume note and revert path; start the watcher; record the eero DNS and IPv6 settings | printed | — |
+| W0 | operator + agent | The agent checks SSH to every node and the NAS. The operator keeps 1Password unlocked for the whole window, because most steps need SSH. The agent prints the watcher, resume note and revert path, starts the watcher, and records the eero DNS and IPv6 settings | SSH works everywhere; all printed | do not start |
 | W1 | operator | eero → Settings → Advanced networking → IPv6 → on; wait about 5 min | the watcher logs "back" | revert |
 | W2 | agent | nodes Ready; CoreDNS answers; each node's `resolv.conf` unchanged | all hold | revert |
+| W2b | operator + agent | Mac: `python3 -m http.server --bind :: 8099`. The CP reaches it over the Mac's global address (LAN control). The phone on mobile data confirms IPv6 at test-ipv6.com. The operator adds a temporary eero IPv6 firewall rule for the Mac port 8099; the phone loads the page (positive control). The operator deletes the rule; the phone retries. **On every exit from W2b, pass or fail:** the operator deletes the temporary rule. The operator confirms the eero's IPv6 firewall rule list is empty. The agent stops the HTTP server | page loads with the rule, fails without it; the rule list is empty at the end | do the exit cleanup, then revert |
 | W3 | agent | Mac `ndp -pn` and `route -n get -inet6 default`: which router announces each prefix | the ≈30-day range comes from the gateway's link-local | stop: no stable range, so revert (or redesign on the ISP prefix) |
-| W3b | agent | trigger `node-maintenance-config` on the CP; check the fallback listens on `<eero ULA>::53`; from the Mac, `dig @<eero ULA>::53 example.com` and `doubleclick.net` | example.com resolves; doubleclick.net gives `0.0.0.0` | revert |
+| W3b | operator + agent | the operator runs `sudo systemctl start node-maintenance-config.service` on the CP; the agent checks that the fallback listens on `<eero ULA>::53`; from the Mac, `dig @<eero ULA>::53 example.com` and `doubleclick.net` | example.com resolves; doubleclick.net gives `0.0.0.0` | revert |
 | W4 | agent | global addresses: workers and immich-vm none; NAS none; CP `::53` | all hold | revert |
 | W5 | agent | from the Mac: `nc -6 -z -w3 <CP global address> 9100` (node-exporter listens on `[::]`) | refused or timed out; the same from the CP itself to `[::1]:9100` succeeds | revert; fix UFW |
-| W6 | operator + agent | Mac: `python3 -m http.server --bind :: 8099`. The CP reaches it over the Mac's global address (LAN control). The phone on mobile data confirms IPv6 at test-ipv6.com. The operator adds a temporary eero IPv6 firewall rule for the Mac port 8099; the phone loads the page (positive control). The operator deletes the rule; the phone retries. **On every exit from W6, pass or fail:** the operator deletes the temporary rule. The operator confirms the eero's IPv6 firewall rule list is empty. The agent stops the HTTP server | page loads with the rule, fails without it; the rule list is empty at the end | do the exit cleanup, then revert |
 | W7 | operator + agent | operator types `<eero ULA>::53` into IPv6 DNS 1, field 2 empty. Mac `scutil --dns` lists only that IPv6 server. Operator runs `sudo tcpdump -ni en0 'port 53'` on the Mac while the agent looks up a fresh random allowed name and a fresh random blocked name | the capture shows queries to the fallback's address; the blocked name gives `0.0.0.0`; no query to a public server | if a public server appears: fill field 2 with the same address and repeat; if it stays, revert |
-| W8 | operator + agent | This models a CP that is down, which answers no DNS at all and sends no reply. On the CP, the operator adds four temporary rules: `sudo iptables -I INPUT 1 -p udp --dport 53 -j DROP`, the same with `-p tcp`, and the same two with `ip6tables`. The operator starts `sudo tcpdump -ni en0 'port 53'` on the Mac. The agent times a fresh random lookup through the Mac's normal resolver (`dscacheutil -q host -a name <random>.example.com`). After either outcome, the operator deletes all four: `sudo iptables -D INPUT -p udp --dport 53 -j DROP`, `sudo iptables -D INPUT -p tcp --dport 53 -j DROP`, `sudo ip6tables -D INPUT -p udp --dport 53 -j DROP`, `sudo ip6tables -D INPUT -p tcp --dport 53 -j DROP` | the lookup answers within 5 s; the capture shows the answer came from .129; `iptables -S INPUT` and `ip6tables -S INPUT` show no DROP rule for port 53 at the end | delete the rules, then revert |
+| W8 | operator + agent | This models a CP that is down, which answers no DNS at all and sends no reply. On the CP, the operator adds four temporary rules: `sudo iptables -I INPUT 1 -i <primary interface> -p udp --dport 53 -j DROP`, the same with `-p tcp`, and the same two with `ip6tables`. Each rule names the primary interface, so loopback DNS (systemd-resolved on 127.0.0.53) keeps working. The operator starts `sudo tcpdump -ni en0 'port 53'` on the Mac. The agent times a fresh random lookup through the Mac's normal resolver (`dscacheutil -q host -a name <random>.example.com`). After either outcome, the operator deletes all four: `sudo iptables -D INPUT -i <primary interface> -p udp --dport 53 -j DROP`, `sudo iptables -D INPUT -i <primary interface> -p tcp --dport 53 -j DROP`, `sudo ip6tables -D INPUT -i <primary interface> -p udp --dport 53 -j DROP`, `sudo ip6tables -D INPUT -i <primary interface> -p tcp --dport 53 -j DROP` | the lookup answers within 5 s; the capture shows the answer came from .129; `iptables -S INPUT` and `ip6tables -S INPUT` show no DROP rule for port 53 at the end | delete the rules, then revert |
 | W9 | operator + agent | after more than 30 min, restart the eero network from the app; re-run W3 and W7's `scutil` check; probe metric `fallback_only` | the private range is unchanged | revert |
 | W10 | operator | keep IPv6, or revert | — | — |
 
