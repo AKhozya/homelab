@@ -53,7 +53,7 @@ spec:
             - name: heal
               # alpine/git bundles the openssh client, so the pod needs no runtime apk
               # install and its egress stays limited to the NAS and DNS.
-              image: alpine/git:2.54.0
+              image: alpine/git:v2.54.1
               command: ["sh", "/heal/immich-vm-heal.sh"]
               env:
                 - name: HOME
