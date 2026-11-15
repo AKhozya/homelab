@@ -68,6 +68,13 @@
   notify: Restart blocky-fallback
   tags: [blocky-fallback]
 
+# The copy above validates only when the config changes. If only blocky_fallback_version moves, the
+# new binary would start on the old config unchecked, so check it here on every run.
+- name: Validate the installed config with the installed binary
+  ansible.builtin.command: "{{ blocky_fallback_bin }} validate --config {{ blocky_fallback_config }}"
+  changed_when: false
+  tags: [blocky-fallback]
+
 - name: Install blocky-fallback.service
   ansible.builtin.template:
     src: blocky-fallback.service.j2

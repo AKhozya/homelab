@@ -13,10 +13,11 @@
 #   post-firewall (all, parallel): hardening, nic_tuning, security_scan, ad_hoc.
 #   Immich GPU node (virtual): immich_gpu_node.
 #   workers only: firewall_preflight, clusterip_heal, node_isolation_heal.
-#   control-plane only: clusterip_heal_cp, blocky_fallback, kubectl proxy removal.
+#   control-plane only: clusterip_heal_cp, kubectl proxy removal.
 #   report a firewall rescue or an unverified CNI heal (all).
 #   k3s version (control-plane): queue the rolling restart if a node runs another version than
 #       k3s_version; fail if that version is refused.
+#   Blocky fallback (control-plane), last: if it fails, no earlier play loses the CP.
 
 - name: Node config drift-heal — non-disruptive (all hosts, parallel)
   hosts: all
@@ -95,9 +96,6 @@
     # future hang into a give-up alert. If ClusterIP DNAT stays broken after a reboot, a CP-pinned pod
     # (e.g. uptime-kuma) stays DNS-dead without this role.
     - role: clusterip_heal_cp
-    # A second LAN DNS server outside Kubernetes; the router's secondary DNS. Its config comes from
-    # apps/blocky/config.yml in the CP's checkout, so this play must run after the sync's git pull.
-    - role: blocky_fallback
   tasks:
     # This unit serves `kubectl proxy` as root with the admin kubeconfig on 127.0.0.1:8001 and no
     # auth: any local process, hostNetwork pods included, gets cluster-admin. No playbook uses it.
@@ -181,3 +179,13 @@
       when:
         - k3s_version_verdict == 'upgrade'
         - not ansible_check_mode
+
+# A second LAN DNS server outside Kubernetes; the router's secondary DNS. Its own play, last: if the
+# role fails, Ansible drops the CP from every later play, so nothing may follow it. Its config
+# comes from apps/blocky/config.yml in the CP's checkout, so it runs after the sync's git pull.
+- name: Node config drift-heal — Blocky fallback (control-plane)
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  roles:
+    - role: blocky_fallback
