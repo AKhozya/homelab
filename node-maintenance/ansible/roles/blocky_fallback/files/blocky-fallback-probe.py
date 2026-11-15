@@ -11,7 +11,7 @@ Checks, each blocky_fallback_check{check=...} 1 or 0:
 
 With --ra-iface, it also sends a Router Solicitation and reads the DNS servers (RDNSS, RFC 8106) that
 the routers announce, because a client that takes any other server skips Blocky over IPv6:
-  blocky_fallback_ra_heard 1 if any router advertisement arrived in this run.
+  blocky_fallback_ra_heard If a router advertisement arrives during this run, 1; otherwise 0.
   blocky_fallback_ra_rdnss{state=...} 1 for the current state, 0 for the others:
     none           no announced DNS server is still valid
     fallback_only  every valid announced server is --server6
