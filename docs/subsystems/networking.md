@@ -53,7 +53,7 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 | Gateway | the eero at 192.168.1.1 ([runbook](../runbooks/lan-router-eero-migration.md)) |
 | ISP router (ZTE) | off. The operator keeps it for rollback |
 | DHCP pool | .20 to .99; the eero's leases last 4 hours |
-| DNS the eero provides | Blocky, .129 and .126 (custom DNS in the eero app) |
+| DNS the eero provides | .129 (cluster Blocky) and .127 (CP Blocky fallback), custom DNS in the eero app |
 | Node addresses | static on each node: CP .127, worker-node .129, worker-node-2 .126, immich-vm .231. Ansible writes the file from `static_ipv4` in host_vars (hardening role, tag `networkd-static`); W2's file is still hand-made. The eero also reserves each address by MAC |
 | NAS address | .136 by DHCP, a 4-hour lease from the eero |
 | NAS reservation | the eero reserves .136 for the NAS |
@@ -64,7 +64,7 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 | Setting | Value | Why |
 |---|---|---|
 | DHCP & NAT | Manual IP, 192.168.1.0/24, pool .20 to .99 | 80 addresses cover about 40 devices. The fixed addresses are outside the pool |
-| DNS | custom: .129 and .126; IPv6 fields empty | Blocky has no IPv6 address |
+| DNS | custom: .129 and .127; IPv6 fields empty | Blocky has no IPv6 address |
 | Local DNS caching | off | if on, the eero answers DNS itself, and Blocky logs every query as the eero's |
 | IPv6 | off | the Mac gets private IPv6 addresses and IPv6 routers but lists only .129 and .126 as DNS servers. The NAS lists no IPv6 DNS server. These observations date from 2026-11-15. If you turn IPv6 on, the eero restarts the network. Check the DNS servers on the Mac again afterwards |
 | UPnP | off | it lets any LAN device open an inbound port with no login. If a console reports a strict NAT type, turn it back on |
@@ -82,9 +82,9 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 | eero DNS entry | Address | Server |
 |---|---|---|
 | primary | 192.168.1.129 | cluster Blocky |
-| secondary | 192.168.1.126 | cluster Blocky. If it changes to 192.168.1.127, the **CP Blocky fallback** |
+| secondary | 192.168.1.127 | **CP Blocky fallback** |
 
-**CP Blocky fallback** (role `blocky_fallback`): a systemd service on the CP, outside Kubernetes. If the eero's secondary DNS changes to 192.168.1.127, LAN clients can use the fallback during a cluster Blocky failure (servicelb, kube-proxy, both pods).
+**CP Blocky fallback** (role `blocky_fallback`): a systemd service on the CP, outside Kubernetes. LAN clients use the fallback during a cluster Blocky failure (servicelb, kube-proxy, both pods).
 
 | Fact | Value |
 |---|---|
