@@ -197,6 +197,45 @@ spec:
         description: "blocky_fallback_check is absent. On the CP: systemctl list-timers blocky-fallback-probe.timer and
           journalctl -u blocky-fallback-probe."
 
+    # IPv6 (docs/runbooks/ipv6-enablement.md). If the fallback has no IPv6 listener, the probe omits
+    # listener6, so this alert has no series.
+    - alert: BlockyFallbackV6Down
+      expr: blocky_fallback_check{check="listener6"} == 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Blocky fallback on the CP does not answer over IPv6"
+        description: "The fallback's private IPv6 ::53 listener gives no DNS reply. If the eero's IPv6 DNS field
+          names it, IPv6 lookups wait for a timeout. On the CP: ip -6 addr show scope global, systemctl status
+          blocky-fallback. If the eero's private prefix changed, start node-maintenance-config.service."
+
+    - alert: BlockyIPv6DNSBypass
+      # The CP sends a Router Solicitation every minute and keeps each announced DNS server until its
+      # lifetime ends, as clients do.
+      # Any server other than the fallback's IPv6 address lets IPv6 clients skip Blocky's blocking.
+      expr: blocky_fallback_ra_rdnss{state="other"} == 1
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "A router announces an IPv6 DNS server that is not Blocky"
+        description: "Router advertisements on the LAN name a DNS server other than the CP fallback's IPv6
+          address, so IPv6 clients can skip ad blocking. Check the IPv6 DNS fields in the eero app. If they are
+          empty, the eero announces Google's servers."
+
+    - alert: BlockyFallbackRAProbeBlind
+      # If the probe hears no RA and stores no valid server, it sets every RDNSS state to 0, so
+      # BlockyIPv6DNSBypass cannot fire.
+      expr: max_over_time(blocky_fallback_ra_heard[1h]) == 0
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "The CP has heard no router advertisement for an hour"
+        description: "blocky-fallback-probe heard no RA after any solicitation in the last hour, so
+          BlockyIPv6DNSBypass is blind. On the CP: journalctl -u blocky-fallback-probe, networkctl status."
+
     - alert: NodeSystemdUnitFailed
       # A failed unit keeps that state until its next start or a reset-failed. If a service runs
       # every 10 minutes and its next run succeeds, the state clears before `for` ends.

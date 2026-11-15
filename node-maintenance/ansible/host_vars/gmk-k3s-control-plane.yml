@@ -30,6 +30,15 @@ nic_tuning_force_speed: 1000
 ufw_rules_host:
   - { comment: "Blocky fallback DNS from LAN", rule: allow, from_ip: 192.168.1.0/24, to_port: 53, proto: udp }
   - { comment: "Blocky fallback DNS from LAN", rule: allow, from_ip: 192.168.1.0/24, to_port: 53, proto: tcp }
+  # fc00::/7 is the private IPv6 range. The fallback listens on the eero's private prefix only.
+  - { comment: "Blocky fallback DNS over IPv6 from private ranges", rule: allow, from_ip: "fc00::/7", to_port: 53, proto: udp }
+  - { comment: "Blocky fallback DNS over IPv6 from private ranges", rule: allow, from_ip: "fc00::/7", to_port: 53, proto: tcp }
+
+# ---- IPv6 (hardening role, 50-ipv6.conf) ----
+# The CP takes an address on private prefixes only, always ending in ::53, for the fallback's IPv6
+# listener and the eero's IPv6 DNS field. The prefix is read live and never committed.
+ipv6_ra_accept_addresses: true
+ipv6_token: "static:::53"
 
 # ---- claude-telegram bot SSH key (base_config forced command) ----
 # Public key of the bot pod's identity. Setting this makes base_config install

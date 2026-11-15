@@ -148,6 +148,28 @@
     msg: "ufw drift gate: drift_detected={{ ufw_drift_detected }} current_fp={{ ufw_current_fp.stdout[:12] }}"
   tags: [firewall]
 
+- name: Run the rule-list guards
+  ansible.builtin.include_tasks:
+    file: guards.yml
+    apply:
+      tags: [firewall]
+  tags: [firewall]
+
+- name: Read /etc/default/ufw
+  ansible.builtin.slurp:
+    src: /etc/default/ufw
+  register: _ufw_default_file
+  tags: [firewall]
+
+- name: Check that UFW filters IPv6
+  ansible.builtin.include_tasks:
+    file: ipv6-check.yml
+    apply:
+      tags: [firewall]
+  vars:
+    firewall_ufw_default_text: "{{ _ufw_default_file.content | b64decode }}"
+  tags: [firewall]
+
 # If both lists hold a rule, one task adds it and the next deletes it, and the
 # lists no longer say what the node runs.
 - name: Assert no rule is both present and absent

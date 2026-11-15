@@ -16,6 +16,8 @@
       drops clientLookup, so it would answer those clients differently. Extend roles/blocky_fallback first.
     quiet: true
 
+# If a listener's address is missing, Blocky exits, IPv4 listener included, unless ports.freeBind is
+# true. The IPv6 address is missing at boot until the router advertisement arrives.
 # redis, clientLookup and the Postgres query log all need the cluster. An absent queryLog means
 # `console` in v0.36, which writes every query to the journal, so the type is set to `none`.
 - name: Derive the fallback config
@@ -25,7 +27,11 @@
          | rejectattr('key', 'in', ['redis', 'clientLookup', 'prometheus', 'queryLog', 'ports'])
          | items2dict
          | combine({
-             'ports': {'dns': blocky_fallback_listen_ip ~ ':53'},
+             'ports': {
+               'dns': [blocky_fallback_listen_ip ~ ':53']
+                      + (['[' ~ blocky_fallback_listen_ip6 ~ ']:53'] if blocky_fallback_listen_ip6 else []),
+               'freeBind': true
+             },
              'queryLog': {'type': 'none'},
              'blocking': {'loading': {'downloads': {'cachePath': blocky_fallback_cache_dir}}}
            }, recursive=True) }}

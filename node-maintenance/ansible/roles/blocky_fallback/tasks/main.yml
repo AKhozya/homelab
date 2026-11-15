@@ -46,6 +46,21 @@
   register: _blocky_source
   tags: [blocky-fallback]
 
+- name: Read the CP's global IPv6 addresses
+  ansible.builtin.command: "ip -6 -j addr show dev {{ blocky_fallback_iface }} scope global"
+  register: _blocky_ip6
+  changed_when: false
+  tags: [blocky-fallback]
+
+- name: Pick the IPv6 listener address
+  ansible.builtin.include_tasks:
+    file: v6addr.yml
+    apply:
+      tags: [blocky-fallback]
+  vars:
+    blocky_fallback_ip6_json: "{{ _blocky_ip6.stdout }}"
+  tags: [blocky-fallback]
+
 - name: Render the fallback config
   ansible.builtin.include_tasks:
     file: render.yml

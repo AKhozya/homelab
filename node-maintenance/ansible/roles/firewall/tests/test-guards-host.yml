@@ -1,0 +1,11 @@
+---
+# One host: load its vars files in order, later files winning as in the inventory. group_vars/all.yml
+# comes first and sets ufw_rules_group and ufw_rules_host to [], so no list leaks from the last host.
+# Do not set_fact these lists: set_fact outranks include_vars and would hide the next host's list.
+- name: Load the vars of {{ var_files | last }}
+  ansible.builtin.include_vars:
+    file: "{{ _vars }}/{{ item }}"
+  loop: "{{ var_files }}"
+
+- name: Guards for {{ var_files | last }}
+  ansible.builtin.include_tasks: ../tasks/guards.yml

@@ -10,6 +10,7 @@
     node_ip: 192.168.1.127
     blocky_fallback_listen_ip: "{{ node_ip }}"
     blocky_fallback_cache_dir: /var/cache/blocky-fallback
+    blocky_fallback_listen_ip6: ""
     _source_path: "{{ playbook_dir }}/../../../../../apps/blocky/config.yml"
     blocky_fallback_source_text: "{{ lookup('ansible.builtin.file', _source_path) }}"
   tasks:
@@ -26,7 +27,7 @@
           - "'clientLookup' not in out"
           - "'prometheus' not in out"
           - "out.queryLog == {'type': 'none'}"
-          - "out.ports == {'dns': '192.168.1.127:53'}"
+          - "out.ports == {'dns': ['192.168.1.127:53'], 'freeBind': true}"
           - out.blocking.loading.downloads.cachePath == '/var/cache/blocky-fallback'
           # Everything that decides an answer is carried over unchanged.
           - out.customDNS == src.customDNS
@@ -55,6 +56,7 @@
     node_ip: 192.168.1.127
     blocky_fallback_listen_ip: "{{ node_ip }}"
     blocky_fallback_cache_dir: /var/cache/blocky-fallback
+    blocky_fallback_listen_ip6: ""
     blocky_fallback_source_text: |
       blocking:
         clientGroupsBlock:
@@ -72,3 +74,78 @@
         - name: The guard fired
           ansible.builtin.assert:
             that: "'clientGroupsBlock' in ansible_failed_result.msg"
+
+- name: With an IPv6 address, the fallback listens on both
+  hosts: localhost
+  gather_facts: false
+  vars:
+    node_ip: 192.168.1.127
+    blocky_fallback_listen_ip: "{{ node_ip }}"
+    blocky_fallback_listen_ip6: "fd00:db8:1::53"
+    blocky_fallback_cache_dir: /var/cache/blocky-fallback
+    blocky_fallback_source_text: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../../../../../apps/blocky/config.yml') }}"
+  tasks:
+    - name: Render
+      ansible.builtin.include_tasks: ../tasks/render.yml
+    - name: Check the listeners
+      ansible.builtin.assert:
+        that: "blocky_fallback_rendered.ports == {'dns': ['192.168.1.127:53', '[fd00:db8:1::53]:53'], 'freeBind': true}"
+
+    # Template rendering trims the newline after a block tag, which can join the next directive onto
+    # ExecStart. Each directive must stay on its own line, with and without an IPv6 listener.
+    - name: Render the probe unit
+      vars:
+        blocky_fallback_iface: enp3s0
+        blocky_fallback_listen_ip6: "{{ item }}"
+      ansible.builtin.set_fact:
+        _unit_lines: "{{ _unit_lines | default({}) | combine({item: lookup('ansible.builtin.template', '../templates/blocky-fallback-probe.service.j2').splitlines()}) }}"
+      loop: ["fd00:db8:1::53", ""]
+    - name: Check the probe unit lines
+      ansible.builtin.assert:
+        that:
+          - "'TimeoutStartSec=1min' in _unit_lines['']"
+          - "'TimeoutStartSec=1min' in _unit_lines['fd00:db8:1::53']"
+          - "(_unit_lines[''] | select('match', '^ExecStart=') | first).endswith('--ra-iface enp3s0 --state /var/lib/blocky-fallback-probe/rdnss.json')"
+          - "(_unit_lines['fd00:db8:1::53'] | select('match', '^ExecStart=') | first).endswith('--state /var/lib/blocky-fallback-probe/rdnss.json --server6 fd00:db8:1::53')"
+
+# ip6-addr.json keeps the shape of `ip -6 -j addr show dev enp3s0 scope global` on the CP (2026-11-15),
+# including its trailing empty {} entry, with the prefixes replaced by documentation ones.
+# Last: v6addr.yml sets blocky_fallback_listen_ip6 with set_fact, which outranks the play vars above.
+- name: The IPv6 address pick
+  hosts: localhost
+  gather_facts: false
+  vars:
+    _json: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/ip6-addr.json') }}"
+  tasks:
+    - name: Default lifetime floor
+      ansible.builtin.include_tasks: ../tasks/v6addr.yml
+      vars:
+        blocky_fallback_ip6_json: "{{ _json }}"
+        blocky_fallback_v6_min_lifetime: 86400
+    - name: The long-lived private ::53 address wins
+      ansible.builtin.assert:
+        that: blocky_fallback_listen_ip6 == 'fd00:db8:2::53'
+    - name: Floor 0
+      ansible.builtin.include_tasks: ../tasks/v6addr.yml
+      vars:
+        blocky_fallback_ip6_json: "{{ _json }}"
+        blocky_fallback_v6_min_lifetime: 0
+    - name: Still the longest-lived one
+      ansible.builtin.assert:
+        that: blocky_fallback_listen_ip6 == 'fd00:db8:2::53'
+    - name: Floor above every lifetime
+      ansible.builtin.include_tasks: ../tasks/v6addr.yml
+      vars:
+        blocky_fallback_ip6_json: "{{ _json }}"
+        blocky_fallback_v6_min_lifetime: 99999999
+    - name: No address
+      ansible.builtin.assert:
+        that: blocky_fallback_listen_ip6 == ''
+    - name: No IPv6 address on the NIC at all
+      ansible.builtin.include_tasks: ../tasks/v6addr.yml
+      vars:
+        blocky_fallback_ip6_json: "[]"
+        blocky_fallback_v6_min_lifetime: 0
+    - name: Empty
+      ansible.builtin.assert:
+        that: blocky_fallback_listen_ip6 == ''

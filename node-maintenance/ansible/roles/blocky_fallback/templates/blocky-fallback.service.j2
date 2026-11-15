@@ -7,8 +7,9 @@ After=network-online.target
 [Service]
 ExecStart={{ blocky_fallback_bin }} serve --config {{ blocky_fallback_config }}
 DynamicUser=yes
-# Port 53 is the only privilege it needs. It binds {{ blocky_fallback_listen_ip }}:53, not 0.0.0.0:53,
-# because systemd-resolved holds 127.0.0.53:53 and 127.0.0.54:53.
+# Port 53 is the only privilege it needs. It binds {{ blocky_fallback_listen_ip }}:53 and, if the CP
+# holds one, its private IPv6 ::53 address, not a wildcard, because systemd-resolved holds
+# 127.0.0.53:53 and 127.0.0.54:53.
 AmbientCapabilities=CAP_NET_BIND_SERVICE
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 NoNewPrivileges=yes
@@ -27,7 +28,7 @@ CacheDirectory=blocky-fallback
 # ~90 MB measured with the full lists.
 CPUQuota=100%
 MemoryMax=512M
-# If the bind fails because the NIC address is not up yet, systemd retries.
+# ports.freeBind covers an address that is not up yet. Restart covers any other exit.
 Restart=always
 RestartSec=5
 

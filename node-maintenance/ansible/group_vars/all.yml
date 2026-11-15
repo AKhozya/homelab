@@ -192,3 +192,8 @@ ufw_rules_group: []
 ufw_rules_host: []
 ufw_route_rules_group: []
 ufw_route_rules_host: []
+
+# IPv6 router advertisements (hardening role, drop-in 50-ipv6.conf on the primary NIC).
+# false: the node takes no SLAAC address. The CP sets true in host_vars so the Blocky fallback gets
+# a fixed private address. Plan: docs/runbooks/ipv6-enablement.md.
+ipv6_ra_accept_addresses: false
