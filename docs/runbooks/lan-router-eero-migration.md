@@ -442,7 +442,7 @@ If the eero refuses a renew, the node can lose its address until the eero gives 
 | devices do not reconnect after step 4 | check the surviving network's name and password in the app |
 | a node does not ping 192.168.1.1 after step 1 | put the wall cable back into the Office eero |
 
-**Results (2026-11-14, 23:15 to 23:55):**
+**Results (2026-11-14, 23:12 to 23:55):**
 
 | Step | Time | Observation |
 |---|---|---|
@@ -466,7 +466,7 @@ If the eero refuses a renew, the node can lose its address until the eero gives 
 | `kubectl get nodes` | 4 Ready |
 | the tunnel and public apps | the tunnel pods run; the apps answer |
 
-Inference, not tested: without a cable on the Cupboard eero's LAN port, the Office switch reaches the gateway only through the Office eero's wireless link. If that eero resets, the Office switch loses the gateway.
+Inference, not tested: if no cable connects the Cupboard eero's LAN port to the MS308, the Office switch reaches the gateway only through the Office eero's wireless link. If that eero then resets, the Office switch loses the gateway.
 
 | Lesson | Check |
 |---|---|
