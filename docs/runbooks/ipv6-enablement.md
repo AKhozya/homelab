@@ -8,7 +8,7 @@
 
 **Tech stack:** eero app (firmware 7.x), systemd-networkd, UFW, Blocky v0.36.0 (role `blocky_fallback`), node-exporter textfile metrics, VMRule alerts.
 
-**Status:** reviewed (Codex). Task 0 and the spike ran on 2026-11-15. Tasks 1-3 are live (PR #1515, 2026-11-15). Task 4 is live (PR #1516, 2026-11-15). The pre-window IPv6 listener check passed on 2026-11-15. The IPv6-on window has not run.
+**Status:** reviewed (Codex). Task 0 and the spike ran on 2026-11-15. Tasks 1-3 are live (PR #1515, 2026-11-15). Task 4 is live (PR #1516, 2026-11-15). The pre-window IPv6 listener check passed on 2026-11-15. Tasks 5 and 6 ran on 2026-11-15: IPv6 is on, and the operator chose to keep it (W10).
 
 **Spec:** the operator's request of 2026-11-15: research IPv6, find the firewall rules needed on the eero, the homelab and elsewhere, and give a mitigation for each risk. There is no separate spec file.
 
@@ -26,7 +26,7 @@
 
 | Question | State |
 |---|---|
-| Is IPv6 worth it? | The gains are small (see [Benefit](#benefit)). The operator said go on 2026-11-15, and decides to keep IPv6 or turn it off at the end of Task 6 |
+| Is IPv6 worth it? | The gains are small (see [Benefit](#benefit)). The operator said go on 2026-11-15 and chose to keep IPv6 after the window (W10, 2026-11-15) |
 | Per-device logs for IPv6 lookups | option B, Loki for 7 days (operator, 2026-11-15) |
 | Prefix in the repo | no: Ansible reads it live (operator, 2026-11-15) |
 
@@ -60,22 +60,22 @@
 
 | # | Assumption | Tier | Validate in |
 |---|---|---|---|
-| A1 | The eero drops unsolicited inbound IPv6 by default | ✅ eero support + staff post | W2b (must pass) |
-| A2 | The private range with a ≈30-day lifetime belongs to the eero and appears only while IPv6 is on | 🟡 Task 0: all 4 nodes still hold it, its valid lifetime counting down from 30 days since 00:47, so no router has refreshed it with IPv6 off | W3: `ndp -pn` names the gateway's link-local address |
-| A3 | The Thread hubs withdraw their range (1800 s lifetime) once another on-link prefix exists | 🟡 OpenThread source | W9 (after more than 30 min) |
-| A4 | The eero accepts a private (fd…) address in the IPv6 DNS field | ⚠️ no source | W7 |
-| A5 | If one IPv6 DNS field is filled, the eero adds no public server | ⚠️ no source | W7 |
+| A1 | The eero drops unsolicited inbound IPv6 by default | ✅ W2b: an outside port check failed with no rule, passed with a rule, failed again after it was deleted | — |
+| A2 | The private range with a ≈30-day lifetime belongs to the eero and appears only while IPv6 is on | ✅ W3: the gateway's link-local address announces it with a fresh 30-day lifetime. W9: unchanged after a network restart | — |
+| A3 | The Thread hubs withdraw their range (1800 s lifetime) once another on-link prefix exists | ❌ after an hour the CP still held one Thread range. Harmless: the listener binds only an address that lasts at least a day | — |
+| A4 | The eero accepts a private (fd…) address in the IPv6 DNS field | ✅ W7: the app saved it | — |
+| A5 | If one IPv6 DNS field is filled, the eero adds no public server | ✅ W7: the advert's RDNSS option holds only that address. With both fields empty the eero announced Google's two servers | — |
 | A6 | The `UseDNS=no` drop-in is live on all 4 nodes | ✅ Task 0: `resolvectl dns` lists only 1.1.1.1 and 9.9.9.9, no link has a server | — |
 | A7 | UFW filters IPv6 on all 4 nodes (`IPV6=yes`, ip6 chains loaded) | ✅ Task 0: `IPV6=yes`; `ufw6-user-input` exists and is empty on all 4 | — |
 | A8 | A UFW rule `from fc00::/7` creates an IPv6 rule only | ✅ ufw parser | Task 2 check |
 | A9 | With `freeBind`, Blocky listens on a missing IPv6 address and IPv4 keeps answering | ✅ spike T3b; T6 with the rendered config and full lists. Without `freeBind` (T3) the whole process exits | — |
 | A10 | `UseAutonomousPrefix=no` stops SLAAC addresses | ✅ man page | Task 1 check |
-| A11 | Clients use their private source address to reach a private DNS address | ✅ RFC 6724 | W7 capture |
+| A11 | Clients use their private source address to reach a private DNS address | ✅ RFC 6724. Not seen in W7: the Mac sent every query to its IPv4 servers | — |
 | A12 | Hyperoptic's /56 is static | 🟡 forum | not needed if A2 holds |
 | A13 | Turning IPv6 off removes the Google DNS servers from clients | ✅ observed 2026-11-15 00:50 (Mac lists IPv4 only; NAS lists no IPv6 DNS) | revert checks |
 | A14 | `PrefixAllowList=fc00::/7` matches every prefix inside fc00::/7, not only that exact prefix | ✅ systemd source, `address_is_filtered` uses `in_addr_prefix_covers` since v250; nodes run 262 | W4 |
 | A15 | Routers answer the probe's Router Solicitation with IPv6 off | ✅ probe run as root on the CP: `ra_heard 1`, `state="none"` | — |
-| A16 | The probe's RDNSS parser reads the eero's real RA | 🟡 it reads the 3 RAs captured from the Thread routers (no RDNSS option). No eero RA exists yet | W3: capture one and add it to `tests/ras.json`, masked |
+| A16 | The probe's RDNSS parser reads the eero's real RA | ✅ live: it read Google's two servers, then only the fallback's, with their lifetimes. The masked fixture is still to add (HOMELAB_ANALYSIS deadline row) | — |
 
 ## Tasks
 
@@ -176,9 +176,10 @@ Passed on 2026-11-15 after PR #1516. If Blocky has restarted and the CP's new Al
 | cluster | the `loki` ConfigMap; the 4 Alloy pods | it holds the `retention_stream` rule; all Ready, no `loki.source.file` errors in their logs |
 
 ### Task 5: NAS (the operator, by hand)
-- [ ] Run `sudo nmcli connection modify "Wired connection 2" ipv6.method link-local && sudo nmcli connection up "Wired connection 2"`. The NAS connection goes down briefly, and so does immich-vm's connection through it, so run it in a quiet hour.
-- [ ] Check: `ip -6 -br addr show dev enp90s0 scope global` is empty.
-- Revert: `sudo nmcli connection modify "Wired connection 2" ipv6.method auto && sudo nmcli connection up "Wired connection 2"`.
+Ran on 2026-11-15 with `device reapply`, which applies the change without taking the link down. A watcher saw no drop for the NAS or immich-vm.
+- [x] `sudo nmcli connection modify "Wired connection 2" ipv6.method link-local && sudo nmcli device reapply enp90s0`.
+- [x] Check: `ip -6 -br addr show dev enp90s0 scope global` is empty.
+- Revert: `sudo nmcli connection modify "Wired connection 2" ipv6.method auto && sudo nmcli device reapply enp90s0`.
 
 ### Task 6: The IPv6-on window (operator and agent)
 | Step | Who | Action | Pass | If it fails |
@@ -204,10 +205,27 @@ Passed on 2026-11-15 after PR #1516. If Blocky has restarted and the CP's new Al
 
 The repo changes stay harmless with IPv6 off, because the eero does not announce the IPv6 DNS address.
 
+### Task 6 results (2026-11-15)
+
+| Step | Result |
+|---|---|
+| W0 | SSH to every node and the NAS. eero before: custom DNS .129/.127, IPv6 DNS fields empty, IPv6 off, IPv6 firewall rule list empty |
+| W1 | IPv6 on at 21:21. Internet down 21:21–21:24; the LAN dropped for about 24 s |
+| W2 | 4 nodes Ready; each node's DNS is still only 1.1.1.1 and 9.9.9.9 |
+| W2b | The phone's mobile network has no IPv6, and Private Relay refuses an address-only URL, so an online IPv6 port checker on the Mac is the outside tester. No rule: fails. A rule for the Mac on TCP 8099: passes. Rule deleted: fails. An eero rule covers one IPv6 address, the one the device last used outbound |
+| W3 | the gateway announces the private range (30 days) and the ISP's /64. Thread routers announce their own ranges (1800 s) |
+| W3b | the 21:24 node-config run (started by a merge) added the `<private range>::53` listener; it answers and blocks |
+| W4 | no global address on the workers, immich-vm or the NAS. The CP holds private addresses only |
+| W5 | from the Mac to the CP's private address: 9100, 22, 65300, 6443 and 10250 blocked; 53 answers |
+| W7 | the app accepted the address. The advert's RDNSS holds only it; the probe moved to `fallback_only` once the old servers' lifetimes ran out. Capture: 129 queries, all to .129 and .127, none to a public server; blocked names gave `0.0.0.0` |
+| W8 | a transient unit dropped DNS on the CP for 60 s (IPv4 and IPv6) and then removed its rules. Mac lookups took at most 0.05 s |
+| W9 | after a network restart (LAN down about 3 min) the private range, the CP's `::53` address and `fallback_only` are unchanged |
+| W10 | keep IPv6 on. UPnP is off; no device answers UPnP discovery, and PCP and NAT-PMP are refused |
+
 ### Task 7: Docs and review rows
-- [ ] `networking.md`: the LAN and eero settings tables.
-- [ ] HISTORY entry.
-- [ ] Monthly review rows: the eero IPv6 firewall rule list is empty, and the private range is unchanged.
+- [x] `networking.md`: the LAN and eero settings tables.
+- [x] HISTORY entry.
+- [x] Monthly review rows: the eero IPv6 firewall rule list is empty, UPnP is off, and the private range is unchanged.
 
 ## Review Focus
 
