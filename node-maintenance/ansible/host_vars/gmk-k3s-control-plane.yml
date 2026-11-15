@@ -25,6 +25,12 @@ admin_user: akhozya
 nic_tuning_iface: enp3s0
 nic_tuning_force_speed: 1000
 
+# ---- Blocky DNS fallback (role blocky_fallback) ----
+# LAN only: a rule without a source would also open port 53 on the CP's public IPv6 address.
+ufw_rules_host:
+  - { comment: "Blocky fallback DNS from LAN", rule: allow, from_ip: 192.168.1.0/24, to_port: 53, proto: udp }
+  - { comment: "Blocky fallback DNS from LAN", rule: allow, from_ip: 192.168.1.0/24, to_port: 53, proto: tcp }
+
 # ---- claude-telegram bot SSH key (base_config forced command) ----
 # Public key of the bot pod's identity. Setting this makes base_config install
 # /usr/local/bin/agent-diag and pin this key to it with command=…,restrict, so the key serves

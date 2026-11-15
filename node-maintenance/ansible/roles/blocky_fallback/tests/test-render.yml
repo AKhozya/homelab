@@ -1,0 +1,74 @@
+---
+# Runs the role's config transform (tasks/render.yml) on the real apps/blocky/config.yml.
+# Run from the repo root:
+#   ansible-playbook -i localhost, -c local node-maintenance/ansible/roles/blocky_fallback/tests/test-render.yml
+# Optional: -e render_out=/path/config.yml writes the rendered config, for `blocky validate` or the schema check.
+- name: Blocky fallback config transform
+  hosts: localhost
+  gather_facts: false
+  vars:
+    node_ip: 192.168.1.127
+    blocky_fallback_listen_ip: "{{ node_ip }}"
+    blocky_fallback_cache_dir: /var/cache/blocky-fallback
+    _source_path: "{{ playbook_dir }}/../../../../../apps/blocky/config.yml"
+    blocky_fallback_source_text: "{{ lookup('ansible.builtin.file', _source_path) }}"
+  tasks:
+    - name: Render
+      ansible.builtin.include_tasks: ../tasks/render.yml
+
+    - name: Check the derived config
+      vars:
+        src: "{{ blocky_fallback_source_text | from_yaml }}"
+        out: "{{ blocky_fallback_rendered }}"
+      ansible.builtin.assert:
+        that:
+          - "'redis' not in out"
+          - "'clientLookup' not in out"
+          - "'prometheus' not in out"
+          - "out.queryLog == {'type': 'none'}"
+          - "out.ports == {'dns': '192.168.1.127:53'}"
+          - out.blocking.loading.downloads.cachePath == '/var/cache/blocky-fallback'
+          # Everything that decides an answer is carried over unchanged.
+          - out.customDNS == src.customDNS
+          - out.conditional == src.conditional
+          - out.upstreams == src.upstreams
+          - out.bootstrapDns == src.bootstrapDns
+          - out.blocking.denylists == src.blocking.denylists
+          - out.blocking.allowlists == src.blocking.allowlists
+          - out.blocking.clientGroupsBlock == src.blocking.clientGroupsBlock
+          - out.blocking.blockType == src.blocking.blockType
+          - out.blocking.loading.refreshPeriod == src.blocking.loading.refreshPeriod
+          - out.blocking.loading.downloads.attempts == src.blocking.loading.downloads.attempts
+          - out.caching == src.caching
+
+    - name: Write the rendered config
+      ansible.builtin.copy:
+        content: "{{ blocky_fallback_rendered | to_nice_yaml(indent=2, width=1000) }}"
+        dest: "{{ render_out }}"
+        mode: "0644"
+      when: render_out is defined
+
+- name: The guard refuses a client group keyed by a name
+  hosts: localhost
+  gather_facts: false
+  vars:
+    node_ip: 192.168.1.127
+    blocky_fallback_listen_ip: "{{ node_ip }}"
+    blocky_fallback_cache_dir: /var/cache/blocky-fallback
+    blocky_fallback_source_text: |
+      blocking:
+        clientGroupsBlock:
+          default: [default]
+          laptop: [default]
+  tasks:
+    - name: Render a config with a named client group
+      block:
+        - name: Render
+          ansible.builtin.include_tasks: ../tasks/render.yml
+        - name: The guard did not fire
+          ansible.builtin.fail:
+            msg: render.yml accepted a client group other than default
+      rescue:
+        - name: The guard fired
+          ansible.builtin.assert:
+            that: "'clientGroupsBlock' in ansible_failed_result.msg"

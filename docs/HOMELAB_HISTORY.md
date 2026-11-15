@@ -18,6 +18,24 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-15 — Blocky DNS fallback on the CP, outside Kubernetes
+
+The eero gateway hands out exactly two IPv4 DNS servers, .129 and .126. Both lead to the cluster's Blocky: one Deployment behind k3s servicelb, so a fault in that path leaves the house without DNS. New role `blocky_fallback` runs the same Blocky version on the CP under systemd, on 192.168.1.127. If the eero's secondary DNS moves from .126 to .127, LAN DNS survives a fault in the cluster's path. Lookups that reach the fallback are filtered like the cluster's. The fallback keeps no query log, so they do not appear in the per-device logs; the operator accepts this.
+
+| Spike, 2026-11-10 (Blocky v0.36.0, derived config) | Result |
+|---|---|
+| answers vs the cluster | identical: trackers 0.0.0.0; referral hosts, TikTok uploader, `h0melab.work`, App Store Connect, GitHub resolve |
+| start without Redis, Postgres or cluster DNS | healthy in ~12 s, ~90 MB RSS |
+| `queryLog` removed | v0.36 then logs every query to the console; the role sets `type: none` |
+| list CDN down at restart | `downloads.cachePath` loaded all 241,481 entries from disk |
+| `blocky validate` | rc=0 for the derived config, rc=1 for a broken one |
+
+| Rejected | Why |
+|---|---|
+| HaGeZi public DNS as the secondary | it does not answer `h0melab.work` or `home.h0melab.work` |
+| floating IP across nodes | DNS still runs in Kubernetes |
+| Blocky on the NAS | not managed by Ansible or git |
+
 ### 2026-11-14 — LAN: the eero replaces the ISP router; every node gets a static IPv4 address
 
 | Fact | Evidence |

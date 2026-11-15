@@ -1,0 +1,127 @@
+---
+# blocky_fallback: a second LAN DNS server on the CP, run by systemd, not Kubernetes. The router's
+# secondary DNS points here, so LAN DNS survives a failure of the cluster's Blocky path (servicelb,
+# kube-proxy, both pods). Same version, lists and customDNS as apps/blocky/config.yml.
+# Wired in node-config.yml on hosts: control_plane. Firewall rule: host_vars/gmk-k3s-control-plane.yml.
+
+- name: Create the Blocky download and install directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - /var/cache/node-maintenance/blocky
+    - "{{ blocky_fallback_install_dir }}/{{ blocky_fallback_version }}"
+    - "{{ blocky_fallback_config | dirname }}"
+  tags: [blocky-fallback]
+
+# The checksum file comes from the same release, so this checks the transfer, not the publisher:
+# the same trust as the cluster's tag-pinned image.
+- name: Download the Blocky release
+  ansible.builtin.get_url:
+    url: "https://github.com/0xERR0R/blocky/releases/download/{{ blocky_fallback_version }}/blocky_{{ blocky_fallback_version }}_Linux_x86_64.tar.gz"
+    dest: "/var/cache/node-maintenance/blocky/blocky_{{ blocky_fallback_version }}_Linux_x86_64.tar.gz"
+    checksum: "sha256:https://github.com/0xERR0R/blocky/releases/download/{{ blocky_fallback_version }}/blocky_checksums.txt"
+    owner: root
+    group: root
+    mode: "0644"
+  tags: [blocky-fallback]
+
+- name: Unpack the Blocky binary
+  ansible.builtin.unarchive:
+    src: "/var/cache/node-maintenance/blocky/blocky_{{ blocky_fallback_version }}_Linux_x86_64.tar.gz"
+    dest: "{{ blocky_fallback_install_dir }}/{{ blocky_fallback_version }}"
+    remote_src: true
+    include: [blocky]
+    creates: "{{ blocky_fallback_bin }}"
+    owner: root
+    group: root
+  tags: [blocky-fallback]
+
+- name: Read the cluster Blocky config from the CP checkout
+  ansible.builtin.slurp:
+    src: "{{ blocky_fallback_source_config }}"
+  register: _blocky_source
+  tags: [blocky-fallback]
+
+- name: Render the fallback config
+  ansible.builtin.include_tasks:
+    file: render.yml
+    apply:
+      tags: [blocky-fallback]
+  vars:
+    blocky_fallback_source_text: "{{ _blocky_source.content | b64decode }}"
+  tags: [blocky-fallback]
+
+# If `blocky validate` rejects the new file, the task fails, the old file stays, and the running
+# service keeps serving.
+- name: Install the fallback config
+  ansible.builtin.copy:
+    content: "{{ blocky_fallback_rendered | to_nice_yaml(indent=2, width=1000) }}"
+    dest: "{{ blocky_fallback_config }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: "{{ blocky_fallback_bin }} validate --config %s"
+  notify: Restart blocky-fallback
+  tags: [blocky-fallback]
+
+# The copy above validates only when the config changes. If only blocky_fallback_version moves, the
+# new binary would start on the old config unchecked, so check it here on every run.
+- name: Validate the installed config with the installed binary
+  ansible.builtin.command: "{{ blocky_fallback_bin }} validate --config {{ blocky_fallback_config }}"
+  changed_when: false
+  tags: [blocky-fallback]
+
+- name: Install blocky-fallback.service
+  ansible.builtin.template:
+    src: blocky-fallback.service.j2
+    dest: /etc/systemd/system/blocky-fallback.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart blocky-fallback
+  tags: [blocky-fallback]
+
+- name: Ensure the node-exporter textfile directory
+  ansible.builtin.file:
+    path: /var/lib/node_exporter/textfile
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [blocky-fallback]
+
+- name: Install the fallback probe
+  ansible.builtin.copy:
+    src: blocky-fallback-probe.py
+    dest: /usr/local/sbin/blocky-fallback-probe.py
+    owner: root
+    group: root
+    mode: "0755"
+  tags: [blocky-fallback]
+
+- name: Install the probe service and timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - blocky-fallback-probe.service
+    - blocky-fallback-probe.timer
+  tags: [blocky-fallback]
+
+- name: Enable and start blocky-fallback.service and the probe timer
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop:
+    - blocky-fallback.service
+    - blocky-fallback-probe.timer
+  tags: [blocky-fallback]

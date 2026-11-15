@@ -76,8 +76,24 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 | Amazon Connected Home | state not read | the operator does not use it |
 
 ## DNS chain
-1. LAN client → Blocky LB IP (.129 or .126) :53
+1. LAN client → the DNS servers the eero's DHCP hands out, port 53: the two IPv4 entries of the eero's custom DNS, its only two (table below)
 2. Blocky checks ACL → cache → upstream (DoH: Cloudflare Security + Quad9)
+
+| eero DNS entry | Address | Server |
+|---|---|---|
+| primary | 192.168.1.129 | cluster Blocky |
+| secondary | 192.168.1.126 | cluster Blocky. If it changes to 192.168.1.127, the **CP Blocky fallback** |
+
+**CP Blocky fallback** (role `blocky_fallback`): a systemd service on the CP, outside Kubernetes. If the eero's secondary DNS changes to 192.168.1.127, LAN clients can use the fallback during a cluster Blocky failure (servicelb, kube-proxy, both pods).
+
+| Fact | Value |
+|---|---|
+| Config | derived from `apps/blocky/config.yml` on every node-config run: same lists, allowlists, `customDNS`. Drops Redis, the Postgres query log, `clientLookup` and metrics; `queryLog: none` |
+| Guard | the run fails if `blocking.clientGroupsBlock` has a key other than `default`, because the fallback cannot match client names |
+| Safety | `blocky validate` gates each new config; an invalid one leaves the old config running |
+| Version | `blocky_fallback_version` in the role defaults; Renovate bumps it 7 days after release, separately from `spx01/blocky` |
+| Alerts | `BlockyFallbackDown`, `BlockyFallbackNoUpstream`, `BlockyFallbackProbeMissing`, from a 1-minute DNS probe (`blocky_fallback.prom`) |
+| Not covered | a valid config change that resolves wrongly reaches both copies within one sync |
 3. Nodes (containerd, system) → systemd-resolved → **public DNS 1.1.1.1 / 9.9.9.9** — **NOT blocky** (breaks the node→blocky→kube-proxy-servicelb circular dep at boot). resolved stays uplink-mode (real IPs, not 127.0.0.53); networkd `UseDNS=no` drops the DHCP/RA-supplied blocky DNS, a resolved global drop-in supplies public.
 4. Cluster pods → CoreDNS (`10.43.0.10`); `forward . /etc/resolv.conf` → node resolv.conf (= public, per step 3). Pods snapshot resolv.conf at creation → `rollout restart ds/coredns-ha` after any node-DNS change. coredns-ha is a **DaemonSet** — a node-local replica on every node except immich-vm, whose taint it does not tolerate (a soft topologySpread kept skewing; a node with 0 local replicas + VXLAN issue = total pod-DNS loss there). PDB `minAvailable: 1` + updateStrategy `maxUnavailable: 1`.
 5. Mac per-domain resolver `/etc/resolver/h0melab.work` forces `*.h0melab.work` to LAN IPs (bypasses VPN-pushed public DNS)

@@ -17,6 +17,7 @@
 #   report a firewall rescue or an unverified CNI heal (all).
 #   k3s version (control-plane): queue the rolling restart if a node runs another version than
 #       k3s_version; fail if that version is refused.
+#   Blocky fallback (control-plane), last: if it fails, no earlier play loses the CP.
 
 - name: Node config drift-heal — non-disruptive (all hosts, parallel)
   hosts: all
@@ -178,3 +179,13 @@
       when:
         - k3s_version_verdict == 'upgrade'
         - not ansible_check_mode
+
+# A second LAN DNS server outside Kubernetes; the router's secondary DNS. Its own play, last: if the
+# role fails, Ansible drops the CP from every later play, so nothing may follow it. Its config
+# comes from apps/blocky/config.yml in the CP's checkout, so it runs after the sync's git pull.
+- name: Node config drift-heal — Blocky fallback (control-plane)
+  hosts: control_plane
+  become: true
+  gather_facts: false
+  roles:
+    - role: blocky_fallback

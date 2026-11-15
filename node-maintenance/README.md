@@ -16,7 +16,7 @@ Telegram messages reuse the `backup-replication/backup-telegram` bot.
 ## Drift-heal (Ansible)
 
 `ansible/node-config.yml` declares each node's configuration. It runs from the CP against all four
-nodes and applies these 14 roles in order:
+nodes and applies these 15 roles in order:
 
 | Role | Nodes | What it manages |
 |---|---|---|
@@ -34,6 +34,7 @@ nodes and applies these 14 roles in order:
 | `clusterip_heal` | workers | a watchdog: if a probe through a ClusterIP fails (a stuck DNAT rule after a reboot), it restarts `k3s-agent`. Journal tag `clusterip-heal`. |
 | `node_isolation_heal` | the two physical workers | if a worker loses the CP, it first restarts `k3s-agent`, then reboots itself on a staggered timer. Active since 2026-07-23. |
 | `clusterip_heal_cp` | CP | a watchdog that probes CoreDNS from inside a pod's network namespace; if the probe fails, it restarts K3s with `timeout 120`. Journal tag `clusterip-heal-cp`. |
+| `blocky_fallback` | CP | runs a second Blocky DNS server under systemd on 192.168.1.127:53, outside Kubernetes, for the eero's secondary DNS. Its config comes from `apps/blocky/config.yml`; `blocky validate` gates each change. |
 
 | Setting | Value |
 |---|---|
