@@ -1,8 +1,8 @@
 ---
-# Fails unless firewall_ufw_default_text (the text of /etc/default/ufw) sets IPV6=yes.
+# If firewall_ufw_default_text (the text of /etc/default/ufw) does not set IPV6=yes, this fails.
 # If IPV6=no, UFW writes no ip6tables rules, so the node's IPv6 addresses take every connection.
-# Check only: changing the value needs `ufw disable` and `ufw enable`, a full firewall reload, which
-# has cut worker-node-2 off the cluster before. tests/test-guards.yml includes this file too.
+# This only checks. A change needs `ufw disable` and `ufw enable`, a full firewall reload, and a full
+# reload can isolate worker-node-2 from the cluster. tests/test-guards.yml includes this file too.
 # `is not none`: an assert condition must be a boolean, and regex_search returns the match text.
 - name: Assert UFW filters IPv6
   ansible.builtin.assert:

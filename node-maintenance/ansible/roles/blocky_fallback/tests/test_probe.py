@@ -112,13 +112,14 @@ class ParseRA(unittest.TestCase):
     # Hand-built bytes. Replace with an RA captured from the eero once IPv6 is on (plan W3).
     def test_rdnss_after_a_prefix_option(self):
         self.assertEqual(probe.parse_ra_rdnss(ra(PIO, rdnss_opt(300, "fd00:db8:2::53", "2001:4860:4860::8888"))),
-                         ["fd00:db8:2::53", "2001:4860:4860::8888"])
+                         [("fd00:db8:2::53", 300), ("2001:4860:4860::8888", 300)])
 
     def test_no_rdnss(self):
         self.assertEqual(probe.parse_ra_rdnss(ra(PIO)), [])
 
-    def test_zero_lifetime_is_a_withdrawal(self):
-        self.assertEqual(probe.parse_ra_rdnss(ra(rdnss_opt(0, "2001:4860:4860::8888"))), [])
+    def test_zero_lifetime_is_kept_as_a_withdrawal(self):
+        self.assertEqual(probe.parse_ra_rdnss(ra(rdnss_opt(0, "2001:4860:4860::8888"))),
+                         [("2001:4860:4860::8888", 0)])
 
     def test_zero_length_option_is_rejected(self):
         with self.assertRaises(ValueError):
@@ -145,7 +146,41 @@ class CapturedRA(unittest.TestCase):
 
     def test_captured_ra_with_rdnss_appended(self):
         ra = bytes.fromhex(json.loads((HERE / "ras.json").read_text())[0]["ra_hex"])
-        self.assertEqual(probe.parse_ra_rdnss(ra + rdnss_opt(300, "fd00:db8:2::53")), ["fd00:db8:2::53"])
+        self.assertEqual(probe.parse_ra_rdnss(ra + rdnss_opt(300, "fd00:db8:2::53")), [("fd00:db8:2::53", 300)])
+
+
+class MergeRdnss(unittest.TestCase):
+    G = "2001:4860:4860::8888"
+
+    def test_a_later_reply_without_the_server_keeps_it(self):
+        known = probe.merge_rdnss({}, [(self.G, 600)], now=1000)
+        # The next run hears only the Thread routers, which announce no RDNSS.
+        known = probe.merge_rdnss(known, [], now=1060)
+        self.assertEqual(probe.rdnss_state(set(known), "fd00:db8:2::53"), "other")
+
+    def test_the_server_expires_at_its_lifetime(self):
+        known = probe.merge_rdnss({}, [(self.G, 600)], now=1000)
+        self.assertIn(self.G, probe.merge_rdnss(known, [], now=1599))
+        self.assertEqual(probe.merge_rdnss(known, [], now=1600), {})
+
+    def test_zero_lifetime_withdraws_it(self):
+        known = probe.merge_rdnss({}, [(self.G, 600)], now=1000)
+        self.assertEqual(probe.merge_rdnss(known, [(self.G, 0)], now=1060), {})
+
+    def test_all_ones_never_expires(self):
+        known = probe.merge_rdnss({}, [(self.G, 0xFFFFFFFF)], now=1000)
+        self.assertIn(self.G, probe.merge_rdnss(known, [], now=10**12))
+
+    def test_state_file_round_trip_and_bad_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = str(pathlib.Path(d) / "rdnss.json")
+            self.assertEqual(probe.load_state(path), {})
+            probe.save_state(path, {self.G: float("inf"), "fd00:db8:2::53": 2000.0})
+            back = probe.load_state(path)
+            self.assertEqual(back["fd00:db8:2::53"], 2000.0)
+            self.assertIn(self.G, probe.merge_rdnss(back, [], now=10**12))
+            pathlib.Path(path).write_text("[1, 2]")
+            self.assertEqual(probe.load_state(path), {})
 
 
 class RdnssState(unittest.TestCase):
@@ -170,6 +205,11 @@ class WriteRAMetrics(unittest.TestCase):
         self.assertIn("blocky_fallback_ra_heard 1\n", text)
         self.assertIn('blocky_fallback_ra_rdnss{state="other"} 1\n', text)
         self.assertIn('blocky_fallback_ra_rdnss{state="none"} 0\n', text)
+
+    def test_a_stored_bypass_shows_while_nothing_is_heard(self):
+        text = self.metrics((False, "other"))
+        self.assertIn("blocky_fallback_ra_heard 0\n", text)
+        self.assertIn('blocky_fallback_ra_rdnss{state="other"} 1\n', text)
 
     def test_nothing_heard_sets_no_state(self):
         text = self.metrics((False, "none"))

@@ -197,8 +197,8 @@ spec:
         description: "blocky_fallback_check is absent. On the CP: systemctl list-timers blocky-fallback-probe.timer and
           journalctl -u blocky-fallback-probe."
 
-    # IPv6 (docs/runbooks/ipv6-enablement.md). The probe writes listener6 only while the fallback has an
-    # IPv6 listener, so this stays silent with IPv6 off.
+    # IPv6 (docs/runbooks/ipv6-enablement.md). If the fallback has no IPv6 listener, the probe omits
+    # listener6, so this alert has no series.
     - alert: BlockyFallbackV6Down
       expr: blocky_fallback_check{check="listener6"} == 0
       for: 5m
@@ -211,7 +211,8 @@ spec:
           blocky-fallback. If the eero's private prefix changed, start node-maintenance-config.service."
 
     - alert: BlockyIPv6DNSBypass
-      # The CP sends a Router Solicitation every minute and reads the DNS servers the routers announce.
+      # The CP sends a Router Solicitation every minute and keeps each announced DNS server until its
+      # lifetime ends, as clients do.
       # Any server other than the fallback's IPv6 address lets IPv6 clients skip Blocky's blocking.
       expr: blocky_fallback_ra_rdnss{state="other"} == 1
       for: 10m
@@ -224,7 +225,8 @@ spec:
           empty, the eero announces Google's servers."
 
     - alert: BlockyFallbackRAProbeBlind
-      # Without a heard RA, blocky_fallback_ra_rdnss is all 0 and BlockyIPv6DNSBypass cannot fire.
+      # If the probe hears no RA and stores no valid server, it sets every RDNSS state to 0, so
+      # BlockyIPv6DNSBypass cannot fire.
       expr: max_over_time(blocky_fallback_ra_heard[1h]) == 0
       for: 15m
       labels:

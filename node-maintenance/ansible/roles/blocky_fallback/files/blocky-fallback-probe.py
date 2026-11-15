@@ -13,12 +13,16 @@ With --ra-iface, it also sends a Router Solicitation and reads the DNS servers (
 the routers announce, because a client that takes any other server skips Blocky over IPv6:
   blocky_fallback_ra_heard 1 if any router advertisement arrived. With 0, the state below is unknown.
   blocky_fallback_ra_rdnss{state=...} 1 for the current state, 0 for the others:
-    none           the routers announce no DNS server
-    fallback_only  every announced server is --server6
-    other          a router announces a server that is not --server6
+    none           no announced DNS server is still valid
+    fallback_only  every valid announced server is --server6
+    other          a valid announced server is not --server6
+A client keeps an announced server until its lifetime ends, even if one later RA leaves it out. So
+the probe keeps each server in --state until its lifetime ends or a router withdraws it (lifetime 0),
+and one missed reply does not hide a bypass.
 """
 
 import argparse
+import json
 import os
 import random
 import socket
@@ -79,7 +83,7 @@ def query(server, name):
 
 
 def parse_ra_rdnss(msg):
-    """Return the RDNSS addresses with a non-zero lifetime in a router advertisement.
+    """Return [(address, lifetime)] for every RDNSS address in a router advertisement.
 
     msg is the ICMPv6 message as a raw socket returns it. Raise ValueError if it is not a well-formed RA.
     """
@@ -93,17 +97,18 @@ def parse_ra_rdnss(msg):
         if i + olen > len(msg):
             raise ValueError("option runs past the end")
         # A zero lifetime tells the host to stop using these servers.
-        if otype == ND_OPT_RDNSS and olen >= 24 and struct.unpack(">I", msg[i + 4:i + 8])[0] > 0:
+        if otype == ND_OPT_RDNSS and olen >= 24:
+            lifetime = struct.unpack(">I", msg[i + 4:i + 8])[0]
             for j in range(i + 8, i + olen - 15, 16):
-                addrs.append(socket.inet_ntop(socket.AF_INET6, msg[j:j + 16]))
+                addrs.append((socket.inet_ntop(socket.AF_INET6, msg[j:j + 16]), lifetime))
         i += olen
     return addrs
 
 
 def solicit_rdnss(iface):
-    """Send a Router Solicitation on iface and collect RAs for RA_WAIT_S. Return (heard, rdnss)."""
+    """Send a Router Solicitation on iface and collect RAs for RA_WAIT_S. Return (heard, [(addr, lifetime)])."""
     ifindex = socket.if_nametoindex(iface)
-    heard, rdnss = False, set()
+    heard, rdnss = False, []
     with socket.socket(socket.AF_INET6, socket.SOCK_RAW, socket.IPPROTO_ICMPV6) as s:
         # RFC 4861 hosts and routers drop ND packets whose hop limit is not 255.
         s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_HOPS, 255)
@@ -121,11 +126,36 @@ def solicit_rdnss(iface):
             if msg[:1] != bytes([ICMPV6_RA]):
                 continue
             try:
-                rdnss.update(parse_ra_rdnss(msg))
+                rdnss.extend(parse_ra_rdnss(msg))
                 heard = True
             except ValueError:
                 continue
     return heard, rdnss
+
+
+def merge_rdnss(known, seen, now):
+    """known maps address -> expiry time. Apply the (address, lifetime) pairs in seen and drop
+    what has expired. 0xFFFFFFFF means no expiry (RFC 8106)."""
+    known = dict(known)
+    for addr, lifetime in seen:
+        known[addr] = float("inf") if lifetime == 0xFFFFFFFF else now + lifetime
+    # A withdrawal (lifetime 0) expires at once here.
+    return {a: e for a, e in known.items() if e > now}
+
+
+def load_state(path):
+    try:
+        with open(path) as f:
+            return {a: float(e) for a, e in json.load(f).items()}
+    except (OSError, ValueError, AttributeError):
+        return {}
+
+
+def save_state(path, known):
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".rdnss.")
+    with os.fdopen(fd, "w") as f:
+        json.dump({a: (e if e != float("inf") else 1e18) for a, e in known.items()}, f)
+    os.replace(tmp, path)
 
 
 def rdnss_state(rdnss, fallback6):
@@ -168,7 +198,9 @@ def write_metrics(path, results, ra=None):
             "# HELP blocky_fallback_ra_rdnss 1 for the state of the DNS servers that routers announce.",
             "# TYPE blocky_fallback_ra_rdnss gauge",
         ]
-        lines += [f'blocky_fallback_ra_rdnss{{state="{s}"}} {int(heard and s == state)}'
+        # If nothing was heard and no stored server is valid, the state is unknown: all three are 0.
+        known = heard or state != "none"
+        lines += [f'blocky_fallback_ra_rdnss{{state="{s}"}} {int(known and s == state)}'
                   for s in ("fallback_only", "none", "other")]
     # node-exporter must never read a half-written file.
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".blocky_fallback.")
@@ -186,6 +218,7 @@ def main():
     p.add_argument("--out", required=True)
     p.add_argument("--server6", default="", help="the IPv6 listener; empty if there is none")
     p.add_argument("--ra-iface", default="", help="send a Router Solicitation on this NIC")
+    p.add_argument("--state", default="", help="JSON file that keeps announced DNS servers between runs")
     a = p.parse_args()
     results = run_checks(lambda n: query(a.server, n), a.internal_name, set(a.internal_ips.split(",")))
     if a.server6:
@@ -197,10 +230,14 @@ def main():
     ra = None
     if a.ra_iface:
         try:
-            heard, rdnss = solicit_rdnss(a.ra_iface)
+            heard, seen = solicit_rdnss(a.ra_iface)
         except OSError:
-            heard, rdnss = False, set()
-        ra = (heard, rdnss_state(rdnss, a.server6))
+            heard, seen = False, []
+        now = time.time()
+        known = merge_rdnss(load_state(a.state) if a.state else {}, seen, now)
+        if a.state:
+            save_state(a.state, known)
+        ra = (heard, rdnss_state(set(known), a.server6))
     write_metrics(a.out, results, ra)
 
 

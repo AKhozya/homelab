@@ -8,7 +8,7 @@
 
 **Tech stack:** eero app (firmware 7.x), systemd-networkd, UFW, Blocky v0.36.0 (role `blocky_fallback`), node-exporter textfile metrics, VMRule alerts.
 
-**Status:** reviewed (Codex). Task 0 and the spike ran on 2026-11-15, except the NAS line. Tasks 1-3 are in review. The IPv6-on window has not run.
+**Status:** reviewed (Codex). Task 0 and the spike ran on 2026-11-15. Tasks 1-3 are in review. The IPv6-on window has not run.
 
 **Spec:** the operator's request of 2026-11-15: research IPv6, find the firewall rules needed on the eero, the homelab and elsewhere, and give a mitigation for each risk. There is no separate spec file.
 
@@ -80,12 +80,18 @@
 ## Tasks
 
 ### Task 0: Live baseline with IPv6 off (read only)
-- [x] On each node, run `grep IPV6 /etc/default/ufw`. Expect `IPV6=yes`.
-- [x] On each node, the operator runs `sudo ip6tables -S ufw6-user-input`. Expect it to exist, with no allow rule.
-- [x] On each node, run `networkctl cat <primary>` and expect `UseDNS=no` under `[IPv6AcceptRA]`. Run `resolvectl dns` and expect only 1.1.1.1 and 9.9.9.9.
-- [x] Record the `ss -tulnH` listeners on `[::]` on each node. Result: sshd and mDNS on `[::]`; 6443 (CP), 10250 and 9100 on `*`, which is IPv4 and IPv6.
-- [x] On the NAS, record `nmcli -g ipv6.method connection show <conn>` (used for its revert) and its `[::]` listeners. Result: the connection on `enp90s0` is `Wired connection 2`, method `auto`. On IPv6 it listens on SSH, 80, 443, 111 (rpcbind), 5432 (Postgres) and more, with no host firewall. It holds addresses on both private prefixes and none on the ISP's.
-- [x] Run the CP spike `v6spike.sh` (unprivileged, high ports). T3/T3b: a missing address without and with `freeBind`. T4: an unreachable Postgres log. T5: the console log line.
+Ran on 2026-11-15.
+
+| Check | Result |
+|---|---|
+| `grep IPV6 /etc/default/ufw` on each node | `IPV6=yes` on all 4 |
+| the operator runs `sudo ip6tables -S ufw6-user-input` on each node | the chain exists and is empty on all 4 |
+| `networkctl cat <primary>` and `resolvectl dns` on each node | `UseDNS=no` under `[IPv6AcceptRA]`; only 1.1.1.1 and 9.9.9.9 |
+| `ss -tulnH` listeners on IPv6 | sshd and mDNS on `[::]`; 6443 (CP), 10250 and 9100 on `*`, which is IPv4 and IPv6 |
+| NAS `nmcli -g ipv6.method connection show <conn>` and its IPv6 listeners | `Wired connection 2` on `enp90s0`, method `auto`. SSH, 80, 443, 111 (rpcbind), 5432 (Postgres) and more listen on IPv6, with no host firewall. It holds addresses on both private prefixes and none on the ISP's |
+| CP spike `v6spike.sh` (unprivileged, high ports) | T3: a missing address makes the whole process exit. T3b: with `freeBind` it runs and IPv4 answers. T4: an unreachable Postgres log falls back to console. T6: the rendered config validates and blocks with two listeners |
+| probe run as root on the CP | `ra_heard 1`, RDNSS state `none` |
+
 - Abort rule: if A6 or A7 fails, fix it in Task 1 or Task 2 before anything else.
 
 ### Task 1: Node IPv6 addressing (hardening role)
