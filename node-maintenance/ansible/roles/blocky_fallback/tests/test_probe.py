@@ -135,10 +135,10 @@ class ParseRA(unittest.TestCase):
 
 
 class CapturedRA(unittest.TestCase):
-    # ras.json, captured by the Mac on 2026-11-15. Entries 0-2 came from the Thread border routers
-    # with the eero's IPv6 off: a prefix and a route option, router lifetime 0, no RDNSS. Entry 3 is
-    # the eero's own RA with IPv6 on: two prefixes, RDNSS and a source link-layer option. Prefixes,
-    # addresses and the MAC are replaced with documentation values, and the checksum is zeroed.
+    # ras.json holds RAs the Mac captured on 2026-11-15. Entries 0-2 are Thread border router RAs from
+    # while the eero's IPv6 was off: a prefix and a route option, router lifetime 0, no RDNSS. Entry 3
+    # is the eero's own RA with IPv6 on: two prefixes, RDNSS and a source link-layer option.
+    # Documentation values stand in for the prefixes, the addresses and the MAC. The checksum is 0.
     def test_thread_border_router_ras_have_no_rdnss(self):
         ras = json.loads((HERE / "ras.json").read_text())[:3]
         self.assertEqual(len(ras), 3)
