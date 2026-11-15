@@ -55,8 +55,25 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 | DHCP pool | .20 to .99; the eero's leases last 4 hours |
 | DNS the eero provides | Blocky, .129 and .126 (custom DNS in the eero app) |
 | Node addresses | static on each node: CP .127, worker-node .129, worker-node-2 .126, immich-vm .231. Ansible writes the file from `static_ipv4` in host_vars (hardening role, tag `networkd-static`); W2's file is still hand-made. The eero also reserves each address by MAC |
-| NAS address | .136 by DHCP. Its ZTE lease has no expiry |
+| NAS address | .136 by DHCP, a 4-hour lease from the eero |
 | NAS reservation | the eero reserves .136 for the NAS |
+| eero network | one network, `z3us`: Cupboard is the gateway (ONT on port 2, the MS308 switch on port 1); Office and Living Room connect to the gateway by cable through the MS308 |
+
+**eero settings** (read in the eero app 2026-11-15):
+
+| Setting | Value | Why |
+|---|---|---|
+| DHCP & NAT | Manual IP, 192.168.1.0/24, pool .20 to .99 | 80 addresses cover about 40 devices. The fixed addresses are outside the pool |
+| DNS | custom: .129 and .126; IPv6 fields empty | Blocky has no IPv6 address |
+| Local DNS caching | off | if on, the eero answers DNS itself, and Blocky logs every query as the eero's |
+| IPv6 | off | the Mac gets private IPv6 addresses and IPv6 routers but lists only .129 and .126 as DNS servers. The NAS lists no IPv6 DNS server. These observations date from 2026-11-15. If you turn IPv6 on, the eero restarts the network. Check the DNS servers on the Mac again afterwards |
+| UPnP | off | it lets any LAN device open an inbound port with no login. If a console reports a strict NAT type, turn it back on |
+| SQM | on | the 500 Mbit line measures 487 Mbit/s from a wired node with SQM on. No test with SQM off has run |
+| Encryption | 2.4 GHz WPA2; 5 GHz WPA2 + WPA3 (Hybrid); 6 GHz WPA3 | older smart-home devices use 2.4 GHz. If a device fails to join on 5 GHz, set 5 GHz back to WPA2 |
+| Thread | on, with keychain syncing | the household's smart-home devices may use it |
+| Client steering | on | — |
+| eero Simple Setup, Dynamic DNS, Guest Wi-Fi | off | no current use |
+| Amazon Connected Home | state not read | the operator does not use it |
 
 ## DNS chain
 1. LAN client → Blocky LB IP (.129 or .126) :53
