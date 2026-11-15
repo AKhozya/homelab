@@ -185,7 +185,8 @@ spec:
           }
 
           // ── CP Blocky fallback query log ──
-          // One tab-separated file per day, YYYY-MM-DD_ALL.log, which Blocky deletes after 7 days.
+          // One tab-separated file per day, YYYY-MM-DD_ALL.log. Every 12 h Blocky deletes the files
+          // whose name date is more than logRetentionDays (7) old.
           // Loki keeps this stream 7 days too (retention_stream in release.yaml).
           // Alloy keeps read positions in the container, so a new pod has none. tail_from_end makes it
           // start at the end of a file with no position, so a restart re-sends nothing. It loses the

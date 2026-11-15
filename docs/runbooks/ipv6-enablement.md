@@ -111,7 +111,21 @@ Ran on 2026-11-15.
 ### Task 3: Blocky fallback over IPv6
 - [ ] If Ansible finds an `fd…::53` address whose valid lifetime is at least `blocky_fallback_v6_min_lifetime` (default 86400 s), `ports.dns` is `node_ip:53` plus `[<that address>]:53`. Otherwise `ports.dns` is `node_ip:53` only. Set `ports.freeBind: true` in both cases.
 - [ ] Do not configure a `[::]:53` wildcard listener. If the spike runs without root, it cannot test coexistence with systemd-resolved on port 53.
-- [ ] Check before any IPv6-on window: the operator runs the config once with `-e blocky_fallback_v6_min_lifetime=0`, so the fallback binds the CP's `::53` address in the Thread range. Before the test, check that the CP holds `<thread prefix>::53` (from Task 1) and that the Mac holds a different address in the same range (`ifconfig en0`). From the Mac, `dig @<thread ULA>::53 doubleclick.net` gives `0.0.0.0`. This proves the IPv6 listener and the `fc00::/7` UFW rule. The next normal run removes that listener.
+- [ ] Check before any IPv6-on window. It proves the IPv6 listener and the `fc00::/7` UFW rule on the Thread range, which exists with IPv6 off. Run it after the last merge, because each merge starts a normal run, and a normal run removes the test listener.
+
+  | Step | Who | Action | Pass |
+  |---|---|---|---|
+  | 1 | agent | `ip -6 -br addr show dev enp3s0 scope global` on the CP; `ifconfig en0` on the Mac | the CP holds `<thread prefix>::53`; the Mac holds another address in that range |
+  | 2 | operator | the command below, with `TEST=-e blocky_fallback_v6_min_lifetime=0` | the recap shows `failed=0`. If it prints `another node-maintenance run holds the lock`, the wrapper skipped the run: wait and repeat |
+  | 3 | agent | `ss -ulnH 'sport = :53'` on the CP; from the Mac `dig +short @<thread prefix>::53 doubleclick.net`, then `example.com` | Blocky listens on `[<thread prefix>::53]:53`; `0.0.0.0`; an address |
+  | 4 | operator | the command below with `TEST=` empty | the listener is gone. If step 4 is skipped, the next 03:00 or 15:00 run removes it |
+
+  Only the command's `--list-tasks` form has run (2026-11-15, without sudo): it selects the blocky_fallback tasks and the report play only.
+
+  ```sh
+  TEST='-e blocky_fallback_v6_min_lifetime=0'
+  ssh -t gmk-k3s-control-plane "cd /etc/node-maintenance/ansible && sudo env ANSIBLE_CONFIG=/etc/node-maintenance/ansible/ansible.cfg /usr/local/sbin/node-maintenance-lock.sh skip -- /usr/bin/ansible-playbook node-config.yml -i inventory.yml --limit gmk-k3s-control-plane --tags blocky-fallback $TEST 2>&1 | tail -3"
+  ```
 - [ ] `tests/test-render.yml`: one case with a live ULA, one without.
 - [ ] The probe queries the IPv6 listener too. As root, it also sends a Router Solicitation and parses the RDNSS option into `blocky_fallback_ra_rdnss{state="fallback_only|other|none"}`.
 - [ ] VMRules: `BlockyIPv6DNSBypass` fires if RDNSS holds any address other than the fallback's (`for: 10m`). `BlockyFallbackV6Down` fires if the IPv6 listener does not answer.
@@ -143,7 +157,16 @@ Spike results (2026-11-15):
 | Loki 3.7.10 `-verify-config` on the rendered chart | valid; a broken `period` fails |
 | Bot access | no change: the bot already has `pods/exec` in the `loki` and `blocky` namespaces |
 
-Live check after the merge: `sudo ls -l /var/log/private/blocky-fallback` on the CP shows today's file. In Grafana Explore, `{job="blocky-fallback"}` shows the lookups. `journalctl -u blocky-fallback --since -10min` shows no query lines.
+Live check after the merge, once the Blocky restart and the CP's new Alloy pod are both up. Lines written before the pod finds the file never reach Loki, so send a fresh lookup first.
+
+| Where | Command or query | Pass |
+|---|---|---|
+| CP | `systemctl show blocky-fallback -p LogsDirectory` | `LogsDirectory=blocky-fallback` |
+| CP | `journalctl -u blocky-fallback --since <restart time>` | no `can't create query log writer` line and no query lines |
+| CP, operator | `sudo ls -l /var/log/private/blocky-fallback` | today's file, owned by the service's dynamic user |
+| Mac | `dig +short @192.168.1.127 <fresh random name>.example.com` | an answer |
+| Grafana Explore | `{job="blocky-fallback"} \|= "<that name>"` | one line |
+| cluster | the `loki` ConfigMap; the 4 Alloy pods | it holds the `retention_stream` rule; all Ready, no `loki.source.file` errors in their logs |
 
 ### Task 5: NAS (the operator, by hand)
 - [ ] Run `sudo nmcli connection modify "Wired connection 2" ipv6.method link-local && sudo nmcli connection up "Wired connection 2"`. The NAS connection goes down briefly, and so does immich-vm's connection through it, so run it in a quiet hour.
