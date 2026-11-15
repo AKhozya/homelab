@@ -64,10 +64,11 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 | Setting | Value | Why |
 |---|---|---|
 | DHCP & NAT | Manual IP, 192.168.1.0/24, pool .20 to .99 | 80 addresses cover about 40 devices. The fixed addresses are outside the pool |
-| DNS | custom: .129 and .127; IPv6 fields empty | Blocky has no IPv6 address |
+| DNS | custom: IPv4 .129 and .127; IPv6 primary `<eero private range>::53`, the CP's address; IPv6 secondary empty | only the CP Blocky fallback answers over IPv6. A public server in either IPv6 field lets devices skip Blocky |
 | Local DNS caching | off | if on, the eero answers DNS itself, and Blocky logs every query as the eero's |
-| IPv6 | off | the Mac gets private IPv6 addresses and IPv6 routers but lists only .129 and .126 as DNS servers. The NAS lists no IPv6 DNS server. These observations date from 2026-11-15. If you turn IPv6 on, the eero restarts the network. Check the DNS servers on the Mac again afterwards The plan to turn it on (reviewed, not yet run) is [ipv6-enablement](../runbooks/ipv6-enablement.md). |
-| UPnP | off | it lets any LAN device open an inbound port with no login. If a console reports a strict NAT type, turn it back on |
+| IPv6 | on since 2026-11-15 | the eero announces its private range (30-day lifetime), the ISP's /64 and the one IPv6 DNS server above. It blocks unsolicited inbound IPv6 by default. A change to IPv6 or DNS settings restarts the network for about 3 minutes. Controls and test results: [ipv6-enablement](../runbooks/ipv6-enablement.md) |
+| IPv6 firewall rules | none | a rule opens one port to the internet on one IPv6 address of one device |
+| UPnP | off | it lets any LAN device open an inbound port with no login. With it off, no device answers UPnP discovery, and PCP and NAT-PMP are refused (checked 2026-11-15), so no app can open an IPv6 port either. If a console reports a strict NAT type, weigh that before you turn it back on |
 | SQM | on | the 500 Mbit line measures 487 Mbit/s from a wired node with SQM on. No test with SQM off has run |
 | Encryption | 2.4 GHz WPA2; 5 GHz WPA2 + WPA3 (Hybrid); 6 GHz WPA3 | older smart-home devices use 2.4 GHz. If a device fails to join on 5 GHz, set 5 GHz back to WPA2 |
 | Thread | on, with keychain syncing | the household's smart-home devices may use it |
@@ -76,13 +77,14 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 | Amazon Connected Home | state not read | the operator does not use it |
 
 ## DNS chain
-1. LAN client → the DNS servers the eero's DHCP hands out, port 53: the two IPv4 entries of the eero's custom DNS, its only two (table below)
+1. LAN client → port 53 on the DNS servers the eero hands out: the two IPv4 entries by DHCP, and the one IPv6 entry in its router adverts (table below). macOS asks the IPv4 servers first
 2. Blocky checks ACL → cache → upstream (DoH: Cloudflare Security + Quad9)
 
 | eero DNS entry | Address | Server |
 |---|---|---|
 | primary | 192.168.1.129 | cluster Blocky |
 | secondary | 192.168.1.127 | **CP Blocky fallback** |
+| IPv6 primary | `<eero private range>::53` | **CP Blocky fallback** |
 
 **CP Blocky fallback** (role `blocky_fallback`): a systemd service on the CP, outside Kubernetes. LAN clients use the fallback during a cluster Blocky failure (servicelb, kube-proxy, both pods).
 
@@ -93,7 +95,7 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 | Guard | the run fails if `blocking.clientGroupsBlock` has a key other than `default`, because the fallback cannot match client names |
 | Safety | `blocky validate` gates each new config; an invalid one leaves the old config running |
 | Version | `blocky_fallback_version` in the role defaults; Renovate bumps it 7 days after release, separately from `spx01/blocky` |
-| Alerts | `BlockyFallbackDown`, `BlockyFallbackNoUpstream`, `BlockyFallbackProbeMissing`, from a 1-minute DNS probe (`blocky_fallback.prom`) |
+| Alerts | `BlockyFallbackDown`, `BlockyFallbackNoUpstream`, `BlockyFallbackProbeMissing`, `BlockyFallbackV6Down`, from a 1-minute DNS probe (`blocky_fallback.prom`). The same probe reads the routers' adverts: `BlockyIPv6DNSBypass` fires if one announces another IPv6 DNS server, `BlockyFallbackRAProbeBlind` if it hears none for an hour |
 | Not covered | a valid config change that resolves wrongly reaches both copies within one sync |
 3. Nodes (containerd, system) → systemd-resolved → **public DNS 1.1.1.1 / 9.9.9.9** — **NOT blocky** (breaks the node→blocky→kube-proxy-servicelb circular dep at boot). resolved stays uplink-mode (real IPs, not 127.0.0.53); networkd `UseDNS=no` drops the DHCP/RA-supplied blocky DNS, a resolved global drop-in supplies public.
 4. Cluster pods → CoreDNS (`10.43.0.10`); `forward . /etc/resolv.conf` → node resolv.conf (= public, per step 3). Pods snapshot resolv.conf at creation → `rollout restart ds/coredns-ha` after any node-DNS change. coredns-ha is a **DaemonSet** — a node-local replica on every node except immich-vm, whose taint it does not tolerate (a soft topologySpread kept skewing; a node with 0 local replicas + VXLAN issue = total pod-DNS loss there). PDB `minAvailable: 1` + updateStrategy `maxUnavailable: 1`.
@@ -122,4 +124,6 @@ At boot, kube-proxy, flannel and fail2ban write netfilter rules while UFW's `ipt
 | 65300 (SSH) | LAN | all |
 | 8472/UDP (flannel) | LAN | worker-node-2 |
 
-Every incoming rule names an IPv4 source, so no rule is open over IPv6. `ufw_rules_absent` in `group_vars/all.yml` deletes the old no-source rules.
+| 53, UDP and TCP | `fc00::/7` (private IPv6) | control plane |
+
+No node holds a public IPv6 address. Every incoming rule names an IPv4 source, except the CP's DNS rule from `fc00::/7`. The firewall role refuses a rule with no source, because it would open its port over IPv6. `ufw_rules_absent` in `group_vars/all.yml` deletes the old no-source rules.

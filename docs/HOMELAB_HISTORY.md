@@ -18,6 +18,28 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-15 — IPv6 on at the eero; only the CP's Blocky fallback answers over IPv6
+
+The operator turned IPv6 on at the eero after a planned window ([ipv6-enablement](runbooks/ipv6-enablement.md)) and kept it.
+
+| Change | Where |
+|---|---|
+| no public IPv6 address on any node and no IPv6 default route; the CP holds only `<private range>::53` | hardening drop-in `50-ipv6.conf` (#1515) |
+| UFW must filter IPv6; a rule with no source is refused; the CP allows DNS from `fc00::/7` | firewall role (#1515) |
+| the Blocky fallback listens on the CP's private `::53` address too (`freeBind`); the probe checks it and reads the routers' DNS announcements | role `blocky_fallback`, 3 new alerts (#1515) |
+| the fallback's lookups go to Loki, kept 7 days | csv query log, Alloy file source, Loki `retention_stream` (#1516) |
+| the eero's IPv6 DNS primary is the CP's private `::53` address | eero app |
+| the NAS keeps link-local IPv6 only | `nmcli`, by hand |
+| a MAC-derived IPv6 entry leaves the public CoreDNS hosts list | #1519 |
+
+| Learned | Detail |
+|---|---|
+| eero, both IPv6 DNS fields empty | it announces Google's two servers, so IPv6 lookups skip Blocky |
+| eero IPv6 firewall rule | it covers one port on one IPv6 address of a device |
+| outside IPv6 test | the phone's mobile network has no IPv6; use an online IPv6 port checker |
+| Blocky v0.36, csv log folder missing | it logs every query to the journal |
+| Loki restart after the Alloy roll | about 530k pod-log entries were refused for about 10 minutes |
+
 ### 2026-11-15 — Blocky DNS fallback on the CP, outside Kubernetes
 
 The eero gateway hands out exactly two IPv4 DNS servers, .129 and .126. Both lead to the cluster's Blocky: one Deployment behind k3s servicelb, so a fault in that path leaves the house without DNS. New role `blocky_fallback` runs the same Blocky version on the CP under systemd, on 192.168.1.127. The operator moved the eero's secondary DNS from .126 to .127 the same day, so LAN DNS survives a fault in the cluster's path. A Mac DHCP lease at 13:39 listed .129 and .127. Lookups that reach the fallback are filtered like the cluster's. The fallback keeps no query log, so they do not appear in the per-device logs; the operator accepts this.

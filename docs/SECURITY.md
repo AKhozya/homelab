@@ -125,11 +125,13 @@ broken firewall, run `sudo systemctl start node-maintenance-config.service`.
 
 So SSH is open to the LAN, to the other nodes and to pods, not to the internet.
 
-**IPv6.** Every node has a public IPv6 address, and a UFW rule with no source opens its port over
-IPv6 as well. Every incoming rule in `node-maintenance/ansible/group_vars/` and `host_vars/` names an
-IPv4 source. The one routed rule without a source, on worker-node-2, names an IPv4 destination. So no
-rule admits traffic over IPv6. `ufw_rules_absent` deletes the old no-source rules (see
-[Incidents](#incidents)).
+**IPv6.** IPv6 is on at the eero since 2026-11-15, and no node holds a public IPv6 address. The
+workers and immich-vm take no address from router adverts, the CP takes only `<private range>::53`
+addresses, and no node has an IPv6 default route ([ipv6-enablement](runbooks/ipv6-enablement.md)). A
+UFW rule with no source would still open its port over IPv6, so the firewall role refuses one. Every
+incoming rule in `node-maintenance/ansible/group_vars/` and `host_vars/` names an IPv4 source, except
+the CP's DNS rule from `fc00::/7`. The one routed rule without a source, on worker-node-2, names an
+IPv4 destination. `ufw_rules_absent` deletes the old no-source rules (see [Incidents](#incidents)).
 
 ### SSH
 
