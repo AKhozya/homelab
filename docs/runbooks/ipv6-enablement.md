@@ -8,7 +8,7 @@
 
 **Tech stack:** eero app (firmware 7.x), systemd-networkd, UFW, Blocky v0.36.0 (role `blocky_fallback`), node-exporter textfile metrics, VMRule alerts.
 
-**Status:** reviewed (Codex). Task 0 and the spike ran on 2026-11-15. Tasks 1-3 are in review. The IPv6-on window has not run.
+**Status:** reviewed (Codex). Task 0 and the spike ran on 2026-11-15. Tasks 1-3 are live (PR #1515, 2026-11-15). Task 4 is in review. The IPv6-on window has not run.
 
 **Spec:** the operator's request of 2026-11-15: research IPv6, find the firewall rules needed on the eero, the homelab and elsewhere, and give a mitigation for each risk. There is no separate spec file.
 
@@ -53,7 +53,7 @@
 | Other home devices (TVs, consoles, plugs, Apple) | reachable only if the eero firewall fails | the eero inbound block | none: they have no host control we manage | W2b covers the eero |
 | Blocky fallback process | if its IPv6 address is missing at boot, the IPv4 listener dies too | `ports.freeBind: true` | systemd restarts it | spike T3b |
 | Loss of the only IPv6 DNS server | if the CP is down, lookups over IPv6 time out | clients keep the IPv4 servers .129 and .127 from DHCP | alert `BlockyFallbackDown` | W8: stop the fallback, time a fresh lookup |
-| Per-device logs | the fallback keeps none. Apple rotates its IPv6 addresses daily, so attribution is weak whichever Blocky answers | Task 4 option | — | — |
+| Per-device logs | the fallback kept none. Apple rotates its IPv6 addresses daily, so attribution is weak whichever Blocky answers | Task 4: a csv query log, which Alloy ships to Loki for 7 days | — | the Task 4 live check |
 | Prefix change by the ISP or the eero | the eero field holds a dead address, so IPv6 lookups time out | use the eero's private range, which lasts about 30 days, not the ISP's prefix | alert `BlockyIPv6DNSBypass` | W9: re-check after an eero restart |
 
 ## Assumptions
@@ -111,7 +111,21 @@ Ran on 2026-11-15.
 ### Task 3: Blocky fallback over IPv6
 - [ ] If Ansible finds an `fd…::53` address whose valid lifetime is at least `blocky_fallback_v6_min_lifetime` (default 86400 s), `ports.dns` is `node_ip:53` plus `[<that address>]:53`. Otherwise `ports.dns` is `node_ip:53` only. Set `ports.freeBind: true` in both cases.
 - [ ] Do not configure a `[::]:53` wildcard listener. If the spike runs without root, it cannot test coexistence with systemd-resolved on port 53.
-- [ ] Check before any IPv6-on window: the operator runs the config once with `-e blocky_fallback_v6_min_lifetime=0`, so the fallback binds the CP's `::53` address in the Thread range. Before the test, check that the CP holds `<thread prefix>::53` (from Task 1) and that the Mac holds a different address in the same range (`ifconfig en0`). From the Mac, `dig @<thread ULA>::53 doubleclick.net` gives `0.0.0.0`. This proves the IPv6 listener and the `fc00::/7` UFW rule. The next normal run removes that listener.
+- [ ] Check before any IPv6-on window. It proves the IPv6 listener and the `fc00::/7` UFW rule on the Thread range, which exists with IPv6 off. Run it after the last merge, because each merge starts a normal run, and a normal run removes the test listener.
+
+  | Step | Who | Action | Pass |
+  |---|---|---|---|
+  | 1 | agent | `ip -6 -br addr show dev enp3s0 scope global` on the CP; `ifconfig en0` on the Mac | the CP holds `<thread prefix>::53`; the Mac holds another address in that range |
+  | 2 | operator | the command below, with `TEST=-e blocky_fallback_v6_min_lifetime=0` | the CP's recap line shows `unreachable=0` and `failed=0`. If it prints `another node-maintenance run holds the lock`, the wrapper skipped the run: wait and repeat |
+  | 3 | agent | `ss -ulnH 'sport = :53'` on the CP; from the Mac `dig +short @<thread prefix>::53 doubleclick.net`, then `example.com` | Blocky listens on `[<thread prefix>::53]:53`; `0.0.0.0`; an address |
+  | 4 | operator | the command below with `TEST=` empty | the listener is gone. If step 4 is skipped, the next 03:00 or 15:00 run removes it |
+
+  Only the command's `--list-tasks` form has run (2026-11-15, without sudo): it selects the blocky_fallback tasks and the report play only.
+
+  ```sh
+  TEST='-e blocky_fallback_v6_min_lifetime=0'
+  ssh -t gmk-k3s-control-plane "cd /etc/node-maintenance/ansible && sudo env ANSIBLE_CONFIG=/etc/node-maintenance/ansible/ansible.cfg /usr/local/sbin/node-maintenance-lock.sh skip -- /usr/bin/ansible-playbook node-config.yml -i inventory.yml --limit gmk-k3s-control-plane --tags blocky-fallback $TEST 2>&1 | tail -3"
+  ```
 - [ ] `tests/test-render.yml`: one case with a live ULA, one without.
 - [ ] The probe queries the IPv6 listener too. As root, it also sends a Router Solicitation and parses the RDNSS option into `blocky_fallback_ra_rdnss{state="fallback_only|other|none"}`.
 - [ ] VMRules: `BlockyIPv6DNSBypass` fires if RDNSS holds any address other than the fallback's (`for: 10m`). `BlockyFallbackV6Down` fires if the IPv6 listener does not answer.
@@ -123,7 +137,36 @@ Ran on 2026-11-15.
 | B | `queryLog: console` in its own journald namespace; Alloy reads it into Loki (7 days) | about 87k queries/day today. The namespace keeps node-maintenance logs from being pushed out. Alloy needs a new journal source |
 | C | Postgres log into the cluster's database, with console as fallback if it is unreachable | DB credentials on the CP host, and a NetworkPolicy for host traffic |
 
-Chosen: B (operator, 2026-11-15). A journald namespace has a per-machine directory name, and Alloy's journal source takes one fixed path, so the candidate design is a Blocky `csv` log under the service's `LogsDirectory` (`/var/log/private/blocky-fallback`, 7 days through `logRetentionDays`), read by an Alloy file source. The bot's account can read the journal but not `/var/log/private`. This is a separate PR after Tasks 1-3, because it rolls the Alloy DaemonSet.
+Chosen: B (operator, 2026-11-15), built as a csv file, not a journald namespace. Alloy runs one config on every node, and a namespace's journal folder name holds the machine ID, so the other 3 nodes would point at a folder that does not exist.
+
+| Part | Built |
+|---|---|
+| Blocky (`tasks/render.yml`) | `queryLog: {type: csv, target: /var/log/blocky-fallback, logRetentionDays: <the cluster's value, 7>}` |
+| Unit | `LogsDirectory=blocky-fallback`. With `DynamicUser=yes` the folder is `/var/log/private/blocky-fallback`, which the operator's account cannot read without sudo |
+| Alloy (`alloy-release.yaml`) | read-only hostPath of that folder, `DirectoryOrCreate`, so the other nodes get an empty folder. `loki.source.file` with `tail_from_end = true`; labels `job="blocky-fallback"`, `node_name`, `filename` |
+| Loki (`release.yaml`) | `retention_stream` `{job="blocky-fallback"}` 168h. Other streams keep 720h |
+
+Spike results (2026-11-15):
+
+| Check | Result |
+|---|---|
+| Blocky v0.36 csv on the CP | one file per day, `YYYY-MM-DD_ALL.log`; tab-separated time (local, no zone), client IP, client name, duration ms, reason, question, answer, rcode, response type, query type, host |
+| Retention | Blocky deletes files by the date in the name, 12 h after start and every 12 h after that |
+| Missing folder | `blocky validate` passes. At start Blocky retries 3 times, then logs every query to the journal |
+| Alloy v1.22 (local container, the real bytes) | lines already in a file are not sent; new lines are; a new pod re-sends nothing; the first lines of a new day's file are lost until the next 2 s file sync |
+| Loki 3.7.10 `-verify-config` on the rendered chart | valid; a broken `period` fails |
+| Bot access | no change: the bot already has `pods/exec` in the `loki` and `blocky` namespaces |
+
+If Blocky has restarted and the CP's new Alloy pod is Ready, run these checks. Lines written before the pod finds the file never reach Loki, so send a fresh lookup first.
+
+| Where | Command or query | Pass |
+|---|---|---|
+| CP | `systemctl show blocky-fallback -p LogsDirectory` | `LogsDirectory=blocky-fallback` |
+| CP | `journalctl -u blocky-fallback --since <restart time>` | no `can't create query log writer` line and no query lines |
+| CP, operator | `sudo ls -l /var/log/private/blocky-fallback` | today's file, owned by the service's dynamic user |
+| Mac | `dig @192.168.1.127 <fresh random name>.example.com +noall +comments` | a `status:` line (NOERROR on 2026-11-15), not `connection timed out` |
+| Grafana Explore | `{job="blocky-fallback"} \|= "<that name>"` | one line |
+| cluster | the `loki` ConfigMap; the 4 Alloy pods | it holds the `retention_stream` rule; all Ready, no `loki.source.file` errors in their logs |
 
 ### Task 5: NAS (the operator, by hand)
 - [ ] Run `sudo nmcli connection modify "Wired connection 2" ipv6.method link-local && sudo nmcli connection up "Wired connection 2"`. The NAS connection goes down briefly, and so does immich-vm's connection through it, so run it in a quiet hour.

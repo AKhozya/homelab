@@ -63,6 +63,12 @@ spec:
             hostPath:
               path: /etc/machine-id
               type: File
+          # The CP Blocky fallback's csv query log (role blocky_fallback). Only the CP writes it. On the
+          # other nodes the kubelet creates the folder empty, and the file source below finds nothing.
+          - name: blocky-fallback-querylog
+            hostPath:
+              path: /var/log/private/blocky-fallback
+              type: DirectoryOrCreate
 
     alloy:
       # 768Mi: working_set counts tailed-log page cache. On the busiest node
@@ -85,6 +91,9 @@ spec:
             readOnly: true
           - name: machine-id
             mountPath: /etc/machine-id
+            readOnly: true
+          - name: blocky-fallback-querylog
+            mountPath: /var/log/blocky-fallback
             readOnly: true
 
       # Alloy configuration (River/HCL syntax)
@@ -173,6 +182,29 @@ spec:
               job = "node-maintenance",
             }
             forward_to = [loki.write.default.receiver]
+          }
+
+          // ── CP Blocky fallback query log ──
+          // One tab-separated file per day, YYYY-MM-DD_ALL.log. Every 12 h Blocky deletes the files
+          // whose name date is more than logRetentionDays (7) old.
+          // Loki keeps this stream 7 days too (retention_stream in release.yaml).
+          // Alloy keeps read positions in the container, so a new pod has none. tail_from_end makes it
+          // start at the end of a file with no position, so a restart re-sends nothing. It loses the
+          // lines written while no pod runs, and those written in a new day's file before the next
+          // file_match sync.
+          local.file_match "blocky_fallback" {
+            path_targets = [{
+              "__path__"  = "/var/log/blocky-fallback/*_ALL.log",
+              "job"       = "blocky-fallback",
+              "node_name" = coalesce(sys.env("HOSTNAME"), constants.hostname),
+            }]
+            sync_period = "2s"
+          }
+
+          loki.source.file "blocky_fallback" {
+            targets       = local.file_match.blocky_fallback.targets
+            tail_from_end = true
+            forward_to    = [loki.write.default.receiver]
           }
 
           loki.write "default" {

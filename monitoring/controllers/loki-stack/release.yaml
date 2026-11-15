@@ -65,6 +65,12 @@ spec:
         ingestion_burst_size_mb: 20
         max_query_series: 10000
         max_query_lookback: 720h
+        # The CP Blocky fallback's query log (alloy-release.yaml): 7 days, like the cluster Blocky's
+        # Postgres query log (logRetentionDays in apps/blocky/config.yml).
+        retention_stream:
+          - selector: '{job="blocky-fallback"}'
+            priority: 1
+            period: 168h
 
       compactor:
         working_directory: /var/loki/compactor

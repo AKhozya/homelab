@@ -88,7 +88,8 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 
 | Fact | Value |
 |---|---|
-| Config | derived from `apps/blocky/config.yml` on every node-config run: same lists, allowlists, `customDNS`. Drops Redis, the Postgres query log, `clientLookup` and metrics; `queryLog: none` |
+| Config | derived from `apps/blocky/config.yml` on every node-config run: same lists, allowlists, `customDNS`. Drops Redis, the Postgres query log, `clientLookup` and metrics |
+| Query log | a daily csv file in `/var/log/private/blocky-fallback`, kept 7 days. Alloy ships it to Loki as `{job="blocky-fallback"}`, which Loki keeps 7 days |
 | Guard | the run fails if `blocking.clientGroupsBlock` has a key other than `default`, because the fallback cannot match client names |
 | Safety | `blocky validate` gates each new config; an invalid one leaves the old config running |
 | Version | `blocky_fallback_version` in the role defaults; Renovate bumps it 7 days after release, separately from `spx01/blocky` |

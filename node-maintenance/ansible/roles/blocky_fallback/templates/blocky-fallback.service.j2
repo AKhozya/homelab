@@ -24,6 +24,8 @@ RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
 # The list cache (blocking.loading.downloads.cachePath) lets a restart load the last lists while the
 # list CDN is down.
 CacheDirectory=blocky-fallback
+# The csv query log. If this folder is missing, Blocky logs every query to the journal instead.
+LogsDirectory=blocky-fallback
 # This runs on the control plane, so it gets one of the 4 cores and a memory ceiling well above the
 # ~90 MB measured with the full lists.
 CPUQuota=100%
