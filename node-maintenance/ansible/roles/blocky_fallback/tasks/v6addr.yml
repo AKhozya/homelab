@@ -3,14 +3,18 @@
 # `ip -6 -j addr show dev <iface> scope global`: the longest-lived address that ends in ::53 on a
 # private prefix and stays valid at least blocky_fallback_v6_min_lifetime seconds, or '' if none.
 # tests/test-render.yml includes this file too.
+# `ip -j` ends addr_info with an empty {} entry. The first selectattr drops it: a missing attribute
+# is an error further down the chain. No default() at the end, because it would turn that error
+# into '' and silently drop the listener.
 - name: Pick the IPv6 listener address
   vars:
-    _addrs: "{{ ((blocky_fallback_ip6_json | from_json | first | default({})).addr_info | default([])) }}"
-  ansible.builtin.set_fact:
-    blocky_fallback_listen_ip6: >-
+    _addrs: "{{ (blocky_fallback_ip6_json | from_json | first | default({})).addr_info | default([]) }}"
+    _picked: >-
       {{ _addrs
-         | selectattr('family', 'equalto', 'inet6')
+         | selectattr('local', 'defined')
          | selectattr('local', 'match', '^fd[0-9a-f]{2}:[0-9a-f:]*::53$')
          | selectattr('valid_life_time', 'ge', blocky_fallback_v6_min_lifetime | int)
          | sort(attribute='valid_life_time', reverse=true)
-         | map(attribute='local') | first | default('') }}
+         | map(attribute='local') | list }}
+  ansible.builtin.set_fact:
+    blocky_fallback_listen_ip6: "{{ _picked | first if _picked else '' }}"

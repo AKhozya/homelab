@@ -91,6 +91,8 @@
       ansible.builtin.assert:
         that: "blocky_fallback_rendered.ports == {'dns': ['192.168.1.127:53', '[fd00:db8:1::53]:53'], 'freeBind': true}"
 
+# ip6-addr.json keeps the shape of `ip -6 -j addr show dev enp3s0 scope global` on the CP (2026-11-15),
+# including its trailing empty {} entry, with the prefixes replaced by documentation ones.
 # Last: v6addr.yml sets blocky_fallback_listen_ip6 with set_fact, which outranks the play vars above.
 - name: The IPv6 address pick
   hosts: localhost

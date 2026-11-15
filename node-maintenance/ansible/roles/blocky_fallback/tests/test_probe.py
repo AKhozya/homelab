@@ -133,6 +133,21 @@ class ParseRA(unittest.TestCase):
             probe.parse_ra_rdnss(bytes([133, 0, 0, 0]) + bytes(12))
 
 
+class CapturedRA(unittest.TestCase):
+    # ras.json: the three RAs the Mac captured on 2026-11-15 with the eero's IPv6 off. All came from
+    # the Thread border routers: a prefix and a route option, router lifetime 0, no RDNSS. Prefixes
+    # are replaced with documentation ones, and the checksum is zeroed.
+    def test_thread_border_router_ras_have_no_rdnss(self):
+        ras = json.loads((HERE / "ras.json").read_text())
+        self.assertEqual(len(ras), 3)
+        for r in ras:
+            self.assertEqual(probe.parse_ra_rdnss(bytes.fromhex(r["ra_hex"])), [])
+
+    def test_captured_ra_with_rdnss_appended(self):
+        ra = bytes.fromhex(json.loads((HERE / "ras.json").read_text())[0]["ra_hex"])
+        self.assertEqual(probe.parse_ra_rdnss(ra + rdnss_opt(300, "fd00:db8:2::53")), ["fd00:db8:2::53"])
+
+
 class RdnssState(unittest.TestCase):
     def test_states(self):
         f = "fd00:db8:2::53"
