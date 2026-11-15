@@ -66,7 +66,7 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 | DHCP & NAT | Manual IP, 192.168.1.0/24, pool .20 to .99 | 80 addresses cover about 40 devices. The fixed addresses are outside the pool |
 | DNS | custom: .129 and .126; IPv6 fields empty | Blocky has no IPv6 address |
 | Local DNS caching | off | if on, the eero answers DNS itself, and Blocky logs every query as the eero's |
-| IPv6 | off | the Mac gets private IPv6 addresses and IPv6 routers but lists only .129 and .126 as DNS servers. The NAS lists no IPv6 DNS server. Both checks ran 2026-11-15. If you turn IPv6 on, the eero restarts the network. Check the DNS servers on the Mac again afterwards |
+| IPv6 | off | the Mac gets private IPv6 addresses and IPv6 routers but lists only .129 and .126 as DNS servers. The NAS lists no IPv6 DNS server. These observations date from 2026-11-15. If you turn IPv6 on, the eero restarts the network. Check the DNS servers on the Mac again afterwards |
 | UPnP | off | it lets any LAN device open an inbound port with no login. If a console reports a strict NAT type, turn it back on |
 | SQM | on | the 500 Mbit line measures 487 Mbit/s from a wired node with SQM on. No test with SQM off has run |
 | Encryption | 2.4 GHz WPA2; 5 GHz WPA2 + WPA3 (Hybrid); 6 GHz WPA3 | older smart-home devices use 2.4 GHz. If a device fails to join on 5 GHz, set 5 GHz back to WPA2 |
