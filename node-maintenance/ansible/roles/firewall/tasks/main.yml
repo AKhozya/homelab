@@ -155,22 +155,19 @@
       tags: [firewall]
   tags: [firewall]
 
-# With IPV6=no, UFW writes no ip6tables rules, so the node's IPv6 addresses take every connection.
-# Check only: changing the value needs `ufw disable` and `ufw enable`, a full firewall reload, which
-# has cut worker-node-2 off the cluster before.
 - name: Read /etc/default/ufw
   ansible.builtin.slurp:
     src: /etc/default/ufw
   register: _ufw_default_file
   tags: [firewall]
 
-- name: Assert UFW filters IPv6
-  ansible.builtin.assert:
-    that: _ufw_default_file.content | b64decode | regex_search('(?m)^IPV6=yes$')
-    fail_msg: >-
-      /etc/default/ufw does not set IPV6=yes, so UFW does not filter IPv6. Set it, then run
-      `sudo ufw disable && sudo ufw enable` in a planned window.
-    quiet: true
+- name: Check that UFW filters IPv6
+  ansible.builtin.include_tasks:
+    file: ipv6-check.yml
+    apply:
+      tags: [firewall]
+  vars:
+    firewall_ufw_default_text: "{{ _ufw_default_file.content | b64decode }}"
   tags: [firewall]
 
 # If both lists hold a rule, one task adds it and the next deletes it, and the

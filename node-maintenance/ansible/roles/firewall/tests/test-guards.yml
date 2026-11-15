@@ -41,3 +41,25 @@
         - name: The guard fired
           ansible.builtin.assert:
             that: "'open the port over IPv6' in ansible_failed_result.msg"
+
+- name: The IPv6 check passes on IPV6=yes and fails on IPV6=no
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: IPV6=yes, as on all 4 nodes on 2026-11-15
+      ansible.builtin.include_tasks: ../tasks/ipv6-check.yml
+      vars:
+        firewall_ufw_default_text: "# comment\nIPV6=yes\nDEFAULT_INPUT_POLICY=\"DROP\"\n"
+    - name: Run the check on IPV6=no
+      block:
+        - name: Check
+          ansible.builtin.include_tasks: ../tasks/ipv6-check.yml
+          vars:
+            firewall_ufw_default_text: "#IPV6=yes\nIPV6=no\n"
+        - name: The check did not fire
+          ansible.builtin.fail:
+            msg: ipv6-check.yml accepted IPV6=no
+      rescue:
+        - name: The check fired
+          ansible.builtin.assert:
+            that: "'does not set IPV6=yes' in ansible_failed_result.msg"
