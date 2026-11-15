@@ -135,14 +135,22 @@ class ParseRA(unittest.TestCase):
 
 
 class CapturedRA(unittest.TestCase):
-    # ras.json: the three RAs the Mac captured on 2026-11-15 with the eero's IPv6 off. All came from
-    # the Thread border routers: a prefix and a route option, router lifetime 0, no RDNSS. Prefixes
-    # are replaced with documentation ones, and the checksum is zeroed.
+    # ras.json, captured by the Mac on 2026-11-15. Entries 0-2 came from the Thread border routers
+    # with the eero's IPv6 off: a prefix and a route option, router lifetime 0, no RDNSS. Entry 3 is
+    # the eero's own RA with IPv6 on: two prefixes, RDNSS and a source link-layer option. Prefixes,
+    # addresses and the MAC are replaced with documentation values, and the checksum is zeroed.
     def test_thread_border_router_ras_have_no_rdnss(self):
-        ras = json.loads((HERE / "ras.json").read_text())
+        ras = json.loads((HERE / "ras.json").read_text())[:3]
         self.assertEqual(len(ras), 3)
         for r in ras:
             self.assertEqual(probe.parse_ra_rdnss(bytes.fromhex(r["ra_hex"])), [])
+
+    def test_eero_ra_announces_only_the_fallback(self):
+        ra = bytes.fromhex(json.loads((HERE / "ras.json").read_text())[3]["ra_hex"])
+        self.assertEqual(len(ra), 112)
+        seen = probe.parse_ra_rdnss(ra)
+        self.assertEqual(seen, [("fd00:db8:1::53", 1800)])
+        self.assertEqual(probe.rdnss_state({a for a, _ in seen}, "fd00:db8:1::53"), "fallback_only")
 
     def test_captured_ra_with_rdnss_appended(self):
         ra = bytes.fromhex(json.loads((HERE / "ras.json").read_text())[0]["ra_hex"])
