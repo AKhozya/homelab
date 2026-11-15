@@ -373,7 +373,109 @@ If the eero refuses a renew, the node can lose its address until the eero gives 
 | `fe80::1` on the nodes | the ZTE's DHCPv6 lease still lists it as a DNS server in `/run/systemd/resolve/resolv.conf`, so CoreDNS forwards to it too. Check that it is gone from that file on each node. If it stays, the next reboot should remove it. Check the file again after that reboot |
 | docs | update `docs/subsystems/networking.md` and `docs/HOMELAB_HISTORY.md`: the eero is the router |
 | parked fallback branch | revisit it (next section) |
-| optional | rename `test-eero`; merge the eeros into one network as a separate change |
+| optional | rename `test-eero`; merge the eeros into one network: the next section |
+
+### Merge the eeros into one network
+
+| Network | Eeros | Fate |
+|---|---|---|
+| `test-eero` | the spare, Gateway, on the ONT | stays. It keeps its DHCP range, reservations and Blocky DNS. Step 2 gives it the `z3us` Wi-Fi name and password |
+| old `z3us` | Office and Living Room, Bridge mode | goes. Nothing in it is worth keeping |
+
+| Fact | Effect on the plan |
+|---|---|
+| Removing an eero from a network factory-resets it (eero support, "How do I add or remove eeros from my network?") | steps 3 and 4 add each reset eero to `test-eero` |
+| If a network keeps the old Wi-Fi name and password, devices reconnect by themselves (eero support, "Changing your eero Wi-Fi name and password") | step 2 renames `test-eero` before any old eero leaves |
+| A factory-reset eero shows a blue LED when it is ready for setup. Solid white means online and configured | add a reset eero once its LED is blue; check for white after it joins |
+| The Office wall cable feeds the Office eero, and the Office eero feeds a switch with the Mac, the NAS, the CP, worker-node and worker-node-2 | if the Office eero resets while it sits in that path, the homelab loses its gateway and the house loses Blocky. Step 1 takes the eero out of the path |
+| That switch has no free port | the Mac gives its port to the wall cable and moves to Wi-Fi |
+| The Living Room eero feeds a switch with the TV, Apple TV, PS5 and Xbox | those devices are offline while that eero resets |
+| The app may refuse to remove a network's Gateway eero | if it does, delete the old `z3us` network instead. That resets the eero too |
+| From step 2 to step 4, two networks may carry the name `z3us` | the guard below runs before each Remove or Delete |
+
+**Guard before each Remove or Delete.** Every row must hold for the network on screen:
+
+| Check | Step 3 | Step 4 |
+|---|---|---|
+| mode | Bridge | Bridge |
+| the spare in its eero list | absent | absent |
+| its eero list | Office and Living Room | only the remaining old eero |
+
+1. In the Office:
+
+   | Action | Why |
+   |---|---|
+   | Unplug the Mac's cable from the switch | frees a port |
+   | Join the Mac's Wi-Fi to `z3us` | the Mac stays online |
+   | Move the wall cable from the Office eero to the freed switch port | the eero leaves the homelab's path |
+   | Keep exactly one cable between the Office eero and the switch | two cables would make a loop |
+
+   | Check (Claude) | Pass |
+   |---|---|
+   | each node pings 192.168.1.1 | replies |
+   | the Mac's route | gateway 192.168.1.1 on Wi-Fi; a website loads |
+   | the app | the Office eero online in `z3us` |
+
+2. In `test-eero` → Settings → Network name and password, the operator enters the `z3us` name and password. If the eero restarts, wait until the app shows it online. Turn the phone's Wi-Fi off and on next to the spare.
+
+   | Result | Then |
+   |---|---|
+   | the app lists the phone as a client of the renamed network | pass |
+   | the app refuses the duplicate name | keep the name `test-eero`. Join the phone and the Mac to `test-eero` now, so they stay online when the last old eero goes. After step 4, set both the name and the password to the old `z3us` values, then repeat the step 1 checks. If both match the old values, devices rejoin by themselves |
+
+3. Run the guard. In the old `z3us` network, remove the eero that the app does not mark Gateway. If its LED shows blue, add it to the surviving network: Add indoor eero, with the phone next to that eero. Pass: the app lists it online with a wired connection, and its LED is solid white.
+4. Run the guard. Remove the remaining old eero. If the app refuses, delete the old `z3us` network. Add the eero to the surviving network as in step 3.
+5. If a switch port is free, plug the Mac's cable back in. Otherwise the Mac stays on Wi-Fi.
+
+| Final check | Who | Pass |
+|---|---|---|
+| the app | operator | one network, three eeros, each online with a wired connection |
+| `ipconfig getpacket` on the Mac | Claude | DNS .129 and .126 only |
+| Blocky's query log | Claude | new lookups from many devices |
+| `kubectl get nodes` | Claude | 4 Ready |
+| the Cloudflare tunnel and public apps | Claude | up. If the tunnel pods are in backoff, wait 5 minutes |
+| the Living Room devices | operator | online again |
+
+| Failure | Then |
+|---|---|
+| an eero does not join within 10 minutes | reset it with its button, and add it again |
+| devices do not reconnect after step 4 | check the surviving network's name and password in the app |
+| a node does not ping 192.168.1.1 after step 1 | put the wall cable back into the Office eero |
+
+**Results (2026-11-14, 23:12 to 23:55):**
+
+| Step | Time | Observation |
+|---|---|---|
+| 1 | 23:14 | the Mac's switch port is free and the Mac is on Wi-Fi. The Office eero still sits in the path: its port 1 leads to the wall, its port 2 to the Office switch |
+| 2 | 23:12 | the app accepts a second network named `z3us`. The network list shows the old one with a location subtitle |
+| 3 | 23:19 | the operator removes the Office eero: ··· → Remove → Remove from network |
+| 3 | 23:20 | every node pings 192.168.1.1 |
+| 3 | after 23:20 | the Mac reaches 192.168.1.1 but not .127, .129, .126, .136 or .231. Blocky does not answer |
+| 3 | 23:32 | the reset Office eero is in the surviving network. .129 answers, and Blocky resolves |
+| 4 | 23:27, 23:33 | "Delete network" on the Living Room eero fails: "We couldn't update your settings" |
+| 4 | 23:46 | after the operator restarts the old network, the old network shows Offline with no eeros. The network list holds one `z3us`. The Living Room eero is in the surviving network |
+| cause | 23:47 | Cupboard eero: port 2 is the WAN; port 1 shows "0 devices, 0 eeros". Office eero: "Connected to Cupboard (6 GHz TrueMesh)". Living Room eero: "Connected to Office (2.5 Gbps, Port 1)" |
+| fix | 23:53 | the operator cables the Cupboard eero's port 1 to the MS308. Cupboard port 1: "Multiple devices". Office and Living Room: "Connected to Cupboard (2.5 Gbps, Port 1)" |
+
+| Final check | Result |
+|---|---|
+| eero networks | one `z3us` with three eeros, each on a wired link |
+| the Mac's lease | DNS .129 and .126 only |
+| the Mac's Wi-Fi service | no manual DNS servers |
+| Blocky's query log | 14 client addresses in 5 minutes; the Mac's test lookups present |
+| `kubectl get nodes` | 4 Ready |
+| the tunnel and public apps | the tunnel pods run; the apps answer |
+
+Inference, not tested: if no cable connects the Cupboard eero's LAN port to the MS308, the Office switch reaches the gateway only through the Office eero's wireless link. If that eero then resets, the Office switch loses the gateway.
+
+| Lesson | Check |
+|---|---|
+| an eero falls back to a wireless link, so every eero can show online while a cable is missing | if a planned change resets an eero, first open each eero → Connected devices & port details. The gateway's LAN port must list the switch, and each other eero must show a wired link to the gateway |
+
+| Still open | Action |
+|---|---|
+| Thread | the old network has Thread on. Check Thread in the surviving network, and turn it on if it is off. Then check smart-home devices that use it |
+| Living Room devices | the operator checks that the TV, Apple TV, PS5 and Xbox are online |
 
 ## Parked related work
 
