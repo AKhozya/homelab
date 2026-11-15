@@ -116,7 +116,7 @@ Ran on 2026-11-15.
   | Step | Who | Action | Pass |
   |---|---|---|---|
   | 1 | agent | `ip -6 -br addr show dev enp3s0 scope global` on the CP; `ifconfig en0` on the Mac | the CP holds `<thread prefix>::53`; the Mac holds another address in that range |
-  | 2 | operator | the command below, with `TEST=-e blocky_fallback_v6_min_lifetime=0` | the recap shows `failed=0`. If it prints `another node-maintenance run holds the lock`, the wrapper skipped the run: wait and repeat |
+  | 2 | operator | the command below, with `TEST=-e blocky_fallback_v6_min_lifetime=0` | the CP's recap line shows `unreachable=0` and `failed=0`. If it prints `another node-maintenance run holds the lock`, the wrapper skipped the run: wait and repeat |
   | 3 | agent | `ss -ulnH 'sport = :53'` on the CP; from the Mac `dig +short @<thread prefix>::53 doubleclick.net`, then `example.com` | Blocky listens on `[<thread prefix>::53]:53`; `0.0.0.0`; an address |
   | 4 | operator | the command below with `TEST=` empty | the listener is gone. If step 4 is skipped, the next 03:00 or 15:00 run removes it |
 
@@ -157,14 +157,14 @@ Spike results (2026-11-15):
 | Loki 3.7.10 `-verify-config` on the rendered chart | valid; a broken `period` fails |
 | Bot access | no change: the bot already has `pods/exec` in the `loki` and `blocky` namespaces |
 
-Live check after the merge, once the Blocky restart and the CP's new Alloy pod are both up. Lines written before the pod finds the file never reach Loki, so send a fresh lookup first.
+If Blocky has restarted and the CP's new Alloy pod is Ready, run these checks. Lines written before the pod finds the file never reach Loki, so send a fresh lookup first.
 
 | Where | Command or query | Pass |
 |---|---|---|
 | CP | `systemctl show blocky-fallback -p LogsDirectory` | `LogsDirectory=blocky-fallback` |
 | CP | `journalctl -u blocky-fallback --since <restart time>` | no `can't create query log writer` line and no query lines |
 | CP, operator | `sudo ls -l /var/log/private/blocky-fallback` | today's file, owned by the service's dynamic user |
-| Mac | `dig +short @192.168.1.127 <fresh random name>.example.com` | an answer |
+| Mac | `dig @192.168.1.127 <fresh random name>.example.com +noall +comments` | a `status:` line (NOERROR on 2026-11-15), not `connection timed out` |
 | Grafana Explore | `{job="blocky-fallback"} \|= "<that name>"` | one line |
 | cluster | the `loki` ConfigMap; the 4 Alloy pods | it holds the `retention_stream` rule; all Ready, no `loki.source.file` errors in their logs |
 
