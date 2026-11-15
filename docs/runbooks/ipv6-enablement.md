@@ -8,7 +8,7 @@
 
 **Tech stack:** eero app (firmware 7.x), systemd-networkd, UFW, Blocky v0.36.0 (role `blocky_fallback`), node-exporter textfile metrics, VMRule alerts.
 
-**Status:** reviewed (Codex). Task 0 and the spike ran on 2026-11-15. Tasks 1-3 are in review. The IPv6-on window has not run.
+**Status:** reviewed (Codex). Task 0 and the spike ran on 2026-11-15. Tasks 1-3 are live (PR #1515, 2026-11-15). Task 4 is in review. The IPv6-on window has not run.
 
 **Spec:** the operator's request of 2026-11-15: research IPv6, find the firewall rules needed on the eero, the homelab and elsewhere, and give a mitigation for each risk. There is no separate spec file.
 
@@ -53,7 +53,7 @@
 | Other home devices (TVs, consoles, plugs, Apple) | reachable only if the eero firewall fails | the eero inbound block | none: they have no host control we manage | W2b covers the eero |
 | Blocky fallback process | if its IPv6 address is missing at boot, the IPv4 listener dies too | `ports.freeBind: true` | systemd restarts it | spike T3b |
 | Loss of the only IPv6 DNS server | if the CP is down, lookups over IPv6 time out | clients keep the IPv4 servers .129 and .127 from DHCP | alert `BlockyFallbackDown` | W8: stop the fallback, time a fresh lookup |
-| Per-device logs | the fallback keeps none. Apple rotates its IPv6 addresses daily, so attribution is weak whichever Blocky answers | Task 4 option | — | — |
+| Per-device logs | the fallback kept none. Apple rotates its IPv6 addresses daily, so attribution is weak whichever Blocky answers | Task 4: a csv query log, which Alloy ships to Loki for 7 days | — | the Task 4 live check |
 | Prefix change by the ISP or the eero | the eero field holds a dead address, so IPv6 lookups time out | use the eero's private range, which lasts about 30 days, not the ISP's prefix | alert `BlockyIPv6DNSBypass` | W9: re-check after an eero restart |
 
 ## Assumptions
@@ -123,7 +123,27 @@ Ran on 2026-11-15.
 | B | `queryLog: console` in its own journald namespace; Alloy reads it into Loki (7 days) | about 87k queries/day today. The namespace keeps node-maintenance logs from being pushed out. Alloy needs a new journal source |
 | C | Postgres log into the cluster's database, with console as fallback if it is unreachable | DB credentials on the CP host, and a NetworkPolicy for host traffic |
 
-Chosen: B (operator, 2026-11-15). A journald namespace has a per-machine directory name, and Alloy's journal source takes one fixed path, so the candidate design is a Blocky `csv` log under the service's `LogsDirectory` (`/var/log/private/blocky-fallback`, 7 days through `logRetentionDays`), read by an Alloy file source. The bot's account can read the journal but not `/var/log/private`. This is a separate PR after Tasks 1-3, because it rolls the Alloy DaemonSet.
+Chosen: B (operator, 2026-11-15), built as a csv file, not a journald namespace. Alloy runs one config on every node, and a namespace's journal folder name holds the machine ID, so the other 3 nodes would point at a folder that does not exist.
+
+| Part | Built |
+|---|---|
+| Blocky (`tasks/render.yml`) | `queryLog: {type: csv, target: /var/log/blocky-fallback, logRetentionDays: <the cluster's value, 7>}` |
+| Unit | `LogsDirectory=blocky-fallback`. With `DynamicUser=yes` the folder is `/var/log/private/blocky-fallback`, which the operator's account cannot read without sudo |
+| Alloy (`alloy-release.yaml`) | read-only hostPath of that folder, `DirectoryOrCreate`, so the other nodes get an empty folder. `loki.source.file` with `tail_from_end = true`; labels `job="blocky-fallback"`, `node_name`, `filename` |
+| Loki (`release.yaml`) | `retention_stream` `{job="blocky-fallback"}` 168h. Other streams keep 720h |
+
+Spike results (2026-11-15):
+
+| Check | Result |
+|---|---|
+| Blocky v0.36 csv on the CP | one file per day, `YYYY-MM-DD_ALL.log`; tab-separated time (local, no zone), client IP, client name, duration ms, reason, question, answer, rcode, response type, query type, host |
+| Retention | Blocky deletes files by the date in the name, 12 h after start and every 12 h after that |
+| Missing folder | `blocky validate` passes. At start Blocky retries 3 times, then logs every query to the journal |
+| Alloy v1.22 (local container, the real bytes) | lines already in a file are not sent; new lines are; a new pod re-sends nothing; the first lines of a new day's file are lost until the next 2 s file sync |
+| Loki 3.7.10 `-verify-config` on the rendered chart | valid; a broken `period` fails |
+| Bot access | no change: the bot already has `pods/exec` in the `loki` and `blocky` namespaces |
+
+Live check after the merge: `sudo ls -l /var/log/private/blocky-fallback` on the CP shows today's file. In Grafana Explore, `{job="blocky-fallback"}` shows the lookups. `journalctl -u blocky-fallback --since -10min` shows no query lines.
 
 ### Task 5: NAS (the operator, by hand)
 - [ ] Run `sudo nmcli connection modify "Wired connection 2" ipv6.method link-local && sudo nmcli connection up "Wired connection 2"`. The NAS connection goes down briefly, and so does immich-vm's connection through it, so run it in a quiet hour.

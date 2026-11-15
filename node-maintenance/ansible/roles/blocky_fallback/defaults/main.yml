@@ -11,6 +11,9 @@ blocky_fallback_config: /etc/blocky-fallback/config.yml
 blocky_fallback_source_config: "{{ state_dir }}/homelab/apps/blocky/config.yml"
 # systemd CacheDirectory=blocky-fallback creates this path for the dynamic service user.
 blocky_fallback_cache_dir: /var/cache/blocky-fallback
+# systemd LogsDirectory=blocky-fallback creates this symlink to /var/log/private/blocky-fallback.
+# The Alloy DaemonSet (monitoring/controllers/loki-stack/alloy-release.yaml) mounts the private path.
+blocky_fallback_log_dir: /var/log/blocky-fallback
 blocky_fallback_listen_ip: "{{ node_ip }}"
 # IPv6 listener: the CP's address that ends in ::53 on a private prefix (fd00::/8), read live by
 # tasks/main.yml, so the prefix never enters the repo. Only an address that stays valid at least this
