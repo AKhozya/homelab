@@ -444,23 +444,37 @@ If the eero refuses a renew, the node can lose its address until the eero gives 
 
 **Results (2026-11-14, 23:15 to 23:55):**
 
-| Step | Result |
+| Step | Time | Observation |
+|---|---|---|
+| 1 | 23:14 | the Mac's switch port is free and the Mac is on Wi-Fi. The Office eero still sits in the path: its port 1 leads to the wall, its port 2 to the Office switch |
+| 2 | 23:12 | the app accepts a second network named `z3us`. The network list shows the old one with a location subtitle |
+| 3 | 23:19 | the operator removes the Office eero: ··· → Remove → Remove from network |
+| 3 | 23:20 | every node pings 192.168.1.1 |
+| 3 | after 23:20 | the Mac reaches 192.168.1.1 but not .127, .129, .126, .136 or .231. Blocky does not answer |
+| 3 | 23:32 | the reset Office eero is in the surviving network. .129 answers, and Blocky resolves |
+| 4 | 23:27, 23:33 | "Delete network" on the Living Room eero fails: "We couldn't update your settings" |
+| 4 | 23:46 | after the operator restarts the old network, the old network shows Offline with no eeros. The network list holds one `z3us`. The Living Room eero is in the surviving network |
+| cause | 23:47 | Cupboard eero: port 2 is the WAN; port 1 shows "0 devices, 0 eeros". Office eero: "Connected to Cupboard (6 GHz TrueMesh)". Living Room eero: "Connected to Office (2.5 Gbps, Port 1)" |
+| fix | 23:53 | the operator cables the Cupboard eero's port 1 to the MS308. Cupboard port 1: "Multiple devices". Office and Living Room: "Connected to Cupboard (2.5 Gbps, Port 1)" |
+
+| Final check | Result |
 |---|---|
-| 1 | the operator freed the Mac's switch port; the Office eero stayed in the path (its port 1 to the wall, port 2 to the Office switch) |
-| 2 | the app accepts a second network named `z3us`. The dropdown tells them apart by the old network's location subtitle |
-| 3 | the Office eero is removed (app: ··· → Remove → Remove from network). About a minute later the Mac loses the whole Office switch, so the house loses Blocky. Adding the reset Office eero to the surviving network restores the path |
-| 4 | "Delete network" on the Living Room eero fails twice with "We couldn't update your settings". After the operator restarts the old network, it deletes. The Living Room eero joins the surviving network |
-| cause of the outage | the Cupboard eero's port 1 has no link to the MS308: "0 devices, 0 eeros". Every wired device reaches the gateway through the Office eero's 6 GHz wireless link to the Cupboard. If that eero resets, the wired house has no path to the gateway |
-| fix | a cable from the Cupboard eero's port 1 to the MS308. The Office and Living Room eeros then show "Connected to Cupboard (2.5 Gbps, Port 1)" |
-| final checks | one network, three eeros, each wired. The Mac's lease names .129 and .126 only; no manual DNS on the Mac. 14 clients in Blocky's log in 5 minutes. 4 nodes Ready; the tunnel and public apps answer |
+| eero networks | one `z3us` with three eeros, each on a wired link |
+| the Mac's lease | DNS .129 and .126 only |
+| the Mac's Wi-Fi service | no manual DNS servers |
+| Blocky's query log | 14 client addresses in 5 minutes; the Mac's test lookups present |
+| `kubectl get nodes` | 4 Ready |
+| the tunnel and public apps | the tunnel pods run; the apps answer |
+
+Inference, not tested: without a cable on the Cupboard eero's LAN port, the Office switch reaches the gateway only through the Office eero's wireless link. If that eero resets, the Office switch loses the gateway.
 
 | Lesson | Check |
 |---|---|
-| a wired path can be missing while every eero shows online, because eeros fall back to wireless backhaul | before any change that resets an eero, open each eero → Connected devices & port details, and confirm the gateway's LAN port lists the switch and each eero says "Connected to Cupboard" with a wired link |
+| an eero falls back to a wireless link, so every eero can show online while a cable is missing | if a planned change resets an eero, first open each eero → Connected devices & port details. The gateway's LAN port must list the switch, and each other eero must show a wired link to the gateway |
 
 | Still open | Action |
 |---|---|
-| Thread | the old network had Thread on; the reset removed it. Turn Thread on in the surviving network, then check smart-home devices that use it |
+| Thread | the old network has Thread on. Check Thread in the surviving network, and turn it on if it is off. Then check smart-home devices that use it |
 | Living Room devices | the operator checks that the TV, Apple TV, PS5 and Xbox are online |
 
 ## Parked related work
