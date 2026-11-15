@@ -2,8 +2,9 @@
 [IPv6AcceptRA]
 # No IPv6 default route: no node needs IPv6 to the internet, and pods have no IPv6 at all.
 UseGateway=no
-# Any LAN device can send a router advert. If one sets the "managed" flag, networkd starts DHCPv6
-# by default and takes the address and DNS servers that any DHCPv6 server offers. No node uses DHCPv6.
+# Any LAN device can send a router advert. If one sets the "managed" or "other" flag, networkd starts
+# DHCPv6 by default and takes the DNS servers that any DHCPv6 server offers, plus an address if the
+# flag is "managed". No node uses DHCPv6.
 DHCPv6Client=no
 # A router advert can also carry routes, including ::/0, and a router can send redirects. No node
 # needs either.
@@ -20,6 +21,6 @@ Token={{ ipv6_token }}
 # No SLAAC address at all. A global address built from the MAC would expose the MAC, and the
 # internet could reach it if the eero's inbound block failed.
 UseAutonomousPrefix=no
-# With no address on the prefix, its on-link route serves no purpose.
+# If a node has no address on a prefix, the prefix's on-link route serves no purpose.
 UseOnLinkPrefix=no
 {% endif %}
