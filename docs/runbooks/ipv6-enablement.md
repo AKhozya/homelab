@@ -75,7 +75,7 @@
 | A13 | Turning IPv6 off removes the Google DNS servers from clients | ✅ observed 2026-11-15 00:50 (Mac lists IPv4 only; NAS lists no IPv6 DNS) | revert checks |
 | A14 | `PrefixAllowList=fc00::/7` matches every prefix inside fc00::/7, not only that exact prefix | ✅ systemd source, `address_is_filtered` uses `in_addr_prefix_covers` since v250; nodes run 262 | W4 |
 | A15 | Routers answer the probe's Router Solicitation with IPv6 off | ✅ probe run as root on the CP: `ra_heard 1`, `state="none"` | — |
-| A16 | The probe's RDNSS parser reads the eero's real RA | ✅ live: it read Google's two servers, then only the fallback's, with their lifetimes. The masked fixture is still to add (HOMELAB_ANALYSIS deadline row) | — |
+| A16 | The probe's RDNSS parser reads the eero's real RA | ✅ live: it read Google's two servers, then only the fallback's, with their lifetimes. `tests/ras.json` entry 3 is the masked eero RA (#1521) | — |
 
 ## Tasks
 
