@@ -12,3 +12,9 @@ blocky_fallback_source_config: "{{ state_dir }}/homelab/apps/blocky/config.yml"
 # systemd CacheDirectory=blocky-fallback creates this path for the dynamic service user.
 blocky_fallback_cache_dir: /var/cache/blocky-fallback
 blocky_fallback_listen_ip: "{{ node_ip }}"
+# IPv6 listener: the CP's address that ends in ::53 on a private prefix (fd00::/8), read live by
+# tasks/main.yml, so the prefix never enters the repo. Only an address that stays valid at least this
+# long counts. The eero's prefix lasts about 30 days. The Thread border routers' prefix lasts 1800 s and
+# can vanish once the eero announces its own, so the default skips it. 0 accepts it, for a test.
+blocky_fallback_iface: "{{ static_ipv4.interface }}"
+blocky_fallback_v6_min_lifetime: 86400

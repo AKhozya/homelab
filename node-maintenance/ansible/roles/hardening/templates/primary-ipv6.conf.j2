@@ -1,0 +1,14 @@
+# Managed by node-maintenance (hardening role). Plan: docs/runbooks/ipv6-enablement.md
+[IPv6AcceptRA]
+# No IPv6 default route: no node needs IPv6 to the internet, and pods have no IPv6 at all.
+UseGateway=no
+{% if ipv6_ra_accept_addresses | bool %}
+# Private prefixes only (fc00::/7 covers every ULA), each with the fixed suffix from ipv6_token,
+# so the eero's IPv6 DNS field can name the Blocky fallback. The ISP's prefix gives no address.
+PrefixAllowList=fc00::/7
+Token={{ ipv6_token }}
+{% else %}
+# No SLAAC address at all. A global address built from the MAC would expose the MAC, and the
+# internet could reach it if the eero's inbound block failed.
+UseAutonomousPrefix=no
+{% endif %}

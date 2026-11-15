@@ -1,0 +1,43 @@
+---
+# Runs tasks/guards.yml on the real rule lists of each host, then on a list that must fail.
+# Run from the repo root:
+#   ansible-playbook -i localhost, -c local node-maintenance/ansible/roles/firewall/tests/test-guards.yml
+- name: The guards pass on each host's real rule lists
+  hosts: localhost
+  gather_facts: false
+  vars:
+    _vars: "{{ playbook_dir }}/../../.."
+  tasks:
+    - name: Run the guards with each host's vars
+      ansible.builtin.include_tasks: test-guards-host.yml
+      loop:
+        - [group_vars/all.yml, group_vars/control_plane.yml, host_vars/gmk-k3s-control-plane.yml]
+        - [group_vars/all.yml, host_vars/worker-node.yml]
+        - [group_vars/all.yml, host_vars/worker-node-2.yml]
+        - [group_vars/all.yml, host_vars/immich-vm.yml]
+      loop_control:
+        loop_var: var_files
+        label: "{{ var_files | last }}"
+
+- name: The guard refuses an allow rule with no source
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    # set_fact, not play vars: the include_vars facts of the play above outrank play vars.
+    - name: Set rule lists with one no-source rule
+      ansible.builtin.set_fact:
+        ufw_rules_base: [{ rule: allow, from_ip: 192.168.1.0/24, to_port: 53, proto: udp }]
+        ufw_rules_group: []
+        ufw_rules_host: [{ rule: allow, to_port: 53, proto: udp }]
+
+    - name: Run the guards on a no-source rule
+      block:
+        - name: Guards
+          ansible.builtin.include_tasks: ../tasks/guards.yml
+        - name: The guard did not fire
+          ansible.builtin.fail:
+            msg: guards.yml accepted a sourceless rule
+      rescue:
+        - name: The guard fired
+          ansible.builtin.assert:
+            that: "'open the port over IPv6' in ansible_failed_result.msg"

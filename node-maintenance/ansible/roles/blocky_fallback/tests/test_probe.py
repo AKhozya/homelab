@@ -7,6 +7,8 @@ replies.json holds raw replies recorded from Blocky v0.36.0 serving the derived 
 import importlib.util
 import json
 import pathlib
+import socket
+import struct
 import tempfile
 import unittest
 
@@ -89,6 +91,78 @@ class WriteMetrics(unittest.TestCase):
             self.assertIn('blocky_fallback_check{check="listener"} 1\n', text)
             self.assertIn('blocky_fallback_check{check="public"} 0\n', text)
             self.assertEqual(sorted(p.name for p in pathlib.Path(d).iterdir()), ["blocky_fallback.prom"])
+
+
+def ra(*options):
+    """An RA as a raw ICMPv6 socket returns it: 16-byte header, then the options."""
+    return bytes([134, 0, 0, 0, 64, 0, 0, 0]) + bytes(8) + b"".join(options)
+
+
+def rdnss_opt(lifetime, *addrs):
+    body = struct.pack(">HI", 0, lifetime) + b"".join(socket.inet_pton(socket.AF_INET6, a) for a in addrs)
+    return bytes([25, (len(body) + 2) // 8]) + body
+
+
+# Prefix Information option for fd00:db8:2::/64, as the eero sends it (type 3, length 4).
+PIO = bytes([3, 4, 64, 0xC0]) + struct.pack(">II", 2592000, 604800) + bytes(4) + \
+    socket.inet_pton(socket.AF_INET6, "fd00:db8:2::")
+
+
+class ParseRA(unittest.TestCase):
+    # Hand-built bytes. Replace with an RA captured from the eero once IPv6 is on (plan W3).
+    def test_rdnss_after_a_prefix_option(self):
+        self.assertEqual(probe.parse_ra_rdnss(ra(PIO, rdnss_opt(300, "fd00:db8:2::53", "2001:4860:4860::8888"))),
+                         ["fd00:db8:2::53", "2001:4860:4860::8888"])
+
+    def test_no_rdnss(self):
+        self.assertEqual(probe.parse_ra_rdnss(ra(PIO)), [])
+
+    def test_zero_lifetime_is_a_withdrawal(self):
+        self.assertEqual(probe.parse_ra_rdnss(ra(rdnss_opt(0, "2001:4860:4860::8888"))), [])
+
+    def test_zero_length_option_is_rejected(self):
+        with self.assertRaises(ValueError):
+            probe.parse_ra_rdnss(ra(bytes([1, 0, 0, 0, 0, 0, 0, 0])))
+
+    def test_option_past_the_end_is_rejected(self):
+        with self.assertRaises(ValueError):
+            probe.parse_ra_rdnss(ra(rdnss_opt(300, "fd00:db8:2::53"))[:-4])
+
+    def test_not_an_ra(self):
+        with self.assertRaises(ValueError):
+            probe.parse_ra_rdnss(bytes([133, 0, 0, 0]) + bytes(12))
+
+
+class RdnssState(unittest.TestCase):
+    def test_states(self):
+        f = "fd00:db8:2::53"
+        self.assertEqual(probe.rdnss_state(set(), f), "none")
+        self.assertEqual(probe.rdnss_state({f}, f), "fallback_only")
+        self.assertEqual(probe.rdnss_state({f, "2001:4860:4860::8888"}, f), "other")
+        # No IPv6 listener: any announced server bypasses Blocky.
+        self.assertEqual(probe.rdnss_state({f}, ""), "other")
+
+
+class WriteRAMetrics(unittest.TestCase):
+    def metrics(self, ra_result):
+        with tempfile.TemporaryDirectory() as d:
+            out = pathlib.Path(d) / "blocky_fallback.prom"
+            probe.write_metrics(str(out), {"listener": 1}, ra_result)
+            return out.read_text()
+
+    def test_one_hot_state(self):
+        text = self.metrics((True, "other"))
+        self.assertIn("blocky_fallback_ra_heard 1\n", text)
+        self.assertIn('blocky_fallback_ra_rdnss{state="other"} 1\n', text)
+        self.assertIn('blocky_fallback_ra_rdnss{state="none"} 0\n', text)
+
+    def test_nothing_heard_sets_no_state(self):
+        text = self.metrics((False, "none"))
+        self.assertIn("blocky_fallback_ra_heard 0\n", text)
+        self.assertNotIn("} 1\n", text.replace('check="listener"} 1', ""))
+
+    def test_no_ra_check_writes_no_ra_series(self):
+        self.assertNotIn("blocky_fallback_ra", self.metrics(None))
 
 
 if __name__ == "__main__":

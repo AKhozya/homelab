@@ -5,5 +5,5 @@ Documentation=https://github.com/AKhozya/homelab
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/python3 -I /usr/local/sbin/blocky-fallback-probe.py --server {{ blocky_fallback_listen_ip }} --internal-name {{ _internal.key }} --internal-ips {{ _internal.value | replace(' ', '') }} --out /var/lib/node_exporter/textfile/blocky_fallback.prom
+ExecStart=/usr/bin/python3 -I /usr/local/sbin/blocky-fallback-probe.py --server {{ blocky_fallback_listen_ip }} --internal-name {{ _internal.key }} --internal-ips {{ _internal.value | replace(' ', '') }} --out /var/lib/node_exporter/textfile/blocky_fallback.prom --ra-iface {{ blocky_fallback_iface }}{% if blocky_fallback_listen_ip6 %} --server6 {{ blocky_fallback_listen_ip6 }}{% endif %}
 TimeoutStartSec=1min

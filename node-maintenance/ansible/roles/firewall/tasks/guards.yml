@@ -1,0 +1,19 @@
+---
+# Checks on the rule lists alone, without the node. tests/test-guards.yml includes this file too.
+# An allow rule with no from_ip opens the port to IPv4 and IPv6 from anywhere. With IPv6 on, every
+# global address of the node is then reachable through it if the router's inbound block fails.
+# Not checked: ufw_rules_absent, whose no-source entries delete rules, and the route lists, whose
+# rules name an IPv4 to_ip and so create no IPv6 rule.
+- name: Refuse an allow rule with no source
+  vars:
+    _no_source: >-
+      {{ (ufw_rules_base + ufw_rules_group + ufw_rules_host)
+         | selectattr('rule', 'in', ['allow', 'limit'])
+         | rejectattr('from_ip', 'defined') | list }}
+  ansible.builtin.assert:
+    that: _no_source | length == 0
+    fail_msg: >-
+      These allow rules have no from_ip, so they open the port over IPv6 too: {{ _no_source }}.
+      Name a source, for example 192.168.1.0/24 for the LAN.
+    quiet: true
+  tags: [firewall]
