@@ -91,8 +91,8 @@
       ansible.builtin.assert:
         that: "blocky_fallback_rendered.ports == {'dns': ['192.168.1.127:53', '[fd00:db8:1::53]:53'], 'freeBind': true}"
 
-    # The template module trims the newline after a block tag, which once joined the next unit line
-    # onto ExecStart. Each directive must stay on its own line, with and without an IPv6 listener.
+    # Template rendering trims the newline after a block tag, which can join the next directive onto
+    # ExecStart. Each directive must stay on its own line, with and without an IPv6 listener.
     - name: Render the probe unit
       vars:
         blocky_fallback_iface: enp3s0

@@ -11,7 +11,7 @@ Checks, each blocky_fallback_check{check=...} 1 or 0:
 
 With --ra-iface, it also sends a Router Solicitation and reads the DNS servers (RDNSS, RFC 8106) that
 the routers announce, because a client that takes any other server skips Blocky over IPv6:
-  blocky_fallback_ra_heard 1 if any router advertisement arrived. With 0, the state below is unknown.
+  blocky_fallback_ra_heard 1 if any router advertisement arrived in this run.
   blocky_fallback_ra_rdnss{state=...} 1 for the current state, 0 for the others:
     none           no announced DNS server is still valid
     fallback_only  every valid announced server is --server6
@@ -198,7 +198,7 @@ def write_metrics(path, results, ra=None):
             "# HELP blocky_fallback_ra_rdnss 1 for the state of the DNS servers that routers announce.",
             "# TYPE blocky_fallback_ra_rdnss gauge",
         ]
-        # If nothing was heard and no stored server is valid, the state is unknown: all three are 0.
+        # If the probe hears no RA and stores no valid server, the state is unknown: all three are 0.
         known = heard or state != "none"
         lines += [f'blocky_fallback_ra_rdnss{{state="{s}"}} {int(known and s == state)}'
                   for s in ("fallback_only", "none", "other")]
