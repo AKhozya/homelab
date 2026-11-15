@@ -76,10 +76,10 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 | Amazon Connected Home | state not read | the operator does not use it |
 
 ## DNS chain
-1. LAN client → the DNS servers the router's DHCP hands out, port 53. Primary: 192.168.1.129 (cluster Blocky). Secondary: 192.168.1.127 (**CP Blocky fallback**). The router (ZTE H3600) holds these by hand, and it accepts only two
+1. LAN client → the DNS servers the eero's DHCP hands out, port 53: the two IPv4 entries of the eero's custom DNS, its only two. Primary: 192.168.1.129 (cluster Blocky). Secondary: 192.168.1.126 (cluster Blocky). If the secondary changes to 192.168.1.127, it is the **CP Blocky fallback**
 2. Blocky checks ACL → cache → upstream (DoH: Cloudflare Security + Quad9)
 
-**CP Blocky fallback** (role `blocky_fallback`, since 2026-11-10): a systemd service on the CP, outside Kubernetes. It keeps LAN DNS up if the cluster's Blocky path fails (servicelb, kube-proxy, both pods).
+**CP Blocky fallback** (role `blocky_fallback`): a systemd service on the CP, outside Kubernetes. It keeps LAN DNS up if the cluster's Blocky path fails (servicelb, kube-proxy, both pods).
 
 | Fact | Value |
 |---|---|

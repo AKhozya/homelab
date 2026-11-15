@@ -18,11 +18,11 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
-### 2026-11-10 — Blocky DNS fallback on the CP, outside Kubernetes
+### 2026-11-15 — Blocky DNS fallback on the CP, outside Kubernetes
 
-The router hands out exactly two DNS servers, and both were the cluster's Blocky (.129, .126): one Deployment behind k3s servicelb. A fault in that path left the house without DNS. New role `blocky_fallback` runs the same Blocky version on the CP under systemd, and the router's secondary DNS moves from .126 to .127.
+The eero gateway hands out exactly two IPv4 DNS servers, .129 and .126. Both lead to the cluster's Blocky: one Deployment behind k3s servicelb, so a fault in that path leaves the house without DNS. New role `blocky_fallback` runs the same Blocky version on the CP under systemd, on 192.168.1.127. If the eero's secondary DNS moves from .126 to .127, LAN DNS survives a fault in the cluster's path. The fallback keeps no query log, so lookups that reach it are blocked but not logged per device (the operator accepts this).
 
-| Spike (Blocky v0.36.0, derived config) | Result |
+| Spike, 2026-11-10 (Blocky v0.36.0, derived config) | Result |
 |---|---|
 | answers vs the cluster | identical: trackers 0.0.0.0; referral hosts, TikTok uploader, `h0melab.work`, App Store Connect, GitHub resolve |
 | start without Redis, Postgres or cluster DNS | healthy in ~12 s, ~90 MB RSS |
@@ -118,7 +118,6 @@ The rolling reboot on 2026-11-10 moved the CP, W1 and W2 to linux-lts 6.18.62. i
 
 `base_config` now deploys the CP's `reflector.conf` byte for byte and enables `reflector.timer` on every node. If the file changes, a handler runs `reflector.service` once. Owner, mode, contents and timer state already match on CP, W1 and W2, so the first run changes only immich-vm.
 
-||||||| parent of 8c0ab7f3 (WIP: Blocky DNS fallback role on the CP (parked, not reviewed to completion))
 ### 2026-11-10 — Blocky: Hagezi lists switched to the wildcard format; referral allowlist
 
 Since adoption, every denylist used Hagezi's adblock format (`||example.com^`). In a test on 2026-11-10, Blocky blocked `doubleclick.net` and `alphonso.tv` but resolved `ad.doubleclick.net` and `eu-acr1.alphonso.tv` through upstream DNS. Hagezi's FAQ lists the Wildcard (Asterisk) format (`*.example.com`) for Blocky v0.23 and newer.
