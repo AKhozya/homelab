@@ -43,7 +43,9 @@
   ],
   "commitMessagePrefix": "chore(deps): ",
   "commitMessageAction": "update",
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true
+  },
   "dependencyDashboardApproval": false,
   "kubernetes": {
     "managerFilePatterns": [
