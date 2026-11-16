@@ -1,7 +1,7 @@
 ---
 # Reuses the existing alertmanager-telegram secret (bot_token key)
 # Note: channel (chat_id) cannot be stored in secret - Flux Provider limitation
-apiVersion: notification.toolkit.fluxcd.io/v1beta3
+apiVersion: notification.toolkit.fluxcd.io/v1
 kind: Provider
 metadata:
   name: telegram
