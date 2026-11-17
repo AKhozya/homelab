@@ -18,6 +18,26 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-17 — the CP watches the NAS hardening
+
+ZettOS installs firmware updates by itself, and an update can undo the SSH, firewall and IPv6 changes below. The role
+`nas_watch` (PR #1539) runs `nas-hardening-probe` on the CP every 5 minutes. The probe needs no NAS login.
+
+| Alert | Fires if | Waits |
+|---|---|---|
+| `NASSSHPasswordLogin` | `nas_ssh_keys_only` is 0: the NAS SSH method list is anything other than `publickey` alone, or the probe logs in without a key | 10 minutes |
+| `NASFirewallPortOpen` | `nas_port_open` is 1: the CP can connect to the port its `port` label names. The probe tests 4150, 4151, 5432 and 111 | 10 minutes |
+| `NASIPv6On` | `nas_ipv6_on` is 1: the NAS answers a ping over IPv6 | 10 minutes |
+| `NASSSHUnreachable` | `nas_ssh_reachable` is 0: NAS SSH gives no answer. The wait is longer than a NAS reboot | 20 minutes |
+| `NASProbeMissing` | the probe metrics are absent | 15 minutes |
+| `NodeHealWatchdogStale` | `nas_hardening.prom` is more than 900 seconds old | 10 minutes more |
+
+| Limit | Detail |
+|---|---|
+| the SSH allow list | the CP is on the list, so the probe cannot see whether the NAS drops other sources |
+| IPv6 | if the NAS ignores pings, the probe cannot see it over IPv6. The readings on 2026-11-17 show `net.ipv6.icmp.echo_ignore_all=0` and `echo_ignore_multicast=0`. The probe watches the LAN2 MAC only |
+| no automatic repair | root on the NAS needs the operator's sudo password. The alerts name the fix |
+
 ### 2026-11-17 — NAS SSH: keys only, and an allow list of five addresses
 
 Before this change, the SSH server (sshd) on the NAS accepted passwords. Every device on the LAN could also open an SSH connection to it.
@@ -44,7 +64,7 @@ The three nodes are on the list because of the `immich-vm-heal` CronJob. Its pod
 | the firewall has no rule for ports 80 and 443 | if the firewall blocks SSH, fix the rules in the web UI |
 | a probe from immich-vm says nothing about the firewall | immich-vm uses a macvtap link (libvirt `direct`), and a macvtap guest cannot reach its own host (Red Hat's RHEL 6 virtualization guide, section B.9). On 2026-11-17 it got no connection to the NAS on 443, 50555 or 56634, while the Mac reached 443 and 50555 |
 | no test from an address outside the allow list | every machine available for a test is on the list. Only the rule listing proves the `DROP` |
-| ZettOS did not create `05-keys-only.conf` | if you update the firmware, repeat the first check above |
+| ZettOS did not create `05-keys-only.conf` | a firmware update can remove it. If SSH offers a password for 10 minutes, `NASSSHPasswordLogin` fires |
 
 ### 2026-11-17 — NAS: the ZettOS firewall closes four ports, and IPv6 is off
 
