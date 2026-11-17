@@ -1,0 +1,13 @@
+[Unit]
+Description=Check the NAS's SSH and firewall hardening (writes nas_hardening.prom)
+Documentation=https://github.com/AKhozya/homelab
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/nas-hardening-probe.sh
+# The probe pings each address that answered ff02::1 in turn. Each unanswered ping can add a second.
+TimeoutStartSec=2min
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile
+PrivateTmp=yes

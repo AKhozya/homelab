@@ -96,6 +96,8 @@
     # future hang into a give-up alert. If ClusterIP DNAT stays broken after a reboot, a CP-pinned pod
     # (e.g. uptime-kuma) stays DNS-dead without this role.
     - role: clusterip_heal_cp
+    # Watches the NAS's SSH and firewall hardening; the NAS itself is not in Ansible.
+    - role: nas_watch
   tasks:
     # This unit serves `kubectl proxy` as root with the admin kubeconfig on 127.0.0.1:8001 and no
     # auth: any local process, hostNetwork pods included, gets cluster-admin. No playbook uses it.

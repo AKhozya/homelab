@@ -144,13 +144,14 @@ spec:
     - alert: NodeHealWatchdogStale
       # The heal alerts above, the ImmichGPU*, Ufw* and BlockyFallback* alerts fire on a gauge value. If the script that
       # writes the gauge stops, node-exporter keeps serving the last file, and those alerts stay silent.
-      # 900s is 5x the 3min timers, 7.5x node_isolation_heal's 2min and 15x the 60s ufw_state and blocky_fallback.
+      # 900s is 5x the 3min timers, 7.5x node_isolation_heal's 2min, 15x the 60s ufw_state and blocky_fallback,
+      # and 3x nas_hardening's 5min.
       # The file survives a reboot under /var/lib, so its age jumps by the downtime at every boot.
       # The timers' OnBootSec (30s-2min) rewrites it within `for`. A down node has no sample.
       # Left out: the scripts that write firewall_preflight*, node_maintenance, node_pkg_upgrade and
       # telegram_notify run once per maintenance run, not on a timer. ufw-heal-watchdog writes no file.
       # No absent() arm: immich-vm has no node_isolation_heal file by design.
-      expr: time() - node_textfile_mtime_seconds{file=~"/var/lib/node_exporter/textfile/(clusterip_heal|clusterip_heal_cp|node_isolation_heal|immich_gpu_heal|ufw_state|blocky_fallback)[.]prom"} > 900
+      expr: time() - node_textfile_mtime_seconds{file=~".+/(clusterip_heal|clusterip_heal_cp|node_isolation_heal|immich_gpu_heal|ufw_state|blocky_fallback|nas_hardening)[.]prom"} > 900
       for: 10m
       labels:
         severity: warning
@@ -158,9 +159,9 @@ spec:
         summary: "Heal watchdog file {{ $labels.file }} on {{ $labels.instance }} is stale"
         description: "{{ $labels.file }} on {{ $labels.instance }} has not changed for over 25 minutes. Its writer has
           stopped, or fails before the write, so the alerts that read it cannot see a new value. On the node, check the timer and its last run:
-          systemctl list-timers --all '*heal*' ufw-state-metric.timer, then journalctl -u <unit>. Each unit is the file
-          name with dashes plus -watchdog; ufw_state.prom comes from ufw-state-metric.service and blocky_fallback.prom
-          from blocky-fallback-probe.service."
+          systemctl list-timers --all '*heal*' ufw-state-metric.timer nas-hardening-probe.timer, then journalctl -u <unit>. Each unit is the file
+          name with dashes plus -watchdog; ufw_state.prom comes from ufw-state-metric.service, blocky_fallback.prom
+          from blocky-fallback-probe.service and nas_hardening.prom from nas-hardening-probe.service."
 
     # The CP's Blocky fallback (role blocky_fallback) serves LAN DNS independently of Kubernetes. These
     # alerts detect a fallback failure while the cluster's Blocky stays healthy.
@@ -1877,3 +1878,72 @@ spec:
           after its timeout and kill. Hardware transcoding may hang. Run ps aux on the node and find the vainfo line. A STAT
           of D means the process waits in the kernel and cannot be killed. If journalctl -k on the node also shows i915
           errors or a GPU hang, cold-restart the NAS host."
+
+  # nas-hardening-probe on the CP (role nas_watch) checks the NAS, which is not in Ansible. A ZettOS
+  # firmware update installs itself and can undo the SSH and firewall hardening of 2026-11-17.
+  - name: nas-alerts
+    interval: 60s
+    rules:
+    - alert: NASSSHPasswordLogin
+      expr: nas_ssh_keys_only == 0
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "NAS SSH offers a login method other than publickey"
+        description: "The NAS SSH server lists a login method beside publickey, or accepts a login with no key. The
+          drop-in /etc/ssh/sshd_config.d/05-keys-only.conf is probably gone, for example after a firmware update. Keep
+          one SSH session to the NAS open until the end. The check runs from the Mac:\n
+          ssh -S none -o PreferredAuthentications=none -o PubkeyAuthentication=no zl-nas true\n
+          If the server accepts the login, the check exits 0. If the server denies it, ssh lists the methods in
+          parentheses. 1) If the check exits 0, set PermitEmptyPasswords no in the drop-in, reload ssh and run the check
+          again. If it still exits 0, stop and keep the session open. 2) If publickey is not in the list, turn it on
+          and reload ssh. 3) In a new session, run ssh -v -S none zl-nas true and confirm that it reports
+          authentication with publickey. 4) Turn each other method off in the drop-in (PasswordAuthentication no and
+          KbdInteractiveAuthentication no cover the usual two) and reload ssh. 5) Repeat the check until it lists only
+          publickey."
+
+    - alert: NASFirewallPortOpen
+      expr: nas_port_open == 1
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "NAS port {{ $labels.port }} is open"
+        description: "The ZettOS firewall should drop TCP {{ $labels.port }} on LAN2, but the CP connected to it. In the
+          NAS web UI, open Settings, Security, Firewall. Check that the firewall is on and DenyLAN2_4150_4151_5432_111 is
+          the active config. Then check that it has a Deny rule on LAN2 for TCP {{ $labels.port }}."
+
+    - alert: NASIPv6On
+      expr: nas_ipv6_on == 1
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "The NAS answers over IPv6"
+        description: "The ZettOS firewall filters only IPv4. LAN clients may reach services over IPv6 on LAN2,
+          including nsqd on port 4151. In the NAS web UI, open Network and set IPv6 to Close on LAN2. If LAN1 has a
+          cable, set IPv6 to Close there too."
+
+    - alert: NASSSHUnreachable
+      # 20m: a NAS reboot, such as a firmware update, takes about 11 minutes (see ImmichVMHealJobFailing).
+      expr: nas_ssh_reachable == 0
+      for: 20m
+      labels:
+        severity: warning
+      annotations:
+        summary: "The CP gets no SSH answer from the NAS"
+        description: "No SSH answer from 192.168.1.136:56634 for 20 minutes. If the NAS is up, check the ZettOS firewall
+          rule order: the Deny rule for 56634 must come after the Allow rules for the Mac and the three k3s nodes.
+          immich-vm-heal uses the same path."
+
+    - alert: NASProbeMissing
+      # NodeHealWatchdogStale covers a file that stops changing; this covers a file that never appears.
+      expr: absent(nas_ssh_reachable)
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "No NAS hardening probe result"
+        description: "nas_ssh_reachable is absent. On the CP: systemctl list-timers nas-hardening-probe.timer and
+          journalctl -u nas-hardening-probe."
