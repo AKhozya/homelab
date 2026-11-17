@@ -4,7 +4,7 @@
 
 **Goal:** turn IPv6 on at the eero with ad blocking intact, nothing new reachable from the internet, and a tested revert.
 
-**Architecture:** only the CP's systemd Blocky fallback answers DNS over IPv6, on a fixed suffix of the eero's private range. The eero announces that one address as its only IPv6 DNS server. The workers and immich-vm take no IPv6 addresses. The NAS keeps link-local addresses only.
+**Architecture:** only the CP's systemd Blocky fallback answers DNS over IPv6, on a fixed suffix of the eero's private range. The eero announces that one address as its only IPv6 DNS server. The workers and immich-vm take no IPv6 addresses. The NAS has IPv6 turned off.
 
 **Tech stack:** eero app (firmware 7.x), systemd-networkd, UFW, Blocky v0.36.0 (role `blocky_fallback`), node-exporter textfile metrics, VMRule alerts.
 
@@ -48,7 +48,7 @@
 | eero DNS | the eero announces Google's IPv6 DNS, so lookups skip Blocky | the fallback's address in the eero's IPv6 DNS field | alert `BlockyIPv6DNSBypass` from the CP's own RA read | W7: packet capture shows client lookups reach the fallback |
 | CP (fallback host) | would gain a global address. sshd, 6443, 10250 and node-exporter listen on IPv6 too | `PrefixAllowList=fc00::/7`: the CP takes addresses on private prefixes only, so it has no global address | UFW active for IPv6, default deny; the only IPv6 allow is DNS from `fc00::/7` | W4: no global address. W5: a LAN test to node-exporter over the CP's private address is refused |
 | worker-node, worker-node-2, immich-vm | gain global addresses that are reachable if the eero fails | `UseAutonomousPrefix=no`: no SLAAC addresses at all | UFW as on the CP. `UseGateway=no` on all nodes: no IPv6 default route | W4: `ip -6 addr show scope global` is empty |
-| NAS (no host firewall, not in Ansible) | gains a global address with SMB, web UI and SSH on it | the operator sets `ipv6.method link-local` | the eero inbound block | W4: no global address |
+| NAS (not in Ansible) | gains a global address with SMB, web UI and SSH on it. Its own firewall (ZettOS) filters IPv4 only | IPv6 off on LAN2 (`enp90s0`) in the ZettOS network settings (2026-11-17) | the eero inbound block | no IPv6 address on `enp90s0`, also after a NAS reboot (2026-11-17) |
 | Rogue router advert from any LAN device | if the advert sets the managed or other flag, nodes start DHCPv6 and take DNS servers from any DHCPv6 server, plus an address if the flag is managed. Nodes also install routes from the advert. Nodes also accept redirects. networkd does all of this by default | `DHCPv6Client=no`, `UseRoutePrefix=no`, `UseRedirect=no` on all nodes; `UseOnLinkPrefix=no` on the workers | `BlockyIPv6DNSBypass` if the rogue announces a DNS server and answers the probe | after the merge: no DHCPv6 client on any node; no RIO route on any node; no RA on-link route on the workers; the CP keeps its private-range on-link route |
 | Pods / CoreDNS | RA DNS reaches the node's resolv.conf, and CoreDNS forwards to an IPv6 server it cannot reach | `[IPv6AcceptRA] UseDNS=no` drop-in on all nodes | pods have no IPv6 route, so a connect fails at once (⚠️ inferred) | W2: node `resolv.conf` unchanged; CoreDNS answers |
 | Other home devices (TVs, consoles, plugs, Apple) | reachable only if the eero firewall fails | the eero inbound block | none: they have no host control we manage | W2b covers the eero |

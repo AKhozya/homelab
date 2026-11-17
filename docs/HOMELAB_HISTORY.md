@@ -18,6 +18,24 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-17 — NAS: the ZettOS firewall closes four ports, and IPv6 is off
+
+Before this, every device on the LAN could reach every NAS port, over IPv4 and over link-local IPv6. One of them was nsqd's HTTP API on 4151, which needs no login.
+
+| Change | Where |
+|---|---|
+| the ZettOS firewall rejects TCP 4150 and 4151 (nsqd), 5432 (Postgres) and 111 (rpcbind), and UDP 111, on LAN2. Its default stays "Allow access" | ZettOS UI, Security → Firewall |
+| IPv6 off on LAN2 (`enp90s0`). ZettOS saves it as the NetworkManager connection `LAN2-enp90s0`, which outranks `Wired connection 2` at boot (priority 0 against -999) | ZettOS UI, Network |
+| both settings survived a NAS reboot. The heal job started immich-vm again after the reboot | checked 2026-11-17 18:00 |
+
+| Learned | Detail |
+|---|---|
+| the ZettOS firewall writes IPv4 rules only | the closed ports stayed open over link-local IPv6 until IPv6 went off |
+| ZettOS refuses a firewall config that would block the current client from port 80 | the UI shows only "System Error". The `zettos-system-settings` journal says "operation cancelled" and names the port |
+| a rule takes one protocol | TCP and UDP for one port need two rules |
+| LAN1 (`enp89s0`) keeps IPv6 `auto` | the UI cannot change a port with no cable. It matters only if a cable goes in |
+| UDP 111 | no reply after the change. Not confirmed closed |
+
 ### 2026-11-15 — IPv6 on at the eero; only the CP's Blocky fallback answers over IPv6
 
 The operator turned IPv6 on at the eero after a planned window ([ipv6-enablement](runbooks/ipv6-enablement.md)) and kept it.
