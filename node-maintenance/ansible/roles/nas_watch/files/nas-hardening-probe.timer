@@ -1,0 +1,9 @@
+[Unit]
+Description=Check the NAS's SSH and firewall hardening every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
