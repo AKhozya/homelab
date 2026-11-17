@@ -92,7 +92,7 @@ From the 2026-05-22 audit:
 | Module and path | `akhozya-pool1`, `backups/homelab/` |
 | Credentials | the SOPS Secret `nas-rsync-credentials` |
 | Space | a 500 GB self-imposed limit for these backups; the pool size is in [HOMELAB_ANALYSIS.md](HOMELAB_ANALYSIS.md#storage) |
-| Admin access | SSH on port 56634, key-based |
+| Admin access | SSH on port 56634, keys only. On LAN2, the ZettOS firewall accepts new SSH connections only from the Mac and from the control plane, worker-node and worker-node-2 |
 
 The NAS is off the node, but not off the site: worker-node, worker-node-2 and the NAS share one
 building, power supply and LAN. There is no cloud copy; [ARCHITECTURE.md](ARCHITECTURE.md#deliberate-simplifications)
