@@ -81,7 +81,7 @@ DB role name = app name. Postgres roles and databases come from CNPG (`managed.r
 
 - worker-node: 4.22 TB LVM (2 NVMe SSDs) — hosts the bulk of app PVCs.
 - worker-node-2: 863 GB extra storage.
-- NAS: 15 TB pool, as recorded on 2026-07-13 (the 500 GB figure above is a soft limit inside the replication job, not a quota) — `zl-nas`, ZettLab/zettOS (Debian 12) at `192.168.1.136`. Out-of-cluster backup sink; admin SSH on `:56634` (key-based, sudo password-gated). The appliance itself is not a K3s node and not in ansible/k3s scope (the `immich-vm` K3s worker is a VM hosted on it).
+- NAS: 15 TB pool, as recorded on 2026-07-13 (the 500 GB figure above is a soft limit inside the replication job, not a quota) — `zl-nas`, ZettLab/zettOS (Debian 12) at `192.168.1.136`. Out-of-cluster backup sink; admin SSH on `:56634` (keys only, sudo password-gated; the ZettOS firewall accepts new connections on LAN2 only from the Mac, the control plane, worker-node and worker-node-2). The appliance itself is not a K3s node and not in ansible/k3s scope (the `immich-vm` K3s worker is a VM hosted on it).
 
 Storage is node-local (`local-path-provisioner`) — no distributed storage layer by choice; durability comes from the backup chain, not replicated volumes.
 

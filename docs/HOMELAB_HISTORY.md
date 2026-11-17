@@ -18,13 +18,41 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-17 — NAS SSH: keys only, and an allow list of five addresses
+
+Before this change, the SSH server (sshd) on the NAS accepted passwords. Every device on the LAN could also open an SSH connection to it.
+
+| Change | Where |
+|---|---|
+| sshd refuses passwords. `/etc/ssh/sshd_config.d/05-keys-only.conf` sets `PasswordAuthentication no` and `KbdInteractiveAuthentication no` | NAS; the operator created the file with sudo |
+| the ZettOS firewall accepts new SSH connections (TCP 56634) on LAN2 from five addresses and drops the rest. The five: the Mac, wired (`.39`) and Wi-Fi (`.42`), both reserved in the eero; and the nodes `.127`, `.129` and `.126` | ZettOS UI, Security → Firewall |
+
+The three nodes are on the list because of the `immich-vm-heal` CronJob. Its pod connects to the NAS over SSH every 5 minutes. The NAS sees that connection come from the address of the node the pod runs on.
+
+| Check | Result |
+|---|---|
+| `ssh -o BatchMode=yes -o PreferredAuthentications=none -o PubkeyAuthentication=no -o IdentityAgent=none zl-nas true` (a login with no key) | `Permission denied (publickey)` |
+| port 56634 from the Mac's two addresses and from the three nodes | open (21:20 UTC) |
+| `sudo iptables -S ZETTLAB_INPUT` | `RETURN` for the five addresses, then `DROP` for TCP 56634 |
+| `immich-vm-heal` | `RESULT=OK` at 21:25, from worker-node-2 |
+
+| Learned | Detail |
+|---|---|
+| the ZettOS UI says "Rules earlier in the list have higher priority" | the new Deny rule first sat above the allow rules. From 21:16 to 21:20, new SSH connections from the Mac and all three nodes timed out |
+| that outage failed one heal job | the 21:20 run logged `RESULT=FAIL reason=ssh_unreachable` |
+| the UI's "Deny" writes `DROP` | a blocked client gets no reply and times out |
+| the firewall has no rule for ports 80 and 443 | if the firewall blocks SSH, fix the rules in the web UI |
+| a probe from immich-vm says nothing about the firewall | immich-vm uses a macvtap link (libvirt `direct`), and a macvtap guest cannot reach its own host (Red Hat's RHEL 6 virtualization guide, section B.9). On 2026-11-17 it got no connection to the NAS on 443, 50555 or 56634, while the Mac reached 443 and 50555 |
+| no test from an address outside the allow list | every machine available for a test is on the list. Only the rule listing proves the `DROP` |
+| ZettOS did not create `05-keys-only.conf` | if you update the firmware, repeat the first check above |
+
 ### 2026-11-17 — NAS: the ZettOS firewall closes four ports, and IPv6 is off
 
 Before this, every device on the LAN could reach every NAS port, over IPv4 and over link-local IPv6. One of them was nsqd's HTTP API on 4151, which needs no login.
 
 | Change | Where |
 |---|---|
-| the ZettOS firewall rejects TCP 4150 and 4151 (nsqd), 5432 (Postgres) and 111 (rpcbind), and UDP 111, on LAN2. Its default stays "Allow access" | ZettOS UI, Security → Firewall |
+| the ZettOS firewall drops TCP 4150 and 4151 (nsqd), 5432 (Postgres) and 111 (rpcbind), and UDP 111, on LAN2. Its default stays "Allow access" | ZettOS UI, Security → Firewall |
 | IPv6 off on LAN2 (`enp90s0`). ZettOS saves it as the NetworkManager connection `LAN2-enp90s0`, which outranks `Wired connection 2` at boot (priority 0 against -999) | ZettOS UI, Network |
 | both settings survived a NAS reboot. The heal job started immich-vm again after the reboot | checked 2026-11-17 18:00 |
 
@@ -34,7 +62,7 @@ Before this, every device on the LAN could reach every NAS port, over IPv4 and o
 | ZettOS refuses a firewall config that would block the current client from port 80 | the UI shows only "System Error". The `zettos-system-settings` journal says "operation cancelled" and names the port |
 | a rule takes one protocol | TCP and UDP for one port need two rules |
 | LAN1 (`enp89s0`) keeps IPv6 `auto` | the UI cannot change a port with no cable. It matters only if a cable goes in |
-| UDP 111 | no reply after the change. Not confirmed closed |
+| UDP 111 | a probe got no reply. The rule listing (`sudo iptables -S ZETTLAB_INPUT`, 21:20) shows a `DROP` for it |
 
 ### 2026-11-15 — IPv6 on at the eero; only the CP's Blocky fallback answers over IPv6
 
