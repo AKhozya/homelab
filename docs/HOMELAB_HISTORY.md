@@ -18,6 +18,20 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-18 — cloudflared route sync, step 1 of 6: a read-only CronJob
+
+The cloudflared init container sends the tunnel's routes to Cloudflare at startup. If the API is unavailable or rejects the token, cloudflared cannot start. The migration moves that write into an hourly CronJob and runs cloudflared from a token file. This first step only reads.
+
+| Part | What it does |
+|---|---|
+| `cloudflared-route-sync` CronJob (`infrastructure/configs/cloudflare/route-sync/`) | hourly at :07 UTC: reads the stored tunnel config, compares it with the new `tunnel-config.json` key in Secret `cloudflared-config`, and logs `in sync` or the differing field paths. It writes only if `SYNC_WRITE` is `"true"`, which this step does not set |
+| `tunnel-config.json` | the init container's own payload, captured with a stub `curl`, so the two match by construction: 10 rules, 9 with a hostname, `warp-routing` on |
+| `cloudflared-route-sync-egress` NetworkPolicy | DNS to `kube-system`; TCP 443 outside RFC 1918 |
+| alerts | `CloudflareRouteSyncNoRecentSuccess`, `CloudflareRouteSyncNeverSucceeded`, `CloudflareRouteSyncMetricMissing` (VictoriaMetrics); `CloudflareRoutesRewritten` (Loki ruler) |
+| CI | `node-script-tests` runs the script's unit tests |
+
+Keep routes unchanged until step 5 passes. The init container stays the only writer until step 2 removes it.
+
 ### 2026-11-17 — the CP watches the NAS hardening
 
 ZettOS installs firmware updates by itself, and an update can undo the SSH, firewall and IPv6 changes below. The role

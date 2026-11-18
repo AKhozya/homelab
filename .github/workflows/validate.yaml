@@ -82,6 +82,8 @@ jobs:
           bash node-maintenance/ansible/roles/k3s_config/tests/test-wait-ready.sh
           bash node-maintenance/ansible/roles/nas_watch/tests/test-probe.sh
           bash node-maintenance/ansible/tests/test-k3s-version-verdict.sh
+      - name: Offline tests for the Cloudflare route sync
+        run: python3 -m unittest discover -s infrastructure/configs/cloudflare/route-sync/tests -v
 
   sops-check:
     name: sops encryption presence

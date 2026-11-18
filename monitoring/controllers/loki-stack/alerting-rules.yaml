@@ -41,3 +41,28 @@ data:
                 requests fail. A cgroup OOM is the usual cause: compare the container memory limit
                 against the sum of the loaded model families rather than any one of them, and check
                 the node journal for `constraint=CONSTRAINT_MEMCG` to confirm.
+  cloudflare-route-sync.yaml: |
+    groups:
+      - name: cloudflare-route-sync
+        interval: 1m
+        rules:
+          # If the Job verifies a write, it logs the line "updated"; no other line it prints
+          # contains that word. The 65-minute window keeps the alert firing across consecutive
+          # hourly writes, and the sum drops per-pod labels so they stay one alert. A firing
+          # that no merged route change explains means the Job replaced a config that differed
+          # from git.
+          - alert: CloudflareRoutesRewritten
+            expr: |
+              sum(
+                count_over_time({namespace="cloudflare-tunnel", container="route-sync"} |= "updated" [65m])
+              ) > 0
+            for: 0m
+            labels:
+              severity: info
+            annotations:
+              summary: "cloudflared-route-sync replaced the tunnel's routes at Cloudflare"
+              description: >-
+                The hourly sync found Cloudflare's stored tunnel config different from git, wrote
+                the git version and verified it. Expected after a merged route change. Otherwise
+                compare git history with the account audit log ("Update Tunnel configuration")
+                to find who changed the routes; see docs/runbooks/cloudflare-tunnel-routes.md.

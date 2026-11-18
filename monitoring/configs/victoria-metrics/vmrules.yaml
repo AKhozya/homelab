@@ -562,6 +562,44 @@ spec:
         summary: "Cloudflare tunnel {{ $labels.namespace }} has no traffic"
         description: "No requests received through Cloudflare tunnel in {{ $labels.namespace }} for 4 hours. Likely benign during idle hours; investigate only if external apps unreachable."
 
+    # cloudflared-route-sync runs hourly; a failed run fires JobFailed. These three cover a run
+    # that never happens. 8100s is two missed runs plus margin. If a Job stays active, Forbid
+    # skips the runs after it, so CloudflareRouteSyncNoRecentSuccess fires.
+    - alert: CloudflareRouteSyncNoRecentSuccess
+      expr: time() - kube_cronjob_status_last_successful_time{namespace="cloudflare-tunnel", cronjob="cloudflared-route-sync"} > 8100
+      for: 15m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Cloudflare route sync has not succeeded for over 2 hours"
+        description: >-
+          CronJob cloudflare-tunnel/cloudflared-route-sync has no successful run in over 2h15m, so
+          nothing compares git with Cloudflare's stored routes. Read its logs in Loki:
+          {namespace="cloudflare-tunnel", container="route-sync"}.
+
+    - alert: CloudflareRouteSyncNeverSucceeded
+      expr: |
+        kube_cronjob_info{namespace="cloudflare-tunnel", cronjob="cloudflared-route-sync"}
+        unless on(namespace, cronjob) kube_cronjob_status_last_successful_time
+      # The first run can come almost an hour after Flux creates the CronJob, plus scrape lag.
+      for: 70m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Cloudflare route sync has never succeeded"
+        description: "CronJob cloudflare-tunnel/cloudflared-route-sync exists but has no successful run after 70 minutes. Read its logs in Loki and the namespace's admission events."
+
+    # Fires if the CronJob is deleted or kube-state-metrics stops exporting it: the two rules
+    # above return nothing once the series is gone, so check both causes.
+    - alert: CloudflareRouteSyncMetricMissing
+      expr: absent(kube_cronjob_info{namespace="cloudflare-tunnel", cronjob="cloudflared-route-sync"})
+      for: 30m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Cloudflare route sync CronJob metric is missing"
+        description: "No kube_cronjob_info series for cloudflare-tunnel/cloudflared-route-sync for 30 minutes. Check that the CronJob exists and that kube-state-metrics is healthy."
+
   # Uptime Kuma has no notification channel of its own; these rules are its only alert path.
   - name: uptime-kuma-alerts
     interval: 60s
