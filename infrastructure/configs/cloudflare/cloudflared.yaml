@@ -167,6 +167,8 @@ spec:
         - tunnel
         - --config
         - /etc/cloudflared/config/config.yaml
+        - --output
+        - json
         - run
         securityContext:
           allowPrivilegeEscalation: false
