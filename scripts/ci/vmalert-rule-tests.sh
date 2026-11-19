@@ -25,9 +25,10 @@ cd "$repo_root"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# Every tracked YAML file that contains the literal text VMRule, then the parsed `.kind`
-# decides, so a quoted `kind: "VMRule"` still counts. yq is not run on every file: Helm and
-# Jinja templates in the repo do not parse. A grep or yq error stops the run.
+# Some tracked Helm and Jinja templates need rendering before yq can parse them.
+# grep selects files containing the literal text VMRule.
+# yq checks the parsed `.kind`, so quoted values also match.
+# A grep or yq error stops the run.
 git ls-files -z '*.yaml' '*.yml' >"$work/all"
 rule_files=()
 while IFS= read -r -d '' f; do
