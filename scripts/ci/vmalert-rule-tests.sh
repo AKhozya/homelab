@@ -11,9 +11,9 @@
 # exp_annotations must match the rendered annotations exactly.
 set -euo pipefail
 
-# The arrays and `read -d ''` loops need bash 4; macOS ships 3.2 as /bin/bash.
-((BASH_VERSINFO[0] >= 4)) || {
-  echo "needs bash 4 or later" >&2
+# Bash before 4.4 treats an empty array as unset under `set -u`. macOS ships 3.2 as /bin/bash.
+((BASH_VERSINFO[0] * 100 + BASH_VERSINFO[1] >= 404)) || {
+  echo "needs bash 4.4 or later" >&2
   exit 1
 }
 
@@ -25,12 +25,19 @@ cd "$repo_root"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-# Every tracked YAML file that mentions VMRule in any spelling, then the parsed `.kind`
-# decides. A quoted `kind: "VMRule"` still counts, and a file yq cannot parse stops the run.
+# Every tracked YAML file that contains the literal text VMRule, then the parsed `.kind`
+# decides, so a quoted `kind: "VMRule"` still counts. yq is not run on every file: Helm and
+# Jinja templates in the repo do not parse. A grep or yq error stops the run.
 git ls-files -z '*.yaml' '*.yml' >"$work/all"
 rule_files=()
 while IFS= read -r -d '' f; do
-  grep -q 'VMRule' "$f" || continue
+  f="./$f"
+  if grep -q -- 'VMRule' "$f"; then :; else
+    rc=$?
+    [ "$rc" -eq 1 ] && continue
+    echo "grep failed on $f (exit $rc)" >&2
+    exit 1
+  fi
   n="$(yq eval-all '[select(.kind == "VMRule")] | length' "$f")"
   if [ "$n" -gt 0 ]; then rule_files+=("$f"); fi
 done <"$work/all"
