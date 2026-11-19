@@ -264,7 +264,7 @@ spec:
             main:
               image:
                 repository: ghcr.io/immich-app/immich-server
-                tag: v3.4.1
+                tag: v3.4.2
                 pullPolicy: IfNotPresent
               env:
                 # iHD is the Intel media driver. The QSV accel setting lives in the admin UI
