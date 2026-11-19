@@ -159,6 +159,11 @@ spec:
                     name: immich-redis-url
                     key: redis-url
               IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
+              # From v3.4.2 the metrics exporter binds IMMICH_HOST (default "::") and builds its
+              # base URL without brackets, so 8081/8082 answer every scrape with 400
+              # (immich-app/immich#33466). The pod network is IPv4-only, so 0.0.0.0 loses nothing.
+              # Remove once the upstream fix ships.
+              IMMICH_HOST: "0.0.0.0"
 
     immich:
       metrics:
