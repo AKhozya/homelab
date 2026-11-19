@@ -28,24 +28,27 @@ The table summarises the months before the dated entries below.
 
 Readings of `net.ipv4.conf.*.log_martians`, and the 12:40Z drift-heal run that applied PR #1553:
 
-| Node | Before, read earlier on 2026-11-19: `all`, `default`, LAN interface | `/etc/ufw/sysctl.conf` task | Live-value task |
+| Node | Earlier on 2026-11-19 (`all`, `default`, LAN interface) | `/etc/ufw/sysctl.conf` task | Live-value task |
 |---|---|---|---|
 | CP | 0, 0, 0 | changed | changed |
 | worker-node | 1, 1, 1 | changed | ok, values already 1 |
 | worker-node-2 | 0, 0, 1 | changed | changed |
 | immich-vm | 0, 0, 1 | changed | changed |
 
-The kernel logs a martian if `all` or the interface value is 1. The CP's journal starts 2026-11-06 and holds no martian lines. worker-node-2 and immich-vm logged `martian destination 0.0.0.0`, all from one source address, the same on both nodes:
+If either `all` or the receiving interface has `log_martians=1`, the kernel logs martians. Kernel journal lines that match `martian destination 0.0.0.0`:
 
-| Date | worker-node-2 (journal from 2026-11-05) | immich-vm (journal from 2026-10-21) |
-|---|---|---|
-| before 2026-11-14 | 0 | 0 |
-| 2026-11-14, the day of the eero swap | 25 | 0 |
-| 2026-11-15 | 166 | 0 |
-| 2026-11-16 | 63 | 0 |
-| 2026-11-17 | 61 | 13 |
-| 2026-11-18 | 58 | 58 |
-| 2026-11-18 13:00Z to 2026-11-19 13:00Z | 110 | 110 |
+| Period | CP | worker-node-2 | immich-vm |
+|---|---|---|---|
+| journal starts | 2026-11-06 | 2026-11-05 | 2026-10-21 |
+| before 2026-11-14 | 0 | 0 | 0 |
+| 2026-11-14, the day of the eero swap | 0 | 25 | 0 |
+| 2026-11-15 | 0 | 166 | 0 |
+| 2026-11-16 | 0 | 63 | 0 |
+| 2026-11-17 | 0 | 61 | 13 |
+| 2026-11-18 | 0 | 58 | 58 |
+| 2026-11-18 13:00Z to 2026-11-19 13:00Z | 0 | 110 | 110 |
+
+worker-node-2 and immich-vm recorded the same single source address.
 
 ### 2026-11-18 — cloudflared route sync, step 1 of 6: a read-only CronJob
 
