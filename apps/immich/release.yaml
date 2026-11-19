@@ -159,10 +159,10 @@ spec:
                     name: immich-redis-url
                     key: redis-url
               IMMICH_MACHINE_LEARNING_URL: http://immich-machine-learning:3003
-              # From v3.4.2 the metrics exporter binds IMMICH_HOST (default "::") and builds its
-              # base URL without brackets, so 8081/8082 answer every scrape with 400
-              # (immich-app/immich#33466). The pod network is IPv4-only, so 0.0.0.0 loses nothing.
-              # Remove once the upstream fix ships.
+              # In v3.4.2 the metrics exporter builds an invalid base URL from the default host "::",
+              # so 8081/8082 answer every scrape with 400 (immich-app/immich#33466).
+              # The API listens on the same host; the pod network is IPv4-only.
+              # Remove this override once the deployed Immich version accepts scrapes with the default host.
               IMMICH_HOST: "0.0.0.0"
 
     immich:
