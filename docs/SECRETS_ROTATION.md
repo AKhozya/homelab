@@ -107,7 +107,7 @@ Since authentik 2023.6, `AUTHENTIK_SECRET_KEY` signs cookies and no longer feeds
 | `tunnel-credentials` | Cloudflare Tunnel | 2025-10-18 | Never* | Critical |
 | `pricebuddy-telegram` | PriceBuddy | 2025-12-05 | Never* | Medium |
 | `backup-replication-ssh` | Backup Jobs | RETIRED 2026-07-17 — W2 safety-net leg removed, secret deleted (NAS-only replication, rsync daemon auth) | N/A | N/A |
-| `cloudflare-tunnel-mgmt-token` | CF Tunnel Mgmt | 2026-02-19 | 2026-12-31 | Medium |
+| `cloudflare-tunnel-mgmt-token` | CF Tunnel Mgmt | 2026-11-19 | 2027-11-19 (Cloudflare expires it) | Medium |
 | `node-maintenance-ssh` | Node Auto-Update (CP → workers) | 2026-04-17 | 2027-04-17 | High |
 | `homelab-deploy` (GitHub deploy key) | Node-Maintenance git sync (CP `/root/.ssh/homelab-deploy`, read-only) | 2026-04-18 | 2027-04-18 | Medium |
 | `claude-telegram-ssh` → `id_ed25519` | Telegram bot — node SSH only (pinned to the `agent-diag` forced command since 2026-08-03, read-only diagnostics) | 2026-06-12 (compromise) | 2027-06-12 | High |
@@ -835,7 +835,7 @@ If compromised:
   | OIDC: grafana, paperless, mealie, home-assistant, stirling-pdf, linkwarden | `617556ce` |
   | OIDC: Immich (`system_metadata` row) and Audiobookshelf (SQLite settings row) | no commit; live database update + Authentik PATCH |
 - [x] Cloudflare Access OIDC client secret: operator pasted it in the Zero Trust dashboard, agent PATCHed Authentik provider 50 (2026-10-02)
-- [ ] 2026-12-31: `cloudflare-tunnel-mgmt-token`
+- [x] 2026-11-19: `cloudflare-tunnel-mgmt-token` replaced by API token `homelab-tunnel-routes` (Cloudflare Tunnel: Edit, one account, expires 2027-11-19)
 
 ### 2027 Q1 (Jan-Mar)
 - [ ] 2027-03-30: `FLUX_UPDATE_TOKEN` (180 days from creation)

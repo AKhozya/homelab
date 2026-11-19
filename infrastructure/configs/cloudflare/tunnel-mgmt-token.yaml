@@ -5,7 +5,7 @@ metadata:
     namespace: cloudflare-tunnel
 type: Opaque
 stringData:
-    api-token: ENC[AES256_GCM,data:gjASyq5JC12aBilWxrFvnemMkU5wK9DEQE6bVmj06pAFV/aMqe9/dDFpwcgMZbRvGbV9lnE=,iv:/gVWyQfnkk9Ea5h2zlDBKRGZilvG2J057RIqoRl0lTk=,tag:du/QG7xD3MZdaNl+YmtfbQ==,type:str]
+    api-token: ENC[AES256_GCM,data:BXqdBbkAX2RiiQowveX0u281jshokzjcIzwV2fQT2eTUaXVhwjimthyOAhrJg5UW4s3BJEs=,iv:TXloJMWLitO/Y4o8SI6LwTw52CEQDTljJ864+hZsGbw=,tag:5wFiF466/McI2pq0cdr6/w==,type:str]
     CF_ACCOUNT_ID: ENC[AES256_GCM,data:xnjTTd/GillDkeA7+Xmrv9HJ5IEC+gj9zKDirSmxHqU=,iv:C0cITitxm/FTjdlPE6WZz+sP2SJ8ZhOoNO15VyONpmo=,tag:b+DNAEWvXJUsqLCxnbOLHQ==,type:str]
     CF_TUNNEL_UUID: ENC[AES256_GCM,data:cnH0onkR2tPlumm5QWc14kVhJiRs2OuywGVArp90VRpbPyTW,iv:MBHa5FlmBym0NucJh9EoAhwK+IPASPNVoV1G5td6Le4=,tag:oDQfNul+GK/zUfGMUuLqqw==,type:str]
 sops:
@@ -20,6 +20,6 @@ sops:
             -----END AGE ENCRYPTED FILE-----
           recipient: age1jwjtfrp625gh24xd8rds9zcz7arsgmqf8y3nn4j9redfcvfvcuhs4fv3sc
     encrypted_regex: ^(data|stringData)$
-    lastmodified: "2026-05-23T21:37:57Z"
-    mac: ENC[AES256_GCM,data:i+7wXqz1hl7QEkENT9Sxtwbdgv+FXMPIEMpoYENRgkuI39awDQ+QX12U5EASI6O+gNJ2hnrTYQ41CH9VTz0ZQSzdQUSyIK6Z3eQ5uJ98NW9uVPUYee2PLGT950z82L6YojCqfI1tjd6ZziROtnVFam4Kd8GPwYWrigDU/zTIR5k=,iv:KmyCsFUwwFoe0l/awUvICy/tMJO4knzUnBt2Ev3uyws=,tag:k5szTHEV7yVJ95GbOoH6YA==,type:str]
+    lastmodified: "2026-11-19T00:12:16Z"
+    mac: ENC[AES256_GCM,data:7jtPwP7eNoWDeP9q7Z6yVnltisk4ekrf7Me9sDKduSTXD/CIVfGTtaf/1WCaXGR9dC8hnHm5fi4ij8cEGR6MKCrLUCNQF+aJ/oavDjPsoLQFj+YIP1Thso+NMAltscgrY2nOaK9NgDco6qAFeDk3GyIukM3flrVivEDx7Us93t0=,iv:3NnL45FR8tID0Eapq4BJ6USqZ2osHStM5HMi7zKJKrM=,tag:CcGQXyDyWBznkOfUygm1Mw==,type:str]
     version: 3.12.2

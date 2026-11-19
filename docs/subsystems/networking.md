@@ -43,7 +43,7 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 - Central config: `infrastructure/configs/cloudflare/cloudflared.yaml` + SOPS Secret `cloudflared-config-secret.yaml` (source of truth for external hostnames). **New external app = entry here, NOT a 2nd Ingress.**
 - Externally exposed (verified 2026-09-27 from SOPS; re-derive: `sops -d infrastructure/configs/cloudflare/cloudflared-config-secret.yaml | grep hostname`): authentik, couchdb, audiobooks, linkwarden, stirling, mealie, paperless, immich, n8n
 - Config sync via `PUT /accounts/{acct}/cfd_tunnel/{tunnel}/configurations` from the SOPS Secret; account + tunnel IDs inside it
-- Mgmt token in `cloudflare-tunnel-mgmt-token` Secret — expiry tracked in [SECRETS_ROTATION.md](../SECRETS_ROTATION.md)
+- Mgmt token in `cloudflare-tunnel-mgmt-token` Secret: API token `homelab-tunnel-routes`, Cloudflare Tunnel Edit on one account only. Expiry tracked in [SECRETS_ROTATION.md](../SECRETS_ROTATION.md)
 - Traffic path gotcha: tunnel hops `cloudflared → Service` directly — Traefik middlewares (CSP/headers/rate-limit) apply to the **internal path only**; external visitors get Cloudflare WAF + whatever the app itself sets (see ARCHITECTURE.md traffic flow)
 
 ## LAN
