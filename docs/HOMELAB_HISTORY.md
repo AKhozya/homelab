@@ -18,6 +18,38 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-19 — Cloudflare tunnel alert, Immich metrics and martian logging
+
+| Problem | Cause | Fix |
+|---|---|---|
+| `CloudflareTunnelPodNotRunning` (critical) fired every hour from 00:08Z | the rule matched `pod=~"cloudflared.*"`, so each finished `cloudflared-route-sync` Job pod (phase Succeeded) matched it | the rule excludes `cloudflared-route-sync-.*` (PR #1551, `d91e96a3`). A local vmalert-tool test passed with the exclusion and failed without it. The PR does not include the test |
+| `ScrapeTargetDown` for immich-server 8081 and 8082 from 00:11Z, after Renovate's v3.4.2 update | v3.4.2 binds the metrics exporter to `IMMICH_HOST`, default `::`. The OTel exporter omits brackets around `::` in its base URL (immich-app/immich#33466). Each request through a port-forward returned HTTP 400 | `IMMICH_HOST=0.0.0.0` on immich-server (PR #1552, `7e3aef21`). The pod network is IPv4-only. After the rollout, `up{namespace="immich"}` is 1 on both ports |
+| `net.ipv4.conf.all.log_martians` was 0 on the CP, worker-node-2 and immich-vm, although the hardening role sets 1 | each ufw start or reload applies `/etc/ufw/sysctl.conf`, whose package default sets `log_martians=0`. The later of k3s start and the last ufw reload decided the live value | the firewall role sets that file to 1 and checks the live values every run (PR #1553, `4d5e2e76`) |
+
+Readings of `net.ipv4.conf.*.log_martians`, and the 12:40Z drift-heal run that applied PR #1553:
+
+| Node | Earlier on 2026-11-19 (`all`, `default`, LAN interface) | `/etc/ufw/sysctl.conf` task | Live-value task |
+|---|---|---|---|
+| CP | 0, 0, 0 | changed | changed |
+| worker-node | 1, 1, 1 | changed | ok, values already 1 |
+| worker-node-2 | 0, 0, 1 | changed | changed |
+| immich-vm | 0, 0, 1 | changed | changed |
+
+If either `all` or the receiving interface has `log_martians=1`, the kernel logs martians. Kernel journal lines that match `martian destination 0.0.0.0`:
+
+| Period | CP | worker-node-2 | immich-vm |
+|---|---|---|---|
+| journal starts | 2026-11-06 | 2026-11-05 | 2026-10-21 |
+| before 2026-11-14 | 0 | 0 | 0 |
+| 2026-11-14, the day of the eero swap | 0 | 25 | 0 |
+| 2026-11-15 | 0 | 166 | 0 |
+| 2026-11-16 | 0 | 63 | 0 |
+| 2026-11-17 | 0 | 61 | 13 |
+| 2026-11-18 | 0 | 58 | 58 |
+| 2026-11-18 13:00Z to 2026-11-19 13:00Z | 0 | 110 | 110 |
+
+worker-node-2 and immich-vm recorded the same single source address.
+
 ### 2026-11-18 — cloudflared route sync, step 1 of 6: a read-only CronJob
 
 The cloudflared init container sends the tunnel's routes to Cloudflare at startup. If the API is unavailable or rejects the token, cloudflared cannot start. The migration moves that write into an hourly CronJob and runs cloudflared from a token file. This first step only reads.
