@@ -4,8 +4,3 @@
 - name: Reload systemd
   ansible.builtin.systemd_service:
     daemon_reload: true
-
-# A ufw reload would also apply the fixed file, but this role reloads only on drift.
-- name: Turn martian logging back on
-  ansible.builtin.command: /usr/bin/sysctl -w net.ipv4.conf.default.log_martians=1 net.ipv4.conf.all.log_martians=1
-  changed_when: true

@@ -38,7 +38,21 @@
     regexp: '^\s*net/ipv4/conf/{{ item }}/log_martians\s*='
     line: "net/ipv4/conf/{{ item }}/log_martians=1"
   loop: [default, all]
-  notify: Turn martian logging back on
+  tags: [firewall]
+
+# Checks the live values on every run: a notified handler is lost if a later task fails, and
+# the file is already fixed on the next run. This role reloads ufw only when rules drift.
+- name: Turn martian logging back on if a ufw reload turned it off
+  ansible.builtin.shell: |
+    set -eu
+    for k in default all; do
+      if [ "$(cat /proc/sys/net/ipv4/conf/$k/log_martians)" != 1 ]; then
+        sysctl -q -w "net.ipv4.conf.$k.log_martians=1"
+        echo "SET $k"
+      fi
+    done
+  register: _martians
+  changed_when: "'SET' in _martians.stdout"
   tags: [firewall]
 
 - name: Pre-heal — per-chain repair then ufw reload
