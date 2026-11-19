@@ -88,7 +88,14 @@ Domain name = `0398541a-c088-48cd-b16a-4b45d31a92f3` (internal uuid
   ssh zl-nas "$V define /dev/stdin" < new.xml
   ssh zl-nas "$V dumpxml --inactive $D" | diff new.xml - # empty = saved as intended
   ```
-- **Kernel-bump reboots are AUTOMATED** (node-maintenance phase2 PLAY 1b, `19d51c19`): if the running kernel is stale after weekly patching, the play runs a graceful in-guest `poweroff` (same as `virsh shutdown --mode acpi`), the `immich-vm-heal` watchdog `virsh start`s the shut-off domain, and the play waits for node Ready. The manual cold restart above stays the break-glass path for a wedged-but-running VM and for clobber recovery. Test on demand: `sudo ansible-playbook -i inventory.yml phase2.yml --limit immich-vm -e vm_cold_cycle_force=true`.
+- **Weekly cold-cycle** (node-maintenance phase2 PLAY 1b, `19d51c19`). After the weekly update, phase 2 powers off `immich-vm` from inside the guest (`poweroff`, the same as `virsh shutdown --mode acpi`). The `immich-vm-heal` watchdog starts the shut-off domain with `virsh start`. Phase 2 waits for the node to report Ready. The manual cold restart above stays the break-glass path for a wedged-but-running VM and for clobber recovery. `vm_cold_cycle_force` in `node-maintenance/ansible/group_vars/virtual.yml` sets how often phase 2 cold-cycles the VM:
+
+  | Case | What happens, or what to do |
+  |---|---|
+  | If `vm_cold_cycle_force` is `true` (since 2026-11-19) | every weekly run cold-cycles the VM |
+  | If `vm_cold_cycle_force` is `false` | a run cold-cycles the VM only if the running kernel differs from the installed one |
+  | If you must skip the forced cycle in the next scheduled run | merge `vm_cold_cycle_force: false`. Before Saturday 04:30, check that `/var/lib/node-maintenance/sync-applied-sha` on the CP names that commit. Revert it afterwards. A pending kernel still cold-cycles the VM |
+  | If you run phase2 by hand | it also updates and reboots the physical workers. To leave out the forced VM cycle, add `-e vm_cold_cycle_force=false`. That applies only to that run, never to the timer's run. A pending kernel still cold-cycles the VM |
 
 Mirror on the NAS: `/home/akhozya/immich-vm-xml-backups/immich-vm-q35-virtiofs.xml`
 (break-glass; this Git copy is now canonical).
