@@ -37,6 +37,11 @@ env:
   # A commit, not `main`: an upstream push would otherwise change the CRD schemas this
   # job validates against. If a CRD gains fields, update the catalog commit.
   DATREE_CATALOG_SHA: ad3b08c5045129d7bb1eeffd8e61719b2c8dd1e2
+  # vmalert-tool for alert-rule-tests. Keep it at the vmalert version the cluster runs, which
+  # the VictoriaMetrics operator chooses, not this repo:
+  # kubectl -n monitoring get deploy vmalert-vmalert -o jsonpath='{..image}'
+  VMUTILS_VERSION: v1.155.0
+  VMUTILS_SHA256: b6181fc16cf19835706ea5d67215eea56c1fe87350fdfd82a5ff803ea2c1a907
 
 jobs:
   yamllint:
@@ -84,6 +89,23 @@ jobs:
           bash node-maintenance/ansible/tests/test-k3s-version-verdict.sh
       - name: Offline tests for the Cloudflare route sync
         run: python3 -m unittest discover -s infrastructure/configs/cloudflare/route-sync/tests -v
+
+  alert-rule-tests:
+    name: alert rule unit tests (vmalert-tool)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ./.github/actions/install-yq
+      - name: Install vmalert-tool
+        run: |
+          set -euo pipefail
+          dl=$(mktemp -d)
+          curl -fsSL "https://github.com/VictoriaMetrics/VictoriaMetrics/releases/download/${VMUTILS_VERSION}/vmutils-linux-amd64-${VMUTILS_VERSION}.tar.gz" -o "$dl/vmutils.tgz"
+          echo "${VMUTILS_SHA256}  $dl/vmutils.tgz" | sha256sum -c -
+          mkdir -p "$HOME/.local/bin"
+          tar xzf "$dl/vmutils.tgz" -C "$HOME/.local/bin" vmalert-tool-prod
+      - name: Run the tests in monitoring/tests/vmalert/
+        run: scripts/ci/vmalert-rule-tests.sh "$HOME/.local/bin/vmalert-tool-prod" .
 
   sops-check:
     name: sops encryption presence
@@ -230,7 +252,7 @@ jobs:
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [yamllint, shellcheck, node-script-tests, sops-check, init-resources, image-pin, kubeconform, helm-render]
+    needs: [yamllint, shellcheck, node-script-tests, alert-rule-tests, sops-check, init-resources, image-pin, kubeconform, helm-render]
     runs-on: ubuntu-latest
     steps:
       - name: Every job succeeded

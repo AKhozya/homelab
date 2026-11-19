@@ -148,6 +148,7 @@ Each push and pull request to `main` runs [`validate.yaml`](.github/workflows/va
 | yamllint | YAML syntax and style |
 | shellcheck | shell scripts |
 | node-script-tests | offline tests for the node-maintenance scripts |
+| alert-rule-tests | unit tests for alert rules (vmalert-tool) |
 | sops-check | every Secret is SOPS-encrypted |
 | init-resources | every init container sets resource limits |
 | image-pin | no image uses a floating tag |
