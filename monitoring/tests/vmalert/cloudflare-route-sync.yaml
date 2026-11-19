@@ -2,8 +2,9 @@ rule_files:
   - rules.yaml
 evaluation_interval: 1m
 tests:
-  # Last success at t=0 and never again: time() - 0 passes 8100s at 135m, then for 15m.
-  - name: no-recent-success fires after 2h15m plus 15m
+  # The only success is at minute 0. Its age first exceeds 8100s at minute 136, so after
+  # `for: 15m` the alert fires at minute 151.
+  - name: no-recent-success fires at minute 151
     interval: 1m
     input_series:
       - series: 'kube_cronjob_status_last_successful_time{namespace="cloudflare-tunnel",cronjob="cloudflared-route-sync"}'
@@ -11,11 +12,11 @@ tests:
       - series: 'kube_cronjob_info{namespace="cloudflare-tunnel",cronjob="cloudflared-route-sync",schedule="7 * * * *"}'
         values: '1x200'
     alert_rule_test:
-      - eval_time: 145m
+      - eval_time: 150m
         alertname: CloudflareRouteSyncNoRecentSuccess
         exp_alerts: []
         groupname: cloudflare-tunnel-alerts
-      - eval_time: 155m
+      - eval_time: 151m
         alertname: CloudflareRouteSyncNoRecentSuccess
         exp_alerts:
           - exp_labels:
@@ -89,15 +90,27 @@ tests:
         alertname: CloudflareRouteSyncNoRecentSuccess
         exp_alerts: []
         groupname: cloudflare-tunnel-alerts
-  # The first success clears never-succeeded.
-  - name: first success clears never-succeeded
+  # The alert fires at minute 70; the first success series appears at minute 80.
+  - name: first success clears a firing never-succeeded
     interval: 1m
     input_series:
       - series: 'kube_cronjob_info{namespace="cloudflare-tunnel",cronjob="cloudflared-route-sync",schedule="7 * * * *"}'
         values: '1x120'
       - series: 'kube_cronjob_status_last_successful_time{namespace="cloudflare-tunnel",cronjob="cloudflared-route-sync"}'
-        values: '_x49 946687800x70'
+        values: '_x79 946689600x40'
     alert_rule_test:
+      - eval_time: 75m
+        alertname: CloudflareRouteSyncNeverSucceeded
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              namespace: cloudflare-tunnel
+              cronjob: cloudflared-route-sync
+              schedule: '7 * * * *'
+            exp_annotations:
+              summary: "Cloudflare route sync has never succeeded"
+              description: "CronJob cloudflare-tunnel/cloudflared-route-sync exists but has no successful run after 70 minutes. Read its logs in Loki and the namespace's admission events."
+        groupname: cloudflare-tunnel-alerts
       - eval_time: 100m
         alertname: CloudflareRouteSyncNeverSucceeded
         exp_alerts: []
@@ -123,7 +136,7 @@ tests:
               summary: "Cloudflare route sync has never succeeded"
               description: "CronJob cloudflare-tunnel/cloudflared-route-sync exists but has no successful run after 70 minutes. Read its logs in Loki and the namespace's admission events."
         groupname: cloudflare-tunnel-alerts
-  # No CronJob series at all.
+  # Another CronJob reports kube_cronjob_info; route-sync's series is missing.
   - name: metric-missing fires after 30m
     interval: 1m
     input_series:
