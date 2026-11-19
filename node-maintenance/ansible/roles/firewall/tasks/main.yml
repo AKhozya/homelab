@@ -40,8 +40,9 @@
   loop: [default, all]
   tags: [firewall]
 
-# Checks the live values on every run instead of notifying a handler. Ansible skips pending
-# handlers when a later task fails, and on retry the fixed file triggers no notification.
+# Checks the live values on every run instead of notifying a handler.
+# Ansible skips pending handlers on a host when a later task fails there.
+# On retry, the file task sends no notification because the file already matches.
 # This role reloads ufw only when rules drift.
 - name: Turn martian logging back on if a ufw reload turned it off
   ansible.builtin.shell: |
