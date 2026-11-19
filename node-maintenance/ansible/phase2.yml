@@ -766,6 +766,56 @@
           # TYPE node_maintenance_last_run_unixtime gauge
           node_maintenance_last_run_unixtime {{ ansible_facts['date_time'].epoch }}
 
+    # Phase 2 does not run the firewall role. That role's drift-heal sets log_martians back to 1.
+    # So this task reads the values that the reboots left.
+    # The bot reads the report file because its SSH account cannot read /proc/sys or run ip.
+    - name: Post-reboot node check (log_martians and static default route)
+      ansible.builtin.shell: |
+        set -uo pipefail
+        out=/var/log/node-maintenance/post-reboot-check.txt
+        # If a read fails, the probe exits non-zero, so the report says no-answer and not a wrong value.
+        # A backup static route must not hide a DHCP default, so every default route must be static.
+        # The protocol check needs each multipath route and its nexthop lines on one line, so it uses -o.
+        probe='a=$(cat /proc/sys/net/ipv4/conf/all/log_martians) || exit 1
+        d=$(cat /proc/sys/net/ipv4/conf/default/log_martians) || exit 1
+        routes=$(ip -o -4 route show default) || exit 1
+        t=$(printf "%s\n" "$routes" | grep -c .); n=$(printf "%s\n" "$routes" | grep -E -v "(^| )proto static( |$)" | grep -c .)
+        if [ "$t" -gt 0 ] && [ "$n" -eq 0 ]; then r=static; else r=not-static; fi
+        echo "boot=$(uptime -s | tr " " T) log_martians_all=$a log_martians_default=$d default_route=$r"'
+        report() {
+          case "$2" in
+            *" log_martians_all=1 log_martians_default=1 default_route=static") echo "PASS $1 $2" ;;
+            *) echo "FAIL $1 $2" ;;
+          esac
+        }
+        # The header carries the systemd invocation ID, which the bot prompt in ExecStopPost also carries.
+        # If this task cannot replace the report, the bot finds either no file or a header from another run.
+        rm -f "$out"
+        # ConnectTimeout covers only the connection. timeout also stops a probe that hangs after it.
+        # The directory is root:adm 0750 and new files get group root, so 0644 keeps the file adm-only.
+        # Bash ignores set -e in this if condition. If a write fails, || exit 1 stops the subshell.
+        if (
+          echo "# post-reboot check $(date -u +%FT%TZ) run={{ lookup('env', 'INVOCATION_ID') }}" || exit 1
+          report {{ groups['control_plane'][0] }} "$(timeout -k 5 30 bash -c "$probe" 2>/dev/null || echo no-answer)" || exit 1
+        {% for h in groups['workers'] %}
+          report {{ h }} "$(timeout -k 5 30 ssh -p 65300 -i {{ state_dir }}/.ssh/id_ed25519 \
+            -o UserKnownHostsFile=/etc/node-maintenance/known_hosts -o StrictHostKeyChecking=yes \
+            -o ConnectTimeout=10 -o BatchMode=yes \
+            node-maintenance@{{ hostvars[h].ansible_host }} "$probe" 2>/dev/null || echo no-answer)" || exit 1
+        {% endfor %}
+        ) >"$out.tmp" && chmod 0644 "$out.tmp" && mv -f "$out.tmp" "$out"; then
+          grep -c '^FAIL' "$out" || true
+        else
+          rm -f "$out.tmp"
+          echo unknown
+        fi
+      args:
+        executable: /bin/bash
+      register: post_reboot_check
+      changed_when: false
+      # If this task fails the play, phase2-pending stays set and systemd skips the bot trigger.
+      failed_when: false
+
     - name: Read updated packages summary
       ansible.builtin.slurp:
         src: "{{ updated_packages_log }}"
@@ -779,6 +829,7 @@
              if (phase2_skipped_hosts | default([]) | length > 0) else '✅ Node maintenance complete' }}
           Nodes: {{ groups['all'] | join(', ') }}
           Alerts still firing: {{ firing_alerts_count | default(0) }}
+          Post-reboot node checks failed: {{ post_reboot_check.stdout | default('', true) or 'unknown' }}
           Log: /var/log/node-maintenance/phase2-{{ '%d-%m-%Y' | strftime(ansible_facts['date_time'].epoch | int) }}.log
 
     - name: Telegram — success summary

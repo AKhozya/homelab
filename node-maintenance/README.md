@@ -6,7 +6,7 @@ scan timer:
 
 | Job | When (UTC) | What it does |
 |---|---|---|
-| Weekly update | Saturday 04:30 (`node-maintenance.timer`) | Phase 1 updates and reboots the CP. On boot, phase 2 updates the two physical workers one at a time, then `immich-vm` without an in-guest reboot, then cleans up. |
+| Weekly update | Saturday 04:30 (`node-maintenance.timer`) | Phase 1 updates and reboots the CP. On boot, phase 2 updates the two physical workers one at a time, then `immich-vm` without an in-guest reboot, then cleans up. It then writes one PASS or FAIL line per node to `/var/log/node-maintenance/post-reboot-check.txt` (`log_martians` and the static default route). If phase 2 succeeds, it asks the Telegram bot to review the alerts and that file. |
 | Drift-heal | daily 03:00 and 15:00 (`node-maintenance-config.timer`), and after every sync that pulls a new `main` | Puts each node back to the state `ansible/node-config.yml` declares |
 | Sync | every 10 minutes (`node-maintenance-sync.timer`) | Pulls `main` onto the CP and installs changed playbooks and units |
 | Security scan | the 1st of each month, 04:00 plus up to an hour's random delay | lynis and rkhunter on each node |

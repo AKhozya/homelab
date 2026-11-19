@@ -22,7 +22,8 @@ ExecStart=/usr/local/sbin/node-maintenance-lock.sh wait -- /usr/bin/ansible-play
 # Ansible clears the flag on success (phase2.yml task "Remove phase2-pending flag (success)").
 # No ExecStartPost removal — keeps flag on failure so Restart= retries with flag intact.
 ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" != "success" ] && /usr/local/sbin/telegram-notify.sh "❌ node-maintenance phase2 failed (result=$SERVICE_RESULT exit=$EXIT_STATUS). Retries in 15min, up to 3 starts within 2h. Log: /var/log/node-maintenance/phase2-$(date -u +%%d-%%m-%%Y).log" || true'
-ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" = "success" ] && /usr/local/sbin/telegram-notify-claude.sh "Weekly update and reboot flow finished. Review and fix all alerts, then cleanup stale stuff in the cluster." || true'
+# phase2.yml writes this run's INVOCATION_ID into the post-reboot report header. $$ passes a literal $ to sh.
+ExecStopPost=/bin/sh -c '[ "$SERVICE_RESULT" = "success" ] && /usr/local/sbin/telegram-notify-claude.sh "Weekly update and reboot flow finished. Review and fix all alerts, then cleanup stale stuff in the cluster. Also run cat /var/log/node-maintenance/post-reboot-check.txt on gmk-k3s-control-plane. Its first line must end with run=$$INVOCATION_ID. If the file is missing or the run ID differs, say this run produced no report and stop there. Otherwise report every FAIL line with its node. A FAIL with no-answer means the probe could not complete on that node: it was unreachable, timed out, or a read failed. Any other FAIL shows a measured log_martians value that is not 1, or a node with no IPv4 default route or with at least one IPv4 default route that is not static. Report these lines and do not try to fix them." || true'
 # Retry on transient failures (Flux timeout, SSH blip). 3 attempts at 15-min
 # intervals within 2h window. After exhaustion → failed state, flag retained.
 # If the flag is at least 2h old and Flux is healthy, config.service's
