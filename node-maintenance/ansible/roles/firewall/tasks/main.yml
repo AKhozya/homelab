@@ -30,6 +30,17 @@
   delay: 30
   tags: [firewall]
 
+# Every ufw start or reload applies IPT_SYSCTL (/etc/ufw/sysctl.conf), whose package default
+# sets log_martians=0 and so overrides the hardening role's 99-unified-hardening.conf.
+- name: Keep martian logging on through ufw reloads
+  ansible.builtin.lineinfile:
+    path: /etc/ufw/sysctl.conf
+    regexp: '^\s*net/ipv4/conf/{{ item }}/log_martians\s*='
+    line: "net/ipv4/conf/{{ item }}/log_martians=1"
+  loop: [default, all]
+  notify: Turn martian logging back on
+  tags: [firewall]
+
 - name: Pre-heal — per-chain repair then ufw reload
   ansible.builtin.shell: |
     set -o pipefail
