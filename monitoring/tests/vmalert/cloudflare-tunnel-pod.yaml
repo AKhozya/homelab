@@ -1,0 +1,24 @@
+rule_files:
+  - rules.yaml
+evaluation_interval: 1m
+tests:
+  - name: route-sync pod Succeeded stays silent, tunnel pod Pending fires
+    interval: 1m
+    input_series:
+      - series: 'kube_pod_status_phase{namespace="cloudflare-tunnel",pod="cloudflared-route-sync-29918167-wcz62",phase="Succeeded"}'
+        values: '1x20'
+      - series: 'kube_pod_status_phase{namespace="cloudflare-tunnel",pod="cloudflared-76cc5bb7b9-f5lms",phase="Pending"}'
+        values: '1x20'
+    alert_rule_test:
+      - eval_time: 10m
+        groupname: cloudflare-tunnel-alerts
+        alertname: CloudflareTunnelPodNotRunning
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              namespace: cloudflare-tunnel
+              pod: cloudflared-76cc5bb7b9-f5lms
+              phase: Pending
+            exp_annotations:
+              summary: "Cloudflare tunnel pod cloudflare-tunnel/cloudflared-76cc5bb7b9-f5lms is not running"
+              description: "Cloudflare tunnel pod is in Pending state. Public access to cloudflare-tunnel may be down."
