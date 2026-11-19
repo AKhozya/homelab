@@ -18,15 +18,30 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
-### 2026-11-19 — three fixes found by alerts and the daily IPv6 check
+### 2026-11-19 — Cloudflare tunnel alert, Immich metrics and martian logging
 
 | Problem | Cause | Fix |
 |---|---|---|
-| `CloudflareTunnelPodNotRunning` (critical) fired every hour from 00:08 | the rule matched `pod=~"cloudflared.*"`, so each finished `cloudflared-route-sync` Job pod (phase Succeeded) matched it | the rule excludes `cloudflared-route-sync-.*` (PR #1551, `d91e96a3`). A vmalert-tool unit test covers it |
-| `ScrapeTargetDown` for immich-server 8081 and 8082 from 00:11 | immich v3.4.2 binds its metrics exporter to `IMMICH_HOST`, default `::`. The OTel exporter builds its base URL without brackets and answers every request with HTTP 400 (immich-app/immich#33466) | `IMMICH_HOST=0.0.0.0` on immich-server (PR #1552, `7e3aef21`). The pod network is IPv4-only |
-| `log_martians` was 0 on the CP, worker-node-2 and immich-vm, although the hardening role sets 1 | each ufw start or reload applies `/etc/ufw/sysctl.conf`, whose package default sets `log_martians=0`. The last of k3s start and ufw reload decided the live value | the firewall role sets that file to 1 and turns the live values back on every run (PR #1553, `4d5e2e76`). The 12:40 drift-heal applied it on all 4 nodes |
+| `CloudflareTunnelPodNotRunning` (critical) fired every hour from 00:08Z | the rule matched `pod=~"cloudflared.*"`, so each finished `cloudflared-route-sync` Job pod (phase Succeeded) matched it | the rule excludes `cloudflared-route-sync-.*` (PR #1551, `d91e96a3`). A local vmalert-tool test passed with the exclusion and failed without it. The PR does not include the test |
+| `ScrapeTargetDown` for immich-server 8081 and 8082 from 00:11Z, after Renovate's v3.4.2 update | v3.4.2 binds the metrics exporter to `IMMICH_HOST`, default `::`. The OTel exporter builds its base URL without brackets and answers every request with HTTP 400 (immich-app/immich#33466). A port-forward got 400 on every path it tried | `IMMICH_HOST=0.0.0.0` on immich-server (PR #1552, `7e3aef21`). The pod network is IPv4-only. After the rollout, `up{namespace="immich"}` is 1 on both ports |
+| `net.ipv4.conf.all.log_martians` was 0 on the CP, worker-node-2 and immich-vm, although the hardening role sets 1 | each ufw start or reload applies `/etc/ufw/sysctl.conf`, whose package default sets `log_martians=0`. The later of k3s start and the last ufw reload decided the live value | the firewall role sets that file to 1 and checks the live values every run (PR #1553, `4d5e2e76`) |
 
-With martian logging back on, worker-node-2 and immich-vm log about 100–170 IPv4 "martian destination 0.0.0.0" lines a day, and the CP now logs them too. They come from one smart home appliance on the LAN that sends to 0.0.0.0. They started 2026-11-15. They are harmless.
+The 12:40Z drift-heal run applied PR #1553:
+
+| Node | `/etc/ufw/sysctl.conf` | Live `all` and `default` values |
+|---|---|---|
+| CP, worker-node-2, immich-vm | changed to 1 | changed from 0 to 1 |
+| worker-node | changed to 1 | already 1 |
+
+worker-node-2 and immich-vm log martians on their LAN interface, whose own `log_martians` is 1. The CP logged none before 2026-11-19, because its interface value and `all` were both 0. One LAN device sends IPv4 packets to 0.0.0.0, and both nodes log them as "martian destination":
+
+| Period | worker-node-2 (journal from 2026-11-05) | immich-vm (journal from 2026-10-21) |
+|---|---|---|
+| before 2026-11-14 | none | none |
+| 2026-11-14, the day of the eero swap | 25 | none |
+| 2026-11-15 | 166 | none |
+| 2026-11-16 to 2026-11-18, per day | 58–63 | none, then 13 on 2026-11-17 and 58 on 2026-11-18 |
+| 2026-11-18 13:00Z to 2026-11-19 13:00Z | 110 | 110 |
 
 ### 2026-11-18 — cloudflared route sync, step 1 of 6: a read-only CronJob
 
