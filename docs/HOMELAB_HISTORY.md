@@ -18,6 +18,16 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-19 — three fixes found by alerts and the daily IPv6 check
+
+| Problem | Cause | Fix |
+|---|---|---|
+| `CloudflareTunnelPodNotRunning` (critical) fired every hour from 00:08 | the rule matched `pod=~"cloudflared.*"`, so each finished `cloudflared-route-sync` Job pod (phase Succeeded) matched it | the rule excludes `cloudflared-route-sync-.*` (PR #1551, `d91e96a3`). A vmalert-tool unit test covers it |
+| `ScrapeTargetDown` for immich-server 8081 and 8082 from 00:11 | immich v3.4.2 binds its metrics exporter to `IMMICH_HOST`, default `::`. The OTel exporter builds its base URL without brackets and answers every request with HTTP 400 (immich-app/immich#33466) | `IMMICH_HOST=0.0.0.0` on immich-server (PR #1552, `7e3aef21`). The pod network is IPv4-only |
+| `log_martians` was 0 on the CP, worker-node-2 and immich-vm, although the hardening role sets 1 | each ufw start or reload applies `/etc/ufw/sysctl.conf`, whose package default sets `log_martians=0`. The last of k3s start and ufw reload decided the live value | the firewall role sets that file to 1 and turns the live values back on every run (PR #1553, `4d5e2e76`). The 12:40 drift-heal applied it on all 4 nodes |
+
+With martian logging back on, worker-node-2 and immich-vm log about 100–170 IPv4 "martian destination 0.0.0.0" lines a day, and the CP now logs them too. They come from one smart home appliance on the LAN that sends to 0.0.0.0. They started 2026-11-15. They are harmless.
+
 ### 2026-11-18 — cloudflared route sync, step 1 of 6: a read-only CronJob
 
 The cloudflared init container sends the tunnel's routes to Cloudflare at startup. If the API is unavailable or rejects the token, cloudflared cannot start. The migration moves that write into an hourly CronJob and runs cloudflared from a token file. This first step only reads.
