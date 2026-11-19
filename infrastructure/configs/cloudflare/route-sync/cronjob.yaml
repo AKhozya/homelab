@@ -1,0 +1,85 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cloudflared-route-sync
+  namespace: cloudflare-tunnel
+spec:
+  # The 03:00 and Saturday 04:30 windows protect cluster-heavy work; a run makes at most
+  # three HTTPS calls to Cloudflare, so it needs no exclusion.
+  schedule: "7 * * * *"
+  timeZone: "Etc/UTC"
+  concurrencyPolicy: Forbid
+  # If the controller misses a run by more than a minute, it skips it: the next hourly run
+  # compares the same config, so a late extra run adds nothing.
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # No retry inside a run: a retry after "write unconfirmed" could read the new config,
+      # log "in sync" and succeed, hiding the uncertain write. The next hourly run retries.
+      backoffLimit: 0
+      activeDeadlineSeconds: 120
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            # The egress NetworkPolicy selects this label; Job names change every run.
+            app.kubernetes.io/name: cloudflared-route-sync
+        spec:
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          priorityClassName: homelab-batch
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: route-sync
+              image: python:3.15.2-alpine3.24
+              command: ["python3", "/app/sync.py"]
+              # If SYNC_WRITE is absent, sync.py only compares routes.
+              env:
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+              volumeMounts:
+                - name: script
+                  mountPath: /app
+                  readOnly: true
+                - name: routes
+                  mountPath: /config
+                  readOnly: true
+                - name: api
+                  mountPath: /secrets
+                  readOnly: true
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: script
+              configMap:
+                name: cloudflared-route-sync-script
+            - name: routes
+              secret:
+                secretName: cloudflared-config
+                items:
+                  - key: tunnel-config.json
+                    path: tunnel-config.json
+            - name: api
+              secret:
+                secretName: cloudflare-tunnel-mgmt-token
+            - name: tmp
+              emptyDir: {}

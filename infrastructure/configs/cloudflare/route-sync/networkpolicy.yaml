@@ -1,0 +1,41 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cloudflared-route-sync-egress
+  namespace: cloudflare-tunnel
+spec:
+  # Grants egress to any pod in this namespace that carries both labels. The stable name
+  # label identifies this CronJob on every run; the Job controller sets job-name on Job
+  # pods, so a Deployment pod copying the name label alone gets nothing from this policy.
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared-route-sync
+    matchExpressions:
+      - key: batch.kubernetes.io/job-name
+        operator: Exists
+  policyTypes:
+    - Ingress
+    - Egress
+  egress:
+    # This rule allows DNS because the shared DNS component skips Job pods.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # api.cloudflare.com. A NetworkPolicy cannot name a host, so this admits HTTPS to any
+    # IPv4 address outside the RFC 1918 ranges; the script itself refuses other hosts.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443

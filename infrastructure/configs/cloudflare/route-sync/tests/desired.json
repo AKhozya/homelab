@@ -1,0 +1,8 @@
+{
+  "ingress": [
+    {"hostname": "app-one.example.org", "service": "http://app-one.app-one.svc.cluster.local:80"},
+    {"hostname": "app-two.example.org", "service": "http://app-two.app-two.svc.cluster.local:8080"},
+    {"service": "http_status:404"}
+  ],
+  "warp-routing": {"enabled": true}
+}

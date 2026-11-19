@@ -9,3 +9,9 @@ resources:
   - tunnel-mgmt-token.yaml
   - networkpolicy.yaml
   - pdb.yaml
+  - route-sync/cronjob.yaml
+  - route-sync/networkpolicy.yaml
+configMapGenerator:
+  - name: cloudflared-route-sync-script
+    files:
+      - route-sync/sync.py
