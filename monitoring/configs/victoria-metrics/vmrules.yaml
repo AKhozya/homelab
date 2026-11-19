@@ -541,7 +541,7 @@ spec:
         summary: "Cloudflare tunnel {{ $labels.namespace }}/{{ $labels.pod }} is down"
         description: "Cloudflare tunnel in {{ $labels.namespace }} has been unreachable for more than 2 minutes. Public access may be unavailable."
 
-    # The route-sync CronJob's pods share the cloudflared- prefix and end Succeeded, so they are excluded.
+    # Route-sync pods share the cloudflared- prefix, and kube-state-metrics reports them as Succeeded while the CronJob keeps them.
     - alert: CloudflareTunnelPodNotRunning
       expr: kube_pod_status_phase{pod=~"cloudflared.*", pod!~"cloudflared-route-sync-.*", phase!="Running"} > 0
       for: 5m
