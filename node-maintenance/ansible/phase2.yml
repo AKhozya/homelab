@@ -127,7 +127,7 @@
 - name: Node maintenance — Phase 2 (worker rolling update)
   # `workers:!virtual` — physical workers only. The GPU-passthrough VM (`virtual` group) must never be
   # rebooted from inside the guest: that wedges the passed-through iGPU and crashes the NAS host
-  # (2026-07-10). PLAY 1b below patches it without a reboot and cold-cycles it on a kernel bump.
+  # (2026-07-10). PLAY 1b below patches it and cold-cycles it (graceful poweroff, NAS-side start).
   hosts: workers:!virtual
   serial: 1
   gather_facts: false
@@ -390,7 +390,7 @@
 # immich-vm-heal CronJob runs `virsh start`.
 # That CronJob holds the NAS key; ansible never touches the NAS. PLAY 1b creates a Job from the CronJob
 # at once for a short outage; the 5-min schedule is the backstop. No cordon or drain: the VM is a leaf node.
-- name: Node maintenance — Phase 2 (GPU VM update, no reboot)
+- name: Node maintenance — Phase 2 (GPU VM update and cold-cycle, no in-guest reboot)
   hosts: virtual
   serial: 1
   gather_facts: false
@@ -482,77 +482,150 @@
     # Cold-cycle if the installed kernel differs from the running one or vm_cold_cycle_force is set.
     # block/rescue keeps a stall from failing the play: a hard fail would leave phase2-pending stuck,
     # as in the yay rescue above. On any failure the rescue alerts; NodeNotReady and ImmichVMHealStale
-    # are the backstops.
-    - name: Cold-cycle immich-vm when a kernel bump landed (or forced)
-      when: vm_reboot_needed.stdout == "pending" or (vm_cold_cycle_force | default(false) | bool)
+    # are the backstops. The marker read sits inside the block, so its failure also reaches the rescue.
+    - name: Cold-cycle immich-vm when a kernel bump landed or vm_cold_cycle_force is set
       vars:
-        cold_cycle_reason: "{{ 'kernel bump (' ~ vm_reboot_needed.stdout ~ ')' if vm_reboot_needed.stdout == 'pending' else 'forced via vm_cold_cycle_force' }}"
+        # The rescue can read this reason before either set_fact task runs, so both facts need defaults.
+        cold_cycle_reason: >-
+          {{ 'kernel bump (' ~ vm_reboot_needed.stdout ~ ')' if vm_reboot_needed.stdout == 'pending'
+             else ('restarted earlier in this run'
+                   if (vm_cycled_this_run | default(false) | bool) and not (vm_cycle_now | default(true) | bool)
+                   else ('vm_cold_cycle_force enabled' if (vm_cold_cycle_force | default(false) | bool)
+                         else 'cold-cycle check failed')) }}
       block:
-        - name: Notify — auto cold-cycle starting
-          ansible.builtin.command: >-
-            /usr/local/sbin/telegram-notify.sh
-            "♻️ immich-vm: {{ cold_cycle_reason }} — starting reset-bug-safe cold-cycle
-             (graceful poweroff → watchdog virsh start). Brief downtime expected."
-          delegate_to: "{{ groups['control_plane'][0] }}"
-          become: false
+        # A retry re-runs this play. Before the poweroff, the done marker records the guest's boot ID.
+        # If the guest boot ID has changed since this run wrote the marker, the VM restarted, and the
+        # retry skips the forced poweroff. If the kernel update is still pending, the VM cycles again.
+        # An UNREACHABLE result skips rescue, so the read tolerates it and the next task fails instead.
+        - name: Read the guest boot ID
+          ansible.builtin.command: cat /proc/sys/kernel/random/boot_id
+          register: vm_boot_id
           changed_when: false
-          failed_when: false   # a Telegram hiccup must NOT jump to rescue before the poweroff runs
+          ignore_unreachable: true
 
-        # Graceful ACPI poweroff, fired async so ansible doesn't hang on the dropped connection as the
-        # VM halts. poweroff == `virsh shutdown --mode acpi` (domain → "shut off"), the SAFE path.
-        # NEVER `reboot`/`shutdown -r` — an in-guest reboot re-binds the dirty iGPU → NAS host crash.
-        - name: Graceful in-guest poweroff (async — connection drops as the VM halts)
-          ansible.builtin.command: /usr/bin/poweroff
-          async: 45
-          poll: 0
-          ignore_errors: true   # noqa: ignore-errors  (SSH tears down mid-launch; expected)
-          ignore_unreachable: true   # ignore_errors does not cover UNREACHABLE
+        - name: Send an unreachable boot-ID read to the rescue
+          ansible.builtin.fail:
+            msg: immich-vm did not answer the boot ID read
+          when: vm_boot_id is unreachable or (vm_boot_id.stdout | default('') | trim) is not match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
 
-        # Confirm the poweroff took effect BEFORE nudging the watchdog: the watchdog only starts a
-        # "shut off" domain, so this waits for the node to leave Ready (kubelet gone = VM down) as the
-        # NAS-free proxy for "domain reached shut off". If it never drops (poweroff failed), the retry
-        # loop exhausts → block fails → rescue alerts (VM stays up on the old kernel, same as before).
-        - name: Wait for immich-vm node to leave Ready (poweroff took effect)
-          kubernetes.core.k8s_info:
-            kubeconfig: "{{ kubeconfig_path }}"
-            kind: Node
-            name: "{{ inventory_hostname }}"
-          register: vm_node_down
-          until: >
-            vm_node_down.resources | length == 0
-            or (vm_node_down.resources[0].status.conditions
-                | selectattr('type','equalto','Ready')
-                | selectattr('status','equalto','True')
-                | list | length) == 0
-          retries: 18
-          delay: 10
+        - name: Read the phase2-pending flag and the VM's done marker
+          ansible.builtin.stat:
+            path: "{{ item }}"
+          loop:
+            - "{{ flag_file }}"
+            - "{{ state_dir }}/phase2-done-{{ inventory_hostname }}"
+          register: vm_phase2_marks
           delegate_to: localhost
           become: false
 
-        # Small settle so qemu finishes ACPI teardown to "shut off" before the watchdog's domstate
-        # check — avoids the nudge landing on an "in-shutdown" domain (a spurious Failed heal job).
-        - name: Settle before watchdog nudge
-          ansible.builtin.pause:
-            seconds: 20
-
-        # Nudge the existing watchdog to cold-start now (short RTO). Idempotent-safe: if the 5-min
-        # scheduled CronJob already started the domain, this manual Job sees it running → no-op OK.
-        # Tolerant (failed_when: false): a raced/failed nudge must not skip the recovery wait below —
-        # the scheduled CronJob tick is the backstop within that window.
-        - name: Nudge immich-vm-heal watchdog to cold-start the domain
-          ansible.builtin.command: >-
-            kubectl --kubeconfig={{ kubeconfig_path }} -n immich
-            create job --from=cronjob/immich-vm-heal
-            immich-vm-heal-maint-{{ lookup('pipe', 'date +%s') }}
+        - name: Read the boot ID in the done marker
+          ansible.builtin.slurp:
+            src: "{{ state_dir }}/phase2-done-{{ inventory_hostname }}"
+          register: vm_marker
           delegate_to: localhost
           become: false
-          register: vm_heal_nudge
-          changed_when: vm_heal_nudge.rc == 0
-          failed_when: false
+          when: vm_phase2_marks.results[1].stat.exists
+
+        # A marker counts only if it holds a whole boot ID. An empty or partial marker means its write
+        # did not finish, and then the VM has not been powered off by this run.
+        - name: Decide whether this phase2 run already restarted the VM
+          ansible.builtin.set_fact:
+            vm_cycled_this_run: >-
+              {{ vm_phase2_marks.results[0].stat.exists
+                 and vm_phase2_marks.results[1].stat.exists
+                 and vm_phase2_marks.results[1].stat.mtime > vm_phase2_marks.results[0].stat.mtime
+                 and (vm_marker.content | default('') | b64decode | trim) is match('^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
+                 and (vm_marker.content | default('') | b64decode | trim) != vm_boot_id.stdout | trim }}
+
+        - name: Decide whether to power the VM off now
+          ansible.builtin.set_fact:
+            vm_cycle_now: >-
+              {{ vm_reboot_needed.stdout == "pending"
+                 or ((vm_cold_cycle_force | default(false) | bool) and not (vm_cycled_this_run | bool)) }}
+
+        - name: Power off immich-vm and nudge the watchdog
+          when: vm_cycle_now | bool
+          block:
+            # A plain write, not ansible.builtin.copy: copy leaves an unchanged file alone, and the
+            # marker mtime must be newer than this run's phase2-pending flag. The temporary file and
+            # mv mean a reader sees either the old marker or the whole new one.
+            - name: Record the pre-poweroff boot ID in the done marker
+              ansible.builtin.shell: >-
+                printf "%s\n" "$BOOT_ID" > "$MARKER.tmp" && mv -f "$MARKER.tmp" "$MARKER"
+              environment:
+                BOOT_ID: "{{ vm_boot_id.stdout | trim }}"
+                MARKER: "{{ state_dir }}/phase2-done-{{ inventory_hostname }}"
+              changed_when: true
+              delegate_to: localhost
+              become: false
+
+            - name: Notify — auto cold-cycle starting
+              ansible.builtin.command: >-
+                /usr/local/sbin/telegram-notify.sh
+                "♻️ immich-vm: {{ cold_cycle_reason }} — starting reset-bug-safe cold-cycle
+                 (graceful poweroff → watchdog virsh start). Brief downtime expected."
+              delegate_to: "{{ groups['control_plane'][0] }}"
+              become: false
+              changed_when: false
+              failed_when: false   # a Telegram hiccup must NOT jump to rescue before the poweroff runs
+
+            # Graceful ACPI poweroff, fired async so ansible doesn't hang on the dropped connection as the
+            # VM halts. poweroff == `virsh shutdown --mode acpi` (domain → "shut off"), the SAFE path.
+            # NEVER `reboot`/`shutdown -r` — an in-guest reboot re-binds the dirty iGPU → NAS host crash.
+            - name: Graceful in-guest poweroff (async — connection drops as the VM halts)
+              ansible.builtin.command: /usr/bin/poweroff
+              async: 45
+              poll: 0
+              ignore_errors: true   # noqa: ignore-errors  (SSH tears down mid-launch; expected)
+              ignore_unreachable: true   # ignore_errors does not cover UNREACHABLE
+
+            # Confirm the poweroff took effect BEFORE nudging the watchdog: the watchdog only starts a
+            # "shut off" domain, so this waits for the node to leave Ready (kubelet gone = VM down) as the
+            # NAS-free proxy for "domain reached shut off". If it never drops (poweroff failed), the retry
+            # loop exhausts → block fails → rescue alerts (VM stays up on the old kernel, same as before).
+            - name: Wait for immich-vm node to leave Ready (poweroff took effect)
+              kubernetes.core.k8s_info:
+                kubeconfig: "{{ kubeconfig_path }}"
+                kind: Node
+                name: "{{ inventory_hostname }}"
+              register: vm_node_down
+              until: >
+                vm_node_down.resources | length == 0
+                or (vm_node_down.resources[0].status.conditions
+                    | selectattr('type','equalto','Ready')
+                    | selectattr('status','equalto','True')
+                    | list | length) == 0
+              retries: 18
+              delay: 10
+              delegate_to: localhost
+              become: false
+
+            # Small settle so qemu finishes ACPI teardown to "shut off" before the watchdog's domstate
+            # check — avoids the nudge landing on an "in-shutdown" domain (a spurious Failed heal job).
+            - name: Settle before watchdog nudge
+              ansible.builtin.pause:
+                seconds: 20
+
+            # Nudge the existing watchdog to cold-start now (short RTO). Idempotent-safe: if the 5-min
+            # scheduled CronJob already started the domain, this manual Job sees it running → no-op OK.
+            # Tolerant (failed_when: false): a raced/failed nudge must not skip the recovery wait below —
+            # the scheduled CronJob tick is the backstop within that window.
+            - name: Nudge immich-vm-heal watchdog to cold-start the domain
+              ansible.builtin.command: >-
+                kubectl --kubeconfig={{ kubeconfig_path }} -n immich
+                create job --from=cronjob/immich-vm-heal
+                immich-vm-heal-maint-{{ lookup('pipe', 'date +%s') }}
+              delegate_to: localhost
+              become: false
+              register: vm_heal_nudge
+              changed_when: vm_heal_nudge.rc == 0
+              failed_when: false
 
         # The real recovery gate: ~7 min covers a full boot + one 5-min scheduled tick if the nudge
         # raced. Exhausting → block fails → rescue alerts (backstops already page NodeNotReady).
+        # If a retry finds that this run already restarted the VM, it still waits here for Ready.
         - name: Wait for immich-vm node Ready after cold-start
+          when: (vm_cycle_now | bool) or (vm_cycled_this_run | bool)
           kubernetes.core.k8s_info:
             kubeconfig: "{{ kubeconfig_path }}"
             kind: Node
@@ -570,6 +643,7 @@
           become: false
 
         - name: Notify — immich-vm cold-cycle recovered
+          when: (vm_cycle_now | bool) or (vm_cycled_this_run | bool)
           ansible.builtin.command: >-
             /usr/local/sbin/telegram-notify.sh
             "✅ immich-vm: cold-cycle complete ({{ cold_cycle_reason }}) — node Ready again."
