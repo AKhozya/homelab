@@ -1,7 +1,5 @@
 # Home IPv6 Enablement Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task by task. Steps use checkbox (`- [ ]`) syntax.
-
 **Goal:** turn IPv6 on at the eero with ad blocking intact, nothing new reachable from the internet, and a tested revert.
 
 **Architecture:** only the CP's systemd Blocky fallback answers DNS over IPv6, on a fixed suffix of the eero's private range. The eero announces that one address as its only IPv6 DNS server. The workers and immich-vm take no IPv6 addresses. The NAS has IPv6 turned off.
