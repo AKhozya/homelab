@@ -22,7 +22,7 @@ Brainstorm first (`brainstorming` skill), write the plan down (`writing-plans` s
 1. **List assumptions and cut corners in a named section** — not buried in prose. Confidence-tier each: ✅ verified (official docs / cross-checked) · 🟡 single-source · ⚠️ assumption/my-call. Everything below ✅ goes on a "validate before build" shortlist.
 2. **Action that shortlist — spike it, don't reason about it.** A spike is a runnable probe against the real system or a regex/query run over the real tree; research means official docs (Exa), not blog highlights. Versions, API signatures and platform limits drift fastest — verify those first.
 3. **Fold findings back into the plan.** A spike that changes nothing still gets recorded as ✅.
-4. **Trace every change of meaning in a named section.** For each existing field, flag, message or setting whose meaning the plan changes, list every reader and what it does under the new meaning. Search the repo, the outside systems that read it (an agent platform's text search, store and billing dashboards), and the docs. Once a plan changed a flag's meaning without that list; two side agents caught it, not the plan review.
+4. **Trace every change of meaning in a named section.** For each existing field, flag, message or setting whose meaning the plan changes, list every reader and what it does under the new meaning. Search the repo, the outside systems that read it (an agent platform's text search, store and billing dashboards), and the docs.
 5. **Run one fresh reader before the plan review.** Dispatch an agent with the spec, the plan and one question: "what existing behaviour, outside system or earlier promise does this change that the plan does not mention?" A reader without your framing finds what you cannot.
 6. **Then Codex-review the plan itself** (same STATIC contract, one-message verdict). Plan review catches what code review cannot: wrong sequencing, a YAGNI feature, an assumption inherited wholesale.
 
@@ -52,6 +52,7 @@ Single line, no Claude mention.
 ## Code review
 
 If any reviewer returns findings (Codex, Gemini, CodeRabbit, the `code-review` skill, GitHub, a human), load the `receiving-code-review` skill before implementing. Verify each finding against the actual code. Push back on incorrect or unneeded ones with technical reasoning. Clarify unclear items before any partial fix. Fix in severity order and test each fix. No performative agreement: state the fix, not "you're right".
+
 **Review every code change before you ask anyone else to review it**, including edits from subagents. Fix the issues you find first. Claude reviews its own code before dispatching Codex; Codex reviews its own code before asking Claude. List your assumptions and the shortcuts you took, then decide which to fix.
 
 **Dispatch every Codex review through `~/.agents/skills/_shared/codex-review.sh --diff <file> --prompt <file>`.** Its exit code reports whether the review produces a valid verdict, never what that verdict says. If you edit it, run `codex-review-selfcheck.sh`. What it guarantees, and the cost if that guarantee is missing:
@@ -77,18 +78,18 @@ If a dispatch returns no verdict, re-dispatch it. That is not a round. It never 
 
 **Codex review is MANUAL, not on-turn-end.** The stop-time review gate (`config.stopReviewGate`) must stay DISABLED — it fired every turn, reviewed non-deterministic/already-merged targets, and left hung orphans that nagged the Stop hook. Instead, *I* dispatch Codex at each real boundary — every batch, PR, AND design spec / doc that gates implementation — on a targeted diff range, one-shot verdict.
 
-Gate state is **per-workspace**, in the Codex plugin's state folder for that workspace (`<state-dir>` below), NOT global — disabling it for one repo says nothing about the next. Symptom: `running stop hooks…` hanging for minutes. Diagnose by timing the hook directly, then `jq .config <state-dir>/state.json` — `defaultState()` is `false`, so `true` means something wrote it.
+Gate state is **per-workspace**, in the Codex plugin's state folder for that workspace (`$state_dir` below), NOT global — disabling it for one repo says nothing about the next. Symptom: `running stop hooks…` hanging for minutes. Diagnose by timing the hook directly, then `jq .config "$state_dir"/state.json` — `defaultState()` is `false`, so `true` means something wrote it.
 
-`codex-companion.mjs` is not on PATH, and its plugin-cache version folder changes on update. Set `CC=$(ls -d <plugin-cache>/openai-codex/codex/*/scripts/codex-companion.mjs | sort -V | tail -1)` first, in the same shell call as the `node "$CC"` command below; it picks the newest copy.
+`codex-companion.mjs` is not on PATH, and its plugin-cache version folder changes on update. Set `plugin_cache` to Claude Code's plugin cache folder, then `CC=$(ls -d "$plugin_cache"/openai-codex/codex/*/scripts/codex-companion.mjs | sort -V | tail -1)`, in the same shell call as the `node "$CC"` command below; it picks the newest copy.
 
-- Check: `jq .config <state-dir>/state.json`
+- Check: `jq .config "$state_dir"/state.json`
 - Disable: `node "$CC" setup --disable-review-gate --json` (**bare `setup --json` is read-only status — it does NOT write**; confirm via `actionsTaken` + `reviewGateEnabled:false`)
 - Enable: same with `--enable-review-gate`
 - Hung/orphaned jobs: `node "$CC" cancel <task-id>`; a hung job can keep a live pid, so cancel it by task id. To find orphans, list `running` records with `jq '.jobs[]|select(.status=="running")'` and keep those whose pid is dead. `cancel` reaches only recent jobs; the 50-job cap removes older orphans in time.
 
 ## Docs & Markdown (files I author/edit)
 
-Writing rules for every Markdown file I write:
+Apply these rules whenever you write or edit Markdown:
 
 - Every line must change what the reader knows or does. Cut restatement of context the file already establishes.
 - No decorative emoji. Keep only load-bearing status markers a file already uses (✅/❌/⏭/🔬).
