@@ -94,7 +94,7 @@ If you want the whole sync as one block, read reference-edge-cases.md § "End-to
 
 ## Pre-commit gate (mandatory — mirrors homelab pre-commit review loop)
 
-Docs/markdown-only or config-value-only changes: exempt, sync straight through.
+If only config values change, skip this gate. If every changed file is under `~/.claude/projects/*/memory/` and is a memory note or the `MEMORY.md` index, skip this gate too. Agents write these notes many times a day. Other docs and Markdown changes, SKILL.md text included, get the peer review (steps 2–4): nothing tests a doc, so a wrong fact outlives a wrong line of code.
 Any NEW or substantively CHANGED script/skill logic (`.sh`, `.py`, hook, SKILL.md workflow steps):
 
 1. **Lint matrix** — every touched file type, all must pass:
@@ -106,8 +106,8 @@ Any NEW or substantively CHANGED script/skill logic (`.sh`, `.py`, hook, SKILL.m
    | JSON | `jq empty <file>` |
    | TOML | `taplo check` |
    | `.js`/`.ts` | `node --check` / `bunx tsc --noEmit` if tsconfig present |
-2. **Peer static review** — opposite-family reviewer via `peer-reviewed-implementation/scripts/reviewer-peer` (from Claude that's Codex via `codex-rescue`; from Codex that's Claude): file-reads only, state lint+tests already green, demand one-message verdict. Include intent + tested behaviors in the prompt.
-3. Process findings via `superpowers:receiving-code-review`. Verify each against the code. Push back on wrong or YAGNI findings. Fix in severity order. Re-test each fix. Then re-review delta-scoped. The state table in `~/.claude/CLAUDE.md` § Code review decides when to commit.
+2. **Peer static review** — opposite-family reviewer via `peer-reviewed-implementation/scripts/reviewer-peer` (from Claude that's Codex, dispatched through `~/.agents/skills/_shared/codex-review.sh`; from Codex that's Claude): file-reads only, report the result of each check that ran (lint matrix, tests) and name each check you skipped. Ask for a verdict in one message. Include intent + tested behaviors in the prompt.
+3. Process findings: verify each against the code. Push back on wrong or YAGNI findings. Fix in severity order. Re-test each fix. Then re-review delta-scoped. The state table in `~/.claude/CLAUDE.md` § Code review decides when to commit.
 4. Only then commit + push.
 
 If you need the reason for the pre-commit gate, read reference-edge-cases.md § "Why the pre-commit gate exists".

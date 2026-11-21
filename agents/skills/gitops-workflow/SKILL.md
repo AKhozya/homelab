@@ -99,7 +99,7 @@ Review is **pre-commit**, not pre-push. The AGENTS.md "Pre-commit review loop" h
 | verdict | one message, no loop |
 | findings | process via `receiving-code-review` |
 | re-review | delta-scoped |
-| docs/markdown-only | exempt |
+| docs/markdown-only | reviewed too: nothing tests a doc |
 
 Reviewers MUST check the diff against `.claude/review-invariants.md` — semantic bug-classes CI misses. If you need an example of the class, read reference-edge-cases.md § "Example review-invariants catch". Grep the target file to confirm name/GVK claims before flagging.
 
@@ -135,7 +135,7 @@ Then read reference-edge-cases.md § "Actions billing block".
 
 ### 4. Flux Reconciliation
 
-**Full-stack** (preferred): `fr` zsh function — reconciles helm repos, the git source and six Kustomizations in a fixed serial order (not the dependency graph). It does not reconcile `coredns`. If you changed `infrastructure/coredns/`, run `flux reconcile kustomization coredns` yourself.
+**Full-stack** (preferred): `fr` zsh function — reconciles helm repos, the git source and seven Kustomizations, `coredns` included. It runs them one at a time, in a fixed order that respects every declared dependency.
 
 If a Kustomization reconciles out of the order you expect, read reference-edge-cases.md § "`fr` serial order vs the dependency graph".
 

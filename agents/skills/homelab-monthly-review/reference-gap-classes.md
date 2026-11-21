@@ -8,6 +8,6 @@ Read this before you record Popeye scores, DB primary pins or event-gated items 
 - **Pin drift is silent** — check DB primaries every review even when nothing alerted.
 - **Event-gated items need evidence hunting** — "validate on next kernel upgrade" class: the event may have already fired unnoticed.
 
-## Ponytail scope
+## Over-engineering sweep scope
 
-**ponytail sweep is greenfield-first** — homelab is YAML/bash, not app code: `/ponytail-audit` value is marginal (over-built scripts only) and `/ponytail-debt` is ~empty (no `ponytail:` markers accumulate with mode=off default).
+Homelab is mostly YAML, so the sweep covers only scripts that do more than their job needs.

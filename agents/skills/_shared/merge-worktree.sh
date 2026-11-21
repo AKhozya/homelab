@@ -256,7 +256,14 @@ if [ -z "$PR" ]; then
   [ -n "$TITLE" ] || TITLE="$(g log -1 --format=%s "$TIP")"
   body="$(g log --format='- %h %s' "refs/remotes/origin/main..$TIP")"
   if out="$(ghr pr create --base main --head "$BRANCH" --title "$TITLE" --body "$body" 2>&1)"; then
-    PR="${out##*/}"
+    # gh prints hint and debug lines around the PR URL, and they can name other PRs, so only
+    # a line that is just a PR URL counts.
+    while IFS= read -r line; do
+      if [[ "$line" =~ ^https://[^[:space:]]+/pull/([0-9]+)$ ]]; then
+        PR="${BASH_REMATCH[1]}"
+        break
+      fi
+    done <<<"$out"
   else
     prs="$(list_prs)" || stop 1 "gh pr create failed ($out), and gh pr list failed"
     PR="$(pick "$prs" OPEN 0)"

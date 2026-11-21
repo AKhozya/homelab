@@ -159,13 +159,23 @@ If Actions billing blocks jobs again (it did 2026-09-10 to 2026-10-01):
 
 ## `fr` serial order vs the dependency graph
 
-**`fr` serial execution order** (NOT the dep graph): `flux-system` → `infrastructure-controllers` → `infrastructure-configs` → `monitoring-controllers` → `monitoring-configs` → `apps`. The real dependency graph BRANCHES — `flux-system` → `infrastructure-controllers` → { `coredns` | `infrastructure-configs` → `apps` | `monitoring-controllers` → `monitoring-configs` } (see AGENTS.md; source of truth `clusters/*.yaml` dependsOn).
+**`fr` runs the Kustomizations one at a time in this order.** Each one comes after the Kustomizations it depends on. The `dependsOn` entries in `clusters/*.yaml` and `clusters/flux-system/gotk-sync.yaml` define the dependencies:
+
+| Step | Kustomization | `dependsOn` |
+| --- | --- | --- |
+| 1 | `flux-system` | none |
+| 2 | `coredns` | none |
+| 3 | `infrastructure-controllers` | none |
+| 4 | `infrastructure-configs` | `infrastructure-controllers` |
+| 5 | `monitoring-controllers` | `infrastructure-controllers` |
+| 6 | `monitoring-configs` | `monitoring-controllers` |
+| 7 | `apps` | `infrastructure-configs` |
 
 ## Why the main tree is guarded
 
 The homelab main tree is the pristine checkout Flux reconciles; the `worktree-guard` PreToolUse hook BLOCKS Edit/Write/MultiEdit there so concurrent sessions can't clobber each other's uncommitted files.
 
-Mechanics: native `EnterWorktree` tool or `superpowers:using-git-worktrees` skill.
+Mechanics: the native `EnterWorktree` tool in Claude Code. Elsewhere, run `git worktree add -b <new-branch> <path> <base>`, then work from `<path>`. A plain `git worktree add <path>` checks out an existing branch named after the folder, if one exists and no other worktree has it checked out.
 
 ## Why the hook blocks multiline commit commands
 
