@@ -133,8 +133,7 @@ kubectl port-forward -n loki svc/loki 3100:3100 &   # run_in_background in Claud
 ```
 
 Then fetch `http://localhost:3100/loki/api/v1/query_range` with `query`, `start`, `limit` and
-`direction=forward`. Claude Code's context-mode hook rewrites any Bash command containing
-`curl`/`wget`, so issue the request from `ctx_execute` rather than fighting the hook.
+`direction=forward`.
 
 Nanosecond timestamps, not seconds.
 

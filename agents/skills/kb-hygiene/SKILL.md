@@ -14,13 +14,13 @@ Core law: **lean ≠ lossy** — keep every why/gotcha/repro/date/SHA. Almost al
 ## When to use / not
 
 - **Use**: periodic KB sweep; user says "cross-review memory/gotchas/skills", "dedup memory", "find stale gotchas", "do a KB hygiene pass".
-- **Not**: source-code/diff review (→ Codex / ECC reviewers); a single known-file edit (just edit it).
+- **Not**: source-code/diff review (→ the `code-review` skill); a single known-file edit (just edit it).
 
 ## How to run
 
 ### Phase 1 — Find (read-only agents, one per relevant axis — 8 axes total, scoped runs pick a subset)
 
-Dispatch ONE read-only agent per axis via the **Agent tool**, `subagent_type: general-purpose` (or `Explore` for pure find). Each returns `file:line + verdict` and makes **NO edits**. The reusable prompts live in `prompts/axis-prompts.md` (shared preamble + one block per axis — paste the preamble plus the axis block into each agent's prompt). Axes are independent and read-only → dispatch the chosen subset in one parallel batch (see superpowers:dispatching-parallel-agents).
+Dispatch ONE read-only agent per axis via the **Agent tool**, `subagent_type: general-purpose` (or `Explore` for pure find). Each returns `file:line + verdict` and makes **NO edits**. The reusable prompts live in `prompts/axis-prompts.md` (shared preamble + one block per axis — paste the preamble plus the axis block into each agent's prompt). Axes are independent and read-only → dispatch the chosen subset in one parallel batch.
 
 Axis 1's mechanical checks are scripted: run `scripts/index-integrity.sh [MEMORY_DIR]` first (deterministic orphans / dangling index links / broken `[[wiki-links]]`) and feed its output to the Axis-1 agent, which then does only the semantic dup + count-drift judgment.
 

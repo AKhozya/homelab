@@ -1,5 +1,19 @@
 # Global Agent Guidance
 
+## Every Code Change
+
+These rules apply to every code change, however small:
+
+- Review every code change before you ask anyone else to review it, including
+  edits from subagents. Fix the issues you find first.
+- First list how the changed code can fail, for example invalid or missing
+  input, error responses, timeouts, denied permissions, and empty or boundary
+  values. If a failure can occur in the changed code, test it.
+- Mutation-test every new or changed test, and every existing test you use to
+  verify the change (`~/.agents/skills/_shared/mutate.sh`). Confirm the test
+  passes. Break the code it checks. Confirm that the same test fails because
+  of your edit.
+
 ## Peer-Reviewed Implementation
 
 For non-trivial implementation work, use the shared
@@ -16,8 +30,8 @@ as the fallback:
    script with the current family and `--format json` to resolve the reviewer.
    If no different reviewer is available, do a self-review and say why. Plan
    and code reviews by Claude or Codex must use `xhigh` effort/reasoning.
-5. Process review feedback through the `receiving-code-review` /
-   `receive-review` skill when available: understand it, verify against the
+5. Process review feedback through the `receiving-code-review` skill when
+   available: understand it, verify against the
    codebase, push back when technically wrong, then implement valid fixes.
 6. Implement, run the smallest meaningful checks, then get a second peer review
    of the actual diff before committing or pushing.

@@ -67,7 +67,7 @@ bash ~/.agents/skills/_shared/check-kyverno.sh --summary
 4. **Code comment hygiene** — two lenses over repo comments (start from subsystems touched in the last month, `git log --since` file list):
    - *Stale*: claim-bearing comments (versions, schedules, counts, "temporary", "since <date>", "X does Y") cross-checked against the code and docs they describe — reason about which side is wrong; a comment contradicting reality gets fixed or deleted in the same worktree.
    - *AI-slop*: captain-obvious comments (restating the next line), over-verbose multi-paragraph prose where one line carries the constraint. Keep only comments stating what the code can't show (why, gotcha, external coupling); delete the rest.
-5. **Over-engineering sweep (ponytail)** — `/ponytail-audit` on the script/tooling surface (`node-maintenance/**`, `scripts/**`, `.claude/hooks/`) + `/ponytail-debt` to harvest deferred `ponytail:` markers into a ledger. Triage findings against GitOps conventions; drop nits that fit homelab patterns. See gap-note on scope before acting.
+5. **Over-engineering sweep** — read the script/tooling surface (`node-maintenance/**`, `scripts/**`, `.claude/hooks/`) for code that does more than its job needs: options nobody passes, wrappers around one call, hand-rolled logic an installed tool already does. Triage findings against GitOps conventions; drop nits that fit homelab patterns. See gap-note on scope before acting.
 6. **Memory/KB health (light — full pass = `/kb-hygiene`)** — dominant rot class is staleness, esp. RETIREMENTS NOT PROPAGATED (2026-07-13: one retired gate live-voiced in 6 files):
    - `bash ~/.agents/skills/kb-hygiene/scripts/index-integrity.sh <memory-dir>` — 0 orphans/dangling expected.
    - `wc -c <memory-dir>/MEMORY.md` — soft target ≤17.1KB, hard read-limit 24.4KB; over soft → per-line trim (fact-coverage method in kb-hygiene reference).
@@ -103,5 +103,4 @@ bash ~/.agents/skills/_shared/check-kyverno.sh --summary
 ## Known gap-classes (keep honest)
 If you mark a Popeye score, a DB primary pin or an event-gated item clean, first read reference-gap-classes.md § Gap classes.
 - Check DB primaries every review, even if nothing alerted.
-- If you run the ponytail sweep, first read reference-gap-classes.md § Ponytail scope.
-- If the review runs IN the claude-telegram bot, ponytail must be installed there first (bot plugins are seeded-once on PVC, no auto-update — see `apps/claude-telegram` init plugin-update fix).
+- If you run the over-engineering sweep, first read reference-gap-classes.md § Over-engineering sweep scope.
