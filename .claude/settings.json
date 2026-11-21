@@ -104,6 +104,14 @@
             "command": "${CLAUDE_PROJECT_DIR}/.claude/hooks/worktree-session-start.sh"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat \"${CLAUDE_PROJECT_DIR}/docs/HOMELAB_ANALYSIS.md\""
+          }
+        ]
       }
     ]
   },
