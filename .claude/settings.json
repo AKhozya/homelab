@@ -36,8 +36,7 @@
       "Bash(kustomize build *)",
       "Bash(shellcheck *)",
       "Bash(stern *)",
-      "Bash(yamllint *)",
-      "mcp__plugin_ecc_exa__web_search_exa"
+      "Bash(yamllint *)"
     ],
     "deny": [
       "Bash(kubectl create job *--from=cronjob/backup-replication*)",
