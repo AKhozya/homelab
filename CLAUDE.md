@@ -60,7 +60,7 @@ The `deny` entries block these commands:
 
 | Denied | Why |
 |---|---|
-| `create job --from` either backup CronJob | a re-run of either is destructive |
+| `create job --from` the `backup-replication` or `immich-backup` CronJob | a re-run of either is destructive |
 | `delete` with `--force` or `--grace-period=0` anywhere in it | a force delete skips graceful shutdown; AGENTS.md forbids it on DB pods |
 | `get` with `secret` or `Secret` anywhere after it | the `get *` allow would otherwise print Secret values |
 | `get` with `-f`, `--filename`, `-k` or `--kustomize`, alone or after one of `-A`, `-R`, `-w` (`-Af`, `-Rk`) | a file or Kustomization can name a Secret without the word appearing in the command |
@@ -80,20 +80,3 @@ The rules match command text, so they block only the spellings they list:
 This allowlist is a permission-prompt convenience — it does **not** relax the
 **GitOps-only** invariant in `AGENTS.md` (live mutation still goes through
 Git → Flux, never `kubectl edit/patch/replace`).
-
-### Review loop
-
-The pre-commit gate-of-record and its round table are in `AGENTS.md`. Any
-reviewer — that peer, the `k8s-devops-reviewer` sub-agent, or a security pass —
-checks the diff against `.claude/review-invariants.md` first. Docs/markdown-only
-commits are exempt.
-
-### Slash commands & skills load from outside this repo
-
-Homelab skills (`cluster-reboot`, `cluster-roll`, `homelab-node-fix`,
-`cluster-stale-cleanup`, …) and slash commands (`/gitops-workflow`,
-`/homelab-yaml-validate`, …) referenced in `AGENTS.md` load from `~/.claude/`
-(a separate chezmoi-managed dotfiles repo). Edit the dotfiles copy, then
-refresh this repo's read-only `agents/` copy with
-`scripts/sync-agents.sh --update`. A worktree isolates this repo's files, not
-`~/.claude/**`.
