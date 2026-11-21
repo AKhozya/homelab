@@ -188,7 +188,7 @@ spec:
               # The hook scripts ship in the image, where the read-only rootfs prevents anything
               # the model runs from modifying them. Assert they exist before rewiring: without this
               # check, a packaging slip would go unnoticed and the rm below would leave no hooks.
-              for h in validate-safe-bash.sh flux-push-reminder.sh session-pull.sh context-mode-cache-heal.mjs; do
+              for h in validate-safe-bash.sh flux-push-reminder.sh session-pull.sh; do
                 [ -x "/app/hooks/$h" ] || { echo "FATAL: /app/hooks/$h missing or not executable" >&2; exit 1; }
               done
 
@@ -204,7 +204,7 @@ spec:
               # makes the next init throw, and the pod never starts.
               # `[]`, `5`, `"oops"` and `true` all parse, but setting hooks on them is lost on write,
               # so anything that is not a plain object becomes {}.
-              node -e 'const fs=require("fs"),d=process.env.HOME+"/.claude",p=d+"/settings.json";let s={};try{s=JSON.parse(fs.readFileSync(p,"utf8"))}catch(e){if(e.code!=="ENOENT")throw e}if(typeof s!=="object"||s===null||Array.isArray(s))s={};s.model="claude-opus-5";s.effortLevel="xhigh";s.hooks={PostToolUse:[{matcher:"Bash",hooks:[{type:"command",command:"/app/hooks/flux-push-reminder.sh"}]}],SessionStart:[{hooks:[{type:"command",command:"/app/hooks/session-pull.sh"}]},{hooks:[{type:"command",command:"/app/hooks/context-mode-cache-heal.mjs"}]}]};fs.mkdirSync(d,{recursive:true});fs.writeFileSync(p+".tmp",JSON.stringify(s,null,2)+"\n");fs.renameSync(p+".tmp",p)'
+              node -e 'const fs=require("fs"),d=process.env.HOME+"/.claude",p=d+"/settings.json";let s={};try{s=JSON.parse(fs.readFileSync(p,"utf8"))}catch(e){if(e.code!=="ENOENT")throw e}if(typeof s!=="object"||s===null||Array.isArray(s))s={};s.model="claude-opus-5";s.effortLevel="xhigh";s.hooks={PostToolUse:[{matcher:"Bash",hooks:[{type:"command",command:"/app/hooks/flux-push-reminder.sh"}]}],SessionStart:[{hooks:[{type:"command",command:"/app/hooks/session-pull.sh"}]}]};fs.mkdirSync(d,{recursive:true});fs.writeFileSync(p+".tmp",JSON.stringify(s,null,2)+"\n");fs.renameSync(p+".tmp",p)'
 
               # Nothing references the PVC copies now. Left in place they invite an edit that
               # silently does nothing, and they stay writable while the image copies do not.
