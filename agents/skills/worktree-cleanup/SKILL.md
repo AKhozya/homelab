@@ -29,8 +29,8 @@ If your merged branch has no worktree, first run `git -C <repo> worktree list`. 
 
 | If the scan lists your branch as | Run |
 | --- | --- |
-| an orphan merged branch (`would remove  orphan merged branch <name>`) | `git -C <repo> branch -d <name>`. If git refuses, keep the branch; do not use `-D` |
-| squash-merged (`would remove  squash-merged branch <name> (restore: …)`) | `~/.agents/skills/_shared/branch-drop.sh drop --repo <repo> --branch <name> --expect <oid>`, with the oid from that restore command. It keeps the branch and exits 3 if the branch moved or a worktree uses it; report the reason it prints |
+| an orphan merged branch (`would remove  orphan merged branch <name>`) | read its oid with `git -C <repo> rev-parse refs/heads/<name>`. If `git -C <repo> merge-base --is-ancestor <oid> refs/remotes/origin/HEAD` does not exit 0, keep the branch; do not run `git branch -D`. If `merge-base` exits 0, run `~/.agents/skills/_shared/branch-drop.sh drop --repo <repo> --branch <name> --expect <oid>`. If `drop` exits 3, the branch stays in place; report the reason `drop` prints |
+| squash-merged (`would remove  squash-merged branch <name> (restore: …)`) | `~/.agents/skills/_shared/branch-drop.sh drop --repo <repo> --branch <name> --expect <oid>`, with the oid from that restore command. If the branch moved or a worktree uses it, the script keeps the branch and exits 3; report the reason it prints |
 | neither | keep the branch |
 
 | Verdict | What `--apply` does |
