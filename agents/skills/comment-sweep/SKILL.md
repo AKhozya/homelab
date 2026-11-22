@@ -1,6 +1,6 @@
 ---
 name: comment-sweep
-description: "Use before committing a batch, opening a PR, or when asked to clean up comments in any repo/language. Applies the CLAUDE.md comment bar — a comment earns its place only by naming a coupling, constraint, gotcha, or rejected alternative. Cuts restatements, stale narration, JSDoc that repeats the function name, and internal-skill jargon. Protects commented-out code and section banners. Verifies every claim it writes."
+description: "Use before committing a batch, opening a PR, or when asked to clean up comments in any repo/language. Applies the comment bar in ~/.codex/AGENTS.md (heading 'Code comments') — a comment earns its place only by naming a coupling, constraint, gotcha, or rejected alternative. Cuts restatements, stale narration, JSDoc that repeats the function name, and internal-skill jargon. Protects commented-out code and section banners. Verifies every claim it writes."
 user-invocable: true
 ---
 

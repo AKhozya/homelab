@@ -16,6 +16,23 @@ One script: `~/.agents/skills/_shared/worktree-cleanup.sh` (run `--help` for usa
 ~/.agents/skills/_shared/worktree-cleanup.sh --repo <repo> --apply
 ```
 
+Approval each call needs:
+
+| Call | Approval needed |
+| --- | --- |
+| `--repo <repo> --apply <worktree-path>`, if you created that worktree, and its current branch is one you created and opened a PR from, and that PR merged | none |
+| `--repo <repo> --apply <worktree-path>` on any other worktree | the user's explicit approval |
+| `--apply` with no path | the user's explicit approval: it removes every merged worktree and orphan branch the scan lists, including other sessions' |
+| a scan without `--apply` | none; it changes nothing |
+
+If your merged branch has no worktree, first run `git -C <repo> worktree list`. If it shows the branch checked out anywhere, keep it. Otherwise run the scan without `--apply`, and delete only your branch, with the command from this table:
+
+| If the scan lists your branch as | Run |
+| --- | --- |
+| an orphan merged branch (`would remove  orphan merged branch <name>`) | `git -C <repo> branch -d <name>`. If git refuses, keep the branch; do not use `-D` |
+| squash-merged (`would remove  squash-merged branch <name> (restore: …)`) | `~/.agents/skills/_shared/branch-drop.sh drop --repo <repo> --branch <name> --expect <oid>`, with the oid from that restore command. It keeps the branch and exits 3 if the branch moved or a worktree uses it; report the reason it prints |
+| neither | keep the branch |
+
 | Verdict | What `--apply` does |
 |---|---|
 | `MERGED-CLEAN` | removes the worktree and its branch (`git branch --delete`) |

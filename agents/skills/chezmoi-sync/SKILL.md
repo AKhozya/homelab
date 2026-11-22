@@ -74,7 +74,7 @@ git -C ~/.local/share/chezmoi push
 **Always use `git -C ~/.local/share/chezmoi`** — `cd && git` breaks safe-bash allow pattern.
 
 **If the commit fails with `error: 1Password: failed to fill whole buffer` + `fatal: failed to write commit object`**, the commit-signing key is blocked (1Password locked / no biometric surface from the agent shell). Staging survives.
-1. Retry the same commit once unsigned: `git -C ~/.local/share/chezmoi -c commit.gpgsign=false commit ...` (the global rules say so; do not stop to ask for an unlock first).
+1. Retry the same commit once unsigned: `git -C ~/.local/share/chezmoi -c commit.gpgsign=false commit ...` (the user's rule: an unsigned commit is fine if 1Password is locked, for example by a locked screen; do not stop to ask for an unlock first).
 2. If that retry fails too, stop and report it. Do not retry-loop.
 
 ## Gotchas
@@ -106,9 +106,9 @@ Any NEW or substantively CHANGED script/skill logic (`.sh`, `.py`, hook, SKILL.m
    | JSON | `jq empty <file>` |
    | TOML | `taplo check` |
    | `.js`/`.ts` | `node --check` / `bunx tsc --noEmit` if tsconfig present |
-2. **Peer static review** — opposite-family reviewer via `peer-reviewed-implementation/scripts/reviewer-peer` (from Claude that's Codex, dispatched through `~/.agents/skills/_shared/codex-review.sh`; from Codex that's Claude): file-reads only, report the result of each check that ran (lint matrix, tests) and name each check you skipped. Ask for a verdict in one message. Include intent + tested behaviors in the prompt.
-3. Process findings: verify each against the code. Push back on wrong or YAGNI findings. Fix in severity order. Re-test each fix. Then re-review delta-scoped. The state table in `~/.claude/CLAUDE.md` § Code review decides when to commit.
-4. Only then commit + push.
+2. **Peer static review** — resolve the opposite-family reviewer with `peer-reviewed-implementation/scripts/reviewer-peer`, and take the action `peer-reviewed-implementation` (step 7) gives for its return value, `self-review` included. The review is file-reads only. Report the result of each check that ran (lint matrix, tests), and name each check you skipped. Ask for a verdict in one message. Include intent + tested behaviors in the prompt.
+3. Read the round outcome from the round table in `~/.codex/AGENTS.md` (heading "Round table") first. If it calls for fixes, process the findings: verify each against the code. Push back on wrong or YAGNI findings. Fix in severity order. Re-test each fix. Then, if the round table calls for another round, re-review the change since the last round.
+4. If the round table permits a commit, commit and push. If it says to stop, give the open findings to the user.
 
 If you need the reason for the pre-commit gate, read reference-edge-cases.md § "Why the pre-commit gate exists".
 

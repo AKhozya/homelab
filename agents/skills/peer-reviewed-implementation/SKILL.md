@@ -78,32 +78,17 @@ workflow.
    - Use `xhigh` effort/reasoning for every Claude or Codex code review.
    - Ask the returned reviewer to review the actual diff before commit/push,
      unless it is `self-review`.
-   - For Codex diff reviews, dispatch through
-     `_shared/codex-review.sh --diff <file> --prompt <file>`. Write the prompt
-     and pre-build the diff. The script guarantees:
-
-     | Guarantee | If it is missing |
-     |---|---|
-     | sweeps stale brokers first | the turn dies silently after minutes |
-     | closes stdin | the run hangs, because the harness pipe never ends |
-     | `--sandbox read-only` | an unexpected command can mutate the checkout |
-     | supplies the one permitted `cat` | Codex may refuse, calling a verdict fabrication |
-     | deadline, then a hard kill | a stuck run blocks the turn |
-     | keeps the transcript | a dead run and a slow run look the same |
-     | exit 3 if no verdict | a failed review reads as a clean one |
-
-     Its exit code reports whether the review ran, never what it concluded.
-     If you edit the script, run `_shared/codex-review-selfcheck.sh`.
+   - If `reviewer-peer` returns Codex, dispatch through
+     `_shared/codex-review.sh --diff <file> --prompt <file>` and follow the
+     `codex-review-dispatch` skill (`~/.agents/skills/codex-review-dispatch/SKILL.md`):
+     the skill covers the review file, the prompt and what the exit code means.
+     If `reviewer-peer` returns Claude, dispatch Claude as the repo's `AGENTS.md`
+     describes; if it describes no Claude dispatch, ask the user. If it returns
+     `self-review`, review the diff yourself at `xhigh`, tell the user why no
+     peer ran, and apply the round table.
    - Process findings through `receiving-code-review` / `receive-review`.
-   - Severity decides whether you may commit. The round count decides when to escalate. The full
-     table is in the repo's `AGENTS.md` or `~/.claude/CLAUDE.md` § Code review:
-
-     | Round returns | Rounds 1-5 | Round 6 |
-     |---|---|---|
-     | CRITICAL, HIGH or MEDIUM | fix, then re-review | do not commit; give the open findings to the user |
-     | only LOW or NIT, first in a row | fix, then re-review | fix, then commit |
-     | only LOW or NIT, second in a row | fix, then commit | fix, then commit |
-     | nothing | commit | commit |
+   - Severity decides whether you may commit. The round count decides when to
+     escalate. The round table is in `~/.codex/AGENTS.md`, heading "Round table".
 
      Document any accepted residual risk.
 
