@@ -1,7 +1,7 @@
 ---
 # Renovate bumps this line (renovate.json, custom manager for 0xERR0R/blocky, 7-day release age).
 # It is not grouped with the cluster image spx01/blocky, so the two can differ for a while.
-blocky_fallback_version: v0.36.0
+blocky_fallback_version: v0.37.0
 
 blocky_fallback_install_dir: /opt/blocky-fallback
 blocky_fallback_bin: "{{ blocky_fallback_install_dir }}/{{ blocky_fallback_version }}/blocky"
