@@ -93,7 +93,7 @@ A shell loop that calls `mutate.sh` once per anchor is correct (above). Do not w
 
 | Trap | What happens in a hand-written loop | How `mutate.sh` avoids it |
 | --- | --- | --- |
-| the anchor also matches a comment | the edit lands in the comment, the code stays as it was, and the suite stays green | VOID `anchor matches N places` |
+| the anchor also matches a comment | the loop can edit the comment instead of the code, so the tests pass without testing a change | VOID `anchor matches N places` |
 | the mutant does not compile | the suite fails to build, which reads as KILLED | pass `--check <compile command>`; the script then reports VOID `mutant fails check` |
 | `cp` is an interactive alias (`cp -i`) | the restore copy waits for a "y" that never arrives, or skips the file, so the mutant stays in the tree | calls `command cp -f`, which bypasses any alias (search `mutate.sh` for `command cp -f`) |
 | the output goes through `\| head` | if `head` exits early, the next write gets SIGPIPE; if that kills the loop before its restore line, the mutant stays in the tree | traps `PIPE` and restores the file before it exits (`trap cleanup EXIT INT TERM PIPE`) |

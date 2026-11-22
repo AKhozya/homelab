@@ -1,12 +1,12 @@
-<!-- Source-sha256: 5eba5f791e5b452c5116a5f5f76a4906f11a54855fd077a2292a7cd0c017d8c6 -->
+<!-- Source-sha256: 11774a7cc988901b70680fefc059674f6476e00335bbe52d3a9e83e4155641cc -->
 # Claude - Global Settings
 
-This is a hand-edited copy of the operator's `~/.claude/CLAUDE.md`. It omits private material.
+This export copies the public sections of the operator's `~/.claude/CLAUDE.md`. The builder inserts this hand-written header.
 
 | Local path | Where to find it |
 | --- | --- |
 | `~/.codex/AGENTS.md`, the import below | [AGENTS.global.md](./AGENTS.global.md) |
-| `~/.agents/skills/...` | under `agents/`; [the agents README](../README.md) maps each one |
+| `~/.agents/skills/...` | [the agents README](../README.md) lists each skill's path under `agents/` |
 | `~/.claude/reference/`, `~/.claude/hooks/` | not in this repo: the operator keeps them private |
 
 @~/.codex/AGENTS.md
@@ -20,8 +20,8 @@ The import above holds the rules shared with Codex. This file holds what applies
 
 ## Git and commits
 
-- **`failed to fill whole buffer` / `failed to write commit object` = 1Password is locked**, not a git fault. Staging survives, nothing is lost. Retry unsigned (`-c commit.gpgsign=false`) rather than blocking — don't stop to ask for an unlock.
-- **A string-matching hook also matches your tooling about it.** `git-commit-style.sh` matches `git commit` anywhere in the command, heredoc body included; `validate-safe-bash.sh` likewise matches its own correctness patterns, so a test case or a patch script that merely contains one is refused. Write the script or the fixture to a file with the Write tool and run the file. Three refusals on 2026-09-19 came from heredocs carrying the very strings under test.
+- **If a commit fails with `fatal: failed to write commit object` and its output also has an `error: 1Password:` line, the 1Password signer cannot sign**, for example because 1Password is locked. Seen in transcripts: `error: 1Password: agent returned an error` and `error: 1Password: Could not connect to socket. Is the agent running?`. Git is not at fault. The failed commit leaves the staged changes in place. Retry unsigned (`-c commit.gpgsign=false`); don't stop to ask for an unlock. If the output has `fatal: failed to write commit object` but no `error: 1Password:` line, do not retry unsigned: fix the cause the error names, or stop and ask.
+- **A string-matching hook also matches your tooling about it.** `git-commit-style.sh` matches `git commit` anywhere in a command, heredoc body included. `validate-safe-bash.sh` matches its patterns the same way, so it refuses a command that only contains one in its text, for example in a test case or a patch script. If a hook refuses a command only because of such text, write the script or the fixture to a file with the Write tool, then run the script or the test that reads the fixture. If the hook refuses the action itself, see Safety Hook.
 
 ## Code review
 
@@ -49,23 +49,26 @@ If you need the evidence for the sentence-length rule, read `~/.claude/reference
 
 ## Safety Hook
 
-Patterns blocked by `~/.claude/hooks/validate-safe-bash.sh` (universal). See hook source for full list. Test: `~/.claude/hooks/test-safety-hook.sh`. If blocked, read message + use listed alternative.
+`~/.claude/hooks/validate-safe-bash.sh` blocks unsafe command patterns in every repo. Its source lists them. `~/.claude/hooks/test-safety-hook.sh` tests it. If the hook blocks a command, read its message and use the alternative it lists.
 
 ## Shell
 
 **Standard commands are unaliased** (`~/.zshrc`, since 2026-09-27): `ls`, `cat`, `du`, `rm` and the rest take their standard flags. Call `eza`, `bat`, `dust` or `duf` by name.
 
-**Close stdin on anything that might read it.** The Bash tool's stdin never reaches EOF, so a command that reads stdin waits for ever: `rg PATTERN` with no path hung, and so did an `ls` → `eza` call. Start the command with `exec </dev/null`, or append `</dev/null`, and always give `rg` a path.
+**Close stdin on a command that might read it but needs no input.** A command that reads stdin can wait for ever in the Bash tool: `rg PATTERN` with no path hung. Start the shell call with `exec </dev/null`, or append `</dev/null` to the command. If the shell call also holds a command that takes stdin from a pipe or a file redirection, do not append `</dev/null` to that command, because it replaces the input; use `exec </dev/null` at the start of the call. If `rg` searches files, give it a path.
 
 ## Parallel Bash
 
 - Sibling cancellation: if one parallel call exits non-zero, the harness cancels the calls beside it ("Sibling tool call errored"). If a fragile command's exit status matters, run it on its own, without `|| true`. If only its output matters, you may add `|| true` to it.
 - A remote command (SSH, kubectl exec, curl) is fragile. Do not batch it with an important command.
-- jq: avoid `!=` (use `| select(.x > 0)`) — bash escaping breaks `!`.
 
 ## SSH & GitHub
 
-Direct SSH via Bash (MCP fails). No sudo via SSH — script + scp + user runs manual. GitHub: `gh` CLI (not MCP).
+| Task | Use |
+| --- | --- |
+| run a command on a remote host | `ssh` through the Bash tool, not the SSH MCP server, which fails |
+| run a command with sudo on a remote host | do not run sudo over SSH: write a script, copy it over with `scp`, and ask the user to run it |
+| GitHub | the `gh` CLI, not the MCP server |
 
 ## Web search and tools
 

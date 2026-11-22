@@ -73,7 +73,7 @@ git -C ~/.local/share/chezmoi push
 
 **Always use `git -C ~/.local/share/chezmoi`** — `cd && git` breaks safe-bash allow pattern.
 
-**If the commit fails with `error: 1Password: failed to fill whole buffer` + `fatal: failed to write commit object`**, the commit-signing key is blocked (1Password locked / no biometric surface from the agent shell). Staging survives.
+**If the commit fails with `fatal: failed to write commit object` and an `error: 1Password:` line (seen: `agent returned an error`, `Could not connect to socket`, earlier `failed to fill whole buffer`)**, the commit-signing key is blocked (1Password locked / no biometric surface from the agent shell). Staging survives.
 1. Retry the same commit once unsigned: `git -C ~/.local/share/chezmoi -c commit.gpgsign=false commit ...` (the user's rule: an unsigned commit is fine if 1Password is locked, for example by a locked screen; do not stop to ask for an unlock first).
 2. If that retry fails too, stop and report it. Do not retry-loop.
 
@@ -107,7 +107,7 @@ Any NEW or substantively CHANGED script/skill logic (`.sh`, `.py`, hook, SKILL.m
    | TOML | `taplo check` |
    | `.js`/`.ts` | `node --check` / `bunx tsc --noEmit` if tsconfig present |
 2. **Peer static review** — resolve the opposite-family reviewer with `peer-reviewed-implementation/scripts/reviewer-peer`, and take the action `peer-reviewed-implementation` (step 7) gives for its return value, `self-review` included. The review is file-reads only. Report the result of each check that ran (lint matrix, tests), and name each check you skipped. Ask for a verdict in one message. Include intent + tested behaviors in the prompt.
-3. Read the round outcome from the round table in `~/.codex/AGENTS.md` (heading "Round table") first. If it calls for fixes, process the findings: verify each against the code. Push back on wrong or YAGNI findings. Fix in severity order. Re-test each fix. Then, if the round table calls for another round, re-review the change since the last round.
+3. Read the round outcome from the round table in `~/.codex/AGENTS.md` (heading "Round table") first. A finding you dispute counts as open. If the round table calls for fixes, verify each finding against the code. If a finding is unclear, ask about it before you fix anything. If a finding is incorrect or asks for an unnecessary change, record why you dispute it. Fix the rest in severity order and re-test each fix. If the round table calls for another round, re-review the change since the last round, with each open finding, its disposition and the current text of the lines it cites.
 4. If the round table permits a commit, commit and push. If it says to stop, give the open findings to the user.
 
 If you need the reason for the pre-commit gate, read reference-edge-cases.md § "Why the pre-commit gate exists".

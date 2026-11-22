@@ -97,18 +97,11 @@ These rules apply to every change, however small. Most concern code; the rules o
 - Write each commit message on one line, with no mention of an AI tool.
 - **`git commit` commits the whole index**, not only the paths you passed to `git add`. A shared checkout often holds other work in progress.
   - Run `git status --short` first and confirm that the staged set is exactly yours.
-  - If the index holds files that are not yours, scope the commit by paths: `git commit -m '<msg>' -- <paths>`. That form takes the whole working-tree content of each named path, unstaged edits included, so check `git diff HEAD -- <paths>` first.
-  - If a commit took files that are not yours, and it is still the branch tip and not pushed, find the tip before it in `git reflog` and run `git reset --soft <that tip>` (after an amend, `HEAD~1` is the wrong commit). Then run `git restore --staged` on only your files, `git add` any of your files that were new, and commit your files by path (previous bullet). If the commit is pushed, is no longer the tip, or you cannot find the earlier tip, stop and ask.
+  - If the index holds files that are not yours, scope the commit by paths: `git commit -m '<msg>' -- <paths>`. That form commits the whole working-tree content of each named path, unstaged edits included, and replaces what is staged for those paths. So read `git diff HEAD -- <paths>` and `git diff --cached -- <paths>` first. If either command fails, or shows a change that is not yours (a hunk, a mode change, a rename or a binary file), stop and ask.
+  - If a commit you made includes files that are not yours, stop and ask before you amend, reset or push it.
 - **The message comes before `--`.** Everything after `--` is a path, so `git commit -- <paths> -m '<msg>'` fails with `error: pathspec '-m' did not match any file(s)`.
-- **If `git push` hangs after it authenticated and uploaded the pack**, the cause is usually an HTTP/2 stall, not a credential fault. Stop the hung push, then run `git ls-remote origin <ref>`:
-
-  | If | Then |
-  | --- | --- |
-  | `ls-remote` fails | stop and report it |
-  | the ref holds the commit this push sent | the push succeeded |
-  | the ref holds the value you know it had before the push (no output for a new branch) | retry: `git -c http.version=HTTP/1.1 push <same arguments>` |
-  | anything else, or you do not know its earlier value | inspect the ref before you push again |
-- **From a worktree, always push with `git push origin HEAD:<pr-branch>`.** The local branch name of a worktree is usually not the PR branch, and `push.default=current` sends a plain `git push` to a remote branch of the local name, which misses the PR without an error.
+- **If `git push` hangs after it authenticated and uploaded the pack**, stop it. Check the destination branch, `<branch>`, at every push URL with one command. It prints one line per URL and never the URL itself, because a push URL can hold a token: `git remote get-url --push --all <remote> | while read -r u; do git ls-remote --exit-code "$u" refs/heads/<branch> 2>/dev/null || echo "missing or failed"; done`. If the push names a URL instead of a remote, check that URL. If every line holds the commit you pushed, the branch push succeeded. Otherwise stop and ask. An HTTP/2 stall can cause the hang. The user decides whether to repeat the same push as `git -c http.version=HTTP/1.1 push <same arguments>`.
+- **If you push a PR branch from a worktree, use `git push origin HEAD:refs/heads/<pr-branch>`.** If the local branch name differs from the PR branch, `push.default=current` sends a plain `git push` to a remote branch of the local name, which misses the PR without an error. If the branch is a throwaway, make its first push with `branch-drop.sh create` instead (Cleaning up branches).
 
 ### Cleaning up branches
 
@@ -120,12 +113,12 @@ You may clean up, without asking, a branch or worktree that you created, in the 
 | a throwaway you created in this session, such as a probe, whose result is recorded elsewhere (a PR body, a note, a reply) | delete it with `branch-drop.sh` (below) |
 | anything else, including anything you did not create | ask first, because another session may be using it |
 
-Delete a throwaway branch only with `~/.agents/skills/_shared/branch-drop.sh`. The script makes the checks. Give each throwaway a unique name, for example `probe-<date>-<random>`.
+Delete a throwaway branch only with `~/.agents/skills/_shared/branch-drop.sh`. Give each throwaway a unique name, for example `probe-<date>-<random>`.
 
 | If you want to | Run |
 | --- | --- |
-| push a throwaway for the first time | `~/.agents/skills/_shared/branch-drop.sh create --repo <repo> --branch <name>`. It fails if the remote already has that branch, and records that it created it |
-| delete a throwaway | `~/.agents/skills/_shared/branch-drop.sh drop --repo <repo> --branch <name> --expect <oid> --remote origin`, with the full oid of the commit whose result you recorded. Leave out `--remote` only if you never pushed it |
+| push a throwaway for the first time | `~/.agents/skills/_shared/branch-drop.sh create --repo <repo> --branch <name>`. If the remote already has that branch, the script fails. If it succeeds, it records that it created the branch |
+| delete a throwaway | `~/.agents/skills/_shared/branch-drop.sh drop --repo <repo> --branch <name> --expect <oid> --remote origin`, with the full oid of the commit whose result you recorded. If you never pushed the branch, leave out `--remote` |
 
 | `drop` exits | Means | Then |
 | --- | --- | --- |
@@ -167,7 +160,7 @@ Flag each violation of these writing rules as a finding:
 - One idea per sentence; keep a condition with what it qualifies.
 - A condition starts with "if".
 - No idiom or figure of speech.
-- In Markdown, enumerable facts go in a table, not in prose.
+- In Markdown, enumerable facts go in a table, not in prose. If each fact is a single item with nothing to put in a second column, a list is enough.
 ```
 
 Do not ask the reviewer for a per-sentence word cap (Writing → Sentence length).
@@ -209,7 +202,7 @@ If you write or edit Markdown, apply these rules:
 - No decorative emoji. Keep only the status markers a file already uses that carry information (✅ ❌ ⏭ 🔬).
 - Bold the one keyword a reader looks for, not half the sentence.
 - Drop intensifiers and hedges (comprehensive, robust, significantly, really, simply).
-- Put enumerable facts in a table or a list, not in a paragraph.
+- Put enumerable facts in a table, not in a paragraph. If each fact is a single item with nothing to put in a second column, a list is enough.
 - Keep the substance: the reason, the gotcha, the command that reproduces a problem, dates and commit SHAs. Cutting substance to look short is also a failure.
 
 ### Plain English
@@ -245,7 +238,7 @@ These rules apply in any repo and any language, to comments you write or review.
 - **A comment earns its place only by naming what the code cannot show**: a coupling, a constraint, a gotcha, or an alternative tried and rejected. Delete a comment that restates the line, explains a standard API, or defends a choice nobody would question. Padding teaches readers to skip comments, so they also skip the one that would have prevented a bug. If a comment repeats the code, a later edit can make the comment wrong.
 - **Length follows the constraint, not the change.** A one-line coupling gets one line. `# Global-only model: a regional endpoint returns 404.` is better than a paragraph on why the default did not suit. Write the comment, then cut every sentence that does not change what a reader would do.
 - **Never delete commented-out code or correct section banners.** This holds in a comment pass, while you act on findings, and when the code appears unused. An explicit "act on the surfaced items" does not permit it. List them for the user as optional items instead.
-- **No unexplained internal labels in product code, comments or reader-facing prose**, for example a skill's name used as a prefix or as shorthand for a behaviour. Other developers and reviewers do not know them. Write plain prose: `Trade-off:`, `Note:`, or just the sentence. An instruction that tells an agent to load a skill may name the skill.
+- **No unexplained internal labels in product code, comments or reader-facing prose**, for example a skill's name used as a prefix or as shorthand for a behaviour. Other developers and reviewers do not know them. Write plain prose: `Trade-off:`, `Note:`, or just the sentence. An instruction that tells an agent to load a skill may name the skill. The ban covers the label only: still apply the behaviour that the skill describes.
 - **Cut changelog narration.** A rule's edit history ("this previously read X, before Y existed") belongs in git, not in the file. Keep the rule.
 
 ## Shared skills
