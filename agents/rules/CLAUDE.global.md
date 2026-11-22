@@ -1,4 +1,4 @@
-<!-- Source-sha256: 11774a7cc988901b70680fefc059674f6476e00335bbe52d3a9e83e4155641cc -->
+<!-- Source-sha256: e04d8f49830d18865cf420e2278888783aecefb33bc79e8337a2a20b72ceb8e0 -->
 # Claude - Global Settings
 
 This export copies the public sections of the operator's `~/.claude/CLAUDE.md`. The builder inserts this hand-written header.
@@ -20,7 +20,6 @@ The import above holds the rules shared with Codex. This file holds what applies
 
 ## Git and commits
 
-- **If a commit fails with `fatal: failed to write commit object` and its output also has an `error: 1Password:` line, the 1Password signer cannot sign**, for example because 1Password is locked. Seen in transcripts: `error: 1Password: agent returned an error` and `error: 1Password: Could not connect to socket. Is the agent running?`. Git is not at fault. The failed commit leaves the staged changes in place. Retry unsigned (`-c commit.gpgsign=false`); don't stop to ask for an unlock. If the output has `fatal: failed to write commit object` but no `error: 1Password:` line, do not retry unsigned: fix the cause the error names, or stop and ask.
 - **A string-matching hook also matches your tooling about it.** `git-commit-style.sh` matches `git commit` anywhere in a command, heredoc body included. `validate-safe-bash.sh` matches its patterns the same way, so it refuses a command that only contains one in its text, for example in a test case or a patch script. If a hook refuses a command only because of such text, write the script or the fixture to a file with the Write tool, then run the script or the test that reads the fixture. If the hook refuses the action itself, see Safety Hook.
 
 ## Code review

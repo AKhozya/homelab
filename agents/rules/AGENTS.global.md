@@ -95,6 +95,7 @@ These rules apply to every change, however small. Most concern code; the rules o
 ## Git and commits
 
 - Write each commit message on one line, with no mention of an AI tool.
+- **If a commit fails with `fatal: failed to write commit object` and its output also has an `error: 1Password:` line, the 1Password signer cannot sign**, for example because 1Password is locked. Seen in transcripts: `error: 1Password: agent returned an error` and `error: 1Password: Could not connect to socket. Is the agent running?`. Git is not at fault. The failed commit leaves the staged changes in place. Retry unsigned (`-c commit.gpgsign=false`); don't stop to ask for an unlock. If the output has `fatal: failed to write commit object` but no `error: 1Password:` line, do not retry unsigned: fix the cause the error names, or stop and ask.
 - **`git commit` commits the whole index**, not only the paths you passed to `git add`. A shared checkout often holds other work in progress.
   - Run `git status --short` first and confirm that the staged set is exactly yours.
   - If the index holds files that are not yours, scope the commit by paths: `git commit -m '<msg>' -- <paths>`. That form commits the whole working-tree content of each named path, unstaged edits included, and replaces what is staged for those paths. So read `git diff HEAD -- <paths>` and `git diff --cached -- <paths>` first. If either command fails, or shows a change that is not yours (a hunk, a mode change, a rename or a binary file), stop and ask.
@@ -207,7 +208,15 @@ If you write or edit Markdown, apply these rules:
 
 ### Plain English
 
-**Write for someone new to the subject.** This applies to every report, page, doc and script. For artifacts and technical docs, stay close to ASD-STE100 (Simplified Technical English).
+**Write for someone new to the subject.** Stay close to ASD-STE100 (Simplified Technical English) in all text that a person reads, chat replies and scripts included. If you write narration that a person or a synthetic voice speaks in a video, do not apply ASD-STE100 to it.
+
+If the text is for use outside the session, load the `avoid-ai-writing` skill (`~/.agents/skills/avoid-ai-writing/SKILL.md`). Apply it before you give the draft to the user or send it yourself. If the skill is not installed, tell the user. Text for use outside the session includes:
+
+- an email
+- a PR description, an issue, or a comment on either
+- a published doc
+- a CV or a cover letter
+- a form answer
 
 | Rule | Instead of | Write |
 | --- | --- | --- |
@@ -240,6 +249,24 @@ These rules apply in any repo and any language, to comments you write or review.
 - **Never delete commented-out code or correct section banners.** This holds in a comment pass, while you act on findings, and when the code appears unused. An explicit "act on the surfaced items" does not permit it. List them for the user as optional items instead.
 - **No unexplained internal labels in product code, comments or reader-facing prose**, for example a skill's name used as a prefix or as shorthand for a behaviour. Other developers and reviewers do not know them. Write plain prose: `Trade-off:`, `Note:`, or just the sentence. An instruction that tells an agent to load a skill may name the skill. The ban covers the label only: still apply the behaviour that the skill describes.
 - **Cut changelog narration.** A rule's edit history ("this previously read X, before Y existed") belongs in git, not in the file. Keep the rule.
+
+## Memory notes
+
+If you keep memory notes in topic files, the type of a note decides which topic file fits it:
+
+| Type | Topic file that fits |
+| --- | --- |
+| feedback | the newest file that continues `feedback.md`; if none exists, `feedback.md` |
+| gotcha | the existing gotcha file for its domain |
+| reference, under 30 lines | a broader topic file |
+| project | the existing file for that app or topic |
+
+If no row matches the note, find a fitting file by its topic. For each such note, use the first matching row in the table below:
+
+| If | Then |
+| --- | --- |
+| no topic file fits, the fitting file already has more than 150 lines, or the topic needs its own searchable name | create a new topic file |
+| a topic file fits | append a dated entry to it. Keep one current-state block at its top, and update that block in place |
 
 ## Shared skills
 
