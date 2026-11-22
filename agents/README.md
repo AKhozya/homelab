@@ -28,7 +28,7 @@ The rule files are not named `CLAUDE.md` or `AGENTS.md`, because Claude Code loa
 |---|---|
 | `~/.agents/skills/<name>/…` | `skills/<name>/…` in this folder |
 | `~/.agents/skills/_shared/<file>` | `skills/_shared/<file>` |
-| `~/.claude/CLAUDE.md` or `~/.codex/AGENTS.md` | `rules/CLAUDE.global.md` or `rules/AGENTS.global.md`. The Claude export leaves out personal sections, so a pointer can name a section it no longer has |
+| `~/.claude/CLAUDE.md` or `~/.codex/AGENTS.md` | `rules/CLAUDE.global.md` or `rules/AGENTS.global.md`. `~/.claude/CLAUDE.md` imports the Codex rules through `@~/.codex/AGENTS.md`. If a pointer to the Claude file names an imported section, see `rules/AGENTS.global.md`. The Claude export leaves out personal sections, so a pointer can name a section it no longer has |
 | a memory file (`reference_…`, `gotcha_…`, `feedback.md`, `[[…]]`) | the operator's private agent memory, not published |
 | a hook (`~/.claude/hooks/…`, the commit-style hook, the command-safety hook) | a local Claude Code hook, not published |
 
@@ -74,6 +74,11 @@ scripts/sync-agents.sh --check    # exit 0 when this folder matches dotfiles
 | refuse | a symlink, a `CLAUDE.md`, an `AGENTS.md`, a dot entry other than `.DS_Store` |
 | scan for | secrets (`gitleaks` with the repo's `.gitleaks.toml`), and a list of private names kept in dotfiles |
 
-If `~/.claude/CLAUDE.md` changed,
-`--check` exits 1 until `rules/CLAUDE.global.md` is edited again and its first line records
-the new sha256. The script header lists every exit code.
+`--check` compares each rules export with its source:
+
+| Export | Check | If it fails |
+|---|---|---|
+| `rules/CLAUDE.global.md` | line 1 must record the sha256 of `~/.claude/CLAUDE.md`. The hash covers that file only, not the `~/.codex/AGENTS.md` it imports | exit 1 until a hand edit of the export records the new sha256 |
+| `rules/AGENTS.global.md` | byte comparison with `~/.codex/AGENTS.md` | exit 1 until `--update` copies it again |
+
+The script header lists every exit code.
