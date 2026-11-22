@@ -89,9 +89,9 @@ Also one `add`+`commit` per call (no `commit && commit` batching). See bash-scri
 
 Only this script changes the primary tree, so never `git pull` or `git merge` there by hand. If you need why a hand-merge from a worktree fails, read reference-edge-cases.md § "Why a hand-merge from a worktree fails".
 
-### 3b. Pre-commit review loop (opposite-family peer — gate-of-record; see CLAUDE.md)
+### 3b. Pre-commit review loop (opposite-family peer — gate-of-record; see the homelab `AGENTS.md`)
 
-Review is **pre-commit**, not pre-push. The AGENTS.md "Pre-commit review loop" hard invariant owns the full loop. Follow it verbatim. Its state table decides when to commit. Resolve the peer via `peer-reviewed-implementation/scripts/reviewer-peer`.
+Review is **pre-commit**, not pre-push. The homelab `AGENTS.md` "Pre-commit review loop" defines the review procedure; follow it. The round table in `~/.codex/AGENTS.md` (heading "Round table") decides when to commit. Resolve the peer via `peer-reviewed-implementation/scripts/reviewer-peer`.
 
 | Constraint | Value |
 |---|---|

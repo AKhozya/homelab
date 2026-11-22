@@ -10,6 +10,7 @@ cluster-reboot
 cluster-roll
 cluster-stale-cleanup
 cnpg-full-roll
+codex-review-dispatch
 comment-sweep
 db-operations
 db-primary-pin
@@ -34,6 +35,8 @@ secrets-rotation
 worktree-cleanup
 _shared/alert-cascade-check.sh
 _shared/audit-priority-class.sh
+_shared/branch-drop.sh
+_shared/branch-drop-selfcheck.sh
 _shared/check-alerts.sh
 _shared/check-kyverno.sh
 _shared/ci-red-classify.sh

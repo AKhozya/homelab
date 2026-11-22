@@ -258,5 +258,38 @@ guard "GNU stat: alias still rejected" 2 --diff "$tmp/diff.txt" --prompt "$tmp/p
 check "GNU stat: aliased --diff survives" yes "$(alive "$tmp/diff.txt" "$tmp/ref-diff.txt")"
 rm -f "$tmp/bin/stat"
 
+# The review ignores the user config. If the user sets project_doc_max_bytes, the
+# wrapper passes it with -c. If it omits this setting, Codex reads at most 32 KiB
+# across the project's AGENTS.md files.
+# If the wrapper passes several -c pairs, argpair checks only the last one.
+anypair() {
+  awk -v o="$1" -v v="$2" 'prev == o && $0 == v { hit = 1 } { prev = $0 } END { print hit ? "yes" : "no" }' "$tmp/argv"
+}
+with_config() {
+  mkdir -p "$tmp/codexhome"
+  printf '%s\n' "$1" >"$tmp/codexhome/config.toml"
+  mkstub 0 "VERDICT: APPROVE"
+  : >"$tmp/argv"
+  CODEX_HOME="$tmp/codexhome" invoke --diff "$tmp/diff.txt" --prompt "$tmp/prompt.txt" --out "$tmp/cfg.out" >/dev/null 2>&1 && echo 0 || echo $?
+}
+check "doc limit set: rc" 0 "$(with_config 'project_doc_max_bytes = 262144')"
+check "doc limit set: passed to codex" yes "$(anypair -c project_doc_max_bytes=262144)"
+check "doc limit unset: rc" 0 "$(with_config 'model = "m1"')"
+grep -q project_doc_max_bytes "$tmp/argv" && r=yes || r=no
+check "doc limit unset: no flag" no "$r"
+check "doc limit unset: model still passed" yes "$(argpair --model m1)"
+check "doc limit in profile: rc" 0 "$(with_config $'profile = "p"\nproject_doc_max_bytes = 1\n[profiles.p]\nproject_doc_max_bytes = 4096')"
+check "doc limit in profile: profile wins" yes "$(anypair -c project_doc_max_bytes=4096)"
+check "doc limit in profile: top-level value not passed" no "$(anypair -c project_doc_max_bytes=1)"
+check "doc limit zero: rc" 0 "$(with_config 'project_doc_max_bytes = 0')"
+check "doc limit zero: passed to codex" yes "$(anypair -c project_doc_max_bytes=0)"
+check "doc limit max: rc" 0 "$(with_config 'project_doc_max_bytes = 9223372036854775807')"
+check "doc limit max: passed unchanged" yes "$(anypair -c project_doc_max_bytes=9223372036854775807)"
+for bad in 'project_doc_max_bytes = "big"' 'project_doc_max_bytes = -1' 'project_doc_max_bytes = true' 'project_doc_max_bytes = 1.5' 'project_doc_max_bytes = 9223372036854775808' 'model = "m1\n0"' 'model = "m1\r0"' 'model = "o\u00003"' 'model = "o\u007F3"'; do
+  rc=$(with_config "$bad")
+  check "doc limit invalid ($bad): rc" 2 "$rc"
+  check "doc limit invalid ($bad): no codex call" 0 "$(wc -l <"$tmp/calls" | tr -d ' ')"
+done
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [[ $fail -eq 0 ]]

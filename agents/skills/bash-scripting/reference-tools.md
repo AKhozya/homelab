@@ -24,9 +24,40 @@ Read this before you hand-roll JSON, YAML, CLI-output or file-search parsing in 
 | Watch files | `watchexec` | `inotifywait` loops |
 | K8s multi-pod logs | `stern` | `kubectl logs --tail` loops |
 
-Interactive-only tools (`bat`/`eza`/`delta`/`difft`/`dust`/`duf`/`viddy`/`procs` — prettier `cat`/`ls`/`diff -u`/`du -sh`/`df`/`watch`/`ps` replacements): see the `~/.claude/CLAUDE.md` tool list.
+These tools are for interactive use only. Do not call them in a script:
+
+| Tool | Replaces |
+| --- | --- |
+| `bat` | `cat` |
+| `eza` | `ls` |
+| `delta`, `difft` | `diff -u` |
+| `dust` | `du -sh` |
+| `duf` | `df` |
+| `viddy` | `watch` |
+| `procs` | `ps` |
 
 Full local list: `~/.Brewfile` + `command -v <tool>`.
+
+## Trap: yq prints a quoted string after an empty `select`
+
+If a `select` matches nothing, yq still prints a quoted string that follows it. jq prints nothing.
+
+| yq version | Probed |
+| --- | --- |
+| v4.53.3 | 2026-08-08 |
+| v4.54.3 | 2026-11-21 |
+
+Results, the same on both:
+
+| Expression | yq prints | jq prints |
+| --- | --- | --- |
+| `select(false) \| "X"` | `X` | nothing |
+| `select(false) \| "job \(.name) x"` | `job  x` | nothing |
+| `select(false) \| .name` | nothing | nothing |
+
+`has()` returns true and false correctly, so the fault is not in the test. A constant string gives no sign that the `select` rejected the input. If the string interpolates a field, the blank field is the only sign.
+
+Fix: make yq emit the field (`select(...) | .key`), and format the text outside yq. `rg` can cross-check the text, but it does not read YAML structure.
 
 ## Anti-pattern: rg misses tracked files in ignored dirs
 

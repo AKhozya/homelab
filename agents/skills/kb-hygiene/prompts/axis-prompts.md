@@ -8,7 +8,7 @@
 | `{MEMORY_DIR}` | the repo's Claude Code memory dir, `$HOME/.claude/projects/<key>/memory`, where `<key>` is `{REPO_ROOT}` with every character other than a letter or digit replaced by `-`. Check that the directory exists before dispatch |
 | `{PLANS_DIR}` | the repo's plan/spec dir: `{REPO_ROOT}/docs/plans` in homelab; the superpowers default is `docs/superpowers/` |
 | `{SKILLS_ROOT}` | `$HOME/.agents/skills` |
-| `{GLOBAL_CLAUDE_MD}` | `$HOME/.claude/CLAUDE.md` |
+| `{GLOBAL_CLAUDE_MD}` | `$HOME/.claude/CLAUDE.md`, the `$HOME/.codex/AGENTS.md` it imports, and `$HOME/.claude/reference/*.md` if that folder exists |
 
 ---
 

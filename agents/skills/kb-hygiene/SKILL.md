@@ -30,8 +30,8 @@ Axis 1's mechanical checks are scripted: run `scripts/index-integrity.sh [MEMORY
 | 2 | memory/gotchas **stale** | each claim vs live repo/cluster — conservative: mark UNVERIFIED, never delete on a guess |
 | 3 | memory ↔ skills | `memory/*.md` vs skill `.md`/`.sh` |
 | 4 | skill `.sh` captain-obvious comments | `skills/**/*.sh` |
-| 5 | memory/gotchas ↔ **repo truth** | vs `docs/`, both `CLAUDE.md`, `.claude/review-invariants.md` (repo authoritative; memory copy = drift-risk) |
-| 6 | skills ↔ CLAUDE.md + skill specs | operationalize = keep vs re-declare = dup; shipped+surpassed specs in the repo's plan dir (homelab `docs/plans/`) = archivable |
+| 5 | memory/gotchas ↔ **repo truth** | vs `docs/`, the repo's `AGENTS.md`, both `CLAUDE.md` (the global one with the `~/.codex/AGENTS.md` it imports, and `~/.claude/reference/` if it exists), `.claude/review-invariants.md` (repo authoritative; memory copy = drift-risk) |
+| 6 | skills ↔ CLAUDE.md (with `~/.codex/AGENTS.md` and `~/.claude/reference/` if it exists) + skill specs | operationalize = keep vs re-declare = dup; shipped+surpassed specs in the repo's plan dir (homelab `docs/plans/`) = archivable |
 | 7 | gotchas ↔ skills | most operational memory, most echoed — don't skip (user-flagged axis) |
 | 8 | prose bloat + doesn't-belong | memory-corpus runs: per-file prose-density + RELOCATE (changelog restatements vs HISTORY, dead work, generic knowledge). Validated run 6 — expect most files OK; wins concentrate in session-journal project files |
 

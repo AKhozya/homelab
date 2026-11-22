@@ -87,6 +87,17 @@ A VOID result is not a failure of the run — it is the run refusing to lie.
 | `the check command rewrote <file>` | the mutant was undone before the suite ran, so green means nothing |
 | `restore failed` | a mutant is still in the working tree |
 
+## Do not edit, test and restore in your own loop
+
+A shell loop that calls `mutate.sh` once per anchor is correct (above). Do not write a loop that edits the file, runs the tests and restores the file itself. Such a loop repeats the faults that the script guards against:
+
+| Trap | What happens in a hand-written loop | How `mutate.sh` avoids it |
+| --- | --- | --- |
+| the anchor also matches a comment | the edit lands in the comment, the code stays as it was, and the suite stays green | VOID `anchor matches N places` |
+| the mutant does not compile | the suite fails to build, which reads as KILLED | pass `--check <compile command>`; the script then reports VOID `mutant fails check` |
+| `cp` is an interactive alias (`cp -i`) | the restore copy waits for a "y" that never arrives, or skips the file, so the mutant stays in the tree | calls `command cp -f`, which bypasses any alias (search `mutate.sh` for `command cp -f`) |
+| the output goes through `\| head` | if `head` exits early, the next write gets SIGPIPE; if that kills the loop before its restore line, the mutant stays in the tree | traps `PIPE` and restores the file before it exits (`trap cleanup EXIT INT TERM PIPE`) |
+
 ## What it does not check
 
 The test and check commands must not write to the file under test. The file is compared

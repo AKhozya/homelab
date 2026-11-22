@@ -9,6 +9,7 @@ set -euo pipefail
   # Dispatch one static Codex review.
   #
   # The caller writes the prompt, scopes the diff, and judges the findings.
+  # If you edit this script, run codex-review-selfcheck.sh (next to it) afterwards.
 
   usage() {
     cat <<'EOF'
@@ -157,8 +158,10 @@ EOF
   # `-c plugins."…".enabled=false` leaves a plugin's hooks active. So the script
   # passes the configured model itself. If the config selects an endpoint or a
   # login setting that the script cannot pass on, the script stops.
+  # If the script omits project_doc_max_bytes, Codex uses its 32 KiB default and
+  # cuts a long project AGENTS.md (observed 2026-11-21).
   codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
-  model="$(
+  settings="$(
     python3 -I - "$codex_config" <<'PY'
 import sys
 try:
@@ -181,11 +184,22 @@ for key in ("model_provider", "openai_base_url", "chatgpt_base_url",
             "forced_chatgpt_workspace_id"):
     if value(key) is not None and not (key == "model_provider" and value(key) == "openai"):
         sys.exit(f"{key} is set, and this script cannot pass it on")
-print(value("model") or "")
+doc_bytes = value("project_doc_max_bytes")
+if doc_bytes is not None and (type(doc_bytes) is not int or not 0 <= doc_bytes <= 2**63 - 1):
+    sys.exit("project_doc_max_bytes must be a whole number of bytes, from 0 to 2^63-1")
+model = value("model") or ""
+# The shell reads one value per line. Command substitution drops NUL bytes.
+if any(ord(c) < 32 or ord(c) == 127 for c in model):
+    sys.exit("model must not contain control characters")
+print(model)
+print("" if doc_bytes is None else doc_bytes)
 PY
   )" || die "cannot use the settings in $codex_config"
+  model="$(sed -n 1p <<<"$settings")"
+  doc_bytes="$(sed -n 2p <<<"$settings")"
   model_args=()
   [[ -n "$model" ]] && model_args=(--model "$model")
+  [[ -n "$doc_bytes" ]] && model_args+=(-c "project_doc_max_bytes=$doc_bytes")
 
   out_file="${out_file:-$(mktemp -t codex-review)}" || die "cannot create an output file"
   log_file="${log_file:-$(mktemp -t codex-review-log)}" || die "cannot create a log file"
@@ -254,6 +268,10 @@ Findings follow on later lines, each with its own severity."
   #
   # -k sends KILL after the grace period. If -k is absent, timeout sends TERM and
   # then waits for a process that ignores it.
+  #
+  # --sandbox read-only stops writes to the checkout; the prompt permits one
+  # command, a cat of the review file. If the flag is absent, a command the prompt
+  # forbids can still change the checkout.
   rc=0
   "$timeout_bin" -k 10 "$deadline" "$codex_bin" exec \
     --ignore-user-config \
@@ -283,6 +301,8 @@ Findings follow on later lines, each with its own severity."
   # The codex exit code for a refusal is unknown, so it does not decide this. The
   # check covers the reply FORMAT only. It does not show that Codex read the diff.
   # A well-formed verdict can still be a poor review.
+  # Callers read exit 0 as a valid verdict, so this path exits 3: if it exited 0,
+  # a failed review would pass as one.
   verdict="$(head -n 1 "$out_file" 2>/dev/null || true)"
   if [[ ! "$verdict" =~ ^VERDICT:\ ($verdict_enum)$ ]]; then
     printf 'codex-review: first line is not a verdict\n' >&2
