@@ -304,7 +304,11 @@ Findings follow on later lines, each with its own severity."
   # Callers read exit 0 as a valid verdict, so this path exits 3: if it exited 0,
   # a failed review would pass as one.
   verdict="$(head -n 1 "$out_file" 2>/dev/null || true)"
-  if [[ ! "$verdict" =~ ^VERDICT:\ ($verdict_enum)$ ]]; then
+  # Codex sometimes ends a valid verdict line with spaces. The pad is [ \t], not
+  # [[:blank:]], whose members depend on the locale.
+  verdict_line="${verdict%$'\r'}"
+  pad=$'[ \t]*'
+  if [[ ! "$verdict_line" =~ ^VERDICT:\ ($verdict_enum)$pad$ ]]; then
     printf 'codex-review: first line is not a verdict\n' >&2
     printf '  got: %s\n' "${verdict:-<empty>}" >&2
     printf '  transcript: %s\n' "$log_file" >&2

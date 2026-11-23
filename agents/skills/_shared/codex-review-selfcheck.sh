@@ -120,6 +120,18 @@ mkstub 0 "I could not review this."
 invoke --diff "$tmp/diff.txt" --prompt "$tmp/prompt.txt" --out "$tmp/out.txt" >/dev/null 2>&1 && rc=0 || rc=$?
 check "refusal rc" 3 "$rc"
 
+# 3b. A verdict line may end in spaces, tabs and one final carriage return.
+for suffix in ' ' $'\t' $'\r' $' \t \r' '   '; do
+  mkstub 0 "VERDICT: APPROVE$suffix"
+  invoke --diff "$tmp/diff.txt" --prompt "$tmp/prompt.txt" --out "$tmp/out.txt" >/dev/null 2>&1 && rc=0 || rc=$?
+  check "verdict with suffix $(printf '%q' "$suffix") rc" 0 "$rc"
+done
+for bad in 'VERDICT: APPROVE extra' $'VERDICT: APPROVE\r\r' $'VERDICT: APPROVE\r ' $'VERDICT: APPROVE\xe2\x80\x83' 'VERDICT: BANANA ' 'VERDICT:APPROVE' 'VERDICT: APPROVE-WITH-NITS-X' $'Review follows.\nVERDICT: APPROVE'; do
+  mkstub 0 "$bad"
+  invoke --diff "$tmp/diff.txt" --prompt "$tmp/prompt.txt" --out "$tmp/out.txt" >/dev/null 2>&1 && rc=0 || rc=$?
+  check "not a verdict $(printf '%q' "$bad") rc" 3 "$rc"
+done
+
 # A failed run can still flush a good first line. Process status decides.
 mkstub 1 "VERDICT: APPROVE"
 invoke --diff "$tmp/diff.txt" --prompt "$tmp/prompt.txt" --out "$tmp/out.txt" >/dev/null 2>&1 && rc=0 || rc=$?
