@@ -61,6 +61,8 @@ blocking:
   blockType: zeroIp
   blockTTL: 30s
   loading:
+    # If Blocky uses fast, its HTTP startup probe can pass before Blocky starts filtering DNS.
+    strategy: fast
     refreshPeriod: 6h
     downloads:
       timeout: 5m
