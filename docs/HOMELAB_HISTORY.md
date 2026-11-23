@@ -18,6 +18,36 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-23 — Blocky loads its lists in the background (`loading.strategy: fast`)
+
+| Observation | Source |
+|---|---|
+| If Blocky uses the default blocking strategy, it answers DNS only after its lists load: 130 s for 2,259,968 entries | lab, `v0.37.0`, Blocky's import log |
+| Blocky imports the 2,010,239 entries in `tif.txt` in about 112 s in each run | Blocky's import log |
+| If 30 consecutive startup probes fail (`apps/blocky/deployment.yaml`: the 30th probe is due about 150 s after container start), the kubelet restarts the container. Blocky then loads the lists again | lab events "Container blocky failed startup probe, will be restarted" |
+| In lab boot 11 of the dual-stack Task 12 re-spike, Blocky's container restarts twice. The probes recover 446 s after boot, against 64–85 s in the other eleven boots | lab boot evidence |
+
+The fix: `blocking.loading.strategy: fast` in `apps/blocky/config.yml`. Blocky can answer DNS before its lists finish loading, and starts blocking when they do.
+
+Lab measurement on `v0.37.0`. Each run starts with one deliberate container stop. Another host sends a DNS lookup every 2 s:
+
+| Config | Last container start to Ready | No DNS, from the container stop | First DNS answer to first blocked answer |
+|---|---|---|---|
+| blocking start (before) | 130 s | 130 s | 0 s |
+| `downloads.cachePath` on an `emptyDir` | 152 s, after one startup-probe kill | 325 s | 0 s |
+| `strategy: fast` (now) | 13 s | about 15 s | about 130 s |
+
+Blocky `v0.37.0` accepts `cachePath`, but in the lab it does not shorten the start: 152 s from the last container start to Ready.
+
+Trade-offs of `fast`:
+
+| Case | Effect |
+|---|---|
+| any pod start | the pod answers unfiltered until its lists load: about 130 s in the lab |
+| a rollout (`maxSurge: 0`, `maxUnavailable: 1`) | if the first replacement reports Ready before its lists load, the Deployment can remove the remaining filtering pod. The lab covers only a container restart. Rollout overlap remains unverified |
+| a drain | if a drain evicts one of two filtering replicas, the other keeps filtering. The PDB (`minAvailable: 1`) counts a Ready pod. If an eviction then targets the remaining filtering pod while its replacement peer is Ready but still loading, the PDB allows it, and no filtering endpoint is left |
+| if the first list load fails | Blocky keeps answering unfiltered until a load succeeds. The lab does not measure the retry timing |
+
 ### 2026-11-19 — Cloudflare tunnel alert, Immich metrics and martian logging
 
 | Problem | Cause | Fix |
