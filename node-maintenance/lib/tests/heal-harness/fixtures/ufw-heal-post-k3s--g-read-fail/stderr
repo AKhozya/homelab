@@ -1,0 +1,4 @@
+[ufw-heal] phase-g: cannot read the nat table: 
+[ufw-heal] phase-h: iptables: first read ok
+[ufw-heal] phase-h: ip6tables: first read ok
+[ufw-heal] phase-h: kube-proxy jumps present in iptables ip6tables

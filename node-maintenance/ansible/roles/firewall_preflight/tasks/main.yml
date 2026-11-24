@@ -28,10 +28,10 @@
   failed_when: preflight.rc == 1 and 'cannot load' in preflight.stderr
   tags: [firewall, preflight]
 
-# firewall-preflight.sh exits 3 only when its flush-all recovery left the portmap CNI rules
-# unverified. If this task failed the node, Ansible would skip its later plays, so
-# node-config.yml's last play fails the node instead.
-- name: Record an unverified CNI heal from preflight
+# If ufw-heal-post-k3s.sh --cni-heal cannot verify the portmap rules or kube-proxy's jumps after
+# firewall-preflight.sh runs flush-all, the preflight exits 3. If this task fails the node, Ansible
+# skips its later plays, so the last play in node-config.yml reports the failure.
+- name: Record a failed firewall recovery check from preflight
   ansible.builtin.set_fact:
     firewall_cni_heal_failed: true
   when: preflight.rc == 3

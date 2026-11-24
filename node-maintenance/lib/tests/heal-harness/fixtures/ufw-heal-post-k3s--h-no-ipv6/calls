@@ -1,0 +1,39 @@
+iptables -w 5 -t nat -S
+logger -t ufw-heal -- phase-g:\ no\ portmap\ chains\ \(no\ hostPort\ pods\ here\)\ —\ nothing\ to\ restore
+systemctl is-active --quiet k3s-agent.service
+systemctl show -p MainPID --value k3s-agent.service
+ip6tables -w 2 -t mangle -S KUBE-PROXY-CANARY
+ip6tables -w 2 -t nat -S KUBE-SERVICES
+iptables -w 2 -t filter -S INPUT
+iptables -w 2 -t filter -S FORWARD
+iptables -w 2 -t filter -S OUTPUT
+iptables -w 2 -t nat -S PREROUTING
+iptables -w 2 -t nat -S OUTPUT
+iptables -w 2 -t nat -S POSTROUTING
+logger -t ufw-heal -- phase-h:\ iptables:\ first\ read\ missing:filter/INPUT\>KUBE-EXTERNAL-SERVICES\,filter/FORWARD\>KUBE-EXTERNAL-SERVICES\,filter/INPUT\>KUBE-NODEPORTS\,filter/FORWARD\>KUBE-SERVICES\,filter/OUTPUT\>KUBE-SERVICES\,filter/FORWARD\>KUBE-FORWARD\,filter/INPUT\>KUBE-PROXY-FIREWALL\,filter/OUTPUT\>KUBE-PROXY-FIREWALL\,filter/FORWARD\>KUBE-PROXY-FIREWALL\,nat/OUTPUT\>KUBE-SERVICES\,nat/PREROUTING\>KUBE-SERVICES\,nat/POSTROUTING\>KUBE-POSTROUTING\,filter/INPUT\>KUBE-FIREWALL\,filter/OUTPUT\>KUBE-FIREWALL
+iptables -w 2 -t mangle -S KUBE-PROXY-CANARY
+iptables -w 2 -t mangle -X KUBE-PROXY-CANARY
+iptables -w 2 -t nat -X KUBE-PROXY-CANARY
+logger -t ufw-heal -- phase-h:\ iptables:\ canary\ deleted
+sleep 5
+ip6tables -w 2 -t mangle -S KUBE-PROXY-CANARY
+ip6tables -w 2 -t nat -S KUBE-SERVICES
+iptables -w 2 -t filter -S INPUT
+iptables -w 2 -t filter -S FORWARD
+iptables -w 2 -t filter -S OUTPUT
+iptables -w 2 -t nat -S PREROUTING
+iptables -w 2 -t nat -S OUTPUT
+iptables -w 2 -t nat -S POSTROUTING
+sleep 5
+ip6tables -w 2 -t mangle -S KUBE-PROXY-CANARY
+ip6tables -w 2 -t nat -S KUBE-SERVICES
+iptables -w 2 -t filter -S INPUT
+iptables -w 2 -t filter -S FORWARD
+iptables -w 2 -t filter -S OUTPUT
+iptables -w 2 -t nat -S PREROUTING
+iptables -w 2 -t nat -S OUTPUT
+iptables -w 2 -t nat -S POSTROUTING
+ip6tables -w 2 -t mangle -S KUBE-PROXY-CANARY
+ip6tables -w 2 -t nat -S KUBE-SERVICES
+logger -t ufw-heal -- phase-h:\ kube-proxy\ jumps\ present\ in\ iptables
+logger -t ufw-heal -- phase-h:\ no\ IPv6\ kube-proxy\ markers\ observed\ during\ this\ run

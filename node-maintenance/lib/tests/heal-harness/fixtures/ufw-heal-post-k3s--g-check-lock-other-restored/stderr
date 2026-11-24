@@ -1,0 +1,5 @@
+[ufw-heal] phase-g: check exited 4; skipping the insert for dnat-missing:PREROUTING
+[ufw-heal] phase-g: portmap entry rules still missing after restore (/usr/sbin/iptables): dnat-missing:PREROUTING 
+[ufw-heal] phase-h: iptables: first read ok
+[ufw-heal] phase-h: ip6tables: first read ok
+[ufw-heal] phase-h: kube-proxy jumps present in iptables ip6tables

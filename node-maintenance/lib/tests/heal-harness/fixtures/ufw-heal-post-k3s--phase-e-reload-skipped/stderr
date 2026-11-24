@@ -1,0 +1,21 @@
+[ufw-heal] watchdog: ufw not active — starting heal
+[ufw-heal] phase-c: per-chain repair starting
+[ufw-heal] phase-c: repair complete
+[ufw-heal] phase-b: ufw reload attempt 1/3
+[ufw-heal] phase-b: reload no-op (ufw disabled) — recovering: flush-all + force-enable
+[ufw-heal] phase-b: flush-all errored (continuing)
+[ufw-heal] phase-b: recovery failed: ERROR: problem running ip6tables
+[ufw-heal] phase-b: ufw reload attempt 2/3
+[ufw-heal] phase-b: reload no-op (ufw disabled) — recovering: flush-all + force-enable
+[ufw-heal] phase-b: flush-all errored (continuing)
+[ufw-heal] phase-b: recovery failed: ERROR: problem running ip6tables
+[ufw-heal] phase-b: ufw reload attempt 3/3
+[ufw-heal] phase-b: reload no-op (ufw disabled) — recovering: flush-all + force-enable
+[ufw-heal] phase-b: flush-all errored (continuing)
+[ufw-heal] phase-b: recovery failed: ERROR: problem running ip6tables
+[ufw-heal] phase-b: all reload attempts failed
+[ufw-heal] phase-e: final ufw reload attempt 1/3
+[ufw-heal] phase-e: final ufw reload attempt 2/3
+[ufw-heal] phase-e: final reload succeeded
+[ufw-heal] phase-d: probe-set healthy
+[ufw-heal] phase-f: ufw active — heal OK

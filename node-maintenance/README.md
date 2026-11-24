@@ -330,11 +330,22 @@ On every boot, `/usr/local/sbin/ufw-heal-post-k3s.sh` runs once:
 | Phase | Action |
 |---|---|
 | A | Wait until kube-router stops changing the rules: the `KUBE-ROUTER-INPUT` chain exists and the `ip6tables-save` line count is the same in two samples 5 s apart. Give up waiting after 120 s and go on. |
-| B | `ufw reload` three times, 10 s apart |
+| B | Wait up to 30 s for kube-proxy's IPv4 mangle canary, then `ufw reload`, up to three attempts. If a reload fails or reports that it skipped (`skipping reload`, `not enabled`), recover with `ufw-init flush-all` and `ufw --force enable` |
 | C | Repair each chain: read the `:<chain>` lines from the UFW rules files and `ip6tables -N` any that are missing |
 | D | Check that `ufw-logging-deny`, `ufw6-logging-deny`, `ufw-user-input` and `ufw6-user-input` exist |
-| E | One final `ufw reload` |
+| E | If a phase B reload succeeds, skip phase E: a second reload can race K3s's iptables writes at boot, fail, and leave UFW inactive. If every phase B attempt failed, wait up to 30 s for the same canary and reload again |
 | F | Check that `ufw status verbose` says `Status: active` (or inactive if `ENABLED=no`); exit non-zero only on a real failure |
+| G | If recovery ran `flush-all`, restore the portmap CNI entry rules (hostPort traffic), which only a pod start would re-add |
+| H | If recovery ran `flush-all`, poll for up to 75 s every jump a kube-proxy full sync adds from a built-in chain: 14 per family (`filter` `INPUT`, `FORWARD` and `OUTPUT`, `nat` `PREROUTING`, `OUTPUT` and `POSTROUTING`). Phase H checks IPv4 always, and IPv6 only if IPv6's mangle `KUBE-PROXY-CANARY` or `nat` `KUBE-SERVICES` chain exists; if neither does, success covers IPv4 alone, and the journal says `no IPv6 kube-proxy markers observed`. If a read confirms a missing jump and more than 10 s remain both in the 75 s and before the script deadline, phase H can delete that family's mangle canary to request a kube-proxy full sync: at most 3 deletes per family, each at least 15 s after the previous one. If work time remains after the 75 s, phase H checks the jumps once more without deleting a canary. If time runs out before phase H reads a family after its last delete, the alert reports that family's recovery as unverified |
+
+The script limits each wait, `ufw status` read and `iptables` call to a work budget, and sets time aside to report a failure:
+
+| Unit | `TimeoutStartSec` | Script deadline | Time from script deadline to unit timeout |
+|---|---|---|---|
+| `ufw-heal-post-k3s.service` (boot) | 300 s | 285 s | 15 s |
+| `ufw-heal-watchdog.service` | 180 s | 165 s | 15 s |
+
+`ufw reload` and `ufw enable` have no timeout of their own; if one is slow, systemd can stop the unit at its timeout. If phase G or H fails, one Telegram alert names each failed phase and its reason.
 
 Logs: `journalctl -t ufw-heal`, with a marker per phase. It replaced `ufw-reload-after-k3s.service`,
 which only slept 15 s and reloaded, and so often ran before kube-router had finished.

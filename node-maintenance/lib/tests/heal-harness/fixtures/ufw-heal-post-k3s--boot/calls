@@ -24,12 +24,12 @@ logger -t ufw-heal -- phase-a:\ stable\ 3/3\ \(nft_events=0\,\ ufw_hash=e74cbb27
 logger -t ufw-heal -- phase-a:\ settled
 logger -t ufw-heal -- phase-c:\ per-chain\ repair\ starting
 logger -t ufw-heal -- phase-c:\ repair\ complete
+systemctl is-active --quiet k3s-agent.service
+systemctl show -p MainPID --value k3s-agent.service
 logger -t ufw-heal -- phase-b:\ ufw\ reload\ attempt\ 1/3
 ufw reload
 logger -t ufw-heal -- phase-b:\ reload\ succeeded\ \(attempt\ 1\)
-logger -t ufw-heal -- phase-e:\ final\ ufw\ reload
-ufw reload
-logger -t ufw-heal -- phase-e:\ final\ reload\ succeeded
+logger -t ufw-heal -- phase-e:\ SKIP\ —\ phase-b\ reloaded
 iptables -L ufw-logging-deny -n
 iptables -L ufw-user-input -n
 ip6tables -L ufw6-logging-deny -n

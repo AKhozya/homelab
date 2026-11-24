@@ -131,12 +131,13 @@
   gather_facts: false
   tags: [always]   # a --tags firewall run must still report these
   tasks:
-    - name: Fail if firewall-preflight's flush-all recovery left the portmap CNI rules unverified
+    - name: Fail if firewall-preflight's flush-all recovery left the CNI or kube-proxy rules unverified
       ansible.builtin.fail:
         msg: >-
           firewall-preflight.sh re-enabled UFW with a flush-all, and ufw-heal-post-k3s.sh cannot
-          verify the portmap CNI entry rules. hostPort traffic may have no DNAT or masquerade. See
-          `journalctl -t firewall-preflight -t ufw-heal` on this node.
+          verify the portmap CNI entry rules or kube-proxy's jumps. If portmap rules are missing,
+          hostPort traffic can lose DNAT or masquerade. If kube-proxy jumps are missing, ClusterIP
+          traffic can fail. See `journalctl -t firewall-preflight -t ufw-heal` on this node.
       when: firewall_cni_heal_failed | default(false)
 
     - name: Fail if the UFW rule batch needed the rescue on this node

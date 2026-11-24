@@ -1,0 +1,6 @@
+[ufw-heal] phase-g: no portmap chains (no hostPort pods here) — nothing to restore
+[ufw-heal] phase-h: iptables: first read missing:filter/INPUT>KUBE-EXTERNAL-SERVICES,filter/FORWARD>KUBE-EXTERNAL-SERVICES,filter/INPUT>KUBE-NODEPORTS,filter/FORWARD>KUBE-SERVICES,filter/OUTPUT>KUBE-SERVICES,filter/FORWARD>KUBE-FORWARD,filter/INPUT>KUBE-PROXY-FIREWALL,filter/OUTPUT>KUBE-PROXY-FIREWALL,filter/FORWARD>KUBE-PROXY-FIREWALL,nat/OUTPUT>KUBE-SERVICES,nat/PREROUTING>KUBE-SERVICES,nat/POSTROUTING>KUBE-POSTROUTING,filter/INPUT>KUBE-FIREWALL,filter/OUTPUT>KUBE-FIREWALL
+[ufw-heal] phase-h: ip6tables: first read ok
+[ufw-heal] phase-h: iptables: canary deleted
+[ufw-heal] phase-h: iptables: canary already absent
+[ufw-heal] phase-h: could not confirm kube-proxy jumps: iptables: last seen missing, then unread:filter/INPUT>KUBE-EXTERNAL-SERVICES,filter/FORWARD>KUBE-EXTERNAL-SERVICES,filter/INPUT>KUBE-NODEPORTS,filter/FORWARD>KUBE-SERVICES,filter/OUTPUT>KUBE-SERVICES,filter/FORWARD>KUBE-FORWARD,filter/INPUT>KUBE-PROXY-FIREWALL,filter/OUTPUT>KUBE-PROXY-FIREWALL,filter/FORWARD>KUBE-PROXY-FIREWALL,nat/OUTPUT>KUBE-SERVICES,nat/PREROUTING>KUBE-SERVICES,nat/POSTROUTING>KUBE-POSTROUTING,filter/INPUT>KUBE-FIREWALL,filter/OUTPUT>KUBE-FIREWALL, canary deleted 1 times; (75 s passed)
