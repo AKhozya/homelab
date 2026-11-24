@@ -1,4 +1,4 @@
-<!-- Source-sha256: e04d8f49830d18865cf420e2278888783aecefb33bc79e8337a2a20b72ceb8e0 -->
+<!-- Source-sha256: 935debf89bc96a2b52561515ebb3bf31165c83789d95ad3fa235fadb6bfff725 -->
 # Claude - Global Settings
 
 This export copies the public sections of the operator's `~/.claude/CLAUDE.md`. The builder inserts this hand-written header.
@@ -54,7 +54,14 @@ If you need the evidence for the sentence-length rule, read `~/.claude/reference
 
 **Standard commands are unaliased** (`~/.zshrc`, since 2026-09-27): `ls`, `cat`, `du`, `rm` and the rest take their standard flags. Call `eza`, `bat`, `dust` or `duf` by name.
 
-**Close stdin on a command that might read it but needs no input.** A command that reads stdin can wait for ever in the Bash tool: `rg PATTERN` with no path hung. Start the shell call with `exec </dev/null`, or append `</dev/null` to the command. If the shell call also holds a command that takes stdin from a pipe or a file redirection, do not append `</dev/null` to that command, because it replaces the input; use `exec </dev/null` at the start of the call. If `rg` searches files, give it a path.
+**Close stdin if a shell call contains `<`.** If the command text contains `<`, even inside quotes, the Bash tool gives the shell a socket or pipe as stdin. A command that reads from it can block. If a call contains no `<`, the tool gives the shell `/dev/null` as stdin. A command that reads its own pipe or file redirection still gets that input.
+
+| If the call contains `<` and | Then |
+| --- | --- |
+| no command needs to read the shell's inherited stdin | start the call with `exec </dev/null;` as its own command. If you write `exec </dev/null command`, `exec` replaces the shell with `command` |
+| another command needs the inherited stdin | append `</dev/null` to each command that needs no input. An appended `</dev/null` redirects only that command's stdin |
+
+If `rg` searches files, give it a path.
 
 ## Parallel Bash
 

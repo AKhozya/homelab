@@ -52,7 +52,7 @@ The script appends the read contract to your prompt: one permitted `cat` of the 
    2. Build the file in one shell call: `(export GIT_INDEX_FILE=<scratch dir>/review.index; git read-tree HEAD && git add -- <your paths> && git diff --cached --patch-with-stat -- <your paths> > <review file>)`. The subshell keeps the setting out of your shell and returns the status of the chain. If it exits non-zero, or the repository has no commit yet, stop and ask.
    3. Read the review file. If it shows a change that is not yours, stop and ask. If one of your changes is missing, add its path to `<your paths>` and restart at step 1. If it shows all your changes and only yours, dispatch it.
 
-   Keep every review to that one file: if Codex explores widely, its process can exit in the middle of the run. A long file can reach Codex with its middle cut, so ask Codex to name, in its first finding, each part of the file it did not receive.
+   Keep every review to that one file. If Codex explores beyond it, its process can exit partway through the run. Ask Codex to name, in its first finding, each part of the file it did not receive. A long file can reach Codex with part of the middle missing.
 
    | If | Then |
    | --- | --- |
