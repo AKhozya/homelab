@@ -73,7 +73,11 @@ git -C ~/.local/share/chezmoi push
 
 **Always use `git -C ~/.local/share/chezmoi`** — `cd && git` breaks safe-bash allow pattern.
 
-**If the commit fails with `fatal: failed to write commit object` and an `error: 1Password:` line (seen: `agent returned an error`, `Could not connect to socket`, earlier `failed to fill whole buffer`)**, the commit-signing key is blocked (1Password locked / no biometric surface from the agent shell). Staging survives.
+**If the commit fails with `fatal: failed to write commit object` and an `error: 1Password:` line**, 1Password cannot sign the commit. Git keeps the changes staged. The transcripts show these messages:
+
+- `agent returned an error`
+- `Could not connect to socket`
+- `failed to fill whole buffer`
 1. Retry the same commit once unsigned: `git -C ~/.local/share/chezmoi -c commit.gpgsign=false commit ...` (the user's rule: an unsigned commit is fine if 1Password is locked, for example by a locked screen; do not stop to ask for an unlock first).
 2. If that retry fails too, stop and report it. Do not retry-loop.
 

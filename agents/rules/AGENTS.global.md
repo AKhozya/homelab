@@ -82,9 +82,9 @@ These rules apply to every change, however small. Most concern code; the rules o
   If the run cannot show whether the test catches the change, the script reports VOID. VOID is not a verdict. Do not write a loop that edits, tests and restores the file itself: such a loop repeats the faults that the script reports as VOID.
 - **A check can match itself.** If a search pattern can match the command, script or fixture that holds it, split the pattern. Put the data or the test cases in a file and search the file.
 - **A pipeline's exit status can hide a failure.** If `pipefail` is off, the status is the last command's: `$?` after `make check | grep error` reports `grep`, not `make`. If the exit code of the first command is what you want, run it without a pipe or read `${PIPESTATUS[0]}` in bash or `${pipestatus[1]}` in zsh.
-- **If you edit a document with a script,** count its level-two headings (`grep -c '^## ' <file>`) before the edit and again after it. If the counts differ and you did not intend it, find the section the edit removed or added.
+- **If you edit a document with a script,** count its level-two headings (`~/.agents/skills/_shared/md-sections.sh count <file>`, which skips headings inside code fences) before the edit and again after it. If the counts differ and you did not intend it, find the section the edit removed or added.
 - **A mutant that dies against a fixture you wrote proves the fixture, not the system.** Build the fixture from bytes the real system produced, for example a captured page, a recorded response or a rendered file. Do not build it from your idea of the shape.
-- **A grep hit does not prove which section it sits in.** Attribute the hit before you state it: `awk '/^## /{s=$0} /needle/{print s": "$0}' file`.
+- **A grep hit does not prove which section it sits in.** Attribute the hit before you state it: `~/.agents/skills/_shared/md-sections.sh find <file> <needle>` prints each line that holds the needle, with the heading of its section.
 - **Inspect what a subagent wrote.** Its own self-check does not count. A check that searches only for the expected text can pass while the file ends in stray text, such as tool-call closing tags. Read the end of the file (`tail`) and search for stray tags before you trust or commit it.
 
 ## Shell
@@ -95,7 +95,12 @@ These rules apply to every change, however small. Most concern code; the rules o
 ## Git and commits
 
 - Write each commit message on one line, with no mention of an AI tool.
-- **If a commit fails with `fatal: failed to write commit object` and its output also has an `error: 1Password:` line, the 1Password signer cannot sign**, for example because 1Password is locked. Seen in transcripts: `error: 1Password: agent returned an error` and `error: 1Password: Could not connect to socket. Is the agent running?`. Git is not at fault. The failed commit leaves the staged changes in place. Retry unsigned (`-c commit.gpgsign=false`); don't stop to ask for an unlock. If the output has `fatal: failed to write commit object` but no `error: 1Password:` line, do not retry unsigned: fix the cause the error names, or stop and ask.
+- **If a commit fails with `fatal: failed to write commit object` and its output also has an `error: 1Password:` line, the 1Password signer cannot sign**, for example because 1Password is locked. Two examples from transcripts:
+
+  - `error: 1Password: agent returned an error`
+  - `error: 1Password: Could not connect to socket. Is the agent running?`
+
+  Git is not at fault. The failed commit leaves the staged changes in place. Retry the commit unsigned (`-c commit.gpgsign=false`) without asking for an unlock. If the output has `fatal: failed to write commit object` but no `error: 1Password:` line, do not retry unsigned: fix the cause the error names, or stop and ask.
 - **`git commit` commits the whole index**, not only the paths you passed to `git add`. A shared checkout often holds other work in progress.
   - Run `git status --short` first and confirm that the staged set is exactly yours.
   - If the index holds files that are not yours, scope the commit by paths: `git commit -m '<msg>' -- <paths>`. That form commits the whole working-tree content of each named path, unstaged edits included, and replaces what is staged for those paths. So read `git diff HEAD -- <paths>` and `git diff --cached -- <paths>` first. If either command fails, or shows a change that is not yours (a hunk, a mode change, a rename or a binary file), stop and ask.
@@ -210,7 +215,7 @@ If you write or edit Markdown, apply these rules:
 
 **Write for someone new to the subject.** Stay close to ASD-STE100 (Simplified Technical English) in all text that a person reads, chat replies and scripts included. If you write narration that a person or a synthetic voice speaks in a video, do not apply ASD-STE100 to it.
 
-If the text is for use outside the session, load the `avoid-ai-writing` skill (`~/.agents/skills/avoid-ai-writing/SKILL.md`). Apply it before you give the draft to the user or send it yourself. If the skill is not installed, tell the user. Text for use outside the session includes:
+If the text is for use outside the session, load the `avoid-ai-writing` skill (`~/.agents/skills/avoid-ai-writing/SKILL.md`). Apply it before you give the draft to the user or send it yourself. If the skill is missing, tell the user. Text for use outside the session includes:
 
 - an email
 - a PR description, an issue, or a comment on either
@@ -266,7 +271,7 @@ If no row matches the note, find a fitting file by its topic. For each such note
 | If | Then |
 | --- | --- |
 | no topic file fits, the fitting file already has more than 150 lines, or the topic needs its own searchable name | create a new topic file |
-| a topic file fits | append a dated entry to it. Keep one current-state block at its top, and update that block in place |
+| a topic file fits | append a dated entry to it. Keep one current-state block at its top. Update that block in place |
 
 ## Shared skills
 
