@@ -1,0 +1,50 @@
+iptables -w 5 -t nat -S
+logger -t ufw-heal -- phase-g:\ no\ portmap\ chains\ \(no\ hostPort\ pods\ here\)\ —\ nothing\ to\ restore
+systemctl is-active --quiet k3s-agent.service
+systemctl show -p MainPID --value k3s-agent.service
+ip6tables -w 2 -t mangle -S KUBE-PROXY-CANARY
+iptables -w 2 -t filter -S INPUT
+iptables -w 2 -t filter -S FORWARD
+iptables -w 2 -t filter -S OUTPUT
+iptables -w 2 -t nat -S PREROUTING
+iptables -w 2 -t nat -S OUTPUT
+iptables -w 2 -t nat -S POSTROUTING
+logger -t ufw-heal -- phase-h:\ iptables:\ first\ read\ missing:filter/INPUT\>KUBE-EXTERNAL-SERVICES
+ip6tables -w 2 -t filter -S INPUT
+ip6tables -w 2 -t filter -S FORWARD
+ip6tables -w 2 -t filter -S OUTPUT
+ip6tables -w 2 -t nat -S PREROUTING
+ip6tables -w 2 -t nat -S OUTPUT
+ip6tables -w 2 -t nat -S POSTROUTING
+logger -t ufw-heal -- phase-h:\ ip6tables:\ first\ read\ ok
+iptables -w 2 -t mangle -S KUBE-PROXY-CANARY
+iptables -w 2 -t mangle -X KUBE-PROXY-CANARY
+iptables -w 2 -t nat -X KUBE-PROXY-CANARY
+logger -t ufw-heal -- phase-h:\ iptables:\ canary\ deleted
+sleep 5
+iptables -w 2 -t filter -S INPUT
+iptables -w 2 -t filter -S FORWARD
+iptables -w 2 -t filter -S OUTPUT
+iptables -w 2 -t nat -S PREROUTING
+iptables -w 2 -t nat -S OUTPUT
+iptables -w 2 -t nat -S POSTROUTING
+ip6tables -w 2 -t filter -S INPUT
+ip6tables -w 2 -t filter -S FORWARD
+ip6tables -w 2 -t filter -S OUTPUT
+ip6tables -w 2 -t nat -S PREROUTING
+ip6tables -w 2 -t nat -S OUTPUT
+ip6tables -w 2 -t nat -S POSTROUTING
+sleep 5
+iptables -w 2 -t filter -S INPUT
+iptables -w 2 -t filter -S FORWARD
+iptables -w 2 -t filter -S OUTPUT
+iptables -w 2 -t nat -S PREROUTING
+iptables -w 2 -t nat -S OUTPUT
+iptables -w 2 -t nat -S POSTROUTING
+ip6tables -w 2 -t filter -S INPUT
+ip6tables -w 2 -t filter -S FORWARD
+ip6tables -w 2 -t filter -S OUTPUT
+ip6tables -w 2 -t nat -S PREROUTING
+ip6tables -w 2 -t nat -S OUTPUT
+ip6tables -w 2 -t nat -S POSTROUTING
+logger -t ufw-heal -- phase-h:\ kube-proxy\ jumps\ present\ in\ iptables\ ip6tables

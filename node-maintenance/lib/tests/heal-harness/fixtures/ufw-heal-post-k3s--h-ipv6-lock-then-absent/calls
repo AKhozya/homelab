@@ -1,0 +1,26 @@
+iptables -w 5 -t nat -S
+logger -t ufw-heal -- phase-g:\ no\ portmap\ chains\ \(no\ hostPort\ pods\ here\)\ —\ nothing\ to\ restore
+systemctl is-active --quiet k3s-agent.service
+systemctl show -p MainPID --value k3s-agent.service
+ip6tables -w 2 -t mangle -S KUBE-PROXY-CANARY
+ip6tables -w 2 -t nat -S KUBE-SERVICES
+iptables -w 2 -t filter -S INPUT
+iptables -w 2 -t filter -S FORWARD
+iptables -w 2 -t filter -S OUTPUT
+iptables -w 2 -t nat -S PREROUTING
+iptables -w 2 -t nat -S OUTPUT
+iptables -w 2 -t nat -S POSTROUTING
+logger -t ufw-heal -- phase-h:\ iptables:\ first\ read\ ok
+sleep 5
+ip6tables -w 2 -t mangle -S KUBE-PROXY-CANARY
+ip6tables -w 2 -t nat -S KUBE-SERVICES
+iptables -w 2 -t filter -S INPUT
+iptables -w 2 -t filter -S FORWARD
+iptables -w 2 -t filter -S OUTPUT
+iptables -w 2 -t nat -S PREROUTING
+iptables -w 2 -t nat -S OUTPUT
+iptables -w 2 -t nat -S POSTROUTING
+ip6tables -w 2 -t mangle -S KUBE-PROXY-CANARY
+ip6tables -w 2 -t nat -S KUBE-SERVICES
+logger -t ufw-heal -- phase-h:\ kube-proxy\ jumps\ present\ in\ iptables
+logger -t ufw-heal -- phase-h:\ no\ IPv6\ kube-proxy\ markers\ observed\ during\ this\ run

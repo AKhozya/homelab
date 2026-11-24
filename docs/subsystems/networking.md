@@ -106,7 +106,12 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 **Blocky config** is plain text in `apps/blocky/config.yml`; its comments give the reason where a setting needs one. The SOPS Secret `apps/blocky/credentials-secret.yaml` holds only the Redis password and the query-log DSN, which the config reads with `file:` (Blocky v0.31+).
 
 ## UFW firewall (post-reboot drift gotcha)
-At boot, kube-proxy, flannel and fail2ban write netfilter rules while UFW's `iptables-restore` runs, which can leave UFW chains (typically `ufw6-*`) missing. Every node runs `ufw-heal-post-k3s.service` (oneshot, after `k3s-wait-ready.service`): it creates each missing chain, then reloads UFW (`node-maintenance/ansible/roles/firewall/files/ufw-heal-post-k3s.sh`). Metric: `ufw_chains_healthy` (textfile collector). If `UfwChainsUnhealthy` fires: `sudo systemctl start ufw-heal-post-k3s.service` + `sudo systemctl start ufw-state-metric.service`.
+At boot, kube-proxy, flannel and fail2ban write netfilter rules while UFW's `iptables-restore` runs, which can leave UFW chains (typically `ufw6-*`) missing. Every node runs `ufw-heal-post-k3s.service` (oneshot, after `k3s-wait-ready.service`): it creates each missing chain, then reloads UFW (`node-maintenance/ansible/roles/firewall/files/ufw-heal-post-k3s.sh`). If the heal's recovery runs `ufw-init flush-all`, the flush removes kube-proxy's jumps from built-in chains. Phase H then polls kube-proxy's jumps for up to 75 s. If a read confirms a missing jump and more than 10 s remain both in the 75 s and before the script deadline, phase H can delete that family's mangle canary to request a kube-proxy full sync (phases in `node-maintenance/README.md`).
+
+| Item | Value |
+|---|---|
+| metric | `ufw_chains_healthy` (textfile collector) |
+| if `UfwChainsUnhealthy` fires | `sudo systemctl start ufw-heal-post-k3s.service`, then `sudo systemctl start ufw-state-metric.service` |
 
 ## TLS / certs
 - **cert-manager** with Cloudflare DNS-01 challenge

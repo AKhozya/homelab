@@ -18,6 +18,52 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-23 — ufw-heal: no second reload after a good one; kube-proxy resyncs after a flush-all
+
+The dual-stack lab's Task 11 cold boots of the CP lost the IPv4 `nat` `KUBE-SERVICES` jumps in 3 of 12 boots:
+
+| Step | Evidence |
+|---|---|
+| `ufw-heal-post-k3s.sh` phase E reloads UFW a second time after phase B's reload succeeded. About 160 s after boot the reload fails ("problem running ip6tables") and UFW goes inactive | the boot unit's journal |
+| `ufw-heal-watchdog.service` finds UFW inactive and recovers it with `ufw-init flush-all`, then enable | the watchdog unit's journal |
+| `flush_builtins` flushes the IPv4 `nat` built-in chains and deletes every `filter` user chain in both families. kube-proxy re-adds jumps from built-in chains only in a full sync. The flush keeps its mangle `KUBE-PROXY-CANARY`, so kube-proxy does not notice it | kube-proxy v1.37.2 source; a lab probe: the jumps stayed absent 90 s, then came back 10 s after the probe deleted the canary |
+
+| Change | Effect |
+|---|---|
+| phase E reloads only if every phase B attempt failed | removes the racing second reload |
+| new phase H: if recovery runs `flush-all`, phase H polls for up to 75 s every jump a kube-proxy full sync adds from a built-in chain, 14 per family. If a read confirms a missing jump and more than 10 s remain both in the 75 s and before the script deadline, phase H can delete that family's mangle canary up to three times, with at least 15 s between deletes for that family | deleting the canary requests a kube-proxy full sync; a later read checks whether the jumps returned |
+| phases B and E first wait up to 30 s for kube-proxy's IPv4 canary | a reload is less likely to overlap kube-proxy's start |
+| the script limits each wait, `ufw status` read and `iptables` call to a work budget 15 s short of the unit's timeout, and sets that 15 s aside to report a failure | `ufw reload` and `ufw enable` have no timeout of their own, so systemd can still stop a slow run |
+| if phase G or H fails, one Telegram alert lists each failed phase and its reason | one message per run, not one per failure |
+
+kube-proxy's startup log on the production nodes, whose `node-ip` is IPv4 only:
+
+| Node | Log line |
+|---|---|
+| `gmk-k3s-control-plane`, `worker-node`, `worker-node-2` | `running in dual-stack mode`, so phase H should check IPv6 there too |
+| `immich-vm` | not read: the SSH connection from the Mac timed out during the 2026-11-23 check |
+
+A read-only root check on 2026-11-24 loaded this script's functions on three live nodes and printed what phase H reads there:
+
+| Node | iptables binary K3s uses | IPv6 markers | Canary read, both families | 14 jumps per family |
+|---|---|---|---|---|
+| `gmk-k3s-control-plane` | host `xtables-nft-multi` v1.8.13 (nf_tables) | present | exit 0 | all present |
+| `worker-node` | bundled `bin/aux/xtables-nft-multi` v1.8.11 (nf_tables) | present | exit 0 | all present |
+| `worker-node-2` | bundled `bin/aux/xtables-nft-multi` v1.8.11 (nf_tables) | present | exit 0 | all present |
+
+Lab re-spike (Task 12), on dual-stack lab VMs with K3s's bundled nft iptables:
+
+| Check | Result |
+|---|---|
+| 12 cold boots of the CP | every boot keeps all ten checked jumps. In every heal run, phase E skips after a successful phase B |
+| a UFW `flush-all` (the manual run) | phase H, which then checked three jumps per family (`nat` `PREROUTING` and `OUTPUT`, `filter` `FORWARD` to `KUBE-FORWARD`), logs all three missing in IPv4 and the `FORWARD` jump missing in IPv6, and deletes both canaries at +43.6 s; it logs all of them present at +49.3 s. The lab sampler, reading ten jumps every 5 s, sees them back by its +49 s sample. The K3s PID stays the same |
+
+The heal harness gains:
+
+- 32 new ufw-heal scenarios for phases E, G and H, 37 in total;
+- a model of kube-proxy's rules, per family and per jump;
+- a fake `/proc/uptime` for the script's time budget.
+
 ### 2026-11-23 — Blocky loads its lists in the background (`loading.strategy: fast`)
 
 | Observation | Source |

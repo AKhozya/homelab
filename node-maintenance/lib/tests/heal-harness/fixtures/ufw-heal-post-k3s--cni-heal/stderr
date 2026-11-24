@@ -1,1 +1,3 @@
 [ufw-heal] phase-g: no portmap chains (no hostPort pods here) — nothing to restore
+[ufw-heal] phase-h: cannot find the iptables binary k3s uses — kube-proxy resync NOT triggered
+/repo/node-maintenance/ansible/roles/firewall/files/ufw-heal-post-k3s.sh: line N: /usr/local/sbin/telegram-notify.sh: No such file or directory

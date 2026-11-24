@@ -1,0 +1,5 @@
+[ufw-heal] phase-g: no portmap chains (no hostPort pods here) — nothing to restore
+[ufw-heal] phase-h: iptables: first read ok
+[ufw-heal] phase-h: ip6tables: first read missing:filter/FORWARD>KUBE-EXTERNAL-SERVICES,filter/FORWARD>KUBE-SERVICES,filter/FORWARD>KUBE-FORWARD,filter/FORWARD>KUBE-PROXY-FIREWALL
+[ufw-heal] phase-h: ip6tables: canary deleted
+[ufw-heal] phase-h: kube-proxy jumps present in iptables ip6tables
