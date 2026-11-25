@@ -24,10 +24,10 @@ The CP sync alerted with exit 128 because GitHub refused the deploy key for a sh
 
 | When (UTC) | Evidence |
 |---|---|
-| Nov 24 21:00, 23:00, 23:30 | the first fetch gets `Permission denied (publickey)`; the second, 5 s later, succeeds |
+| Nov 24 21:00, 23:00, 23:30 | in each run the first fetch gets `Permission denied (publickey)`; the second, after the 5 s wait, succeeds (journal of each run) |
 | Nov 25 00:30:42–00:30:58 | all 3 fetches get the same refusal; the run exits 128 and alerts |
 | Nov 25 00:40 | the next run fetches with the same key |
-| Nov 24–25 | the githubstatus.com incidents API lists only Copilot incidents |
+| Nov 24–25 | the githubstatus.com incidents API lists only Copilot incidents created in this window |
 
 `lib/sync-from-git.sh` now makes 4 fetch attempts, with waits of 5 s, 30 s and 60 s. If all 4 fail, the run still exits 128 and alerts. The sync failures of Nov 14 and Nov 22 were DNS outages on the CP, a different cause.
 

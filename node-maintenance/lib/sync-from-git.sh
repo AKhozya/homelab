@@ -25,8 +25,7 @@ if [ ! -d "$REPO_DIR/.git" ]; then
 fi
 
 # GitHub sometimes refuses the deploy key ("Permission denied (publickey)") for a short time, then
-# accepts it. The growing waits give it time to recover. If all 4 attempts fail, the run exits 128
-# and the unit's ExecStopPost alerts.
+# accepts it. If all 4 attempts fail, the run exits 128 and the unit's ExecStopPost alerts.
 FETCH_RETRY_DELAYS=(5 30 60)
 MAX_ATTEMPTS=$((${#FETCH_RETRY_DELAYS[@]} + 1))
 attempt=1
