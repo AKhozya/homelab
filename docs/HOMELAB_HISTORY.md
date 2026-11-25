@@ -20,7 +20,16 @@ The table summarises the months before the dated entries below.
 
 ### 2026-11-25 — node-maintenance-sync: longer waits between `git fetch` tries
 
-At 00:30 UTC the CP sync alerted with exit 128. GitHub answered all 3 fetch tries, 5 s apart, with `Permission denied (publickey)`, and the next run 10 minutes later fetched with the same deploy key. Three runs on Nov 24 had hit the same refusal and recovered on their second try. githubstatus.com listed no Git incident. `lib/sync-from-git.sh` now waits 5 s, 30 s and 60 s between 4 tries. A DNS outage on the CP, as on Nov 14 and Nov 22, lasts longer than that, so it still alerts.
+The CP sync alerted with exit 128 because GitHub refused the deploy key for a short time:
+
+| When (UTC) | Evidence |
+|---|---|
+| Nov 24 21:00, 23:00, 23:30 | the first fetch gets `Permission denied (publickey)`; the second, 5 s later, succeeds |
+| Nov 25 00:30:42–00:30:58 | all 3 fetches get the same refusal; the run exits 128 and alerts |
+| Nov 25 00:40 | the next run fetches with the same key |
+| Nov 24–25 | the githubstatus.com incidents API lists only Copilot incidents |
+
+`lib/sync-from-git.sh` now makes 4 fetch attempts, with waits of 5 s, 30 s and 60 s. If all 4 fail, the run still exits 128 and alerts. The sync failures of Nov 14 and Nov 22 were DNS outages on the CP, a different cause.
 
 ### 2026-11-23 — ufw-heal: no second reload after a good one; kube-proxy resyncs after a flush-all
 
