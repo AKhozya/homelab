@@ -24,19 +24,20 @@ if [ ! -d "$REPO_DIR/.git" ]; then
   git clone --depth=50 -b "$BRANCH" "$REPO_URL" "$REPO_DIR"
 fi
 
-# Retry git fetch — transient SSH/network failures are common (exit 128)
-MAX_RETRIES=3
-RETRY_DELAY=5
-for attempt in $(seq 1 "$MAX_RETRIES"); do
-  if git -C "$REPO_DIR" fetch --depth=50 origin "$BRANCH"; then
-    break
-  fi
-  if [ "$attempt" -eq "$MAX_RETRIES" ]; then
-    echo "==> git fetch failed after $MAX_RETRIES attempts" >&2
+# GitHub sometimes refuses the deploy key ("Permission denied (publickey)") for a short time, then
+# accepts it. If all 4 attempts fail, the run exits 128 and the unit's ExecStopPost alerts.
+FETCH_RETRY_DELAYS=(5 30 60)
+MAX_ATTEMPTS=$((${#FETCH_RETRY_DELAYS[@]} + 1))
+attempt=1
+until git -C "$REPO_DIR" fetch --depth=50 origin "$BRANCH"; do
+  if [ "$attempt" -eq "$MAX_ATTEMPTS" ]; then
+    echo "==> git fetch failed after $MAX_ATTEMPTS attempts" >&2
     exit 128
   fi
-  echo "==> git fetch failed (attempt $attempt/$MAX_RETRIES); retrying in ${RETRY_DELAY}s..."
-  sleep "$RETRY_DELAY"
+  delay=${FETCH_RETRY_DELAYS[attempt - 1]}
+  echo "==> git fetch failed (attempt $attempt/$MAX_ATTEMPTS); retrying in ${delay}s..."
+  sleep "$delay"
+  attempt=$((attempt + 1))
 done
 
 git -C "$REPO_DIR" checkout "$BRANCH" >/dev/null 2>&1 || true
