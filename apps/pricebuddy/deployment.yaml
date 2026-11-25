@@ -218,13 +218,15 @@ spec:
             runAsNonRoot: true
             capabilities:
               drop: ["ALL"]
+          # Apprise 2.2.0 idles at 239-246Mi. If the working set stays above 80%
+          # of the limit for 15 minutes, ContainerMemoryNearLimit fires.
           resources:
             requests:
               cpu: "50m"
-              memory: "224Mi"
+              memory: "256Mi"
             limits:
               cpu: "200m"
-              memory: "300Mi"
+              memory: "384Mi"
           # On a gunicorn+gevent cold start the socket appears about 15s in, and the first
           # /status request blocks for over 3s on worker import. With timeoutSeconds 3 every
           # probe timed out, so startup and liveness killed the pod mid-boot into
