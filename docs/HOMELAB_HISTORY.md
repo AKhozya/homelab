@@ -18,6 +18,10 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-25 — node-maintenance-sync: longer waits between `git fetch` tries
+
+At 00:30 UTC the CP sync alerted with exit 128. GitHub answered all 3 fetch tries, 5 s apart, with `Permission denied (publickey)`, and the next run 10 minutes later fetched with the same deploy key. Three runs on Nov 24 had hit the same refusal and recovered on their second try. githubstatus.com listed no Git incident. `lib/sync-from-git.sh` now waits 5 s, 30 s and 60 s between 4 tries. A DNS outage on the CP, as on Nov 14 and Nov 22, lasts longer than that, so it still alerts.
+
 ### 2026-11-23 — ufw-heal: no second reload after a good one; kube-proxy resyncs after a flush-all
 
 The dual-stack lab's Task 11 cold boots of the CP lost the IPv4 `nat` `KUBE-SERVICES` jumps in 3 of 12 boots:

@@ -305,6 +305,7 @@ running ip6tables".
 | `community.general.ufw` | 5 | 10s | brief `ip6tables` races with kube-router and fail2ban |
 | `fwupdmgr update` (firmware apply) | 3 | 20s | LVFS server 5xx during fetch or verify |
 | `systemd-resolved` restart handler | 2 | 5s | DNS churn during CP reboots |
+| `git fetch` in `lib/sync-from-git.sh` (not ansible) | 3 | 5s, 30s, 60s | GitHub briefly refuses the deploy key ("Permission denied (publickey)"); on 2026-11-25 that outlasted 3 tries 5 s apart |
 
 These are **not** retried, so they fail at once:
 
