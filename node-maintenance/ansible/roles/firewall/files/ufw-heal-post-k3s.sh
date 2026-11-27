@@ -598,6 +598,31 @@ kube_proxy_trigger() {
     echo "canary deleted"
 }
 
+# clusterip-heal-cp.sh reads this stamp after a confirmed wedge and waits for it to age before it
+# probes again. Phase H writes it at the canary delete, so the CP heal can see it before it decides
+# whether to restart K3s.
+# No lock covers phase H's callers, and two runs can overlap. If one run stalls between its date and
+# its rename, it can replace a newer stamp with an older one, so the date, the write and the rename
+# run under a lock. If the lock stays busy for 2 s, the run logs the failure and keeps the previous
+# stamp, and phase H continues. Phase H creates the lock file with mode 0600: if any account could
+# open it, any account could hold the lock and block every stamp.
+RESYNC_STAMP=/run/ufw-heal-kube-proxy-resync
+write_resync_stamp() {
+    (
+        umask 077
+        exec 9>"$RESYNC_STAMP.lock" || exit 1
+        /usr/bin/flock -w 2 9 || exit 1
+        tmp=$(mktemp "$RESYNC_STAMP.XXXXXX" 2>/dev/null) || exit 1
+        if date +%s >"$tmp" 2>/dev/null && mv -fT "$tmp" "$RESYNC_STAMP" 2>/dev/null; then
+            exit 0
+        fi
+        rm -f "$tmp"
+        exit 1
+    ) 2>/dev/null && return 0
+    log "phase-h: could not write $RESYNC_STAMP"
+    return 0
+}
+
 # If a read fails, phase H keeps that jump's last confirmed loss, so the trigger can still act on it.
 # If kube-proxy recreates the canary while a jump is still missing, another delete can request
 # another full sync: at most 3 deletes per family, at least 15 s after the previous one. A delete
@@ -647,6 +672,7 @@ phase_h_kube_proxy_resync() {
             fi
             out=$(kube_proxy_trigger "$dir/$fam" "$(trigger_limit "$end")")
             if [ "$out" = "canary deleted" ]; then
+                write_resync_stamp
                 deletes[$fam]=$((${deletes[$fam]:-0} + 1))
                 last_delete[$fam]=$(uptime_s)
                 read_after_delete[$fam]=""

@@ -52,8 +52,21 @@ fake_uptime() {
 case $1 in *[!0-9]*) echo "fake_uptime: sleep $1 is not whole seconds" >&2; exit 2 ;; esac
 read -r up _ </harness/uptime
 echo "$(( ${up%.*} + $1 )).00 0.00" >/harness/uptime
+. /harness/stamp-trace.sh
+stamp_trace sleep
 EOF
 }
+
+# A scenario that touches /harness/record-stamp gets /harness/stamp-trace: the resync stamp's first
+# line, or "absent", at each sleep and each jump chain read. Phase H's wait is nap, which calls sleep.
+cat >/harness/stamp-trace.sh <<'EOF'
+stamp_trace() {
+	[ -f /harness/record-stamp ] || return 0
+	local s
+	s=$(head -n1 /run/ufw-heal-kube-proxy-resync 2>/dev/null) || s=absent
+	echo "$* ${s:-empty}" >>/harness/stamp-trace
+}
+EOF
 
 # k3s_running: ufw-heal-post-k3s.sh takes the iptables binary from the PATH of K3s's main process.
 # The stub reports MainPID 1, and PID 1's PATH leads to the /usr/bin stub.
@@ -244,6 +257,8 @@ case "$*" in
 		touch /harness/kp/ip6tables/jumps /harness/kp/ip6tables/canary /harness/kp/ip6tables/kube-services
 		rm -f "$d/start-v6-on-forward-read"
 	fi
+	. /harness/stamp-trace.sh
+	stamp_trace "read $cmd ${!#}"
 	if read_fail; then
 		rc=4
 	else
@@ -302,6 +317,12 @@ for f in "${OUT_FILES[@]}"; do
 	if [ -f "$f" ]; then cp "$f" "/out/state/$(echo "$f" | tr '/' '_')"; fi
 done
 # Leftover temp files show up here: every directory the scripts write into, by name and mode.
-for d in /var/lib/node_exporter/textfile /var/lib/node-maintenance /var/lib/node-isolation-heal; do
-	if [ -d "$d" ]; then find "$d" -maxdepth 1 -type f -printf '%m %p\n'; fi
-done | sort >/out/listing
+{
+	for d in /var/lib/node_exporter/textfile /var/lib/node-maintenance /var/lib/node-isolation-heal; do
+		if [ -d "$d" ]; then find "$d" -maxdepth 1 -type f -printf '%m %p\n'; fi
+	done
+	# The resync stamp, the CP heal's skip record and any temp file either script leaves in /run.
+	find /run -maxdepth 1 -type f \( -name 'ufw-heal-kube-proxy-resync*' -o -name 'clusterip-heal-cp.skip*' \) -printf '%m %p\n'
+} | sort >/out/listing
+# mktemp's random suffix would change the fixture on every run.
+sed -i -E 's/(ufw-heal-kube-proxy-resync)\.[A-Za-z0-9]{6}/\1.TMP/g' /out/calls /out/stdout /out/stderr /out/listing

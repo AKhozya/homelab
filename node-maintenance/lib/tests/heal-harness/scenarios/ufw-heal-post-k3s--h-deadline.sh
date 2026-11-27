@@ -12,3 +12,6 @@ kp ip6tables canary
 kp ip6tables kube-services
 kp ip6tables jumps
 kp iptables no-resync
+echo "$((FAKE_NOW - 1000))" >/run/ufw-heal-kube-proxy-resync
+touch /harness/record-stamp
+OUT_FILES=(/run/ufw-heal-kube-proxy-resync /harness/stamp-trace)

@@ -1,0 +1,2 @@
+clusterip-heal-cp: ClusterIP DNAT WEDGED on harness-node (pod-netns probe).
+clusterip-heal-cp: within 300s cooldown (60s since last restart) — waiting a cycle.

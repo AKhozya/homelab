@@ -1,0 +1,3 @@
+clusterip-heal-cp: ClusterIP DNAT WEDGED on harness-node (pod-netns probe).
+clusterip-heal-cp: probing once more before a restart (waited 0 s, ufw-heal resync 40 s ago).
+clusterip-heal-cp: ClusterIP DNAT healthy on the second probe — no k3s restart.

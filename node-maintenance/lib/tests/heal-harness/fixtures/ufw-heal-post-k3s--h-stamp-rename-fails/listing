@@ -1,0 +1,2 @@
+600 /run/ufw-heal-kube-proxy-resync.lock
+644 /run/ufw-heal-kube-proxy-resync

@@ -1,0 +1,5 @@
+clusterip-heal-cp: ClusterIP DNAT WEDGED on harness-node (pod-netns probe).
+clusterip-heal-cp: ufw-heal requested a kube-proxy resync 20 s ago — waiting 20 s for it.
+clusterip-heal-cp: the wait failed — continuing to the usual restart checks.
+clusterip-heal-cp: restarting k3s (timeout 120s) to rebuild kube-proxy chains.
+clusterip-heal-cp: ClusterIP DNAT recovered after k3s restart #2 this window.

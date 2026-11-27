@@ -31,6 +31,68 @@ The CP sync alerted with exit 128 because GitHub refused the deploy key for a sh
 
 `lib/sync-from-git.sh` now makes 4 fetch attempts, with waits of 5 s, 30 s and 60 s. If all 4 fail, the run still exits 128 and alerts. The sync failures of Nov 14 and Nov 22 were DNS outages on the CP, a different cause.
 
+### 2026-11-24 — the CP ClusterIP heal waits for a ufw-heal resync before it restarts K3s
+
+In the dual-stack lab's Task 12 flush run 1 (2026-11-23), the CP ClusterIP heal restarted K3s shortly after ufw-heal's phase H had requested a kube-proxy full sync:
+
+| Time after the flush | Event |
+|---|---|
+| +39 s | phase H deletes the canaries |
+| +59 s | the lab sampler (about every 5.4 s) first shows every jump present |
+| +59.04 s | the CP heal logs a confirmed wedge |
+| +60.1 s | the CP heal logs `restarting k3s` |
+| +61.5 s | phase H first logs every jump present |
+
+Whether the sync was still running at +60.1 s is unknown.
+
+| Timing input | Value |
+|---|---|
+| kube-proxy's check for its deleted mangle canary | once per `iptables.syncPeriod`: 30 s on the production CP (`configz`) |
+| its wait for the nat and filter canaries to disappear | up to 5 s |
+| one sync on the CP | 0.48 s at p99 over 7 days |
+| the two lab flush runs: time from the canary delete to the first sample showing every jump | ≤5 s and 15-20 s |
+
+An immediate second probe can finish before kube-proxy restores connectivity. The heal's target stamp age of 40 s is the operator's allowance over these inputs, not a bound.
+
+| Change | Where |
+|---|---|
+| at each canary delete, phase H writes the time to `/run/ufw-heal-kube-proxy-resync` before it waits: under a lock (`flock -w 2` on `/run/ufw-heal-kube-proxy-resync.lock`) it writes a `mktemp` file and renames it into place with `mv -fT`. The lock keeps two overlapping runs from replacing a newer stamp with an older one. If the lock stays busy for 2 s, the run logs it and keeps the previous stamp. Phase H creates the lock file with mode 0600, so no other account can open it to hold the lock | `ufw-heal-post-k3s.sh` |
+| after a confirmed wedge, and after the cap and cooldown checks, the heal reads the stamp. If the stamp is at most 90 s old, the heal waits for it to reach 40 s. After each wait it reads the stamp again, so a newer canary delete extends the wait. The wait ends when the newest stamp is 40 s old or after 75 s in total | `clusterip-heal-cp.sh` |
+| if the waits succeed, the heal probes once more. If that probe returns 0, the run ends healthy: no restart, and the saved restart count unchanged. If it returns anything else, the heal continues to its usual state write in the same timer run, and restarts K3s only if the save succeeds. If a wait fails, the heal skips the second probe and goes to the state write | `clusterip-heal-cp.sh` |
+
+| Trade-off | Effect |
+|---|---|
+| if ufw-heal's repair failed | the heal attempts the restart in the same timer run, if it can first save the restart count: up to 75 s later than before, plus the second probe's time |
+| if the heal confirms a wedge between the flush and phase H's first canary delete (2026-11-23: about +27 s to +39 s) | this run has written no stamp yet; if no earlier stamp is still fresh, the heal restarts K3s as before |
+| if connectivity is intermittent and one sample of the second probe connects | the run ends healthy; if the wedge returns, the next chance to restart is the next timer run, about 3 min later |
+
+Lab test, 2026-11-27:
+
+| Setup | Value |
+|---|---|
+| node | a single-node lab CP, K3s v1.37.2+k3s1 |
+| kube-proxy | `iptables.syncPeriod` 30s, `minSyncPeriod` 1s (the lab CP's `configz`; the 2026-11-24 reading from the production CP's `configz` shows the same values) |
+| trigger | a watcher starts the CP heal when phase H logs its first IPv4 canary deletion |
+| times | seconds after the run disables UFW and starts `ufw-heal-post-k3s.sh` by hand |
+| scripts | runs 1-3: both scripts byte-identical to this commit; control: the same `ufw-heal-post-k3s.sh` and the previous `clusterip-heal-cp.sh` |
+
+| Run | IPv4 `KUBE-SERVICES` jumps present | First probe | Outcome |
+|---|---|---|---|
+| 1 | +65.9 s | wedge at +59.6 s | waits 20 s; healthy on the second probe at +85.3 s; no restart |
+| 2 | +64.9 s | wedge at +62.1 s | waits 19 s; healthy at +86.8 s; no restart |
+| 3 | +62.1 s | wedge at +62.3 s | waits 18 s; healthy at +86.0 s; no restart |
+| control | +62.8 s | wedge at +63.8 s | `restarting k3s` at +63.9 s |
+
+| Script | Heal-harness scenarios | Mutants |
+|---|---|---|
+| `ufw-heal-post-k3s.sh` | 9 phase H scenarios added or changed | the scenarios detect all 13 |
+| `clusterip-heal-cp.sh` | 34 new CP scenarios | the scenarios detect all 41 |
+
+| Rejected | Reason |
+|---|---|
+| skip the restart on a fresh stamp, without a second probe | if the repair fails, the restart waits a whole timer run |
+| a second probe at once | it can finish before kube-proxy restores connectivity |
+
 ### 2026-11-23 — ufw-heal: no second reload after a good one; kube-proxy resyncs after a flush-all
 
 The dual-stack lab's Task 11 cold boots of the CP lost the IPv4 `nat` `KUBE-SERVICES` jumps in 3 of 12 boots:

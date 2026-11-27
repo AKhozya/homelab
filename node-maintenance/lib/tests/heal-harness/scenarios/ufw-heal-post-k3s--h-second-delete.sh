@@ -13,3 +13,9 @@ kp ip6tables kube-services
 kp iptables resync-canary-first
 kp iptables resync-delay 3
 kp ip6tables jumps
+OUT_FILES=(/run/ufw-heal-kube-proxy-resync)
+# The wall clock follows the fake uptime, so the two deletes write different stamps.
+behave date <<'EOB'
+read -r up _ </proc/uptime
+if [ "${1:-}" = "+%s" ]; then echo "$((FAKE_NOW + ${up%.*} - 1000))"; else echo "Sat Oct  3 20:00:00 UTC 2026"; fi
+EOB
