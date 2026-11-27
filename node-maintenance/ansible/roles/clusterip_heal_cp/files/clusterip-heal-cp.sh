@@ -56,6 +56,34 @@ write_state() { # $1 win  $2 count  $3 total  $4 last
 	state_write "$STATE" "$@"
 }
 
+# ufw-heal-post-k3s.sh writes this stamp each time its phase H deletes kube-proxy's canary to request
+# a full sync. If the heal probes before that sync runs, it can confirm a wedge the sync is about to repair
+# (2026-11-23: this heal logged its restart 1.4 s before phase H logged the jumps present).
+RESYNC_STAMP=/run/ufw-heal-kube-proxy-resync
+RESYNC_MAX_AGE=90 # phase H's 75 s window and a 15 s allowance
+# kube-proxy looks for its deleted mangle canary once per iptables syncPeriod (30 s on the CP), waits
+# up to 5 s for the nat and filter canaries to disappear, then syncs (0.48 s at p99 on the CP).
+# 40 s is the operator's allowance over those, not a bound.
+RESYNC_SETTLE=40
+# Phase H deletes at most 3 times per family, at least 15 s apart, inside its own 75 s window.
+RESYNC_WAIT_MAX=75
+resync_age=""
+
+# If phase H writes a stamp between a clock read and a stamp read, the new stamp looks future, so
+# the stamp comes first.
+resync_stamp_fresh() {
+	local stamp="" clock age
+	# If the path names a FIFO with no writer, opening it for reading blocks the heal.
+	[ -f "$RESYNC_STAMP" ] && [ -r "$RESYNC_STAMP" ] || return 1
+	IFS= read -r stamp <"$RESYNC_STAMP" 2>/dev/null || [ -n "$stamp" ] || return 1
+	[[ $stamp =~ ^[0-9]{1,12}$ ]] || return 1
+	clock=$(date +%s) || return 1
+	[[ $clock =~ ^[0-9]+$ ]] || return 1
+	age=$((clock - 10#$stamp))
+	((age >= 0 && age <= RESYNC_MAX_AGE)) || return 1
+	resync_age=$age
+}
+
 # k3s.service must exist + be active. This also makes the script a safe no-op off the CP (no k3s.service).
 if ! systemctl is-active --quiet k3s.service; then
 	log "k3s.service not active here — nothing to heal (no-op off the CP)."
@@ -110,6 +138,43 @@ if [ "$last" -ne 0 ] && [ "$((now - last))" -lt "$COOLDOWN" ]; then
 	log "within ${COOLDOWN}s cooldown ($((now - last))s since last restart) — waiting a cycle."
 	emit_metric 1 "$total" 0
 	exit 1
+fi
+
+# After the cap and cooldown checks, so the second probe never hides a give-up or shortens a
+# cooldown. Rejected: a second probe on every wedge, because if connectivity is intermittent, one
+# connected sample would end the run without a restart.
+if resync_stamp_fresh; then
+	waited=0
+	wait_ok=1
+	# If phase H deletes the canary again during a wait, the re-read finds the newer request.
+	while [ "$resync_age" -lt "$RESYNC_SETTLE" ] && [ "$waited" -lt "$RESYNC_WAIT_MAX" ]; do
+		settle=$((RESYNC_SETTLE - resync_age))
+		[ "$settle" -le $((RESYNC_WAIT_MAX - waited)) ] || settle=$((RESYNC_WAIT_MAX - waited))
+		log "ufw-heal requested a kube-proxy resync ${resync_age} s ago — waiting ${settle} s for it."
+		# If sleep fails, set -e would end the run before the restart checks.
+		if ! sleep "$settle"; then
+			wait_ok=0
+			break
+		fi
+		waited=$((waited + settle))
+		if ! resync_stamp_fresh; then
+			resync_age=""
+			break
+		fi
+	done
+	if [ "$wait_ok" -eq 0 ]; then
+		log "the wait failed — continuing to the usual restart checks."
+	else
+		log "probing once more before a restart (waited ${waited} s${resync_age:+, ufw-heal resync ${resync_age} s ago})."
+		rprc=0
+		"$PROBE" >/dev/null 2>&1 || rprc=$?
+		if [ "$rprc" -eq 0 ]; then
+			log "ClusterIP DNAT healthy on the second probe — no k3s restart."
+			emit_metric 0 "$total" 0
+			exit 0
+		fi
+		log "second probe rc=$rprc — continuing to the usual restart checks."
+	fi
 fi
 
 # Save the incremented count before the restart, so a failed or timed-out restart still counts

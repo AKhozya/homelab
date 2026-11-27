@@ -1,0 +1,3 @@
+644 /run/ufw-heal-kube-proxy-resync
+644 /var/lib/node-maintenance/clusterip-heal-cp.state
+644 /var/lib/node_exporter/textfile/clusterip_heal_cp.prom

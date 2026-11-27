@@ -1,0 +1,12 @@
+systemctl is-active --quiet k3s.service
+date +%s
+clusterip-probe-cp.sh
+hostname
+logger -t clusterip-heal-cp -- ClusterIP\ DNAT\ WEDGED\ on\ harness-node\ \(pod-netns\ probe\).
+date +%s
+logger -t clusterip-heal-cp -- ufw-heal\ requested\ a\ kube-proxy\ resync\ 20\ s\ ago\ —\ waiting\ 20\ s\ for\ it.
+sleep 20
+date +%s
+logger -t clusterip-heal-cp -- probing\ once\ more\ before\ a\ restart\ \(waited\ 20\ s\,\ ufw-heal\ resync\ 40\ s\ ago\).
+clusterip-probe-cp.sh
+logger -t clusterip-heal-cp -- ClusterIP\ DNAT\ healthy\ on\ the\ second\ probe\ —\ no\ k3s\ restart.

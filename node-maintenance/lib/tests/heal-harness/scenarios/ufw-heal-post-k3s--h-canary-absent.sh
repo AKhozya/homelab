@@ -11,3 +11,4 @@ kp iptables resync-at 1012
 kp ip6tables canary
 kp ip6tables kube-services
 kp ip6tables jumps
+OUT_FILES=(/run/ufw-heal-kube-proxy-resync)

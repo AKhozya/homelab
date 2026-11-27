@@ -20,6 +20,7 @@ logger -t ufw-heal -- phase-h:\ ip6tables:\ first\ read\ ok
 iptables -w 2 -t mangle -S KUBE-PROXY-CANARY
 iptables -w 2 -t mangle -X KUBE-PROXY-CANARY
 iptables -w 2 -t nat -X KUBE-PROXY-CANARY
+date +%s
 logger -t ufw-heal -- phase-h:\ iptables:\ canary\ deleted
 sleep 5
 iptables -w 2 -t filter -S INPUT
@@ -63,6 +64,7 @@ ip6tables -w 2 -t nat -S POSTROUTING
 iptables -w 2 -t mangle -S KUBE-PROXY-CANARY
 iptables -w 2 -t mangle -X KUBE-PROXY-CANARY
 iptables -w 2 -t nat -X KUBE-PROXY-CANARY
+date +%s
 logger -t ufw-heal -- phase-h:\ iptables:\ canary\ deleted
 sleep 5
 iptables -w 2 -t filter -S INPUT

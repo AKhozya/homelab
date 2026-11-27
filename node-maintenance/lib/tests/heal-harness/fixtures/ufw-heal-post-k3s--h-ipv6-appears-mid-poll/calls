@@ -22,6 +22,7 @@ logger -t ufw-heal -- phase-h:\ ip6tables:\ first\ read\ missing:filter/FORWARD\
 ip6tables -w 2 -t mangle -S KUBE-PROXY-CANARY
 ip6tables -w 2 -t mangle -X KUBE-PROXY-CANARY
 ip6tables -w 2 -t nat -X KUBE-PROXY-CANARY
+date +%s
 logger -t ufw-heal -- phase-h:\ ip6tables:\ canary\ deleted
 sleep 5
 iptables -w 2 -t filter -S INPUT

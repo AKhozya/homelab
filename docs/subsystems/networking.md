@@ -106,7 +106,16 @@ Older copies also live in the `monitoring` namespace (`csp`, `rate-limit-standar
 **Blocky config** is plain text in `apps/blocky/config.yml`; its comments give the reason where a setting needs one. The SOPS Secret `apps/blocky/credentials-secret.yaml` holds only the Redis password and the query-log DSN, which the config reads with `file:` (Blocky v0.31+).
 
 ## UFW firewall (post-reboot drift gotcha)
-At boot, kube-proxy, flannel and fail2ban write netfilter rules while UFW's `iptables-restore` runs, which can leave UFW chains (typically `ufw6-*`) missing. Every node runs `ufw-heal-post-k3s.service` (oneshot, after `k3s-wait-ready.service`): it creates each missing chain, then reloads UFW (`node-maintenance/ansible/roles/firewall/files/ufw-heal-post-k3s.sh`). If the heal's recovery runs `ufw-init flush-all`, the flush removes kube-proxy's jumps from built-in chains. Phase H then polls kube-proxy's jumps for up to 75 s. If a read confirms a missing jump and more than 10 s remain both in the 75 s and before the script deadline, phase H can delete that family's mangle canary to request a kube-proxy full sync (phases in `node-maintenance/README.md`).
+At boot, kube-proxy, flannel and fail2ban write netfilter rules while UFW's `iptables-restore` runs, which can leave UFW chains (typically `ufw6-*`) missing. Every node runs `ufw-heal-post-k3s.service` (oneshot, after `k3s-wait-ready.service`): it creates each missing chain, then reloads UFW (`node-maintenance/ansible/roles/firewall/files/ufw-heal-post-k3s.sh`). If the heal's recovery runs `ufw-init flush-all`, the flush removes kube-proxy's jumps from built-in chains. Phase H then polls kube-proxy's jumps for up to 75 s. If a read confirms a missing jump and more than 10 s remain both in the 75 s and before the script deadline, phase H can delete that family's mangle canary to request a kube-proxy full sync (phases in `node-maintenance/README.md`). At each delete, phase H tries to write `/run/ufw-heal-kube-proxy-resync` under a lock. If the lock stays busy for 2 s, it logs the failure, keeps the previous stamp and continues. The CP's ClusterIP heal reads that stamp after it confirms a wedge, if the cap and the cooldown permit a restart:
+
+| If | The heal |
+|---|---|
+| the stamp is missing, invalid, from the future or older than 90 s | skips the second probe and writes the restart state |
+| the stamp is under 40 s old | waits for it to reach 40 s, reads it again after each wait, and stops waiting after 75 s in total |
+| a wait fails | skips the second probe and goes to its usual restart checks |
+| otherwise, after the wait or at once for a stamp 40-90 s old | probes once more |
+| that probe is healthy | ends the run without a restart |
+| that probe fails | goes to its usual restart checks: it saves the restart count, and restarts K3s only if the save succeeds |
 
 | Item | Value |
 |---|---|

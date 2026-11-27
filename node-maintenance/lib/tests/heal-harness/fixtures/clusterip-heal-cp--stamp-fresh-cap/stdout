@@ -1,0 +1,2 @@
+clusterip-heal-cp: ClusterIP DNAT WEDGED on harness-node (pod-netns probe).
+clusterip-heal-cp: still wedged after 3 k3s restart(s) in 30min — giving up, NOT restarting. Deeper fault than the iptables-restore wedge; investigate.
