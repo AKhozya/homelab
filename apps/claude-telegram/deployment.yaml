@@ -286,7 +286,7 @@ spec:
               # restart pod.
               mkdir -p ~/.codex
               cat > ~/.codex/config.toml <<'CODEXCFG'
-              model = "gpt-5.5"
+              model = "gpt-6.2-astra"
               model_reasoning_effort = "xhigh"
               # Pod seccomp (RuntimeDefault) blocks unprivileged user namespaces -> codex's
               # bwrap sandbox cannot start (verified in-pod). The pod IS the sandbox:
@@ -407,6 +407,11 @@ spec:
             # native-tool gates stay on.
             - name: BASH_SANDBOX_ENABLED
               value: "false"
+            # reviewer-peer passes --ignore-user-config, so Codex ignores the sandbox_mode
+            # above during reviews. The pod's seccomp profile prevents bwrap from starting.
+            # If KUBERNETES_SERVICE_HOST is unset, the wrapper rejects this override.
+            - name: REVIEWER_PEER_CODEX_SANDBOX
+              value: danger-full-access
             # Arms the external Bash denylist. If this is unset, that layer switches off silently.
             # The chezmoi-init container asserts that this script exists and is executable, so a
             # stale path fails the pod.
