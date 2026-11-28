@@ -18,6 +18,20 @@ The table summarises the months before the dated entries below.
 
 ## Changelog
 
+### 2026-11-28 — alert on a flapping NIC link
+
+If a physical NIC (`en*`, `eth*`) has more than 4 carrier changes in 10 minutes, `NodeNetworkLinkFlapping` fires at warning severity.
+
+The table shows the results of a backtest over the 90 days that vmsingle keeps, at a 5-minute step:
+
+| Expression | Matched samples |
+|---|---|
+| more than 2 changes | only CP `enp3s0`: 2026-09-12, 09-17, 11-08, 11-14, 11-17, 11-21/22 and 11-27, up to 248 changes in 10 minutes. The 11-08 sample (4 changes) is 12 minutes after a boot |
+| more than 2 changes, and the node up for 15 minutes | excludes every 11-14 sample and 3 of the 4 11-27 samples |
+| more than 4 changes (chosen) | every sample of the first row except 11-08 |
+
+The rule uses `> 4` to exclude routine boot counts of 1 or 2 and the 4-change sample on 2026-11-08. After the CP link flaps in the table, the operator replaced the CP cable and switch port on 2026-11-27.
+
 ### 2026-11-25 — node-maintenance-sync: longer waits between `git fetch` tries
 
 The CP sync alerted with exit 128 because GitHub refused the deploy key for a short time:
