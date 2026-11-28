@@ -360,6 +360,20 @@ spec:
         summary: "Network errors on {{ $labels.instance }}"
         description: "Network interface {{ $labels.device }} is experiencing errors ({{ printf \"%.0f\" $value }}/s). Check network hardware and cables."
 
+    - alert: NodeNetworkLinkFlapping
+      # `> 4`: a routine boot adds 1 or 2 carrier changes. On 2026-11-08 the 10m count is 4 at a
+      # sample 12 minutes after a boot. No uptime guard: in the backtest, a 15m uptime filter
+      # excludes every 2026-11-14 match and 3 of 4 matches on 2026-11-27. No `for`: the alert
+      # fires on the first match and clears if the 10m count falls to 4 or less.
+      expr: increase(node_network_carrier_changes_total{device=~"en.*|eth.*"}[10m]) > 4
+      labels:
+        severity: warning
+      annotations:
+        summary: "Network link flapping on {{ $labels.instance }} {{ $labels.device }}"
+        description: "Interface {{ $labels.device }} on {{ $labels.instance }} had {{ printf \"%.0f\" $value }} carrier changes
+          in 10 minutes. Check the cable, the switch port and `journalctl -k -g 'link is (up|down)'` on the node. If
+          the node rebooted after the alert, add `-b-1` to read the previous boot."
+
   - name: storage-alerts
     interval: 60s
     rules:
